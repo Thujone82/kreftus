@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Double Pendulum Simulator v0.7</title>
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#000030">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="description" content="A physics-based double pendulum simulator with customizable parameters and dynamic theming.">
+
+
+    <style>
+        :root {
+            --sim-background-color: #000030; 
+            --main-color: #F0F0F8;
+            --panel-bg-color: rgba(40, 40, 70, 0.9); 
+            --panel-border-color: #505070; 
+            --text-color: #EAEAEA; 
+            --button-text-color: var(--sim-background-color);
+
+            /* CSS variables for slider styling */
+            --slider-thumb-color: var(--main-color);
+            --slider-track-fill-color: var(--main-color);
+            --slider-track-bg-color: #555560; 
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            color: var(--text-color); 
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            overflow-x: hidden; 
+            padding-top: 20px;
+            box-sizing: border-box;
+            transition: background-color 0.3s ease; 
+        }
+
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            width: 100%;
+            max-width: 1400px;
+            padding: 0 10px; 
+            box-sizing: border-box;
+        }
+
+        .panel {
+            background-color: var(--panel-bg-color);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            color: var(--text-color); 
+            box-sizing: border-box;
+            transition: background-color 0.3s ease; 
+        }
+
+        #setup-panel {
+            width: 300px;
+            flex-shrink: 0; 
+            max-height: calc(100vh - 60px);
+            overflow-y: auto;
+            border: 2px solid var(--panel-border-color); 
+        }
+
+        #setup-panel h2 {
+            margin-top: 0;
+            color: var(--main-color); 
+            text-align: center;
+            border-bottom: 1px solid var(--panel-border-color);
+            padding-bottom: 10px;
+        }
+
+        .slider-container, .color-picker-container {
+            margin-bottom: 15px;
+        }
+
+        .slider-container label, .color-picker-container label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+
+        /* --- Custom Range Slider Styles --- */
+        input[type="range"] {
+            -webkit-appearance: none; 
+            appearance: none;
+            width: 100%; 
+            height: 8px; /* Track height */
+            background: var(--slider-track-bg-color); 
+            border-radius: 5px; 
+            outline: none; 
+            opacity: 0.9;
+            transition: opacity .15s ease-in-out;
+            margin-top: 5px;
+            margin-bottom: 5px;
+        }
+
+        input[type="range"]:hover {
+            opacity: 1; 
+        }
+
+        /* Thumb (Knob) Styles - WebKit (Chrome, Safari, Opera, Edge Chromium) */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; 
+            appearance: none;
+            width:22px; /* Increased thumb width */
+            height: 22px; /* Increased thumb height */
+            background: var(--slider-thumb-color); 
+            border-radius: 50%; 
+            border: 2px solid var(--slider-track-bg-color); 
+            cursor: pointer; 
+            margin-top: -0px; 
+        }
+
+        /* Thumb (Knob) Styles - Mozilla Firefox */
+        input[type="range"]::-moz-range-thumb {
+            width: 36px; /* Increased thumb width */
+            height: 36px; /* Increased thumb height */
+            background: var(--slider-thumb-color); 
+            border-radius: 50%; 
+            border: 2px solid var(--slider-track-bg-color);
+            cursor: pointer; 
+        }
+        
+        input[type="range"] {
+            background: linear-gradient(to right, 
+                var(--slider-track-fill-color) 0%, 
+                var(--slider-track-fill-color) var(--slider-fill-percent, 50%), 
+                var(--slider-track-bg-color) var(--slider-fill-percent, 50%), 
+                var(--slider-track-bg-color) 100%);
+        }
+
+        input[type="range"]::-moz-range-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: var(--slider-track-bg-color); 
+            border-radius: 5px;
+        }
+        input[type="range"]::-moz-range-progress {
+            background-color: var(--slider-track-fill-color);
+            height: 8px;
+            border-radius: 5px;
+        }
+        /* --- End Custom Range Slider Styles --- */
+
+
+        input[type="color"] {
+            width: 100%;
+            height: 30px;
+            border: 1px solid var(--panel-border-color);
+            border-radius: 4px;
+            cursor: pointer;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
+        input[type="color"]::-moz-color-swatch { border: none; border-radius: 3px; }
+
+
+        button {
+            display: block;
+            width: 100%;
+            padding: 10px 15px;
+            background-color: var(--main-color);
+            color: var(--button-text-color);
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: background-color 0.3s, color 0.3s, opacity 0.3s;
+            margin-top: 10px;
+            box-sizing: border-box;
+        }
+
+        button:hover {
+            opacity: 0.85;
+        }
+
+        button:disabled {
+            background-color: #777;
+            color: #ccc;
+            cursor: not-allowed;
+        }
+
+        #simulation-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-grow: 1; 
+            min-width: 320px; 
+        }
+
+        #pendulumCanvas {
+            border: 2px solid var(--main-color); /* Ensured 2px border */
+            display: block;
+            background-color: var(--sim-background-color);
+            max-width: 100%; 
+        }
+
+        #controls-panel {
+            margin-top: 10px;
+            width: auto; 
+            display: flex; 
+            gap: 10px;
+            background-color: transparent; 
+            box-shadow: none; 
+            padding: 0; 
+        }
+
+        #controls-panel button {
+            width: auto;
+            padding: 10px 20px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+                align-items: center;
+            }
+            #setup-panel {
+                width: 90%;
+                max-width: 400px; 
+                order: 1; 
+                max-height: none; 
+                margin-bottom: 20px;
+            }
+            #simulation-area {
+                order: 2; 
+                width: 100%;
+            }
+            #pendulumCanvas {
+                 width: 100% !important; 
+                 height: auto !important; 
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="setup-panel" class="panel">
+            <h2>Pendulum Config</h2>
+            <div class="slider-container">
+                <label for="length1">Length 1 (L1): <span id="length1-val">100</span>px</label>
+                <input type="range" id="length1" min="30" max="200" value="100">
+            </div>
+            <div class="slider-container">
+                <label for="length2">Length 2 (L2): <span id="length2-val">100</span>px</label>
+                <input type="range" id="length2" min="30" max="200" value="100">
+            </div>
+            <div class="slider-container">
+                <label for="mass1">Mass 1 (M1): <span id="mass1-val">10</span> (rel.)</label>
+                <input type="range" id="mass1" min="1" max="50" value="10">
+            </div>
+            <div class="slider-container">
+                <label for="mass2">Mass 2 (M2): <span id="mass2-val">10</span> (rel.)</label>
+                <input type="range" id="mass2" min="1" max="50" value="10">
+            </div>
+            <div class="slider-container">
+                <label for="angle1">Start Angle 1 (θ1): <span id="angle1-val">90</span>°</label>
+                <input type="range" id="angle1" min="-180" max="180" value="90">
+            </div>
+            <div class="slider-container">
+                <label for="angle2">Start Angle 2 (θ2): <span id="angle2-val">45</span>°</label>
+                <input type="range" id="angle2" min="-180" max="180" value="45">
+            </div>
+            <div class="color-picker-container">
+                <label for="simBgColorPicker">Simulation Background:</label>
+                <input type="color" id="simBgColorPicker" value="#000030">
+            </div>
+            <div class="color-picker-container">
+                <label for="mainColorPicker">Pendulum/Trace Color:</label>
+                <input type="color" id="mainColorPicker" value="#F0F0F8">
+            </div>
+            <button id="startButton">Start Simulation</button>
+        </div>
+
+        <div id="simulation-area">
+            <canvas id="pendulumCanvas"></canvas>
+            <div id="controls-panel" class="panel hidden"> <button id="stopButton">Stop Simulation</button>
+                <button id="downloadButton" class="hidden">Download Trace</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            try { 
+                const canvas = document.getElementById('pendulumCanvas');
+                if (!canvas) {
+                    console.error("Fatal Error: Canvas element not found.");
+                    alert("Error: Canvas element not found. The simulation cannot start.");
+                    return;
+                }
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    console.error("Fatal Error: Canvas 2D context not available.");
+                    alert("Error: Canvas 2D context not available. The simulation cannot start.");
+                    return;
+                }
+
+                const setupPanel = document.getElementById('setup-panel');
+                const controlsPanel = document.getElementById('controls-panel');
+
+                const length1Slider = document.getElementById('length1');
+                const length1Val = document.getElementById('length1-val');
+                const length2Slider = document.getElementById('length2');
+                const length2Val = document.getElementById('length2-val');
+                const mass1Slider = document.getElementById('mass1');
+                const mass1Val = document.getElementById('mass1-val');
+                const mass2Slider = document.getElementById('mass2');
+                const mass2Val = document.getElementById('mass2-val');
+                const angle1Slider = document.getElementById('angle1');
+                const angle1Val = document.getElementById('angle1-val');
+                const angle2Slider = document.getElementById('angle2');
+                const angle2Val = document.getElementById('angle2-val');
+
+                const simBgColorPicker = document.getElementById('simBgColorPicker'); 
+                const mainColorPickerEl = document.getElementById('mainColorPicker'); 
+
+                const startButton = document.getElementById('startButton');
+                const stopButton = document.getElementById('stopButton');
+                const downloadButton = document.getElementById('downloadButton');
+
+                let L1, L2, M1, M2, A1_start, A2_start;
+                let Th1, Th2, W1, W2; 
+                
+                const g = 9.81; 
+                const dt = 0.016; 
+                const physicsStepsPerFrame = 5; 
+
+                let trace = [];
+                let animationFrameId;
+                let isRunning = false;
+
+                let currentSimBackgroundColor = simBgColorPicker.value;
+                let currentMainColor = mainColorPickerEl.value;
+
+                // --- Color Helper Functions ---
+                function hexToRgb(hex) {
+                    let shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+                    hex = hex.replace(shorthandRegex, function(m, r, g, b) {
+                        return r + r + g + g + b + b;
+                    });
+                    let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                    return result ? {
+                        r: parseInt(result[1], 16),
+                        g: parseInt(result[2], 16),
+                        b: parseInt(result[3], 16)
+                    } : null;
+                }
+
+                function rgbToHex(r, g, b) {
+                    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
+                }
+
+                function getLuminance(hex) {
+                    const rgb = hexToRgb(hex);
+                    if (!rgb) return 0;
+                    return 0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b;
+                }
+
+                function adjustBrightness(hex, percent) {
+                    const rgb = hexToRgb(hex);
+                    if (!rgb) return hex; 
+                    let { r, g, b } = rgb;
+                    const amount = Math.floor(255 * (percent / 100));
+                    r = Math.max(0, Math.min(255, r + amount));
+                    g = Math.max(0, Math.min(255, g + amount));
+                    b = Math.max(0, Math.min(255, b + amount));
+                    return rgbToHex(r, g, b);
+                }
+
+                function hexToRgba(hex, alpha) {
+                    const rgb = hexToRgb(hex);
+                    if (!rgb) return `rgba(0,0,0,${alpha})`; 
+                    return `rgba(${rgb.r},${rgb.g},${rgb.b},${alpha})`;
+                }
+                // --- End Color Helper Functions ---
+
+                function updateDynamicTheme() {
+                    // Update Page Body Background
+                    const lumSimBg = getLuminance(currentSimBackgroundColor);
+                    const lumTrace = getLuminance(currentMainColor);
+                    let pageBodyBackgroundColor;
+                    if (lumTrace > lumSimBg) { 
+                        pageBodyBackgroundColor = adjustBrightness(currentSimBackgroundColor, -20); 
+                    } else { 
+                        pageBodyBackgroundColor = adjustBrightness(currentSimBackgroundColor, 20); 
+                    }
+                    document.body.style.backgroundColor = pageBodyBackgroundColor;
+
+                    // Update Pendulum Config Panel Background
+                    let panelBaseColor;
+                    if (lumSimBg < 128) { 
+                        panelBaseColor = adjustBrightness(currentSimBackgroundColor, 15); 
+                    } else { 
+                        panelBaseColor = adjustBrightness(currentSimBackgroundColor, -15); 
+                    }
+                    const configPanelRgba = hexToRgba(panelBaseColor, 0.9); 
+                    document.documentElement.style.setProperty('--panel-bg-color', configPanelRgba);
+
+                    // Update Slider Colors
+                    document.documentElement.style.setProperty('--slider-thumb-color', currentMainColor);
+                    document.documentElement.style.setProperty('--slider-track-fill-color', currentMainColor);
+                    document.querySelectorAll('input[type="range"]').forEach(updateSliderFill);
+
+
+                    const buttonTextColor = getContrastYIQ(currentMainColor) === 'black' ? '#000030' : '#F0F0F8'; 
+                    document.documentElement.style.setProperty('--button-text-color', buttonTextColor);
+                }
+
+
+                function resizeCanvas() {
+                    const panelWidth = setupPanel.classList.contains('hidden') ? 0 : (setupPanel.offsetWidth + 20);
+                    let availableWidth = window.innerWidth - 40; 
+                    if (window.innerWidth > 768) { 
+                         availableWidth = window.innerWidth - panelWidth - 40; 
+                    }
+                    const availableHeight = window.innerHeight - 80; 
+                    const simAreaWidth = document.getElementById('simulation-area').clientWidth;
+                    availableWidth = Math.min(availableWidth, simAreaWidth);
+                    let canvasSize = Math.min(availableWidth, availableHeight, 700); 
+                    canvasSize = Math.max(canvasSize, 300); 
+                    canvas.width = canvasSize;
+                    canvas.height = canvasSize;
+                    if (!isRunning) drawStaticPendulum();
+                }
+
+                function updatePhysics() {
+                    try {
+                        const denCommon = 2 * M1 + M2 - M2 * Math.cos(2 * Th1 - 2 * Th2);
+                        if (Math.abs(denCommon) < 1e-6) { 
+                            console.warn("Physics instability: Common denominator too small. Stopping simulation.");
+                            stopSimulationCleanup(); return;
+                        }
+                        let num1_acc1 = -g * (2 * M1 + M2) * Math.sin(Th1);
+                        let num2_acc1 = -M2 * g * Math.sin(Th1 - 2 * Th2);
+                        let num3_acc1 = -2 * Math.sin(Th1 - Th2) * M2;
+                        let num4_acc1 = W2 * W2 * L2 + W1 * W1 * L1 * Math.cos(Th1 - Th2);
+                        const acc1 = (num1_acc1 + num2_acc1 + num3_acc1 * num4_acc1) / (L1 * denCommon);
+                        let num1_acc2 = 2 * Math.sin(Th1 - Th2);
+                        let num2_acc2 = (W1 * W1 * L1 * (M1 + M2));
+                        let num3_acc2 = g * (M1 + M2) * Math.cos(Th1);
+                        let num4_acc2 = W2 * W2 * L2 * M2 * Math.cos(Th1 - Th2);
+                        const acc2 = (num1_acc2 * (num2_acc2 + num3_acc2 + num4_acc2)) / (L2 * denCommon);
+                        if (isNaN(acc1) || isNaN(acc2) || !isFinite(acc1) || !isFinite(acc2)) {
+                            console.error("Physics calculation resulted in NaN or Infinity. Stopping.", {acc1, acc2, W1, W2, Th1, Th2, L1, L2, M1, M2});
+                            stopSimulationCleanup(); 
+                            alert("A physics calculation error occurred. The simulation has been stopped. Please check console for details.");
+                            return;
+                        }
+                        W1 += acc1 * dt; W2 += acc2 * dt;
+                        Th1 += W1 * dt; Th2 += W2 * dt;
+                    } catch (e) {
+                        console.error("Error during physics update:", e);
+                        stopSimulationCleanup(); 
+                        alert("An error occurred during the physics simulation. It has been stopped. Check console for details.");
+                    }
+                }
+
+                function draw() {
+                    if (!isRunning) return;
+                    try {
+                        for (let i = 0; i < physicsStepsPerFrame; i++) {
+                            updatePhysics();
+                            if (!isRunning) return; 
+                        }
+                        ctx.fillStyle = currentSimBackgroundColor; 
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        const pivotX = canvas.width / 2;
+                        const pivotY = canvas.height / 2.5; 
+                        const x1 = pivotX + L1 * Math.sin(Th1);
+                        const y1 = pivotY + L1 * Math.cos(Th1);
+                        const x2 = x1 + L2 * Math.sin(Th2);
+                        const y2 = y1 + L2 * Math.cos(Th2);
+                        trace.push({ x: x2, y: y2 });
+                        if (trace.length > 1) {
+                            ctx.strokeStyle = currentMainColor;
+                            ctx.lineWidth = 1.5; 
+                            ctx.beginPath();
+                            ctx.moveTo(trace[0].x, trace[0].y);
+                            for (let i = 1; i < trace.length; i++) {
+                                ctx.lineTo(trace[i].x, trace[i].y);
+                            }
+                            ctx.stroke();
+                        }
+                        ctx.strokeStyle = currentMainColor;
+                        ctx.lineWidth = Math.max(2, canvas.width / 200); 
+                        ctx.beginPath();
+                        ctx.moveTo(pivotX, pivotY);
+                        ctx.lineTo(x1, y1); ctx.lineTo(x2, y2);
+                        ctx.stroke();
+                        ctx.fillStyle = currentMainColor;
+                        const bobRadius1 = Math.max(3, Math.sqrt(M1) * 3.0 + canvas.width / 100); 
+                        const bobRadius2 = Math.max(3, Math.sqrt(M2) * 3.0 + canvas.width / 100);
+                        ctx.beginPath(); ctx.arc(x1, y1, bobRadius1, 0, 2 * Math.PI); ctx.fill();
+                        ctx.beginPath(); ctx.arc(x2, y2, bobRadius2, 0, 2 * Math.PI); ctx.fill();
+                        animationFrameId = requestAnimationFrame(draw);
+                    } catch (e) {
+                        console.error("Error during drawing loop:", e);
+                        stopSimulationCleanup(); 
+                        alert("An error occurred during the drawing loop. The simulation has been stopped. Check console for details.");
+                    }
+                }
+
+                function drawStaticPendulum() {
+                    ctx.fillStyle = currentSimBackgroundColor; 
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    const tempL1 = parseFloat(length1Slider.value) || 100;
+                    const tempL2 = parseFloat(length2Slider.value) || 100;
+                    const tempM1 = parseFloat(mass1Slider.value) || 10;
+                    const tempM2 = parseFloat(mass2Slider.value) || 10;
+                    const tempA1 = (parseFloat(angle1Slider.value) || 0) * Math.PI / 180;
+                    const tempA2 = (parseFloat(angle2Slider.value) || 0) * Math.PI / 180;
+                    const pivotX = canvas.width / 2;
+                    const pivotY = canvas.height / 2.5;
+                    const x1 = pivotX + tempL1 * Math.sin(tempA1);
+                    const y1 = pivotY + tempL1 * Math.cos(tempA1);
+                    const x2 = x1 + tempL2 * Math.sin(tempA2);
+                    const y2 = y1 + tempL2 * Math.cos(tempA2);
+                    ctx.strokeStyle = currentMainColor;
+                    ctx.lineWidth = Math.max(2, canvas.width / 200);
+                    ctx.beginPath();
+                    ctx.moveTo(pivotX, pivotY);
+                    ctx.lineTo(x1, y1); ctx.lineTo(x2, y2);
+                    ctx.stroke();
+                    ctx.fillStyle = currentMainColor;
+                    const bobRadius1 = Math.max(3, Math.sqrt(tempM1) * 3.0 + canvas.width / 100);
+                    const bobRadius2 = Math.max(3, Math.sqrt(tempM2) * 3.0 + canvas.width / 100);
+                    ctx.beginPath(); ctx.arc(x1, y1, bobRadius1, 0, 2 * Math.PI); ctx.fill();
+                    ctx.beginPath(); ctx.arc(x2, y2, bobRadius2, 0, 2 * Math.PI); ctx.fill();
+                }
+                
+                function updateSliderFill(slider) {
+                    const min = parseFloat(slider.min) || 0;
+                    const max = parseFloat(slider.max) || 100;
+                    const val = parseFloat(slider.value) || 0;
+                    const percentage = ((val - min) / (max - min)) * 100;
+                    slider.style.setProperty('--slider-fill-percent', `${percentage}%`);
+                }
+
+
+                function updateSliderValue(slider, display) {
+                    display.textContent = slider.value;
+                    updateSliderFill(slider); 
+                    if (!isRunning) drawStaticPendulum();
+                }
+
+                [length1Slider, length2Slider, mass1Slider, mass2Slider, angle1Slider, angle2Slider].forEach(slider => {
+                    const display = document.getElementById(slider.id + '-val');
+                    slider.addEventListener('input', () => updateSliderValue(slider, display));
+                    updateSliderFill(slider); 
+                });
+                
+                function getSafeFloat(value, defaultValue) {
+                    const num = parseFloat(value);
+                    if (isNaN(num)) {
+                        console.warn(`Invalid input parsed as NaN, using default: ${defaultValue} for original value: ${value}`);
+                        return defaultValue;
+                    }
+                    return num;
+                }
+
+                simBgColorPicker.addEventListener('input', (e) => {
+                    currentSimBackgroundColor = e.target.value;
+                    document.documentElement.style.setProperty('--sim-background-color', currentSimBackgroundColor);
+                    updateDynamicTheme();
+                    if (!isRunning) drawStaticPendulum(); 
+                });
+
+                mainColorPickerEl.addEventListener('input', (e) => {
+                    currentMainColor = e.target.value;
+                    document.documentElement.style.setProperty('--main-color', currentMainColor);
+                    updateDynamicTheme();
+                    if (!isRunning) drawStaticPendulum();
+                });
+
+                startButton.addEventListener('click', () => {
+                    L1 = getSafeFloat(length1Slider.value, 100);
+                    L2 = getSafeFloat(length2Slider.value, 100);
+                    M1 = getSafeFloat(mass1Slider.value, 10);
+                    M2 = getSafeFloat(mass2Slider.value, 10);
+                    A1_start = getSafeFloat(angle1Slider.value, 90) * Math.PI / 180;
+                    A2_start = getSafeFloat(angle2Slider.value, 45) * Math.PI / 180;
+                    if (L1 <= 0 || L2 <= 0 || M1 <= 0 || M2 <= 0) {
+                        alert("Lengths and Masses must be positive values.");
+                        console.error("Invalid parameters: Lengths/Masses must be positive.", {L1,L2,M1,M2});
+                        return;
+                    }
+                    Th1 = A1_start; Th2 = A2_start; W1 = 0; W2 = 0;
+                    trace = []; isRunning = true;
+                    setupPanel.classList.add('hidden');
+                    controlsPanel.classList.remove('hidden');
+                    stopButton.classList.remove('hidden');
+                    downloadButton.classList.add('hidden');
+                    startButton.disabled = true; stopButton.disabled = false; downloadButton.disabled = true;
+                    resizeCanvas(); 
+                    animationFrameId = requestAnimationFrame(draw);
+                });
+                
+                function stopSimulationCleanup() {
+                    isRunning = false;
+                    if (animationFrameId) {
+                        cancelAnimationFrame(animationFrameId);
+                        animationFrameId = null;
+                    }
+                    setupPanel.classList.remove('hidden');
+                    stopButton.classList.add('hidden');
+                    downloadButton.classList.remove('hidden');
+                    startButton.disabled = false; stopButton.disabled = true;
+                    downloadButton.disabled = trace.length === 0; 
+                }
+
+                stopButton.addEventListener('click', stopSimulationCleanup);
+
+                downloadButton.addEventListener('click', () => {
+                    if (trace.length === 0) {
+                        alert("No trace data to download."); return;
+                    }
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = canvas.width; 
+                    tempCanvas.height = canvas.height;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCtx.fillStyle = currentSimBackgroundColor; 
+                    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+                    if (trace.length > 1) {
+                        tempCtx.strokeStyle = currentMainColor;
+                        tempCtx.lineWidth = 1.5;
+                        tempCtx.beginPath();
+                        tempCtx.moveTo(trace[0].x, trace[0].y);
+                        for (let i = 1; i < trace.length; i++) {
+                            tempCtx.lineTo(trace[i].x, trace[i].y);
+                        }
+                        tempCtx.stroke();
+                    }
+                    const dataURL = tempCanvas.toDataURL('image/png');
+                    const link = document.createElement('a');
+                    link.href = dataURL;
+                    link.download = 'double_pendulum_trace_v0.7.png'; 
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+
+                function getContrastYIQ(hexcolor){
+                    const rgb = hexToRgb(hexcolor);
+                    if(!rgb) return 'white'; 
+                    const yiq = ((rgb.r*299)+(rgb.g*587)+(rgb.b*114))/1000;
+                    return (yiq >= 128) ? 'black' : 'white';
+                }
+
+                function initialize() {
+                    document.documentElement.style.setProperty('--sim-background-color', simBgColorPicker.value);
+                    document.documentElement.style.setProperty('--main-color', mainColorPickerEl.value);
+                    
+                    currentSimBackgroundColor = simBgColorPicker.value; 
+                    currentMainColor = mainColorPickerEl.value; 
+
+                    updateDynamicTheme(); 
+
+                    [length1Slider, length2Slider, mass1Slider, mass2Slider, angle1Slider, angle2Slider].forEach(slider => {
+                        const display = document.getElementById(slider.id + '-val');
+                        updateSliderValue(slider, display); 
+                    });
+                    
+                    stopButton.disabled = true;
+                    downloadButton.disabled = true;
+
+                    resizeCanvas(); 
+                    window.addEventListener('resize', resizeCanvas); 
+                    drawStaticPendulum();
+
+                    if ('serviceWorker' in navigator) {
+                        navigator.serviceWorker.register('./sw.js')
+                        .then((registration) => {
+                            console.log('Service Worker registered with scope:', registration.scope);
+                        })
+                        .catch((error) => {
+                            console.error('Service Worker registration failed:', error);
+                        });
+                    }
+                }
+
+                initialize();
+
+            } catch (e) {
+                console.error("Fatal error during script initialization:", e);
+                alert("A fatal error occurred while initializing the simulator. Please check the console for details.");
+            }
+        });
+    </script>
+</body>
+</html>

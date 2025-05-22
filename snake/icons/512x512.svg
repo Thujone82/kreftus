@@ -1,0 +1,45 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="512" height="512" rx="60" fill="#1a1a2e"/>
+    <rect x="4" y="4" width="504" height="504" rx="56" fill="url(#bg_gradient_512)"/>
+
+    <defs>
+        <linearGradient id="bg_gradient_512" x1="0" y1="0" x2="512" y2="512">
+            <stop offset="0%" stop-color="#0f0f1a"/>
+            <stop offset="100%" stop-color="#1a1a2e"/>
+        </linearGradient>
+        <filter id="glow_aqua_512" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
+            <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+        <filter id="glow_pink_512" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="8" result="coloredBlurPink"/>
+            <feMerge>
+                <feMergeNode in="coloredBlurPink"/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+    </defs>
+
+    <path d="M150 180 Q120 180 120 210 L120 300 Q120 330 150 330 L200 330 Q220 330 220 310 L220 260 Q220 230 250 200 L220 180 Z" fill="#00ffea" filter="url(#glow_aqua_512)">
+        <animateTransform attributeName="transform" type="translate" values="0 0; 0 -5; 0 0" dur="2s" repeatCount="indefinite"/>
+    </path>
+    <circle cx="155" cy="220" r="12" fill="#1a1a2e"/>
+    <circle cx="152" cy="218" r="6" fill="#ffffff"/>
+
+    <path d="M362 332 Q392 332 392 302 L392 212 Q392 182 362 182 L312 182 Q292 182 292 202 L292 252 Q292 282 262 312 L292 332 Z" fill="#ff69b4" filter="url(#glow_pink_512)">
+        <animateTransform attributeName="transform" type="translate" values="0 0; 0 5; 0 0" dur="2s" repeatCount="indefinite"/>
+    </path>
+    <circle cx="357" cy="292" r="12" fill="#1a1a2e"/>
+    <circle cx="360" cy="294" r="6" fill="#ffffff"/>
+
+    <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="120" font-weight="bold" fill="#e0e0e0">
+        <tspan fill="#00ffea">V</tspan><tspan fill="#e0e0e0" dx="-10">S</tspan><tspan fill="#ff69b4" dx="-10"></tspan>
+         <animate attributeName="opacity" values="1;0.7;1" dur="3s" repeatCount="indefinite" />
+    </text>
+    <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="122" font-weight="bold" fill="none" stroke="#4a4a8a" stroke-width="3">
+        <tspan fill="#00ffea" stroke="#00c4b7">V</tspan><tspan fill="#e0e0e0" stroke="#4a4a8a" dx="-10">S</tspan><tspan fill="#ff69b4" stroke="#c73786" dx="-10"></tspan>
+    </text>
+</svg>

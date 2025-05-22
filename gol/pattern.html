@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conway Pattern Designer</title>
+  <style>
+    :root {
+      --bg: #121212;
+      --panel: #1e1e1e;
+      --grid: #333;
+      --accent: #ff4081;
+      --accent2: #448aff;
+      --text: #e0e0e0;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+      text-align: center;
+    }
+    h1, h2 {
+      margin: 1rem 0;
+      color: var(--accent);
+    }
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(60, 1fr);
+      grid-template-rows: repeat(40, 1fr);
+      gap: 1px;
+      width: 90vmin;
+      max-width: 800px;
+      aspect-ratio: 60 / 40;
+      margin: 0 auto;
+      background: var(--grid);
+      border: 2px solid var(--accent);
+    }
+    .cell {
+      background: var(--panel);
+      cursor: pointer;
+    }
+    .cell.active {
+      background: var(--accent2);
+    }
+    #output {
+      margin-top: 20px;
+      background: var(--panel);
+      color: var(--text);
+      padding: 10px;
+      border: 2px solid var(--accent);
+      width: 90vmin;
+      max-width: 800px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      resize: none;
+      font-family: monospace;
+      font-size: 0.9rem;
+    }
+    #controls, #rle-input {
+      margin: 10px auto;
+      display: flex;
+      justify-content: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    select, textarea, button {
+      font-size: 1rem;
+      padding: 0.5rem;
+      border: 2px solid var(--accent2);
+      background: var(--panel);
+      color: var(--text);
+      border-radius: 6px;
+    }
+    select { width: 200px; }
+    textarea { width: 90vmin; max-width: 800px; height: 4rem; }
+    button {
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+    }
+    button:hover {
+      background: var(--accent2);
+      color: #111;
+    }
+  </style>
+</head>
+<body>
+  <h1>Conway Pattern Designer</h1>
+  <div id="rle-input">
+    <textarea id="rleText" placeholder="Paste RLE here..."></textarea>
+    <button id="loadRleBtn">Load RLE</button>
+  </div>
+  <div id="grid"></div>
+  <h2>Generated Coordinates</h2>
+  <textarea id="output" readonly></textarea>
+  <div id="controls">
+    <button id="copyBtn">Copy</button>
+    <button id="resetBtn">Reset</button>
+  </div>
+  <script>
+    const gridEl = document.getElementById('grid');
+    const outputEl = document.getElementById('output');
+    const rleText = document.getElementById('rleText');
+    const loadRleBtn = document.getElementById('loadRleBtn');
+    const copyBtn = document.getElementById('copyBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const cols = 60, rows = 40;
+    // Build grid
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const cell = document.createElement('div');
+        cell.classList.add('cell');
+        cell.dataset.x = x;
+        cell.dataset.y = y;
+        cell.addEventListener('click', () => {
+          cell.classList.toggle('active'); updateOutput();
+        });
+        gridEl.appendChild(cell);
+      }
+    }
+    function updateOutput() {
+      const coords = [];
+      document.querySelectorAll('.cell.active').forEach(cell => coords.push([+cell.dataset.x, +cell.dataset.y]));
+      let str = JSON.stringify(coords);
+      outputEl.value = str.endsWith(',') ? str : str + ',';
+    }
+    function clearGrid() {
+      document.querySelectorAll('.cell.active').forEach(c => c.classList.remove('active'));
+    }
+    // RLE parsing
+    function loadRLE(rle) {
+      clearGrid();
+      const lines = rle.split(/\r?\n/).filter(l => !l.startsWith('#'));
+      let header = lines.shift();
+      // Skip x/y header
+      const data = lines.join('').split('!')[0];
+      let x = 0, y = 0;
+      let count = '';
+      for (const ch of data) {
+        if (!isNaN(ch)) { count += ch; }
+        else if (ch === 'b' || ch === 'o') {
+          const n = parseInt(count || '1');
+          for (let i = 0; i < n; i++) {
+            if (ch === 'o') {
+              const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+              if (cell) cell.classList.add('active');
+            }
+            x++;
+          }
+          count = '';
+        } else if (ch === '$') {
+          const n = parseInt(count || '1'); count = '';
+          y += n; x = 0;
+        }
+      }
+      updateOutput();
+    }
+    loadRleBtn.addEventListener('click', () => loadRLE(rleText.value));
+    copyBtn.addEventListener('click', () => navigator.clipboard.writeText(outputEl.value));
+    resetBtn.addEventListener('click', () => { clearGrid(); updateOutput(); rleText.value = ''; });
+    // Initial update
+    updateOutput();
+  </script>
+</body>
+</html>

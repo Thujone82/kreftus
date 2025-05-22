@@ -1,0 +1,21 @@
+{
+  "name": "Game of Life",
+  "short_name": "GOL",
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#1f2937",
+  "theme_color": "#121212",
+  "icons": [
+    {
+      "src": "./icons/192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./icons/512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

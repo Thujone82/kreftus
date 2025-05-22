@@ -1,0 +1,1998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>GENE v1.3.6</title> <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="hsl(240, 70%, 55%)">
+
+    <style>
+        :root {
+            /* Accent Hue System */
+            --accent-hue-1: 240; /* Default, will be set by JS */
+            --accent-hue-2: 0;   /* Default, will be set by JS */
+            --accent-hue-3: 120; /* Default, will be set by JS */
+            --accent-saturation: 70%;
+            --accent-lightness: 55%;
+            --accent-color-1: hsl(var(--accent-hue-1), var(--accent-saturation), var(--accent-lightness));
+            --accent-color-2: hsl(var(--accent-hue-2), var(--accent-saturation), var(--accent-lightness));
+            --accent-color-3: hsl(var(--accent-hue-3), var(--accent-saturation), var(--accent-lightness));
+        }
+        html, body {
+             height: 100%; 
+             margin: 0;
+             padding: 0;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none; 
+            overflow: hidden; 
+            background-color: #111827; 
+            color: #f3f4f6; 
+        }
+        canvas#simulationCanvas {
+            display: block; 
+            background-color: #1f2937; 
+            border-radius: 0.5rem;
+            touch-action: none; 
+            border: 2px solid var(--accent-color-1);
+            cursor: default;
+            max-width: 100%;
+            object-fit: contain;
+            flex-shrink: 1;
+            min-height: 0;
+        }
+        .control-panel {
+            background-color: #374151; 
+            border-radius: 0.5rem;
+            border: 2px solid var(--accent-color-3);
+        }
+        .btn {
+            transition: background-color 0.15s ease-in-out, transform 0.15s ease-in-out, filter 0.15s ease-in-out;
+            border-radius: 0.375rem; 
+            padding: 0.5rem 0.75rem; 
+            font-weight: 500; 
+            color: white;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); 
+        }
+        .btn:hover {
+            transform: translateY(-1px);
+            filter: brightness(110%);
+        }
+        .btn:active {
+            transform: translateY(0px);
+            filter: brightness(90%);
+        }
+        .btn:disabled {
+            background-color: #4b5563 !important; 
+            cursor: not-allowed;
+            filter: brightness(70%);
+            transform: none;
+        }
+
+        #startSimulationButton { background-color: var(--accent-color-3); }
+        #startSimulationButton:hover { filter: brightness(110%); }
+        #startSimulationButton:active { filter: brightness(90%); }
+
+        #playPauseButton.bg-green-500 { background-color: #22c55e !important; }
+        #playPauseButton.bg-yellow-500 { background-color: #eab308 !important; }
+        #resetButton.bg-red-500 { background-color: #ef4444 !important; }
+        #historyButton.bg-blue-500 { background-color: #3b82f6 !important; }
+
+        input[type="range"] {
+            -webkit-appearance: none; 
+            appearance: none;         
+            height: 8px;              
+            cursor: pointer;
+            border-radius: 9999px;    
+            background-color: #6b7280; 
+            width: 100%; 
+        }
+        input[type="range"].setup-slider {
+            background-color: #4b5563; 
+        }
+        input[type="range"].sim-slider {
+            background-color: #6b7280; 
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; 
+            appearance: none;         
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            border-radius: 50%;
+            background: var(--accent-color-2); 
+            border: none; 
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            border-radius: 50%;
+            background: var(--accent-color-2); 
+            border: none; 
+        }
+
+        input[type="range"].setup-slider::-webkit-slider-thumb {
+            background: var(--accent-color-1);
+        }
+        input[type="range"].setup-slider::-moz-range-thumb {
+            background: var(--accent-color-1);
+        }
+        input[type="range"].sim-slider::-webkit-slider-thumb {
+            background: var(--accent-color-2);
+        }
+        input[type="range"].sim-slider::-moz-range-thumb {
+            background: var(--accent-color-2);
+        }
+
+
+        .setup-modal { background-color: rgba(0,0,0,0.75); }
+        .setup-content {
+             background-color: #2d3748; 
+             border: 2px solid var(--accent-color-1);
+        }
+        .slider-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem; }
+        #infoDisplay {
+            min-width: 200px; text-align: right; font-family: 'Courier New', Courier, monospace;
+            padding: 4px 8px;
+            border: 2px solid #4B5563; 
+            box-sizing: border-box;
+            margin-bottom: 4px; margin-top: 4px;
+            background-color: #1f2937; 
+            border-radius: 0.375rem; 
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+        }
+        .text-setup-title { color: var(--accent-color-2); }
+        .main-sim-title-ingame { color: var(--accent-color-3); text-align: right; margin-top: 0; }
+        .slider-container { display: flex; align-items: center; gap: 0.5rem; width: 100%; }
+        .slider-container label { flex-shrink: 0; }
+        .slider-container input[type="range"] { flex-grow: 1; }
+
+        .full-mode-active #simulationContainer {
+            position: fixed !important; top: 0 !important; left: 0 !important;
+            width: 100vw !important; height: 100vh !important;
+            z-index: 100 !important; padding: 0 !important; margin: 0 !important;
+            max-width: none !important;
+            min-height: auto !important;
+        }
+        .full-mode-active .control-panel,
+        .full-mode-active #hallOfFameDisplay { display: none !important; }
+        .full-mode-active #simulationCanvas {
+            width: 100% !important; height: 100% !important;
+            border-radius: 0 !important; border: 2px solid var(--accent-color-1);
+            flex-grow: 1 !important;
+        }
+
+        #historyPanel {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-color: rgba(31, 41, 55, 0.95); 
+            z-index: 200; 
+            flex-direction: column;
+            align-items: center; justify-content: flex-start;
+            padding: 2rem; box-sizing: border-box;
+            border: 4px solid var(--accent-color-1);
+            overflow-y: hidden;
+        }
+        #historyPanelContent {
+            background-color: #2d3748; padding: 1.5rem; border-radius: 0.5rem;
+            width: 100%; max-width: 90vw; max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+        #historyPanel h2 { color: var(--accent-color-2); margin-bottom: 1.5rem; }
+        #closeHistoryButton {
+            position: absolute; top: 1rem; right: 1rem;
+            background-color: #ef4444; color: white; border: none;
+            border-radius: 0.375rem; padding: 0.5rem 0.75rem;
+            font-size: 1.25rem; line-height: 1; cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        #closeHistoryButton:hover { filter: brightness(110%); }
+        #historyTable { width: 100%; border-collapse: collapse; color: #e5e7eb; }
+        #historyTable th, #historyTable td {
+            border: 1px solid #4b5563; padding: 0.5rem 0.75rem;
+            text-align: left; vertical-align: middle;
+        }
+        #historyTable th { background-color: #374151; cursor: pointer; user-select: none; }
+        #historyTable th:hover { filter: brightness(120%); }
+        #historyTable td canvas {
+            width: 30px; height: 30px; border: 1px solid #4b5563;
+            border-radius: 50%; background-color: transparent;
+        }
+
+        @media (orientation: portrait) and (max-width: 768px) {
+            #historyPanel { padding: 0.5rem; }
+            #historyPanelContent { max-width: 100%; max-height: calc(100% - 1rem); padding: 1rem; border-radius: 0.25rem; }
+            #historyTable th {
+                writing-mode: vertical-lr; text-orientation: mixed; white-space: nowrap;
+                text-align: center; vertical-align: middle; padding: 0.75rem 0.25rem; height: 120px;
+            }
+            #historyTable th[data-sort="cell"] { writing-mode: horizontal-tb; height: auto; text-align: left; }
+            #historyTable td { padding: 0.5rem 0.25rem; }
+        }
+
+        #hallOfFameDisplay { display: flex; align-items: center; gap: 0.25rem; min-height: 28px; }
+        #hallOfFameDisplay canvas {
+            width: 24px; height: 24px; border: 1px solid #6b7280;
+            border-radius: 50%; background-color: transparent;
+        }
+        .actions-hof-container { display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem; width: 100%; }
+        .actions-hof-container > .button-group { margin-left: auto; }
+
+        #simulationContainer {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 1280px; 
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center h-screen p-2 sm:p-4 select-none">
+
+    <div id="setupModal" class="setup-modal fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="setup-content p-6 sm:p-8 rounded-lg shadow-xl w-full max-w-lg text-left">
+            <h2 id="setupTitle" class="text-2xl sm:text-4xl font-bold mb-6 text-center text-setup-title">GENE v1.3.6</h2> <div class="mb-5">
+                <div class="slider-label">
+                    <label for="setupGenomeCount" class="block text-sm font-medium text-gray-300">Initial Genome Count:</label>
+                    <span id="genomeCountValue" class="text-sm font-semibold text-gray-300">16</span>
+                </div>
+                <input type="range" id="setupGenomeCount" min="1" max="32" value="16" class="w-full setup-slider">
+            </div>
+            <div class="mb-5">
+                <div class="slider-label">
+                    <label for="setupCellCount" class="block text-sm font-medium text-gray-300">Initial Cell Count:</label>
+                    <span id="cellCountValue" class="text-sm font-semibold text-gray-300">64</span>
+                </div>
+                <input type="range" id="setupCellCount" min="1" max="512" value="64" class="w-full setup-slider">
+            </div>
+            <div class="mb-5">
+                <div class="slider-label">
+                    <label for="setupPopulationLimit" class="block text-sm font-medium text-gray-300">Population Limit:</label>
+                    <span id="populationLimitValue" class="text-sm font-semibold text-gray-300">64</span>
+                </div>
+                <input type="range" id="setupPopulationLimit" min="8" max="192" value="64" class="w-full setup-slider">
+            </div>
+            <div class="mb-6">
+                <div class="slider-label">
+                    <label for="setupFoodRate" class="block text-sm font-medium text-gray-300">Food Density:</label>
+                    <span id="foodRateValue" class="text-sm font-semibold text-gray-300">50</span>
+                </div>
+                <input type="range" id="setupFoodRate" min="1" max="100" value="50" class="w-full setup-slider">
+            </div>
+            <button id="startSimulationButton" class="btn text-white font-semibold py-3 px-6 rounded-lg text-lg shadow-md w-full">
+                Start Simulation
+            </button>
+        </div>
+    </div>
+
+    <div id="simulationContainer" class="hidden w-full max-w-5xl flex flex-col items-center min-h-0">
+         <div class="control-panel hidden flex-shrink-0 p-3 sm:p-4 mb-3 sm:mb-4 w-full flex flex-col sm:flex-row justify-between items-start gap-x-3 sm:gap-x-4 gap-y-2 shadow-lg">
+             <div id="slidersContainer" class="flex flex-col gap-y-2 w-full sm:w-auto sm:flex-grow sm:pr-4 order-2 sm:order-1">
+                <div class="slider-container">
+                    <label for="speedSlider" class="text-xs sm:text-sm whitespace-nowrap mr-2">Sim Speed:</label>
+                    <input type="range" id="speedSlider" min="1" max="10" value="1" class="w-full sim-slider">
+                </div>
+                <div class="slider-container mt-1">
+                    <label for="foodSpawnRateSlider" class="text-xs sm:text-sm whitespace-nowrap mr-2">Food Density:</label>
+                    <input type="range" id="foodSpawnRateSlider" min="1" max="100" value="50" class="w-full sim-slider">
+                </div>
+                <div class="slider-container mt-1">
+                    <label for="metabolismSlider" class="text-xs sm:text-sm whitespace-nowrap mr-2">Metabolism -/+:</label>
+                    <input type="range" id="metabolismSlider" min="-50" max="50" value="0" class="w-full sim-slider">
+                </div>
+                <div class="slider-container mt-1">
+                    <label for="mutationRateSlider" class="text-xs sm:text-sm whitespace-nowrap mr-2">Mutation -/+:</label>
+                    <input type="range" id="mutationRateSlider" min="-50" max="50" value="0" class="w-full sim-slider">
+                </div>
+            </div>
+             <div id="titleInfoActionsContainer" class="flex flex-col justify-between items-end w-full sm:w-auto mt-0 sm:mt-0 flex-shrink-0 order-1 sm:order-2" style="min-height: 110px;">
+                <h1 class="main-sim-title-ingame text-2xl sm:text-3xl font-bold self-end">GENE v1.3.6</h1> <div id="infoDisplay" class="text-xs sm:text-sm whitespace-nowrap leading-tight self-end">
+                </div>
+                <div class="actions-hof-container mt-auto self-end">
+                    <div id="hallOfFameDisplay"></div>
+                    <div class="button-group flex gap-x-3">
+                        <button id="playPauseButton" class="btn bg-green-500">Play</button>
+                        <button id="resetButton" class="btn bg-red-500">Reset</button>
+                        <button id="historyButton" class="btn bg-blue-500">History</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <canvas id="simulationCanvas" class="hidden"></canvas>
+    </div>
+
+    <div id="historyPanel" class="hidden">
+        <div id="historyPanelContent">
+            <button id="closeHistoryButton" class="btn">&times;</button>
+            <h2 class="text-3xl font-bold text-center">Genomic History</h2>
+            <div class="overflow-x-auto">
+                <table id="historyTable" class="min-w-full">
+                    <thead>
+                        <tr>
+                            <th data-sort="cell">Cell</th>
+                            <th data-sort="id">ID</th>
+                            <th data-sort="lifespan">Era</th>
+                            <th data-sort="births">Births</th>
+                            <th data-sort="fightVictories">Kills</th>
+                            <th data-sort="backstabsCommitted">Criminals</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // DOM Elements
+        const canvas = document.getElementById('simulationCanvas');
+        const ctx = canvas.getContext('2d');
+        const playPauseButton = document.getElementById('playPauseButton');
+        const resetButton = document.getElementById('resetButton');
+        const historyButton = document.getElementById('historyButton');
+        const speedSlider = document.getElementById('speedSlider');
+        const foodSpawnRateSlider = document.getElementById('foodSpawnRateSlider');
+        const metabolismSlider = document.getElementById('metabolismSlider');
+        const mutationRateSlider = document.getElementById('mutationRateSlider');
+        const infoDisplay = document.getElementById('infoDisplay');
+        const setupModal = document.getElementById('setupModal');
+        const setupTitleElement = document.getElementById('setupTitle');
+        const startSimulationButton = document.getElementById('startSimulationButton');
+        const simulationContainer = document.getElementById('simulationContainer');
+        const controlPanel = document.querySelector('.control-panel');
+        const historyPanel = document.getElementById('historyPanel');
+        const closeHistoryButton = document.getElementById('closeHistoryButton');
+        const historyTableBody = document.querySelector('#historyTable tbody');
+        const hallOfFameDisplay = document.getElementById('hallOfFameDisplay');
+        const slidersContainer = document.getElementById('slidersContainer');
+        const titleInfoActionsContainer = document.getElementById('titleInfoActionsContainer');
+        const mainSimTitleElement = document.querySelector('.main-sim-title-ingame');
+        const bodyElement = document.body;
+
+        const setupGenomeCountSlider = document.getElementById('setupGenomeCount');
+        const genomeCountValueDisplay = document.getElementById('genomeCountValue');
+        const setupCellCountSlider = document.getElementById('setupCellCount');
+        const cellCountValueDisplay = document.getElementById('cellCountValue');
+        const setupPopulationLimitSlider = document.getElementById('setupPopulationLimit');
+        const populationLimitValueDisplay = document.getElementById('populationLimitValue');
+        const setupFoodRateSlider = document.getElementById('setupFoodRate');
+        const foodRateValueDisplay = document.getElementById('foodRateValue');
+
+        // Simulation State
+        let cells = [];
+        let foodParticles = [];
+        let simulationRunning = false;
+        let animationFrameId;
+        let tickCount = 0;
+        let simulationSpeed = 1;
+        let targetFoodDensityFactor = 0.5;
+        let globalMetabolismModifier = 0;
+        let globalMutationModifier = 0;
+        let currentAccentHue = 240;
+        let initialAccentHueForHeader = 240;
+        let extinctSpeciesCount = 0;
+        let POPULATION_LIMIT = 256;
+        let isFullModeActive = false;
+        // ---- Variables for Cosmetic Cell Scaling ----
+        let cellAppearanceScale = 1.0;          // Default: 100% appearance
+        const MIN_CELL_APPEARANCE_SCALE = 0.75; // -25% from default (1.0 - 0.25)
+        const MAX_CELL_APPEARANCE_SCALE = 3.0;  // +200% from default (1.0 + 2.0)
+        // ---- END Variables for Cosmetic Cell Scaling ----
+        const GENOME_AUDIT_INTERVAL = 250;
+        const HALL_OF_FAME_UPDATE_INTERVAL = 1000;
+
+
+        // Thanos Event State
+        let thanosInProgress = false;
+        let flashOverlayColor = null;
+        let drawBisectionLine = false;
+        let nx = 0; 
+        let ny = 0; 
+
+
+        // Genome Management & History
+        let activeGenomes = new Map();
+        let nextGenomeId = 0;
+        let genomeHistory = [];
+        let currentSortColumn = 'id';
+        let currentSortDirection = 'asc';
+        let viewBeforeHistory = 'setup';
+
+        // World and View Parameters
+        const REFERENCE_LOGICAL_DENSITY_UNITS = 1200;
+        const REFERENCE_WORLD_AREA = REFERENCE_LOGICAL_DENSITY_UNITS * REFERENCE_LOGICAL_DENSITY_UNITS;
+        let WORLD_WIDTH = REFERENCE_LOGICAL_DENSITY_UNITS;
+        let WORLD_HEIGHT = REFERENCE_LOGICAL_DENSITY_UNITS;
+
+        // Rendering and View Control
+        let currentRenderScale = 1.0;
+        let viewScale = 1.0;
+        let viewOffsetX = WORLD_WIDTH / 2;
+        let viewOffsetY = WORLD_HEIGHT / 2;
+        const MIN_VIEW_SCALE = 1.0;
+        const MAX_VIEW_SCALE = 8.0;
+
+        // Interaction State
+        let isDragging = false;
+        let wasDraggingMouse = false;
+        let lastDragX, lastDragY;
+
+        let touchState = {
+            pointers: [], lastDist: null, lastMidpointCanvas: null,
+            lastTapTime: 0, tapTimeout: null, tapCount: 0,
+            touchStartTime: 0, touchStartX: 0, touchStartY: 0,
+            maxMoveDistanceSq: 20 * 20, maxTapDuration: 300, maxDoubleTapDelay: 300,
+            swipeStartX: null, swipeStartY: null, swipeStartTime: null, isSwiping: false
+        };
+        const SWIPE_THRESHOLD = 50;
+        const SWIPE_MAX_TIME = 500;
+
+        // Simulation Parameters (Defaults, overridden by setup)
+        let INITIAL_GENOME_COUNT = 16;
+        let INITIAL_CELL_COUNT = 64;
+
+        // Cell & Evolution Parameters (Constants)
+        const BASE_CELL_RADIUS = 12;
+        const MAX_ENERGY_BASE = 100;
+        const REPRODUCTION_ENERGY_FACTOR = 0.75;
+        const REPRODUCTION_COST_FACTOR = 0.5;
+        const OFFSPRING_ENERGY_FACTOR = 0.4;
+        const BASE_ENERGY_DECAY_RATE = 0.12;
+        const BASE_MOVEMENT_COST = 0.02;
+        const TRAIT_MUTATION_RATE_BASE = 0.00625;
+        const TRAIT_MUTATION_AMOUNT_BASE = 0.25;
+        let DYNAMIC_NEW_GENOME_SPAWN_RATE = 0.005;
+        const FOOD_RADIUS = 2.5;
+        const FOOD_ENERGY_VALUE = 30;
+        const MAX_FOOD_PARTICLES_AT_REF_AREA = 265;
+        let effectiveMaxFoodCount = MAX_FOOD_PARTICLES_AT_REF_AREA;
+        const FOOD_SPAWN_BATCH_FACTOR = 0.03;
+        const WANDER_SCAN_INTERVAL = 20;
+        const MIN_WANDER_TICKS = 40;
+        const MAX_WANDER_TICKS = 120;
+        const NON_KIN_AVOID_RADIUS_FACTOR = 2.5;
+        const NON_KIN_AVOID_STRENGTH = 0.05;
+
+        // Genome Indices
+        const G_METABOLISM = 0; const G_MAX_SIZE = 1; const G_AGGRESSION = 2;
+        const G_SENSING_RADIUS = 3; const G_FOOD_ATTRACTION = 4; const G_SPEED_FACTOR = 5;
+        const G_FIGHT_ABILITY = 6; const G_KIN_SENSING_RADIUS = 7; const G_KIN_COHESION = 8;
+        const G_ASSIST_THRESHOLD = 9; const G_DISHONESTY = 10; const GENOME_LENGTH = 11;
+
+        const BOLD_HUE_CHOICES = Array.from({ length: 16 }, (_, i) => i * (360 / 16));
+        const TRAIT_COMPARISON_PRECISION = 6;
+
+        function randomRange(min, max) { return Math.random() * (max - min) + min; }
+        function distSq(x1, y1, x2, y2) { const dx = x1 - x2; const dy = y1 - y2; return dx * dx + dy * dy; }
+        function randomLogBiased(biasStrength = 3) { return Math.pow(Math.random(), biasStrength); }
+
+        function updateDynamicColors() {
+            const rootStyle = document.documentElement.style;
+            const isSetupActive = setupModal.style.display === 'flex';
+            let baseHue = isSetupActive ? initialAccentHueForHeader : currentAccentHue;
+            rootStyle.setProperty('--accent-hue-1', baseHue);
+            rootStyle.setProperty('--accent-hue-2', (baseHue + 120) % 360);
+            rootStyle.setProperty('--accent-hue-3', (baseHue + 240) % 360);
+        }
+
+        function createRandomGenomeTraits() {
+            const traits = [];
+            for (let i = 0; i < GENOME_LENGTH; i++) {
+                traits.push(i === G_DISHONESTY ? randomLogBiased(4) : Math.random());
+            }
+            return traits;
+        }
+
+        function getOrCreateGenome(traits, parentGenomeId = null) {
+            const standardizedTraitString = traits.map(t => t.toFixed(TRAIT_COMPARISON_PRECISION)).join(',');
+            for (const [id, genomeData] of activeGenomes) {
+                if (genomeData.traits.map(t => t.toFixed(TRAIT_COMPARISON_PRECISION)).join(',') === standardizedTraitString) {
+                    return id;
+                }
+            }
+            const newId = `g${nextGenomeId++}`;
+            let borderHue;
+            const usedBoldHues = new Set(Array.from(activeGenomes.values()).map(g => g.borderHue).filter(h => BOLD_HUE_CHOICES.includes(h)));
+            const availablePredefinedHues = BOLD_HUE_CHOICES.filter(hue => !usedBoldHues.has(hue));
+            borderHue = availablePredefinedHues.length > 0 ? availablePredefinedHues[Math.floor(Math.random() * availablePredefinedHues.length)] : Math.floor(Math.random() * 360);
+            let primaryHueOffset = randomRange(61, 179) * (Math.random() < 0.5 ? -1 : 1);
+            const primaryHue = (borderHue + primaryHueOffset + 360) % 360;
+            const primarySaturation = randomRange(75, 95);
+            const primaryLightness = randomRange(55, 65);
+            activeGenomes.set(newId, {
+                id: newId, traits: [...traits], primaryHue, primarySaturation, primaryLightness,
+                borderHue, parentGenomeId, population: 0, births: 1, fightVictories: 0,
+                backstabsCommitted: 0, originTick: tickCount
+            });
+            return newId;
+        }
+
+        class FoodParticle {
+            constructor(x, y) { this.x = x; this.y = y; this.radius = FOOD_RADIUS; this.energyValue = FOOD_ENERGY_VALUE; this.color = 'rgba(150, 255, 150, 0.8)'; }
+            draw(ctx) { ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = this.color; ctx.fill(); }
+        }
+
+        class Cell {
+            constructor(x, y, initialEnergy, genomeId) {
+                this.x = x; this.y = y; this.energy = initialEnergy; this.genomeId = genomeId;
+                let genomeData = activeGenomes.get(this.genomeId);
+                if (!genomeData) {
+                    console.warn("Cell constructor: GenomeId", this.genomeId, "not found. Creating new random.");
+                    this.genomeId = getOrCreateGenome(createRandomGenomeTraits());
+                    genomeData = activeGenomes.get(this.genomeId);
+                }
+                this.genome = genomeData; this.traits = this.genome.traits;
+                if (this.genome) this.genome.population++; else console.error(`CRITICAL: Genome data for ${this.genomeId} undefined.`);
+                this.primaryColor = `hsl(${this.genome.primaryHue}, ${this.genome.primarySaturation}%, ${this.genome.primaryLightness}%)`;
+                this.borderColor = `hsl(${this.genome.borderHue}, 85%, 60%)`;
+                this.maxPotentialSizeFactor = 0.5 + this.traits[G_MAX_SIZE] * 2;
+                this.currentSize = BASE_CELL_RADIUS * (0.5 + this.maxPotentialSizeFactor * 0.5);
+                this.radius = this.currentSize;
+                this.maxEnergy = MAX_ENERGY_BASE * (1 + this.traits[G_MAX_SIZE] * 1.5);
+                this.metabolismFactor = 0.25 + this.traits[G_METABOLISM] * 1.5;
+                this.aggression = this.traits[G_AGGRESSION];
+                this.sensingRadius = 20 + this.traits[G_SENSING_RADIUS] * 180;
+                this.foodAttraction = this.traits[G_FOOD_ATTRACTION];
+                this.speedFactor = 0.5 + this.traits[G_SPEED_FACTOR] * 1.5;
+                this.fightAbilityFactor = 0.25 + this.traits[G_FIGHT_ABILITY] * 0.75;
+                this.kinSensingRadius = 15 + this.traits[G_KIN_SENSING_RADIUS] * 100;
+                this.kinCohesionFactor = this.traits[G_KIN_COHESION];
+                this.assistAggressionThreshold = this.traits[G_ASSIST_THRESHOLD];
+                this.dishonestyFactor = this.traits[G_DISHONESTY];
+                this.targetFood = null; this.targetEnemy = null; this.actionCooldown = 0;
+                this.isFleeing = false; this.fleeFromX = null; this.fleeFromY = null;
+                this.isWandering = false; this.wanderDirectionX = 0; this.wanderDirectionY = 0;
+                this.wanderTicksRemaining = 0; this.isAttemptingBackstab = false;
+                this.isFirstOfNewSpecies = false;
+            }
+            getEffectiveSpeed() { return Math.max(0.3, (this.speedFactor * 2.0) / (1 + this.currentSize / BASE_CELL_RADIUS * 0.5)); }
+            update() {
+                if (this.actionCooldown > 0) this.actionCooldown--;
+                this.isFleeing = false; this.isAttemptingBackstab = false;
+                if (this.actionCooldown <= 0) this.decideAction();
+                this.move(); this.eat();
+                let decay = BASE_ENERGY_DECAY_RATE * (1 + globalMetabolismModifier) * this.metabolismFactor * (1 + this.currentSize / (BASE_CELL_RADIUS * 2));
+                this.energy -= decay;
+                if (this.energy > this.maxEnergy * 0.85 && this.currentSize < BASE_CELL_RADIUS * this.maxPotentialSizeFactor) {
+                    const growthEnergy = this.energy * 0.01; this.energy -= growthEnergy;
+                    this.currentSize += growthEnergy * 0.05; this.radius = this.currentSize;
+                    this.maxEnergy = MAX_ENERGY_BASE * (1 + this.traits[G_MAX_SIZE] * (this.currentSize / (BASE_CELL_RADIUS * this.maxPotentialSizeFactor)));
+                }
+                if (this.energy <= 0) { this.die(); return; }
+                if (this.energy > this.maxEnergy) this.energy = this.maxEnergy;
+            }
+            initiateWander() {
+                this.isWandering = true; const angle = Math.random() * Math.PI * 2;
+                this.wanderDirectionX = Math.cos(angle); this.wanderDirectionY = Math.sin(angle);
+                this.wanderTicksRemaining = randomRange(MIN_WANDER_TICKS, MAX_WANDER_TICKS);
+                this.targetFood = null; this.targetEnemy = null;
+            }
+            decideAction() {
+                if (this.isFirstOfNewSpecies) {
+                    this.isFirstOfNewSpecies = false;
+                    if (this.energy > this.maxEnergy * REPRODUCTION_ENERGY_FACTOR * 0.7 && Math.random() < 0.5) { this.reproduce(); return; }
+                }
+                const foodTarget = this.findClosestFood();
+                if (!this.isFleeing && !this.targetEnemy && !this.isAttemptingBackstab) this.targetFood = foodTarget;
+                if (this.actionCooldown > 0) return;
+                this.actionCooldown = randomRange(15, 40);
+                let enemyNearby = false;
+                if (!this.targetEnemy && !this.isAttemptingBackstab) {
+                    enemyNearby = cells.some(other => other !== this && other.genomeId !== this.genomeId && other.energy > 0 &&
+                                                      (!activeGenomes.has(other.genomeId) || activeGenomes.get(other.genomeId).parentGenomeId !== this.genomeId) &&
+                                                      distSq(this.x, this.y, other.x, other.y) < this.sensingRadius * this.sensingRadius);
+                }
+                let currentDishonestyChanceFactor = (!enemyNearby && !foodTarget) ? 10 : (!enemyNearby || !foodTarget) ? 2 : 0.05;
+                if (!this.targetEnemy && !this.isAttemptingBackstab && this.energy < this.maxEnergy * 0.25 && Math.random() < this.dishonestyFactor * currentDishonestyChanceFactor) {
+                    const backstabTarget = this.findWeakerKinForBackstab();
+                    if (backstabTarget) { this.targetEnemy = backstabTarget; this.isAttemptingBackstab = true; this.isWandering = false; this.targetFood = null; return; }
+                }
+                if (!this.targetEnemy && !this.isAttemptingBackstab) {
+                    const kinInNeed = this.findKinInCombat();
+                    if (kinInNeed && kinInNeed.targetEnemy && this.aggression > (this.assistAggressionThreshold * 0.7)) {
+                        this.targetEnemy = kinInNeed.targetEnemy; this.isWandering = false; this.targetFood = null; return;
+                    }
+                }
+                if (this.energy > this.maxEnergy * REPRODUCTION_ENERGY_FACTOR) { this.reproduce(); return; }
+                if (!this.targetEnemy && !this.isAttemptingBackstab && Math.random() < this.aggression) {
+                    const potentialEnemy = this.findAndTargetEnemy();
+                    if (potentialEnemy) { this.targetEnemy = potentialEnemy; this.isWandering = false; this.targetFood = null; return; }
+                } else if (!this.targetEnemy && !this.isAttemptingBackstab) {
+                     this.targetEnemy = null;
+                }
+                if (!this.targetEnemy && !this.targetFood && !this.isWandering && !this.isAttemptingBackstab) this.initiateWander();
+            }
+            findWeakerKinForBackstab() {
+                let suitableTarget = null; let closestDistSq = (this.kinSensingRadius * 0.6)**2;
+                for (const kin of cells) {
+                    if (kin === this || kin.genomeId !== this.genomeId || kin.energy <= MAX_ENERGY_BASE * 0.1) continue;
+                    const dSqToKin = distSq(this.x, this.y, kin.x, kin.y);
+                    if (dSqToKin < closestDistSq && kin.energy > this.energy * 0.3) {
+                        closestDistSq = dSqToKin; suitableTarget = kin;
+                    }
+                } return suitableTarget;
+            }
+            findClosestFood() {
+                let closestFood = null; let minDistSq = this.sensingRadius * this.sensingRadius;
+                for (const food of foodParticles) {
+                    const dSq = distSq(this.x, this.y, food.x, food.y);
+                    if (dSq < minDistSq) { minDistSq = dSq; closestFood = food; }
+                } return closestFood;
+            }
+            findAndTargetEnemy() {
+                let closestEnemy = null; let minDistSq = this.sensingRadius * this.sensingRadius;
+                for (const otherCell of cells) {
+                    if (otherCell === this || otherCell.energy <= 0 || otherCell.genomeId === this.genomeId) continue;
+                    const otherGenomeData = activeGenomes.get(otherCell.genomeId);
+                    if (otherGenomeData && otherGenomeData.parentGenomeId === this.genomeId) continue;
+                    const dSq = distSq(this.x, this.y, otherCell.x, otherCell.y);
+                    if (dSq < minDistSq) { minDistSq = dSq; closestEnemy = otherCell; }
+                } return closestEnemy;
+            }
+            findKinInCombat() {
+                for (const kin of cells) {
+                    if (kin === this || kin.genomeId !== this.genomeId || kin.energy <= 0) continue;
+                    const dSqToKin = distSq(this.x, this.y, kin.x, kin.y);
+                    if (dSqToKin < this.kinSensingRadius * this.kinSensingRadius && kin.targetEnemy && kin.targetEnemy.energy > 0) {
+                        if (distSq(this.x, this.y, kin.targetEnemy.x, kin.targetEnemy.y) < this.sensingRadius * this.sensingRadius) {
+                            return kin;
+                        }
+                    }
+                } return null;
+            }
+            move() {
+                let moveX = 0, moveY = 0; const effectiveSpeed = this.getEffectiveSpeed();
+                let avgKinX = 0, avgKinY = 0, kinCount = 0;
+                let repulseX = 0, repulseY = 0;
+                if (!this.isFleeing && !this.targetEnemy && !this.targetFood && !this.isAttemptingBackstab) {
+                    for (const otherCell of cells) {
+                        if (otherCell === this || otherCell.energy <= 0) continue;
+                        const dSq = distSq(this.x, this.y, otherCell.x, otherCell.y);
+                        if (otherCell.genomeId === this.genomeId) {
+                            if (dSq < (this.kinSensingRadius * 0.85)**2 && this.kinCohesionFactor > 0.1) {
+                                avgKinX += otherCell.x; avgKinY += otherCell.y; kinCount++;
+                            }
+                        } else {
+                            const otherGenomeData = activeGenomes.get(otherCell.genomeId);
+                            if (!(otherGenomeData && otherGenomeData.parentGenomeId === this.genomeId)) {
+                                const avoidRadiusSq = (this.radius * NON_KIN_AVOID_RADIUS_FACTOR)**2;
+                                if (dSq < avoidRadiusSq && dSq > 0.01) {
+                                    const distance = Math.sqrt(dSq);
+                                    const dx = (this.x - otherCell.x) / distance; const dy = (this.y - otherCell.y) / distance;
+                                    const strength = (1 - distance / Math.sqrt(avoidRadiusSq)) * NON_KIN_AVOID_STRENGTH;
+                                    repulseX += dx * strength; repulseY += dy * strength;
+                                }
+                            }
+                        }
+                    }
+                    if (kinCount > 0) {
+                        avgKinX /= kinCount; avgKinY /= kinCount;
+                        const angleToKinCentroid = Math.atan2(avgKinY - this.y, avgKinX - this.x);
+                        moveX += Math.cos(angleToKinCentroid) * effectiveSpeed * 0.20 * this.kinCohesionFactor;
+                        moveY += Math.sin(angleToKinCentroid) * effectiveSpeed * 0.20 * this.kinCohesionFactor;
+                    }
+                    if (Math.abs(repulseX) > 0 || Math.abs(repulseY) > 0) {
+                        moveX += repulseX * effectiveSpeed; moveY += repulseY * effectiveSpeed;
+                    }
+                }
+                if (this.isFleeing && this.fleeFromX != null) {
+                    const angleAway = Math.atan2(this.y - this.fleeFromY, this.x - this.fleeFromX);
+                    moveX = Math.cos(angleAway) * effectiveSpeed * 1.3; moveY = Math.sin(angleAway) * effectiveSpeed * 1.3;
+                } else if (this.targetEnemy && this.targetEnemy.energy > 0) {
+                    const angleToTarget = Math.atan2(this.targetEnemy.y - this.y, this.targetEnemy.x - this.x);
+                    moveX = Math.cos(angleToTarget) * effectiveSpeed; moveY = Math.sin(angleToTarget) * effectiveSpeed;
+                    if (distSq(this.x, this.y, this.targetEnemy.x, this.targetEnemy.y) < (this.radius + this.targetEnemy.radius)**2) {
+                        this.initiateCombat(this.targetEnemy);
+                    }
+                } else if (this.targetFood) {
+                    const angleToFood = Math.atan2(this.targetFood.y - this.y, this.targetFood.x - this.x);
+                    moveX += Math.cos(angleToFood) * effectiveSpeed * this.foodAttraction;
+                    moveY += Math.sin(angleToFood) * effectiveSpeed * this.foodAttraction;
+                } else if (this.isWandering && this.wanderTicksRemaining > 0) {
+                    moveX += this.wanderDirectionX * effectiveSpeed * 0.6; moveY += this.wanderDirectionY * effectiveSpeed * 0.6;
+                    this.wanderTicksRemaining--;
+                    if (this.wanderTicksRemaining % WANDER_SCAN_INTERVAL === 0) {
+                        const potentialFood = this.findClosestFood();
+                        if (potentialFood) { this.targetFood = potentialFood; this.isWandering = false; this.wanderTicksRemaining = 0; }
+                    }
+                    if (this.wanderTicksRemaining <= 0) { this.isWandering = false; this.actionCooldown = 0; }
+                } else {
+                    if (this.actionCooldown <= 0 && !this.isWandering && kinCount === 0 && Math.abs(repulseX) < 0.01 && Math.abs(repulseY) < 0.01) this.initiateWander();
+                    if (kinCount === 0 && Math.abs(repulseX) < 0.01 && Math.abs(repulseY) < 0.01 && !this.isWandering) {
+                        moveX += (Math.random() - 0.5) * effectiveSpeed * 0.2; moveY += (Math.random() - 0.5) * effectiveSpeed * 0.2;
+                    }
+                }
+                const totalMoveMagnitude = Math.sqrt(moveX*moveX + moveY*moveY);
+                if (totalMoveMagnitude > effectiveSpeed) {
+                    moveX = (moveX / totalMoveMagnitude) * effectiveSpeed; moveY = (moveY / totalMoveMagnitude) * effectiveSpeed;
+                }
+                this.x += moveX; this.y += moveY;
+                this.energy -= BASE_MOVEMENT_COST * ((Math.abs(moveX) + Math.abs(moveY)) / (1 + this.speedFactor * 0.5));
+                if (this.x < 0) this.x = WORLD_WIDTH; if (this.x > WORLD_WIDTH) this.x = 0;
+                if (this.y < 0) this.y = WORLD_HEIGHT; if (this.y > WORLD_HEIGHT) this.y = 0;
+            }
+            eat() {
+                for (let i = foodParticles.length - 1; i >= 0; i--) {
+                    const food = foodParticles[i];
+                    if (!foodParticles.includes(food)) continue;
+                    if (distSq(this.x, this.y, food.x, food.y) < (this.radius + food.radius)**2) {
+                        this.energy += food.energyValue;
+                        foodParticles.splice(i, 1);
+                        if (this.targetFood === food) this.targetFood = null;
+                        this.isWandering = false; this.wanderTicksRemaining = 0;
+                        break;
+                    }
+                }
+            }
+            initiateCombat(opponent) {
+                if (!opponent || opponent.energy <= 0 || this.energy <= 0) { this.targetEnemy = null; this.isAttemptingBackstab = false; return; }
+                if (this.isAttemptingBackstab && opponent.genomeId === this.genomeId) {
+                    const energyStolen = Math.min(opponent.energy * 0.75, this.maxEnergy - this.energy);
+                    this.energy += energyStolen; opponent.energy -= energyStolen;
+                    if (this.genome) this.genome.backstabsCommitted++;
+                    if (opponent.energy <= 0) opponent.die();
+                    this.targetEnemy = null; this.isAttemptingBackstab = false; this.actionCooldown = randomRange(60, 120);
+                    return;
+                } else { this.isAttemptingBackstab = false; }
+                if (opponent.aggression < 0.6 && opponent.getEffectiveSpeed() > this.getEffectiveSpeed() * 1.1 && Math.random() < 0.7) {
+                    if (opponent.attemptEvasion(this.x, this.y)) { this.targetEnemy = null; return; }
+                }
+                this.fight(opponent);
+            }
+            attemptEvasion(attackerX, attackerY) {
+                this.isFleeing = true; this.fleeFromX = attackerX; this.fleeFromY = attackerY;
+                this.targetFood = null; this.targetEnemy = null; this.isWandering = false;
+                this.actionCooldown = 5; return true;
+            }
+            fight(opponent) {
+                if (!opponent || opponent.energy <= 0 || this.energy <= 0) { this.targetEnemy = null; return; }
+                let myEffectivePower = this.energy * this.fightAbilityFactor + this.currentSize;
+                const opponentEffectivePower = opponent.energy * opponent.fightAbilityFactor + opponent.currentSize;
+                if (this.genome && this.genome.parentGenomeId === opponent.genomeId) myEffectivePower *= 2;
+                const totalPower = myEffectivePower + opponentEffectivePower;
+                if (totalPower === 0) { this.die(); this.targetEnemy = null; if(opponent) { opponent.targetEnemy = null; opponent.isFleeing = false; } return; }
+                if (Math.random() * totalPower < myEffectivePower) {
+                    this.energy += opponent.energy * 0.25;
+                    if (this.genome) this.genome.fightVictories++;
+                    opponent.die();
+                } else {
+                    opponent.energy += this.energy * 0.25;
+                    if (opponent.genome) opponent.genome.fightVictories++;
+                    this.die();
+                }
+                this.targetEnemy = null;
+                if(opponent && opponent.targetEnemy === this) opponent.targetEnemy = null;
+                if(opponent) opponent.isFleeing = false;
+            }
+            reproduce() {
+                const strictPopulationCap = POPULATION_LIMIT * 1.1;
+                const ownGenomePopulation = this.genome ? this.genome.population : 0;
+                let allowEndangeredBypass = (ownGenomePopulation <= 3 && cells.length < strictPopulationCap);
+                if (!allowEndangeredBypass) {
+                    if (cells.length >= strictPopulationCap) return;
+                    let isOffspringLikelyNewSpecies = false;
+                    let tempOffspringTraits = [...this.traits]; let tempHasMutated = false;
+                    for (let i = 0; i < GENOME_LENGTH; i++) {
+                        if (Math.random() < TRAIT_MUTATION_RATE_BASE * (1 + globalMutationModifier)) {
+                            tempHasMutated = true;
+                            let mutatedValue = tempOffspringTraits[i] + randomRange(-TRAIT_MUTATION_AMOUNT_BASE * (1 + globalMutationModifier), TRAIT_MUTATION_AMOUNT_BASE * (1 + globalMutationModifier));
+                            if (i === G_DISHONESTY && mutatedValue > 0.3 && Math.random() < 0.5) mutatedValue = randomLogBiased(4);
+                            tempOffspringTraits[i] = Math.max(0, Math.min(1, mutatedValue));
+                        }
+                    }
+                    if (tempHasMutated) {
+                        const tempOffspringTraitString = tempOffspringTraits.map(t => t.toFixed(TRAIT_COMPARISON_PRECISION)).join(',');
+                        const parentTraitString = this.traits.map(t => t.toFixed(TRAIT_COMPARISON_PRECISION)).join(',');
+                        if (tempOffspringTraitString !== parentTraitString) {
+                            let existingGenomeForMutated = Array.from(activeGenomes.values()).some(g => g.traits.map(t => t.toFixed(TRAIT_COMPARISON_PRECISION)).join(',') === tempOffspringTraitString);
+                            if (!existingGenomeForMutated) isOffspringLikelyNewSpecies = true;
+                        }
+                    }
+                    const activeSpeciesCount = activeGenomes.size;
+                    let currentDynamicNewGenomeSpawnRate = DYNAMIC_NEW_GENOME_SPAWN_RATE * (activeSpeciesCount <= 3 ? (activeSpeciesCount > 0 ? (5 / activeSpeciesCount) : 20) : 1);
+                    if (Math.random() < currentDynamicNewGenomeSpawnRate) isOffspringLikelyNewSpecies = true;
+                    if (cells.length >= POPULATION_LIMIT && !isOffspringLikelyNewSpecies) return;
+                }
+                const cost = this.energy * REPRODUCTION_COST_FACTOR;
+                if (this.energy - cost < MAX_ENERGY_BASE * 0.15) return;
+                this.energy -= cost;
+                let offspringTraits = [...this.traits]; let hasMutatedActual = false;
+                for (let i = 0; i < GENOME_LENGTH; i++) {
+                    if (Math.random() < TRAIT_MUTATION_RATE_BASE * (1 + globalMutationModifier)) {
+                        hasMutatedActual = true;
+                        let mutatedValue = offspringTraits[i] + randomRange(-TRAIT_MUTATION_AMOUNT_BASE * (1 + globalMutationModifier), TRAIT_MUTATION_AMOUNT_BASE * (1 + globalMutationModifier));
+                        if (i === G_DISHONESTY && mutatedValue > 0.3 && Math.random() < 0.5) mutatedValue = randomLogBiased(4);
+                        offspringTraits[i] = Math.max(0, Math.min(1, mutatedValue));
+                    }
+                }
+                let offspringGenomeId; let isActuallyNewSpeciesInstance = false; let parentIdForNewGenome = null;
+                if (hasMutatedActual) {
+                    const currentGenomeStandardizedTraits = this.traits.map(t => t.toFixed(TRAIT_COMPARISON_PRECISION)).join(',');
+                    const offspringStandardizedTraits = offspringTraits.map(t => t.toFixed(TRAIT_COMPARISON_PRECISION)).join(',');
+                    if (currentGenomeStandardizedTraits === offspringStandardizedTraits) {
+                        offspringGenomeId = this.genomeId;
+                    } else {
+                        parentIdForNewGenome = this.genomeId;
+                        offspringGenomeId = getOrCreateGenome(offspringTraits, parentIdForNewGenome);
+                        if (offspringGenomeId !== this.genomeId) {
+                            const newGenomeData = activeGenomes.get(offspringGenomeId);
+                            if (newGenomeData && newGenomeData.population === 0) isActuallyNewSpeciesInstance = true;
+                        }
+                    }
+                } else { offspringGenomeId = this.genomeId; }
+                const activeSpeciesCount = activeGenomes.size;
+                let currentDynamicNewGenomeSpawnRate = DYNAMIC_NEW_GENOME_SPAWN_RATE * (activeSpeciesCount <= 3 ? (activeSpeciesCount > 0 ? (5 / activeSpeciesCount) : 20) : 1);
+                if (Math.random() < currentDynamicNewGenomeSpawnRate) {
+                    offspringTraits = createRandomGenomeTraits();
+                    offspringGenomeId = getOrCreateGenome(offspringTraits);
+                    isActuallyNewSpeciesInstance = true;
+                }
+                let startingEnergyForOffspring;
+                if (isActuallyNewSpeciesInstance) {
+                    const finalOffspringGenomeData = activeGenomes.get(offspringGenomeId);
+                    startingEnergyForOffspring = MAX_ENERGY_BASE * (1 + (finalOffspringGenomeData?.traits[G_MAX_SIZE] ?? 0.5) * 1.5);
+                } else { startingEnergyForOffspring = cost * OFFSPRING_ENERGY_FACTOR; }
+                const newCell = new Cell(
+                    this.x + Math.cos(Math.random() * 2 * Math.PI) * this.radius * 2.5,
+                    this.y + Math.sin(Math.random() * 2 * Math.PI) * this.radius * 2.5,
+                    startingEnergyForOffspring, offspringGenomeId
+                );
+                newCell.isNewSpeciesSpawn = isActuallyNewSpeciesInstance;
+                if (newCell.isNewSpeciesSpawn) newCell.isFirstOfNewSpecies = true;
+                newCellsBuffer.push(newCell);
+                const genomeForBirthCount = activeGenomes.get(offspringGenomeId);
+                if(genomeForBirthCount && !isActuallyNewSpeciesInstance) genomeForBirthCount.births++;
+                this.actionCooldown = randomRange(50, 80);
+                this.isWandering = false; this.wanderTicksRemaining = 0;
+            }
+            die() {
+                const genomeOfDeadCell = activeGenomes.get(this.genomeId);
+                if (genomeOfDeadCell) genomeOfDeadCell.population--;
+                const index = cells.indexOf(this);
+                if (index > -1) cells.splice(index, 1);
+            }
+            draw(ctx) {
+                // Original line:
+                // let displayRadius = this.radius * (this.energy >= this.maxEnergy * 0.95 ? 1.5 : 1);
+                // ---- MODIFIED for Cosmetic Cell Scaling ----
+                let baseDisplayRadius = this.radius * (this.energy >= this.maxEnergy * 0.95 ? 1.5 : 1);
+                let finalDisplayRadius = baseDisplayRadius * cellAppearanceScale; // Apply cosmetic scale
+
+                ctx.beginPath();
+                // Use finalDisplayRadius instead of displayRadius
+                ctx.arc(this.x, this.y, finalDisplayRadius, 0, Math.PI * 2);
+                ctx.fillStyle = this.primaryColor;
+                ctx.fill();
+                ctx.strokeStyle = this.borderColor;
+                // Consider scaling lineWidth too if desired. For now, keeping it as original.
+                // A good scaled lineWidth: Math.max(1, 6 * cellAppearanceScale)
+                ctx.lineWidth = 6;
+                ctx.stroke();
+
+                const healthPercentage = Math.max(0, this.energy / this.maxEnergy);
+                ctx.fillStyle = healthPercentage > 0.6 ? 'lightgreen' : healthPercentage > 0.3 ? 'yellow' : 'red';
+
+                // Adjust health bar based on finalDisplayRadius
+                const healthBarWidth = finalDisplayRadius * 2 * healthPercentage;
+                // A good scaled healthBarHeight: Math.max(1, 3 * cellAppearanceScale)
+                const healthBarHeight = 3;
+                ctx.fillRect(this.x - finalDisplayRadius, this.y - finalDisplayRadius - healthBarHeight * 2, healthBarWidth, healthBarHeight);
+                // ---- END MODIFIED ----
+            }
+        }
+
+        let newCellsBuffer = [];
+
+        function spawnFood() {
+            const desiredFoodCount = effectiveMaxFoodCount * targetFoodDensityFactor;
+            const foodDeficit = desiredFoodCount - foodParticles.length;
+            if (foodDeficit > 0) {
+                let spawnAttempts = Math.ceil(foodDeficit * FOOD_SPAWN_BATCH_FACTOR * simulationSpeed);
+                for (let i = 0; i < spawnAttempts && foodParticles.length < effectiveMaxFoodCount; i++) {
+                    if (Math.random() < 0.5) {
+                        foodParticles.push(new FoodParticle(Math.random() * WORLD_WIDTH, Math.random() * WORLD_HEIGHT));
+                    }
+                }
+            }
+        }
+
+        function initSimulation(initialGenomeCount, initialCellCount, populationLimit) {
+            POPULATION_LIMIT = populationLimit;
+            activeGenomes.clear(); nextGenomeId = 0; extinctSpeciesCount = 0;
+            genomeHistory = []; historyButton.disabled = true; hallOfFameDisplay.innerHTML = '';
+            const initialGenomeIds = Array.from({ length: initialGenomeCount }, () => getOrCreateGenome(createRandomGenomeTraits()));
+            cells = [];
+            for (let i = 0; i < initialCellCount; i++) {
+                const genomeIdToUse = initialGenomeIds.length > 0 ? initialGenomeIds[Math.floor(Math.random() * initialGenomeIds.length)] : getOrCreateGenome(createRandomGenomeTraits());
+                cells.push(new Cell(Math.random() * WORLD_WIDTH, Math.random() * WORLD_HEIGHT, MAX_ENERGY_BASE * 0.8, genomeIdToUse));
+            }
+            foodParticles = [];
+            let initialEffectiveMax = effectiveMaxFoodCount || MAX_FOOD_PARTICLES_AT_REF_AREA;
+            const initialDesiredFood = Math.floor(initialEffectiveMax * targetFoodDensityFactor);
+            for(let i=0; i < initialDesiredFood && foodParticles.length < initialEffectiveMax; i++) {
+                 foodParticles.push(new FoodParticle(Math.random() * WORLD_WIDTH, Math.random() * WORLD_HEIGHT));
+            }
+            tickCount = 0;
+            resetViewToFullGrid();
+            if (!simulationRunning) updateInfoDisplay();
+        }
+
+        function clampView() {
+            viewScale = Math.max(MIN_VIEW_SCALE, Math.min(MAX_VIEW_SCALE, viewScale));
+            if (currentRenderScale <= 0) {
+                console.warn("currentRenderScale is zero or negative, delaying clampView.");
+                requestAnimationFrame(clampView); return;
+            }
+            const effectiveTotalScale = viewScale * currentRenderScale;
+            if (effectiveTotalScale <= 0) {
+                 console.error("Error: effectiveTotalScale <= 0. Resetting view.");
+                 viewScale = MIN_VIEW_SCALE;
+                 const newEffectiveTotalScale = viewScale * currentRenderScale;
+                 if (newEffectiveTotalScale <= 0) {
+                    console.error("CRITICAL: effectiveTotalScale still zero after reset. Aborting clamp.");
+                    return;
+                 }
+            }
+             if (canvas.width <= 0 || canvas.height <= 0) {
+                console.warn("Canvas dimensions are zero or negative, delaying clampView.");
+                requestAnimationFrame(clampView); return;
+            }
+            const viewportWorldWidth = canvas.width / effectiveTotalScale;
+            const viewportWorldHeight = canvas.height / effectiveTotalScale;
+            if (WORLD_WIDTH <= 0 || WORLD_HEIGHT <= 0) {
+                console.warn("World dimensions are zero or negative, delaying clampView.");
+                requestAnimationFrame(clampView); return;
+            }
+            viewOffsetX = (viewportWorldWidth >= WORLD_WIDTH) ? WORLD_WIDTH / 2 : Math.max(viewportWorldWidth / 2, Math.min(WORLD_WIDTH - viewportWorldWidth / 2, viewOffsetX));
+            viewOffsetY = (viewportWorldHeight >= WORLD_HEIGHT) ? WORLD_HEIGHT / 2 : Math.max(viewportWorldHeight / 2, Math.min(WORLD_HEIGHT - viewportWorldHeight / 2, viewOffsetY));
+        }
+
+        function resetViewToFullGrid() {
+            viewScale = 1.0; viewOffsetX = WORLD_WIDTH / 2; viewOffsetY = WORLD_HEIGHT / 2;
+            clampView();
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        async function triggerThanosEvent() {
+            if (thanosInProgress) return;
+            thanosInProgress = true;
+            console.log("Thanos Event: Started");
+
+            const wasRunning = simulationRunning;
+            if (simulationRunning) {
+                if (playPauseButton) {
+                    console.log("Thanos Event: Pausing simulation.");
+                    playPauseButton.click();
+                } else {
+                    console.error("Thanos Event: playPauseButton is null. Aborting.");
+                    thanosInProgress = false;
+                    return;
+                }
+            }
+
+            if (WORLD_WIDTH <= 0 || WORLD_HEIGHT <= 0 || isNaN(WORLD_WIDTH) || isNaN(WORLD_HEIGHT)) {
+                console.log("Thanos Event: Initial world dimensions invalid. Attempting resize.");
+                resizeCanvas();
+                 if (WORLD_WIDTH <= 0 || WORLD_HEIGHT <= 0 || isNaN(WORLD_WIDTH) || isNaN(WORLD_HEIGHT)) {
+                    console.error(`Thanos Event: World dimensions still invalid after resize (W: ${WORLD_WIDTH}, H: ${WORLD_HEIGHT}). Aborting event.`);
+                    thanosInProgress = false;
+                    if (wasRunning && playPauseButton) playPauseButton.click();
+                    return;
+                }
+            }
+            console.log(`Thanos Event: World dimensions (W: ${WORLD_WIDTH}, H: ${WORLD_HEIGHT})`);
+
+            const worldCx = WORLD_WIDTH / 2;
+            const worldCy = WORLD_HEIGHT / 2;
+
+            if (isNaN(worldCx) || isNaN(worldCy)) {
+                console.error(`Thanos Event: worldCx or worldCy is NaN. Aborting. (Cx: ${worldCx}, Cy: ${worldCy})`);
+                thanosInProgress = false;
+                if (wasRunning && playPauseButton) playPauseButton.click();
+                return;
+            }
+
+            const bisectionAngleRad = currentAccentHue * (Math.PI / 180);
+            nx = Math.cos(bisectionAngleRad); 
+            ny = Math.sin(bisectionAngleRad); 
+
+            console.log("Thanos Event: Stage 1 - Food Culling");
+            drawBisectionLine = true;
+            flashOverlayColor = 'rgba(255, 255, 100, 0.3)';
+            if (typeof draw === 'function') draw(); else console.error("Thanos: draw function not available for flash.");
+            await sleep(200);
+
+            foodParticles = foodParticles.filter(p => {
+                if (p && typeof p.x === 'number' && typeof p.y === 'number') {
+                    const dotProduct = nx * (p.x - worldCx) + ny * (p.y - worldCy);
+                    if (isNaN(dotProduct)) {
+                        console.warn("Thanos Event: NaN dotProduct in food filter for particle:", p);
+                        return false;
+                    }
+                    return dotProduct > 0; // Keep food in the "kill zone"
+                }
+                console.warn("Thanos Event: Invalid food particle in filter:", p);
+                return false;
+            });
+            console.log(`Thanos Event: Food particles in kill zone after initial cull: ${foodParticles.length}`);
+
+            console.log("Thanos Event: Stage 1.5 - Repopulating food in kill zone to target density");
+            if (isNaN(effectiveMaxFoodCount) || !isFinite(effectiveMaxFoodCount) || isNaN(targetFoodDensityFactor)) {
+                 console.error(`Thanos Event: effectiveMaxFoodCount (${effectiveMaxFoodCount}) or targetFoodDensityFactor (${targetFoodDensityFactor}) is invalid. Aborting food repopulation.`);
+            } else {
+                const totalDesiredFoodOverall = effectiveMaxFoodCount * targetFoodDensityFactor;
+                const desiredFoodInKillZone = Math.floor(totalDesiredFoodOverall);
+                
+                if (isNaN(desiredFoodInKillZone) || !isFinite(desiredFoodInKillZone) || desiredFoodInKillZone < 0) {
+                    console.error(`Thanos Event: desiredFoodInKillZone is invalid or negative (${desiredFoodInKillZone}). Aborting food repopulation.`);
+                } else {
+                    console.log(`Thanos Event: Target food in kill zone: ${desiredFoodInKillZone}. Current food: ${foodParticles.length}`);
+                    let attempts = 0;
+                    const maxSpawnAttemptsForSaturation = desiredFoodInKillZone * 25 + 200; // Generous attempts
+
+                    while (foodParticles.length < desiredFoodInKillZone && attempts < maxSpawnAttemptsForSaturation) {
+                        const foodX = Math.random() * WORLD_WIDTH;
+                        const foodY = Math.random() * WORLD_HEIGHT;
+
+                        if (isNaN(foodX) || isNaN(foodY)) {
+                            console.warn("Thanos Event: Generated NaN food coordinates during saturation. Skipping spawn attempt.");
+                            attempts++;
+                            continue;
+                        }
+
+                        const dotProductFood = nx * (foodX - worldCx) + ny * (foodY - worldCy);
+                        if (isNaN(dotProductFood)) {
+                            console.warn(`Thanos Event: NaN dotProduct for new food during saturation at (${foodX}, ${foodY}). Skipping.`);
+                        } else if (dotProductFood > 0) { // Check if it's in the kill zone
+                            foodParticles.push(new FoodParticle(foodX, foodY));
+                        }
+                        attempts++;
+                    }
+                    if (foodParticles.length < desiredFoodInKillZone) {
+                        console.warn(`Thanos Event: Food saturation in kill zone incomplete. Reached ${foodParticles.length}/${desiredFoodInKillZone} after ${attempts} attempts.`);
+                    } else {
+                        console.log(`Thanos Event: Food saturation in kill zone successful. Reached ${foodParticles.length}/${desiredFoodInKillZone}.`);
+                    }
+                }
+            }
+            
+            flashOverlayColor = null;
+            if (typeof draw === 'function') draw();
+            await sleep(150);
+
+            console.log("Thanos Event: Stage 2 - Cell Killing");
+            flashOverlayColor = 'rgba(255, 80, 80, 0.3)';
+            if (typeof draw === 'function') draw();
+            await sleep(200);
+
+            for (let i = cells.length - 1; i >= 0; i--) {
+                const cell = cells[i];
+                if (cell && typeof cell.x === 'number' && typeof cell.y === 'number' && typeof cell.die === 'function') {
+                    const dotProductCell = nx * (cell.x - worldCx) + ny * (cell.y - worldCy);
+                     if (isNaN(dotProductCell)) {
+                        console.warn("Thanos Event: NaN dotProduct in cell filter for cell:", cell);
+                        continue;
+                    }
+                    if (dotProductCell > 0) { // Cells in the kill zone
+                        cell.die();
+                    }
+                } else {
+                    console.warn("Thanos Event: Invalid cell in culling loop at index", i, ":", cell);
+                }
+            }
+            console.log(`Thanos Event: Cells remaining: ${cells.length}`);
+
+            flashOverlayColor = null;
+            drawBisectionLine = false;
+            if (typeof draw === 'function') draw();
+
+            console.log("Thanos Event: Finished.");
+            if (wasRunning && playPauseButton) {
+                console.log("Thanos Event: Resuming simulation.");
+                playPauseButton.click();
+            }
+            thanosInProgress = false;
+        }
+
+
+        function toggleFullMode() {
+            const wasPausedBeforeEnteringFullMode = !simulationRunning && !isFullModeActive;
+            isFullModeActive = !isFullModeActive;
+            bodyElement.classList.toggle('full-mode-active', isFullModeActive);
+
+            if (isFullModeActive) {
+                canvas.style.cursor = 'default';
+                resetViewToFullGrid(); // Resets viewScale, not cellAppearanceScale
+                touchState.pointers = []; touchState.lastDist = null; touchState.lastMidpointCanvas = null;
+                touchState.lastTapTime = 0;
+                if (touchState.tapTimeout) { clearTimeout(touchState.tapTimeout); touchState.tapTimeout = null; }
+                touchState.tapCount = 0;
+                touchState.touchStartTime = 0; touchState.touchStartX = 0; touchState.touchStartY = 0;
+                touchState.swipeStartX = null; touchState.swipeStartY = null; touchState.swipeStartTime = null;
+                touchState.isSwiping = false; isDragging = false;
+
+                if (wasPausedBeforeEnteringFullMode) {
+                    if (playPauseButton && !simulationRunning) { playPauseButton.click(); }
+                }
+            } else {
+                // ---- MODIFIED: cellAppearanceScale is NO LONGER reset here to retain it ----
+                // cellAppearanceScale = 1.0; // This line was removed
+                canvas.style.cursor = simulationRunning ? 'default' : 'grab';
+            }
+            requestAnimationFrame(resizeCanvas);
+        }
+
+        function resizeCanvas() {
+            let newCanvasWidth, newCanvasHeight;
+            if (!bodyElement || !simulationContainer) {
+                console.warn("Elements not ready for resizeCanvas, delaying.");
+                requestAnimationFrame(resizeCanvas); return;
+            }
+
+            if (isFullModeActive) {
+                newCanvasWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+                newCanvasHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+            } else {
+                if (!controlPanel) {
+                    console.warn("Control panel not ready for resizeCanvas, delaying.");
+                    requestAnimationFrame(resizeCanvas); return;
+                }
+                const containerWidth = simulationContainer.clientWidth;
+                const safeContainerWidth = containerWidth > 0 ? containerWidth : (window.innerWidth * 0.9);
+                
+                let controlPanelHeightWithMargin = 0;
+                if (controlPanel.offsetHeight > 0 && window.getComputedStyle(controlPanel).display !== 'none') {
+                     const controlPanelStyle = window.getComputedStyle(controlPanel);
+                     controlPanelHeightWithMargin = controlPanel.offsetHeight +
+                        parseFloat(controlPanelStyle.marginTop) +
+                        parseFloat(controlPanelStyle.marginBottom);
+                }
+
+                const bodyStyle = window.getComputedStyle(bodyElement);
+                const bodyPaddingTop = parseFloat(bodyStyle.paddingTop) || 0;
+                const bodyPaddingBottom = parseFloat(bodyStyle.paddingBottom) || 0;
+                const totalAvailableHeight = (window.visualViewport ? window.visualViewport.height : window.innerHeight) - bodyPaddingTop - bodyPaddingBottom;
+                
+                const heightAvailableForCanvas = totalAvailableHeight - controlPanelHeightWithMargin;
+                let idealSize = Math.min(safeContainerWidth, heightAvailableForCanvas);
+                idealSize = Math.max(idealSize, 100);
+
+                newCanvasWidth = idealSize;
+                newCanvasHeight = idealSize;
+            }
+
+            if (newCanvasWidth > 0 && newCanvasHeight > 0) {
+                canvas.width = newCanvasWidth;
+                canvas.height = newCanvasHeight;
+
+                const currentCanvasAspectRatio = newCanvasWidth / newCanvasHeight;
+                if (currentCanvasAspectRatio >= 1) {
+                    WORLD_HEIGHT = REFERENCE_LOGICAL_DENSITY_UNITS;
+                    WORLD_WIDTH = WORLD_HEIGHT * currentCanvasAspectRatio;
+                } else {
+                    WORLD_WIDTH = REFERENCE_LOGICAL_DENSITY_UNITS;
+                    WORLD_HEIGHT = WORLD_WIDTH / currentCanvasAspectRatio;
+                }
+                WORLD_WIDTH = Math.max(WORLD_WIDTH, 1);
+                WORLD_HEIGHT = Math.max(WORLD_HEIGHT, 1);
+
+                currentRenderScale = newCanvasWidth / WORLD_WIDTH;
+                currentRenderScale = Math.max(currentRenderScale, 0.001);
+
+                const currentWorldArea = WORLD_WIDTH * WORLD_HEIGHT;
+                effectiveMaxFoodCount = Math.round(MAX_FOOD_PARTICLES_AT_REF_AREA * (currentWorldArea / REFERENCE_WORLD_AREA));
+                if (!isFinite(effectiveMaxFoodCount) || effectiveMaxFoodCount < 0) {
+                    console.warn(`Resize: effectiveMaxFoodCount became invalid (${effectiveMaxFoodCount}). Resetting to default: ${MAX_FOOD_PARTICLES_AT_REF_AREA}.`);
+                    effectiveMaxFoodCount = MAX_FOOD_PARTICLES_AT_REF_AREA;
+                }
+                
+                const targetFoodLevelForCull = Math.floor(effectiveMaxFoodCount * targetFoodDensityFactor);
+                if(foodParticles && foodParticles.length > targetFoodLevelForCull) {
+                    foodParticles.splice(targetFoodLevelForCull);
+                }
+                
+                if (!isFullModeActive) {
+                    const containerWidthForLayout = simulationContainer.clientWidth || REFERENCE_LOGICAL_DENSITY_UNITS;
+                    const isPortraitMobile = window.innerHeight > window.innerWidth && containerWidthForLayout < 768;
+                    
+                    if (controlPanel) {
+                        controlPanel.classList.toggle('sm:flex-row', !isPortraitMobile);
+                        controlPanel.classList.toggle('flex-col', isPortraitMobile);
+                    }
+                     if (titleInfoActionsContainer) {
+                        titleInfoActionsContainer.classList.toggle('sm:order-2', !isPortraitMobile);
+                        titleInfoActionsContainer.classList.toggle('order-1', isPortraitMobile);
+                         titleInfoActionsContainer.classList.toggle('items-start', isPortraitMobile);
+                        titleInfoActionsContainer.classList.toggle('items-end', !isPortraitMobile);
+                    }
+                    if (slidersContainer) {
+                        slidersContainer.classList.toggle('sm:order-1', !isPortraitMobile);
+                        slidersContainer.classList.toggle('order-2', isPortraitMobile);
+                    }
+                     if (mainSimTitleElement) {
+                        mainSimTitleElement.classList.toggle('self-start', isPortraitMobile);
+                        mainSimTitleElement.classList.toggle('self-end', !isPortraitMobile);
+                    }
+                    if(infoDisplay){
+                        infoDisplay.classList.toggle('self-start', isPortraitMobile);
+                        infoDisplay.classList.toggle('text-left', isPortraitMobile);
+                        infoDisplay.classList.toggle('self-end', !isPortraitMobile);
+                        infoDisplay.classList.toggle('text-right', !isPortraitMobile);
+                    }
+                     if(document.querySelector('.actions-hof-container')){
+                        document.querySelector('.actions-hof-container').classList.toggle('self-start', isPortraitMobile);
+                        document.querySelector('.actions-hof-container').classList.toggle('self-end', !isPortraitMobile);
+                        document.querySelector('.actions-hof-container').classList.toggle('w-full', isPortraitMobile);
+                        document.querySelector('.actions-hof-container').classList.toggle('justify-between', isPortraitMobile);
+                    }
+                }
+
+                if (!isFullModeActive) {
+                    resetViewToFullGrid();
+                } else {
+                    clampView();
+                }
+                updateDynamicColors();
+                if (ctx && (!simulationContainer.classList.contains('hidden') || isFullModeActive)) {
+                     draw();
+                }
+            } else {
+                 console.warn(`resizeCanvas: Calculated invalid dimensions (${newCanvasWidth}x${newCanvasHeight}). Skipping update.`);
+            }
+        }
+
+        function gameLoop() {
+            if (!simulationRunning) { animationFrameId = null; return; }
+            currentAccentHue = (currentAccentHue + (0.2 * simulationSpeed)) % 360;
+            updateDynamicColors();
+            for (let i = 0; i < simulationSpeed; i++) updateSimulationState();
+            draw();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function auditGenomePopulations() {
+            const actualGenomePopulations = cells.reduce((acc, cell) => {
+                if (cell?.genomeId) acc.set(cell.genomeId, (acc.get(cell.genomeId) || 0) + 1);
+                return acc;
+            }, new Map());
+            activeGenomes.forEach((genomeData, genomeId) => {
+                genomeData.population = actualGenomePopulations.get(genomeId) || 0;
+            });
+        }
+
+        function updateHallOfFameDisplay() {
+            if (!hallOfFameDisplay) return;
+            if (genomeHistory.length === 0) { hallOfFameDisplay.innerHTML = ''; return; }
+            const sortedHistory = [...genomeHistory].sort((a, b) => b.lifespan - a.lifespan);
+            const topSpecies = sortedHistory.slice(0, 5);
+            hallOfFameDisplay.innerHTML = '';
+            topSpecies.forEach(genome => {
+                const cellVisCanvas = document.createElement('canvas');
+                cellVisCanvas.width = 24; cellVisCanvas.height = 24;
+                renderStaticCellOnCanvas(genome, cellVisCanvas);
+                hallOfFameDisplay.appendChild(cellVisCanvas);
+            });
+        }
+
+        function updateSimulationState() {
+            newCellsBuffer = [];
+            for (let i = cells.length - 1; i >= 0; i--) { if(cells[i]) cells[i].update(); }
+            
+            for (const newCell of newCellsBuffer) {
+                if (newCell.isNewSpeciesSpawn || cells.length < POPULATION_LIMIT) {
+                    cells.push(newCell);
+                } else {
+                    const genomeToCorrect = activeGenomes.get(newCell.genomeId);
+                    if (genomeToCorrect) genomeToCorrect.population--;
+                }
+            }
+            
+            spawnFood();
+
+            if (tickCount > 0 && tickCount % GENOME_AUDIT_INTERVAL === 0) auditGenomePopulations();
+            
+            const genomesToDelete = [];
+            activeGenomes.forEach((genomeData, genomeId) => {
+                if (genomeData.population <= 0) {
+                    genomeHistory.push({ ...genomeData, extinctionTick: tickCount, lifespan: tickCount - genomeData.originTick });
+                    if (historyButton && historyButton.disabled) historyButton.disabled = false;
+                    genomesToDelete.push(genomeId);
+                }
+            });
+            genomesToDelete.forEach(id => {
+                if (activeGenomes.has(id)) { activeGenomes.delete(id); extinctSpeciesCount++; }
+            });
+
+            if (tickCount > 0 && tickCount % HALL_OF_FAME_UPDATE_INTERVAL === 0) updateHallOfFameDisplay();
+
+            if (cells.length === 0 && POPULATION_LIMIT > 0) {
+                if (activeGenomes.size > 0) {
+                    activeGenomes.forEach(g => extinctSpeciesCount++);
+                    activeGenomes.clear();
+                }
+                const newGenomeId = getOrCreateGenome(createRandomGenomeTraits());
+                const revivalCell = new Cell(Math.random() * WORLD_WIDTH, Math.random() * WORLD_HEIGHT, MAX_ENERGY_BASE * 0.8, newGenomeId);
+                revivalCell.isNewSpeciesSpawn = true;
+                revivalCell.isFirstOfNewSpecies = true;
+                cells.push(revivalCell);
+            }
+            tickCount++;
+        }
+
+        function draw() {
+            if (!ctx) return;
+            if (canvas.classList.contains('hidden') && !drawBisectionLine && !flashOverlayColor) return;
+
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (!canvas.classList.contains('hidden')) {
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                if (viewScale > 0 && currentRenderScale > 0) {
+                    const effectiveTotalScale = viewScale * currentRenderScale;
+                    ctx.scale(effectiveTotalScale, effectiveTotalScale);
+                    ctx.translate(-viewOffsetX, -viewOffsetY);
+                } else {
+                    console.warn("Invalid scale detected in draw, skipping sim transform.");
+                }
+
+                if(foodParticles) foodParticles.forEach(food => food.draw(ctx));
+                if(cells) cells.filter(cell => cell).forEach(cell => cell.draw(ctx));
+                
+                ctx.restore();
+                ctx.save();   
+            }
+
+            if (drawBisectionLine || flashOverlayColor) {
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+                if (drawBisectionLine) {
+                    const canvasCx = canvas.width / 2;
+                    const canvasCy = canvas.height / 2;
+                    // Use global nx, ny here
+                    const lineAngleRad = Math.atan2(ny, nx) + (Math.PI / 2); 
+
+                    ctx.beginPath();
+                    ctx.moveTo(
+                        canvasCx - Math.cos(lineAngleRad) * Math.max(canvas.width, canvas.height) * 1.5,
+                        canvasCy - Math.sin(lineAngleRad) * Math.max(canvas.width, canvas.height) * 1.5
+                    );
+                    ctx.lineTo(
+                        canvasCx + Math.cos(lineAngleRad) * Math.max(canvas.width, canvas.height) * 1.5,
+                        canvasCy + Math.sin(lineAngleRad) * Math.max(canvas.width, canvas.height) * 1.5
+                    );
+                    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent-color-1').trim() || 'magenta';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+
+                if (flashOverlayColor) {
+                    ctx.fillStyle = flashOverlayColor;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+            }
+            ctx.restore();
+            updateInfoDisplay();
+        }
+
+        function updateInfoDisplay() {
+            if (!infoDisplay) return;
+            const cellsStr = String(cells?.length ?? 0).padStart(4, '0');
+            const foodStr = String(foodParticles?.length ?? 0).padStart(3, '0');
+            const speciesStr = String(activeGenomes?.size ?? 0).padStart(2, '0');
+            const extinctStr = String(extinctSpeciesCount).padStart(3, '0');
+            let infoHTML = `<span>Ticks: ${tickCount} | Cells: ${cellsStr} | Food: ${foodStr}</span>`;
+            infoHTML += `<br><span>Species: ${speciesStr} | Extinct: ${extinctStr}</span>`;
+            infoDisplay.style.display = isFullModeActive ? 'none' : '';
+            infoDisplay.innerHTML = infoHTML;
+        }
+
+        if (setupGenomeCountSlider && genomeCountValueDisplay && setupCellCountSlider && cellCountValueDisplay) {
+            setupGenomeCountSlider.addEventListener('input', (e) => {
+                genomeCountValueDisplay.textContent = e.target.value;
+                setupCellCountSlider.min = e.target.value;
+                if (parseInt(setupCellCountSlider.value) < parseInt(e.target.value)) {
+                    setupCellCountSlider.value = e.target.value; cellCountValueDisplay.textContent = e.target.value;
+                }
+            });
+        }
+        if (setupCellCountSlider && cellCountValueDisplay) {
+            setupCellCountSlider.addEventListener('input', (e) => { cellCountValueDisplay.textContent = e.target.value; });
+        }
+        if (setupPopulationLimitSlider && populationLimitValueDisplay) {
+            setupPopulationLimitSlider.addEventListener('input', (e) => { populationLimitValueDisplay.textContent = e.target.value; });
+        }
+        if (setupFoodRateSlider && foodRateValueDisplay && simulationContainer) {
+            setupFoodRateSlider.addEventListener('input', (e) => {
+                foodRateValueDisplay.textContent = e.target.value;
+                targetFoodDensityFactor = parseInt(e.target.value) / 100;
+                if (!simulationContainer.classList.contains('hidden')) {
+                    resizeCanvas();
+                    if(!simulationRunning && !canvas.classList.contains('hidden')) draw();
+                }
+            });
+        }
+
+        if (playPauseButton && canvas) {
+            playPauseButton.addEventListener('click', () => {
+                simulationRunning = !simulationRunning;
+                playPauseButton.textContent = simulationRunning ? 'Pause' : 'Play';
+                playPauseButton.classList.toggle('bg-green-500', !simulationRunning);
+                playPauseButton.classList.toggle('bg-yellow-500', simulationRunning);
+                if (simulationRunning) {
+                    canvas.style.cursor = 'default';
+                    resetViewToFullGrid(); // View scale is reset, cellAppearanceScale is not.
+                    if (!animationFrameId) gameLoop();
+                } else {
+                    canvas.style.cursor = 'grab';
+                    cancelAnimationFrame(animationFrameId); animationFrameId = null;
+                    updateDynamicColors();
+                    if(!canvas.classList.contains('hidden')) draw();
+                }
+            });
+        }
+
+        if (resetButton && setupModal && simulationContainer && historyPanel && ctx && playPauseButton && canvas && historyButton && hallOfFameDisplay && foodSpawnRateSlider) {
+             resetButton.addEventListener('click', () => {
+                if (isFullModeActive) toggleFullMode(); 
+                // ---- cellAppearanceScale is reset when exiting full mode by toggleFullMode ----
+                // ---- MODIFIED: Ensure cellAppearanceScale is reset on simulation reset ----
+                cellAppearanceScale = 1.0; 
+                simulationRunning = false;
+                playPauseButton.textContent = 'Play';
+                playPauseButton.classList.remove('bg-yellow-500'); playPauseButton.classList.add('bg-green-500');
+                if(canvas) canvas.style.cursor = 'default';
+
+                if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; }
+
+                setupModal.style.display = 'flex';
+                simulationContainer.classList.add('hidden'); simulationContainer.style.display = 'none';
+                if(controlPanel) { controlPanel.classList.add('hidden'); controlPanel.style.display = 'none'; }
+                if(canvas) { canvas.classList.add('hidden'); canvas.style.display = 'none'; }
+                if(historyPanel) { historyPanel.classList.add('hidden'); historyPanel.style.display = 'none'; }
+                
+                if(ctx && canvas && canvas.width > 0 && canvas.height > 0) {
+                    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.restore();
+                }
+                
+                tickCount = 0; cells = []; foodParticles = []; activeGenomes.clear();
+                extinctSpeciesCount = 0; genomeHistory = [];
+                if(historyButton) historyButton.disabled = true;
+                if(hallOfFameDisplay) hallOfFameDisplay.innerHTML = '';
+
+                const setupFoodRateElement = document.getElementById('setupFoodRate');
+                if (setupFoodRateElement && foodSpawnRateSlider) {
+                    targetFoodDensityFactor = parseInt(setupFoodRateElement.value) / 100;
+                    foodSpawnRateSlider.value = targetFoodDensityFactor * 100;
+                } else {
+                     targetFoodDensityFactor = 0.5;
+                     if(foodSpawnRateSlider) foodSpawnRateSlider.value = 50;
+                }
+                
+                currentAccentHue = initialAccentHueForHeader;
+                updateDynamicColors(); resizeCanvas(); resetViewToFullGrid(); updateInfoDisplay();
+            });
+        }
+
+        if (speedSlider) speedSlider.addEventListener('input', (e) => { simulationSpeed = parseInt(e.target.value); });
+        if (foodSpawnRateSlider && simulationContainer && canvas) {
+             foodSpawnRateSlider.addEventListener('input', (e) => {
+                targetFoodDensityFactor = parseInt(e.target.value) / 100;
+                if (!simulationContainer.classList.contains('hidden')) {
+                    resizeCanvas();
+                    if(!simulationRunning && !canvas.classList.contains('hidden')) draw();
+                }
+            });
+        }
+        if (metabolismSlider) metabolismSlider.addEventListener('input', (e) => { globalMetabolismModifier = parseInt(e.target.value) * (0.80 / 50); });
+        if (mutationRateSlider) mutationRateSlider.addEventListener('input', (e) => { globalMutationModifier = parseInt(e.target.value) * (0.66 / 50); });
+
+        if (canvas) {
+            canvas.addEventListener('click', (event) => {
+                if (touchState.isSwiping || touchState.tapCount > 0 || wasDraggingMouse) {
+                    wasDraggingMouse = false;
+                    return;
+                }
+                toggleFullMode();
+            });
+
+            // ---- MODIFIED: canvas.addEventListener('wheel', ...) ----
+            canvas.addEventListener('wheel', (event) => {
+                event.preventDefault(); // Prevent default page scroll
+
+                if (simulationRunning && !thanosInProgress) {
+                    // Cosmetic cell scaling when simulation is running
+                    const zoomFactor = event.deltaY < 0 ? 1.05 : (1 / 1.05); // Adjust sensitivity as needed
+                    cellAppearanceScale *= zoomFactor;
+                    cellAppearanceScale = Math.max(MIN_CELL_APPEARANCE_SCALE, Math.min(MAX_CELL_APPEARANCE_SCALE, cellAppearanceScale));
+                    // The gameLoop will call draw(), which will use the new cellAppearanceScale.
+                } else if (!simulationRunning && !thanosInProgress) {
+                    // Original view scaling logic when simulation is paused
+                    const rect = canvas.getBoundingClientRect();
+                    const mouseXCanvas = event.clientX - rect.left; 
+                    const mouseYCanvas = event.clientY - rect.top;
+                    
+                    const effectiveCurrentScale = viewScale * currentRenderScale;
+                    if (effectiveCurrentScale <= 0) return;
+
+                    const worldMouseXBefore = (mouseXCanvas - canvas.width / 2) / effectiveCurrentScale + viewOffsetX;
+                    const worldMouseYBefore = (mouseYCanvas - canvas.height / 2) / effectiveCurrentScale + viewOffsetY;
+                    
+                    const viewZoomFactor = event.deltaY < 0 ? 1.1 : (1 / 1.1);
+                    viewScale *= viewZoomFactor;
+                    
+                    const effectiveNewScale = viewScale * currentRenderScale;
+                    if (effectiveNewScale <= 0) { viewScale /= viewZoomFactor; return; } // Revert if scale becomes invalid
+
+                    viewOffsetX = worldMouseXBefore - (mouseXCanvas - canvas.width / 2) / effectiveNewScale;
+                    viewOffsetY = worldMouseYBefore - (mouseYCanvas - canvas.height / 2) / effectiveNewScale;
+                    
+                    clampView();
+                    if(!canvas.classList.contains('hidden')) draw();
+                }
+            });
+            // ---- END MODIFIED: canvas.addEventListener('wheel', ...) ----
+
+
+            canvas.addEventListener('mousedown', (event) => {
+                if (simulationRunning || event.button !== 0) return; // Only allow drag if sim is paused
+                isDragging = true; wasDraggingMouse = false;
+                lastDragX = event.clientX; lastDragY = event.clientY;
+                canvas.style.cursor = 'grabbing';
+            });
+            canvas.addEventListener('mousemove', (event) => {
+                if (!isDragging || simulationRunning) return; // Only allow drag if sim is paused
+                if (!wasDraggingMouse) {
+                    const dx = event.clientX - lastDragX; const dy = event.clientY - lastDragY;
+                    if (dx*dx + dy*dy > 5*5) {
+                        wasDraggingMouse = true;
+                    }
+                }
+                if (wasDraggingMouse) {
+                    const dxPan = event.clientX - lastDragX; const dyPan = event.clientY - lastDragY;
+                    const effectiveScale = viewScale * currentRenderScale;
+                    if (effectiveScale <= 0) return;
+
+                    viewOffsetX -= dxPan / effectiveScale;
+                    viewOffsetY -= dyPan / effectiveScale;
+                    lastDragX = event.clientX; lastDragY = event.clientY;
+                    
+                    clampView();
+                    if(!canvas.classList.contains('hidden')) draw();
+                }
+            });
+            const endMouseDrag = () => {
+                if (isDragging) {
+                    isDragging = false;
+                    canvas.style.cursor = !simulationRunning ? 'grab' : 'default';
+                }
+            };
+            canvas.addEventListener('mouseup', endMouseDrag);
+            canvas.addEventListener('mouseleave', endMouseDrag);
+        }
+
+        if (canvas) {
+            function getTouchDistance(p1, p2) { const dx = p1.clientX - p2.clientX; const dy = p1.clientY - p2.clientY; return Math.sqrt(dx * dx + dy * dy); }
+            function getTouchMidpoint(p1, p2) { return { clientX: (p1.clientX + p2.clientX) / 2, clientY: (p1.clientY + p2.clientY) / 2 }; }
+            
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault(); const currentTime = Date.now(); const touch = e.changedTouches[0];
+                touchState.touchStartTime = currentTime; touchState.touchStartX = touch.clientX; touchState.touchStartY = touch.clientY;
+                touchState.isSwiping = false; isDragging = false;
+                
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    const newTouch = e.changedTouches[i];
+                    if (!touchState.pointers.find(p => p.identifier === newTouch.identifier)) {
+                        touchState.pointers.push({ identifier: newTouch.identifier, clientX: newTouch.clientX, clientY: newTouch.clientY });
+                    }
+                }
+
+                if (touchState.pointers.length === 1) {
+                    if (isFullModeActive && simulationRunning) { // Swipe only in full mode and running
+                        touchState.swipeStartX = touch.clientX; touchState.swipeStartY = touch.clientY; touchState.swipeStartTime = currentTime;
+                    }
+                    if (!simulationRunning) { // Pan only if paused
+                        lastDragX = touch.clientX; lastDragY = touch.clientY;
+                    }
+                    touchState.lastDist = null; touchState.lastMidpointCanvas = null;
+                } else if (touchState.pointers.length >= 2) {
+                     // Allow pinch if (sim running) OR (sim paused)
+                    if (simulationRunning || !simulationRunning) {
+                        isDragging = false; 
+                        const p1 = touchState.pointers[0]; const p2 = touchState.pointers[1];
+                        if (p1 && p2) {
+                           touchState.lastDist = getTouchDistance(p1, p2);
+                           touchState.lastMidpointCanvas = getTouchMidpoint(p1, p2);
+                        }
+                    }
+                    touchState.swipeStartX = null; touchState.swipeStartY = null; touchState.isSwiping = false;
+                }
+            }, { passive: false });
+
+            canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    const changedTouch = e.changedTouches[i]; const index = touchState.pointers.findIndex(p => p.identifier === changedTouch.identifier);
+                    if (index !== -1) { touchState.pointers[index].clientX = changedTouch.clientX; touchState.pointers[index].clientY = changedTouch.clientY; }
+                }
+                const touch = touchState.pointers.find(p => p.identifier === e.changedTouches[0]?.identifier);
+                if (!touch) return;
+
+                const dxMove = touch.clientX - touchState.touchStartX; const dyMove = touch.clientY - touchState.touchStartY; const distSqMoved = dxMove * dxMove + dyMove * dyMove;
+
+                if (!isDragging && distSqMoved > touchState.maxMoveDistanceSq) {
+                    isDragging = true;
+                    if (touchState.tapTimeout) {
+                        clearTimeout(touchState.tapTimeout);
+                        touchState.tapTimeout = null;
+                        touchState.tapCount = 0;
+                    }
+                    if (isFullModeActive && simulationRunning && touchState.pointers.length === 1 && touchState.swipeStartX !== null) { // Swipe check
+                         touchState.isSwiping = true;
+                    }
+                    if (!simulationRunning && touchState.pointers.length === 1 && !touchState.isSwiping) { canvas.style.cursor = 'grabbing'; }
+                }
+
+                if (touchState.pointers.length === 1 && isDragging && !touchState.isSwiping && !simulationRunning) { // Single finger pan (if paused)
+                    const dxPan = touch.clientX - lastDragX; const dyPan = touch.clientY - lastDragY;
+                    const effectiveScale = viewScale * currentRenderScale;
+                    if (effectiveScale <= 0) return;
+                    viewOffsetX -= dxPan / effectiveScale; viewOffsetY -= dyPan / effectiveScale;
+                    lastDragX = touch.clientX; lastDragY = touch.clientY;
+                    clampView(); if(!canvas.classList.contains('hidden')) draw();
+                } else if (touchState.pointers.length >= 2 && !thanosInProgress) { 
+                    isDragging = true; 
+                    const p1 = touchState.pointers[0];
+                    const p2 = touchState.pointers[1];
+                    if (!p1 || !p2) return;
+
+                    const newDist = getTouchDistance(p1, p2);
+                    const newMidpointCanvas = getTouchMidpoint(p1, p2); 
+
+                    // ---- MODIFIED: Pinch logic for cosmetic or view scaling ----
+                    if (simulationRunning) {
+                        // Cosmetic cell scaling if simulation is running (regardless of full mode)
+                        if (touchState.lastDist != null && touchState.lastDist > 0) {
+                            const scaleChange = newDist / touchState.lastDist;
+                            cellAppearanceScale *= scaleChange;
+                            cellAppearanceScale = Math.max(MIN_CELL_APPEARANCE_SCALE, Math.min(MAX_CELL_APPEARANCE_SCALE, cellAppearanceScale));
+                        }
+                    } else if (!simulationRunning) {
+                        // View scaling logic if simulation is paused
+                        const rect = canvas.getBoundingClientRect();
+                        if (touchState.lastDist != null && touchState.lastMidpointCanvas != null && touchState.lastDist > 0) {
+                            const effectiveCurrentScale = viewScale * currentRenderScale;
+                            if (effectiveCurrentScale <= 0) {
+                                 touchState.lastDist = newDist; 
+                                 touchState.lastMidpointCanvas = newMidpointCanvas;
+                                 return;
+                            }
+
+                            const canvasMidXBefore = touchState.lastMidpointCanvas.clientX - rect.left;
+                            const canvasMidYBefore = touchState.lastMidpointCanvas.clientY - rect.top;
+                            const worldMidXBefore = (canvasMidXBefore - canvas.width / 2) / effectiveCurrentScale + viewOffsetX;
+                            const worldMidYBefore = (canvasMidYBefore - canvas.height / 2) / effectiveCurrentScale + viewOffsetY;
+                            
+                            viewScale *= newDist / touchState.lastDist;
+                            viewScale = Math.max(MIN_VIEW_SCALE, Math.min(MAX_VIEW_SCALE, viewScale));
+                            
+                            const effectiveNewScale = viewScale * currentRenderScale;
+                            if (effectiveNewScale <= 0) { 
+                                viewScale /= (newDist / touchState.lastDist); 
+                                touchState.lastDist = newDist; 
+                                touchState.lastMidpointCanvas = newMidpointCanvas;
+                                return; 
+                            }
+
+                            const newCanvasMidX = newMidpointCanvas.clientX - rect.left;
+                            const newCanvasMidY = newMidpointCanvas.clientY - rect.top;
+                            viewOffsetX = worldMidXBefore - (newCanvasMidX - canvas.width / 2) / effectiveNewScale;
+                            viewOffsetY = worldMidYBefore - (newCanvasMidY - canvas.height / 2) / effectiveNewScale;
+                            
+                            clampView(); 
+                            if(!canvas.classList.contains('hidden')) draw();
+                        }
+                    }
+                    // ---- END MODIFIED Pinch Logic ----
+                    touchState.lastDist = newDist;
+                    touchState.lastMidpointCanvas = newMidpointCanvas;
+                }
+            }, { passive: false });
+
+            const handleTouchEndOrCancel = (e) => {
+                e.preventDefault();
+                const currentTime = Date.now();
+                const touch = e.changedTouches[0];
+                const wasActivelyDragging = isDragging;
+
+                let swipeHandled = false;
+                if (isFullModeActive && simulationRunning && touchState.swipeStartX !== null && touchState.isSwiping && touchState.pointers.length === 1) { // Swipe only if fullmode, running, and swiping
+                    const swipeEndX = touch.clientX; const swipeEndY = touch.clientY;
+                    const swipeTime = currentTime - touchState.swipeStartTime;
+                    const dx = swipeEndX - touchState.swipeStartX; const dy = swipeEndY - touchState.swipeStartY;
+
+                    if (swipeTime < SWIPE_MAX_TIME && (Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(dy) > SWIPE_THRESHOLD)) {
+                        if (Math.abs(dx) > Math.abs(dy)) { // Horizontal swipe
+                            if (speedSlider) {
+                                const direction = dx > 0 ? 1 : -1;
+                                const newValue = Math.max(parseFloat(speedSlider.min), Math.min(parseFloat(speedSlider.max), parseFloat(speedSlider.value) + direction));
+                                if (newValue !== parseFloat(speedSlider.value)) { speedSlider.value = newValue; speedSlider.dispatchEvent(new Event('input')); }
+                            }
+                        } else { // Vertical swipe
+                            if (foodSpawnRateSlider) {
+                                const direction = dy < 0 ? 5 : -5; // Swipe Up increases, Swipe Down decreases
+                                const newValue = Math.max(parseFloat(foodSpawnRateSlider.min), Math.min(parseFloat(foodSpawnRateSlider.max), parseFloat(foodSpawnRateSlider.value) + direction));
+                                if (newValue !== parseFloat(foodSpawnRateSlider.value)) { foodSpawnRateSlider.value = newValue; foodSpawnRateSlider.dispatchEvent(new Event('input')); }
+                            }
+                        }
+                        swipeHandled = true;
+                        touchState.tapCount = 0; // Reset tap count if swipe occurred
+                        if (touchState.tapTimeout) { clearTimeout(touchState.tapTimeout); touchState.tapTimeout = null; }
+                    }
+                }
+                touchState.swipeStartX = null; touchState.swipeStartY = null; touchState.swipeStartTime = null; touchState.isSwiping = false;
+
+
+                const duration = currentTime - touchState.touchStartTime;
+                if (!wasActivelyDragging && !swipeHandled && duration < touchState.maxTapDuration) {
+                    touchState.tapCount++;
+                    if (touchState.tapTimeout) { clearTimeout(touchState.tapTimeout); touchState.tapTimeout = null; }
+
+                    if (touchState.tapCount === 1) {
+                        touchState.lastTapTime = currentTime;
+                        touchState.tapTimeout = setTimeout(() => {
+                            if (!thanosInProgress) toggleFullMode();
+                            touchState.tapCount = 0;
+                        }, touchState.maxDoubleTapDelay);
+                    } else if (touchState.tapCount === 2) {
+                        if (currentTime - touchState.lastTapTime < touchState.maxDoubleTapDelay) {
+                            touchState.lastTapTime = currentTime; // Update last tap time for triple tap check
+                            touchState.tapTimeout = setTimeout(() => {
+                                if (playPauseButton && !thanosInProgress) playPauseButton.click(); // Toggle play/pause on double tap
+                                touchState.tapCount = 0;
+                            }, touchState.maxDoubleTapDelay);
+                        } else { // Too long since last tap, treat as first tap of a new sequence
+                            touchState.tapCount = 1; touchState.lastTapTime = currentTime;
+                            touchState.tapTimeout = setTimeout(() => {
+                                if (!thanosInProgress) toggleFullMode();
+                                touchState.tapCount = 0;
+                            }, touchState.maxDoubleTapDelay);
+                        }
+                    } else if (touchState.tapCount === 3) {
+                        if (currentTime - touchState.lastTapTime < touchState.maxDoubleTapDelay) { // Check if it's a quick triple tap
+                            const isSetupHidden = !setupModal.style.display || setupModal.style.display === 'none' || !setupModal.style.display.includes('flex');
+                            const isHistoryHidden = historyPanel.classList.contains('hidden');
+                            if (!thanosInProgress && isSetupHidden && isHistoryHidden) triggerThanosEvent();
+                        }
+                        touchState.tapCount = 0; // Reset after triple tap attempt
+                    }
+                } else if (!swipeHandled) { // If it was a drag or swipe, or too long for a tap
+                    touchState.tapCount = 0;
+                    if (touchState.tapTimeout) { clearTimeout(touchState.tapTimeout); touchState.tapTimeout = null; }
+                }
+
+
+                touchState.pointers = touchState.pointers.filter(p => p.identifier !== touch.identifier);
+                if (touchState.pointers.length < 2) {
+                    touchState.lastDist = null;
+                    touchState.lastMidpointCanvas = null;
+                }                
+                if (touchState.pointers.length === 1 && !simulationRunning) { // If one finger remains and sim is paused
+                    const remainingTouch = touchState.pointers[0];
+                    lastDragX = remainingTouch.clientX; lastDragY = remainingTouch.clientY;
+                    isDragging = false; 
+                    canvas.style.cursor = 'grab';
+                } else if (touchState.pointers.length === 0) { // No fingers left
+                    isDragging = false;
+                    canvas.style.cursor = !simulationRunning ? 'grab' : 'default';
+                } else if (touchState.pointers.length >= 2) { // Two or more fingers remain
+                    isDragging = false; 
+                    const p1 = touchState.pointers[0]; const p2 = touchState.pointers[1];
+                    if (p1 && p2) {
+                        touchState.lastDist = getTouchDistance(p1, p2);
+                        touchState.lastMidpointCanvas = getTouchMidpoint(p1, p2);
+                    }
+                    // Set cursor based on whether sim is running (cosmetic zoom) or paused (view zoom)
+                    canvas.style.cursor = (simulationRunning || !simulationRunning) ? 'grab' : 'default';
+                }
+            };
+            canvas.addEventListener('touchend', handleTouchEndOrCancel, { passive: false });
+            canvas.addEventListener('touchcancel', handleTouchEndOrCancel, { passive: false });
+        }
+
+        function renderStaticCellOnCanvas(genomeData, cellCanvas) {
+            const cellCtx = cellCanvas?.getContext('2d');
+            if (!cellCtx || !genomeData) return;
+            const canvasSize = cellCanvas.width; const cellRadius = canvasSize * 0.4;
+            cellCtx.clearRect(0, 0, canvasSize, canvasSize);
+            const primaryColor = `hsl(${genomeData.primaryHue}, ${genomeData.primarySaturation}%, ${genomeData.primaryLightness}%)`;
+            cellCtx.beginPath(); cellCtx.arc(canvasSize / 2, canvasSize / 2, cellRadius, 0, Math.PI * 2);
+            cellCtx.fillStyle = primaryColor; cellCtx.fill();
+            const borderColor = `hsl(${genomeData.borderHue}, 85%, 60%)`;
+            cellCtx.strokeStyle = borderColor; cellCtx.lineWidth = Math.max(1, canvasSize * 0.1); cellCtx.stroke();
+        }
+
+        function populateHistoryTable() {
+            if (!historyTableBody) return;
+            historyTableBody.innerHTML = '';
+            genomeHistory.sort((a, b) => {
+                let valA = (currentSortColumn === 'id') ? parseInt(a.id.substring(1)) : a[currentSortColumn];
+                let valB = (currentSortColumn === 'id') ? parseInt(b.id.substring(1)) : b[currentSortColumn];
+                valA = isNaN(valA) ? -Infinity : valA;
+                valB = isNaN(valB) ? -Infinity : valB;
+                return (currentSortDirection === 'asc') ? (valA > valB ? 1 : -1) : (valA < valB ? 1 : -1);
+            });
+            genomeHistory.forEach(genome => {
+                const row = historyTableBody.insertRow();
+                const cellCanvasCell = row.insertCell();
+                const cellVisCanvas = document.createElement('canvas'); cellVisCanvas.width = 30; cellVisCanvas.height = 30;
+                renderStaticCellOnCanvas(genome, cellVisCanvas); cellCanvasCell.appendChild(cellVisCanvas);
+                row.insertCell().textContent = genome.id;
+                row.insertCell().textContent = genome.lifespan;
+                row.insertCell().textContent = genome.births;
+                const killsRatio = genome.births > 0 ? `(${(genome.fightVictories / genome.births).toFixed(2)})` : "";
+                row.insertCell().textContent = `${genome.fightVictories} ${killsRatio}`.trim();
+                const criminalsRatio = genome.births > 0 ? `(${(genome.backstabsCommitted / genome.births).toFixed(2)})` : "";
+                row.insertCell().textContent = `${genome.backstabsCommitted} ${criminalsRatio}`.trim();
+            });
+        }
+
+        if (historyButton && playPauseButton && setupModal && simulationContainer && controlPanel && historyPanel) {
+            historyButton.addEventListener('click', () => {
+                if (simulationRunning) playPauseButton.click();
+                viewBeforeHistory = (setupModal.style.display === 'flex' || setupModal.style.display === '') ? 'setup' : 'simulation';
+                setupModal.style.display = 'none';
+                simulationContainer.classList.add('hidden'); simulationContainer.style.display = 'none';
+                controlPanel.classList.add('hidden'); controlPanel.style.display = 'none';
+                if(canvas) { canvas.classList.add('hidden'); canvas.style.display = 'none';}
+                historyPanel.classList.remove('hidden'); historyPanel.style.display = 'flex';
+                updateDynamicColors();
+                populateHistoryTable();
+            });
+        }
+
+        if (closeHistoryButton && historyPanel && setupModal && simulationContainer && controlPanel && canvas) {
+             closeHistoryButton.addEventListener('click', () => {
+                historyPanel.classList.add('hidden'); historyPanel.style.display = 'none';
+                if (viewBeforeHistory === 'setup') {
+                    setupModal.style.display = 'flex';
+                    simulationContainer.classList.add('hidden'); simulationContainer.style.display = 'none';
+                    controlPanel.classList.add('hidden'); controlPanel.style.display = 'none';
+                    if(canvas) {canvas.classList.add('hidden'); canvas.style.display = 'none';}
+                } else {
+                    simulationContainer.classList.remove('hidden'); simulationContainer.style.display = 'flex';
+                    controlPanel.classList.remove('hidden'); controlPanel.style.display = 'flex';
+                    if(canvas) {canvas.classList.remove('hidden'); canvas.style.display = 'block';}
+                    setupModal.style.display = 'none';
+                }
+                updateDynamicColors(); resizeCanvas();
+                if (!simulationRunning && !canvas.classList.contains('hidden')) draw();
+            });
+        }
+
+        document.querySelectorAll('#historyTable th[data-sort]').forEach(headerCell => {
+            headerCell.addEventListener('click', () => {
+                const sortKey = headerCell.dataset.sort; if (sortKey === 'cell') return;
+                if (currentSortColumn === sortKey) {
+                    currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+                } else {
+                    currentSortColumn = sortKey;
+                    currentSortDirection = (sortKey === 'id') ? 'asc' : 'desc';
+                }
+                populateHistoryTable();
+            });
+        });
+
+        function handleKeyboardCommands(event) {
+            const isSetupVisible = setupModal && (setupModal.style.display === 'flex' || setupModal.style.display === '');
+            const isHistoryVisible = historyPanel && !historyPanel.classList.contains('hidden');
+            if (isSetupVisible || isHistoryVisible || thanosInProgress) return;
+
+            let sliderToUpdate = null, change = 0;
+            switch (event.code) {
+                case 'Space': event.preventDefault(); if (playPauseButton) playPauseButton.click(); break;
+                case 'ArrowRight': event.preventDefault(); sliderToUpdate = speedSlider; change = 1; break;
+                case 'ArrowLeft': event.preventDefault(); sliderToUpdate = speedSlider; change = -1; break;
+                case 'ArrowUp': event.preventDefault(); sliderToUpdate = foodSpawnRateSlider; change = 5; break;
+                case 'ArrowDown': event.preventDefault(); sliderToUpdate = foodSpawnRateSlider; change = -5; break;
+                case 'KeyT': event.preventDefault(); triggerThanosEvent(); break;
+            }
+            if (sliderToUpdate) {
+                const currentVal = parseFloat(sliderToUpdate.value);
+                const minVal = parseFloat(sliderToUpdate.min);
+                const maxVal = parseFloat(sliderToUpdate.max);
+                const newVal = Math.max(minVal, Math.min(maxVal, currentVal + change));
+                if (newVal !== currentVal) { sliderToUpdate.value = newVal; sliderToUpdate.dispatchEvent(new Event('input')); }
+            }
+        }
+        window.addEventListener('keydown', handleKeyboardCommands);
+
+        if (startSimulationButton && setupGenomeCountSlider && setupCellCountSlider && setupPopulationLimitSlider && setupFoodRateSlider && foodSpawnRateSlider && setupModal && simulationContainer && controlPanel && playPauseButton && canvas) {
+            startSimulationButton.addEventListener('click', () => {
+                INITIAL_GENOME_COUNT = parseInt(setupGenomeCountSlider.value);
+                INITIAL_CELL_COUNT = parseInt(setupCellCountSlider.value);
+                POPULATION_LIMIT = parseInt(setupPopulationLimitSlider.value);
+                targetFoodDensityFactor = parseInt(setupFoodRateSlider.value) / 100;
+                foodSpawnRateSlider.value = targetFoodDensityFactor * 100;
+                if (INITIAL_CELL_COUNT < INITIAL_GENOME_COUNT) INITIAL_CELL_COUNT = INITIAL_GENOME_COUNT;
+
+                // ---- MODIFIED: Reset cellAppearanceScale on new simulation start ----
+                cellAppearanceScale = 1.0;
+
+                setupModal.style.display = 'none';
+                simulationContainer.classList.remove('hidden'); simulationContainer.style.display = 'flex';
+                controlPanel.classList.remove('hidden'); controlPanel.style.display = 'flex';
+                if(canvas) {canvas.classList.remove('hidden'); canvas.style.display = 'block';}
+
+                currentAccentHue = initialAccentHueForHeader;
+                updateDynamicColors();
+                resizeCanvas();
+
+                requestAnimationFrame(() => {
+                    initSimulation(INITIAL_GENOME_COUNT, INITIAL_CELL_COUNT, POPULATION_LIMIT);
+                    simulationRunning = true;
+                    playPauseButton.textContent = 'Pause';
+                    playPauseButton.classList.remove('bg-green-500'); playPauseButton.classList.add('bg-yellow-500');
+                    canvas.style.cursor = 'default';
+                    gameLoop();
+                });
+            });
+        }
+
+        window.addEventListener('load', () => {
+            initialAccentHueForHeader = Math.floor(Math.random() * 360);
+            currentAccentHue = initialAccentHueForHeader;
+            updateDynamicColors();
+
+            if (setupModal) setupModal.style.display = 'flex';
+            if (simulationContainer) { simulationContainer.classList.add('hidden'); simulationContainer.style.display = 'none';}
+            if (controlPanel) { controlPanel.classList.add('hidden'); controlPanel.style.display = 'none';}
+            if (canvas) { canvas.classList.add('hidden'); canvas.style.display = 'none';}
+            if (historyPanel) { historyPanel.classList.add('hidden'); historyPanel.style.display = 'none';}
+            if (historyButton) historyButton.disabled = true;
+
+            if (genomeCountValueDisplay && setupGenomeCountSlider) genomeCountValueDisplay.textContent = setupGenomeCountSlider.value;
+            if (cellCountValueDisplay && setupCellCountSlider) cellCountValueDisplay.textContent = setupCellCountSlider.value;
+            if (populationLimitValueDisplay && setupPopulationLimitSlider) populationLimitValueDisplay.textContent = setupPopulationLimitSlider.value;
+            if (foodRateValueDisplay && setupFoodRateSlider) foodRateValueDisplay.textContent = setupFoodRateSlider.value;
+            if (setupFoodRateSlider) targetFoodDensityFactor = parseInt(setupFoodRateSlider.value) / 100; else targetFoodDensityFactor = 0.5;
+            if (setupCellCountSlider && setupGenomeCountSlider) setupCellCountSlider.min = setupGenomeCountSlider.value;
+
+            if (speedSlider) speedSlider.value = simulationSpeed;
+            if (foodSpawnRateSlider) foodSpawnRateSlider.value = targetFoodDensityFactor * 100;
+            if (metabolismSlider) metabolismSlider.value = 0;
+            if (mutationRateSlider) mutationRateSlider.value = 0;
+            globalMetabolismModifier = 0; globalMutationModifier = 0;
+            cellAppearanceScale = 1.0; // Ensure it's reset on load
+
+            resizeCanvas();
+            if (canvas) canvas.style.cursor = 'default';
+        });
+
+        window.addEventListener('resize', resizeCanvas);
+        if (window.visualViewport) window.visualViewport.addEventListener('resize', resizeCanvas);
+
+        if ('serviceWorker' in navigator) {
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./service-worker.js')
+              .then(reg => console.log('Service Worker registered.', reg))
+              .catch(err => console.error('Service Worker registration failed:', err));
+          });
+        }
+    </script>
+</body>
+</html>

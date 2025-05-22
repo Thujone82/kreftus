@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KREFT.US PROJECTS</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        header {
+            background-color: #333;
+            color: #fff;
+            padding: 1.5rem 0;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            letter-spacing: 2px;
+        }
+
+        .container {
+            width: 80%;
+            margin: auto;
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 2rem;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        td {
+            padding: 1rem;
+            vertical-align: top;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .project-row {
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .project-row:hover {
+            background-color: #e9e9e9;
+        }
+
+        .project-row a {
+            text-decoration: none;
+            color: inherit;
+            display: flex; /* Allows the anchor to span the whole row via its children */
+            align-items: center; /* Vertically align items if their heights differ */
+        }
+
+        .project-image-cell {
+            width: 256px; /* UPDATED: Fixed width for the image column */
+            padding-right: 1.5rem;
+        }
+
+        .project-image-cell img {
+            width: 100%; /* Make image responsive within its cell */
+            height: auto; /* Maintain aspect ratio */
+            max-width: 256px; /* UPDATED: Explicitly set max-width */
+            max-height: 256px; /* UPDATED: Explicitly set max-height */
+            display: block;
+            border-radius: 8px; /* Optional: for rounded corners on images */
+        }
+
+        .project-text-cell {
+            /* Text styling will inherit from body or can be specified here */
+            font-size: 1rem;
+        }
+
+        .project-text-cell h2 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        .project-text-cell p {
+            margin-bottom: 0;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 900px) {
+            .project-row a {
+                flex-direction: column; /* Stack image and text vertically on smaller screens */
+                align-items: flex-start;
+            }
+            .project-image-cell {
+                width: 100%;
+                padding-right: 0;
+                padding-bottom: 1rem; /* Add some space between image and text */
+            }
+            .project-image-cell img {
+                max-width: 100%; /* Allow image to scale down fully on very small screens */
+                 /* max-height will still be 256px unless overridden for very small screens if needed */
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>KREFT.US PROJECTS</h1>
+    </header>
+
+    <div class="container">
+        <table>
+            <tbody>
+                <tr class="project-row" onclick="window.location.href='./snake/';">
+                    <td class="project-image-cell">
+                        <a href="./snake/" tabindex="-1"> <img src="./images/snake.png" alt="Snake VS">
+                        </a>
+                    </td>
+                    <td class="project-text-cell">
+                        <a href="./snake/" tabindex="-1"> <div>
+                                <h2>Snake VS</h2>
+                                <p><b>Snake VS v1.3:</b> Eat food, grow, & outlast opponents! Modes: VS AI, 2 Player, & 6-Snake Battle Royale (dead snakes become food, rankings at end). <b>Controls:</b> P1 (All Modes): WASD/Arrows or Swipe (2P: bottom half). P2 (2P Mode): Arrows or Swipe top half. Last snake alive wins (or highest rank in Battle)!</p>
+                            </div>
+                        </a>
+                    </td>
+                </tr>
+                <tr class="project-row" onclick="window.location.href='./gene/';">
+                    <td class="project-image-cell">
+                        <a href="./gene/" tabindex="-1">
+                            <img src="./images/gene.png" alt="GENE Project Image">
+                        </a>
+                    </td>
+                    <td class="project-text-cell">
+                        <a href="./gene/" tabindex="-1">
+                            <div>
+                                <h2>GENE</h2>
+                                <p><b>Evolving digital life.</b> Tweak world balance to nudge evolution, see your genomic history.<br><b>Controls:</b> Single Tap = Fullscreen Toggle <br>Double Tap = Play/Pause <br>Triple Tap = Thanos Event <br>Pinch/Wheel = Zoom (Paused) / Cell Scale (Running) <br>Drag (Paused) = Pan View <br>Swipe (Fullscreen, Running): Vertical = Food Density, Horizontal = Sim Speed <br>Keyboard: Space = Play/Pause, Arrows = Speed/Food, T = Thanos</p>
+                            </div>
+                        </a>
+                    </td>
+                </tr>
+                <tr class="project-row" onclick="window.location.href='./gol/';">
+                    <td class="project-image-cell">
+                        <a href="./gol/" tabindex="-1">
+                            <img src="./images/gol.png" alt="Conway's Game of Life Image">
+                        </a>
+                    </td>
+                    <td class="project-text-cell">
+                        <a href="./gol/" tabindex="-1">
+                            <div>
+                                <h2>Conway's Game of Life</h2>
+                                <p><p><b>Conway's Game of Life:</b> A cellular automaton where cells live/die based on neighbor counts (2-3 to survive, 3 to be born).<br/><b>Features:</b> Play/Pause/Step/Reset, Pattern Selector, Wrapped/Infinite Modes, Speed Control, Pan & Zoom (Slider/Mousewheel/Pinch), Click-to-Draw, Save/Restore Grid, Population/Step Counters, Responsive Design, & Colorful Cell Aging.</p></p>
+                            </div>
+                        </a>
+                    </td>
+                </tr>
+                <tr class="project-row" onclick="window.location.href='./pendulum/';">
+                    <td class="project-image-cell">
+                        <a href="./pendulum/" tabindex="-1">
+                            <img src="./images/pendulum.png" alt="Double Pendulum Sim Image">
+                        </a>
+                    </td>
+                    <td class="project-text-cell">
+                        <a href="./pendulum/" tabindex="-1">
+                            <div>
+                                <h2>Double Pendulum</h2>
+                                <p><p><b>Double Pendulum Simulator:</b> Explore chaotic motion with this interactive double pendulum simulator (v0.7). Adjust the lengths, masses, and starting angles of the pendulum bobs. Customize the simulation's background and the pendulum/trace color; the interface, including sliders with large themed knobs, dynamically adapts to your choices. Watch the physics-based simulation in real-time, see the trace path, and download it as an image. This PWA is installable and offers basic offline use.</p></p>
+                            </div>
+                        </a>
+                    </td>
+                </tr>
+                <tr class="project-row" onclick="window.location.href='./spiro/';">
+                    <td class="project-image-cell">
+                        <a href="./spiro/" tabindex="-1">
+                            <img src="./images/spiro.png" alt="Spirograph Playground Image">
+                        </a>
+                    </td>
+                    <td class="project-text-cell">
+                        <a href="./spiro/" tabindex="-1">
+                            <div>
+                                <h2>SpiroGen</h2>
+                                <p><p><b>SpiroGen v2.2:</b> Create art with up to 4 nodes, pan/zoom, persistent traces, Node 1 fixed mode & starting angle, PWA support, Memory, and PNG download.</p></p>
+                            </div>
+                        </a>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+</body>
+</html>

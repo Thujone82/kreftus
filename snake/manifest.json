@@ -1,0 +1,26 @@
+{
+  "name": "Snake VS",
+  "short_name": "SnakeVS",
+  "description": "A classic Snake versus AI game, playable on the web, installable as a PWA, and designed for offline play.",
+  "start_url": ".",
+  "scope": ".",
+  "id": ".",
+  "display": "fullscreen",
+  "background_color": "#1a1a2e",
+  "theme_color": "#0f0f1a",
+  "orientation": "landscape-primary",
+  "icons": [
+    {
+      "src": "./icons/192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

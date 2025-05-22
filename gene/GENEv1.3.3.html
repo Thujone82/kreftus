@@ -1,0 +1,1818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>GENE v1.3.5</title> <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="./manifest.json"> <meta name="theme-color" content="hsl(240, 70%, 55%)">
+
+    <style>
+        :root {
+            /* Accent Hue System */
+            --accent-hue-1: 240; /* Default, will be set by JS */
+            --accent-hue-2: 0;   /* Default, will be set by JS */
+            --accent-hue-3: 120; /* Default, will be set by JS */
+            --accent-saturation: 70%;
+            --accent-lightness: 55%;
+            --accent-color-1: hsl(var(--accent-hue-1), var(--accent-saturation), var(--accent-lightness));
+            --accent-color-2: hsl(var(--accent-hue-2), var(--accent-saturation), var(--accent-lightness));
+            --accent-color-3: hsl(var(--accent-hue-3), var(--accent-saturation), var(--accent-lightness));
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none; /* Prevent pull-to-refresh */
+            overflow: hidden; /* Prevent body scroll */
+            background-color: #111827; /* Tailwind gray-900 */
+            color: #f3f4f6; /* Tailwind gray-100 */
+        }
+        canvas#simulationCanvas {
+            display: block;
+            background-color: #1f2937; /* Tailwind gray-800 */
+            border-radius: 0.5rem;
+            touch-action: none; /* Disable browser default touch actions (like scroll/zoom) */
+            border: 2px solid var(--accent-color-1);
+            cursor: default; /* Default cursor, changes based on state */
+            width: 100%; /* Ensure canvas tries to fill container */
+            height: auto; /* Maintain aspect ratio based on width */
+            max-width: 100%; /* Prevent overflow */
+        }
+        .control-panel {
+            background-color: #374151; /* Tailwind gray-700 */
+            border-radius: 0.5rem;
+            border: 2px solid var(--accent-color-3);
+        }
+        .btn {
+            transition: background-color 0.15s ease-in-out, transform 0.15s ease-in-out, filter 0.15s ease-in-out;
+            border-radius: 0.375rem; /* Tailwind rounded-md */
+            padding: 0.5rem 0.75rem; /* Tailwind py-2 px-3 */
+            font-weight: 500; /* Tailwind font-medium */
+            color: white;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); /* Tailwind shadow */
+        }
+        .btn:hover {
+            transform: translateY(-1px);
+            filter: brightness(110%);
+        }
+        .btn:active {
+            transform: translateY(0px);
+            filter: brightness(90%);
+        }
+        .btn:disabled {
+            background-color: #4b5563 !important; /* gray-600 */
+            cursor: not-allowed;
+            filter: brightness(70%);
+            transform: none;
+        }
+
+        #startSimulationButton { background-color: var(--accent-color-3); }
+        #startSimulationButton:hover { filter: brightness(110%); }
+        #startSimulationButton:active { filter: brightness(90%); }
+
+        #playPauseButton.bg-green-500 { background-color: #22c55e !important; }
+        #playPauseButton.bg-yellow-500 { background-color: #eab308 !important; }
+        #resetButton.bg-red-500 { background-color: #ef4444 !important; }
+        #historyButton.bg-blue-500 { background-color: #3b82f6 !important; }
+
+        /* Slider Thumb Styling */
+        input[type="range"].sim-slider::-webkit-slider-thumb { background: var(--accent-color-2); }
+        input[type="range"].sim-slider::-moz-range-thumb { background: var(--accent-color-2); }
+        input[type="range"].setup-slider::-webkit-slider-thumb { background: var(--accent-color-1); }
+        input[type="range"].setup-slider::-moz-range-thumb { background: var(--accent-color-1); }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none; width: 20px; height: 20px;
+            cursor: pointer; border-radius: 50%;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px; height: 20px; cursor: pointer; border-radius: 50%; border: none;
+        }
+        input[type="range"] { /* Base track style */
+            height: 8px; /* Tailwind h-2 */
+            cursor: pointer;
+            border-radius: 9999px; /* Tailwind rounded-full */
+        }
+        input[type="range"].setup-slider { background-color: #4b5563; /* gray-600 */ }
+        input[type="range"].sim-slider { background-color: #6b7280; /* gray-500 */ }
+
+
+        .setup-modal { background-color: rgba(0,0,0,0.75); }
+        .setup-content {
+             background-color: #2d3748; /* Slightly darker gray */
+             border: 2px solid var(--accent-color-1);
+        }
+        .slider-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem; }        #infoDisplay {
+            min-width: 200px; text-align: right; font-family: 'Courier New', Courier, monospace;
+            padding: 4px 8px; /* Increased padding slightly */
+            border: 2px solid #4B5563; /* gray-600 */
+            box-sizing: border-box;
+            margin-bottom: 4px; margin-top: 4px;
+            background-color: #1f2937; /* gray-800 */
+            border-radius: 0.375rem; /* rounded-md */
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+        }
+        .text-setup-title { color: var(--accent-color-2); }
+        .main-sim-title-ingame { color: var(--accent-color-3); text-align: right; margin-top: 0; }
+        .slider-container { display: flex; align-items: center; gap: 0.5rem; width: 100%; }
+        .slider-container label { flex-shrink: 0; }
+        .slider-container input[type="range"] { flex-grow: 1; }
+
+        /* Styles for Full Mode */
+        .full-mode-active #simulationContainer {
+            position: fixed !important; top: 0 !important; left: 0 !important;
+            width: 100vw !important; height: 100vh !important;
+            z-index: 100 !important; padding: 0 !important; margin: 0 !important;
+            max-width: none !important;
+        }
+        .full-mode-active .control-panel,
+        .full-mode-active #hallOfFameDisplay { display: none !important; }
+        .full-mode-active #simulationCanvas {
+            width: 100% !important; height: 100% !important;
+            border-radius: 0 !important; border: 2px solid var(--accent-color-1);
+        }
+
+        /* History Panel Styles */
+        #historyPanel {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-color: rgba(31, 41, 55, 0.95); /* gray-800 with opacity */
+            z-index: 200; display: none; flex-direction: column;
+            align-items: center; justify-content: flex-start;
+            padding: 2rem; box-sizing: border-box;
+            border: 4px solid var(--accent-color-1);
+        }
+        #historyPanelContent {
+            background-color: #2d3748; padding: 1.5rem; border-radius: 0.5rem;
+            width: 100%; max-width: 90vw; max-height: 90vh;
+            overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+        #historyPanel h2 { color: var(--accent-color-2); margin-bottom: 1.5rem; }
+        #closeHistoryButton {
+            position: absolute; top: 1rem; right: 1rem;
+            background-color: #ef4444; color: white; border: none;
+            border-radius: 0.375rem; padding: 0.5rem 0.75rem;
+            font-size: 1.25rem; line-height: 1; cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        #closeHistoryButton:hover { filter: brightness(110%); }
+        #historyTable { width: 100%; border-collapse: collapse; color: #e5e7eb; }
+        #historyTable th, #historyTable td {
+            border: 1px solid #4b5563; padding: 0.5rem 0.75rem;
+            text-align: left; vertical-align: middle;
+        }
+        #historyTable th { background-color: #374151; cursor: pointer; user-select: none; }
+        #historyTable th:hover { filter: brightness(120%); }
+        #historyTable td canvas {
+            width: 30px; height: 30px; border: 1px solid #4b5563;
+            border-radius: 50%; background-color: transparent;
+        }
+
+        /* Portrait Mode Adjustments for History Panel */
+        @media (orientation: portrait) and (max-width: 768px) {
+            #historyPanel { padding: 0.5rem; }
+            #historyPanelContent { max-width: 100%; max-height: calc(100% - 1rem); padding: 1rem; border-radius: 0.25rem; }
+            #historyTable th {
+                writing-mode: vertical-lr; text-orientation: mixed; white-space: nowrap;
+                text-align: center; vertical-align: middle; padding: 0.75rem 0.25rem; height: 120px;
+            }
+            #historyTable th[data-sort="cell"] { writing-mode: horizontal-tb; height: auto; text-align: left; }
+            #historyTable td { padding: 0.5rem 0.25rem; }
+        }
+
+        /* Hall of Fame Styles */
+        #hallOfFameDisplay { display: flex; align-items: center; gap: 0.25rem; min-height: 28px; }
+        #hallOfFameDisplay canvas {
+            width: 24px; height: 24px; border: 1px solid #6b7280;
+            border-radius: 50%; background-color: transparent;
+        }
+        .actions-hof-container { display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem; width: 100%; }
+        .actions-hof-container > .button-group { margin-left: auto; }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-2 sm:p-4 select-none">
+
+    <div id="setupModal" class="setup-modal fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="setup-content p-6 sm:p-8 rounded-lg shadow-xl w-full max-w-lg text-left">
+            <h2 id="setupTitle" class="text-2xl sm:text-4xl font-bold mb-6 text-center text-setup-title">GENE v1.3.5</h2> <div class="mb-5">
+                <div class="slider-label">
+                    <label for="setupGenomeCount" class="block text-sm font-medium text-gray-300">Initial Genome Count:</label>
+                    <span id="genomeCountValue" class="text-sm font-semibold text-gray-300">16</span>
+                </div>
+                <input type="range" id="setupGenomeCount" min="1" max="32" value="16" class="w-full setup-slider">
+            </div>
+            <div class="mb-5">
+                <div class="slider-label">
+                    <label for="setupCellCount" class="block text-sm font-medium text-gray-300">Initial Cell Count:</label>
+                    <span id="cellCountValue" class="text-sm font-semibold text-gray-300">64</span>
+                </div>
+                <input type="range" id="setupCellCount" min="1" max="512" value="64" class="w-full setup-slider">
+            </div>
+            <div class="mb-5">
+                <div class="slider-label">
+                    <label for="setupPopulationLimit" class="block text-sm font-medium text-gray-300">Population Limit:</label>
+                    <span id="populationLimitValue" class="text-sm font-semibold text-gray-300">64</span>
+                </div>
+                <input type="range" id="setupPopulationLimit" min="8" max="192" value="64" class="w-full setup-slider">
+            </div>
+            <div class="mb-6">
+                <div class="slider-label">
+                    <label for="setupFoodRate" class="block text-sm font-medium text-gray-300">Food Density:</label>
+                    <span id="foodRateValue" class="text-sm font-semibold text-gray-300">50</span>
+                </div>
+                <input type="range" id="setupFoodRate" min="1" max="100" value="50" class="w-full setup-slider">
+            </div>
+            <button id="startSimulationButton" class="btn text-white font-semibold py-3 px-6 rounded-lg text-lg shadow-md w-full">
+                Start Simulation
+            </button>
+        </div>
+    </div>
+
+    <div id="simulationContainer" class="hidden w-full max-w-5xl flex flex-col items-center">
+         <div class="control-panel p-3 sm:p-4 mb-3 sm:mb-4 w-full flex flex-col sm:flex-row justify-between items-start gap-x-3 sm:gap-x-4 gap-y-2 shadow-lg">
+             <div id="slidersContainer" class="flex flex-col gap-y-2 w-full sm:w-auto sm:flex-grow sm:pr-4 order-2 sm:order-1">
+                <div class="slider-container">
+                    <label for="speedSlider" class="text-xs sm:text-sm whitespace-nowrap mr-2">Sim Speed:</label>
+                    <input type="range" id="speedSlider" min="1" max="10" value="1" class="w-full sim-slider">
+                </div>
+                <div class="slider-container mt-1">
+                    <label for="foodSpawnRateSlider" class="text-xs sm:text-sm whitespace-nowrap mr-2">Food Density:</label>
+                    <input type="range" id="foodSpawnRateSlider" min="1" max="100" value="50" class="w-full sim-slider">
+                </div>
+                <div class="slider-container mt-1">
+                    <label for="metabolismSlider" class="text-xs sm:text-sm whitespace-nowrap mr-2">Metabolism -/+:</label>
+                    <input type="range" id="metabolismSlider" min="-50" max="50" value="0" class="w-full sim-slider">
+                </div>
+                <div class="slider-container mt-1">
+                    <label for="mutationRateSlider" class="text-xs sm:text-sm whitespace-nowrap mr-2">Mutation -/+:</label>
+                    <input type="range" id="mutationRateSlider" min="-50" max="50" value="0" class="w-full sim-slider">
+                </div>
+            </div>
+             <div id="titleInfoActionsContainer" class="flex flex-col justify-between items-end w-full sm:w-auto mt-0 sm:mt-0 flex-shrink-0 order-1 sm:order-2" style="min-height: 110px;">
+                <h1 class="main-sim-title-ingame text-2xl sm:text-3xl font-bold self-end">GENE v1.3.5</h1> <div id="infoDisplay" class="text-xs sm:text-sm whitespace-nowrap leading-tight self-end">
+                    </div>
+                <div class="actions-hof-container mt-auto self-end">
+                    <div id="hallOfFameDisplay"></div> <div class="button-group flex gap-x-3">
+                        <button id="playPauseButton" class="btn bg-green-500">Play</button>
+                        <button id="resetButton" class="btn bg-red-500">Reset</button>
+                        <button id="historyButton" class="btn bg-blue-500">History</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <canvas id="simulationCanvas"></canvas>
+    </div>
+
+    <div id="historyPanel">
+        <div id="historyPanelContent">
+            <button id="closeHistoryButton" class="btn">&times;</button>
+            <h2 class="text-3xl font-bold text-center">Genomic History</h2>
+            <div class="overflow-x-auto">
+                <table id="historyTable" class="min-w-full">
+                    <thead>
+                        <tr>
+                            <th data-sort="cell">Cell</th>
+                            <th data-sort="id">ID</th>
+                            <th data-sort="lifespan">Era</th>
+                            <th data-sort="births">Births</th>
+                            <th data-sort="fightVictories">Kills</th>
+                            <th data-sort="backstabsCommitted">Criminals</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // --- DOM Elements ---
+        const canvas = document.getElementById('simulationCanvas');
+        const ctx = canvas.getContext('2d');
+        const playPauseButton = document.getElementById('playPauseButton');
+        const resetButton = document.getElementById('resetButton');
+        const historyButton = document.getElementById('historyButton');
+        const speedSlider = document.getElementById('speedSlider');
+        const foodSpawnRateSlider = document.getElementById('foodSpawnRateSlider');
+        const metabolismSlider = document.getElementById('metabolismSlider');
+        const mutationRateSlider = document.getElementById('mutationRateSlider');
+        const infoDisplay = document.getElementById('infoDisplay');
+        const setupModal = document.getElementById('setupModal');
+        const setupTitleElement = document.getElementById('setupTitle');
+        const startSimulationButton = document.getElementById('startSimulationButton');
+        const simulationContainer = document.getElementById('simulationContainer');
+        const controlPanel = document.querySelector('.control-panel');
+        const historyPanel = document.getElementById('historyPanel');
+        const closeHistoryButton = document.getElementById('closeHistoryButton');
+        const historyTableBody = document.querySelector('#historyTable tbody');
+        const hallOfFameDisplay = document.getElementById('hallOfFameDisplay');
+        const slidersContainer = document.getElementById('slidersContainer');
+        const titleInfoActionsContainer = document.getElementById('titleInfoActionsContainer');
+        const mainSimTitleElement = document.querySelector('.main-sim-title-ingame');
+        const bodyElement = document.body; // Reference to body for full mode class
+
+        // Setup Modal Sliders & Value Displays
+        const setupGenomeCountSlider = document.getElementById('setupGenomeCount');
+        const genomeCountValueDisplay = document.getElementById('genomeCountValue');
+        const setupCellCountSlider = document.getElementById('setupCellCount');
+        const cellCountValueDisplay = document.getElementById('cellCountValue');
+        const setupPopulationLimitSlider = document.getElementById('setupPopulationLimit');
+        const populationLimitValueDisplay = document.getElementById('populationLimitValue');
+        const setupFoodRateSlider = document.getElementById('setupFoodRate');
+        const foodRateValueDisplay = document.getElementById('foodRateValue');
+
+        // --- Simulation State ---
+        let cells = [];
+        let foodParticles = [];
+        let simulationRunning = false;
+        let animationFrameId;
+        let tickCount = 0;
+        let simulationSpeed = 1;
+        let targetFoodDensityFactor = 0.5;
+        let globalMetabolismModifier = 0;
+        let globalMutationModifier = 0;
+        let currentAccentHue = 240;
+        let initialAccentHueForHeader = 240;
+        let extinctSpeciesCount = 0;
+        let POPULATION_LIMIT = 256;
+        let isFullModeActive = false;
+        const GENOME_AUDIT_INTERVAL = 250;
+        const HALL_OF_FAME_UPDATE_INTERVAL = 1000;
+
+        // Genome Management & History
+        let activeGenomes = new Map();
+        let nextGenomeId = 0;
+        let genomeHistory = [];
+        let currentSortColumn = 'id';
+        let currentSortDirection = 'asc';
+        let viewBeforeHistory = 'setup';
+
+        // World and View Parameters
+        const REFERENCE_LOGICAL_DENSITY_UNITS = 1200;
+        const REFERENCE_WORLD_AREA = REFERENCE_LOGICAL_DENSITY_UNITS * REFERENCE_LOGICAL_DENSITY_UNITS;
+        let WORLD_WIDTH = REFERENCE_LOGICAL_DENSITY_UNITS;
+        let WORLD_HEIGHT = REFERENCE_LOGICAL_DENSITY_UNITS;
+
+        // Rendering and View Control
+        let currentRenderScale = 1.0;
+        let viewScale = 1.0;
+        let viewOffsetX = WORLD_WIDTH / 2;
+        let viewOffsetY = WORLD_HEIGHT / 2;
+        const MIN_VIEW_SCALE = 1.0;
+        const MAX_VIEW_SCALE = 8.0;
+
+        // --- Interaction State ---
+        let isDragging = false; // For mouse/touch pan
+        let wasDraggingMouse = false; // Flag to differentiate mouse drag from click * FIX *
+        let lastDragX, lastDragY; // For mouse pan and touch pan
+
+        // Touch Interaction State
+        let touchState = {
+            pointers: [], // Store active touch points { id, clientX, clientY }
+            lastDist: null, // Distance for pinch zoom
+            lastMidpointCanvas: null, // Midpoint for pinch zoom { clientX, clientY }
+            // Tap/Double Tap Detection
+            lastTapTime: 0,
+            tapTimeout: null, // Timeout handle for single tap action
+            tapCount: 0, // Track taps for double tap
+            // Click/Tap vs Drag/Swipe Detection
+            touchStartTime: 0,
+            touchStartX: 0,
+            touchStartY: 0,
+            maxMoveDistanceSq: 20 * 20, // Max movement squared to qualify as a tap
+            maxTapDuration: 300, // Max ms for a tap
+            maxDoubleTapDelay: 300, // Max ms between taps for double tap
+            // Swipe Detection (Full Screen Mode)
+            swipeStartX: null,
+            swipeStartY: null,
+            swipeStartTime: null,
+            isSwiping: false // Flag to differentiate swipe from pan/zoom/tap
+        };
+        const SWIPE_THRESHOLD = 50; // Min pixels for swipe
+        const SWIPE_MAX_TIME = 500; // Max ms for swipe
+
+        // Simulation Parameters (Defaults, overridden by setup)
+        let INITIAL_GENOME_COUNT = 16;
+        let INITIAL_CELL_COUNT = 64;
+
+        // Cell & Evolution Parameters (Constants)
+        const BASE_CELL_RADIUS = 12;
+        const MAX_ENERGY_BASE = 100;
+        const REPRODUCTION_ENERGY_FACTOR = 0.75;
+        const REPRODUCTION_COST_FACTOR = 0.5;
+        const OFFSPRING_ENERGY_FACTOR = 0.4;
+        const BASE_ENERGY_DECAY_RATE = 0.12;
+        const BASE_MOVEMENT_COST = 0.02;
+        const TRAIT_MUTATION_RATE_BASE = 0.00625;
+        const TRAIT_MUTATION_AMOUNT_BASE = 0.25;
+        let DYNAMIC_NEW_GENOME_SPAWN_RATE = 0.005;
+        const FOOD_RADIUS = 2.5;
+        const FOOD_ENERGY_VALUE = 30;
+        const MAX_FOOD_PARTICLES_AT_REF_AREA = 265;
+        let effectiveMaxFoodCount = MAX_FOOD_PARTICLES_AT_REF_AREA;
+        const FOOD_SPAWN_BATCH_FACTOR = 0.03;
+        const WANDER_SCAN_INTERVAL = 20;
+        const MIN_WANDER_TICKS = 40;
+        const MAX_WANDER_TICKS = 120;
+        const NON_KIN_AVOID_RADIUS_FACTOR = 2.5;
+        const NON_KIN_AVOID_STRENGTH = 0.05;
+
+        // Genome Indices
+        const G_METABOLISM = 0; const G_MAX_SIZE = 1; const G_AGGRESSION = 2;
+        const G_SENSING_RADIUS = 3; const G_FOOD_ATTRACTION = 4; const G_SPEED_FACTOR = 5;
+        const G_FIGHT_ABILITY = 6; const G_KIN_SENSING_RADIUS = 7; const G_KIN_COHESION = 8;
+        const G_ASSIST_THRESHOLD = 9; const G_DISHONESTY = 10; const GENOME_LENGTH = 11;
+
+        const BOLD_HUE_CHOICES = Array.from({ length: 16 }, (_, i) => i * (360 / 16));
+        const TRAIT_COMPARISON_PRECISION = 6;
+
+        // --- Helper Functions ---
+        function randomRange(min, max) { return Math.random() * (max - min) + min; }
+        function distSq(x1, y1, x2, y2) { const dx = x1 - x2; const dy = y1 - y2; return dx * dx + dy * dy; }
+        function randomLogBiased(biasStrength = 3) { return Math.pow(Math.random(), biasStrength); }
+
+        // Function to update all dynamic accent colors
+        function updateDynamicColors() {
+            const rootStyle = document.documentElement.style;
+            const isSetupActive = setupModal.style.display === 'flex';
+            let baseHue = isSetupActive ? initialAccentHueForHeader : currentAccentHue;
+            rootStyle.setProperty('--accent-hue-1', baseHue);
+            rootStyle.setProperty('--accent-hue-2', (baseHue + 120) % 360);
+            rootStyle.setProperty('--accent-hue-3', (baseHue + 240) % 360);
+        }
+
+        // --- Genome Management Functions ---
+        function createRandomGenomeTraits() {
+            const traits = [];
+            for (let i = 0; i < GENOME_LENGTH; i++) {
+                traits.push(i === G_DISHONESTY ? randomLogBiased(4) : Math.random());
+            }
+            return traits;
+        }
+
+        function getOrCreateGenome(traits, parentGenomeId = null) {
+            const standardizedTraitString = traits.map(t => t.toFixed(TRAIT_COMPARISON_PRECISION)).join(',');
+            for (const [id, genomeData] of activeGenomes) {
+                if (genomeData.traits.map(t => t.toFixed(TRAIT_COMPARISON_PRECISION)).join(',') === standardizedTraitString) {
+                    return id; // Found existing genome
+                }
+            }
+            // Create new genome
+            const newId = `g${nextGenomeId++}`;
+            let borderHue;
+            const usedBoldHues = new Set(Array.from(activeGenomes.values()).map(g => g.borderHue).filter(h => BOLD_HUE_CHOICES.includes(h)));
+            const availablePredefinedHues = BOLD_HUE_CHOICES.filter(hue => !usedBoldHues.has(hue));
+            borderHue = availablePredefinedHues.length > 0 ? availablePredefinedHues[Math.floor(Math.random() * availablePredefinedHues.length)] : Math.floor(Math.random() * 360);
+
+            let primaryHueOffset = randomRange(61, 179) * (Math.random() < 0.5 ? -1 : 1);
+            const primaryHue = (borderHue + primaryHueOffset + 360) % 360;
+            const primarySaturation = randomRange(75, 95);
+            const primaryLightness = randomRange(55, 65);
+
+            activeGenomes.set(newId, {
+                id: newId, traits: [...traits], primaryHue, primarySaturation, primaryLightness,
+                borderHue, parentGenomeId, population: 0, births: 1, fightVictories: 0,
+                backstabsCommitted: 0, originTick: tickCount
+            });
+            return newId;
+        }
+
+        // --- Food Particle Class ---
+        class FoodParticle {
+            constructor(x, y) { this.x = x; this.y = y; this.radius = FOOD_RADIUS; this.energyValue = FOOD_ENERGY_VALUE; this.color = 'rgba(150, 255, 150, 0.8)'; }
+            draw(ctx) { ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = this.color; ctx.fill(); }
+        }
+
+        // --- Cell Class ---
+        class Cell {
+            constructor(x, y, initialEnergy, genomeId) {
+                this.x = x; this.y = y; this.energy = initialEnergy; this.genomeId = genomeId;
+                let genomeData = activeGenomes.get(this.genomeId);
+                if (!genomeData) { // Fallback if genome somehow missing
+                    console.warn("Cell constructor: GenomeId", this.genomeId, "not found. Creating new random.");
+                    this.genomeId = getOrCreateGenome(createRandomGenomeTraits());
+                    genomeData = activeGenomes.get(this.genomeId);
+                }
+                this.genome = genomeData; this.traits = this.genome.traits;
+                if (this.genome) this.genome.population++; else console.error(`CRITICAL: Genome data for ${this.genomeId} undefined.`);
+
+                // Assign visual and behavioral properties from genome
+                this.primaryColor = `hsl(${this.genome.primaryHue}, ${this.genome.primarySaturation}%, ${this.genome.primaryLightness}%)`;
+                this.borderColor = `hsl(${this.genome.borderHue}, 85%, 60%)`;
+                this.maxPotentialSizeFactor = 0.5 + this.traits[G_MAX_SIZE] * 2;
+                this.currentSize = BASE_CELL_RADIUS * (0.5 + this.maxPotentialSizeFactor * 0.5);
+                this.radius = this.currentSize;
+                this.maxEnergy = MAX_ENERGY_BASE * (1 + this.traits[G_MAX_SIZE] * 1.5);
+                this.metabolismFactor = 0.25 + this.traits[G_METABOLISM] * 1.5;
+                this.aggression = this.traits[G_AGGRESSION];
+                this.sensingRadius = 20 + this.traits[G_SENSING_RADIUS] * 180;
+                this.foodAttraction = this.traits[G_FOOD_ATTRACTION];
+                this.speedFactor = 0.5 + this.traits[G_SPEED_FACTOR] * 1.5;
+                this.fightAbilityFactor = 0.25 + this.traits[G_FIGHT_ABILITY] * 0.75;
+                this.kinSensingRadius = 15 + this.traits[G_KIN_SENSING_RADIUS] * 100;
+                this.kinCohesionFactor = this.traits[G_KIN_COHESION];
+                this.assistAggressionThreshold = this.traits[G_ASSIST_THRESHOLD];
+                this.dishonestyFactor = this.traits[G_DISHONESTY];
+
+                // State variables
+                this.targetFood = null; this.targetEnemy = null; this.actionCooldown = 0;
+                this.isFleeing = false; this.fleeFromX = null; this.fleeFromY = null;
+                this.isWandering = false; this.wanderDirectionX = 0; this.wanderDirectionY = 0;
+                this.wanderTicksRemaining = 0; this.isAttemptingBackstab = false;
+                this.isFirstOfNewSpecies = false;
+            }
+
+            getEffectiveSpeed() { return Math.max(0.3, (this.speedFactor * 2.0) / (1 + this.currentSize / BASE_CELL_RADIUS * 0.5)); }
+
+            update() {
+                if (this.actionCooldown > 0) this.actionCooldown--;
+                this.isFleeing = false; this.isAttemptingBackstab = false;
+                if (this.actionCooldown <= 0) this.decideAction();
+                this.move(); this.eat();
+
+                // Energy decay and growth
+                let decay = BASE_ENERGY_DECAY_RATE * (1 + globalMetabolismModifier) * this.metabolismFactor * (1 + this.currentSize / (BASE_CELL_RADIUS * 2));
+                this.energy -= decay;
+                if (this.energy > this.maxEnergy * 0.85 && this.currentSize < BASE_CELL_RADIUS * this.maxPotentialSizeFactor) {
+                    const growthEnergy = this.energy * 0.01; this.energy -= growthEnergy;
+                    this.currentSize += growthEnergy * 0.05; this.radius = this.currentSize;
+                    this.maxEnergy = MAX_ENERGY_BASE * (1 + this.traits[G_MAX_SIZE] * (this.currentSize / (BASE_CELL_RADIUS * this.maxPotentialSizeFactor)));
+                }
+
+                if (this.energy <= 0) { this.die(); return; }
+                if (this.energy > this.maxEnergy) this.energy = this.maxEnergy;
+            }
+
+            initiateWander() {
+                this.isWandering = true; const angle = Math.random() * Math.PI * 2;
+                this.wanderDirectionX = Math.cos(angle); this.wanderDirectionY = Math.sin(angle);
+                this.wanderTicksRemaining = randomRange(MIN_WANDER_TICKS, MAX_WANDER_TICKS);
+                this.targetFood = null; this.targetEnemy = null;
+            }
+
+            decideAction() {
+                // Prioritize reproduction for new species
+                if (this.isFirstOfNewSpecies) {
+                    this.isFirstOfNewSpecies = false;
+                    if (this.energy > this.maxEnergy * REPRODUCTION_ENERGY_FACTOR * 0.7 && Math.random() < 0.5) { this.reproduce(); return; }
+                }
+
+                // Find food if not fleeing/fighting/backstabbing
+                const foodTarget = this.findClosestFood();
+                if (!this.isFleeing && !this.targetEnemy && !this.isAttemptingBackstab) this.targetFood = foodTarget;
+
+                if (this.actionCooldown > 0) return;
+                this.actionCooldown = randomRange(15, 40);
+
+                // Check for nearby enemies (used for backstab logic)
+                let enemyNearby = false;
+                if (!this.targetEnemy && !this.isAttemptingBackstab) {
+                    enemyNearby = cells.some(other => other !== this && other.genomeId !== this.genomeId && other.energy > 0 &&
+                                                      (!activeGenomes.has(other.genomeId) || activeGenomes.get(other.genomeId).parentGenomeId !== this.genomeId) &&
+                                                      distSq(this.x, this.y, other.x, other.y) < this.sensingRadius * this.sensingRadius);
+                }
+
+                // Attempt backstab if low energy and opportunity arises
+                let currentDishonestyChanceFactor = (!enemyNearby && !foodTarget) ? 10 : (!enemyNearby || !foodTarget) ? 2 : 0.05;
+                if (!this.targetEnemy && !this.isAttemptingBackstab && this.energy < this.maxEnergy * 0.25 && Math.random() < this.dishonestyFactor * currentDishonestyChanceFactor) {
+                    const backstabTarget = this.findWeakerKinForBackstab();
+                    if (backstabTarget) { this.targetEnemy = backstabTarget; this.isAttemptingBackstab = true; this.isWandering = false; this.targetFood = null; return; }
+                }
+
+                // Assist kin in combat
+                if (!this.targetEnemy && !this.isAttemptingBackstab) {
+                    const kinInNeed = this.findKinInCombat();
+                    if (kinInNeed && kinInNeed.targetEnemy && this.aggression > (this.assistAggressionThreshold * 0.7)) {
+                        this.targetEnemy = kinInNeed.targetEnemy; this.isWandering = false; this.targetFood = null; return;
+                    }
+                }
+
+                // Reproduce if high energy
+                if (this.energy > this.maxEnergy * REPRODUCTION_ENERGY_FACTOR) { this.reproduce(); return; }
+
+                // Attack if aggressive and no current target/backstab attempt
+                if (!this.targetEnemy && !this.isAttemptingBackstab && Math.random() < this.aggression) {
+                    const potentialEnemy = this.findAndTargetEnemy();
+                    if (potentialEnemy) { this.targetEnemy = potentialEnemy; this.isWandering = false; this.targetFood = null; return; }
+                } else if (!this.targetEnemy && !this.isAttemptingBackstab) {
+                     this.targetEnemy = null; // Clear target if aggression check failed
+                }
+
+                // Wander if no other action taken
+                if (!this.targetEnemy && !this.targetFood && !this.isWandering && !this.isAttemptingBackstab) this.initiateWander();
+            }
+
+            findWeakerKinForBackstab() {
+                let suitableTarget = null; let closestDistSq = (this.kinSensingRadius * 0.6)**2;
+                for (const kin of cells) {
+                    if (kin === this || kin.genomeId !== this.genomeId || kin.energy <= MAX_ENERGY_BASE * 0.1) continue;
+                    const dSqToKin = distSq(this.x, this.y, kin.x, kin.y);
+                    if (dSqToKin < closestDistSq && kin.energy > this.energy * 0.3) {
+                        closestDistSq = dSqToKin; suitableTarget = kin;
+                    }
+                } return suitableTarget;
+            }
+
+            findClosestFood() {
+                let closestFood = null; let minDistSq = this.sensingRadius * this.sensingRadius;
+                for (const food of foodParticles) {
+                    const dSq = distSq(this.x, this.y, food.x, food.y);
+                    if (dSq < minDistSq) { minDistSq = dSq; closestFood = food; }
+                } return closestFood;
+            }
+
+            findAndTargetEnemy() {
+                let closestEnemy = null; let minDistSq = this.sensingRadius * this.sensingRadius;
+                for (const otherCell of cells) {
+                    if (otherCell === this || otherCell.energy <= 0 || otherCell.genomeId === this.genomeId) continue;
+                    const otherGenomeData = activeGenomes.get(otherCell.genomeId);
+                    if (otherGenomeData && otherGenomeData.parentGenomeId === this.genomeId) continue; // Don't target direct children initially
+                    const dSq = distSq(this.x, this.y, otherCell.x, otherCell.y);
+                    if (dSq < minDistSq) { minDistSq = dSq; closestEnemy = otherCell; }
+                } return closestEnemy;
+            }
+
+            findKinInCombat() {
+                for (const kin of cells) {
+                    if (kin === this || kin.genomeId !== this.genomeId || kin.energy <= 0) continue;
+                    const dSqToKin = distSq(this.x, this.y, kin.x, kin.y);
+                    if (dSqToKin < this.kinSensingRadius * this.kinSensingRadius && kin.targetEnemy && kin.targetEnemy.energy > 0) {
+                        if (distSq(this.x, this.y, kin.targetEnemy.x, kin.targetEnemy.y) < this.sensingRadius * this.sensingRadius) {
+                            return kin; // Found kin in combat nearby
+                        }
+                    }
+                } return null;
+            }
+
+            move() {
+                let moveX = 0, moveY = 0; const effectiveSpeed = this.getEffectiveSpeed();
+                let avgKinX = 0, avgKinY = 0, kinCount = 0;
+                let repulseX = 0, repulseY = 0;
+
+                // --- Social Behavior (Cohesion/Repulsion) - Only if not targeting/fleeing/backstabbing ---
+                if (!this.isFleeing && !this.targetEnemy && !this.targetFood && !this.isAttemptingBackstab) {
+                    for (const otherCell of cells) {
+                        if (otherCell === this || otherCell.energy <= 0) continue;
+                        const dSq = distSq(this.x, this.y, otherCell.x, otherCell.y);
+                        if (otherCell.genomeId === this.genomeId) { // Kin
+                            if (dSq < (this.kinSensingRadius * 0.85)**2 && this.kinCohesionFactor > 0.1) {
+                                avgKinX += otherCell.x; avgKinY += otherCell.y; kinCount++;
+                            }
+                        } else { // Non-Kin
+                            const otherGenomeData = activeGenomes.get(otherCell.genomeId);
+                            if (!(otherGenomeData && otherGenomeData.parentGenomeId === this.genomeId)) { // Avoid non-kin (unless they are parent species)
+                                const avoidRadiusSq = (this.radius * NON_KIN_AVOID_RADIUS_FACTOR)**2;
+                                if (dSq < avoidRadiusSq && dSq > 0.01) {
+                                    const distance = Math.sqrt(dSq);
+                                    const dx = (this.x - otherCell.x) / distance; const dy = (this.y - otherCell.y) / distance;
+                                    const strength = (1 - distance / Math.sqrt(avoidRadiusSq)) * NON_KIN_AVOID_STRENGTH;
+                                    repulseX += dx * strength; repulseY += dy * strength;
+                                }
+                            }
+                        }
+                    }
+                    if (kinCount > 0) { // Cohesion towards kin centroid
+                        avgKinX /= kinCount; avgKinY /= kinCount;
+                        const angleToKinCentroid = Math.atan2(avgKinY - this.y, avgKinX - this.x);
+                        moveX += Math.cos(angleToKinCentroid) * effectiveSpeed * 0.20 * this.kinCohesionFactor;
+                        moveY += Math.sin(angleToKinCentroid) * effectiveSpeed * 0.20 * this.kinCohesionFactor;
+                    }
+                    if (Math.abs(repulseX) > 0 || Math.abs(repulseY) > 0) { // Repulsion from non-kin
+                        moveX += repulseX * effectiveSpeed; moveY += repulseY * effectiveSpeed;
+                    }
+                }
+
+                // --- Targeted Movement ---
+                if (this.isFleeing && this.fleeFromX != null) { // Fleeing
+                    const angleAway = Math.atan2(this.y - this.fleeFromY, this.x - this.fleeFromX);
+                    moveX = Math.cos(angleAway) * effectiveSpeed * 1.3; moveY = Math.sin(angleAway) * effectiveSpeed * 1.3;
+                } else if (this.targetEnemy && this.targetEnemy.energy > 0) { // Attacking
+                    const angleToTarget = Math.atan2(this.targetEnemy.y - this.y, this.targetEnemy.x - this.x);
+                    moveX = Math.cos(angleToTarget) * effectiveSpeed; moveY = Math.sin(angleToTarget) * effectiveSpeed;
+                    if (distSq(this.x, this.y, this.targetEnemy.x, this.targetEnemy.y) < (this.radius + this.targetEnemy.radius)**2) {
+                        this.initiateCombat(this.targetEnemy); // Initiate combat if close enough
+                    }
+                } else if (this.targetFood) { // Seeking Food
+                    const angleToFood = Math.atan2(this.targetFood.y - this.y, this.targetFood.x - this.x);
+                    moveX += Math.cos(angleToFood) * effectiveSpeed * this.foodAttraction;
+                    moveY += Math.sin(angleToFood) * effectiveSpeed * this.foodAttraction;
+                } else if (this.isWandering && this.wanderTicksRemaining > 0) { // Wandering
+                    moveX += this.wanderDirectionX * effectiveSpeed * 0.6; moveY += this.wanderDirectionY * effectiveSpeed * 0.6;
+                    this.wanderTicksRemaining--;
+                    if (this.wanderTicksRemaining % WANDER_SCAN_INTERVAL === 0) { // Periodically scan for food while wandering
+                        const potentialFood = this.findClosestFood();
+                        if (potentialFood) { this.targetFood = potentialFood; this.isWandering = false; this.wanderTicksRemaining = 0; }
+                    }
+                    if (this.wanderTicksRemaining <= 0) { this.isWandering = false; this.actionCooldown = 0; } // End wander
+                } else { // Default subtle movement if idle and no social forces
+                    if (this.actionCooldown <= 0 && !this.isWandering && kinCount === 0 && Math.abs(repulseX) < 0.01 && Math.abs(repulseY) < 0.01) this.initiateWander(); // Start wandering if truly idle
+                    if (kinCount === 0 && Math.abs(repulseX) < 0.01 && Math.abs(repulseY) < 0.01 && !this.isWandering) {
+                        moveX += (Math.random() - 0.5) * effectiveSpeed * 0.2; moveY += (Math.random() - 0.5) * effectiveSpeed * 0.2;
+                    }
+                }
+
+                // --- Apply Movement & Constraints ---
+                const totalMoveMagnitude = Math.sqrt(moveX*moveX + moveY*moveY);
+                if (totalMoveMagnitude > effectiveSpeed) { // Clamp speed
+                    moveX = (moveX / totalMoveMagnitude) * effectiveSpeed; moveY = (moveY / totalMoveMagnitude) * effectiveSpeed;
+                }
+                this.x += moveX; this.y += moveY;
+                this.energy -= BASE_MOVEMENT_COST * ((Math.abs(moveX) + Math.abs(moveY)) / (1 + this.speedFactor * 0.5)); // Movement cost
+
+                // World wrap-around
+                if (this.x < 0) this.x = WORLD_WIDTH; if (this.x > WORLD_WIDTH) this.x = 0;
+                if (this.y < 0) this.y = WORLD_HEIGHT; if (this.y > WORLD_HEIGHT) this.y = 0;
+            }
+
+            eat() {
+                for (let i = foodParticles.length - 1; i >= 0; i--) {
+                    const food = foodParticles[i];
+                    if (!foodParticles.includes(food)) continue; // Check if food still exists
+                    if (distSq(this.x, this.y, food.x, food.y) < (this.radius + food.radius)**2) {
+                        this.energy += food.energyValue;
+                        foodParticles.splice(i, 1); // Remove eaten food
+                        if (this.targetFood === food) this.targetFood = null; // Clear target if it was this food
+                        this.isWandering = false; this.wanderTicksRemaining = 0; // Stop wandering after eating
+                        break; // Eat only one food particle per tick
+                    }
+                }
+            }
+
+            initiateCombat(opponent) {
+                if (!opponent || opponent.energy <= 0 || this.energy <= 0) { this.targetEnemy = null; this.isAttemptingBackstab = false; return; }
+
+                // Backstab logic
+                if (this.isAttemptingBackstab && opponent.genomeId === this.genomeId) {
+                    const energyStolen = Math.min(opponent.energy * 0.75, this.maxEnergy - this.energy);
+                    this.energy += energyStolen; opponent.energy -= energyStolen;
+                    if (this.genome) this.genome.backstabsCommitted++;
+                    if (opponent.energy <= 0) opponent.die();
+                    this.targetEnemy = null; this.isAttemptingBackstab = false; this.actionCooldown = randomRange(60, 120);
+                    return;
+                } else { this.isAttemptingBackstab = false; } // Ensure flag is off if not backstabbing
+
+                // Opponent attempts evasion
+                if (opponent.aggression < 0.6 && opponent.getEffectiveSpeed() > this.getEffectiveSpeed() * 1.1 && Math.random() < 0.7) {
+                    if (opponent.attemptEvasion(this.x, this.y)) { this.targetEnemy = null; return; } // Evasion successful
+                }
+                this.fight(opponent); // Proceed to fight
+            }
+
+            attemptEvasion(attackerX, attackerY) {
+                this.isFleeing = true; this.fleeFromX = attackerX; this.fleeFromY = attackerY;
+                this.targetFood = null; this.targetEnemy = null; this.isWandering = false;
+                this.actionCooldown = 5; return true;
+            }
+
+            fight(opponent) {
+                if (!opponent || opponent.energy <= 0 || this.energy <= 0) { this.targetEnemy = null; return; }
+
+                let myEffectivePower = this.energy * this.fightAbilityFactor + this.currentSize;
+                const opponentEffectivePower = opponent.energy * opponent.fightAbilityFactor + opponent.currentSize;
+                if (this.genome && this.genome.parentGenomeId === opponent.genomeId) myEffectivePower *= 2; // Advantage against parent species?
+
+                const totalPower = myEffectivePower + opponentEffectivePower;
+                if (totalPower === 0) { this.die(); this.targetEnemy = null; if(opponent) { opponent.targetEnemy = null; opponent.isFleeing = false; } return; } // Avoid division by zero
+
+                if (Math.random() * totalPower < myEffectivePower) { // This cell wins
+                    this.energy += opponent.energy * 0.25;
+                    if (this.genome) this.genome.fightVictories++;
+                    opponent.die();
+                } else { // Opponent wins
+                    opponent.energy += this.energy * 0.25;
+                    if (opponent.genome) opponent.genome.fightVictories++;
+                    this.die();
+                }
+                this.targetEnemy = null; // Clear target after fight
+                if(opponent && opponent.targetEnemy === this) opponent.targetEnemy = null; // Clear opponent's target if it was this cell
+                if(opponent) opponent.isFleeing = false; // Stop opponent fleeing
+            }
+
+            reproduce() {
+                // --- Population Cap Logic ---
+                const strictPopulationCap = POPULATION_LIMIT * 1.1;
+                const ownGenomePopulation = this.genome ? this.genome.population : 0;
+                let allowEndangeredBypass = (ownGenomePopulation <= 3 && cells.length < strictPopulationCap);
+
+                if (!allowEndangeredBypass) {
+                    if (cells.length >= strictPopulationCap) return; // Hard cap exceeded
+
+                    // Check if offspring is likely a new species (due to mutation or dynamic spawn rate)
+                    let isOffspringLikelyNewSpecies = false;
+                    let tempOffspringTraits = [...this.traits]; let tempHasMutated = false;
+                    for (let i = 0; i < GENOME_LENGTH; i++) {
+                        if (Math.random() < TRAIT_MUTATION_RATE_BASE * (1 + globalMutationModifier)) {
+                            tempHasMutated = true;
+                            let mutatedValue = tempOffspringTraits[i] + randomRange(-TRAIT_MUTATION_AMOUNT_BASE * (1 + globalMutationModifier), TRAIT_MUTATION_AMOUNT_BASE * (1 + globalMutationModifier));
+                            if (i === G_DISHONESTY && mutatedValue > 0.3 && Math.random() < 0.5) mutatedValue = randomLogBiased(4);
+                            tempOffspringTraits[i] = Math.max(0, Math.min(1, mutatedValue));
+                        }
+                    }
+                    if (tempHasMutated) {
+                        const tempOffspringTraitString = tempOffspringTraits.map(t => t.toFixed(TRAIT_COMPARISON_PRECISION)).join(',');
+                        const parentTraitString = this.traits.map(t => t.toFixed(TRAIT_COMPARISON_PRECISION)).join(',');
+                        if (tempOffspringTraitString !== parentTraitString) {
+                            // Check if this mutation matches an *existing* genome
+                            let existingGenomeForMutated = Array.from(activeGenomes.values()).some(g => g.traits.map(t => t.toFixed(TRAIT_COMPARISON_PRECISION)).join(',') === tempOffspringTraitString);
+                            if (!existingGenomeForMutated) isOffspringLikelyNewSpecies = true; // Truly new species
+                        }
+                    }
+                    // Dynamic chance for random new genome based on current diversity
+                    const activeSpeciesCount = activeGenomes.size;
+                    let currentDynamicNewGenomeSpawnRate = DYNAMIC_NEW_GENOME_SPAWN_RATE * (activeSpeciesCount <= 3 ? (activeSpeciesCount > 0 ? (5 / activeSpeciesCount) : 20) : 1);
+                    if (Math.random() < currentDynamicNewGenomeSpawnRate) isOffspringLikelyNewSpecies = true;
+
+                    // Apply soft cap: only allow reproduction if below limit OR if it's a new species
+                    if (cells.length >= POPULATION_LIMIT && !isOffspringLikelyNewSpecies) return;
+                }
+                // --- End Population Cap Logic ---
+
+                const cost = this.energy * REPRODUCTION_COST_FACTOR;
+                if (this.energy - cost < MAX_ENERGY_BASE * 0.15) return; // Not enough energy after cost
+                this.energy -= cost;
+
+                // --- Generate Offspring Genome ---
+                let offspringTraits = [...this.traits]; let hasMutatedActual = false;
+                for (let i = 0; i < GENOME_LENGTH; i++) {
+                    if (Math.random() < TRAIT_MUTATION_RATE_BASE * (1 + globalMutationModifier)) {
+                        hasMutatedActual = true;
+                        let mutatedValue = offspringTraits[i] + randomRange(-TRAIT_MUTATION_AMOUNT_BASE * (1 + globalMutationModifier), TRAIT_MUTATION_AMOUNT_BASE * (1 + globalMutationModifier));
+                        if (i === G_DISHONESTY && mutatedValue > 0.3 && Math.random() < 0.5) mutatedValue = randomLogBiased(4);
+                        offspringTraits[i] = Math.max(0, Math.min(1, mutatedValue));
+                    }
+                }
+
+                let offspringGenomeId; let isActuallyNewSpeciesInstance = false; let parentIdForNewGenome = null;
+                if (hasMutatedActual) {
+                    const currentGenomeStandardizedTraits = this.traits.map(t => t.toFixed(TRAIT_COMPARISON_PRECISION)).join(',');
+                    const offspringStandardizedTraits = offspringTraits.map(t => t.toFixed(TRAIT_COMPARISON_PRECISION)).join(',');
+                    if (currentGenomeStandardizedTraits === offspringStandardizedTraits) { // Mutation resulted in same traits
+                        offspringGenomeId = this.genomeId;
+                    } else { // Mutation resulted in different traits
+                        parentIdForNewGenome = this.genomeId;
+                        offspringGenomeId = getOrCreateGenome(offspringTraits, parentIdForNewGenome);
+                        if (offspringGenomeId !== this.genomeId) {
+                            const newGenomeData = activeGenomes.get(offspringGenomeId);
+                            if (newGenomeData && newGenomeData.population === 0) isActuallyNewSpeciesInstance = true; // First instance of this genome
+                        }
+                    }
+                } else { offspringGenomeId = this.genomeId; } // No mutation
+
+                // Dynamic chance for completely new random genome
+                const activeSpeciesCount = activeGenomes.size;
+                let currentDynamicNewGenomeSpawnRate = DYNAMIC_NEW_GENOME_SPAWN_RATE * (activeSpeciesCount <= 3 ? (activeSpeciesCount > 0 ? (5 / activeSpeciesCount) : 20) : 1);
+                if (Math.random() < currentDynamicNewGenomeSpawnRate) {
+                    offspringTraits = createRandomGenomeTraits();
+                    offspringGenomeId = getOrCreateGenome(offspringTraits); // Parent is null for random spawn
+                    isActuallyNewSpeciesInstance = true;
+                }
+
+                // --- Create Offspring Cell ---
+                let startingEnergyForOffspring;
+                if (isActuallyNewSpeciesInstance) { // Give new species a full start
+                    const finalOffspringGenomeData = activeGenomes.get(offspringGenomeId);
+                    startingEnergyForOffspring = MAX_ENERGY_BASE * (1 + (finalOffspringGenomeData?.traits[G_MAX_SIZE] ?? 0.5) * 1.5);
+                } else { startingEnergyForOffspring = cost * OFFSPRING_ENERGY_FACTOR; } // Inherited energy
+
+                const newCell = new Cell(
+                    this.x + Math.cos(Math.random() * 2 * Math.PI) * this.radius * 2.5,
+                    this.y + Math.sin(Math.random() * 2 * Math.PI) * this.radius * 2.5,
+                    startingEnergyForOffspring, offspringGenomeId
+                );
+                newCell.isNewSpeciesSpawn = isActuallyNewSpeciesInstance;
+                if (newCell.isNewSpeciesSpawn) newCell.isFirstOfNewSpecies = true;
+                newCellsBuffer.push(newCell); // Add to buffer to be added after main loop
+
+                // Increment birth count for the *offspring's* genome (only if not a brand new species instance)
+                const genomeForBirthCount = activeGenomes.get(offspringGenomeId);
+                if(genomeForBirthCount && !isActuallyNewSpeciesInstance) genomeForBirthCount.births++;
+
+                this.actionCooldown = randomRange(50, 80); // Cooldown after reproducing
+                this.isWandering = false; this.wanderTicksRemaining = 0; // Stop wandering
+            }
+
+            die() {
+                const genomeOfDeadCell = activeGenomes.get(this.genomeId);
+                if (genomeOfDeadCell) genomeOfDeadCell.population--; // Decrement population count
+                const index = cells.indexOf(this);
+                if (index > -1) cells.splice(index, 1); // Remove from simulation
+            }
+
+            draw(ctx) {
+                let displayRadius = this.radius * (this.energy >= this.maxEnergy * 0.95 ? 1.5 : 1); // Pulse when full energy
+
+                // Cell Body
+                ctx.beginPath(); ctx.arc(this.x, this.y, displayRadius, 0, Math.PI * 2);
+                ctx.fillStyle = this.primaryColor; ctx.fill();
+
+                // Cell Border
+                ctx.strokeStyle = this.borderColor; ctx.lineWidth = 6; ctx.stroke();
+
+                // Health Bar
+                const healthPercentage = Math.max(0, this.energy / this.maxEnergy);
+                ctx.fillStyle = healthPercentage > 0.6 ? 'lightgreen' : healthPercentage > 0.3 ? 'yellow' : 'red';
+                const healthBarWidth = displayRadius * 2 * healthPercentage;
+                const healthBarHeight = 3;
+                ctx.fillRect(this.x - displayRadius, this.y - displayRadius - healthBarHeight * 2, healthBarWidth, healthBarHeight);
+            }
+        }
+
+        let newCellsBuffer = []; // Buffer for cells created during a tick
+
+        // --- Simulation Functions ---
+        function spawnFood() {
+            const desiredFoodCount = effectiveMaxFoodCount * targetFoodDensityFactor;
+            const foodDeficit = desiredFoodCount - foodParticles.length;
+            if (foodDeficit > 0) {
+                let spawnAttempts = Math.ceil(foodDeficit * FOOD_SPAWN_BATCH_FACTOR * simulationSpeed);
+                for (let i = 0; i < spawnAttempts && foodParticles.length < effectiveMaxFoodCount; i++) {
+                    if (Math.random() < 0.5) { // Spawn rate adjustment
+                        foodParticles.push(new FoodParticle(Math.random() * WORLD_WIDTH, Math.random() * WORLD_HEIGHT));
+                    }
+                }
+            }
+        }
+
+        function initSimulation(initialGenomeCount, initialCellCount, populationLimit) {
+            POPULATION_LIMIT = populationLimit;
+            activeGenomes.clear(); nextGenomeId = 0; extinctSpeciesCount = 0;
+            genomeHistory = []; historyButton.disabled = true; hallOfFameDisplay.innerHTML = '';
+
+            // Create initial genomes
+            const initialGenomeIds = Array.from({ length: initialGenomeCount }, () => getOrCreateGenome(createRandomGenomeTraits()));
+
+            // Create initial cells
+            cells = [];
+            for (let i = 0; i < initialCellCount; i++) {
+                const genomeIdToUse = initialGenomeIds.length > 0 ? initialGenomeIds[Math.floor(Math.random() * initialGenomeIds.length)] : getOrCreateGenome(createRandomGenomeTraits());
+                cells.push(new Cell(Math.random() * WORLD_WIDTH, Math.random() * WORLD_HEIGHT, MAX_ENERGY_BASE * 0.8, genomeIdToUse));
+            }
+
+            // Create initial food
+            foodParticles = [];
+            let initialEffectiveMax = effectiveMaxFoodCount || MAX_FOOD_PARTICLES_AT_REF_AREA;
+            const initialDesiredFood = Math.floor(initialEffectiveMax * targetFoodDensityFactor);
+            for(let i=0; i < initialDesiredFood && foodParticles.length < initialEffectiveMax; i++) {
+                 foodParticles.push(new FoodParticle(Math.random() * WORLD_WIDTH, Math.random() * WORLD_HEIGHT));
+            }
+
+            tickCount = 0;
+            resetViewToFullGrid(); // Ensure view is reset
+            if (!simulationRunning) updateInfoDisplay(); // Initial info display
+        }
+
+        // --- View Control Functions ---
+        function clampView() {
+            viewScale = Math.max(MIN_VIEW_SCALE, Math.min(MAX_VIEW_SCALE, viewScale));
+            const effectiveTotalScale = viewScale * currentRenderScale;
+            if (effectiveTotalScale <= 0) { console.error("Error: effectiveTotalScale <= 0. Resetting view."); viewScale = MIN_VIEW_SCALE; }
+
+            const viewportWorldWidth = canvas.width / effectiveTotalScale;
+            const viewportWorldHeight = canvas.height / effectiveTotalScale;
+
+            viewOffsetX = (viewportWorldWidth >= WORLD_WIDTH) ? WORLD_WIDTH / 2 : Math.max(viewportWorldWidth / 2, Math.min(WORLD_WIDTH - viewportWorldWidth / 2, viewOffsetX));
+            viewOffsetY = (viewportWorldHeight >= WORLD_HEIGHT) ? WORLD_HEIGHT / 2 : Math.max(viewportWorldHeight / 2, Math.min(WORLD_HEIGHT - viewportWorldHeight / 2, viewOffsetY));
+        }
+
+        function resetViewToFullGrid() {
+            viewScale = 1.0; viewOffsetX = WORLD_WIDTH / 2; viewOffsetY = WORLD_HEIGHT / 2;
+            clampView();
+        }
+
+        // --- Full Mode Toggle ---
+        function toggleFullMode() {
+            isFullModeActive = !isFullModeActive;
+            if (isFullModeActive) {
+                bodyElement.classList.add('full-mode-active'); // Add class to body
+                canvas.style.cursor = simulationRunning ? 'default' : 'grab'; // Set cursor based on state *in* full mode
+                resetViewToFullGrid(); // Reset pan/zoom when entering full mode
+            } else {
+                bodyElement.classList.remove('full-mode-active'); // Remove class from body
+                // Set cursor based on sim state when exiting full mode
+                canvas.style.cursor = simulationRunning ? 'default' : 'grab';
+            }
+            // Use requestAnimationFrame to ensure layout changes are applied before resizing
+            requestAnimationFrame(resizeCanvas);
+        }
+
+
+        // --- Canvas Resizing and Layout ---
+        function resizeCanvas() {
+            let newCanvasWidth, newCanvasHeight;
+
+            if (isFullModeActive) {
+                // Use visualViewport for more accurate dimensions on mobile, fallback to innerWidth/Height
+                newCanvasWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+                newCanvasHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+            } else {
+                // Normal Mode - MODIFIED SECTION STARTS HERE
+                const containerWidth = simulationContainer.clientWidth;
+                // Use 90% of window width as a fallback if clientWidth is 0 for some reason during loading
+                const safeContainerWidth = containerWidth > 0 ? containerWidth : window.innerWidth * 0.9;
+
+                let controlPanelHeightWithMargin = 0;
+                // Check if controlPanel is rendered and visible before accessing its properties
+                if (controlPanel && controlPanel.offsetHeight && window.getComputedStyle(controlPanel).display !== 'none') {
+                    controlPanelHeightWithMargin = controlPanel.offsetHeight;
+                    const controlPanelStyle = window.getComputedStyle(controlPanel);
+                    // Add top and bottom margins of the control panel
+                    controlPanelHeightWithMargin += parseFloat(controlPanelStyle.marginTop);
+                    controlPanelHeightWithMargin += parseFloat(controlPanelStyle.marginBottom);
+                }
+
+                // Get body padding
+                const bodyStyle = window.getComputedStyle(bodyElement);
+                const bodyPaddingTop = parseFloat(bodyStyle.paddingTop);
+                const bodyPaddingBottom = parseFloat(bodyStyle.paddingBottom);
+
+                // Calculate the height available specifically for the canvas
+                // This is the window's inner height, minus body padding, minus the control panel's total height (including its margins)
+                const availableHeightForCanvasItself = window.innerHeight - bodyPaddingTop - bodyPaddingBottom - controlPanelHeightWithMargin;
+
+                // The canvas aims to be a square. Its size is limited by the available width (safeContainerWidth)
+                // and the calculated available height for the canvas itself.
+                let idealSize = Math.min(safeContainerWidth, availableHeightForCanvasItself);
+
+                // Ensure the calculated size is positive and has a reasonable minimum
+                // (e.g., prevent it from becoming too small or negative if calculations yield unexpected results)
+                idealSize = Math.max(idealSize, 150); // Set a minimum canvas size like 150px
+
+                newCanvasWidth = idealSize;
+                newCanvasHeight = idealSize; // Enforce 1:1 aspect ratio for the canvas in normal mode
+                // MODIFIED SECTION ENDS HERE
+            }
+
+            // Update canvas resolution
+            canvas.width = newCanvasWidth;
+            canvas.height = newCanvasHeight;
+
+            // Update world dimensions based on new aspect ratio
+            const currentCanvasAspectRatio = newCanvasWidth / newCanvasHeight;
+            if (currentCanvasAspectRatio >= 1) { // Landscape or square
+                WORLD_HEIGHT = REFERENCE_LOGICAL_DENSITY_UNITS;
+                WORLD_WIDTH = WORLD_HEIGHT * currentCanvasAspectRatio;
+            } else { // Portrait
+                WORLD_WIDTH = REFERENCE_LOGICAL_DENSITY_UNITS;
+                WORLD_HEIGHT = WORLD_WIDTH / currentCanvasAspectRatio;
+            }
+            currentRenderScale = newCanvasWidth / WORLD_WIDTH; // Scale for rendering
+
+            // Adjust food count based on new world area
+            const currentWorldArea = WORLD_WIDTH * WORLD_HEIGHT;
+            effectiveMaxFoodCount = Math.round(MAX_FOOD_PARTICLES_AT_REF_AREA * (currentWorldArea / REFERENCE_WORLD_AREA));
+            const targetFoodLevelForCull = Math.floor(effectiveMaxFoodCount * targetFoodDensityFactor);
+            while (foodParticles.length > targetFoodLevelForCull) { // Cull excess food immediately
+                foodParticles.splice(Math.floor(Math.random() * foodParticles.length), 1);
+            }
+
+            // --- Portrait Layout Adjustments (Non-Full Mode) ---
+            if (!isFullModeActive) {
+                const containerWidthForLayout = simulationContainer.clientWidth || REFERENCE_LOGICAL_DENSITY_UNITS;
+                const isPortrait = window.innerHeight > window.innerWidth && containerWidthForLayout < 768;
+
+                controlPanel.classList.toggle('sm:flex-row', !isPortrait);
+                controlPanel.classList.toggle('sm:flex-wrap', !isPortrait);
+                controlPanel.classList.toggle('flex-col', isPortrait);
+
+                titleInfoActionsContainer.classList.toggle('sm:order-2', !isPortrait);
+                titleInfoActionsContainer.classList.toggle('order-1', isPortrait);
+                slidersContainer.classList.toggle('sm:order-1', !isPortrait);
+                slidersContainer.classList.toggle('order-2', isPortrait);
+
+                mainSimTitleElement.classList.toggle('hidden', !isPortrait && containerWidthForLayout < 640);
+                mainSimTitleElement.classList.toggle('sm:block', !isPortrait);
+                mainSimTitleElement.classList.toggle('text-2xl', !isPortrait);
+                mainSimTitleElement.classList.toggle('sm:text-3xl', !isPortrait);
+                mainSimTitleElement.classList.toggle('block', isPortrait);
+                mainSimTitleElement.classList.toggle('text-xl', isPortrait);
+                mainSimTitleElement.classList.toggle('mb-2', isPortrait);
+
+                slidersContainer.querySelectorAll('.slider-container').forEach(el => el.classList.toggle('mb-2', isPortrait));
+                infoDisplay.classList.toggle('mt-2', isPortrait);
+                infoDisplay.classList.toggle('w-full', isPortrait);
+                infoDisplay.classList.toggle('text-center', isPortrait);
+                infoDisplay.classList.toggle('self-end', !isPortrait);
+            }
+            // --- End Portrait Layout Adjustments ---
+
+            // Reset view only if NOT in full mode (allow keeping pan/zoom in full mode paused)
+            if (!isFullModeActive) {
+                resetViewToFullGrid();
+            } else {
+                clampView(); // Re-clamp view in full mode after resize
+            }
+
+            updateDynamicColors(); // Ensure colors are correct
+
+            // Redraw immediately
+            if (!simulationContainer.classList.contains('hidden') || isFullModeActive) {
+                 draw();
+            }
+        }
+
+        // --- Game Loop & Simulation Update ---
+        function gameLoop() {
+            if (!simulationRunning) { animationFrameId = null; return; } // Stop loop if paused
+
+            // Update accent hue while running
+            currentAccentHue = (currentAccentHue + (0.2 * simulationSpeed)) % 360;
+            updateDynamicColors();
+
+            // Run simulation steps
+            for (let i = 0; i < simulationSpeed; i++) updateSimulationState();
+
+            draw(); // Render the current state
+            animationFrameId = requestAnimationFrame(gameLoop); // Request next frame
+        }
+
+        function auditGenomePopulations() {
+            const actualGenomePopulations = cells.reduce((acc, cell) => {
+                if (cell?.genomeId) acc.set(cell.genomeId, (acc.get(cell.genomeId) || 0) + 1);
+                return acc;
+            }, new Map());
+
+            activeGenomes.forEach((genomeData, genomeId) => {
+                genomeData.population = actualGenomePopulations.get(genomeId) || 0;
+            });
+        }
+
+        function updateHallOfFameDisplay() {
+            if (genomeHistory.length === 0) { hallOfFameDisplay.innerHTML = ''; return; }
+            const sortedHistory = [...genomeHistory].sort((a, b) => b.lifespan - a.lifespan);
+            const topSpecies = sortedHistory.slice(0, 5);
+            hallOfFameDisplay.innerHTML = ''; // Clear previous
+            topSpecies.forEach(genome => {
+                const cellVisCanvas = document.createElement('canvas');
+                cellVisCanvas.width = 24; cellVisCanvas.height = 24;
+                renderStaticCellOnCanvas(genome, cellVisCanvas); // Draw the cell representation
+                hallOfFameDisplay.appendChild(cellVisCanvas);
+            });
+        }
+
+        function updateSimulationState() {
+            newCellsBuffer = []; // Clear buffer for new cells
+
+            // Update existing cells
+            for (let i = cells.length - 1; i >= 0; i--) { if(cells[i]) cells[i].update(); }
+
+            // Add new cells from buffer (respecting population cap unless it's a new species)
+            for (const newCell of newCellsBuffer) {
+                if (newCell.isNewSpeciesSpawn || cells.length < POPULATION_LIMIT) {
+                    cells.push(newCell);
+                } else { // Cap prevented birth, correct population count
+                    const genomeToCorrect = activeGenomes.get(newCell.genomeId);
+                    if (genomeToCorrect) genomeToCorrect.population--;
+                }
+            }
+
+            spawnFood(); // Spawn new food particles
+
+            // Periodic genome audit
+            if (tickCount > 0 && tickCount % GENOME_AUDIT_INTERVAL === 0) auditGenomePopulations();
+
+            // Handle extinctions
+            const genomesToDelete = [];
+            activeGenomes.forEach((genomeData, genomeId) => {
+                if (genomeData.population <= 0) {
+                    genomeHistory.push({ ...genomeData, extinctionTick: tickCount, lifespan: tickCount - genomeData.originTick });
+                    if (historyButton.disabled) historyButton.disabled = false;
+                    genomesToDelete.push(genomeId);
+                }
+            });
+            genomesToDelete.forEach(id => {
+                if (activeGenomes.has(id)) { activeGenomes.delete(id); extinctSpeciesCount++; }
+            });
+
+            // Periodic Hall of Fame update
+            if (tickCount > 0 && tickCount % HALL_OF_FAME_UPDATE_INTERVAL === 0) updateHallOfFameDisplay();
+
+            // Respawn logic if all cells die
+            if (cells.length === 0 && POPULATION_LIMIT > 0) {
+                if (activeGenomes.size > 0) { activeGenomes.forEach(g => extinctSpeciesCount++); activeGenomes.clear(); } // Mark remaining as extinct
+                const newGenomeId = getOrCreateGenome(createRandomGenomeTraits());
+                const revivalCell = new Cell(Math.random() * WORLD_WIDTH, Math.random() * WORLD_HEIGHT, MAX_ENERGY_BASE * 0.8, newGenomeId);
+                revivalCell.isNewSpeciesSpawn = true; revivalCell.isFirstOfNewSpecies = true;
+                cells.push(revivalCell);
+            }
+
+            tickCount++;
+        }
+
+        // --- Drawing Function ---
+        function draw() {
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
+
+            // Apply view transformations (pan/zoom)
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            const effectiveTotalScale = viewScale * currentRenderScale;
+            ctx.scale(effectiveTotalScale, effectiveTotalScale);
+            ctx.translate(-viewOffsetX, -viewOffsetY);
+
+            // Draw elements
+            foodParticles.forEach(food => food.draw(ctx));
+            cells.filter(cell => cell).forEach(cell => cell.draw(ctx));
+
+            ctx.restore(); // Restore default transform
+            updateInfoDisplay(); // Update HUD info
+        }
+
+        function updateInfoDisplay() {
+            const cellsStr = String(cells.length).padStart(4, '0');
+            const foodStr = String(foodParticles.length).padStart(3, '0');
+            const speciesStr = String(activeGenomes.size).padStart(2, '0');
+            const extinctStr = String(extinctSpeciesCount).padStart(3, '0');
+            let infoHTML = `<span>Ticks: ${tickCount} | Cells: ${cellsStr} | Food: ${foodStr}</span>`;
+            infoHTML += `<br><span>Species: ${speciesStr} | Extinct: ${extinctStr}</span>`;
+            infoDisplay.style.display = isFullModeActive ? 'none' : ''; // Hide in full mode
+            infoDisplay.innerHTML = infoHTML;
+        }
+
+        // --- Setup Modal Slider Event Listeners ---
+        setupGenomeCountSlider.addEventListener('input', (e) => {
+            genomeCountValueDisplay.textContent = e.target.value;
+            setupCellCountSlider.min = e.target.value; // Cell count >= genome count
+            if (parseInt(setupCellCountSlider.value) < parseInt(e.target.value)) {
+                setupCellCountSlider.value = e.target.value; cellCountValueDisplay.textContent = e.target.value;
+            }
+        });
+        setupCellCountSlider.addEventListener('input', (e) => { cellCountValueDisplay.textContent = e.target.value; });
+        setupPopulationLimitSlider.addEventListener('input', (e) => { populationLimitValueDisplay.textContent = e.target.value; });
+        setupFoodRateSlider.addEventListener('input', (e) => {
+            foodRateValueDisplay.textContent = e.target.value;
+            targetFoodDensityFactor = parseInt(e.target.value) / 100;
+            if (!simulationContainer.classList.contains('hidden')) { // Update sim if visible
+                 resizeCanvas(); if(!simulationRunning) draw();
+            }
+        });
+
+        // --- Main Control Event Listeners ---
+        playPauseButton.addEventListener('click', () => {
+            simulationRunning = !simulationRunning;
+            playPauseButton.textContent = simulationRunning ? 'Pause' : 'Play';
+            playPauseButton.classList.toggle('bg-green-500', !simulationRunning);
+            playPauseButton.classList.toggle('bg-yellow-500', simulationRunning);
+
+            if (simulationRunning) {
+                canvas.style.cursor = 'default'; // Default cursor when running
+                // Reset view when unpausing, regardless of full mode * FIX *
+                resetViewToFullGrid();
+                if (!animationFrameId) gameLoop(); // Start loop if not already running
+            } else { // Pausing
+                // Allow grab cursor if paused (regardless of full mode)
+                 canvas.style.cursor = 'grab';
+                cancelAnimationFrame(animationFrameId); animationFrameId = null;
+                updateDynamicColors(); // Reflect paused state color
+                draw(); // Final draw in paused state
+            }
+        });
+
+        resetButton.addEventListener('click', () => {
+            if (isFullModeActive) toggleFullMode(); // Exit full mode on reset
+            simulationRunning = false;
+            playPauseButton.textContent = 'Play';
+            playPauseButton.classList.remove('bg-yellow-500'); playPauseButton.classList.add('bg-green-500');
+            canvas.style.cursor = 'default';
+
+            if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; }
+
+            // Show setup, hide sim/history
+            setupModal.style.display = 'flex';
+            simulationContainer.classList.add('hidden');
+            historyPanel.style.display = 'none';
+            ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.restore();
+
+            // Reset sim variables
+            tickCount = 0; cells = []; foodParticles = []; activeGenomes.clear();
+            extinctSpeciesCount = 0; genomeHistory = []; historyButton.disabled = true; hallOfFameDisplay.innerHTML = '';
+            targetFoodDensityFactor = parseInt(document.getElementById('setupFoodRate').value) / 100;
+            foodSpawnRateSlider.value = targetFoodDensityFactor * 100;
+            currentAccentHue = initialAccentHueForHeader; // Reset hue
+
+            updateDynamicColors(); resizeCanvas(); resetViewToFullGrid(); updateInfoDisplay();
+        });
+
+        // Simulation Control Sliders
+        speedSlider.addEventListener('input', (e) => { simulationSpeed = parseInt(e.target.value); });
+        foodSpawnRateSlider.addEventListener('input', (e) => {
+            targetFoodDensityFactor = parseInt(e.target.value) / 100;
+            if (!simulationContainer.classList.contains('hidden')) {
+                resizeCanvas(); if(!simulationRunning) draw(); // Update food count and redraw if paused
+            }
+        });
+        metabolismSlider.addEventListener('input', (e) => { globalMetabolismModifier = parseInt(e.target.value) * (0.80 / 50); });
+        mutationRateSlider.addEventListener('input', (e) => { globalMutationModifier = parseInt(e.target.value) * (0.66 / 50); });
+
+        // --- Canvas Interaction: Mouse ---
+
+        // Mouse Click: Enter/Exit Full Mode (only if sim running or paused outside full mode)
+        canvas.addEventListener('click', (event) => {
+            // Prevent click action if a touch-based action or mouse drag just happened * FIX *
+             if (touchState.isSwiping || touchState.tapCount > 0 || wasDraggingMouse) {
+                 // Reset flags if needed (touch flags reset in touchend)
+                 wasDraggingMouse = false; // Reset mouse drag flag here
+                 return;
+             }
+
+            if (isFullModeActive) { // Click exits full mode
+                toggleFullMode();
+            } else if (simulationRunning) { // Click enters full mode if running
+                toggleFullMode();
+            }
+            // If paused and not in full mode, click does nothing (pan/zoom via mousedown/move)
+        });
+
+        // Mouse Wheel: Zoom (only if paused, regardless of full mode)
+        canvas.addEventListener('wheel', (event) => {
+            if (simulationRunning) return; // No zoom if running
+            event.preventDefault();
+
+            const rect = canvas.getBoundingClientRect();
+            const mouseXCanvas = event.clientX - rect.left;
+            const mouseYCanvas = event.clientY - rect.top;
+
+            const effectiveCurrentScale = viewScale * currentRenderScale;
+            const worldMouseXBefore = (mouseXCanvas - canvas.width / 2) / effectiveCurrentScale + viewOffsetX;
+            const worldMouseYBefore = (mouseYCanvas - canvas.height / 2) / effectiveCurrentScale + viewOffsetY;
+
+            const zoomFactor = event.deltaY < 0 ? 1.1 : (1 / 1.1);
+            viewScale *= zoomFactor;
+
+            const effectiveNewScale = viewScale * currentRenderScale;
+            viewOffsetX = worldMouseXBefore - (mouseXCanvas - canvas.width / 2) / effectiveNewScale;
+            viewOffsetY = worldMouseYBefore - (mouseYCanvas - canvas.height / 2) / effectiveNewScale;
+
+            clampView(); draw();
+        });
+
+        // Mouse Down: Start Pan (only if paused, regardless of full mode)
+        canvas.addEventListener('mousedown', (event) => {
+            if (simulationRunning || event.button !== 0) return; // No pan if running or not left click
+            isDragging = true;
+            wasDraggingMouse = false; // Reset drag flag on new mousedown * FIX *
+            lastDragX = event.clientX; lastDragY = event.clientY;
+            canvas.style.cursor = 'grabbing';
+        });
+
+        // Mouse Move: Pan (if dragging and paused)
+        canvas.addEventListener('mousemove', (event) => {
+            if (!isDragging || simulationRunning) return;
+            // Set wasDraggingMouse flag if significant movement occurs * FIX *
+            if (!wasDraggingMouse) {
+                 const dx = event.clientX - lastDragX;
+                 const dy = event.clientY - lastDragY;
+                 // Use a small threshold to confirm drag vs tiny jitter
+                 if (dx*dx + dy*dy > 5*5) { // Moved more than 5 pixels squared
+                     wasDraggingMouse = true;
+                 }
+            }
+
+            const dxPan = event.clientX - lastDragX; const dyPan = event.clientY - lastDragY;
+            viewOffsetX -= dxPan / (viewScale * currentRenderScale);
+            viewOffsetY -= dyPan / (viewScale * currentRenderScale);
+            lastDragX = event.clientX; lastDragY = event.clientY;
+            clampView(); draw();
+        });
+
+        // Mouse Up/Leave: End Pan
+        const endMouseDrag = () => {
+            if (isDragging) {
+                isDragging = false;
+                // Set cursor back to 'grab' if paused, 'default' otherwise
+                 canvas.style.cursor = !simulationRunning ? 'grab' : 'default';
+
+                 // Delay resetting wasDraggingMouse slightly * FIX *
+                 // This allows the click event to fire and check the flag *before* it's reset
+                 setTimeout(() => {
+                     wasDraggingMouse = false;
+                 }, 10); // Short delay (10ms)
+            }
+        };
+        canvas.addEventListener('mouseup', endMouseDrag);
+        canvas.addEventListener('mouseleave', endMouseDrag);
+
+
+        // --- Canvas Interaction: Touch ---
+
+        function getTouchDistance(p1, p2) {
+            const dx = p1.clientX - p2.clientX; const dy = p1.clientY - p2.clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+        function getTouchMidpoint(p1, p2) {
+            return { clientX: (p1.clientX + p2.clientX) / 2, clientY: (p1.clientY + p2.clientY) / 2 };
+        }
+
+        // Touch Start
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Prevent default touch actions like scrolling/zooming page
+
+            const currentTime = Date.now();
+            const touch = e.changedTouches[0]; // Get the first touch point
+
+            // Store initial touch info for tap/drag detection
+            touchState.touchStartTime = currentTime;
+            touchState.touchStartX = touch.clientX;
+            touchState.touchStartY = touch.clientY;
+            touchState.isSwiping = false; // Reset swipe flag
+            isDragging = false; // Reset general dragging flag (used for touch pan too)
+
+            // Update pointer list
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const newTouch = e.changedTouches[i];
+                // Avoid adding duplicates if event fires rapidly
+                if (!touchState.pointers.find(p => p.identifier === newTouch.identifier)) {
+                     touchState.pointers.push({ identifier: newTouch.identifier, clientX: newTouch.clientX, clientY: newTouch.clientY });
+                }
+            }
+
+            if (touchState.pointers.length === 1) { // Single touch
+                if (isFullModeActive) { // Start potential swipe detection in full mode
+                    touchState.swipeStartX = touch.clientX;
+                    touchState.swipeStartY = touch.clientY;
+                    touchState.swipeStartTime = currentTime;
+                }
+                 // Start potential pan if paused (regardless of full mode)
+                if (!simulationRunning) {
+                    // Don't set isDragging = true immediately, wait for touchmove to confirm movement
+                    lastDragX = touch.clientX;
+                    lastDragY = touch.clientY;
+                }
+                touchState.lastDist = null; // Reset pinch state
+                touchState.lastMidpointCanvas = null;
+
+            } else if (touchState.pointers.length >= 2) { // Two or more touches
+                 // Start pinch zoom if paused (regardless of full mode)
+                 if (!simulationRunning) {
+                    isDragging = false; // Ensure pan flag is off
+                    const p1 = touchState.pointers[0];
+                    const p2 = touchState.pointers[1];
+                    touchState.lastDist = getTouchDistance(p1, p2);
+                    touchState.lastMidpointCanvas = getTouchMidpoint(p1, p2);
+                 }
+                 // Reset swipe state if pinch starts
+                 touchState.swipeStartX = null; touchState.swipeStartY = null; touchState.isSwiping = false;
+            }
+
+            // Double Tap Logic: Clear single tap timeout if a second touch starts quickly
+            if (touchState.tapTimeout) {
+                clearTimeout(touchState.tapTimeout);
+                touchState.tapTimeout = null;
+            }
+
+        }, { passive: false }); // Use passive: false to allow preventDefault
+
+        // Touch Move
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault(); // Prevent scrolling page during canvas interaction
+
+            // Update changed touch positions in our state
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const changedTouch = e.changedTouches[i];
+                const index = touchState.pointers.findIndex(p => p.identifier === changedTouch.identifier);
+                if (index !== -1) {
+                    touchState.pointers[index].clientX = changedTouch.clientX;
+                    touchState.pointers[index].clientY = changedTouch.clientY;
+                }
+            }
+
+            const touch = touchState.pointers.find(p => p.identifier === e.changedTouches[0].identifier);
+            if (!touch) return; // Should not happen, but safety check
+
+            // Check if movement exceeds threshold for dragging/swiping
+            const dxMove = touch.clientX - touchState.touchStartX;
+            const dyMove = touch.clientY - touchState.touchStartY;
+            const distSqMoved = dxMove * dxMove + dyMove * dyMove;
+
+            if (!isDragging && distSqMoved > touchState.maxMoveDistanceSq) {
+                 isDragging = true; // Confirmed drag/swipe, not a tap
+                 // If in full mode, start swipe detection
+                 if (isFullModeActive && touchState.swipeStartX !== null) {
+                     touchState.isSwiping = true; // Mark as potential swipe
+                 }
+                 // If paused, set cursor to grabbing
+                 if (!simulationRunning) {
+                     canvas.style.cursor = 'grabbing';
+                 }
+            }
+
+
+            // Handle Pan (single touch, paused, dragging confirmed)
+            if (touchState.pointers.length === 1 && isDragging && !simulationRunning) {
+                const dxPan = touch.clientX - lastDragX;
+                const dyPan = touch.clientY - lastDragY;
+                viewOffsetX -= dxPan / (viewScale * currentRenderScale);
+                viewOffsetY -= dyPan / (viewScale * currentRenderScale);
+                lastDragX = touch.clientX; lastDragY = touch.clientY;
+                clampView(); draw();
+            }
+            // Handle Pinch Zoom (two touches, paused)
+            else if (touchState.pointers.length >= 2 && !simulationRunning) {
+                isDragging = false; // Ensure pan flag is off during pinch
+                const p1 = touchState.pointers[0];
+                const p2 = touchState.pointers[1];
+                if (!p1 || !p2) return; // Need two valid pointers
+
+                const newDist = getTouchDistance(p1, p2);
+                const newMidpointCanvas = getTouchMidpoint(p1, p2);
+                const rect = canvas.getBoundingClientRect();
+
+                if (touchState.lastDist != null && touchState.lastMidpointCanvas != null && touchState.lastDist > 0) {
+                    // Calculate world coordinates under the midpoint before zoom
+                    const effectiveCurrentScale = viewScale * currentRenderScale;
+                    const canvasMidXBefore = touchState.lastMidpointCanvas.clientX - rect.left;
+                    const canvasMidYBefore = touchState.lastMidpointCanvas.clientY - rect.top;
+                    const worldMidXBefore = (canvasMidXBefore - canvas.width / 2) / effectiveCurrentScale + viewOffsetX;
+                    const worldMidYBefore = (canvasMidYBefore - canvas.height / 2) / effectiveCurrentScale + viewOffsetY;
+
+                    // Apply zoom
+                    viewScale *= newDist / touchState.lastDist;
+                    viewScale = Math.max(MIN_VIEW_SCALE, Math.min(MAX_VIEW_SCALE, viewScale)); // Clamp
+
+                    // Calculate new offset to keep world point under midpoint
+                    const effectiveNewScale = viewScale * currentRenderScale;
+                    const newCanvasMidX = newMidpointCanvas.clientX - rect.left;
+                    const newCanvasMidY = newMidpointCanvas.clientY - rect.top;
+                    viewOffsetX = worldMidXBefore - (newCanvasMidX - canvas.width / 2) / effectiveNewScale;
+                    viewOffsetY = worldMidYBefore - (newCanvasMidY - canvas.height / 2) / effectiveNewScale;
+
+                    clampView(); draw();
+                }
+                // Update state for next move event
+                touchState.lastDist = newDist;
+                touchState.lastMidpointCanvas = newMidpointCanvas;
+            }
+
+        }, { passive: false }); // Use passive: false to allow preventDefault
+
+        // Touch End / Cancel
+        const handleTouchEndOrCancel = (e) => {
+            e.preventDefault(); // Prevent default actions
+
+            const currentTime = Date.now();
+            const touch = e.changedTouches[0]; // Get the touch that ended
+            const wasActivelyDragging = isDragging; // Capture drag state *before* resetting below
+
+            // --- Swipe Detection (Full Mode) ---
+            if (isFullModeActive && touchState.swipeStartX !== null && touchState.isSwiping) {
+                const swipeEndX = touch.clientX; const swipeEndY = touch.clientY;
+                const swipeTime = currentTime - touchState.swipeStartTime;
+                const dx = swipeEndX - touchState.swipeStartX; const dy = swipeEndY - touchState.swipeStartY;
+
+                if (swipeTime < SWIPE_MAX_TIME && (Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(dy) > SWIPE_THRESHOLD)) {
+                    // Valid Swipe Detected
+                    if (Math.abs(dx) > Math.abs(dy)) { // Horizontal
+                        const direction = dx > 0 ? 1 : -1; // +1 Right, -1 Left
+                        const newValue = Math.max(parseFloat(speedSlider.min), Math.min(parseFloat(speedSlider.max), parseFloat(speedSlider.value) + direction));
+                        if (newValue !== parseFloat(speedSlider.value)) { speedSlider.value = newValue; speedSlider.dispatchEvent(new Event('input')); }
+                    } else { // Vertical
+                        const direction = dy < 0 ? 5 : -5; // +5 Up, -5 Down
+                        const newValue = Math.max(parseFloat(foodSpawnRateSlider.min), Math.min(parseFloat(foodSpawnRateSlider.max), parseFloat(foodSpawnRateSlider.value) + direction));
+                         if (newValue !== parseFloat(foodSpawnRateSlider.value)) { foodSpawnRateSlider.value = newValue; foodSpawnRateSlider.dispatchEvent(new Event('input')); }
+                    }
+                    // Reset tap count after a successful swipe
+                    touchState.tapCount = 0;
+                }
+            }
+            // Reset swipe state regardless
+            touchState.swipeStartX = null; touchState.swipeStartY = null; touchState.swipeStartTime = null; touchState.isSwiping = false;
+
+
+            // --- Tap / Double Tap Detection ---
+            const duration = currentTime - touchState.touchStartTime;
+            // Check if it qualifies as a tap (short duration, minimal movement *and* wasn't a drag/swipe)
+            if (!wasActivelyDragging && duration < touchState.maxTapDuration) {
+                touchState.tapCount++;
+
+                if (touchState.tapTimeout) clearTimeout(touchState.tapTimeout); // Clear previous timeout
+
+                if (touchState.tapCount === 1) { // First tap
+                    touchState.lastTapTime = currentTime;
+                    // Set timeout to handle single tap action if no second tap follows
+                    touchState.tapTimeout = setTimeout(() => {
+                        // --- Single Tap Action ---
+                        if (isFullModeActive) {
+                            toggleFullMode(); // Single tap exits full mode
+                        } else if (simulationRunning) {
+                             toggleFullMode(); // Single tap enters full mode if running
+                        }
+                        // If paused and not full mode, single tap does nothing (handled by pan/zoom)
+                        // --- End Single Tap Action ---
+                        touchState.tapCount = 0; // Reset tap count after action or timeout
+                        touchState.tapTimeout = null;
+                    }, touchState.maxDoubleTapDelay);
+
+                } else if (touchState.tapCount === 2) { // Second tap
+                    // Check if the second tap is close enough in time to the first
+                    if (currentTime - touchState.lastTapTime < touchState.maxDoubleTapDelay) {
+                        // --- Double Tap Action ---
+                        if (isFullModeActive) {
+                            playPauseButton.click(); // Toggle play/pause in full mode
+                        }
+                        // --- End Double Tap Action ---
+                        touchState.tapCount = 0; // Reset tap count
+                        if (touchState.tapTimeout) { clearTimeout(touchState.tapTimeout); touchState.tapTimeout = null; } // Clear single tap timeout
+                    } else {
+                        // Second tap was too late, treat it as the start of a new potential tap/double tap
+                        touchState.tapCount = 1;
+                        touchState.lastTapTime = currentTime;
+                        touchState.tapTimeout = setTimeout(() => { /* Single tap action (same as above) */
+                            if (isFullModeActive) toggleFullMode(); else if (simulationRunning) toggleFullMode();
+                            touchState.tapCount = 0; touchState.tapTimeout = null;
+                        }, touchState.maxDoubleTapDelay);
+                    }
+                }
+            } else {
+                // Movement/duration too long, or was a drag, reset tap count
+                touchState.tapCount = 0;
+                if (touchState.tapTimeout) { clearTimeout(touchState.tapTimeout); touchState.tapTimeout = null; }
+            }
+
+
+            // --- Update Pointer List and Interaction State ---
+            touchState.pointers = touchState.pointers.filter(p => p.identifier !== touch.identifier);
+
+            if (touchState.pointers.length < 2) { // Stop pinch zoom if less than 2 pointers remain
+                touchState.lastDist = null;
+                touchState.lastMidpointCanvas = null;
+            }
+             if (touchState.pointers.length === 1 && !simulationRunning) { // If one pointer remains and paused, *potentially* re-initiate pan (but don't assume drag yet)
+                 // isDragging = true; // Don't set isDragging true here, wait for next touchmove
+                 const remainingTouch = touchState.pointers[0];
+                 lastDragX = remainingTouch.clientX;
+                 lastDragY = remainingTouch.clientY;
+                 canvas.style.cursor = 'grab'; // Set cursor for potential pan
+             } else if (touchState.pointers.length === 0) { // No pointers left
+                 isDragging = false; // Stop dragging
+                 // Set cursor based on state
+                 canvas.style.cursor = !simulationRunning ? 'grab' : 'default';
+             } else if (touchState.pointers.length >= 2 && !simulationRunning) { // Still 2+ pointers and paused, re-initialize pinch
+                 isDragging = false; // Ensure pan is off
+                 const p1 = touchState.pointers[0]; const p2 = touchState.pointers[1];
+                 touchState.lastDist = getTouchDistance(p1, p2);
+                 touchState.lastMidpointCanvas = getTouchMidpoint(p1, p2);
+                 canvas.style.cursor = 'grab'; // Cursor for pinch/zoom
+             }
+
+        };
+        canvas.addEventListener('touchend', handleTouchEndOrCancel, { passive: false });
+        canvas.addEventListener('touchcancel', handleTouchEndOrCancel, { passive: false });
+
+
+        // --- History Panel Logic ---
+        function renderStaticCellOnCanvas(genomeData, cellCanvas) {
+            const cellCtx = cellCanvas.getContext('2d');
+            const canvasSize = cellCanvas.width; const cellRadius = canvasSize * 0.4;
+            cellCtx.clearRect(0, 0, canvasSize, canvasSize);
+            const primaryColor = `hsl(${genomeData.primaryHue}, ${genomeData.primarySaturation}%, ${genomeData.primaryLightness}%)`;
+            cellCtx.beginPath(); cellCtx.arc(canvasSize / 2, canvasSize / 2, cellRadius, 0, Math.PI * 2);
+            cellCtx.fillStyle = primaryColor; cellCtx.fill();
+            const borderColor = `hsl(${genomeData.borderHue}, 85%, 60%)`;
+            cellCtx.strokeStyle = borderColor; cellCtx.lineWidth = Math.max(1, canvasSize * 0.1); cellCtx.stroke();
+        }
+
+        function populateHistoryTable() {
+            historyTableBody.innerHTML = ''; // Clear
+            // Sort data
+            genomeHistory.sort((a, b) => {
+                let valA = (currentSortColumn === 'id') ? parseInt(a.id.substring(1)) : a[currentSortColumn];
+                let valB = (currentSortColumn === 'id') ? parseInt(b.id.substring(1)) : b[currentSortColumn];
+                return (currentSortDirection === 'asc') ? (valA > valB ? 1 : -1) : (valA < valB ? 1 : -1);
+            });
+            // Create rows
+            genomeHistory.forEach(genome => {
+                const row = historyTableBody.insertRow();
+                const cellCanvasCell = row.insertCell();
+                const cellVisCanvas = document.createElement('canvas'); cellVisCanvas.width = 30; cellVisCanvas.height = 30;
+                renderStaticCellOnCanvas(genome, cellVisCanvas); cellCanvasCell.appendChild(cellVisCanvas);
+                row.insertCell().textContent = genome.id;
+                row.insertCell().textContent = genome.lifespan;
+                row.insertCell().textContent = genome.births;
+                const killsRatio = genome.births > 0 ? `(${(genome.fightVictories / genome.births).toFixed(2)})` : "";
+                row.insertCell().textContent = `${genome.fightVictories} ${killsRatio}`.trim();
+                const criminalsRatio = genome.births > 0 ? `(${(genome.backstabsCommitted / genome.births).toFixed(2)})` : "";
+                row.insertCell().textContent = `${genome.backstabsCommitted} ${criminalsRatio}`.trim();
+            });
+        }
+
+        historyButton.addEventListener('click', () => {
+            if (simulationRunning) playPauseButton.click(); // Pause before showing history
+            viewBeforeHistory = (setupModal.style.display === 'flex' || setupModal.style.display === '') ? 'setup' : 'simulation';
+            setupModal.style.display = 'none'; simulationContainer.classList.add('hidden'); controlPanel.classList.add('hidden');
+            updateDynamicColors(); // Use current sim hue for history panel
+            historyPanel.style.display = 'flex'; populateHistoryTable();
+        });
+
+        closeHistoryButton.addEventListener('click', () => {
+            historyPanel.style.display = 'none';
+            if (viewBeforeHistory === 'setup') {
+                setupModal.style.display = 'flex';
+                simulationContainer.classList.add('hidden'); controlPanel.classList.add('hidden');
+            } else {
+                simulationContainer.classList.remove('hidden'); controlPanel.classList.remove('hidden');
+                setupModal.style.display = 'none';
+            }
+            updateDynamicColors(); resizeCanvas(); // Redraw canvas/layout
+            if (!simulationRunning) draw(); // Redraw if paused
+        });
+
+        // History Table Sorting
+        document.querySelectorAll('#historyTable th[data-sort]').forEach(headerCell => {
+            headerCell.addEventListener('click', () => {
+                const sortKey = headerCell.dataset.sort; if (sortKey === 'cell') return;
+                if (currentSortColumn === sortKey) currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+                else { currentSortColumn = sortKey; currentSortDirection = (sortKey === 'id') ? 'asc' : 'desc'; }
+                populateHistoryTable();
+            });
+        });
+
+        // --- Keyboard Commands ---
+        function handleKeyboardCommands(event) {
+            if (setupModal.style.display === 'flex' || historyPanel.style.display === 'flex') return; // Ignore if modals open
+            let sliderToUpdate = null, change = 0;
+            switch (event.code) {
+                case 'Space': event.preventDefault(); playPauseButton.click(); break;
+                case 'ArrowRight': event.preventDefault(); sliderToUpdate = speedSlider; change = 1; break;
+                case 'ArrowLeft': event.preventDefault(); sliderToUpdate = speedSlider; change = -1; break;
+                case 'ArrowUp': event.preventDefault(); sliderToUpdate = foodSpawnRateSlider; change = 5; break;
+                case 'ArrowDown': event.preventDefault(); sliderToUpdate = foodSpawnRateSlider; change = -5; break;
+            }
+            if (sliderToUpdate) {
+                const currentVal = parseFloat(sliderToUpdate.value);
+                const minVal = parseFloat(sliderToUpdate.min);
+                const maxVal = parseFloat(sliderToUpdate.max);
+                const newVal = Math.max(minVal, Math.min(maxVal, currentVal + change));
+                if (newVal !== currentVal) { sliderToUpdate.value = newVal; sliderToUpdate.dispatchEvent(new Event('input')); }
+            }
+        }
+        window.addEventListener('keydown', handleKeyboardCommands);
+
+        // --- Initialization ---
+        startSimulationButton.addEventListener('click', () => {
+            INITIAL_GENOME_COUNT = parseInt(setupGenomeCountSlider.value);
+            INITIAL_CELL_COUNT = parseInt(setupCellCountSlider.value);
+            POPULATION_LIMIT = parseInt(setupPopulationLimitSlider.value);
+            targetFoodDensityFactor = parseInt(setupFoodRateSlider.value) / 100;
+            foodSpawnRateSlider.value = targetFoodDensityFactor * 100; // Sync sim slider
+            if (INITIAL_CELL_COUNT < INITIAL_GENOME_COUNT) INITIAL_CELL_COUNT = INITIAL_GENOME_COUNT;
+
+            setupModal.style.display = 'none';
+            simulationContainer.classList.remove('hidden'); controlPanel.classList.remove('hidden');
+            currentAccentHue = initialAccentHueForHeader; // Sync hue
+            updateDynamicColors(); resizeCanvas(); // Set colors, resize
+
+            requestAnimationFrame(() => { // Delay init slightly
+                initSimulation(INITIAL_GENOME_COUNT, INITIAL_CELL_COUNT, POPULATION_LIMIT);
+                simulationRunning = true; // Start simulation
+                playPauseButton.textContent = 'Pause';
+                playPauseButton.classList.remove('bg-green-500'); playPauseButton.classList.add('bg-yellow-500');
+                canvas.style.cursor = 'default';
+                gameLoop(); // Start the loop
+            });
+        });
+
+        window.addEventListener('load', () => {
+            initialAccentHueForHeader = Math.floor(Math.random() * 360); // Random initial hue
+            currentAccentHue = initialAccentHueForHeader;
+            updateDynamicColors(); // Apply initial colors
+
+            setupModal.style.display = 'flex'; // Show setup first
+            simulationContainer.classList.add('hidden'); historyPanel.style.display = 'none';
+            historyButton.disabled = true;
+
+            // Init setup slider displays
+            genomeCountValueDisplay.textContent = setupGenomeCountSlider.value;
+            cellCountValueDisplay.textContent = setupCellCountSlider.value;
+            populationLimitValueDisplay.textContent = setupPopulationLimitSlider.value;
+            foodRateValueDisplay.textContent = setupFoodRateSlider.value;
+            targetFoodDensityFactor = parseInt(setupFoodRateSlider.value) / 100;
+            setupCellCountSlider.min = setupGenomeCountSlider.value; // Enforce constraint
+
+            // Init sim control sliders
+            speedSlider.value = simulationSpeed;
+            foodSpawnRateSlider.value = targetFoodDensityFactor * 100;
+            metabolismSlider.value = 0; mutationRateSlider.value = 0;
+            globalMetabolismModifier = 0; globalMutationModifier = 0;
+
+            resizeCanvas(); // Initial canvas setup
+            canvas.style.cursor = 'default'; // Start with default cursor
+            draw(); // Draw initial empty state
+        });
+
+        // Resize listeners
+        window.addEventListener('resize', resizeCanvas);
+        if (window.visualViewport) window.visualViewport.addEventListener('resize', resizeCanvas); // For mobile viewport changes
+
+        // Service Worker Registration (Optional PWA feature)
+        // if ('serviceWorker' in navigator) {
+        //   window.addEventListener('load', () => {
+        //     navigator.serviceWorker.register('./service-worker.js') // Ensure service-worker.js exists
+        //       .then(reg => console.log('Service Worker registered', reg))
+        //       .catch(err => console.error('SW registration failed', err));
+        //   });
+        // }
+
+    </script>
+</body>
+</html>

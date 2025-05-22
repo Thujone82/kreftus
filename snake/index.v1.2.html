@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Snake VS v1.2</title>
+    <link rel="manifest" href="./manifest.json"> <meta name="theme-color" content="#0f0f1a">
+
+    <style>
+        /* Basic reset and full-screen setup */
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Prevents scrollbars */
+            height: 100%;
+            width: 100%;
+            background-color: #1a1a2e; /* Dark space blue background */
+            font-family: 'Arial', sans-serif; /* Simple, clean font */
+            color: #e0e0e0; /* Light grey text for contrast */
+        }
+
+        /* Game canvas styling */
+        #gameCanvas {
+            background-color: #0f0f1a; /* Darker blue for the game area */
+            display: none; /* Initially hidden, shown when game starts */
+            position: absolute; 
+            top: 0;
+            left: 0;
+            width: 100%; /* Fill parent (body) */
+            height: 100%; /* Fill parent (body) */
+            box-sizing: border-box; /* Ensures border is within width/height */
+            border-width: 3px;      /* Updated border width */
+            border-style: solid;
+            border-color: transparent; /* JS will set this dynamically */
+        }
+
+        /* Styling for screens (title, game over) */
+        .screen {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            position: absolute; 
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(26, 26, 46, 0.95); 
+            z-index: 10; 
+            transition: background-color 0.5s ease; /* Smooth background color transition */
+        }
+
+        .screen h1 { /* Title text styling */
+            font-size: clamp(4em, 12vw, 7em); /* Increased size */
+            margin-bottom: 30px; /* Adjusted margin for larger text */
+            color: #ff69b4; 
+            text-shadow: 0 0 10px #ff69b4, 0 0 20px #ff69b4; 
+        }
+
+        .screen h2 { /* Game result text styling */
+            font-size: clamp(3em, 10vw, 5em); /* Increased size */
+            margin-bottom: 25px; /* Adjusted margin */
+            color: #00ffea; 
+            text-shadow: 0 0 8px #00ffea, 0 0 15px #00ffea; /* Default glow, will be dynamically changed */
+        }
+
+        /* Record text styling */
+        #recordText {
+            font-size: clamp(1.8em, 6vw, 3em); /* Increased size */
+            color: #c0c0ff; 
+            margin-bottom: 40px; /* Adjusted margin */
+            text-shadow: 0 0 5px #c0c0ff;
+        }
+        
+        .button-container {
+            display: flex;
+            flex-direction: column; 
+            gap: 20px; /* Increased gap for larger buttons */
+            align-items: center;
+        }
+
+        @media (min-width: 600px) { /* Adjust breakpoint if needed */
+            .button-container {
+                flex-direction: row;
+            }
+        }
+
+        /* Play button styling */
+        .playButton {
+            padding: 18px 35px; /* Increased padding */
+            font-size: clamp(1.5em, 5vw, 2.2em); /* Increased font size */
+            color: #1a1a2e; 
+            background-color: #00ffea; 
+            border: none;
+            border-radius: 12px; /* Slightly larger radius */
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease, filter 0.2s ease;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25); /* Slightly adjusted shadow */
+            min-width: 150px; 
+            text-align: center;
+        }
+
+        .playButton:hover {
+            filter: brightness(110%);
+            transform: scale(1.05); 
+        }
+
+        .playButton:active {
+            transform: scale(0.95); 
+            filter: brightness(90%);
+        }
+
+        #titleScreen { display: flex; }
+        #gameOverScreen { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="titleScreen" class="screen">
+        <h1>Snake VS</h1>
+        <div class="button-container">
+             <button id="playAIButton" class="playButton">VS AI</button>
+             <button id="play2PButton" class="playButton">2 Player</button>
+        </div>
+    </div>
+
+    <div id="gameOverScreen" class="screen">
+        <h2 id="gameResult"></h2>
+        <p id="recordText"></p>
+        <div class="button-container">
+            <button id="playAgainButton" class="playButton">Play Again</button>
+            <button id="switchModeButton" class="playButton"> </button>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        // PWA Service Worker Registration
+        if ('serviceWorker' in navigator) {
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js') 
+              .then((registration) => { console.log('Service Worker registered'); })
+              .catch((error) => { console.error('Service Worker registration failed:', error); });
+          });
+        }
+
+        // DOM Elements
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const titleScreen = document.getElementById('titleScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const playAIButton = document.getElementById('playAIButton');
+        const play2PButton = document.getElementById('play2PButton');
+        const playAgainButton = document.getElementById('playAgainButton');
+        const switchModeButton = document.getElementById('switchModeButton');
+        const gameResultText = document.getElementById('gameResult');
+        const recordText = document.getElementById('recordText');
+        const titleH1 = document.querySelector('#titleScreen h1');
+
+        // Game Settings
+        let gridSize = 20;
+        let tileCountX, tileCountY;
+        const baseGameSpeed = 120; 
+        let gameSpeed = baseGameSpeed;
+        let gameInterval;
+        const MAX_FOOD_ITEMS = 2;
+        let currentGameMode = 'AI'; 
+
+        // Level System
+        let currentLevel = 1;
+        let foodCollectedForLevelUp = 0;
+        const FOOD_PER_LEVEL = 5;
+        const LEVEL_SPEED_INCREASE_FACTOR = 0.92; 
+        const INITIAL_SPEED_FACTOR = 0.70; 
+        const levelFoodColors = ['#FFFF00', '#FFA500', '#32CD32', '#87CEFA', '#FFC0CB', '#E6E6FA', '#FF6347'];
+
+        // Score Tracking
+        let p1Wins = 0; 
+        let p2Wins = 0; 
+
+        // Color Management
+        window.activeP1Color = '#00ffea'; 
+        window.activeP2Color = '#ff69b4'; 
+        window.nextP1Color = null;
+        window.nextP2Color = null;
+
+        // Snake Objects
+        let player1Snake = {}; 
+        let player2Snake = {}; 
+
+        /**
+         * Converts HSL color values to a HEX string.
+         * @param {number} h - Hue value (0-360).
+         * @param {number} s - Saturation value (0-100).
+         * @param {number} l - Lightness value (0-100).
+         * @returns {string} The HEX color string (e.g., "#RRGGBB").
+         */
+        function hslToHex(h, s, l) {
+            s /= 100; l /= 100;
+            const k = n => (n + h / 30) % 12;
+            const a = s * Math.min(l, 1 - l);
+            const f_hsl = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+            const toHex = x => Math.round(x * 255).toString(16).padStart(2, '0');
+            return `#${toHex(f_hsl(0))}${toHex(f_hsl(8))}${toHex(f_hsl(4))}`;
+        }
+
+        /**
+         * Generates a pair of distinct, visually appealing colors for the two snakes.
+         * @returns {{p1Color: string, p2Color: string}} An object containing HEX color strings for player 1 and player 2.
+         */
+        function generateSnakeColors() {
+            const baseHue = Math.random() * 360;
+            const p1Hue = baseHue;
+            const p2Hue = (baseHue + 120 + Math.random() * 60) % 360; // Ensure distinct hue for P2
+            const saturation = 100; const lightness = 60;
+            return { 
+                p1Color: hslToHex(p1Hue, saturation, lightness), 
+                p2Color: hslToHex(p2Hue, saturation, lightness) 
+            };
+        }
+        
+        /**
+         * Converts a HEX color string to an RGB object.
+         * @param {string} hex - The HEX color string (e.g., "#RRGGBB" or "#RGB").
+         * @returns {{r: number, g: number, b: number}} An object with r, g, b color values (0-255). Returns {r:0, g:0, b:0} for invalid input.
+         */
+        function hexToRgb(hex){
+            if (!hex || typeof hex !== 'string' || hex.length < 4) { 
+                console.warn("Invalid hex color provided to hexToRgb:", hex);
+                return {r:0, g:0, b:0}; // Fallback to black for invalid hex
+            }
+            let r, g, b;
+            if (hex.length === 4) { // Handle shorthand hex like #RGB
+                r = parseInt(hex[1] + hex[1], 16);
+                g = parseInt(hex[2] + hex[2], 16);
+                b = parseInt(hex[3] + hex[3], 16);
+            } else if (hex.length === 7) { // Handle full hex like #RRGGBB
+                r = parseInt(hex.slice(1,3),16);
+                g = parseInt(hex.slice(3,5),16);
+                b = parseInt(hex.slice(5,7),16);
+            } else {
+                console.warn("Invalid hex color format provided to hexToRgb:", hex);
+                return {r:0, g:0, b:0}; // Fallback
+            }
+            return{r,g,b};
+        }
+
+        /**
+         * Resizes the game canvas to fill the window and recalculates the grid tile counts.
+         */
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            tileCountX = Math.floor(canvas.width / gridSize);
+            tileCountY = Math.floor(canvas.height / gridSize);
+            console.log(`Canvas resized: ${canvas.width}x${canvas.height}, Tiles: ${tileCountX}x${tileCountY}`);
+        }
+        
+        /**
+         * Creates and returns the initial state object for Player 1's snake.
+         * @returns {object} The initial snake object for player 1.
+         */
+        const initialPlayer1Snake = () => ({
+            body: [{ x: Math.floor(tileCountX / 2), y: Math.floor(tileCountY * 3 / 4) }],
+            dx: 0, dy: -1, // Start moving up
+            color: window.activeP1Color,
+            trailColor: `rgba(${hexToRgb(window.activeP1Color).r},${hexToRgb(window.activeP1Color).g},${hexToRgb(window.activeP1Color).b},0.5)`,
+            isAlive: true,
+            name: "Player 1"
+        });
+
+        /**
+         * Creates and returns the initial state object for the opponent snake (Player 2 or AI).
+         * The opponent's properties are determined by the `currentGameMode`.
+         * @returns {object} The initial snake object for the opponent.
+         */
+        const initialOpponentSnake = () => {
+            let opponentData = {
+                color: window.activeP2Color,
+                trailColor: `rgba(${hexToRgb(window.activeP2Color).r},${hexToRgb(window.activeP2Color).g},${hexToRgb(window.activeP2Color).b},0.5)`,
+                isAlive: true,
+            };
+            if (currentGameMode === 'AI') {
+                opponentData.name = "AI";
+                opponentData.body = [{ x: Math.floor(tileCountX * 3 / 4), y: Math.floor(tileCountY / 2) }];
+                opponentData.dx = -1; opponentData.dy = 0; // AI starts moving left
+                opponentData.lastDirection = { dx: -1, dy: 0 };
+                opponentData.decisionDelay = 0;
+                opponentData.decisionThreshold = 1; // AI makes a decision every game tick initially
+                opponentData.movesWithoutEating = 0;
+                opponentData.lastFoodTarget = null;
+                opponentData.turnHistory = [];
+            } else { // 2P mode for Player 2
+                opponentData.name = "Player 2";
+                opponentData.body = [{ x: Math.floor(tileCountX / 2), y: Math.floor(tileCountY / 4) }];
+                opponentData.dx = 0; opponentData.dy = 1; // Player 2 starts moving down
+                opponentData.lastDirection = { dx: 0, dy: 1 };
+            }
+            return opponentData;
+        };
+
+        /**
+         * Initializes or resets the game state. This includes:
+         * - Setting up player and opponent snakes.
+         * - Placing initial food items.
+         * - Resetting level and game speed.
+         * - Starting the game loop interval.
+         */
+        function initGame() {
+            player1Snake = initialPlayer1Snake();
+            player2Snake = initialOpponentSnake();
+            
+            foods = []; 
+            for(let i=0; i<MAX_FOOD_ITEMS; i++) { placeNewFoodItem(); }
+            
+            currentLevel = 1;
+            foodCollectedForLevelUp = 0;
+            gameSpeed = Math.round(baseGameSpeed / INITIAL_SPEED_FACTOR); 
+
+            if (gameInterval) clearInterval(gameInterval);
+            gameInterval = setInterval(gameLoop, gameSpeed);
+            console.log(`Game initialized. Mode: ${currentGameMode}. P1 Color: ${player1Snake.color}, P2/AI Color: ${player2Snake.color}. Initial Speed: ${gameSpeed}ms`);
+        }
+        
+        /**
+         * Displays a start animation for 2-Player mode.
+         * The animation shows two colored halves of the screen merging, with pips indicating player sides.
+         * @param {function} callbackAfterAnimation - A function to call after the animation completes.
+         */
+        function show2PStartAnimation(callbackAfterAnimation) {
+            let startTime = null;
+            const duration = 1000; // 1 second animation
+            const pipRadius = Math.min(canvas.width, canvas.height) * 0.04; 
+            const pipOffset = pipRadius * 2.5; 
+
+            function animate(timestamp) {
+                if (!startTime) startTime = timestamp;
+                const progress = Math.min((timestamp - startTime) / duration, 1);
+                ctx.clearRect(0, 0, canvas.width, canvas.height); 
+                ctx.fillStyle = '#0f0f1a'; // Background for animation
+                ctx.fillRect(0,0,canvas.width,canvas.height);
+
+                // P1's half (Bottom, slides down into view)
+                const p1RectCurrentY = canvas.height / 2 + (canvas.height / 2) * progress;
+                ctx.fillStyle = player1Snake.color; 
+                ctx.fillRect(0, p1RectCurrentY, canvas.width, canvas.height / 2);
+                // Pip for P1's half (single pip, P2's color)
+                ctx.fillStyle = player2Snake.color; 
+                ctx.beginPath();
+                ctx.arc(canvas.width / 2, p1RectCurrentY + (canvas.height / 4), pipRadius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // P2's half (Top, slides up into view)
+                const p2RectCurrentY = -(canvas.height / 2) * progress;
+                ctx.fillStyle = player2Snake.color; 
+                ctx.fillRect(0, p2RectCurrentY, canvas.width, canvas.height / 2);
+                // Pips for P2's half (two pips, P1's color)
+                ctx.fillStyle = player1Snake.color;
+                ctx.beginPath();
+                ctx.arc(canvas.width / 2 - pipOffset, p2RectCurrentY + (canvas.height / 4), pipRadius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(canvas.width / 2 + pipOffset, p2RectCurrentY + (canvas.height / 4), pipRadius, 0, Math.PI * 2);
+                ctx.fill();
+
+                if (progress < 1) { requestAnimationFrame(animate); } 
+                else { if (callbackAfterAnimation) callbackAfterAnimation(); }
+            }
+            requestAnimationFrame(animate);
+        }
+
+        /**
+         * The main game loop. Called repeatedly by `setInterval`.
+         * Updates snake positions, checks for collisions, and redraws the game.
+         * Ends the game if a snake is no longer alive.
+         */
+        function gameLoop() {
+            if (!player1Snake.isAlive || !player2Snake.isAlive) { endGame(); return; }
+
+            if (player1Snake.isAlive) updateSnake(player1Snake);
+            if (player2Snake.isAlive) updateSnake(player2Snake);
+
+            if (player1Snake.isAlive) checkCollisions(player1Snake, player2Snake);
+            if (player2Snake.isAlive) checkCollisions(player2Snake, player1Snake);
+            
+            if (!player1Snake.isAlive || !player2Snake.isAlive) { endGame(); return; } // Check again after collision checks
+            drawGame();
+        }
+        
+        /**
+         * Handles the logic for leveling up the game.
+         * Increases game speed, resets food collection count, and updates food color.
+         */
+        function levelUp() {
+            currentLevel++; 
+            foodCollectedForLevelUp = 0; 
+            gameSpeed = Math.round(gameSpeed * LEVEL_SPEED_INCREASE_FACTOR); 
+            if (gameInterval) clearInterval(gameInterval);
+            gameInterval = setInterval(gameLoop, gameSpeed);
+            
+            const newFoodColor = levelFoodColors[(currentLevel - 1) % levelFoodColors.length];
+            foods.forEach(food => food.color = newFoodColor);
+            console.log(`Level Up! Current Level: ${currentLevel}. New Game Speed Interval: ${gameSpeed}ms. Food Color: ${newFoodColor}`);
+        }
+
+        /**
+         * Updates the state of a single snake.
+         * This includes moving the snake, handling food consumption, and AI logic if applicable.
+         * @param {object} snake - The snake object to update.
+         */
+        function updateSnake(snake) {
+            // AI decision making for player2Snake if in AI mode
+            if (snake === player2Snake && currentGameMode === 'AI') {
+                snake.decisionDelay++;
+                if (snake.decisionDelay >= snake.decisionThreshold) {
+                    snake.decisionDelay = 0;
+                    decideAIMove(snake); 
+                }
+            }
+
+            // Calculate new head position
+            let head = { x: snake.body[0].x + snake.dx, y: snake.body[0].y + snake.dy };
+
+            // Wall wrapping logic
+            if (head.x < 0) head.x = tileCountX - 1; else if (head.x >= tileCountX) head.x = 0;
+            if (head.y < 0) head.y = tileCountY - 1; else if (head.y >= tileCountY) head.y = 0;
+            
+            snake.body.unshift(head); // Add new head
+
+            // Check for food consumption
+            const eatenFoodIndex = foods.findIndex(f => head.x === f.x && head.y === f.y);
+            if (eatenFoodIndex > -1) {
+                foods.splice(eatenFoodIndex, 1); 
+                foodCollectedForLevelUp++;
+                if (foodCollectedForLevelUp >= FOOD_PER_LEVEL) { levelUp(); }
+                
+                if (snake === player2Snake && currentGameMode === 'AI') { // Reset AI specific state on eat
+                    snake.movesWithoutEating = 0; 
+                    snake.turnHistory = [];       
+                }
+                placeNewFoodItem(); 
+            } else {
+                snake.body.pop(); // Remove tail if no food eaten
+                if (snake === player2Snake && currentGameMode === 'AI') {
+                    snake.movesWithoutEating++;
+                }
+            }
+        }
+        
+        /**
+         * Determines the type of turn an AI snake is making.
+         * Used for AI logic to avoid repetitive patterns.
+         * @param {{dx: number, dy: number}} prevDir - The previous direction of the snake.
+         * @param {{dx: number, dy: number}} currentDirSuggestion - The suggested new direction.
+         * @returns {string} 'F' (Forward), 'L' (Left), 'R' (Right), 'B' (Backward/Invalid), 'U' (Undetermined/Initial).
+         */
+        function getTurnType(prevDir, currentDirSuggestion) {
+            if (!prevDir || (prevDir.dx === 0 && prevDir.dy === 0)) return 'U'; // Undetermined (e.g., first move)
+            if (currentDirSuggestion.dx === prevDir.dx && currentDirSuggestion.dy === prevDir.dy) return 'F'; // Forward
+            if (currentDirSuggestion.dx === -prevDir.dx && currentDirSuggestion.dy === -prevDir.dy) return 'B'; // Backward (should be avoided by AI logic)
+            
+            // Using cross product logic to determine left/right turn
+            const crossProduct = (prevDir.dx * currentDirSuggestion.dy) - (prevDir.dy * currentDirSuggestion.dx);
+            // Simplified mapping based on typical snake game coordinate system (y increases downwards)
+            if (crossProduct === 1 || 
+                (prevDir.dx === 0 && prevDir.dy === 1 && currentDirSuggestion.dx === 1) || // Down to Right
+                (prevDir.dx === 0 && prevDir.dy === -1 && currentDirSuggestion.dx === -1) || // Up to Left
+                (prevDir.dx === 1 && prevDir.dy === 0 && currentDirSuggestion.dy === -1) || // Right to Up
+                (prevDir.dx === -1 && prevDir.dy === 0 && currentDirSuggestion.dy === 1)    // Left to Down
+               ) return 'L'; // Left Turn relative to snake's perspective
+            if (crossProduct === -1 ||
+                (prevDir.dx === 0 && prevDir.dy === 1 && currentDirSuggestion.dx === -1) || // Down to Left
+                (prevDir.dx === 0 && prevDir.dy === -1 && currentDirSuggestion.dx === 1) ||  // Up to Right
+                (prevDir.dx === 1 && prevDir.dy === 0 && currentDirSuggestion.dy === 1) ||  // Right to Down
+                (prevDir.dx === -1 && prevDir.dy === 0 && currentDirSuggestion.dy === -1)   // Left to Up
+               ) return 'R'; // Right Turn relative to snake's perspective
+            
+            return 'U'; // Fallback if logic doesn't cover a case (should be rare)
+        }
+
+        /**
+         * Contains the AI logic for deciding the AI snake's next move.
+         * The AI tries to find the closest food and navigate towards it safely.
+         * @param {object} aiSnakeObject - The AI snake object.
+         */
+        function decideAIMove(aiSnakeObject) { 
+            const head = aiSnakeObject.body[0];
+            let currentTargetFood = null;
+            let minDistance = Infinity;
+
+            // If no food, AI might wander or follow last direction (basic wander)
+            if (foods.length === 0) { 
+                aiSnakeObject.dx = aiSnakeObject.lastDirection.dx; 
+                aiSnakeObject.dy = aiSnakeObject.lastDirection.dy;
+                // Basic check to avoid immediate self-collision when wandering
+                const nextX = head.x + aiSnakeObject.dx; const nextY = head.y + aiSnakeObject.dy;
+                let checkX = nextX; if (checkX < 0) checkX = tileCountX - 1; else if (checkX >= tileCountX) checkX = 0;
+                let checkY = nextY; if (checkY < 0) checkY = tileCountY - 1; else if (checkY >= tileCountY) checkY = 0;
+                let isSafeWander = true;
+                for (let i = 0; i < aiSnakeObject.body.length; i++) { if (checkX === aiSnakeObject.body[i].x && checkY === aiSnakeObject.body[i].y) { isSafeWander = false; break; } }
+                if (player1Snake.isAlive && isSafeWander) { for (const segment of player1Snake.body) { if (checkX === segment.x && checkY === segment.y) { isSafeWander = false; break; } } }
+                if (!isSafeWander) { /* TODO: Potentially pick a random safe turn if wandering into obstacle */ }
+                return;
+            }
+
+            // Find the closest food item (Manhattan distance with wrap-around)
+            for (const f of foods) { 
+                let dX = Math.abs(head.x - f.x); if (dX > tileCountX / 2) dX = tileCountX - dX; // Wrap X
+                let dY = Math.abs(head.y - f.y); if (dY > tileCountY / 2) dY = tileCountY - dY; // Wrap Y
+                const dist = dX + dY;
+                if (dist < minDistance) { minDistance = dist; currentTargetFood = f; }
+            }
+
+            if (!currentTargetFood) { // Should not happen if foods.length > 0, but as a fallback
+                aiSnakeObject.dx = aiSnakeObject.lastDirection.dx; aiSnakeObject.dy = aiSnakeObject.lastDirection.dy; return; 
+            }
+            
+            // If target food changes, reset turn history (helps prevent loops)
+            if (!aiSnakeObject.lastFoodTarget || aiSnakeObject.lastFoodTarget.x !== currentTargetFood.x || aiSnakeObject.lastFoodTarget.y !== currentTargetFood.y) {
+                aiSnakeObject.turnHistory = []; 
+                aiSnakeObject.lastFoodTarget = { ...currentTargetFood };
+            } 
+
+            const potentialMoves = [ { dx: 0, dy: -1 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 1, dy: 0 } ]; // Up, Down, Left, Right
+            let safeMoves = [];
+
+            // Evaluate potential moves
+            for (const move of potentialMoves) {
+                // Prevent moving directly backward
+                if ((aiSnakeObject.dx === -move.dx && aiSnakeObject.dx !== 0) || (aiSnakeObject.dy === -move.dy && aiSnakeObject.dy !== 0)) continue; 
+                
+                const nextX = head.x + move.dx; const nextY = head.y + move.dy;
+                // Apply wrap-around for checking
+                let checkX = nextX; if (checkX < 0) checkX = tileCountX - 1; else if (checkX >= tileCountX) checkX = 0;
+                let checkY = nextY; if (checkY < 0) checkY = tileCountY - 1; else if (checkY >= tileCountY) checkY = 0;
+                
+                let isSafe = true;
+                // Check collision with self
+                for (let i = 0; i < aiSnakeObject.body.length; i++) { if (checkX === aiSnakeObject.body[i].x && checkY === aiSnakeObject.body[i].y) { isSafe = false; break; } }
+                if (!isSafe) continue; 
+                // Check collision with player 1
+                if (player1Snake.isAlive) { for (const segment of player1Snake.body) { if (checkX === segment.x && checkY === segment.y) { isSafe = false; break; } } }
+                
+                if (isSafe) { 
+                    let currentWeight = 1; // Base weight for any safe move
+                    // Prioritize moves towards food
+                    if (checkX === currentTargetFood.x && checkY === currentTargetFood.y) { currentWeight += 20000; } // Highest priority: direct move to food
+                    else { 
+                        // High priority if move aligns with food on the same axis and is one step away
+                        if (head.x === currentTargetFood.x && Math.abs(head.y - currentTargetFood.y) === 1) { if (move.dy === (currentTargetFood.y - head.y) && move.dx === 0) currentWeight += 15000; } 
+                        else if (head.y === currentTargetFood.y && Math.abs(head.x - currentTargetFood.x) === 1) { if (move.dx === (currentTargetFood.x - head.x) && move.dy === 0) currentWeight += 15000; }
+                        // Medium priority if move aligns with food on the same axis (but not one step away)
+                        else if (head.x === currentTargetFood.x && move.dx === 0) { if ((currentTargetFood.y > head.y && move.dy === 1) || (currentTargetFood.y < head.y && move.dy === -1)) currentWeight += 5000; } 
+                        else if (head.y === currentTargetFood.y && move.dy === 0) { if ((currentTargetFood.x > head.x && move.dx === 1) || (currentTargetFood.x < head.x && move.dx === -1)) currentWeight += 5000; }
+                        // Lower priority if move aligns with food on one axis when currently on different axes
+                        else if (head.x !== currentTargetFood.x && head.y !== currentTargetFood.y) { 
+                            if (checkX === currentTargetFood.x && move.dx !==0) currentWeight += 2000; 
+                            if (checkY === currentTargetFood.y && move.dy !==0) currentWeight += 2000; 
+                        }
+                        // General proximity weight (closer is better)
+                        let dX_w = Math.abs(checkX - currentTargetFood.x); if (dX_w > tileCountX / 2) dX_w = tileCountX - dX_w;
+                        let dY_w = Math.abs(checkY - currentTargetFood.y); if (dY_w > tileCountY / 2) dY_w = tileCountY - dY_w;
+                        currentWeight += Math.max(0, Math.floor((tileCountX + tileCountY) / 3) - (dX_w + dY_w)); 
+                    }
+                    safeMoves.push({ ...move, weight: currentWeight });
+                }
+            }
+
+            let chosenMove;
+            if (safeMoves.length > 0) {
+                safeMoves.sort((a, b) => b.weight - a.weight); // Sort by weight, highest first
+                chosenMove = safeMoves[0]; 
+                // TODO: Add more sophisticated anti-loop/stuck logic here if needed, using aiSnakeObject.turnHistory
+            } else {
+                // No safe moves found, try to continue in the last direction (might lead to collision, but better than stopping)
+                chosenMove = { dx: aiSnakeObject.lastDirection.dx, dy: aiSnakeObject.lastDirection.dy }; 
+            }
+            
+            const actualTurnType = getTurnType(aiSnakeObject.lastDirection, chosenMove);
+            if (actualTurnType !== 'U' && actualTurnType !== 'B') { // Don't record undetermined or backward turns
+                 aiSnakeObject.turnHistory.push(actualTurnType);
+                 if (aiSnakeObject.turnHistory.length > 5) aiSnakeObject.turnHistory.shift(); // Keep history short
+            }
+
+            aiSnakeObject.lastDirection = { ...chosenMove }; 
+            aiSnakeObject.dx = chosenMove.dx;
+            aiSnakeObject.dy = chosenMove.dy;
+        }
+
+        /**
+         * Checks for collisions for a given snake.
+         * This includes self-collision and collision with the other snake.
+         * Sets the `isAlive` property of the snake(s) to `false` if a collision occurs.
+         * @param {object} snake - The snake to check collisions for.
+         * @param {object} otherSnake - The other snake in the game.
+         */
+        function checkCollisions(snake, otherSnake) {
+            if (!snake.isAlive) return; 
+            const head = snake.body[0];
+
+            // Check for self-collision (head hits own body)
+            for (let i = 1; i < snake.body.length; i++) {
+                if (head.x === snake.body[i].x && head.y === snake.body[i].y) {
+                    snake.isAlive = false;
+                    console.log(`${snake.name} collided with itself.`);
+                    return;
+                }
+            }
+
+            // Check for collision with the other snake
+            if (otherSnake.isAlive) { 
+                for (let i = 0; i < otherSnake.body.length; i++) {
+                    if (head.x === otherSnake.body[i].x && head.y === otherSnake.body[i].y) {
+                        snake.isAlive = false;
+                        console.log(`${snake.name} collided with ${otherSnake.name}.`);
+                        if (i === 0) { // Head-on collision
+                            otherSnake.isAlive = false; 
+                            console.log(`${otherSnake.name} also died in head-on collision.`);
+                        }
+                        return;
+                    }
+                }
+            }
+        }
+        
+        /**
+         * Places a new food item on the game grid in a valid (empty) position.
+         * Does nothing if the maximum number of food items is already present.
+         */
+        function placeNewFoodItem() {
+            if (foods.length >= MAX_FOOD_ITEMS) return;
+
+            const foodColor = levelFoodColors[(currentLevel - 1) % levelFoodColors.length];
+            let newFood = { x: 0, y: 0, color: foodColor }; 
+            let validPosition = false;
+            let attempts = 0;
+            const maxAttempts = tileCountX * tileCountY; // Max attempts to prevent infinite loop
+
+            while (!validPosition && attempts < maxAttempts) {
+                attempts++;
+                newFood.x = Math.floor(Math.random() * tileCountX);
+                newFood.y = Math.floor(Math.random() * tileCountY);
+                validPosition = true;
+
+                // Check against existing food items
+                for (const f of foods) { if (f.x === newFood.x && f.y === newFood.y) { validPosition = false; break; } }
+                if (!validPosition) continue;
+
+                // Check against player 1 snake
+                if (player1Snake.isAlive && player1Snake.body) { 
+                    for (const s of player1Snake.body) { if (s.x === newFood.x && s.y === newFood.y) { validPosition = false; break; } } 
+                }
+                if (!validPosition) continue;
+
+                // Check against player 2/AI snake
+                if (player2Snake.isAlive && player2Snake.body) { 
+                    for (const s of player2Snake.body) { if (s.x === newFood.x && s.y === newFood.y) { validPosition = false; break; } } 
+                }
+            }
+
+            if (validPosition) { 
+                foods.push(newFood); 
+                // console.log(`New food placed at (${newFood.x}, ${newFood.y})`);
+            } else { 
+                console.warn("Could not place new food item after max attempts."); 
+            }
+        }
+
+        /**
+         * Draws all game elements (snakes, food) on the canvas.
+         */
+        function drawGame() {
+            // Background overlay for trail effect
+            ctx.fillStyle='rgba(15,15,26,0.6)'; // Semi-transparent dark blue
+            ctx.fillRect(0,0,canvas.width,canvas.height);
+
+            // Draw snakes
+            [player1Snake, player2Snake].forEach(snake => {
+                if(snake.isAlive && snake.body && snake.color) { // Ensure snake is drawable
+                    for(let i=0;i<snake.body.length;i++){
+                        const segment = snake.body[i];
+                        const opacity = Math.max(0.3, 1 - (i * 0.07)); // Tail fades out
+                        ctx.fillStyle= i===0 ? snake.color : `rgba(${hexToRgb(snake.color).r},${hexToRgb(snake.color).g},${hexToRgb(snake.color).b},${opacity})`;
+                        
+                        if(i===0){ // Head glow
+                            ctx.shadowBlur=15;
+                            ctx.shadowColor=snake.color;
+                        }
+                        ctx.fillRect(segment.x*gridSize, segment.y*gridSize, gridSize-1, gridSize-1); // -1 for grid lines
+                        ctx.shadowBlur=0; // Reset shadow for next segment/element
+                    }
+                }
+            });
+
+            // Draw food items
+            for (const food of foods) {
+                const pulseScale = Math.abs(Math.sin(Date.now()/250))*0.3 + 0.7; // Pulsating effect (0.7 to 1.0 scale)
+                const foodSize = gridSize * pulseScale;
+                const offset = (gridSize - foodSize) / 2; // Center the pulsating food in its grid cell
+
+                ctx.fillStyle=food.color;
+                ctx.shadowBlur=20; 
+                ctx.shadowColor=food.color;
+                ctx.fillRect(food.x*gridSize + offset, food.y*gridSize + offset, foodSize-1, foodSize-1); // -1 for grid lines
+                ctx.shadowBlur=0; // Reset shadow
+            }
+        }
+
+        /**
+         * Handles keyboard input for controlling the snakes.
+         * WASD for Player 1. Arrow keys for Player 2 (in 2P mode) or Player 1 (in AI mode as alternative).
+         * @param {KeyboardEvent} e - The keyboard event object.
+         */
+        function handleKeyDown(e){
+            const key=e.key.toLowerCase();
+
+            // Player 1 controls (WASD) - always active if P1 is alive
+            if (player1Snake.isAlive) {
+                if (key === 'w' && player1Snake.dy === 0) { player1Snake.dx = 0; player1Snake.dy = -1; return; } // Up
+                if (key === 's' && player1Snake.dy === 0) { player1Snake.dx = 0; player1Snake.dy = 1; return; } // Down
+                if (key === 'a' && player1Snake.dx === 0) { player1Snake.dx = -1; player1Snake.dy = 0; return; } // Left
+                if (key === 'd' && player1Snake.dx === 0) { player1Snake.dx = 1; player1Snake.dy = 0; return; } // Right
+            }
+
+            // Arrow key controls - behavior depends on game mode
+            if (currentGameMode === 'AI' && player1Snake.isAlive) { // Arrows also control P1 in AI mode
+                if (key === 'arrowup' && player1Snake.dy === 0) { player1Snake.dx = 0; player1Snake.dy = -1; }
+                else if (key === 'arrowdown' && player1Snake.dy === 0) { player1Snake.dx = 0; player1Snake.dy = 1; }
+                else if (key === 'arrowleft' && player1Snake.dx === 0) { player1Snake.dx = -1; player1Snake.dy = 0; }
+                else if (key === 'arrowright' && player1Snake.dx === 0) { player1Snake.dx = 1; player1Snake.dy = 0; }
+            } else if (currentGameMode === '2P' && player2Snake.isAlive) { // Arrows control P2 in 2P mode
+                if (key === 'arrowup' && player2Snake.dy === 0) { player2Snake.dx = 0; player2Snake.dy = -1; }
+                else if (key === 'arrowdown' && player2Snake.dy === 0) { player2Snake.dx = 0; player2Snake.dy = 1; }
+                else if (key === 'arrowleft' && player2Snake.dx === 0) { player2Snake.dx = -1; player2Snake.dy = 0; }
+                else if (key === 'arrowright' && player2Snake.dx === 0) { player2Snake.dx = 1; player2Snake.dy = 0; }
+            }
+        }
+
+        // Touch input handling
+        let activeTouches = {}; 
+        const swipeThreshold=30; // Minimum distance for a swipe to be registered
+
+        canvas.addEventListener('touchstart',function(e){
+            e.preventDefault(); // Prevent default touch actions like scrolling
+            for (let i=0; i < e.changedTouches.length; i++) {
+                const touch = e.changedTouches[i];
+                // Ensure snakes are defined and alive for the current mode before processing touch
+                if (currentGameMode === 'AI' && (!player1Snake || !player1Snake.isAlive)) return;
+                if (currentGameMode === '2P' && ((!player1Snake || !player1Snake.isAlive) && (!player2Snake || !player2Snake.isAlive))) return;
+
+                // Determine which player this touch controls (P1 for bottom half, P2 for top half in 2P mode)
+                const touchZonePlayer = (currentGameMode === '2P' && touch.screenY < canvas.height / 2) ? 2 : 1; 
+                activeTouches[touch.identifier] = { 
+                    startX: touch.screenX, 
+                    startY: touch.screenY, 
+                    player: touchZonePlayer 
+                };
+            }
+        },{passive:false}); // passive:false to allow preventDefault
+
+        canvas.addEventListener('touchend',function(e){
+            e.preventDefault();
+            for (let i=0; i < e.changedTouches.length; i++) {
+                const touch = e.changedTouches[i];
+                const touchData = activeTouches[touch.identifier];
+                if (touchData) {
+                    const deltaX = touch.screenX - touchData.startX;
+                    const deltaY = touch.screenY - touchData.startY;
+                    
+                    let targetSnake;
+                    if (currentGameMode === 'AI') {
+                        targetSnake = player1Snake;
+                    } else { // 2P mode
+                        targetSnake = (touchData.player === 1) ? player1Snake : player2Snake;
+                    }
+                    
+                    if (targetSnake && targetSnake.isAlive) { // Check if targetSnake is valid and alive
+                        handleSwipe(deltaX, deltaY, targetSnake);
+                    }
+                    delete activeTouches[touch.identifier]; // Remove touch from active list
+                }
+            }
+        },{passive:false});
+
+        /**
+         * Processes swipe gestures to control a snake.
+         * @param {number} deltaX - The change in X position of the touch.
+         * @param {number} deltaY - The change in Y position of the touch.
+         * @param {object} snakeToControl - The snake object to be controlled by the swipe.
+         */
+        function handleSwipe(deltaX, deltaY, snakeToControl){ 
+            if (!snakeToControl.isAlive) return;
+
+            if(Math.abs(deltaX)>swipeThreshold || Math.abs(deltaY)>swipeThreshold){ // Check if swipe is significant
+                if(Math.abs(deltaX) > Math.abs(deltaY)){ // Horizontal swipe
+                    if(deltaX > 0 && snakeToControl.dx === 0){snakeToControl.dx=1;snakeToControl.dy=0;} // Right
+                    else if(deltaX < 0 && snakeToControl.dx === 0){snakeToControl.dx=-1;snakeToControl.dy=0;} // Left
+                }else{ // Vertical swipe
+                    if(deltaY > 0 && snakeToControl.dy === 0){snakeToControl.dx=0;snakeToControl.dy=1;} // Down
+                    else if(deltaY < 0 && snakeToControl.dy === 0){snakeToControl.dx=0;snakeToControl.dy=-1;} // Up
+                }
+            }
+        }
+
+        /**
+         * Starts or restarts the game.
+         * Hides title/game over screens, sets up colors, resizes canvas, and initializes game state.
+         * Triggers 2P start animation if in 2P mode.
+         */
+        function startGame(){
+            titleScreen.style.display='none';
+            gameOverScreen.style.display='none';
+            // Reset game over screen background and text styles to default when a new game starts
+            gameOverScreen.style.backgroundColor = 'rgba(26, 26, 46, 0.95)'; 
+            gameResultText.style.textShadow = '0 0 8px #00ffea, 0 0 15px #00ffea'; // Reset to default glow
+            
+            let currentColors;
+            if (window.nextP1Color && window.nextP2Color) { // Use pre-generated colors if available (e.g., from game over screen)
+                currentColors = { p1Color: window.nextP1Color, p2Color: window.nextP2Color };
+            } else {
+                currentColors = generateSnakeColors(); // Generate new colors
+            }
+            window.activeP1Color = currentColors.p1Color;
+            window.activeP2Color = currentColors.p2Color; 
+            window.nextP1Color = null; window.nextP2Color = null; // Clear next colors
+
+            // Update UI elements with active colors
+            playAIButton.style.backgroundColor = window.activeP1Color;
+            play2PButton.style.backgroundColor = window.activeP1Color; 
+            titleH1.style.color = window.activeP2Color; 
+            titleH1.style.textShadow = `0 0 10px ${window.activeP2Color}, 0 0 20px ${window.activeP2Color}`;
+            
+            resizeCanvas(); // Ensure canvas is sized correctly before drawing
+
+            // Dynamically set canvas border colors based on player colors for a themed effect
+            canvas.style.borderTopColor = window.activeP2Color;
+            canvas.style.borderLeftColor = window.activeP2Color;
+            canvas.style.borderRightColor = window.activeP1Color;
+            canvas.style.borderBottomColor = window.activeP1Color;
+
+            // Minimally define snake objects with colors for the 2P start animation
+            // initGame will fully initialize them with bodies, positions, etc.
+            player1Snake = { color: window.activeP1Color }; 
+            player2Snake = { color: window.activeP2Color }; 
+
+            if (currentGameMode === '2P') {
+                canvas.style.display = 'block';
+                show2PStartAnimation(() => { // Show animation then initialize game
+                    initGame(); 
+                });
+            } else { // AI mode
+                canvas.style.display = 'block';
+                initGame(); // Initialize game directly
+            }
+            console.log(`Starting game in ${currentGameMode} mode.`);
+        }
+
+        /**
+         * Ends the current game.
+         * Clears the game interval, displays the game over screen, updates scores, and prepares for the next game.
+         * Styles the game over screen text (color for winner, glow for loser).
+         */
+        function endGame(){
+            if (!gameInterval) return; // Prevent multiple calls if already ended
+            clearInterval(gameInterval); 
+            gameInterval = null; 
+            
+            canvas.style.display='none';
+            gameOverScreen.style.display='flex';
+            gameOverScreen.style.backgroundColor = 'rgba(26, 26, 46, 0.95)'; // Ensure default background
+
+            let p1Alive = player1Snake && player1Snake.isAlive;
+            let p2Alive = player2Snake && player2Snake.isAlive;
+
+            let winnerColor = '#e0e0e0'; // Default text color for tie
+            let loserColorForGlow = '#777'; // Default glow for tie (subtle grey)
+
+            if (!p1Alive && p2Alive) { // P2 (or AI) wins
+                p2Wins++;
+                gameResultText.textContent = (currentGameMode === 'AI' ? 'AI Wins!' : 'Player 2 Wins!');
+                winnerColor = player2Snake.color;
+                loserColorForGlow = player1Snake.color ? player1Snake.color : '#777'; // Loser's color for glow
+                gameResultText.style.color = winnerColor;
+                gameResultText.style.textShadow = `0 0 8px ${loserColorForGlow}, 0 0 15px ${loserColorForGlow}, 0 0 20px ${loserColorForGlow}`;
+            } else if (p1Alive && !p2Alive) { // P1 wins
+                p1Wins++;
+                gameResultText.textContent = 'Player 1 Wins!';
+                winnerColor = player1Snake.color;
+                loserColorForGlow = player2Snake.color ? player2Snake.color : '#777'; // Loser's color for glow
+                gameResultText.style.color = winnerColor;
+                gameResultText.style.textShadow = `0 0 8px ${loserColorForGlow}, 0 0 15px ${loserColorForGlow}, 0 0 20px ${loserColorForGlow}`;
+            } else { // Tie (both died, or a rare simultaneous collision scenario)
+                gameResultText.textContent = "It's a Tie!";
+                gameResultText.style.color = winnerColor; // Use default tie text color
+                gameResultText.style.textShadow = `0 0 8px ${loserColorForGlow}, 0 0 15px ${loserColorForGlow}`; // Default tie glow
+            }
+            
+            // Update record text
+            if (currentGameMode === 'AI') {
+                recordText.textContent = `Player 1: ${p1Wins} - AI: ${p2Wins}`;
+            } else {
+                recordText.textContent = `Player 1: ${p1Wins} - Player 2: ${p2Wins}`;
+            }
+            console.log(`Game Over. P1 Wins: ${p1Wins}, P2/AI Wins: ${p2Wins}. Result: ${gameResultText.textContent}`);
+
+            // Generate and set colors for the next game's buttons on the game over screen
+            const nextColors = generateSnakeColors();
+            window.nextP1Color = nextColors.p1Color; 
+            window.nextP2Color = nextColors.p2Color;
+
+            playAgainButton.style.backgroundColor = window.nextP1Color;
+            switchModeButton.textContent = (currentGameMode === 'AI' ? 'Play 2 Player' : 'Play VS AI');
+            switchModeButton.style.backgroundColor = window.nextP2Color; 
+        }
+
+        // --- Event Listeners for Mode Selection and Game Control ---
+
+        playAIButton.addEventListener('click', () => { 
+            p1Wins = 0; p2Wins = 0; // Reset scores for new mode session
+            currentGameMode = 'AI'; 
+            startGame(); 
+        });
+        play2PButton.addEventListener('click', () => { 
+            p1Wins = 0; p2Wins = 0; // Reset scores for new mode session
+            currentGameMode = '2P'; 
+            startGame(); 
+        });
+        playAgainButton.addEventListener('click', startGame); // Continues current mode, no score reset here (scores persist within a session)
+        
+        switchModeButton.addEventListener('click', () => {
+            currentGameMode = (currentGameMode === 'AI' ? '2P' : 'AI'); 
+            p1Wins = 0; p2Wins = 0; // Reset scores when switching mode from game over screen
+            startGame(); 
+        });
+        
+        window.addEventListener('resize',()=>{ 
+            resizeCanvas(); 
+            // Redraw game if it's active and canvas is visible (to prevent drawing over screens)
+            if(canvas.style.display==='block' && gameInterval) { drawGame(); }
+        });
+        document.addEventListener('keydown',handleKeyDown);
+
+        /**
+         * Initializes the application on first load.
+         * Sets up initial button colors, hides game elements, and displays the title screen.
+         */
+        function initializeApp() {
+            const initialColors = generateSnakeColors();
+            window.nextP1Color = initialColors.p1Color; // Use 'next' colors so startGame picks them up
+            window.nextP2Color = initialColors.p2Color;
+            
+            // Set initial colors for title screen buttons and title
+            playAIButton.style.backgroundColor = window.nextP1Color;
+            play2PButton.style.backgroundColor = window.nextP1Color; 
+            titleH1.style.color = window.nextP2Color;
+            titleH1.style.textShadow = `0 0 10px ${window.nextP2Color}, 0 0 20px ${window.nextP2Color}`;
+
+            titleScreen.style.display='flex';
+            gameOverScreen.style.display='none';
+            canvas.style.display='none';
+            
+            // Initialize record text (scores are 0-0 at the start)
+            recordText.textContent = `Player 1: ${p1Wins} - ${currentGameMode === 'AI' ? 'AI' : 'Player 2'}: ${p2Wins}`; 
+            // Ensure game over screen has its default background and text styles on init
+            gameOverScreen.style.backgroundColor = 'rgba(26, 26, 46, 0.95)';
+            gameResultText.style.textShadow = '0 0 8px #00ffea, 0 0 15px #00ffea'; // Reset to default glow
+
+            resizeCanvas(); // Initial canvas sizing (though it's hidden)
+            console.log("Snake VS Application Initialized.");
+        }
+
+        // --- Start the application ---
+        initializeApp();
+    </script>
+</body>
+</html>

@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!-- Disable zooming -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<!-- Enable standalone web app on iOS -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- PWA manifest -->
+<link rel="manifest" href="./manifest.json">
+<title>GameOfLife</title>
+<style>
+:root{--bg:#121212;--panel:#1e1e1e;--grid:#333;--accent:#ff4081;--accent2:#448aff;--text:#e0e0e0}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif;text-align:center;overflow:hidden}
+h1{margin:1rem 0;color:var(--accent)}
+#controls{display:flex;flex-wrap:wrap;gap:.7rem;justify-content:center;margin-bottom:.8rem}
+#controls .break{flex-basis:100%;height:0} /* This creates the line break by default */
+button,select,input[type=range]{font-size:1rem;padding:.3rem .7rem;border:2px solid var(--accent2);background:var(--panel);color:var(--text);border-radius:8px}
+button:hover,select:hover{background:var(--accent2);color:#111}button:active{transform:scale(0.96)}
+button:disabled{background:#2a2a2a;color:#555;border-color:#444;cursor:not-allowed} /* Style for disabled button */
+canvas{
+    background:var(--panel);
+    border:2px solid var(--accent);
+    touch-action:none; /* Important for custom touch handling like pinch-zoom */
+    display:block;
+    margin:0 auto
+}
+label{display:flex;align-items:center;gap:.4rem;color:var(--text)}
+footer{margin-top:1rem;font-size:.6rem;color:#777}
+
+/* MODIFICATION: CSS for landscape orientation */
+@media (orientation: landscape) {
+  #controls .break {
+    display: none; /* Hide the break elements in landscape mode */
+  }
+}
+</style>
+</head>
+<body>
+<h1>Conway's Game of Life</h1>
+<div id="controls">
+  <button id="playPauseBtn">Play</button>
+  <button id="stepBtn">Step</button>
+  <button id="resetBtn">Reset</button>
+  <button id="saveBtn">M+</button>
+  <button id="restoreBtn">MR</button>
+  <div class="break"></div> <!-- This div will be hidden in landscape -->
+  <select id="pattern">
+    <option value="none">Pattern..</option>
+    <option value="glider">Glider</option>
+    <option value="jcon">John Conway (RIP)</option>
+    <option value="blinker">Blinker</option>
+    <option value="toad">Toad</option>
+    <option value="mold">Mold</option>
+    <option value="phoenix">Phoenix</option>
+    <option value="beacon">Beacon</option>
+    <option value="pulsar">Pulsar</option>
+    <option value="kok">Kok's Galaxy</option>
+    <option value="cloverleaf">Cloverleaf</option>
+    <option value="clock">Clock II</option>
+    <option value="gourmet">Gourmet</option>
+    <option value="pi">PiPortraitor</option>
+    <option value="tumbler">Tumbler</option>
+    <option value="p8e3">p8Eater3</option>
+    <option value="p15">Karel's p15</option>
+    <option value="p15v2">Pentadecathlon</option>
+    <option value="p51">Period 51</option>
+    <option value="p138">Gabriel's P138</option>
+    <option value="p144">Achim's P144</option>
+    <option value="lwss">Lightweight SS</option>
+    <option value="mwss">Middleweight SS</option>
+    <option value="hwss">Heavyweight SS</option>
+    <option value="loaf">Loafer</option>
+    <option value="s25p3">25P3H1V0.1</option>
+    <option value="s30p5">30P5H2V0</option>
+    <option value="s56p6">56P6H1V0</option>
+    <option value="s67P5">67P5H1V1</option>
+    <option value="s119P4H1V0">119P4H1V0</option>
+    <option value="schick">Schick Engine</option>
+    <option value="pulseship">Pulse Ship</option>
+    <option value="fireship">Fire Ship</option>
+    <option value="puffer">Puffer</option>
+    <option value="pfish">Puffer Fish</option>
+    <option value="ptrain">Puffer Train</option>
+    <option value="tstretch">Tubstretcher</option>
+    <option value="tstretch2">Tubstretcher OPG</option>
+    <option value="wstretch">Wickstretcher</option>
+    <option value="glidegen">Glider Generator</option>
+    <option value="hammerhead">Hammerhead Ship</option>
+    <option value="gfly">Glider Flyby</option>
+    <option value="sengine1">Switch Engine #1</option>
+    <option value="sengine2">Switch Engine #2</option>
+    <option value="sengine3">Switch Engine #3</option>
+    <option value="rpent">Pentomino</option>
+    <option value="s2glide">2 Glider Mess</option>
+    <option value="parvo">Parvo</option>
+    <option value="rrelative">Rabbits Relative</option>
+    <option value="acorn">Acorn</option>
+    <option value="lidka">Lidka -2</option>
+    <option value="diehard">Diehard</option>
+    <option value="gosper">Gosper Gun</option>
+    <option value="ak94">AK-94</option>
+    <option value="sfiller1">Spacefiller #1</option>
+    <option value="sfiller2">Spacefiller #2</option>
+    <option value="hpole">Heptapole</option>
+    <option value="mmoat">Muttering Moat</option>
+  </select>
+  <select id="mode">
+    <option value="wrapped">Wrapped</option>
+    <option value="infinite">Infinite</option>
+  </select>
+  <div class="break"></div> <!-- This div will also be hidden in landscape -->
+  <label>Speed<input id="speed" type="range" min="10" max="200" value="100"></label>
+  <label>Zoom<input id="zoom" type="range"></label>
+</div>
+<canvas id="canvas"></canvas>
+<footer>Tap to create automata! Kreft 051025</footer>
+<script>
+window.addEventListener('DOMContentLoaded', function() {
+  // Get DOM elements
+  const canvas = document.getElementById('canvas');
+  const playPauseBtn = document.getElementById('playPauseBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const patternSelect = document.getElementById('pattern');
+  const modeSelect = document.getElementById('mode');
+  const speedSlider = document.getElementById('speed');
+  const zoomSlider = document.getElementById('zoom');
+  const stepBtn = document.getElementById('stepBtn');
+  const saveBtn = document.getElementById('saveBtn');
+  const restoreBtn = document.getElementById('restoreBtn');
+
+  // Canvas and grid setup
+  const ctx = canvas.getContext('2d');
+  const cols = 50, rows = 50; // Default grid size for 'wrapped' mode
+  let grid = new Map(); // Using a Map to store live cells { "x,y": { age: number, initialHue: number } }
+  let running = false; // Simulation state
+  let timer; // For setInterval/setTimeout
+  let stepCount = 0; // Generation counter
+
+  // Pan and zoom variables
+  let cellSize; // Size of each cell in pixels
+  let zoomLevel = 1; // This is the canonical zoom level, directly used for drawing
+  let panX = 0, panY = 0; // Current pan offset
+
+  // Pointer interaction variables for single touch/mouse pan and click
+  let isPointerDown = false; // Flag for pointer (mouse/touch) down
+  let isDragging = false;    // Flag for differentiating click from drag
+  let lastX = 0, lastY = 0;  // Last pointer coordinates for panning
+
+  // Pinch-to-zoom state variables
+  let isPinching = false; // Flag to indicate if a pinch gesture is active
+  let initialPinchDistance = 0; // Distance between fingers at the start of a pinch
+  let initialZoomLevelForPinch = 1; // zoomLevel at the start of a pinch
+  let initialPanXForPinch = 0; // panX at the start of a pinch
+  let initialPanYForPinch = 0; // panY at the start of a pinch
+
+
+  const baseDelay = 16; // Base delay for the simulation loop (approx 60fps)
+
+  // Color and visual effect constants
+  const HUE_SHIFT_RATE = 7;
+  const MAX_AGE_FOR_LIGHTNESS_EFFECT = 20;
+  const START_LIGHTNESS = 70;
+  const MIN_LIGHTNESS = 40;
+  const LIGHTNESS_DECREASE_RATE = 1.5;
+
+  // Animated border constants
+  let borderHue = 0;
+  const BORDER_HUE_SATURATION = 100;
+  const BORDER_HUE_LIGHTNESS = 65;
+  const BORDER_HUE_INCREMENT_AT_MAX_SPEED = 1.5;
+
+  // Saved state for M+/MR buttons
+  let savedGridState = null;
+
+  // Predefined patterns (coordinates are relative to top-left of pattern)
+  const P = {
+    glider:[[1,0],[2,1],[0,2],[1,2],[2,2]],
+    blinker:[[1,0],[2,0],[3,0],[0,1],[4,1],[0,2],[4,2],[0,3],[4,3],[1,4],[2,4],[3,4]],
+    jcon:[[2,0],[3,0],[4,0],[2,1],[4,1],[2,2],[4,2],[3,3],[0,4],[2,4],[3,4],[4,4],[1,5],[3,5],[5,5],[3,6],[6,6],[2,7],[4,7],[2,8],[4,8]],
+    toad:[[1,0],[2,0],[3,0],[0,1],[1,1],[2,1]],
+    mold:[[3,0],[4,0],[2,1],[5,1],[0,2],[3,2],[5,2],[4,3],[0,4],[2,4],[3,4],[1,5]],
+    phoenix:[[4,0],[2,1],[4,1],[6,2],[0,3],[1,3],[6,4],[7,4],[1,5],[3,6],[5,6],[3,7]],
+    beacon:[[0,0],[1,0],[0,1],[1,1],[2,2],[3,2],[2,3],[3,3]],
+    pulsar:[[2,0],[3,0],[4,0],[8,0],[9,0],[10,0],[0,2],[5,2],[7,2],[12,2],[0,3],[5,3],[7,3],[12,3],[0,4],[5,4],[7,4],[12,4],[2,5],[3,5],[4,5],[8,5],[9,5],[10,5],[2,7],[3,7],[4,7],[8,7],[9,7],[10,7],[0,8],[5,8],[7,8],[12,8],[0,9],[5,9],[7,9],[12,9],[0,10],[5,10],[7,10],[12,10],[2,12],[3,12],[4,12],[8,12],[9,12],[10,12]],
+    kok:[[0,0],[1,0],[2,0],[3,0],[4,0],[5,0],[7,0],[8,0],[0,1],[1,1],[2,1],[3,1],[4,1],[5,1],[7,1],[8,1],[7,2],[8,2],[0,3],[1,3],[7,3],[8,3],[0,4],[1,4],[7,4],[8,4],[0,5],[1,5],[7,5],[8,5],[0,6],[1,6],[0,7],[1,7],[3,7],[4,7],[5,7],[6,7],[7,7],[8,7],[0,8],[1,8],[3,8],[4,8],[5,8],[6,8],[7,8],[8,8]],
+    cloverleaf:[[3,0],[5,0],[1,1],[2,1],[3,1],[5,1],[6,1],[7,1],[0,2],[4,2],[8,2],[0,3],[2,3],[6,3],[8,3],[1,4],[2,4],[4,4],[6,4],[7,4],[1,6],[2,6],[4,6],[6,6],[7,6],[0,7],[2,7],[6,7],[8,7],[0,8],[4,8],[8,8],[1,9],[2,9],[3,9],[5,9],[6,9],[7,9],[3,10],[5,10]],
+    clock:[[6,0],[7,0],[6,1],[7,1],[4,3],[5,3],[6,3],[7,3],[0,4],[1,4],[3,4],[8,4],[0,5],[1,5],[3,5],[6,5],[8,5],[3,6],[6,6],[8,6],[10,6],[11,6],[3,7],[5,7],[8,7],[10,7],[11,7],[4,8],[5,8],[6,8],[7,8],[4,10],[5,10],[4,11],[5,11]],
+    gourmet:[[10,0],[11,0],[10,1],[4,2],[5,2],[7,2],[8,2],[10,2],[15,2],[16,2],[2,3],[5,3],[7,3],[9,3],[15,3],[2,4],[3,4],[8,4],[17,4],[16,5],[17,5],[16,7],[17,7],[0,8],[10,8],[11,8],[12,8],[15,8],[17,8],[0,9],[1,9],[2,9],[10,9],[12,9],[16,9],[3,10],[10,10],[12,10],[17,10],[18,10],[19,10],[2,11],[4,11],[19,11],[2,12],[3,12],[2,14],[3,14],[2,15],[11,15],[16,15],[17,15],[4,16],[10,16],[12,16],[14,16],[17,16],[3,17],[4,17],[9,17],[11,17],[12,17],[14,17],[15,17],[9,18],[8,19],[9,19]],
+    pi:[[11,0],[12,0],[6,1],[7,1],[9,1],[14,1],[16,1],[17,1],[6,2],[17,2],[7,3],[8,3],[15,3],[16,3],[4,4],[5,4],[6,4],[9,4],[10,4],[11,4],[12,4],[13,4],[14,4],[17,4],[18,4],[19,4],[4,5],[7,5],[16,5],[19,5],[1,6],[2,6],[4,6],[6,6],[17,6],[19,6],[21,6],[22,6],[1,7],[3,7],[5,7],[18,7],[20,7],[22,7],[3,8],[20,8],[1,9],[4,9],[19,9],[22,9],[4,10],[12,10],[13,10],[14,10],[19,10],[0,11],[4,11],[12,11],[14,11],[19,11],[23,11],[0,12],[4,12],[12,12],[14,12],[19,12],[23,12],[4,13],[19,13],[1,14],[4,14],[19,14],[22,14],[3,15],[20,15],[1,16],[3,16],[5,16],[18,16],[20,16],[22,16],[1,17],[2,17],[4,17],[6,17],[17,17],[19,17],[21,17],[22,17],[4,18],[7,18],[16,18],[19,18],[4,19],[5,19],[6,19],[9,19],[10,19],[11,19],[12,19],[13,19],[14,19],[17,19],[18,19],[19,19],[7,20],[8,20],[15,20],[16,20],[6,21],[17,21],[6,22],[7,22],[9,22],[14,22],[16,22],[17,22],[11,23],[12,23]],
+    tumbler:[[0,0],[1,0],[2,0],[3,0],[4,0],[7,0],[8,0],[9,0],[13,0],[14,0],[15,0],[17,0],[18,0],[19,0],[20,0],[21,0],[22,0],[23,0],[25,0],[26,0],[27,0],[28,0],[29,0],[32,0],[33,0],[34,0],[35,0]],
+    p8e3:[[11,0],[10,1],[12,1],[11,2],[9,4],[10,4],[11,4],[12,4],[13,4],[9,5],[14,5],[12,6],[15,6],[12,7],[13,7],[15,7],[18,7],[9,8],[10,8],[15,8],[17,8],[19,8],[4,9],[5,9],[8,9],[11,9],[15,9],[18,9],[1,10],[4,10],[9,10],[11,10],[14,10],[15,10],[0,11],[2,11],[4,11],[10,11],[1,12],[4,12],[6,12],[7,12],[4,13],[6,13],[7,13],[5,14],[10,14],[6,15],[7,15],[8,15],[9,15],[10,15],[8,17],[7,18],[9,18],[8,19]],
+    p15:[[2,0],[7,0],[2,1],[3,1],[4,1],[5,1],[6,1],[7,1],[2,2],[7,2],[2,6],[3,6],[4,6],[5,6],[6,6],[7,6],[1,7],[8,7],[0,8],[9,8],[1,9],[8,9],[2,10],[3,10],[4,10],[5,10],[6,10],[7,10]],
+    p15v2:[[1,0],[1,1],[0,2],[2,2],[1,3],[1,4],[1,5],[1,6],[0,7],[2,7],[1,8],[1,9]],
+    p51:[[15,0],[16,0],[20,0],[21,0],[6,3],[7,3],[29,3],[30,3],[6,4],[7,4],[29,4],[30,4],[3,6],[4,6],[32,6],[33,6],[3,7],[4,7],[14,7],[15,7],[21,7],[22,7],[32,7],[33,7],[9,8],[10,8],[11,8],[13,8],[14,8],[22,8],[23,8],[25,8],[26,8],[27,8],[8,9],[10,9],[26,9],[28,9],[8,10],[9,10],[27,10],[28,10],[8,11],[28,11],[8,13],[28,13],[7,14],[8,14],[28,14],[29,14],[0,15],[7,15],[29,15],[36,15],[0,16],[36,16],[0,20],[36,20],[0,21],[7,21],[29,21],[36,21],[7,22],[8,22],[28,22],[29,22],[8,23],[28,23],[8,25],[28,25],[8,26],[9,26],[27,26],[28,26],[8,27],[10,27],[26,27],[28,27],[9,28],[10,28],[11,28],[13,28],[14,28],[22,28],[23,28],[25,28],[26,28],[27,28],[3,29],[4,29],[14,29],[15,29],[21,29],[22,29],[32,29],[33,29],[3,30],[4,30],[32,30],[33,30],[6,32],[7,32],[29,32],[30,32],[6,33],[7,33],[29,33],[30,33],[15,36],[16,36],[20,36],[21,36]],
+    p138:[[7,0],[8,0],[9,0],[6,1],[9,1],[7,2],[11,2],[2,3],[8,3],[9,3],[10,3],[3,4],[9,4],[0,5],[1,5],[3,5],[4,5],[0,6],[3,6],[13,6],[0,7],[2,7],[12,7],[14,7],[1,8],[11,8],[14,8],[10,9],[11,9],[13,9],[14,9],[5,10],[11,10],[4,11],[5,11],[6,11],[12,11],[3,12],[7,12],[5,13],[8,13],[5,14],[6,14],[7,14]],
+    p144:[[0,0],[1,0],[26,0],[27,0],[0,1],[1,1],[26,1],[27,1],[18,2],[19,2],[17,3],[20,3],[18,4],[19,4],[14,5],[13,6],[15,6],[12,7],[16,7],[12,8],[15,8],[12,10],[15,10],[11,11],[15,11],[12,12],[14,12],[13,13],[8,14],[9,14],[7,15],[10,15],[8,16],[9,16],[0,17],[1,17],[26,17],[27,17],[0,18],[1,18],[26,18],[27,18]],
+    lwss:[[1,0],[4,0],[0,1],[0,2],[4,2],[0,3],[1,3],[2,3],[3,3]],
+    mwss:[[3,0],[1,1],[5,1],[0,2],[0,3],[5,3],[0,4],[1,4],[2,4],[3,4],[4,4]],
+    hwss:[[2,0],[3,0],[0,1],[5,1],[6,2],[0,3],[6,3],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4]],
+    loaf:[[0,0],[1,0],[4,0],[5,0],[0,1],[1,1],[5,1],[7,1],[8,1],[1,2],[5,2],[7,2],[6,3],[1,4],[1,5],[2,5],[0,6],[3,6],[0,7],[2,7],[1,8]],
+    s25p3:[[7,0],[8,0],[10,0],[4,1],[5,1],[7,1],[9,1],[10,1],[12,1],[13,1],[14,1],[1,2],[2,2],[3,2],[4,2],[7,2],[8,2],[15,2],[0,3],[5,3],[9,3],[13,3],[14,3],[1,4],[2,4]],
+    s30p5:[[4,0],[3,1],[4,1],[5,1],[2,2],[3,2],[5,2],[6,2],[1,4],[3,4],[5,4],[7,4],[10,4],[0,5],[1,5],[5,5],[9,5],[10,5],[11,5],[0,6],[1,6],[5,6],[12,6],[10,7],[12,7],[8,8],[10,8],[9,9],[12,9],[12,10]],
+    s56p6:[[5,0],[6,0],[7,0],[18,0],[19,0],[20,0],[0,1],[1,1],[2,1],[4,1],[12,1],[13,1],[21,1],[23,1],[24,1],[25,1],[4,2],[8,2],[11,2],[14,2],[17,2],[21,2],[4,3],[10,3],[15,3],[21,3],[10,4],[11,4],[14,4],[15,4],[7,5],[11,5],[14,5],[18,5],[7,6],[9,6],[16,6],[18,6],[8,7],[9,7],[10,7],[11,7],[12,7],[13,7],[14,7],[15,7],[16,7],[17,7],[10,8],[15,8],[8,9],[17,9],[7,10],[18,10],[8,11],[17,11]],
+    s67P5:[[5,0],[6,0],[7,0],[4,1],[8,1],[9,1],[3,2],[4,2],[8,2],[2,3],[8,3],[1,4],[3,4],[4,4],[9,4],[10,4],[0,5],[1,5],[4,5],[11,5],[3,6],[4,6],[7,6],[3,7],[4,7],[6,7],[7,7],[4,8],[5,9],[6,9],[7,9],[8,9],[9,9],[6,10],[9,10],[10,10],[11,10],[14,10],[15,10],[9,11],[11,11],[12,11],[15,11],[17,11],[18,11],[9,12],[13,12],[15,12],[18,12],[10,13],[11,13],[12,13],[13,13],[14,13],[20,13],[9,14],[12,14],[15,14],[21,14],[21,15],[16,16],[17,16],[18,16],[16,17],[15,18],[16,19],[17,19]],
+    s119P4H1V0:[[33,0],[16,1],[32,1],[34,1],[6,2],[8,2],[15,2],[21,2],[22,2],[31,2],[6,3],[11,3],[16,3],[18,3],[19,3],[20,3],[21,3],[22,3],[23,3],[28,3],[29,3],[6,4],[8,4],[9,4],[10,4],[11,4],[12,4],[13,4],[14,4],[15,4],[26,4],[29,4],[31,4],[32,4],[33,4],[9,5],[15,5],[23,5],[24,5],[25,5],[26,5],[31,5],[32,5],[33,5],[4,6],[5,6],[23,6],[24,6],[25,6],[27,6],[1,7],[4,7],[5,7],[13,7],[14,7],[23,7],[24,7],[1,8],[4,8],[0,9],[1,10],[4,10],[1,11],[4,11],[5,11],[13,11],[14,11],[23,11],[24,11],[4,12],[5,12],[23,12],[24,12],[25,12],[27,12],[9,13],[15,13],[23,13],[24,13],[25,13],[26,13],[31,13],[32,13],[33,13],[6,14],[8,14],[9,14],[10,14],[11,14],[12,14],[13,14],[14,14],[15,14],[26,14],[29,14],[31,14],[32,14],[33,14],[6,15],[11,15],[16,15],[18,15],[19,15],[20,15],[21,15],[22,15],[23,15],[28,15],[29,15],[6,16],[8,16],[15,16],[21,16],[22,16],[31,16],[16,17],[32,17],[34,17],[33,18]],
+    schick:[[1,0],[4,0],[0,1],[0,2],[4,2],[0,3],[1,3],[2,3],[3,3],[13,3],[14,3],[6,4],[7,4],[8,4],[14,4],[15,4],[6,5],[7,5],[9,5],[10,5],[17,5],[18,5],[19,5],[6,6],[7,6],[8,6],[14,6],[15,6],[0,7],[1,7],[2,7],[3,7],[13,7],[14,7],[0,8],[4,8],[0,9],[1,10],[4,10]],
+    hammerhead:[[0,0],[1,0],[2,0],[3,0],[4,0],[0,1],[5,1],[13,1],[14,1],[0,2],[12,2],[13,2],[15,2],[16,2],[17,2],[1,3],[11,3],[12,3],[14,3],[15,3],[16,3],[17,3],[3,4],[4,4],[8,4],[9,4],[11,4],[12,4],[15,4],[16,4],[5,5],[10,5],[13,5],[6,6],[8,6],[10,6],[12,6],[7,7],[7,8],[6,9],[8,9],[10,9],[12,9],[5,10],[10,10],[13,10],[3,11],[4,11],[8,11],[9,11],[11,11],[12,11],[15,11],[16,11],[1,12],[11,12],[12,12],[14,12],[15,12],[16,12],[17,12],[0,13],[12,13],[13,13],[15,13],[16,13],[17,13],[0,14],[5,14],[13,14],[14,14],[0,15],[1,15],[2,15],[3,15],[4,15]],
+    gfly:[[8,0],[9,0],[10,0],[11,0],[12,0],[13,0],[19,0],[20,0],[21,0],[22,0],[8,1],[9,1],[10,1],[11,1],[19,1],[20,1],[22,1],[11,2],[12,2],[14,2],[22,2],[13,3],[14,3],[20,3],[21,3],[13,5],[14,5],[20,5],[21,5],[11,6],[12,6],[14,6],[22,6],[8,7],[9,7],[10,7],[11,7],[19,7],[20,7],[22,7],[35,7],[36,7],[8,8],[9,8],[10,8],[11,8],[12,8],[13,8],[19,8],[20,8],[21,8],[22,8],[35,8],[36,8],[39,10],[39,11],[41,15],[36,23],[37,23],[43,23],[44,23],[35,24],[38,24],[42,24],[45,24],[23,25],[24,25],[36,25],[39,25],[41,25],[44,25],[24,26],[25,26],[39,26],[41,26],[23,27],[37,27],[38,27],[39,27],[41,27],[42,27],[43,27],[35,28],[36,28],[37,28],[43,28],[44,28],[45,28],[35,29],[36,29],[44,29],[45,29],[35,30],[36,30],[44,30],[45,30],[36,31],[38,31],[39,31],[41,31],[42,31],[44,31],[36,32],[37,32],[38,32],[42,32],[43,32],[44,32],[37,33],[43,33],[36,36],[37,36],[43,36],[44,36],[36,37],[37,37],[43,37],[44,37]],
+    sengine1:[[6,0],[4,1],[6,1],[7,1],[4,2],[6,2],[4,3],[2,4],[0,5],[2,5]],
+    sengine2:[[0,0],[1,0],[2,0],[4,0],[0,1],[3,2],[4,2],[1,3],[2,3],[4,3],[0,4],[2,4],[4,4]],
+    sengine3:[[0,0],[1,0],[2,0],[3,0],[4,0],[5,0],[6,0],[7,0],[9,0],[10,0],[11,0],[12,0],[13,0],[17,0],[18,0],[19,0],[26,0],[27,0],[28,0],[29,0],[30,0],[31,0],[32,0],[34,0],[35,0],[36,0],[37,0],[38,0]],
+    pulseship:[[1,0],[2,0],[5,0],[6,0],[3,1],[4,1],[3,2],[4,2],[0,3],[2,3],[5,3],[7,3],[0,4],[7,4],[0,6],[7,6],[1,7],[2,7],[5,7],[6,7],[2,8],[3,8],[4,8],[5,8],[3,10],[4,10],[3,11],[4,11]],
+    fireship:[[4,0],[5,0],[3,1],[4,1],[5,1],[6,1],[2,3],[3,3],[4,3],[5,3],[6,3],[7,3],[3,4],[4,4],[5,4],[6,4],[2,6],[3,6],[6,6],[7,6],[0,7],[1,7],[3,7],[6,7],[8,7],[9,7],[3,8],[6,8],[4,11],[5,11],[4,12],[5,12],[1,14],[3,14],[6,14],[8,14],[0,15],[3,15],[6,15],[9,15],[0,16],[9,16],[0,17],[9,17],[0,18],[1,18],[8,18],[9,18],[2,19],[3,19],[4,19],[5,19],[6,19],[7,19]],
+    puffer:[[1,0],[2,0],[3,0],[10,0],[16,0],[23,0],[24,0],[25,0],[0,1],[3,1],[9,1],[10,1],[11,1],[15,1],[16,1],[17,1],[23,1],[26,1],[3,2],[8,2],[9,2],[11,2],[15,2],[17,2],[18,2],[23,2],[3,3],[23,3],[3,4],[6,4],[20,4],[23,4],[3,5],[6,5],[7,5],[19,5],[20,5],[23,5],[2,6],[6,6],[7,6],[19,6],[20,6],[24,6]],
+    pfish:[[3,0],[11,0],[2,1],[3,1],[4,1],[10,1],[11,1],[12,1],[1,2],[2,2],[5,2],[9,2],[12,2],[13,2],[3,3],[4,3],[5,3],[9,3],[10,3],[11,3],[4,5],[10,5],[2,6],[5,6],[9,6],[12,6],[0,7],[6,7],[8,7],[14,7],[0,8],[1,8],[6,8],[8,8],[13,8],[14,8],[6,9],[8,9],[3,10],[5,10],[9,10],[11,10],[4,11],[10,11]],
+    ptrain:[[3,0],[4,1],[0,2],[4,2],[1,3],[2,3],[3,3],[4,3],[0,7],[1,8],[2,8],[2,9],[2,10],[1,11],[3,14],[4,15],[0,16],[4,16],[1,17],[2,17],[3,17],[4,17]],
+    tstretch:[[7,0],[8,0],[9,0],[7,1],[8,2],[10,3],[11,3],[11,4],[8,6],[9,6],[13,6],[0,7],[1,7],[2,7],[8,7],[9,7],[12,7],[14,7],[0,8],[7,8],[9,8],[13,8],[1,9],[6,9],[7,9],[3,10],[4,10],[5,10],[6,10],[8,10],[4,11],[5,11]],
+    tstretch2:[[8,0],[9,0],[7,1],[8,1],[9,2],[11,3],[12,3],[10,4],[9,6],[12,6],[13,6],[1,7],[2,7],[8,7],[9,7],[14,7],[0,8],[1,8],[7,8],[13,8],[2,9],[7,9],[9,9],[13,9],[14,9],[4,10],[7,10],[12,10],[13,10],[15,10],[4,11],[5,11],[13,11],[14,11],[8,12],[13,12],[15,12],[16,12],[7,13],[9,13],[12,13],[14,13],[15,13],[8,14]],
+    wstretch:[[10,0],[30,0],[31,0],[9,1],[11,1],[29,1],[34,1],[35,1],[2,2],[7,2],[8,2],[9,2],[11,2],[17,2],[32,2],[34,2],[35,2],[36,2],[1,3],[3,3],[6,3],[11,3],[12,3],[16,3],[18,3],[26,3],[28,3],[30,3],[31,3],[32,3],[33,3],[37,3],[41,3],[42,3],[45,3],[46,3],[48,3],[1,4],[3,4],[6,4],[8,4],[9,4],[13,4],[17,4],[26,4],[27,4],[28,4],[30,4],[39,4],[42,4],[43,4],[48,4],[0,5],[1,5],[3,5],[4,5],[6,5],[8,5],[10,5],[11,5],[20,5],[31,5],[36,5],[37,5],[39,5],[40,5],[45,5],[46,5],[48,5],[1,6],[6,6],[7,6],[12,6],[13,6],[17,6],[19,6],[20,6],[34,6],[42,6],[1,7],[3,7],[4,7],[7,7],[11,7],[13,7],[15,7],[16,7],[19,7],[21,7],[22,7],[24,7],[25,7],[26,7],[31,7],[33,7],[43,7],[2,8],[6,8],[7,8],[8,8],[10,8],[12,8],[15,8],[20,8],[24,8],[25,8],[26,8],[31,8],[33,8],[43,8],[3,9],[4,9],[8,9],[10,9],[13,9],[19,9],[20,9],[34,9],[42,9],[5,10],[6,10],[8,10],[10,10],[11,10],[13,10],[15,10],[19,10],[31,10],[36,10],[37,10],[39,10],[40,10],[45,10],[46,10],[48,10],[5,11],[7,11],[8,11],[10,11],[13,11],[15,11],[16,11],[21,11],[26,11],[27,11],[28,11],[30,11],[39,11],[42,11],[43,11],[48,11],[11,12],[12,12],[20,12],[21,12],[26,12],[28,12],[30,12],[31,12],[32,12],[33,12],[37,12],[41,12],[42,12],[45,12],[46,12],[48,12],[32,13],[34,13],[35,13],[36,13],[29,14],[34,14],[35,14],[30,15],[31,15]],
+    glidegen:[[4,0],[5,0],[6,0],[7,0],[2,2],[3,2],[4,2],[5,2],[6,2],[7,2],[8,2],[9,2],[0,4],[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],[9,4],[10,4],[11,4],[2,6],[3,6],[4,6],[5,6],[6,6],[7,6],[8,6],[9,6],[4,8],[5,8],[6,8],[7,8]],
+    rpent:[[1,0],[2,0],[0,1],[1,1],[1,2]],
+    s2glide:[[2,0],[0,1],[2,1],[1,2],[2,2],[11,3],[9,4],[10,4],[10,5],[11,5]],
+    parvo:[[3,0],[4,0],[5,0],[2,1],[5,1],[1,2],[0,3]],
+    rrelative:[[1,0],[0,1],[1,1],[3,1],[4,2],[5,2],[0,3],[3,3],[0,4],[0,5]],
+    acorn:[[0,1],[1,1],[1,3],[3,2],[4,1],[5,1],[6,1]],
+    lidka:[[1,0],[0,1],[2,1],[1,2],[8,10],[6,11],[8,11],[5,12],[6,12],[8,12],[4,14],[5,14],[6,14]],
+    diehard:[[0,1],[1,1],[1,2],[5,2],[6,0],[6,2],[7,2]],
+    gosper:[[1,5],[2,5],[1,6],[2,6],[13,3],[14,3],[12,4],[16,4],[11,5],[17,5],[11,6],[15,6],[17,6],[18,6],[11,7],[17,7],[12,8],[16,8],[13,9],[14,9],[25,1],[23,2],[25,2],[21,3],[22,3],[21,4],[22,4],[21,5],[22,5],[23,6],[25,6],[25,7],[35,3],[36,3],[35,4],[36,4]],
+    ak94:[[7,0],[15,0],[23,0],[24,0],[7,1],[8,1],[9,1],[15,1],[16,1],[17,1],[23,1],[24,1],[10,2],[18,2],[9,3],[10,3],[17,3],[18,3],[35,3],[36,3],[30,4],[31,4],[34,4],[37,4],[30,5],[32,5],[35,5],[36,5],[33,6],[34,6],[5,7],[34,7],[5,8],[6,8],[7,8],[34,8],[36,8],[37,8],[8,9],[31,9],[32,9],[34,9],[37,9],[7,10],[8,10],[31,10],[32,10],[34,10],[35,10],[17,13],[2,14],[3,14],[5,14],[6,14],[16,14],[18,14],[29,14],[30,14],[0,15],[3,15],[5,15],[6,15],[15,15],[19,15],[29,15],[0,16],[1,16],[3,16],[15,16],[19,16],[30,16],[31,16],[32,16],[3,17],[15,17],[19,17],[32,17],[3,18],[4,18],[16,18],[18,18],[1,19],[2,19],[5,19],[7,19],[17,19],[0,20],[3,20],[6,20],[7,20],[1,21],[2,21],[19,21],[20,21],[19,22],[13,23],[14,23],[20,23],[21,23],[22,23],[13,24],[14,24],[22,24]],
+    sfiller1:[[20,0],[21,0],[22,0],[26,0],[27,0],[28,0],[19,1],[22,1],[26,1],[29,1],[0,2],[1,2],[2,2],[3,2],[22,2],[26,2],[45,2],[46,2],[47,2],[48,2],[0,3],[4,3],[22,3],[26,3],[44,3],[48,3],[0,4],[9,4],[22,4],[26,4],[39,4],[48,4],[1,5],[4,5],[7,5],[8,5],[11,5],[37,5],[40,5],[41,5],[44,5],[47,5],[6,6],[12,6],[20,6],[21,6],[22,6],[26,6],[27,6],[28,6],[36,6],[42,6],[6,7],[12,7],[21,7],[27,7],[36,7],[42,7],[6,8],[12,8],[21,8],[22,8],[23,8],[24,8],[25,8],[26,8],[27,8],[36,8],[42,8],[1,9],[4,9],[7,9],[8,9],[11,9],[14,9],[15,9],[20,9],[28,9],[33,9],[34,9],[37,9],[40,9],[41,9],[44,9],[47,9],[0,10],[9,10],[13,10],[14,10],[19,10],[20,10],[21,10],[22,10],[23,10],[24,10],[25,10],[26,10],[27,10],[28,10],[29,10],[34,10],[35,10],[39,10],[48,10],[0,11],[4,11],[14,11],[15,11],[33,11],[34,11],[44,11],[48,11],[0,12],[1,12],[2,12],[3,12],[15,12],[16,12],[17,12],[18,12],[19,12],[20,12],[21,12],[22,12],[23,12],[24,12],[25,12],[26,12],[27,12],[28,12],[29,12],[30,12],[31,12],[32,12],[33,12],[45,12],[46,12],[47,12],[48,12],[16,13],[18,13],[30,13],[32,13],[19,14],[20,14],[21,14],[22,14],[23,14],[24,14],[25,14],[26,14],[27,14],[28,14],[29,14],[19,15],[29,15],[20,16],[21,16],[22,16],[23,16],[24,16],[25,16],[26,16],[27,16],[28,16],[24,17],[20,18],[21,18],[22,18],[26,18],[27,18],[28,18],[22,19],[26,19],[21,21],[22,21],[23,21],[25,21],[26,21],[27,21],[21,22],[22,22],[23,22],[25,22],[26,22],[27,22],[20,23],[22,23],[23,23],[25,23],[26,23],[28,23],[20,24],[21,24],[22,24],[26,24],[27,24],[28,24],[21,25],[27,25]],
+    sfiller2:[[5,0],[6,0],[7,0],[17,0],[18,0],[19,0],[5,1],[8,1],[17,1],[20,1],[5,2],[12,2],[17,2],[5,3],[11,3],[12,3],[13,3],[17,3],[5,4],[11,4],[13,4],[14,4],[17,4],[5,5],[12,5],[13,5],[14,5],[17,5],[6,6],[9,6],[12,6],[13,6],[14,6],[18,6],[8,7],[12,7],[13,7],[14,7],[9,8],[15,8],[16,8],[10,9],[11,9],[10,10],[11,11],[12,11],[1,12],[10,12],[12,12],[14,12],[23,12],[0,13],[6,13],[8,13],[10,13],[12,13],[14,13],[15,13],[18,13],[24,13],[0,14],[6,14],[7,14],[8,14],[12,14],[14,14],[16,14],[17,14],[18,14],[24,14],[0,15],[1,15],[2,15],[3,15],[4,15],[6,15],[10,15],[11,15],[14,15],[18,15],[20,15],[21,15],[22,15],[23,15],[24,15],[8,16],[10,16],[13,16],[14,16],[16,16],[7,17],[8,17],[10,17],[12,17],[14,17],[16,17],[17,17],[8,18],[10,18],[11,18],[14,18],[16,18],[0,19],[1,19],[2,19],[3,19],[4,19],[6,19],[10,19],[13,19],[14,19],[18,19],[20,19],[21,19],[22,19],[23,19],[24,19],[0,20],[6,20],[7,20],[8,20],[10,20],[12,20],[16,20],[17,20],[18,20],[24,20],[0,21],[6,21],[9,21],[10,21],[12,21],[14,21],[16,21],[18,21],[24,21],[1,22],[10,22],[12,22],[14,22],[23,22],[12,23],[13,23],[14,24],[13,25],[14,25],[8,26],[9,26],[15,26],[10,27],[11,27],[12,27],[16,27],[6,28],[10,28],[11,28],[12,28],[15,28],[18,28],[7,29],[10,29],[11,29],[12,29],[19,29],[7,30],[10,30],[11,30],[13,30],[19,30],[7,31],[11,31],[12,31],[13,31],[19,31],[7,32],[12,32],[19,32],[4,33],[7,33],[16,33],[19,33],[5,34],[6,34],[7,34],[17,34],[18,34],[19,34]],
+    hpole:[[0,0],[1,0],[0,1],[2,1],[2,3],[4,3],[4,5],[6,5],[6,7],[8,7],[9,8],[8,9],[9,9]],
+    mmoat:[[0,0],[1,0],[0,1],[2,1],[4,1],[5,1],[5,2],[1,3],[4,3],[2,4],[2,5],[4,5],[6,5],[5,6],[6,6]]
+  };
+
+  /**
+   * Resizes the canvas and recalculates cell size.
+   */
+  function resizeCanvas() {
+    const s = Math.min(window.innerWidth * 0.95, 600);
+    canvas.width = canvas.height = s;
+    cellSize = s / cols;
+  }
+
+  /**
+   * Centers the view based on the current mode.
+   */
+  function centerView() {
+    if (modeSelect.value === 'infinite') {
+      panX = canvas.width / 2;
+      panY = canvas.height / 2;
+    } else { // wrapped mode
+      panX = 0;
+      panY = 0;
+    }
+  }
+
+  /**
+   * Clamps panning within grid boundaries for 'wrapped' mode.
+   */
+  function clampPan() {
+    if (modeSelect.value === 'wrapped') {
+      const currentCellSize = cellSize * zoomLevel;
+      const gridW = cols * currentCellSize;
+      const gridH = rows * currentCellSize;
+      const minX = Math.min(0, canvas.width - gridW);
+      const minY = Math.min(0, canvas.height - gridH);
+      panX = Math.max(minX, Math.min(panX, 0));
+      panY = Math.max(minY, Math.min(panY, 0));
+    }
+  }
+
+  /**
+   * Centralized function to handle zoom changes from slider, mousewheel, or pinch.
+   * @param {number} newSliderValue - The target value for the zoom slider.
+   * @param {number} [canvasZoomX=canvas.width/2] - The x-coordinate on the canvas to zoom towards.
+   * @param {number} [canvasZoomY=canvas.height/2] - The y-coordinate on the canvas to zoom towards.
+   */
+  function handleZoom(newSliderValue, canvasZoomX = canvas.width / 2, canvasZoomY = canvas.height / 2) {
+    if (modeSelect.value === 'wrapped' && running && newSliderValue !== 1) {
+         return;
+    }
+
+    const minSlider = parseFloat(zoomSlider.min);
+    const maxSlider = parseFloat(zoomSlider.max);
+    const clampedSliderValue = Math.max(minSlider, Math.min(maxSlider, parseFloat(newSliderValue)));
+
+    if (modeSelect.value === 'wrapped' && clampedSliderValue === 1) {
+        zoomLevel = 1;
+        panX = 0;
+        panY = 0;
+        zoomSlider.value = 1;
+        draw();
+        return; 
+    }
+
+    const worldXAtZoomPoint = (canvasZoomX - panX) / zoomLevel;
+    const worldYAtZoomPoint = (canvasZoomY - panY) / zoomLevel;
+
+    let newActualZoomLevel;
+    if (modeSelect.value === 'infinite') {
+        newActualZoomLevel = clampedSliderValue / cols;
+    } else { 
+        newActualZoomLevel = clampedSliderValue;
+    }
+
+    panX = canvasZoomX - worldXAtZoomPoint * newActualZoomLevel;
+    panY = canvasZoomY - worldYAtZoomPoint * newActualZoomLevel;
+    zoomLevel = newActualZoomLevel; 
+
+    zoomSlider.value = clampedSliderValue;
+
+    if (modeSelect.value === 'wrapped') { 
+        clampPan();
+    }
+    draw();
+  }
+
+
+  /**
+   * Updates the zoom slider's properties and current zoom level based on the selected mode.
+   */
+  function updateZoomSliderMode() {
+    let initialSliderValue;
+    if (modeSelect.value === 'infinite') {
+      zoomSlider.min = 10;
+      zoomSlider.max = 200; // Increased max zoom for infinite
+      zoomSlider.step = 1;
+      initialSliderValue = cols; // Default to a 1:1 cell to pixel mapping initially
+    } else { // wrapped mode
+      zoomSlider.min = 1; // Min zoom is 1x (full grid)
+      zoomSlider.max = 4; // Max zoom 4x
+      zoomSlider.step = 0.1;
+      initialSliderValue = 1; 
+    }
+    // It's important to set the slider value *before* calling handleZoom
+    // if handleZoom itself relies on the slider's current value for calculations.
+    // However, here we are setting the canonical zoomLevel based on this initialSliderValue.
+    
+    if (modeSelect.value === 'infinite') {
+        zoomLevel = initialSliderValue / cols;
+    } else { // wrapped mode
+        zoomLevel = initialSliderValue; // Should be 1
+    }
+    zoomSlider.value = initialSliderValue; // Now set the slider to reflect this
+    zoomSlider.disabled = (modeSelect.value === 'wrapped' && running);
+    
+    centerView(); // This will set panX/Y correctly for the mode
+    draw(); // Redraw with new zoom/pan settings
+  }
+
+  // Event listener for window resize
+  window.addEventListener('resize', () => { resizeCanvas(); updateZoomSliderMode(); });
+
+  // Event listener for mode selection change
+  modeSelect.addEventListener('change', () => {
+    grid.clear(); stepCount = 0; running = false; clearTimeout(timer);
+    restoreBtn.disabled = true;
+    canvas.style.borderColor = '';
+    playPauseBtn.textContent = 'Play';
+    patternSelect.value = 'none';
+    resizeCanvas();
+    updateZoomSliderMode(); 
+  });
+
+  // Event listener for the Play/Pause button
+  playPauseBtn.addEventListener('click', () => {
+    if (running) {
+        running = false; clearTimeout(timer); playPauseBtn.textContent = 'Play';
+        canvas.style.borderColor = '';
+        zoomSlider.disabled = false; 
+    } else {
+        running = true; playPauseBtn.textContent = 'Pause';
+        if (modeSelect.value === 'wrapped') {
+            handleZoom(1); // Resets to 1x zoom for wrapped mode
+            zoomSlider.disabled = true; 
+        }
+        loop();
+    }
+  });
+
+  // Event listener for the Reset button
+  resetBtn.addEventListener('click', () => {
+    running = false; clearTimeout(timer);
+    grid.clear(); stepCount = 0;
+    canvas.style.borderColor = ''; playPauseBtn.textContent = 'Play';
+    zoomSlider.disabled = false; 
+    updateZoomSliderMode();
+  });
+
+  // Event listener for pattern selection
+  patternSelect.addEventListener('change', e => {
+    const name = e.target.value;
+    if (name !== 'none') {
+      grid.clear();
+      const coords = P[name];
+      const xs = coords.map(p => p[0]); const ys = coords.map(p => p[1]);
+      const minX = Math.min(...xs), maxX = Math.max(...xs);
+      const minY = Math.min(...ys), maxY = Math.max(...ys);
+      const patWidth = maxX - minX + 1;
+      const patHeight = maxY - minY + 1;
+      let baseOffsetX, baseOffsetY;
+
+      if (modeSelect.value === 'wrapped') {
+          handleZoom(1); // Reset zoom/pan for wrapped mode
+      }
+
+      if (modeSelect.value === 'infinite') {
+        const viewCenterX = (canvas.width / 2 - panX) / zoomLevel / cellSize;
+        const viewCenterY = (canvas.height / 2 - panY) / zoomLevel / cellSize;
+        baseOffsetX = Math.floor(viewCenterX - patWidth / 2);
+        baseOffsetY = Math.floor(viewCenterY - patHeight / 2);
+      } else { 
+        baseOffsetX = Math.floor(cols / 2 - patWidth / 2);
+        baseOffsetY = Math.floor(rows / 2 - patHeight / 2);
+      }
+      coords.forEach(([dx,dy]) => {
+        const x = baseOffsetX + (dx - minX);
+        const y = baseOffsetY + (dy - minY);
+        grid.set(`${x},${y}`, { age: 0, initialHue: Math.random() * 360 });
+      });
+      stepCount = 0; draw();
+      patternSelect.value = 'none'; // Reset dropdown
+    }
+  });
+
+  // Zoom Slider Input Event - uses handleZoom
+  zoomSlider.addEventListener('input', () => {
+    handleZoom(parseFloat(zoomSlider.value));
+  });
+
+  // Mousewheel Zoom Event
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    if (modeSelect.value === 'wrapped' && running) return;
+
+    const currentSliderVal = parseFloat(zoomSlider.value);
+    let stepChange;
+
+    if (modeSelect.value === 'infinite') {
+        stepChange = 5 * (e.deltaY < 0 ? 1 : -1); // Larger steps for infinite, direction sensitive
+    } else { // wrapped
+        stepChange = parseFloat(zoomSlider.step) * (e.deltaY < 0 ? 1 : -1); // Smaller steps for wrapped
+    }
+    let newSliderValue = currentSliderVal + stepChange;
+
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    handleZoom(newSliderValue, mouseX, mouseY);
+  }, { passive: false });
+
+
+  // Canvas Pointer (Mouse/Single Touch) Events for Panning and Drawing
+  canvas.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return; // Only main mouse button
+    if (isPinching || e.touches && e.touches.length > 1) return; // Ignore if already pinching or multi-touch starts
+
+    isPointerDown = true;
+    isDragging = false;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    // Capture mouse for smoother dragging outside canvas, not typically needed/problematic for touch
+    if (e.pointerType === 'mouse') {
+        canvas.setPointerCapture(e.pointerId);
+    }
+  });
+
+  canvas.addEventListener('pointermove', e => {
+    if (isPinching || !isPointerDown || (modeSelect.value === 'wrapped' && running)) return;
+    if (e.touches && e.touches.length > 1) { // Transition to pinch if another finger touches down
+        isPointerDown = false; // Stop single-touch pan
+        // The touchstart handler for 2 fingers will set up isPinching
+        return;
+    }
+
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+    if (!isDragging && Math.hypot(dx, dy) > 5) { // Drag threshold
+        isDragging = true;
+    }
+    if (isDragging) {
+        panX += dx;
+        panY += dy;
+        if (modeSelect.value === 'wrapped') clampPan();
+        lastX = e.clientX;
+        lastY = e.clientY;
+        draw();
+    }
+  });
+
+  canvas.addEventListener('pointerup', e => {
+    if (isPinching) return; // If pinch was active, its touchend will handle it
+
+    if (e.pointerType === 'mouse') {
+        canvas.releasePointerCapture(e.pointerId);
+    }
+    if (!isDragging && isPointerDown) { // It's a click/tap
+      const rect = canvas.getBoundingClientRect();
+      const worldClickX = (e.clientX - rect.left - panX) / zoomLevel;
+      const worldClickY = (e.clientY - rect.top - panY) / zoomLevel;
+      const gx = Math.floor(worldClickX / cellSize);
+      const gy = Math.floor(worldClickY / cellSize);
+      const key = `${gx},${gy}`;
+      if (grid.has(key)) {
+        grid.delete(key);
+      } else {
+        grid.set(key, { age: 0, initialHue: Math.random() * 360 });
+      }
+      draw();
+    }
+    isPointerDown = false;
+    isDragging = false;
+  });
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+
+  // Pinch-to-Zoom Touch Event Handlers
+  canvas.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+        e.preventDefault(); 
+        isPinching = true;
+        isPointerDown = false; 
+        isDragging = false;
+
+        const t0 = e.touches[0];
+        const t1 = e.touches[1];
+        initialPinchDistance = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+        initialZoomLevelForPinch = zoomLevel; 
+        
+        // Calculate pinch center in canvas coordinates
+        const rect = canvas.getBoundingClientRect();
+        const pinchCenterX_canvas = (t0.clientX + t1.clientX) / 2 - rect.left;
+        const pinchCenterY_canvas = (t0.clientY + t1.clientY) / 2 - rect.top;
+
+        // Store initial pan relative to this pinch, for maintaining center
+        // World coordinates of the pinch center using *initial* state of the pinch
+        // This is what we want to keep under the fingers
+        initialPanXForPinch = (pinchCenterX_canvas - panX) / zoomLevel; // worldX of pinch center
+        initialPanYForPinch = (pinchCenterY_canvas - panY) / zoomLevel; // worldY of pinch center
+
+    }
+  }, { passive: false }); 
+
+  canvas.addEventListener('touchmove', e => {
+    if (isPinching && e.touches.length === 2) {
+        e.preventDefault(); 
+        if (modeSelect.value === 'wrapped' && running) return;
+
+        const t0 = e.touches[0];
+        const t1 = e.touches[1];
+        const currentDistance = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+
+        if (initialPinchDistance === 0) return; 
+
+        const scaleFactor = currentDistance / initialPinchDistance;
+        let targetZoomLevel = initialZoomLevelForPinch * scaleFactor;
+
+        let minZoomPossible, maxZoomPossible;
+        if (modeSelect.value === 'infinite') {
+            minZoomPossible = parseFloat(zoomSlider.min) / cols;
+            maxZoomPossible = parseFloat(zoomSlider.max) / cols;
+        } else { 
+            minZoomPossible = parseFloat(zoomSlider.min); 
+            maxZoomPossible = parseFloat(zoomSlider.max);
+        }
+        targetZoomLevel = Math.max(minZoomPossible, Math.min(maxZoomPossible, targetZoomLevel));
+        
+        zoomLevel = targetZoomLevel; // Update canonical zoomLevel
+
+        // Calculate current pinch center on canvas
+        const rect = canvas.getBoundingClientRect();
+        const currentPinchCenterX_canvas = (t0.clientX + t1.clientX) / 2 - rect.left;
+        const currentPinchCenterY_canvas = (t0.clientY + t1.clientY) / 2 - rect.top;
+        
+        // Adjust panX, panY to keep the initial world point (initialPanXForPinch, initialPanYForPinch) 
+        // under the currentPinchCenterX_canvas, currentPinchCenterY_canvas
+        panX = currentPinchCenterX_canvas - initialPanXForPinch * zoomLevel;
+        panY = currentPinchCenterY_canvas - initialPanYForPinch * zoomLevel;
+
+
+        if (modeSelect.value === 'infinite') {
+            zoomSlider.value = zoomLevel * cols;
+        } else {
+            zoomSlider.value = zoomLevel;
+        }
+
+        if (modeSelect.value === 'wrapped') {
+            clampPan();
+        }
+        draw();
+    }
+  }, { passive: false }); 
+
+  canvas.addEventListener('touchend', e => {
+    if (isPinching && e.touches.length < 2) {
+        isPinching = false;
+        initialPinchDistance = 0;
+        // If one touch remains, it might initiate a pan or click.
+        // Re-enable single pointer interaction if necessary, or let it be handled by subsequent pointerdown.
+        // For now, simply ending the pinch state is enough.
+        // If e.touches.length === 1, we could potentially re-initialize single touch pan:
+        // if (e.touches.length === 1) {
+        //    isPointerDown = true; // Re-engage single touch
+        //    lastX = e.touches[0].clientX;
+        //    lastY = e.touches[0].clientY;
+        //    isDragging = false; // Reset dragging state
+        // }
+    }
+  });
+
+
+  // Event listener for the Step button
+  stepBtn.addEventListener('click', () => {
+    if (running) {
+        running = false; clearTimeout(timer); canvas.style.borderColor = '';
+        playPauseBtn.textContent = 'Play';
+        zoomSlider.disabled = false;
+    }
+    if (modeSelect.value === 'wrapped') {
+        handleZoom(1); 
+        zoomSlider.disabled = false; 
+    }
+    step();
+    // Draw is called by handleZoom if in wrapped mode.
+    // Otherwise, or if already paused, draw explicitly.
+    if (modeSelect.value !== 'wrapped' || !running) {
+        draw();
+    }
+  });
+
+  // Event listener for Save (M+) button
+  saveBtn.addEventListener('click', () => {
+    if (grid.size > 0) {
+        const gridToSave = new Map();
+        grid.forEach((cellData, key) => { gridToSave.set(key, { ...cellData }); });
+        savedGridState = { grid: gridToSave, stepCount: stepCount };
+        restoreBtn.disabled = false; saveBtn.textContent = 'Saved';
+        setTimeout(() => { saveBtn.textContent = 'M+'; }, 1500);
+    } else {
+        saveBtn.textContent = 'null';
+        setTimeout(() => { saveBtn.textContent = 'M+'; }, 1500);
+    }
+  });
+
+  // Event listener for Restore (MR) button
+  restoreBtn.addEventListener('click', () => {
+    if (savedGridState) {
+        running = false; clearTimeout(timer); canvas.style.borderColor = '';
+        playPauseBtn.textContent = 'Play';
+        grid = new Map();
+        savedGridState.grid.forEach((cellData, key) => { grid.set(key, { ...cellData }); });
+        stepCount = savedGridState.stepCount;
+        zoomSlider.disabled = false; // Ensure zoom slider is enabled
+        
+        // Reset zoom to default for the current mode before drawing restored state
+        // This ensures the restored grid is viewed in a predictable way.
+        updateZoomSliderMode(); 
+        // updateZoomSliderMode calls draw(), so no need for an extra draw() here.
+        
+        restoreBtn.textContent = 'Loaded';
+        setTimeout(() => { restoreBtn.textContent = 'MR'; }, 1500);
+    }
+  });
+
+  /**
+   * Main drawing function. Clears and redraws the canvas.
+   */
+  function draw() {
+    ctx.save(); 
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--panel');
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.translate(panX, panY);
+    ctx.scale(zoomLevel, zoomLevel);
+
+    const viewXMin = -panX / zoomLevel;
+    const viewYMin = -panY / zoomLevel;
+    const viewXMax = (canvas.width - panX) / zoomLevel;
+    const viewYMax = (canvas.height - panY) / zoomLevel;
+
+    const gxmin = Math.floor(viewXMin / cellSize);
+    const gymin = Math.floor(viewYMin / cellSize);
+    const gxmax = Math.ceil(viewXMax / cellSize);
+    const gymax = Math.ceil(viewYMax / cellSize);
+
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid');
+    ctx.beginPath();
+    for (let i = gxmin; i <= gxmax; i++) {
+      ctx.moveTo(i * cellSize, gymin * cellSize);
+      ctx.lineTo(i * cellSize, gymax * cellSize);
+    }
+    for (let j = gymin; j <= gymax; j++) {
+      ctx.moveTo(gxmin * cellSize, j * cellSize);
+      ctx.lineTo(gxmax * cellSize, j * cellSize);
+    }
+    ctx.stroke();
+
+    grid.forEach((cellData, key) => {
+      const [x, y] = key.split(',').map(Number);
+      if (x < gxmin || x > gxmax || y < gymin || y > gymax) return;
+
+      const effectiveAge = Math.min(cellData.age, MAX_AGE_FOR_LIGHTNESS_EFFECT);
+      const hue = (cellData.initialHue + cellData.age * HUE_SHIFT_RATE) % 360;
+      const saturation = 90;
+      const lightness = Math.max(MIN_LIGHTNESS, START_LIGHTNESS - effectiveAge * LIGHTNESS_DECREASE_RATE);
+      ctx.fillStyle = `hsl(${hue}deg, ${saturation}%, ${lightness}%)`;
+
+      ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+    });
+
+    ctx.restore(); 
+    drawCounter(); 
+  }
+
+  /**
+   * Simulation loop. Calls step(), draw(), and schedules the next iteration.
+   */
+  function loop() {
+    step(); draw();
+    if (running) {
+      const speedValue = parseInt(speedSlider.value, 10);
+      // Ensure delay is not too small or negative if speedValue is very high or 0
+      const delay = speedValue > 0 ? baseDelay * (200 / speedValue) : baseDelay * 20; // Max speed is 200
+      const speedFactor = speedValue / 100; // Normalized speed
+      const hueIncrement = speedFactor * BORDER_HUE_INCREMENT_AT_MAX_SPEED;
+      borderHue = (borderHue + hueIncrement) % 360;
+      canvas.style.borderColor = `hsl(${borderHue}deg, ${BORDER_HUE_SATURATION}%, ${BORDER_HUE_LIGHTNESS}%)`;
+      timer = setTimeout(loop, delay);
+    }
+  }
+
+  /**
+   * Calculates the next generation of cells based on Conway's Game of Life rules.
+   */
+  function step() {
+    const newGrid = new Map(); 
+
+    if (modeSelect.value === 'wrapped') {
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          let liveNeighbors = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              if (dx === 0 && dy === 0) continue; 
+              const nx = (c + dx + cols) % cols; 
+              const ny = (r + dy + rows) % rows; 
+              if (grid.has(`${nx},${ny}`)) liveNeighbors++;
+            }
+          }
+          const currentCellKey = `${c},${r}`;
+          const currentCellData = grid.get(currentCellKey);
+          const isAlive = !!currentCellData;
+          if (isAlive) { 
+            if (liveNeighbors === 2 || liveNeighbors === 3) {
+              newGrid.set(currentCellKey, { age: currentCellData.age + 1, initialHue: currentCellData.initialHue }); 
+            }
+          } else { 
+            if (liveNeighbors === 3) {
+              newGrid.set(currentCellKey, { age: 0, initialHue: Math.random() * 360 }); 
+            }
+          }
+        }
+      }
+    } else { /* 'infinite' mode */
+      const candidates = new Set();
+      grid.forEach((cellData, key) => {
+        const [x, y] = key.split(',').map(Number);
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            candidates.add(`${x + dx},${y + dy}`);
+          }
+        }
+      });
+      candidates.forEach(candidateKey => {
+        const [cx, cy] = candidateKey.split(',').map(Number);
+        let liveNeighbors = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            if (grid.has(`${cx + dx},${cy + dy}`)) liveNeighbors++;
+          }
+        }
+        const currentCellData = grid.get(candidateKey);
+        const isAlive = !!currentCellData;
+        if (isAlive) {
+          if (liveNeighbors === 2 || liveNeighbors === 3) {
+            newGrid.set(candidateKey, { age: currentCellData.age + 1, initialHue: currentCellData.initialHue });
+          }
+        } else {
+          if (liveNeighbors === 3) {
+            newGrid.set(candidateKey, { age: 0, initialHue: Math.random() * 360 });
+          }
+        }
+      });
+    }
+    grid = newGrid; stepCount++;
+  }
+
+  /**
+   * Draws the population and step counters on the canvas.
+   */
+  function drawCounter() {
+    const pad = 8; const textHeight = 20; ctx.save();
+    ctx.font = 'bold 16px monospace'; ctx.textBaseline = 'top';
+    const popText = `Pop: ${grid.size}`;
+    const popTextMetrics = ctx.measureText(popText);
+    const popTextWidth = popTextMetrics.width;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(pad / 2, pad / 2, popTextWidth + pad * 1.5, textHeight + pad / 2);
+    ctx.fillStyle = '#fff'; ctx.fillText(popText, pad, pad);
+    const stepText = `Step: ${stepCount}`;
+    const stepTextMetrics = ctx.measureText(stepText);
+    const stepTextWidth = stepTextMetrics.width;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(canvas.width - pad - stepTextWidth - pad, pad / 2, stepTextWidth + pad * 1.5, textHeight + pad / 2);
+    ctx.fillStyle = '#fff'; ctx.fillText(stepText, canvas.width - pad - stepTextWidth, pad);
+    ctx.restore();
+  }
+
+  // Register Service Worker
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./service-worker.js') // Ensure manifest.json is correctly linked if needed by SW
+        .then(reg => console.log('Service Worker registered', reg))
+        .catch(err => console.error('SW registration failed', err));
+    });
+  }
+
+// Initial setup calls
+  resizeCanvas(); 
+  updateZoomSliderMode(); 
+  restoreBtn.disabled = true; 
+});
+</script>
+</body>
+</html>

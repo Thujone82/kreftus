@@ -1,0 +1,48 @@
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="192" height="192" rx="24" fill="#1a1a2e"/>
+    <rect x="2" y="2" width="188" height="188" rx="22" fill="url(#bg_gradient_192)"/>
+
+    <defs>
+        <linearGradient id="bg_gradient_192" x1="0" y1="0" x2="192" y2="192">
+            <stop offset="0%" stop-color="#0f0f1a"/>
+            <stop offset="100%" stop-color="#1a1a2e"/>
+        </linearGradient>
+        <filter id="glow_aqua_192" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+            <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+        <filter id="glow_pink_192" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="coloredBlurPink"/>
+            <feMerge>
+                <feMergeNode in="coloredBlurPink"/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+    </defs>
+
+    <path d="M55 68 Q48 68 48 78 L48 112 Q48 122 55 122 L72 122 Q80 122 80 114 L80 98 Q80 88 90 78 L80 68 Z" fill="#00ffea" filter="url(#glow_aqua_192)">
+         <animateTransform attributeName="transform" type="translate" values="0 0; 0 -2; 0 0" dur="2s" repeatCount="indefinite"/>
+    </path>
+    <circle cx="58" cy="82" r="5" fill="#1a1a2e"/>
+    <circle cx="57" cy="81" r="2.5" fill="#ffffff"/>
+
+
+    <path d="M137 124 Q144 124 144 114 L144 80 Q144 70 137 70 L120 70 Q112 70 112 78 L112 94 Q112 104 102 114 L112 124 Z" fill="#ff69b4" filter="url(#glow_pink_192)">
+        <animateTransform attributeName="transform" type="translate" values="0 0; 0 2; 0 0" dur="2s" repeatCount="indefinite"/>
+    </path>
+    <circle cx="134" cy="110" r="5" fill="#1a1a2e"/>
+    <circle cx="135" cy="111" r="2.5" fill="#ffffff"/>
+
+    <text x="50%" y="51%" dominant-baseline="middle" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="48" font-weight="900" fill="#66FF66">
+        <tspan>V</tspan><tspan dx="-3">S</tspan>
+        <tspan fill="#ff69b4" dx="-3"></tspan> 
+        <animate attributeName="opacity" values="1;0.7;1" dur="3s" repeatCount="indefinite" />
+    </text>
+    <text x="50%" y="51%" dominant-baseline="middle" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="49" font-weight="900" fill="none" stroke="#33cc33" stroke-width="2.5">
+        <tspan>V</tspan><tspan dx="-3">S</tspan>
+        <tspan stroke="#c73786" dx="-3"></tspan>
+    </text>
+</svg>
