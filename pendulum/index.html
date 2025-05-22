@@ -348,6 +348,10 @@
                 let currentSimBackgroundColor = simBgColorPicker.value;
                 let currentMainColor = mainColorPickerEl.value;
 
+                /**
+                 * @namespace ColorHelpers
+                 * @description Utility functions for color manipulation.
+                 */
                 // --- Color Helper Functions ---
                 function hexToRgb(hex) {
                     let shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
@@ -362,16 +366,37 @@
                     } : null;
                 }
 
+                /**
+                 * Converts RGB color components to a HEX color string.
+                 * @memberof ColorHelpers
+                 * @param {number} r - Red component (0-255).
+                 * @param {number} g - Green component (0-255).
+                 * @param {number} b - Blue component (0-255).
+                 * @returns {string} The HEX color string (e.g., "#RRGGBB").
+                 */
                 function rgbToHex(r, g, b) {
                     return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
                 }
 
+                /**
+                 * Calculates the luminance of a HEX color.
+                 * @memberof ColorHelpers
+                 * @param {string} hex - The HEX color string.
+                 * @returns {number} The luminance value (0-255).
+                 */
                 function getLuminance(hex) {
                     const rgb = hexToRgb(hex);
                     if (!rgb) return 0;
                     return 0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b;
                 }
 
+                /**
+                 * Adjusts the brightness of a HEX color by a given percentage.
+                 * @memberof ColorHelpers
+                 * @param {string} hex - The HEX color string.
+                 * @param {number} percent - The percentage to adjust brightness by (can be negative).
+                 * @returns {string} The new HEX color string.
+                 */
                 function adjustBrightness(hex, percent) {
                     const rgb = hexToRgb(hex);
                     if (!rgb) return hex; 
@@ -383,6 +408,13 @@
                     return rgbToHex(r, g, b);
                 }
 
+                /**
+                 * Converts a HEX color to an RGBA color string.
+                 * @memberof ColorHelpers
+                 * @param {string} hex - The HEX color string.
+                 * @param {number} alpha - The alpha (opacity) value (0-1).
+                 * @returns {string} The RGBA color string (e.g., "rgba(r,g,b,a)").
+                 */
                 function hexToRgba(hex, alpha) {
                     const rgb = hexToRgb(hex);
                     if (!rgb) return `rgba(0,0,0,${alpha})`; 
@@ -391,6 +423,10 @@
                 // --- End Color Helper Functions ---
 
                 function updateDynamicTheme() {
+                    /**
+                     * Updates the dynamic theme of the page based on selected colors.
+                     * Adjusts page background, panel background, slider colors, and button text color.
+                     */
                     // Update Page Body Background
                     const lumSimBg = getLuminance(currentSimBackgroundColor);
                     const lumTrace = getLuminance(currentMainColor);
@@ -422,7 +458,10 @@
                     document.documentElement.style.setProperty('--button-text-color', buttonTextColor);
                 }
 
-
+                /**
+                 * Resizes the canvas to fit the available space while maintaining aspect ratio.
+                 * Also redraws the static pendulum if the simulation is not running.
+                 */
                 function resizeCanvas() {
                     const panelWidth = setupPanel.classList.contains('hidden') ? 0 : (setupPanel.offsetWidth + 20);
                     let availableWidth = window.innerWidth - 40; 
@@ -439,6 +478,10 @@
                     if (!isRunning) drawStaticPendulum();
                 }
 
+                /**
+                 * Updates the physics of the double pendulum for one time step (dt).
+                 * Calculates new angular accelerations, velocities, and positions.
+                 */
                 function updatePhysics() {
                     try {
                         const denCommon = 2 * M1 + M2 - M2 * Math.cos(2 * Th1 - 2 * Th2);
@@ -471,6 +514,10 @@
                     }
                 }
 
+                /**
+                 * Main drawing loop for the simulation.
+                 * Clears the canvas, updates physics, draws the pendulum, its trace, and requests the next frame.
+                 */
                 function draw() {
                     if (!isRunning) return;
                     try {
@@ -516,6 +563,10 @@
                     }
                 }
 
+                /**
+                 * Draws a static representation of the pendulum based on current slider values.
+                 * Used when the simulation is not running or for preview.
+                 */
                 function drawStaticPendulum() {
                     ctx.fillStyle = currentSimBackgroundColor; 
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -544,6 +595,11 @@
                     ctx.beginPath(); ctx.arc(x2, y2, bobRadius2, 0, 2 * Math.PI); ctx.fill();
                 }
                 
+                /**
+                 * Updates the visual fill of a range slider based on its current value.
+                 * Uses a CSS custom property to show the filled portion of the track.
+                 * @param {HTMLInputElement} slider - The range input element.
+                 */
                 function updateSliderFill(slider) {
                     const min = parseFloat(slider.min) || 0;
                     const max = parseFloat(slider.max) || 100;
@@ -552,7 +608,12 @@
                     slider.style.setProperty('--slider-fill-percent', `${percentage}%`);
                 }
 
-
+                /**
+                 * Updates the displayed value of a slider and redraws the static pendulum if not running.
+                 * @param {HTMLInputElement} slider - The slider input element.
+                 * @param {HTMLElement} display - The HTML element to display the slider's value.
+                 * @listens input
+                 */
                 function updateSliderValue(slider, display) {
                     display.textContent = slider.value;
                     updateSliderFill(slider); 
@@ -565,6 +626,13 @@
                     updateSliderFill(slider); 
                 });
                 
+                /**
+                 * Safely parses a string value to a float, returning a default value if parsing fails or results in NaN.
+                 * @param {string|number} value - The value to parse.
+                 * @param {number} defaultValue - The default value to return on failure.
+                 * @returns {number} The parsed float or the default value.
+                 * @example getSafeFloat("10.5", 0) // returns 10.5
+                 */
                 function getSafeFloat(value, defaultValue) {
                     const num = parseFloat(value);
                     if (isNaN(num)) {
@@ -574,6 +642,10 @@
                     return num;
                 }
 
+                /**
+                 * Event listener for the simulation background color picker.
+                 * @listens input
+                 */
                 simBgColorPicker.addEventListener('input', (e) => {
                     currentSimBackgroundColor = e.target.value;
                     document.documentElement.style.setProperty('--sim-background-color', currentSimBackgroundColor);
@@ -581,6 +653,10 @@
                     if (!isRunning) drawStaticPendulum(); 
                 });
 
+                /**
+                 * Event listener for the main/pendulum color picker.
+                 * @listens input
+                 */
                 mainColorPickerEl.addEventListener('input', (e) => {
                     currentMainColor = e.target.value;
                     document.documentElement.style.setProperty('--main-color', currentMainColor);
@@ -588,6 +664,10 @@
                     if (!isRunning) drawStaticPendulum();
                 });
 
+                /**
+                 * Event listener for the "Start Simulation" button.
+                 * @listens click
+                 */
                 startButton.addEventListener('click', () => {
                     L1 = getSafeFloat(length1Slider.value, 100);
                     L2 = getSafeFloat(length2Slider.value, 100);
@@ -611,6 +691,10 @@
                     animationFrameId = requestAnimationFrame(draw);
                 });
                 
+                /**
+                 * Cleans up the simulation state when stopped.
+                 * Cancels animation frame, updates UI elements, and enables/disables buttons.
+                 */
                 function stopSimulationCleanup() {
                     isRunning = false;
                     if (animationFrameId) {
@@ -624,8 +708,16 @@
                     downloadButton.disabled = trace.length === 0; 
                 }
 
+                /**
+                 * Event listener for the "Stop Simulation" button.
+                 * @listens click
+                 */
                 stopButton.addEventListener('click', stopSimulationCleanup);
 
+                /**
+                 * Event listener for the "Download Trace" button.
+                 * @listens click
+                 */
                 downloadButton.addEventListener('click', () => {
                     if (trace.length === 0) {
                         alert("No trace data to download."); return;
@@ -655,6 +747,12 @@
                     document.body.removeChild(link);
                 });
 
+                /**
+                 * Determines whether black or white text provides better contrast against a given hex color.
+                 * @memberof ColorHelpers
+                 * @param {string} hexcolor - The HEX color string for the background.
+                 * @returns {('black'|'white')} "black" or "white" for the best contrasting text color.
+                 */
                 function getContrastYIQ(hexcolor){
                     const rgb = hexToRgb(hexcolor);
                     if(!rgb) return 'white'; 
@@ -662,6 +760,10 @@
                     return (yiq >= 128) ? 'black' : 'white';
                 }
 
+                /**
+                 * Initializes the application.
+                 * Sets initial theme colors, updates slider values, resizes canvas, and registers service worker.
+                 */
                 function initialize() {
                     document.documentElement.style.setProperty('--sim-background-color', simBgColorPicker.value);
                     document.documentElement.style.setProperty('--main-color', mainColorPickerEl.value);
