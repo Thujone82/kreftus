@@ -4,5 +4,5 @@ deployment:
     - export DEPLOYPATH=/home/kreftus/public_html/
     - /bin/cp -R . $DEPLOYPATH  # Copy all repository contents to the DEPLOYPATH
     - /bin/rm -rf $DEPLOYPATH/.git # Remove the .git directory from the live site
-    - /bin/rm -rf $DEPLOYPATH/.ssh # Remove the .ssh directory from the live site
+    - #/bin/rm -rf $DEPLOYPATH/.ssh # Remove the .ssh directory from the live site
     - /bin/rm -f $DEPLOYPATH/.cpanel.yml
