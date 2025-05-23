@@ -1,23 +1,4 @@
-name: Deploy to iFastNet via Git Push (with Passphrase via Expect)
-
-on:
-  push:
-    branches:
-      - main  # Or whatever branch you want to deploy from
-
-jobs:
-  push-to-ifastnet:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code from GitHub
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Fetch all history so we can push correctly
-
-      - name: Install expect
-        run: sudo apt-get update && sudo apt-get install -y expect
-
-      - name: Setup SSH Agent and Add Key with Passphrase
+- name: Setup SSH Agent and Add Key with Passphrase
         env:
           SSH_PRIVATE_KEY_CONTENT: ${{ secrets.IFASTNET }}      # Your passphrase-PROTECTED private key
           SSH_KEY_PASSPHRASE: ${{ secrets.IFASTNET_PASS }}   # The passphrase for your private key
@@ -27,59 +8,30 @@ jobs:
 
           echo "Creating private key file..."
           mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY_CONTENT" > ~/.ssh/ifastnet_deploy_key
-          chmod 600 ~/.ssh/ifastnet_deploy_key # Set correct permissions
+          # Ensure this filename is used consistently
+          echo "$SSH_PRIVATE_KEY_CONTENT" > ~/.ssh/ifastnet_action_key # Using ifastnet_action_key
+          chmod 600 ~/.ssh/ifastnet_action_key # Set correct permissions
 
           echo "Adding key to ssh-agent with expect..."
           expect <<EOF
           set timeout 10
-          spawn ssh-add ~/.ssh/ifastnet_deploy_key
+          # Corrected filename here:
+          spawn ssh-add ~/.ssh/ifastnet_action_key 
           expect {
-            "Enter passphrase for ~/.ssh/ifastnet_deploy_key:" {
+            # Corrected filename in the expect prompt pattern:
+            "Enter passphrase for ~/.ssh/ifastnet_action_key:" { 
               send "$SSH_KEY_PASSPHRASE\r"
               exp_continue
             }
             eof {
               # If ssh-add exits successfully, this will be fine.
-              # If it errors (e.g. bad passphrase), catch_later will deal with it.
             }
             timeout {
               puts "Timeout waiting for passphrase prompt or eof"
               exit 1
             }
           }
-          # Check if ssh-add was successful
-          # This is a bit tricky as expect handles the exit code of the spawned process.
-          # A simple check here is to see if keys are loaded.
-          # If ssh-add failed due to bad passphrase, it would have exited with error.
-          # The catch_later in Tcl (which expect uses) might be needed for robust error handling here.
-          # For now, we assume if it didn't timeout and got eof, it either worked or ssh-add errored out.
           EOF
 
           echo "Verifying if key was added..."
-          ssh-add -l # List keys in agent. If empty or error, the above failed.
-          # If ssh-add -l returns a non-zero exit code (e.g., no keys), this script will fail here due to 'set -e' by default in GitHub Actions runner.
-
-      - name: Create known_hosts file
-        env:
-          KNOWN_HOSTS_CONTENT: ${{ secrets.IFASTNET_KNOWN_HOSTS }}
-        run: |
-          mkdir -p ~/.ssh
-          echo "$KNOWN_HOSTS_CONTENT" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts # Strict permissions often preferred, 644 also works
-
-      - name: Configure Git User
-        run: |
-          git config --global user.name "GitHub Action"
-          git config --global user.email "action@github.com"
-
-      - name: Add iFastNet as a remote
-        run: |
-          git remote remove ifastnet || true
-          git remote add ifastnet ssh://kreftus@kreft.us:27015/home/kreftus/gitcode
-
-      - name: Push to iFastNet
-        run: |
-          echo "Attempting to push to iFastNet..."
-          git push ifastnet main --force
-          echo "Push command executed."
+          ssh-add -l # List keys in agent.
