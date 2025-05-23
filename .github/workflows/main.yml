@@ -17,13 +17,13 @@ jobs:
       - name: Install expect
         run: sudo apt-get update && sudo apt-get install -y expect
 
-      - name: Setup SSH Agent and Add Key with Passphrase
+- name: Setup SSH Agent and Add Key with Passphrase
         env:
-          SSH_PRIVATE_KEY_CONTENT: ${{ secrets.IFASTNET }}      # Your passphrase-PROTECTED private key
-          SSH_KEY_PASSPHRASE: ${{ secrets.IFASTNET_PASS }}   # The passphrase for your private key
+          SSH_PRIVATE_KEY_CONTENT: ${{ secrets.IFASTNET }}
+          SSH_KEY_PASSPHRASE: ${{ secrets.IFASTNET_PASS }}
         run: |
           echo "Starting ssh-agent..."
-          eval "$(ssh-agent -s)" # Start the ssh-agent
+          eval "$(ssh-agent -s)"
 
           SSH_DIR="$HOME/.ssh"
           KEY_FILE_PATH="$SSH_DIR/ifastnet_action_key"
@@ -31,42 +31,80 @@ jobs:
           echo "Creating private key file at $KEY_FILE_PATH..."
           mkdir -p "$SSH_DIR"
           echo "$SSH_PRIVATE_KEY_CONTENT" > "$KEY_FILE_PATH"
-          chmod 600 "$KEY_FILE_PATH" # Set correct permissions
+          chmod 600 "$KEY_FILE_PATH"
 
-          # Verify file exists
           if [ ! -f "$KEY_FILE_PATH" ]; then
             echo "ERROR: Private key file was not created at $KEY_FILE_PATH"
-            ls -la "$SSH_DIR" # List directory contents for debugging
             exit 1
           fi
           echo "Private key file created successfully."
+          
+          # Optional: Output first few lines of the key for format verification (BE CAREFUL - this might expose parts of the key in logs)
+          # echo "First few lines of the key file:"
+          # head -n 3 "$KEY_FILE_PATH"
+          # echo "Last few lines of the key file:"
+          # tail -n 3 "$KEY_FILE_PATH"
 
-          echo "Adding key to ssh-agent with expect..."
-          expect <<EOF
+          echo "Attempting to add key to ssh-agent with expect..."
+          # Ensure SSH_KEY_PASSPHRASE is not empty if it's expected
+          if [ -z "$SSH_KEY_PASSPHRASE" ]; then
+            echo "Error: SSH_KEY_PASSPHRASE environment variable is empty."
+            # Decide if this should be a fatal error if passphrase is truly required
+            # exit 1 
+          fi
+
+          EXPECT_SCRIPT=$(cat <<EOF
           set timeout 10
-          # Use the full path variable
           spawn ssh-add "$KEY_FILE_PATH"
           expect {
-            # Use the full path variable in the prompt pattern
             "Enter passphrase for $KEY_FILE_PATH:" {
               send "$SSH_KEY_PASSPHRASE\r"
-              exp_continue # Continue expecting other patterns (like eof)
+              # After sending passphrase, wait for ssh-add to either succeed or ask again (bad passphrase)
+              expect {
+                "Bad passphrase, try again for $KEY_FILE_PATH:" {
+                  puts "Error: Bad passphrase provided to ssh-add."
+                  exit 1
+                }
+                eof {
+                  # ssh-add finished, hopefully successfully
+                  puts "ssh-add finished after passphrase."
+                }
+                timeout {
+                  puts "Timeout after sending passphrase."
+                  exit 1
+                }
+              }
+            }
+            "Identity added: $KEY_FILE_PATH" {
+               # This means the key was added, possibly it had no passphrase or agent remembered it
+               puts "Identity added (potentially no passphrase was needed or agent handled it)."
             }
             eof {
-              # This means ssh-add finished. We'll check its success with ssh-add -l later.
+              # ssh-add finished without asking for a passphrase (e.g. key is not encrypted or already in agent)
+              # This is less likely if we expect a passphrase prompt
+              puts "ssh-add finished without passphrase prompt (is key unencrypted or already added?)."
             }
             timeout {
-              puts "Timeout waiting for passphrase prompt or eof from ssh-add"
+              puts "Timeout waiting for initial passphrase prompt or eof."
               exit 1
             }
           }
           EOF
+          )
+
+          echo "$EXPECT_SCRIPT" | expect -d # Run expect with debug output
 
           echo "Verifying if key was added to agent..."
-          ssh-add -l # List keys in agent.
-          # If this command fails (e.g., "The agent has no identities."),
-          # the GitHub Actions runner's default 'set -e' will cause the step to fail.
-
+          ssh-add -l
+          if [ $? -ne 0 ]; then
+            echo "ssh-add -l reported an error or no identities. Key not added successfully."
+            # Optionally, try to cat the key again here if debugging permissions or content
+            # echo "Content of key file that failed to load:"
+            # cat "$KEY_FILE_PATH" # SENSITIVE - REMOVE AFTER DEBUGGING
+            exit 1
+          else
+            echo "Key successfully added to agent."
+          fi
       - name: Create known_hosts file
         env:
           KNOWN_HOSTS_CONTENT: ${{ secrets.IFASTNET_KNOWN_HOSTS }}
