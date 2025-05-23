@@ -19,16 +19,16 @@ jobs:
         with:
           key: ${{ secrets.IFASTNET_PASS }}
           name: id_ifastnet_action # Optional: name of the key file once created on the runner
-          known_hosts: ${{ secrets.IFASTNET_KNOWN_HOSTS }} # Store your server's host key here as a secret
+          #known_hosts: ${{ secrets.IFASTNET_KNOWN_HOSTS }} # Store your server's host key here as a secret
           passphrase: ${{ secrets.IFASTNET_PASS }} # Use the passphrase secret
 
       # The ssh-keyscan step for known_hosts might still be useful if you don't want to manage
       # the full known_hosts entry as a secret, but shimataro/ssh-key-action can use a direct entry.
       # If you don't use the 'known_hosts' input in the action above, keep a step like this:
       # - name: Add iFastNet to known_hosts (alternative)
-      #   run: |
-      #     mkdir -p ~/.ssh
-      #     ssh-keyscan -p 27015 kreft.us >> ~/.ssh/known_hosts
+         run: |
+           mkdir -p ~/.ssh
+           ssh-keyscan -p 27015 kreft.us >> ~/.ssh/known_hosts
 
       - name: Configure Git User
         run: |
