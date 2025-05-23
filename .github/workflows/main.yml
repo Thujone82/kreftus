@@ -14,27 +14,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      # REMOVE THE ENTIRE "Start SSH Agent" (webfactory/ssh-agent) STEP
-
-      - name: Install SSH Key for iFastNet
-        uses: shimataro/ssh-key-action@v2.7.0 # Or the latest v2.x.x version
+      - name: Setup SSH Agent and Add Key
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          key: ${{ secrets.IFASTNET }}                # Your passphrase-PROTECTED private key
-          passphrase: ${{ secrets.IFASTNET_PASS }}       # Your passphrase secret
-          known_hosts: ${{ secrets.IFASTNET_KNOWN_HOSTS }} # Your known_hosts entry
-        # DO NOT add a 'run:' block here for ssh-add or expect
+          ssh-private-key: ${{ secrets.IFASTNET }} # Your passphrase-PROTECTED private key
+        # This action will attempt to ssh-add the key.
+        # For it to work with a passphrase, the key needs to be in a format ssh-add can handle,
+        # and this action would need to somehow facilitate the passphrase provision.
+        # If this step fails with "error in libcrypto", it means it couldn't decrypt the key.
 
-      # The "Add iFastNet to known_hosts" step is also handled by the
-      # 'known_hosts:' input in the shimataro/ssh-key-action above.
-      # So, you can REMOVE the separate "Add iFastNet to known_hosts" step below
-      # if secrets.IFASTNET_KNOWN_HOSTS is correctly populated.
-      # If you prefer to keep ssh-keyscan as a fallback, ensure it doesn't conflict.
-      # For robustness, relying on the secret is better.
-
-      # - name: Add iFastNet to known_hosts # This step can likely be removed
-      #   run: |
-      #     mkdir -p ~/.ssh
-      #     echo "${{ secrets.IFASTNET_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
+      - name: Create known_hosts file
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.IFASTNET_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Configure Git User
         run: |
@@ -47,5 +40,7 @@ jobs:
           git remote add ifastnet ssh://kreftus@kreft.us:27015/home/kreftus/gitcode
 
       - name: Push to iFastNet
+        env:
+          GIT_SSH_COMMAND: "ssh -o UserKnownHostsFile=/home/runner/.ssh/known_hosts" # Ensure our known_hosts is used
         run: |
           git push ifastnet main --force
