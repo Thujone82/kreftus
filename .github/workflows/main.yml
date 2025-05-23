@@ -13,7 +13,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Install SSH Key for iFastNet
         uses: shimataro/ssh-key-action@v2 # Using shimataro/ssh-key-action
         with:
