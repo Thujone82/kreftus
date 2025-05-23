@@ -14,48 +14,27 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Start SSH Agent
-        uses: webfactory/ssh-agent@v0.9.0 # This starts the agent
-        with:
-          ssh-private-key: ${{ secrets.IFASTNET }} # This adds the key to the agent
+      # REMOVE THE ENTIRE "Start SSH Agent" (webfactory/ssh-agent) STEP
 
-      # The webfactory/ssh-agent action attempts to add the key.
-      # If your IFASTNET private key requires a passphrase, this step might
-      # need to be modified or ssh-add needs to be invoked in a way it can get the passphrase.
-      # The webfactory/ssh-agent action's documentation states:
-      # "If the key is passphrase-protected, it will be loaded using `ssh-add <(echo "$SSH_PRIVATE_KEY")`
-      # and you must provide the `SSH_AUTH_SOCK` environment variable for it to work."
-      # It *should* try to handle the passphrase if it's set on the key.
-      # Let's assume for a moment it *might* not handle it, and show an explicit add:
-
-- name: Install SSH Key for iFastNet
+      - name: Install SSH Key for iFastNet
         uses: shimataro/ssh-key-action@v2.7.0 # Or the latest v2.x.x version
         with:
           key: ${{ secrets.IFASTNET }}                # Your passphrase-PROTECTED private key
           passphrase: ${{ secrets.IFASTNET_PASS }}       # Your passphrase secret
           known_hosts: ${{ secrets.IFASTNET_KNOWN_HOSTS }} # Your known_hosts entry
-        run: |
-          mkdir -p ~/.ssh/
-          echo "$SSH_PRIVATE_KEY_CONTENT" > ~/.ssh/id_ifastnet_action
-          chmod 600 ~/.ssh/id_ifastnet_action
-          # Attempt to add with passphrase. ssh-add typically needs SSH_ASKPASS or a TTY.
-          # This is the tricky part in a non-interactive script.
-          # Let's try a common method using expect, which needs to be installed.
-          sudo apt-get update && sudo apt-get install -y expect
-          expect -c "
-            spawn ssh-add ~/.ssh/id_ifastnet_action
-            expect \"Enter passphrase for ~/.ssh/id_ifastnet_action:\"
-            send \"$SSH_KEY_PASSPHRASE\r\"
-            expect eof
-          "
+        # DO NOT add a 'run:' block here for ssh-add or expect
 
-      - name: Add iFastNet to known_hosts
-        run: |
-          mkdir -p ~/.ssh
-          # Store your actual known_hosts entry in the IFASTNET_KNOWN_HOSTS secret
-          echo "${{ secrets.IFASTNET_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
-          # Fallback/alternative if the secret isn't perfectly formatted:
-          # ssh-keyscan -p 27015 kreft.us >> ~/.ssh/known_hosts
+      # The "Add iFastNet to known_hosts" step is also handled by the
+      # 'known_hosts:' input in the shimataro/ssh-key-action above.
+      # So, you can REMOVE the separate "Add iFastNet to known_hosts" step below
+      # if secrets.IFASTNET_KNOWN_HOSTS is correctly populated.
+      # If you prefer to keep ssh-keyscan as a fallback, ensure it doesn't conflict.
+      # For robustness, relying on the secret is better.
+
+      # - name: Add iFastNet to known_hosts # This step can likely be removed
+      #   run: |
+      #     mkdir -p ~/.ssh
+      #     echo "${{ secrets.IFASTNET_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
 
       - name: Configure Git User
         run: |
