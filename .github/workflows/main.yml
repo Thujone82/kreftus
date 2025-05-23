@@ -28,7 +28,7 @@ jobs:
       # It *should* try to handle the passphrase if it's set on the key.
       # Let's assume for a moment it *might* not handle it, and show an explicit add:
 
-  - name: Install SSH Key for iFastNet
+- name: Install SSH Key for iFastNet
         uses: shimataro/ssh-key-action@v2.7.0 # Or the latest v2.x.x version
         with:
           key: ${{ secrets.IFASTNET }}                # Your passphrase-PROTECTED private key
