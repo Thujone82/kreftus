@@ -12,19 +12,23 @@ jobs:
       - name: Checkout code from GitHub
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Fetch all history so we can push correctly
+          fetch-depth: 0
 
-      - name: Setup SSH Agent for iFastNet
-        uses: webfactory/ssh-agent@v0.9.0
+      - name: Install SSH Key for iFastNet
+        uses: shimataro/ssh-key-action@v2 # Using shimataro/ssh-key-action
         with:
-          ssh-private-key: ${{ secrets.IFASTNET }}
+          key: ${{ secrets.IFASTNET_PASS }}
+          name: id_ifastnet_action # Optional: name of the key file once created on the runner
+          known_hosts: ${{ secrets.IFASTNET_KNOWN_HOSTS }} # Store your server's host key here as a secret
+          passphrase: ${{ secrets.IFASTNET_PASS }} # Use the passphrase secret
 
-      - name: Add iFastNet to known_hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -p 27015 ftp.kreft.us >> ~/.ssh/known_hosts
-          # You can be more specific with the host key if you know it, to avoid TOFU (Trust On First Use)
-          # For example: echo "kreft.us ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI..." >> ~/.ssh/known_hosts
+      # The ssh-keyscan step for known_hosts might still be useful if you don't want to manage
+      # the full known_hosts entry as a secret, but shimataro/ssh-key-action can use a direct entry.
+      # If you don't use the 'known_hosts' input in the action above, keep a step like this:
+      # - name: Add iFastNet to known_hosts (alternative)
+      #   run: |
+      #     mkdir -p ~/.ssh
+      #     ssh-keyscan -p 27015 kreft.us >> ~/.ssh/known_hosts
 
       - name: Configure Git User
         run: |
@@ -38,10 +42,3 @@ jobs:
       - name: Push to iFastNet
         run: |
           git push ifastnet main --force
-          # Using --force might be necessary if the histories can diverge
-          # or if the iFastNet repo is non-bare and its HEAD needs to be overwritten.
-          # Use with caution: ensures iFastNet repo matches the GitHub repo state.
-          # Alternatively, if you manage history carefully, a regular push might work:
-          # git push ifastnet main
-          # Or to ensure the local main is pushed to ifastnet's main:
-          # git push ifastnet refs/heads/main:refs/heads/main --force
