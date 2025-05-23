@@ -28,10 +28,12 @@ jobs:
       # It *should* try to handle the passphrase if it's set on the key.
       # Let's assume for a moment it *might* not handle it, and show an explicit add:
 
-      - name: Add SSH Key to Agent with Passphrase (if needed)
-        env:
-          SSH_PRIVATE_KEY_CONTENT: ${{ secrets.IFASTNET }}
-          SSH_KEY_PASSPHRASE: ${{ secrets.IFASTNET_PASS }}
+  - name: Install SSH Key for iFastNet
+        uses: shimataro/ssh-key-action@v2.7.0 # Or the latest v2.x.x version
+        with:
+          key: ${{ secrets.IFASTNET }}                # Your passphrase-PROTECTED private key
+          passphrase: ${{ secrets.IFASTNET_PASS }}       # Your passphrase secret
+          known_hosts: ${{ secrets.IFASTNET_KNOWN_HOSTS }} # Your known_hosts entry
         run: |
           mkdir -p ~/.ssh/
           echo "$SSH_PRIVATE_KEY_CONTENT" > ~/.ssh/id_ifastnet_action
