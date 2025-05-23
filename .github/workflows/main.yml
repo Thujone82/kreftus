@@ -25,20 +25,30 @@ jobs:
           echo "Starting ssh-agent..."
           eval "$(ssh-agent -s)" # Start the ssh-agent
 
-          echo "Creating private key file..."
-          mkdir -p ~/.ssh
-          # This filename must match the one used in the expect script below
-          echo "$SSH_PRIVATE_KEY_CONTENT" > ~/.ssh/ifastnet_action_key
-          chmod 600 ~/.ssh/ifastnet_action_key # Set correct permissions
+          SSH_DIR="$HOME/.ssh"
+          KEY_FILE_PATH="$SSH_DIR/ifastnet_action_key"
+
+          echo "Creating private key file at $KEY_FILE_PATH..."
+          mkdir -p "$SSH_DIR"
+          echo "$SSH_PRIVATE_KEY_CONTENT" > "$KEY_FILE_PATH"
+          chmod 600 "$KEY_FILE_PATH" # Set correct permissions
+
+          # Verify file exists
+          if [ ! -f "$KEY_FILE_PATH" ]; then
+            echo "ERROR: Private key file was not created at $KEY_FILE_PATH"
+            ls -la "$SSH_DIR" # List directory contents for debugging
+            exit 1
+          fi
+          echo "Private key file created successfully."
 
           echo "Adding key to ssh-agent with expect..."
           expect <<EOF
           set timeout 10
-          # Ensure this filename matches the one created above
-          spawn ssh-add ~/.ssh/ifastnet_action_key
+          # Use the full path variable
+          spawn ssh-add "$KEY_FILE_PATH"
           expect {
-            # Ensure this filename in the prompt matches the one created above
-            "Enter passphrase for ~/.ssh/ifastnet_action_key:" {
+            # Use the full path variable in the prompt pattern
+            "Enter passphrase for $KEY_FILE_PATH:" {
               send "$SSH_KEY_PASSPHRASE\r"
               exp_continue # Continue expecting other patterns (like eof)
             }
@@ -61,9 +71,10 @@ jobs:
         env:
           KNOWN_HOSTS_CONTENT: ${{ secrets.IFASTNET_KNOWN_HOSTS }}
         run: |
-          mkdir -p ~/.ssh
-          echo "$KNOWN_HOSTS_CONTENT" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts # Strict permissions often preferred, 644 also works
+          SSH_DIR="$HOME/.ssh"
+          mkdir -p "$SSH_DIR"
+          echo "$KNOWN_HOSTS_CONTENT" > "$SSH_DIR/known_hosts"
+          chmod 600 "$SSH_DIR/known_hosts"
 
       - name: Configure Git User
         run: |
