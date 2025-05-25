@@ -384,7 +384,6 @@
 
             function updateNodeFromUI(nodeId) {
                 const node = nodes.find(n => n.id === nodeId); if (!node) return;
-                resetPanAndRedraw(); 
                 const lengthSlider = document.getElementById(`length${nodeId}`);
                 if (lengthSlider) node.length = parseFloat(lengthSlider.value);
                 const colorPicker = document.getElementById(`color${nodeId}`);
@@ -417,6 +416,7 @@
                     const relSpeedInput = document.getElementById(`relSpeed${nodeId}`);
                     if (relSpeedInput) node.relativeSpeed = parseFloat(relSpeedInput.value) || 0;
                 }
+                resetPanAndRedraw(); // Call redraw after all node properties are updated
             }
             
             function calculateStaticNodePositions() { 
@@ -429,8 +429,9 @@
                     if (i === 0) {
                          nodeAbsStaticAngle = node.initialAbsoluteAngle; 
                     } else {
-                        const parentNode = nodes[i-1];
-                        parentAbsStaticAngle = parentNode.initialAbsoluteAngle; 
+                        // The `parentAbsStaticAngle` variable now correctly holds the absolute angle
+                        // of the previous node (nodes[i-1]) as calculated in the prior loop iteration.
+                        // We use this directly, ensuring the chain effect.
                         nodeAbsStaticAngle = parentAbsStaticAngle + node.initialRelativeAngle; 
                     }
                     
@@ -963,4 +964,3 @@
     </script>
 </body>
 </html>
-

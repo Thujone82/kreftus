@@ -14,17 +14,13 @@ jobs:
         with:
           fetch-depth: 0 # Fetch all history so we can push correctly
 
-      - name: Setup SSH Agent for iFastNet
-        uses: webfactory/ssh-agent@v0.9.0
+      - name: Install SSH Key for iFastNet
+        uses: shimataro/ssh-key-action@v2.7.0 # Using a specific version is good practice
         with:
-          ssh-private-key: ${{ secrets.IFASTNET }}
-
-      - name: Add iFastNet to known_hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -p 27015 ftp.kreft.us >> ~/.ssh/known_hosts
-          # You can be more specific with the host key if you know it, to avoid TOFU (Trust On First Use)
-          # For example: echo "kreft.us ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI..." >> ~/.ssh/known_hosts
+          key: ${{ secrets.IFASTNET }}                # Updated secret name for private key
+          passphrase: ${{ secrets.IFASTNET_PASS }}       # Updated secret name for passphrase
+          known_hosts: ${{ secrets.IFASTNET_KNOWN_HOSTS }} # Using secret for known_hosts
+          # name: id_ifastnet_action # Optional: name of the key file once created on the runner
 
       - name: Configure Git User
         run: |
@@ -33,6 +29,8 @@ jobs:
 
       - name: Add iFastNet as a remote
         run: |
+          # Remove remote if it already exists to avoid errors on re-runs
+          git remote remove ifastnet || true
           git remote add ifastnet ssh://kreftus@kreft.us:27015/home/kreftus/gitcode
 
       - name: Push to iFastNet
@@ -41,7 +39,3 @@ jobs:
           # Using --force might be necessary if the histories can diverge
           # or if the iFastNet repo is non-bare and its HEAD needs to be overwritten.
           # Use with caution: ensures iFastNet repo matches the GitHub repo state.
-          # Alternatively, if you manage history carefully, a regular push might work:
-          # git push ifastnet main
-          # Or to ensure the local main is pushed to ifastnet's main:
-          # git push ifastnet refs/heads/main:refs/heads/main --force
