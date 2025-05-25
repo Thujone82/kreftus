@@ -308,6 +308,9 @@
             let isPanning = false;
             let lastPanX, lastPanY;
 
+            let initialPinchDistance = null; // For pinch zoom
+            const ZOOM_SENSITIVITY = 0.001; // For mouse wheel zoom
+
             const themes = [
                 { name: 'Cosmic Cyan', bg: '#1A1A2E', hl: '#53D8FB', nodeColors: ['#FF69B4', '#39FF14', '#FFD700', '#FF00FF'] },
                 { name: 'Neon Magenta', bg: '#2C001E', hl: '#FF00A0', nodeColors: ['#00FFCD', '#FFDB00', '#0094FF', '#BFFF00'] },
@@ -643,13 +646,30 @@
                 if (nodes.length >= MAX_NODES) { alert("Maximum nodes reached."); return; }
                 resetPanAndRedraw(); 
                 const nodeId = nodes.length > 0 ? Math.max(...nodes.map(n => n.id)) + 1 : 1;
-                const isFirstNode = (nodes.length === 0); 
+                const isFirstNode = (nodes.length === 0);
+                const isSecondNode = (nodes.length === 1);
                 const newNodeColor = currentTheme.nodeColors[nodes.length % currentTheme.nodeColors.length];
+
+                let nodeLength = isFirstNode ? 100 : 50;
+                let nodeIsDrawing = true;
+                let nodeRelativeSpeed = isSecondNode ? 2 : 1;
+
+                if (isFirstNode) {
+                    nodeLength = Math.floor(Math.random() * (150 - 50 + 1)) + 50; // Random length 50-150
+                    nodeIsDrawing = false; // Drawing disabled for Node 1
+                } else if (isSecondNode) {
+                    nodeLength = Math.floor(Math.random() * (150 - 25 + 1)) + 25; // Random length 25-150
+                    const randomInt = Math.floor(Math.random() * 13) - 6; // -6 to +6
+                    const randomFracOptions = [0, 0.05, 0.1, 0.25];
+                    const randomFrac = randomFracOptions[Math.floor(Math.random() * randomFracOptions.length)];
+                    nodeRelativeSpeed = randomInt + randomFrac;
+                }
+
                 const newNode = {
-                    id: nodeId, length: isFirstNode ? 100 : 50, color: newNodeColor, isDrawing: true,
+                    id: nodeId, length: nodeLength, color: newNodeColor, isDrawing: nodeIsDrawing,
                     speedMultiplier: 1.0, speed: BASE_SPEED_RPM * (2 * Math.PI / 60), 
                     direction: 1, 
-                    relativeSpeed: nodes.length === 1 ? 2 : 1, 
+                    relativeSpeed: nodeRelativeSpeed, 
                     currentAbsoluteAngle: 0, previousAbsoluteAngle: 0, currentRelativeAngle: 0, 
                     initialAbsoluteAngle: isFirstNode ? (-90 * Math.PI / 180) : 0, 
                     initialRelativeAngle: 0,
@@ -834,15 +854,24 @@
             function onPanStart(event) {
                 isPanning = true;
                 const pos = getPointerPosition(event);
-                lastPanX = pos.x;
-                lastPanY = pos.y;
+                lastPanX = pos.x; lastPanY = pos.y;
                 canvas.classList.add('grabbing');
-                if (event.type === 'touchstart') event.preventDefault(); 
+
+                if (event.touches && event.touches.length === 2) {
+                    isPanning = false; // Prioritize pinch zoom over pan if two fingers
+                    initialPinchDistance = getPinchDistance(event);
+                } else if (event.type === 'touchstart') {
+                    event.preventDefault(); 
+                }
             }
 
             function onPanMove(event) {
-                if (!isPanning) return;
-                if (event.type === 'touchmove') event.preventDefault(); 
+                if (event.touches && event.touches.length === 2) {
+                    handlePinchZoom(event);
+                    return;
+                }
+                if (!isPanning || (event.touches && event.touches.length > 1)) return;
+                if (event.type === 'touchmove') event.preventDefault();
 
                 const pos = getPointerPosition(event);
                 const dx = pos.x - lastPanX;
@@ -857,16 +886,57 @@
             function onPanEnd() {
                 isPanning = false;
                 canvas.classList.remove('grabbing');
+                initialPinchDistance = null; // Reset pinch distance
+            }
+
+            function getPinchDistance(event) {
+                const t1 = event.touches[0];
+                const t2 = event.touches[1];
+                return Math.sqrt(Math.pow(t2.clientX - t1.clientX, 2) + Math.pow(t2.clientY - t1.clientY, 2));
+            }
+
+            function handlePinchZoom(event) {
+                if (!initialPinchDistance || event.touches.length !== 2) return;
+                event.preventDefault();
+                const newPinchDistance = getPinchDistance(event);
+                const zoomFactor = newPinchDistance / initialPinchDistance;
+
+                currentZoom *= zoomFactor;
+                currentZoom = Math.max(parseFloat(zoomSlider.min), Math.min(parseFloat(zoomSlider.max), currentZoom));
+                
+                zoomSlider.value = currentZoom;
+                zoomValSpan.textContent = currentZoom.toFixed(2);
+                updateSliderFill(zoomSlider);
+                
+                initialPinchDistance = newPinchDistance; // Update for continuous zoom
+                if (!isRunning) drawStaticSpirograph();
+            }
+
+            function handleMouseWheelZoom(event) {
+                event.preventDefault(); // Prevent page scrolling
+                const delta = event.deltaY * ZOOM_SENSITIVITY * -1; // Invert scroll direction for intuitive zoom
+                const oldZoom = currentZoom;
+                currentZoom += delta;
+                currentZoom = Math.max(parseFloat(zoomSlider.min), Math.min(parseFloat(zoomSlider.max), currentZoom));
+
+                // TODO: Implement zoom towards mouse cursor later if desired
+                // For now, it zooms towards the center
+
+                zoomSlider.value = currentZoom;
+                zoomValSpan.textContent = currentZoom.toFixed(2);
+                updateSliderFill(zoomSlider);
+                if (!isRunning) drawStaticSpirograph();
             }
 
             canvas.addEventListener('mousedown', onPanStart);
             canvas.addEventListener('mousemove', onPanMove);
             canvas.addEventListener('mouseup', onPanEnd);
             canvas.addEventListener('mouseleave', onPanEnd);
-            canvas.addEventListener('touchstart', onPanStart, { passive: false });
-            canvas.addEventListener('touchmove', onPanMove, { passive: false });
+            canvas.addEventListener('touchstart', onPanStart, { passive: false }); // passive: false to allow preventDefault
+            canvas.addEventListener('touchmove', onPanMove, { passive: false });  // passive: false to allow preventDefault
             canvas.addEventListener('touchend', onPanEnd);
             canvas.addEventListener('touchcancel', onPanEnd);
+            canvas.addEventListener('wheel', handleMouseWheelZoom, { passive: false }); // For mouse wheel zoom
 
 
             simBgColorPicker.addEventListener('input', (e) => { document.documentElement.style.setProperty('--sim-background-color', e.target.value); updateDynamicTheme(); });
