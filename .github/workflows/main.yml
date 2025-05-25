@@ -1,0 +1,139 @@
+name: Deploy to iFastNet via Git Push (with Passphrase via Expect - Debug)
+
+on:
+  push:
+    branches:
+      - main  # Or whatever branch you want to deploy from
+
+jobs:
+  push-to-ifastnet:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code from GitHub
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history so we can push correctly
+
+      - name: Install expect
+        run: sudo apt-get update && sudo apt-get install -y expect
+
+      - name: Setup SSH Agent and Add Key with Passphrase
+        env:
+          SSH_PRIVATE_KEY_CONTENT: ${{ secrets.IFASTNET }}
+          SSH_KEY_PASSPHRASE: ${{ secrets.IFASTNET_PASS }}
+        run: |
+          echo "Starting ssh-agent..."
+          eval "$(ssh-agent -s)"
+
+          SSH_DIR="$HOME/.ssh"
+          KEY_FILE_PATH="$SSH_DIR/ifastnet_action_key"
+
+          echo "Creating private key file at $KEY_FILE_PATH..."
+          mkdir -p "$SSH_DIR"
+          echo "$SSH_PRIVATE_KEY_CONTENT" > "$KEY_FILE_PATH"
+          chmod 600 "$KEY_FILE_PATH"
+
+          if [ ! -f "$KEY_FILE_PATH" ]; then
+            echo "ERROR: Private key file was not created at $KEY_FILE_PATH"
+            ls -la "$SSH_DIR" # List directory contents for debugging
+            exit 1
+          fi
+          echo "Private key file created successfully."
+          
+          # DEBUG: Uncomment to see parts of the key. CAUTION: Exposes key data in logs. Remove after debugging.
+          # echo "First 3 lines of the key file:"
+          # head -n 3 "$KEY_FILE_PATH"
+          # echo "Last 3 lines of the key file:"
+          # tail -n 3 "$KEY_FILE_PATH"
+
+          echo "Attempting to add key to ssh-agent with expect..."
+          # Ensure SSH_KEY_PASSPHRASE is not empty if it's expected for an encrypted key
+          if [ -z "$SSH_KEY_PASSPHRASE" ]; then
+            echo "Warning: SSH_KEY_PASSPHRASE environment variable is empty. Assuming key is not passphrase protected or passphrase is not needed by ssh-add here."
+            # If you are sure the key IS passphrase protected, you might want to 'exit 1' here
+            # if the SSH_KEY_PASSPHRASE secret is mandatory.
+          fi
+
+          # Prepare the expect script content
+          EXPECT_SCRIPT=$(cat <<EOF
+          set timeout 10
+          # For debugging expect itself
+          # exp_internal 1
+
+          spawn ssh-add "$KEY_FILE_PATH"
+          expect {
+            "Enter passphrase for $KEY_FILE_PATH:" {
+              send "$SSH_KEY_PASSPHRASE\r"
+              # After sending passphrase, expect either success (eof) or failure
+              expect {
+                "Bad passphrase, try again for $KEY_FILE_PATH:" {
+                  puts "ERROR_EXPECT: Bad passphrase supplied to ssh-add."
+                  exit 1
+                }
+                eof {
+                  # This is the ideal path after a correct passphrase
+                  puts "EXPECT_DEBUG: ssh-add finished after passphrase was sent."
+                }
+                timeout {
+                  puts "ERROR_EXPECT: Timeout after sending passphrase, ssh-add may have hung or passphrase was incorrect."
+                  exit 1
+                }
+              }
+            }
+            "Identity added: $KEY_FILE_PATH" {
+              # This means ssh-add successfully added the key, possibly without needing the passphrase prompt
+              # (e.g., if the key wasn't actually encrypted, or agent handled it differently)
+              puts "EXPECT_DEBUG: ssh-add reported 'Identity added' (key might be unencrypted or agent handled passphrase)."
+            }
+            eof {
+              # This means ssh-add exited without explicitly matching "Enter passphrase..." or "Identity added..."
+              # This could happen if the key is unencrypted and added silently, or if it failed before prompting.
+              puts "EXPECT_DEBUG: ssh-add reached eof without specific prompts (check ssh-add -l next)."
+            }
+            timeout {
+              puts "ERROR_EXPECT: Timeout waiting for initial ssh-add prompt (e.g., 'Enter passphrase' or 'Identity added' or eof)."
+              exit 1
+            }
+          }
+          EOF
+          )
+
+          # Run expect with its own debugging output (-d) and the script
+          echo "$EXPECT_SCRIPT" | expect -d
+
+          echo "Verifying if key was added to agent..."
+          ssh-add -l
+          if [ $? -ne 0 ]; then
+            echo "ERROR: 'ssh-add -l' reported an error or no identities. Key not added successfully to agent."
+            # Optionally, for extreme debugging, cat the key file again to ensure it's what you think it is.
+            # echo "Content of key file that failed to load:"
+            # cat "$KEY_FILE_PATH" # SENSITIVE - REMOVE AFTER DEBUGGING
+            exit 1
+          else
+            echo "SUCCESS: Key successfully added to agent and verified with ssh-add -l."
+          fi
+
+      - name: Create known_hosts file
+        env:
+          KNOWN_HOSTS_CONTENT: ${{ secrets.IFASTNET_KNOWN_HOSTS }}
+        run: |
+          SSH_DIR="$HOME/.ssh"
+          mkdir -p "$SSH_DIR"
+          echo "$KNOWN_HOSTS_CONTENT" > "$SSH_DIR/known_hosts"
+          chmod 600 "$SSH_DIR/known_hosts"
+
+      - name: Configure Git User
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+
+      - name: Add iFastNet as a remote
+        run: |
+          git remote remove ifastnet || true # Avoid error if remote already exists
+          git remote add ifastnet ssh://kreftus@kreft.us:27015/home/kreftus/gitcode
+
+      - name: Push to iFastNet
+        run: |
+          echo "Attempting to push to iFastNet..."
+          git push ifastnet main --force
+          echo "Push command executed."
