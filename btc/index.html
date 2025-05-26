@@ -519,9 +519,8 @@
             const year = d.getFullYear().toString().slice(-2);
             const hours = padZero(d.getHours());
             const minutes = padZero(d.getMinutes());
-            const seconds = padZero(d.getSeconds());
 
-            let message = `Updated: ${day}${month}${year}@${hours}:${minutes}:${seconds}`;
+            let message = `Updated: ${day}${month}${year}@${hours}:${minutes}`;
 
             const now = Date.now();
             const diffMs = now - lastDataFetchTimestamp;
@@ -910,10 +909,16 @@
             } else {
                 fetchData();
             }
-            // Initial call and start interval for the "Updated: X ago" message
-            updateLastUpdatedMessage();
+            // Initial call to set the placeholder or initial timestamp if data is fetched quickly
+            updateLastUpdatedMessage(); 
+
             if (updateTimestampInterval) clearInterval(updateTimestampInterval); // Clear existing if any
-            updateTimestampInterval = setInterval(updateLastUpdatedMessage, 60 * 1000); // Update every minute
+
+            // Schedule the first update after 62 seconds, then subsequent updates every 60 seconds
+            setTimeout(() => {
+                updateLastUpdatedMessage(); // First update of "ago"
+                updateTimestampInterval = setInterval(updateLastUpdatedMessage, 60 * 1000); // Subsequent updates
+            }, 62 * 1000);
 
 
             if ('serviceWorker' in navigator) {
