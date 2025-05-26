@@ -872,7 +872,7 @@ function endGame(){
                         gameResultText.style.color = winnerColor;
                     }
                     if(recordText) { 
-                        recordText.textContent = `Player 1 (Length: ${p1Length}): ${p1Wins} - ${opponentName} (Length: ${opponentLength}): ${p2Wins}`; 
+                        recordText.innerHTML = `Player 1 (Length: ${p1Length}): ${p1Wins}<br>${opponentName} (Length: ${opponentLength}): ${p2Wins}`; 
                     }
                 }
                 
