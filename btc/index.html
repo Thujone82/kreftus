@@ -57,8 +57,9 @@
 
         header h1 {
             margin: 0;
+            transition: color 0.3s ease; /* Smooth transition for accent color change */
             font-size: 1.8em;
-            color: #a0a0ff;
+            color: #a0a0ff; /* Default, will be overridden by JS */
         }
 
         .action-buttons button {
@@ -82,7 +83,7 @@
             justify-content: space-between;
             padding: 10px 0;
             border-bottom: 1px solid #2a2a3b;
-            font-size: 1.65em; /* Increased by 50% from 1.1em */
+            font-size: 1.65em; 
         }
         .data-item:last-child {
             border-bottom: none;
@@ -99,7 +100,7 @@
             flex-basis: 55%;
             text-align: left;
             display: flex;
-            align-items: baseline; /* Aligns value and change nicely */
+            align-items: baseline; 
         }
         
         .data-item .value {
@@ -129,7 +130,7 @@
         /* Chart Controls Styling */
         .chart-controls {
             display: flex;
-            justify-content: flex-end; /* Align dropdown to the right */
+            justify-content: flex-end; 
             margin-bottom: 10px;
         }
         .chart-controls select {
@@ -143,15 +144,14 @@
         .chart-container {
             margin-top: 25px;
             width: 100%;
-            /* aspect-ratio: 16 / 7; You can use aspect-ratio if widely supported, or set a fixed height */
-            height: 250px; /* Or a responsive height, e.g., 40vh */
-            background-color: #2a2a3b; /* Slightly different background for the chart area */
+            height: 250px; 
+            background-color: #2a2a3b; 
             border-radius: 6px;
             padding: 10px; box-sizing: border-box;
         }
         /* Configuration Modal */
         .modal {
-            display: none; /* Hidden by default */
+            display: none; 
             position: fixed;
             z-index: 1000;
             left: 0;
@@ -176,7 +176,7 @@
         
         .modal-content h2 {
             margin-top: 0;
-            color: #a0a0ff;
+            color: #a0a0ff; /* Will be updated by JS if accent color changes */
             border-bottom: 1px solid #444;
             padding-bottom: 10px;
             margin-bottom: 20px;
@@ -190,7 +190,8 @@
         }
 
         .modal-content input[type="text"],
-        .modal-content input[type="number"] {
+        .modal-content input[type="number"],
+        .modal-content input[type="color"] { /* Added color input styling */
             width: calc(100% - 20px);
             padding: 10px;
             margin-bottom: 10px;
@@ -199,6 +200,10 @@
             color: #e0e0e0;
             border-radius: 5px;
             box-sizing: border-box;
+        }
+        .modal-content input[type="color"] { /* Specific for color picker height */
+             height: 40px; 
+             padding: 5px; /* Adjust padding for color picker */
         }
          .modal-content input[type="number"]::-webkit-inner-spin-button,
          .modal-content input[type="number"]::-webkit-outer-spin-button {
@@ -239,10 +244,10 @@
         @media (max-width: 480px) {
             body { padding: 10px; }
             .container { padding: 15px; }
-            header h1 { font-size: 1.3em; } /* Adjusted slightly to accommodate logo */
+            header h1 { font-size: 1.3em; } 
             .action-buttons button { padding: 6px 10px; font-size: 0.8em; }
-            .data-item { font-size: 1.5em; flex-direction: column; align-items: flex-start; } /* Increased by 50% from 1em */
-            .data-item .label { text-align: left; margin-bottom: 3px; font-size: 0.7em; flex-basis: auto;} /* Adjusted relative size for new parent font-size */
+            .data-item { font-size: 1.5em; flex-direction: column; align-items: flex-start; } 
+            .data-item .label { text-align: left; margin-bottom: 3px; font-size: 0.7em; flex-basis: auto;} 
             .data-item .value-container { flex-basis: auto; }
             .modal-content { padding: 20px; }
         }
@@ -312,7 +317,7 @@
 
     <div id="configModal" class="modal">
         <div class="modal-content">
-            <h2>Configuration</h2>
+            <h2 id="configModalTitle">Configuration</h2>
             <label for="apiKey">LiveCoinWatch API Key:</label>
             <input type="text" id="apiKey" placeholder="Enter your API Key">
 
@@ -322,6 +327,9 @@
             <label for="userTotalCost">Total Cost for My BTC (USD, Optional):</label>
             <input type="number" id="userTotalCost" placeholder="e.g., 10000" step="any">
             
+            <label for="accentColorPicker">Accent Color:</label>
+            <input type="color" id="accentColorPicker">
+
             <div class="modal-buttons">
                 <button id="cancelConfigButton" class="cancel">Cancel</button>
                 <button id="saveConfigButton">Save</button>
@@ -333,7 +341,8 @@
         const API_BASE_URL = "https://api.livecoinwatch.com";
         const COIN_CODE = "BTC";
         const CURRENCY = "USD";
-        const ATH_PROXIMITY_PERCENT = 0.05;
+        const ATH_PROXIMITY_PERCENT = 0.05; // For data item color
+        const ATH_CHART_SHADE_THRESHOLD_PERCENT = 0.95; // For chart shading
         const HISTORICAL_WINDOW_MINUTES = 5;
 
         // DOM Elements
@@ -353,26 +362,36 @@
         const priceChartContainer = document.getElementById('priceChartContainer');
 
         const configModalEl = document.getElementById('configModal');
+        const configModalTitleEl = document.getElementById('configModalTitle');
         const apiKeyInput = document.getElementById('apiKey');
         const userBtcAmountInput = document.getElementById('userBtcAmount');
         const userTotalCostInput = document.getElementById('userTotalCost');
+        const accentColorPickerEl = document.getElementById('accentColorPicker');
 
+        const DEFAULT_ACCENT_COLOR = '#a0a0ff';
         let config = {
             apiKey: '',
             userBtcAmount: 0.0,
             userTotalCost: 0.0,
-            selectedTimeframe: '24h' // Default timeframe
+            selectedTimeframe: '24h',
+            accentColor: DEFAULT_ACCENT_COLOR
         };
-
+        
         function loadConfig() {
             const storedConfig = localStorage.getItem('btcTrackConfig');
             if (storedConfig) {
-                config = JSON.parse(storedConfig);
+                const parsedConfig = JSON.parse(storedConfig);
+                // Merge stored config with defaults to ensure all keys exist
+                config = { ...config, ...parsedConfig }; 
+                
                 apiKeyInput.value = config.apiKey || '';
                 userBtcAmountInput.value = config.userBtcAmount || '';
                 userTotalCostInput.value = config.userTotalCost || '';
-                config.selectedTimeframe = config.selectedTimeframe || '24h'; // Ensure default if not set
-                timeframeSelectEl.value = config.selectedTimeframe;
+                timeframeSelectEl.value = config.selectedTimeframe || '24h';
+                accentColorPickerEl.value = config.accentColor || DEFAULT_ACCENT_COLOR;
+            } else {
+                // If no stored config, ensure picker shows default
+                accentColorPickerEl.value = DEFAULT_ACCENT_COLOR;
             }
         }
 
@@ -380,6 +399,7 @@
             config.apiKey = apiKeyInput.value.trim();
             config.userBtcAmount = parseFloat(userBtcAmountInput.value) || 0.0;
             config.userTotalCost = parseFloat(userTotalCostInput.value) || 0.0;
+            config.accentColor = accentColorPickerEl.value || DEFAULT_ACCENT_COLOR;
             // selectedTimeframe is saved via its own event listener
             localStorage.setItem('btcTrackConfig', JSON.stringify(config));
         }
@@ -390,7 +410,52 @@
                 apiKeyInput.value = config.apiKey || '';
                 userBtcAmountInput.value = config.userBtcAmount || '';
                 userTotalCostInput.value = config.userTotalCost || '';
+                accentColorPickerEl.value = config.accentColor || DEFAULT_ACCENT_COLOR;
             }
+        }
+        
+        function applyAccentColor() {
+            const accent = config.accentColor || DEFAULT_ACCENT_COLOR;
+            document.querySelector('header h1').style.color = accent;
+            configModalTitleEl.style.color = accent; // Also color modal title
+            // Chart line color will be applied directly in drawPriceChart
+        }
+
+        function hexToRgb(hex) {
+            if (hex.startsWith('#')) {
+                hex = hex.slice(1);
+            }
+            let r = 0, g = 0, b = 0;
+            if (hex.length === 3) { // #RGB shorthand
+                r = parseInt(hex[0] + hex[0], 16);
+                g = parseInt(hex[1] + hex[1], 16);
+                b = parseInt(hex[2] + hex[2], 16);
+            } else if (hex.length === 6) { // #RRGGBB
+                r = parseInt(hex.substring(0, 2), 16);
+                g = parseInt(hex.substring(2, 4), 16);
+                b = parseInt(hex.substring(4, 6), 16);
+            }
+            return { r, g, b };
+        }
+
+        function rgbToHsl(r, g, b) {
+            r /= 255; g /= 255; b /= 255;
+            const max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h, s, l = (max + min) / 2;
+
+            if (max === min) {
+                h = s = 0; // achromatic
+            } else {
+                const d = max - min;
+                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                switch (max) {
+                    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                    case g: h = (b - r) / d + 2; break;
+                    case b: h = (r - g) / d + 4; break;
+                }
+                h /= 6;
+            }
+            return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
         }
 
         function setStatus(message, type = 'loading') {
@@ -400,12 +465,12 @@
         }
 
         function formatCurrency(value, fractionDigits = 2) {
-            if (typeof value !== 'number') return '$----.--';
+            if (typeof value !== 'number' || isNaN(value)) return '$----.--';
             return value.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits });
         }
         
         function formatNumber(value, fractionDigits = 0) {
-            if (typeof value !== 'number') return '---';
+            if (typeof value !== 'number' || isNaN(value)) return '---';
             return value.toLocaleString('en-US', { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits });
         }
 
@@ -417,7 +482,7 @@
         }
         
         function applyAthColor(element, currentPrice, athPrice) {
-            if (currentPrice >= (athPrice * (1 - ATH_PROXIMITY_PERCENT))) {
+            if (athPrice && currentPrice >= (athPrice * (1 - ATH_PROXIMITY_PERCENT))) {
                  element.classList.remove('green', 'red', 'default-color');
                  element.classList.add('magenta');
             }
@@ -446,6 +511,7 @@
                     throw new Error(`API Error (${currentResponse.status}): ${errorData.message || currentResponse.statusText}`);
                 }
                 const currentData = await currentResponse.json();
+                window.lastFetchedCurrentData = currentData; // Store for live chart redraw
 
                 if (!currentData || typeof currentData.rate === 'undefined') {
                     throw new Error("Invalid data received from current API.");
@@ -489,7 +555,6 @@
 
 
                 if (priceDifference24h === null && typeof priceChange24hPercent_API === 'number') {
-                    // Fallback to API's percentage if direct historical lookup failed
                     const priceChangeDecimal = priceChange24hPercent_API / 100;
                     if ((1 + priceChangeDecimal) !== 0) {
                         const estimatedPrice24hAgo = bitcoinPrice / (1 + priceChangeDecimal);
@@ -498,7 +563,6 @@
                     }
                 }
                 
-                // Fetch 24h historical data for the chart
                 let historicalChartData = null;
                 try {
                     let historyStartMs;
@@ -510,11 +574,10 @@
                     } else if (config.selectedTimeframe === '7d') {
                         historyStartMs = historyEndMs - (7 * 24 * 60 * 60 * 1000);
                     } else if (config.selectedTimeframe === '1m') {
-                        // Approximate 1 month
                         historyStartMs = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()).getTime();
                     } else if (config.selectedTimeframe === '1y') {
                         historyStartMs = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).getTime();
-                    } else { // Default to 24h
+                    } else { 
                         historyStartMs = historyEndMs - (24 * 60 * 60 * 1000);
                     }
 
@@ -523,11 +586,12 @@
                     if (chartHistoryResponse.ok) {
                         const chartData = await chartHistoryResponse.json();
                         historicalChartData = chartData.history || [];
+                        window.lastFetchedHistoricalChartData = historicalChartData; // Store for live chart redraw
                     } else { console.warn("Chart historical data fetch failed, status:", chartHistoryResponse.status); }
                 } catch (chartHistError) { console.warn("Error fetching chart historical data:", chartHistError); }
 
                 updateDisplay(currentData, priceDifference24h, historicalChartData);
-                setStatus(''); // Clear status
+                setStatus(''); 
 
             } catch (error) {
                 console.error("Fetch Data Error:", error);
@@ -538,9 +602,8 @@
         function updateDisplay(data, priceDifference24h, historicalChartData) {
             const btcPrice = data.rate;
             
-            // Bitcoin Price
             btcPriceEl.textContent = formatCurrency(btcPrice);
-            applyColor(btcPriceEl, priceDifference24h !== null ? priceDifference24h : data.delta.day); // Color based on actual diff if available
+            applyColor(btcPriceEl, priceDifference24h !== null ? priceDifference24h : data.delta.day); 
             if (data.allTimeHighUSD) {
                 applyAthColor(btcPriceEl, btcPrice, data.allTimeHighUSD);
             }
@@ -553,22 +616,19 @@
                 applyColor(btcChange24hEl, data.delta.day);
             }
 
-
-            // My BTC Value & P/L
             if (config.userBtcAmount > 0) {
                 myBtcValueRowEl.style.display = 'flex';
                 const myBtcVal = config.userBtcAmount * btcPrice;
                 myBtcValueEl.textContent = formatCurrency(myBtcVal);
-                applyColor(myBtcValueEl, priceDifference24h !== null ? priceDifference24h : data.delta.day); // Color based on BTC's 24h trend
+                applyColor(myBtcValueEl, priceDifference24h !== null ? priceDifference24h : data.delta.day); 
 
                 if (priceDifference24h !== null) {
                     const myBtcValChange24h = config.userBtcAmount * priceDifference24h;
                     myBtcValueChange24hEl.textContent = `[${myBtcValChange24h >= 0 ? '+' : ''}${formatCurrency(myBtcValChange24h)}]`;
                     applyColor(myBtcValueChange24hEl, myBtcValChange24h);
                 } else {
-                     myBtcValueChange24hEl.textContent = ''; // Or show percentage based change
+                     myBtcValueChange24hEl.textContent = ''; 
                 }
-
 
                 if (config.userTotalCost > 0) {
                     profitLossRowEl.style.display = 'flex';
@@ -579,7 +639,7 @@
                     applyColor(profitLossValueEl, profitLoss);
                     
                     profitLossPercentEl.textContent = `(${profitLossPct >= 0 ? '+' : ''}${formatNumber(profitLossPct, 2)}%)`;
-                    applyColor(profitLossPercentEl, profitLoss); // Color based on P/L itself
+                    applyColor(profitLossPercentEl, profitLoss); 
                 } else {
                     profitLossRowEl.style.display = 'none';
                 }
@@ -588,44 +648,53 @@
                 profitLossRowEl.style.display = 'none';
             }
 
-            // Volume & Market Cap
             volume24hEl.textContent = formatCurrency(data.volume, 0);
-            applyColor(volume24hEl, data.delta.day); // Color based on BTC's 24h price trend
+            applyColor(volume24hEl, data.delta.day); 
             
             marketCapEl.textContent = formatCurrency(data.cap, 0);
-            applyColor(marketCapEl, data.delta.day); // Color based on BTC's 24h price trend
+            applyColor(marketCapEl, data.delta.day); 
 
             if (historicalChartData && historicalChartData.length > 0) {
-                drawPriceChart(historicalChartData, config.selectedTimeframe);
+                drawPriceChart(historicalChartData, config.selectedTimeframe, data.allTimeHighUSD, config.accentColor || DEFAULT_ACCENT_COLOR);
             }
         }
 
-        // Event Listeners
         document.getElementById('refreshButton').addEventListener('click', fetchData);
         document.getElementById('configButton').addEventListener('click', () => toggleConfigModal(true));
         document.getElementById('cancelConfigButton').addEventListener('click', () => toggleConfigModal(false));
         document.getElementById('saveConfigButton').addEventListener('click', () => {
             saveConfig();
             toggleConfigModal(false);
+            applyAccentColor(); 
             if (config.apiKey) {
-                fetchData(); // Fetch data after saving new config
+                fetchData(); 
             } else {
                 setStatus('API Key is required to fetch data.', 'error');
             }
         });
         timeframeSelectEl.addEventListener('change', (event) => {
             config.selectedTimeframe = event.target.value;
-            localStorage.setItem('btcTrackConfig', JSON.stringify(config)); // Save timeframe selection
-            fetchData();
+            localStorage.setItem('btcTrackConfig', JSON.stringify(config)); 
+            fetchData(); 
+        });
+        accentColorPickerEl.addEventListener('input', () => { 
+            config.accentColor = accentColorPickerEl.value;
+            applyAccentColor();
+            if (document.getElementById('priceChartCanvas').offsetParent !== null) { 
+                 const lastFetchedData = window.lastFetchedCurrentData; 
+                 const lastFetchedChartData = window.lastFetchedHistoricalChartData; 
+                 if(lastFetchedData && lastFetchedChartData) {
+                    drawPriceChart(lastFetchedChartData, config.selectedTimeframe, lastFetchedData.allTimeHighUSD, config.accentColor || DEFAULT_ACCENT_COLOR);
+                 }
+            }
         });
 
-        function drawPriceChart(history, timeframe) {
+        function drawPriceChart(history, timeframe, allTimeHighUSD, accentColor) {
             if (!priceChartCanvas) return;
             const ctx = priceChartCanvas.getContext('2d');
             
-            // Responsive canvas sizing
-            priceChartCanvas.width = priceChartContainer.clientWidth - 20; // Subtract padding
-            priceChartCanvas.height = priceChartContainer.clientHeight - 20; // Subtract padding
+            priceChartCanvas.width = priceChartContainer.clientWidth - 20; 
+            priceChartCanvas.height = priceChartContainer.clientHeight - 20; 
 
             ctx.clearRect(0, 0, priceChartCanvas.width, priceChartCanvas.height);
 
@@ -648,35 +717,32 @@
             const timeRange = endTime - startTime;
             let priceRange = maxPrice - minPrice;
 
-            if (priceRange === 0) { // Handle flat line case
-                priceRange = maxPrice * 0.1 || 1; // Add a small range for visibility
+            if (priceRange === 0) { 
+                priceRange = maxPrice * 0.1 || 1; 
             }
 
             const padding = { top: 20, right: 30, bottom: 40, left: 65 };
             const chartWidth = priceChartCanvas.width - padding.left - padding.right;
             const chartHeight = priceChartCanvas.height - padding.top - padding.bottom;
 
-            // --- Draw Axes ---
+            const athThresholdChart = allTimeHighUSD ? allTimeHighUSD * ATH_CHART_SHADE_THRESHOLD_PERCENT : Infinity;
+            
             ctx.strokeStyle = '#555';
             ctx.lineWidth = 1;
-            // Y-axis
             ctx.beginPath();
             ctx.moveTo(padding.left, padding.top);
             ctx.lineTo(padding.left, padding.top + chartHeight);
             ctx.stroke();
-            // X-axis
             ctx.beginPath();
             ctx.moveTo(padding.left, padding.top + chartHeight);
             ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
             ctx.stroke();
 
-            // --- Draw Labels ---
             ctx.fillStyle = '#aaa';
             ctx.font = '10px Arial';
             ctx.textAlign = 'right';
             ctx.textBaseline = 'middle';
 
-            // Y-axis labels (e.g., 3 labels: min, mid, max)
             const yLabelCount = 3;
             for (let i = 0; i < yLabelCount; i++) {
                 const value = minPrice + (priceRange / (yLabelCount -1)) * i;
@@ -684,48 +750,86 @@
                 ctx.fillText(formatCurrency(value,0), padding.left - 8, y);
             }
 
-            // X-axis labels
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-
-            let xLabelStart = "Start";
-            let xLabelMid = "Mid";
-            let xLabelEnd = "Now";
-
-            if (timeframe === '24h') {
-                xLabelStart = '24h ago'; xLabelMid = '12h ago';
-            } else if (timeframe === '7d') {
-                xLabelStart = '7d ago'; xLabelMid = '~3.5d ago';
-            } else if (timeframe === '1m') {
-                xLabelStart = '1mo ago'; xLabelMid = '~15d ago';
-            } else if (timeframe === '1y') {
-                xLabelStart = '1y ago'; xLabelMid = '~6mo ago';
-            }
-            // More sophisticated date formatting for longer timeframes
+            let xLabelStart = "Start", xLabelMid = "Mid", xLabelEnd = "Now";
+            if (timeframe === '24h') { xLabelStart = '24h ago'; xLabelMid = '12h ago'; }
+            else if (timeframe === '7d') { xLabelStart = '7d ago'; xLabelMid = '~3.5d ago'; }
+            else if (timeframe === '1m') { xLabelStart = '1mo ago'; xLabelMid = '~15d ago'; }
+            else if (timeframe === '1y') { xLabelStart = '1y ago'; xLabelMid = '~6mo ago'; }
             if (timeframe === '1m' || timeframe === '1y') {
-                const startDate = new Date(startTime);
-                const midDate = new Date(startTime + timeRange / 2);
+                const startDate = new Date(startTime); const midDate = new Date(startTime + timeRange / 2);
                 xLabelStart = `${startDate.toLocaleString('default', { month: 'short' })} '${startDate.getFullYear().toString().slice(-2)}`;
                 xLabelMid = `${midDate.toLocaleString('default', { month: 'short' })} '${midDate.getFullYear().toString().slice(-2)}`;
             }
-
             ctx.fillText(xLabelStart, padding.left, padding.top + chartHeight + 8);
             ctx.fillText(xLabelMid, padding.left + chartWidth / 2, padding.top + chartHeight + 8);
             ctx.fillText(xLabelEnd, padding.left + chartWidth, padding.top + chartHeight + 8);
 
-            // --- Draw Price Line ---
-            ctx.strokeStyle = '#a0a0ff'; // Chart line color
+            // ATH Proximity Shading
+            if (allTimeHighUSD && maxPrice > athThresholdChart) {
+                ctx.beginPath();
+                let firstPoint = true;
+                let lastXAbove = -1;
+
+                const thresholdYCoord = padding.top + chartHeight - (((Math.min(maxPrice, athThresholdChart) - minPrice) / priceRange) * chartHeight);
+
+                // Start path at the beginning of the chart on the threshold line if first point is above
+                const firstRate = history[0].rate;
+                const firstX = padding.left;
+                if (firstRate >= athThresholdChart) {
+                    ctx.moveTo(firstX, thresholdYCoord);
+                    ctx.lineTo(firstX, padding.top + chartHeight - (((firstRate - minPrice) / priceRange) * chartHeight));
+                    lastXAbove = firstX;
+                }
+
+
+                for (let i = 0; i < history.length; i++) {
+                    const point = history[i];
+                    const x = padding.left + ((point.date - startTime) / timeRange * chartWidth);
+                    const y = padding.top + chartHeight - (((point.rate - minPrice) / priceRange) * chartHeight);
+
+                    if (point.rate >= athThresholdChart) {
+                        if (i > 0 && history[i-1].rate < athThresholdChart) { // Crossed threshold from below
+                             // If first point was below threshold, start new segment from threshold
+                            if (lastXAbove === -1) ctx.moveTo(x, thresholdYCoord);
+                            else ctx.lineTo(x, thresholdYCoord); // Continue along threshold
+                        }
+                        ctx.lineTo(x, y);
+                        lastXAbove = x;
+                    } else if (lastXAbove !== -1) { // Was above, now below
+                        ctx.lineTo(lastXAbove, thresholdYCoord); // Draw down to threshold from last point above
+                        // ctx.lineTo(x, thresholdYCoord); // Draw along threshold to current x (which is below) - this might be too much
+                        lastXAbove = -1; // Reset
+                    }
+                }
+
+                if (lastXAbove !== -1) { // If the line ends above threshold
+                    ctx.lineTo(lastXAbove, thresholdYCoord);
+                }
+                
+                ctx.closePath(); 
+                
+                const rgbAccent = hexToRgb(accentColor);
+                const hslAccent = rgbToHsl(rgbAccent.r, rgbAccent.g, rgbAccent.b);
+                
+                const shadeLightness = Math.min(90, hslAccent.l + 30); // Increase lightness, cap at 90
+                const shadeAlpha = 0.2; 
+                const athShadeColor = `hsla(${hslAccent.h}, ${hslAccent.s}%, ${shadeLightness}%, ${shadeAlpha})`;
+                ctx.fillStyle = athShadeColor;
+                ctx.fill();
+            }
+
+
+            // Draw Price Line
+            ctx.strokeStyle = accentColor; 
             ctx.lineWidth = 1.5;
             ctx.beginPath();
-
             history.forEach((point, index) => {
                 const x = padding.left + ((point.date - startTime) / timeRange * chartWidth);
                 const y = padding.top + chartHeight - (((point.rate - minPrice) / priceRange) * chartHeight);
-                if (index === 0) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
+                if (index === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
             });
             ctx.stroke();
         }
@@ -734,18 +838,20 @@
         window.addEventListener('resize', () => {
             clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(() => {
-                // Re-fetch or just re-draw with existing data if available
-                // For simplicity, we'll assume data is still valid and just redraw
-                // A more robust solution might re-fetch if data is stale or dimensions change drastically
-                if (config.apiKey) { // Only attempt to redraw if configured
-                     fetchData(); // Re-fetch will also trigger redraw
+                if (config.apiKey) { 
+                     fetchData(); 
                 }
-            }, 250); // Debounce resize event
+            }, 250); 
         });
+
+        // Store last fetched data for live chart redraw on accent color change
+        window.lastFetchedCurrentData = null;
+        window.lastFetchedHistoricalChartData = null;
 
         // Initial Load
         document.addEventListener('DOMContentLoaded', () => {
             loadConfig();
+            applyAccentColor();
             if (!config.apiKey) {
                 setStatus('Welcome! Please configure your API Key to get started.', 'loading');
                 toggleConfigModal(true);
@@ -753,7 +859,6 @@
                 fetchData();
             }
 
-            // Register Service Worker
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.register('sw.js')
                     .then(registration => console.log('Service Worker registered with scope:', registration.scope))
