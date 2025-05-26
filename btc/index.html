@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC Track</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#222230">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #1a1a2b;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: calc(100vh - 30px);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background-color: #222230;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            box-sizing: border-box;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #333344;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.8em;
+            color: #a0a0ff;
+        }
+
+        .action-buttons button {
+            background-color: #4a4a6a;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-left: 10px;
+            transition: background-color 0.2s;
+        }
+
+        .action-buttons button:hover {
+            background-color: #5a5a7a;
+        }
+
+        .data-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #2a2a3b;
+            font-size: 1.1em;
+        }
+        .data-item:last-child {
+            border-bottom: none;
+        }
+
+        .data-item .label {
+            color: #c0c0c0;
+            flex-basis: 45%;
+            text-align: right;
+            padding-right: 10px;
+        }
+
+        .data-item .value-container {
+            flex-basis: 55%;
+            text-align: left;
+            display: flex;
+            align-items: baseline; /* Aligns value and change nicely */
+        }
+        
+        .data-item .value {
+            font-weight: bold;
+        }
+
+        .data-item .change {
+            font-size: 0.9em;
+            margin-left: 8px;
+            opacity: 0.8;
+        }
+
+        .status-message {
+            text-align: center;
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .status-message.loading {
+            color: #a0a0ff;
+        }
+        .status-message.error {
+            background-color: #502020;
+            color: #ffaaaa;
+        }
+
+        /* Configuration Modal */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.6);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: #2a2a3b;
+            margin: auto;
+            padding: 25px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        }
+        
+        .modal-content h2 {
+            margin-top: 0;
+            color: #a0a0ff;
+            border-bottom: 1px solid #444;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .modal-content label {
+            display: block;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            color: #c0c0c0;
+        }
+
+        .modal-content input[type="text"],
+        .modal-content input[type="number"] {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #444;
+            background-color: #333344;
+            color: #e0e0e0;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+         .modal-content input[type="number"]::-webkit-inner-spin-button,
+         .modal-content input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .modal-content input[type="number"] {
+            -moz-appearance: textfield; /* Firefox */
+        }
+
+        .modal-buttons {
+            margin-top: 20px;
+            text-align: right;
+        }
+
+        .modal-buttons button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 18px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        .modal-buttons button.cancel {
+            background-color: #777;
+        }
+        .modal-buttons button:hover {
+            opacity: 0.9;
+        }
+
+        /* Color Indicators */
+        .green { color: #4CAF50; }
+        .red { color: #F44336; }
+        .magenta { color: #E91E63; } /* For ATH proximity */
+        .default-color { color: #e0e0e0; }
+
+        @media (max-width: 480px) {
+            body { padding: 10px; }
+            .container { padding: 15px; }
+            header h1 { font-size: 1.5em; }
+            .action-buttons button { padding: 6px 10px; font-size: 0.8em; }
+            .data-item { font-size: 1em; flex-direction: column; align-items: flex-start; }
+            .data-item .label { text-align: left; margin-bottom: 3px; font-size: 0.9em; flex-basis: auto;}
+            .data-item .value-container { flex-basis: auto; }
+            .modal-content { padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>BTC Track</h1>
+            <div class="action-buttons">
+                <button id="refreshButton">Refresh</button>
+                <button id="configButton">Config</button>
+            </div>
+        </header>
+
+        <div id="dataDisplay">
+            <div class="data-item">
+                <span class="label">Bitcoin (USD):</span>
+                <div class="value-container">
+                    <span class="value default-color" id="btcPrice">$----.--</span>
+                    <span class="change default-color" id="btcChange24h">[$-.--]</span>
+                </div>
+            </div>
+            <div class="data-item" id="myBtcValueRow" style="display: none;">
+                <span class="label">My BTC Value:</span>
+                <div class="value-container">
+                    <span class="value default-color" id="myBtcValue">$----.--</span>
+                    <span class="change default-color" id="myBtcValueChange24h">[$-.--]</span>
+                </div>
+            </div>
+            <div class="data-item" id="profitLossRow" style="display: none;">
+                <span class="label">Profit/Loss:</span>
+                <div class="value-container">
+                    <span class="value default-color" id="profitLossValue">$----.--</span>
+                    <span class="change default-color" id="profitLossPercent">(-.--%)</span>
+                </div>
+            </div>
+            <div class="data-item">
+                <span class="label">24H Volume:</span>
+                <div class="value-container">
+                    <span class="value default-color" id="volume24h">$---,---,---</span>
+                </div>
+            </div>
+            <div class="data-item">
+                <span class="label">Market Cap:</span>
+                <div class="value-container">
+                    <span class="value default-color" id="marketCap">$---,---,---</span>
+                </div>
+            </div>
+        </div>
+        <div id="statusMessage" class="status-message"></div>
+    </div>
+
+    <div id="configModal" class="modal">
+        <div class="modal-content">
+            <h2>Configuration</h2>
+            <label for="apiKey">LiveCoinWatch API Key:</label>
+            <input type="text" id="apiKey" placeholder="Enter your API Key">
+
+            <label for="userBtcAmount">My BTC Amount (Optional):</label>
+            <input type="number" id="userBtcAmount" placeholder="e.g., 0.5" step="any">
+
+            <label for="userTotalCost">Total Cost for My BTC (USD, Optional):</label>
+            <input type="number" id="userTotalCost" placeholder="e.g., 10000" step="any">
+            
+            <div class="modal-buttons">
+                <button id="cancelConfigButton" class="cancel">Cancel</button>
+                <button id="saveConfigButton">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = "https://api.livecoinwatch.com";
+        const COIN_CODE = "BTC";
+        const CURRENCY = "USD";
+        const ATH_PROXIMITY_PERCENT = 0.05;
+        const HISTORICAL_WINDOW_MINUTES = 5;
+
+        // DOM Elements
+        const btcPriceEl = document.getElementById('btcPrice');
+        const btcChange24hEl = document.getElementById('btcChange24h');
+        const myBtcValueRowEl = document.getElementById('myBtcValueRow');
+        const myBtcValueEl = document.getElementById('myBtcValue');
+        const myBtcValueChange24hEl = document.getElementById('myBtcValueChange24h');
+        const profitLossRowEl = document.getElementById('profitLossRow');
+        const profitLossValueEl = document.getElementById('profitLossValue');
+        const profitLossPercentEl = document.getElementById('profitLossPercent');
+        const volume24hEl = document.getElementById('volume24h');
+        const marketCapEl = document.getElementById('marketCap');
+        const statusMessageEl = document.getElementById('statusMessage');
+
+        const configModalEl = document.getElementById('configModal');
+        const apiKeyInput = document.getElementById('apiKey');
+        const userBtcAmountInput = document.getElementById('userBtcAmount');
+        const userTotalCostInput = document.getElementById('userTotalCost');
+
+        let config = {
+            apiKey: '',
+            userBtcAmount: 0.0,
+            userTotalCost: 0.0
+        };
+
+        function loadConfig() {
+            const storedConfig = localStorage.getItem('btcTrackConfig');
+            if (storedConfig) {
+                config = JSON.parse(storedConfig);
+                apiKeyInput.value = config.apiKey || '';
+                userBtcAmountInput.value = config.userBtcAmount || '';
+                userTotalCostInput.value = config.userTotalCost || '';
+            }
+        }
+
+        function saveConfig() {
+            config.apiKey = apiKeyInput.value.trim();
+            config.userBtcAmount = parseFloat(userBtcAmountInput.value) || 0.0;
+            config.userTotalCost = parseFloat(userTotalCostInput.value) || 0.0;
+            localStorage.setItem('btcTrackConfig', JSON.stringify(config));
+        }
+
+        function toggleConfigModal(show) {
+            configModalEl.style.display = show ? 'flex' : 'none';
+            if (show) { // Populate inputs when showing
+                apiKeyInput.value = config.apiKey || '';
+                userBtcAmountInput.value = config.userBtcAmount || '';
+                userTotalCostInput.value = config.userTotalCost || '';
+            }
+        }
+
+        function setStatus(message, type = 'loading') {
+            statusMessageEl.textContent = message;
+            statusMessageEl.className = `status-message ${type}`;
+            statusMessageEl.style.display = message ? 'block' : 'none';
+        }
+
+        function formatCurrency(value, fractionDigits = 2) {
+            if (typeof value !== 'number') return '$----.--';
+            return value.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits });
+        }
+        
+        function formatNumber(value, fractionDigits = 0) {
+            if (typeof value !== 'number') return '---';
+            return value.toLocaleString('en-US', { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits });
+        }
+
+        function applyColor(element, value) {
+            element.classList.remove('green', 'red', 'magenta', 'default-color');
+            if (value > 0) element.classList.add('green');
+            else if (value < 0) element.classList.add('red');
+            else element.classList.add('default-color');
+        }
+        
+        function applyAthColor(element, currentPrice, athPrice) {
+            if (currentPrice >= (athPrice * (1 - ATH_PROXIMITY_PERCENT))) {
+                 element.classList.remove('green', 'red', 'default-color');
+                 element.classList.add('magenta');
+            }
+        }
+
+
+        async function fetchData() {
+            if (!config.apiKey) {
+                setStatus('API Key is not configured. Please set it up.', 'error');
+                toggleConfigModal(true);
+                return;
+            }
+            setStatus('Fetching data...', 'loading');
+
+            const headers = {
+                "Content-Type": "application/json",
+                "x-api-key": config.apiKey
+            };
+
+            try {
+                // Fetch current data
+                const currentDataBody = JSON.stringify({ currency: CURRENCY, code: COIN_CODE, meta: true });
+                const currentResponse = await fetch(`${API_BASE_URL}/coins/single`, { method: 'POST', headers, body: currentDataBody });
+                if (!currentResponse.ok) {
+                    const errorData = await currentResponse.json().catch(() => ({ message: "Unknown API error" }));
+                    throw new Error(`API Error (${currentResponse.status}): ${errorData.message || currentResponse.statusText}`);
+                }
+                const currentData = await currentResponse.json();
+
+                if (!currentData || typeof currentData.rate === 'undefined') {
+                    throw new Error("Invalid data received from current API.");
+                }
+
+                const bitcoinPrice = currentData.rate;
+                const allTimeHighUSD = currentData.allTimeHighUSD;
+                const priceChange24hPercent_API = currentData.delta.day;
+
+                // Fetch historical data for accurate 24h diff
+                let priceDifference24h = null;
+                const targetTimestamp24hAgoMs = Date.now() - (24 * 60 * 60 * 1000);
+                const startTimestampMs = targetTimestamp24hAgoMs - (HISTORICAL_WINDOW_MINUTES * 60 * 1000);
+                const endTimestampMs = targetTimestamp24hAgoMs + (HISTORICAL_WINDOW_MINUTES * 60 * 1000);
+                
+                try {
+                    const historicalBody = JSON.stringify({ currency: CURRENCY, code: COIN_CODE, start: startTimestampMs, end: endTimestampMs, meta: false });
+                    const historicalResponse = await fetch(`${API_BASE_URL}/coins/single/history`, { method: 'POST', headers, body: historicalBody });
+                    if (historicalResponse.ok) {
+                        const historicalData = await historicalResponse.json();
+                        if (historicalData.history && historicalData.history.length > 0) {
+                            let closestDataPoint = null;
+                            let smallestTimeDiff = Infinity;
+                            historicalData.history.forEach(point => {
+                                const timeDiff = Math.abs(point.date - targetTimestamp24hAgoMs);
+                                if (timeDiff < smallestTimeDiff) {
+                                    smallestTimeDiff = timeDiff;
+                                    closestDataPoint = point;
+                                }
+                            });
+                            if (closestDataPoint && typeof closestDataPoint.rate === 'number') {
+                                priceDifference24h = bitcoinPrice - closestDataPoint.rate;
+                            }
+                        }
+                    } else {
+                        console.warn("Historical data fetch failed, status:", historicalResponse.status);
+                    }
+                } catch (histError) {
+                    console.warn("Error fetching historical data:", histError);
+                }
+
+
+                if (priceDifference24h === null && typeof priceChange24hPercent_API === 'number') {
+                    // Fallback to API's percentage if direct historical lookup failed
+                    const priceChangeDecimal = priceChange24hPercent_API / 100;
+                    if ((1 + priceChangeDecimal) !== 0) {
+                        const estimatedPrice24hAgo = bitcoinPrice / (1 + priceChangeDecimal);
+                        priceDifference24h = bitcoinPrice - estimatedPrice24hAgo;
+                         console.warn("Using estimated 24h price difference.");
+                    }
+                }
+                
+                updateDisplay(currentData, priceDifference24h);
+                setStatus(''); // Clear status
+
+            } catch (error) {
+                console.error("Fetch Data Error:", error);
+                setStatus(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        function updateDisplay(data, priceDifference24h) {
+            const btcPrice = data.rate;
+            
+            // Bitcoin Price
+            btcPriceEl.textContent = formatCurrency(btcPrice);
+            applyColor(btcPriceEl, priceDifference24h !== null ? priceDifference24h : data.delta.day); // Color based on actual diff if available
+            if (data.allTimeHighUSD) {
+                applyAthColor(btcPriceEl, btcPrice, data.allTimeHighUSD);
+            }
+
+            if (priceDifference24h !== null) {
+                btcChange24hEl.textContent = `[${priceDifference24h >= 0 ? '+' : ''}${formatCurrency(priceDifference24h)}]`;
+                applyColor(btcChange24hEl, priceDifference24h);
+            } else {
+                btcChange24hEl.textContent = `(${data.delta.day >= 0 ? '+' : ''}${formatNumber(data.delta.day, 2)}%)`;
+                applyColor(btcChange24hEl, data.delta.day);
+            }
+
+
+            // My BTC Value & P/L
+            if (config.userBtcAmount > 0) {
+                myBtcValueRowEl.style.display = 'flex';
+                const myBtcVal = config.userBtcAmount * btcPrice;
+                myBtcValueEl.textContent = formatCurrency(myBtcVal);
+                applyColor(myBtcValueEl, priceDifference24h !== null ? priceDifference24h : data.delta.day); // Color based on BTC's 24h trend
+
+                if (priceDifference24h !== null) {
+                    const myBtcValChange24h = config.userBtcAmount * priceDifference24h;
+                    myBtcValueChange24hEl.textContent = `[${myBtcValChange24h >= 0 ? '+' : ''}${formatCurrency(myBtcValChange24h)}]`;
+                    applyColor(myBtcValueChange24hEl, myBtcValChange24h);
+                } else {
+                     myBtcValueChange24hEl.textContent = ''; // Or show percentage based change
+                }
+
+
+                if (config.userTotalCost > 0) {
+                    profitLossRowEl.style.display = 'flex';
+                    const profitLoss = myBtcVal - config.userTotalCost;
+                    const profitLossPct = (config.userTotalCost !== 0) ? (profitLoss / config.userTotalCost) * 100 : 0;
+                    
+                    profitLossValueEl.textContent = formatCurrency(profitLoss);
+                    applyColor(profitLossValueEl, profitLoss);
+                    
+                    profitLossPercentEl.textContent = `(${profitLossPct >= 0 ? '+' : ''}${formatNumber(profitLossPct, 2)}%)`;
+                    applyColor(profitLossPercentEl, profitLoss); // Color based on P/L itself
+                } else {
+                    profitLossRowEl.style.display = 'none';
+                }
+            } else {
+                myBtcValueRowEl.style.display = 'none';
+                profitLossRowEl.style.display = 'none';
+            }
+
+            // Volume & Market Cap
+            volume24hEl.textContent = formatCurrency(data.volume, 0);
+            applyColor(volume24hEl, data.delta.day); // Color based on BTC's 24h price trend
+            
+            marketCapEl.textContent = formatCurrency(data.cap, 0);
+            applyColor(marketCapEl, data.delta.day); // Color based on BTC's 24h price trend
+        }
+
+        // Event Listeners
+        document.getElementById('refreshButton').addEventListener('click', fetchData);
+        document.getElementById('configButton').addEventListener('click', () => toggleConfigModal(true));
+        document.getElementById('cancelConfigButton').addEventListener('click', () => toggleConfigModal(false));
+        document.getElementById('saveConfigButton').addEventListener('click', () => {
+            saveConfig();
+            toggleConfigModal(false);
+            if (config.apiKey) {
+                fetchData(); // Fetch data after saving new config
+            } else {
+                setStatus('API Key is required to fetch data.', 'error');
+            }
+        });
+
+        // Initial Load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadConfig();
+            if (!config.apiKey) {
+                setStatus('Welcome! Please configure your API Key to get started.', 'loading');
+                toggleConfigModal(true);
+            } else {
+                fetchData();
+            }
+
+            // Register Service Worker
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js')
+                    .then(registration => console.log('Service Worker registered with scope:', registration.scope))
+                    .catch(error => console.error('Service Worker registration failed:', error));
+            }
+        });
+    </script>
+</body>
+</html>
