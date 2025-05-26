@@ -11,9 +11,20 @@ const urlsToCache = [
 self.addEventListener('install', event => {
     event.waitUntil(
         caches.open(CACHE_NAME)
-            .then(cache => {
-                console.log('Opened cache');
-                return cache.addAll(urlsToCache);
+            .then((cache) => {
+                console.log('Service Worker: Caching app shell');
+                // Ensure fresh resources are fetched during install, bypassing HTTP cache.
+                const cachePromises = urlsToCache.map(urlToCache => {
+                    return cache.add(new Request(urlToCache, { cache: 'reload' }));
+                });
+                return Promise.all(cachePromises);
+            })
+            .then(() => {
+                console.log('Service Worker: App shell cached successfully');
+                return self.skipWaiting(); // Activate worker immediately
+            })
+            .catch((error) => {
+                console.error('Service Worker: Caching failed', error);
             })
     );
 });
@@ -63,8 +74,11 @@ self.addEventListener('activate', event => {
                     if (cacheWhitelist.indexOf(cacheName) === -1) {
                         return caches.delete(cacheName);
                     }
+                    return null; // Explicitly return null for paths that don't delete
                 })
             );
+        }).then(() => {
+            return self.clients.claim(); // Take control of all open clients
         })
     );
 });
