@@ -130,9 +130,12 @@
         /* Chart Controls Styling */
         .chart-controls {
             display: flex;
-            justify-content: flex-end; 
+            justify-content: flex-end;
+            align-items: center; /* Align text and select vertically */
             margin-bottom: 10px;
+            gap: 10px; /* Space between last updated text and select */
         }
+
         .chart-controls select {
             padding: 6px 8px;
             background-color: #333344;
@@ -140,6 +143,12 @@
             border: 1px solid #444;
             border-radius: 4px;
         }
+        .last-updated-text {
+            font-size: 0.75em; /* Small font */
+            color: #c0c0c0;   /* Subtle color */
+            white-space: nowrap; /* Prevent wrapping */
+        }
+
         /* Chart Styling */
         .chart-container {
             margin-top: 25px;
@@ -302,6 +311,7 @@
             </div>
         </div>
         <div class="chart-controls">
+            <span id="lastUpdatedText" class="last-updated-text"></span>
             <select id="timeframeSelect">
                 <option value="24h" selected>Last 24 Hours</option>
                 <option value="7d">Last 7 Days</option>
@@ -360,6 +370,7 @@
         const timeframeSelectEl = document.getElementById('timeframeSelect');
         const priceChartCanvas = document.getElementById('priceChartCanvas');
         const priceChartContainer = document.getElementById('priceChartContainer');
+        const lastUpdatedTextEl = document.getElementById('lastUpdatedText');
 
         const configModalEl = document.getElementById('configModal');
         const configModalTitleEl = document.getElementById('configModalTitle');
@@ -369,6 +380,8 @@
         const accentColorPickerEl = document.getElementById('accentColorPicker');
 
         const DEFAULT_ACCENT_COLOR = '#a0a0ff';
+        let lastDataFetchTimestamp = null;
+        let updateTimestampInterval = null;
         let config = {
             apiKey: '',
             userBtcAmount: 0.0,
@@ -376,7 +389,7 @@
             selectedTimeframe: '24h',
             accentColor: DEFAULT_ACCENT_COLOR
         };
-        
+
         function loadConfig() {
             const storedConfig = localStorage.getItem('btcTrackConfig');
             if (storedConfig) {
@@ -488,6 +501,42 @@
             }
         }
 
+        function padZero(num) {
+            return num.toString().padStart(2, '0');
+        }
+
+        function updateLastUpdatedMessage() {
+            if (!lastUpdatedTextEl) return;
+
+            if (!lastDataFetchTimestamp) {
+                lastUpdatedTextEl.textContent = 'Updated: --/--/--@--:--:--'; // Initial placeholder
+                return;
+            }
+
+            const d = new Date(lastDataFetchTimestamp);
+            const day = padZero(d.getDate());
+            const month = padZero(d.getMonth() + 1); // Month is 0-indexed
+            const year = d.getFullYear().toString().slice(-2);
+            const hours = padZero(d.getHours());
+            const minutes = padZero(d.getMinutes());
+            const seconds = padZero(d.getSeconds());
+
+            let message = `Updated: ${day}${month}${year}@${hours}:${minutes}:${seconds}`;
+
+            const now = Date.now();
+            const diffMs = now - lastDataFetchTimestamp;
+            const diffMinutes = Math.floor(diffMs / (1000 * 60));
+
+            if (diffMinutes >= 1) {
+                if (diffMinutes < 120) {
+                    message += ` (${diffMinutes} min ago)`;
+                } else {
+                    const diffHours = Math.floor(diffMinutes / 60);
+                    message += ` (${diffHours} hour${diffHours > 1 ? 's' : ''} ago)`;
+                }
+            }
+            lastUpdatedTextEl.textContent = message;
+        }
 
         async function fetchData() {
             if (!config.apiKey) {
@@ -590,7 +639,10 @@
                     } else { console.warn("Chart historical data fetch failed, status:", chartHistoryResponse.status); }
                 } catch (chartHistError) { console.warn("Error fetching chart historical data:", chartHistError); }
 
+                lastDataFetchTimestamp = Date.now(); // Set timestamp after successful fetch
                 updateDisplay(currentData, priceDifference24h, historicalChartData);
+                updateLastUpdatedMessage(); // Update message immediately
+
                 setStatus(''); 
 
             } catch (error) {
@@ -858,6 +910,11 @@
             } else {
                 fetchData();
             }
+            // Initial call and start interval for the "Updated: X ago" message
+            updateLastUpdatedMessage();
+            if (updateTimestampInterval) clearInterval(updateTimestampInterval); // Clear existing if any
+            updateTimestampInterval = setInterval(updateLastUpdatedMessage, 60 * 1000); // Update every minute
+
 
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.register('sw.js')
