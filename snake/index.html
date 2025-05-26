@@ -321,9 +321,9 @@
         function initGame() { 
             try {
                 initializeSnakes(); foods = []; 
+                currentLevel = 1; // Reset currentLevel BEFORE placing initial food
                 currentMinFoodItems = (currentGameMode === 'BATTLE') ? MIN_FOOD_ITEMS_BATTLE : MAX_FOOD_ITEMS_DEFAULT;
                 placeNewFoodItem(); 
-                currentLevel = 1; foodCollectedForLevelUp = 0;
                 gameSpeed = Math.round(baseGameSpeed / INITIAL_SPEED_FACTOR);
                 isPaused = false; // Ensure game starts unpaused
 
