@@ -649,16 +649,54 @@
             }
         }
         let activeTouches = {}; const swipeThreshold=30; 
-        if(canvas) canvas.addEventListener('touchstart',function(e){ 
+        if(canvas) canvas.addEventListener('touchstart',function(e){
             e.preventDefault(); 
-            if (e.touches.length === 4 && !isPaused && !justPausedByTouch) {
-                togglePauseGame();
-                justPausedByTouch = true; // Flag that pause was initiated by this touch sequence
-                return; // Don't process for snake movement if it was a pause gesture
+            // Handle 4-finger tap for pause/unpause
+            if (e.touches.length === 4) {
+                if (!justPausedByTouch) { // Only toggle if this specific 4-finger gesture hasn't already caused a toggle
+                    togglePauseGame();
+                    justPausedByTouch = true; // Mark that this 4-finger gesture has been processed for pause/unpause
+                }
+                // Regardless of whether we toggled, a 4-finger event should not be processed for snake movement.
+                return;
             }
-            for (let i=0; i < e.changedTouches.length; i++) { const touch = e.changedTouches[i]; if (currentGameMode === 'AI' && (!snakes[0] || !snakes[0].isAlive)) return; if (currentGameMode === '2P' && ((!snakes[0] || !snakes[0].isAlive) && (!snakes[1] || !snakes[1].isAlive))) return; if (currentGameMode === 'BATTLE' && (!snakes[0] || !snakes[0].isAlive)) return; const touchZonePlayer = (currentGameMode === '2P' && touch.screenY < canvas.height / 2) ? 2 : 1; activeTouches[touch.identifier] = { startX: touch.screenX, startY: touch.screenY, player: touchZonePlayer };}
+
+            // If not a 4-finger pause/unpause gesture, proceed with snake movement logic
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const touch = e.changedTouches[i];
+                if (currentGameMode === 'AI' && (!snakes[0] || !snakes[0].isAlive)) continue; // Skip this touch if P1 is dead in AI mode
+                if (currentGameMode === '2P' && ((!snakes[0] || !snakes[0].isAlive) && (!snakes[1] || !snakes[1].isAlive))) continue; // Skip if both dead in 2P
+                if (currentGameMode === 'BATTLE' && (!snakes[0] || !snakes[0].isAlive)) continue; // Skip if P1 is dead in Battle mode
+                const touchZonePlayer = (currentGameMode === '2P' && touch.screenY < canvas.height / 2) ? 2 : 1;
+                activeTouches[touch.identifier] = { startX: touch.screenX, startY: touch.screenY, player: touchZonePlayer };
+            }
         }, {passive:false});
-        if(canvas) canvas.addEventListener('touchend',function(e){ e.preventDefault(); for (let i=0; i < e.changedTouches.length; i++) { const touch = e.changedTouches[i]; const touchData = activeTouches[touch.identifier]; if (touchData) { const deltaX = touch.screenX - touchData.startX; const deltaY = touch.screenY - touchData.startY; let targetSnake; if (currentGameMode === 'AI' || currentGameMode === 'BATTLE') { targetSnake = snakes[0]; } else { targetSnake = (touchData.player === 1) ? snakes[0] : snakes[1]; } if (targetSnake && targetSnake.isAlive) { handleSwipe(deltaX, deltaY, targetSnake); } delete activeTouches[touch.identifier];}}}, {passive:false});
+        if(canvas) canvas.addEventListener('touchend',function(e){
+            e.preventDefault();
+            // Reset justPausedByTouch flag if the 4-finger gesture has ended
+            if (e.touches.length < 4 && justPausedByTouch) {
+                justPausedByTouch = false;
+            }
+
+            for (let i=0; i < e.changedTouches.length; i++) {
+                const touch = e.changedTouches[i];
+                const touchData = activeTouches[touch.identifier];
+                if (touchData) {
+                    const deltaX = touch.screenX - touchData.startX;
+                    const deltaY = touch.screenY - touchData.startY;
+                    let targetSnake;
+                    if (currentGameMode === 'AI' || currentGameMode === 'BATTLE') {
+                        targetSnake = snakes[0];
+                    } else { // 2P mode
+                        targetSnake = (touchData.player === 1) ? snakes[0] : snakes[1];
+                    }
+                    if (targetSnake && targetSnake.isAlive) {
+                        handleSwipe(deltaX, deltaY, targetSnake);
+                    }
+                    delete activeTouches[touch.identifier];
+                }
+            }
+        }, {passive:false});
         function handleSwipe(deltaX, deltaY, snakeToControl){ 
             if (!snakeToControl || !snakeToControl.isAlive || snakeToControl.directionChangedThisTick) return;
             let moved = false;
