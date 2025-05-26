@@ -143,6 +143,28 @@
         .playButton:active { transform: scale(0.95); filter: brightness(90%); }
         #titleScreen { display: flex; }
         #gameOverScreen { display: none; }
+        .game-over-buttons-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center; /* Center buttons when stacked */
+            width: 100%; /* Occupy available width */
+            gap: 10px; /* Space between stacked buttons */
+            margin-top: 15px; /* Space above the button group */
+        }
+
+        @media (min-width: 768px) { /* Adjust breakpoint as needed */
+            .game-over-buttons-container {
+                flex-direction: row;
+                justify-content: center; /* Center the row of buttons */
+                flex-wrap: wrap; /* Allow buttons to wrap if screen is not wide enough for all */
+                gap: 15px; /* Space between buttons in a row */
+            }
+            .game-over-buttons-container .playButton {
+                width: auto; /* Allow button width to be determined by content and padding */
+                flex-grow: 0; /* Prevent buttons from growing to fill space unevenly */
+            }
+        }
+
         #exitBattleButton {
             position: absolute; top: 20px; right: 20px;
             z-index: 20; display: none; 
@@ -159,10 +181,12 @@
         </div>
     </div>
 
-    <div id="gameOverScreen" class="screen">
-        <h2 id="gameResult"></h2>
-        <p id="recordText"></p> <div id="rankingsDisplay"></div> <div class="button-container">
-            <button id="playAgainButton" class="playButton">Play Again</button>
+    <div id="gameOverScreen" style="display:none;">
+        <h2 id="gameResultText">Game Over</h2>
+        <p id="recordText">P1: 0 - P2: 0</p>
+        <p id="battleRoyaleRanking" style="display:none;"></p>
+        <div class="game-over-buttons-container">
+            <button id="playAgainButton" class="playButton">Play Again (Same Mode)</button>
             <button id="gameOverToAIButton" class="playButton">VS AI</button>
             <button id="gameOverTo2PButton" class="playButton">2 Player</button>
             <button id="gameOverToBattleButton" class="playButton">Battle Royale</button>
@@ -406,7 +430,15 @@
             gameSpeed = Math.round(gameSpeed * LEVEL_SPEED_INCREASE_FACTOR); 
             if (gameInterval) clearInterval(gameInterval); gameInterval = setInterval(gameLoop, gameSpeed);
             const newFoodColor = levelFoodColors[(currentLevel - 1) % levelFoodColors.length];
-            foods.forEach(food => food.color = newFoodColor);
+            foods.forEach(food => { 
+                const pulseFactor = Math.abs(Math.sin(Date.now() / 180)) * 0.3 + 0.7; // Pulse from 70% to 100%
+                const radius = (gridSize / 2.1) * pulseFactor; // Adjust base radius slightly if needed
+                const centerX = food.x * gridSize + gridSize / 2;
+                const centerY = food.y * gridSize + gridSize / 2;
+                ctx.fillStyle = food.color; ctx.shadowBlur = 15; ctx.shadowColor = food.color;
+                ctx.beginPath(); ctx.arc(centerX, centerY, Math.max(2, radius), 0, Math.PI * 2); ctx.fill();
+                ctx.shadowBlur = 0;
+            });
         }
         function updateSnake(snake) { 
             try {
