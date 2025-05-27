@@ -636,6 +636,13 @@
                     },
                     body: JSON.stringify({
                         contents: [{ parts: [{ text: prompt }] }],
+                        tools: [ // Add this section to enable Google Search
+                            {
+                                "googleSearchRetrieval": {
+                                    // Empty object here usually means use default Google Search behavior
+                                }
+                            }
+                        ]
                     }),
                 });
 
