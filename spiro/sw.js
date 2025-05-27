@@ -3,8 +3,8 @@ const urlsToCache = [
   './', // For accessing the root
   './index.html',
   './manifest.json',
-  './icons/192x192.png', // Ensure this path is correct and file exists
-  './icons/512x512.png'  // Ensure this path is correct and file exists
+  './icons/s192.png', // Ensure this path is correct and file exists
+  './icons/s512.png'  // Ensure this path is correct and file exists
 ];
 
 // Install event: Cache core assets
