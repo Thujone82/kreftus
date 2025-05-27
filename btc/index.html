@@ -59,7 +59,7 @@
             margin: 0;
             transition: color 0.3s ease; /* Smooth transition for accent color change */
             font-size: 1.8em;
-            color: #a0a0ff; /* Default, will be overridden by JS */
+            color: #f7931a; /* Default, will be overridden by JS */
         }
 
         .action-buttons button {
@@ -120,7 +120,7 @@
             border-radius: 5px;
         }
         .status-message.loading {
-            color: #a0a0ff;
+            color: #3972bd;
         }
         .status-message.error {
             background-color: #502020;
@@ -380,7 +380,7 @@
         const userTotalCostInput = document.getElementById('userTotalCost');
         const accentColorPickerEl = document.getElementById('accentColorPicker');
 
-        const DEFAULT_ACCENT_COLOR = '#a0a0ff';
+        const DEFAULT_ACCENT_COLOR = '#f7931a';
         let lastDataFetchTimestamp = null;
         let updateTimestampInterval = null;
         let config = {
