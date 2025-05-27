@@ -521,7 +521,7 @@
             const hours = padZero(d.getHours());
             const minutes = padZero(d.getMinutes());
 
-            let message = `Updated: ${day}${month}${year}@${hours}:${minutes}`;
+            let message = `Updated: ${month}${day}${year}@${hours}${minutes}`;
 
             const now = Date.now();
             const diffMs = now - lastDataFetchTimestamp;
