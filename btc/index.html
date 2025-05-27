@@ -289,8 +289,18 @@
         @media (max-width: 480px) {
             body { padding: 10px; }
             .container { padding: 15px; }
-            header h1 { font-size: 1.3em; } 
-            .action-buttons button { padding: 6px 10px; font-size: 0.8em; }
+            header h1 { font-size: 1.3em; }
+            .action-buttons {
+                flex-wrap: nowrap; /* Prevent buttons from wrapping to a new line */
+                gap: 5px;          /* Space between buttons, replaces individual margins */
+            }
+            .action-buttons button {
+                padding: 5px 8px;   /* Slightly reduced padding */
+                font-size: 0.75em; /* Slightly reduced font size */
+                margin-left: 0;     /* Remove individual margin, using gap on parent now */
+                flex-shrink: 1;     /* Allow buttons to shrink if space is tight */
+                min-width: 0;       /* Allows buttons to shrink below their content's natural width */
+            }
             .data-item { font-size: 1.5em; flex-direction: column; align-items: flex-start; } 
             .data-item .label { text-align: left; margin-bottom: 3px; font-size: 0.7em; flex-basis: auto;} 
             .data-item .value-container { flex-basis: auto; }
