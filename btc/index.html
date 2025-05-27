@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BTC Track v1.1</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>BTC Track v1.2</title>
     <link rel="icon" href="./icons/32.png" type="image/png">
     <!-- You can create a 32x32.png from your 512x512.png or 192x192.png -->
     <link rel="apple-touch-icon" href="./icons/192.png">
@@ -71,6 +71,7 @@
             cursor: pointer;
             font-size: 0.9em;
             margin-left: 10px;
+            white-space: nowrap; /* Prevent button text wrapping */
             transition: background-color 0.2s;
         }
 
@@ -191,6 +192,34 @@
             margin-bottom: 20px;
         }
 
+        /* Specific styles for the insight modal's content area to make it full screen */
+        #insightModal .modal-content {
+            width: 100vw; /* Full viewport width */
+            height: 100vh; /* Full viewport height */
+            max-width: none; /* Override general max-width */
+            margin: 0; /* Override auto margins for centering */
+            border-radius: 0; /* No rounded corners for full screen */
+            padding: 20px; 
+            box-sizing: border-box; 
+            display: flex; 
+            flex-direction: column;
+        }
+
+        #insightModal .modal-content h2 {
+            flex-shrink: 0; /* Prevent title from shrinking */
+        }
+
+        #insightModal .insight-content {
+            white-space: pre-wrap; /* Preserve line breaks and spacing from AI */
+            background-color: #333344; /* Slightly different background for content */
+            padding: 15px; border-radius: 4px; 
+            flex-grow: 1; /* Allow this to take up remaining vertical space */
+            min-height: 100px; 
+            max-height: none; /* Remove previous max-height for full screen */
+            overflow-y: auto; 
+            margin-bottom: 15px; /* Space before buttons */
+        }
+
         .modal-content label {
             display: block;
             margin-top: 15px;
@@ -227,6 +256,7 @@
         .modal-buttons {
             margin-top: 20px;
             text-align: right;
+            flex-shrink: 0; /* Prevent buttons from shrinking in flex layout */
         }
 
         .modal-buttons button {
@@ -238,6 +268,11 @@
             cursor: pointer;
             margin-left: 10px;
         }
+        #insightModal .modal-buttons {
+            text-align: center; /* Center the close button in full-screen insight modal */
+        }
+
+
         .modal-buttons button.cancel {
             background-color: #777;
         }
@@ -271,6 +306,7 @@
                 <h1>BTC Track</h1>
             </div>
             <div class="action-buttons">
+                <button id="insightsButton" style="display: none;">Insights</button>
                 <button id="refreshButton">Refresh</button>
                 <button id="configButton">Config</button>
             </div>
@@ -338,6 +374,9 @@
             <label for="userTotalCost">Total Cost for My BTC (USD, Optional):</label>
             <input type="number" id="userTotalCost" placeholder="e.g., 10000" step="any">
             
+            <label for="googleApiKey">Google API Key (for Insights):</label>
+            <input type="text" id="googleApiKey" placeholder="Enter your Google API Key">
+
             <label for="accentColorPicker">Accent Color:</label>
             <input type="color" id="accentColorPicker">
 
@@ -345,6 +384,17 @@
                 <button id="cancelConfigButton" class="cancel">Cancel</button>
                 <button id="saveConfigButton">Save</button>
             </div>
+        </div>
+    </div>
+
+    <div id="insightModal" class="modal">
+        <div class="modal-content">
+            <h2 id="insightModalTitle">AI Bitcoin Insight</h2>
+            <div id="insightContent" class="insight-content">Loading insight...</div>
+            <div class="modal-buttons">
+                <button id="closeInsightButton">Close</button>
+            </div>
+            
         </div>
     </div>
 
@@ -378,12 +428,19 @@
         const apiKeyInput = document.getElementById('apiKey');
         const userBtcAmountInput = document.getElementById('userBtcAmount');
         const userTotalCostInput = document.getElementById('userTotalCost');
+        const googleApiKeyInput = document.getElementById('googleApiKey');
         const accentColorPickerEl = document.getElementById('accentColorPicker');
+
+        const insightsButtonEl = document.getElementById('insightsButton');
+        const insightModalEl = document.getElementById('insightModal');
+        const insightModalTitleEl = document.getElementById('insightModalTitle'); // For potential accent color
+        const insightContentEl = document.getElementById('insightContent');
 
         const DEFAULT_ACCENT_COLOR = '#f7931a';
         let lastDataFetchTimestamp = null;
         let updateTimestampInterval = null;
         let config = {
+            googleApiKey: '',
             apiKey: '',
             userBtcAmount: 0.0,
             userTotalCost: 0.0,
@@ -401,12 +458,15 @@
                 apiKeyInput.value = config.apiKey || '';
                 userBtcAmountInput.value = config.userBtcAmount || '';
                 userTotalCostInput.value = config.userTotalCost || '';
+                googleApiKeyInput.value = config.googleApiKey || '';
                 timeframeSelectEl.value = config.selectedTimeframe || '24h';
                 accentColorPickerEl.value = config.accentColor || DEFAULT_ACCENT_COLOR;
             } else {
                 // If no stored config, ensure picker shows default
                 accentColorPickerEl.value = DEFAULT_ACCENT_COLOR;
             }
+            // Update Insights button visibility based on loaded config
+            toggleInsightsButtonVisibility();
         }
 
         function saveConfig() {
@@ -414,6 +474,7 @@
             config.userBtcAmount = parseFloat(userBtcAmountInput.value) || 0.0;
             config.userTotalCost = parseFloat(userTotalCostInput.value) || 0.0;
             config.accentColor = accentColorPickerEl.value || DEFAULT_ACCENT_COLOR;
+            config.googleApiKey = googleApiKeyInput.value.trim();
             // selectedTimeframe is saved via its own event listener
             localStorage.setItem('btcTrackConfig', JSON.stringify(config));
         }
@@ -424,14 +485,23 @@
                 apiKeyInput.value = config.apiKey || '';
                 userBtcAmountInput.value = config.userBtcAmount || '';
                 userTotalCostInput.value = config.userTotalCost || '';
+                googleApiKeyInput.value = config.googleApiKey || '';
                 accentColorPickerEl.value = config.accentColor || DEFAULT_ACCENT_COLOR;
             }
         }
-        
+
+        function toggleInsightsButtonVisibility() {
+            if (insightsButtonEl) {
+                insightsButtonEl.style.display = config.googleApiKey ? 'inline-block' : 'none';
+            }
+        }
+
         function applyAccentColor() {
             const accent = config.accentColor || DEFAULT_ACCENT_COLOR;
             document.querySelector('header h1').style.color = accent;
             configModalTitleEl.style.color = accent; // Also color modal title
+            insightModalTitleEl.style.color = accent; // Color insight modal title too
+
             // Chart line color will be applied directly in drawPriceChart
         }
 
@@ -536,6 +606,52 @@
                 }
             }
             lastUpdatedTextEl.textContent = message;
+        }
+
+        function toggleInsightModal(show) {
+            if (insightModalEl) {
+                insightModalEl.style.display = show ? 'flex' : 'none';
+            }
+        }
+
+        async function fetchInsightFromGemini() {
+            if (!config.googleApiKey) {
+                insightContentEl.textContent = "Google API Key is not configured. Please set it up in Config.";
+                return;
+            }
+
+            toggleInsightModal(true);
+            insightContentEl.textContent = "Fetching AI insight, please wait...";
+
+            // Using gemini-2.5-flash as a robust choice for a recent Flash model.
+            // Verify with ListModels if a more specific identifier like "gemini-1.5-flash-preview-0520" is needed and available.
+            const modelName = "gemini-2.5-flash-preview-05-20"; 
+            const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${config.googleApiKey}`;            const prompt = "What is happening in Bitcoin today, Cover main headlines, with summaries. Length 500 words or less";
+
+            try {
+                const response = await fetch(GEMINI_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({})); // Try to parse error
+                    const errorMessage = errorData?.error?.message || `API Error: ${response.status}`;
+                    throw new Error(errorMessage);
+                }
+
+                const data = await response.json();
+                const insightText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No insight received from AI.";
+                insightContentEl.textContent = insightText;
+            } catch (error) {
+                console.error("Error fetching Gemini insight:", error);
+                insightContentEl.textContent = `Error fetching insight: ${error.message}`;
+            }
         }
 
         async function fetchData() {
@@ -717,10 +833,12 @@
         document.getElementById('saveConfigButton').addEventListener('click', () => {
             saveConfig();
             toggleConfigModal(false);
-            applyAccentColor(); 
+            applyAccentColor();
+            toggleInsightsButtonVisibility(); // Update visibility after save
             if (config.apiKey) {
                 fetchData(); 
             } else {
+                // Clear data if API key removed? Or just show error.
                 setStatus('API Key is required to fetch data.', 'error');
             }
         });
@@ -740,6 +858,11 @@
                  }
             }
         });
+
+        insightsButtonEl.addEventListener('click', fetchInsightFromGemini);
+        document.getElementById('closeInsightButton').addEventListener('click', () => toggleInsightModal(false));
+
+
 
         function drawPriceChart(history, timeframe, allTimeHighUSD, accentColor) {
             if (!priceChartCanvas) return;
@@ -909,6 +1032,7 @@
                 toggleConfigModal(true);
             } else {
                 fetchData();
+                toggleInsightsButtonVisibility(); // Check on initial load too
             }
             // Initial call to set the placeholder or initial timestamp if data is fetched quickly
             updateLastUpdatedMessage(); 
