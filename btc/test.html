@@ -409,6 +409,7 @@
             </div>
             <div id="insightContent" class="insight-content">Loading insight...</div>
             <div class="modal-buttons">
+                <button id="updateInsightButton" style="display: none;">Update Report</button>
                 <button id="closeInsightButton">Close</button>
             </div>
             
@@ -452,6 +453,8 @@
         const insightModalEl = document.getElementById('insightModal');
         const insightModalTitleEl = document.getElementById('insightModalTitle'); // For potential accent color
         const insightContentEl = document.getElementById('insightContent');
+        const insightTimestampEl = document.getElementById('insightTimestamp'); 
+        const updateInsightButtonEl = document.getElementById('updateInsightButton');
 
         const DEFAULT_ACCENT_COLOR = '#f7931a';
         let lastDataFetchTimestamp = null;
@@ -669,23 +672,22 @@
 
         function updateInsightModalDisplay() {
             const timestampEl = document.getElementById('insightTimestamp');
-            const updateButton = document.getElementById('updateInsightButton');
+            // updateInsightButtonEl is now a global const
             console.log('[DEBUG] updateInsightModalDisplay called. Current insightReport:', JSON.parse(JSON.stringify(config.insightReport)));
 
             if (config.insightReport && config.insightReport.content && config.insightReport.timestamp) {
                 console.log('[DEBUG] Displaying cached insight report.');
                 insightContentEl.textContent = config.insightReport.content;
-                timestampEl.textContent = formatInsightTimestamp(config.insightReport.timestamp);
-                timestampEl.style.display = 'block';
+                if(insightTimestampEl) {insightTimestampEl.textContent = formatInsightTimestamp(config.insightReport.timestamp); insightTimestampEl.style.display = 'block';}
 
                 const oneHourInMs = 60 * 60 * 1000;
-                updateButton.style.display = (Date.now() - config.insightReport.timestamp) >= oneHourInMs ? 'inline-block' : 'none';
-                console.log('[DEBUG] Update button display:', updateButton.style.display);
+                if(updateInsightButtonEl) updateInsightButtonEl.style.display = (Date.now() - config.insightReport.timestamp) >= oneHourInMs ? 'inline-block' : 'none';
+                console.log('[DEBUG] Update button display:', updateInsightButtonEl ? updateInsightButtonEl.style.display : 'N/A (element not found)');
             } else {
                 console.log('[DEBUG] No valid cached insight report found. Triggering new fetch.');
                 insightContentEl.textContent = "No previous insight found. Fetching new report...";
-                timestampEl.style.display = 'none';
-                updateButton.style.display = 'none';
+                if(insightTimestampEl) insightTimestampEl.style.display = 'none';
+                if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'none';
                 fetchInsightFromGemini(); // Fetch a new one immediately if no valid stored report
             }
         }
@@ -699,8 +701,8 @@
 
             console.log('[DEBUG] fetchInsightFromGemini called.');
             toggleInsightModal(true);
-            document.getElementById('updateInsightButton').style.display = 'none'; // Hide update button while fetching
-            document.getElementById('insightTimestamp').style.display = 'none'; // Hide old timestamp while fetching
+            if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'none'; // Hide update button while fetching
+            if(insightTimestampEl) insightTimestampEl.style.display = 'none'; // Hide old timestamp while fetching
             insightContentEl.textContent = "Fetching AI insight, please wait...";
             console.log('[DEBUG] Set UI to loading state for insight.');
 
@@ -723,7 +725,7 @@
                         contents: [{ parts: [{ text: prompt }] }],
                         tools: [
                             {
-                                "googleSearchRetrieval": {} // Corrected tool name
+                                "googleSearch": {} // Corrected tool name
                             }
                         ]
                     }),
@@ -974,8 +976,10 @@
 
         insightsButtonEl.addEventListener('click', handleInsightsButtonClick);
         document.getElementById('closeInsightButton').addEventListener('click', () => toggleInsightModal(false));
-        document.getElementById('updateInsightButton').addEventListener('click', fetchInsightFromGemini); // Update button calls fetch directly
-
+        // Ensure updateInsightButtonEl exists before adding listener
+        if (updateInsightButtonEl) {
+            updateInsightButtonEl.addEventListener('click', fetchInsightFromGemini); // Update button calls fetch directly
+        }
 
         function drawPriceChart(history, timeframe, allTimeHighUSD, accentColor) {
             if (!priceChartCanvas) return;

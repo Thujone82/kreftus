@@ -279,6 +279,10 @@
         .modal-buttons button:hover {
             opacity: 0.9;
         }
+        #insightModal .modal-buttons button#updateInsightButton {
+            background-color: #5a5a7a; /* A different color for the update button */
+        }
+
 
         /* Color Indicators */
         .green { color: #3dac41; }
@@ -400,8 +404,12 @@
     <div id="insightModal" class="modal">
         <div class="modal-content">
             <h2 id="insightModalTitle">AI Bitcoin Insight</h2>
+            <div id="insightTimestamp" style="font-size: 0.8em; color: #aaa; margin-bottom: 10px; text-align: center; display: none;">
+                <!-- Timestamp will be populated here -->
+            </div>
             <div id="insightContent" class="insight-content">Loading insight...</div>
             <div class="modal-buttons">
+                <button id="updateInsightButton" style="display: none;">Update Report</button>
                 <button id="closeInsightButton">Close</button>
             </div>
             
@@ -445,6 +453,8 @@
         const insightModalEl = document.getElementById('insightModal');
         const insightModalTitleEl = document.getElementById('insightModalTitle'); // For potential accent color
         const insightContentEl = document.getElementById('insightContent');
+        const insightTimestampEl = document.getElementById('insightTimestamp'); 
+        const updateInsightButtonEl = document.getElementById('updateInsightButton');
 
         const DEFAULT_ACCENT_COLOR = '#f7931a';
         let lastDataFetchTimestamp = null;
@@ -455,7 +465,11 @@
             userBtcAmount: 0.0,
             userTotalCost: 0.0,
             selectedTimeframe: '24h',
-            accentColor: DEFAULT_ACCENT_COLOR
+            accentColor: DEFAULT_ACCENT_COLOR,
+            insightReport: { // New: For storing the last insight
+                content: null,
+                timestamp: null
+            }
         };
 
         function loadConfig() {
@@ -464,6 +478,9 @@
                 const parsedConfig = JSON.parse(storedConfig);
                 // Merge stored config with defaults to ensure all keys exist
                 config = { ...config, ...parsedConfig }; 
+                if (!config.insightReport) { // Ensure insightReport object exists if loading older config
+                    config.insightReport = { content: null, timestamp: null };
+                }
                 
                 apiKeyInput.value = config.apiKey || '';
                 userBtcAmountInput.value = config.userBtcAmount || '';
@@ -624,19 +641,79 @@
             }
         }
 
+        function formatInsightTimestamp(timestamp) {
+            if (!timestamp) return '';
+
+            const d = new Date(timestamp);
+            const day = padZero(d.getDate());
+            const month = padZero(d.getMonth() + 1);
+            const year = d.getFullYear().toString().slice(-2);
+            const hours = padZero(d.getHours());
+            const minutes = padZero(d.getMinutes());
+
+            let message = `Report from: ${month}${day}${year}@${hours}${minutes}`;
+
+            const now = Date.now();
+            const diffMs = now - timestamp;
+            const diffMinutes = Math.floor(diffMs / (1000 * 60));
+
+            if (diffMinutes >= 1) {
+                if (diffMinutes < 120) {
+                    message += ` (${diffMinutes} min ago)`;
+                } else {
+                    const diffHours = Math.floor(diffMinutes / 60);
+                    message += ` (${diffHours} hour${diffHours > 1 ? 's' : ''} ago)`;
+                }
+            } else {
+                message += ` (just now)`;
+            }
+            return message;
+        }
+
+        function updateInsightModalDisplay() {
+            const timestampEl = document.getElementById('insightTimestamp');
+            // updateInsightButtonEl is now a global const
+            console.log('[DEBUG] updateInsightModalDisplay called. Current insightReport:', JSON.parse(JSON.stringify(config.insightReport)));
+
+            if (config.insightReport && config.insightReport.content && config.insightReport.timestamp) {
+                console.log('[DEBUG] Displaying cached insight report.');
+                insightContentEl.textContent = config.insightReport.content;
+                if(insightTimestampEl) {insightTimestampEl.textContent = formatInsightTimestamp(config.insightReport.timestamp); insightTimestampEl.style.display = 'block';}
+
+                const oneHourInMs = 60 * 60 * 1000;
+                if(updateInsightButtonEl) updateInsightButtonEl.style.display = (Date.now() - config.insightReport.timestamp) >= oneHourInMs ? 'inline-block' : 'none';
+                console.log('[DEBUG] Update button display:', updateInsightButtonEl ? updateInsightButtonEl.style.display : 'N/A (element not found)');
+            } else {
+                console.log('[DEBUG] No valid cached insight report found. Triggering new fetch.');
+                insightContentEl.textContent = "No previous insight found. Fetching new report...";
+                if(insightTimestampEl) insightTimestampEl.style.display = 'none';
+                if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'none';
+                fetchInsightFromGemini(); // Fetch a new one immediately if no valid stored report
+            }
+        }
+
+
         async function fetchInsightFromGemini() {
             if (!config.googleApiKey) {
                 insightContentEl.textContent = "Google API Key is not configured. Please set it up in Config.";
                 return;
             }
 
+            console.log('[DEBUG] fetchInsightFromGemini called.');
             toggleInsightModal(true);
+            if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'none'; // Hide update button while fetching
+            if(insightTimestampEl) insightTimestampEl.style.display = 'none'; // Hide old timestamp while fetching
             insightContentEl.textContent = "Fetching AI insight, please wait...";
+            console.log('[DEBUG] Set UI to loading state for insight.');
+
 
             // Using gemini-2.5-flash as a robust choice for a recent Flash model.
             // Verify with ListModels if a more specific identifier like "gemini-1.5-flash-preview-0520" is needed and available.
             const modelName = "gemini-2.5-flash-preview-05-20"; 
             const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${config.googleApiKey}`;            const prompt = "What is happening in Bitcoin today, Cover main headlines, with summaries. Length 500 words or less";
+
+            console.log(`[DEBUG] Attempting to fetch insight. Model: ${modelName}, API Key used: ${config.googleApiKey ? 'Yes' : 'No'}`);
+            console.log(`[DEBUG] Prompt: "${prompt}"`);
 
             try {
                 const response = await fetch(GEMINI_API_URL, {
@@ -646,11 +723,9 @@
                     },
                     body: JSON.stringify({
                         contents: [{ parts: [{ text: prompt }] }],
-                        tools: [ // Add this section to enable Google Search
+                        tools: [
                             {
-                                "googleSearch": {
-                                    // Empty object here usually means use default Google Search behavior
-                                }
+                                "googleSearch": {} // Corrected tool name
                             }
                         ]
                     }),
@@ -658,17 +733,40 @@
 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({})); // Try to parse error
+                    console.error('[DEBUG] Gemini API response not OK. Status:', response.status, 'Error Data:', errorData);
                     const errorMessage = errorData?.error?.message || `API Error: ${response.status}`;
                     throw new Error(errorMessage);
                 }
 
                 const data = await response.json();
+                console.log('[DEBUG] Gemini API response OK. Raw data:', data);
+
                 const insightText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No insight received from AI.";
-                insightContentEl.textContent = insightText;
+                console.log('[DEBUG] Extracted insight text:', insightText.substring(0, 100) + "..."); // Log first 100 chars
+                
+                // Store the new report and timestamp
+                config.insightReport = {
+                    content: insightText,
+                    timestamp: Date.now()
+                };
+                console.log('[DEBUG] Storing new insight report:', JSON.parse(JSON.stringify(config.insightReport)));
+                localStorage.setItem('btcTrackConfig', JSON.stringify(config)); // Save updated config
+
+                // Update the modal with the new content
+                console.log('[DEBUG] Calling updateInsightModalDisplay after successful fetch.');
+                updateInsightModalDisplay(); // This will also hide the update button as it's a fresh report
             } catch (error) {
                 console.error("Error fetching Gemini insight:", error);
                 insightContentEl.textContent = `Error fetching insight: ${error.message}`;
+                // Optionally, keep the old report visible or clear it
+                // document.getElementById('insightTimestamp').style.display = 'block'; // Or hide
             }
+        }
+
+        function handleInsightsButtonClick() {
+            console.log('[DEBUG] handleInsightsButtonClick called.');
+            toggleInsightModal(true);
+            updateInsightModalDisplay(); // This function will decide whether to show old data or fetch new
         }
 
         async function fetchData() {
@@ -876,10 +974,12 @@
             }
         });
 
-        insightsButtonEl.addEventListener('click', fetchInsightFromGemini);
+        insightsButtonEl.addEventListener('click', handleInsightsButtonClick);
         document.getElementById('closeInsightButton').addEventListener('click', () => toggleInsightModal(false));
-
-
+        // Ensure updateInsightButtonEl exists before adding listener
+        if (updateInsightButtonEl) {
+            updateInsightButtonEl.addEventListener('click', fetchInsightFromGemini); // Update button calls fetch directly
+        }
 
         function drawPriceChart(history, timeframe, allTimeHighUSD, accentColor) {
             if (!priceChartCanvas) return;
