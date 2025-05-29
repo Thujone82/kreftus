@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>BTC Track v1.2</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">    
+    <title>BTC Track v1.3</title>
     <link rel="icon" href="./icons/32.png" type="image/png">
     <!-- You can create a 32x32.png from your 512x512.png or 192x192.png -->
     <link rel="apple-touch-icon" href="./icons/192.png">
@@ -473,7 +473,10 @@
             accentColor: DEFAULT_ACCENT_COLOR,
             insightReport: { // New: For storing the last insight
                 content: null,
-                timestamp: null
+                timestamp: null,
+                cachedAudioBase64: null,
+                cachedAudioMimeType: null,
+                cachedAudioRequiresWavWrapping: false
             }
         };
 
@@ -484,7 +487,12 @@
                 // Merge stored config with defaults to ensure all keys exist
                 config = { ...config, ...parsedConfig }; 
                 if (!config.insightReport) { // Ensure insightReport object exists if loading older config
-                    config.insightReport = { content: null, timestamp: null };
+                    config.insightReport = { content: null, timestamp: null, cachedAudioBase64: null, cachedAudioMimeType: null, cachedAudioRequiresWavWrapping: false };
+                } else {
+                    // Ensure new audio fields exist if loading older config that had insightReport but not these
+                    config.insightReport.cachedAudioBase64 = config.insightReport.cachedAudioBase64 || null;
+                    config.insightReport.cachedAudioMimeType = config.insightReport.cachedAudioMimeType || null;
+                    config.insightReport.cachedAudioRequiresWavWrapping = typeof config.insightReport.cachedAudioRequiresWavWrapping === 'boolean' ? config.insightReport.cachedAudioRequiresWavWrapping : false;
                 }
                 
                 apiKeyInput.value = config.apiKey || '';
@@ -495,6 +503,7 @@
                 accentColorPickerEl.value = config.accentColor || DEFAULT_ACCENT_COLOR;
             } else {
                 // If no stored config, ensure picker shows default
+                config.insightReport = { content: null, timestamp: null, cachedAudioBase64: null, cachedAudioMimeType: null, cachedAudioRequiresWavWrapping: false };
                 accentColorPickerEl.value = DEFAULT_ACCENT_COLOR;
             }
             // Update Insights button visibility based on loaded config
@@ -706,6 +715,13 @@
                 return;
             }
 
+            // Clear any previously cached audio for the old insight
+            if (config.insightReport) {
+                config.insightReport.cachedAudioBase64 = null;
+                config.insightReport.cachedAudioMimeType = null;
+                config.insightReport.cachedAudioRequiresWavWrapping = false;
+            }
+
             console.log('[DEBUG] fetchInsightFromGemini called.');
             toggleInsightModal(true);
             if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'none'; // Hide update button while fetching
@@ -755,7 +771,10 @@
                 // Store the new report and timestamp
                 config.insightReport = {
                     content: insightText,
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    cachedAudioBase64: null, // Ensure audio cache is clear for new text
+                    cachedAudioMimeType: null,
+                    cachedAudioRequiresWavWrapping: false
                 };
                 console.log('[DEBUG] Storing new insight report:', JSON.parse(JSON.stringify(config.insightReport)));
                 localStorage.setItem('btcTrackConfig', JSON.stringify(config)); // Save updated config
@@ -779,6 +798,59 @@
 
         let currentInsightAudio = null; // To manage the audio object
 
+        // Helper function to play audio from cached data
+        function playAudioFromCachedData(base64Data, mimeType, requiresWavWrapping) {
+            console.log(`[DEBUG] Playing from cache. MIME: ${mimeType}, RequiresWavWrapping: ${requiresWavWrapping}`);
+            let audioSourceUrl;
+            let isObjectUrl = false;
+
+            try {
+                if (requiresWavWrapping) {
+                    console.log('[DEBUG] Cached audio requires WAV wrapping.');
+                    const pcmData = base64ToUint8Array(base64Data);
+                    const sampleRate = 24000; 
+                    const numChannels = 1;    
+                    const bitsPerSample = 16; 
+                    const wavHeader = createWavHeader(pcmData.length, sampleRate, numChannels, bitsPerSample);
+                    const wavBlob = new Blob([wavHeader, pcmData], { type: 'audio/wav' }); // MimeType here is 'audio/wav'
+                    audioSourceUrl = URL.createObjectURL(wavBlob);
+                    isObjectUrl = true;
+                } else {
+                    console.log('[DEBUG] Cached audio is directly playable or already processed.');
+                    audioSourceUrl = `data:${mimeType};base64,${base64Data}`;
+                }
+
+                currentInsightAudio = new Audio(audioSourceUrl);
+                
+                currentInsightAudio.onended = () => {
+                    if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
+                    if(playInsightButtonEl) playInsightButtonEl.disabled = false;
+                    if (isObjectUrl) URL.revokeObjectURL(audioSourceUrl);
+                };
+
+                currentInsightAudio.onerror = (e) => {
+                    console.error("Audio element error (from cache):", e, "Source (first 100 chars):", audioSourceUrl.substring(0,100));
+                    if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
+                    if(playInsightButtonEl) playInsightButtonEl.disabled = false;
+                    if (isObjectUrl) URL.revokeObjectURL(audioSourceUrl);
+                    alert("Error playing cached audio. Check console. MIME: " + mimeType);
+                    // Clear potentially faulty cache entry
+                    config.insightReport.cachedAudioBase64 = null;
+                    config.insightReport.cachedAudioMimeType = null;
+                    config.insightReport.cachedAudioRequiresWavWrapping = false;
+                    localStorage.setItem('btcTrackConfig', JSON.stringify(config));
+                };
+
+                if(playInsightButtonEl) playInsightButtonEl.textContent = "Stop";
+                if(playInsightButtonEl) playInsightButtonEl.disabled = false;
+                currentInsightAudio.play().catch(err => currentInsightAudio.onerror(err)); // Play and catch potential errors
+
+            } catch (error) {
+                console.error("Error preparing cached audio for playback:", error);
+                if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
+                if(playInsightButtonEl) playInsightButtonEl.disabled = false;
+            }
+        }
         async function playInsightAudio() {
             if (!config.googleApiKey) {
                 alert("Google API Key is not configured. Please set it up in Config.");
@@ -798,6 +870,24 @@
             }
 
             const insightText = config.insightReport.content;
+
+            // Check for cached audio for the current insight content
+            if (config.insightReport.cachedAudioBase64 && 
+                config.insightReport.cachedAudioMimeType) {
+                console.log('[DEBUG] Found cached audio for current insight. Attempting to play from cache.');
+                try {
+                    playAudioFromCachedData(config.insightReport.cachedAudioBase64, config.insightReport.cachedAudioMimeType, config.insightReport.cachedAudioRequiresWavWrapping);
+                    return; // Exit if playing from cache
+                } catch (e) {
+                    console.error("[DEBUG] Error playing from cache, will try to re-fetch.", e);
+                    // Clear potentially corrupted cache and proceed to fetch
+                    config.insightReport.cachedAudioBase64 = null;
+                    config.insightReport.cachedAudioMimeType = null;
+                    config.insightReport.cachedAudioRequiresWavWrapping = false;
+                    // No need to save to localStorage yet, will be saved if fetch is successful
+                }
+            }
+
             const ttsPrompt = `<speak>${insightText}</speak>`; // Wrap insight text in SSML <speak> tags
             
             const TTS_MODEL_NAME = "gemini-2.5-flash-preview-tts";
@@ -847,6 +937,9 @@
 
                     let audioSourceUrl = null;
                     let isObjectUrl = false;
+                    let finalMimeTypeForCache = '';
+                    let requiresWavWrappingForCache = false;
+
 
                     // Prioritize directly playable MIME types if provided by the API
                     if (apiMimeType && (
@@ -857,6 +950,8 @@
                     )) {
                         console.log('[DEBUG] API provided a directly playable MIME type:', apiMimeType, '. Using data URL.');
                         audioSourceUrl = `data:${apiMimeType};base64,${base64Audio}`;
+                        finalMimeTypeForCache = apiMimeType;
+                        requiresWavWrappingForCache = false;
                     } else {
                         // Assume raw PCM if MIME type is not directly playable or is missing/generic
                         // This is the expected path for gemini-2.5-flash-preview-tts.
@@ -872,7 +967,16 @@
                         const wavBlob = new Blob([wavHeader, pcmData], { type: 'audio/wav' });
                         audioSourceUrl = URL.createObjectURL(wavBlob);
                         isObjectUrl = true;
+                        finalMimeTypeForCache = 'audio/wav'; // We converted it
+                        requiresWavWrappingForCache = true;  // Original data was raw PCM
                     }
+
+                    // Cache the fetched audio data
+                    config.insightReport.cachedAudioBase64 = base64Audio; // Store raw base64 from API
+                    config.insightReport.cachedAudioMimeType = finalMimeTypeForCache;
+                    config.insightReport.cachedAudioRequiresWavWrapping = requiresWavWrappingForCache;
+                    localStorage.setItem('btcTrackConfig', JSON.stringify(config));
+                    console.log('[DEBUG] Audio fetched and cached in config and localStorage.');
 
                     currentInsightAudio = new Audio(audioSourceUrl);
                     
