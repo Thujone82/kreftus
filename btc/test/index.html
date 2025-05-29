@@ -810,7 +810,7 @@
             const requestBody = {
                 contents: [{ parts: [{ text: ttsPrompt }] }],
                 generationConfig: {
-                    responseMimeType: "audio/mpeg", // Explicitly request raw audio output
+                    // No responseMimeType specified, rely on API default for TTS model (likely JSON with embedded audio)
                     speechConfig: { // speechConfig object
                         voiceConfig: {
                             prebuiltVoiceConfig: { voiceName: "Kore" } 
@@ -833,13 +833,14 @@
                     throw new Error(`TTS API Error: ${response.status} ${response.statusText}. Check console for details.`);
                 }
 
-                // If responseMimeType: "audio/mpeg" is successful, the response body is the audio data directly.
-                const audioBlob = await response.blob();
-                console.log('[DEBUG] TTS API response OK. Received blob type:', audioBlob.type, 'size:', audioBlob.size);
+                // Expect a JSON response with embedded audio data
+                const data = await response.json();
+                console.log('[DEBUG] TTS API response OK. Raw data:', data);
+                const audioPart = data.candidates?.[0]?.content?.parts?.find(part => part.inlineData && part.inlineData.mimeType?.startsWith('audio/'));
 
-                if (audioBlob && audioBlob.size > 0 && audioBlob.type.startsWith('audio/')) {
-                    const audioUrl = URL.createObjectURL(audioBlob);
-                    currentInsightAudio = new Audio(audioUrl);
+                if (audioPart && audioPart.inlineData.data) {
+                    const audioMimeType = audioPart.inlineData.mimeType;
+                    currentInsightAudio = new Audio(`data:${audioMimeType};base64,${audioPart.inlineData.data}`);
                     currentInsightAudio.play();
                     if(playInsightButtonEl) playInsightButtonEl.textContent = "Stop";
                     if(playInsightButtonEl) playInsightButtonEl.disabled = false;
@@ -847,11 +848,11 @@
                     currentInsightAudio.onended = () => {
                         if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
                         if(playInsightButtonEl) playInsightButtonEl.disabled = false;
-                        URL.revokeObjectURL(audioUrl); // Clean up the object URL
+                        // No URL.revokeObjectURL needed for data URLs
                     };
                 } else { 
-                    console.error("[DEBUG] TTS API did not return a valid audio blob. Received:", audioBlob);
-                    throw new Error("TTS API did not return valid audio data."); 
+                    console.error("[DEBUG] No audio content found in expected part of the JSON response:", data);
+                    throw new Error("No audio content received from TTS API in JSON response."); 
                 }
             } catch (error) {
                 console.error("Error playing insight audio:", error);
