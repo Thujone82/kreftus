@@ -810,10 +810,14 @@
             const requestBody = {
                 contents: [{ parts: [{ text: ttsPrompt }] }],
                 generationConfig: {
-                    responseMimeType: "audio/mpeg", // Explicitly request audio output
+                    // responseMimeType: "audio/mpeg", // This field is not for specifying audio output format here.
+                    // Instead, use audioConfig within speechConfig.
                     speechConfig: {
                         voiceConfig: {
                             prebuiltVoiceConfig: { voiceName: "Kore" } 
+                        },
+                        audioConfig: { // Specify the desired audio encoding
+                            audioEncoding: "MP3" // This will produce audio/mpeg output
                         }
                     }
                 }
