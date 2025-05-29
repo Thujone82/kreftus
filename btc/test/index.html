@@ -810,13 +810,13 @@
             const requestBody = {
                 contents: [{ parts: [{ text: ttsPrompt }] }],
                 generationConfig: {
-                    speechConfig: {
+                    speechConfig: { // speechConfig object
                         voiceConfig: {
                             prebuiltVoiceConfig: { voiceName: "Kore" } 
-                        },
-                        audioConfig: { // Specify the desired audio encoding
-                            audioEncoding: "MP3" // This will produce audio/mpeg output
                         }
+                    }, // End of speechConfig object
+                    audioConfig: { // audioConfig is now a sibling to speechConfig
+                        audioEncoding: "MP3" // This will produce audio/mpeg output
                     }
                 }
             };
