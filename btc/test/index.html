@@ -394,6 +394,9 @@
             <label for="googleApiKey">Google API Key (for Insights):</label>
             <input type="text" id="googleApiKey" placeholder="Enter your Google API Key">
 
+            <label for="voiceSelect">Voice:</label>
+            <select id="voiceSelect"></select>
+
             <label for="accentColorPicker">Accent Color:</label>
             <input type="color" id="accentColorPicker">
 
@@ -451,6 +454,7 @@
         const userBtcAmountInput = document.getElementById('userBtcAmount');
         const userTotalCostInput = document.getElementById('userTotalCost');
         const googleApiKeyInput = document.getElementById('googleApiKey');
+        const voiceSelectEl = document.getElementById('voiceSelect');
         const accentColorPickerEl = document.getElementById('accentColorPicker');
 
         const insightsButtonEl = document.getElementById('insightsButton');
@@ -462,6 +466,19 @@
         const playInsightButtonEl = document.getElementById('playInsightButton');
 
         const DEFAULT_ACCENT_COLOR = '#f7931a';
+        const DEFAULT_VOICE = 'Kore';
+        const AVAILABLE_VOICES = [
+            "Zephyr -- Bright", "Puck -- Upbeat", "Charon -- Informative", "Kore -- Firm",
+            "Fenrir -- Excitable", "Leda -- Youthful", "Orus -- Firm", "Aoede -- Breezy",
+            "Callirrhoe -- Easy-going", "Autonoe -- Bright", "Enceladus -- Breathy",
+            "Iapetus -- Clear", "Umbriel -- Easy-going", "Algieba -- Smooth", "Despina -- Smooth",
+            "Erinome -- Clear", "Algenib -- Gravelly", "Rasalgethi -- Informative",
+            "Laomedeia -- Upbeat", "Achernar -- Soft", "Alnilam -- Firm", "Schedar -- Even",
+            "Gacrux -- Mature", "Pulcherrima -- Forward", "Achird -- Friendly",
+            "Zubenelgenubi -- Casual", "Vindemiatrix -- Gentle", "Sadachbia -- Lively",
+            "Sadaltager -- Knowledgeable", "Sulafat -- Warm"
+        ];
+
         let lastDataFetchTimestamp = null;
         let updateTimestampInterval = null;
         let config = {
@@ -469,6 +486,7 @@
             apiKey: '',
             userBtcAmount: 0.0,
             userTotalCost: 0.0,
+            selectedVoice: DEFAULT_VOICE,
             selectedTimeframe: '24h',
             accentColor: DEFAULT_ACCENT_COLOR,
             insightReport: { // New: For storing the last insight
@@ -479,6 +497,17 @@
                 cachedAudioRequiresWavWrapping: false
             }
         };
+
+        function populateVoiceDropdown() {
+            AVAILABLE_VOICES.forEach(voiceDesc => {
+                const [voiceName, description] = voiceDesc.split(" -- ");
+                const option = document.createElement('option');
+                option.value = voiceName;
+                option.textContent = voiceDesc;
+                if (voiceName === DEFAULT_VOICE) option.selected = true;
+                voiceSelectEl.appendChild(option);
+            });
+        }
 
         function loadConfig() {
             const storedConfig = localStorage.getItem('btcTrackConfig');
@@ -499,9 +528,11 @@
                 userBtcAmountInput.value = config.userBtcAmount || '';
                 userTotalCostInput.value = config.userTotalCost || '';
                 googleApiKeyInput.value = config.googleApiKey || '';
+                voiceSelectEl.value = config.selectedVoice || DEFAULT_VOICE;
                 timeframeSelectEl.value = config.selectedTimeframe || '24h';
                 accentColorPickerEl.value = config.accentColor || DEFAULT_ACCENT_COLOR;
             } else {
+                voiceSelectEl.value = DEFAULT_VOICE;
                 // If no stored config, ensure picker shows default
                 config.insightReport = { content: null, timestamp: null, cachedAudioBase64: null, cachedAudioMimeType: null, cachedAudioRequiresWavWrapping: false };
                 accentColorPickerEl.value = DEFAULT_ACCENT_COLOR;
@@ -515,6 +546,7 @@
             config.userBtcAmount = parseFloat(userBtcAmountInput.value) || 0.0;
             config.userTotalCost = parseFloat(userTotalCostInput.value) || 0.0;
             config.accentColor = accentColorPickerEl.value || DEFAULT_ACCENT_COLOR;
+            config.selectedVoice = voiceSelectEl.value || DEFAULT_VOICE;
             config.googleApiKey = googleApiKeyInput.value.trim();
             // selectedTimeframe is saved via its own event listener
             localStorage.setItem('btcTrackConfig', JSON.stringify(config));
@@ -527,6 +559,7 @@
                 userBtcAmountInput.value = config.userBtcAmount || '';
                 userTotalCostInput.value = config.userTotalCost || '';
                 googleApiKeyInput.value = config.googleApiKey || '';
+                voiceSelectEl.value = config.selectedVoice || DEFAULT_VOICE;
                 accentColorPickerEl.value = config.accentColor || DEFAULT_ACCENT_COLOR;
             }
         }
@@ -903,7 +936,7 @@
                     responseModalities: ["AUDIO"], // Explicitly request only AUDIO modality
                     speechConfig: { // speechConfig is now nested correctly
                         voiceConfig: {
-                            prebuiltVoiceConfig: { voiceName: "Kore" }
+                            prebuiltVoiceConfig: { voiceName: config.selectedVoice || DEFAULT_VOICE }
                         }
                     }
                 } 
@@ -1267,6 +1300,17 @@
                  }
             }
         });
+        voiceSelectEl.addEventListener('change', (event) => {
+            config.selectedVoice = event.target.value;
+            // Clear cached audio as the voice has changed
+            if (config.insightReport) {
+                config.insightReport.cachedAudioBase64 = null;
+                config.insightReport.cachedAudioMimeType = null;
+                config.insightReport.cachedAudioRequiresWavWrapping = false;
+                console.log('[DEBUG] Voice changed, audio cache cleared.');
+            }
+            localStorage.setItem('btcTrackConfig', JSON.stringify(config));
+        });
 
         insightsButtonEl.addEventListener('click', handleInsightsButtonClick);
         document.getElementById('closeInsightButton').addEventListener('click', () => toggleInsightModal(false));
@@ -1440,6 +1484,7 @@
 
         // Initial Load
         document.addEventListener('DOMContentLoaded', () => {
+            populateVoiceDropdown();
             loadConfig();
             applyAccentColor();
             if (!config.apiKey) {
