@@ -888,19 +888,16 @@
                 };
 
                 currentInsightAudio.onerror = (e) => {
-                    const playAttemptError = e.detail?.originalError; // Check for error passed from oncanplaythrough's catch
                     const mediaError = currentInsightAudio.error; // Standard HTMLMediaElement error
                     let errorMessage = "Unknown audio error";
 
-                    if (playAttemptError) {
-                        errorMessage = playAttemptError.message || "Failed to play audio after loading.";
-                        console.error("Audio element error (from cache, play() failed):", playAttemptError, "Source:", audioSourceUrl.substring(0,100));
-                    } else if (mediaError) {
+                    if (mediaError) {
                         errorMessage = mediaError.message || `MediaError code ${mediaError.code}`;
                         console.error("Audio element error (from cache, HTMLMediaElement error):", mediaError, "Source:", audioSourceUrl.substring(0,100));
                     } else {
                         console.error("Audio element error (from cache, unknown type):", e, "Source:", audioSourceUrl.substring(0,100));
                     }
+
 
                     if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
                     if(playInsightButtonEl) playInsightButtonEl.disabled = false;
@@ -913,32 +910,19 @@
                     localStorage.setItem('btcTrackConfig', JSON.stringify(config));
                 };
 
-                if (playInsightButtonEl) { // Set to loading while waiting for canplaythrough
-                    playInsightButtonEl.textContent = "Loading...";
-                    playInsightButtonEl.disabled = true;
-                }
+                // The playInsightAudio function has already set the button to "Buffering..."
+                // and disabled it. We attempt to play directly.
+                await currentInsightAudio.play();
+                if(playInsightButtonEl) playInsightButtonEl.textContent = "Stop";
+                if(playInsightButtonEl) playInsightButtonEl.disabled = false;
 
-                currentInsightAudio.oncanplaythrough = async () => {
-                    console.log('[DEBUG] Cache: canplaythrough event fired.');
-                    try {
-                        await currentInsightAudio.play();
-                        if(playInsightButtonEl) playInsightButtonEl.textContent = "Stop";
-                        if(playInsightButtonEl) playInsightButtonEl.disabled = false;
-                    } catch (playError) {
-                        console.error("Error on play() after canplaythrough (cached):", playError);
-                        if (currentInsightAudio.dispatchEvent) { // Trigger the main onerror handler
-                            const errorEvent = new CustomEvent('error', { detail: { originalError: playError } });
-                            currentInsightAudio.dispatchEvent(errorEvent);
-                        }
-                    }
-                };
-                currentInsightAudio.src = audioSourceUrl;
-                currentInsightAudio.load(); // Call load after setting src and handlers
-
-            } catch (error) {
-                console.error("Error preparing cached audio for playback:", error);
+            } catch (error) { // This catch handles errors in audioSourceUrl creation OR from await currentInsightAudio.play()
+                console.error("Error preparing or playing cached audio:", error);
                 if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
                 if(playInsightButtonEl) playInsightButtonEl.disabled = false;
+                if (isObjectUrl && audioSourceUrl) URL.revokeObjectURL(audioSourceUrl); // Ensure cleanup if play failed
+                // If the error was from play(), the audio element's onerror might also fire or might have already.
+                // If it was from audioSourceUrl creation, this catch handles it.
             }
         }
         async function playInsightAudio() {
@@ -1104,20 +1088,15 @@
                     };
 
                     currentInsightAudio.onerror = (e) => {
-                        const playAttemptError = e.detail?.originalError; // Check for error passed from oncanplaythrough's catch
                         const mediaError = currentInsightAudio.error; // Standard HTMLMediaElement error
                         let errorMessage = "Unknown audio error";
 
-                        if (playAttemptError) {
-                            errorMessage = playAttemptError.message || "Failed to play audio after loading.";
-                            console.error("Audio element error (API fetch, play() failed):", playAttemptError, "Source:", audioSourceUrl.substring(0,100));
-                        } else if (mediaError) {
+                        if (mediaError) {
                             errorMessage = mediaError.message || `MediaError code ${mediaError.code}`;
                             console.error("Audio element error (API fetch, HTMLMediaElement error):", mediaError, "Source:", audioSourceUrl.substring(0,100));
                         } else {
                             console.error("Audio element error (API fetch, unknown type):", e, "Source:", audioSourceUrl.substring(0,100));
                         }
-
                         if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
                         if(playInsightButtonEl) playInsightButtonEl.disabled = false;
                         if (isObjectUrl) {
@@ -1126,25 +1105,12 @@
                         alert("Error playing audio. Check console. API MIME: " + apiMimeType);
                     };
                     
-                    // Button is already "Buffering..." from before the fetch.
-                    // Playback will be initiated by oncanplaythrough.
-                    currentInsightAudio.oncanplaythrough = async () => {
-                        console.log('[DEBUG] API: canplaythrough event fired.');
-                        try {
-                            await currentInsightAudio.play();
-                            if(playInsightButtonEl) playInsightButtonEl.textContent = "Stop";
-                            if(playInsightButtonEl) playInsightButtonEl.disabled = false;
-                        } catch (playError) {
-                            console.error("Error on play() after canplaythrough (API fetch):", playError);
-                            if (currentInsightAudio.dispatchEvent) { // Trigger the main onerror handler
-                                const errorEvent = new CustomEvent('error', { detail: { originalError: playError } });
-                                currentInsightAudio.dispatchEvent(errorEvent);
-                            }
-                        }
-                    };
-                    currentInsightAudio.src = audioSourceUrl; // Set src after attaching handlers
-                    currentInsightAudio.load(); // Call load
-
+                    // Button is "Buffering..." and disabled from before the API fetch.
+                    // Attempt to play directly.
+                    await currentInsightAudio.play();
+                    if(playInsightButtonEl) playInsightButtonEl.textContent = "Stop";
+                    if(playInsightButtonEl) playInsightButtonEl.disabled = false;
+                    
                 } else { 
                     console.error("[DEBUG] No audio content found in expected part of the JSON response:", data);
                     if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
