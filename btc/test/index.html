@@ -809,14 +809,13 @@
 
             const requestBody = {
                 contents: [{ parts: [{ text: ttsPrompt }] }],
-                generationConfig: {
-                    // No responseMimeType specified, rely on API default for TTS model (likely JSON with embedded audio)
-                    speechConfig: { // speechConfig object
-                        voiceConfig: {
-                            prebuiltVoiceConfig: { voiceName: "Kore" } 
-                        }
+                // For this preview TTS model, let's try speechConfig at the top level
+                speechConfig: {
+                    voiceConfig: {
+                        prebuiltVoiceConfig: { voiceName: "Kore" }
                     }
                 }
+                // generationConfig is removed as speechConfig was its only content for this call
             };
             console.log('[DEBUG] TTS Request Body:', JSON.stringify(requestBody, null, 2));
 
