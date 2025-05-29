@@ -283,7 +283,7 @@
             background-color: #5a5a7a; /* A different color for the update button */
         }
         #insightModal .modal-buttons button#playInsightButton {
-            background-color: #4CAF50; /* Green, similar to save */
+            background-color: #4CAF50; /* Green, similar to save/config buttons */
         }
 
 
@@ -475,7 +475,6 @@
                 content: null,
                 timestamp: null
             }
-            // insightAudioPlayer: null // Will be initialized later
         };
 
         function loadConfig() {
@@ -679,19 +678,17 @@
         function updateInsightModalDisplay() {
             const timestampEl = document.getElementById('insightTimestamp');
             // updateInsightButtonEl is now a global const
-            // playInsightButtonEl is now a global const
             console.log('[DEBUG] updateInsightModalDisplay called. Current insightReport:', JSON.parse(JSON.stringify(config.insightReport)));
 
             if (config.insightReport && config.insightReport.content && config.insightReport.timestamp) {
                 console.log('[DEBUG] Displaying cached insight report.');
                 insightContentEl.textContent = config.insightReport.content;
                 if(insightTimestampEl) {insightTimestampEl.textContent = formatInsightTimestamp(config.insightReport.timestamp); insightTimestampEl.style.display = 'block';}
-                if(playInsightButtonEl) playInsightButtonEl.style.display = 'inline-block'; // Show Play button
 
                 const oneHourInMs = 60 * 60 * 1000;
                 if(updateInsightButtonEl) updateInsightButtonEl.style.display = (Date.now() - config.insightReport.timestamp) >= oneHourInMs ? 'inline-block' : 'none';
+                if(playInsightButtonEl) playInsightButtonEl.style.display = 'inline-block'; // Show Play button
                 console.log('[DEBUG] Update button display:', updateInsightButtonEl ? updateInsightButtonEl.style.display : 'N/A (element not found)');
-                console.log('[DEBUG] Play button display:', playInsightButtonEl ? playInsightButtonEl.style.display : 'N/A (element not found)');
             } else {
                 console.log('[DEBUG] No valid cached insight report found. Triggering new fetch.');
                 insightContentEl.textContent = "No previous insight found. Fetching new report...";
@@ -701,7 +698,6 @@
                 fetchInsightFromGemini(); // Fetch a new one immediately if no valid stored report
             }
         }
-
 
 
         async function fetchInsightFromGemini() {
@@ -722,9 +718,9 @@
             // Using gemini-2.5-flash as a robust choice for a recent Flash model.
             // Verify with ListModels if a more specific identifier like "gemini-1.5-flash-preview-0520" is needed and available.
             const modelName = "gemini-2.5-flash-preview-05-20"; 
-            const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateSpeech?key=${config.googleApiKey}`;            const prompt = "What is happening in Bitcoin today, Cover main headlines, with summaries. Length 500 words or less";
+            const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${config.googleApiKey}`;            const prompt = "What is happening in Bitcoin today, Cover main headlines, with summaries. Length 500 words or less";
 
-            console.log(`[DEBUG] Attempting to fetch insight. Model for content: ${modelName}, API Key used: ${config.googleApiKey ? 'Yes' : 'No'}`);
+            console.log(`[DEBUG] Attempting to fetch insight. Model: ${modelName}, API Key used: ${config.googleApiKey ? 'Yes' : 'No'}`);
             console.log(`[DEBUG] Prompt: "${prompt}"`);
 
             try {
@@ -737,7 +733,7 @@
                         contents: [{ parts: [{ text: prompt }] }],
                         tools: [
                             {
-                                "googleSearchRetrieval": {} 
+                                "googleSearch": {} // Corrected tool name
                             }
                         ]
                     }),
@@ -803,29 +799,21 @@
 
             const insightText = config.insightReport.content;
             const ttsPrompt = `Read aloud as a seasoned newscaster: ${insightText}`;
-            // Note: The model "gemini-2.5-flash-preview-tts" was specified. 
-            // For synthesizeSpeech, a common compatible model is "gemini-1.5-flash-001".
-            // Ensure the chosen model supports synthesizeSpeech.
-            // Reverting to gemini-1.5-flash-001 as it's a known specific version.
-            // Using the model and endpoint structure from the user's Python example.
+            
             const TTS_MODEL_NAME = "gemini-2.5-flash-preview-tts";
             const TTS_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${TTS_MODEL_NAME}:generateContent?key=${config.googleApiKey}`;
 
-            if(playInsightButtonEl) playInsightButtonEl.textContent = "Buffering..."; // Changed from "Loading Audio..."
+            if(playInsightButtonEl) playInsightButtonEl.textContent = "Buffering...";
             if(playInsightButtonEl) playInsightButtonEl.disabled = true;
             console.log(`[DEBUG] Attempting to fetch TTS audio. TTS Model: ${TTS_MODEL_NAME}, API URL: ${TTS_API_URL}`);
 
             const requestBody = {
                 contents: [{ parts: [{ text: ttsPrompt }] }],
                 generationConfig: {
-                    responseMimeType: "audio/mp3", // Requesting MP3 output
-                    // speechConfig is structured based on typical Gemini API patterns for such configurations
-                    // when passed within generationConfig or similar.
-                    // The Python SDK might abstract this slightly.
-                    // We are mirroring the intent of the Python example's speech_config.
-                    speechConfig: { // This structure is an educated guess based on typical API patterns
+                    responseMimeType: "audio/mp3",
+                    speechConfig: {
                         voiceConfig: {
-                            prebuiltVoiceConfig: { voiceName: "Kore" } // Using user's preferred voice
+                            prebuiltVoiceConfig: { voiceName: "Kore" } 
                         }
                     }
                 }
@@ -840,26 +828,28 @@
                 });
 
                 if (!response.ok) {
-                    console.error(`[DEBUG] TTS API response not OK. Status: ${response.status} ${response.statusText}`);
-                    const errorData = await response.json().catch(() => ({ error: { message: "Unknown server error or non-JSON response."} }));
-                    throw new Error(errorData?.error?.message || `TTS API Error: ${response.status}`);
+                    const errorText = await response.text(); // Get raw error text for more info
+                    console.error(`[DEBUG] TTS API response not OK. Status: ${response.status} ${response.statusText}. Response Text: ${errorText}`);
+                    throw new Error(`TTS API Error: ${response.status} ${response.statusText}. Check console for details.`);
                 }
 
                 const data = await response.json();
                 console.log('[DEBUG] TTS API response OK. Raw data:', data);
-                // Extract audio data from the generateContent response structure
-                const audioPart = data.candidates?.[0]?.content?.parts?.find(part => part.inlineData && part.inlineData.mimeType.startsWith('audio/'));
+                const audioPart = data.candidates?.[0]?.content?.parts?.find(part => part.inlineData && part.inlineData.mimeType?.startsWith('audio/'));
                 if (audioPart && audioPart.inlineData.data) {
                     const audioMimeType = audioPart.inlineData.mimeType;
                     currentInsightAudio = new Audio(`data:${audioMimeType};base64,${audioPart.inlineData.data}`);
                     currentInsightAudio.play();
-                    if(playInsightButtonEl) playInsightButtonEl.textContent = "Stop"; // Now acts as a stop button
+                    if(playInsightButtonEl) playInsightButtonEl.textContent = "Stop";
                     if(playInsightButtonEl) playInsightButtonEl.disabled = false;
                     currentInsightAudio.onended = () => {
                         if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
                         if(playInsightButtonEl) playInsightButtonEl.disabled = false;
                     };
-                } else { throw new Error("No audio content received from TTS API."); }
+                } else { 
+                    console.error("[DEBUG] No audio content found in expected part of the response:", data);
+                    throw new Error("No audio content received from TTS API."); 
+                }
             } catch (error) {
                 console.error("Error playing insight audio:", error);
                 alert(`Error generating audio: ${error.message}`);
@@ -1079,11 +1069,10 @@
         if (updateInsightButtonEl) {
             updateInsightButtonEl.addEventListener('click', fetchInsightFromGemini); // Update button calls fetch directly
         }
+        // Ensure playInsightButtonEl exists before adding listener
         if (playInsightButtonEl) {
             playInsightButtonEl.addEventListener('click', playInsightAudio);
         }
-
-
 
         function drawPriceChart(history, timeframe, allTimeHighUSD, accentColor) {
             if (!priceChartCanvas) return;
