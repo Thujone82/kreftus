@@ -319,7 +319,7 @@
     <div class="container">
         <header>
             <div class="header-title-group">
-                <img src="./icons/512x512.png" alt="BTC Track Logo" id="headerLogo">
+                <img src="./icons/512.png" alt="BTC Track Logo" id="headerLogo">
                 <h1>BTC Track</h1>
             </div>
             <div class="action-buttons">
@@ -810,7 +810,6 @@
             const requestBody = {
                 contents: [{ parts: [{ text: ttsPrompt }] }],
                 generationConfig: {
-                    responseMimeType: "audio/mp3",
                     speechConfig: {
                         voiceConfig: {
                             prebuiltVoiceConfig: { voiceName: "Kore" } 
