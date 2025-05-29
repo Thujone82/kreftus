@@ -813,11 +813,10 @@
                     speechConfig: { // speechConfig object
                         voiceConfig: {
                             prebuiltVoiceConfig: { voiceName: "Kore" } 
-                        }
-                    }, // End of speechConfig object
-                    audioConfig: { // audioConfig is now a sibling to speechConfig
+                        },
                         audioEncoding: "MP3" // This will produce audio/mpeg output
                     }
+                    // The separate 'audioConfig' object has been removed from generationConfig
                 }
             };
             console.log('[DEBUG] TTS Request Body:', JSON.stringify(requestBody, null, 2));
