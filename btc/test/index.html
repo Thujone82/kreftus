@@ -809,13 +809,13 @@
 
             const requestBody = {
                 contents: [{ parts: [{ text: ttsPrompt }] }],
-                // For this preview TTS model, let's try speechConfig at the top level
-                speechConfig: {
-                    voiceConfig: {
-                        prebuiltVoiceConfig: { voiceName: "Kore" }
+                generationConfig: { // Re-introduce generationConfig
+                    speechConfig: { // speechConfig is now nested correctly
+                        voiceConfig: {
+                            prebuiltVoiceConfig: { voiceName: "Kore" }
+                        }
                     }
                 }
-                // generationConfig is removed as speechConfig was its only content for this call
             };
             console.log('[DEBUG] TTS Request Body:', JSON.stringify(requestBody, null, 2));
 
