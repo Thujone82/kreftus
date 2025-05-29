@@ -530,7 +530,7 @@
                 const option = document.createElement('option');
                 option.value = voiceName;
                 option.textContent = voiceDesc;
-                if (voiceName === DEFAULT_VOICE) option.selected = true;
+                if (voiceName === DEFAULT_VOICE) option.selected = true; // Set default
                 voiceSelectEl.appendChild(option);
             });
         }
@@ -856,6 +856,7 @@
         }
 
         let currentInsightAudio = null; // To manage the audio object
+        let retryCountdownInterval = null; // To manage the 429 retry countdown interval
 
         // Helper function to play audio from cached data
         function playAudioFromCachedData(base64Data, mimeType, requiresWavWrapping) {
@@ -888,21 +889,11 @@
                 };
 
                 currentInsightAudio.onerror = (e) => {
-                    const mediaError = currentInsightAudio.error; // Standard HTMLMediaElement error
-                    let errorMessage = "Unknown audio error";
-
-                    if (mediaError) {
-                        errorMessage = mediaError.message || `MediaError code ${mediaError.code}`;
-                        console.error("Audio element error (from cache, HTMLMediaElement error):", mediaError, "Source:", audioSourceUrl.substring(0,100));
-                    } else {
-                        console.error("Audio element error (from cache, unknown type):", e, "Source:", audioSourceUrl.substring(0,100));
-                    }
-
-
+                    console.error("Audio element error (from cache):", e, "Source (first 100 chars):", audioSourceUrl.substring(0,100));
                     if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
                     if(playInsightButtonEl) playInsightButtonEl.disabled = false;
                     if (isObjectUrl) URL.revokeObjectURL(audioSourceUrl);
-                    alert("Error playing cached audio. Check console. MIME: " + mimeType + ". Error: " + errorMessage);
+                    alert("Error playing cached audio. Check console. MIME: " + mimeType);
                     // Clear potentially faulty cache entry
                     config.insightReport.cachedAudioBase64 = null;
                     config.insightReport.cachedAudioMimeType = null;
@@ -910,19 +901,14 @@
                     localStorage.setItem('btcTrackConfig', JSON.stringify(config));
                 };
 
-                // The playInsightAudio function has already set the button to "Buffering..."
-                // and disabled it. We attempt to play directly.
-                await currentInsightAudio.play();
                 if(playInsightButtonEl) playInsightButtonEl.textContent = "Stop";
                 if(playInsightButtonEl) playInsightButtonEl.disabled = false;
+                currentInsightAudio.play().catch(err => currentInsightAudio.onerror(err)); // Play and catch potential errors
 
-            } catch (error) { // This catch handles errors in audioSourceUrl creation OR from await currentInsightAudio.play()
-                console.error("Error preparing or playing cached audio:", error);
+            } catch (error) {
+                console.error("Error preparing cached audio for playback:", error);
                 if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
                 if(playInsightButtonEl) playInsightButtonEl.disabled = false;
-                if (isObjectUrl && audioSourceUrl) URL.revokeObjectURL(audioSourceUrl); // Ensure cleanup if play failed
-                // If the error was from play(), the audio element's onerror might also fire or might have already.
-                // If it was from audioSourceUrl creation, this catch handles it.
             }
         }
         async function playInsightAudio() {
@@ -998,27 +984,41 @@
                     if (response.status === 429) { // Too Many Requests
                         try {
                             const parsedError = JSON.parse(errorText);
-                            const errorInfoDetail = parsedError?.error?.details?.find(d => d['@type'] === 'type.googleapis.com/google.rpc.ErrorInfo');
-                            const retryDelayString = errorInfoDetail?.metadata?.retryDelay;
+                            // Find the RetryInfo detail object
+                            const retryInfoDetail = parsedError?.error?.details?.find(d => d['@type'] === 'type.googleapis.com/google.rpc.RetryInfo');
+                            const retryDelayString = retryInfoDetail?.retryDelay; // e.g., "43s"
 
                             if (retryDelayString) {
-                                const delaySeconds = parseInt(retryDelayString); // e.g., "60s" -> 60
-                                if (!isNaN(delaySeconds) && delaySeconds > 0) {
-                                    if(playInsightButtonEl) playInsightButtonEl.textContent = `Retry in ${delaySeconds}s`;
-                                    // Button is already disabled from "Buffering..."
-                                    setTimeout(() => {
-                                        if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
-                                        if(playInsightButtonEl) playInsightButtonEl.disabled = false;
-                                    }, delaySeconds * 1000);
-                                    // We don't throw an error here, just return, as the button state is managed.
-                                    return; 
+                                let initialDelaySeconds = parseInt(retryDelayString.replace('s', ''));
+                                if (!isNaN(initialDelaySeconds) && initialDelaySeconds > 0) {
+                                    if (playInsightButtonEl) playInsightButtonEl.textContent = `Retry in ${initialDelaySeconds}s`;
+                                    // Button is already disabled.
+
+                                    if (retryCountdownInterval) {
+                                        clearInterval(retryCountdownInterval); // Clear any existing countdown
+                                    }
+
+                                    let currentCountdownSeconds = initialDelaySeconds;
+                                    retryCountdownInterval = setInterval(() => {
+                                        currentCountdownSeconds--;
+                                        if (currentCountdownSeconds > 0) {
+                                            if (playInsightButtonEl) playInsightButtonEl.textContent = `Retry in ${currentCountdownSeconds}s`;
+                                        } else {
+                                            clearInterval(retryCountdownInterval);
+                                            retryCountdownInterval = null;
+                                            if (playInsightButtonEl) {
+                                                playInsightButtonEl.textContent = "Play";
+                                                playInsightButtonEl.disabled = false;
+                                            }
+                                        }
+                                    }, 1000);
+                                    return; // Important: exit after setting up the countdown
                                 }
                             }
                         } catch (parseError) {
                             console.error("[DEBUG] Could not parse 429 error details or retryDelay:", parseError);
                         }
                     }
-                    // For other errors, or if 429 parsing failed to find retryDelay
                     throw new Error(`TTS API Error: ${response.status}. Check console for details.`);
                 }
 
@@ -1088,15 +1088,7 @@
                     };
 
                     currentInsightAudio.onerror = (e) => {
-                        const mediaError = currentInsightAudio.error; // Standard HTMLMediaElement error
-                        let errorMessage = "Unknown audio error";
-
-                        if (mediaError) {
-                            errorMessage = mediaError.message || `MediaError code ${mediaError.code}`;
-                            console.error("Audio element error (API fetch, HTMLMediaElement error):", mediaError, "Source:", audioSourceUrl.substring(0,100));
-                        } else {
-                            console.error("Audio element error (API fetch, unknown type):", e, "Source:", audioSourceUrl.substring(0,100));
-                        }
+                        console.error("Audio element error:", e, "Source (first 100 chars):", audioSourceUrl.substring(0,100));
                         if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
                         if(playInsightButtonEl) playInsightButtonEl.disabled = false;
                         if (isObjectUrl) {
@@ -1104,13 +1096,11 @@
                         }
                         alert("Error playing audio. Check console. API MIME: " + apiMimeType);
                     };
-                    
-                    // Button is "Buffering..." and disabled from before the API fetch.
-                    // Attempt to play directly.
-                    await currentInsightAudio.play();
+
+                    await currentInsightAudio.play(); // play() returns a Promise
                     if(playInsightButtonEl) playInsightButtonEl.textContent = "Stop";
                     if(playInsightButtonEl) playInsightButtonEl.disabled = false;
-                    
+
                 } else { 
                     console.error("[DEBUG] No audio content found in expected part of the JSON response:", data);
                     if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";

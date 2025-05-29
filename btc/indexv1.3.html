@@ -220,29 +220,6 @@
             margin-bottom: 15px; /* Space before buttons */
         }
 
-        /* New styles for arranging label and input/select on the same row */
-        .modal-content .config-item-row {
-            display: flex;
-            align-items: center; /* Vertically aligns label and the input/select */
-            margin-top: 15px;    /* Standard spacing from the element above */
-            /* margin-bottom will be handled by the next element's margin-top or can be added if needed */
-        }
-
-        .modal-content .config-item-row label {
-            display: inline;     /* Override default block display for labels */
-            margin-top: 0;       /* Reset top margin */
-            margin-bottom: 0;    /* Reset bottom margin */
-            margin-right: 10px;  /* Space between label and the input/select */
-            flex-shrink: 0;      /* Prevent label from shrinking */
-        }
-
-        .modal-content .config-item-row select,
-        .modal-content .config-item-row input[type="text"], /* If other inputs were to use this row layout */
-        .modal-content .config-item-row input[type="number"] {
-            flex-grow: 1;        /* Allow the input/select to take available space */
-            width: auto;         /* Override fixed width calculations */
-            margin-bottom: 0;    /* Reset bottom margin as row handles vertical spacing */
-        }
         .modal-content label {
             display: block;
             margin-top: 15px;
@@ -252,8 +229,7 @@
 
         .modal-content input[type="text"],
         .modal-content input[type="number"],
-        .modal-content input[type="color"],
-        .modal-content select { /* General styling for select elements in modal */
+        .modal-content input[type="color"] { /* Added color input styling */
             width: calc(100% - 20px);
             padding: 10px;
             margin-bottom: 10px;
@@ -418,11 +394,6 @@
             <label for="googleApiKey">Google API Key (for Insights):</label>
             <input type="text" id="googleApiKey" placeholder="Enter your Google API Key">
 
-            <div class="config-item-row"> <!-- Wrapper for same-line layout -->
-                <label for="voiceSelect">Voice:</label>
-                <select id="voiceSelect"></select>
-            </div>
-
             <label for="accentColorPicker">Accent Color:</label>
             <input type="color" id="accentColorPicker">
 
@@ -480,7 +451,6 @@
         const userBtcAmountInput = document.getElementById('userBtcAmount');
         const userTotalCostInput = document.getElementById('userTotalCost');
         const googleApiKeyInput = document.getElementById('googleApiKey');
-        const voiceSelectEl = document.getElementById('voiceSelect');
         const accentColorPickerEl = document.getElementById('accentColorPicker');
 
         const insightsButtonEl = document.getElementById('insightsButton');
@@ -492,19 +462,6 @@
         const playInsightButtonEl = document.getElementById('playInsightButton');
 
         const DEFAULT_ACCENT_COLOR = '#f7931a';
-        const DEFAULT_VOICE = 'Kore';
-        const AVAILABLE_VOICES = [
-            "Zephyr -- Bright", "Puck -- Upbeat", "Charon -- Informative", "Kore -- Firm",
-            "Fenrir -- Excitable", "Leda -- Youthful", "Orus -- Firm", "Aoede -- Breezy",
-            "Callirrhoe -- Easy-going", "Autonoe -- Bright", "Enceladus -- Breathy",
-            "Iapetus -- Clear", "Umbriel -- Easy-going", "Algieba -- Smooth", "Despina -- Smooth",
-            "Erinome -- Clear", "Algenib -- Gravelly", "Rasalgethi -- Informative",
-            "Laomedeia -- Upbeat", "Achernar -- Soft", "Alnilam -- Firm", "Schedar -- Even",
-            "Gacrux -- Mature", "Pulcherrima -- Forward", "Achird -- Friendly",
-            "Zubenelgenubi -- Casual", "Vindemiatrix -- Gentle", "Sadachbia -- Lively",
-            "Sadaltager -- Knowledgeable", "Sulafat -- Warm"
-        ];
-
         let lastDataFetchTimestamp = null;
         let updateTimestampInterval = null;
         let config = {
@@ -512,7 +469,6 @@
             apiKey: '',
             userBtcAmount: 0.0,
             userTotalCost: 0.0,
-            selectedVoice: DEFAULT_VOICE,
             selectedTimeframe: '24h',
             accentColor: DEFAULT_ACCENT_COLOR,
             insightReport: { // New: For storing the last insight
@@ -523,17 +479,6 @@
                 cachedAudioRequiresWavWrapping: false
             }
         };
-
-        function populateVoiceDropdown() {
-            AVAILABLE_VOICES.forEach(voiceDesc => {
-                const [voiceName, description] = voiceDesc.split(" -- ");
-                const option = document.createElement('option');
-                option.value = voiceName;
-                option.textContent = voiceDesc;
-                if (voiceName === DEFAULT_VOICE) option.selected = true; // Set default
-                voiceSelectEl.appendChild(option);
-            });
-        }
 
         function loadConfig() {
             const storedConfig = localStorage.getItem('btcTrackConfig');
@@ -554,11 +499,9 @@
                 userBtcAmountInput.value = config.userBtcAmount || '';
                 userTotalCostInput.value = config.userTotalCost || '';
                 googleApiKeyInput.value = config.googleApiKey || '';
-                voiceSelectEl.value = config.selectedVoice || DEFAULT_VOICE;
                 timeframeSelectEl.value = config.selectedTimeframe || '24h';
                 accentColorPickerEl.value = config.accentColor || DEFAULT_ACCENT_COLOR;
             } else {
-                voiceSelectEl.value = DEFAULT_VOICE;
                 // If no stored config, ensure picker shows default
                 config.insightReport = { content: null, timestamp: null, cachedAudioBase64: null, cachedAudioMimeType: null, cachedAudioRequiresWavWrapping: false };
                 accentColorPickerEl.value = DEFAULT_ACCENT_COLOR;
@@ -572,7 +515,6 @@
             config.userBtcAmount = parseFloat(userBtcAmountInput.value) || 0.0;
             config.userTotalCost = parseFloat(userTotalCostInput.value) || 0.0;
             config.accentColor = accentColorPickerEl.value || DEFAULT_ACCENT_COLOR;
-            config.selectedVoice = voiceSelectEl.value || DEFAULT_VOICE;
             config.googleApiKey = googleApiKeyInput.value.trim();
             // selectedTimeframe is saved via its own event listener
             localStorage.setItem('btcTrackConfig', JSON.stringify(config));
@@ -585,7 +527,6 @@
                 userBtcAmountInput.value = config.userBtcAmount || '';
                 userTotalCostInput.value = config.userTotalCost || '';
                 googleApiKeyInput.value = config.googleApiKey || '';
-                voiceSelectEl.value = config.selectedVoice || DEFAULT_VOICE;
                 accentColorPickerEl.value = config.accentColor || DEFAULT_ACCENT_COLOR;
             }
         }
@@ -856,7 +797,6 @@
         }
 
         let currentInsightAudio = null; // To manage the audio object
-        let retryCountdownInterval = null; // To manage the 429 retry countdown interval
 
         // Helper function to play audio from cached data
         function playAudioFromCachedData(base64Data, mimeType, requiresWavWrapping) {
@@ -963,7 +903,7 @@
                     responseModalities: ["AUDIO"], // Explicitly request only AUDIO modality
                     speechConfig: { // speechConfig is now nested correctly
                         voiceConfig: {
-                            prebuiltVoiceConfig: { voiceName: config.selectedVoice || DEFAULT_VOICE }
+                            prebuiltVoiceConfig: { voiceName: "Kore" }
                         }
                     }
                 } 
@@ -979,47 +919,8 @@
 
                 if (!response.ok) {
                     const errorText = await response.text(); // Get raw error text for more info
-                    console.error(`[DEBUG] TTS API response not OK. Status: ${response.status}. Response Text: ${errorText}`);
-
-                    if (response.status === 429) { // Too Many Requests
-                        try {
-                            const parsedError = JSON.parse(errorText);
-                            // Find the RetryInfo detail object
-                            const retryInfoDetail = parsedError?.error?.details?.find(d => d['@type'] === 'type.googleapis.com/google.rpc.RetryInfo');
-                            const retryDelayString = retryInfoDetail?.retryDelay; // e.g., "43s"
-
-                            if (retryDelayString) {
-                                let initialDelaySeconds = parseInt(retryDelayString.replace('s', ''));
-                                if (!isNaN(initialDelaySeconds) && initialDelaySeconds > 0) {
-                                    if (playInsightButtonEl) playInsightButtonEl.textContent = `Retry in ${initialDelaySeconds}s`;
-                                    // Button is already disabled.
-
-                                    if (retryCountdownInterval) {
-                                        clearInterval(retryCountdownInterval); // Clear any existing countdown
-                                    }
-
-                                    let currentCountdownSeconds = initialDelaySeconds;
-                                    retryCountdownInterval = setInterval(() => {
-                                        currentCountdownSeconds--;
-                                        if (currentCountdownSeconds > 0) {
-                                            if (playInsightButtonEl) playInsightButtonEl.textContent = `Retry in ${currentCountdownSeconds}s`;
-                                        } else {
-                                            clearInterval(retryCountdownInterval);
-                                            retryCountdownInterval = null;
-                                            if (playInsightButtonEl) {
-                                                playInsightButtonEl.textContent = "Play";
-                                                playInsightButtonEl.disabled = false;
-                                            }
-                                        }
-                                    }, 1000);
-                                    return; // Important: exit after setting up the countdown
-                                }
-                            }
-                        } catch (parseError) {
-                            console.error("[DEBUG] Could not parse 429 error details or retryDelay:", parseError);
-                        }
-                    }
-                    throw new Error(`TTS API Error: ${response.status}. Check console for details.`);
+                    console.error(`[DEBUG] TTS API response not OK. Status: ${response.status} ${response.statusText}. Response Text: ${errorText}`);
+                    throw new Error(`TTS API Error: ${response.status} ${response.statusText}. Check console for details.`);
                 }
 
                 // Expect a JSON response with embedded audio data
@@ -1366,17 +1267,6 @@
                  }
             }
         });
-        voiceSelectEl.addEventListener('change', (event) => {
-            config.selectedVoice = event.target.value;
-            // Clear cached audio as the voice has changed
-            if (config.insightReport) {
-                config.insightReport.cachedAudioBase64 = null;
-                config.insightReport.cachedAudioMimeType = null;
-                config.insightReport.cachedAudioRequiresWavWrapping = false;
-                console.log('[DEBUG] Voice changed, audio cache cleared.');
-            }
-            localStorage.setItem('btcTrackConfig', JSON.stringify(config));
-        });
 
         insightsButtonEl.addEventListener('click', handleInsightsButtonClick);
         document.getElementById('closeInsightButton').addEventListener('click', () => toggleInsightModal(false));
@@ -1550,7 +1440,6 @@
 
         // Initial Load
         document.addEventListener('DOMContentLoaded', () => {
-            populateVoiceDropdown();
             loadConfig();
             applyAccentColor();
             if (!config.apiKey) {
