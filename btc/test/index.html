@@ -798,7 +798,7 @@
             }
 
             const insightText = config.insightReport.content;
-            const ttsPrompt = `${insightText}`;
+            const ttsPrompt = `<speak>${insightText}</speak>`; // Wrap insight text in SSML <speak> tags
             
             const TTS_MODEL_NAME = "gemini-2.5-flash-preview-tts";
             const TTS_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${TTS_MODEL_NAME}:generateContent?key=${config.googleApiKey}`;
