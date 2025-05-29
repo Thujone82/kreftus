@@ -1,0 +1,21 @@
+{
+    "name": "BTC Track",
+    "short_name": "BTCTrack",
+    "description": "Tracks Bitcoin (BTC) data from LiveCoinWatch API with portfolio insights.",
+    "start_url": "index.html",
+    "display": "standalone",
+    "background_color": "#1a1a2b",
+    "theme_color": "#222230",
+    "icons": [
+        {
+            "src": "./icons/192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "./icons/512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}
