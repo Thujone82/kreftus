@@ -810,7 +810,7 @@
             const requestBody = {
                 contents: [{ parts: [{ text: ttsPrompt }] }],
                 generationConfig: {
-                    //responseMimeType: "audio/mpeg", // Explicitly request audio output
+                    responseMimeType: "audio/mpeg", // Explicitly request audio output
                     speechConfig: {
                         voiceConfig: {
                             prebuiltVoiceConfig: { voiceName: "Kore" } 
