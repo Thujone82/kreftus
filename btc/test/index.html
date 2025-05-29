@@ -841,18 +841,63 @@
                 const audioPart = data.candidates?.[0]?.content?.parts?.find(part => part.inlineData && part.inlineData.data);
 
                 if (audioPart && audioPart.inlineData.data) {
-                    const audioMimeType = audioPart.inlineData.mimeType || 'audio/mpeg'; // Default if not provided, though API should provide it
+                    const apiMimeType = audioPart.inlineData.mimeType;
                     const base64Audio = audioPart.inlineData.data;
-                    currentInsightAudio = new Audio(`data:${audioMimeType};base64,${base64Audio}`);
-                    currentInsightAudio.play();
-                    if(playInsightButtonEl) playInsightButtonEl.textContent = "Stop";
-                    if(playInsightButtonEl) playInsightButtonEl.disabled = false;
+                    console.log('[DEBUG] Received audio MIME type from API:', apiMimeType);
+
+                    let audioSourceUrl = null;
+                    let isObjectUrl = false;
+
+                    // Prioritize directly playable MIME types if provided by the API
+                    if (apiMimeType && (
+                        apiMimeType.toLowerCase().startsWith('audio/wav') ||
+                        apiMimeType.toLowerCase().startsWith('audio/mpeg') ||
+                        apiMimeType.toLowerCase().startsWith('audio/ogg') ||
+                        apiMimeType.toLowerCase().startsWith('audio/opus')
+                    )) {
+                        console.log('[DEBUG] API provided a directly playable MIME type:', apiMimeType, '. Using data URL.');
+                        audioSourceUrl = `data:${apiMimeType};base64,${base64Audio}`;
+                    } else {
+                        // Assume raw PCM if MIME type is not directly playable or is missing/generic
+                        // This is the expected path for gemini-2.5-flash-preview-tts.
+                        console.log('[DEBUG] Assuming raw PCM. API MIME type was:', apiMimeType, '. Wrapping in WAV header.');
+                        const pcmData = base64ToUint8Array(base64Audio);
+                        
+                        // Parameters based on Node.js example for gemini-2.5-flash-preview-tts
+                        const sampleRate = 24000; 
+                        const numChannels = 1;    // Mono
+                        const bitsPerSample = 16; // 2 bytes per sample
+                        
+                        const wavHeader = createWavHeader(pcmData.length, sampleRate, numChannels, bitsPerSample);
+                        const wavBlob = new Blob([wavHeader, pcmData], { type: 'audio/wav' });
+                        audioSourceUrl = URL.createObjectURL(wavBlob);
+                        isObjectUrl = true;
+                    }
+
+                    currentInsightAudio = new Audio(audioSourceUrl);
                     
                     currentInsightAudio.onended = () => {
                         if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
                         if(playInsightButtonEl) playInsightButtonEl.disabled = false;
-                        // No URL.revokeObjectURL needed for data URLs
+                        if (isObjectUrl) {
+                            URL.revokeObjectURL(audioSourceUrl);
+                        }
                     };
+
+                    currentInsightAudio.onerror = (e) => {
+                        console.error("Audio element error:", e, "Source (first 100 chars):", audioSourceUrl.substring(0,100));
+                        if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
+                        if(playInsightButtonEl) playInsightButtonEl.disabled = false;
+                        if (isObjectUrl) {
+                            URL.revokeObjectURL(audioSourceUrl);
+                        }
+                        alert("Error playing audio. Check console. API MIME: " + apiMimeType);
+                    };
+
+                    await currentInsightAudio.play(); // play() returns a Promise
+                    if(playInsightButtonEl) playInsightButtonEl.textContent = "Stop";
+                    if(playInsightButtonEl) playInsightButtonEl.disabled = false;
+
                 } else { 
                     console.error("[DEBUG] No audio content found in expected part of the JSON response:", data);
                     if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
