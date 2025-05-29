@@ -810,13 +810,13 @@
             const requestBody = {
                 contents: [{ parts: [{ text: ttsPrompt }] }],
                 generationConfig: {
+                    responseMimeType: "application/json", // Specify that we expect a JSON response
                     speechConfig: { // speechConfig object
                         voiceConfig: {
                             prebuiltVoiceConfig: { voiceName: "Kore" } 
-                        },
-                        audioEncoding: "MP3" // This will produce audio/mpeg output
+                        }
+                        // "audioEncoding" is removed as it's not a valid field here per the error
                     }
-                    // The separate 'audioConfig' object has been removed from generationConfig
                 }
             };
             console.log('[DEBUG] TTS Request Body:', JSON.stringify(requestBody, null, 2));
