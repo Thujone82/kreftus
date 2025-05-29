@@ -30,15 +30,11 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
-    const requestUrl = new URL(event.request.url);
-
-    // For API calls to LiveCoinWatch and Google's Generative Language API,
-    // always go to the network. These are typically POST requests or dynamic
-    // content that shouldn't be served from a simple cache.
-    if (requestUrl.hostname === 'api.livecoinwatch.com' ||
-        requestUrl.hostname === 'generativelanguage.googleapis.com') {
-        // Pass the request directly to the network
-        // console.log('Service Worker: Fetching from network (API call):', event.request.url);
+    // For API calls, always go to the network.
+    // For LiveCoinWatch, their API is POST only for these endpoints,
+    // which are typically not cached by service workers by default for GET.
+    // So, we'll just let network requests pass through.
+    if (event.request.url.startsWith('https://api.livecoinwatch.com')) {
         event.respondWith(fetch(event.request));
         return;
     }
@@ -48,7 +44,6 @@ self.addEventListener('fetch', event => {
             .then(response => {
                 // Cache hit - return response
                 if (response) {
-                    // console.log('Service Worker: Serving from cache:', event.request.url);
                     return response;
                 }
                 return fetch(event.request).then(
@@ -56,14 +51,12 @@ self.addEventListener('fetch', event => {
                     // This part is more for other static assets if you add them.
                     function(response) {
                         if(!response || response.status !== 200 || response.type !== 'basic' || event.request.method !== 'GET') {
-                            // console.log('Service Worker: Not caching (not GET, or bad response):', event.request.url);
                             return response;
                         }
                         var responseToCache = response.clone();
                         caches.open(CACHE_NAME)
                             .then(function(cache) {
                                 cache.put(event.request, responseToCache);
-                                // console.log('Service Worker: Caching new resource:', event.request.url);
                             });
                         return response;
                     }
