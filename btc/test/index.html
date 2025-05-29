@@ -798,7 +798,7 @@
             }
 
             const insightText = config.insightReport.content;
-            const ttsPrompt = `Read aloud as a seasoned newscaster: ${insightText}`;
+            const ttsPrompt = `${insightText}`;
             
             const TTS_MODEL_NAME = "gemini-2.5-flash-preview-tts";
             const TTS_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${TTS_MODEL_NAME}:generateContent?key=${config.googleApiKey}`;
@@ -814,7 +814,8 @@
                     speechConfig: { // speechConfig object
                         voiceConfig: {
                             prebuiltVoiceConfig: { voiceName: "Kore" } 
-                        }
+                        },
+                        audioEncoding: "MP3" // Specify the desired audio output format
                     }
                 }
             };
@@ -833,14 +834,13 @@
                     throw new Error(`TTS API Error: ${response.status} ${response.statusText}. Check console for details.`);
                 }
 
-                // Expect a JSON response with embedded audio data
-                const data = await response.json();
-                console.log('[DEBUG] TTS API response OK. Raw data:', data);
-                const audioPart = data.candidates?.[0]?.content?.parts?.find(part => part.inlineData && part.inlineData.mimeType?.startsWith('audio/'));
+                // For gemini-2.5-flash-preview-tts, expect raw audio data directly
+                const audioBlob = await response.blob();
+                console.log('[DEBUG] TTS API response OK. Received blob type:', audioBlob.type, 'size:', audioBlob.size);
 
-                if (audioPart && audioPart.inlineData.data) {
-                    const audioMimeType = audioPart.inlineData.mimeType;
-                    currentInsightAudio = new Audio(`data:${audioMimeType};base64,${audioPart.inlineData.data}`);
+                if (audioBlob && audioBlob.size > 0 && audioBlob.type.startsWith('audio/')) {
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    currentInsightAudio = new Audio(audioUrl);
                     currentInsightAudio.play();
                     if(playInsightButtonEl) playInsightButtonEl.textContent = "Stop";
                     if(playInsightButtonEl) playInsightButtonEl.disabled = false;
@@ -848,11 +848,14 @@
                     currentInsightAudio.onended = () => {
                         if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
                         if(playInsightButtonEl) playInsightButtonEl.disabled = false;
-                        // No URL.revokeObjectURL needed for data URLs
+                        URL.revokeObjectURL(audioUrl); // Clean up the object URL
                     };
                 } else { 
-                    console.error("[DEBUG] No audio content found in expected part of the JSON response:", data);
-                    throw new Error("No audio content received from TTS API in JSON response."); 
+                    console.error("[DEBUG] TTS API did not return a valid audio blob. Received blob type:", audioBlob.type, "size:", audioBlob.size);
+                    if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
+                    if(playInsightButtonEl) playInsightButtonEl.disabled = false;
+                    // Note: The error here might still be a JSON error from the API if something else is wrong with the request.
+                    throw new Error("TTS API did not return valid audio data. Check console for API error details if the blob is small/incorrect type.");
                 }
             } catch (error) {
                 console.error("Error playing insight audio:", error);
