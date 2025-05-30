@@ -755,14 +755,18 @@
 
                 const oneHourInMs = 60 * 60 * 1000;
                 if(updateInsightButtonEl) updateInsightButtonEl.style.display = (Date.now() - config.insightReport.timestamp) >= oneHourInMs ? 'inline-block' : 'none';
-                if(playInsightButtonEl) playInsightButtonEl.style.display = 'inline-block'; // Show Play button
+                
+                if(playInsightButtonEl) {
+                    playInsightButtonEl.textContent = config.insightReport.cachedAudioBase64 ? "Play" : "Generate Audio";
+                    playInsightButtonEl.style.display = 'inline-block';
+                }
                 console.log('[DEBUG] Update button display:', updateInsightButtonEl ? updateInsightButtonEl.style.display : 'N/A (element not found)');
             } else {
                 console.log('[DEBUG] No valid cached insight report found. Triggering new fetch.');
                 insightContentEl.textContent = "No previous insight found. Fetching new report...";
                 if(insightTimestampEl) insightTimestampEl.style.display = 'none';
                 if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'none';
-                if(playInsightButtonEl) playInsightButtonEl.style.display = 'none'; // Hide Play button
+                if(playInsightButtonEl) playInsightButtonEl.style.display = 'none'; // Hide button until insight text is fetched
                 fetchInsightFromGemini(); // Fetch a new one immediately if no valid stored report
             }
         }
@@ -889,9 +893,12 @@
                 };
 
                 currentInsightAudio.onerror = (e) => {
-                    console.error("Audio element error (from cache):", e, "Source (first 100 chars):", audioSourceUrl.substring(0,100));
-                    if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
-                    if(playInsightButtonEl) playInsightButtonEl.disabled = false;
+                    const errorMessage = e.message || (currentInsightAudio.error ? currentInsightAudio.error.message : "Unknown audio error");
+                    console.error("Audio element error (from cache):", errorMessage, "Source (first 100 chars):", audioSourceUrl.substring(0,100));
+                    if(playInsightButtonEl) {
+                        playInsightButtonEl.textContent = "Generate Audio"; // Cached audio failed, prompt to generate new
+                        playInsightButtonEl.disabled = false;
+                    }
                     if (isObjectUrl) URL.revokeObjectURL(audioSourceUrl);
                     alert("Error playing cached audio. Check console. MIME: " + mimeType);
                     // Clear potentially faulty cache entry
@@ -904,11 +911,12 @@
                 if(playInsightButtonEl) playInsightButtonEl.textContent = "Stop";
                 if(playInsightButtonEl) playInsightButtonEl.disabled = false;
                 currentInsightAudio.play().catch(err => currentInsightAudio.onerror(err)); // Play and catch potential errors
-
             } catch (error) {
                 console.error("Error preparing cached audio for playback:", error);
-                if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
-                if(playInsightButtonEl) playInsightButtonEl.disabled = false;
+                if(playInsightButtonEl) {
+                    playInsightButtonEl.textContent = "Generate Audio";
+                    playInsightButtonEl.disabled = false;
+                }
             }
         }
         async function playInsightAudio() {
@@ -1007,7 +1015,8 @@
                                             clearInterval(retryCountdownInterval);
                                             retryCountdownInterval = null;
                                             if (playInsightButtonEl) {
-                                                playInsightButtonEl.textContent = "Play";
+                                                // Reset to "Generate Audio" as the generation was interrupted by rate limit
+                                                playInsightButtonEl.textContent = config.insightReport.cachedAudioBase64 ? "Play" : "Generate Audio";
                                                 playInsightButtonEl.disabled = false;
                                             }
                                         }
@@ -1019,7 +1028,9 @@
                             console.error("[DEBUG] Could not parse 429 error details or retryDelay:", parseError);
                         }
                     }
-                    throw new Error(`TTS API Error: ${response.status}. Check console for details.`);
+                    const apiError = new Error(`TTS API Error: ${response.status}. Check console for details.`);
+                    console.error(apiError.message, errorText); // Log original error text
+                    throw apiError;
                 }
 
                 // Expect a JSON response with embedded audio data
@@ -1088,12 +1099,20 @@
                     };
 
                     currentInsightAudio.onerror = (e) => {
-                        console.error("Audio element error:", e, "Source (first 100 chars):", audioSourceUrl.substring(0,100));
-                        if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
-                        if(playInsightButtonEl) playInsightButtonEl.disabled = false;
+                        const errorMessage = e.message || (currentInsightAudio.error ? currentInsightAudio.error.message : "Unknown audio error");
+                        console.error("Audio element error (newly fetched):", errorMessage, "Source (first 100 chars):", audioSourceUrl.substring(0,100));
+                        if(playInsightButtonEl) {
+                            playInsightButtonEl.textContent = "Generate Audio"; // New audio failed, prompt to generate again
+                            playInsightButtonEl.disabled = false;
+                        }
                         if (isObjectUrl) {
                             URL.revokeObjectURL(audioSourceUrl);
                         }
+                        // Clear the audio cache as this attempt failed
+                        config.insightReport.cachedAudioBase64 = null;
+                        config.insightReport.cachedAudioMimeType = null;
+                        config.insightReport.cachedAudioRequiresWavWrapping = false;
+                        localStorage.setItem('btcTrackConfig', JSON.stringify(config));
                         alert("Error playing audio. Check console. API MIME: " + apiMimeType);
                     };
 
@@ -1104,13 +1123,18 @@
                 } else { 
                     console.error("[DEBUG] No audio content found in expected part of the JSON response:", data);
                     if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
-                    if(playInsightButtonEl) playInsightButtonEl.disabled = false;
+                    if(playInsightButtonEl) {
+                        playInsightButtonEl.textContent = "Generate Audio";
+                        playInsightButtonEl.disabled = false;
+                    }
                     throw new Error("No audio content received from TTS API in JSON response."); 
                 }
             } catch (error) {
                 console.error("Error playing insight audio:", error);
-                if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
-                if(playInsightButtonEl) playInsightButtonEl.disabled = false;
+                if(playInsightButtonEl) {
+                    playInsightButtonEl.textContent = "Generate Audio"; // General error, prompt to generate
+                    playInsightButtonEl.disabled = false;
+                }
             }
         }
 
