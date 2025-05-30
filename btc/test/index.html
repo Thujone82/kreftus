@@ -961,7 +961,7 @@
             const TTS_MODEL_NAME = "gemini-2.5-flash-preview-tts";
             const TTS_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${TTS_MODEL_NAME}:generateContent?key=${config.googleApiKey}`;
 
-            if(playInsightButtonEl) playInsightButtonEl.textContent = "Buffering...";
+            if(playInsightButtonEl) playInsightButtonEl.textContent = "Loading...";
             if(playInsightButtonEl) playInsightButtonEl.disabled = true;
             console.log(`[DEBUG] Attempting to fetch TTS audio. TTS Model: ${TTS_MODEL_NAME}, API URL: ${TTS_API_URL}`);
 
