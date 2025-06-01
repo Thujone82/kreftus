@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>BTC Track v1.3.1</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">    
+    <title>BTC Track v1.3.2</title>
     <link rel="icon" href="./icons/32.png" type="image/png">
     <!-- You can create a 32x32.png from your 512x512.png or 192x192.png -->
     <link rel="apple-touch-icon" href="./icons/192.png">
@@ -11,6 +11,7 @@
     <!-- <link rel="shortcut icon" href="favicon.ico" type="image/x-icon"> -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#222230">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -1080,35 +1081,54 @@
                     let finalMimeTypeForCache = '';
                     let requiresWavWrappingForCache = false;
 
-
-                    // Prioritize directly playable MIME types if provided by the API
-                    if (apiMimeType && (
-                        apiMimeType.toLowerCase().startsWith('audio/wav') ||
-                        apiMimeType.toLowerCase().startsWith('audio/mpeg') ||
-                        apiMimeType.toLowerCase().startsWith('audio/ogg') ||
-                        apiMimeType.toLowerCase().startsWith('audio/opus')
-                    )) {
-                        console.log('[DEBUG] API provided a directly playable MIME type:', apiMimeType, '. Using data URL.');
+                    if (apiMimeType && apiMimeType.toLowerCase().startsWith('audio/mpeg')) {
+                        console.log('[DEBUG] API provided MP3 audio. Caching as is.');
                         audioSourceUrl = `data:${apiMimeType};base64,${base64Audio}`;
-                        finalMimeTypeForCache = apiMimeType;
+                        finalMimeTypeForCache = apiMimeType; // Should be audio/mpeg
+                        requiresWavWrappingForCache = false;
+                    } else if (apiMimeType && (apiMimeType.toLowerCase().startsWith('audio/wav') || apiMimeType.toLowerCase().startsWith('audio/ogg') || apiMimeType.toLowerCase().startsWith('audio/opus'))) {
+                        console.log('[DEBUG] API provided a directly playable MIME type:', apiMimeType, '. Using data URL and caching as is (not re-encoding to MP3).');
+                        audioSourceUrl = `data:${apiMimeType};base64,${base64Audio}`;
+                        finalMimeTypeForCache = apiMimeType; // e.g. audio/wav, audio/ogg
                         requiresWavWrappingForCache = false;
                     } else {
                         // Assume raw PCM if MIME type is not directly playable or is missing/generic
                         // This is the expected path for gemini-2.5-flash-preview-tts.
-                        console.log('[DEBUG] Assuming raw PCM. API MIME type was:', apiMimeType, '. Wrapping in WAV header.');
-                        const pcmData = base64ToUint8Array(base64Audio);
+                        console.log('[DEBUG] Assuming raw PCM. API MIME type was:', apiMimeType, '. Encoding to MP3.');
+                        const pcmUint8Data = base64ToUint8Array(base64Audio);
                         
-                        // Parameters based on Node.js example for gemini-2.5-flash-preview-tts
+                        // Convert Uint8Array to Int16Array for LameJS
+                        // Assuming 16-bit PCM, so 2 bytes per sample.
+                        const pcmInt16Data = new Int16Array(pcmUint8Data.buffer, pcmUint8Data.byteOffset, pcmUint8Data.byteLength / 2);
+
                         const sampleRate = 24000; 
                         const numChannels = 1;    // Mono
-                        const bitsPerSample = 16; // 2 bytes per sample
+                        const kbps = 64; // Kilobits per second for MP3. Adjust for quality/size. 64kbps is decent for voice.
+
+                        const mp3encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, kbps);
+                        const mp3DataBuffers = [];
+                        const sampleBlockSize = 1152; // Standard LAME block size
+
+                        for (let i = 0; i < pcmInt16Data.length; i += sampleBlockSize) {
+                            const sampleChunk = pcmInt16Data.subarray(i, i + sampleBlockSize);
+                            const mp3buf = mp3encoder.encodeBuffer(sampleChunk);
+                            if (mp3buf.length > 0) {
+                                mp3DataBuffers.push(mp3buf);
+                            }
+                        }
+                        const mp3buf = mp3encoder.flush();
+                        if (mp3buf.length > 0) {
+                            mp3DataBuffers.push(mp3buf);
+                        }
                         
-                        const wavHeader = createWavHeader(pcmData.length, sampleRate, numChannels, bitsPerSample);
-                        const wavBlob = new Blob([wavHeader, pcmData], { type: 'audio/wav' });
-                        audioSourceUrl = URL.createObjectURL(wavBlob);
-                        isObjectUrl = true;
-                        finalMimeTypeForCache = 'audio/wav'; // We converted it
-                        requiresWavWrappingForCache = true;  // Original data was raw PCM
+                        const fullMp3Data = concatenateUint8Arrays(mp3DataBuffers);
+                        const base64Mp3 = uint8ArrayToBase64(fullMp3Data); // Use helper to convert Uint8Array to Base64
+                        
+                        audioSourceUrl = `data:audio/mpeg;base64,${base64Mp3}`;
+                        isObjectUrl = false; // It's a data URL, not a Blob URL
+                        finalMimeTypeForCache = 'audio/mpeg'; // We converted it to MP3
+                        requiresWavWrappingForCache = false;  // It's now MP3, not raw PCM needing WAV wrap
+                        console.log(`[DEBUG] Encoded to MP3. Original PCM size: ${pcmUint8Data.length} bytes. MP3 size: ${fullMp3Data.length} bytes.`);
                     }
 
                     // Cache the fetched audio data
@@ -1169,6 +1189,31 @@
                     playInsightButtonEl.disabled = false;
                 }
             }
+        }
+
+        // Helper function to convert Uint8Array to Base64
+        function uint8ArrayToBase64(uint8Array) {
+            let binary = '';
+            const len = uint8Array.byteLength;
+            for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(uint8Array[i]);
+            }
+            return btoa(binary);
+        }
+
+        // Helper function to concatenate multiple Uint8Arrays
+        function concatenateUint8Arrays(arrays) {
+            let totalLength = 0;
+            for (const arr of arrays) {
+                totalLength += arr.length;
+            }
+            const result = new Uint8Array(totalLength);
+            let offset = 0;
+            for (const arr of arrays) {
+                result.set(arr, offset);
+                offset += arr.length;
+            }
+            return result;
         }
 
         // Helper function to create a WAV header
