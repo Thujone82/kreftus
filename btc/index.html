@@ -828,7 +828,7 @@
             // Using gemini-2.5-flash as a robust choice for a recent Flash model.
             // Verify with ListModels if a more specific identifier like "gemini-1.5-flash-preview-0520" is needed and available.
             const modelName = "gemini-2.5-flash-preview-05-20"; 
-            const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${config.googleApiKey}`;            const prompt = "What is happening in Bitcoin today, Cover main headlines, with summaries. Length 350 words or less";
+            const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${config.googleApiKey}`;            const prompt = "What is happening in Bitcoin today, Cover main headlines, with summaries. Length 400 words or less";
 
             console.log(`[DEBUG] Attempting to fetch insight. Model: ${modelName}, API Key used: ${config.googleApiKey ? 'Yes' : 'No'}`);
             console.log(`[DEBUG] Prompt: "${prompt}"`);
@@ -1103,7 +1103,7 @@
 
                         const sampleRate = 24000; 
                         const numChannels = 1;    // Mono
-                        const kbps = 64; // Kilobits per second for MP3. Adjust for quality/size. 64kbps is decent for voice.
+                        const kbps = 48; // Kilobits per second for MP3. Adjust for quality/size. 64kbps is decent for voice.
 
                         const mp3encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, kbps);
                         const mp3DataBuffers = [];
