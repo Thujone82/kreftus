@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-.    <link rel="icon" href="./icons/32.png" type="image/png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>BTC Track v1.3.1</title>
+    <link rel="icon" href="./icons/32.png" type="image/png">
     <!-- You can create a 32x32.png from your 512x512.png or 192x192.png -->
     <link rel="apple-touch-icon" href="./icons/192.png">
     <!-- For older browsers or if you want an .ico file -->
@@ -573,7 +575,37 @@
             config.selectedVoice = voiceSelectEl.value || DEFAULT_VOICE;
             config.googleApiKey = googleApiKeyInput.value.trim();
             // selectedTimeframe is saved via its own event listener
-            localStorage.setItem('btcTrackConfig', JSON.stringify(config));
+            saveConfigToLocalStorage(); // Use the new helper
+        }
+
+        // New helper function to save config and handle potential quota errors
+        function saveConfigToLocalStorage() {
+            try {
+                localStorage.setItem('btcTrackConfig', JSON.stringify(config));
+                console.log('[DEBUG] Config saved to localStorage.');
+            } catch (e) {
+                if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') { // Added Firefox error name
+                    console.warn('[DEBUG] localStorage quota exceeded. Attempting to save config without audio cache.');
+                    const configWithoutAudio = { ...config };
+                    if (configWithoutAudio.insightReport) {
+                        configWithoutAudio.insightReport = {
+                            ...configWithoutAudio.insightReport,
+                            cachedAudioBase64: null,
+                            cachedAudioMimeType: null,
+                            cachedAudioRequiresWavWrapping: false
+                        };
+                    }
+                    try {
+                        localStorage.setItem('btcTrackConfig', JSON.stringify(configWithoutAudio));
+                        console.log('[DEBUG] Config (without audio cache) saved to localStorage after quota error. Audio for this insight will not persist across sessions.');
+                    } catch (e2) {
+                        console.error('[DEBUG] Failed to save config even without audio cache:', e2);
+                        alert('Warning: Could not save configuration changes due to storage limitations. Audio for this session will not be persisted if you refresh or close the tab.');
+                    }
+                } else {
+                    console.error('[DEBUG] Error saving config to localStorage:', e);
+                }
+            }
         }
 
         function toggleConfigModal(show) {
@@ -795,7 +827,7 @@
             // Using gemini-2.5-flash as a robust choice for a recent Flash model.
             // Verify with ListModels if a more specific identifier like "gemini-1.5-flash-preview-0520" is needed and available.
             const modelName = "gemini-2.5-flash-preview-05-20"; 
-            const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${config.googleApiKey}`;            const prompt = "What is happening in Bitcoin today, Cover main headlines, with summaries. Length 500 words or less";
+            const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${config.googleApiKey}`;            const prompt = "What is happening in Bitcoin today, Cover main headlines, with summaries. Length 350 words or less";
 
             console.log(`[DEBUG] Attempting to fetch insight. Model: ${modelName}, API Key used: ${config.googleApiKey ? 'Yes' : 'No'}`);
             console.log(`[DEBUG] Prompt: "${prompt}"`);
@@ -838,7 +870,7 @@
                     cachedAudioRequiresWavWrapping: false
                 };
                 console.log('[DEBUG] Storing new insight report:', JSON.parse(JSON.stringify(config.insightReport)));
-                localStorage.setItem('btcTrackConfig', JSON.stringify(config)); // Save updated config
+                saveConfigToLocalStorage(); // Save updated config
 
                 // Update the modal with the new content
                 console.log('[DEBUG] Calling updateInsightModalDisplay after successful fetch.');
@@ -903,7 +935,7 @@
                     config.insightReport.cachedAudioBase64 = null;
                     config.insightReport.cachedAudioMimeType = null;
                     config.insightReport.cachedAudioRequiresWavWrapping = false;
-                    localStorage.setItem('btcTrackConfig', JSON.stringify(config));
+                    saveConfigToLocalStorage();
                 };
 
                 if(playInsightButtonEl) playInsightButtonEl.textContent = "Stop";
@@ -1083,8 +1115,8 @@
                     config.insightReport.cachedAudioBase64 = base64Audio; // Store raw base64 from API
                     config.insightReport.cachedAudioMimeType = finalMimeTypeForCache;
                     config.insightReport.cachedAudioRequiresWavWrapping = requiresWavWrappingForCache;
-                    localStorage.setItem('btcTrackConfig', JSON.stringify(config));
-                    console.log('[DEBUG] Audio fetched and cached in config and localStorage.');
+                    saveConfigToLocalStorage(); // Use the new helper function
+                    console.log('[DEBUG] Audio fetched and cached in config. Attempted save to localStorage.');
 
                     currentInsightAudio = new Audio(audioSourceUrl);
                     
@@ -1110,7 +1142,7 @@
                         config.insightReport.cachedAudioBase64 = null;
                         config.insightReport.cachedAudioMimeType = null;
                         config.insightReport.cachedAudioRequiresWavWrapping = false;
-                        localStorage.setItem('btcTrackConfig', JSON.stringify(config));
+                        saveConfigToLocalStorage();
                         alert("Error playing audio. Check console. API MIME: " + apiMimeType);
                     };
 
@@ -1130,7 +1162,10 @@
             } catch (error) {
                 console.error("Error playing insight audio:", error);
                 if(playInsightButtonEl) {
-                    playInsightButtonEl.textContent = "Generate Audio"; // General error, prompt to generate
+                    // If an error occurred, but we successfully cached audio in this attempt,
+                    // the button should offer to "Play" that cached audio.
+                    // Otherwise, it should offer to "Generate Audio" again.
+                    playInsightButtonEl.textContent = config.insightReport.cachedAudioBase64 ? "Play" : "Generate Audio";
                     playInsightButtonEl.disabled = false;
                 }
             }
@@ -1374,7 +1409,7 @@
         });
         timeframeSelectEl.addEventListener('change', (event) => {
             config.selectedTimeframe = event.target.value;
-            localStorage.setItem('btcTrackConfig', JSON.stringify(config)); 
+            saveConfigToLocalStorage(); 
             fetchData(); 
         });
         accentColorPickerEl.addEventListener('input', () => { 
@@ -1397,7 +1432,7 @@
                 config.insightReport.cachedAudioRequiresWavWrapping = false;
                 console.log('[DEBUG] Voice changed, audio cache cleared.');
             }
-            localStorage.setItem('btcTrackConfig', JSON.stringify(config));
+            saveConfigToLocalStorage();
         });
 
         insightsButtonEl.addEventListener('click', handleInsightsButtonClick);
