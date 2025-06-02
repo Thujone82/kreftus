@@ -3,8 +3,9 @@ const urlsToCache = [
     '/',
     'index.html',
     'manifest.json',
-    './icons/192.png',
-    './icons/512.png'
+    './icons/192.png', // Main app icon
+    './icons/512.png', // Larger app icon
+    'https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js' // Add lamejs CDN
     // Add other static assets like CSS or JS files if you separate them
 ];
 
