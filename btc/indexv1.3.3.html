@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>BTC Track v1.3.4</title>
+    <title>BTC Track v1.3.3</title>
     <link rel="icon" href="./icons/32.png" type="image/png">
     <!-- You can create a 32x32.png from your 512x512.png or 192x192.png -->
     <link rel="apple-touch-icon" href="./icons/192.png">
@@ -520,8 +520,8 @@
             selectedVoice: DEFAULT_VOICE,
             selectedTimeframe: '24h',
             accentColor: DEFAULT_ACCENT_COLOR,
-            lastFetchedCurrentDataTimestamp: null, 
-            cachedChartData: {}, // E.g., {'24h': { data: [], timestamp: null, allTimeHighUSD: null, historicalRateAtStart: null }}
+            lastFetchedCurrentDataTimestamp: null, // Timestamp for _current_data_cache
+            cachedChartData: {}, // E.g., {'24h': { data: [], timestamp: null, allTimeHighUSD: null }}
             insightReport: { // New: For storing the last insight
                 content: null,
                 timestamp: null,
@@ -549,10 +549,7 @@
                 // Merge stored config with defaults to ensure all keys exist
                 config = { ...config, ...parsedConfig };
                 config.lastFetchedCurrentDataTimestamp = config.lastFetchedCurrentDataTimestamp || null;
-                config.cachedChartData = config.cachedChartData || {}; // Ensure cachedChartData object exists
-                Object.keys(config.cachedChartData).forEach(tf => { // Ensure historicalRateAtStart exists for old cache
-                    config.cachedChartData[tf].historicalRateAtStart = config.cachedChartData[tf].historicalRateAtStart || null;
-                });
+                config.cachedChartData = config.cachedChartData || {};
                 if (!config.insightReport) { // Ensure insightReport object exists if loading older config
                     config.insightReport = { content: null, timestamp: null, cachedAudioBase64: null, cachedAudioMimeType: null, cachedAudioRequiresWavWrapping: false };
                 } else {
@@ -1298,57 +1295,29 @@
             return bytes;
         }
 
-        function getHistoryStartMs(timeframe) {
-            const now = new Date();
-            const historyEndMs = now.getTime(); // More consistent to use current time as reference
-            let historyStartMs;
-
-            switch (timeframe) {
-                case '7d':
-                    historyStartMs = historyEndMs - (7 * 24 * 60 * 60 * 1000);
-                    break;
-                case '1m':
-                    // Get the date 1 month ago, preserving the time of day
-                    const oneMonthAgo = new Date(now);
-                    oneMonthAgo.setMonth(now.getMonth() - 1);
-                    historyStartMs = oneMonthAgo.getTime();
-                    break;
-                case '1y':
-                    // Get the date 1 year ago, preserving the time of day
-                    const oneYearAgo = new Date(now);
-                    oneYearAgo.setFullYear(now.getFullYear() - 1);
-                    historyStartMs = oneYearAgo.getTime();
-                    break;
-                case '24h':
-                default:
-                    historyStartMs = historyEndMs - (24 * 60 * 60 * 1000);
-                    break;
-            }
-            return historyStartMs;
-        }
-
-
         async function fetchData(forceRefresh = false) {
             if (!config.apiKey) {
                 setStatus('API Key is not configured. Please set it up.', 'error');
                 toggleConfigModal(true);
                 return;
             }
-            
+
             // Check for cached current data if not forceRefresh
             if (!forceRefresh && _current_data_cache && config.lastFetchedCurrentDataTimestamp &&
                 (Date.now() - config.lastFetchedCurrentDataTimestamp < DATA_CACHE_DURATION_MS)) {
                 
+                console.log('[DEBUG] Using cached current data for potential display.');
+                // Current data is fresh enough. Now check chart data for the *selected* timeframe.
                 const selectedChartCache = config.cachedChartData[config.selectedTimeframe];
-                if (selectedChartCache && selectedChartCache.data && selectedChartCache.data.length > 0 && 
-                    selectedChartCache.timestamp && (Date.now() - selectedChartCache.timestamp < DATA_CACHE_DURATION_MS) &&
-                    typeof selectedChartCache.historicalRateAtStart === 'number') { // Crucially, check if historicalRateAtStart is cached
+                if (selectedChartCache && selectedChartCache.data && selectedChartCache.data.length > 0 && selectedChartCache.timestamp &&
+                    (Date.now() - selectedChartCache.timestamp < DATA_CACHE_DURATION_MS)) {
                     
-                    console.log('[DEBUG] All data (current, chart, historical start rate) for', config.selectedTimeframe, 'are fresh. Displaying from cache.');
+                    console.log('[DEBUG] Both current data and chart data for', config.selectedTimeframe, 'are fresh. Displaying from cache.');
                     lastDataFetchTimestamp = config.lastFetchedCurrentDataTimestamp; 
                     window.lastFetchedCurrentData = _current_data_cache; 
                     window.lastFetchedHistoricalChartData = selectedChartCache.data; 
-                    updateDisplay(_current_data_cache, selectedChartCache.historicalRateAtStart, selectedChartCache.data);
+
+                    updateDisplay(_current_data_cache, null, selectedChartCache.data);
                     updateLastUpdatedMessage();
                     setStatus('');
                     return; 
@@ -1356,6 +1325,7 @@
                     console.log('[DEBUG] Current data is fresh, but chart data for', config.selectedTimeframe, 'is old/missing. Will fetch chart data (and current data again).');
                 }
             }
+
 
             setStatus('Fetching data...', 'loading');
 
@@ -1381,57 +1351,71 @@
                     throw new Error("Invalid data received from current API.");
                 }
 
-                // Fetch historical rate at the start of the selected timeframe for comparison
-                let rateAtTimeframeStart = null;
-                const targetTimestampForComparisonMs = getHistoryStartMs(config.selectedTimeframe);
-                const startRequestMs = targetTimestampForComparisonMs - (HISTORICAL_WINDOW_MINUTES * 60 * 1000);
-                const endRequestMs = targetTimestampForComparisonMs + (HISTORICAL_WINDOW_MINUTES * 60 * 1000);
+                const bitcoinPrice = currentData.rate;
+                const allTimeHighUSD = currentData.allTimeHighUSD;
+                const priceChange24hPercent_API = currentData.delta.day;
+
+                // Fetch historical data for accurate 24h diff
+                let priceDifference24h = null;
+                const targetTimestamp24hAgoMs = Date.now() - (24 * 60 * 60 * 1000);
+                const startTimestampMs = targetTimestamp24hAgoMs - (HISTORICAL_WINDOW_MINUTES * 60 * 1000);
+                const endTimestampMs = targetTimestamp24hAgoMs + (HISTORICAL_WINDOW_MINUTES * 60 * 1000);
                 
                 try {
-                    const comparisonHistoricalBody = JSON.stringify({ 
-                        currency: CURRENCY, code: COIN_CODE, 
-                        start: startRequestMs, end: endRequestMs, meta: false 
-                    });
-                    const comparisonResponse = await fetch(`${API_BASE_URL}/coins/single/history`, { method: 'POST', headers, body: comparisonHistoricalBody });
-                    if (comparisonResponse.ok) {
-                        const comparisonData = await comparisonResponse.json();
-                        if (comparisonData.history && comparisonData.history.length > 0) {
+                    const historicalBody = JSON.stringify({ currency: CURRENCY, code: COIN_CODE, start: startTimestampMs, end: endTimestampMs, meta: false });
+                    const historicalResponse = await fetch(`${API_BASE_URL}/coins/single/history`, { method: 'POST', headers, body: historicalBody });
+                    if (historicalResponse.ok) {
+                        const historicalData = await historicalResponse.json();
+                        if (historicalData.history && historicalData.history.length > 0) {
                             let closestDataPoint = null;
                             let smallestTimeDiff = Infinity;
-                            comparisonData.history.forEach(point => {
-                                const timeDiff = Math.abs(point.date - targetTimestampForComparisonMs);
+                            historicalData.history.forEach(point => {
+                                const timeDiff = Math.abs(point.date - targetTimestamp24hAgoMs);
                                 if (timeDiff < smallestTimeDiff) {
                                     smallestTimeDiff = timeDiff;
                                     closestDataPoint = point;
                                 }
                             });
                             if (closestDataPoint && typeof closestDataPoint.rate === 'number') {
-                                rateAtTimeframeStart = closestDataPoint.rate;
+                                priceDifference24h = bitcoinPrice - closestDataPoint.rate;
                             }
                         }
                     } else {
-                        console.warn(`Historical rate for ${config.selectedTimeframe} start fetch failed, status:`, comparisonResponse.status);
+                        console.warn("Historical data fetch failed, status:", historicalResponse.status);
                     }
                 } catch (histError) {
-                    console.warn(`Error fetching historical rate for ${config.selectedTimeframe} start:`, histError);
+                    console.warn("Error fetching historical data:", histError);
                 }
 
-                // If rateAtTimeframeStart is still null (e.g., API error or no data),
-                // updateDisplay will handle fallback (e.g., use API's 24h delta if timeframe is '24h', or show N/A)
+
+                if (priceDifference24h === null && typeof priceChange24hPercent_API === 'number') {
+                    const priceChangeDecimal = priceChange24hPercent_API / 100;
+                    if ((1 + priceChangeDecimal) !== 0) {
+                        const estimatedPrice24hAgo = bitcoinPrice / (1 + priceChangeDecimal);
+                        priceDifference24h = bitcoinPrice - estimatedPrice24hAgo;
+                         console.warn("Using estimated 24h price difference.");
+                    }
+                }
                 
                 let historicalChartData = null;
                 try {
-                    // For chart data, we want data up to the present.
-                    const chartHistoryStartMs = getHistoryStartMs(config.selectedTimeframe);
-                    const chartHistoryEndMs = Date.now(); 
+                    let historyStartMs;
+                    const historyEndMs = Date.now();
+                    const now = new Date();
 
-                    const chartHistoryBody = JSON.stringify({ 
-                        currency: CURRENCY, 
-                        code: COIN_CODE, 
-                        start: chartHistoryStartMs, 
-                        end: chartHistoryEndMs, 
-                        meta: false 
-                    });
+                    if (config.selectedTimeframe === '24h') {
+                        historyStartMs = historyEndMs - (24 * 60 * 60 * 1000);
+                    } else if (config.selectedTimeframe === '7d') {
+                        historyStartMs = historyEndMs - (7 * 24 * 60 * 60 * 1000);
+                    } else if (config.selectedTimeframe === '1m') {
+                        historyStartMs = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()).getTime();
+                    } else if (config.selectedTimeframe === '1y') {
+                        historyStartMs = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).getTime();
+                    } else { 
+                        historyStartMs = historyEndMs - (24 * 60 * 60 * 1000);
+                    }
+
+                    const chartHistoryBody = JSON.stringify({ currency: CURRENCY, code: COIN_CODE, start: historyStartMs, end: historyEndMs, meta: false });
                     const chartHistoryResponse = await fetch(`${API_BASE_URL}/coins/single/history`, { method: 'POST', headers, body: chartHistoryBody });
                     if (chartHistoryResponse.ok) {
                         const chartData = await chartHistoryResponse.json();
@@ -1439,15 +1423,14 @@
                         config.cachedChartData[config.selectedTimeframe] = {
                             data: historicalChartData,
                             timestamp: Date.now(),
-                            allTimeHighUSD: _current_data_cache.allTimeHighUSD,
-                            historicalRateAtStart: rateAtTimeframeStart // Cache the fetched start rate
+                            allTimeHighUSD: _current_data_cache.allTimeHighUSD // Store ATH with chart data for context
                         };
                         window.lastFetchedHistoricalChartData = historicalChartData; // For live accent color redraw
                     } else { console.warn("Chart historical data fetch failed, status:", chartHistoryResponse.status); }
                 } catch (chartHistError) { console.warn("Error fetching chart historical data:", chartHistError); }
 
                 lastDataFetchTimestamp = config.lastFetchedCurrentDataTimestamp; 
-                updateDisplay(_current_data_cache, rateAtTimeframeStart, historicalChartData);
+                updateDisplay(_current_data_cache, priceDifference24h, historicalChartData);
                 saveAppData(); // Save new data and timestamps
                 updateLastUpdatedMessage(); // Update message immediately
                 setStatus(''); 
@@ -1459,69 +1442,45 @@
             }
         }
 
-        function updateDisplay(currentData, historicalRateAtTimeframeStart, historicalChartData) {
-            const btcPrice = currentData.rate;
-            let priceDifferenceAbsolute = null;
-            let changeForColoring = 0; // Default to 0 for coloring if no diff can be calculated
-
-            if (typeof historicalRateAtTimeframeStart === 'number') {
-                priceDifferenceAbsolute = btcPrice - historicalRateAtTimeframeStart;
-                changeForColoring = priceDifferenceAbsolute;
-            } else {
-                // Fallback for 24h if specific historical rate fetch failed
-                if (config.selectedTimeframe === '24h' && currentData.delta && typeof currentData.delta.day === 'number') {
-                    const changePercentage = currentData.delta.day;
-                    changeForColoring = changePercentage; // Use percentage for coloring
-                    // Estimate absolute difference for display if possible
-                    const priceChangeDecimal = changePercentage / 100;
-                    if ((1 + priceChangeDecimal) !== 0) {
-                        const estimatedPrice24hAgo = btcPrice / (1 + priceChangeDecimal);
-                        priceDifferenceAbsolute = btcPrice - estimatedPrice24hAgo;
-                    }
-                    console.warn("Using API's 24h delta for change display due to missing historical start rate.");
-                } else {
-                    console.warn(`No historical start rate for timeframe ${config.selectedTimeframe}, change will be N/A.`);
-                }
-            }
+        function updateDisplay(data, priceDifference24h, historicalChartData) {
+            const btcPrice = data.rate;
             
             btcPriceEl.textContent = formatCurrency(btcPrice);
-            applyColor(btcPriceEl, changeForColoring); 
-            if (currentData.allTimeHighUSD) {
-                applyAthColor(btcPriceEl, btcPrice, currentData.allTimeHighUSD);
+            applyColor(btcPriceEl, priceDifference24h !== null ? priceDifference24h : data.delta.day); 
+            if (data.allTimeHighUSD) {
+                applyAthColor(btcPriceEl, btcPrice, data.allTimeHighUSD);
             }
 
-            if (priceDifferenceAbsolute !== null) {
-                btcChange24hEl.textContent = `[${priceDifferenceAbsolute >= 0 ? '+' : ''}${formatCurrency(priceDifferenceAbsolute)}]`;
-                applyColor(btcChange24hEl, priceDifferenceAbsolute);
-            } else if (config.selectedTimeframe === '24h' && currentData.delta && typeof currentData.delta.day === 'number') { // Fallback display for 24h
-                btcChange24hEl.textContent = `(${currentData.delta.day >= 0 ? '+' : ''}${formatNumber(currentData.delta.day, 2)}%)`;
-                applyColor(btcChange24hEl, currentData.delta.day);
-            } else { // N/A for other timeframes if historicalRateAtTimeframeStart is missing
-                btcChange24hEl.textContent = `[N/A]`;
-                applyColor(btcChange24hEl, 0); // Default color
+            if (priceDifference24h !== null) {
+                btcChange24hEl.textContent = `[${priceDifference24h >= 0 ? '+' : ''}${formatCurrency(priceDifference24h)}]`;
+                applyColor(btcChange24hEl, priceDifference24h);
+            } else {
+                btcChange24hEl.textContent = `(${data.delta.day >= 0 ? '+' : ''}${formatNumber(data.delta.day, 2)}%)`;
+                applyColor(btcChange24hEl, data.delta.day);
             }
 
             if (config.userBtcAmount > 0) {
                 myBtcValueRowEl.style.display = 'flex';
                 const myBtcVal = config.userBtcAmount * btcPrice;
                 myBtcValueEl.textContent = formatCurrency(myBtcVal);
-                applyColor(myBtcValueEl, changeForColoring); 
+                applyColor(myBtcValueEl, priceDifference24h !== null ? priceDifference24h : data.delta.day); 
 
-                if (priceDifferenceAbsolute !== null) {
-                    const myBtcValChange24h = config.userBtcAmount * priceDifferenceAbsolute;
+                if (priceDifference24h !== null) {
+                    const myBtcValChange24h = config.userBtcAmount * priceDifference24h;
                     myBtcValueChange24hEl.textContent = `[${myBtcValChange24h >= 0 ? '+' : ''}${formatCurrency(myBtcValChange24h)}]`;
                     applyColor(myBtcValueChange24hEl, myBtcValChange24h);
                 } else {
-                     myBtcValueChange24hEl.textContent = `[N/A]`; 
-                     applyColor(myBtcValueChange24hEl, 0); // Default color
+                     myBtcValueChange24hEl.textContent = ''; 
                 }
 
                 if (config.userTotalCost > 0) {
                     profitLossRowEl.style.display = 'flex';
                     const profitLoss = myBtcVal - config.userTotalCost;
                     const profitLossPct = (config.userTotalCost !== 0) ? (profitLoss / config.userTotalCost) * 100 : 0;
+                    
                     profitLossValueEl.textContent = formatCurrency(profitLoss);
                     applyColor(profitLossValueEl, profitLoss);
+                    
                     profitLossPercentEl.textContent = `(${profitLossPct >= 0 ? '+' : ''}${formatNumber(profitLossPct, 2)}%)`;
                     applyColor(profitLossPercentEl, profitLoss); 
                 } else {
@@ -1531,14 +1490,15 @@
                 myBtcValueRowEl.style.display = 'none';
                 profitLossRowEl.style.display = 'none';
             }
-            // Volume and Market Cap coloring can still be based on 24h delta from API, or just default
-            volume24hEl.textContent = formatCurrency(currentData.volume, 0);
-            applyColor(volume24hEl, currentData.delta.day); // Or changeForColoring if preferred
-            marketCapEl.textContent = formatCurrency(currentData.cap, 0);
-            applyColor(marketCapEl, currentData.delta.day); // Or changeForColoring if preferred
+
+            volume24hEl.textContent = formatCurrency(data.volume, 0);
+            applyColor(volume24hEl, data.delta.day); 
+            
+            marketCapEl.textContent = formatCurrency(data.cap, 0);
+            applyColor(marketCapEl, data.delta.day); 
 
             if (historicalChartData && historicalChartData.length > 0) {
-                drawPriceChart(historicalChartData, config.selectedTimeframe, currentData.allTimeHighUSD, config.accentColor || DEFAULT_ACCENT_COLOR);
+                drawPriceChart(historicalChartData, config.selectedTimeframe, data.allTimeHighUSD, config.accentColor || DEFAULT_ACCENT_COLOR);
             }
         }
 
@@ -1599,19 +1559,17 @@
         timeframeSelectEl.addEventListener('change', (event) => {
             config.selectedTimeframe = event.target.value;
             const selectedChartCache = config.cachedChartData[config.selectedTimeframe];
-
             if (_current_data_cache && selectedChartCache && selectedChartCache.data && selectedChartCache.data.length > 0 && selectedChartCache.timestamp &&
                 (Date.now() - selectedChartCache.timestamp < DATA_CACHE_DURATION_MS) &&
                 config.lastFetchedCurrentDataTimestamp && 
-                (Date.now() - config.lastFetchedCurrentDataTimestamp < DATA_CACHE_DURATION_MS) &&
-                typeof selectedChartCache.historicalRateAtStart === 'number') { // Check for historicalRateAtStart
+                (Date.now() - config.lastFetchedCurrentDataTimestamp < DATA_CACHE_DURATION_MS)) {
                 
-                console.log('[DEBUG] Switching timeframe, using cached data (current, chart, historical start rate) for:', config.selectedTimeframe);
+                console.log('[DEBUG] Switching timeframe, using cached chart data for:', config.selectedTimeframe);
                 window.lastFetchedCurrentData = _current_data_cache; 
                 window.lastFetchedHistoricalChartData = selectedChartCache.data; 
                 
-                // Call updateDisplay to re-render everything with the new timeframe's comparison
-                updateDisplay(_current_data_cache, selectedChartCache.historicalRateAtStart, selectedChartCache.data);
+                drawPriceChart(selectedChartCache.data, config.selectedTimeframe, _current_data_cache.allTimeHighUSD, config.accentColor || DEFAULT_ACCENT_COLOR);
+                
                 lastDataFetchTimestamp = config.lastFetchedCurrentDataTimestamp; 
                 updateLastUpdatedMessage(); 
                 saveAppData(); 
@@ -1840,15 +1798,14 @@
                     (Date.now() - config.lastFetchedCurrentDataTimestamp < DATA_CACHE_DURATION_MS)) {
                     
                     const selectedChartCache = config.cachedChartData[config.selectedTimeframe];
-                    if (selectedChartCache && selectedChartCache.data && selectedChartCache.data.length > 0 && 
-                        selectedChartCache.timestamp && (Date.now() - selectedChartCache.timestamp < DATA_CACHE_DURATION_MS) &&
-                        typeof selectedChartCache.historicalRateAtStart === 'number') {
+                    if (selectedChartCache && selectedChartCache.data && selectedChartCache.data.length > 0 && selectedChartCache.timestamp &&
+                        (Date.now() - selectedChartCache.timestamp < DATA_CACHE_DURATION_MS)) {
                         
-                        console.log('[DEBUG] Initial load: Using cached data (current, chart, historical start rate) for timeframe:', config.selectedTimeframe);
+                        console.log('[DEBUG] Initial load: Using cached current and chart data for timeframe:', config.selectedTimeframe);
                         lastDataFetchTimestamp = config.lastFetchedCurrentDataTimestamp;
                         window.lastFetchedCurrentData = _current_data_cache;
                         window.lastFetchedHistoricalChartData = selectedChartCache.data;
-                        updateDisplay(_current_data_cache, selectedChartCache.historicalRateAtStart, selectedChartCache.data);
+                        updateDisplay(_current_data_cache, null, selectedChartCache.data);
                         setStatus('');
                         shouldUseCached = true;
                     }
