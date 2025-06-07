@@ -244,6 +244,10 @@
             width: auto;         /* Override fixed width calculations */
             margin-bottom: 0;    /* Reset bottom margin as row handles vertical spacing */
         }
+        /* Make the voice select dropdown 20px narrower */
+        .modal-content .config-item-row #voiceSelect {
+            margin-right: 20px;
+        }
         .modal-content label {
             display: block;
             margin-top: 15px;
@@ -1200,13 +1204,24 @@
                     throw new Error("No audio content received from TTS API in JSON response."); 
                 }
             } catch (error) {
-                console.error("Error playing insight audio:", error);
+                // Enhanced error logging for the main catch block
+                console.error("Error playing insight audio. Type:", typeof error, "Name:", error?.name, "Message:", error?.message, "Full Error Object:", error, "Stack:", error?.stack);
                 if(playInsightButtonEl) {
-                    // If an error occurred, but we successfully cached audio in this attempt,
-                    // the button should offer to "Play" that cached audio.
-                    // Otherwise, it should offer to "Generate Audio" again.
-                    playInsightButtonEl.textContent = config.insightReport.cachedAudioBase64 ? "Play" : "Generate Audio";
+                    // If an error happens during fetching/processing new audio,
+                    // it's safer to reset the button to "Generate Audio" as the new audio is problematic.
+                    playInsightButtonEl.textContent = "Generate Audio";
                     playInsightButtonEl.disabled = false;
+                }
+                // Clear audio cache fields if an error occurred during new audio fetching/processing
+                // to prevent using potentially corrupted/incomplete cached audio.
+                // This is important because the error might have occurred after some cache fields were set
+                // but before all processing/saving was complete, leading to an inconsistent state.
+                if (config.insightReport) {
+                    config.insightReport.cachedAudioBase64 = null;
+                    config.insightReport.cachedAudioMimeType = null;
+                    config.insightReport.cachedAudioRequiresWavWrapping = false;
+                    saveAppData(); // Save the cleared cache state
+                    console.log('[DEBUG] Cleared audio cache due to error during new audio processing/playback.');
                 }
             }
         }
