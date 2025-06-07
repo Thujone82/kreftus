@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">    
-    <title>BTC Track v1.3.2</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>BTC Track v1.3.3</title>
     <link rel="icon" href="./icons/32.png" type="image/png">
     <!-- You can create a 32x32.png from your 512x512.png or 192x192.png -->
     <link rel="apple-touch-icon" href="./icons/192.png">
@@ -457,6 +457,8 @@
         const ATH_PROXIMITY_PERCENT = 0.05; // For data item color
         const ATH_CHART_SHADE_THRESHOLD_PERCENT = 0.95; // For chart shading
         const HISTORICAL_WINDOW_MINUTES = 5;
+        const DATA_CACHE_DURATION_MS = 10 * 60 * 1000; // 10 minutes
+
 
         // DOM Elements
         const btcPriceEl = document.getElementById('btcPrice');
@@ -506,6 +508,8 @@
             "Sadaltager -- Knowledgeable", "Sulafat -- Warm"
         ];
 
+        let _current_data_cache = null; // For storing the main current data object
+
         let lastDataFetchTimestamp = null;
         let updateTimestampInterval = null;
         let config = {
@@ -516,6 +520,8 @@
             selectedVoice: DEFAULT_VOICE,
             selectedTimeframe: '24h',
             accentColor: DEFAULT_ACCENT_COLOR,
+            lastFetchedCurrentDataTimestamp: null, // Timestamp for _current_data_cache
+            cachedChartData: {}, // E.g., {'24h': { data: [], timestamp: null, allTimeHighUSD: null }}
             insightReport: { // New: For storing the last insight
                 content: null,
                 timestamp: null,
@@ -541,7 +547,9 @@
             if (storedConfig) {
                 const parsedConfig = JSON.parse(storedConfig);
                 // Merge stored config with defaults to ensure all keys exist
-                config = { ...config, ...parsedConfig }; 
+                config = { ...config, ...parsedConfig };
+                config.lastFetchedCurrentDataTimestamp = config.lastFetchedCurrentDataTimestamp || null;
+                config.cachedChartData = config.cachedChartData || {};
                 if (!config.insightReport) { // Ensure insightReport object exists if loading older config
                     config.insightReport = { content: null, timestamp: null, cachedAudioBase64: null, cachedAudioMimeType: null, cachedAudioRequiresWavWrapping: false };
                 } else {
@@ -564,6 +572,12 @@
                 config.insightReport = { content: null, timestamp: null, cachedAudioBase64: null, cachedAudioMimeType: null, cachedAudioRequiresWavWrapping: false };
                 accentColorPickerEl.value = DEFAULT_ACCENT_COLOR;
             }
+            // Load current data cache separately
+            const storedCurrentData = localStorage.getItem('btcCurrentDataCache');
+            if (storedCurrentData) {
+                _current_data_cache = JSON.parse(storedCurrentData);
+            }
+
             // Update Insights button visibility based on loaded config
             toggleInsightsButtonVisibility();
         }
@@ -576,14 +590,19 @@
             config.selectedVoice = voiceSelectEl.value || DEFAULT_VOICE;
             config.googleApiKey = googleApiKeyInput.value.trim();
             // selectedTimeframe is saved via its own event listener
-            saveConfigToLocalStorage(); // Use the new helper
+            saveAppData(); 
         }
 
-        // New helper function to save config and handle potential quota errors
-        function saveConfigToLocalStorage() {
+        function saveAppData() {
             try {
                 localStorage.setItem('btcTrackConfig', JSON.stringify(config));
-                console.log('[DEBUG] Config saved to localStorage.');
+                if (_current_data_cache) {
+                    localStorage.setItem('btcCurrentDataCache', JSON.stringify(_current_data_cache));
+                } else {
+                    // If _current_data_cache is null (e.g., after clearing), remove it from localStorage
+                    localStorage.removeItem('btcCurrentDataCache');
+                }
+                console.log('[DEBUG] App data (config & current data cache) saved.');
             } catch (e) {
                 if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') { // Added Firefox error name
                     console.warn('[DEBUG] localStorage quota exceeded. Attempting to save config without audio cache.');
@@ -598,13 +617,25 @@
                     }
                     try {
                         localStorage.setItem('btcTrackConfig', JSON.stringify(configWithoutAudio));
-                        console.log('[DEBUG] Config (without audio cache) saved to localStorage after quota error. Audio for this insight will not persist across sessions.');
+                        console.log('[DEBUG] Config (without audio cache) saved after quota error.');
+                        // Try to save current data cache again, or remove if it was the problem
+                        if (_current_data_cache) {
+                            try {
+                                localStorage.setItem('btcCurrentDataCache', JSON.stringify(_current_data_cache));
+                                console.log('[DEBUG] Current data cache saved after quota error (config w/o audio).');
+                            } catch (e2_data) {
+                                localStorage.removeItem('btcCurrentDataCache');
+                                _current_data_cache = null; // Clear in-memory too
+                                console.warn('[DEBUG] Could not save current data cache after quota error. Cleared. Audio for this insight will not persist across sessions.');
+                                alert('Warning: Could not save all application data due to storage limitations. Some cached data and audio for insights might be lost.');
+                            }
+                        } else {
+                            localStorage.removeItem('btcCurrentDataCache');
+                        }
                     } catch (e2) {
-                        console.error('[DEBUG] Failed to save config even without audio cache:', e2);
-                        alert('Warning: Could not save configuration changes due to storage limitations. Audio for this session will not be persisted if you refresh or close the tab.');
+                        console.error('[DEBUG] Failed to save critical config parts even without audio cache:', e2);
+                        alert('Critical Error: Could not save essential configuration due to storage limitations. Audio for insights will not be persisted.');
                     }
-                } else {
-                    console.error('[DEBUG] Error saving config to localStorage:', e);
                 }
             }
         }
@@ -871,7 +902,7 @@
                     cachedAudioRequiresWavWrapping: false
                 };
                 console.log('[DEBUG] Storing new insight report:', JSON.parse(JSON.stringify(config.insightReport)));
-                saveConfigToLocalStorage(); // Save updated config
+                saveAppData(); // Save updated config
 
                 // Update the modal with the new content
                 console.log('[DEBUG] Calling updateInsightModalDisplay after successful fetch.');
@@ -936,7 +967,7 @@
                     config.insightReport.cachedAudioBase64 = null;
                     config.insightReport.cachedAudioMimeType = null;
                     config.insightReport.cachedAudioRequiresWavWrapping = false;
-                    saveConfigToLocalStorage();
+                    saveAppData();
                 };
 
                 if(playInsightButtonEl) playInsightButtonEl.textContent = "Stop";
@@ -1103,7 +1134,7 @@
 
                         const sampleRate = 24000; 
                         const numChannels = 1;    // Mono
-                        const kbps = 48; // Kilobits per second for MP3. Adjust for quality/size. 64kbps is decent for voice.
+                        const kbps = 32; // Kilobits per second for MP3. Adjust for quality/size. 64kbps is decent for voice.
 
                         const mp3encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, kbps);
                         const mp3DataBuffers = [];
@@ -1135,7 +1166,7 @@
                     config.insightReport.cachedAudioBase64 = base64Audio; // Store raw base64 from API
                     config.insightReport.cachedAudioMimeType = finalMimeTypeForCache;
                     config.insightReport.cachedAudioRequiresWavWrapping = requiresWavWrappingForCache;
-                    saveConfigToLocalStorage(); // Use the new helper function
+                    saveAppData(); 
                     console.log('[DEBUG] Audio fetched and cached in config. Attempted save to localStorage.');
 
                     currentInsightAudio = new Audio(audioSourceUrl);
@@ -1162,7 +1193,7 @@
                         config.insightReport.cachedAudioBase64 = null;
                         config.insightReport.cachedAudioMimeType = null;
                         config.insightReport.cachedAudioRequiresWavWrapping = false;
-                        saveConfigToLocalStorage();
+                        saveAppData();
                         alert("Error playing audio. Check console. API MIME: " + apiMimeType);
                     };
 
@@ -1264,12 +1295,38 @@
             return bytes;
         }
 
-        async function fetchData() {
+        async function fetchData(forceRefresh = false) {
             if (!config.apiKey) {
                 setStatus('API Key is not configured. Please set it up.', 'error');
                 toggleConfigModal(true);
                 return;
             }
+
+            // Check for cached current data if not forceRefresh
+            if (!forceRefresh && _current_data_cache && config.lastFetchedCurrentDataTimestamp &&
+                (Date.now() - config.lastFetchedCurrentDataTimestamp < DATA_CACHE_DURATION_MS)) {
+                
+                console.log('[DEBUG] Using cached current data for potential display.');
+                // Current data is fresh enough. Now check chart data for the *selected* timeframe.
+                const selectedChartCache = config.cachedChartData[config.selectedTimeframe];
+                if (selectedChartCache && selectedChartCache.data && selectedChartCache.data.length > 0 && selectedChartCache.timestamp &&
+                    (Date.now() - selectedChartCache.timestamp < DATA_CACHE_DURATION_MS)) {
+                    
+                    console.log('[DEBUG] Both current data and chart data for', config.selectedTimeframe, 'are fresh. Displaying from cache.');
+                    lastDataFetchTimestamp = config.lastFetchedCurrentDataTimestamp; 
+                    window.lastFetchedCurrentData = _current_data_cache; 
+                    window.lastFetchedHistoricalChartData = selectedChartCache.data; 
+
+                    updateDisplay(_current_data_cache, null, selectedChartCache.data);
+                    updateLastUpdatedMessage();
+                    setStatus('');
+                    return; 
+                } else {
+                    console.log('[DEBUG] Current data is fresh, but chart data for', config.selectedTimeframe, 'is old/missing. Will fetch chart data (and current data again).');
+                }
+            }
+
+
             setStatus('Fetching data...', 'loading');
 
             const headers = {
@@ -1286,7 +1343,9 @@
                     throw new Error(`API Error (${currentResponse.status}): ${errorData.message || currentResponse.statusText}`);
                 }
                 const currentData = await currentResponse.json();
-                window.lastFetchedCurrentData = currentData; // Store for live chart redraw
+                _current_data_cache = currentData; // Update main cache
+                config.lastFetchedCurrentDataTimestamp = Date.now();
+                window.lastFetchedCurrentData = _current_data_cache; // For live accent color redraw
 
                 if (!currentData || typeof currentData.rate === 'undefined') {
                     throw new Error("Invalid data received from current API.");
@@ -1361,15 +1420,21 @@
                     if (chartHistoryResponse.ok) {
                         const chartData = await chartHistoryResponse.json();
                         historicalChartData = chartData.history || [];
-                        window.lastFetchedHistoricalChartData = historicalChartData; // Store for live chart redraw
+                        config.cachedChartData[config.selectedTimeframe] = {
+                            data: historicalChartData,
+                            timestamp: Date.now(),
+                            allTimeHighUSD: _current_data_cache.allTimeHighUSD // Store ATH with chart data for context
+                        };
+                        window.lastFetchedHistoricalChartData = historicalChartData; // For live accent color redraw
                     } else { console.warn("Chart historical data fetch failed, status:", chartHistoryResponse.status); }
                 } catch (chartHistError) { console.warn("Error fetching chart historical data:", chartHistError); }
 
-                lastDataFetchTimestamp = Date.now(); // Set timestamp after successful fetch
-                updateDisplay(currentData, priceDifference24h, historicalChartData);
+                lastDataFetchTimestamp = config.lastFetchedCurrentDataTimestamp; 
+                updateDisplay(_current_data_cache, priceDifference24h, historicalChartData);
+                saveAppData(); // Save new data and timestamps
                 updateLastUpdatedMessage(); // Update message immediately
-
                 setStatus(''); 
+
 
             } catch (error) {
                 console.error("Fetch Data Error:", error);
@@ -1440,32 +1505,76 @@
         document.getElementById('refreshButton').addEventListener('click', fetchData);
         document.getElementById('configButton').addEventListener('click', () => toggleConfigModal(true));
         document.getElementById('cancelConfigButton').addEventListener('click', () => toggleConfigModal(false));
+
+        function clearDisplayData() {
+            btcPriceEl.textContent = '$----.--';
+            btcChange24hEl.textContent = '[$-.--]';
+            myBtcValueRowEl.style.display = 'none';
+            myBtcValueEl.textContent = '$----.--';
+            myBtcValueChange24hEl.textContent = '[$-.--]';
+            profitLossRowEl.style.display = 'none';
+            profitLossValueEl.textContent = '$----.--';
+            profitLossPercentEl.textContent = '(-.--%)';
+            volume24hEl.textContent = '$---,---,---';
+            marketCapEl.textContent = '$---,---,---';
+            if (priceChartCanvas) {
+                const ctx = priceChartCanvas.getContext('2d');
+                ctx.clearRect(0, 0, priceChartCanvas.width, priceChartCanvas.height);
+                ctx.fillStyle = '#777';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font = '16px Arial';
+                ctx.fillText('Data unavailable', priceChartCanvas.width / 2, priceChartCanvas.height / 2);
+            }
+            lastUpdatedTextEl.textContent = 'Updated: --/--/--@--:--:--';
+            [btcPriceEl, btcChange24hEl, myBtcValueEl, myBtcValueChange24hEl, profitLossValueEl, profitLossPercentEl, volume24hEl, marketCapEl].forEach(el => {
+                el.classList.remove('green', 'red', 'magenta');
+                el.classList.add('default-color');
+            });
+        }
+
         document.getElementById('saveConfigButton').addEventListener('click', () => {
-            saveConfig();
+            config.apiKey = apiKeyInput.value.trim();
+            config.userBtcAmount = parseFloat(userBtcAmountInput.value) || 0.0;
+            config.userTotalCost = parseFloat(userTotalCostInput.value) || 0.0;
+            config.accentColor = accentColorPickerEl.value || DEFAULT_ACCENT_COLOR;
+            config.selectedVoice = voiceSelectEl.value || DEFAULT_VOICE;
+            config.googleApiKey = googleApiKeyInput.value.trim();
+            saveAppData();
+
             toggleConfigModal(false);
             applyAccentColor();
             toggleInsightsButtonVisibility(); // Update visibility after save
             if (config.apiKey) {
-                fetchData(); 
+                fetchData(true); // Force refresh as config might have changed critical things
             } else {
-                // Clear data if API key removed? Or just show error.
                 setStatus('API Key is required to fetch data.', 'error');
+                clearDisplayData();
+                _current_data_cache = null;
+                config.lastFetchedCurrentDataTimestamp = null;
+                config.cachedChartData = {};
+                saveAppData();
             }
         });
         timeframeSelectEl.addEventListener('change', (event) => {
             config.selectedTimeframe = event.target.value;
-            saveConfigToLocalStorage(); 
-            fetchData(); 
-        });
-        accentColorPickerEl.addEventListener('input', () => { 
-            config.accentColor = accentColorPickerEl.value;
-            applyAccentColor();
-            if (document.getElementById('priceChartCanvas').offsetParent !== null) { 
-                 const lastFetchedData = window.lastFetchedCurrentData; 
-                 const lastFetchedChartData = window.lastFetchedHistoricalChartData; 
-                 if(lastFetchedData && lastFetchedChartData) {
-                    drawPriceChart(lastFetchedChartData, config.selectedTimeframe, lastFetchedData.allTimeHighUSD, config.accentColor || DEFAULT_ACCENT_COLOR);
-                 }
+            const selectedChartCache = config.cachedChartData[config.selectedTimeframe];
+            if (_current_data_cache && selectedChartCache && selectedChartCache.data && selectedChartCache.data.length > 0 && selectedChartCache.timestamp &&
+                (Date.now() - selectedChartCache.timestamp < DATA_CACHE_DURATION_MS) &&
+                config.lastFetchedCurrentDataTimestamp && 
+                (Date.now() - config.lastFetchedCurrentDataTimestamp < DATA_CACHE_DURATION_MS)) {
+                
+                console.log('[DEBUG] Switching timeframe, using cached chart data for:', config.selectedTimeframe);
+                window.lastFetchedCurrentData = _current_data_cache; 
+                window.lastFetchedHistoricalChartData = selectedChartCache.data; 
+                
+                drawPriceChart(selectedChartCache.data, config.selectedTimeframe, _current_data_cache.allTimeHighUSD, config.accentColor || DEFAULT_ACCENT_COLOR);
+                
+                lastDataFetchTimestamp = config.lastFetchedCurrentDataTimestamp; 
+                updateLastUpdatedMessage(); 
+                saveAppData(); 
+            } else {
+                fetchData(); 
             }
         });
         voiceSelectEl.addEventListener('change', (event) => {
@@ -1477,7 +1586,19 @@
                 config.insightReport.cachedAudioRequiresWavWrapping = false;
                 console.log('[DEBUG] Voice changed, audio cache cleared.');
             }
-            saveConfigToLocalStorage();
+            saveAppData();
+        });
+        accentColorPickerEl.addEventListener('input', () => { 
+            config.accentColor = accentColorPickerEl.value;
+            saveAppData(); 
+            applyAccentColor();
+            if (document.getElementById('priceChartCanvas').offsetParent !== null) { 
+                 // window.lastFetchedCurrentData and window.lastFetchedHistoricalChartData should be up-to-date
+                 // from either fetchData or cache loading.
+                 if(window.lastFetchedCurrentData && window.lastFetchedHistoricalChartData) {
+                    drawPriceChart(window.lastFetchedHistoricalChartData, config.selectedTimeframe, window.lastFetchedCurrentData.allTimeHighUSD, config.accentColor || DEFAULT_ACCENT_COLOR);
+                 }
+            }
         });
 
         insightsButtonEl.addEventListener('click', handleInsightsButtonClick);
@@ -1490,6 +1611,17 @@
         if (playInsightButtonEl) {
             playInsightButtonEl.addEventListener('click', playInsightAudio);
         }
+
+        document.getElementById('refreshButton').addEventListener('click', () => {
+            console.log('[DEBUG] Refresh button clicked. Clearing caches.');
+            _current_data_cache = null;
+            config.lastFetchedCurrentDataTimestamp = null;
+            config.cachedChartData = {}; 
+            saveAppData(); // Save the cleared cache state
+            fetchData(true); // Pass true to force a full refresh
+        });
+
+
 
         function drawPriceChart(history, timeframe, allTimeHighUSD, accentColor) {
             if (!priceChartCanvas) return;
@@ -1655,16 +1787,36 @@
             populateVoiceDropdown();
             loadConfig();
             applyAccentColor();
+
             if (!config.apiKey) {
                 setStatus('Welcome! Please configure your API Key to get started.', 'loading');
                 toggleConfigModal(true);
             } else {
-                fetchData();
-                toggleInsightsButtonVisibility(); // Check on initial load too
-            }
-            // Initial call to set the placeholder or initial timestamp if data is fetched quickly
-            updateLastUpdatedMessage(); 
+                toggleInsightsButtonVisibility();
+                let shouldUseCached = false;
+                if (_current_data_cache && config.lastFetchedCurrentDataTimestamp &&
+                    (Date.now() - config.lastFetchedCurrentDataTimestamp < DATA_CACHE_DURATION_MS)) {
+                    
+                    const selectedChartCache = config.cachedChartData[config.selectedTimeframe];
+                    if (selectedChartCache && selectedChartCache.data && selectedChartCache.data.length > 0 && selectedChartCache.timestamp &&
+                        (Date.now() - selectedChartCache.timestamp < DATA_CACHE_DURATION_MS)) {
+                        
+                        console.log('[DEBUG] Initial load: Using cached current and chart data for timeframe:', config.selectedTimeframe);
+                        lastDataFetchTimestamp = config.lastFetchedCurrentDataTimestamp;
+                        window.lastFetchedCurrentData = _current_data_cache;
+                        window.lastFetchedHistoricalChartData = selectedChartCache.data;
+                        updateDisplay(_current_data_cache, null, selectedChartCache.data);
+                        setStatus('');
+                        shouldUseCached = true;
+                    }
+                }
 
+                if (!shouldUseCached) {
+                    console.log('[DEBUG] Initial load: Cache is old, missing, or incomplete. Fetching fresh data.');
+                    fetchData();
+                }
+            }
+            updateLastUpdatedMessage(); 
             if (updateTimestampInterval) clearInterval(updateTimestampInterval); // Clear existing if any
 
             // Schedule the first update after 62 seconds, then subsequent updates every 60 seconds
