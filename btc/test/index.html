@@ -1117,42 +1117,54 @@
                     let audioSourceUrl = null;
                     let isObjectUrl = false;
                     
-                    // Determine what to cache and how to play
+                    // Variables to determine what to cache and how to play it
                     let finalBase64ForCache = base64Audio; // Original base64 from API
                     let finalMimeTypeForCache = apiMimeType;
                     let finalRequiresWavWrappingForCache = false;
 
                     if (apiMimeType && (
-                        apiMimeType.toLowerCase().startsWith('audio/mpeg') ||
-                        apiMimeType.toLowerCase().startsWith('audio/wav') ||
-                        apiMimeType.toLowerCase().startsWith('audio/ogg') ||
-                        apiMimeType.toLowerCase().startsWith('audio/opus')
+                        apiMimeType.toLowerCase().startsWith('audio/mpeg') || // MP3
+                        apiMimeType.toLowerCase().startsWith('audio/wav')  || // WAV
+                        apiMimeType.toLowerCase().startsWith('audio/ogg')  || // OGG
+                        apiMimeType.toLowerCase().startsWith('audio/opus')    // Opus
                     )) {
                         console.log('[DEBUG] API provided directly playable MIME type:', apiMimeType, '. Using data URL.');
                         audioSourceUrl = `data:${apiMimeType};base64,${base64Audio}`;
                         // Caching variables are already set correctly (original data, original MIME, no wrapping)
                     } else {
-                        // Assume raw PCM or unhandled format. Wrap in WAV for playback.
-                        // Cache the original raw PCM and flag it for WAV wrapping on next play from cache.
-                        console.log('[DEBUG] API MIME type was:', apiMimeType, '. Assuming raw PCM or unhandled. Wrapping in WAV for playback.');
-                        const pcmData = base64ToUint8Array(base64Audio);
-                        
-                        // Parameters for WAV header (assuming 24kHz, 16-bit mono from Gemini TTS)
+                        // Assume raw PCM (e.g., "audio/L16;codec=pcm;rate=24000") or unhandled format.
+                        // Encode to MP3 using LameJS to avoid blob: URLs that might conflict with Service Worker.
+                        console.log('[DEBUG] API MIME type was:', apiMimeType, '. Assuming raw PCM or unhandled. Encoding to MP3.');
+                        const pcmUint8Data = base64ToUint8Array(base64Audio);
+                        const pcmInt16Data = new Int16Array(pcmUint8Data.buffer, pcmUint8Data.byteOffset, pcmUint8Data.byteLength / 2);
+
                         const sampleRate = 24000; 
                         const numChannels = 1;    // Mono
-                        const bitsPerSample = 16; 
-                        
-                        const wavHeader = createWavHeader(pcmData.length, sampleRate, numChannels, bitsPerSample);
-                        const wavBlob = new Blob([wavHeader, pcmData], { type: 'audio/wav' });
-                        audioSourceUrl = URL.createObjectURL(wavBlob);
-                        isObjectUrl = true; // It's a Blob URL for playback
+                        const kbps = 32;          // Bitrate for MP3
 
-                        // For caching: store original raw PCM, mark as needing WAV wrapping.
-                        // finalBase64ForCache is already base64Audio (raw PCM)
-                        finalMimeTypeForCache = 'audio/wav'; // This is what it becomes when wrapped.
-                                                             // playAudioFromCachedData will use this for the blob type.
-                        finalRequiresWavWrappingForCache = true;
-                        console.log(`[DEBUG] Wrapped raw PCM in WAV for playback. Original data length: ${pcmData.length} bytes.`);
+                        const mp3encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, kbps);
+                        const mp3DataBuffers = [];
+                        const sampleBlockSize = 1152;
+
+                        for (let i = 0; i < pcmInt16Data.length; i += sampleBlockSize) {
+                            const sampleChunk = pcmInt16Data.subarray(i, i + sampleBlockSize);
+                            const mp3buf_loop = mp3encoder.encodeBuffer(sampleChunk);
+                            if (mp3buf_loop.length > 0) mp3DataBuffers.push(mp3buf_loop);
+                        }
+                        const endMp3buf = mp3encoder.flush();
+                        if (endMp3buf.length > 0) mp3DataBuffers.push(endMp3buf);
+                        
+                        const fullMp3Data = concatenateUint8Arrays(mp3DataBuffers);
+                        const base64Mp3 = uint8ArrayToBase64(fullMp3Data);
+                        
+                        audioSourceUrl = `data:audio/mpeg;base64,${base64Mp3}`; // Play the encoded MP3
+                        isObjectUrl = false; 
+                        
+                        // Update cache variables to store the processed MP3
+                        finalBase64ForCache = base64Mp3;
+                        finalMimeTypeForCache = 'audio/mpeg';
+                        finalRequiresWavWrappingForCache = false; // It's now MP3
+                        console.log(`[DEBUG] Encoded to MP3. Original PCM size: ${pcmUint8Data.length} bytes. MP3 size: ${fullMp3Data.length} bytes.`);
                     }
 
                     // Cache the fetched audio data
