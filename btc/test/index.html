@@ -1126,43 +1126,35 @@
                         finalMimeTypeForCache = apiMimeType; // e.g. audio/wav, audio/ogg
                         requiresWavWrappingForCache = false;
                     } else {
-                        // Assume raw PCM if MIME type is not directly playable or is missing/generic
-                        // This is the expected path for gemini-2.5-flash-preview-tts.
-                        console.log('[DEBUG] Assuming raw PCM. API MIME type was:', apiMimeType, '. Encoding to MP3.');
-                        const pcmUint8Data = base64ToUint8Array(base64Audio);
+                        // Assume raw PCM if MIME type is not directly playable or is missing/generic.
+                        // Prioritize WAV wrapping for broader compatibility, especially iOS.
+                        console.log('[DEBUG] Assuming raw PCM or unsupported format. API MIME type was:', apiMimeType, '. Wrapping in WAV header.');
+                        const pcmData = base64ToUint8Array(base64Audio);
                         
-                        // Convert Uint8Array to Int16Array for LameJS
-                        // Assuming 16-bit PCM, so 2 bytes per sample.
-                        const pcmInt16Data = new Int16Array(pcmUint8Data.buffer, pcmUint8Data.byteOffset, pcmUint8Data.byteLength / 2);
-
+                        // Parameters for WAV header (assuming 24kHz, 16-bit mono from Gemini TTS)
                         const sampleRate = 24000; 
-                        const numChannels = 1;    // Mono
-                        const kbps = 32; // Kilobits per second for MP3. Adjust for quality/size. 64kbps is decent for voice.
-
-                        const mp3encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, kbps);
-                        const mp3DataBuffers = [];
-                        const sampleBlockSize = 1152; // Standard LAME block size
-
-                        for (let i = 0; i < pcmInt16Data.length; i += sampleBlockSize) {
-                            const sampleChunk = pcmInt16Data.subarray(i, i + sampleBlockSize);
-                            const mp3buf = mp3encoder.encodeBuffer(sampleChunk);
-                            if (mp3buf.length > 0) {
-                                mp3DataBuffers.push(mp3buf);
-                            }
-                        }
-                        const mp3buf = mp3encoder.flush();
-                        if (mp3buf.length > 0) {
-                            mp3DataBuffers.push(mp3buf);
-                        }
+                        const numChannels = 1;    
+                        const bitsPerSample = 16; 
                         
-                        const fullMp3Data = concatenateUint8Arrays(mp3DataBuffers);
-                        const base64Mp3 = uint8ArrayToBase64(fullMp3Data); // Use helper to convert Uint8Array to Base64
+                        const wavHeader = createWavHeader(pcmData.length, sampleRate, numChannels, bitsPerSample);
+                        const wavBlob = new Blob([wavHeader, pcmData], { type: 'audio/wav' });
+                        audioSourceUrl = URL.createObjectURL(wavBlob);
+                        isObjectUrl = true; // It's a Blob URL
                         
-                        audioSourceUrl = `data:audio/mpeg;base64,${base64Mp3}`;
-                        isObjectUrl = false; // It's a data URL, not a Blob URL
-                        finalMimeTypeForCache = 'audio/mpeg'; // We converted it to MP3
-                        requiresWavWrappingForCache = false;  // It's now MP3, not raw PCM needing WAV wrap
-                        console.log(`[DEBUG] Encoded to MP3. Original PCM size: ${pcmUint8Data.length} bytes. MP3 size: ${fullMp3Data.length} bytes.`);
+                        // For caching, we store the original base64 and indicate it needs WAV wrapping.
+                        // The actual base64 stored is the raw PCM from the API.
+                        // The finalMimeTypeForCache reflects what we *would* play if re-wrapping.
+                        // However, since we are playing a blob URL of type 'audio/wav',
+                        // it's more accurate to reflect that if we were to cache the *processed* data.
+                        // Let's stick to caching the raw API response and the wrapping requirement.
+                        finalMimeTypeForCache = 'audio/wav'; // This is what we are effectively creating and playing
+                        requiresWavWrappingForCache = true;  // The *original* data (base64Audio) is raw and needs this.
+                                                             // This flag is used by playAudioFromCachedData.
+                        
+                        console.log(`[DEBUG] Wrapped raw PCM in WAV. Original data length: ${pcmData.length} bytes. Blob URL created.`);
+
+                        // Note: The 'base64Audio' stored in cache will still be the raw PCM.
+                        // 'finalMimeTypeForCache' and 'requiresWavWrappingForCache' guide how to replay it.
                     }
 
                     // Cache the fetched audio data
@@ -1175,16 +1167,33 @@
                     currentInsightAudio = new Audio(audioSourceUrl);
                     
                     currentInsightAudio.onended = () => {
-                        if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
-                        if(playInsightButtonEl) playInsightButtonEl.disabled = false;
+                        if(playInsightButtonEl) {
+                            playInsightButtonEl.textContent = "Play";
+                            playInsightButtonEl.disabled = false;
+                        }
                         if (isObjectUrl) {
                             URL.revokeObjectURL(audioSourceUrl);
                         }
                     };
 
-                    currentInsightAudio.onerror = (e) => {
-                        const errorMessage = e.message || (currentInsightAudio.error ? currentInsightAudio.error.message : "Unknown audio error");
-                        console.error("Audio element error (newly fetched):", errorMessage, "Source (first 100 chars):", audioSourceUrl.substring(0,100));
+                    currentInsightAudio.onerror = (event) => { // event is an Event object
+                        let error = event.target.error; // The MediaError object
+                        let errorMessage = "Unknown audio playback error.";
+                        let errorCode = "N/A";
+                        if (error) {
+                            errorCode = error.code;
+                            switch (error.code) {
+                                case MediaError.MEDIA_ERR_ABORTED: errorMessage = "Playback aborted."; break;
+                                case MediaError.MEDIA_ERR_NETWORK: errorMessage = "Network error during playback."; break;
+                                case MediaError.MEDIA_ERR_DECODE:  errorMessage = "Audio decoding error."; break;
+                                case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED: errorMessage = "Audio format not supported."; break;
+                                default: errorMessage = `Unknown error (code: ${error.code}).`;
+                            }
+                            console.error("AudioElement Error:", errorMessage, "Details:", error, "MIME used:", finalMimeTypeForCache, "Wrapped as WAV:", requiresWavWrappingForCache);
+                        } else {
+                            console.error("AudioElement Error: Event received but no error object found. Event:", event, "MIME used:", finalMimeTypeForCache);
+                        }
+
                         if(playInsightButtonEl) {
                             playInsightButtonEl.textContent = "Generate Audio"; // New audio failed, prompt to generate again
                             playInsightButtonEl.disabled = false;
@@ -1197,12 +1206,21 @@
                         config.insightReport.cachedAudioMimeType = null;
                         config.insightReport.cachedAudioRequiresWavWrapping = false;
                         saveAppData();
-                        alert("Error playing audio. Check console. API MIME: " + apiMimeType);
+                        alert(`Error playing audio: ${errorMessage} (Code: ${errorCode}). Check console. API MIME: ${apiMimeType || 'undefined'}`);
                     };
 
-                    await currentInsightAudio.play(); // play() returns a Promise
-                    if(playInsightButtonEl) playInsightButtonEl.textContent = "Stop";
-                    if(playInsightButtonEl) playInsightButtonEl.disabled = false;
+                    try {
+                        await currentInsightAudio.play();
+                        if(playInsightButtonEl) {
+                            playInsightButtonEl.textContent = "Stop";
+                            playInsightButtonEl.disabled = false;
+                        }
+                    } catch (playError) {
+                        console.error("Error from audio.play() promise:", playError, "MIME used:", finalMimeTypeForCache);
+                        // Manually trigger the onerror logic or parts of it if it wasn't already.
+                        // The onerror event should ideally handle this.
+                        currentInsightAudio.dispatchEvent(new Event('error')); // Try to trigger error handler
+                    }
 
                 } else { 
                     console.error("[DEBUG] No audio content found in expected part of the JSON response:", data);
@@ -1215,6 +1233,7 @@
                 }
             } catch (error) {
                 console.error("Error playing insight audio:", error);
+                // This is the catch block that produces the "[ERROR] Error playing insight audio: {}" log
                 if(playInsightButtonEl) {
                     // If an error occurred, but we successfully cached audio in this attempt,
                     // the button should offer to "Play" that cached audio.
@@ -1222,6 +1241,7 @@
                     playInsightButtonEl.textContent = config.insightReport.cachedAudioBase64 ? "Play" : "Generate Audio";
                     playInsightButtonEl.disabled = false;
                 }
+                // Consider adding more details to the alert here if possible, or rely on console.
             }
         }
 
