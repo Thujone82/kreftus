@@ -33,11 +33,11 @@ self.addEventListener('install', event => {
 self.addEventListener('fetch', event => {
     const requestUrl = new URL(event.request.url);
 
-    // Bypass non-HTTP/HTTPS requests (like data:, blob:, chrome-extension:, etc.) and specifically data URLs
+    // If the request is for a data: URL, do not attempt to handle it with the service worker.
     // to let the browser handle them directly.
-    if (requestUrl.protocol === 'data:' || !requestUrl.protocol.startsWith('http')) {
-        // console.log('Service Worker: Bypassing data: or non-HTTP/HTTPS request:', event.request.url);
-        return; 
+    if (requestUrl.protocol === 'data:') {
+        // console.log('Service Worker: Bypassing data: request:', event.request.url);
+        return; // Let the browser handle it directly without calling event.respondWith()
     }
 
     // For API calls to LiveCoinWatch and Google's Generative Language API,
