@@ -46,6 +46,13 @@ self.addEventListener('activate', event => {
 
 // Fetch event: Serve cached content when offline, or fetch from network
 self.addEventListener('fetch', event => {
+  const requestUrl = new URL(event.request.url);
+
+  // If the request is for a data: URL, do not attempt to handle it with the service worker.
+  if (requestUrl.protocol === 'data:') {
+    return; // Let the browser handle it directly without calling event.respondWith()
+  }
+
   // For navigation requests (HTML pages), try network first, then cache.
   if (event.request.mode === 'navigate') {
     event.respondWith(
