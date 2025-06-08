@@ -1027,7 +1027,7 @@
                 memoryRecallButton.disabled = true; // Initially disabled
                 
                 if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.register('./sw.js')
+                    navigator.serviceWorker.register('sw.js')
                     .then((registration) => { console.log('Service Worker registered for SpiroGen v2.2. Scope:', registration.scope); })
                     .catch((error) => { console.error('Service Worker registration failed. Ensure sw.js is present and correctly configured. Error:', error); });
                 }
