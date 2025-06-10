@@ -31,14 +31,21 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
-    const requestUrl = new URL(event.request.url);
+    let requestUrl;
+    try {
+        requestUrl = new URL(event.request.url);
+    } catch (e) {
+        // Malformed or opaque URLs should simply be fetched normally
+        event.respondWith(fetch(event.request));
+        return;
+    }
 
-    // If the request is for a data: or blob: URL, let the browser handle it
-    // directly without interfering. Attempting to fetch these via the network
-    // results in "Load failed" errors on some browsers (e.g., iOS Safari).
+    // If the request is for a data: or blob: URL, bypass any custom caching and
+    // allow the browser to fetch it normally. Some browsers otherwise log
+    // "FetchEvent.respondWith received an error" when these are intercepted.
     if (requestUrl.protocol === 'data:' || requestUrl.protocol === 'blob:') {
-        // console.log('Service Worker: Bypassing', requestUrl.protocol, 'request:', event.request.url);
-        return; // Do not call event.respondWith
+        event.respondWith(fetch(event.request));
+        return;
     }
 
     // For API calls to LiveCoinWatch and Google's Generative Language API,
