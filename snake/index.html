@@ -178,7 +178,16 @@
     <button id="exitBattleButton" class="playButton">Exit Battle</button>
 
     <script>
-        console.log("SnakeVS Script: Loaded and Running v1.4"); 
+        // PWA Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Service Worker registered with scope:', reg.scope))
+                    .catch(error => console.error('Service Worker registration failed:', error));
+            });
+        }
+
+        console.log("SnakeVS Script: Loaded and Running v1.4");
 
         // --- Utility Functions (Defined First) ---
         function clamp(val, min, max) { return Math.min(Math.max(val, min), max); }

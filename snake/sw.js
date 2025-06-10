@@ -2,12 +2,12 @@
 
 const CACHE_NAME = 'snake-vs-cache-v1';
 const urlsToCache = [
-  '/', // Assuming your main game HTML is at the root
-  '/index.html', // Or whatever your main HTML file is named if not at root
-  '/manifest.json',
+  './', // Alias for index.html when served from subfolder
+  './index.html',
+  './manifest.json',
   // Corrected icon paths to match manifest.json (PNG files)
-  '/icons/192x192.png',
-  '/icons/512x512.png'
+  './icons/192x192.png',
+  './icons/512x512.png'
   // Add other critical assets here if needed,
   // e.g., '/js/game.js', '/css/style.css'
   // Ensure all paths are relative to the service worker's location (usually the root).
