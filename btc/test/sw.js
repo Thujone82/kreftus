@@ -40,11 +40,12 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    // If the request is for a data: or blob: URL, bypass any custom caching and
-    // allow the browser to fetch it normally. Some browsers otherwise log
-    // "FetchEvent.respondWith received an error" when these are intercepted.
+    // If the request is for a data: or blob: URL, let the browser handle it
+    // entirely. Calling fetch() on these schemes from a service worker results
+    // in "FetchEvent.respondWith received an error" log messages in some
+    // browsers, so we simply avoid intercepting them at all.
     if (requestUrl.protocol === 'data:' || requestUrl.protocol === 'blob:') {
-        event.respondWith(fetch(event.request));
+        console.log('Service Worker: bypassing data/blob URL', event.request.url);
         return;
     }
 
