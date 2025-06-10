@@ -1127,9 +1127,8 @@
                     let isObjectUrl = false;
                     
                     // Variables to determine what to cache and how to play it
-                    let finalBase64ForCache = base64Audio; // Original base64 from API
-                    let finalMimeTypeForCache = apiMimeType;
-                    let finalRequiresWavWrappingForCache = false;
+                    let finalMimeTypeForCache = '';
+                    let requiresWavWrappingForCache = false;
 
                     if (apiMimeType && (
                         apiMimeType.toLowerCase().startsWith('audio/mpeg') || // MP3
@@ -1169,19 +1168,18 @@
                         audioSourceUrl = `data:audio/mpeg;base64,${base64Mp3}`; // Play the encoded MP3
                         isObjectUrl = false; 
                         
-                        // Update cache variables to store the processed MP3
-                        finalBase64ForCache = base64Mp3;
+                        // Update cache variables to reflect the processed MP3
                         finalMimeTypeForCache = 'audio/mpeg';
-                        finalRequiresWavWrappingForCache = false; // It's now MP3
+                        requiresWavWrappingForCache = false; // It's now MP3
                         console.log(`[DEBUG] Encoded to MP3. Original PCM size: ${pcmUint8Data.length} bytes. MP3 size: ${fullMp3Data.length} bytes.`);
                     }
 
-                    // Cache the fetched audio data
-                    config.insightReport.cachedAudioBase64 = finalBase64ForCache;
+                    // Cache the fetched audio data using the raw API response
+                    config.insightReport.cachedAudioBase64 = base64Audio;
                     config.insightReport.cachedAudioMimeType = finalMimeTypeForCache;
-                    config.insightReport.cachedAudioRequiresWavWrapping = finalRequiresWavWrappingForCache; // Line 1157
-                    saveAppData(); 
-                    console.log('[DEBUG] Audio processed/used and cached. MIME for cache:', finalMimeTypeForCache, 'Requires WAV wrap:', finalRequiresWavWrappingForCache);
+                    config.insightReport.cachedAudioRequiresWavWrapping = requiresWavWrappingForCache;
+                    saveAppData();
+                    console.log('[DEBUG] Audio fetched and cached in config. MIME:', finalMimeTypeForCache, 'Requires WAV wrap:', requiresWavWrappingForCache);
 
                     currentInsightAudio = new Audio(audioSourceUrl);
                     
