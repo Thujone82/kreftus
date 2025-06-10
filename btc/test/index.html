@@ -406,6 +406,7 @@
             <canvas id="priceChartCanvas"></canvas>
         </div>
         <div id="statusMessage" class="status-message"></div>
+        <div id="swStatus" class="status-message"></div>
     </div>
 
     <div id="configModal" class="modal">
@@ -476,6 +477,7 @@
         const volume24hEl = document.getElementById('volume24h');
         const marketCapEl = document.getElementById('marketCap');
         const statusMessageEl = document.getElementById('statusMessage');
+        const swStatusEl = document.getElementById('swStatus');
         const timeframeSelectEl = document.getElementById('timeframeSelect');
         const priceChartCanvas = document.getElementById('priceChartCanvas');
         const priceChartContainer = document.getElementById('priceChartContainer');
@@ -715,6 +717,13 @@
             statusMessageEl.textContent = message;
             statusMessageEl.className = `status-message ${type}`;
             statusMessageEl.style.display = message ? 'block' : 'none';
+        }
+
+        function setSwStatus(message, type = '') {
+            if (!swStatusEl) return;
+            swStatusEl.textContent = message;
+            swStatusEl.className = `status-message ${type}`.trim();
+            swStatusEl.style.display = message ? 'block' : 'none';
         }
 
         function formatCurrency(value, fractionDigits = 2) {
@@ -1842,6 +1851,7 @@
             populateVoiceDropdown();
             loadConfig();
             applyAccentColor();
+            setSwStatus('');
 
             if (!config.apiKey) {
                 setStatus('Welcome! Please configure your API Key to get started.', 'loading');
@@ -1884,8 +1894,17 @@
 
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.register('sw.js')
-                    .then(registration => console.log('Service Worker registered with scope:', registration.scope))
-                    .catch(error => console.error('Service Worker registration failed:', error));
+                    .then(registration => {
+                        console.log('Service Worker registered with scope:', registration.scope);
+                        return navigator.serviceWorker.ready;
+                    })
+                    .then(() => {
+                        setSwStatus('Service Worker active');
+                    })
+                    .catch(error => {
+                        console.error('Service Worker registration or activation failed:', error);
+                        setSwStatus('Service Worker failed', 'error');
+                    });
             }
         });
     </script>
