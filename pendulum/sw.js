@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pendulum-simulator-v0.5';
+const CACHE_NAME = 'pendulum-simulator-v0.7';
 const urlsToCache = [
   '.', // Alias for index.html
   'index.html',
