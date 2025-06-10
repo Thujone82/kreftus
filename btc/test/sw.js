@@ -33,11 +33,12 @@ self.addEventListener('install', event => {
 self.addEventListener('fetch', event => {
     const requestUrl = new URL(event.request.url);
 
-    // If the request is for a data: URL, do not attempt to handle it with the service worker.
-    // to let the browser handle them directly.
-    if (requestUrl.protocol === 'data:') {
-        // console.log('Service Worker: Bypassing data: request:', event.request.url);
-        return; // Let the browser handle it directly without calling event.respondWith()
+    // If the request is for a data: or blob: URL, let the browser handle it
+    // directly without interfering. Attempting to fetch these via the network
+    // results in "Load failed" errors on some browsers (e.g., iOS Safari).
+    if (requestUrl.protocol === 'data:' || requestUrl.protocol === 'blob:') {
+        // console.log('Service Worker: Bypassing', requestUrl.protocol, 'request:', event.request.url);
+        return; // Do not call event.respondWith
     }
 
     // For API calls to LiveCoinWatch and Google's Generative Language API,
