@@ -1127,6 +1127,7 @@
                     // Variables to determine what to cache and how to play it
                     let finalMimeTypeForCache = '';
                     let requiresWavWrappingForCache = false;
+                    let base64AudioForCache = base64Audio; // Default to raw API audio
 
                     if (apiMimeType && (
                         apiMimeType.toLowerCase().startsWith('audio/mpeg') || // MP3
@@ -1136,7 +1137,9 @@
                     )) {
                         console.log('[DEBUG] API provided directly playable MIME type:', apiMimeType, '. Using data URL.');
                         audioSourceUrl = `data:${apiMimeType};base64,${base64Audio}`;
-                        // Caching variables are already set correctly (original data, original MIME, no wrapping)
+                        finalMimeTypeForCache = apiMimeType;
+                        requiresWavWrappingForCache = false;
+                        base64AudioForCache = base64Audio;
                     } else {
                         // Assume raw PCM (e.g., "audio/L16;codec=pcm;rate=24000") or unhandled format.
                         // Encode to MP3 using LameJS to avoid blob: URLs that might conflict with Service Worker.
@@ -1164,16 +1167,17 @@
                         const base64Mp3 = uint8ArrayToBase64(fullMp3Data);
                         
                         audioSourceUrl = `data:audio/mpeg;base64,${base64Mp3}`; // Play the encoded MP3
-                        isObjectUrl = false; 
-                        
+                        isObjectUrl = false;
+
                         // Update cache variables to reflect the processed MP3
                         finalMimeTypeForCache = 'audio/mpeg';
                         requiresWavWrappingForCache = false; // It's now MP3
+                        base64AudioForCache = base64Mp3;
                         console.log(`[DEBUG] Encoded to MP3. Original PCM size: ${pcmUint8Data.length} bytes. MP3 size: ${fullMp3Data.length} bytes.`);
                     }
 
-                    // Cache the fetched audio data using the raw API response
-                    config.insightReport.cachedAudioBase64 = base64Audio;
+                    // Cache the fetched or processed audio data
+                    config.insightReport.cachedAudioBase64 = base64AudioForCache;
                     config.insightReport.cachedAudioMimeType = finalMimeTypeForCache;
                     config.insightReport.cachedAudioRequiresWavWrapping = requiresWavWrappingForCache;
                     saveAppData();
