@@ -40,11 +40,12 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    // Let the browser handle data: and blob: URLs directly. On some browsers
-    // attempting to handle these in the service worker triggers
-    // "FetchEvent.respondWith received an error" log messages.
+    // Let the browser handle data: and blob: URLs directly. Attempting to
+    // respond to these from the service worker with fetch() can result in
+    // "FetchEvent.respondWith received an error" messages, so we simply do not
+    // intercept them.
     if (requestUrl.protocol === 'data:' || requestUrl.protocol === 'blob:') {
-        event.respondWith(fetch(event.request));
+        console.log('Service Worker: bypassing data/blob URL', event.request.url);
         return;
     }
 
