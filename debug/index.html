@@ -70,14 +70,6 @@
             position: relative; /* For resize handle positioning if needed */
         }
 
-        .resize-handle {
-            width: 100%;
-            height: 8px;
-            background-color: #ddd;
-            cursor: row-resize;
-            /* border-top: 1px solid #ccc; */ /* Alternative styling */
-        }
-
         .debugger-header {
             padding: 10px 15px;
             background-color: #f8f9fa;
@@ -87,6 +79,16 @@
             align-items: center;
             font-weight: bold;
             gap: 10px; /* Spacing between header items */
+        }
+
+        /* New style for the resize handle within the debugger-header */
+        .debugger-header #resizeHandle {
+            width: 12px;
+            height: 24px;
+            background-color: #918e8e;
+            cursor: row-resize;
+            align-self: center; /* Vertically center in the flex header */
+            border-radius: 2px;
         }
 
         .debugger-header #debuggerTitle {
@@ -173,14 +175,14 @@
             <iframe id="contentFrame" sandbox="allow-scripts allow-forms allow-popups allow-modals allow-popups-to-escape-sandbox allow-same-origin"></iframe>
         </div>
         <div class="debugger-container">
-            <div id="resizeHandle" class="resize-handle"></div>
             <div class="debugger-header">
-                <span id="debuggerTitle">Debugger Log</span>
+                <div id="resizeHandle"></div> <!-- Moved here, class removed -->
+                <span id="debuggerTitle">Debug Log</span> <!-- Text changed -->
                 <input type="url" id="urlInputHeader" placeholder="Enter website URL (e.g., https://example.com)">
-                <button id="loadUrlButtonHeader">Load Page</button>
+                <button id="loadUrlButtonHeader">Load</button>
                 <div class="debugger-header-controls">
-                    <button id="copyLogButton">Copy Log</button>
-                    <button id="toggleLogDrawerButton">Expand Log</button>
+                    <button id="copyLogButton">Copy</button>
+                    <button id="toggleLogDrawerButton">Expand</button>
                 </div>
             </div>
             <pre id="debuggerLog"></pre>
@@ -300,10 +302,23 @@
                 logMessage('warn', 'Please enter a URL.');
                 return;
             }
-            if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('about:')) {
-                url = 'https://' + url;
-                urlInput.value = url;
+
+            const KREFTUS_BASE_URL = 'https://kreft.us/';
+            const KREFTUS_DOMAIN_PART = 'kreft.us/'; // To check for inputs like "kreft.us/path"
+
+            // Check if it's already a full URL (http://, https://) or about:
+            if (!(url.startsWith('http://') || url.startsWith('https://') || url.startsWith('about:'))) {
+                // Not a full URL, needs prefixing
+                if (url.toLowerCase().startsWith(KREFTUS_DOMAIN_PART)) {
+                    // Input is like "kreft.us/path", so just add "https://"
+                    url = 'https://' + url;
+                } else {
+                    // Input is like "example.com" or "some/page", prepend the full kreft.us base URL
+                    url = KREFTUS_BASE_URL + url;
+                }
+                urlInput.value = url; // Update the input field to show the resolved URL
             }
+
             logMessage('info', `Attempting to load: ${url}`);
             try {
                 contentFrame.src = url;
