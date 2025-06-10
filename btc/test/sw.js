@@ -31,13 +31,22 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
-    const requestUrl = new URL(event.request.url);
+    let requestUrl;
+    try {
+        requestUrl = new URL(event.request.url);
+    } catch (e) {
+        // Malformed or opaque URLs should simply be fetched normally
+        event.respondWith(fetch(event.request));
+        return;
+    }
 
-    // If the request is for a data: URL, do not attempt to handle it with the service worker.
-    // to let the browser handle them directly.
-    if (requestUrl.protocol === 'data:') {
-        // console.log('Service Worker: Bypassing data: request:', event.request.url);
-        return; // Let the browser handle it directly without calling event.respondWith()
+    // If the request is for a data: or blob: URL, let the browser handle it
+    // entirely. Calling fetch() on these schemes from a service worker results
+    // in "FetchEvent.respondWith received an error" log messages in some
+    // browsers, so we simply avoid intercepting them at all.
+    if (requestUrl.protocol === 'data:' || requestUrl.protocol === 'blob:') {
+        console.log('Service Worker: bypassing data/blob URL', event.request.url);
+        return;
     }
 
     // For API calls to LiveCoinWatch and Google's Generative Language API,

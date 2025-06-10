@@ -1,11 +1,11 @@
 const CACHE_NAME = 'gene-cache-v1';
 const URLS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/service-worker.js',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png'
+  './',
+  './index.html',
+  './manifest.json',
+  './service-worker.js',
+  './icons/192x192.png',
+  './icons/512x512.png'
 ];
 
 self.addEventListener('install', event => {

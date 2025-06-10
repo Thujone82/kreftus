@@ -1,8 +1,8 @@
 const CACHE_NAME = 'btc-track-cache-v1';
 const urlsToCache = [
-    '/',
-    'index.html',
-    'manifest.json',
+    './',
+    './index.html',
+    './manifest.json',
     './icons/192.png', // Main app icon
     './icons/512.png', // Larger app icon
     'https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js' // Add lamejs CDN
@@ -31,7 +31,23 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
-    const requestUrl = new URL(event.request.url);
+    let requestUrl;
+    try {
+        requestUrl = new URL(event.request.url);
+    } catch (e) {
+        // If URL parsing fails (e.g. invalid/opaque URL), just let the network handle it
+        event.respondWith(fetch(event.request));
+        return;
+    }
+
+    // Let the browser handle data: and blob: URLs directly. Attempting to
+    // respond to these from the service worker with fetch() can result in
+    // "FetchEvent.respondWith received an error" messages, so we simply do not
+    // intercept them.
+    if (requestUrl.protocol === 'data:' || requestUrl.protocol === 'blob:') {
+        console.log('Service Worker: bypassing data/blob URL', event.request.url);
+        return;
+    }
 
     // For API calls to LiveCoinWatch and Google's Generative Language API,
     // always go to the network. These are typically POST requests or dynamic

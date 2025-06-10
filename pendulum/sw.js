@@ -1,10 +1,10 @@
-const CACHE_NAME = 'pendulum-simulator-v0.5';
+const CACHE_NAME = 'pendulum-simulator-v0.7';
 const urlsToCache = [
   '.', // Alias for index.html
   'index.html',
   'manifest.json', // Cache the manifest
-  '192x192.png',   // Cache the icons
-  '512x512.png'
+  './icons/192x192.png',   // Cache the icons
+  './icons/512x512.png'
   // Add other assets here if they were external, like CSS or JS files
 ];
 
