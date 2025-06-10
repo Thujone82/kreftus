@@ -1,8 +1,8 @@
 const CACHE_NAME = 'btc-track-cache-v1';
 const urlsToCache = [
-    '/',
-    'index.html',
-    'manifest.json',
+    './',
+    './index.html',
+    './manifest.json',
     './icons/192.png', // Main app icon
     './icons/512.png', // Larger app icon
     'https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js' // Add lamejs CDN
