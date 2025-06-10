@@ -31,12 +31,20 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
-    const requestUrl = new URL(event.request.url);
+    let requestUrl;
+    try {
+        requestUrl = new URL(event.request.url);
+    } catch (e) {
+        // If URL parsing fails (e.g. invalid/opaque URL), just let the network handle it
+        event.respondWith(fetch(event.request));
+        return;
+    }
 
-    // Let the browser handle data: and blob: URLs. Intercepting them can cause
-    // failed fetches ("Load failed") in some browsers like iOS Safari.
+    // Let the browser handle data: and blob: URLs directly. On some browsers
+    // attempting to handle these in the service worker triggers
+    // "FetchEvent.respondWith received an error" log messages.
     if (requestUrl.protocol === 'data:' || requestUrl.protocol === 'blob:') {
-        // console.log('Service Worker: Bypassing', requestUrl.protocol, 'request:', event.request.url);
+        event.respondWith(fetch(event.request));
         return;
     }
 

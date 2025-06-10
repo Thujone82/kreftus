@@ -30,11 +30,23 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
+    let requestUrl;
+    try {
+        requestUrl = new URL(event.request.url);
+    } catch (e) {
+        event.respondWith(fetch(event.request));
+        return;
+    }
+
+    if (requestUrl.protocol === 'data:' || requestUrl.protocol === 'blob:') {
+        event.respondWith(fetch(event.request));
+        return;
+    }
+
     // For API calls, always go to the network.
     // For LiveCoinWatch, their API is POST only for these endpoints,
     // which are typically not cached by service workers by default for GET.
-    // So, we'll just let network requests pass through.
-    if (event.request.url.startsWith('https://api.livecoinwatch.com')) {
+    if (requestUrl.hostname === 'api.livecoinwatch.com') {
         event.respondWith(fetch(event.request));
         return;
     }
