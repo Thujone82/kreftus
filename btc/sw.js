@@ -33,6 +33,13 @@ self.addEventListener('install', event => {
 self.addEventListener('fetch', event => {
     const requestUrl = new URL(event.request.url);
 
+    // Let the browser handle data: and blob: URLs. Intercepting them can cause
+    // failed fetches ("Load failed") in some browsers like iOS Safari.
+    if (requestUrl.protocol === 'data:' || requestUrl.protocol === 'blob:') {
+        // console.log('Service Worker: Bypassing', requestUrl.protocol, 'request:', event.request.url);
+        return;
+    }
+
     // For API calls to LiveCoinWatch and Google's Generative Language API,
     // always go to the network. These are typically POST requests or dynamic
     // content that shouldn't be served from a simple cache.
