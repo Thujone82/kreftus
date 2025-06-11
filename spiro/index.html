@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spirograph Generator v2.2</title> 
+    <title>Spirograph Generator v2.3</title> 
     <link rel="icon" href="./icons/s32.png" type="image/png">
     <!-- You can create a 32x32.png from your 512x512.png or 192x192.png -->
     <link rel="apple-touch-icon" href="./icons/s192.png">
@@ -241,7 +241,7 @@
 <body>
     <div class="container">
         <div id="setup-panel" class="panel">
-            <h2>SpiroGen v2.2</h2> 
+            <h2>SpiroGen v2.3</h2> 
             <div class="control-group" id="global-settings-group">
                 <h3>Global Settings</h3>
                 <div class="color-picker-container">
@@ -396,6 +396,10 @@
                 const colorPicker = document.getElementById(`color${nodeId}`);
                 if (colorPicker) node.color = colorPicker.value;
                 const drawCheckbox = document.getElementById(`draw${nodeId}`);
+                const widthSlider = document.getElementById(`width${nodeId}`);
+                if (widthSlider) node.width = parseFloat(widthSlider.value);
+                const alphaSlider = document.getElementById(`alpha${nodeId}`);
+                if (alphaSlider) node.alpha = parseInt(alphaSlider.value);
                 if (drawCheckbox) node.isDrawing = drawCheckbox.checked;
 
                 if (node.id === 1) {
@@ -446,7 +450,8 @@
                     const armEndY = currentY + node.length * Math.sin(nodeAbsStaticAngle);
                     positions.push({
                         startX: currentX, startY: currentY, endX: armEndX, endY: armEndY,
-                        nodeVisibleColor: node.isDrawing ? node.color : document.documentElement.style.getPropertyValue('--main-color')
+                        nodeVisibleColor: node.isDrawing ? node.color : document.documentElement.style.getPropertyValue('--main-color'),
+                        nodeWidth: node.width, nodeAlpha: node.alpha
                     });
                     currentX = armEndX; currentY = armEndY;
                     parentAbsStaticAngle = nodeAbsStaticAngle; 
@@ -466,11 +471,11 @@
                     ctx.beginPath();
                     ctx.moveTo(canvasCenterX + pos.startX * currentZoom, canvasCenterY + pos.startY * currentZoom);
                     ctx.lineTo(canvasCenterX + pos.endX * currentZoom, canvasCenterY + pos.endY * currentZoom);
-                    ctx.strokeStyle = hexToRgba(pos.nodeVisibleColor, 0.5);
-                    ctx.lineWidth = Math.max(1, 3 * currentZoom); ctx.stroke();
+                    ctx.strokeStyle = hexToRgba(pos.nodeVisibleColor, 0.5); // Arm itself can keep a fixed alpha for visibility
+                    ctx.lineWidth = Math.max(1, pos.nodeWidth * currentZoom); ctx.stroke();
                     ctx.beginPath();
                     ctx.arc(canvasCenterX + pos.endX * currentZoom, canvasCenterY + pos.endY * currentZoom, Math.max(2, 5 * currentZoom), 0, 2 * Math.PI);
-                    ctx.fillStyle = pos.nodeVisibleColor; ctx.fill();
+                    ctx.fillStyle = hexToRgba(pos.nodeVisibleColor, pos.nodeAlpha / 100); ctx.fill();
                 });
                 drawAllTraces();
             }
@@ -478,10 +483,11 @@
             function drawAllTraces() {
                 const canvasCenterX = canvas.width / 2 + canvasOffsetX; 
                 const canvasCenterY = canvas.height / 2 + canvasOffsetY; 
-                ctx.lineWidth = Math.max(1, 1.5 * currentZoom);
+                // ctx.lineWidth set per segment now
                 allTraceSegments.forEach(segment => { 
                     if (segment.points.length > 1) {
-                        ctx.strokeStyle = segment.color; 
+                        ctx.strokeStyle = hexToRgba(segment.color, segment.nodeAlpha / 100);
+                        ctx.lineWidth = Math.max(1, segment.nodeWidth * currentZoom);
                         ctx.beginPath(); 
                         ctx.moveTo(canvasCenterX + segment.points[0].x * currentZoom, canvasCenterY + segment.points[0].y * currentZoom);
                         for (let k = 1; k < segment.points.length; k++) {
@@ -550,11 +556,11 @@
                     ctx.beginPath();
                     ctx.moveTo(canvasCenterX + currentLogicalX_draw * currentZoom, canvasCenterY + currentLogicalY_draw * currentZoom);
                     ctx.lineTo(canvasCenterX + armEndX_draw * currentZoom, canvasCenterY + armEndY_draw * currentZoom);
-                    ctx.strokeStyle = hexToRgba(displayColor, 0.5);
-                    ctx.lineWidth = Math.max(1, 3 * currentZoom); ctx.stroke();
+                    ctx.strokeStyle = hexToRgba(displayColor, 0.5); // Arm itself can keep a fixed alpha for visibility
+                    ctx.lineWidth = Math.max(1, node.width * currentZoom); ctx.stroke();
                     ctx.beginPath();
                     ctx.arc(canvasCenterX + armEndX_draw * currentZoom, canvasCenterY + armEndY_draw * currentZoom, Math.max(2, 5 * currentZoom), 0, 2 * Math.PI);
-                    ctx.fillStyle = displayColor; ctx.fill();
+                    ctx.fillStyle = hexToRgba(displayColor, node.alpha / 100); ctx.fill();
                     currentLogicalX_draw = armEndX_draw; currentLogicalY_draw = armEndY_draw;
                 }
                 drawAllTraces(); 
@@ -592,6 +598,14 @@
                         <label for="color${nodeId}">Node Color (for trace):</label>
                         <input type="color" id="color${nodeId}" value="${node.color}" data-nodeid="${nodeId}">
                     </div>
+                    <div class="slider-container" id="node${nodeId}-width-control">
+                        <label for="width${nodeId}">Width: <span id="width${nodeId}-val">${node.width.toFixed(1)}</span>px</label>
+                        <input type="range" id="width${nodeId}" min="1" max="10" value="${node.width}" step="0.1" data-nodeid="${nodeId}">
+                    </div>
+                    <div class="slider-container" id="node${nodeId}-alpha-control">
+                        <label for="alpha${nodeId}">Alpha: <span id="alpha${nodeId}-val">${node.alpha}</span>%</label>
+                        <input type="range" id="alpha${nodeId}" min="10" max="100" value="${node.alpha}" step="1" data-nodeid="${nodeId}">
+                    </div>
                     ${isFirstNode ? `
                         <div class="slider-container" id="node1-speed-control-slider">
                             <label for="speed${nodeId}">Speed: <span id="speed${nodeId}-val">${node.speedMultiplier.toFixed(2)}x</span></label>
@@ -622,6 +636,22 @@
                         updateNodeFromUI(nodeId); updateSliderFill(e.target); });
                     updateSliderFill(lengthSliderEl); 
                 }
+                const widthSliderEl = nodeDiv.querySelector(`#width${nodeId}`);
+                if (widthSliderEl) {
+                    widthSliderEl.addEventListener('input', (e) => {
+                        document.getElementById(`width${nodeId}-val`).textContent = parseFloat(e.target.value).toFixed(1);
+                        updateNodeFromUI(nodeId); updateSliderFill(e.target); });
+                    updateSliderFill(widthSliderEl);
+                }
+                const alphaSliderEl = nodeDiv.querySelector(`#alpha${nodeId}`);
+                if (alphaSliderEl) {
+                    alphaSliderEl.addEventListener('input', (e) => {
+                        document.getElementById(`alpha${nodeId}-val`).textContent = e.target.value;
+                        updateNodeFromUI(nodeId); updateSliderFill(e.target); });
+                    updateSliderFill(alphaSliderEl);
+                }
+
+
                 nodeDiv.querySelector(`#color${nodeId}`).addEventListener('input', () => updateNodeFromUI(nodeId));
                 nodeDiv.querySelector(`#draw${nodeId}`).addEventListener('change', () => updateNodeFromUI(nodeId));
                 if (isFirstNode) {
@@ -670,7 +700,10 @@
                 }
 
                 const newNode = {
-                    id: nodeId, length: nodeLength, color: newNodeColor, isDrawing: nodeIsDrawing,
+                    id: nodeId, length: nodeLength, color: newNodeColor, 
+                    width: 1.5, // Default trace width
+                    alpha: 100, // Default trace alpha (100%)
+                    isDrawing: nodeIsDrawing,
                     speedMultiplier: 1.0, speed: BASE_SPEED_RPM * (2 * Math.PI / 60), 
                     direction: 1, 
                     relativeSpeed: nodeRelativeSpeed, 
@@ -782,7 +815,11 @@
                     node.previousAbsoluteAngle = node.currentAbsoluteAngle; 
                     node.previousAbsoluteAngleSubStep = node.currentAbsoluteAngle; 
                     if (node.isDrawing) {
-                        const newSegment = { nodeId: node.id, color: node.color, points: [] };
+                        const newSegment = { 
+                            nodeId: node.id, color: node.color, points: [],
+                            nodeWidth: node.width, // Capture width at sim start
+                            nodeAlpha: node.alpha  // Capture alpha at sim start
+                        };
                         allTraceSegments.push(newSegment);
                         currentSegmentMap.set(node.id, newSegment); 
                     }
@@ -1005,13 +1042,18 @@
                 tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
                 const cX = tempCanvas.width/2 + canvasOffsetX; 
                 const cY = tempCanvas.height/2 + canvasOffsetY; 
-                tempCtx.lineWidth = Math.max(1, 1.5 * currentZoom);
-                allTraceSegments.forEach(segment => { if (segment.points.length > 1) { tempCtx.strokeStyle = segment.color; tempCtx.beginPath();
-                    tempCtx.moveTo(cX + segment.points[0].x*currentZoom, cY + segment.points[0].y*currentZoom);
-                    for (let k=1; k<segment.points.length; k++) tempCtx.lineTo(cX + segment.points[k].x*currentZoom, cY + segment.points[k].y*currentZoom);
+                
+                allTraceSegments.forEach(segment => { 
+                    if (segment.points.length > 1) { 
+                        tempCtx.strokeStyle = hexToRgba(segment.color, segment.nodeAlpha / 100);
+                        tempCtx.lineWidth = Math.max(1, segment.nodeWidth * currentZoom);
+                        tempCtx.beginPath();
+                        tempCtx.moveTo(cX + segment.points[0].x * currentZoom, cY + segment.points[0].y * currentZoom);
+                        for (let k = 1; k < segment.points.length; k++) tempCtx.lineTo(cX + segment.points[k].x * currentZoom, cY + segment.points[k].y * currentZoom);
+
                     tempCtx.stroke(); }});
                 const link = document.createElement('a'); link.href = tempCanvas.toDataURL('image/png');
-                link.download = 'spirograph_v2.2.png'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                link.download = 'spirograph_v2.3.png'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
             });
 
             function initialize() {
@@ -1029,7 +1071,7 @@
                 
                 if ('serviceWorker' in navigator) {
                     navigator.serviceWorker.register('sw.js')
-                    .then((registration) => { console.log('Service Worker registered for SpiroGen v2.2. Scope:', registration.scope); })
+                    .then((registration) => { console.log('Service Worker registered for SpiroGen v2.3. Scope:', registration.scope); })
                     .catch((error) => { console.error('Service Worker registration failed. Ensure sw.js is present and correctly configured. Error:', error); });
                 }
             }
