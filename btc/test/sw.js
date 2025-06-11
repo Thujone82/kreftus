@@ -44,7 +44,21 @@ self.addEventListener('fetch', event => {
     // in "FetchEvent.respondWith received an error" log messages in some
     // browsers, so we simply avoid intercepting them at all.
     if (requestUrl.protocol === 'data:' || requestUrl.protocol === 'blob:') {
+        // Explicitly respond with fetch() so browsers do not
+        // log "FetchEvent.respondWith received an error" when
+        // handling local data/blob URLs used for audio playback.
         console.log('Service Worker: bypassing data/blob URL', event.request.url);
+        event.respondWith(
+            fetch(event.request)
+                .then(response => {
+                    console.log('Service Worker: fetched data/blob URL successfully');
+                    return response;
+                })
+                .catch(error => {
+                    console.error('Service Worker: failed to fetch data/blob URL', error);
+                    return Response.error();
+                })
+        );
         return;
     }
 

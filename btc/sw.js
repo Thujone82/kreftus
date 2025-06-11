@@ -44,7 +44,21 @@ self.addEventListener('fetch', event => {
     // "FetchEvent.respondWith received an error" messages, so we simply do not
     // intercept them.
     if (requestUrl.protocol === 'data:' || requestUrl.protocol === 'blob:') {
+        // Use fetch() explicitly for data/blob URLs to avoid
+        // "FetchEvent.respondWith received an error" log messages
+        // that occur if we simply return without a response.
         console.log('Service Worker: bypassing data/blob URL', event.request.url);
+        event.respondWith(
+            fetch(event.request)
+                .then(response => {
+                    console.log('Service Worker: fetched data/blob URL successfully');
+                    return response;
+                })
+                .catch(error => {
+                    console.error('Service Worker: failed to fetch data/blob URL', error);
+                    return Response.error();
+                })
+        );
         return;
     }
 
