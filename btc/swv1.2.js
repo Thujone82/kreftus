@@ -43,11 +43,10 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    // For API calls, always go to the network.
-    // For LiveCoinWatch, their API is POST only for these endpoints,
-    // which are typically not cached by service workers by default for GET.
+    // For API calls, bypass the service worker entirely. These requests are
+    // dynamic and should go straight to the network to avoid service worker
+    // errors if the fetch fails.
     if (requestUrl.hostname === 'api.livecoinwatch.com') {
-        event.respondWith(fetch(event.request));
         return;
     }
 

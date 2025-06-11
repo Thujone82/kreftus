@@ -53,13 +53,11 @@ self.addEventListener('fetch', event => {
     }
 
     // For API calls to LiveCoinWatch and Google's Generative Language API,
-    // always go to the network. These are typically POST requests or dynamic
-    // content that shouldn't be served from a simple cache.
+    // bypass the service worker entirely. These are dynamic requests and
+    // avoiding interception prevents errors if the network fetch fails.
     if (requestUrl.hostname === 'api.livecoinwatch.com' ||
         requestUrl.hostname === 'generativelanguage.googleapis.com') {
-        // Pass the request directly to the network
-        // console.log('Service Worker: Fetching from network (API call):', event.request.url);
-        event.respondWith(fetch(event.request));
+        // Simply return so the browser handles the network fetch directly.
         return;
     }
 
