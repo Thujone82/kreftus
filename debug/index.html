@@ -187,7 +187,7 @@
             <div class="debugger-header">
                 <div id="resizeHandle"></div> <!-- Visual handle, drag is on parent -->
                 <span id="debuggerTitle">Debug Log</span>
-                <input type="url" id="urlInputHeader" placeholder="Enter website URL (e.g., https://example.com)">
+                <input type="url" id="urlInputHeader" placeholder="Enter website URL (e.g., https://kreft.us/spiro or /spiro)">
                 <button id="loadUrlButtonHeader">Load</button>
                 <div class="debugger-header-controls">
                     <button id="copyLogButton">Copy</button>
@@ -213,7 +213,7 @@
         let isResizing = false;
         let startY, initialHeight;
 
-        const DEFAULT_COLLAPSED_HEIGHT_PX = 200;
+        const DEFAULT_COLLAPSED_HEIGHT_PX = 185;
         const DEFAULT_EXPANDED_HEIGHT_VH = 80; // As a percentage of viewport height
 
         let customCollapsedHeight = null; // Stores height in px string e.g., "250px"
