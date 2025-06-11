@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Webpage Wrapper & Debugger</title>
+    <title>Kreft.us Debug</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -406,7 +406,7 @@
         toggleLogDrawerButton.addEventListener('click', () => {
             isLogDrawerOpen = !isLogDrawerOpen;
             document.body.classList.toggle('log-drawer-open', isLogDrawerOpen);
-            toggleLogDrawerButton.textContent = isLogDrawerOpen ? 'Collapse Log' : 'Expand Log';
+            toggleLogDrawerButton.textContent = isLogDrawerOpen ? 'Collapse' : 'Expand';
 
             if (isLogDrawerOpen) {
                 const targetHeight = customExpandedHeight ? customExpandedHeight : (window.innerHeight * DEFAULT_EXPANDED_HEIGHT_VH / 100) + 'px';
