@@ -122,6 +122,7 @@ footer{margin-top:1rem;font-size:.6rem;color:#777}
 <canvas id="canvas"></canvas>
 <footer>Tap to create automata! Kreft 051025</footer>
 <script>
+console.log('GameOfLife: DOMContentLoaded, initializing script...');
 window.addEventListener('DOMContentLoaded', function() {
   // Get DOM elements
   const canvas = document.getElementById('canvas');
@@ -246,6 +247,7 @@ window.addEventListener('DOMContentLoaded', function() {
   function resizeCanvas() {
     const s = Math.min(window.innerWidth * 0.95, 600);
     canvas.width = canvas.height = s;
+    console.log(`Canvas resized to: ${s}x${s}`);
     cellSize = s / cols;
   }
 
@@ -254,6 +256,7 @@ window.addEventListener('DOMContentLoaded', function() {
    */
   function centerView() {
     if (modeSelect.value === 'infinite') {
+      console.log('Centering view for infinite mode.');
       panX = canvas.width / 2;
       panY = canvas.height / 2;
     } else { // wrapped mode
@@ -284,6 +287,7 @@ window.addEventListener('DOMContentLoaded', function() {
    * @param {number} [canvasZoomY=canvas.height/2] - The y-coordinate on the canvas to zoom towards.
    */
   function handleZoom(newSliderValue, canvasZoomX = canvas.width / 2, canvasZoomY = canvas.height / 2) {
+    console.log(`handleZoom called. NewSliderValue: ${newSliderValue}, ZoomX: ${canvasZoomX}, ZoomY: ${canvasZoomY}`);
     if (modeSelect.value === 'wrapped' && running && newSliderValue !== 1) {
          return;
     }
@@ -328,6 +332,7 @@ window.addEventListener('DOMContentLoaded', function() {
    * Updates the zoom slider's properties and current zoom level based on the selected mode.
    */
   function updateZoomSliderMode() {
+    console.log(`Updating zoom slider for mode: ${modeSelect.value}`);
     let initialSliderValue;
     if (modeSelect.value === 'infinite') {
       zoomSlider.min = 10;
@@ -361,6 +366,7 @@ window.addEventListener('DOMContentLoaded', function() {
 
   // Event listener for mode selection change
   modeSelect.addEventListener('change', () => {
+    console.log(`Mode changed to: ${modeSelect.value}`);
     grid.clear(); stepCount = 0; running = false; clearTimeout(timer);
     restoreBtn.disabled = true;
     canvas.style.borderColor = '';
@@ -372,6 +378,7 @@ window.addEventListener('DOMContentLoaded', function() {
 
   // Event listener for the Play/Pause button
   playPauseBtn.addEventListener('click', () => {
+    console.log(`Play/Pause button pressed. Current state: ${running ? 'Pausing' : 'Playing'}`);
     if (running) {
         running = false; clearTimeout(timer); playPauseBtn.textContent = 'Play';
         canvas.style.borderColor = '';
@@ -388,6 +395,7 @@ window.addEventListener('DOMContentLoaded', function() {
 
   // Event listener for the Reset button
   resetBtn.addEventListener('click', () => {
+    console.log('Reset button pressed.');
     running = false; clearTimeout(timer);
     grid.clear(); stepCount = 0;
     canvas.style.borderColor = ''; playPauseBtn.textContent = 'Play';
@@ -397,6 +405,7 @@ window.addEventListener('DOMContentLoaded', function() {
 
   // Event listener for pattern selection
   patternSelect.addEventListener('change', e => {
+    console.log(`Pattern selected: ${e.target.value}`);
     const name = e.target.value;
     if (name !== 'none') {
       grid.clear();
@@ -426,6 +435,7 @@ window.addEventListener('DOMContentLoaded', function() {
         const y = baseOffsetY + (dy - minY);
         grid.set(`${x},${y}`, { age: 0, initialHue: Math.random() * 360 });
       });
+      console.log(`Pattern "${name}" placed. ${coords.length} cells added.`);
       stepCount = 0; draw();
       patternSelect.value = 'none'; // Reset dropdown
     }
@@ -433,7 +443,13 @@ window.addEventListener('DOMContentLoaded', function() {
 
   // Zoom Slider Input Event - uses handleZoom
   zoomSlider.addEventListener('input', () => {
+    console.log(`Zoom slider updated to: ${zoomSlider.value}`);
     handleZoom(parseFloat(zoomSlider.value));
+  });
+  
+  // Speed Slider Input Event
+  speedSlider.addEventListener('input', () => {
+    console.log(`Speed slider updated to: ${speedSlider.value}`);
   });
 
   // Mousewheel Zoom Event
@@ -463,6 +479,7 @@ window.addEventListener('DOMContentLoaded', function() {
   canvas.addEventListener('pointerdown', e => {
     if (e.pointerType === 'mouse' && e.button !== 0) return; // Only main mouse button
     if (isPinching || e.touches && e.touches.length > 1) return; // Ignore if already pinching or multi-touch starts
+    console.log(`Canvas pointerdown: type=${e.pointerType}, x=${e.clientX}, y=${e.clientY}`);
 
     isPointerDown = true;
     isDragging = false;
@@ -504,6 +521,7 @@ window.addEventListener('DOMContentLoaded', function() {
         canvas.releasePointerCapture(e.pointerId);
     }
     if (!isDragging && isPointerDown) { // It's a click/tap
+      console.log(`Canvas tap/click detected at x=${e.clientX}, y=${e.clientY}`);
       const rect = canvas.getBoundingClientRect();
       const worldClickX = (e.clientX - rect.left - panX) / zoomLevel;
       const worldClickY = (e.clientY - rect.top - panY) / zoomLevel;
@@ -511,11 +529,18 @@ window.addEventListener('DOMContentLoaded', function() {
       const gy = Math.floor(worldClickY / cellSize);
       const key = `${gx},${gy}`;
       if (grid.has(key)) {
+        console.log(`Cell killed at: (${gx},${gy})`);
         grid.delete(key);
       } else {
         grid.set(key, { age: 0, initialHue: Math.random() * 360 });
+        console.log(`Cell generated at: (${gx},${gy})`);
       }
       draw();
+    } else if (isDragging) {
+      // Calculate the new center of the view in world cell coordinates
+      const viewCenterX = (canvas.width / 2 - panX) / zoomLevel / cellSize;
+      const viewCenterY = (canvas.height / 2 - panY) / zoomLevel / cellSize;
+      console.log(`Canvas drag operation ended. New view center (cell coords): ~(${Math.floor(viewCenterX)},${Math.floor(viewCenterY)})`);
     }
     isPointerDown = false;
     isDragging = false;
@@ -527,6 +552,7 @@ window.addEventListener('DOMContentLoaded', function() {
   canvas.addEventListener('touchstart', e => {
     if (e.touches.length === 2) {
         e.preventDefault(); 
+        console.log('Pinch gesture started.');
         isPinching = true;
         isPointerDown = false; 
         isDragging = false;
@@ -602,6 +628,7 @@ window.addEventListener('DOMContentLoaded', function() {
 
   canvas.addEventListener('touchend', e => {
     if (isPinching && e.touches.length < 2) {
+        console.log('Pinch gesture ended.');
         isPinching = false;
         initialPinchDistance = 0;
         // If one touch remains, it might initiate a pan or click.
@@ -626,23 +653,28 @@ window.addEventListener('DOMContentLoaded', function() {
         zoomSlider.disabled = false;
     }
     if (modeSelect.value === 'wrapped') {
-        handleZoom(1); 
-        zoomSlider.disabled = false; 
+        handleZoom(1);
+        zoomSlider.disabled = false;
     }
-    step();
+    const stats = step();
+    console.log(`Step button pressed: ${stats.generated} cells generated, ${stats.killed} cells killed.`);
+
     // Draw is called by handleZoom if in wrapped mode.
     // Otherwise, or if already paused, draw explicitly.
     if (modeSelect.value !== 'wrapped' || !running) {
+        // If not in wrapped mode or if it was already paused, draw() wasn't called by handleZoom or loop
         draw();
     }
   });
 
   // Event listener for Save (M+) button
   saveBtn.addEventListener('click', () => {
+    console.log('Save (M+) button pressed.');
     if (grid.size > 0) {
         const gridToSave = new Map();
         grid.forEach((cellData, key) => { gridToSave.set(key, { ...cellData }); });
         savedGridState = { grid: gridToSave, stepCount: stepCount };
+        console.log(`Saved ${savedGridState.grid.size} cells to memory.`);
         restoreBtn.disabled = false; saveBtn.textContent = 'Saved';
         setTimeout(() => { saveBtn.textContent = 'M+'; }, 1500);
     } else {
@@ -653,8 +685,10 @@ window.addEventListener('DOMContentLoaded', function() {
 
   // Event listener for Restore (MR) button
   restoreBtn.addEventListener('click', () => {
+    console.log('Restore (MR) button pressed.');
     if (savedGridState) {
         running = false; clearTimeout(timer); canvas.style.borderColor = '';
+        console.log(`Restoring ${savedGridState.grid.size} cells from memory.`);
         playPauseBtn.textContent = 'Play';
         grid = new Map();
         savedGridState.grid.forEach((cellData, key) => { grid.set(key, { ...cellData }); });
@@ -741,7 +775,10 @@ window.addEventListener('DOMContentLoaded', function() {
    * Calculates the next generation of cells based on Conway's Game of Life rules.
    */
   function step() {
-    const newGrid = new Map(); 
+    const newGrid = new Map();
+    const oldGrid = grid; // Keep a reference to the current grid for comparison
+    let cellsGenerated = 0;
+    let cellsKilled = 0;
 
     if (modeSelect.value === 'wrapped') {
       for (let r = 0; r < rows; r++) {
@@ -801,7 +838,36 @@ window.addEventListener('DOMContentLoaded', function() {
         }
       });
     }
-    grid = newGrid; stepCount++;
+    grid = newGrid;
+    stepCount++;
+
+    // Calculate generated and killed cells
+    newGrid.forEach((_, key) => {
+        if (!oldGrid.has(key)) {
+            cellsGenerated++;
+        }
+    });
+    oldGrid.forEach((_, key) => {
+        if (!newGrid.has(key)) {
+            cellsKilled++;
+        }
+    });
+
+    if (stepCount % 100 === 0 && grid.size > 0) {
+      let maxScope = 0;
+      let farthestCellCoords = '';
+      grid.forEach((_, key) => {
+        const [x, y] = key.split(',').map(Number);
+        const currentScope = Math.abs(x) + Math.abs(y);
+        if (currentScope > maxScope) {
+          maxScope = currentScope;
+          farthestCellCoords = `(${x},${y})`;
+        }
+      });
+      console.log(`Step: ${stepCount} Pop: ${grid.size} Scope: ${maxScope} ${farthestCellCoords}`);
+    }
+
+    return { generated: cellsGenerated, killed: cellsKilled };
   }
 
   /**
