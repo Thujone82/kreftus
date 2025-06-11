@@ -391,6 +391,7 @@
 
             function updateNodeFromUI(nodeId) {
                 const node = nodes.find(n => n.id === nodeId); if (!node) return;
+                let changedProperties = [];
                 const lengthSlider = document.getElementById(`length${nodeId}`);
                 if (lengthSlider) node.length = parseFloat(lengthSlider.value);
                 const colorPicker = document.getElementById(`color${nodeId}`);
@@ -400,6 +401,10 @@
                 if (widthSlider) node.width = parseFloat(widthSlider.value);
                 const alphaSlider = document.getElementById(`alpha${nodeId}`);
                 if (alphaSlider) node.alpha = parseInt(alphaSlider.value);
+                // For logging, check if values actually changed before adding to changedProperties
+                // This is a simplified check; a more robust check would compare against previous values.
+                // For now, we'll log the action of attempting an update.
+
                 if (drawCheckbox) node.isDrawing = drawCheckbox.checked;
 
                 if (node.id === 1) {
@@ -412,6 +417,7 @@
                         node.speedMultiplier = speedMultiplier;
                         node.speed = BASE_SPEED_RPM * (2 * Math.PI / 60) * speedMultiplier;
                         node.direction = parseInt(directionSelect.value); 
+                        changedProperties.push(`speed: ${speedMultiplier.toFixed(2)}x`, `direction: ${directionSelect.options[directionSelect.selectedIndex].text}`);
                         document.getElementById(`speed${nodeId}-val`).textContent = speedMultiplier.toFixed(2) + 'x';
                     }
                     if (startAngleInput) { 
@@ -422,11 +428,14 @@
                             node.previousAbsoluteAngle = node.initialAbsoluteAngle;
                             node.previousAbsoluteAngleSubStep = node.initialAbsoluteAngle;
                         }
+                        changedProperties.push(`startAngle: ${startAngleInput.value} (evaluates to ${(node.initialAbsoluteAngle * 180/Math.PI).toFixed(2)}°)`);
                     }
                 } else {
                     const relSpeedInput = document.getElementById(`relSpeed${nodeId}`);
-                    if (relSpeedInput) node.relativeSpeed = parseFloat(relSpeedInput.value) || 0;
+                    if (relSpeedInput) { node.relativeSpeed = parseFloat(relSpeedInput.value) || 0; changedProperties.push(`relativeSpeed: ${node.relativeSpeed}`); }
                 }
+                // Simplified logging for other properties for brevity
+                console.log(`Node ${nodeId} UI updated. Length: ${node.length}, Color: ${node.color}, Width: ${node.width}, Alpha: ${node.alpha}, Drawing: ${node.isDrawing}. ${changedProperties.join(', ')}`);
                 resetPanAndRedraw(); // Call redraw after all node properties are updated
             }
             
@@ -730,6 +739,7 @@
                 if (nodeControlsEl) {
                      nodesConfigContainer.appendChild(nodeControlsEl);
                      nodeControlsEl.querySelectorAll('input[type="range"]').forEach(updateSliderFill);
+                     console.log(`Node ${nodeId} added. Initial length: ${newNode.length}, color: ${newNode.color}, drawing: ${newNode.isDrawing}`);
                 }
                 if (isFirstNode && document.getElementById(`speed${nodeId}`)) {
                      const speedSlider = document.getElementById(`speed${nodeId}`);
@@ -747,6 +757,7 @@
                 const nodeConfigEl = document.getElementById(`node-config-${nodeIdToRemove}`);
                 if (nodeConfigEl) nodeConfigEl.remove();
                 // CRITICAL FIX: Do NOT filter allTraceSegments here. Traces should persist.
+                console.log(`Node ${nodeIdToRemove} removed.`);
                 // allTraceSegments = allTraceSegments.filter(segment => segment.nodeId !== nodeIdToRemove);
                 // currentSegmentMap.delete(nodeIdToRemove); // This is for active segments, so it's okay to clear if node is gone
                 updateAddRemoveButtons();
@@ -763,6 +774,7 @@
                 addNode(); addNode(); 
                 updateAddRemoveButtons();
                 if (!allTraceSegments.some(seg => seg.points.length > 0)) {
+                    console.log("Node configurations reset. No traces present.");
                     downloadButton.classList.add('hidden');
                 } else {
                     downloadButton.classList.remove('hidden');
@@ -774,6 +786,7 @@
                 allTraceSegments = [];
                 currentSegmentMap.clear();
                 downloadButton.classList.add('hidden');
+                console.log("All drawing traces cleared.");
                 if (!isRunning) drawStaticSpirograph(); 
                 else { 
                     ctx.fillStyle = document.documentElement.style.getPropertyValue('--sim-background-color');
@@ -825,6 +838,7 @@
                     }
                 });
                 animationFrameId = requestAnimationFrame(drawSpirographFrame);
+                console.log("Simulation started.");
             }
 
             function stopSimulation() {
@@ -832,6 +846,7 @@
                 animationFrameId = null; startStopButton.textContent = 'Start Simulation';
                 setControlsVisibility(false); 
                 currentSegmentMap.clear(); 
+                console.log("Simulation stopped.");
                 if (allTraceSegments.some(seg => seg.points.length > 0)) downloadButton.classList.remove('hidden');
             }
             
@@ -921,6 +936,7 @@
                 canvasOffsetY += dy;
                 lastPanX = pos.x;
                 lastPanY = pos.y;
+                // console.log(`Canvas panned. OffsetX: ${canvasOffsetX.toFixed(2)}, OffsetY: ${canvasOffsetY.toFixed(2)}`); // Can be very verbose
                 if (!isRunning) drawStaticSpirograph();
             }
 
@@ -928,6 +944,7 @@
                 isPanning = false;
                 canvas.classList.remove('grabbing');
                 initialPinchDistance = null; // Reset pinch distance
+                console.log(`Pan ended. Final OffsetX: ${canvasOffsetX.toFixed(2)}, OffsetY: ${canvasOffsetY.toFixed(2)}`);
             }
 
             function getPinchDistance(event) {
@@ -950,6 +967,7 @@
                 updateSliderFill(zoomSlider);
                 
                 initialPinchDistance = newPinchDistance; // Update for continuous zoom
+                console.log(`Canvas pinch zoomed. New zoom: ${currentZoom.toFixed(2)}`);
                 if (!isRunning) drawStaticSpirograph();
             }
 
@@ -966,6 +984,7 @@
                 zoomSlider.value = currentZoom;
                 zoomValSpan.textContent = currentZoom.toFixed(2);
                 updateSliderFill(zoomSlider);
+                console.log(`Canvas mouse wheel zoomed. New zoom: ${currentZoom.toFixed(2)}`);
                 if (!isRunning) drawStaticSpirograph();
             }
 
@@ -980,10 +999,20 @@
             canvas.addEventListener('wheel', handleMouseWheelZoom, { passive: false }); // For mouse wheel zoom
 
 
-            simBgColorPicker.addEventListener('input', (e) => { document.documentElement.style.setProperty('--sim-background-color', e.target.value); updateDynamicTheme(); });
-            mainColorPickerEl.addEventListener('input', (e) => { document.documentElement.style.setProperty('--main-color', e.target.value); updateDynamicTheme(); });
+            simBgColorPicker.addEventListener('input', (e) => { 
+                document.documentElement.style.setProperty('--sim-background-color', e.target.value); 
+                console.log(`Global setting: Background color changed to ${e.target.value}`);
+                updateDynamicTheme(); 
+            });
+            mainColorPickerEl.addEventListener('input', (e) => { 
+                document.documentElement.style.setProperty('--main-color', e.target.value); 
+                console.log(`Global setting: Highlight color changed to ${e.target.value}`);
+                updateDynamicTheme(); 
+            });
             zoomSlider.addEventListener('input', (e) => {
-                currentZoom = parseFloat(e.target.value); zoomValSpan.textContent = currentZoom.toFixed(2);
+                currentZoom = parseFloat(e.target.value); 
+                zoomValSpan.textContent = currentZoom.toFixed(2);
+                console.log(`Global setting: Zoom level changed to ${currentZoom.toFixed(2)}x`);
                 updateSliderFill(e.target); 
                 resetPanAndRedraw(); 
             });
