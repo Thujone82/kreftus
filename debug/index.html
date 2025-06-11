@@ -17,8 +17,10 @@
 
         /* Styles for URL input now within debugger-header */
         .debugger-header #urlInputHeader {
+            flex-shrink: 1; /* Allow the input to shrink */
+            min-width: 80px; /* Set a minimum width for the input field */
             flex-grow: 1;
-            padding: 10px;
+            padding: 6px 10px; /* Reduced vertical padding */
             border: 1px solid #ced4da;
             border-radius: 4px;
             font-size: 1rem;
@@ -26,7 +28,8 @@
 
         /* Styles for Load button now within debugger-header */
         .debugger-header #loadUrlButtonHeader {
-            padding: 10px 15px;
+            flex-shrink: 0; /* Prevent the load button from shrinking */
+            padding: 6px 12px; /* Reduced vertical padding */
             background-color: #007bff;
             color: white;
             border: none;
@@ -44,12 +47,12 @@
             flex-grow: 1;
             display: flex;
             flex-direction: column;
-            overflow: hidden; 
+            overflow: hidden;
         }
 
         .iframe-wrapper {
-            flex-grow: 3; 
-            position: relative; 
+            flex-grow: 3;
+            position: relative;
             display: flex;
             border-bottom: 1px solid #dee2e6;
         }
@@ -71,7 +74,7 @@
         }
 
         .debugger-header {
-            padding: 10px 15px;
+            padding: 5px 15px; /* Reduced vertical padding */
             background-color: #f8f9fa;
             border-bottom: 1px solid #e9ecef;
             border-top: 1px solid #e9ecef; /* Added for visual separation when fixed */
@@ -79,6 +82,7 @@
             align-items: center;
             font-weight: bold;
             gap: 10px; /* Spacing between header items */
+            cursor: row-resize; /* Indicate the whole header is draggable for resize */
         }
 
         /* New style for the resize handle within the debugger-header */
@@ -86,21 +90,26 @@
             width: 12px;
             height: 24px;
             background-color: #918e8e;
-            cursor: row-resize;
+            /* cursor: row-resize; */ /* Cursor is now on parent .debugger-header */
             align-self: center; /* Vertically center in the flex header */
             border-radius: 2px;
+            flex-shrink: 0; /* Prevent the handle itself from shrinking */
+            margin-right: 5px; /* Add some space between handle and title */
         }
 
         .debugger-header #debuggerTitle {
-            margin-right: auto; /* Pushes other items to the right if #urlInputHeader doesn't have flex-grow */
+            /* margin-right: auto; */ /* Pushes other items to the right if #urlInputHeader doesn't have flex-grow */
+            flex-shrink: 0; /* Prevent title from shrinking */
+            white-space: nowrap; /* Prevent title from wrapping */
         }
 
         .debugger-header-controls {
             display: flex;
             gap: 8px;
+            flex-shrink: 0; /* Prevent the controls group from shrinking */
         }
         .debugger-header-controls button { /* Specific to control buttons */
-            padding: 5px 10px;
+            padding: 4px 8px; /* Slightly reduced padding */
             background-color: #6c757d;
             color: white;
             border: none;
@@ -124,8 +133,8 @@
             line-height: 1.4;
             white-space: pre-wrap;
             word-break: break-all;
-            background-color: #282c34; 
-            color: #abb2bf; 
+            background-color: #282c34;
+            color: #abb2bf;
         }
 
         #debuggerLog .log-entry {
@@ -136,14 +145,14 @@
             border-bottom: none;
         }
         #debuggerLog .log-time {
-            color: #61afef; 
+            color: #61afef;
             margin-right: 8px;
         }
-        #debuggerLog .log-type-log { color: #98c379; } 
-        #debuggerLog .log-type-error { color: #e06c75; font-weight: bold; } 
-        #debuggerLog .log-type-warn { color: #e5c07b; } 
-        #debuggerLog .log-type-info { color: #61afef; } 
-        #debuggerLog .log-type-debug { color: #c678dd; } 
+        #debuggerLog .log-type-log { color: #98c379; }
+        #debuggerLog .log-type-error { color: #e06c75; font-weight: bold; }
+        #debuggerLog .log-type-warn { color: #e5c07b; }
+        #debuggerLog .log-type-info { color: #61afef; }
+        #debuggerLog .log-type-debug { color: #c678dd; }
 
 
         /* Log Drawer (Expanded Log) Styles */
@@ -163,7 +172,7 @@
            If you want to explicitly hide it or change its properties when drawer is open: */
         /* body.log-drawer-open .iframe-wrapper {
             visibility: hidden;
-        }
+        } */
 
     </style>
 </head>
@@ -176,8 +185,8 @@
         </div>
         <div class="debugger-container">
             <div class="debugger-header">
-                <div id="resizeHandle"></div> <!-- Moved here, class removed -->
-                <span id="debuggerTitle">Debug Log</span> <!-- Text changed -->
+                <div id="resizeHandle"></div> <!-- Visual handle, drag is on parent -->
+                <span id="debuggerTitle">Debug Log</span>
                 <input type="url" id="urlInputHeader" placeholder="Enter website URL (e.g., https://example.com)">
                 <button id="loadUrlButtonHeader">Load</button>
                 <div class="debugger-header-controls">
@@ -190,12 +199,13 @@
     </div>
 
     <script>
-        const urlInput = document.getElementById('urlInputHeader'); // Updated ID
-        const loadUrlButton = document.getElementById('loadUrlButtonHeader'); // Updated ID
+        const urlInput = document.getElementById('urlInputHeader');
+        const loadUrlButton = document.getElementById('loadUrlButtonHeader');
         const contentFrame = document.getElementById('contentFrame');
+        const debuggerHeader = document.querySelector('.debugger-header'); // For dragging
         const debuggerLogEl = document.getElementById('debuggerLog');
         const debuggerContainer = document.querySelector('.debugger-container');
-        const resizeHandle = document.getElementById('resizeHandle');
+        const resizeHandle = document.getElementById('resizeHandle'); // Still used as a visual cue
         const toggleLogDrawerButton = document.getElementById('toggleLogDrawerButton');
         const copyLogButton = document.getElementById('copyLogButton');
 
@@ -214,7 +224,7 @@
         function logMessage(type, ...args) {
             const now = new Date();
             const timestamp = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}.${now.getMilliseconds().toString().padStart(3, '0')}`;
-            
+
             const messageContainer = document.createElement('div');
             messageContainer.classList.add('log-entry');
 
@@ -241,7 +251,7 @@
                 }
                 return String(arg);
             }).join(' ');
-            
+
             const contentSpan = document.createElement('span');
             contentSpan.textContent = messageContent;
             messageContainer.appendChild(contentSpan);
@@ -270,10 +280,10 @@
                          iframeWindow.console[method] = (...args) => logMessage(method, ...args);
                     }
                 });
-                
+
                 iframeWindow.onerror = (message, source, lineno, colno, error) => {
                     logMessage('error', `Unhandled Error in iframe: ${message}`, `Source: ${source}:${lineno}:${colno}`, error || '');
-                    return false; 
+                    return false;
                 };
                 iframeWindow.addEventListener('unhandledrejection', event => {
                     logMessage('error', 'Unhandled Promise Rejection in iframe:', event.reason || event.detail || event);
@@ -333,22 +343,31 @@
             }
         });
 
-        resizeHandle.addEventListener('pointerdown', (e) => {
-            // Only react to primary button (e.g., left mouse click)
-            // and if the event is for a mouse (to avoid issues if touch is also active on handle)
-            if (e.button !== 0 || e.pointerType !== 'mouse') {
+        debuggerHeader.addEventListener('pointerdown', (e) => {
+            // Allow drag only with primary button (mouse left, touch, pen)
+            if (e.button !== 0) {
                 return;
             }
+
+            // Prevent starting a drag if the user is interacting with an input, button, etc.
+            // or the dedicated resize handle itself (though it's small)
+            if (e.target.closest('input, button, select, textarea') || e.target === resizeHandle) {
+                return;
+            }
+
             isResizing = true;
             startY = e.clientY;
             initialHeight = debuggerContainer.offsetHeight;
             document.body.style.userSelect = 'none'; // Prevent text selection during drag
-            resizeHandle.setPointerCapture(e.pointerId); // Capture pointer events
+            document.body.style.webkitUserSelect = 'none'; // For Safari
+            document.body.style.msUserSelect = 'none'; // For IE/Edge
+
+            debuggerHeader.setPointerCapture(e.pointerId); // Capture pointer events on the header
 
             document.addEventListener('pointermove', handlePointerMove);
             document.addEventListener('pointerup', handlePointerUp);
             document.addEventListener('pointercancel', handlePointerUp); // Also clean up on cancel
-            e.preventDefault();
+            e.preventDefault(); // Prevent text selection on the header itself
         });
 
         function handlePointerMove(e) {
@@ -356,16 +375,10 @@
             const deltaY = e.clientY - startY;
             let newHeight = initialHeight - deltaY; // Dragging up decreases Y, increases height
 
-            // console.log(`[Drag] startY: ${startY.toFixed(2)}, clientY: ${e.clientY.toFixed(2)}, deltaY: ${deltaY.toFixed(2)}`);
-            // console.log(`[Drag] initialHeight: ${initialHeight.toFixed(2)}, newHeight (pre-clamp): ${newHeight.toFixed(2)}`);
-
-            const minHeight = 100; // Minimum height in pixels - Further increased for usability
+            const minHeight = 100; // Minimum height in pixels
             const maxHeight = window.innerHeight * 0.95; // Max 95% of viewport height
 
             newHeight = Math.max(minHeight, Math.min(newHeight, maxHeight));
-
-            console.log(`[Drag] minHeight: ${minHeight.toFixed(2)}, maxHeight: ${maxHeight.toFixed(2)}, newHeight (post-clamp): ${newHeight.toFixed(2)}`);
-            // console.log(`[Drag] Applied style.height: ${debuggerContainer.style.height}`);
             debuggerContainer.style.height = newHeight + 'px';
         }
 
@@ -373,12 +386,14 @@
             if (!isResizing) return;
             isResizing = false;
             document.body.style.userSelect = ''; // Re-enable text selection
-            resizeHandle.releasePointerCapture(e.pointerId); // Release pointer capture
+            document.body.style.webkitUserSelect = '';
+            document.body.style.msUserSelect = '';
+
+            debuggerHeader.releasePointerCapture(e.pointerId); // Release pointer capture from the header
 
             document.removeEventListener('pointermove', handlePointerMove);
             document.removeEventListener('pointerup', handlePointerUp);
             document.removeEventListener('pointercancel', handlePointerUp);
-
 
             // Store the resized height for the current state (expanded or collapsed)
             if (isLogDrawerOpen) {
@@ -405,7 +420,6 @@
         });
 
         copyLogButton.addEventListener('click', () => {
-            // This button is now always visible in the header.
             const logText = debuggerLogEl.innerText || debuggerLogEl.textContent;
             if (!logText.trim()) {
                 logMessage('info', 'Log is empty. Nothing to copy.');
