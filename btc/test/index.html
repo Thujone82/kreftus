@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>BTC Track v1.3.4</title>
+    <title>BTC Track v1.3.5</title>
     <link rel="icon" href="./icons/32.png" type="image/png">
     <!-- You can create a 32x32.png from your 512x512.png or 192x192.png -->
     <link rel="apple-touch-icon" href="./icons/192.png">
@@ -422,11 +422,6 @@
             <label for="googleApiKey">Google API Key (for Insights):</label>
             <input type="text" id="googleApiKey" placeholder="Enter your Google API Key">
 
-            <div class="config-item-row"> <!-- Wrapper for same-line layout -->
-                <label for="voiceSelect">Voice:</label>
-                <select id="voiceSelect"></select>
-            </div>
-
             <label for="accentColorPicker">Accent Color:</label>
             <input type="color" id="accentColorPicker">
 
@@ -445,7 +440,6 @@
             </div>
             <div id="insightContent" class="insight-content">Loading insight...</div>
             <div class="modal-buttons">
-                <button id="playInsightButton" style="display: none;">Play</button>
                 <button id="updateInsightButton" style="display: none;">Update Report</button>
                 <button id="closeInsightButton">Close</button>
             </div>
@@ -486,7 +480,6 @@
         const userBtcAmountInput = document.getElementById('userBtcAmount');
         const userTotalCostInput = document.getElementById('userTotalCost');
         const googleApiKeyInput = document.getElementById('googleApiKey');
-        const voiceSelectEl = document.getElementById('voiceSelect');
         const accentColorPickerEl = document.getElementById('accentColorPicker');
 
         const insightsButtonEl = document.getElementById('insightsButton');
@@ -495,56 +488,27 @@
         const insightContentEl = document.getElementById('insightContent');
         const insightTimestampEl = document.getElementById('insightTimestamp'); 
         const updateInsightButtonEl = document.getElementById('updateInsightButton');
-        const playInsightButtonEl = document.getElementById('playInsightButton');
 
         const DEFAULT_ACCENT_COLOR = '#f7931a';
-        const DEFAULT_VOICE = 'Kore';
-        const AVAILABLE_VOICES = [
-            "Zephyr -- Bright", "Puck -- Upbeat", "Charon -- Informative", "Kore -- Firm",
-            "Fenrir -- Excitable", "Leda -- Youthful", "Orus -- Firm", "Aoede -- Breezy",
-            "Callirrhoe -- Easy-going", "Autonoe -- Bright", "Enceladus -- Breathy",
-            "Iapetus -- Clear", "Umbriel -- Easy-going", "Algieba -- Smooth", "Despina -- Smooth",
-            "Erinome -- Clear", "Algenib -- Gravelly", "Rasalgethi -- Informative",
-            "Laomedeia -- Upbeat", "Achernar -- Soft", "Alnilam -- Firm", "Schedar -- Even",
-            "Gacrux -- Mature", "Pulcherrima -- Forward", "Achird -- Friendly",
-            "Zubenelgenubi -- Casual", "Vindemiatrix -- Gentle", "Sadachbia -- Lively",
-            "Sadaltager -- Knowledgeable", "Sulafat -- Warm"
-        ];
 
         let _current_data_cache = null; // For storing the main current data object
 
         let lastDataFetchTimestamp = null;
         let updateTimestampInterval = null;
-        const SESSION_AUDIO_KEY = 'btcSessionAudio';
         let config = {
             googleApiKey: '',
             apiKey: '',
             userBtcAmount: 0.0,
             userTotalCost: 0.0,
-            selectedVoice: DEFAULT_VOICE,
             selectedTimeframe: '24h',
             accentColor: DEFAULT_ACCENT_COLOR,
             lastFetchedCurrentDataTimestamp: null, 
             cachedChartData: {}, // E.g., {'24h': { data: [], timestamp: null, allTimeHighUSD: null, historicalRateAtStart: null }}
             insightReport: { // New: For storing the last insight
                 content: null,
-                timestamp: null,
-                cachedAudioBase64: null,
-                cachedAudioMimeType: null,
-                cachedAudioRequiresWavWrapping: false
+                timestamp: null
             }
         };
-
-        function populateVoiceDropdown() {
-            AVAILABLE_VOICES.forEach(voiceDesc => {
-                const [voiceName, description] = voiceDesc.split(" -- ");
-                const option = document.createElement('option');
-                option.value = voiceName;
-                option.textContent = voiceDesc;
-                if (voiceName === DEFAULT_VOICE) option.selected = true; // Set default
-                voiceSelectEl.appendChild(option);
-            });
-        }
 
         function loadConfig() {
             const storedConfig = localStorage.getItem('btcTrackConfig');
@@ -557,23 +521,23 @@
                     config.cachedChartData[tf].historicalRateAtStart = config.cachedChartData[tf].historicalRateAtStart || null;
                 });
                 if (!config.insightReport) {
-                    config.insightReport = { content: null, timestamp: null, cachedAudioBase64: null, cachedAudioMimeType: null, cachedAudioRequiresWavWrapping: false };
+                    config.insightReport = { content: null, timestamp: null };
                 } else {
-                    config.insightReport.cachedAudioBase64 = null;
-                    config.insightReport.cachedAudioMimeType = null;
-                    config.insightReport.cachedAudioRequiresWavWrapping = false;
+                    // Ensure only expected fields are present, effectively clearing old audio fields
+                    config.insightReport = {
+                        content: config.insightReport.content || null,
+                        timestamp: config.insightReport.timestamp || null
+                    };
                 }
 
                 apiKeyInput.value = config.apiKey || '';
                 userBtcAmountInput.value = config.userBtcAmount || '';
                 userTotalCostInput.value = config.userTotalCost || '';
                 googleApiKeyInput.value = config.googleApiKey || '';
-                voiceSelectEl.value = config.selectedVoice || DEFAULT_VOICE;
                 timeframeSelectEl.value = config.selectedTimeframe || '24h';
                 accentColorPickerEl.value = config.accentColor || DEFAULT_ACCENT_COLOR;
             } else {
-                voiceSelectEl.value = DEFAULT_VOICE;
-                config.insightReport = { content: null, timestamp: null, cachedAudioBase64: null, cachedAudioMimeType: null, cachedAudioRequiresWavWrapping: false };
+                config.insightReport = { content: null, timestamp: null };
                 accentColorPickerEl.value = DEFAULT_ACCENT_COLOR;
             }
 
@@ -582,53 +546,12 @@
                 _current_data_cache = JSON.parse(storedCurrentData);
             }
 
-            const sessionAudio = sessionStorage.getItem(SESSION_AUDIO_KEY);
-            if (sessionAudio) {
-                try {
-                    const audioData = JSON.parse(sessionAudio);
-                    config.insightReport.cachedAudioBase64 = audioData.base64 || null;
-                    config.insightReport.cachedAudioMimeType = audioData.mimeType || null;
-                    config.insightReport.cachedAudioRequiresWavWrapping = !!audioData.requiresWavWrapping;
-                } catch (e) {
-                    console.warn('[DEBUG] Failed to parse session audio cache', e);
-                }
-            }
-
             toggleInsightsButtonVisibility();
         }
 
-        function saveConfig() {
-            config.apiKey = apiKeyInput.value.trim();
-            config.userBtcAmount = parseFloat(userBtcAmountInput.value) || 0.0;
-            config.userTotalCost = parseFloat(userTotalCostInput.value) || 0.0;
-            config.accentColor = accentColorPickerEl.value || DEFAULT_ACCENT_COLOR;
-            config.selectedVoice = voiceSelectEl.value || DEFAULT_VOICE;
-            config.googleApiKey = googleApiKeyInput.value.trim();
-            // selectedTimeframe is saved via its own event listener
-            saveAppData(); 
-        }
-
         function saveAppData() {
-            const configForStorage = { ...config };
-            if (configForStorage.insightReport) {
-                const audioForSession = {
-                    base64: configForStorage.insightReport.cachedAudioBase64,
-                    mimeType: configForStorage.insightReport.cachedAudioMimeType,
-                    requiresWavWrapping: configForStorage.insightReport.cachedAudioRequiresWavWrapping
-                };
-                sessionStorage.setItem(SESSION_AUDIO_KEY, JSON.stringify(audioForSession));
-                configForStorage.insightReport = {
-                    ...configForStorage.insightReport,
-                    cachedAudioBase64: null,
-                    cachedAudioMimeType: null,
-                    cachedAudioRequiresWavWrapping: false
-                };
-            } else {
-                sessionStorage.removeItem(SESSION_AUDIO_KEY);
-            }
-
             try {
-                localStorage.setItem('btcTrackConfig', JSON.stringify(configForStorage));
+                localStorage.setItem('btcTrackConfig', JSON.stringify(config));
                 if (_current_data_cache) {
                     localStorage.setItem('btcCurrentDataCache', JSON.stringify(_current_data_cache));
                 } else {
@@ -639,7 +562,7 @@
                 if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
                     console.warn('[DEBUG] localStorage quota exceeded. Attempting to save without current data cache.');
                     try {
-                        localStorage.setItem('btcTrackConfig', JSON.stringify(configForStorage));
+                        localStorage.setItem('btcTrackConfig', JSON.stringify(config));
                         localStorage.removeItem('btcCurrentDataCache');
                         console.warn('[DEBUG] Config saved without current data cache due to quota limits.');
                     } catch (e2) {
@@ -659,7 +582,6 @@
                 userBtcAmountInput.value = config.userBtcAmount || '';
                 userTotalCostInput.value = config.userTotalCost || '';
                 googleApiKeyInput.value = config.googleApiKey || '';
-                voiceSelectEl.value = config.selectedVoice || DEFAULT_VOICE;
                 accentColorPickerEl.value = config.accentColor || DEFAULT_ACCENT_COLOR;
             }
         }
@@ -837,17 +759,12 @@
                 const oneHourInMs = 60 * 60 * 1000;
                 if(updateInsightButtonEl) updateInsightButtonEl.style.display = (Date.now() - config.insightReport.timestamp) >= oneHourInMs ? 'inline-block' : 'none';
                 
-                if(playInsightButtonEl) {
-                    playInsightButtonEl.textContent = config.insightReport.cachedAudioBase64 ? "Play" : "Generate Audio";
-                    playInsightButtonEl.style.display = 'inline-block';
-                }
                 console.log('[DEBUG] Update button display:', updateInsightButtonEl ? updateInsightButtonEl.style.display : 'N/A (element not found)');
             } else {
                 console.log('[DEBUG] No valid cached insight report found. Triggering new fetch.');
                 insightContentEl.textContent = "No previous insight found. Fetching new report...";
                 if(insightTimestampEl) insightTimestampEl.style.display = 'none';
                 if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'none';
-                if(playInsightButtonEl) playInsightButtonEl.style.display = 'none'; // Hide button until insight text is fetched
                 fetchInsightFromGemini(); // Fetch a new one immediately if no valid stored report
             }
         }
@@ -859,17 +776,9 @@
                 return;
             }
 
-            // Clear any previously cached audio for the old insight
-            if (config.insightReport) {
-                config.insightReport.cachedAudioBase64 = null;
-                config.insightReport.cachedAudioMimeType = null;
-                config.insightReport.cachedAudioRequiresWavWrapping = false;
-            }
-
             console.log('[DEBUG] fetchInsightFromGemini called.');
             toggleInsightModal(true);
             if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'none'; // Hide update button while fetching
-            if(playInsightButtonEl) playInsightButtonEl.style.display = 'none'; // Hide play button while fetching
             if(insightTimestampEl) insightTimestampEl.style.display = 'none'; // Hide old timestamp while fetching
             insightContentEl.textContent = "Fetching AI insight, please wait...";
             console.log('[DEBUG] Set UI to loading state for insight.');
@@ -915,10 +824,7 @@
                 // Store the new report and timestamp
                 config.insightReport = {
                     content: insightText,
-                    timestamp: Date.now(),
-                    cachedAudioBase64: null, // Ensure audio cache is clear for new text
-                    cachedAudioMimeType: null,
-                    cachedAudioRequiresWavWrapping: false
+                    timestamp: Date.now()
                 };
                 console.log('[DEBUG] Storing new insight report:', JSON.parse(JSON.stringify(config.insightReport)));
                 saveAppData(); // Save updated config
@@ -938,373 +844,6 @@
             console.log('[DEBUG] handleInsightsButtonClick called.');
             toggleInsightModal(true);
             updateInsightModalDisplay(); // This function will decide whether to show old data or fetch new
-        }
-
-        let currentInsightAudio = null; // To manage the audio object
-        let retryCountdownInterval = null; // To manage the 429 retry countdown interval
-
-        // Helper function to play audio from cached data
-        function playAudioFromCachedData(base64Data, mimeType, requiresWavWrapping) {
-            console.log(`[DEBUG] Playing from cache. MIME: ${mimeType}, RequiresWavWrapping: ${requiresWavWrapping}`);
-            let audioSourceUrl;
-            let isObjectUrl = false;
-
-            try {
-                if (requiresWavWrapping) {
-                    console.log('[DEBUG] Cached audio requires WAV wrapping.');
-                    const pcmData = base64ToUint8Array(base64Data);
-                    const sampleRate = 24000; 
-                    const numChannels = 1;    
-                    const bitsPerSample = 16; 
-                    const wavHeader = createWavHeader(pcmData.length, sampleRate, numChannels, bitsPerSample);
-                    const wavBlob = new Blob([wavHeader, pcmData], { type: 'audio/wav' }); // MimeType here is 'audio/wav'
-                    audioSourceUrl = URL.createObjectURL(wavBlob);
-                    isObjectUrl = true;
-                } else {
-                    console.log('[DEBUG] Cached audio is directly playable or already processed.');
-                    audioSourceUrl = `data:${mimeType};base64,${base64Data}`;
-                }
-
-                currentInsightAudio = new Audio(audioSourceUrl);
-                
-                currentInsightAudio.onended = () => {
-                    if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
-                    if(playInsightButtonEl) playInsightButtonEl.disabled = false;
-                    if (isObjectUrl) URL.revokeObjectURL(audioSourceUrl);
-                };
-
-                currentInsightAudio.onerror = (e) => {
-                    const errorMessage = e.message || (currentInsightAudio.error ? currentInsightAudio.error.message : "Unknown audio error");
-                    console.error("Audio element error (from cache):", errorMessage, "Source (first 100 chars):", audioSourceUrl.substring(0,100));
-                    if(playInsightButtonEl) {
-                        playInsightButtonEl.textContent = "Generate Audio"; // Cached audio failed, prompt to generate new
-                        playInsightButtonEl.disabled = false;
-                    }
-                    if (isObjectUrl) URL.revokeObjectURL(audioSourceUrl);
-                    alert("Error playing cached audio. Check console. MIME: " + mimeType);
-                    // Clear potentially faulty cache entry
-                    config.insightReport.cachedAudioBase64 = null;
-                    config.insightReport.cachedAudioMimeType = null;
-                    config.insightReport.cachedAudioRequiresWavWrapping = false;
-                    saveAppData();
-                };
-
-                if(playInsightButtonEl) playInsightButtonEl.textContent = "Stop";
-                if(playInsightButtonEl) playInsightButtonEl.disabled = false;
-                currentInsightAudio.play().catch(err => currentInsightAudio.onerror(err)); // Play and catch potential errors
-            } catch (error) {
-                console.error("Error preparing cached audio for playback:", error);
-                if(playInsightButtonEl) {
-                    playInsightButtonEl.textContent = "Generate Audio";
-                    playInsightButtonEl.disabled = false;
-                }
-            }
-        }
-        async function playInsightAudio() {
-            if (!config.googleApiKey) {
-                alert("Google API Key is not configured. Please set it up in Config.");
-                return;
-            }
-            if (!config.insightReport || !config.insightReport.content) {
-                alert("No insight content available to play.");
-                return;
-            }
-
-            if (currentInsightAudio && !currentInsightAudio.paused) {
-                currentInsightAudio.pause();
-                currentInsightAudio.currentTime = 0;
-                if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
-                if(playInsightButtonEl) playInsightButtonEl.disabled = false;
-                return; // Act as a stop button if already playing
-            }
-
-            const insightText = config.insightReport.content;
-
-            // Check for cached audio for the current insight content
-            if (config.insightReport.cachedAudioBase64 && 
-                config.insightReport.cachedAudioMimeType) {
-                console.log('[DEBUG] Found cached audio for current insight. Attempting to play from cache.');
-                try {
-                    playAudioFromCachedData(config.insightReport.cachedAudioBase64, config.insightReport.cachedAudioMimeType, config.insightReport.cachedAudioRequiresWavWrapping);
-                    return; // Exit if playing from cache
-                } catch (e) {
-                    console.error("[DEBUG] Error playing from cache, will try to re-fetch.", e);
-                    // Clear potentially corrupted cache and proceed to fetch
-                    config.insightReport.cachedAudioBase64 = null;
-                    config.insightReport.cachedAudioMimeType = null;
-                    config.insightReport.cachedAudioRequiresWavWrapping = false;
-                    // No need to save to localStorage yet, will be saved if fetch is successful
-                }
-            }
-
-            const ttsPrompt = `<speak>${insightText}</speak>`; // Wrap insight text in SSML <speak> tags
-            
-            const TTS_MODEL_NAME = "gemini-2.5-flash-preview-tts";
-            const TTS_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${TTS_MODEL_NAME}:generateContent?key=${config.googleApiKey}`;
-
-            if(playInsightButtonEl) playInsightButtonEl.textContent = "Loading...";
-            if(playInsightButtonEl) playInsightButtonEl.disabled = true;
-            console.log(`[DEBUG] Attempting to fetch TTS audio. TTS Model: ${TTS_MODEL_NAME}, API URL: ${TTS_API_URL}`);
-
-            const requestBody = {
-                contents: [{ parts: [{ text: ttsPrompt }] }],
-                generationConfig: { // Re-introduce generationConfig
-                    responseModalities: ["AUDIO"], // Explicitly request only AUDIO modality
-                    speechConfig: { 
-                        voiceConfig: {
-                            prebuiltVoiceConfig: { voiceName: config.selectedVoice || DEFAULT_VOICE }
-                        }
-                    }
-                } 
-            };
-            console.log('[DEBUG] TTS Request Body:', JSON.stringify(requestBody, null, 2));
-
-            try {
-                const response = await fetch(TTS_API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestBody)
-                });
-
-                if (!response.ok) {
-                    const errorText = await response.text(); // Get raw error text for more info
-                    console.error(`[DEBUG] TTS API response not OK. Status: ${response.status}. Response Text: ${errorText}`);
-
-                    if (response.status === 429) { // Too Many Requests
-                        try {
-                            const parsedError = JSON.parse(errorText);
-                            // Find the RetryInfo detail object
-                            const retryInfoDetail = parsedError?.error?.details?.find(d => d['@type'] === 'type.googleapis.com/google.rpc.RetryInfo');
-                            const retryDelayString = retryInfoDetail?.retryDelay; // e.g., "43s"
-
-                            if (retryDelayString) {
-                                let initialDelaySeconds = parseInt(retryDelayString.replace('s', ''));
-                                if (!isNaN(initialDelaySeconds) && initialDelaySeconds > 0) {
-                                    if (playInsightButtonEl) playInsightButtonEl.textContent = `Retry in ${initialDelaySeconds}s`;
-                                    // Button is already disabled.
-
-                                    if (retryCountdownInterval) {
-                                        clearInterval(retryCountdownInterval); // Clear any existing countdown
-                                    }
-
-                                    let currentCountdownSeconds = initialDelaySeconds;
-                                    retryCountdownInterval = setInterval(() => {
-                                        currentCountdownSeconds--;
-                                        if (currentCountdownSeconds > 0) {
-                                            if (playInsightButtonEl) playInsightButtonEl.textContent = `Retry in ${currentCountdownSeconds}s`;
-                                        } else {
-                                            clearInterval(retryCountdownInterval);
-                                            retryCountdownInterval = null;
-                                            if (playInsightButtonEl) {
-                                                // Reset to "Generate Audio" as the generation was interrupted by rate limit
-                                                playInsightButtonEl.textContent = config.insightReport.cachedAudioBase64 ? "Play" : "Generate Audio";
-                                                playInsightButtonEl.disabled = false;
-                                            }
-                                        }
-                                    }, 1000);
-                                    return; // Important: exit after setting up the countdown
-                                }
-                            }
-                        } catch (parseError) {
-                            console.error("[DEBUG] Could not parse 429 error details or retryDelay:", parseError);
-                        }
-                    }
-                    const apiError = new Error(`TTS API Error: ${response.status}. Check console for details.`);
-                    console.error(apiError.message, errorText); // Log original error text
-                    throw apiError;
-                }
-
-                // Expect a JSON response with embedded audio data
-                const data = await response.json();
-                console.log('[DEBUG] TTS API response OK. Raw data:', data);
-                
-                // Find the part with inlineData, expecting it to be audio
-                const audioPart = data.candidates?.[0]?.content?.parts?.find(part => part.inlineData && part.inlineData.data);
-
-                if (audioPart && audioPart.inlineData.data) {
-                    const apiMimeType = audioPart.inlineData.mimeType;
-                    const base64Audio = audioPart.inlineData.data;
-                    console.log('[DEBUG] Received audio from API. MIME type:', apiMimeType);
-
-                    let audioSourceUrl = null;
-                    let isObjectUrl = false;
-                    
-                    // Variables to determine what to cache and how to play it
-                    let finalMimeTypeForCache = '';
-                    let requiresWavWrappingForCache = false;
-                    if (apiMimeType && (
-                        apiMimeType.toLowerCase().startsWith('audio/mpeg') || // MP3
-                        apiMimeType.toLowerCase().startsWith('audio/wav')  || // WAV
-                        apiMimeType.toLowerCase().startsWith('audio/ogg')  || // OGG
-                        apiMimeType.toLowerCase().startsWith('audio/opus')    // Opus
-                    )) {
-                        console.log('[DEBUG] API provided directly playable MIME type:', apiMimeType, '. Using data URL.');
-                        audioSourceUrl = `data:${apiMimeType};base64,${base64Audio}`;
-
-                        // Caching variables are already set correctly (original data, original MIME, no wrapping)
-                        finalMimeTypeForCache = apiMimeType;
-
-                    } else {
-                        // Assume raw PCM (e.g., "audio/L16;codec=pcm;rate=24000") or unhandled format.
-                        console.log('[DEBUG] API MIME type was:', apiMimeType, '. Assuming raw PCM. Wrapping in WAV header.');
-                        const pcmUint8Data = base64ToUint8Array(base64Audio);
-
-                        const sampleRate = 24000;
-                        const numChannels = 1;    // Mono
-                        const bitsPerSample = 16; // 2 bytes per sample
-
-                        const wavHeader = createWavHeader(pcmUint8Data.length, sampleRate, numChannels, bitsPerSample);
-                        const wavBlob = new Blob([wavHeader, pcmUint8Data], { type: 'audio/wav' });
-                        audioSourceUrl = URL.createObjectURL(wavBlob);
-                        isObjectUrl = true;
-
-                        finalMimeTypeForCache = 'audio/wav';
-                        requiresWavWrappingForCache = true; // Original data was raw PCM
-                    }
-
-                    // Cache the fetched audio data using the raw API response
-                    config.insightReport.cachedAudioBase64 = base64Audio;
-
-                    config.insightReport.cachedAudioMimeType = finalMimeTypeForCache;
-                    config.insightReport.cachedAudioRequiresWavWrapping = requiresWavWrappingForCache;
-                    saveAppData();
-                    console.log('[DEBUG] Audio fetched and cached in config. MIME:', finalMimeTypeForCache, 'Requires WAV wrap:', requiresWavWrappingForCache);
-
-                    currentInsightAudio = new Audio(audioSourceUrl);
-                    
-                    currentInsightAudio.onended = () => {
-                        if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
-                        if(playInsightButtonEl) playInsightButtonEl.disabled = false;
-                        if (isObjectUrl) {
-                            URL.revokeObjectURL(audioSourceUrl);
-                        }
-                    };
-
-                    currentInsightAudio.onerror = (e) => {
-                        const errorMessage = e.message || (currentInsightAudio.error ? currentInsightAudio.error.message : "Unknown audio error");
-                        console.error("Audio element error (newly fetched):", errorMessage, "Source (first 100 chars):", audioSourceUrl.substring(0,100));
-                        if(playInsightButtonEl) {
-                            playInsightButtonEl.textContent = "Generate Audio"; // New audio failed, prompt to generate again
-                            playInsightButtonEl.disabled = false;
-                        }
-                        if (isObjectUrl) {
-                            URL.revokeObjectURL(audioSourceUrl);
-                        }
-                        // Clear the audio cache as this attempt failed
-                        config.insightReport.cachedAudioBase64 = null;
-                        config.insightReport.cachedAudioMimeType = null;
-                        config.insightReport.cachedAudioRequiresWavWrapping = false;
-                        saveAppData();
-                        alert("Error playing audio. Check console. API MIME: " + (apiMimeType || 'undefined'));
-                    };
-
-                    await currentInsightAudio.play(); // play() returns a Promise
-                    if(playInsightButtonEl) playInsightButtonEl.textContent = "Stop";
-                    if(playInsightButtonEl) playInsightButtonEl.disabled = false;
-
-                } else { 
-                    console.error("[DEBUG] No audio content found in expected part of the JSON response:", data);
-                    if(playInsightButtonEl) playInsightButtonEl.textContent = "Play";
-                    if(playInsightButtonEl) {
-                        playInsightButtonEl.textContent = "Generate Audio";
-                        playInsightButtonEl.disabled = false;
-                    }
-                    throw new Error("No audio content received from TTS API in JSON response."); 
-                }
-            } catch (error) {
-                // Enhanced error logging for the main catch block
-                console.error("Error playing insight audio. Type:", typeof error, "Name:", error?.name, "Message:", error?.message, "Full Error Object:", error, "Stack:", error?.stack);
-                if(playInsightButtonEl) {
-                    // If an error happens during fetching/processing new audio,
-                    // it's safer to reset the button to "Generate Audio" as the new audio is problematic.
-                    playInsightButtonEl.textContent = "Generate Audio";
-                    playInsightButtonEl.disabled = false;
-                }
-                // Clear audio cache fields if an error occurred during new audio fetching/processing
-                // to prevent using potentially corrupted/incomplete cached audio.
-                // This is important because the error might have occurred after some cache fields were set
-                // but before all processing/saving was complete, leading to an inconsistent state.
-                if (config.insightReport) {
-                    config.insightReport.cachedAudioBase64 = null;
-                    config.insightReport.cachedAudioMimeType = null;
-                    config.insightReport.cachedAudioRequiresWavWrapping = false;
-                    saveAppData(); // Save the cleared cache state
-                    console.log('[DEBUG] Cleared audio cache due to error during new audio processing/playback.');
-                }
-            }
-        }
-
-        // Helper function to convert Uint8Array to Base64
-        function uint8ArrayToBase64(uint8Array) {
-            let binary = '';
-            const len = uint8Array.byteLength;
-            for (let i = 0; i < len; i++) {
-                binary += String.fromCharCode(uint8Array[i]);
-            }
-            return btoa(binary);
-        }
-
-        // Helper function to concatenate multiple Uint8Arrays
-        function concatenateUint8Arrays(arrays) {
-            let totalLength = 0;
-            for (const arr of arrays) {
-                totalLength += arr.length;
-            }
-            const result = new Uint8Array(totalLength);
-            let offset = 0;
-            for (const arr of arrays) {
-                result.set(arr, offset);
-                offset += arr.length;
-            }
-            return result;
-        }
-
-        // Helper function to create a WAV header
-        function createWavHeader(pcmDataLength, sampleRate = 24000, numChannels = 1, bitsPerSample = 16) {
-            const blockAlign = numChannels * bitsPerSample / 8;
-            const byteRate = sampleRate * blockAlign;
-            const dataSize = pcmDataLength;
-            const fileSize = 36 + dataSize; // 36 bytes for the header without 'fmt ' chunk extension
-
-            const buffer = new ArrayBuffer(44); // Standard WAV header size
-            const view = new DataView(buffer);
-
-            // RIFF chunk descriptor
-            writeString(view, 0, 'RIFF');
-            view.setUint32(4, fileSize, true); // fileSize
-            writeString(view, 8, 'WAVE');
-
-            // fmt sub-chunk
-            writeString(view, 12, 'fmt ');
-            view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
-            view.setUint16(20, 1, true);  // AudioFormat (1 for PCM)
-            view.setUint16(22, numChannels, true);
-            view.setUint32(24, sampleRate, true);
-            view.setUint32(28, byteRate, true);
-            view.setUint16(32, blockAlign, true);
-            view.setUint16(34, bitsPerSample, true);
-
-            // data sub-chunk
-            writeString(view, 36, 'data');
-            view.setUint32(40, dataSize, true);
-
-            return buffer;
-        }
-
-        function writeString(view, offset, string) {
-            for (let i = 0; i < string.length; i++) {
-                view.setUint8(offset + i, string.charCodeAt(i));
-            }
-        }
-
-        function base64ToUint8Array(base64) {
-            const binaryString = atob(base64);
-            const len = binaryString.length;
-            const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-            }
-            return bytes;
         }
 
         function getHistoryStartMs(timeframe) {
@@ -1587,7 +1126,6 @@
             config.userBtcAmount = parseFloat(userBtcAmountInput.value) || 0.0;
             config.userTotalCost = parseFloat(userTotalCostInput.value) || 0.0;
             config.accentColor = accentColorPickerEl.value || DEFAULT_ACCENT_COLOR;
-            config.selectedVoice = voiceSelectEl.value || DEFAULT_VOICE;
             config.googleApiKey = googleApiKeyInput.value.trim();
             saveAppData();
 
@@ -1628,17 +1166,6 @@
                 fetchData(); 
             }
         });
-        voiceSelectEl.addEventListener('change', (event) => {
-            config.selectedVoice = event.target.value;
-            // Clear cached audio as the voice has changed
-            if (config.insightReport) {
-                config.insightReport.cachedAudioBase64 = null;
-                config.insightReport.cachedAudioMimeType = null;
-                config.insightReport.cachedAudioRequiresWavWrapping = false;
-                console.log('[DEBUG] Voice changed, audio cache cleared.');
-            }
-            saveAppData();
-        });
         accentColorPickerEl.addEventListener('input', () => { 
             config.accentColor = accentColorPickerEl.value;
             saveAppData(); 
@@ -1657,10 +1184,6 @@
         // Ensure updateInsightButtonEl exists before adding listener
         if (updateInsightButtonEl) {
             updateInsightButtonEl.addEventListener('click', fetchInsightFromGemini); // Update button calls fetch directly
-        }
-        // Ensure playInsightButtonEl exists before adding listener
-        if (playInsightButtonEl) {
-            playInsightButtonEl.addEventListener('click', playInsightAudio);
         }
 
         document.getElementById('refreshButton').addEventListener('click', () => {
@@ -1835,7 +1358,6 @@
 
         // Initial Load
         document.addEventListener('DOMContentLoaded', () => {
-            populateVoiceDropdown();
             loadConfig();
             applyAccentColor();
 
