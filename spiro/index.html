@@ -252,15 +252,19 @@
                     <label for="mainColorPicker">Highlight Color (Non-Drawing Nodes):</label>
                     <input type="color" id="mainColorPicker" value="#53D8FB">
                 </div>
-                <div class="slider-container">
-                    <label for="zoomSlider">Zoom Level: <span id="zoom-val">1.0</span>x</label>
-                    <input type="range" id="zoomSlider" min="0.1" max="5" value="1" step="0.05">
-                </div>
             </div>
             <div id="nodes-config-container"></div>
             <div id="simulation-controls-group"></div>
             <button id="addNodeButton" class="button-secondary">Add Node</button>
             <button id="resetNodesConfigButton" class="button-secondary">Reset Nodes Config</button>
+            <div class="slider-container">
+                <label for="zoomSlider">Zoom Level: <span id="zoom-val">1.0</span>x</label>
+                <input type="range" id="zoomSlider" min="0.1" max="5" value="1" step="0.05">
+            </div>
+            <div class="slider-container">
+                <label for="globalSpeedSlider">Speed: <span id="globalSpeedSlider-val">1.00x</span></label>
+                <input type="range" id="globalSpeedSlider" min="0" max="100" value="50">
+            </div>
             <button id="resetTracesButton" class="button-danger">Reset Traces</button>
             <div class="button-row" id="memory-buttons-row">
                 <button id="memoryStoreButton" class="button-secondary">M+</button>
@@ -284,11 +288,13 @@
             const zoomValSpan = document.getElementById('zoom-val');
             const nodesConfigContainer = document.getElementById('nodes-config-container');
             const addNodeButton = document.getElementById('addNodeButton');
-            const resetNodesConfigButton = document.getElementById('resetNodesConfigButton'); 
-            const resetTracesButton = document.getElementById('resetTracesButton');       
+            const resetNodesConfigButton = document.getElementById('resetNodesConfigButton');
+            const resetTracesButton = document.getElementById('resetTracesButton');
             const startStopButton = document.getElementById('startStopButton');
             const downloadButton = document.getElementById('downloadButton');
             const globalSettingsGroup = document.getElementById('global-settings-group');
+            const globalSpeedSlider = document.getElementById('globalSpeedSlider');
+            const globalSpeedVal = document.getElementById('globalSpeedSlider-val');
             const memoryStoreButton = document.getElementById('memoryStoreButton');
             const memoryRecallButton = document.getElementById('memoryRecallButton');
             const memoryButtonsRow = document.getElementById('memory-buttons-row');
@@ -666,8 +672,16 @@
                 if (isFirstNode) {
                     const speedSliderEl = nodeDiv.querySelector(`#speed${nodeId}`);
                     if (speedSliderEl) {
-                         speedSliderEl.addEventListener('input', () => { updateNodeFromUI(nodeId); updateSliderFill(speedSliderEl); });
-                        updateSliderFill(speedSliderEl); 
+                         speedSliderEl.addEventListener('input', () => {
+                            updateNodeFromUI(nodeId);
+                            updateSliderFill(speedSliderEl);
+                            if (globalSpeedSlider) {
+                                globalSpeedSlider.value = speedSliderEl.value;
+                                globalSpeedVal.textContent = document.getElementById(`speed${nodeId}-val`).textContent;
+                                updateSliderFill(globalSpeedSlider);
+                            }
+                        });
+                        updateSliderFill(speedSliderEl);
                     }
                     nodeDiv.querySelector(`#direction${nodeId}`).addEventListener('change', () => updateNodeFromUI(nodeId));
                     const startAngleInputEl = nodeDiv.querySelector(`#startAngle${nodeId}`);
@@ -743,8 +757,13 @@
                 }
                 if (isFirstNode && document.getElementById(`speed${nodeId}`)) {
                      const speedSlider = document.getElementById(`speed${nodeId}`);
-                     speedSlider.value = 50; updateSliderFill(speedSlider); 
+                     speedSlider.value = 50; updateSliderFill(speedSlider);
                      document.getElementById(`speed${nodeId}-val`).textContent = newNode.speedMultiplier.toFixed(2) + 'x';
+                     if (globalSpeedSlider) {
+                         globalSpeedSlider.value = speedSlider.value;
+                         globalSpeedVal.textContent = newNode.speedMultiplier.toFixed(2) + 'x';
+                         updateSliderFill(globalSpeedSlider);
+                     }
                 }
                 updateAddRemoveButtons();
                 if (!isRunning) drawStaticSpirograph(); 
@@ -767,11 +786,16 @@
 
             function resetNodeConfigurations() { 
                 if (isRunning) stopSimulation();
-                nodes = []; 
-                canvasOffsetX = 0; canvasOffsetY = 0; 
+                nodes = [];
+                canvasOffsetX = 0; canvasOffsetY = 0;
                 currentZoom = 1.0; zoomSlider.value = 1.0; updateSliderFill(zoomSlider); zoomValSpan.textContent = "1.0";
-                nodesConfigContainer.innerHTML = ''; 
-                addNode(); addNode(); 
+                if (globalSpeedSlider) {
+                    globalSpeedSlider.value = 50;
+                    globalSpeedVal.textContent = '1.00x';
+                    updateSliderFill(globalSpeedSlider);
+                }
+                nodesConfigContainer.innerHTML = '';
+                addNode(); addNode();
                 updateAddRemoveButtons();
                 if (!allTraceSegments.some(seg => seg.points.length > 0)) {
                     console.log("Node configurations reset. No traces present.");
@@ -1010,13 +1034,29 @@
                 updateDynamicTheme(); 
             });
             zoomSlider.addEventListener('input', (e) => {
-                currentZoom = parseFloat(e.target.value); 
+                currentZoom = parseFloat(e.target.value);
                 zoomValSpan.textContent = currentZoom.toFixed(2);
                 console.log(`Global setting: Zoom level changed to ${currentZoom.toFixed(2)}x`);
-                updateSliderFill(e.target); 
-                resetPanAndRedraw(); 
+                updateSliderFill(e.target);
+                resetPanAndRedraw();
             });
-            addNodeButton.addEventListener('click', addNode); 
+            globalSpeedSlider.addEventListener('input', (e) => {
+                const speedMultiplier = getLogValue(parseFloat(e.target.value), 0, 100, 0.1, 10);
+                globalSpeedVal.textContent = speedMultiplier.toFixed(2) + 'x';
+                const node1 = nodes.find(n => n.id === 1);
+                if (node1) {
+                    node1.speedMultiplier = speedMultiplier;
+                    node1.speed = BASE_SPEED_RPM * (2 * Math.PI / 60) * speedMultiplier;
+                    const node1Slider = document.getElementById('speed1');
+                    if (node1Slider) {
+                        node1Slider.value = e.target.value;
+                        document.getElementById('speed1-val').textContent = speedMultiplier.toFixed(2) + 'x';
+                        updateSliderFill(node1Slider);
+                    }
+                }
+                updateSliderFill(e.target);
+            });
+            addNodeButton.addEventListener('click', addNode);
             resetNodesConfigButton.addEventListener('click', resetNodeConfigurations); 
             resetTracesButton.addEventListener('click', clearAllDrawingTraces);       
             startStopButton.addEventListener('click', () => { if (isRunning) stopSimulation(); else startSimulation(); }); 
@@ -1093,9 +1133,15 @@
                 updateDynamicTheme(); 
                 addNode(); addNode(); 
                 setControlsVisibility(false); 
-                updateAddRemoveButtons(); 
+                updateAddRemoveButtons();
                 resizeCanvas(); window.addEventListener('resize', resizeCanvas);
                 updateSliderFill(zoomSlider);
+                if (globalSpeedSlider) {
+                    globalSpeedSlider.value = document.getElementById('speed1') ? document.getElementById('speed1').value : 50;
+                    const speedVal = getLogValue(parseFloat(globalSpeedSlider.value), 0, 100, 0.1, 10);
+                    globalSpeedVal.textContent = speedVal.toFixed(2) + 'x';
+                    updateSliderFill(globalSpeedSlider);
+                }
                 memoryRecallButton.disabled = true; // Initially disabled
                 
                 if ('serviceWorker' in navigator) {
