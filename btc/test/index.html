@@ -638,7 +638,19 @@
                 }
                 console.log('[DEBUG] App data (config & current data cache) saved.');
             } catch (e) {
-                console.error('[DEBUG] Error saving to localStorage:', e);
+                if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+                    console.warn('[DEBUG] localStorage quota exceeded. Attempting to save without current data cache.');
+                    try {
+                        localStorage.setItem('btcTrackConfig', JSON.stringify(configForStorage));
+                        localStorage.removeItem('btcCurrentDataCache');
+                        console.warn('[DEBUG] Config saved without current data cache due to quota limits.');
+                    } catch (e2) {
+                        console.error('[DEBUG] Failed to save minimal config:', e2);
+                        alert('Warning: Could not persist settings due to storage limitations.');
+                    }
+                } else {
+                    console.error('[DEBUG] Error saving to localStorage:', e);
+                }
             }
         }
 
