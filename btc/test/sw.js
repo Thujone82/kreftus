@@ -4,8 +4,7 @@ const urlsToCache = [
     'index.html',
     'manifest.json',
     './icons/192.png', // Main app icon
-    './icons/512.png', // Larger app icon
-    'https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js' // Add lamejs CDN
+    './icons/512.png' // Larger app icon
     // Add other static assets like CSS or JS files if you separate them
 ];
 
@@ -45,6 +44,10 @@ self.addEventListener('fetch', event => {
     // in "FetchEvent.respondWith received an error" log messages in some
     // browsers, so we simply avoid intercepting them at all.
     if (requestUrl.protocol === 'data:' || requestUrl.protocol === 'blob:') {
+        // Allow the browser to handle data/blob URLs directly. Using respondWith
+        // on these requests can still trigger "FetchEvent.respondWith received an
+        // error" in some environments. By returning early we bypass the service
+        // worker for these URLs.
         console.log('Service Worker: bypassing data/blob URL', event.request.url);
         return;
     }
