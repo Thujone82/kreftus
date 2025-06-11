@@ -406,7 +406,6 @@
             <canvas id="priceChartCanvas"></canvas>
         </div>
         <div id="statusMessage" class="status-message"></div>
-        <div id="swStatus" class="status-message"></div>
     </div>
 
     <div id="configModal" class="modal">
@@ -477,7 +476,6 @@
         const volume24hEl = document.getElementById('volume24h');
         const marketCapEl = document.getElementById('marketCap');
         const statusMessageEl = document.getElementById('statusMessage');
-        const swStatusEl = document.getElementById('swStatus');
         const timeframeSelectEl = document.getElementById('timeframeSelect');
         const priceChartCanvas = document.getElementById('priceChartCanvas');
         const priceChartContainer = document.getElementById('priceChartContainer');
@@ -720,10 +718,10 @@
         }
 
         function setSwStatus(message, type = '') {
-            if (!swStatusEl) return;
-            swStatusEl.textContent = message;
-            swStatusEl.className = `status-message ${type}`.trim();
-            swStatusEl.style.display = message ? 'block' : 'none';
+            const logFn = type === 'error' ? console.error : console.log;
+            if (message) {
+                logFn('[SW]', message);
+            }
         }
 
         function formatCurrency(value, fractionDigits = 2) {
@@ -1127,9 +1125,9 @@
                     let isObjectUrl = false;
                     
                     // Variables to determine what to cache and how to play it
-                    let finalBase64ForCache = base64Audio; // Original base64 from API
-                    let finalMimeTypeForCache = apiMimeType;
-                    let finalRequiresWavWrappingForCache = false;
+                    let finalMimeTypeForCache = '';
+                    let requiresWavWrappingForCache = false;
+                    let base64AudioForCache = base64Audio; // Default to raw API audio
 
                     if (apiMimeType && (
                         apiMimeType.toLowerCase().startsWith('audio/mpeg') || // MP3
@@ -1139,7 +1137,9 @@
                     )) {
                         console.log('[DEBUG] API provided directly playable MIME type:', apiMimeType, '. Using data URL.');
                         audioSourceUrl = `data:${apiMimeType};base64,${base64Audio}`;
-                        // Caching variables are already set correctly (original data, original MIME, no wrapping)
+                        finalMimeTypeForCache = apiMimeType;
+                        requiresWavWrappingForCache = false;
+                        base64AudioForCache = base64Audio;
                     } else {
                         // Assume raw PCM (e.g., "audio/L16;codec=pcm;rate=24000") or unhandled format.
                         // Encode to MP3 using LameJS to avoid blob: URLs that might conflict with Service Worker.
@@ -1167,21 +1167,21 @@
                         const base64Mp3 = uint8ArrayToBase64(fullMp3Data);
                         
                         audioSourceUrl = `data:audio/mpeg;base64,${base64Mp3}`; // Play the encoded MP3
-                        isObjectUrl = false; 
-                        
-                        // Update cache variables to store the processed MP3
-                        finalBase64ForCache = base64Mp3;
+                        isObjectUrl = false;
+
+                        // Update cache variables to reflect the processed MP3
                         finalMimeTypeForCache = 'audio/mpeg';
-                        finalRequiresWavWrappingForCache = false; // It's now MP3
+                        requiresWavWrappingForCache = false; // It's now MP3
+                        base64AudioForCache = base64Mp3;
                         console.log(`[DEBUG] Encoded to MP3. Original PCM size: ${pcmUint8Data.length} bytes. MP3 size: ${fullMp3Data.length} bytes.`);
                     }
 
-                    // Cache the fetched audio data
-                    config.insightReport.cachedAudioBase64 = finalBase64ForCache;
+                    // Cache the fetched or processed audio data
+                    config.insightReport.cachedAudioBase64 = base64AudioForCache;
                     config.insightReport.cachedAudioMimeType = finalMimeTypeForCache;
-                    config.insightReport.cachedAudioRequiresWavWrapping = finalRequiresWavWrappingForCache; // Line 1157
-                    saveAppData(); 
-                    console.log('[DEBUG] Audio processed/used and cached. MIME for cache:', finalMimeTypeForCache, 'Requires WAV wrap:', finalRequiresWavWrappingForCache);
+                    config.insightReport.cachedAudioRequiresWavWrapping = requiresWavWrappingForCache;
+                    saveAppData();
+                    console.log('[DEBUG] Audio fetched and cached in config. MIME:', finalMimeTypeForCache, 'Requires WAV wrap:', requiresWavWrappingForCache);
 
                     currentInsightAudio = new Audio(audioSourceUrl);
                     
@@ -1851,7 +1851,6 @@
             populateVoiceDropdown();
             loadConfig();
             applyAccentColor();
-            setSwStatus('');
 
             if (!config.apiKey) {
                 setStatus('Welcome! Please configure your API Key to get started.', 'loading');
