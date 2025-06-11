@@ -11,7 +11,6 @@
     <!-- <link rel="shortcut icon" href="favicon.ico" type="image/x-icon"> -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#222230">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -516,6 +515,7 @@
 
         let lastDataFetchTimestamp = null;
         let updateTimestampInterval = null;
+        const SESSION_AUDIO_KEY = 'btcSessionAudio';
         let config = {
             googleApiKey: '',
             apiKey: '',
@@ -550,22 +550,20 @@
             const storedConfig = localStorage.getItem('btcTrackConfig');
             if (storedConfig) {
                 const parsedConfig = JSON.parse(storedConfig);
-                // Merge stored config with defaults to ensure all keys exist
                 config = { ...config, ...parsedConfig };
                 config.lastFetchedCurrentDataTimestamp = config.lastFetchedCurrentDataTimestamp || null;
-                config.cachedChartData = config.cachedChartData || {}; // Ensure cachedChartData object exists
-                Object.keys(config.cachedChartData).forEach(tf => { // Ensure historicalRateAtStart exists for old cache
+                config.cachedChartData = config.cachedChartData || {};
+                Object.keys(config.cachedChartData).forEach(tf => {
                     config.cachedChartData[tf].historicalRateAtStart = config.cachedChartData[tf].historicalRateAtStart || null;
                 });
-                if (!config.insightReport) { // Ensure insightReport object exists if loading older config
+                if (!config.insightReport) {
                     config.insightReport = { content: null, timestamp: null, cachedAudioBase64: null, cachedAudioMimeType: null, cachedAudioRequiresWavWrapping: false };
                 } else {
-                    // Ensure new audio fields exist if loading older config that had insightReport but not these
-                    config.insightReport.cachedAudioBase64 = config.insightReport.cachedAudioBase64 || null;
-                    config.insightReport.cachedAudioMimeType = config.insightReport.cachedAudioMimeType || null;
-                    config.insightReport.cachedAudioRequiresWavWrapping = typeof config.insightReport.cachedAudioRequiresWavWrapping === 'boolean' ? config.insightReport.cachedAudioRequiresWavWrapping : false;
+                    config.insightReport.cachedAudioBase64 = null;
+                    config.insightReport.cachedAudioMimeType = null;
+                    config.insightReport.cachedAudioRequiresWavWrapping = false;
                 }
-                
+
                 apiKeyInput.value = config.apiKey || '';
                 userBtcAmountInput.value = config.userBtcAmount || '';
                 userTotalCostInput.value = config.userTotalCost || '';
@@ -575,17 +573,27 @@
                 accentColorPickerEl.value = config.accentColor || DEFAULT_ACCENT_COLOR;
             } else {
                 voiceSelectEl.value = DEFAULT_VOICE;
-                // If no stored config, ensure picker shows default
                 config.insightReport = { content: null, timestamp: null, cachedAudioBase64: null, cachedAudioMimeType: null, cachedAudioRequiresWavWrapping: false };
                 accentColorPickerEl.value = DEFAULT_ACCENT_COLOR;
             }
-            // Load current data cache separately
+
             const storedCurrentData = localStorage.getItem('btcCurrentDataCache');
             if (storedCurrentData) {
                 _current_data_cache = JSON.parse(storedCurrentData);
             }
 
-            // Update Insights button visibility based on loaded config
+            const sessionAudio = sessionStorage.getItem(SESSION_AUDIO_KEY);
+            if (sessionAudio) {
+                try {
+                    const audioData = JSON.parse(sessionAudio);
+                    config.insightReport.cachedAudioBase64 = audioData.base64 || null;
+                    config.insightReport.cachedAudioMimeType = audioData.mimeType || null;
+                    config.insightReport.cachedAudioRequiresWavWrapping = !!audioData.requiresWavWrapping;
+                } catch (e) {
+                    console.warn('[DEBUG] Failed to parse session audio cache', e);
+                }
+            }
+
             toggleInsightsButtonVisibility();
         }
 
@@ -601,48 +609,45 @@
         }
 
         function saveAppData() {
+            const configForStorage = { ...config };
+            if (configForStorage.insightReport) {
+                const audioForSession = {
+                    base64: configForStorage.insightReport.cachedAudioBase64,
+                    mimeType: configForStorage.insightReport.cachedAudioMimeType,
+                    requiresWavWrapping: configForStorage.insightReport.cachedAudioRequiresWavWrapping
+                };
+                sessionStorage.setItem(SESSION_AUDIO_KEY, JSON.stringify(audioForSession));
+                configForStorage.insightReport = {
+                    ...configForStorage.insightReport,
+                    cachedAudioBase64: null,
+                    cachedAudioMimeType: null,
+                    cachedAudioRequiresWavWrapping: false
+                };
+            } else {
+                sessionStorage.removeItem(SESSION_AUDIO_KEY);
+            }
+
             try {
-                localStorage.setItem('btcTrackConfig', JSON.stringify(config));
+                localStorage.setItem('btcTrackConfig', JSON.stringify(configForStorage));
                 if (_current_data_cache) {
                     localStorage.setItem('btcCurrentDataCache', JSON.stringify(_current_data_cache));
                 } else {
-                    // If _current_data_cache is null (e.g., after clearing), remove it from localStorage
                     localStorage.removeItem('btcCurrentDataCache');
                 }
                 console.log('[DEBUG] App data (config & current data cache) saved.');
             } catch (e) {
-                if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') { // Added Firefox error name
-                    console.warn('[DEBUG] localStorage quota exceeded. Attempting to save config without audio cache.');
-                    const configWithoutAudio = { ...config };
-                    if (configWithoutAudio.insightReport) {
-                        configWithoutAudio.insightReport = {
-                            ...configWithoutAudio.insightReport,
-                            cachedAudioBase64: null,
-                            cachedAudioMimeType: null,
-                            cachedAudioRequiresWavWrapping: false
-                        };
-                    }
+                if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+                    console.warn('[DEBUG] localStorage quota exceeded. Attempting to save without current data cache.');
                     try {
-                        localStorage.setItem('btcTrackConfig', JSON.stringify(configWithoutAudio));
-                        console.log('[DEBUG] Config (without audio cache) saved after quota error.');
-                        // Try to save current data cache again, or remove if it was the problem
-                        if (_current_data_cache) {
-                            try {
-                                localStorage.setItem('btcCurrentDataCache', JSON.stringify(_current_data_cache));
-                                console.log('[DEBUG] Current data cache saved after quota error (config w/o audio).');
-                            } catch (e2_data) {
-                                localStorage.removeItem('btcCurrentDataCache');
-                                _current_data_cache = null; // Clear in-memory too
-                                console.warn('[DEBUG] Could not save current data cache after quota error. Cleared. Audio for this insight will not persist across sessions.');
-                                alert('Warning: Could not save all application data due to storage limitations. Some cached data and audio for insights might be lost.');
-                            }
-                        } else {
-                            localStorage.removeItem('btcCurrentDataCache');
-                        }
+                        localStorage.setItem('btcTrackConfig', JSON.stringify(configForStorage));
+                        localStorage.removeItem('btcCurrentDataCache');
+                        console.warn('[DEBUG] Config saved without current data cache due to quota limits.');
                     } catch (e2) {
-                        console.error('[DEBUG] Failed to save critical config parts even without audio cache:', e2);
-                        alert('Critical Error: Could not save essential configuration due to storage limitations. Audio for insights will not be persisted.');
+                        console.error('[DEBUG] Failed to save minimal config:', e2);
+                        alert('Warning: Could not persist settings due to storage limitations.');
                     }
+                } else {
+                    console.error('[DEBUG] Error saving to localStorage:', e);
                 }
             }
         }
@@ -1127,8 +1132,6 @@
                     // Variables to determine what to cache and how to play it
                     let finalMimeTypeForCache = '';
                     let requiresWavWrappingForCache = false;
-                    let base64AudioForCache = base64Audio; // Default to raw API audio
-
                     if (apiMimeType && (
                         apiMimeType.toLowerCase().startsWith('audio/mpeg') || // MP3
                         apiMimeType.toLowerCase().startsWith('audio/wav')  || // WAV
@@ -1137,47 +1140,31 @@
                     )) {
                         console.log('[DEBUG] API provided directly playable MIME type:', apiMimeType, '. Using data URL.');
                         audioSourceUrl = `data:${apiMimeType};base64,${base64Audio}`;
+
+                        // Caching variables are already set correctly (original data, original MIME, no wrapping)
                         finalMimeTypeForCache = apiMimeType;
-                        requiresWavWrappingForCache = false;
-                        base64AudioForCache = base64Audio;
+
                     } else {
                         // Assume raw PCM (e.g., "audio/L16;codec=pcm;rate=24000") or unhandled format.
-                        // Encode to MP3 using LameJS to avoid blob: URLs that might conflict with Service Worker.
-                        console.log('[DEBUG] API MIME type was:', apiMimeType, '. Assuming raw PCM or unhandled. Encoding to MP3.');
+                        console.log('[DEBUG] API MIME type was:', apiMimeType, '. Assuming raw PCM. Wrapping in WAV header.');
                         const pcmUint8Data = base64ToUint8Array(base64Audio);
-                        const pcmInt16Data = new Int16Array(pcmUint8Data.buffer, pcmUint8Data.byteOffset, pcmUint8Data.byteLength / 2);
 
-                        const sampleRate = 24000; 
+                        const sampleRate = 24000;
                         const numChannels = 1;    // Mono
-                        const kbps = 32;          // Bitrate for MP3
+                        const bitsPerSample = 16; // 2 bytes per sample
 
-                        const mp3encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, kbps);
-                        const mp3DataBuffers = [];
-                        const sampleBlockSize = 1152;
+                        const wavHeader = createWavHeader(pcmUint8Data.length, sampleRate, numChannels, bitsPerSample);
+                        const wavBlob = new Blob([wavHeader, pcmUint8Data], { type: 'audio/wav' });
+                        audioSourceUrl = URL.createObjectURL(wavBlob);
+                        isObjectUrl = true;
 
-                        for (let i = 0; i < pcmInt16Data.length; i += sampleBlockSize) {
-                            const sampleChunk = pcmInt16Data.subarray(i, i + sampleBlockSize);
-                            const mp3buf_loop = mp3encoder.encodeBuffer(sampleChunk);
-                            if (mp3buf_loop.length > 0) mp3DataBuffers.push(mp3buf_loop);
-                        }
-                        const endMp3buf = mp3encoder.flush();
-                        if (endMp3buf.length > 0) mp3DataBuffers.push(endMp3buf);
-                        
-                        const fullMp3Data = concatenateUint8Arrays(mp3DataBuffers);
-                        const base64Mp3 = uint8ArrayToBase64(fullMp3Data);
-                        
-                        audioSourceUrl = `data:audio/mpeg;base64,${base64Mp3}`; // Play the encoded MP3
-                        isObjectUrl = false;
-
-                        // Update cache variables to reflect the processed MP3
-                        finalMimeTypeForCache = 'audio/mpeg';
-                        requiresWavWrappingForCache = false; // It's now MP3
-                        base64AudioForCache = base64Mp3;
-                        console.log(`[DEBUG] Encoded to MP3. Original PCM size: ${pcmUint8Data.length} bytes. MP3 size: ${fullMp3Data.length} bytes.`);
+                        finalMimeTypeForCache = 'audio/wav';
+                        requiresWavWrappingForCache = true; // Original data was raw PCM
                     }
 
-                    // Cache the fetched or processed audio data
-                    config.insightReport.cachedAudioBase64 = base64AudioForCache;
+                    // Cache the fetched audio data using the raw API response
+                    config.insightReport.cachedAudioBase64 = base64Audio;
+
                     config.insightReport.cachedAudioMimeType = finalMimeTypeForCache;
                     config.insightReport.cachedAudioRequiresWavWrapping = requiresWavWrappingForCache;
                     saveAppData();
