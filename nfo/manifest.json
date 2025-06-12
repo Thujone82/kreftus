@@ -6,7 +6,7 @@
     "scope": "/nfo/",
     "display": "standalone",
     "background_color": "#121212",
-    "theme_color": "#024f63",
+    "theme_color": "#029ec5",
     "icons": [
         {
             "src": "icons/i192.png",

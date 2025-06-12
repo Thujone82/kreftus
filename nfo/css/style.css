@@ -1,5 +1,5 @@
 :root {
-    --primary-color: #024f63; /* User-defined primary color */
+    --primary-color: #029ec5; /* User-defined primary color */
     --content-background-color: #1E1E1E; /* User-defined for .container and modals */
     --text-color: #E0E0E0; /* Dynamically set based on content-background-color */
     

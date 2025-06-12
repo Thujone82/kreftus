@@ -14,7 +14,7 @@ const store = {
         // Default to a dark theme content background
         return settings ? JSON.parse(settings) : { 
             apiKey: '', 
-            primaryColor: '#024f63', 
+            primaryColor: '#029ec5', 
             backgroundColor: '#1E1E1E' // Default content area background
         };
     },
