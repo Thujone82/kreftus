@@ -22,11 +22,15 @@ const utils = {
     formatAiResponseToHtml: (text) => {
         if (!text) return '';
 
-        // 1. Replace **bold** with <b>bold</b>
-        //    Using a non-greedy match for the content within **
-        let html = text.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+        // 1. Replace markdown-style links: [text](url) with <a href="url" target="_blank">text</a>
+        //    Using a non-greedy match for text and URL. Added target="_blank" to open in new tab.
+        let html = text.replace(/\[([^\]]+?)\]\(([^)]+?)\)/g, '<a href="$2" target="_blank">$1</a>');
 
-        // 2. Process bullet points: * item
+        // 2. Replace **bold** with <b>bold</b>
+        //    Using a non-greedy match for the content within **
+        html = html.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+
+        // 3. Process bullet points: * item
         const lines = html.split('\n');
         let resultHtml = '';
         let inList = false;
