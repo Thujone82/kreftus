@@ -126,9 +126,12 @@ input[type="text"], input[type="password"], input[type="color"] {
     box-sizing: border-box;
     width: 100%; /* Make inputs take full width of their container */
 }
-input[type="color"] {
-    min-height: 38px;
-    width: auto; /* Override width for color picker for better default rendering */
+input[type="color"] { /* Updated for larger color swatch */
+    min-height: 40px; /* Increased height */
+    min-width: 60px;  /* Increased width */
+    padding: 2px;     /* Reduced padding to maximize color area */
+    width: auto;      /* Override width:100% for better default rendering */
+    cursor: pointer;
 }
 
 /* API Key Link Styling */
