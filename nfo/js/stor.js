@@ -9,9 +9,13 @@ const AI_CACHE_PREFIX = `${STORE_PREFIX}aiCache_`;
 
 const store = {
     // Application Settings (API Key, Colors)
-    getAppSettings: (). {
+    getAppSettings: () => {
         const settings = localStorage.getItem(APP_SETTINGS_KEY);
-        return settings ? JSON.parse(settings) : { apiKey: '', primaryColor: '#4A90E2', backgroundColor: '#F0F0F0' };
+        return settings ? JSON.parse(settings) : { 
+            apiKey: '', 
+            primaryColor: '#03DAC5', // Dark theme default primary
+            backgroundColor: '#121212' // Dark theme default background
+        };
     },
     saveAppSettings: (settings) => {
         localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(settings));

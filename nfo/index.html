@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#4A90E2"/>
+    <meta name="theme-color" content="#03DAC5"/>
     <title>Info2Go v.1</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="manifest" href="manifest.json">
@@ -24,7 +24,7 @@
         <section id="configurationSection">
             <h2>Configuration</h2>
             <button id="btnLocationsConfig" disabled>Locations</button>
-            <button id="btnInfoCollectionConfig" disabled>Info Collection</button>
+            <button id="btnInfoCollectionConfig" disabled>Info Structure</button>
             <button id="btnAppConfig">Application</button>
         </section>
     </div>
@@ -41,11 +41,11 @@
             </div>
             <div>
                 <label for="primaryColor">Primary Color:</label>
-                <input type="color" id="primaryColor" name="primaryColor" value="#4A90E2">
+                <input type="color" id="primaryColor" name="primaryColor" value="#03DAC5">
             </div>
             <div>
                 <label for="backgroundColor">Background Color:</label>
-                <input type="color" id="backgroundColor" name="backgroundColor" value="#F0F0F0">
+                <input type="color" id="backgroundColor" name="backgroundColor" value="#121212">
             </div>
             <button id="saveAppConfig">Save</button>
         </div>
@@ -74,7 +74,7 @@
         <div class="modal-content">
             <span class="close-button" data-modal-id="infoCollectionConfigModal">&times;</span>
             <h2>Info Collection Configuration</h2>
-            <p>Add, remove, and sort topics for information gathering.</p>
+            <p>Add, remove, and sort topics for information structure.</p>
             <div class="config-item-form">
                 <input type="text" id="topicDescription" placeholder="Description (e.g., Headlines)">
                 <input type="text" id="topicAiQuery" placeholder="AI Query (e.g., Top 5 stories)">
@@ -100,7 +100,7 @@
         </div>
     </div>
 
-    <script src="js/store.js"></script>
+    <script src="js/stor.js"></script>
     <script src="js/api.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/ui.js"></script>

@@ -1,9 +1,9 @@
 :root {
-    --primary-color: #4A90E2; /* Default primary color */
-    --background-color: #F0F0F0; /* Default background color */
-    --text-color: #333;
-    --modal-background: #FFF;
-    --button-text-color: #FFF;
+    --primary-color: #03DAC5; /* Default primary color - Teal */
+    --background-color: #121212; /* Default background color - Very Dark Grey */
+    --text-color: #E0E0E0; /* Light Grey Text */
+    --modal-background: #1E1E1E; /* Dark Grey Modal Background */
+    --button-text-color: #000000; /* Black text for teal buttons */
     --danger-color: #D0021B;
 }
 
@@ -18,7 +18,7 @@ body {
 
 .container {
     max-width: 800px;
-    margin: 0 auto;
+    margin: 20px auto; /* Added top/bottom margin for better spacing on dark bg */
     background-color: var(--modal-background);
     padding: 20px;
     border-radius: 8px;
@@ -41,7 +41,7 @@ button {
 }
 
 button:disabled {
-    background-color: #CCC;
+    background-color: #444; /* Darker disabled button */
     cursor: not-allowed;
 }
 
@@ -52,7 +52,9 @@ button.danger {
 input[type="text"], input[type="password"], input[type="color"] {
     padding: 8px;
     margin: 5px 0 10px 0;
-    border: 1px solid #CCC;
+    border: 1px solid #555; /* Darker border for inputs */
+    background-color: #333; /* Dark input background */
+    color: var(--text-color); /* Light text in inputs */
     border-radius: 4px;
     box-sizing: border-box;
 }
@@ -73,7 +75,7 @@ input[type="text"], input[type="password"], input[type="color"] {
 .modal-content {
     background-color: var(--modal-background);
     margin: 10% auto; /* 10% from the top and centered */
-    padding: 20px;
+    padding: 25px;
     border: 1px solid #888;
     width: 80%; /* Could be more or less, depending on screen size */
     max-width: 600px;
@@ -87,7 +89,7 @@ input[type="text"], input[type="password"], input[type="color"] {
 }
 
 .close-button {
-    color: #aaa;
+    color: #bbb;
     float: right;
     font-size: 28px;
     font-weight: bold;
@@ -118,9 +120,9 @@ input[type="text"], input[type="password"], input[type="color"] {
 
 .sortable-list li {
     padding: 8px;
-    border: 1px solid #eee;
+    border: 1px solid #444; /* Darker border for list items */
     margin-bottom: 5px;
-    background-color: #f9f9f9;
+    background-color: #2a2a2a; /* Darker background for list items */
     cursor: grab;
     display: flex;
     justify-content: space-between;
@@ -129,7 +131,7 @@ input[type="text"], input[type="password"], input[type="color"] {
 
 .updated-text {
     font-size: 0.9em;
-    color: #666;
+    color: #aaa; /* Lighter grey for updated text */
     margin-bottom: 10px;
 }
 

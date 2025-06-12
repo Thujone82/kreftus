@@ -21,7 +21,12 @@ const api = {
                         parts: [{
                             text: promptText
                         }]
-                    }]
+                    }],
+                    tools: [
+                        {
+                            "googleSearch": {}
+                        }
+                    ]
                 })
             });
 
