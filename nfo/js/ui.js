@@ -7,12 +7,13 @@ const ui = {
     btnLocationsConfig: document.getElementById('btnLocationsConfig'),
     btnInfoCollectionConfig: document.getElementById('btnInfoCollectionConfig'),
     btnAppConfig: document.getElementById('btnAppConfig'),
-    globalRefreshButton: document.getElementById('globalRefreshButton'), // Added
+    globalRefreshButton: document.getElementById('globalRefreshButton'), 
 
     // App Config Modal
     appConfigModal: document.getElementById('appConfigModal'),
     appConfigError: document.getElementById('appConfigError'),
     apiKeyInput: document.getElementById('apiKey'),
+    getApiKeyLinkContainer: document.getElementById('getApiKeyLinkContainer'), // Added
     primaryColorInput: document.getElementById('primaryColor'),
     backgroundColorInput: document.getElementById('backgroundColor'),
     saveAppConfigBtn: document.getElementById('saveAppConfig'),
@@ -129,6 +130,12 @@ const ui = {
         ui.primaryColorInput.value = settings.primaryColor;
         ui.backgroundColorInput.value = settings.backgroundColor; 
         ui.appConfigError.textContent = ''; 
+
+        if (settings.apiKey && ui.getApiKeyLinkContainer) {
+            ui.getApiKeyLinkContainer.classList.add('hidden');
+        } else if (ui.getApiKeyLinkContainer) {
+            ui.getApiKeyLinkContainer.classList.remove('hidden');
+        }
         console.log("App config form loaded with settings:", settings);
     },
     showAppConfigError: (message) => {
@@ -150,23 +157,20 @@ const ui = {
                 button.dataset.locationId = location.id;
                 button.onclick = () => onLocationClickCallback(location.id);
 
-                // Clear previous status classes
                 button.classList.remove('location-button-fresh', 'location-button-fetching', 'location-button-error', 'needs-info-structure');
 
                 if (!areTopicsDefined) {
                     button.classList.add('needs-info-structure');
                     button.title = "Info Structure not defined. Click to configure.";
                 } else {
-                    let locationStatus = 'stale'; // Default if topics are defined but data isn't fresh/error/fetching
-
+                    let locationStatus = 'stale'; 
                     if (app.fetchingStatus && app.fetchingStatus[location.id]) {
                         locationStatus = 'fetching';
                     } else {
                         let hasError = false;
                         let allTopicsFresh = app.topics.length > 0; 
-                        
                         if (app.topics.length === 0) { 
-                            allTopicsFresh = false; // No topics means not fresh
+                            allTopicsFresh = false; 
                         } else {
                             for (const topic of app.topics) {
                                 const cacheEntry = store.getAiCache(location.id, topic.id);
@@ -179,15 +183,9 @@ const ui = {
                                 }
                             }
                         }
-
-                        if (hasError) {
-                            locationStatus = 'error';
-                        } else if (allTopicsFresh) {
-                            locationStatus = 'fresh';
-                        }
-                        // If not error and not all fresh, it remains 'stale' (no specific class needed if default button has no border)
+                        if (hasError) locationStatus = 'error';
+                        else if (allTopicsFresh) locationStatus = 'fresh';
                     }
-                    
                     if (locationStatus === 'fresh') button.classList.add('location-button-fresh');
                     else if (locationStatus === 'fetching') button.classList.add('location-button-fetching');
                     else if (locationStatus === 'error') button.classList.add('location-button-error');
@@ -198,7 +196,6 @@ const ui = {
             ui.locationsSection.classList.add('hidden');
         }
         
-        // Update global refresh button visibility after rendering all location buttons
         if (typeof app.updateGlobalRefreshButtonVisibility === 'function') {
             app.updateGlobalRefreshButtonVisibility();
         }
@@ -212,31 +209,21 @@ const ui = {
             const textSpan = document.createElement('span');
             textSpan.textContent = `${item.description} ${type === 'location' ? '(' + item.location + ')' : '(' + item.aiQuery + ')'}`;
             li.appendChild(textSpan);
-
             li.dataset.id = item.id;
             li.dataset.index = index;
             li.draggable = true;
-
             const buttonContainer = document.createElement('div');
             buttonContainer.classList.add('config-item-buttons');
-
             if (type === 'topic' && onEditCallback) {
                 const editBtn = document.createElement('button');
                 editBtn.textContent = 'Edit';
-                editBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    onEditCallback(item.id);
-                };
+                editBtn.onclick = (e) => { e.stopPropagation(); onEditCallback(item.id); };
                 buttonContainer.appendChild(editBtn);
             }
-
             const removeBtn = document.createElement('button');
             removeBtn.textContent = 'Remove';
             removeBtn.classList.add('danger');
-            removeBtn.onclick = (e) => {
-                e.stopPropagation(); 
-                onRemoveCallback(item.id);
-            };
+            removeBtn.onclick = (e) => { e.stopPropagation(); onRemoveCallback(item.id); };
             buttonContainer.appendChild(removeBtn);
             li.appendChild(buttonContainer);
             listElement.appendChild(li);
@@ -246,7 +233,6 @@ const ui = {
 
     enableDragAndDrop: (listElement, onSortCallback) => {
         let draggedItem = null;
-
         const getLiTarget = (eventTarget) => {
             let target = eventTarget;
             while (target && target.tagName !== 'LI') {
@@ -255,41 +241,30 @@ const ui = {
             }
             return target;
         };
-
         listElement.addEventListener('dragstart', (e) => {
             if (draggedItem) return; 
             const targetLi = getLiTarget(e.target); 
             if (targetLi && targetLi.draggable) { 
                 draggedItem = targetLi;
-                setTimeout(() => {
-                    if (draggedItem) draggedItem.classList.add('dragging');
-                }, 0);
+                setTimeout(() => { if (draggedItem) draggedItem.classList.add('dragging'); }, 0);
             }
         });
-
         listElement.addEventListener('dragend', (e) => {
-            if (draggedItem) {
-                if (e.target === draggedItem) {
-                    draggedItem.classList.remove('dragging');
-                    onSortCallback(Array.from(listElement.children).map(li => li.dataset.id));
-                    draggedItem = null; 
-                }
+            if (draggedItem && e.target === draggedItem) {
+                draggedItem.classList.remove('dragging');
+                onSortCallback(Array.from(listElement.children).map(li => li.dataset.id));
+                draggedItem = null; 
             }
         });
-
         listElement.addEventListener('dragover', (e) => {
             if (draggedItem) {
                 e.preventDefault(); 
                 const afterElement = getDragAfterElement(listElement, e.clientY);
                 if (afterElement === draggedItem) return; 
-                if (afterElement == null) {
-                    listElement.appendChild(draggedItem);
-                } else {
-                    listElement.insertBefore(draggedItem, afterElement);
-                }
+                if (afterElement == null) listElement.appendChild(draggedItem);
+                else listElement.insertBefore(draggedItem, afterElement);
             }
         });
-
         const handleTouchStart = (e) => {
             if (draggedItem) return; 
             const targetLi = getLiTarget(e.targetTouches[0].target);
@@ -301,20 +276,15 @@ const ui = {
                 document.addEventListener('touchcancel', handleTouchEnd, { passive: true }); 
             }
         };
-
         const handleTouchMove = (e) => {
             if (!draggedItem) return;
             e.preventDefault(); 
             const touch = e.touches[0];
             const afterElement = getDragAfterElement(listElement, touch.clientY);
             if (afterElement === draggedItem) return; 
-            if (afterElement == null) {
-                listElement.appendChild(draggedItem);
-            } else {
-                listElement.insertBefore(draggedItem, afterElement);
-            }
+            if (afterElement == null) listElement.appendChild(draggedItem);
+            else listElement.insertBefore(draggedItem, afterElement);
         };
-
         const handleTouchEnd = (e) => {
             if (!draggedItem) return;
             draggedItem.classList.remove('dragging');
@@ -324,34 +294,25 @@ const ui = {
             document.removeEventListener('touchend', handleTouchEnd, { passive: true });
             document.removeEventListener('touchcancel', handleTouchEnd, { passive: true });
         };
-
         listElement.addEventListener('touchstart', handleTouchStart, { passive: true }); 
-
         function getDragAfterElement(container, y) {
             const draggableElements = [...container.querySelectorAll('li:not(.dragging)')];
             return draggableElements.reduce((closest, child) => {
                 const box = child.getBoundingClientRect();
                 const offset = y - box.top - box.height / 2;
-                if (offset < 0 && offset > closest.offset) {
-                    return { offset: offset, element: child };
-                } else {
-                    return closest;
-                }
+                if (offset < 0 && offset > closest.offset) return { offset: offset, element: child };
+                else return closest;
             }, { offset: Number.NEGATIVE_INFINITY }).element;
         }
     },
 
     displayInfoModal: (location, topics, cachedData) => {
         const locationData = store.getLocations().find(l => l.id === location.id);
-        if (!locationData) {
-            console.error("Location data not found for info modal:", location.id);
-            return;
-        }
+        if (!locationData) return;
         ui.infoModalTitle.textContent = `${locationData.description} Info2Go`;
         ui.infoModalContent.innerHTML = ''; 
         ui.refreshInfoButton.classList.add('hidden'); 
-        let oldestTimestamp = Date.now();
-        let needsRefresh = false;
+        let oldestTimestamp = Date.now(), needsRefresh = false;
         topics.forEach(topic => {
             const cacheEntry = cachedData[topic.id];
             const sectionDiv = document.createElement('div');
@@ -362,23 +323,15 @@ const ui = {
             titleH3.onclick = function() {
                 this.classList.toggle('active');
                 const content = this.nextElementSibling;
-                if (content.style.display === "block") {
-                    content.style.display = "none";
-                } else {
-                    content.style.display = "block";
-                }
+                content.style.display = (content.style.display === "block") ? "none" : "block";
             };
             sectionDiv.appendChild(titleH3);
             const contentContainer = document.createElement('div');
             contentContainer.classList.add('ai-topic-content', 'collapsible-content');
             if (cacheEntry && cacheEntry.data) {
                 contentContainer.innerHTML = utils.formatAiResponseToHtml(cacheEntry.data);
-                if (cacheEntry.timestamp && cacheEntry.timestamp < oldestTimestamp) {
-                    oldestTimestamp = cacheEntry.timestamp;
-                }
-                if (!cacheEntry.timestamp || (Date.now() - cacheEntry.timestamp) > (60 * 60 * 1000)) {
-                    needsRefresh = true;
-                }
+                if (cacheEntry.timestamp && cacheEntry.timestamp < oldestTimestamp) oldestTimestamp = cacheEntry.timestamp;
+                if (!cacheEntry.timestamp || (Date.now() - cacheEntry.timestamp) > (60 * 60 * 1000)) needsRefresh = true;
             } else {
                 contentContainer.innerHTML = "<p>No data available. Try refreshing.</p>";
                 needsRefresh = true; 
@@ -393,7 +346,6 @@ const ui = {
             ui.refreshInfoButton.dataset.locationId = location.id;
         }
         ui.openModal('infoModal');
-        console.log("Info modal displayed for location:", locationData.description);
     },
 
     displayInfoModalError: (topicDescription, errorMessage) => {
@@ -401,13 +353,10 @@ const ui = {
         errorP.classList.add('error-message');
         errorP.textContent = `Error loading ${topicDescription}: ${errorMessage}`;
         ui.infoModalContent.appendChild(errorP);
-        console.error(`Error displayed in info modal for ${topicDescription}: ${errorMessage}`);
     },
 
     clearInputFields: (fields) => {
-        fields.forEach(field => {
-            if (field) field.value = '';
-        });
+        fields.forEach(field => { if (field) field.value = ''; });
     },
 
     init: () => {

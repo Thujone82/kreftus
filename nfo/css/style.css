@@ -124,10 +124,28 @@ input[type="text"], input[type="password"], input[type="color"] {
     color: var(--text-color);
     border-radius: 4px;
     box-sizing: border-box;
+    width: 100%; /* Make inputs take full width of their container */
 }
 input[type="color"] {
     min-height: 38px;
+    width: auto; /* Override width for color picker for better default rendering */
 }
+
+/* API Key Link Styling */
+#getApiKeyLinkContainer {
+    display: block; /* Make it a block to appear on its own line */
+    margin-top: 5px; /* Space above the link */
+    margin-bottom: 10px; /* Space below the link */
+    font-size: 0.9em;
+}
+#getApiKeyLinkContainer a {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+#getApiKeyLinkContainer a:hover {
+    opacity: 0.8;
+}
+
 
 /* Modal Styles */
 .modal {

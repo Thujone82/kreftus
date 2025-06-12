@@ -8,7 +8,7 @@ const app = {
     currentEditingTopics: [],
     editingTopicId: null, 
     currentLocationIdForInfoModal: null,
-    fetchingStatus: {}, // { locationId: boolean }
+    fetchingStatus: {}, 
 
     init: () => {
         console.log("App initializing...");
@@ -20,12 +20,12 @@ const app = {
 
         if (app.config && app.config.apiKey) {
             ui.toggleConfigButtons(true);
-            app.refreshOutdatedQueries(); // This will also update button states and global refresh visibility
+            app.refreshOutdatedQueries(); 
         } else {
             ui.toggleConfigButtons(false);
             ui.openModal('appConfigModal'); 
         }
-        app.updateGlobalRefreshButtonVisibility(); // Initial check
+        app.updateGlobalRefreshButtonVisibility(); 
         console.log("App initialized.");
     },
 
@@ -40,7 +40,7 @@ const app = {
     loadAndApplyAppSettings: () => {
         app.config = store.getAppSettings();
         ui.applyTheme(app.config.primaryColor, app.config.backgroundColor);
-        ui.loadAppConfigForm(app.config);
+        ui.loadAppConfigForm(app.config); // This will handle the API key link visibility
         console.log("App settings loaded and applied:", app.config);
     },
 
@@ -58,7 +58,7 @@ const app = {
 
     setupEventListeners: () => {
         ui.btnAppConfig.onclick = () => {
-            ui.loadAppConfigForm(app.config);
+            ui.loadAppConfigForm(app.config); // Ensure link visibility is updated when modal opens
             ui.openModal('appConfigModal');
         };
         ui.btnLocationsConfig.onclick = () => {
@@ -90,14 +90,12 @@ const app = {
 
         ui.refreshInfoButton.onclick = () => {
             const locationId = ui.refreshInfoButton.dataset.locationId || app.currentLocationIdForInfoModal;
-            if (locationId) {
-                app.handleRefreshLocationInfo(locationId);
-            }
+            if (locationId) app.handleRefreshLocationInfo(locationId);
         };
         if (ui.globalRefreshButton) {
             ui.globalRefreshButton.onclick = () => {
                 console.log("Global refresh triggered.");
-                app.refreshOutdatedQueries(true); // Pass true to force refresh all stale/error items
+                app.refreshOutdatedQueries(true); 
             };
         }
         console.log("Event listeners set up.");
@@ -115,9 +113,11 @@ const app = {
 
         if (!newApiKey) {
             ui.showAppConfigError("API Key is required.");
+            if (ui.getApiKeyLinkContainer) ui.getApiKeyLinkContainer.classList.remove('hidden'); // Show link if key removed
             return;
         }
         ui.showAppConfigError("");
+        if (ui.getApiKeyLinkContainer) ui.getApiKeyLinkContainer.classList.add('hidden'); // Hide link if key present
 
         app.config.apiKey = newApiKey;
         app.config.primaryColor = newPrimaryColor;
@@ -128,7 +128,7 @@ const app = {
         ui.toggleConfigButtons(true);
         ui.closeModal('appConfigModal');
         console.log("App settings saved. API Key present.");
-        app.refreshOutdatedQueries(); // Refresh data if API key was just added/changed
+        app.refreshOutdatedQueries(); 
     },
 
     handleAddLocationToEditList: () => {
@@ -151,23 +151,14 @@ const app = {
         const oldLocationIds = new Set(app.locations.map(l => l.id));
         app.locations = [...app.currentEditingLocations];
         const areTopicsDefined = app.topics && app.topics.length > 0;
-
         store.saveLocations(app.locations);
-        ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined); // This will also call updateGlobalRefreshButtonVisibility
+        ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined); 
         ui.closeModal('locationConfigModal');
-        console.log("Location configuration saved:", app.locations);
-
-        let newLocationsFetched = false;
         for (const location of app.locations) {
             if (!oldLocationIds.has(location.id)) {
-                console.log(`New location added: ${location.description}. Fetching initial data.`);
                 await app.fetchAndCacheAiDataForLocation(location.id, true);
-                newLocationsFetched = true;
             }
         }
-        // If new locations were fetched, their individual fetches updated UI.
-        // Now, run refreshOutdatedQueries for existing locations.
-        // If no new locations, still run it to ensure everything is checked.
         app.refreshOutdatedQueries();
     },
 
@@ -184,23 +175,13 @@ const app = {
     handleAddOrUpdateTopicInEditList: () => {
         const description = ui.topicDescriptionInput.value.trim();
         const aiQuery = ui.topicAiQueryInput.value.trim();
-
-        if (!description || !aiQuery) {
-            alert("Both description and AI query are required.");
-            return;
-        }
-
+        if (!description || !aiQuery) { alert("Both description and AI query are required."); return; }
         if (app.editingTopicId) { 
             const topicToUpdate = app.currentEditingTopics.find(t => t.id === app.editingTopicId);
-            if (topicToUpdate) {
-                topicToUpdate.description = description;
-                topicToUpdate.aiQuery = aiQuery;
-            }
-            app.editingTopicId = null;
-            ui.addTopicBtn.textContent = 'Add Topic';
+            if (topicToUpdate) { topicToUpdate.description = description; topicToUpdate.aiQuery = aiQuery; }
+            app.editingTopicId = null; ui.addTopicBtn.textContent = 'Add Topic';
         } else { 
-            const newTopic = { id: utils.generateId(), description, aiQuery };
-            app.currentEditingTopics.push(newTopic);
+            app.currentEditingTopics.push({ id: utils.generateId(), description, aiQuery });
         }
         ui.renderConfigList(app.currentEditingTopics, ui.topicsListUI, 'topic', app.handleRemoveTopicFromEditList, app.prepareEditTopic);
         ui.clearInputFields([ui.topicDescriptionInput, ui.topicAiQueryInput]);
@@ -208,8 +189,7 @@ const app = {
     handleRemoveTopicFromEditList: (topicId) => {
         app.currentEditingTopics = app.currentEditingTopics.filter(topic => topic.id !== topicId);
         if (app.editingTopicId === topicId) {
-            app.editingTopicId = null;
-            ui.addTopicBtn.textContent = 'Add Topic';
+            app.editingTopicId = null; ui.addTopicBtn.textContent = 'Add Topic';
             ui.clearInputFields([ui.topicDescriptionInput, ui.topicAiQueryInput]);
         }
         ui.renderConfigList(app.currentEditingTopics, ui.topicsListUI, 'topic', app.handleRemoveTopicFromEditList, app.prepareEditTopic);
@@ -217,42 +197,27 @@ const app = {
     handleSaveTopicConfig: () => {
         app.topics = [...app.currentEditingTopics];
         store.saveTopics(app.topics);
-        store.flushAllAiCache(); // This means all data will be re-fetched
+        store.flushAllAiCache(); 
         ui.closeModal('infoCollectionConfigModal');
-        app.editingTopicId = null;
-        ui.addTopicBtn.textContent = 'Add Topic';
-
+        app.editingTopicId = null; ui.addTopicBtn.textContent = 'Add Topic';
         const areTopicsDefined = app.topics && app.topics.length > 0;
-        ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined); // This will also call updateGlobalRefreshButtonVisibility
-        console.log("Topic configuration saved. AI Cache flushed.", app.topics);
-        app.refreshOutdatedQueries(true); // Force refresh all since cache was flushed
+        ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined); 
+        app.refreshOutdatedQueries(true); 
     },
 
     handleLocationButtonClick: (locationId) => {
-        if (app.topics && app.topics.length > 0) {
-            app.handleOpenLocationInfo(locationId);
-        } else {
-            alert("Please define an Info Structure before viewing location information.");
-            ui.openModal('infoCollectionConfigModal');
-        }
+        if (app.topics && app.topics.length > 0) app.handleOpenLocationInfo(locationId);
+        else { alert("Please define an Info Structure before viewing location information."); ui.openModal('infoCollectionConfigModal'); }
     },
     handleOpenLocationInfo: async (locationId) => {
-        if (!app.config.apiKey) {
-            ui.showAppConfigError("API Key is not configured. Please configure it first.");
-            ui.openModal('appConfigModal');
-            return;
-        }
+        if (!app.config.apiKey) { ui.showAppConfigError("API Key is not configured. Please configure it first."); ui.openModal('appConfigModal'); return; }
         app.currentLocationIdForInfoModal = locationId;
         const location = app.locations.find(l => l.id === locationId);
         if (!location) return;
-
         ui.infoModalTitle.textContent = `${location.description} Info2Go - Loading...`;
         ui.infoModalContent.innerHTML = '<p>Fetching data...</p>';
         ui.openModal('infoModal');
-
-        // Fetch data if needed (stale or forced), then display
         await app.fetchAndCacheAiDataForLocation(locationId, false); 
-
         const cachedDataForLocation = {};
         let needsOverallRefreshForModal = false;
         app.topics.forEach(topic => {
@@ -264,12 +229,8 @@ const app = {
             }
         });
         ui.displayInfoModal(location, app.topics, cachedDataForLocation);
-        if (needsOverallRefreshForModal) {
-            ui.refreshInfoButton.classList.remove('hidden');
-            ui.refreshInfoButton.dataset.locationId = locationId;
-        } else {
-            ui.refreshInfoButton.classList.add('hidden');
-        }
+        if (needsOverallRefreshForModal) { ui.refreshInfoButton.classList.remove('hidden'); ui.refreshInfoButton.dataset.locationId = locationId; }
+        else ui.refreshInfoButton.classList.add('hidden');
     },
 
     handleRefreshLocationInfo: async (locationId) => {
@@ -277,56 +238,39 @@ const app = {
         if (!locationId) return;
         const location = app.locations.find(l => l.id === locationId);
         if (!location) return;
-
         ui.infoModalTitle.textContent = `${location.description} Info2Go - Refreshing...`;
         ui.infoModalContent.innerHTML = '<p>Fetching fresh data...</p>';
-        await app.fetchAndCacheAiDataForLocation(locationId, true); // Force refresh
-        // Re-open/re-render the modal content
+        await app.fetchAndCacheAiDataForLocation(locationId, true); 
         app.handleOpenLocationInfo(locationId);
     },
 
     fetchAndCacheAiDataForLocation: async (locationId, forceRefresh = false) => {
         if (!app.config.apiKey) {
-            console.warn("Cannot fetch AI data: API Key is not configured.");
             if (document.getElementById('appConfigModal').style.display !== 'block') {
-                 ui.showAppConfigError("API Key is required to fetch data.");
-                 ui.openModal('appConfigModal');
-            }
-            return false; 
+                 ui.showAppConfigError("API Key is required to fetch data."); ui.openModal('appConfigModal');
+            } return false; 
         }
         const location = app.locations.find(l => l.id === locationId);
         if (!location) return false;
-
         app.fetchingStatus[locationId] = true;
         const areTopicsDefined = app.topics && app.topics.length > 0;
         ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
-
-        console.log(`Fetching/Caching AI data for location: ${location.description}. Force refresh: ${forceRefresh}`);
         let allSuccessful = true;
-
         for (const topic of app.topics) {
             const cacheEntry = store.getAiCache(locationId, topic.id);
             const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > (60 * 60 * 1000);
             const hasError = cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:');
-
-            if (forceRefresh || isStale || hasError) { // Also refresh if there was a previous error
-                console.log(`Fetching for topic: ${topic.description} (Stale: ${isStale}, Force: ${forceRefresh}, Error: ${hasError})`);
+            if (forceRefresh || isStale || hasError) {
                 try {
                     const aiData = await api.fetchAiData(app.config.apiKey, location.location, topic.aiQuery);
                     store.saveAiCache(locationId, topic.id, aiData);
                 } catch (error) {
-                    allSuccessful = false;
-                    console.error(`Failed to fetch AI data for ${location.description} - ${topic.description}:`, error.message);
-                    store.saveAiCache(locationId, topic.id, `Error: ${error.message}`);
+                    allSuccessful = false; store.saveAiCache(locationId, topic.id, `Error: ${error.message}`);
                     if (error.message.toLowerCase().includes("invalid api key")) {
-                        ui.closeModal('infoModal');
-                        ui.showAppConfigError("Invalid API Key. Please check your configuration and save.");
-                        ui.openModal('appConfigModal');
-                        // Clean up fetching status for this location as we are stopping
-                        delete app.fetchingStatus[locationId];
+                        ui.closeModal('infoModal'); ui.showAppConfigError("Invalid API Key. Please check your configuration and save.");
+                        ui.openModal('appConfigModal'); delete app.fetchingStatus[locationId];
                         ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
-                        app.updateGlobalRefreshButtonVisibility();
-                        return false; 
+                        app.updateGlobalRefreshButtonVisibility(); return false; 
                     }
                 }
             }
@@ -338,48 +282,32 @@ const app = {
     },
 
     refreshOutdatedQueries: async (forceAllStale = false) => {
-        if (!app.config.apiKey) {
-            console.log("Skipping outdated query refresh: No API key.");
-            return;
-        }
-        console.log("Checking for outdated AI queries...", forceAllStale ? "(Forcing all stale)" : "");
+        if (!app.config.apiKey) return;
         const sixtyMinutesAgo = Date.now() - (60 * 60 * 1000);
         let anyFetchesInitiated = false;
-
         for (const location of app.locations) {
             let needsRefreshForLocation = false;
             if (app.topics.length === 0) continue;
-
-            if (forceAllStale) { // If global refresh button or topic save triggered
-                needsRefreshForLocation = true;
-            } else {
+            if (forceAllStale) needsRefreshForLocation = true;
+            else {
                 for (const topic of app.topics) {
                     const cacheEntry = store.getAiCache(location.id, topic.id);
                     if (!cacheEntry || (cacheEntry.timestamp || 0) < sixtyMinutesAgo ||
                         (cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:'))) {
-                        needsRefreshForLocation = true;
-                        break; 
+                        needsRefreshForLocation = true; break; 
                     }
                 }
             }
-
             if (needsRefreshForLocation) {
                 anyFetchesInitiated = true;
-                console.log(`Data for location ${location.description} needs refresh. Refreshing...`);
-                // fetchAndCacheAiDataForLocation will update UI for its specific button and global button
-                app.fetchAndCacheAiDataForLocation(location.id, true).then(success => { // true to force refresh this location
-                    if (success) {
-                        console.log(`Background refresh for ${location.description} completed.`);
-                        if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === location.id) {
-                            app.handleOpenLocationInfo(location.id); 
-                        }
-                    } else {
-                        console.warn(`Background refresh for ${location.description} encountered errors.`);
+                app.fetchAndCacheAiDataForLocation(location.id, true).then(success => {
+                    if (success && ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === location.id) {
+                        app.handleOpenLocationInfo(location.id); 
                     }
                 });
             }
         }
-        if (!anyFetchesInitiated) { // If no fetches were started, ensure UI is up-to-date
+        if (!anyFetchesInitiated) {
             const areTopicsDefined = app.topics && app.topics.length > 0;
             ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
             app.updateGlobalRefreshButtonVisibility();
@@ -391,31 +319,18 @@ const app = {
         let anyStaleOrError = false;
         if (app.topics.length > 0) {
             for (const location of app.locations) {
-                if (app.fetchingStatus && app.fetchingStatus[location.id]) {
-                    // If actively fetching, consider it as needing attention for the button
-                    // Or, decide if fetching state should hide the button. For now, let's assume fetching means it might become stale.
-                    // Let's refine: if it's fetching, it's not yet "stale" for the purpose of this button.
-                    // The button is for user-initiated refresh of already settled stale/error states.
-                    continue;
-                }
+                if (app.fetchingStatus && app.fetchingStatus[location.id]) continue;
                 for (const topic of app.topics) {
                     const cacheEntry = store.getAiCache(location.id, topic.id);
                     const hasError = cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:');
                     const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > (60 * 60 * 1000);
-
-                    if (hasError || isStale) {
-                        anyStaleOrError = true;
-                        break;
-                    }
+                    if (hasError || isStale) { anyStaleOrError = true; break; }
                 }
                 if (anyStaleOrError) break;
             }
         }
-        if (anyStaleOrError) {
-            ui.globalRefreshButton.classList.remove('hidden');
-        } else {
-            ui.globalRefreshButton.classList.add('hidden');
-        }
+        if (anyStaleOrError) ui.globalRefreshButton.classList.remove('hidden');
+        else ui.globalRefreshButton.classList.add('hidden');
     }
 };
 
