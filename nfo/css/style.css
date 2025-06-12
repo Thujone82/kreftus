@@ -164,7 +164,11 @@ input[type="color"] {
     justify-content: space-between;
     align-items: center;
 }
-
+.sortable-list li.dragging {
+    opacity: 0.5;
+    /* You can add other styles here, like a different background or border */
+    /* Example: background-color: var(--primary-color-translucent) or similar */
+}
 .sortable-list li .config-item-buttons { /* Style for the button container */
     display: flex;
     gap: 5px; /* Space between Edit and Remove buttons */

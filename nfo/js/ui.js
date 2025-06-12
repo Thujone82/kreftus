@@ -156,7 +156,7 @@ const ui = {
         console.log("Location buttons rendered:", locations);
     },
 
-    renderConfigList: (items, listElement, type, onRemoveCallback, onEditCallback) => { // Added onEditCallback
+    renderConfigList: (items, listElement, type, onRemoveCallback, onEditCallback) => {
         listElement.innerHTML = ''; 
         items.forEach((item, index) => {
             const li = document.createElement('li');
@@ -168,7 +168,7 @@ const ui = {
             li.dataset.index = index;
             li.draggable = true;
 
-            const buttonContainer = document.createElement('div'); // Container for buttons
+            const buttonContainer = document.createElement('div');
             buttonContainer.classList.add('config-item-buttons');
 
             if (type === 'topic' && onEditCallback) {
@@ -197,27 +197,47 @@ const ui = {
 
     enableDragAndDrop: (listElement, onSortCallback) => {
         let draggedItem = null;
+
+        // Helper to find the LI target from an event target
+        const getLiTarget = (eventTarget) => {
+            let target = eventTarget;
+            while (target && target.tagName !== 'LI') {
+                // If target is null or we reached listElement itself without finding an LI
+                if (!target.parentElement || target === listElement) return null;
+                target = target.parentElement;
+            }
+            return target;
+        };
+
+        // Mouse drag events
         listElement.addEventListener('dragstart', (e) => {
-            if (e.target.tagName === 'LI') { // Ensure drag starts on LI
-                draggedItem = e.target;
+            if (draggedItem) return; // Prevent starting a new drag if one is already active (e.g., from touch)
+
+            const targetLi = getLiTarget(e.target);
+            if (targetLi && targetLi.draggable) { // Ensure it's a draggable LI
+                draggedItem = targetLi;
+                // Adding class for visual feedback (e.g., opacity) via CSS
+                // setTimeout is used to allow the browser to paint the drag image before style changes.
                 setTimeout(() => {
-                    if(e.target.style) e.target.style.opacity = '0.5';
+                    if (draggedItem) draggedItem.classList.add('dragging');
                 }, 0);
             }
         });
+
         listElement.addEventListener('dragend', (e) => {
             if (draggedItem) {
-                setTimeout(() => {
-                    if(e.target.style) e.target.style.opacity = '1';
-                    draggedItem = null;
-                }, 0);
+                draggedItem.classList.remove('dragging');
+                draggedItem = null; 
                 onSortCallback(Array.from(listElement.children).map(li => li.dataset.id));
             }
         });
+
         listElement.addEventListener('dragover', (e) => {
-            e.preventDefault();
             if (draggedItem) {
+                e.preventDefault(); // Necessary to allow dropping
                 const afterElement = getDragAfterElement(listElement, e.clientY);
+                if (afterElement === draggedItem) return; // Avoid inserting before/after itself
+
                 if (afterElement == null) {
                     listElement.appendChild(draggedItem);
                 } else {
@@ -225,7 +245,48 @@ const ui = {
                 }
             }
         });
+
+        // Touch events
+        listElement.addEventListener('touchstart', (e) => {
+            if (draggedItem) return; // Prevent starting a new drag if one is already active
+
+            const targetLi = getLiTarget(e.targetTouches[0].target);
+            if (targetLi && targetLi.draggable) { // Check if the target is a draggable LI
+                draggedItem = targetLi;
+                draggedItem.classList.add('dragging'); // Visual feedback
+                // No preventDefault needed here if we want clicks on buttons inside LI to work on tap
+            }
+        }, { passive: true }); // passive:true if not calling preventDefault
+
+        listElement.addEventListener('touchmove', (e) => {
+            if (!draggedItem) return;
+
+            e.preventDefault(); // Prevent scrolling while dragging
+
+            const touch = e.touches[0];
+            const afterElement = getDragAfterElement(listElement, touch.clientY);
+
+            if (afterElement === draggedItem) return; // Avoid inserting before/after itself
+
+            if (afterElement == null) {
+                listElement.appendChild(draggedItem);
+            } else {
+                listElement.insertBefore(draggedItem, afterElement);
+            }
+        }, { passive: false }); // passive:false because we call preventDefault
+
+        listElement.addEventListener('touchend', (e) => {
+            if (!draggedItem) return;
+
+            draggedItem.classList.remove('dragging');
+            // The item is already in its final DOM position due to touchmove.
+            onSortCallback(Array.from(listElement.children).map(li => li.dataset.id));
+            draggedItem = null;
+        });
+
+
         function getDragAfterElement(container, y) {
+            // Exclude the item currently being dragged
             const draggableElements = [...container.querySelectorAll('li:not(.dragging)')];
             return draggableElements.reduce((closest, child) => {
                 const box = child.getBoundingClientRect();
