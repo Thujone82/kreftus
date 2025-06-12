@@ -1,4 +1,4 @@
-console.log("store.js loaded");
+console.log("stor.js loaded");
 
 const STORE_PREFIX = 'info2go_';
 

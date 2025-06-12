@@ -12,8 +12,8 @@ const app = {
     init: () => {
         console.log("App initializing...");
         app.loadAndApplyAppSettings();
-        app.loadLocations();
-        app.loadTopics();
+        app.loadLocations(); // Loads locations data
+        app.loadTopics();    // Loads topics data and then renders location buttons
         app.registerServiceWorker();
         app.setupEventListeners(); // Single setup
 
@@ -44,14 +44,16 @@ const app = {
 
     loadLocations: () => {
         app.locations = store.getLocations();
-        const areTopicsDefined = app.topics && app.topics.length > 0;
-        ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
+        // Location buttons are rendered after topics are loaded in loadTopics()
         console.log("Locations loaded:", app.locations);
     },
 
     loadTopics: () => {
         app.topics = store.getTopics();
         console.log("Topics loaded:", app.topics);
+        // Render location buttons now that both locations and topics are loaded
+        const areTopicsDefined = app.topics && app.topics.length > 0;
+        ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
     },
 
     setupEventListeners: () => {
@@ -86,7 +88,7 @@ const app = {
         });
 
         // Info Collection Config Modal
-        ui.addTopicBtn.onclick = app.handleAddOrUpdateTopicInEditList; // Changed from handleAddTopicToEditList
+        ui.addTopicBtn.onclick = app.handleAddOrUpdateTopicInEditList;
         ui.saveTopicConfigBtn.onclick = app.handleSaveTopicConfig;
         ui.enableDragAndDrop(ui.topicsListUI, (newOrderIds) => {
             app.currentEditingTopics = app.reorderArrayByIds(app.currentEditingTopics, newOrderIds);
@@ -154,6 +156,7 @@ const app = {
         const oldLocationIds = new Set(app.locations.map(l => l.id));
         app.locations = [...app.currentEditingLocations];
         const areTopicsDefined = app.topics && app.topics.length > 0;
+
         store.saveLocations(app.locations);
         ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
         ui.closeModal('locationConfigModal');
@@ -224,9 +227,11 @@ const app = {
         // Reset editing state for next time modal opens
         app.editingTopicId = null;
         ui.addTopicBtn.textContent = 'Add Topic';
+
         // Re-render location buttons as their behavior/appearance might change
         const areTopicsDefined = app.topics && app.topics.length > 0;
         ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
+
         console.log("Topic configuration saved. AI Cache flushed.", app.topics);
     },
 
@@ -238,7 +243,7 @@ const app = {
             alert("Please define an Info Structure before viewing location information.");
             ui.openModal('infoCollectionConfigModal');
         }
-    }
+    }, // <<< Added comma here
     handleOpenLocationInfo: async (locationId) => {
         if (!app.config.apiKey) {
             ui.showAppConfigError("API Key is not configured. Please configure it first.");
