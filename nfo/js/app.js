@@ -214,7 +214,7 @@ const app = {
         app.currentLocationIdForInfoModal = locationId;
         const location = app.locations.find(l => l.id === locationId);
         if (!location) return;
-        ui.infoModalTitle.textContent = `${location.description} Info2Go - Loading...`;
+        ui.infoModalTitle.textContent = `${location.description} nfo2Go - Loading...`;
         ui.infoModalContent.innerHTML = '<p>Fetching data...</p>';
         ui.openModal('infoModal');
         await app.fetchAndCacheAiDataForLocation(locationId, false); 
@@ -238,7 +238,7 @@ const app = {
         if (!locationId) return;
         const location = app.locations.find(l => l.id === locationId);
         if (!location) return;
-        ui.infoModalTitle.textContent = `${location.description} Info2Go - Refreshing...`;
+        ui.infoModalTitle.textContent = `${location.description} nfo2Go - Refreshing...`;
         ui.infoModalContent.innerHTML = '<p>Fetching fresh data...</p>';
         await app.fetchAndCacheAiDataForLocation(locationId, true); 
         app.handleOpenLocationInfo(locationId);

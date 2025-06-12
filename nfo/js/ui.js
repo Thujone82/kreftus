@@ -309,7 +309,7 @@ const ui = {
     displayInfoModal: (location, topics, cachedData) => {
         const locationData = store.getLocations().find(l => l.id === location.id);
         if (!locationData) return;
-        ui.infoModalTitle.textContent = `${locationData.description} Info2Go`;
+        ui.infoModalTitle.textContent = `${locationData.description} nfo2Go`;
         ui.infoModalContent.innerHTML = ''; 
         ui.refreshInfoButton.classList.add('hidden'); 
         let oldestTimestamp = Date.now(), needsRefresh = false;
