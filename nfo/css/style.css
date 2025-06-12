@@ -181,6 +181,11 @@ input[type="color"] {
     padding-bottom: 5px;
 }
 
-#infoModalContent div p { /* AI Query Result Paragraphs */
+#infoModalContent .ai-topic-content {
     white-space: pre-wrap; /* Preserve line breaks from AI response */
+}
+#infoModalContent .ai-topic-content ul {
+    padding-left: 20px; /* Indent lists a bit */
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
 }

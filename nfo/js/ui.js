@@ -267,9 +267,11 @@ const ui = {
             titleH3.textContent = topic.description;
             sectionDiv.appendChild(titleH3);
 
-            const contentP = document.createElement('p');
+            const contentContainer = document.createElement('div');
+            contentContainer.classList.add('ai-topic-content'); // Add class for styling
+
             if (cacheEntry && cacheEntry.data) {
-                contentP.textContent = cacheEntry.data;
+                contentContainer.innerHTML = utils.formatAiResponseToHtml(cacheEntry.data);
                 if (cacheEntry.timestamp < oldestTimestamp) {
                     oldestTimestamp = cacheEntry.timestamp;
                 }
@@ -277,10 +279,10 @@ const ui = {
                     needsRefresh = true;
                 }
             } else {
-                contentP.textContent = "No data available. Try refreshing.";
+                contentContainer.innerHTML = "<p>No data available. Try refreshing.</p>";
                 needsRefresh = true; 
             }
-            sectionDiv.appendChild(contentP);
+            sectionDiv.appendChild(contentContainer);
             ui.infoModalContent.appendChild(sectionDiv);
         });
 

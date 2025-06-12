@@ -19,5 +19,40 @@ const utils = {
         return `${hours}h ago`;
     },
 
-    // More utility functions can be added here
+    formatAiResponseToHtml: (text) => {
+        if (!text) return '';
+
+        // 1. Replace **bold** with <b>bold</b>
+        //    Using a non-greedy match for the content within **
+        let html = text.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+
+        // 2. Process bullet points: * item
+        const lines = html.split('\n');
+        let resultHtml = '';
+        let inList = false;
+
+        for (let i = 0; i < lines.length; i++) {
+            let line = lines[i];
+            // Check for lines starting with "* " (asterisk and a space)
+            if (line.trim().startsWith('* ')) {
+                if (!inList) {
+                    resultHtml += '<ul>\n';
+                    inList = true;
+                }
+                // Remove the "* " and wrap with <li>, then process the rest of the line
+                resultHtml += '  <li>' + line.trim().substring(2).trim() + '</li>\n';
+            } else {
+                if (inList) {
+                    resultHtml += '</ul>\n';
+                    inList = false;
+                }
+                resultHtml += line + '\n';
+            }
+        }
+        // If the text ends with a list, close it
+        if (inList) {
+            resultHtml += '</ul>\n';
+        }
+        return resultHtml.trim(); // Trim trailing newline if any
+    }
 };
