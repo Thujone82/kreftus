@@ -7,6 +7,7 @@ const ui = {
     btnLocationsConfig: document.getElementById('btnLocationsConfig'),
     btnInfoCollectionConfig: document.getElementById('btnInfoCollectionConfig'),
     btnAppConfig: document.getElementById('btnAppConfig'),
+    globalRefreshButton: document.getElementById('globalRefreshButton'), // Added
 
     // App Config Modal
     appConfigModal: document.getElementById('appConfigModal'),
@@ -148,14 +149,58 @@ const ui = {
                 button.textContent = location.description;
                 button.dataset.locationId = location.id;
                 button.onclick = () => onLocationClickCallback(location.id);
+
+                // Clear previous status classes
+                button.classList.remove('location-button-fresh', 'location-button-fetching', 'location-button-error', 'needs-info-structure');
+
                 if (!areTopicsDefined) {
                     button.classList.add('needs-info-structure');
                     button.title = "Info Structure not defined. Click to configure.";
-                }                
+                } else {
+                    let locationStatus = 'stale'; // Default if topics are defined but data isn't fresh/error/fetching
+
+                    if (app.fetchingStatus && app.fetchingStatus[location.id]) {
+                        locationStatus = 'fetching';
+                    } else {
+                        let hasError = false;
+                        let allTopicsFresh = app.topics.length > 0; 
+                        
+                        if (app.topics.length === 0) { 
+                            allTopicsFresh = false; // No topics means not fresh
+                        } else {
+                            for (const topic of app.topics) {
+                                const cacheEntry = store.getAiCache(location.id, topic.id);
+                                if (cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:')) {
+                                    hasError = true;
+                                    break; 
+                                }
+                                if (!cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > (60 * 60 * 1000)) {
+                                    allTopicsFresh = false; 
+                                }
+                            }
+                        }
+
+                        if (hasError) {
+                            locationStatus = 'error';
+                        } else if (allTopicsFresh) {
+                            locationStatus = 'fresh';
+                        }
+                        // If not error and not all fresh, it remains 'stale' (no specific class needed if default button has no border)
+                    }
+                    
+                    if (locationStatus === 'fresh') button.classList.add('location-button-fresh');
+                    else if (locationStatus === 'fetching') button.classList.add('location-button-fetching');
+                    else if (locationStatus === 'error') button.classList.add('location-button-error');
+                }              
                 ui.locationButtonsContainer.appendChild(button);
             });
         } else {
             ui.locationsSection.classList.add('hidden');
+        }
+        
+        // Update global refresh button visibility after rendering all location buttons
+        if (typeof app.updateGlobalRefreshButtonVisibility === 'function') {
+            app.updateGlobalRefreshButtonVisibility();
         }
         console.log("Location buttons rendered:", locations);
     },
@@ -202,26 +247,21 @@ const ui = {
     enableDragAndDrop: (listElement, onSortCallback) => {
         let draggedItem = null;
 
-        // Helper to find the LI target from an event target
         const getLiTarget = (eventTarget) => {
             let target = eventTarget;
             while (target && target.tagName !== 'LI') {
-                // If target is null or we reached listElement itself without finding an LI
                 if (!target.parentElement || target === listElement) return null;
                 target = target.parentElement;
             }
             return target;
         };
 
-        // Mouse drag events
         listElement.addEventListener('dragstart', (e) => {
-            if (draggedItem) return; // Prevent starting a new drag if one is already active (e.g., from touch)
-
-            const targetLi = getLiTarget(e.target); // e.target should be the LI itself or a child
+            if (draggedItem) return; 
+            const targetLi = getLiTarget(e.target); 
             if (targetLi && targetLi.draggable) { 
                 draggedItem = targetLi;
                 setTimeout(() => {
-                    // setTimeout allows the browser to paint the drag image before style changes.
                     if (draggedItem) draggedItem.classList.add('dragging');
                 }, 0);
             }
@@ -229,7 +269,6 @@ const ui = {
 
         listElement.addEventListener('dragend', (e) => {
             if (draggedItem) {
-                // Ensure this dragend corresponds to the item that was being dragged
                 if (e.target === draggedItem) {
                     draggedItem.classList.remove('dragging');
                     onSortCallback(Array.from(listElement.children).map(li => li.dataset.id));
@@ -240,10 +279,9 @@ const ui = {
 
         listElement.addEventListener('dragover', (e) => {
             if (draggedItem) {
-                e.preventDefault(); // Necessary to allow dropping
+                e.preventDefault(); 
                 const afterElement = getDragAfterElement(listElement, e.clientY);
-                if (afterElement === draggedItem) return; // Avoid inserting before/after itself
-
+                if (afterElement === draggedItem) return; 
                 if (afterElement == null) {
                     listElement.appendChild(draggedItem);
                 } else {
@@ -252,31 +290,24 @@ const ui = {
             }
         });
 
-        // Touch event handlers
         const handleTouchStart = (e) => {
-            if (draggedItem) return; // Prevent starting a new drag if one is already active
-
+            if (draggedItem) return; 
             const targetLi = getLiTarget(e.targetTouches[0].target);
             if (targetLi && targetLi.draggable) { 
                 draggedItem = targetLi;
-                draggedItem.classList.add('dragging'); // Visual feedback
-
-                // Add move and end listeners to the document for robust event capture
+                draggedItem.classList.add('dragging'); 
                 document.addEventListener('touchmove', handleTouchMove, { passive: false });
                 document.addEventListener('touchend', handleTouchEnd, { passive: true });
-                document.addEventListener('touchcancel', handleTouchEnd, { passive: true }); // Handle interruption
+                document.addEventListener('touchcancel', handleTouchEnd, { passive: true }); 
             }
         };
 
         const handleTouchMove = (e) => {
             if (!draggedItem) return;
-
-            e.preventDefault(); // Prevent scrolling while dragging
-
+            e.preventDefault(); 
             const touch = e.touches[0];
             const afterElement = getDragAfterElement(listElement, touch.clientY);
-            if (afterElement === draggedItem) return; // Avoid inserting before/after itself
-
+            if (afterElement === draggedItem) return; 
             if (afterElement == null) {
                 listElement.appendChild(draggedItem);
             } else {
@@ -286,27 +317,17 @@ const ui = {
 
         const handleTouchEnd = (e) => {
             if (!draggedItem) return;
-
             draggedItem.classList.remove('dragging');
-            // The item is already in its final DOM position due to touchmove.
             onSortCallback(Array.from(listElement.children).map(li => li.dataset.id));
-            
             draggedItem = null;
-
-            // Remove document listeners
             document.removeEventListener('touchmove', handleTouchMove, { passive: false });
             document.removeEventListener('touchend', handleTouchEnd, { passive: true });
             document.removeEventListener('touchcancel', handleTouchEnd, { passive: true });
         };
 
-        // Attach the initial touchstart listener to the list element
         listElement.addEventListener('touchstart', handleTouchStart, { passive: true }); 
-        // passive:true for touchstart is fine as we only decide to initiate a drag,
-        // preventDefault for scrolling happens in touchmove.
-
 
         function getDragAfterElement(container, y) {
-            // Exclude the item currently being dragged
             const draggableElements = [...container.querySelectorAll('li:not(.dragging)')];
             return draggableElements.reduce((closest, child) => {
                 const box = child.getBoundingClientRect();
@@ -391,7 +412,6 @@ const ui = {
 
     init: () => {
         ui.initModalCloseButtons();
-        // Drag and drop setup is now handled in app.js setupEventListeners
         console.log("UI initialized");
     }
 };

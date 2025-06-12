@@ -13,6 +13,11 @@
     --list-item-bg-color: #2a2a2a;
     --updated-text-color: #aaa;
     --close-button-color: #bbb;
+
+    /* Status colors */
+    --status-fresh-color: #4CAF50; /* Green */
+    --status-fetching-color: #2196F3; /* Powder Blue like */
+    --status-error-color: #F44336; /* Red */
 }
 
 body {
@@ -55,6 +60,17 @@ h2 {
     margin-top: 15px;
 }
 
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px; /* Adjust as needed */
+}
+
+.section-header h2 {
+    margin-bottom: 0; /* Remove bottom margin from h2 if it's inside flex */
+}
+
 button {
     background-color: var(--primary-color);
     color: var(--button-text-color);
@@ -64,7 +80,14 @@ button {
     cursor: pointer;
     font-size: 1em;
     margin: 5px;
+    border: 3px solid transparent; /* Base border for consistent sizing */
 }
+button.small-refresh-button {
+    padding: 5px 10px;
+    font-size: 0.9em;
+    margin-left: 10px; /* Space from the H2 */
+}
+
 
 button:disabled {
     background-color: var(--disabled-bg-color);
@@ -75,6 +98,23 @@ button.danger {
     background-color: var(--danger-color);
     color: #FFFFFF;
 }
+
+/* Location button status borders */
+#locationButtons button { /* More specific selector for location buttons */
+    border-width: 3px;
+    border-style: solid;
+    border-color: transparent; /* Default: no visible border unless a status class is applied */
+}
+#locationButtons button.location-button-fresh {
+    border-color: var(--status-fresh-color);
+}
+#locationButtons button.location-button-fetching {
+    border-color: var(--status-fetching-color);
+}
+#locationButtons button.location-button-error {
+    border-color: var(--status-error-color);
+}
+
 
 input[type="text"], input[type="password"], input[type="color"] {
     padding: 8px;
@@ -117,7 +157,7 @@ input[type="color"] {
 
 .modal-content.large {
     max-width: 90%;
-    margin: 20px auto; /* Corrected: was missing 'margin:' property name */
+    margin: 20px auto;
 }
 
 .close-button {
@@ -171,15 +211,13 @@ input[type="color"] {
 }
 .sortable-list li.dragging {
     opacity: 0.5;
-    /* You can add other styles here, like a different background or border */
-    /* Example: background-color: var(--primary-color-translucent) or similar */
 }
-.sortable-list li .config-item-buttons { /* Style for the button container */
+.sortable-list li .config-item-buttons { 
     display: flex;
-    gap: 5px; /* Space between Edit and Remove buttons */
+    gap: 5px; 
 }
 .sortable-list li .config-item-buttons button {
-    padding: 5px 10px; /* Smaller padding for buttons in list items */
+    padding: 5px 10px; 
     font-size: 0.9em;
 }
 
