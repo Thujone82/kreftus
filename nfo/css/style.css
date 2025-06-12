@@ -118,7 +118,7 @@ input[type="color"] {
 
 .modal-content.large {
     max-width: 90%;
-    margin: 5% auto;
+    20px auto; /* Reduced top/bottom margin for less space */
 }
 
 .close-button {
