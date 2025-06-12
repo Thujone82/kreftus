@@ -173,19 +173,58 @@ input[type="color"] {
     margin-bottom: 10px;
 }
 
-#infoModalContent h3 {
-    margin-top: 20px;
+/* Info Modal Section Styling */
+#infoModalContent .topic-section {
+    margin-bottom: 10px;
+}
+
+#infoModalContent .collapsible-title {
+    margin-top: 15px;
     margin-bottom: 5px;
     color: var(--primary-color);
     border-bottom: 1px solid var(--primary-color);
     padding-bottom: 5px;
+    cursor: pointer;
+    user-select: none; /* Prevent text selection on click */
+}
+
+#infoModalContent .collapsible-title::after {
+    content: ' ▼'; /* Collapsed indicator */
+    font-size: 0.8em;
+    float: right;
+}
+#infoModalContent .collapsible-title.active::after {
+    content: ' ▲'; /* Expanded indicator */
+}
+
+
+#infoModalContent .collapsible-content {
+    display: none; /* Collapsed by default */
+    padding-left: 10px; /* Indent content slightly */
+    border-left: 2px solid var(--primary-color);
+    margin-left: 5px;
+    margin-top: 5px;
 }
 
 #infoModalContent .ai-topic-content {
-    white-space: pre-wrap; /* Preserve line breaks from AI response */
+    white-space: pre-wrap; 
+}
+#infoModalContent .ai-topic-content h3 {
+    color: var(--primary-color); /* Align with other headers */
+    font-size: 1.2em; /* Ensure it's noticeably larger than paragraph text */
+    margin-top: 1em;
+    margin-bottom: 0.5em;
+    /* font-weight: bold; is default for h3 */
 }
 #infoModalContent .ai-topic-content ul {
-    padding-left: 20px; /* Indent lists a bit */
+    padding-left: 20px; 
     margin-top: 0.5em;
     margin-bottom: 0.5em;
+}
+#infoModalContent .ai-topic-content a {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+#infoModalContent .ai-topic-content a:hover {
+    opacity: 0.8;
 }

@@ -22,41 +22,63 @@ const utils = {
     formatAiResponseToHtml: (text) => {
         if (!text) return '';
 
-        // 1. Replace markdown-style links: [text](url) with <a href="url" target="_blank">text</a>
-        //    Using a non-greedy match for text and URL. Added target="_blank" to open in new tab.
-        let html = text.replace(/\[([^\]]+?)\]\(([^)]+?)\)/g, '<a href="$2" target="_blank">$1</a>');
-
-        // 2. Replace **bold** with <b>bold</b>
-        //    Using a non-greedy match for the content within **
-        html = html.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
-
-        // 3. Process bullet points: * item
-        const lines = html.split('\n');
-        let resultHtml = '';
+        const lines = text.split('\n');
+        let processedLines = [];
         let inList = false;
+
+        const applyInlineFormatting = (lineContent) => {
+            // Apply link formatting first: text to <a href="url" target="_blank">text</a>
+            lineContent = lineContent.replace(/\[([^\]]+?)\]\(([^)]+?)\)/g, '<a href="$2" target="_blank">$1</a>');
+            // Then apply bold formatting: **bold** to <b>bold</b>
+            lineContent = lineContent.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+            return lineContent;
+        };
 
         for (let i = 0; i < lines.length; i++) {
             let line = lines[i];
-            // Check for lines starting with "* " (asterisk and a space)
-            if (line.trim().startsWith('* ')) {
-                if (!inList) {
-                    resultHtml += '<ul>\n';
-                    inList = true;
-                }
-                // Remove the "* " and wrap with <li>, then process the rest of the line
-                resultHtml += '  <li>' + line.trim().substring(2).trim() + '</li>\n';
-            } else {
+            let trimmedLine = line.trim();
+
+            if (trimmedLine.startsWith('### ')) {
                 if (inList) {
-                    resultHtml += '</ul>\n';
+                    processedLines.push('</ul>');
                     inList = false;
                 }
-                resultHtml += line + '\n';
+                let headerContent = trimmedLine.substring(4).trim(); // Get content after "### "
+                headerContent = applyInlineFormatting(headerContent);
+                processedLines.push(`<h3>${headerContent}</h3>`);
+            } else if (trimmedLine.startsWith('* ')) {
+                if (!inList) {
+                    processedLines.push('<ul>');
+                    inList = true;
+                }
+                let listItemContent = trimmedLine.substring(2).trim(); // Get content after "* "
+                listItemContent = applyInlineFormatting(listItemContent);
+                processedLines.push(`  <li>${listItemContent}</li>`);
+            } else {
+                if (inList) {
+                    processedLines.push('</ul>');
+                    inList = false;
+                }
+                // For regular lines that are not empty or just whitespace after potential list closing
+                if (line.trim().length > 0) {
+                    processedLines.push(applyInlineFormatting(line));
+                } else {
+                    // Preserve empty lines if they are not part of list processing logic
+                    // (e.g. multiple empty lines between paragraphs)
+                    // However, if we just closed a list, and the line is empty,
+                    // we might not want to add an extra empty line if the original was just for list separation.
+                    // For simplicity now, we add it if it's not purely whitespace.
+                    // If the original line was empty, it will be added.
+                    // If it was whitespace that got trimmed to empty, it won't.
+                    // This behavior might need refinement based on desired output for mixed content.
+                    processedLines.push(line);
+                }
             }
         }
-        // If the text ends with a list, close it
+
         if (inList) {
-            resultHtml += '</ul>\n';
+            processedLines.push('</ul>');
         }
-        return resultHtml.trim(); // Trim trailing newline if any
+        return processedLines.join('\n').trim();
     }
 };

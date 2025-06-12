@@ -109,16 +109,14 @@ const ui = {
 
         if (ui.isColorDark(contentBackgroundColor)) {
             textColor = '#E0E0E0'; // Light text for dark content background
-            // Make page background slightly lighter than content, or a fixed very dark if content is almost black
             pageBackgroundColor = ui.adjustColorBrightness(contentBackgroundColor, 5); 
-            if (pageBackgroundColor === contentBackgroundColor) { // if content is already very dark
+            if (pageBackgroundColor === contentBackgroundColor) { 
                  pageBackgroundColor = ui.adjustColorBrightness(contentBackgroundColor, 10) === contentBackgroundColor ? '#121212' : ui.adjustColorBrightness(contentBackgroundColor, 10);
             }
         } else {
             textColor = '#121212'; // Dark text for light content background
-            // Make page background slightly darker than content
             pageBackgroundColor = ui.adjustColorBrightness(contentBackgroundColor, -5);
-             if (pageBackgroundColor === contentBackgroundColor) { // if content is already very light
+             if (pageBackgroundColor === contentBackgroundColor) { 
                  pageBackgroundColor = ui.adjustColorBrightness(contentBackgroundColor, -10) === contentBackgroundColor ? '#FAFAFA' : ui.adjustColorBrightness(contentBackgroundColor, -10);
             }
         }
@@ -143,7 +141,7 @@ const ui = {
     loadAppConfigForm: (settings) => {
         ui.apiKeyInput.value = settings.apiKey || '';
         ui.primaryColorInput.value = settings.primaryColor;
-        ui.backgroundColorInput.value = settings.backgroundColor; // This is content area BG
+        ui.backgroundColorInput.value = settings.backgroundColor; 
         ui.appConfigError.textContent = ''; 
         console.log("App config form loaded with settings:", settings);
     },
@@ -221,7 +219,7 @@ const ui = {
         listElement.addEventListener('dragover', (e) => {
             e.preventDefault();
             const afterElement = getDragAfterElement(listElement, e.clientY);
-            if (draggedItem) { // Ensure draggedItem is not null
+            if (draggedItem) { 
                 if (afterElement == null) {
                     listElement.appendChild(draggedItem);
                 } else {
@@ -263,12 +261,25 @@ const ui = {
         topics.forEach(topic => {
             const cacheEntry = cachedData[topic.id];
             const sectionDiv = document.createElement('div');
+            sectionDiv.classList.add('topic-section');
+
             const titleH3 = document.createElement('h3');
             titleH3.textContent = topic.description;
+            titleH3.classList.add('collapsible-title');
+            titleH3.onclick = function() {
+                this.classList.toggle('active');
+                const content = this.nextElementSibling;
+                if (content.style.display === "block") {
+                    content.style.display = "none";
+                } else {
+                    content.style.display = "block";
+                }
+            };
             sectionDiv.appendChild(titleH3);
 
             const contentContainer = document.createElement('div');
-            contentContainer.classList.add('ai-topic-content'); // Add class for styling
+            contentContainer.classList.add('ai-topic-content', 'collapsible-content');
+            // contentContainer.style.display = "none"; // Collapsed by default
 
             if (cacheEntry && cacheEntry.data) {
                 contentContainer.innerHTML = utils.formatAiResponseToHtml(cacheEntry.data);
@@ -321,7 +332,6 @@ const ui = {
         if (locationsList) {
             ui.enableDragAndDrop(locationsList, (newOrderIds) => {
                 // app.js will handle saving on "Save Changes" button click.
-                // The callback in app.js should update app.currentEditingLocations
             });
         }
 
@@ -329,7 +339,6 @@ const ui = {
         if (topicsList) {
             ui.enableDragAndDrop(topicsList, (newOrderIds) => {
                  // app.js will handle saving on "Save Changes" button click.
-                 // The callback in app.js should update app.currentEditingTopics
             });
         }
         console.log("UI initialized");
