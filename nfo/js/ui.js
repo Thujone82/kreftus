@@ -217,12 +217,11 @@ const ui = {
         listElement.addEventListener('dragstart', (e) => {
             if (draggedItem) return; // Prevent starting a new drag if one is already active (e.g., from touch)
 
-            const targetLi = getLiTarget(e.target);
-            if (targetLi && targetLi.draggable) { // Ensure it's a draggable LI
+            const targetLi = getLiTarget(e.target); // e.target should be the LI itself or a child
+            if (targetLi && targetLi.draggable) { 
                 draggedItem = targetLi;
-                // Adding class for visual feedback (e.g., opacity) via CSS
-                // setTimeout is used to allow the browser to paint the drag image before style changes.
                 setTimeout(() => {
+                    // setTimeout allows the browser to paint the drag image before style changes.
                     if (draggedItem) draggedItem.classList.add('dragging');
                 }, 0);
             }
@@ -230,9 +229,12 @@ const ui = {
 
         listElement.addEventListener('dragend', (e) => {
             if (draggedItem) {
-                draggedItem.classList.remove('dragging');
-                draggedItem = null; 
-                onSortCallback(Array.from(listElement.children).map(li => li.dataset.id));
+                // Ensure this dragend corresponds to the item that was being dragged
+                if (e.target === draggedItem) {
+                    draggedItem.classList.remove('dragging');
+                    onSortCallback(Array.from(listElement.children).map(li => li.dataset.id));
+                    draggedItem = null; 
+                }
             }
         });
 
@@ -250,26 +252,29 @@ const ui = {
             }
         });
 
-        // Touch events
-        listElement.addEventListener('touchstart', (e) => {
+        // Touch event handlers
+        const handleTouchStart = (e) => {
             if (draggedItem) return; // Prevent starting a new drag if one is already active
 
             const targetLi = getLiTarget(e.targetTouches[0].target);
-            if (targetLi && targetLi.draggable) { // Check if the target is a draggable LI
+            if (targetLi && targetLi.draggable) { 
                 draggedItem = targetLi;
                 draggedItem.classList.add('dragging'); // Visual feedback
-                // No preventDefault needed here if we want clicks on buttons inside LI to work on tap
-            }
-        }, { passive: true }); // passive:true if not calling preventDefault
 
-        listElement.addEventListener('touchmove', (e) => {
+                // Add move and end listeners to the document for robust event capture
+                document.addEventListener('touchmove', handleTouchMove, { passive: false });
+                document.addEventListener('touchend', handleTouchEnd, { passive: true });
+                document.addEventListener('touchcancel', handleTouchEnd, { passive: true }); // Handle interruption
+            }
+        };
+
+        const handleTouchMove = (e) => {
             if (!draggedItem) return;
 
             e.preventDefault(); // Prevent scrolling while dragging
 
             const touch = e.touches[0];
             const afterElement = getDragAfterElement(listElement, touch.clientY);
-
             if (afterElement === draggedItem) return; // Avoid inserting before/after itself
 
             if (afterElement == null) {
@@ -277,16 +282,27 @@ const ui = {
             } else {
                 listElement.insertBefore(draggedItem, afterElement);
             }
-        }, { passive: false }); // passive:false because we call preventDefault
+        };
 
-        listElement.addEventListener('touchend', (e) => {
+        const handleTouchEnd = (e) => {
             if (!draggedItem) return;
 
             draggedItem.classList.remove('dragging');
             // The item is already in its final DOM position due to touchmove.
             onSortCallback(Array.from(listElement.children).map(li => li.dataset.id));
+            
             draggedItem = null;
-        });
+
+            // Remove document listeners
+            document.removeEventListener('touchmove', handleTouchMove, { passive: false });
+            document.removeEventListener('touchend', handleTouchEnd, { passive: true });
+            document.removeEventListener('touchcancel', handleTouchEnd, { passive: true });
+        };
+
+        // Attach the initial touchstart listener to the list element
+        listElement.addEventListener('touchstart', handleTouchStart, { passive: true }); 
+        // passive:true for touchstart is fine as we only decide to initiate a drag,
+        // preventDefault for scrolling happens in touchmove.
 
 
         function getDragAfterElement(container, y) {
