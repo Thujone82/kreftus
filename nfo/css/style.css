@@ -153,7 +153,12 @@ input[type="color"] {
 .config-item-form input[type="text"] {
     flex-grow: 1;
 }
-
+/* Style for location buttons when info structure is not defined */
+.needs-info-structure {
+    opacity: 0.7;
+    /* Optionally, change background or add an icon if desired */
+    /* background-color: #555 !important; */
+}
 .sortable-list li {
     padding: 8px;
     border: 1px solid var(--list-item-border-color);

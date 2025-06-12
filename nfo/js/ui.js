@@ -139,7 +139,7 @@ const ui = {
         console.log(`Config buttons ${enabled ? 'enabled' : 'disabled'}`);
     },
 
-    renderLocationButtons: (locations, onLocationClickCallback) => {
+    renderLocationButtons: (locations, onLocationClickCallback, areTopicsDefined) => {
         ui.locationButtonsContainer.innerHTML = ''; 
         if (locations && locations.length > 0) {
             ui.locationsSection.classList.remove('hidden');
@@ -148,6 +148,10 @@ const ui = {
                 button.textContent = location.description;
                 button.dataset.locationId = location.id;
                 button.onclick = () => onLocationClickCallback(location.id);
+                if (!areTopicsDefined) {
+                    button.classList.add('needs-info-structure');
+                    button.title = "Info Structure not defined. Click to configure.";
+                }                
                 ui.locationButtonsContainer.appendChild(button);
             });
         } else {

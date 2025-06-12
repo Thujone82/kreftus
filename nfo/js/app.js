@@ -44,7 +44,8 @@ const app = {
 
     loadLocations: () => {
         app.locations = store.getLocations();
-        ui.renderLocationButtons(app.locations, app.handleOpenLocationInfo);
+        const areTopicsDefined = app.topics && app.topics.length > 0;
+        ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
         console.log("Locations loaded:", app.locations);
     },
 
@@ -152,8 +153,9 @@ const app = {
     handleSaveLocationConfig: async () => {
         const oldLocationIds = new Set(app.locations.map(l => l.id));
         app.locations = [...app.currentEditingLocations];
+        const areTopicsDefined = app.topics && app.topics.length > 0;
         store.saveLocations(app.locations);
-        ui.renderLocationButtons(app.locations, app.handleOpenLocationInfo);
+        ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
         ui.closeModal('locationConfigModal');
         console.log("Location configuration saved:", app.locations);
 
@@ -222,10 +224,21 @@ const app = {
         // Reset editing state for next time modal opens
         app.editingTopicId = null;
         ui.addTopicBtn.textContent = 'Add Topic';
+        // Re-render location buttons as their behavior/appearance might change
+        const areTopicsDefined = app.topics && app.topics.length > 0;
+        ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
         console.log("Topic configuration saved. AI Cache flushed.", app.topics);
     },
 
     // --- Info Modal Logic ---
+    handleLocationButtonClick: (locationId) => {
+        if (app.topics && app.topics.length > 0) {
+            app.handleOpenLocationInfo(locationId);
+        } else {
+            alert("Please define an Info Structure before viewing location information.");
+            ui.openModal('infoCollectionConfigModal');
+        }
+    }
     handleOpenLocationInfo: async (locationId) => {
         if (!app.config.apiKey) {
             ui.showAppConfigError("API Key is not configured. Please configure it first.");
