@@ -1,17 +1,17 @@
 const CACHE_NAME = 'info2go-v1-cache';
 const urlsToCache = [
-    '../', // Represents the parent directory (app root, e.g., c:\kreftus\nfo\)
-    '../index.html',
-    '../css/style.css',
-    'app.js',       // Already in the same js/ directory as sw.js
-    'ui.js',        // Already in the same js/ directory as sw.js
-    'stor.js',      // Already in the same js/ directory as sw.js
-    'api.js',       // Already in the same js/ directory as sw.js
-    'utils.js',     // Already in the same js/ directory as sw.js
-    '../icons/i32.png',
-    '../icons/i192.png',
-    '../icons/i512.png',
-    '../manifest.json'
+    './', // Represents the current directory (app root, e.g., c:\kreftus\nfo\)
+    './index.html',
+    './css/style.css',
+    './js/app.js',
+    './js/ui.js',
+    './js/stor.js',
+    './js/api.js',
+    './js/utils.js',
+    './icons/i32.png',
+    './icons/i192.png',
+    './icons/i512.png',
+    './manifest.json'
 ];
 
 self.addEventListener('install', event => {
