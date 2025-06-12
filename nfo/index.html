@@ -12,7 +12,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>Info2Go v.1</h1>
+        <h1><img src="icons/i192.png" alt="Info2Go Icon" class="header-icon">Info2Go v.1</h1>
 
         <section id="locationsSection" class="hidden">
             <h2>Locations</h2>
@@ -44,8 +44,8 @@
                 <input type="color" id="primaryColor" name="primaryColor" value="#03DAC5">
             </div>
             <div>
-                <label for="backgroundColor">Background Color:</label>
-                <input type="color" id="backgroundColor" name="backgroundColor" value="#121212">
+                <label for="backgroundColor">Background Color (Content Area):</label>
+                <input type="color" id="backgroundColor" name="backgroundColor" value="#1E1E1E">
             </div>
             <button id="saveAppConfig">Save</button>
         </div>
@@ -73,7 +73,7 @@
     <div id="infoCollectionConfigModal" class="modal">
         <div class="modal-content">
             <span class="close-button" data-modal-id="infoCollectionConfigModal">&times;</span>
-            <h2>Info Collection Configuration</h2>
+            <h2>Info Structure Configuration</h2>
             <p>Add, remove, and sort topics for information structure.</p>
             <div class="config-item-form">
                 <input type="text" id="topicDescription" placeholder="Description (e.g., Headlines)">
@@ -100,7 +100,7 @@
         </div>
     </div>
 
-    <script src="js/stor.js"></script>
+    <script src="js/store.js"></script>
     <script src="js/api.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/ui.js"></script>

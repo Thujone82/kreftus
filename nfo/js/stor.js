@@ -11,10 +11,11 @@ const store = {
     // Application Settings (API Key, Colors)
     getAppSettings: () => {
         const settings = localStorage.getItem(APP_SETTINGS_KEY);
+        // Default to a dark theme content background
         return settings ? JSON.parse(settings) : { 
             apiKey: '', 
-            primaryColor: '#03DAC5', // Dark theme default primary
-            backgroundColor: '#121212' // Dark theme default background
+            primaryColor: '#03DAC5', 
+            backgroundColor: '#1E1E1E' // Default content area background
         };
     },
     saveAppSettings: (settings) => {
@@ -73,7 +74,6 @@ const store = {
             const key = localStorage.key(i);
             if (key && key.startsWith(AI_CACHE_PREFIX)) {
                 localStorage.removeItem(key);
-                // Decrement i because localStorage.length changes and keys shift
                 i--;
             }
         }

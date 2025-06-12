@@ -13,7 +13,7 @@ const ui = {
     appConfigError: document.getElementById('appConfigError'),
     apiKeyInput: document.getElementById('apiKey'),
     primaryColorInput: document.getElementById('primaryColor'),
-    backgroundColorInput: document.getElementById('backgroundColor'),
+    backgroundColorInput: document.getElementById('backgroundColor'), // This is for content area
     saveAppConfigBtn: document.getElementById('saveAppConfig'),
 
     // Location Config Modal
@@ -63,13 +63,70 @@ const ui = {
         };
     },
 
+    // Helper to determine if a color is dark
+    isColorDark: (hexColor) => {
+        const color = (hexColor.charAt(0) === '#') ? hexColor.substring(1, 7) : hexColor;
+        const r = parseInt(color.substring(0, 2), 16); // hexToR
+        const g = parseInt(color.substring(2, 4), 16); // hexToG
+        const b = parseInt(color.substring(4, 6), 16); // hexToB
+        // Calculate luminance
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        return luminance < 0.5;
+    },
+
+    // Helper to adjust brightness (basic)
+    adjustColorBrightness: (hexColor, percent) => {
+        let R = parseInt(hexColor.substring(1,3),16);
+        let G = parseInt(hexColor.substring(3,5),16);
+        let B = parseInt(hexColor.substring(5,7),16);
+
+        R = parseInt(R * (100 + percent) / 100);
+        G = parseInt(G * (100 + percent) / 100);
+        B = parseInt(B * (100 + percent) / 100);
+
+        R = (R<255)?R:255;  
+        G = (G<255)?G:255;  
+        B = (B<255)?B:255;  
+
+        R = (R>0)?R:0;
+        G = (G>0)?G:0;
+        B = (B>0)?B:0;
+
+        const RR = ((R.toString(16).length==1)?"0"+R.toString(16):R.toString(16));
+        const GG = ((G.toString(16).length==1)?"0"+G.toString(16):G.toString(16));
+        const BB = ((B.toString(16).length==1)?"0"+B.toString(16):B.toString(16));
+
+        return "#"+RR+GG+BB;
+    },
+
     // Theme Application
-    applyTheme: (primaryColor, backgroundColor) => {
+    applyTheme: (primaryColor, contentBackgroundColor) => {
         document.documentElement.style.setProperty('--primary-color', primaryColor);
-        document.documentElement.style.setProperty('--background-color', backgroundColor);
-        // Update manifest theme-color dynamically if possible (complex, usually static)
-        // For simplicity, we'll rely on initial manifest and PWA install time.
-        // Meta theme-color can be updated:
+        document.documentElement.style.setProperty('--content-background-color', contentBackgroundColor);
+
+        let pageBackgroundColor;
+        let textColor;
+
+        if (ui.isColorDark(contentBackgroundColor)) {
+            textColor = '#E0E0E0'; // Light text for dark content background
+            // Make page background slightly lighter than content, or a fixed very dark if content is almost black
+            pageBackgroundColor = ui.adjustColorBrightness(contentBackgroundColor, 5); 
+            if (pageBackgroundColor === contentBackgroundColor) { // if content is already very dark
+                 pageBackgroundColor = ui.adjustColorBrightness(contentBackgroundColor, 10) === contentBackgroundColor ? '#121212' : ui.adjustColorBrightness(contentBackgroundColor, 10);
+            }
+        } else {
+            textColor = '#121212'; // Dark text for light content background
+            // Make page background slightly darker than content
+            pageBackgroundColor = ui.adjustColorBrightness(contentBackgroundColor, -5);
+             if (pageBackgroundColor === contentBackgroundColor) { // if content is already very light
+                 pageBackgroundColor = ui.adjustColorBrightness(contentBackgroundColor, -10) === contentBackgroundColor ? '#FAFAFA' : ui.adjustColorBrightness(contentBackgroundColor, -10);
+            }
+        }
+        
+        document.documentElement.style.setProperty('--text-color', textColor);
+        document.body.style.backgroundColor = pageBackgroundColor;
+
+
         let themeColorMeta = document.querySelector('meta[name="theme-color"]');
         if (themeColorMeta) {
             themeColorMeta.setAttribute('content', primaryColor);
@@ -79,15 +136,15 @@ const ui = {
             themeColorMeta.content = primaryColor;
             document.getElementsByTagName('head')[0].appendChild(themeColorMeta);
         }
-        console.log(`Theme applied: Primary=${primaryColor}, Background=${backgroundColor}`);
+        console.log(`Theme applied: Primary=${primaryColor}, ContentBG=${contentBackgroundColor}, PageBG=${pageBackgroundColor}, Text=${textColor}`);
     },
 
     // App Config UI
     loadAppConfigForm: (settings) => {
         ui.apiKeyInput.value = settings.apiKey || '';
-        ui.primaryColorInput.value = settings.primaryColor || '#4A90E2';
-        ui.backgroundColorInput.value = settings.backgroundColor || '#F0F0F0';
-        ui.appConfigError.textContent = ''; // Clear previous errors
+        ui.primaryColorInput.value = settings.primaryColor;
+        ui.backgroundColorInput.value = settings.backgroundColor; // This is content area BG
+        ui.appConfigError.textContent = ''; 
         console.log("App config form loaded with settings:", settings);
     },
     showAppConfigError: (message) => {
@@ -101,7 +158,7 @@ const ui = {
 
     // Location Buttons on Main Page
     renderLocationButtons: (locations, onLocationClickCallback) => {
-        ui.locationButtonsContainer.innerHTML = ''; // Clear existing buttons
+        ui.locationButtonsContainer.innerHTML = ''; 
         if (locations && locations.length > 0) {
             ui.locationsSection.classList.remove('hidden');
             locations.forEach(location => {
@@ -119,7 +176,7 @@ const ui = {
 
     // Generic List Rendering for Config Modals (Locations & Topics)
     renderConfigList: (items, listElement, type, onRemoveCallback) => {
-        listElement.innerHTML = ''; // Clear existing items
+        listElement.innerHTML = ''; 
         items.forEach((item, index) => {
             const li = document.createElement('li');
             li.textContent = `${item.description} ${type === 'location' ? '(' + item.location + ')' : '(' + item.aiQuery + ')'}`;
@@ -131,7 +188,7 @@ const ui = {
             removeBtn.textContent = 'Remove';
             removeBtn.classList.add('danger');
             removeBtn.onclick = (e) => {
-                e.stopPropagation(); // Prevent drag start
+                e.stopPropagation(); 
                 onRemoveCallback(item.id);
             };
             li.appendChild(removeBtn);
@@ -147,14 +204,14 @@ const ui = {
         listElement.addEventListener('dragstart', (e) => {
             draggedItem = e.target;
             setTimeout(() => {
-                e.target.style.opacity = '0.5';
+                if(e.target.style) e.target.style.opacity = '0.5';
             }, 0);
             console.log("Drag started:", draggedItem.dataset.id);
         });
 
         listElement.addEventListener('dragend', (e) => {
             setTimeout(() => {
-                e.target.style.opacity = '1';
+                if(e.target.style) e.target.style.opacity = '1';
                 draggedItem = null;
             }, 0);
             onSortCallback(Array.from(listElement.children).map(li => li.dataset.id));
@@ -164,10 +221,12 @@ const ui = {
         listElement.addEventListener('dragover', (e) => {
             e.preventDefault();
             const afterElement = getDragAfterElement(listElement, e.clientY);
-            if (afterElement == null) {
-                listElement.appendChild(draggedItem);
-            } else {
-                listElement.insertBefore(draggedItem, afterElement);
+            if (draggedItem) { // Ensure draggedItem is not null
+                if (afterElement == null) {
+                    listElement.appendChild(draggedItem);
+                } else {
+                    listElement.insertBefore(draggedItem, afterElement);
+                }
             }
         });
 
@@ -195,8 +254,8 @@ const ui = {
         }
 
         ui.infoModalTitle.textContent = `${locationData.description} Info2Go`;
-        ui.infoModalContent.innerHTML = ''; // Clear previous content
-        ui.refreshInfoButton.classList.add('hidden'); // Hide by default
+        ui.infoModalContent.innerHTML = ''; 
+        ui.refreshInfoButton.classList.add('hidden'); 
 
         let oldestTimestamp = Date.now();
         let needsRefresh = false;
@@ -219,7 +278,7 @@ const ui = {
                 }
             } else {
                 contentP.textContent = "No data available. Try refreshing.";
-                needsRefresh = true; // If any topic is missing data, allow refresh
+                needsRefresh = true; 
             }
             sectionDiv.appendChild(contentP);
             ui.infoModalContent.appendChild(sectionDiv);
@@ -238,10 +297,6 @@ const ui = {
     },
 
     displayInfoModalError: (topicDescription, errorMessage) => {
-        // This function is intended to be called if a specific topic fails during refresh
-        // It would find the specific topic's P tag and update it.
-        // For simplicity in this initial build, a full refresh might be easier.
-        // Or, we can append a general error message to the modal.
         const errorP = document.createElement('p');
         errorP.classList.add('error-message');
         errorP.textContent = `Error loading ${topicDescription}: ${errorMessage}`;
@@ -260,28 +315,23 @@ const ui = {
     init: () => {
         ui.initModalCloseButtons();
 
-        // Setup drag and drop for sortable lists
         const locationsList = document.getElementById('locationsList');
         if (locationsList) {
             ui.enableDragAndDrop(locationsList, (newOrderIds) => {
-                // This callback will be connected in app.js to update the store
-                console.log("Locations sorted, new order IDs:", newOrderIds);
-                // In a real app, you'd call a function here to reorder and save.
-                // For now, app.js will handle saving on "Save Changes" button click.
+                // app.js will handle saving on "Save Changes" button click.
+                // The callback in app.js should update app.currentEditingLocations
             });
         }
 
         const topicsList = document.getElementById('topicsList');
         if (topicsList) {
             ui.enableDragAndDrop(topicsList, (newOrderIds) => {
-                // This callback will be connected in app.js to update the store
-                console.log("Topics sorted, new order IDs:", newOrderIds);
-                // Similar to locations, app.js will handle saving.
+                 // app.js will handle saving on "Save Changes" button click.
+                 // The callback in app.js should update app.currentEditingTopics
             });
         }
         console.log("UI initialized");
     }
 };
 
-// Initialize UI components on script load
 ui.init();
