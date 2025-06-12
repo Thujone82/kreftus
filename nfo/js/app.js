@@ -243,7 +243,7 @@ const app = {
             alert("Please define an Info Structure before viewing location information.");
             ui.openModal('infoCollectionConfigModal');
         }
-    }, // <<< Added comma here
+    },
     handleOpenLocationInfo: async (locationId) => {
         if (!app.config.apiKey) {
             ui.showAppConfigError("API Key is not configured. Please configure it first.");
@@ -398,7 +398,7 @@ const app = {
                 console.log(`Data for location ${location.description} is fresh.`);
             }
         }
-    },
+    } // REMOVED COMMA HERE
 };
 
 window.addEventListener('unhandledrejection', function(event) {
