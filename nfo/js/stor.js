@@ -1,0 +1,77 @@
+console.log("store.js loaded");
+
+const STORE_PREFIX = 'info2go_';
+
+const APP_SETTINGS_KEY = `${STORE_PREFIX}appSettings`;
+const LOCATIONS_KEY = `${STORE_PREFIX}locations`;
+const TOPICS_KEY = `${STORE_PREFIX}topics`;
+const AI_CACHE_PREFIX = `${STORE_PREFIX}aiCache_`;
+
+const store = {
+    // Application Settings (API Key, Colors)
+    getAppSettings: (). {
+        const settings = localStorage.getItem(APP_SETTINGS_KEY);
+        return settings ? JSON.parse(settings) : { apiKey: '', primaryColor: '#4A90E2', backgroundColor: '#F0F0F0' };
+    },
+    saveAppSettings: (settings) => {
+        localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(settings));
+        console.log("App settings saved:", settings);
+    },
+
+    // Locations
+    getLocations: () => {
+        const locations = localStorage.getItem(LOCATIONS_KEY);
+        return locations ? JSON.parse(locations) : [];
+    },
+    saveLocations: (locations) => {
+        localStorage.setItem(LOCATIONS_KEY, JSON.stringify(locations));
+        console.log("Locations saved:", locations);
+    },
+
+    // Topics
+    getTopics: () => {
+        const topics = localStorage.getItem(TOPICS_KEY);
+        return topics ? JSON.parse(topics) : [];
+    },
+    saveTopics: (topics) => {
+        localStorage.setItem(TOPICS_KEY, JSON.stringify(topics));
+        console.log("Topics saved:", topics);
+    },
+
+    // AI Query Cache
+    getAiCache: (locationId, topicId) => {
+        const cacheKey = `${AI_CACHE_PREFIX}${locationId}_${topicId}`;
+        const cachedItem = localStorage.getItem(cacheKey);
+        return cachedItem ? JSON.parse(cachedItem) : null;
+    },
+    saveAiCache: (locationId, topicId, data) => {
+        const cacheKey = `${AI_CACHE_PREFIX}${locationId}_${topicId}`;
+        const itemToCache = {
+            timestamp: Date.now(),
+            data: data
+        };
+        localStorage.setItem(cacheKey, JSON.stringify(itemToCache));
+        console.log(`AI Cache saved for ${locationId} - ${topicId}`);
+    },
+    flushAiCacheForLocation: (locationId) => {
+        console.log(`Flushing AI cache for location ID: ${locationId}`);
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith(`${AI_CACHE_PREFIX}${locationId}_`)) {
+                localStorage.removeItem(key);
+                console.log(`Removed cache item: ${key}`);
+            }
+        }
+    },
+    flushAllAiCache: () => {
+        console.log("Flushing all AI cache");
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith(AI_CACHE_PREFIX)) {
+                localStorage.removeItem(key);
+                // Decrement i because localStorage.length changes and keys shift
+                i--;
+            }
+        }
+    }
+};

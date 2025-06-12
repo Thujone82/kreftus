@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#4A90E2"/>
+    <title>Info2Go v.1</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icons/i32.png" type="image/png">
+    <link rel="apple-touch-icon" href="icons/i192.png">
+</head>
+<body>
+    <div class="container">
+        <h1>Info2Go v.1</h1>
+
+        <section id="locationsSection" class="hidden">
+            <h2>Locations</h2>
+            <div id="locationButtons">
+                <!-- Location buttons will be dynamically added here -->
+            </div>
+        </section>
+
+        <section id="configurationSection">
+            <h2>Configuration</h2>
+            <button id="btnLocationsConfig" disabled>Locations</button>
+            <button id="btnInfoCollectionConfig" disabled>Info Collection</button>
+            <button id="btnAppConfig">Application</button>
+        </section>
+    </div>
+
+    <!-- Application Config Modal -->
+    <div id="appConfigModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" data-modal-id="appConfigModal">&times;</span>
+            <h2>Application Configuration</h2>
+            <div id="appConfigError" class="error-message"></div>
+            <div>
+                <label for="apiKey">API Key:</label>
+                <input type="password" id="apiKey" name="apiKey">
+            </div>
+            <div>
+                <label for="primaryColor">Primary Color:</label>
+                <input type="color" id="primaryColor" name="primaryColor" value="#4A90E2">
+            </div>
+            <div>
+                <label for="backgroundColor">Background Color:</label>
+                <input type="color" id="backgroundColor" name="backgroundColor" value="#F0F0F0">
+            </div>
+            <button id="saveAppConfig">Save</button>
+        </div>
+    </div>
+
+    <!-- Location Config Modal -->
+    <div id="locationConfigModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" data-modal-id="locationConfigModal">&times;</span>
+            <h2>Location Configuration</h2>
+            <p>Add, remove, and sort locations.</p>
+            <div class="config-item-form">
+                <input type="text" id="locationDescription" placeholder="Description (e.g., Portland)">
+                <input type="text" id="locationValue" placeholder="Location (e.g., Portland, OR)">
+                <button id="addLocation">Add Location</button>
+            </div>
+            <ul id="locationsList" class="sortable-list">
+                <!-- Locations will be listed here -->
+            </ul>
+            <button id="saveLocationConfig">Save Changes</button>
+        </div>
+    </div>
+
+    <!-- Info Collection Config Modal -->
+    <div id="infoCollectionConfigModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" data-modal-id="infoCollectionConfigModal">&times;</span>
+            <h2>Info Collection Configuration</h2>
+            <p>Add, remove, and sort topics for information gathering.</p>
+            <div class="config-item-form">
+                <input type="text" id="topicDescription" placeholder="Description (e.g., Headlines)">
+                <input type="text" id="topicAiQuery" placeholder="AI Query (e.g., Top 5 stories)">
+                <button id="addTopic">Add Topic</button>
+            </div>
+            <ul id="topicsList" class="sortable-list">
+                <!-- Topics will be listed here -->
+            </ul>
+            <button id="saveTopicConfig">Save Changes</button>
+        </div>
+    </div>
+
+    <!-- Info Modal -->
+    <div id="infoModal" class="modal">
+        <div class="modal-content large">
+            <span class="close-button" data-modal-id="infoModal">&times;</span>
+            <h2 id="infoModalTitle"></h2>
+            <p id="infoModalUpdated" class="updated-text"></p>
+            <button id="refreshInfoButton" class="hidden">Refresh</button>
+            <div id="infoModalContent">
+                <!-- AI query results will be displayed here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="js/store.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
