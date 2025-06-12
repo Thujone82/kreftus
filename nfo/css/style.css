@@ -18,18 +18,18 @@
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     margin: 0;
-    padding: 15px; /* Reduced padding */
-    background-color: #121212; /* Default page background, will be dynamically adjusted */
-    color: var(--text-color); /* Default text color for body, might be overridden by .container */
+    padding: 15px;
+    background-color: #121212;
+    color: var(--text-color);
     line-height: 1.6;
     transition: background-color 0.3s ease;
 }
 
 .container {
     max-width: 800px;
-    margin: 0 auto; /* Reduced top margin by removing default h1 margin */
+    margin: 0 auto;
     background-color: var(--content-background-color);
-    color: var(--text-color); /* Text color for content area */
+    color: var(--text-color);
     padding: 20px;
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.2);
@@ -39,12 +39,12 @@ h1 {
     color: var(--primary-color);
     display: flex;
     align-items: center;
-    margin-top: 0; /* Remove default top margin */
+    margin-top: 0;
     margin-bottom: 20px;
 }
 
 .header-icon {
-    height: 1.2em; /* Match text height (adjust as needed) */
+    height: 1.2em;
     width: auto;
     margin-right: 10px;
     vertical-align: middle;
@@ -52,7 +52,7 @@ h1 {
 
 h2 {
     color: var(--primary-color);
-    margin-top: 15px; /* Adjusted for consistency */
+    margin-top: 15px;
 }
 
 button {
@@ -73,7 +73,7 @@ button:disabled {
 
 button.danger {
     background-color: var(--danger-color);
-    color: #FFFFFF; /* Ensure contrast on danger buttons */
+    color: #FFFFFF;
 }
 
 input[type="text"], input[type="password"], input[type="color"] {
@@ -86,29 +86,28 @@ input[type="text"], input[type="password"], input[type="color"] {
     box-sizing: border-box;
 }
 input[type="color"] {
-    min-height: 38px; /* Ensure color picker has some height */
+    min-height: 38px;
 }
-
 
 /* Modal Styles */
 .modal {
-    display: none; /* Hidden by default */
-    position: fixed; /* Stay in place */
-    z-index: 1000; /* Sit on top */
+    display: none;
+    position: fixed;
+    z-index: 1000;
     left: 0;
     top: 0;
-    width: 100%; /* Full width */
-    height: 100%; /* Full height */
-    overflow: auto; /* Enable scroll if needed */
-    background-color: rgba(0,0,0,0.6); /* Slightly darker overlay */
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.6);
 }
 
 .modal-content {
-    background-color: var(--content-background-color); /* Use content background for modals too */
-    color: var(--text-color); /* Text color for modals */
+    background-color: var(--content-background-color);
+    color: var(--text-color);
     margin: 10% auto; 
     padding: 25px;
-    border: 1px solid var(--input-border-color); /* Use a consistent border color */
+    border: 1px solid var(--input-border-color);
     width: 80%; 
     max-width: 600px;
     border-radius: 8px;
@@ -118,7 +117,7 @@ input[type="color"] {
 
 .modal-content.large {
     max-width: 90%;
-    20px auto; /* Reduced top/bottom margin for less space */
+    margin: 20px auto; /* Corrected: was missing 'margin:' property name */
 }
 
 .close-button {
@@ -130,7 +129,7 @@ input[type="color"] {
 
 .close-button:hover,
 .close-button:focus {
-    color: var(--text-color); /* Use main text color on hover for better visibility */
+    color: var(--text-color);
     text-decoration: none;
     cursor: pointer;
 }
@@ -149,12 +148,11 @@ input[type="color"] {
     display: flex;
     gap: 10px;
     align-items: center;
-    flex-wrap: wrap; /* Allow wrapping on smaller screens */
+    flex-wrap: wrap;
 }
 .config-item-form input[type="text"] {
-    flex-grow: 1; /* Allow inputs to take available space */
+    flex-grow: 1;
 }
-
 
 .sortable-list li {
     padding: 8px;
@@ -167,10 +165,24 @@ input[type="color"] {
     align-items: center;
 }
 
+.sortable-list li .config-item-buttons { /* Style for the button container */
+    display: flex;
+    gap: 5px; /* Space between Edit and Remove buttons */
+}
+.sortable-list li .config-item-buttons button {
+    padding: 5px 10px; /* Smaller padding for buttons in list items */
+    font-size: 0.9em;
+}
+
+
 .updated-text {
     font-size: 0.9em;
     color: var(--updated-text-color);
     margin-bottom: 10px;
+}
+
+#infoModalTitle {
+    margin-top: 0;
 }
 
 /* Info Modal Section Styling */
@@ -185,22 +197,21 @@ input[type="color"] {
     border-bottom: 1px solid var(--primary-color);
     padding-bottom: 5px;
     cursor: pointer;
-    user-select: none; /* Prevent text selection on click */
+    user-select: none;
 }
 
 #infoModalContent .collapsible-title::after {
-    content: ' ▼'; /* Collapsed indicator */
+    content: ' ▼';
     font-size: 0.8em;
     float: right;
 }
 #infoModalContent .collapsible-title.active::after {
-    content: ' ▲'; /* Expanded indicator */
+    content: ' ▲';
 }
 
-
 #infoModalContent .collapsible-content {
-    display: none; /* Collapsed by default */
-    padding-left: 10px; /* Indent content slightly */
+    display: none;
+    padding-left: 10px;
     border-left: 2px solid var(--primary-color);
     margin-left: 5px;
     margin-top: 5px;
@@ -210,11 +221,10 @@ input[type="color"] {
     white-space: pre-wrap; 
 }
 #infoModalContent .ai-topic-content h3 {
-    color: var(--primary-color); /* Align with other headers */
-    font-size: 1.2em; /* Ensure it's noticeably larger than paragraph text */
+    color: var(--primary-color);
+    font-size: 1.2em;
     margin-top: 1em;
     margin-bottom: 0.5em;
-    /* font-weight: bold; is default for h3 */
 }
 #infoModalContent .ai-topic-content ul {
     padding-left: 20px; 
