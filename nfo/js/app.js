@@ -223,12 +223,12 @@ const app = {
         if(ui.infoModalContent) ui.infoModalContent.innerHTML = '<p>Fetching data...</p>';
         ui.openModal('infoModal');
 
-        // Fetch data. The fetch function will update the modal title with progress.
+        // Fetch data. The fetch function will update the modal title with progress if fetching is needed.
         await app.fetchAndCacheAiDataForLocation(locationId, false); 
         
         // After fetching (or if no fetching was needed), display the content.
         // The title might have been updated by fetchAndCacheAiDataForLocation if fetching occurred.
-        // If no fetching occurred, or after it's done, we re-render the modal with actual data.
+        // Now, always re-render the modal with the latest data.
         const cachedDataForLocation = {};
         let needsOverallRefreshForModal = false;
         app.topics.forEach(topic => {
@@ -239,7 +239,7 @@ const app = {
                 needsOverallRefreshForModal = true;
             }
         });
-        ui.displayInfoModal(location, app.topics, cachedDataForLocation); // This sets the final title if not fetching
+        ui.displayInfoModal(location, app.topics, cachedDataForLocation); // This will now set the final title and content
         
         if (needsOverallRefreshForModal && ui.refreshInfoButton) { 
             ui.refreshInfoButton.classList.remove('hidden'); 
@@ -256,13 +256,9 @@ const app = {
         if (!location) return;
         if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${location.description} nfo2Go - Refreshing...`;
         if(ui.infoModalContent) ui.infoModalContent.innerHTML = '<p>Fetching fresh data...</p>';
-        await app.fetchAndCacheAiDataForLocation(locationId, true); 
-        // After fetch, handleOpenLocationInfo will be called by updateInfoModalLoadingMessage's timeout
-        // or directly if no fetches were made by fetchAndCacheAiDataForLocation.
-        // For robustness, ensure it's called if the modal is still open for this location.
-        if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId) {
-            app.handleOpenLocationInfo(locationId);
-        }
+        await app.fetchAndCacheAiDataForLocation(locationId, true); // Force refresh
+        // After fetching, call handleOpenLocationInfo again to re-render with fresh data
+        app.handleOpenLocationInfo(locationId); 
     },
 
     fetchAndCacheAiDataForLocation: async (locationId, forceRefresh = false) => {
@@ -317,10 +313,8 @@ const app = {
             delete app.fetchingStatus[locationId];
             ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
             app.updateGlobalRefreshButtonVisibility();
-            // If modal is open for this location, ensure title is reset
-            if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId) {
+            if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId && ui.infoModalTitle) {
                  if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${location.description} nfo2Go`;
-                 // Potentially re-render modal content if it was showing "Fetching data..."
                  app.handleOpenLocationInfo(locationId);
             }
             return true; 
@@ -365,35 +359,22 @@ const app = {
             return false; 
         }
         
-        // If all fetches are done and the modal was showing progress, ensure it's updated to final state
-        if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId && completedCount === fetchPromises.length) {
-             // The timeout in updateInfoModalLoadingMessage will handle final display update
-        }
-
-
         return allIndividualFetchesSuccessful;
     },
     
     updateInfoModalLoadingMessage: (locationDescription, completed, total) => {
         if (ui.infoModalTitle) {
-            if (total === 0) { // Handle case where no topics were to be fetched
-                 ui.infoModalTitle.textContent = `${locationDescription} nfo2Go`;
-                 // Potentially call handleOpenLocationInfo here if needed to refresh content
-                 if (app.currentLocationIdForInfoModal) {
-                    // Small delay to allow UI to settle before re-rendering content
-                    setTimeout(() => app.handleOpenLocationInfo(app.currentLocationIdForInfoModal), 50);
-                 }
+            if (total === 0) { 
+                // Title will be set by displayInfoModal in handleOpenLocationInfo
             } else {
                 ui.infoModalTitle.textContent = `${locationDescription} nfo2Go - Fetching (${completed}/${total})`;
                 if (completed === total){
                      setTimeout(() => {
                         // Check if modal is still open for this location before updating
                         if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal && app.locations.find(l=>l.id === app.currentLocationIdForInfoModal)?.description === locationDescription) {
-                           if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${locationDescription} nfo2Go`;
-                           // Re-render the modal content now that fetching is complete
-                           app.handleOpenLocationInfo(app.currentLocationIdForInfoModal);
+                           // The calling function (handleOpenLocationInfo) will handle the final display update.
                         }
-                    }, 150); // Increased delay slightly
+                    }, 50); // Short delay for the last progress update to be visible
                 }
             }
         }
@@ -420,11 +401,7 @@ const app = {
                 anyFetchesInitiated = true;
                 // Don't await here, let them run in parallel across locations too
                 app.fetchAndCacheAiDataForLocation(location.id, true).then(success => {
-                    // If the info modal was open for this specific location and fetch was successful, refresh its content
-                    if (success && ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === location.id) {
-                        // The fetchAndCacheAiDataForLocation itself will trigger a re-render of the modal
-                        // via updateInfoModalLoadingMessage's timeout mechanism.
-                    } else if (!success) {
+                    if (!success) {
                          console.warn(`Background refresh for ${location.description} encountered errors or an API key issue.`);
                     }
                 });
