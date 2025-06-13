@@ -346,6 +346,12 @@ const ui = {
             const collapseHint = document.createElement('span');
             collapseHint.classList.add('collapse-hint');
             collapseHint.innerHTML = 'Collapse &#9650;'; // Up arrow
+            // Make the collapse hint clickable
+            collapseHint.onclick = function() {
+                // Find the corresponding title (H3) and trigger its click
+                const currentTitleH3 = this.closest('.topic-section').querySelector('.collapsible-title');
+                if (currentTitleH3) currentTitleH3.click();
+            };
             topicFooter.appendChild(collapseHint);
             
             contentContainer.appendChild(topicFooter); // Append footer to the content

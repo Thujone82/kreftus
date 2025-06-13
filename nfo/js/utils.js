@@ -36,33 +36,43 @@ const utils = {
 
         for (let i = 0; i < lines.length; i++) {
             let line = lines[i];
-            let trimmedLine = line.trim();
+            // Robustly trim the line: replace common problematic Unicode spaces with a regular space, then trim.
+            // \u00A0 is Non-Breaking Space, \u200B is Zero-Width Space, \uFEFF is BOM.
+            let cleanTrimmedLine = line.replace(/[\u00A0\u200B\uFEFF]+/g, ' ').trim();
 
-            if (trimmedLine.startsWith('### ')) {
+            if (cleanTrimmedLine.startsWith('### ')) {
                 if (inList) {
                     processedLines.push('</ul>');
                     inList = false;
                 }
-                let headerContent = trimmedLine.substring(4).trim(); // Get content after "### "
+                // Extract content AFTER '### ' from the cleanTrimmedLine
+                let headerContent = cleanTrimmedLine.substring(4).trim(); // .trim() again for safety after substring
                 headerContent = applyInlineFormatting(headerContent);
                 processedLines.push(`<h3>${headerContent}</h3>`);
-            } else if (trimmedLine.startsWith('* ')) {
+            } else if (cleanTrimmedLine.startsWith('* ')) {
                 if (!inList) {
                     processedLines.push('<ul>');
                     inList = true;
                 }
-                let listItemContent = trimmedLine.substring(2).trim(); // Get content after "* "
+                // Extract content AFTER '* ' from the cleanTrimmedLine
+                let listItemContent = cleanTrimmedLine.substring(2).trim(); // .trim() again for safety
                 listItemContent = applyInlineFormatting(listItemContent);
                 processedLines.push(`  <li>${listItemContent}</li>`);
-            } else {
+            } else { // Regular line or truly blank line
                 if (inList) {
                     processedLines.push('</ul>');
                     inList = false;
                 }
 
-                if (line.trim().length > 0) {
-                    processedLines.push(applyInlineFormatting(line));
-                } else {
+                if (cleanTrimmedLine.length > 0) { // If content exists after robust cleaning
+                    // Use the original line for formatting if cleanTrimmedLine was derived from it and had content.
+                    // This preserves original spacing within the line if robust cleaning only removed leading/trailing problematic chars.
+                    // However, if cleanTrimmedLine IS the content (e.g. only standard spaces were trimmed), use it.
+                    // For simplicity and to ensure problematic chars don't make it to output, we'll use cleanTrimmedLine.
+                    // If original internal spacing is critical and different from cleanTrimmedLine, this might need adjustment.
+                    // For now, prioritizing clean output.
+                    processedLines.push(applyInlineFormatting(cleanTrimmedLine));
+                } else { // Line is genuinely blank
                     // Add a blank line only if the previous line wasn't also blank
                     if (processedLines.length === 0 || processedLines[processedLines.length - 1].trim().length > 0) {
                         processedLines.push(''); // Add a single empty string for a blank line
