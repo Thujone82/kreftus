@@ -20,12 +20,12 @@ const app = {
 
         if (app.config && app.config.apiKey) {
             ui.toggleConfigButtons(true);
-            app.refreshOutdatedQueries(); 
+            // Automatic refresh on init is removed. User will use the button.
         } else {
             ui.toggleConfigButtons(false);
             ui.openModal('appConfigModal'); 
         }
-        app.updateGlobalRefreshButtonVisibility(); 
+        app.updateGlobalRefreshButtonVisibility(); // Initial check for button visibility
         console.log("App initialized.");
     },
 
@@ -112,11 +112,11 @@ const app = {
         const newBackgroundColor = ui.backgroundColorInput.value;
 
         if (!newApiKey) {
-            ui.showAppConfigError("API Key is required.");
+            if(ui.appConfigError) ui.appConfigError.textContent = "API Key is required.";
             if (ui.getApiKeyLinkContainer) ui.getApiKeyLinkContainer.classList.remove('hidden'); 
             return;
         }
-        ui.showAppConfigError("");
+        if(ui.appConfigError) ui.appConfigError.textContent = "";
         if (ui.getApiKeyLinkContainer) ui.getApiKeyLinkContainer.classList.add('hidden'); 
 
         app.config.apiKey = newApiKey;
@@ -128,7 +128,7 @@ const app = {
         ui.toggleConfigButtons(true);
         ui.closeModal('appConfigModal');
         console.log("App settings saved. API Key present.");
-        app.refreshOutdatedQueries(); 
+        app.updateGlobalRefreshButtonVisibility(); 
     },
 
     handleAddLocationToEditList: () => {
@@ -159,7 +159,7 @@ const app = {
                 await app.fetchAndCacheAiDataForLocation(location.id, true);
             }
         }
-        app.refreshOutdatedQueries();
+        app.updateGlobalRefreshButtonVisibility(); 
     },
 
     prepareEditTopic: (topicId) => {
@@ -202,7 +202,7 @@ const app = {
         app.editingTopicId = null; ui.addTopicBtn.textContent = 'Add Topic';
         const areTopicsDefined = app.topics && app.topics.length > 0;
         ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined); 
-        app.refreshOutdatedQueries(true); 
+        app.updateGlobalRefreshButtonVisibility(); 
     },
 
     handleLocationButtonClick: (locationId) => {
@@ -210,14 +210,25 @@ const app = {
         else { alert("Please define an Info Structure before viewing location information."); ui.openModal('infoCollectionConfigModal'); }
     },
     handleOpenLocationInfo: async (locationId) => {
-        if (!app.config.apiKey) { ui.showAppConfigError("API Key is not configured. Please configure it first."); ui.openModal('appConfigModal'); return; }
+        if (!app.config.apiKey) { 
+            if(ui.appConfigError) ui.appConfigError.textContent = "API Key is not configured. Please configure it first."; 
+            ui.openModal('appConfigModal'); return; 
+        }
         app.currentLocationIdForInfoModal = locationId;
         const location = app.locations.find(l => l.id === locationId);
         if (!location) return;
-        ui.infoModalTitle.textContent = `${location.description} nfo2Go - Loading...`;
-        ui.infoModalContent.innerHTML = '<p>Fetching data...</p>';
+
+        // Initial loading message
+        if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${location.description} nfo2Go - Loading...`;
+        if(ui.infoModalContent) ui.infoModalContent.innerHTML = '<p>Fetching data...</p>';
         ui.openModal('infoModal');
+
+        // Fetch data. The fetch function will update the modal title with progress.
         await app.fetchAndCacheAiDataForLocation(locationId, false); 
+        
+        // After fetching (or if no fetching was needed), display the content.
+        // The title might have been updated by fetchAndCacheAiDataForLocation if fetching occurred.
+        // If no fetching occurred, or after it's done, we re-render the modal with actual data.
         const cachedDataForLocation = {};
         let needsOverallRefreshForModal = false;
         app.topics.forEach(topic => {
@@ -228,9 +239,14 @@ const app = {
                 needsOverallRefreshForModal = true;
             }
         });
-        ui.displayInfoModal(location, app.topics, cachedDataForLocation);
-        if (needsOverallRefreshForModal) { ui.refreshInfoButton.classList.remove('hidden'); ui.refreshInfoButton.dataset.locationId = locationId; }
-        else ui.refreshInfoButton.classList.add('hidden');
+        ui.displayInfoModal(location, app.topics, cachedDataForLocation); // This sets the final title if not fetching
+        
+        if (needsOverallRefreshForModal && ui.refreshInfoButton) { 
+            ui.refreshInfoButton.classList.remove('hidden'); 
+            ui.refreshInfoButton.dataset.locationId = locationId; 
+        } else if (ui.refreshInfoButton) {
+            ui.refreshInfoButton.classList.add('hidden');
+        }
     },
 
     handleRefreshLocationInfo: async (locationId) => {
@@ -238,16 +254,22 @@ const app = {
         if (!locationId) return;
         const location = app.locations.find(l => l.id === locationId);
         if (!location) return;
-        ui.infoModalTitle.textContent = `${location.description} nfo2Go - Refreshing...`;
-        ui.infoModalContent.innerHTML = '<p>Fetching fresh data...</p>';
+        if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${location.description} nfo2Go - Refreshing...`;
+        if(ui.infoModalContent) ui.infoModalContent.innerHTML = '<p>Fetching fresh data...</p>';
         await app.fetchAndCacheAiDataForLocation(locationId, true); 
-        app.handleOpenLocationInfo(locationId);
+        // After fetch, handleOpenLocationInfo will be called by updateInfoModalLoadingMessage's timeout
+        // or directly if no fetches were made by fetchAndCacheAiDataForLocation.
+        // For robustness, ensure it's called if the modal is still open for this location.
+        if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId) {
+            app.handleOpenLocationInfo(locationId);
+        }
     },
 
     fetchAndCacheAiDataForLocation: async (locationId, forceRefresh = false) => {
         if (!app.config.apiKey) {
             if (document.getElementById('appConfigModal').style.display !== 'block') {
-                 ui.showAppConfigError("API Key is required to fetch data."); ui.openModal('appConfigModal');
+                 if(ui.appConfigError) ui.appConfigError.textContent = "API Key is required to fetch data."; 
+                 ui.openModal('appConfigModal');
             } return false; 
         }
         const location = app.locations.find(l => l.id === locationId);
@@ -258,6 +280,19 @@ const app = {
         ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
         
         console.log(`Fetching/Caching AI data for location: ${location.description}. Force refresh: ${forceRefresh}`);
+        
+        let completedCount = 0;
+        const totalTopicsToFetchInitially = app.topics.filter(topic => {
+            const cacheEntry = store.getAiCache(locationId, topic.id);
+            const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > (60 * 60 * 1000);
+            const hasError = cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:');
+            return forceRefresh || isStale || hasError;
+        }).length;
+
+        // Update modal title immediately if it's open for this location
+        if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId && totalTopicsToFetchInitially > 0) {
+            app.updateInfoModalLoadingMessage(location.description, completedCount, totalTopicsToFetchInitially);
+        }
         
         const fetchPromises = [];
         let anInvalidKeyErrorOccurred = false;
@@ -282,6 +317,12 @@ const app = {
             delete app.fetchingStatus[locationId];
             ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
             app.updateGlobalRefreshButtonVisibility();
+            // If modal is open for this location, ensure title is reset
+            if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId) {
+                 if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${location.description} nfo2Go`;
+                 // Potentially re-render modal content if it was showing "Fetching data..."
+                 app.handleOpenLocationInfo(locationId);
+            }
             return true; 
         }
 
@@ -291,10 +332,12 @@ const app = {
         results.forEach(result => {
             if (result.status === 'fulfilled') {
                 store.saveAiCache(locationId, result.value.topicId, result.value.value);
+                completedCount++;
                 console.log(`Successfully fetched and cached data for ${location.description} - ${result.value.topicDescription}`);
             } else { // status === 'rejected'
                 allIndividualFetchesSuccessful = false;
-                const error = result.reason.reason; // The actual error object
+                completedCount++; // Still counts as a settled promise for progress
+                const error = result.reason.reason; 
                 const topicId = result.reason.topicId;
                 const topicDescription = result.reason.topicDescription;
 
@@ -305,6 +348,10 @@ const app = {
                     anInvalidKeyErrorOccurred = true;
                 }
             }
+            // Update progress if modal is open for this location
+            if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId) {
+                app.updateInfoModalLoadingMessage(location.description, completedCount, fetchPromises.length);
+            }
         });
 
         delete app.fetchingStatus[locationId];
@@ -312,13 +359,44 @@ const app = {
         app.updateGlobalRefreshButtonVisibility();
 
         if (anInvalidKeyErrorOccurred) {
-            ui.closeModal('infoModal'); // Close info modal if open
-            ui.showAppConfigError("Invalid API Key. Please check your configuration and save.");
+            if(ui.infoModal) ui.closeModal('infoModal'); 
+            if(ui.appConfigError) ui.appConfigError.textContent = "Invalid API Key. Please check your configuration and save.";
             ui.openModal('appConfigModal');
-            return false; // Indicate overall failure due to API key
+            return false; 
+        }
+        
+        // If all fetches are done and the modal was showing progress, ensure it's updated to final state
+        if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId && completedCount === fetchPromises.length) {
+             // The timeout in updateInfoModalLoadingMessage will handle final display update
         }
 
+
         return allIndividualFetchesSuccessful;
+    },
+    
+    updateInfoModalLoadingMessage: (locationDescription, completed, total) => {
+        if (ui.infoModalTitle) {
+            if (total === 0) { // Handle case where no topics were to be fetched
+                 ui.infoModalTitle.textContent = `${locationDescription} nfo2Go`;
+                 // Potentially call handleOpenLocationInfo here if needed to refresh content
+                 if (app.currentLocationIdForInfoModal) {
+                    // Small delay to allow UI to settle before re-rendering content
+                    setTimeout(() => app.handleOpenLocationInfo(app.currentLocationIdForInfoModal), 50);
+                 }
+            } else {
+                ui.infoModalTitle.textContent = `${locationDescription} nfo2Go - Fetching (${completed}/${total})`;
+                if (completed === total){
+                     setTimeout(() => {
+                        // Check if modal is still open for this location before updating
+                        if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal && app.locations.find(l=>l.id === app.currentLocationIdForInfoModal)?.description === locationDescription) {
+                           if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${locationDescription} nfo2Go`;
+                           // Re-render the modal content now that fetching is complete
+                           app.handleOpenLocationInfo(app.currentLocationIdForInfoModal);
+                        }
+                    }, 150); // Increased delay slightly
+                }
+            }
+        }
     },
 
     refreshOutdatedQueries: async (forceAllStale = false) => {
@@ -342,8 +420,10 @@ const app = {
                 anyFetchesInitiated = true;
                 // Don't await here, let them run in parallel across locations too
                 app.fetchAndCacheAiDataForLocation(location.id, true).then(success => {
+                    // If the info modal was open for this specific location and fetch was successful, refresh its content
                     if (success && ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === location.id) {
-                        app.handleOpenLocationInfo(location.id); 
+                        // The fetchAndCacheAiDataForLocation itself will trigger a re-render of the modal
+                        // via updateInfoModalLoadingMessage's timeout mechanism.
                     } else if (!success) {
                          console.warn(`Background refresh for ${location.description} encountered errors or an API key issue.`);
                     }

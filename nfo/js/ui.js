@@ -13,7 +13,7 @@ const ui = {
     appConfigModal: document.getElementById('appConfigModal'),
     appConfigError: document.getElementById('appConfigError'),
     apiKeyInput: document.getElementById('apiKey'),
-    getApiKeyLinkContainer: document.getElementById('getApiKeyLinkContainer'), // Added
+    getApiKeyLinkContainer: document.getElementById('getApiKeyLinkContainer'), 
     primaryColorInput: document.getElementById('primaryColor'),
     backgroundColorInput: document.getElementById('backgroundColor'),
     saveAppConfigBtn: document.getElementById('saveAppConfig'),
@@ -140,10 +140,10 @@ const ui = {
     },
 
     loadAppConfigForm: (settings) => {
-        ui.apiKeyInput.value = settings.apiKey || '';
-        ui.primaryColorInput.value = settings.primaryColor;
-        ui.backgroundColorInput.value = settings.backgroundColor; 
-        ui.appConfigError.textContent = ''; 
+        if(ui.apiKeyInput) ui.apiKeyInput.value = settings.apiKey || '';
+        if(ui.primaryColorInput) ui.primaryColorInput.value = settings.primaryColor;
+        if(ui.backgroundColorInput) ui.backgroundColorInput.value = settings.backgroundColor; 
+        if(ui.appConfigError) ui.appConfigError.textContent = ''; 
 
         if (settings.apiKey && ui.getApiKeyLinkContainer) {
             ui.getApiKeyLinkContainer.classList.add('hidden');
@@ -152,19 +152,18 @@ const ui = {
         }
         console.log("App config form loaded with settings:", settings);
     },
-    showAppConfigError: (message) => {
-        ui.appConfigError.textContent = message;
-    },
+
     toggleConfigButtons: (enabled) => {
-        ui.btnLocationsConfig.disabled = !enabled;
-        ui.btnInfoCollectionConfig.disabled = !enabled;
+        if(ui.btnLocationsConfig) ui.btnLocationsConfig.disabled = !enabled;
+        if(ui.btnInfoCollectionConfig) ui.btnInfoCollectionConfig.disabled = !enabled;
         console.log(`Config buttons ${enabled ? 'enabled' : 'disabled'}`);
     },
 
     renderLocationButtons: (locations, onLocationClickCallback, areTopicsDefined) => {
+        if(!ui.locationButtonsContainer) return;
         ui.locationButtonsContainer.innerHTML = ''; 
         if (locations && locations.length > 0) {
-            ui.locationsSection.classList.remove('hidden');
+            if(ui.locationsSection) ui.locationsSection.classList.remove('hidden');
             locations.forEach(location => {
                 const button = document.createElement('button');
                 button.textContent = location.description;
@@ -207,7 +206,7 @@ const ui = {
                 ui.locationButtonsContainer.appendChild(button);
             });
         } else {
-            ui.locationsSection.classList.add('hidden');
+            if(ui.locationsSection) ui.locationsSection.classList.add('hidden');
         }
         
         if (typeof app.updateGlobalRefreshButtonVisibility === 'function') {
@@ -217,6 +216,7 @@ const ui = {
     },
 
     renderConfigList: (items, listElement, type, onRemoveCallback, onEditCallback) => {
+        if(!listElement) return;
         listElement.innerHTML = ''; 
         items.forEach((item, index) => {
             const li = document.createElement('li');
@@ -246,6 +246,7 @@ const ui = {
     },
 
     enableDragAndDrop: (listElement, onSortCallback) => {
+        if(!listElement) return;
         let draggedItem = null;
         const getLiTarget = (eventTarget) => {
             let target = eventTarget;
@@ -323,9 +324,10 @@ const ui = {
     displayInfoModal: (location, topics, cachedData) => {
         const locationData = store.getLocations().find(l => l.id === location.id);
         if (!locationData) return;
-        ui.infoModalTitle.textContent = `${locationData.description} nfo2Go`;
-        ui.infoModalContent.innerHTML = ''; 
-        ui.refreshInfoButton.classList.add('hidden'); 
+        if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${locationData.description} nfo2Go`;
+        if(ui.infoModalContent) ui.infoModalContent.innerHTML = ''; 
+        if(ui.refreshInfoButton) ui.refreshInfoButton.classList.add('hidden'); 
+        
         let oldestTimestamp = Date.now(), needsRefresh = false;
         topics.forEach(topic => {
             const cacheEntry = cachedData[topic.id];
@@ -337,7 +339,7 @@ const ui = {
             titleH3.onclick = function() {
                 this.classList.toggle('active');
                 const content = this.nextElementSibling;
-                content.style.display = (content.style.display === "block") ? "none" : "block";
+                if(content) content.style.display = (content.style.display === "block") ? "none" : "block";
             };
             sectionDiv.appendChild(titleH3);
             const contentContainer = document.createElement('div');
@@ -350,31 +352,25 @@ const ui = {
                 contentContainer.innerHTML = "<p>No data available. Try refreshing.</p>";
                 needsRefresh = true; 
             }
-            // Add footer with HR and collapse hint to the content container
             const topicFooter = document.createElement('div');
             topicFooter.classList.add('topic-content-footer');
-            
             const hr = document.createElement('hr');
             topicFooter.appendChild(hr);
-            
             const collapseHint = document.createElement('span');
             collapseHint.classList.add('collapse-hint');
-            collapseHint.innerHTML = 'Collapse &#9650;'; // Up arrow
-            // Make the collapse hint clickable
+            collapseHint.innerHTML = 'Collapse &#9650;'; 
             collapseHint.onclick = function() {
-                // Find the corresponding title (H3) and trigger its click
                 const currentTitleH3 = this.closest('.topic-section').querySelector('.collapsible-title');
                 if (currentTitleH3) currentTitleH3.click();
             };
             topicFooter.appendChild(collapseHint);
-            
-            contentContainer.appendChild(topicFooter); // Append footer to the content
+            contentContainer.appendChild(topicFooter); 
             sectionDiv.appendChild(contentContainer);
-            ui.infoModalContent.appendChild(sectionDiv);
+            if(ui.infoModalContent) ui.infoModalContent.appendChild(sectionDiv);
         });
         const overallAge = (topics.length > 0 && oldestTimestamp !== Date.now()) ? oldestTimestamp : null;
-        ui.infoModalUpdated.textContent = `Updated ${utils.formatTimeAgo(overallAge)}`;
-        if (needsRefresh) {
+        if(ui.infoModalUpdated) ui.infoModalUpdated.textContent = `Updated ${utils.formatTimeAgo(overallAge)}`;
+        if (needsRefresh && ui.refreshInfoButton) {
             ui.refreshInfoButton.classList.remove('hidden');
             ui.refreshInfoButton.dataset.locationId = location.id;
         }
@@ -385,7 +381,7 @@ const ui = {
         const errorP = document.createElement('p');
         errorP.classList.add('error-message');
         errorP.textContent = `Error loading ${topicDescription}: ${errorMessage}`;
-        ui.infoModalContent.appendChild(errorP);
+        if(ui.infoModalContent) ui.infoModalContent.appendChild(errorP);
     },
 
     clearInputFields: (fields) => {
