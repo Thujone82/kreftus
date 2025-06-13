@@ -316,9 +316,11 @@ const app = {
             delete app.fetchingStatus[locationId];
             ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
             app.updateGlobalRefreshButtonVisibility();
+            // If the modal is open for this location, ensure its title is set correctly,
+            // but avoid a recursive call to handleOpenLocationInfo.
+            // The original caller of fetchAndCacheAiDataForLocation (handleOpenLocationInfo) will handle the UI update.
             if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId && ui.infoModalTitle) {
                  if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${location.description} nfo2Go`;
-                 app.handleOpenLocationInfo(locationId);
             }
             return true; 
         }
