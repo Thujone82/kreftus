@@ -124,7 +124,7 @@ const app = {
         app.config.backgroundColor = newBackgroundColor;
 
         store.saveAppSettings(app.config);
-        ui.applyTheme(app.config.primaryColor, app.config.backgroundColor); // This will re-evaluate and set input/list colors
+        ui.applyTheme(app.config.primaryColor, app.config.backgroundColor); 
         ui.toggleConfigButtons(true);
         ui.closeModal('appConfigModal');
         console.log("App settings saved. API Key present.");
@@ -252,33 +252,73 @@ const app = {
         }
         const location = app.locations.find(l => l.id === locationId);
         if (!location) return false;
+
         app.fetchingStatus[locationId] = true;
         const areTopicsDefined = app.topics && app.topics.length > 0;
         ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
-        let allSuccessful = true;
+        
+        console.log(`Fetching/Caching AI data for location: ${location.description}. Force refresh: ${forceRefresh}`);
+        
+        const fetchPromises = [];
+        let anInvalidKeyErrorOccurred = false;
+
         for (const topic of app.topics) {
             const cacheEntry = store.getAiCache(locationId, topic.id);
             const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > (60 * 60 * 1000);
             const hasError = cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:');
+
             if (forceRefresh || isStale || hasError) {
-                try {
-                    const aiData = await api.fetchAiData(app.config.apiKey, location.location, topic.aiQuery);
-                    store.saveAiCache(locationId, topic.id, aiData);
-                } catch (error) {
-                    allSuccessful = false; store.saveAiCache(locationId, topic.id, `Error: ${error.message}`);
-                    if (error.message.toLowerCase().includes("invalid api key")) {
-                        ui.closeModal('infoModal'); ui.showAppConfigError("Invalid API Key. Please check your configuration and save.");
-                        ui.openModal('appConfigModal'); delete app.fetchingStatus[locationId];
-                        ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
-                        app.updateGlobalRefreshButtonVisibility(); return false; 
-                    }
-                }
+                console.log(`Fetching for topic: ${topic.description} (Stale: ${isStale}, Force: ${forceRefresh}, Error: ${hasError})`);
+                fetchPromises.push(
+                    api.fetchAiData(app.config.apiKey, location.location, topic.aiQuery)
+                        .then(aiData => ({ status: 'fulfilled', value: aiData, topicId: topic.id, topicDescription: topic.description }))
+                        .catch(error => ({ status: 'rejected', reason: error, topicId: topic.id, topicDescription: topic.description }))
+                );
             }
         }
+
+        if (fetchPromises.length === 0) {
+            console.log(`No topics to fetch for ${location.description}.`);
+            delete app.fetchingStatus[locationId];
+            ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
+            app.updateGlobalRefreshButtonVisibility();
+            return true; 
+        }
+
+        const results = await Promise.allSettled(fetchPromises);
+        let allIndividualFetchesSuccessful = true;
+
+        results.forEach(result => {
+            if (result.status === 'fulfilled') {
+                store.saveAiCache(locationId, result.value.topicId, result.value.value);
+                console.log(`Successfully fetched and cached data for ${location.description} - ${result.value.topicDescription}`);
+            } else { // status === 'rejected'
+                allIndividualFetchesSuccessful = false;
+                const error = result.reason.reason; // The actual error object
+                const topicId = result.reason.topicId;
+                const topicDescription = result.reason.topicDescription;
+
+                console.error(`Failed to fetch AI data for ${location.description} - ${topicDescription}:`, error.message);
+                store.saveAiCache(locationId, topicId, `Error: ${error.message}`);
+                
+                if (error.message.toLowerCase().includes("invalid api key")) {
+                    anInvalidKeyErrorOccurred = true;
+                }
+            }
+        });
+
         delete app.fetchingStatus[locationId];
         ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
         app.updateGlobalRefreshButtonVisibility();
-        return allSuccessful;
+
+        if (anInvalidKeyErrorOccurred) {
+            ui.closeModal('infoModal'); // Close info modal if open
+            ui.showAppConfigError("Invalid API Key. Please check your configuration and save.");
+            ui.openModal('appConfigModal');
+            return false; // Indicate overall failure due to API key
+        }
+
+        return allIndividualFetchesSuccessful;
     },
 
     refreshOutdatedQueries: async (forceAllStale = false) => {
@@ -300,14 +340,17 @@ const app = {
             }
             if (needsRefreshForLocation) {
                 anyFetchesInitiated = true;
+                // Don't await here, let them run in parallel across locations too
                 app.fetchAndCacheAiDataForLocation(location.id, true).then(success => {
                     if (success && ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === location.id) {
                         app.handleOpenLocationInfo(location.id); 
+                    } else if (!success) {
+                         console.warn(`Background refresh for ${location.description} encountered errors or an API key issue.`);
                     }
                 });
             }
         }
-        if (!anyFetchesInitiated) {
+        if (!anyFetchesInitiated) { // If no fetches were started by this loop, ensure UI is up-to-date
             const areTopicsDefined = app.topics && app.topics.length > 0;
             ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
             app.updateGlobalRefreshButtonVisibility();

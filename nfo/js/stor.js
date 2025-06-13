@@ -74,7 +74,7 @@ const store = {
             const key = localStorage.key(i);
             if (key && key.startsWith(AI_CACHE_PREFIX)) {
                 localStorage.removeItem(key);
-                i--;
+                i--; // Adjust index as localStorage length changes
             }
         }
     }
