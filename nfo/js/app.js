@@ -223,27 +223,30 @@ const app = {
 
         // Initial loading message
         if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${location.description} nfo2Go - Loading...`;
-        if(ui.infoModalContent) ui.infoModalContent.innerHTML = '<p>Fetching data...</p>';
+        if(ui.infoModalContent) ui.infoModalContent.innerHTML = '<p>Accessing stored data...</p>'; // More accurate initial message
         ui.openModal('infoModal');
 
-        // Fetch data. The fetch function will update the modal title with progress if fetching is needed.
-        await app.fetchAndCacheAiDataForLocation(locationId, false); 
-        
-        // After fetching (or if no fetching was needed), display the content.
-        // The title might have been updated by fetchAndCacheAiDataForLocation if fetching occurred.
-        // Now, always re-render the modal with the latest data.
+        // Directly gather all cached data for the location without an initial fetch.
+        // Stale data will be displayed as is.
         const cachedDataForLocation = {};
         let needsOverallRefreshForModal = false;
+
         app.topics.forEach(topic => {
             const cacheEntry = store.getAiCache(locationId, topic.id);
             cachedDataForLocation[topic.id] = cacheEntry;
-            if (!cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > (60 * 60 * 1000) ||
-                (cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:'))) {
+
+            const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > (60 * 60 * 1000);
+            const hasError = cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:');
+
+            if (isStale || hasError) {
                 needsOverallRefreshForModal = true;
             }
         });
+
+        // Display the gathered data (fresh, stale, or error)
         ui.displayInfoModal(location, app.topics, cachedDataForLocation); // This will now set the final title and content
         
+        // Show/hide the modal's refresh button based on the state of the displayed data
         if (needsOverallRefreshForModal && ui.refreshInfoButton) { 
             ui.refreshInfoButton.classList.remove('hidden'); 
             ui.refreshInfoButton.dataset.locationId = locationId; 
