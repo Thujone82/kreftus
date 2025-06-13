@@ -40,7 +40,7 @@ const app = {
     loadAndApplyAppSettings: () => {
         app.config = store.getAppSettings();
         ui.applyTheme(app.config.primaryColor, app.config.backgroundColor);
-        ui.loadAppConfigForm(app.config); // This will handle the API key link visibility
+        ui.loadAppConfigForm(app.config); 
         console.log("App settings loaded and applied:", app.config);
     },
 
@@ -58,7 +58,7 @@ const app = {
 
     setupEventListeners: () => {
         ui.btnAppConfig.onclick = () => {
-            ui.loadAppConfigForm(app.config); // Ensure link visibility is updated when modal opens
+            ui.loadAppConfigForm(app.config); 
             ui.openModal('appConfigModal');
         };
         ui.btnLocationsConfig.onclick = () => {
@@ -113,18 +113,18 @@ const app = {
 
         if (!newApiKey) {
             ui.showAppConfigError("API Key is required.");
-            if (ui.getApiKeyLinkContainer) ui.getApiKeyLinkContainer.classList.remove('hidden'); // Show link if key removed
+            if (ui.getApiKeyLinkContainer) ui.getApiKeyLinkContainer.classList.remove('hidden'); 
             return;
         }
         ui.showAppConfigError("");
-        if (ui.getApiKeyLinkContainer) ui.getApiKeyLinkContainer.classList.add('hidden'); // Hide link if key present
+        if (ui.getApiKeyLinkContainer) ui.getApiKeyLinkContainer.classList.add('hidden'); 
 
         app.config.apiKey = newApiKey;
         app.config.primaryColor = newPrimaryColor;
         app.config.backgroundColor = newBackgroundColor;
 
         store.saveAppSettings(app.config);
-        ui.applyTheme(app.config.primaryColor, app.config.backgroundColor);
+        ui.applyTheme(app.config.primaryColor, app.config.backgroundColor); // This will re-evaluate and set input/list colors
         ui.toggleConfigButtons(true);
         ui.closeModal('appConfigModal');
         console.log("App settings saved. API Key present.");

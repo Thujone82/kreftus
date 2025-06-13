@@ -45,19 +45,13 @@ const utils = {
                     inList = false;
                 }
                 // Add a blank line only if the previous processed line wasn't also an intentionally added blank line.
-                // The .trim().length > 0 check ensures that if the last element was content (even if it ended up as empty after formatting),
-                // we can add a blank line. If the last element was '', it means we just added a blank line.
                 if (processedLines.length === 0 || processedLines[processedLines.length - 1].trim().length > 0) {
                     processedLines.push(''); 
                 }
             } else { // Line has non-whitespace content
                 // Clean this content line for parsing markdown structure and for final output.
-                // Replace specific problematic Unicode spaces with a regular space, then trim.
                 let contentToProcess = line.replace(/[\u00A0\u200B\uFEFF]+/g, ' ').trim();
                 
-                // After this initial cleaning, if contentToProcess becomes empty,
-                // it means the original line had non-\S characters that were all problematic ones we removed.
-                // Treat such a line as blank. This is a fallback.
                 if (contentToProcess.length === 0) {
                     if (inList) {
                         processedLines.push('</ul>');
@@ -66,10 +60,9 @@ const utils = {
                     if (processedLines.length === 0 || processedLines[processedLines.length - 1].trim().length > 0) {
                         processedLines.push('');
                     }
-                    continue; // Skip to next line
+                    continue; 
                 }
 
-                // Now contentToProcess definitely has renderable content.
                 if (contentToProcess.startsWith('### ')) {
                     if (inList) {
                         processedLines.push('</ul>');
@@ -84,7 +77,7 @@ const utils = {
                     }
                     let listItemContent = contentToProcess.substring(2).trim();
                     processedLines.push(`  <li>${applyInlineFormatting(listItemContent)}</li>`);
-                } else { // Regular content line
+                } else { 
                     if (inList) {
                         processedLines.push('</ul>');
                         inList = false;

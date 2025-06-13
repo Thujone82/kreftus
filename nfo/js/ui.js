@@ -98,21 +98,35 @@ const ui = {
         document.documentElement.style.setProperty('--content-background-color', contentBackgroundColor);
         let pageBackgroundColor;
         let textColor;
+
         if (ui.isColorDark(contentBackgroundColor)) {
+            // Dark theme settings
             textColor = '#E0E0E0';
             pageBackgroundColor = ui.adjustColorBrightness(contentBackgroundColor, 5); 
             if (pageBackgroundColor === contentBackgroundColor) { 
                  pageBackgroundColor = ui.adjustColorBrightness(contentBackgroundColor, 10) === contentBackgroundColor ? '#121212' : ui.adjustColorBrightness(contentBackgroundColor, 10);
             }
+            // Set variables for dark theme inputs/lists
+            document.documentElement.style.setProperty('--input-bg-color', '#333');
+            document.documentElement.style.setProperty('--input-border-color', '#555');
+            document.documentElement.style.setProperty('--list-item-bg-color', '#2a2a2a');
+            document.documentElement.style.setProperty('--list-item-border-color', '#444');
         } else {
+            // Light theme settings
             textColor = '#121212';
             pageBackgroundColor = ui.adjustColorBrightness(contentBackgroundColor, -5);
              if (pageBackgroundColor === contentBackgroundColor) { 
                  pageBackgroundColor = ui.adjustColorBrightness(contentBackgroundColor, -10) === contentBackgroundColor ? '#FAFAFA' : ui.adjustColorBrightness(contentBackgroundColor, -10);
             }
+            // Set variables for light theme inputs/lists
+            document.documentElement.style.setProperty('--input-bg-color', '#F0F0F0');
+            document.documentElement.style.setProperty('--input-border-color', '#CCCCCC');
+            document.documentElement.style.setProperty('--list-item-bg-color', '#FAFAFA');
+            document.documentElement.style.setProperty('--list-item-border-color', '#E0E0E0');
         }
         document.documentElement.style.setProperty('--text-color', textColor);
         document.body.style.backgroundColor = pageBackgroundColor;
+        
         let themeColorMeta = document.querySelector('meta[name="theme-color"]');
         if (themeColorMeta) {
             themeColorMeta.setAttribute('content', primaryColor);

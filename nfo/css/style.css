@@ -1,30 +1,32 @@
 :root {
-    --primary-color: #029ec5; /* User-defined primary color */
-    --content-background-color: #1E1E1E; /* User-defined for .container and modals */
-    --text-color: #E0E0E0; /* Dynamically set based on content-background-color */
+    --primary-color: #029ec5; 
+    --content-background-color: #1E1E1E; 
+    --text-color: #E0E0E0; 
     
-    /* Static colors for dark theme elements not directly user-configurable */
-    --button-text-color: #000000; /* Black text for teal buttons */
-    --danger-color: #CF6679; /* Material Dark Theme Error Color */
-    --disabled-bg-color: #444;
-    --input-border-color: #555;
+    /* Default (dark theme) values for inputs and lists */
     --input-bg-color: #333;
-    --list-item-border-color: #444;
+    --input-border-color: #555;
     --list-item-bg-color: #2a2a2a;
+    --list-item-border-color: #444;
+    
+    /* Static colors */
+    --button-text-color: #000000; 
+    --danger-color: #CF6679; 
+    --disabled-bg-color: #444;
     --updated-text-color: #aaa;
     --close-button-color: #bbb;
 
     /* Status colors */
-    --status-fresh-color: #4CAF50; /* Green */
-    --status-fetching-color: #2196F3; /* Powder Blue like */
-    --status-error-color: #F44336; /* Red */
+    --status-fresh-color: #4CAF50; 
+    --status-fetching-color: #2196F3; 
+    --status-error-color: #F44336; 
 }
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     margin: 0;
     padding: 15px;
-    background-color: #121212;
+    background-color: #121212; /* This will be overridden by js if content bg is light */
     color: var(--text-color);
     line-height: 1.6;
     transition: background-color 0.3s ease;
@@ -64,11 +66,11 @@ h2 {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 10px; /* Adjust as needed */
+    margin-bottom: 10px; 
 }
 
 .section-header h2 {
-    margin-bottom: 0; /* Remove bottom margin from h2 if it's inside flex */
+    margin-bottom: 0; 
 }
 
 button {
@@ -80,12 +82,12 @@ button {
     cursor: pointer;
     font-size: 1em;
     margin: 5px;
-    border: 3px solid transparent; /* Base border for consistent sizing */
+    border: 3px solid transparent; 
 }
 button.small-refresh-button {
     padding: 5px 10px;
     font-size: 0.9em;
-    margin-left: 10px; /* Space from the H2 */
+    margin-left: 10px; 
 }
 
 
@@ -100,10 +102,10 @@ button.danger {
 }
 
 /* Location button status borders */
-#locationButtons button { /* More specific selector for location buttons */
+#locationButtons button { 
     border-width: 3px;
     border-style: solid;
-    border-color: transparent; /* Default: no visible border unless a status class is applied */
+    border-color: transparent; 
 }
 #locationButtons button.location-button-fresh {
     border-color: var(--status-fresh-color);
@@ -119,26 +121,26 @@ button.danger {
 input[type="text"], input[type="password"], input[type="color"] {
     padding: 8px;
     margin: 5px 0 10px 0;
-    border: 1px solid var(--input-border-color);
-    background-color: var(--input-bg-color);
-    color: var(--text-color);
+    border: 1px solid var(--input-border-color); /* Uses dynamic variable */
+    background-color: var(--input-bg-color);    /* Uses dynamic variable */
+    color: var(--text-color);                   /* Uses dynamic variable */
     border-radius: 4px;
     box-sizing: border-box;
-    width: 100%; /* Make inputs take full width of their container */
+    width: 100%; 
 }
-input[type="color"] { /* Updated for larger color swatch */
-    min-height: 40px; /* Increased height */
-    min-width: 60px;  /* Increased width */
-    padding: 2px;     /* Reduced padding to maximize color area */
-    width: auto;      /* Override width:100% for better default rendering */
+input[type="color"] { 
+    min-height: 40px; 
+    min-width: 60px;  
+    padding: 2px;     
+    width: auto;      
     cursor: pointer;
 }
 
 /* API Key Link Styling */
 #getApiKeyLinkContainer {
-    display: block; /* Make it a block to appear on its own line */
-    margin-top: 5px; /* Space above the link */
-    margin-bottom: 10px; /* Space below the link */
+    display: block; 
+    margin-top: 5px; 
+    margin-bottom: 10px; 
     font-size: 0.9em;
 }
 #getApiKeyLinkContainer a {
@@ -168,7 +170,7 @@ input[type="color"] { /* Updated for larger color swatch */
     color: var(--text-color);
     margin: 10% auto; 
     padding: 25px;
-    border: 1px solid var(--input-border-color);
+    border: 1px solid var(--input-border-color); /* Uses dynamic variable */
     width: 80%; 
     max-width: 600px;
     border-radius: 8px;
@@ -214,17 +216,15 @@ input[type="color"] { /* Updated for larger color swatch */
 .config-item-form input[type="text"] {
     flex-grow: 1;
 }
-/* Style for location buttons when info structure is not defined */
+
 .needs-info-structure {
     opacity: 0.7;
-    /* Optionally, change background or add an icon if desired */
-    /* background-color: #555 !important; */
 }
 .sortable-list li {
     padding: 8px;
-    border: 1px solid var(--list-item-border-color);
+    border: 1px solid var(--list-item-border-color); /* Uses dynamic variable */
     margin-bottom: 5px;
-    background-color: var(--list-item-bg-color);
+    background-color: var(--list-item-bg-color);   /* Uses dynamic variable */
     cursor: grab;
     display: flex;
     justify-content: space-between;
@@ -309,20 +309,20 @@ input[type="color"] { /* Updated for larger color swatch */
 
 /* Footer for expanded topic content */
 #infoModalContent .topic-content-footer {
-    margin-top: 15px; /* Space above the HR */
-    padding-top: 5px; /* Space between HR and text if needed */
+    margin-top: 15px; 
+    padding-top: 5px; 
 }
 
 #infoModalContent .topic-content-footer hr {
     border: none;
-    border-top: 1px solid var(--input-border-color); /* Subtle line color */
+    border-top: 1px solid var(--input-border-color); /* Uses dynamic variable */
     margin-bottom: 8px;
 }
 
 #infoModalContent .collapse-hint {
-    display: block; /* Make it take its own line */
+    display: block; 
     text-align: center;
     font-size: 0.9em;
-    color: var(--updated-text-color); /* Use a less prominent color */
+    color: var(--updated-text-color); 
     user-select: none;
 }
