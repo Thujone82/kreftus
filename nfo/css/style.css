@@ -295,9 +295,14 @@ input[type="color"] {
     margin-bottom: 0.5em;
 }
 #infoModalContent .ai-topic-content ul {
-    padding-left: 20px; 
-    margin-top: 0.5em;
-    margin-bottom: 0.5em;
+    padding-left: 20px; /* Keep some indentation for the list */
+    margin-top: 0.25em;    /* Reduced top margin for the list itself */
+    margin-bottom: 0.25em; /* Reduced bottom margin for the list itself */
+}
+
+#infoModalContent .ai-topic-content li {
+    margin-top: 0.1em; /* Reduced space above each list item */
+    margin-bottom: 0.1em; /* Reduced space below each list item */
 }
 #infoModalContent .ai-topic-content a {
     color: var(--primary-color);
