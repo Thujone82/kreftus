@@ -336,6 +336,19 @@ const ui = {
                 contentContainer.innerHTML = "<p>No data available. Try refreshing.</p>";
                 needsRefresh = true; 
             }
+            // Add footer with HR and collapse hint to the content container
+            const topicFooter = document.createElement('div');
+            topicFooter.classList.add('topic-content-footer');
+            
+            const hr = document.createElement('hr');
+            topicFooter.appendChild(hr);
+            
+            const collapseHint = document.createElement('span');
+            collapseHint.classList.add('collapse-hint');
+            collapseHint.innerHTML = 'Collapse &#9650;'; // Up arrow
+            topicFooter.appendChild(collapseHint);
+            
+            contentContainer.appendChild(topicFooter); // Append footer to the content
             sectionDiv.appendChild(contentContainer);
             ui.infoModalContent.appendChild(sectionDiv);
         });

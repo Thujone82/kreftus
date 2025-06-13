@@ -306,3 +306,23 @@ input[type="color"] { /* Updated for larger color swatch */
 #infoModalContent .ai-topic-content a:hover {
     opacity: 0.8;
 }
+
+/* Footer for expanded topic content */
+#infoModalContent .topic-content-footer {
+    margin-top: 15px; /* Space above the HR */
+    padding-top: 5px; /* Space between HR and text if needed */
+}
+
+#infoModalContent .topic-content-footer hr {
+    border: none;
+    border-top: 1px solid var(--input-border-color); /* Subtle line color */
+    margin-bottom: 8px;
+}
+
+#infoModalContent .collapse-hint {
+    display: block; /* Make it take its own line */
+    text-align: center;
+    font-size: 0.9em;
+    color: var(--updated-text-color); /* Use a less prominent color */
+    user-select: none;
+}

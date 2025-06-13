@@ -59,19 +59,14 @@ const utils = {
                     processedLines.push('</ul>');
                     inList = false;
                 }
-                // For regular lines that are not empty or just whitespace after potential list closing
+
                 if (line.trim().length > 0) {
                     processedLines.push(applyInlineFormatting(line));
                 } else {
-                    // Preserve empty lines if they are not part of list processing logic
-                    // (e.g. multiple empty lines between paragraphs)
-                    // However, if we just closed a list, and the line is empty,
-                    // we might not want to add an extra empty line if the original was just for list separation.
-                    // For simplicity now, we add it if it's not purely whitespace.
-                    // If the original line was empty, it will be added.
-                    // If it was whitespace that got trimmed to empty, it won't.
-                    // This behavior might need refinement based on desired output for mixed content.
-                    processedLines.push(line);
+                    // Add a blank line only if the previous line wasn't also blank
+                    if (processedLines.length === 0 || processedLines[processedLines.length - 1].trim().length > 0) {
+                        processedLines.push(''); // Add a single empty string for a blank line
+                    }
                 }
             }
         }
