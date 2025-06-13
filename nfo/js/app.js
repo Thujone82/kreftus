@@ -156,6 +156,7 @@ const app = {
         ui.closeModal('locationConfigModal');
         for (const location of app.locations) {
             if (!oldLocationIds.has(location.id)) {
+                console.log(`New location added: ${location.description}. Fetching initial data.`);
                 await app.fetchAndCacheAiDataForLocation(location.id, true);
             }
         }
@@ -203,6 +204,8 @@ const app = {
         const areTopicsDefined = app.topics && app.topics.length > 0;
         ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined); 
         app.updateGlobalRefreshButtonVisibility(); 
+        console.log("Info Structure updated. Flushing cache and triggering refresh for all locations.");
+        app.refreshOutdatedQueries(true); // Force refresh for all locations as cache was flushed
     },
 
     handleLocationButtonClick: (locationId) => {
