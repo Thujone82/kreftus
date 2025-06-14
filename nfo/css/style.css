@@ -296,13 +296,13 @@ input[type="color"] {
 }
 #infoModalContent .ai-topic-content ul {
     padding-left: 20px; 
-    margin-top: 0.25em;    
-    margin-bottom: 0.25em; 
+    margin-top: 0.05em;    /* Reduced top margin */
+    margin-bottom: 0.05em; /* Reduced bottom margin */
 }
 
 #infoModalContent .ai-topic-content li {
-    margin-top: 0.1em; 
-    margin-bottom: 0.1em; 
+    margin-top: 0.025em;  /* Reduced top margin */
+    margin-bottom: 0.025em; /* Reduced bottom margin */
 }
 #infoModalContent .ai-topic-content a {
     color: var(--primary-color);
