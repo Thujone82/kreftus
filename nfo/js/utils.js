@@ -121,6 +121,13 @@ const utils = {
         if (inList) {
             processedLines.push('</ul>');
         }
-        return processedLines.join('\n').trim();
+        let finalHtml = processedLines.join('\n');
+
+        // Post-processing pass to remove extra newlines specifically around list structures
+        finalHtml = finalHtml.replace(/<\/li>\n\n+<li>/g, '</li>\n<li>'); // Between list items
+        finalHtml = finalHtml.replace(/<ul>\n\n+<li>/g, '<ul>\n<li>');   // After <ul>, before first <li>
+        finalHtml = finalHtml.replace(/<\/li>\n\n+<\/ul>/g, '</li>\n</ul>'); // After last <li>, before </ul>
+        
+        return finalHtml.trim();
     }
 };
