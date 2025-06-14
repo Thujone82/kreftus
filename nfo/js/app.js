@@ -284,37 +284,24 @@ const app = {
         console.log(`Fetching/Caching AI data for location: ${location.description}. Force refresh: ${forceRefresh}`);
         
         let completedCount = 0;
-        const totalTopicsToFetchInitially = app.topics.filter(topic => {
+        const topicsToFetch = app.topics.filter(topic => {
             const cacheEntry = store.getAiCache(locationId, topic.id);
             const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > (60 * 60 * 1000);
             const hasError = cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:');
             return forceRefresh || isStale || hasError;
-        }).length;
+        });
+        const totalTopicsToFetch = topicsToFetch.length;
 
         // Update modal title immediately if it's open for this location
-        if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId && totalTopicsToFetchInitially > 0) {
-            app.updateInfoModalLoadingMessage(location.description, completedCount, totalTopicsToFetchInitially);
+        if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId && totalTopicsToFetch > 0) {
+            app.updateInfoModalLoadingMessage(location.description, completedCount, totalTopicsToFetch);
         }
         
-        const fetchPromises = [];
+        const fetchExecutionPromises = [];
         let anInvalidKeyErrorOccurred = false;
 
-        for (const topic of app.topics) {
-            const cacheEntry = store.getAiCache(locationId, topic.id);
-            const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > (60 * 60 * 1000);
-            const hasError = cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:');
 
-            if (forceRefresh || isStale || hasError) {
-                console.log(`Fetching for topic: ${topic.description} (Stale: ${isStale}, Force: ${forceRefresh}, Error: ${hasError})`);
-                fetchPromises.push(
-                    api.fetchAiData(app.config.apiKey, location.location, topic.aiQuery)
-                        .then(aiData => ({ status: 'fulfilled', value: aiData, topicId: topic.id, topicDescription: topic.description }))
-                        .catch(error => ({ status: 'rejected', reason: error, topicId: topic.id, topicDescription: topic.description }))
-                );
-            }
-        }
-
-        if (fetchPromises.length === 0) {
+        if (totalTopicsToFetch === 0) {
             console.log(`No topics to fetch for ${location.description}.`);
             delete app.fetchingStatus[locationId];
             ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
@@ -328,31 +315,37 @@ const app = {
             return true; 
         }
 
-        const results = await Promise.allSettled(fetchPromises);
+        for (const topic of topicsToFetch) {
+            console.log(`Preparing to fetch for topic: ${topic.description}`);
+            const promise = api.fetchAiData(app.config.apiKey, location.location, topic.aiQuery)
+                .then(aiData => {
+                    store.saveAiCache(locationId, topic.id, aiData);
+                    console.log(`Successfully fetched and cached data for ${location.description} - ${topic.description}`);
+                    return { status: 'fulfilled', topicId: topic.id };
+                })
+                .catch(error => {
+                    console.error(`Failed to fetch AI data for ${location.description} - ${topic.description}:`, error.message);
+                    store.saveAiCache(locationId, topic.id, `Error: ${error.message}`);
+                    if (error.message.toLowerCase().includes("invalid api key")) {
+                        anInvalidKeyErrorOccurred = true;
+                    }
+                    return { status: 'rejected', topicId: topic.id, reason: error };
+                })
+                .finally(() => {
+                    completedCount++;
+                    if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId) {
+                        app.updateInfoModalLoadingMessage(location.description, completedCount, totalTopicsToFetch);
+                    }
+                });
+            fetchExecutionPromises.push(promise);
+        }
+
+        const results = await Promise.all(fetchExecutionPromises); // Wait for all fetches (and their finally blocks)
         let allIndividualFetchesSuccessful = true;
-
         results.forEach(result => {
-            if (result.status === 'fulfilled') {
-                store.saveAiCache(locationId, result.value.topicId, result.value.value);
-                completedCount++;
-                console.log(`Successfully fetched and cached data for ${location.description} - ${result.value.topicDescription}`);
-            } else { // status === 'rejected'
+            if (result.status === 'rejected') {
                 allIndividualFetchesSuccessful = false;
-                completedCount++; // Still counts as a settled promise for progress
-                const error = result.reason.reason; 
-                const topicId = result.reason.topicId;
-                const topicDescription = result.reason.topicDescription;
-
-                console.error(`Failed to fetch AI data for ${location.description} - ${topicDescription}:`, error.message);
-                store.saveAiCache(locationId, topicId, `Error: ${error.message}`);
-                
-                if (error.message.toLowerCase().includes("invalid api key")) {
-                    anInvalidKeyErrorOccurred = true;
-                }
-            }
-            // Update progress if modal is open for this location
-            if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId) {
-                app.updateInfoModalLoadingMessage(location.description, completedCount, fetchPromises.length);
+                // anInvalidKeyErrorOccurred is already handled in the catch block
             }
         });
 
@@ -365,6 +358,15 @@ const app = {
             if(ui.appConfigError) ui.appConfigError.textContent = "Invalid API Key. Please check your configuration and save.";
             ui.openModal('appConfigModal');
             return false; 
+        }
+
+        // If the modal is still open after all fetches, ensure its content is fully updated.
+        if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId) {
+            const currentCachedData = {};
+            app.topics.forEach(t => {
+                currentCachedData[t.id] = store.getAiCache(locationId, t.id);
+            });
+            ui.displayInfoModal(location, app.topics, currentCachedData);
         }
         
         return allIndividualFetchesSuccessful;
