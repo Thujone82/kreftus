@@ -1,4 +1,9 @@
-const CACHE_NAME = 'info2go-v1-cache'; // KKREFT 061425@0842
+const CACHE_NAME = 'info2go-v1-cache'; // KKREFT 061424@1012
+const SW_CONSTANTS = { // Defined here as sw.js doesn't import app.js
+    SW_MESSAGES: {
+        SKIP_WAITING: 'SKIP_WAITING'
+    }
+};
 const urlsToCache = [
     './', // Represents the current directory (app root, e.g., c:\kreftus\nfo\)
     './index.html',
@@ -32,7 +37,7 @@ self.addEventListener('fetch', event => {
 });
 
 self.addEventListener('message', event => {
-    if (event.data && event.data.type === 'SKIP_WAITING') {
+    if (event.data && event.data.type === SW_CONSTANTS.SW_MESSAGES.SKIP_WAITING) {
         console.log('Service Worker: SKIP_WAITING message received, calling skipWaiting().');
         self.skipWaiting();
     }

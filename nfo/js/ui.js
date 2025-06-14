@@ -21,6 +21,7 @@ const ui = {
     // Location Config Modal
     locationConfigModal: document.getElementById('locationConfigModal'),
     locationDescriptionInput: document.getElementById('locationDescription'),
+    locationConfigError: document.getElementById('locationConfigError'),
     locationValueInput: document.getElementById('locationValue'),
     addLocationBtn: document.getElementById('addLocation'),
     locationsListUI: document.getElementById('locationsList'),
@@ -30,6 +31,7 @@ const ui = {
     infoCollectionConfigModal: document.getElementById('infoCollectionConfigModal'),
     topicDescriptionInput: document.getElementById('topicDescription'),
     topicAiQueryInput: document.getElementById('topicAiQuery'),
+    topicConfigError: document.getElementById('topicConfigError'),
     addTopicBtn: document.getElementById('addTopic'),
     topicsListUI: document.getElementById('topicsList'),
     saveTopicConfigBtn: document.getElementById('saveTopicConfig'),
@@ -58,9 +60,9 @@ const ui = {
                 const modalId = e.currentTarget.dataset.modalId;
                 if (app.hasUnsavedChanges && app.hasUnsavedChanges(modalId)) {
                     if (confirm("You have unsaved changes. Save them now? \nOK = Save, Cancel = Discard")) {
-                        if (modalId === 'locationConfigModal' && typeof app.handleSaveLocationConfig === 'function') {
+                        if (modalId === APP_CONSTANTS.MODAL_IDS.LOCATION_CONFIG && typeof app.handleSaveLocationConfig === 'function') {
                             app.handleSaveLocationConfig(); // This also closes the modal
-                        } else if (modalId === 'infoCollectionConfigModal' && typeof app.handleSaveTopicConfig === 'function') {
+                        } else if (modalId === APP_CONSTANTS.MODAL_IDS.INFO_COLLECTION_CONFIG && typeof app.handleSaveTopicConfig === 'function') {
                             app.handleSaveTopicConfig(); // This also closes the modal
                         } else {
                             ui.closeModal(modalId); // Fallback if save handler not found
@@ -78,9 +80,9 @@ const ui = {
                 const modalId = event.target.id;
                 if (app.hasUnsavedChanges && app.hasUnsavedChanges(modalId)) {
                      if (confirm("You have unsaved changes. Save them now? \nOK = Save, Cancel = Discard")) {
-                        if (modalId === 'locationConfigModal' && typeof app.handleSaveLocationConfig === 'function') {
+                        if (modalId === APP_CONSTANTS.MODAL_IDS.LOCATION_CONFIG && typeof app.handleSaveLocationConfig === 'function') {
                             app.handleSaveLocationConfig();
-                        } else if (modalId === 'infoCollectionConfigModal' && typeof app.handleSaveTopicConfig === 'function') {
+                        } else if (modalId === APP_CONSTANTS.MODAL_IDS.INFO_COLLECTION_CONFIG && typeof app.handleSaveTopicConfig === 'function') {
                             app.handleSaveTopicConfig();
                         } else { ui.closeModal(modalId); }
                     } else { ui.closeModal(modalId); }
@@ -215,7 +217,7 @@ const ui = {
                                     hasError = true;
                                     break; 
                                 }
-                                if (!cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > (60 * 60 * 1000)) {
+                                if (!cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > APP_CONSTANTS.CACHE_EXPIRY_MS) {
                                     allTopicsFresh = false; 
                                 }
                             }
@@ -390,7 +392,7 @@ const ui = {
             if (cacheEntry && cacheEntry.data) {
                 contentContainer.innerHTML = utils.formatAiResponseToHtml(cacheEntry.data);
                 if (cacheEntry.timestamp && cacheEntry.timestamp < oldestTimestamp) oldestTimestamp = cacheEntry.timestamp;
-                if (!cacheEntry.timestamp || (Date.now() - cacheEntry.timestamp) > (60 * 60 * 1000)) needsRefresh = true;
+                if (!cacheEntry.timestamp || (Date.now() - cacheEntry.timestamp) > APP_CONSTANTS.CACHE_EXPIRY_MS) needsRefresh = true;
             } else {
                 contentContainer.innerHTML = "<p>No data available. Try refreshing.</p>";
                 needsRefresh = true; 

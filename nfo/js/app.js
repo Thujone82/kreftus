@@ -1,5 +1,18 @@
 console.log("app.js loaded");
 
+const APP_CONSTANTS = {
+    CACHE_EXPIRY_MS: 60 * 60 * 1000, // 1 hour
+    MODAL_IDS: {
+        APP_CONFIG: 'appConfigModal',
+        LOCATION_CONFIG: 'locationConfigModal',
+        INFO_COLLECTION_CONFIG: 'infoCollectionConfigModal',
+        INFO: 'infoModal'
+    },
+    SW_MESSAGES: {
+        SKIP_WAITING: 'SKIP_WAITING'
+    }
+};
+
 const app = {
     config: null,
     locations: [],
@@ -25,7 +38,7 @@ const app = {
             // Automatic refresh on init is removed. User will use the button.
         } else {
             ui.toggleConfigButtons(false);
-            ui.openModal('appConfigModal'); 
+            ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG); 
         }
         app.updateGlobalRefreshButtonVisibility(); // Initial check for button visibility
         console.log("App initialized.");
@@ -88,22 +101,25 @@ const app = {
     setupEventListeners: () => {
         ui.btnAppConfig.onclick = () => {
             ui.loadAppConfigForm(app.config); 
-            ui.openModal('appConfigModal');
+            if (ui.appConfigError) ui.appConfigError.textContent = ''; // Clear previous errors
+            ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
         };
         ui.btnLocationsConfig.onclick = () => {
             app.currentEditingLocations = JSON.parse(JSON.stringify(app.locations));
             app.initialEditingLocationsString = JSON.stringify(app.currentEditingLocations); // Store initial state
+            if (ui.locationConfigError) ui.locationConfigError.textContent = ''; // Clear previous errors
             ui.renderConfigList(app.currentEditingLocations, ui.locationsListUI, 'location', app.handleRemoveLocationFromEditList);
-            ui.openModal('locationConfigModal');
+            ui.openModal(APP_CONSTANTS.MODAL_IDS.LOCATION_CONFIG);
         };
         ui.btnInfoCollectionConfig.onclick = () => {
             app.currentEditingTopics = JSON.parse(JSON.stringify(app.topics));
             app.initialEditingTopicsString = JSON.stringify(app.currentEditingTopics); // Store initial state
             app.editingTopicId = null; 
             ui.addTopicBtn.textContent = 'Add Topic'; 
+            if (ui.topicConfigError) ui.topicConfigError.textContent = ''; // Clear previous errors
             ui.clearInputFields([ui.topicDescriptionInput, ui.topicAiQueryInput]); 
             ui.renderConfigList(app.currentEditingTopics, ui.topicsListUI, 'topic', app.handleRemoveTopicFromEditList, app.prepareEditTopic);
-            ui.openModal('infoCollectionConfigModal');
+            ui.openModal(APP_CONSTANTS.MODAL_IDS.INFO_COLLECTION_CONFIG);
 
         };
 
@@ -160,7 +176,7 @@ const app = {
         store.saveAppSettings(app.config);
         ui.applyTheme(app.config.primaryColor, app.config.backgroundColor); 
         ui.toggleConfigButtons(true);
-        ui.closeModal('appConfigModal');
+        ui.closeModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
         console.log("App settings saved. API Key present.");
         app.updateGlobalRefreshButtonVisibility(); 
     },
@@ -172,9 +188,10 @@ const app = {
             const newLocation = { id: utils.generateId(), description, location: locationVal };
             app.currentEditingLocations.push(newLocation);
             ui.renderConfigList(app.currentEditingLocations, ui.locationsListUI, 'location', app.handleRemoveLocationFromEditList);
+            if (ui.locationConfigError) ui.locationConfigError.textContent = '';
             ui.clearInputFields([ui.locationDescriptionInput, ui.locationValueInput]);
         } else {
-            alert("Both description and location value are required.");
+            if (ui.locationConfigError) ui.locationConfigError.textContent = "Both description and location value are required.";
         }
     },
     handleRemoveLocationFromEditList: (locationId) => {
@@ -188,7 +205,7 @@ const app = {
         store.saveLocations(app.locations);
         ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined); 
         app.initialEditingLocationsString = JSON.stringify(app.locations); // Update baseline after save
-        ui.closeModal('locationConfigModal');
+        ui.closeModal(APP_CONSTANTS.MODAL_IDS.LOCATION_CONFIG);
         for (const location of app.locations) {
             if (!oldLocationIds.has(location.id)) {
                 console.log(`New location added: ${location.description}. Fetching initial data.`);
@@ -211,7 +228,10 @@ const app = {
     handleAddOrUpdateTopicInEditList: () => {
         const description = ui.topicDescriptionInput.value.trim();
         const aiQuery = ui.topicAiQueryInput.value.trim();
-        if (!description || !aiQuery) { alert("Both description and AI query are required."); return; }
+        if (!description || !aiQuery) {
+            if (ui.topicConfigError) ui.topicConfigError.textContent = "Both description and AI query are required.";
+            return;
+        }
         if (app.editingTopicId) { 
             const topicToUpdate = app.currentEditingTopics.find(t => t.id === app.editingTopicId);
             if (topicToUpdate) { topicToUpdate.description = description; topicToUpdate.aiQuery = aiQuery; }
@@ -219,6 +239,7 @@ const app = {
         } else { 
             app.currentEditingTopics.push({ id: utils.generateId(), description, aiQuery });
         }
+        if (ui.topicConfigError) ui.topicConfigError.textContent = '';
         ui.renderConfigList(app.currentEditingTopics, ui.topicsListUI, 'topic', app.handleRemoveTopicFromEditList, app.prepareEditTopic);
         ui.clearInputFields([ui.topicDescriptionInput, ui.topicAiQueryInput]);
     },
@@ -234,8 +255,8 @@ const app = {
         app.topics = [...app.currentEditingTopics];
         store.saveTopics(app.topics);
         app.initialEditingTopicsString = JSON.stringify(app.topics); // Update baseline after save
-        store.flushAllAiCache(); 
-        ui.closeModal('infoCollectionConfigModal');
+        store.flushAllAiCache();
+        ui.closeModal(APP_CONSTANTS.MODAL_IDS.INFO_COLLECTION_CONFIG);
         app.editingTopicId = null; ui.addTopicBtn.textContent = 'Add Topic';
         const areTopicsDefined = app.topics && app.topics.length > 0;
         ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined); 
@@ -246,12 +267,12 @@ const app = {
 
     handleLocationButtonClick: (locationId) => {
         if (app.topics && app.topics.length > 0) app.handleOpenLocationInfo(locationId);
-        else { alert("Please define an Info Structure before viewing location information."); ui.openModal('infoCollectionConfigModal'); }
+        else { alert("Please define an Info Structure before viewing location information."); ui.openModal(APP_CONSTANTS.MODAL_IDS.INFO_COLLECTION_CONFIG); }
     },
     handleOpenLocationInfo: async (locationId) => {
         if (!app.config.apiKey) { 
             if(ui.appConfigError) ui.appConfigError.textContent = "API Key is not configured. Please configure it first."; 
-            ui.openModal('appConfigModal'); return; 
+            ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG); return; 
         }
         app.currentLocationIdForInfoModal = locationId;
         const location = app.locations.find(l => l.id === locationId);
@@ -260,7 +281,7 @@ const app = {
         // Initial loading message
         if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${location.description} nfo2Go - Loading...`;
         if(ui.infoModalContent) ui.infoModalContent.innerHTML = '<p>Accessing stored data...</p>'; // More accurate initial message
-        ui.openModal('infoModal');
+        ui.openModal(APP_CONSTANTS.MODAL_IDS.INFO);
 
         // Directly gather all cached data for the location without an initial fetch.
         // Stale data will be displayed as is.
@@ -271,7 +292,7 @@ const app = {
             const cacheEntry = store.getAiCache(locationId, topic.id);
             cachedDataForLocation[topic.id] = cacheEntry;
 
-            const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > (60 * 60 * 1000);
+            const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > APP_CONSTANTS.CACHE_EXPIRY_MS;
             const hasError = cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:');
 
             if (isStale || hasError) {
@@ -305,9 +326,9 @@ const app = {
 
     fetchAndCacheAiDataForLocation: async (locationId, forceRefresh = false) => {
         if (!app.config.apiKey) {
-            if (document.getElementById('appConfigModal').style.display !== 'block') {
+            if (document.getElementById(APP_CONSTANTS.MODAL_IDS.APP_CONFIG).style.display !== 'block') {
                  if(ui.appConfigError) ui.appConfigError.textContent = "API Key is required to fetch data."; 
-                 ui.openModal('appConfigModal');
+                 ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
             } return false; 
         }
         const location = app.locations.find(l => l.id === locationId);
@@ -322,14 +343,14 @@ const app = {
         let completedCount = 0;
         const topicsToFetch = app.topics.filter(topic => {
             const cacheEntry = store.getAiCache(locationId, topic.id);
-            const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > (60 * 60 * 1000);
+            const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > APP_CONSTANTS.CACHE_EXPIRY_MS;
             const hasError = cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:');
             return forceRefresh || isStale || hasError;
         });
         const totalTopicsToFetch = topicsToFetch.length;
 
         // Update modal title immediately if it's open for this location
-        if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId && totalTopicsToFetch > 0) {
+        if (document.getElementById(APP_CONSTANTS.MODAL_IDS.INFO).style.display === 'block' && app.currentLocationIdForInfoModal === locationId && totalTopicsToFetch > 0) {
             app.updateInfoModalLoadingMessage(location.description, completedCount, totalTopicsToFetch);
         }
         
@@ -343,7 +364,7 @@ const app = {
             ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
             app.updateGlobalRefreshButtonVisibility();
             // If the modal is open for this location, ensure its title is set correctly,
-            // but avoid a recursive call to handleOpenLocationInfo.
+            // but avoid a recursive call to handleOpenLocationInfo. //TODO: Check this logic
             // The original caller of fetchAndCacheAiDataForLocation (handleOpenLocationInfo) will handle the UI update.
             if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId && ui.infoModalTitle) {
                  if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${location.description} nfo2Go`;
@@ -369,7 +390,7 @@ const app = {
                 })
                 .finally(() => {
                     completedCount++;
-                    if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId) {
+                    if (document.getElementById(APP_CONSTANTS.MODAL_IDS.INFO).style.display === 'block' && app.currentLocationIdForInfoModal === locationId) {
                         app.updateInfoModalLoadingMessage(location.description, completedCount, totalTopicsToFetch);
                     }
                 });
@@ -390,14 +411,14 @@ const app = {
         app.updateGlobalRefreshButtonVisibility();
 
         if (anInvalidKeyErrorOccurred) {
-            if(ui.infoModal) ui.closeModal('infoModal'); 
+            if(ui.infoModal) ui.closeModal(APP_CONSTANTS.MODAL_IDS.INFO); 
             if(ui.appConfigError) ui.appConfigError.textContent = "Invalid API Key. Please check your configuration and save.";
-            ui.openModal('appConfigModal');
+            ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
             return false; 
         }
 
         // If the modal is still open after all fetches, ensure its content is fully updated.
-        if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId) {
+        if (document.getElementById(APP_CONSTANTS.MODAL_IDS.INFO).style.display === 'block' && app.currentLocationIdForInfoModal === locationId) {
             const currentCachedData = {};
             app.topics.forEach(t => {
                 currentCachedData[t.id] = store.getAiCache(locationId, t.id);
@@ -416,7 +437,7 @@ const app = {
                 ui.infoModalTitle.textContent = `${locationDescription} nfo2Go - Fetching (${completed}/${total})`;
                 if (completed === total){
                      setTimeout(() => {
-                        // Check if modal is still open for this location before updating
+                        // Check if modal is still open for this location before attempting to update title
                         if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal && app.locations.find(l=>l.id === app.currentLocationIdForInfoModal)?.description === locationDescription) {
                            // The calling function (handleOpenLocationInfo) will handle the final display update.
                         }
@@ -428,7 +449,7 @@ const app = {
 
     refreshOutdatedQueries: async (forceAllStale = false) => {
         if (!app.config.apiKey) return;
-        const sixtyMinutesAgo = Date.now() - (60 * 60 * 1000);
+        const sixtyMinutesAgo = Date.now() - APP_CONSTANTS.CACHE_EXPIRY_MS;
         let anyFetchesInitiated = false;
         for (const location of app.locations) {
             let needsRefreshForLocation = false;
@@ -469,7 +490,7 @@ const app = {
                 for (const topic of app.topics) {
                     const cacheEntry = store.getAiCache(location.id, topic.id);
                     const hasError = cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:');
-                    const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > (60 * 60 * 1000);
+                    const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > APP_CONSTANTS.CACHE_EXPIRY_MS;
                     if (hasError || isStale) { anyStaleOrError = true; break; }
                 }
                 if (anyStaleOrError) break;
@@ -481,10 +502,10 @@ const app = {
     ,
 
     hasUnsavedChanges: (modalId) => {
-        if (modalId === 'locationConfigModal') {
+        if (modalId === APP_CONSTANTS.MODAL_IDS.LOCATION_CONFIG) {
             return JSON.stringify(app.currentEditingLocations) !== app.initialEditingLocationsString;
         }
-        if (modalId === 'infoCollectionConfigModal') {
+        if (modalId === APP_CONSTANTS.MODAL_IDS.INFO_COLLECTION_CONFIG) {
             return JSON.stringify(app.currentEditingTopics) !== app.initialEditingTopicsString;
         }
         return false; // Not a settings modal we're tracking
@@ -497,7 +518,7 @@ const app = {
         // like a banner or a toast notification instead of a confirm dialog.
         console.log('Prompting user to update to new version.');
         if (confirm("A new version of nfo2Go is available. Refresh to update?")) {
-            worker.postMessage({ type: 'SKIP_WAITING' });
+            worker.postMessage({ type: APP_CONSTANTS.SW_MESSAGES.SKIP_WAITING });
         }
     },
 

@@ -62,6 +62,7 @@
         <div class="modal-content">
             <span class="close-button" data-modal-id="locationConfigModal">&times;</span>
             <h2>Location Configuration</h2>
+            <div id="locationConfigError" class="error-message"></div>
             <p>Add, remove, and sort locations.</p>
             <div class="config-item-form">
                 <input type="text" id="locationDescription" placeholder="Description (e.g., Portland)">
@@ -80,6 +81,7 @@
         <div class="modal-content">
             <span class="close-button" data-modal-id="infoCollectionConfigModal">&times;</span>
             <h2>Info Structure Configuration</h2>
+            <div id="topicConfigError" class="error-message"></div>
             <p>Add, remove, and sort topics for information structure.</p>
             <div class="config-item-form">
                 <input type="text" id="topicDescription" placeholder="Description (e.g., Headlines)">
@@ -96,7 +98,7 @@
     <!-- Info Modal -->
     <div id="infoModal" class="modal">
         <div class="modal-content large">
-            <span class="close-button" data-modal-id="infoModal">&times;</span>
+            <span class="close-button" data-modal-id="infoModal" aria-label="Close">&times;</span>
             <h2 id="infoModalTitle"></h2>
             <p id="infoModalUpdated" class="updated-text"></p>
             <button id="refreshInfoButton" class="hidden">Refresh</button>
