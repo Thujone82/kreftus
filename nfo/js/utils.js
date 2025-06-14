@@ -41,34 +41,51 @@ const utils = {
 
             if (effectiveContent.length === 0) { // Line is effectively blank
                 if (inList) {
-                    processedLines.push('</ul>');
-                    inList = false;
+                    // If inside a list, check if the next non-blank line is also a list item.
+                    // If so, this blank line is between items of the same list and should be ignored.
+                    let nextLineIsListItem = false;
+                    for (let j = i + 1; j < lines.length; j++) {
+                        let nextPreview = lines[j].replace(/[\u00A0\u200B\uFEFF]+/g, ' ').trim();
+                        if (nextPreview.length > 0) {
+                            if (nextPreview.startsWith('* ')) {
+                                nextLineIsListItem = true;
+                            }
+                            break; // Found the next non-blank line
+                        }
+                    }
+
+                    if (nextLineIsListItem) {
+                        continue; // Ignore this blank line, it's between <li> of the same list.
+                    } else {
+                        // Blank line is at the end of a list, or the list was empty. Close it.
+                        processedLines.push('</ul>');
+                        inList = false;
+                        // Now, this blank line will be processed by the general logic below
+                        // as if it were outside any list context.
+                    }
                 }
-                
+
+                // General blank line processing (applies if not inList initially, or if a list was just closed by the block above)
                 let addBlankLine = true;
                 if (processedLines.length > 0) {
                     const lastProcessedLineTrimmed = processedLines[processedLines.length - 1].trim();
-                    if (lastProcessedLineTrimmed.length === 0) { // Previous was already a processed blank line
-                        addBlankLine = false;
-                    } else if (lastProcessedLineTrimmed.endsWith('</h3>')) { // Previous was an H3
-                        addBlankLine = false;
-                    } else if (lastProcessedLineTrimmed.endsWith('</ul>')) { // Previous was a closing list tag
-                        addBlankLine = false;
-                    } else if (lastProcessedLineTrimmed.endsWith('</li>')) { // Previous was a list item
+                    if (lastProcessedLineTrimmed.length === 0 || // Previous was already a processed blank line
+                        lastProcessedLineTrimmed.endsWith('</h3>') ||
+                        lastProcessedLineTrimmed.endsWith('</ul>') ||
+                        lastProcessedLineTrimmed.endsWith('</li>')) {
                         addBlankLine = false;
                     }
                 }
 
-                // If still considering adding a blank line, look ahead to see if the next
-                // non-blank line starts a list or header. If so, suppress this blank line.
+                // Lookahead: if still considering adding a blank line, and the next non-blank input
+                // starts a list or header, suppress this blank line.
                 if (addBlankLine && (i + 1 < lines.length)) {
-                    let nextEffectiveContent = "";
-                    // Find the next line with actual content
+                    let nextMeaningfulContent = "";
                     for (let j = i + 1; j < lines.length; j++) {
-                        nextEffectiveContent = lines[j].replace(/[\u00A0\u200B\uFEFF]+/g, ' ').trim();
-                        if (nextEffectiveContent.length > 0) break;
+                        nextMeaningfulContent = lines[j].replace(/[\u00A0\u200B\uFEFF]+/g, ' ').trim();
+                        if (nextMeaningfulContent.length > 0) break;
                     }
-                    if (nextEffectiveContent.startsWith('* ') || nextEffectiveContent.startsWith('### ')) {
+                    if (nextMeaningfulContent.startsWith('* ') || nextMeaningfulContent.startsWith('### ')) {
                         addBlankLine = false;
                     }
                 }
