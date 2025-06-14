@@ -32,9 +32,36 @@ const app = {
     registerServiceWorker: () => {
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/nfo/sw.js', { scope: '/nfo/' })
-                .then(registration => console.log('Service Worker registered with scope:', registration.scope))
+                .then(registration => {
+                    console.log('Service Worker registered with scope:', registration.scope);
+
+                    // Check for an existing waiting worker on page load.
+                    // This handles cases where a new SW was installed, but the user closed all tabs
+                    // before it could activate, and then reopened the app.
+                    if (registration.waiting) {
+                        app.promptUserToUpdate(registration.waiting);
+                    }
+
+                    // Listen for new worker installing
+                    registration.onupdatefound = () => {
+                        console.log('New service worker found installing.');
+                        const installingWorker = registration.installing;
+                        if (installingWorker) {
+                            installingWorker.onstatechange = () => {
+                                console.log('Service worker state changed:', installingWorker.state);
+                                if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // New worker is installed and waiting (because there's an active controller)
+                                    if (registration.waiting) {
+                                        app.promptUserToUpdate(registration.waiting);
+                                    }
+                                }
+                            };
+                        }
+                    };
+                })
                 .catch(error => console.error('Service Worker registration failed:', error));
         }
+        app.listenForControllerChange();
     },
 
     loadAndApplyAppSettings: () => {
@@ -441,6 +468,26 @@ const app = {
         }
         if (anyStaleOrError) ui.globalRefreshButton.classList.remove('hidden');
         else ui.globalRefreshButton.classList.add('hidden');
+    }
+    ,
+
+    promptUserToUpdate: (worker) => {
+        // For a real application, you would use a more sophisticated UI element
+        // like a banner or a toast notification instead of a confirm dialog.
+        console.log('Prompting user to update to new version.');
+        if (confirm("A new version of nfo2Go is available. Refresh to update?")) {
+            worker.postMessage({ type: 'SKIP_WAITING' });
+        }
+    },
+
+    listenForControllerChange: () => {
+        let refreshing;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (refreshing) return;
+            console.log('Controller changed. New service worker has activated. Reloading page.');
+            window.location.reload();
+            refreshing = true;
+        });
     }
 };
 

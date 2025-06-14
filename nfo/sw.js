@@ -30,3 +30,27 @@ self.addEventListener('fetch', event => {
             .then(response => response || fetch(event.request))
     );
 });
+
+self.addEventListener('message', event => {
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        console.log('Service Worker: SKIP_WAITING message received, calling skipWaiting().');
+        self.skipWaiting();
+    }
+});
+
+self.addEventListener('activate', event => {
+    console.log('Service Worker: Activating new version.');
+    const cacheWhitelist = [CACHE_NAME]; // Add your current cache name here
+    event.waitUntil(
+        caches.keys().then(cacheNames => {
+            return Promise.all(
+                cacheNames.map(cacheName => {
+                    if (cacheWhitelist.indexOf(cacheName) === -1) {
+                        console.log('Service Worker: Deleting old cache', cacheName);
+                        return caches.delete(cacheName);
+                    }
+                })
+            );
+        })
+    );
+});
