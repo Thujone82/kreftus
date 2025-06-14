@@ -374,7 +374,6 @@ const ui = {
             ui.refreshInfoButton.classList.remove('hidden');
             ui.refreshInfoButton.dataset.locationId = location.id;
         }
-        ui.openModal('infoModal');
     },
 
     displayInfoModalError: (topicDescription, errorMessage) => {
