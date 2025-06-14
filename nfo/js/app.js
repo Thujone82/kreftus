@@ -9,6 +9,8 @@ const app = {
     editingTopicId: null, 
     currentLocationIdForInfoModal: null,
     fetchingStatus: {}, 
+    initialEditingLocationsString: '', // For unsaved changes check
+    initialEditingTopicsString: '',    // For unsaved changes check
 
     init: () => {
         console.log("App initializing...");
@@ -90,16 +92,19 @@ const app = {
         };
         ui.btnLocationsConfig.onclick = () => {
             app.currentEditingLocations = JSON.parse(JSON.stringify(app.locations));
+            app.initialEditingLocationsString = JSON.stringify(app.currentEditingLocations); // Store initial state
             ui.renderConfigList(app.currentEditingLocations, ui.locationsListUI, 'location', app.handleRemoveLocationFromEditList);
             ui.openModal('locationConfigModal');
         };
         ui.btnInfoCollectionConfig.onclick = () => {
             app.currentEditingTopics = JSON.parse(JSON.stringify(app.topics));
+            app.initialEditingTopicsString = JSON.stringify(app.currentEditingTopics); // Store initial state
             app.editingTopicId = null; 
             ui.addTopicBtn.textContent = 'Add Topic'; 
             ui.clearInputFields([ui.topicDescriptionInput, ui.topicAiQueryInput]); 
             ui.renderConfigList(app.currentEditingTopics, ui.topicsListUI, 'topic', app.handleRemoveTopicFromEditList, app.prepareEditTopic);
             ui.openModal('infoCollectionConfigModal');
+
         };
 
         ui.saveAppConfigBtn.onclick = app.handleSaveAppSettings;
@@ -107,12 +112,14 @@ const app = {
         ui.saveLocationConfigBtn.onclick = app.handleSaveLocationConfig;
         ui.enableDragAndDrop(ui.locationsListUI, (newOrderIds) => {
             app.currentEditingLocations = app.reorderArrayByIds(app.currentEditingLocations, newOrderIds);
+            // Note: Dragging itself is a change, app.hasUnsavedChanges will detect this.
         });
 
         ui.addTopicBtn.onclick = app.handleAddOrUpdateTopicInEditList;
         ui.saveTopicConfigBtn.onclick = app.handleSaveTopicConfig;
         ui.enableDragAndDrop(ui.topicsListUI, (newOrderIds) => {
             app.currentEditingTopics = app.reorderArrayByIds(app.currentEditingTopics, newOrderIds);
+            // Note: Dragging itself is a change, app.hasUnsavedChanges will detect this.
         });
 
         ui.refreshInfoButton.onclick = () => {
@@ -180,6 +187,7 @@ const app = {
         const areTopicsDefined = app.topics && app.topics.length > 0;
         store.saveLocations(app.locations);
         ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined); 
+        app.initialEditingLocationsString = JSON.stringify(app.locations); // Update baseline after save
         ui.closeModal('locationConfigModal');
         for (const location of app.locations) {
             if (!oldLocationIds.has(location.id)) {
@@ -225,6 +233,7 @@ const app = {
     handleSaveTopicConfig: () => {
         app.topics = [...app.currentEditingTopics];
         store.saveTopics(app.topics);
+        app.initialEditingTopicsString = JSON.stringify(app.topics); // Update baseline after save
         store.flushAllAiCache(); 
         ui.closeModal('infoCollectionConfigModal');
         app.editingTopicId = null; ui.addTopicBtn.textContent = 'Add Topic';
@@ -471,6 +480,18 @@ const app = {
     }
     ,
 
+    hasUnsavedChanges: (modalId) => {
+        if (modalId === 'locationConfigModal') {
+            return JSON.stringify(app.currentEditingLocations) !== app.initialEditingLocationsString;
+        }
+        if (modalId === 'infoCollectionConfigModal') {
+            return JSON.stringify(app.currentEditingTopics) !== app.initialEditingTopicsString;
+        }
+        return false; // Not a settings modal we're tracking
+    },
+
+    // --- Service Worker Update Logic ---
+    
     promptUserToUpdate: (worker) => {
         // For a real application, you would use a more sophisticated UI element
         // like a banner or a toast notification instead of a confirm dialog.

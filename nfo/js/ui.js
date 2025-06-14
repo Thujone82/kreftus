@@ -54,13 +54,37 @@ const ui = {
     },
     initModalCloseButtons: () => {
         document.querySelectorAll('.close-button').forEach(button => {
-            button.onclick = () => {
-                ui.closeModal(button.dataset.modalId);
+            button.onclick = (e) => {
+                const modalId = e.currentTarget.dataset.modalId;
+                if (app.hasUnsavedChanges && app.hasUnsavedChanges(modalId)) {
+                    if (confirm("You have unsaved changes. Save them now? \nOK = Save, Cancel = Discard")) {
+                        if (modalId === 'locationConfigModal' && typeof app.handleSaveLocationConfig === 'function') {
+                            app.handleSaveLocationConfig(); // This also closes the modal
+                        } else if (modalId === 'infoCollectionConfigModal' && typeof app.handleSaveTopicConfig === 'function') {
+                            app.handleSaveTopicConfig(); // This also closes the modal
+                        } else {
+                            ui.closeModal(modalId); // Fallback if save handler not found
+                        }
+                    } else {
+                        ui.closeModal(modalId); // Discard changes
+                    }
+                } else {
+                    ui.closeModal(modalId); // No unsaved changes
+                }
             };
         });
         window.onclick = (event) => {
             if (event.target.classList.contains('modal')) {
-                ui.closeModal(event.target.id);
+                const modalId = event.target.id;
+                if (app.hasUnsavedChanges && app.hasUnsavedChanges(modalId)) {
+                     if (confirm("You have unsaved changes. Save them now? \nOK = Save, Cancel = Discard")) {
+                        if (modalId === 'locationConfigModal' && typeof app.handleSaveLocationConfig === 'function') {
+                            app.handleSaveLocationConfig();
+                        } else if (modalId === 'infoCollectionConfigModal' && typeof app.handleSaveTopicConfig === 'function') {
+                            app.handleSaveTopicConfig();
+                        } else { ui.closeModal(modalId); }
+                    } else { ui.closeModal(modalId); }
+                } else { ui.closeModal(modalId); }
             }
         };
     },
