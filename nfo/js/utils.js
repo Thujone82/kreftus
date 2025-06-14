@@ -36,53 +36,48 @@ const utils = {
 
         for (let i = 0; i < lines.length; i++) {
             let line = lines[i];
+            // Process the line once to get its effective content after trimming special whitespace
+            let effectiveContent = line.replace(/[\u00A0\u200B\uFEFF]+/g, ' ').trim();
 
-            // Check if the line consists ONLY of whitespace characters.
-            // \S is any non-whitespace character. So, !/\S/.test(line) is true if the line is all whitespace.
-            if (!/\S/.test(line)) { // Line is visually blank
+            if (effectiveContent.length === 0) { // Line is effectively blank
                 if (inList) {
                     processedLines.push('</ul>');
                     inList = false;
                 }
-                // Add a blank line only if the previous processed line wasn't also an intentionally added blank line.
-                if (processedLines.length === 0 || processedLines[processedLines.length - 1].trim().length > 0) {
-                    processedLines.push(''); 
-                }
-            } else { // Line has non-whitespace content
-                // Clean this content line for parsing markdown structure and for final output.
-                let contentToProcess = line.replace(/[\u00A0\u200B\uFEFF]+/g, ' ').trim();
                 
-                if (contentToProcess.length === 0) {
-                    if (inList) {
-                        processedLines.push('</ul>');
-                        inList = false;
+                let addBlankLine = true;
+                if (processedLines.length > 0) {
+                    const lastProcessedLineTrimmed = processedLines[processedLines.length - 1].trim();
+                    if (lastProcessedLineTrimmed.length === 0) { // Previous was already a processed blank line
+                        addBlankLine = false;
+                    } else if (lastProcessedLineTrimmed.endsWith('</h3>')) { // Previous was an H3, don't add extra blank line
+                        addBlankLine = false;
                     }
-                    if (processedLines.length === 0 || processedLines[processedLines.length - 1].trim().length > 0) {
-                        processedLines.push('');
-                    }
-                    continue; 
                 }
-
-                if (contentToProcess.startsWith('### ')) {
+                if (addBlankLine) {
+                    processedLines.push(''); // Add the blank line representation
+                }
+            } else { // Line has actual content
+                if (effectiveContent.startsWith('### ')) {
                     if (inList) {
                         processedLines.push('</ul>');
                         inList = false;
                     }
-                    let headerContent = contentToProcess.substring(4).trim();
+                    let headerContent = effectiveContent.substring(4).trim();
                     processedLines.push(`<h3>${applyInlineFormatting(headerContent)}</h3>`);
-                } else if (contentToProcess.startsWith('* ')) {
+                } else if (effectiveContent.startsWith('* ')) {
                     if (!inList) {
                         processedLines.push('<ul>');
                         inList = true;
                     }
-                    let listItemContent = contentToProcess.substring(2).trim();
+                    let listItemContent = effectiveContent.substring(2).trim();
                     processedLines.push(`  <li>${applyInlineFormatting(listItemContent)}</li>`);
                 } else { 
                     if (inList) {
                         processedLines.push('</ul>');
                         inList = false;
                     }
-                    processedLines.push(applyInlineFormatting(contentToProcess));
+                    processedLines.push(applyInlineFormatting(effectiveContent));
                 }
             }
         }
