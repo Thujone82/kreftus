@@ -50,7 +50,9 @@ const utils = {
                     const lastProcessedLineTrimmed = processedLines[processedLines.length - 1].trim();
                     if (lastProcessedLineTrimmed.length === 0) { // Previous was already a processed blank line
                         addBlankLine = false;
-                    } else if (lastProcessedLineTrimmed.endsWith('</h3>')) { // Previous was an H3, don't add extra blank line
+                    } else if (lastProcessedLineTrimmed.endsWith('</h3>')) { // Previous was an H3
+                        addBlankLine = false;
+                    } else if (lastProcessedLineTrimmed.endsWith('</ul>')) { // Previous was a closing list tag
                         addBlankLine = false;
                     }
                 }
