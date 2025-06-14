@@ -54,8 +54,25 @@ const utils = {
                         addBlankLine = false;
                     } else if (lastProcessedLineTrimmed.endsWith('</ul>')) { // Previous was a closing list tag
                         addBlankLine = false;
+                    } else if (lastProcessedLineTrimmed.endsWith('</li>')) { // Previous was a list item
+                        addBlankLine = false;
                     }
                 }
+
+                // If still considering adding a blank line, look ahead to see if the next
+                // non-blank line starts a list or header. If so, suppress this blank line.
+                if (addBlankLine && (i + 1 < lines.length)) {
+                    let nextEffectiveContent = "";
+                    // Find the next line with actual content
+                    for (let j = i + 1; j < lines.length; j++) {
+                        nextEffectiveContent = lines[j].replace(/[\u00A0\u200B\uFEFF]+/g, ' ').trim();
+                        if (nextEffectiveContent.length > 0) break;
+                    }
+                    if (nextEffectiveContent.startsWith('* ') || nextEffectiveContent.startsWith('### ')) {
+                        addBlankLine = false;
+                    }
+                }
+
                 if (addBlankLine) {
                     processedLines.push(''); // Add the blank line representation
                 }
