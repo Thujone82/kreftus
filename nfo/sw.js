@@ -1,4 +1,4 @@
-const CACHE_NAME = 'info2go-v1-cache'; // KKREFT 061325@2213
+const CACHE_NAME = 'info2go-v1-cache'; // KKREFT 061325@2221!
 const urlsToCache = [
     './', // Represents the current directory (app root, e.g., c:\kreftus\nfo\)
     './index.html',
