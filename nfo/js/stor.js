@@ -6,6 +6,7 @@ const APP_SETTINGS_KEY = `${STORE_PREFIX}appSettings`;
 const LOCATIONS_KEY = `${STORE_PREFIX}locations`;
 const TOPICS_KEY = `${STORE_PREFIX}topics`;
 const AI_CACHE_PREFIX = `${STORE_PREFIX}aiCache_`;
+const TOPIC_COLLAPSED_STATE_PREFIX = `${STORE_PREFIX}topicCollapsed_`;
 
 const store = {
     // Application Settings (API Key, Colors)
@@ -77,5 +78,16 @@ const store = {
                 i--; // Adjust index as localStorage length changes
             }
         }
+    },
+
+    // Topic Collapsed State
+    getTopicCollapsedState: (locationId, topicId) => {
+        const key = `${TOPIC_COLLAPSED_STATE_PREFIX}${locationId}_${topicId}`;
+        const state = localStorage.getItem(key);
+        return state ? JSON.parse(state) : null; // null means no preference, default to expanded
+    },
+    saveTopicCollapsedState: (locationId, topicId, isCollapsed) => {
+        const key = `${TOPIC_COLLAPSED_STATE_PREFIX}${locationId}_${topicId}`;
+        localStorage.setItem(key, JSON.stringify(isCollapsed));
     }
 };

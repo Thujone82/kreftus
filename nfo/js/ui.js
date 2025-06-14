@@ -336,14 +336,33 @@ const ui = {
             const titleH3 = document.createElement('h3');
             titleH3.textContent = topic.description;
             titleH3.classList.add('collapsible-title');
-            titleH3.onclick = function() {
-                this.classList.toggle('active');
-                const content = this.nextElementSibling;
-                if(content) content.style.display = (content.style.display === "block") ? "none" : "block";
-            };
+            
             sectionDiv.appendChild(titleH3);
             const contentContainer = document.createElement('div');
             contentContainer.classList.add('ai-topic-content', 'collapsible-content');
+
+            // Load and apply collapsed state
+            let isCollapsed = store.getTopicCollapsedState(location.id, topic.id);
+            if (isCollapsed === null) { // No saved state, default to expanded for the first two, collapsed for others
+                const topicIndex = topics.findIndex(t => t.id === topic.id);
+                isCollapsed = topicIndex >= 2; // First two (index 0, 1) are expanded, rest collapsed
+            }
+
+            if (!isCollapsed) { // If expanded
+                titleH3.classList.add('active');
+                contentContainer.style.display = "block";
+            } else { // If collapsed
+                contentContainer.style.display = "none";
+            }
+
+            titleH3.onclick = function() {
+                this.classList.toggle('active');
+                const content = this.nextElementSibling;
+                const currentlyCollapsed = (content.style.display === "none" || content.style.display === "");
+                content.style.display = currentlyCollapsed ? "block" : "none";
+                store.saveTopicCollapsedState(location.id, topic.id, !currentlyCollapsed);
+            };
+
             if (cacheEntry && cacheEntry.data) {
                 contentContainer.innerHTML = utils.formatAiResponseToHtml(cacheEntry.data);
                 if (cacheEntry.timestamp && cacheEntry.timestamp < oldestTimestamp) oldestTimestamp = cacheEntry.timestamp;
