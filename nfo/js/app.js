@@ -345,10 +345,15 @@ const app = {
         // Stale data will be displayed as is.
         const cachedDataForLocation = {};
         let needsOverallRefreshForModal = false;
+        let isCurrentlyFetchingForThisLocation = app.fetchingStatus[locationId] === true;
 
         app.topics.forEach(topic => {
             const cacheEntry = store.getAiCache(locationId, topic.id);
             cachedDataForLocation[topic.id] = cacheEntry;
+            
+            // If we are actively fetching (e.g. after a topic save),
+            // consider data for specifically targeted topics as "pending" rather than immediately "stale" for UI purposes.
+            // However, the underlying staleness check for needsOverallRefreshForModal should still consider actual cache state.
 
             const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > APP_CONSTANTS.CACHE_EXPIRY_MS;
             const hasError = cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:');
@@ -359,10 +364,10 @@ const app = {
         });
 
         // Display the gathered data (fresh, stale, or error)
-        ui.displayInfoModal(location, app.topics, cachedDataForLocation); // This will now set the final title and content
+        ui.displayInfoModal(location, app.topics, cachedDataForLocation, isCurrentlyFetchingForThisLocation); 
         
         // Show/hide the modal's refresh button based on the state of the displayed data
-        if (needsOverallRefreshForModal && ui.refreshInfoButton) { 
+        if (needsOverallRefreshForModal && !isCurrentlyFetchingForThisLocation && ui.refreshInfoButton) { 
             ui.refreshInfoButton.classList.remove('hidden'); 
             ui.refreshInfoButton.dataset.locationId = locationId; 
         } else if (ui.refreshInfoButton) {
@@ -398,6 +403,12 @@ const app = {
         
         console.log(`Fetching/Caching AI data for location: ${location.description}. GeneralForce: ${forceRefreshGeneral}, SpecificIDs: ${specificTopicIdsToForce ? specificTopicIdsToForce.join(', ') : 'None'}`);
         
+        // Ensure fetchingStatus is set BEFORE any UI updates that depend on it.
+        if (topicsToFetch.length > 0) { // Only set if actual fetches will occur
+            app.fetchingStatus[locationId] = true;
+            ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined); // Update button state
+        }
+
         let completedCount = 0;
 
         const topicsToFetch = app.topics.filter(topic => {
@@ -417,7 +428,7 @@ const app = {
         console.log(`[FADFL] Location: ${location.description}. Filtered topicsToFetch (actual items to query API for):`, topicsToFetch.map(t => ({id: t.id, desc: t.description})));
 
         const totalTopicsToFetch = topicsToFetch.length;
-
+        
         // Update modal title immediately if it's open for this location
         if (document.getElementById(APP_CONSTANTS.MODAL_IDS.INFO).style.display === 'block' && app.currentLocationIdForInfoModal === locationId && totalTopicsToFetch > 0) {
             app.updateInfoModalLoadingMessage(location.description, completedCount, totalTopicsToFetch);
@@ -429,12 +440,10 @@ const app = {
 
         if (totalTopicsToFetch === 0) {
             console.log(`No topics to fetch for ${location.description}.`);
-            delete app.fetchingStatus[locationId];
-            ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
-            app.updateGlobalRefreshButtonVisibility();
-            // If the modal is open for this location, ensure its title is set correctly,
-            // but avoid a recursive call to handleOpenLocationInfo. //TODO: Check this logic
-            // The original caller of fetchAndCacheAiDataForLocation (handleOpenLocationInfo) will handle the UI update.
+            // No need to change fetchingStatus if it wasn't set, or clear it if no fetches started.
+            // ui.renderLocationButtons was already called if topicsToFetch.length > 0 was true before filter
+            // app.updateGlobalRefreshButtonVisibility(); // This will be called in the finally block of refreshOutdatedQueries if this is part of it
+
             if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId && ui.infoModalTitle) {
                  if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${location.description} nfo2Go`;
             }
@@ -489,10 +498,11 @@ const app = {
         // If the modal is still open after all fetches, ensure its content is fully updated.
         if (document.getElementById(APP_CONSTANTS.MODAL_IDS.INFO).style.display === 'block' && app.currentLocationIdForInfoModal === locationId) {
             const currentCachedData = {};
+            const isStillFetching = app.fetchingStatus[locationId] === true; // Re-check, though it should be false now
             app.topics.forEach(t => {
                 currentCachedData[t.id] = store.getAiCache(locationId, t.id);
             });
-            ui.displayInfoModal(location, app.topics, currentCachedData);
+            ui.displayInfoModal(location, app.topics, currentCachedData, isStillFetching);
         }
         
         return allIndividualFetchesSuccessful;

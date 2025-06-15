@@ -200,7 +200,10 @@ const ui = {
 
                 if (!areTopicsDefined) {
                     button.classList.add('needs-info-structure');
-                    button.title = "Info Structure not defined. Click to configure.";
+                    button.title = "Info Structure not defined.";
+                } else if (app.fetchingStatus && app.fetchingStatus[location.id]) {
+                    button.classList.add('location-button-fetching');
+                    button.title = "Fetching data...";
                 } else {
                     let locationStatus = 'stale'; 
                     if (app.fetchingStatus && app.fetchingStatus[location.id]) {
@@ -226,8 +229,13 @@ const ui = {
                         else if (allTopicsFresh) locationStatus = 'fresh';
                     }
                     if (locationStatus === 'fresh') button.classList.add('location-button-fresh');
-                    else if (locationStatus === 'fetching') button.classList.add('location-button-fetching');
-                    else if (locationStatus === 'error') button.classList.add('location-button-error');
+                    else if (locationStatus === 'fetching') { // Should be caught by the earlier check, but as a fallback
+                        button.classList.add('location-button-fetching');
+                        button.title = "Fetching data...";
+                    } else if (locationStatus === 'error') {
+                        button.classList.add('location-button-error');
+                        button.title = "One or more topics have an error.";
+                    } else button.title = "Data is stale or not yet loaded."; // Default for 'stale'
                 }              
                 ui.locationButtonsContainer.appendChild(button);
             });
@@ -347,7 +355,7 @@ const ui = {
         }
     },
 
-    displayInfoModal: (location, topics, cachedData) => {
+    displayInfoModal: (location, topics, cachedData, isCurrentlyFetching) => {
         const locationData = store.getLocations().find(l => l.id === location.id);
         if (!locationData) return;
         if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${locationData.description} nfo2Go`;
@@ -355,6 +363,11 @@ const ui = {
         if(ui.refreshInfoButton) ui.refreshInfoButton.classList.add('hidden'); 
         
         let oldestTimestamp = Date.now(), needsRefresh = false;
+
+        if (isCurrentlyFetching && ui.infoModalTitle) {
+            // If actively fetching, ensure title reflects this, even if completedCount isn't available here.
+            // app.updateInfoModalLoadingMessage handles the (0/N) part.
+        }
         topics.forEach(topic => {
             const cacheEntry = cachedData[topic.id];
             const sectionDiv = document.createElement('div');
@@ -391,11 +404,15 @@ const ui = {
                 const formattedHtml = utils.formatAiResponseToHtml(cacheEntry.data);
                 console.log(`HTML for topic "${topic.description}" (Location: ${location.id}):\n`, formattedHtml); // DEBUG LOG
                 contentContainer.innerHTML = formattedHtml;
-                if (cacheEntry.timestamp && cacheEntry.timestamp < oldestTimestamp) oldestTimestamp = cacheEntry.timestamp;
-                if (!cacheEntry.timestamp || (Date.now() - cacheEntry.timestamp) > APP_CONSTANTS.CACHE_EXPIRY_MS) needsRefresh = true;
+                if (cacheEntry.timestamp && cacheEntry.timestamp < oldestTimestamp) {
+                    oldestTimestamp = cacheEntry.timestamp;
+                }
+                if (!isCurrentlyFetching && (!cacheEntry.timestamp || (Date.now() - cacheEntry.timestamp) > APP_CONSTANTS.CACHE_EXPIRY_MS)) {
+                     needsRefreshOverall = true;
+                }
             } else {
-                contentContainer.innerHTML = "<p>No data available. Try refreshing.</p>";
-                needsRefresh = true; 
+                contentContainer.innerHTML = isCurrentlyFetching ? "<p>Fetching data...</p>" : "<p>No data available. Try refreshing.</p>";
+                if (!isCurrentlyFetching) needsRefreshOverall = true; 
             }
             const topicFooter = document.createElement('div');
             topicFooter.classList.add('topic-content-footer');
@@ -414,8 +431,10 @@ const ui = {
             if(ui.infoModalContent) ui.infoModalContent.appendChild(sectionDiv);
         });
         const overallAge = (topics.length > 0 && oldestTimestamp !== Date.now()) ? oldestTimestamp : null;
-        if(ui.infoModalUpdated) ui.infoModalUpdated.textContent = `Updated ${utils.formatTimeAgo(overallAge)}`;
-        if (needsRefresh && ui.refreshInfoButton) {
+        if(ui.infoModalUpdated) {
+            ui.infoModalUpdated.textContent = isCurrentlyFetching ? "Fetching latest..." : `Updated ${utils.formatTimeAgo(overallAge)}`;
+        }
+        if (needsRefreshOverall && !isCurrentlyFetching && ui.refreshInfoButton) {
             ui.refreshInfoButton.classList.remove('hidden');
             ui.refreshInfoButton.dataset.locationId = location.id;
         }
