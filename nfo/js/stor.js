@@ -7,6 +7,7 @@ const LOCATIONS_KEY = `${STORE_PREFIX}locations`;
 const TOPICS_KEY = `${STORE_PREFIX}topics`;
 const AI_CACHE_PREFIX = `${STORE_PREFIX}aiCache_`;
 const WEATHER_CACHE_PREFIX = `${STORE_PREFIX}weatherCache_`;
+const GEOCODE_CACHE_PREFIX = `${STORE_PREFIX}geocodeCache_`;
 const TOPIC_COLLAPSED_STATE_PREFIX = `${STORE_PREFIX}topicCollapsed_`;
 
 const store = {
@@ -120,5 +121,21 @@ const store = {
         const cacheKey = `${WEATHER_CACHE_PREFIX}${locationId}`;
         localStorage.removeItem(cacheKey);
         console.log(`Flushed Weather Cache for location ID: ${locationId}`);
+    },
+
+    // Geocode Cache (stores {lat, lon} for a given location string)
+    getGeocodeCache: (locationString) => {
+        const cacheKey = `${GEOCODE_CACHE_PREFIX}${encodeURIComponent(locationString)}`;
+        const cachedItem = localStorage.getItem(cacheKey);
+        return cachedItem ? JSON.parse(cachedItem) : null;
+    },
+    saveGeocodeCache: (locationString, coords) => {
+        const cacheKey = `${GEOCODE_CACHE_PREFIX}${encodeURIComponent(locationString)}`;
+        const itemToCache = {
+            timestamp: Date.now(),
+            data: coords // Should be {lat, lon}
+        };
+        localStorage.setItem(cacheKey, JSON.stringify(itemToCache));
+        console.log(`Geocode Cache saved for "${locationString}"`);
     }
 };

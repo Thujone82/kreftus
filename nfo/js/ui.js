@@ -191,25 +191,17 @@ const ui = {
         console.log(`Config buttons ${enabled ? 'enabled' : 'disabled'}`);
     },
 
-    renderLocationButtons: async (locations, onLocationClickCallback, areTopicsDefined) => {
+    renderLocationButtons: (locations, onLocationClickCallback, areTopicsDefined) => { // No longer async itself
         if(!ui.locationButtonsContainer) return;
         ui.locationButtonsContainer.innerHTML = ''; 
         if (locations && locations.length > 0) {
             if(ui.locationsSection) ui.locationsSection.classList.remove('hidden');
 
-            // Use Promise.all to fetch weather for all locations concurrently
-            const weatherPromises = locations.map(location => {
-                if (app.config && app.config.owmApiKey) {
-                    return app.getWeatherDisplayForLocation(location);
-                }
-                return Promise.resolve(null); // Resolve with null if no OWM key
-            });
-            const weatherDisplays = await Promise.all(weatherPromises);
-
-            locations.forEach((location, index) => {
+            locations.forEach(location => {
                 const button = document.createElement('button');
                 let buttonHTML = '';
                 button.dataset.locationId = location.id;
+                // button.dataset.locationString = location.location; // Not strictly needed if location object is passed
                 button.onclick = () => onLocationClickCallback(location.id);
 
                 button.classList.remove('location-button-fresh', 'location-button-fetching', 'location-button-error', 'needs-info-structure');
@@ -217,16 +209,14 @@ const ui = {
                 if (!areTopicsDefined) {
                     // Structure for button content: Name on one line, weather on another (if available)
                     const nameSpan = `<span class="location-button-name">${location.description}</span>`;
-                    const weatherSpan = weatherDisplays[index] ? `<span class="location-button-weather">${weatherDisplays[index]}</span>` : '';
-                    buttonHTML = `${nameSpan}${weatherSpan}`;
+                    buttonHTML = `${nameSpan}<span class="location-button-weather"></span>`; // Placeholder for weather
                     button.classList.add('needs-info-structure');
                     button.title = "Info Structure not defined. Weather disabled.";
                 } else if (app.fetchingStatus && app.fetchingStatus[location.id]) {
                     button.classList.add('location-button-fetching');
                     const nameSpan = `<span class="location-button-name">${location.description}</span>`;
-                    const weatherSpan = weatherDisplays[index] ? `<span class="location-button-weather">${weatherDisplays[index]}</span>` : '';
-                    buttonHTML = `${nameSpan}${weatherSpan}`;
-                    if (weatherSpan) button.title = "Fetching AI data, showing current weather...";
+                    buttonHTML = `${nameSpan}<span class="location-button-weather"></span>`; // Placeholder
+                    button.title = "Fetching AI data..."; // Initial title
                     else button.title = "Fetching AI data...";
                 } else {
                     let locationStatus = 'stale'; 
@@ -254,25 +244,26 @@ const ui = {
                     }
 
                     const nameSpan = `<span class="location-button-name">${location.description}</span>`;
-                    const weatherSpan = weatherDisplays[index] ? `<span class="location-button-weather">${weatherDisplays[index]}</span>` : '';
-                    buttonHTML = `${nameSpan}${weatherSpan}`;
+                    buttonHTML = `${nameSpan}<span class="location-button-weather"></span>`; // Placeholder
 
                     if (locationStatus === 'fresh') button.classList.add('location-button-fresh');
                     else if (locationStatus === 'fetching') { // Should be caught by the earlier check, but as a fallback
                         button.classList.add('location-button-fetching');
-                        if (weatherSpan) button.title = "Fetching AI data, showing current weather...";
-                        else button.title = "Fetching AI data...";
+                        button.title = "Fetching AI data...";
                     } else if (locationStatus === 'error') {
                         button.classList.add('location-button-error');
-                        if (weatherSpan) button.title = "One or more topics have an error. Weather shown.";
-                        else button.title = "One or more topics have an error.";
+                        button.title = "One or more topics have an error.";
                     } else { // Default for 'stale'
-                        if (weatherSpan) button.title = "AI Data is stale or not yet loaded. Weather shown.";
-                        else button.title = "AI Data is stale or not yet loaded.";
+                        button.title = "AI Data is stale or not yet loaded.";
                     }
                 }              
                 button.innerHTML = buttonHTML.trim();
                 ui.locationButtonsContainer.appendChild(button);
+
+                // Asynchronously update weather for this button
+                if (app.config && app.config.owmApiKey) {
+                    ui.updateButtonWeatherDisplay(button, location);
+                }
             });
         } else {
             if(ui.locationsSection) ui.locationsSection.classList.add('hidden');
@@ -282,6 +273,27 @@ const ui = {
             app.updateGlobalRefreshButtonVisibility();
         }
         console.log("Location buttons rendered:", locations);
+    },
+
+    updateButtonWeatherDisplay: async (buttonElement, location) => {
+        // Ensure this function is robust against the button being removed from DOM
+        if (!buttonElement || !document.body.contains(buttonElement)) {
+            return;
+        }
+        const weatherDisplayHtml = await app.getWeatherDisplayForLocation(location);
+        const weatherSpan = buttonElement.querySelector('.location-button-weather');
+        if (weatherSpan) { // Check if weatherSpan still exists (button might have been re-rendered)
+            if (weatherDisplayHtml) {
+                weatherSpan.innerHTML = weatherDisplayHtml;
+                // Update title intelligently based on existing title and weather presence
+                const currentTitle = buttonElement.title || "";
+                if (currentTitle.includes("Fetching AI data") && !currentTitle.includes("current weather")) buttonElement.title = "Fetching AI data, showing current weather...";
+                else if (currentTitle.includes("AI Data is stale") && !currentTitle.includes("Weather shown")) buttonElement.title = "AI Data is stale or not yet loaded. Weather shown.";
+                else if (currentTitle.includes("topics have an error") && !currentTitle.includes("Weather shown")) buttonElement.title = "One or more topics have an error. Weather shown.";
+            } else {
+                weatherSpan.innerHTML = ''; // Clear if no weather
+            }
+        }
     },
 
     renderConfigList: (items, listElement, type, onRemoveCallback, onEditCallback) => {

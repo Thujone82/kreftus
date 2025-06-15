@@ -183,9 +183,17 @@ const utils = {
             return null;
         }
 
+        // Check cache first
+        const cachedGeocode = store.getGeocodeCache(locationString);
+        if (cachedGeocode && (Date.now() - cachedGeocode.timestamp < APP_CONSTANTS.CACHE_EXPIRY_GEOCODE_MS)) {
+            console.log(`Using cached geocode for "${locationString}"`);
+            return cachedGeocode.data;
+        }
+
         const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(locationString)}&format=json&limit=1`;
         
         try {
+            console.log(`Geocoding "${locationString}" via Nominatim`);
             // Nominatim requires a custom User-Agent.
             // Replace 'nfo2go/2.0 (YourAppNameOrContactInfo)' with your actual app name/contact.
             const response = await fetch(nominatimUrl, {
@@ -206,6 +214,7 @@ const utils = {
                 const lat = parseFloat(data[0].lat);
                 const lon = parseFloat(data[0].lon);
                 if (!isNaN(lat) && !isNaN(lon)) {
+                    store.saveGeocodeCache(locationString, { lat, lon });
                     console.log(`Geocoded "${locationString}" to:`, { lat, lon });
                     return { lat, lon };
                 }

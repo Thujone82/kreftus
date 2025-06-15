@@ -9,6 +9,7 @@ const APP_CONSTANTS = {
         INFO: 'infoModal'
     },
      CACHE_EXPIRY_WEATHER_MS: 15 * 60 * 1000, // 15 minutes for weather
+     CACHE_EXPIRY_GEOCODE_MS: 7 * 24 * 60 * 60 * 1000, // 7 days for geocode cache
      SW_MESSAGES: {
 
         SKIP_WAITING: 'SKIP_WAITING'
