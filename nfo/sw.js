@@ -1,4 +1,4 @@
-const CACHE_NAME = 'info2go-061424@2237-cache'; // KKREFT 
+const CACHE_NAME = 'info2go-061524@0743-cache'; // KKREFT 
 const SW_CONSTANTS = { // Defined here as sw.js doesn't import app.js
     SW_MESSAGES: {
         SKIP_WAITING: 'SKIP_WAITING'
@@ -22,10 +22,15 @@ const urlsToCache = [
 self.addEventListener('install', event => {
     event.waitUntil(
         caches.open(CACHE_NAME)
-            .then(cache => {
+            .then(async (cache) => {
                 console.log('Opened cache');
-                return cache.addAll(urlsToCache);
+                // Create Request objects with 'reload' cache mode to bypass HTTP cache
+                const requests = urlsToCache.map(url => new Request(url, { cache: 'reload' }));
+                console.log('Attempting to add all URLs to cache with reload strategy:', urlsToCache);
+                await cache.addAll(requests);
+                console.log('All files added to cache successfully.');
             })
+            .catch(error => console.error('Failed to cache files during install:', error))
     );
 });
 
