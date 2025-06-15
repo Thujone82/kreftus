@@ -76,8 +76,30 @@ const utils = {
                         processedLines.push('<ul>');
                         inList = true;
                     }
-                    let listItemContent = effectiveContent.substring(2).trim();
-                    processedLines.push(`<li>${applyInlineFormatting(listItemContent)}</li>`);
+                    let listItemContent = effectiveContent.substring(2).trim(); // Get content after "* "
+                    if (listItemContent.length > 0) {
+                        processedLines.push(`<li>${applyInlineFormatting(listItemContent)}</li>`);
+                    } else {
+                        // This line was effectively an empty list item (e.g., "* " or "*    ")
+                        // We should not render an empty <li>.
+                        // If we are in a list and the next line is NOT a list item,
+                        // this "empty" item might signify the end of the list.
+                        if (inList) {
+                            let nextLineIsListItemAfterEmpty = false;
+                            for (let j = i + 1; j < lines.length; j++) {
+                                let nextPreview = lines[j].replace(/[\u00A0\u200B\uFEFF]+/g, ' ').trim();
+                                if (nextPreview.length > 0) {
+                                    if (nextPreview.startsWith('* ')) nextLineIsListItemAfterEmpty = true;
+                                    break;
+                                }
+                            }
+                            if (!nextLineIsListItemAfterEmpty) { // If no more list items follow this empty one
+                                processedLines.push('</ul>');
+                                inList = false;
+                            }
+                        }
+                        continue; // Skip adding an empty <li>
+                    }
                 } else { 
                     if (inList) {
                         processedLines.push('</ul>');
