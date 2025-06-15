@@ -41,6 +41,7 @@ const ui = {
     // Info Modal
     infoModal: document.getElementById('infoModal'),
     infoModalTitle: document.getElementById('infoModalTitle'),
+    infoModalWeather: document.getElementById('infoModalWeather'), // Added
     infoModalUpdated: document.getElementById('infoModalUpdated'),
     refreshInfoButton: document.getElementById('refreshInfoButton'),
     infoModalContent: document.getElementById('infoModalContent'),
@@ -214,17 +215,19 @@ const ui = {
                 button.classList.remove('location-button-fresh', 'location-button-fetching', 'location-button-error', 'needs-info-structure');
 
                 if (!areTopicsDefined) {
+                    // Structure for button content: Name on one line, weather on another (if available)
+                    const nameSpan = `<span class="location-button-name">${location.description}</span>`;
+                    const weatherSpan = weatherDisplays[index] ? `<span class="location-button-weather">${weatherDisplays[index]}</span>` : '';
+                    buttonHTML = `${nameSpan}${weatherSpan}`;
                     button.classList.add('needs-info-structure');
-                    buttonHTML = location.description;
                     button.title = "Info Structure not defined. Weather disabled.";
                 } else if (app.fetchingStatus && app.fetchingStatus[location.id]) {
                     button.classList.add('location-button-fetching');
-                    // Show stale weather if available during AI fetch
-                    const weatherHTML = weatherDisplays[index] || '';
-                    buttonHTML = `${weatherHTML} ${location.description}`;
-                    if (weatherHTML) button.title = "Fetching AI data, showing current weather...";
+                    const nameSpan = `<span class="location-button-name">${location.description}</span>`;
+                    const weatherSpan = weatherDisplays[index] ? `<span class="location-button-weather">${weatherDisplays[index]}</span>` : '';
+                    buttonHTML = `${nameSpan}${weatherSpan}`;
+                    if (weatherSpan) button.title = "Fetching AI data, showing current weather...";
                     else button.title = "Fetching AI data...";
-                    button.title = "Fetching data...";
                 } else {
                     let locationStatus = 'stale'; 
                     if (app.fetchingStatus && app.fetchingStatus[location.id]) {
@@ -250,20 +253,21 @@ const ui = {
                         else if (allTopicsFresh) locationStatus = 'fresh';
                     }
 
-                    const weatherHTML = weatherDisplays[index] || '';
-                    buttonHTML = `${weatherHTML} ${location.description}`;
+                    const nameSpan = `<span class="location-button-name">${location.description}</span>`;
+                    const weatherSpan = weatherDisplays[index] ? `<span class="location-button-weather">${weatherDisplays[index]}</span>` : '';
+                    buttonHTML = `${nameSpan}${weatherSpan}`;
 
                     if (locationStatus === 'fresh') button.classList.add('location-button-fresh');
                     else if (locationStatus === 'fetching') { // Should be caught by the earlier check, but as a fallback
                         button.classList.add('location-button-fetching');
-                        if (weatherHTML) button.title = "Fetching AI data, showing current weather...";
+                        if (weatherSpan) button.title = "Fetching AI data, showing current weather...";
                         else button.title = "Fetching AI data...";
                     } else if (locationStatus === 'error') {
                         button.classList.add('location-button-error');
-                        if (weatherHTML) button.title = "One or more topics have an error. Weather shown.";
+                        if (weatherSpan) button.title = "One or more topics have an error. Weather shown.";
                         else button.title = "One or more topics have an error.";
                     } else { // Default for 'stale'
-                        if (weatherHTML) button.title = "AI Data is stale or not yet loaded. Weather shown.";
+                        if (weatherSpan) button.title = "AI Data is stale or not yet loaded. Weather shown.";
                         else button.title = "AI Data is stale or not yet loaded.";
                     }
                 }              
@@ -393,20 +397,22 @@ const ui = {
         if(ui.infoModalContent) ui.infoModalContent.innerHTML = ''; 
         if(ui.refreshInfoButton) ui.refreshInfoButton.classList.add('hidden'); 
         
-        let oldestTimestamp = Date.now(), needsRefresh = false;
+        let oldestTimestamp = Date.now(), needsRefreshOverall = false; // Corrected variable name
 
-        // Attempt to get weather display for the modal title area
-        let weatherPrefix = '';
+        // Set the main title (without weather)
+        if(ui.infoModalTitle) {
+            ui.infoModalTitle.textContent = `${locationData.description} nfo2Go`;
+        }
+
+        // Fetch and display weather in its dedicated spot
+        if(ui.infoModalWeather) ui.infoModalWeather.innerHTML = ''; // Clear previous weather
         if (app.config && app.config.owmApiKey) {
             const weatherDisplayHtml = await app.getWeatherDisplayForLocation(location);
-            if (weatherDisplayHtml) {
-                weatherPrefix = weatherDisplayHtml + " ";
+            if (weatherDisplayHtml && ui.infoModalWeather) {
+                ui.infoModalWeather.innerHTML = weatherDisplayHtml;
             }
         }
-        if (isCurrentlyFetching && ui.infoModalTitle) {
-            // If actively fetching, ensure title reflects this, even if completedCount isn't available here.
-            // app.updateInfoModalLoadingMessage handles the (0/N) part.
-        }
+
         topics.forEach(topic => {
             const cacheEntry = cachedData[topic.id];
             const sectionDiv = document.createElement('div');
@@ -473,10 +479,7 @@ const ui = {
         if(ui.infoModalUpdated) {
             ui.infoModalUpdated.textContent = isCurrentlyFetching ? "Fetching latest AI data..." : `AI Data Updated ${utils.formatTimeAgo(overallAge)}`;
         }
-        // Update modal title with weather if available
-        if(ui.infoModalTitle) {
-            ui.infoModalTitle.innerHTML = `${weatherPrefix}${locationData.description} nfo2Go`;
-        }
+
         if (needsRefreshOverall && !isCurrentlyFetching && ui.refreshInfoButton) {
             ui.refreshInfoButton.classList.remove('hidden');
             ui.refreshInfoButton.dataset.locationId = location.id;
