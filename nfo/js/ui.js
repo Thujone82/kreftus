@@ -13,8 +13,10 @@ const ui = {
     appConfigModal: document.getElementById('appConfigModal'),
     appConfigError: document.getElementById('appConfigError'),
     apiKeyInput: document.getElementById('apiKey'),
-    getApiKeyLinkContainer: document.getElementById('getApiKeyLinkContainer'), 
+    getApiKeyLinkContainer: document.getElementById('getApiKeyLinkContainer'),
     primaryColorInput: document.getElementById('primaryColor'),
+    owmApiKeyInput: document.getElementById('owmApiKey'), // Added
+    getOwmApiKeyLinkContainer: document.getElementById('getOwmApiKeyLinkContainer'), // Added
     backgroundColorInput: document.getElementById('backgroundColor'),
     saveAppConfigBtn: document.getElementById('saveAppConfig'),
 
@@ -167,14 +169,17 @@ const ui = {
 
     loadAppConfigForm: (settings) => {
         if(ui.apiKeyInput) ui.apiKeyInput.value = settings.apiKey || '';
+        if(ui.owmApiKeyInput) ui.owmApiKeyInput.value = settings.owmApiKey || ''; // Added
         if(ui.primaryColorInput) ui.primaryColorInput.value = settings.primaryColor;
         if(ui.backgroundColorInput) ui.backgroundColorInput.value = settings.backgroundColor; 
         if(ui.appConfigError) ui.appConfigError.textContent = ''; 
 
-        if (settings.apiKey && ui.getApiKeyLinkContainer) {
-            ui.getApiKeyLinkContainer.classList.add('hidden');
-        } else if (ui.getApiKeyLinkContainer) {
-            ui.getApiKeyLinkContainer.classList.remove('hidden');
+        // Toggle visibility of "Get API Key" links
+        if (ui.getApiKeyLinkContainer) {
+            ui.getApiKeyLinkContainer.classList.toggle('hidden', !!settings.apiKey);
+        }
+        if (ui.getOwmApiKeyLinkContainer) { // Added
+            ui.getOwmApiKeyLinkContainer.classList.toggle('hidden', !!settings.owmApiKey); // Added
         }
         console.log("App config form loaded with settings:", settings);
     },
@@ -185,14 +190,24 @@ const ui = {
         console.log(`Config buttons ${enabled ? 'enabled' : 'disabled'}`);
     },
 
-    renderLocationButtons: (locations, onLocationClickCallback, areTopicsDefined) => {
+    renderLocationButtons: async (locations, onLocationClickCallback, areTopicsDefined) => {
         if(!ui.locationButtonsContainer) return;
         ui.locationButtonsContainer.innerHTML = ''; 
         if (locations && locations.length > 0) {
             if(ui.locationsSection) ui.locationsSection.classList.remove('hidden');
-            locations.forEach(location => {
+
+            // Use Promise.all to fetch weather for all locations concurrently
+            const weatherPromises = locations.map(location => {
+                if (app.config && app.config.owmApiKey) {
+                    return app.getWeatherDisplayForLocation(location);
+                }
+                return Promise.resolve(null); // Resolve with null if no OWM key
+            });
+            const weatherDisplays = await Promise.all(weatherPromises);
+
+            locations.forEach((location, index) => {
                 const button = document.createElement('button');
-                button.textContent = location.description;
+                let buttonHTML = '';
                 button.dataset.locationId = location.id;
                 button.onclick = () => onLocationClickCallback(location.id);
 
@@ -200,9 +215,15 @@ const ui = {
 
                 if (!areTopicsDefined) {
                     button.classList.add('needs-info-structure');
-                    button.title = "Info Structure not defined.";
+                    buttonHTML = location.description;
+                    button.title = "Info Structure not defined. Weather disabled.";
                 } else if (app.fetchingStatus && app.fetchingStatus[location.id]) {
                     button.classList.add('location-button-fetching');
+                    // Show stale weather if available during AI fetch
+                    const weatherHTML = weatherDisplays[index] || '';
+                    buttonHTML = `${weatherHTML} ${location.description}`;
+                    if (weatherHTML) button.title = "Fetching AI data, showing current weather...";
+                    else button.title = "Fetching AI data...";
                     button.title = "Fetching data...";
                 } else {
                     let locationStatus = 'stale'; 
@@ -228,15 +249,25 @@ const ui = {
                         if (hasError) locationStatus = 'error';
                         else if (allTopicsFresh) locationStatus = 'fresh';
                     }
+
+                    const weatherHTML = weatherDisplays[index] || '';
+                    buttonHTML = `${weatherHTML} ${location.description}`;
+
                     if (locationStatus === 'fresh') button.classList.add('location-button-fresh');
                     else if (locationStatus === 'fetching') { // Should be caught by the earlier check, but as a fallback
                         button.classList.add('location-button-fetching');
-                        button.title = "Fetching data...";
+                        if (weatherHTML) button.title = "Fetching AI data, showing current weather...";
+                        else button.title = "Fetching AI data...";
                     } else if (locationStatus === 'error') {
                         button.classList.add('location-button-error');
-                        button.title = "One or more topics have an error.";
-                    } else button.title = "Data is stale or not yet loaded."; // Default for 'stale'
+                        if (weatherHTML) button.title = "One or more topics have an error. Weather shown.";
+                        else button.title = "One or more topics have an error.";
+                    } else { // Default for 'stale'
+                        if (weatherHTML) button.title = "AI Data is stale or not yet loaded. Weather shown.";
+                        else button.title = "AI Data is stale or not yet loaded.";
+                    }
                 }              
+                button.innerHTML = buttonHTML.trim();
                 ui.locationButtonsContainer.appendChild(button);
             });
         } else {
@@ -355,7 +386,7 @@ const ui = {
         }
     },
 
-    displayInfoModal: (location, topics, cachedData, isCurrentlyFetching) => {
+    displayInfoModal: async (location, topics, cachedData, isCurrentlyFetching) => {
         const locationData = store.getLocations().find(l => l.id === location.id);
         if (!locationData) return;
         if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${locationData.description} nfo2Go`;
@@ -364,6 +395,14 @@ const ui = {
         
         let oldestTimestamp = Date.now(), needsRefresh = false;
 
+        // Attempt to get weather display for the modal title area
+        let weatherPrefix = '';
+        if (app.config && app.config.owmApiKey) {
+            const weatherDisplayHtml = await app.getWeatherDisplayForLocation(location);
+            if (weatherDisplayHtml) {
+                weatherPrefix = weatherDisplayHtml + " ";
+            }
+        }
         if (isCurrentlyFetching && ui.infoModalTitle) {
             // If actively fetching, ensure title reflects this, even if completedCount isn't available here.
             // app.updateInfoModalLoadingMessage handles the (0/N) part.
@@ -372,7 +411,7 @@ const ui = {
             const cacheEntry = cachedData[topic.id];
             const sectionDiv = document.createElement('div');
             sectionDiv.classList.add('topic-section');
-            const titleH3 = document.createElement('h3');
+            const titleH3 = document.createElement('h3'); // This is the topic title, not the modal title
             titleH3.textContent = topic.description;
             titleH3.classList.add('collapsible-title');
             
@@ -432,7 +471,11 @@ const ui = {
         });
         const overallAge = (topics.length > 0 && oldestTimestamp !== Date.now()) ? oldestTimestamp : null;
         if(ui.infoModalUpdated) {
-            ui.infoModalUpdated.textContent = isCurrentlyFetching ? "Fetching latest..." : `Updated ${utils.formatTimeAgo(overallAge)}`;
+            ui.infoModalUpdated.textContent = isCurrentlyFetching ? "Fetching latest AI data..." : `AI Data Updated ${utils.formatTimeAgo(overallAge)}`;
+        }
+        // Update modal title with weather if available
+        if(ui.infoModalTitle) {
+            ui.infoModalTitle.innerHTML = `${weatherPrefix}${locationData.description} nfo2Go`;
         }
         if (needsRefreshOverall && !isCurrentlyFetching && ui.refreshInfoButton) {
             ui.refreshInfoButton.classList.remove('hidden');

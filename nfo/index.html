@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#024f63"/>
-    <title>nfo2Go v.1</title>
+    <meta name="theme-color" content="#029ec5"/> <!-- Updated to match default primaryColor -->
+    <title>nfo2Go v.2</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="icons/i32.png" type="image/png">
@@ -12,7 +12,7 @@
 </head>
 <body>
     <div class="container">
-        <h1><img src="icons/i192.png" alt="nfo2Go Icon" class="header-icon">nfo2Go v.1</h1>
+        <h1><img src="icons/i192.png" alt="nfo2Go Icon" class="header-icon">nfo2Go v.2</h1>
 
         <section id="locationsSection" class="hidden">
             <div class="section-header">
@@ -39,10 +39,18 @@
             <h2>Application Configuration</h2>
             <div id="appConfigError" class="error-message"></div>
             <div>
-                <label for="apiKey">API Key:</label>
+                <label for="apiKey">Gemini API Key:</label>
                 <input type="password" id="apiKey" name="apiKey">
                 <small id="getApiKeyLinkContainer" class="hidden">
                     <a href="https://aistudio.google.com/app/apikey" target="_blank">Get Gemini Key for Free</a>
+                </small>
+            </div>
+            <div>
+                <label for="owmApiKey">OpenWeatherMap API Key:</label>
+                <input type="password" id="owmApiKey" name="owmApiKey">
+                <small id="getOwmApiKeyLinkContainer" class="hidden">
+                    <a href="https://home.openweathermap.org/api_keys" target="_blank">Get API Key</a>
+                    (Billing must be configured, service always free if capped to 1000 calls.)
                 </small>
             </div>
             <div>

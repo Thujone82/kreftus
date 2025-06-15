@@ -8,39 +8,80 @@ const APP_CONSTANTS = {
         INFO_COLLECTION_CONFIG: 'infoCollectionConfigModal',
         INFO: 'infoModal'
     },
-    SW_MESSAGES: {
+     CACHE_EXPIRY_WEATHER_MS: 15 * 60 * 1000, // 15 minutes for weather
+     SW_MESSAGES: {
+
         SKIP_WAITING: 'SKIP_WAITING'
     }
 };
 
 const app = {
-    config: null,
+    config: { // Initialize config as an object
+        apiKey: null, // For Gemini
+        owmApiKey: null, // For OpenWeatherMap
+        primaryColor: '#029ec5',
+        backgroundColor: '#1E1E1E'
+    },
     locations: [],
     topics: [],
     currentEditingLocations: [],
     currentEditingTopics: [],
-    editingTopicId: null, 
+    editingTopicId: null,
     currentLocationIdForInfoModal: null,
-    fetchingStatus: {}, 
+    fetchingStatus: {},
     initialEditingLocationsString: '', // For unsaved changes check
     initialEditingTopicsString: '',    // For unsaved changes check
     isRefreshingAllStale: false,       // Flag to prevent overlapping global refreshes
 
     init: () => {
         console.log("App initializing...");
-        app.loadAndApplyAppSettings();
-        app.loadLocations(); 
-        app.loadTopics();    
+        app.loadAndApplyAppSettings(); // This will populate app.config
+        app.loadLocations();
+        app.loadTopics();
         app.registerServiceWorker();
-        app.setupEventListeners(); 
+        app.setupEventListeners();
 
+        // Check for Gemini API Key for core functionality
         if (app.config && app.config.apiKey) {
-            ui.toggleConfigButtons(true);
-            // Automatic refresh on init is removed. User will use the button.
+            ui.toggleConfigButtons(true); // Enable location/topic config
         } else {
             ui.toggleConfigButtons(false);
-            ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG); 
+            ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
+            if (ui.appConfigError) ui.appConfigError.textContent = "Gemini API Key is required for core functionality.";
         }
+
+        // Check for OpenWeatherMap API Key for weather features (logging for now)
+        if (app.config && app.config.owmApiKey) {
+            console.log('OpenWeatherMap API Key is set. Weather features can be enabled.');
+            // Initial weather refresh on load, then update buttons
+            app.refreshOutdatedWeather().then(() => {
+                const areTopicsDefined = app.topics && app.topics.length > 0;
+                ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
+            });
+
+            // Set up periodic refresh for weather
+            setInterval(async () => {
+                if (app.config.owmApiKey) { // Re-check in case it's removed during runtime
+                    console.log("Periodic weather refresh triggered by timer.");
+                    await app.refreshOutdatedWeather();
+                    const areTopicsDefined = app.topics && app.topics.length > 0;
+                    ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
+                }
+            }, APP_CONSTANTS.CACHE_EXPIRY_WEATHER_MS); // Refresh at the same interval as stale time
+
+            // Refresh weather when app becomes visible
+            document.addEventListener('visibilitychange', async () => {
+                if (document.visibilityState === 'visible' && app.config.owmApiKey) {
+                    console.log("App became visible, refreshing weather.");
+                    await app.refreshOutdatedWeather();
+                    const areTopicsDefined = app.topics && app.topics.length > 0;
+                    ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
+                }
+            });
+        } else {
+            console.log('OpenWeatherMap API Key is NOT set. Weather features will be disabled.');
+        }
+
         app.updateGlobalRefreshButtonVisibility(); // Initial check for button visibility
         console.log("App initialized.");
     },
@@ -50,15 +91,9 @@ const app = {
             navigator.serviceWorker.register('/nfo/sw.js', { scope: '/nfo/' })
                 .then(registration => {
                     console.log('Service Worker registered with scope:', registration.scope);
-
-                    // Check for an existing waiting worker on page load.
-                    // This handles cases where a new SW was installed, but the user closed all tabs
-                    // before it could activate, and then reopened the app.
                     if (registration.waiting) {
                         app.promptUserToUpdate(registration.waiting);
                     }
-
-                    // Listen for new worker installing
                     registration.onupdatefound = () => {
                         console.log('New service worker found installing.');
                         const installingWorker = registration.installing;
@@ -66,7 +101,6 @@ const app = {
                             installingWorker.onstatechange = () => {
                                 console.log('Service worker state changed:', installingWorker.state);
                                 if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    // New worker is installed and waiting (because there's an active controller)
                                     if (registration.waiting) {
                                         app.promptUserToUpdate(registration.waiting);
                                     }
@@ -81,9 +115,16 @@ const app = {
     },
 
     loadAndApplyAppSettings: () => {
-        app.config = store.getAppSettings();
+        const storedSettings = store.getAppSettings(); // getAppSettings provides defaults
+        app.config = { // Ensure all expected keys are present
+            apiKey: storedSettings.apiKey || null,
+            owmApiKey: storedSettings.owmApiKey || null,
+            primaryColor: storedSettings.primaryColor || '#029ec5',
+            backgroundColor: storedSettings.backgroundColor || '#1E1E1E'
+        };
+
         ui.applyTheme(app.config.primaryColor, app.config.backgroundColor);
-        ui.loadAppConfigForm(app.config); 
+        ui.loadAppConfigForm(app.config); // Pass the fully populated app.config
         console.log("App settings loaded and applied:", app.config);
     },
 
@@ -101,27 +142,26 @@ const app = {
 
     setupEventListeners: () => {
         ui.btnAppConfig.onclick = () => {
-            ui.loadAppConfigForm(app.config); 
-            if (ui.appConfigError) ui.appConfigError.textContent = ''; // Clear previous errors
+            ui.loadAppConfigForm(app.config);
+            if (ui.appConfigError) ui.appConfigError.textContent = '';
             ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
         };
         ui.btnLocationsConfig.onclick = () => {
             app.currentEditingLocations = JSON.parse(JSON.stringify(app.locations));
-            app.initialEditingLocationsString = JSON.stringify(app.currentEditingLocations); // Store initial state
-            if (ui.locationConfigError) ui.locationConfigError.textContent = ''; // Clear previous errors
+            app.initialEditingLocationsString = JSON.stringify(app.currentEditingLocations);
+            if (ui.locationConfigError) ui.locationConfigError.textContent = '';
             ui.renderConfigList(app.currentEditingLocations, ui.locationsListUI, 'location', app.handleRemoveLocationFromEditList);
             ui.openModal(APP_CONSTANTS.MODAL_IDS.LOCATION_CONFIG);
         };
         ui.btnInfoCollectionConfig.onclick = () => {
             app.currentEditingTopics = JSON.parse(JSON.stringify(app.topics));
-            app.initialEditingTopicsString = JSON.stringify(app.currentEditingTopics); // Store initial state
-            app.editingTopicId = null; 
-            ui.addTopicBtn.textContent = 'Add Topic'; 
-            if (ui.topicConfigError) ui.topicConfigError.textContent = ''; // Clear previous errors
-            ui.clearInputFields([ui.topicDescriptionInput, ui.topicAiQueryInput]); 
+            app.initialEditingTopicsString = JSON.stringify(app.currentEditingTopics);
+            app.editingTopicId = null;
+            ui.addTopicBtn.textContent = 'Add Topic';
+            if (ui.topicConfigError) ui.topicConfigError.textContent = '';
+            ui.clearInputFields([ui.topicDescriptionInput, ui.topicAiQueryInput]);
             ui.renderConfigList(app.currentEditingTopics, ui.topicsListUI, 'topic', app.handleRemoveTopicFromEditList, app.prepareEditTopic);
             ui.openModal(APP_CONSTANTS.MODAL_IDS.INFO_COLLECTION_CONFIG);
-
         };
 
         ui.saveAppConfigBtn.onclick = app.handleSaveAppSettings;
@@ -129,14 +169,12 @@ const app = {
         ui.saveLocationConfigBtn.onclick = app.handleSaveLocationConfig;
         ui.enableDragAndDrop(ui.locationsListUI, (newOrderIds) => {
             app.currentEditingLocations = app.reorderArrayByIds(app.currentEditingLocations, newOrderIds);
-            // Note: Dragging itself is a change, app.hasUnsavedChanges will detect this.
         });
 
         ui.addTopicBtn.onclick = app.handleAddOrUpdateTopicInEditList;
         ui.saveTopicConfigBtn.onclick = app.handleSaveTopicConfig;
         ui.enableDragAndDrop(ui.topicsListUI, (newOrderIds) => {
             app.currentEditingTopics = app.reorderArrayByIds(app.currentEditingTopics, newOrderIds);
-            // Note: Dragging itself is a change, app.hasUnsavedChanges will detect this.
         });
 
         ui.refreshInfoButton.onclick = () => {
@@ -146,7 +184,7 @@ const app = {
         if (ui.globalRefreshButton) {
             ui.globalRefreshButton.onclick = () => {
                 console.log("Global refresh triggered.");
-                app.refreshOutdatedQueries(false); // Changed to false for targeted refresh
+                app.refreshOutdatedQueries(false);
             };
         }
         console.log("Event listeners set up.");
@@ -158,28 +196,48 @@ const app = {
     },
 
     handleSaveAppSettings: () => {
-        const newApiKey = ui.apiKeyInput.value.trim();
+        const newGeminiApiKey = ui.apiKeyInput.value.trim(); // Gemini Key
+        const newOwmApiKey = ui.owmApiKeyInput.value.trim(); // OpenWeatherMap Key
         const newPrimaryColor = ui.primaryColorInput.value;
         const newBackgroundColor = ui.backgroundColorInput.value;
 
-        if (!newApiKey) {
-            if(ui.appConfigError) ui.appConfigError.textContent = "API Key is required.";
-            if (ui.getApiKeyLinkContainer) ui.getApiKeyLinkContainer.classList.remove('hidden'); 
+        if (!newGeminiApiKey) {
+            if(ui.appConfigError) ui.appConfigError.textContent = "Gemini API Key is required.";
+            if (ui.getApiKeyLinkContainer) ui.getApiKeyLinkContainer.classList.remove('hidden');
             return;
         }
         if(ui.appConfigError) ui.appConfigError.textContent = "";
-        if (ui.getApiKeyLinkContainer) ui.getApiKeyLinkContainer.classList.add('hidden'); 
+        if (ui.getApiKeyLinkContainer) ui.getApiKeyLinkContainer.classList.add('hidden');
 
-        app.config.apiKey = newApiKey;
+        app.config.apiKey = newGeminiApiKey;
+        app.config.owmApiKey = newOwmApiKey; // Save OWM key to app.config
         app.config.primaryColor = newPrimaryColor;
         app.config.backgroundColor = newBackgroundColor;
 
-        store.saveAppSettings(app.config);
-        ui.applyTheme(app.config.primaryColor, app.config.backgroundColor); 
-        ui.toggleConfigButtons(true);
+        store.saveAppSettings(app.config); // saveAppSettings in stor.js needs to handle all these
+        ui.applyTheme(app.config.primaryColor, app.config.backgroundColor);
+        ui.toggleConfigButtons(true); // For Gemini key dependent buttons
+
+        // Update visibility for OWM API key link
+        if (ui.getOwmApiKeyLinkContainer) {
+            ui.getOwmApiKeyLinkContainer.classList.toggle('hidden', !!newOwmApiKey);
+        }
+
         ui.closeModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
-        console.log("App settings saved. API Key present.");
-        app.updateGlobalRefreshButtonVisibility(); 
+        console.log("App settings saved:", app.config);
+        app.updateGlobalRefreshButtonVisibility();
+
+        // Log OWM key status after save
+        if (app.config.owmApiKey) {
+            console.log('OpenWeatherMap API Key is set. Weather features can be enabled.');
+            // Trigger a weather refresh and UI update if the key was just added
+            app.refreshOutdatedWeather().then(() => {
+                const areTopicsDefined = app.topics && app.topics.length > 0;
+                ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
+            });
+        } else {
+            console.log('OpenWeatherMap API Key is NOT set. Weather features will be disabled.');
+        }
     },
 
     handleAddLocationToEditList: () => {
@@ -204,8 +262,8 @@ const app = {
         app.locations = [...app.currentEditingLocations];
         const areTopicsDefined = app.topics && app.topics.length > 0;
         store.saveLocations(app.locations);
-        ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined); 
-        app.initialEditingLocationsString = JSON.stringify(app.locations); // Update baseline after save
+        ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
+        app.initialEditingLocationsString = JSON.stringify(app.locations);
         ui.closeModal(APP_CONSTANTS.MODAL_IDS.LOCATION_CONFIG);
         for (const location of app.locations) {
             if (!oldLocationIds.has(location.id)) {
@@ -213,7 +271,7 @@ const app = {
                 await app.fetchAndCacheAiDataForLocation(location.id, true);
             }
         }
-        app.updateGlobalRefreshButtonVisibility(); 
+        app.updateGlobalRefreshButtonVisibility();
     },
 
     prepareEditTopic: (topicId) => {
@@ -223,7 +281,7 @@ const app = {
             ui.topicDescriptionInput.value = topicToEdit.description;
             ui.topicAiQueryInput.value = topicToEdit.aiQuery;
             ui.addTopicBtn.textContent = 'Update Topic';
-            ui.topicDescriptionInput.focus(); 
+            ui.topicDescriptionInput.focus();
         }
     },
     handleAddOrUpdateTopicInEditList: () => {
@@ -233,11 +291,11 @@ const app = {
             if (ui.topicConfigError) ui.topicConfigError.textContent = "Both description and AI query are required.";
             return;
         }
-        if (app.editingTopicId) { 
+        if (app.editingTopicId) {
             const topicToUpdate = app.currentEditingTopics.find(t => t.id === app.editingTopicId);
             if (topicToUpdate) { topicToUpdate.description = description; topicToUpdate.aiQuery = aiQuery; }
             app.editingTopicId = null; ui.addTopicBtn.textContent = 'Add Topic';
-        } else { 
+        } else {
             app.currentEditingTopics.push({ id: utils.generateId(), description, aiQuery });
         }
         if (ui.topicConfigError) ui.topicConfigError.textContent = '';
@@ -259,23 +317,19 @@ const app = {
         const queryChangedTopicIds = new Set();
         const deletedTopicIds = new Set();
 
-        // Identify topics with changed queries
         app.currentEditingTopics.forEach(currentTopic => {
             const prevTopic = previousTopics.get(currentTopic.id);
             if (prevTopic && prevTopic.aiQuery !== currentTopic.aiQuery) {
                 queryChangedTopicIds.add(currentTopic.id);
             }
-            // New topics will naturally be fetched as they have no cache.
         });
 
-        // Identify deleted topics
         previousTopics.forEach(prevTopic => {
             if (!currentEditingTopicsMap.has(prevTopic.id)) {
                 deletedTopicIds.add(prevTopic.id);
             }
         });
 
-        // Selectively invalidate cache
         if (queryChangedTopicIds.size > 0 || deletedTopicIds.size > 0) {
             console.log("Query changed or topics deleted, selectively invalidating cache.");
             app.locations.forEach(location => {
@@ -290,20 +344,19 @@ const app = {
 
         app.topics = [...app.currentEditingTopics];
         store.saveTopics(app.topics);
-        app.initialEditingTopicsString = JSON.stringify(app.topics); // Update baseline after save
+        app.initialEditingTopicsString = JSON.stringify(app.topics);
         ui.closeModal(APP_CONSTANTS.MODAL_IDS.INFO_COLLECTION_CONFIG);
         app.editingTopicId = null; ui.addTopicBtn.textContent = 'Add Topic';
         const areTopicsDefined = app.topics && app.topics.length > 0;
-        ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined); 
-        app.updateGlobalRefreshButtonVisibility(); 
+        ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
+        app.updateGlobalRefreshButtonVisibility();
 
-        // Determine which topics were newly added or had their AI query changed.
         const newOrChangedQueryTopicIds = new Set();
         app.currentEditingTopics.forEach(currentTopic => {
             const prevTopic = previousTopics.get(currentTopic.id);
-            if (!prevTopic) { // New topic
+            if (!prevTopic) {
                 newOrChangedQueryTopicIds.add(currentTopic.id);
-            } else if (prevTopic.aiQuery !== currentTopic.aiQuery) { // Query changed
+            } else if (prevTopic.aiQuery !== currentTopic.aiQuery) {
                 newOrChangedQueryTopicIds.add(currentTopic.id);
             }
         });
@@ -312,15 +365,10 @@ const app = {
             const idsToRefresh = Array.from(newOrChangedQueryTopicIds);
             console.log("Info Structure updated. Triggering specific refresh for EDITED/NEW items:", idsToRefresh);
             app.locations.forEach(location => {
-                // Call fetchAndCacheAiDataForLocation to refresh only these specific topics for this location.
-                // The second argument (forceRefreshGeneral) is false, as we are not doing a general force refresh.
-                // The third argument provides the specific list of topic IDs to target.
                 app.fetchAndCacheAiDataForLocation(location.id, false, idsToRefresh);
             });
         } else {
             console.log("Info Structure updated. No AI queries changed, no new topics. No specific refresh needed from this operation.");
-            // If only reordering or deletion of non-queried topics occurred,
-            // the global refresh button visibility is still updated.
         }
     },
     handleLocationButtonClick: (locationId) => {
@@ -328,21 +376,18 @@ const app = {
         else { alert("Please define an Info Structure before viewing location information."); ui.openModal(APP_CONSTANTS.MODAL_IDS.INFO_COLLECTION_CONFIG); }
     },
     handleOpenLocationInfo: async (locationId) => {
-        if (!app.config.apiKey) { 
-            if(ui.appConfigError) ui.appConfigError.textContent = "API Key is not configured. Please configure it first."; 
-            ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG); return; 
+        if (!app.config.apiKey) {
+            if(ui.appConfigError) ui.appConfigError.textContent = "API Key is not configured. Please configure it first.";
+            ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG); return;
         }
         app.currentLocationIdForInfoModal = locationId;
         const location = app.locations.find(l => l.id === locationId);
         if (!location) return;
 
-        // Initial loading message
-        if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${location.description} nfo2Go - Loading...`;
-        if(ui.infoModalContent) ui.infoModalContent.innerHTML = '<p>Accessing stored data...</p>'; // More accurate initial message
+        if (ui.infoModalTitle) ui.infoModalTitle.textContent = `${location.description} nfo2Go - Loading...`;
+        if(ui.infoModalContent) ui.infoModalContent.innerHTML = '<p>Accessing stored data...</p>';
         ui.openModal(APP_CONSTANTS.MODAL_IDS.INFO);
 
-        // Directly gather all cached data for the location without an initial fetch.
-        // Stale data will be displayed as is.
         const cachedDataForLocation = {};
         let needsOverallRefreshForModal = false;
         let isCurrentlyFetchingForThisLocation = app.fetchingStatus[locationId] === true;
@@ -350,26 +395,18 @@ const app = {
         app.topics.forEach(topic => {
             const cacheEntry = store.getAiCache(locationId, topic.id);
             cachedDataForLocation[topic.id] = cacheEntry;
-            
-            // If we are actively fetching (e.g. after a topic save),
-            // consider data for specifically targeted topics as "pending" rather than immediately "stale" for UI purposes.
-            // However, the underlying staleness check for needsOverallRefreshForModal should still consider actual cache state.
-
             const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > APP_CONSTANTS.CACHE_EXPIRY_MS;
             const hasError = cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:');
-
             if (isStale || hasError) {
                 needsOverallRefreshForModal = true;
             }
         });
 
-        // Display the gathered data (fresh, stale, or error)
-        ui.displayInfoModal(location, app.topics, cachedDataForLocation, isCurrentlyFetchingForThisLocation); 
-        
-        // Show/hide the modal's refresh button based on the state of the displayed data
-        if (needsOverallRefreshForModal && !isCurrentlyFetchingForThisLocation && ui.refreshInfoButton) { 
-            ui.refreshInfoButton.classList.remove('hidden'); 
-            ui.refreshInfoButton.dataset.locationId = locationId; 
+        await ui.displayInfoModal(location, app.topics, cachedDataForLocation, isCurrentlyFetchingForThisLocation);
+
+        if (needsOverallRefreshForModal && !isCurrentlyFetchingForThisLocation && ui.refreshInfoButton) {
+            ui.refreshInfoButton.classList.remove('hidden');
+            ui.refreshInfoButton.dataset.locationId = locationId;
         } else if (ui.refreshInfoButton) {
             ui.refreshInfoButton.classList.add('hidden');
         }
@@ -382,30 +419,26 @@ const app = {
         if (!location) return;
         if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${location.description} nfo2Go - Refreshing...`;
         if(ui.infoModalContent) ui.infoModalContent.innerHTML = '<p>Fetching fresh data...</p>';
-        await app.fetchAndCacheAiDataForLocation(locationId, false); // Only refresh stale/error topics
-        // After fetching, call handleOpenLocationInfo again to re-render with fresh data
-        app.handleOpenLocationInfo(locationId); 
-    },    
+        await app.fetchAndCacheAiDataForLocation(locationId, false);
+        app.handleOpenLocationInfo(locationId);
+    },
 
     fetchAndCacheAiDataForLocation: async (locationId, forceRefreshGeneral = false, specificTopicIdsToForce = null) => {
         if (!app.config.apiKey) {
             if (document.getElementById(APP_CONSTANTS.MODAL_IDS.APP_CONFIG).style.display !== 'block') {
-                 if(ui.appConfigError) ui.appConfigError.textContent = "API Key is required to fetch data."; 
+                 if(ui.appConfigError) ui.appConfigError.textContent = "API Key is required to fetch data.";
                  ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
-            } return false; 
+            } return false;
         }
         const location = app.locations.find(l => l.id === locationId);
         if (!location) return false;
 
         const areTopicsDefined = app.topics && app.topics.length > 0;
-        
+
         const topicsToFetch = app.topics.filter(topic => {
             if (specificTopicIdsToForce && specificTopicIdsToForce.length > 0) {
-                // If a specific list is provided, only consider topics in that list for fetching,
-                // and they are always fetched regardless of cache status.
                 return specificTopicIdsToForce.includes(topic.id);
             } else {
-                // No specific list, use general logic for all topics of the location.
                 const cacheEntry = store.getAiCache(locationId, topic.id);
                 const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > APP_CONSTANTS.CACHE_EXPIRY_MS;
                 const hasError = cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:');
@@ -413,40 +446,36 @@ const app = {
             }
         });
 
-        console.log(`[FADFL] Location: ${location.description}. Filtered topicsToFetch (actual items to query API for):`, topicsToFetch.map(t => ({id: t.id, desc: t.description})));
-        
-        // Conditionally set fetchingStatus and update UI based on whether there are topics to fetch
+        console.log(`[FADFL] Location: ${location.description}. Filtered topicsToFetch:`, topicsToFetch.map(t => ({id: t.id, desc: t.description})));
+
         if (topicsToFetch.length > 0) {
             app.fetchingStatus[locationId] = true;
             ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
         }
-        // If topicsToFetch.length is 0, fetchingStatus is not set to true here.
-        // The function will return early if totalTopicsToFetch (derived from topicsToFetch.length) is 0.
-        
+
         console.log(`Fetching/Caching AI data for location: ${location.description}. GeneralForce: ${forceRefreshGeneral}, SpecificIDs: ${specificTopicIdsToForce ? specificTopicIdsToForce.join(', ') : 'None'}`);
 
         let completedCount = 0;
         const totalTopicsToFetch = topicsToFetch.length;
-        
-        // Update modal title immediately if it's open for this location
+
         if (document.getElementById(APP_CONSTANTS.MODAL_IDS.INFO).style.display === 'block' && app.currentLocationIdForInfoModal === locationId && totalTopicsToFetch > 0) {
             app.updateInfoModalLoadingMessage(location.description, completedCount, totalTopicsToFetch);
         }
-        
+
         const fetchExecutionPromises = [];
         let anInvalidKeyErrorOccurred = false;
 
-
         if (totalTopicsToFetch === 0) {
             console.log(`No topics to fetch for ${location.description}.`);
-            // No need to change fetchingStatus if it wasn't set, or clear it if no fetches started.
-            // ui.renderLocationButtons was already called if topicsToFetch.length > 0 was true before filter
-            // app.updateGlobalRefreshButtonVisibility(); // This will be called in the finally block of refreshOutdatedQueries if this is part of it
-
             if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId && ui.infoModalTitle) {
                  if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${location.description} nfo2Go`;
             }
-            return true; 
+            // If fetchingStatus was set to true but no topics ended up being fetched, clear it.
+            if (app.fetchingStatus[locationId]) {
+                delete app.fetchingStatus[locationId];
+                ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
+            }
+            return true;
         }
 
         for (const topic of topicsToFetch) {
@@ -475,12 +504,11 @@ const app = {
             fetchExecutionPromises.push(promise);
         }
 
-        const results = await Promise.all(fetchExecutionPromises); // Wait for all fetches (and their finally blocks)
+        const results = await Promise.all(fetchExecutionPromises);
         let allIndividualFetchesSuccessful = true;
         results.forEach(result => {
             if (result.status === 'rejected') {
                 allIndividualFetchesSuccessful = false;
-                // anInvalidKeyErrorOccurred is already handled in the catch block
             }
         });
 
@@ -489,16 +517,15 @@ const app = {
         app.updateGlobalRefreshButtonVisibility();
 
         if (anInvalidKeyErrorOccurred) {
-            if(ui.infoModal) ui.closeModal(APP_CONSTANTS.MODAL_IDS.INFO); 
+            if(ui.infoModal) ui.closeModal(APP_CONSTANTS.MODAL_IDS.INFO);
             if(ui.appConfigError) ui.appConfigError.textContent = "Invalid API Key. Please check your configuration and save.";
             ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
-            return false; 
+            return false;
         }
 
-        // If the modal is still open after all fetches, ensure its content is fully updated.
         if (document.getElementById(APP_CONSTANTS.MODAL_IDS.INFO).style.display === 'block' && app.currentLocationIdForInfoModal === locationId) {
             const currentCachedData = {};
-            let isStillFetching = app.fetchingStatus[locationId] === true; // Should be false now
+            let isStillFetching = app.fetchingStatus[locationId] === true;
             let needsRefreshAfterFetch = false;
 
             app.topics.forEach(t => {
@@ -509,29 +536,27 @@ const app = {
                 }
             });
             ui.displayInfoModal(location, app.topics, currentCachedData, isStillFetching);
-            if (needsRefreshAfterFetch && ui.refreshInfoButton) {
+           if (needsRefreshAfterFetch && ui.refreshInfoButton) {
                 ui.refreshInfoButton.classList.remove('hidden');
             } else if (ui.refreshInfoButton) {
                 ui.refreshInfoButton.classList.add('hidden');
             }
         }
-        
         return allIndividualFetchesSuccessful;
     },
-    
+
     updateInfoModalLoadingMessage: (locationDescription, completed, total) => {
         if (ui.infoModalTitle) {
-            if (total === 0) { 
-                // Title will be set by displayInfoModal in handleOpenLocationInfo
+            if (total === 0) {
+                // Handled by displayInfoModal
             } else {
                 ui.infoModalTitle.textContent = `${locationDescription} nfo2Go - Fetching (${completed}/${total})`;
                 if (completed === total){
                      setTimeout(() => {
-                        // Check if modal is still open for this location before attempting to update title
                         if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal && app.locations.find(l=>l.id === app.currentLocationIdForInfoModal)?.description === locationDescription) {
-                           // The calling function (handleOpenLocationInfo) will handle the final display update.
+                           // Final display update handled by calling function (e.g., handleOpenLocationInfo)
                         }
-                    }, 50); // Short delay for the last progress update to be visible
+                    }, 50);
                 }
             }
         }
@@ -546,7 +571,7 @@ const app = {
 
         app.isRefreshingAllStale = true;
         console.log("Starting global refresh of outdated queries...");
-        if(ui.globalRefreshButton) ui.globalRefreshButton.classList.add('button-fetching'); // Visual feedback
+        if(ui.globalRefreshButton) ui.globalRefreshButton.classList.add('button-fetching');
 
         const sixtyMinutesAgo = Date.now() - APP_CONSTANTS.CACHE_EXPIRY_MS;
         const fetchPromises = [];
@@ -570,9 +595,8 @@ const app = {
                 if (needsRefreshForLocation) {
                     fetchPromises.push(
                         app.fetchAndCacheAiDataForLocation(location.id, forceAllStale, null)
-                        .catch(err => { 
+                        .catch(err => {
                             console.error(`Error during global refresh for location ${location.id}:`, err);
-                            // Return a specific structure for settled promises if needed, or just let it be undefined
                         })
                     );
                 }
@@ -586,7 +610,6 @@ const app = {
             app.isRefreshingAllStale = false;
             if(ui.globalRefreshButton) ui.globalRefreshButton.classList.remove('button-fetching');
             console.log("Global refresh of outdated queries finished.");
-            // Always update UI at the end, as states might have changed
             const areTopicsDefined = app.topics && app.topics.length > 0;
             ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
             app.updateGlobalRefreshButtonVisibility();
@@ -610,8 +633,7 @@ const app = {
         }
         if (anyStaleOrError) ui.globalRefreshButton.classList.remove('hidden');
         else ui.globalRefreshButton.classList.add('hidden');
-    }
-    ,
+    },
 
     hasUnsavedChanges: (modalId) => {
         if (modalId === APP_CONSTANTS.MODAL_IDS.LOCATION_CONFIG) {
@@ -620,14 +642,10 @@ const app = {
         if (modalId === APP_CONSTANTS.MODAL_IDS.INFO_COLLECTION_CONFIG) {
             return JSON.stringify(app.currentEditingTopics) !== app.initialEditingTopicsString;
         }
-        return false; // Not a settings modal we're tracking
+        return false;
     },
 
-    // --- Service Worker Update Logic ---
-    
     promptUserToUpdate: (worker) => {
-        // For a real application, you would use a more sophisticated UI element
-        // like a banner or a toast notification instead of a confirm dialog.
         console.log('Prompting user to update to new version.');
         if (confirm("A new version of nfo2Go is available. Refresh to update?")) {
             worker.postMessage({ type: APP_CONSTANTS.SW_MESSAGES.SKIP_WAITING });
@@ -642,7 +660,100 @@ const app = {
             window.location.reload();
             refreshing = true;
         });
+    },
+
+    // Getter for OWM API Key, useful for other modules
+    getOwmApiKey: () => {
+        return app.config.owmApiKey;
     }
+    ,
+    // Weather Management Functions
+     fetchAndCacheWeatherData: async (location) => {
+        if (!app.config.owmApiKey) {
+            console.log("OpenWeatherMap API key is not set. Skipping weather fetch.");
+            return null; // Return null to indicate failure/skip
+        }
+
+        const coords = await utils.extractCoordinates(location.location); // Ensure this returns { lat, lon }
+        if (!coords) {
+            console.warn(`Could not extract coordinates from location: ${location.location}`);
+            return;
+        }
+
+        const cachedWeather = store.getWeatherCache(location.id);
+        const isWeatherStale = !cachedWeather || (Date.now() - cachedWeather.timestamp) > APP_CONSTANTS.CACHE_EXPIRY_WEATHER_MS;
+
+        if (!cachedWeather || isWeatherStale) {
+            console.log(`Fetching fresh/stale weather data for ${location.description} at ${coords.lat}, ${coords.lon}`);
+
+            const weatherData = await api.fetchWeatherData(coords.lat, coords.lon, app.config.owmApiKey);
+            if (weatherData) {
+                store.saveWeatherCache(location.id, weatherData);
+                console.log(`Weather data updated for ${location.description}:`, weatherData);
+                return weatherData;
+            } else {
+                console.error(`Failed to fetch or invalid weather data for ${location.description}`);
+                return null;
+            }
+        } else {
+            console.log(`Using cached weather data for ${location.description}`);
+            return cachedWeather.data;
+        }
+    },
+
+    getWeatherDisplayForLocation: async (location) => {
+        if (!app.config.owmApiKey) return null; // Early exit if no API key
+        
+        const cachedWeather = store.getWeatherCache(location.id);
+        let weatherData = cachedWeather?.data;
+
+        const coords = await utils.extractCoordinates(location.location); // Ensure this returns { lat, lon }
+        if (!coords) {
+            console.warn(`Could not extract coordinates from location: ${location.location}`);
+            return null;
+        }
+        // Check staleness based on the timestamp of the original cache entry
+        const isWeatherStale = !cachedWeather || (Date.now() - cachedWeather.timestamp) > APP_CONSTANTS.CACHE_EXPIRY_WEATHER_MS;
+
+        if (!weatherData || isWeatherStale) {
+            console.log(`Stale or no weather data for ${location.description}. Attempting refresh.`);
+            weatherData = await app.fetchAndCacheWeatherData(location);
+        }
+
+        if (weatherData && weatherData.temp && weatherData.weather && weatherData.weather.length > 0) {
+            const temp = Math.round(weatherData.temp);
+            const iconCode = weatherData.weather[0].icon;
+            const iconUrl = `https://openweathermap.org/img/wn/${iconCode}.png`;
+            return `<span class="weather-info">${temp}°F <img src="${iconUrl}" alt="Weather Icon" class="weather-icon"></span>`;
+        } else {
+            // If weatherData is null (fetch error, geocoding error) or doesn't have the required properties, return null.
+            return null;
+        }
+    },
+
+    refreshOutdatedWeather: async () => {
+        if (!app.config.owmApiKey) {
+            console.log("OpenWeatherMap API key is not set. Skipping weather refresh.");
+            return;
+        }
+
+        console.log("Checking and refreshing outdated weather data for all locations...");
+        let refreshedSomething = false;
+        const weatherFetchPromises = app.locations.map(async (location) => {
+            const coords = await utils.extractCoordinates(location.location);
+            if (!coords) {
+                console.warn(`Could not extract coordinates for weather refresh: ${location.location}`);
+                return;
+            }
+            // fetchAndCacheWeatherData already checks for staleness internally
+            const newData = await app.fetchAndCacheWeatherData(location);
+            if (newData) refreshedSomething = true;
+        });
+
+        await Promise.allSettled(weatherFetchPromises);
+        console.log("Weather refresh check completed.", refreshedSomething ? "Some data was updated." : "No data needed update or failed to update.");
+    }
+
 };
 
 window.addEventListener('unhandledrejection', function(event) {

@@ -6,6 +6,7 @@ const APP_SETTINGS_KEY = `${STORE_PREFIX}appSettings`;
 const LOCATIONS_KEY = `${STORE_PREFIX}locations`;
 const TOPICS_KEY = `${STORE_PREFIX}topics`;
 const AI_CACHE_PREFIX = `${STORE_PREFIX}aiCache_`;
+const WEATHER_CACHE_PREFIX = `${STORE_PREFIX}weatherCache_`;
 const TOPIC_COLLAPSED_STATE_PREFIX = `${STORE_PREFIX}topicCollapsed_`;
 
 const store = {
@@ -14,8 +15,9 @@ const store = {
         const settings = localStorage.getItem(APP_SETTINGS_KEY);
         // Default to a dark theme content background
         return settings ? JSON.parse(settings) : { 
-            apiKey: '', 
-            primaryColor: '#029ec5', 
+            apiKey: '',
+            owmApiKey: '', // Ensure owmApiKey is part of default settings
+            primaryColor: '#029ec5',
             backgroundColor: '#1E1E1E' // Default content area background
         };
     },
@@ -97,5 +99,26 @@ const store = {
     saveTopicCollapsedState: (locationId, topicId, isCollapsed) => {
         const key = `${TOPIC_COLLAPSED_STATE_PREFIX}${locationId}_${topicId}`;
         localStorage.setItem(key, JSON.stringify(isCollapsed));
+    },
+
+    // Weather Data Cache
+    getWeatherCache: (locationId) => {
+        const cacheKey = `${WEATHER_CACHE_PREFIX}${locationId}`;
+        const cachedItem = localStorage.getItem(cacheKey);
+        return cachedItem ? JSON.parse(cachedItem) : null;
+    },
+    saveWeatherCache: (locationId, weatherData) => {
+        const cacheKey = `${WEATHER_CACHE_PREFIX}${locationId}`;
+        const itemToCache = {
+            timestamp: Date.now(),
+            data: weatherData // Should be the 'current' weather object from OWM
+        };
+        localStorage.setItem(cacheKey, JSON.stringify(itemToCache));
+        console.log(`Weather Cache saved for ${locationId}`);
+    },
+    flushWeatherCacheForLocation: (locationId) => {
+        const cacheKey = `${WEATHER_CACHE_PREFIX}${locationId}`;
+        localStorage.removeItem(cacheKey);
+        console.log(`Flushed Weather Cache for location ID: ${locationId}`);
     }
 };

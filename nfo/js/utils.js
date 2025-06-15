@@ -170,5 +170,74 @@ const utils = {
         finalHtml = finalHtml.replace(/<\/li>(?:\s*\n\s*)+<\/ol>/g, '</li></ol>'); // Remove newlines after last <li> and before </ol>
         
         return finalHtml.trim();
+    },
+
+    /**
+     * Attempts to geocode a location string to latitude and longitude.
+     * @param {string} locationString The location string (e.g., "Portland, OR").
+     * @returns {Promise<Object|null>} A promise that resolves to { lat, lon } or null.
+     */
+    geocodeLocationString: async (locationString) => {
+        if (!locationString || typeof locationString !== 'string') {
+            console.warn("geocodeLocationString: Invalid locationString provided:", locationString);
+            return null;
+        }
+
+        const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(locationString)}&format=json&limit=1`;
+        
+        try {
+            // Nominatim requires a custom User-Agent.
+            // Replace 'nfo2go/2.0 (YourAppNameOrContactInfo)' with your actual app name/contact.
+            const response = await fetch(nominatimUrl, {
+                method: 'GET',
+                headers: {
+                    'User-Agent': 'nfo2go/2.0 (github.com/kurtisgr/nfo2go)' 
+                }
+            });
+
+            if (!response.ok) {
+                console.error(`Geocoding error for "${locationString}": ${response.status} ${response.statusText}`);
+                return null;
+            }
+
+            const data = await response.json();
+
+            if (data && data.length > 0) {
+                const lat = parseFloat(data[0].lat);
+                const lon = parseFloat(data[0].lon);
+                if (!isNaN(lat) && !isNaN(lon)) {
+                    console.log(`Geocoded "${locationString}" to:`, { lat, lon });
+                    return { lat, lon };
+                }
+            }
+            console.warn(`No valid geocoding results for "${locationString}"`);
+            return null;
+        } catch (error) {
+            console.error(`Network or other error during geocoding for "${locationString}":`, error);
+            return null;
+        }
+    },
+
+    extractCoordinates: async (locationString) => {
+        if (!locationString || typeof locationString !== 'string') {
+            console.warn("extractCoordinates: Invalid locationString provided:", locationString);
+            return null;
+        }
+
+        const latLonRegex = /^(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)$/;
+        const match = locationString.match(latLonRegex);
+
+        if (match) {
+            const lat = parseFloat(match[1]);
+            const lon = parseFloat(match[2]);
+            if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+                return { lat, lon };
+            } else {
+                console.warn("extractCoordinates: Parsed coordinates are out of valid range:", { lat, lon });
+                // Fall through to geocoding if direct parse is invalid range
+            }
+        }
+        // If not a direct lat,lon string or if parsed coordinates were invalid, try geocoding
+        return await utils.geocodeLocationString(locationString);
     }
 };
