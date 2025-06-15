@@ -65,36 +65,20 @@ const utils = {
             let effectiveContent = line.replace(/[\u00A0\u200B\uFEFF]+/g, ' ').trim();
 
             if (effectiveContent.length === 0) { // Line is effectively blank
-                let listWasClosedByThisBlankLine = false;
-                if (inList) {
+                // If in a multi-line block, a blank line might end it if the next line isn't part of it.
+                // This logic attempts to preserve list/blockquote continuity if a blank line is followed by a continuation.
+                if (inUnorderedList) {
                     let nextLineIsListItem = false;
-                    for (let j = i + 1; j < lines.length; j++) {
-                        let nextPreview = lines[j].replace(/[\u00A0\u200B\uFEFF]+/g, ' ').trim();
-                        if (nextPreview.length > 0) {
-                            if (nextPreview.startsWith('* ')) {
-                                nextLineIsListItem = true;
-                            }
-                            break;
-                        }
-                    }
-
-                    if (nextLineIsListItem) {
-                        continue; // Ignore this blank line, it's between <li> of the same list.
-                    } else {
-                        processedLines.push('</ul>');
-                        inList = false;
-                        listWasClosedByThisBlankLine = true;
-                    }
-                }
-
-                // Add an empty string to processedLines if this blank line followed a list closure or an h3,
-                // and the previously processed line wasn't already an empty string.
-                // This adds a newline to the HTML source for readability.
-                if (processedLines.length > 0) {
-                    const lastPushedItem = processedLines[processedLines.length - 1];
-                    if (lastPushedItem !== '' && (listWasClosedByThisBlankLine || (typeof lastPushedItem === 'string' && lastPushedItem.endsWith('</h3>')))) {
-                        processedLines.push('');
-                    }
+                    if (i + 1 < lines.length && lines[i+1].trim().startsWith('* ')) nextLineIsListItem = true;
+                    if (!nextLineIsListItem) closeAllOpenBlocks(); else continue;
+                } else if (inOrderedList) {
+                    let nextLineIsOLItem = false;
+                    if (i + 1 < lines.length && /^\d+\.\s/.test(lines[i+1].trim())) nextLineIsOLItem = true;
+                    if (!nextLineIsOLItem) closeAllOpenBlocks(); else continue;
+                } else if (inBlockquote) {
+                    let nextLineIsBQItem = false;
+                    if (i + 1 < lines.length && lines[i+1].trim().startsWith('>')) nextLineIsBQItem = true;
+                    if (!nextLineIsBQItem) closeAllOpenBlocks(); else continue;
                 }
                 continue; // Always continue to the next line after processing a blank line.
             } else { // Line has actual content
