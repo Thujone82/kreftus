@@ -145,7 +145,7 @@ const app = {
         if (ui.globalRefreshButton) {
             ui.globalRefreshButton.onclick = () => {
                 console.log("Global refresh triggered.");
-                app.refreshOutdatedQueries(true); 
+                app.refreshOutdatedQueries(false); // Changed to false for targeted refresh
             };
         }
         console.log("Event listeners set up.");
@@ -252,17 +252,51 @@ const app = {
         ui.renderConfigList(app.currentEditingTopics, ui.topicsListUI, 'topic', app.handleRemoveTopicFromEditList, app.prepareEditTopic);
     },
     handleSaveTopicConfig: () => {
+        const previousTopics = new Map(app.topics.map(t => [t.id, t]));
+        const currentEditingTopicsMap = new Map(app.currentEditingTopics.map(t => [t.id, t]));
+
+        const queryChangedTopicIds = new Set();
+        const deletedTopicIds = new Set();
+
+        // Identify topics with changed queries
+        app.currentEditingTopics.forEach(currentTopic => {
+            const prevTopic = previousTopics.get(currentTopic.id);
+            if (prevTopic && prevTopic.aiQuery !== currentTopic.aiQuery) {
+                queryChangedTopicIds.add(currentTopic.id);
+            }
+            // New topics will naturally be fetched as they have no cache.
+        });
+
+        // Identify deleted topics
+        previousTopics.forEach(prevTopic => {
+            if (!currentEditingTopicsMap.has(prevTopic.id)) {
+                deletedTopicIds.add(prevTopic.id);
+            }
+        });
+
+        // Selectively invalidate cache
+        if (queryChangedTopicIds.size > 0 || deletedTopicIds.size > 0) {
+            console.log("Query changed or topics deleted, selectively invalidating cache.");
+            app.locations.forEach(location => {
+                queryChangedTopicIds.forEach(topicId => {
+                    store.flushAiCacheForLocationAndTopic(location.id, topicId);
+                });
+                deletedTopicIds.forEach(topicId => {
+                    store.flushAiCacheForLocationAndTopic(location.id, topicId);
+                });
+            });
+        }
+
         app.topics = [...app.currentEditingTopics];
         store.saveTopics(app.topics);
         app.initialEditingTopicsString = JSON.stringify(app.topics); // Update baseline after save
-        store.flushAllAiCache();
         ui.closeModal(APP_CONSTANTS.MODAL_IDS.INFO_COLLECTION_CONFIG);
         app.editingTopicId = null; ui.addTopicBtn.textContent = 'Add Topic';
         const areTopicsDefined = app.topics && app.topics.length > 0;
         ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined); 
         app.updateGlobalRefreshButtonVisibility(); 
-        console.log("Info Structure updated. Flushing cache and triggering refresh for all locations.");
-        app.refreshOutdatedQueries(true); // Force refresh for all locations as cache was flushed
+        console.log("Info Structure updated. Triggering refresh for stale/updated items.");
+        app.refreshOutdatedQueries(false); // Refresh only stale/error/newly_invalidated items
     },
 
     handleLocationButtonClick: (locationId) => {
@@ -319,7 +353,7 @@ const app = {
         if (!location) return;
         if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${location.description} nfo2Go - Refreshing...`;
         if(ui.infoModalContent) ui.infoModalContent.innerHTML = '<p>Fetching fresh data...</p>';
-        await app.fetchAndCacheAiDataForLocation(locationId, true); // Force refresh
+        await app.fetchAndCacheAiDataForLocation(locationId, false); // Only refresh stale/error topics
         // After fetching, call handleOpenLocationInfo again to re-render with fresh data
         app.handleOpenLocationInfo(locationId); 
     },

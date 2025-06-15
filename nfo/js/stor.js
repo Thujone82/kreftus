@@ -69,6 +69,14 @@ const store = {
             }
         }
     },
+    flushAiCacheForLocationAndTopic: (locationId, topicId) => {
+        const cacheKey = `${AI_CACHE_PREFIX}${locationId}_${topicId}`;
+        const item = localStorage.getItem(cacheKey);
+        if (item) {
+            localStorage.removeItem(cacheKey);
+            console.log(`Removed specific cache item: ${cacheKey}`);
+        }
+    },
     flushAllAiCache: () => {
         console.log("Flushing all AI cache");
         for (let i = 0; i < localStorage.length; i++) {
