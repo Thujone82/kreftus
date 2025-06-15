@@ -1,26 +1,26 @@
 :root {
-    --primary-color: #029ec5; 
-    --content-background-color: #1E1E1E; 
-    --text-color: #E0E0E0; 
-    
+    --primary-color: #029ec5;
+    --content-background-color: #1E1E1E;
+    --text-color: #E0E0E0;
+
     /* Default (dark theme) values for inputs and lists */
     --input-bg-color: #333;
     --input-border-color: #555;
     --list-item-bg-color: #2a2a2a;
     --list-item-border-color: #444;
-    
+
     /* Static colors */
-    --button-text-color: #000000; 
-    --danger-color: #CF6679; 
+    --button-text-color: #000000;
+    --danger-color: #CF6679;
     --disabled-bg-color: #444;
     --updated-text-color: #aaa;
     --close-button-color: #bbb;
 
     /* Status colors */
-    --status-fresh-color: #4CAF50; 
-    --status-fetching-color: #2196F3; 
+    --status-fresh-color: #4CAF50;
+    --status-fetching-color: #2196F3;
     --status-fetching-color-rgb: 33, 150, 243; /* RGB for box-shadow */
-    --status-error-color: #F44336; 
+    --status-error-color: #F44336;
 }
 
 body {
@@ -77,11 +77,11 @@ h2 {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 10px; 
+    margin-bottom: 10px;
 }
 
 .section-header h2 {
-    margin-bottom: 0; 
+    margin-bottom: 0;
 }
 
 button {
@@ -93,12 +93,12 @@ button {
     cursor: pointer;
     font-size: 1em;
     margin: 5px;
-    border: 3px solid transparent; 
+    border: 3px solid transparent;
 }
 button.small-refresh-button {
     padding: 5px 10px;
     font-size: 0.9em;
-    margin-left: 10px; 
+    margin-left: 10px;
 }
 
 
@@ -113,10 +113,18 @@ button.danger {
 }
 
 /* Location button status borders */
-#locationButtons button { 
+#locationButtons button {
     border-width: 3px;
     border-style: solid;
-    border-color: transparent; 
+    border-color: transparent;
+    display: flex; /* Enable flexbox */
+    flex-direction: column; /* Stack children vertically */
+    align-items: center; /* Center items horizontally */
+    justify-content: center; /* Center items vertically if button has fixed height */
+    padding-top: 0.6em; /* Adjust padding as needed */
+    padding-bottom: 0.6em;
+    line-height: 1.3; /* Adjust line height for stacked text */
+    text-align: center; /* Ensure text within spans is centered if spans are block */
 }
 #locationButtons button.location-button-fresh {
     border-color: var(--status-fresh-color);
@@ -128,6 +136,26 @@ button.danger {
 #locationButtons button.location-button-error {
     border-color: var(--status-error-color);
 }
+
+.location-button-name {
+    display: block; /* Ensure it takes full width and forces a new line for weather */
+    font-size: 1.5em; /* 50% larger font for the location name */
+    margin-bottom: 0.2em; /* Space between name and weather */
+    font-weight: bold; /* Optional: make name bolder */
+}
+
+.location-button-weather {
+    display: block; /* Ensure it takes full width and sits on its own line */
+    font-size: 0.9em; /* Slightly smaller font for weather, adjust as needed */
+}
+
+.location-button-weather .weather-icon { /* Icon within main page button */
+    width: 1.5em; /* Adjust icon size relative to weather text */
+    height: 1.5em;
+    vertical-align: middle;
+    margin-left: 4px;
+}
+
 
 /* Global refresh button fetching animation */
 #globalRefreshButton.button-fetching {
@@ -154,28 +182,28 @@ input[type="text"], input[type="password"], input[type="color"] {
     color: var(--text-color);                   /* Uses dynamic variable */
     border-radius: 4px;
     box-sizing: border-box;
-    width: 100%; 
+    width: 100%;
 }
-input[type="color"] { 
-    min-height: 40px; 
-    min-width: 60px;  
-    padding: 2px;     
-    width: auto;      
+input[type="color"] {
+    min-height: 40px;
+    min-width: 60px;
+    padding: 2px;
+    width: auto;
     cursor: pointer;
 }
 
 /* API Key Link Styling */
-#getApiKeyLinkContainer {
-    display: block; 
-    margin-top: 5px; 
-    margin-bottom: 10px; 
+#getApiKeyLinkContainer, #getOwmApiKeyLinkContainer { /* Combined for OWM key link */
+    display: block;
+    margin-top: 5px;
+    margin-bottom: 10px;
     font-size: 0.9em;
 }
-#getApiKeyLinkContainer a {
+#getApiKeyLinkContainer a, #getOwmApiKeyLinkContainer a { /* Combined for OWM key link */
     color: var(--primary-color);
     text-decoration: underline;
 }
-#getApiKeyLinkContainer a:hover {
+#getApiKeyLinkContainer a:hover, #getOwmApiKeyLinkContainer a:hover { /* Combined for OWM key link */
     opacity: 0.8;
 }
 
@@ -196,10 +224,10 @@ input[type="color"] {
 .modal-content {
     background-color: var(--content-background-color);
     color: var(--text-color);
-    margin: 10% auto; 
+    margin: 10% auto;
     padding: 25px;
     border: 1px solid var(--input-border-color); /* Uses dynamic variable */
-    width: 80%; 
+    width: 80%;
     max-width: 600px;
     border-radius: 8px;
     position: relative;
@@ -208,7 +236,7 @@ input[type="color"] {
 
 .modal-content.large {
     max-width: 90%;
-    margin: 20px auto;
+    margin: 20px auto; /* Reduced top/bottom margin for large modal */
 }
 
 .close-button {
@@ -261,12 +289,12 @@ input[type="color"] {
 .sortable-list li.dragging {
     opacity: 0.5;
 }
-.sortable-list li .config-item-buttons { 
+.sortable-list li .config-item-buttons {
     display: flex;
-    gap: 5px; 
+    gap: 5px;
 }
 .sortable-list li .config-item-buttons button {
-    padding: 5px 10px; 
+    padding: 5px 10px;
     font-size: 0.9em;
 }
 
@@ -279,7 +307,31 @@ input[type="color"] {
 
 #infoModalTitle {
     margin-top: 0;
+    margin-bottom: 0.25em; /* Reduce space if weather is directly below */
 }
+
+/* For Weather in Info Modal */
+.weather-text { /* Style for the <p id="infoModalWeather"> */
+    display: flex; /* Use flexbox for alignment */
+    align-items: center; /* Vertically center items */
+    justify-content: center; /* Horizontally center items */
+    /* font-size: 1em; Base font size, specific part enlarged below */
+    margin-top: -0.5em; /* Pull it a bit closer to the title */
+    margin-bottom: 0.8em;
+}
+
+.weather-text .weather-info { /* Target the span containing temp and icon */
+    display: flex;
+    align-items: center; /* Vertically center temp and icon within this span */
+    font-size: 1.5em; /* Enlarge temperature text by 50% */
+}
+
+.weather-text .weather-icon { /* Icon within info modal weather display */
+    width: 1.8em; /* Slightly larger icon for the modal, relative to 1.5em font-size */
+    height: 1.8em;
+    margin-left: 5px;
+}
+
 
 /* Info Modal Section Styling */
 #infoModalContent .topic-section {
@@ -327,7 +379,7 @@ input[type="color"] {
     margin-bottom: 0.5em; /* Add some space after paragraphs for readability */
 }
 #infoModalContent .ai-topic-content ul {
-    padding-left: 20px; 
+    padding-left: 20px;
     margin-top: 0.1;
     margin-bottom: 0.5em; /* Add some space after lists */
 }
@@ -346,20 +398,20 @@ input[type="color"] {
 
 /* Footer for expanded topic content */
 #infoModalContent .topic-content-footer {
-    margin-top: 15px; 
-    padding-top: 5px; 
+    margin-top: 15px;
+    padding-top: 5px;
 }
 
 #infoModalContent .topic-content-footer hr {
     border: none;
-    border-top: 1px solid var(--input-border-color); 
+    border-top: 1px solid var(--input-border-color);
     margin-bottom: 8px;
 }
 
 #infoModalContent .collapse-hint {
-    display: block; 
+    display: block;
     text-align: center;
     font-size: 0.9em;
-    color: var(--updated-text-color); 
+    color: var(--updated-text-color);
     user-select: none;
 }
