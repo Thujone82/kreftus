@@ -413,6 +413,7 @@ const app = {
             }
         });
 
+        console.log(`[FADFL] Location: ${location.description}. Filtered topicsToFetch (actual items to query API for):`, topicsToFetch.map(t => ({id: t.id, desc: t.description})));
 
         const totalTopicsToFetch = topicsToFetch.length;
 
