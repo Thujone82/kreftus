@@ -390,7 +390,9 @@ const ui = {
             };
 
             if (cacheEntry && cacheEntry.data) {
-                contentContainer.innerHTML = utils.formatAiResponseToHtml(cacheEntry.data);
+                const formattedHtml = utils.formatAiResponseToHtml(cacheEntry.data);
+                console.log(`HTML for topic "${topic.description}" (Location: ${location.id}):\n`, formattedHtml); // DEBUG LOG
+                contentContainer.innerHTML = formattedHtml;
                 if (cacheEntry.timestamp && cacheEntry.timestamp < oldestTimestamp) oldestTimestamp = cacheEntry.timestamp;
                 if (!cacheEntry.timestamp || (Date.now() - cacheEntry.timestamp) > APP_CONSTANTS.CACHE_EXPIRY_MS) needsRefresh = true;
             } else {

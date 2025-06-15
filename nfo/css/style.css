@@ -286,18 +286,22 @@ input[type="color"] {
 }
 
 #infoModalContent .ai-topic-content {
-    white-space: <'white-space-collapse'>; 
+    white-space: normal; /* Corrected white-space property */
 }
 #infoModalContent .ai-topic-content h3 {
     color: var(--primary-color);
     font-size: 1.2em;
-    margin-top: 1em;
-    margin-bottom: 0.5em;
+    margin-top: 0;    /* Aggressive margin reset for debugging */
+    margin-bottom: 0; /* Will add back specific margin-bottom if needed */
+}
+#infoModalContent .ai-topic-content p {
+    margin-top: 0;    /* Aggressive margin reset for debugging */
+    margin-bottom: 0; /* Will add back specific margin-bottom if needed */
 }
 #infoModalContent .ai-topic-content ul {
     padding-left: 20px; 
-    margin-top: 0;    /* Removed top margin */
-    margin-bottom: 0; /* Removed bottom margin */
+    margin-top: 0;    /* Already 0, confirm reset */
+    margin-bottom: 0; /* Already 0, confirm reset */
 }
 
 #infoModalContent .ai-topic-content li {
