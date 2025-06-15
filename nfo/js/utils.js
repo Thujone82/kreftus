@@ -29,7 +29,7 @@ const utils = {
         let inBlockquote = false;
 
         const applyInlineFormatting = (lineContent) => {
-            // Links: [text](url)
+            // Links: text
             lineContent = lineContent.replace(/\[([^\]]+?)\]\(([^)]+?)\)/g, '<a href="$2" target="_blank">$1</a>');
             // Inline Code: `code`
             lineContent = lineContent.replace(/`([^`]+?)`/g, '<code>$1</code>');
@@ -82,61 +82,92 @@ const utils = {
                 }
                 continue; // Always continue to the next line after processing a blank line.
             } else { // Line has actual content
-                if (effectiveContent.startsWith('### ')) {
-                    if (inList) {
-                        processedLines.push('</ul>');
-                        inList = false;
+                // Headings (H1-H6)
+                let headingMatch = effectiveContent.match(/^(#{1,6})\s+(.*)/);
+                if (headingMatch) {
+                    closeAllOpenBlocks();
+                    let level = headingMatch[1].length;
+                    let headerContent = headingMatch[2].trim();
+                    processedLines.push(`<h${level}>${applyInlineFormatting(headerContent)}</h${level}>`);
+                    continue;
+                }
+
+                // Blockquotes
+                if (effectiveContent.startsWith('>')) {
+                    if (!inBlockquote) {
+                        closeAllOpenBlocks(); // Close other blocks
+                        processedLines.push('<blockquote>');
+                        inBlockquote = true;
                     }
-                    let headerContent = effectiveContent.substring(4).trim();
-                    processedLines.push(`<h3>${applyInlineFormatting(headerContent)}</h3>`);
-                } else if (effectiveContent.startsWith('* ')) {
-                    if (!inList) {
+                    let quoteContent = effectiveContent.substring(1).trim();
+                    if (quoteContent) { // Avoid empty <p> for lines like "> "
+                        processedLines.push(`<p>${applyInlineFormatting(quoteContent)}</p>`);
+                    }
+                    continue;
+                }
+                if (inBlockquote && !effectiveContent.startsWith('>')) { // Exiting blockquote
+                    closeAllOpenBlocks(); // This closes blockquote
+                }
+
+                // Unordered Lists
+                if (effectiveContent.startsWith('* ')) {
+                    if (!inUnorderedList) {
+                        closeAllOpenBlocks(); // Close other blocks
                         processedLines.push('<ul>');
-                        inList = true;
+                        inUnorderedList = true;
                     }
                     let listItemContent = effectiveContent.substring(2).trim(); // Get content after "* "
                     if (listItemContent.length > 0) {
                         processedLines.push(`<li>${applyInlineFormatting(listItemContent)}</li>`);
-                    } else {
-                        // This line was effectively an empty list item (e.g., "* " or "*    ")
-                        // We should not render an empty <li>.
-                        // If we are in a list and the next line is NOT a list item,
-                        // this "empty" item might signify the end of the list.
-                        if (inList) {
-                            let nextLineIsListItemAfterEmpty = false;
-                            for (let j = i + 1; j < lines.length; j++) {
-                                let nextPreview = lines[j].replace(/[\u00A0\u200B\uFEFF]+/g, ' ').trim();
-                                if (nextPreview.length > 0) {
-                                    if (nextPreview.startsWith('* ')) nextLineIsListItemAfterEmpty = true;
-                                    break;
-                                }
-                            }
-                            if (!nextLineIsListItemAfterEmpty) { // If no more list items follow this empty one
-                                processedLines.push('</ul>');
-                                inList = false;
-                            }
-                        }
-                        continue; // Skip adding an empty <li>
+                    } // Empty list items (e.g. "* ") are skipped
+                    continue;
+                }
+                if (inUnorderedList && !effectiveContent.startsWith('* ')) { // Exiting Unordered List
+                    closeAllOpenBlocks();
+                }
+
+                // Ordered Lists
+                let orderedListMatch = effectiveContent.match(/^(\d+)\.\s+(.*)/);
+                if (orderedListMatch) {
+                    if (!inOrderedList) {
+                        closeAllOpenBlocks(); // Close other blocks
+                        processedLines.push('<ol>');
+                        inOrderedList = true;
                     }
-                } else { 
-                    if (inList) {
-                        processedLines.push('</ul>');
-                        inList = false;
-                    }
+                    let listItemContent = orderedListMatch[2].trim();
+                    if (listItemContent.length > 0) {
+                        processedLines.push(`<li>${applyInlineFormatting(listItemContent)}</li>`);
+                    } // Empty list items (e.g. "1. ") are skipped
+                    continue;
+                }
+                if (inOrderedList && !/^\d+\.\s/.test(effectiveContent)) { // Exiting Ordered List
+                    closeAllOpenBlocks();
+                }
+
+                // Default to paragraph if none of the above matched
+                // Ensure any open blocks are closed before starting a paragraph
+                if (!inUnorderedList && !inOrderedList && !inBlockquote) {
+                     processedLines.push(`<p>${applyInlineFormatting(effectiveContent)}</p>`);
+                } else {
+                    // This case might occur if a line doesn't match any block but a block is open.
+                    // It implies the block should have been closed by a blank line or a different block starter.
+                    // For safety, close blocks and then process as a paragraph.
+                    closeAllOpenBlocks();
                     processedLines.push(`<p>${applyInlineFormatting(effectiveContent)}</p>`);
                 }
             }
         }
 
-        if (inList) {
-            processedLines.push('</ul>');
-        }
+        closeAllOpenBlocks(); // Ensure any remaining open blocks are closed at the end
+
         let finalHtml = processedLines.join('\n'); // Join with \n for source readability
 
         // Post-processing pass to remove extra newlines specifically around list structures
         finalHtml = finalHtml.replace(/<\/li>(?:\s*\n\s*)+<li>/g, '</li><li>'); // Remove newlines between list items
         finalHtml = finalHtml.replace(/<ul>(?:\s*\n\s*)+<li>/g, '<ul><li>');   // Remove newlines after <ul> and before first <li>
         finalHtml = finalHtml.replace(/<\/li>(?:\s*\n\s*)+<\/ul>/g, '</li></ul>'); // Remove newlines after last <li> and before </ul>
+        finalHtml = finalHtml.replace(/<ol>(?:\s*\n\s*)+<li>/g, '<ol><li>');   // Remove newlines after <ol> and before first <li>
+        finalHtml = finalHtml.replace(/<\/li>(?:\s*\n\s*)+<\/ol>/g, '</li></ol>'); // Remove newlines after last <li> and before </ol>
         
         return finalHtml.trim();
     }
