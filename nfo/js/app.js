@@ -397,20 +397,8 @@ const app = {
         const location = app.locations.find(l => l.id === locationId);
         if (!location) return false;
 
-        app.fetchingStatus[locationId] = true;
         const areTopicsDefined = app.topics && app.topics.length > 0;
-        ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
         
-        console.log(`Fetching/Caching AI data for location: ${location.description}. GeneralForce: ${forceRefreshGeneral}, SpecificIDs: ${specificTopicIdsToForce ? specificTopicIdsToForce.join(', ') : 'None'}`);
-        
-        // Ensure fetchingStatus is set BEFORE any UI updates that depend on it.
-        if (topicsToFetch.length > 0) { // Only set if actual fetches will occur
-            app.fetchingStatus[locationId] = true;
-            ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined); // Update button state
-        }
-
-        let completedCount = 0;
-
         const topicsToFetch = app.topics.filter(topic => {
             if (specificTopicIdsToForce && specificTopicIdsToForce.length > 0) {
                 // If a specific list is provided, only consider topics in that list for fetching,
@@ -426,7 +414,18 @@ const app = {
         });
 
         console.log(`[FADFL] Location: ${location.description}. Filtered topicsToFetch (actual items to query API for):`, topicsToFetch.map(t => ({id: t.id, desc: t.description})));
+        
+        // Conditionally set fetchingStatus and update UI based on whether there are topics to fetch
+        if (topicsToFetch.length > 0) {
+            app.fetchingStatus[locationId] = true;
+            ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
+        }
+        // If topicsToFetch.length is 0, fetchingStatus is not set to true here.
+        // The function will return early if totalTopicsToFetch (derived from topicsToFetch.length) is 0.
+        
+        console.log(`Fetching/Caching AI data for location: ${location.description}. GeneralForce: ${forceRefreshGeneral}, SpecificIDs: ${specificTopicIdsToForce ? specificTopicIdsToForce.join(', ') : 'None'}`);
 
+        let completedCount = 0;
         const totalTopicsToFetch = topicsToFetch.length;
         
         // Update modal title immediately if it's open for this location
