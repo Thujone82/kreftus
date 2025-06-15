@@ -451,7 +451,8 @@ const app = {
 
         for (const topic of topicsToFetch) {
             console.log(`Preparing to fetch for topic: ${topic.description}`);
-            const promise = api.fetchAiData(app.config.apiKey, location.location, topic.aiQuery)
+            const modifiedAiQuery = `${topic.aiQuery} Ensure the output is in markdown format.`;
+            const promise = api.fetchAiData(app.config.apiKey, location.location, modifiedAiQuery)
                 .then(aiData => {
                     store.saveAiCache(locationId, topic.id, aiData);
                     console.log(`Successfully fetched and cached data for ${location.description} - ${topic.description}`);

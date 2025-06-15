@@ -308,22 +308,22 @@ input[type="color"] {
 #infoModalContent .ai-topic-content h3 {
     color: var(--primary-color);
     font-size: 1.2em;
-    margin-top: 0;    /* Aggressive margin reset for debugging */
-    margin-bottom: 0; /* Will add back specific margin-bottom if needed */
+    margin-top: 0.8em;    /* More space above H3 */
+    margin-bottom: 0.2em; /* Less space below H3 */
 }
 #infoModalContent .ai-topic-content p {
-    margin-top: 0;    /* Aggressive margin reset for debugging */
-    margin-bottom: 0; /* Will add back specific margin-bottom if needed */
+    margin-top: 0.1;    /* Aggressive margin reset for debugging */
+    margin-bottom: 0.5em; /* Add some space after paragraphs for readability */
 }
 #infoModalContent .ai-topic-content ul {
     padding-left: 20px; 
-    margin-top: 0;    /* Already 0, confirm reset */
-    margin-bottom: 0; /* Already 0, confirm reset */
+    margin-top: 0.1;
+    margin-bottom: 0.5em; /* Add some space after lists */
 }
 
 #infoModalContent .ai-topic-content li {
-    margin-top: 0;  /* Removed top margin */
-    margin-bottom: 0; /* Removed bottom margin */
+    margin-top: 0.05;  /* Removed top margin */
+    margin-bottom: 0.05; /* Removed bottom margin */
 }
 #infoModalContent .ai-topic-content a {
     color: var(--primary-color);

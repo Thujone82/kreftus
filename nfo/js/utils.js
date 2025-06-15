@@ -24,14 +24,39 @@ const utils = {
 
         const lines = text.split('\n');
         let processedLines = [];
-        let inList = false;
+        let inUnorderedList = false;
+        let inOrderedList = false;
+        let inBlockquote = false;
 
         const applyInlineFormatting = (lineContent) => {
-            // Apply link formatting first: text to <a href="url" target="_blank">text</a>
+            // Links: [text](url)
             lineContent = lineContent.replace(/\[([^\]]+?)\]\(([^)]+?)\)/g, '<a href="$2" target="_blank">$1</a>');
-            // Then apply bold formatting: **bold** to <b>bold</b>
+            // Inline Code: `code`
+            lineContent = lineContent.replace(/`([^`]+?)`/g, '<code>$1</code>');
+            // Bold and Italic: ***text***
+            lineContent = lineContent.replace(/\*\*\*([^\*]+?)\*\*\*/g, '<b><em>$1</em></b>');
+            // Bold: **text**
             lineContent = lineContent.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+            // Italic: *text*
+            lineContent = lineContent.replace(/\*([^\*]+?)\*/g, '<em>$1</em>');
+            // Italic: _text_
+            lineContent = lineContent.replace(/_([^_]+?)_/g, '<em>$1</em>');
             return lineContent;
+        };
+        
+        const closeAllOpenBlocks = () => {
+            if (inUnorderedList) {
+                processedLines.push('</ul>');
+                inUnorderedList = false;
+            }
+            if (inOrderedList) {
+                processedLines.push('</ol>');
+                inOrderedList = false;
+            }
+            if (inBlockquote) {
+                processedLines.push('</blockquote>');
+                inBlockquote = false;
+            }
         };
 
         for (let i = 0; i < lines.length; i++) {
