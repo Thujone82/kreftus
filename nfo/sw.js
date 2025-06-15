@@ -1,4 +1,4 @@
-const CACHE_NAME = 'info2go-v1-cache'; // KKREFT 061424@2211#
+const CACHE_NAME = 'info2go-v1-cache'; // KKREFT 061424@2218
 const SW_CONSTANTS = { // Defined here as sw.js doesn't import app.js
     SW_MESSAGES: {
         SKIP_WAITING: 'SKIP_WAITING'

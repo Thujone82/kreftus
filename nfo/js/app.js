@@ -501,7 +501,7 @@ const app = {
             if (needsRefreshForLocation) {
                 anyFetchesInitiated = true;
                 // Don't await here, let them run in parallel across locations too
-                app.fetchAndCacheAiDataForLocation(location.id, true).then(success => {
+                app.fetchAndCacheAiDataForLocation(location.id, forceAllStale).then(success => {
                     if (!success) {
                          console.warn(`Background refresh for ${location.description} encountered errors or an API key issue.`);
                     }
