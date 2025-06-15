@@ -404,17 +404,16 @@ const ui = {
     displayInfoModal: async (location, topics, cachedData, isCurrentlyFetching) => {
         const locationData = store.getLocations().find(l => l.id === location.id);
         if (!locationData) return;
-        if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${locationData.description} nfo2Go`;
-        if(ui.infoModalContent) ui.infoModalContent.innerHTML = ''; 
-        if(ui.refreshInfoButton) ui.refreshInfoButton.classList.add('hidden'); 
-        
-        let oldestTimestamp = Date.now(), needsRefreshOverall = false; // Corrected variable name
 
-        // Set the main title (without weather)
-        if(ui.infoModalTitle) {
+        // If a fetch is NOT active for this modal, set the title to its final state.
+        // If a fetch IS active, app.updateInfoModalLoadingMessage is managing the title (e.g., "Fetching (X/Y)...").
+        if (!isCurrentlyFetching && ui.infoModalTitle) {
             ui.infoModalTitle.textContent = `${locationData.description} nfo2Go`;
         }
+        if(ui.infoModalContent) ui.infoModalContent.innerHTML = '';
+        if(ui.refreshInfoButton) ui.refreshInfoButton.classList.add('hidden');
 
+        let oldestTimestamp = Date.now(), needsRefreshOverall = false;
         // Fetch and display weather in its dedicated spot
         if(ui.infoModalWeather) ui.infoModalWeather.innerHTML = ''; // Clear previous weather
         if (app.config && app.config.owmApiKey) {
