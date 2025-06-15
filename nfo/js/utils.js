@@ -40,6 +40,7 @@ const utils = {
             let effectiveContent = line.replace(/[\u00A0\u200B\uFEFF]+/g, ' ').trim();
 
             if (effectiveContent.length === 0) { // Line is effectively blank
+                let listWasClosedByThisBlankLine = false;
                 if (inList) {
                     let nextLineIsListItem = false;
                     for (let j = i + 1; j < lines.length; j++) {
@@ -48,7 +49,7 @@ const utils = {
                             if (nextPreview.startsWith('* ')) {
                                 nextLineIsListItem = true;
                             }
-                            break; 
+                            break;
                         }
                     }
 
@@ -57,12 +58,20 @@ const utils = {
                     } else {
                         processedLines.push('</ul>');
                         inList = false;
+                        listWasClosedByThisBlankLine = true;
                     }
                 }
-                // With <p> tags handling paragraph structure, explicit blank lines ('')
-                // are generally not needed in processedLines for separation.
-                // Margins on <p>, <h3>, <ul> will create visual separation.
-                continue; 
+
+                // Add an empty string to processedLines if this blank line followed a list closure or an h3,
+                // and the previously processed line wasn't already an empty string.
+                // This adds a newline to the HTML source for readability.
+                if (processedLines.length > 0) {
+                    const lastPushedItem = processedLines[processedLines.length - 1];
+                    if (lastPushedItem !== '' && (listWasClosedByThisBlankLine || (typeof lastPushedItem === 'string' && lastPushedItem.endsWith('</h3>')))) {
+                        processedLines.push('');
+                    }
+                }
+                continue; // Always continue to the next line after processing a blank line.
             } else { // Line has actual content
                 if (effectiveContent.startsWith('### ')) {
                     if (inList) {

@@ -369,11 +369,9 @@ const ui = {
 
             // Load and apply collapsed state
             let isCollapsed = store.getTopicCollapsedState(location.id, topic.id);
-            if (isCollapsed === null) { // No saved state, default to expanded for the first two, collapsed for others
-                const topicIndex = topics.findIndex(t => t.id === topic.id);
-                isCollapsed = topicIndex >= 2; // First two (index 0, 1) are expanded, rest collapsed
+            if (isCollapsed === null) { // No saved state
+                isCollapsed = true; // Default to collapsed
             }
-
             if (!isCollapsed) { // If expanded
                 titleH3.classList.add('active');
                 contentContainer.style.display = "block";
