@@ -22,11 +22,11 @@ const api = {
                             text: promptText
                         }]
                     }],
-                    // "tools": [ // Consider if Google Search tool is always needed or configurable
-                    //     {
-                    //         "googleSearch": {}
-                    //     }
-                    // ]
+                    "tools": [
+                        {
+                            "googleSearch": {}
+                        }
+                    ]
                 })
             });
 
