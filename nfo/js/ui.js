@@ -402,7 +402,7 @@ const ui = {
 
             if (cacheEntry && cacheEntry.data) {
                 const formattedHtml = utils.formatAiResponseToHtml(cacheEntry.data);
-                console.log(`HTML for topic "${topic.description}" (Location: ${location.id}):\n`, formattedHtml); // DEBUG LOG
+                // console.log(`HTML for topic "${topic.description}" (Location: ${location.id}):\n`, formattedHtml); // DEBUG LOG
                 contentContainer.innerHTML = formattedHtml;
                 if (cacheEntry.timestamp && cacheEntry.timestamp < oldestTimestamp) {
                     oldestTimestamp = cacheEntry.timestamp;

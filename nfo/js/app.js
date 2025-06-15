@@ -497,11 +497,22 @@ const app = {
         // If the modal is still open after all fetches, ensure its content is fully updated.
         if (document.getElementById(APP_CONSTANTS.MODAL_IDS.INFO).style.display === 'block' && app.currentLocationIdForInfoModal === locationId) {
             const currentCachedData = {};
-            const isStillFetching = app.fetchingStatus[locationId] === true; // Re-check, though it should be false now
+            let isStillFetching = app.fetchingStatus[locationId] === true; // Should be false now
+            let needsRefreshAfterFetch = false;
+
             app.topics.forEach(t => {
-                currentCachedData[t.id] = store.getAiCache(locationId, t.id);
+                const cacheEntry = store.getAiCache(locationId, t.id);
+                currentCachedData[t.id] = cacheEntry;
+                if (!isStillFetching && (!cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > APP_CONSTANTS.CACHE_EXPIRY_MS || (cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:')))) {
+                    needsRefreshAfterFetch = true;
+                }
             });
             ui.displayInfoModal(location, app.topics, currentCachedData, isStillFetching);
+            if (needsRefreshAfterFetch && ui.refreshInfoButton) {
+                ui.refreshInfoButton.classList.remove('hidden');
+            } else if (ui.refreshInfoButton) {
+                ui.refreshInfoButton.classList.add('hidden');
+            }
         }
         
         return allIndividualFetchesSuccessful;
