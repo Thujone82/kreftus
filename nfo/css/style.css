@@ -63,6 +63,16 @@ h2 {
     margin-top: 15px;
 }
 
+/* Specific styling for Configuration section header and buttons */
+#configurationSection h2 {
+    font-size: 1.2em; /* Reduced size for "Configuration" heading */
+    margin-top: 20px; /* Add some space above it */
+    margin-bottom: 8px; /* Reduce space below it */
+}
+#configurationSection button {
+    padding: 6px 12px; /* Smaller padding for config buttons */
+    font-size: 0.9em;  /* Slightly smaller font for config buttons */
+}
 .section-header {
     display: flex;
     justify-content: space-between;
@@ -112,7 +122,8 @@ button.danger {
     border-color: var(--status-fresh-color);
 }
 #locationButtons button.location-button-fetching {
-    border-color: var(--status-fetching-color);
+    border-color: var(--status-fetching-color); /* Keep border for consistency */
+    animation: pulse 1.5s infinite; /* Use the existing pulse animation */
 }
 #locationButtons button.location-button-error {
     border-color: var(--status-error-color);
