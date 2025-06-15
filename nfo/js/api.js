@@ -98,5 +98,47 @@ const api = {
             console.error('Network error or other issue fetching weather data:', error);
             return null;
         }
+    },
+
+    validateGeminiApiKey: async (apiKey) => {
+        if (!apiKey) return false;
+        // Use a lightweight call, like listing models, to validate the key.
+        const VALIDATE_URL = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+        try {
+            const response = await fetch(VALIDATE_URL);
+            // A 200 OK response, even with an empty list or specific models, indicates the key is valid for access.
+            // A 400 or 403 would indicate an invalid key or permission issue.
+            if (response.ok) {
+                // Optionally, check if response.json() has a 'models' array
+                // const data = await response.json();
+                // return data && Array.isArray(data.models);
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error('Error validating Gemini API key:', error);
+            return false;
+        }
+    },
+
+    validateOwmApiKey: async (apiKey) => {
+        if (!apiKey) return false;
+        // Make a minimal call to a protected endpoint.
+        // Using current weather for a fixed coordinate (e.g., London) just to check the key.
+        // We don't need to process the weather data itself.
+        const VALIDATE_URL = `${OWM_API_BASE_URL}?lat=51.5074&lon=0.1278&appid=${apiKey}&cnt=1&exclude=minutely,hourly,daily,alerts`;
+        try {
+            const response = await fetch(VALIDATE_URL);
+            // OWM returns 401 for invalid API key.
+            if (response.ok) {
+                return true;
+            }
+            // const errorData = await response.json().catch(() => null);
+            // console.log("OWM Validation Error Data:", errorData);
+            return false;
+        } catch (error) {
+            console.error('Error validating OpenWeatherMap API key:', error);
+            return false;
+        }
     }
 };

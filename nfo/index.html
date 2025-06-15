@@ -40,14 +40,16 @@
             <div id="appConfigError" class="error-message"></div>
             <div>
                 <label for="apiKey">Gemini API Key:</label>
-                <input type="password" id="apiKey" name="apiKey">
+                <input type="password" id="apiKey" name="apiKey" style="width: calc(100% - 70px); margin-right: 5px;">
+                <span id="geminiApiKeyStatus" class="api-key-status"></span>
                 <small id="getApiKeyLinkContainer" class="hidden">
                     <a href="https://aistudio.google.com/app/apikey" target="_blank">Get Gemini Key for Free</a>
                 </small>
             </div>
             <div>
                 <label for="owmApiKey">OpenWeatherMap API Key:</label>
-                <input type="password" id="owmApiKey" name="owmApiKey">
+                <input type="password" id="owmApiKey" name="owmApiKey" style="width: calc(100% - 70px); margin-right: 5px;">
+                <span id="owmApiKeyStatus" class="api-key-status"></span>
                 <small id="getOwmApiKeyLinkContainer" class="hidden">
                     <a href="https://home.openweathermap.org/api_keys" target="_blank">Get API Key</a>
                     (Billing must be configured, service always free if capped to 1000 calls.)

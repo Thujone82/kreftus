@@ -215,6 +215,27 @@ input[type="color"] {
     opacity: 0.8;
 }
 
+/* API Key Status Styling */
+.api-key-status {
+    display: inline-block;
+    vertical-align: middle;
+    font-size: 0.85em;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: 5px; /* Space from input if input width is not 100% */
+}
+.api-key-status.status-valid {
+    background-color: var(--status-fresh-color);
+    color: var(--button-text-color);
+}
+.api-key-status.status-invalid {
+    background-color: var(--status-error-color);
+    color: #fff;
+}
+.api-key-status.status-checking {
+    background-color: #777; /* Neutral color for checking */
+    color: #fff;
+}
 
 /* Modal Styles */
 .modal {

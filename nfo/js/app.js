@@ -145,6 +145,11 @@ const app = {
         ui.btnAppConfig.onclick = () => {
             ui.loadAppConfigForm(app.config);
             if (ui.appConfigError) ui.appConfigError.textContent = '';
+            // Validate keys when modal is opened if they exist
+            if (app.config.apiKey) app.validateAndDisplayGeminiKeyStatus(app.config.apiKey, true);
+            else if(ui.geminiApiKeyStatusUI) ui.geminiApiKeyStatusUI.textContent = '';
+            if (app.config.owmApiKey) app.validateAndDisplayOwmKeyStatus(app.config.owmApiKey, true);
+            else if(ui.owmApiKeyStatusUI) ui.owmApiKeyStatusUI.textContent = '';
             ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
         };
         ui.btnLocationsConfig.onclick = () => {
@@ -236,8 +241,11 @@ const app = {
                 const areTopicsDefined = app.topics && app.topics.length > 0;
                 ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
             });
+            // Validate and display status for OWM key
+            app.validateAndDisplayOwmKeyStatus(newOwmApiKey);
         } else {
             console.log('OpenWeatherMap API Key is NOT set. Weather features will be disabled.');
+            if(ui.owmApiKeyStatusUI) ui.owmApiKeyStatusUI.textContent = ''; // Clear status if key removed
         }
     },
 
@@ -753,6 +761,35 @@ const app = {
 
         await Promise.allSettled(weatherFetchPromises);
         console.log("Weather refresh check completed.", refreshedSomething ? "Some data was updated." : "No data needed update or failed to update.");
+    }
+    ,
+
+    validateAndDisplayGeminiKeyStatus: async (apiKeyToValidate, onOpen = false) => {
+        if (!apiKeyToValidate) {
+            ui.setApiKeyStatus('gemini', 'empty', 'Enter Key');
+            return;
+        }
+        if (!onOpen) ui.setApiKeyStatus('gemini', 'checking', 'Checking...');
+        const isValid = await api.validateGeminiApiKey(apiKeyToValidate);
+        if (isValid) {
+            ui.setApiKeyStatus('gemini', 'valid', 'Valid');
+        } else {
+            ui.setApiKeyStatus('gemini', 'invalid', 'Invalid');
+        }
+    },
+
+    validateAndDisplayOwmKeyStatus: async (apiKeyToValidate, onOpen = false) => {
+        if (!apiKeyToValidate) {
+            ui.setApiKeyStatus('owm', 'empty', 'Enter Key');
+            return;
+        }
+        if (!onOpen) ui.setApiKeyStatus('owm', 'checking', 'Checking...');
+        const isValid = await api.validateOwmApiKey(apiKeyToValidate);
+        if (isValid) {
+            ui.setApiKeyStatus('owm', 'valid', 'Valid');
+        } else {
+            ui.setApiKeyStatus('owm', 'invalid', 'Invalid');
+        }
     }
 
 };

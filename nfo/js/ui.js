@@ -13,9 +13,11 @@ const ui = {
     appConfigModal: document.getElementById('appConfigModal'),
     appConfigError: document.getElementById('appConfigError'),
     apiKeyInput: document.getElementById('apiKey'),
+    geminiApiKeyStatusUI: document.getElementById('geminiApiKeyStatus'), // Added
     getApiKeyLinkContainer: document.getElementById('getApiKeyLinkContainer'),
     primaryColorInput: document.getElementById('primaryColor'),
     owmApiKeyInput: document.getElementById('owmApiKey'), // Added
+    owmApiKeyStatusUI: document.getElementById('owmApiKeyStatus'), // Added
     getOwmApiKeyLinkContainer: document.getElementById('getOwmApiKeyLinkContainer'), // Added
     backgroundColorInput: document.getElementById('backgroundColor'),
     saveAppConfigBtn: document.getElementById('saveAppConfig'),
@@ -182,6 +184,8 @@ const ui = {
         if (ui.getOwmApiKeyLinkContainer) { // Added
             ui.getOwmApiKeyLinkContainer.classList.toggle('hidden', !!settings.owmApiKey); // Added
         }
+        if (ui.geminiApiKeyStatusUI) ui.geminiApiKeyStatusUI.textContent = ''; // Clear status on load
+        if (ui.owmApiKeyStatusUI) ui.owmApiKeyStatusUI.textContent = '';   // Clear status on load
         console.log("App config form loaded with settings:", settings);
     },
 
@@ -189,6 +193,27 @@ const ui = {
         if(ui.btnLocationsConfig) ui.btnLocationsConfig.disabled = !enabled;
         if(ui.btnInfoCollectionConfig) ui.btnInfoCollectionConfig.disabled = !enabled;
         console.log(`Config buttons ${enabled ? 'enabled' : 'disabled'}`);
+    },
+
+    setApiKeyStatus: (apiKeyType, status, message = '') => {
+        let statusElement;
+        if (apiKeyType === 'gemini') {
+            statusElement = ui.geminiApiKeyStatusUI;
+        } else if (apiKeyType === 'owm') {
+            statusElement = ui.owmApiKeyStatusUI;
+        }
+
+        if (statusElement) {
+            statusElement.textContent = message || status.charAt(0).toUpperCase() + status.slice(1);
+            statusElement.className = 'api-key-status'; // Reset classes
+            if (status === 'valid') {
+                statusElement.classList.add('status-valid');
+            } else if (status === 'invalid') {
+                statusElement.classList.add('status-invalid');
+            } else if (status === 'checking') {
+                statusElement.classList.add('status-checking');
+            }
+        }
     },
 
     renderLocationButtons: (locations, onLocationClickCallback, areTopicsDefined) => { // No longer async itself
