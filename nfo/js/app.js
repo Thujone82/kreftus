@@ -24,6 +24,7 @@ const app = {
     fetchingStatus: {}, 
     initialEditingLocationsString: '', // For unsaved changes check
     initialEditingTopicsString: '',    // For unsaved changes check
+    isRefreshingAllStale: false,       // Flag to prevent overlapping global refreshes
 
     init: () => {
         console.log("App initializing...");
@@ -516,33 +517,55 @@ const app = {
     },
 
     refreshOutdatedQueries: async (forceAllStale = false) => {
+        if (app.isRefreshingAllStale) {
+            console.log("Global refresh already in progress. Skipping.");
+            return;
+        }
         if (!app.config.apiKey) return;
+
+        app.isRefreshingAllStale = true;
+        console.log("Starting global refresh of outdated queries...");
+        if(ui.globalRefreshButton) ui.globalRefreshButton.classList.add('button-fetching'); // Visual feedback
+
         const sixtyMinutesAgo = Date.now() - APP_CONSTANTS.CACHE_EXPIRY_MS;
-        let anyFetchesInitiated = false;
-        for (const location of app.locations) {
-            let needsRefreshForLocation = false;
-            if (app.topics.length === 0) continue;
-            if (forceAllStale) needsRefreshForLocation = true;
-            else {
-                for (const topic of app.topics) {
-                    const cacheEntry = store.getAiCache(location.id, topic.id);
-                    if (!cacheEntry || (cacheEntry.timestamp || 0) < sixtyMinutesAgo ||
-                        (cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:'))) {
-                        needsRefreshForLocation = true; break; 
+        const fetchPromises = [];
+
+        try {
+            for (const location of app.locations) {
+                let needsRefreshForLocation = false;
+                if (app.topics.length === 0) continue;
+
+                if (forceAllStale) {
+                    needsRefreshForLocation = true;
+                } else {
+                    for (const topic of app.topics) {
+                        const cacheEntry = store.getAiCache(location.id, topic.id);
+                        if (!cacheEntry || (cacheEntry.timestamp || 0) < sixtyMinutesAgo ||
+                            (cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:'))) {
+                            needsRefreshForLocation = true; break;
+                        }
                     }
                 }
+                if (needsRefreshForLocation) {
+                    fetchPromises.push(
+                        app.fetchAndCacheAiDataForLocation(location.id, forceAllStale, null)
+                        .catch(err => { 
+                            console.error(`Error during global refresh for location ${location.id}:`, err);
+                            // Return a specific structure for settled promises if needed, or just let it be undefined
+                        })
+                    );
+                }
             }
-            if (needsRefreshForLocation) {
-                anyFetchesInitiated = true;
-                // Don't await here, let them run in parallel across locations too
-                app.fetchAndCacheAiDataForLocation(location.id, forceAllStale, null).then(success => { // Pass null for specificTopicIds
-                    if (!success) {
-                         console.warn(`Background refresh for ${location.description} encountered errors or an API key issue.`);
-                    }
-                });
+
+            if (fetchPromises.length > 0) {
+                await Promise.allSettled(fetchPromises);
+                console.log("All global refresh fetches settled.");
             }
-        }
-        if (!anyFetchesInitiated) { // If no fetches were started by this loop, ensure UI is up-to-date
+        } finally {
+            app.isRefreshingAllStale = false;
+            if(ui.globalRefreshButton) ui.globalRefreshButton.classList.remove('button-fetching');
+            console.log("Global refresh of outdated queries finished.");
+            // Always update UI at the end, as states might have changed
             const areTopicsDefined = app.topics && app.topics.length > 0;
             ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
             app.updateGlobalRefreshButtonVisibility();
