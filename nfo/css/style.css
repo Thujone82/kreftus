@@ -158,8 +158,8 @@ button.danger {
 }
 
 .location-button-weather .weather-icon { /* Icon within main page button */
-    width: 1em; /* Icon will scale with the 1.35em font-size of its parent */
-    height: 1em; /* Icon will scale with the 1.35em font-size of its parent */
+    width: 2em; /* Increased from 1em to make icon larger */
+    height: 2em; /* Increased from 1em to make icon larger */
     vertical-align: middle; /* Keep for good alignment with text if any beside it */
     margin-left: 4px;
 }
