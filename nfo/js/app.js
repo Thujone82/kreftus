@@ -295,10 +295,33 @@ const app = {
         const areTopicsDefined = app.topics && app.topics.length > 0;
         ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined); 
         app.updateGlobalRefreshButtonVisibility(); 
-        console.log("Info Structure updated. Triggering refresh for stale/updated items.");
-        app.refreshOutdatedQueries(false); // Refresh only stale/error/newly_invalidated items
-    },
 
+        // Determine which topics were newly added or had their AI query changed.
+        const newOrChangedQueryTopicIds = new Set();
+        app.currentEditingTopics.forEach(currentTopic => {
+            const prevTopic = previousTopics.get(currentTopic.id);
+            if (!prevTopic) { // New topic
+                newOrChangedQueryTopicIds.add(currentTopic.id);
+            } else if (prevTopic.aiQuery !== currentTopic.aiQuery) { // Query changed
+                newOrChangedQueryTopicIds.add(currentTopic.id);
+            }
+        });
+
+        if (newOrChangedQueryTopicIds.size > 0) {
+            const idsToRefresh = Array.from(newOrChangedQueryTopicIds);
+            console.log("Info Structure updated. Triggering specific refresh for EDITED/NEW items:", idsToRefresh);
+            app.locations.forEach(location => {
+                // Call fetchAndCacheAiDataForLocation to refresh only these specific topics for this location.
+                // The second argument (forceRefreshGeneral) is false, as we are not doing a general force refresh.
+                // The third argument provides the specific list of topic IDs to target.
+                app.fetchAndCacheAiDataForLocation(location.id, false, idsToRefresh);
+            });
+        } else {
+            console.log("Info Structure updated. No AI queries changed, no new topics. No specific refresh needed from this operation.");
+            // If only reordering or deletion of non-queried topics occurred,
+            // the global refresh button visibility is still updated.
+        }
+    },
     handleLocationButtonClick: (locationId) => {
         if (app.topics && app.topics.length > 0) app.handleOpenLocationInfo(locationId);
         else { alert("Please define an Info Structure before viewing location information."); ui.openModal(APP_CONSTANTS.MODAL_IDS.INFO_COLLECTION_CONFIG); }
@@ -356,9 +379,9 @@ const app = {
         await app.fetchAndCacheAiDataForLocation(locationId, false); // Only refresh stale/error topics
         // After fetching, call handleOpenLocationInfo again to re-render with fresh data
         app.handleOpenLocationInfo(locationId); 
-    },
+    },    
 
-    fetchAndCacheAiDataForLocation: async (locationId, forceRefresh = false) => {
+    fetchAndCacheAiDataForLocation: async (locationId, forceRefreshGeneral = false, specificTopicIdsToForce = null) => {
         if (!app.config.apiKey) {
             if (document.getElementById(APP_CONSTANTS.MODAL_IDS.APP_CONFIG).style.display !== 'block') {
                  if(ui.appConfigError) ui.appConfigError.textContent = "API Key is required to fetch data."; 
@@ -372,15 +395,25 @@ const app = {
         const areTopicsDefined = app.topics && app.topics.length > 0;
         ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
         
-        console.log(`Fetching/Caching AI data for location: ${location.description}. Force refresh: ${forceRefresh}`);
+        console.log(`Fetching/Caching AI data for location: ${location.description}. GeneralForce: ${forceRefreshGeneral}, SpecificIDs: ${specificTopicIdsToForce ? specificTopicIdsToForce.join(', ') : 'None'}`);
         
         let completedCount = 0;
+
         const topicsToFetch = app.topics.filter(topic => {
-            const cacheEntry = store.getAiCache(locationId, topic.id);
-            const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > APP_CONSTANTS.CACHE_EXPIRY_MS;
-            const hasError = cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:');
-            return forceRefresh || isStale || hasError;
+            if (specificTopicIdsToForce && specificTopicIdsToForce.length > 0) {
+                // If a specific list is provided, only consider topics in that list for fetching,
+                // and they are always fetched regardless of cache status.
+                return specificTopicIdsToForce.includes(topic.id);
+            } else {
+                // No specific list, use general logic for all topics of the location.
+                const cacheEntry = store.getAiCache(locationId, topic.id);
+                const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > APP_CONSTANTS.CACHE_EXPIRY_MS;
+                const hasError = cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:');
+                return forceRefreshGeneral || isStale || hasError;
+            }
         });
+
+
         const totalTopicsToFetch = topicsToFetch.length;
 
         // Update modal title immediately if it's open for this location
@@ -501,7 +534,7 @@ const app = {
             if (needsRefreshForLocation) {
                 anyFetchesInitiated = true;
                 // Don't await here, let them run in parallel across locations too
-                app.fetchAndCacheAiDataForLocation(location.id, forceAllStale).then(success => {
+                app.fetchAndCacheAiDataForLocation(location.id, forceAllStale, null).then(success => { // Pass null for specificTopicIds
                     if (!success) {
                          console.warn(`Background refresh for ${location.description} encountered errors or an API key issue.`);
                     }
