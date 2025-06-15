@@ -217,7 +217,6 @@ const ui = {
                     const nameSpan = `<span class="location-button-name">${location.description}</span>`;
                     buttonHTML = `${nameSpan}<span class="location-button-weather"></span>`; // Placeholder
                     button.title = "Fetching AI data..."; // Initial title
-                    else button.title = "Fetching AI data...";
                 } else {
                     let locationStatus = 'stale'; 
                     if (app.fetchingStatus && app.fetchingStatus[location.id]) {
