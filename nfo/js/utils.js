@@ -92,6 +92,14 @@ const utils = {
                     continue;
                 }
 
+                // Horizontal Rule (---, ***, ___)
+                if (/^(\-{3,}|\*{3,}|_{3,})$/.test(effectiveContent)) {
+                    closeAllOpenBlocks();
+                    processedLines.push('<hr>');
+                    continue;
+                }
+
+
                 // Blockquotes
                 if (effectiveContent.startsWith('>')) {
                     if (!inBlockquote) {
