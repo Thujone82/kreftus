@@ -112,6 +112,13 @@ button.danger {
     color: #FFFFFF;
 }
 
+/* Container for location buttons to allow wrapping */
+#locationButtons {
+    display: flex;
+    flex-wrap: wrap; /* Allow buttons to wrap to the next line */
+    justify-content: flex-start; /* Align buttons to the start of the container */
+}
+
 /* Location button status borders */
 #locationButtons button {
     border-width: 3px;
@@ -124,6 +131,7 @@ button.danger {
     padding-top: 0.6em; /* Adjust padding as needed */
     padding-bottom: 0.6em;
     line-height: 1.3; /* Adjust line height for stacked text */
+    min-width: 150px; /* Give buttons a minimum width to help with layout */
     text-align: center; /* Ensure text within spans is centered if spans are block */
 }
 #locationButtons button.location-button-fresh {
@@ -146,13 +154,13 @@ button.danger {
 
 .location-button-weather {
     display: block; /* Ensure it takes full width and sits on its own line */
-    font-size: 0.9em; /* Slightly smaller font for weather, adjust as needed */
+    font-size: 1.35em; /* Roughly 50% larger than the original 0.9em */
 }
 
 .location-button-weather .weather-icon { /* Icon within main page button */
-    width: 1.5em; /* Adjust icon size relative to weather text */
-    height: 1.5em;
-    vertical-align: middle;
+    width: 1em; /* Icon will scale with the 1.35em font-size of its parent */
+    height: 1em; /* Icon will scale with the 1.35em font-size of its parent */
+    vertical-align: middle; /* Keep for good alignment with text if any beside it */
     margin-left: 4px;
 }
 
@@ -314,7 +322,7 @@ input[type="color"] {
 .weather-text { /* Style for the <p id="infoModalWeather"> */
     display: flex; /* Use flexbox for alignment */
     align-items: center; /* Vertically center items */
-    justify-content: center; /* Horizontally center items */
+    justify-content: flex-start; /* Horizontally left-align items */
     /* font-size: 1em; Base font size, specific part enlarged below */
     margin-top: -0.5em; /* Pull it a bit closer to the title */
     margin-bottom: 0.8em;
