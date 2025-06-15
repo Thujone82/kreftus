@@ -41,8 +41,6 @@ const utils = {
 
             if (effectiveContent.length === 0) { // Line is effectively blank
                 if (inList) {
-                    // If inside a list, check if the next non-blank line is also a list item.
-                    // If so, this blank line is between items of the same list and should be ignored.
                     let nextLineIsListItem = false;
                     for (let j = i + 1; j < lines.length; j++) {
                         let nextPreview = lines[j].replace(/[\u00A0\u200B\uFEFF]+/g, ' ').trim();
@@ -50,49 +48,21 @@ const utils = {
                             if (nextPreview.startsWith('* ')) {
                                 nextLineIsListItem = true;
                             }
-                            break; // Found the next non-blank line
+                            break; 
                         }
                     }
 
                     if (nextLineIsListItem) {
                         continue; // Ignore this blank line, it's between <li> of the same list.
                     } else {
-                        // Blank line is at the end of a list, or the list was empty. Close it.
                         processedLines.push('</ul>');
                         inList = false;
-                        // Now, this blank line will be processed by the general logic below
-                        // as if it were outside any list context.
                     }
                 }
-
-                // General blank line processing (applies if not inList initially, or if a list was just closed by the block above)
-                let addBlankLine = true;
-                if (processedLines.length > 0) {
-                    const lastProcessedLineTrimmed = processedLines[processedLines.length - 1].trim();
-                    if (lastProcessedLineTrimmed.length === 0 || // Previous was already a processed blank line
-                        lastProcessedLineTrimmed.endsWith('</h3>') ||
-                        lastProcessedLineTrimmed.endsWith('</ul>') ||
-                        lastProcessedLineTrimmed.endsWith('</li>')) {
-                        addBlankLine = false;
-                    }
-                }
-
-                // Lookahead: if still considering adding a blank line, and the next non-blank input
-                // starts a list or header, suppress this blank line.
-                if (addBlankLine && (i + 1 < lines.length)) {
-                    let nextMeaningfulContent = "";
-                    for (let j = i + 1; j < lines.length; j++) {
-                        nextMeaningfulContent = lines[j].replace(/[\u00A0\u200B\uFEFF]+/g, ' ').trim();
-                        if (nextMeaningfulContent.length > 0) break;
-                    }
-                    if (nextMeaningfulContent.startsWith('* ') || nextMeaningfulContent.startsWith('### ')) {
-                        addBlankLine = false;
-                    }
-                }
-
-                if (addBlankLine) {
-                    processedLines.push(''); // Add the blank line representation
-                }
+                // With <p> tags handling paragraph structure, explicit blank lines ('')
+                // are generally not needed in processedLines for separation.
+                // Margins on <p>, <h3>, <ul> will create visual separation.
+                continue; 
             } else { // Line has actual content
                 if (effectiveContent.startsWith('### ')) {
                     if (inList) {
@@ -107,13 +77,13 @@ const utils = {
                         inList = true;
                     }
                     let listItemContent = effectiveContent.substring(2).trim();
-                    processedLines.push(`  <li>${applyInlineFormatting(listItemContent)}</li>`);
+                    processedLines.push(`<li>${applyInlineFormatting(listItemContent)}</li>`);
                 } else { 
                     if (inList) {
                         processedLines.push('</ul>');
                         inList = false;
                     }
-                    processedLines.push(applyInlineFormatting(effectiveContent));
+                    processedLines.push(`<p>${applyInlineFormatting(effectiveContent)}</p>`);
                 }
             }
         }
@@ -121,12 +91,12 @@ const utils = {
         if (inList) {
             processedLines.push('</ul>');
         }
-        let finalHtml = processedLines.join('\n');
+        let finalHtml = processedLines.join('\n'); // Join with \n for source readability
 
         // Post-processing pass to remove extra newlines specifically around list structures
-        finalHtml = finalHtml.replace(/<\/li>\n\n+<li>/g, '</li>\n<li>'); // Between list items
-        finalHtml = finalHtml.replace(/<ul>\n\n+<li>/g, '<ul>\n<li>');   // After <ul>, before first <li>
-        finalHtml = finalHtml.replace(/<\/li>\n\n+<\/ul>/g, '</li>\n</ul>'); // After last <li>, before </ul>
+        finalHtml = finalHtml.replace(/<\/li>(?:\s*\n\s*)+<li>/g, '</li><li>'); // Remove newlines between list items
+        finalHtml = finalHtml.replace(/<ul>(?:\s*\n\s*)+<li>/g, '<ul><li>');   // Remove newlines after <ul> and before first <li>
+        finalHtml = finalHtml.replace(/<\/li>(?:\s*\n\s*)+<\/ul>/g, '</li></ul>'); // Remove newlines after last <li> and before </ul>
         
         return finalHtml.trim();
     }

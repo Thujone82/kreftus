@@ -286,7 +286,7 @@ input[type="color"] {
 }
 
 #infoModalContent .ai-topic-content {
-    white-space: pre-wrap; 
+    white-space: normal; 
 }
 #infoModalContent .ai-topic-content h3 {
     color: var(--primary-color);
