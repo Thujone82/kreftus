@@ -478,3 +478,17 @@ input[type="color"] {
     font-size: 0.85em;
     /* margin-right: auto; Pushes collapse hint to the right if needed, but space-between should handle it */
 }
+
+/* Responsive adjustments for Topic Config buttons on small portrait screens */
+@media screen and (max-width: 600px) and (orientation: portrait) {
+    #infoCollectionConfigModal .sortable-list li .config-item-buttons {
+        flex-direction: column; /* Stack buttons vertically */
+        align-items: stretch;   /* Make buttons take full width of their container */
+    }
+
+    #infoCollectionConfigModal .sortable-list li .config-item-buttons button {
+        width: 100%; /* Ensure buttons fill the width */
+        box-sizing: border-box; /* Include padding and border in the element's total width and height */
+        margin-bottom: 0; /* Rely on gap for spacing */
+    }
+}
