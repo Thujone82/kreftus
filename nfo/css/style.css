@@ -58,7 +58,7 @@ h1 {
     vertical-align: middle;
 }
 .header-icon-loading {
-    animation: spin 1s linear infinite;
+    animation: spin 1.78s linear infinite; /* Adjusted for approx. 0.56 rotations/sec */
 }
 
 @keyframes spin {
