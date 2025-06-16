@@ -590,40 +590,69 @@ const app = {
             return;
         }
         if (!app.config.apiKey) return;
-
-        app.incrementActiveLoaders(); // Global AI refresh starting
         app.isRefreshingAllStale = true;
-        console.log("Starting global refresh of outdated queries...");
-        if(ui.globalRefreshButton) ui.globalRefreshButton.classList.add('button-fetching');
 
+        const outdatedItemsToFetch = [];
         const sixtyMinutesAgo = Date.now() - APP_CONSTANTS.CACHE_EXPIRY_MS;
+
+        for (const location of app.locations) {
+            if (app.topics.length === 0) continue;
+            for (const topic of app.topics) {
+                const cacheEntry = store.getAiCache(location.id, topic.id);
+                const hasError = cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:');
+                const isStale = !cacheEntry || (cacheEntry.timestamp || 0) < sixtyMinutesAgo;
+                
+                if (forceAllStale || hasError || isStale) {
+                    outdatedItemsToFetch.push({
+                        locationId: location.id,
+                        topicId: topic.id,
+                        locationName: location.location, // For the prompt
+                        topicDescription: topic.description, // For logging
+                        aiQuery: topic.aiQuery // For the prompt
+                    });
+                }
+            }
+        }
+
+        const totalOutdatedCount = outdatedItemsToFetch.length;
+
+        if (totalOutdatedCount === 0) {
+            console.log("Global refresh: No outdated items to fetch.");
+            app.isRefreshingAllStale = false;
+            app.updateGlobalRefreshButtonVisibility(); // Ensure button is hidden or text is correct
+            return;
+        }
+
+        app.incrementActiveLoaders(); // Start global loading indicator
+        console.log("Starting global refresh of outdated queries...");
+        if (ui.globalRefreshButton) {
+            ui.globalRefreshButton.classList.add('button-fetching');
+            ui.globalRefreshButton.textContent = `Fetching (0/${totalOutdatedCount})...`;
+        }
+
+        let completedFetchCount = 0;
         const fetchPromises = [];
 
         try {
-            for (const location of app.locations) {
-                let needsRefreshForLocation = false;
-                if (app.topics.length === 0) continue;
-
-                if (forceAllStale) {
-                    needsRefreshForLocation = true;
-                } else {
-                    for (const topic of app.topics) {
-                        const cacheEntry = store.getAiCache(location.id, topic.id);
-                        if (!cacheEntry || (cacheEntry.timestamp || 0) < sixtyMinutesAgo ||
-                            (cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:'))) {
-                            needsRefreshForLocation = true; break;
+            outdatedItemsToFetch.forEach(item => {
+                const modifiedAiQuery = `${item.aiQuery} Ensure the output is in markdown format.`;
+                const promise = api.fetchAiData(app.config.apiKey, item.locationName, modifiedAiQuery)
+                    .then(aiData => {
+                        store.saveAiCache(item.locationId, item.topicId, aiData);
+                        console.log(`Global Refresh: Successfully fetched for ${item.locationName} - ${item.topicDescription}`);
+                    })
+                    .catch(error => {
+                        console.error(`Global Refresh: Failed for ${item.locationName} - ${item.topicDescription}:`, error.message);
+                        store.saveAiCache(item.locationId, item.topicId, `Error: ${error.message}`);
+                    })
+                    .finally(() => {
+                        completedFetchCount++;
+                        if (ui.globalRefreshButton) {
+                            ui.globalRefreshButton.textContent = `Fetching (${completedFetchCount}/${totalOutdatedCount})...`;
                         }
-                    }
-                }
-                if (needsRefreshForLocation) {
-                    fetchPromises.push(
-                        app.fetchAndCacheAiDataForLocation(location.id, forceAllStale, null)
-                        .catch(err => {
-                            console.error(`Error during global refresh for location ${location.id}:`, err);
-                        })
-                    );
-                }
-            }
+                    });
+                fetchPromises.push(promise);
+            });
 
             if (fetchPromises.length > 0) {
                 await Promise.allSettled(fetchPromises);
@@ -632,7 +661,9 @@ const app = {
         } finally {
             app.decrementActiveLoaders(); // Global AI refresh ended
             app.isRefreshingAllStale = false;
-            if(ui.globalRefreshButton) ui.globalRefreshButton.classList.remove('button-fetching');
+            if (ui.globalRefreshButton) {
+                ui.globalRefreshButton.classList.remove('button-fetching');
+            }
             console.log("Global refresh of outdated queries finished.");
             const areTopicsDefined = app.topics && app.topics.length > 0;
             ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
