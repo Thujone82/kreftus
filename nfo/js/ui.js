@@ -240,6 +240,8 @@ const ui = {
                 statusElement.classList.add('status-invalid');
             } else if (status === 'checking') {
                 statusElement.classList.add('status-checking');
+            } else if (status === 'rate_limit') {
+                statusElement.classList.add('status-rate-limit');
             }
         }
     },

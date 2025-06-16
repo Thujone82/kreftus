@@ -867,11 +867,15 @@ const app = {
             return;
         }
         if (!onOpen) ui.setApiKeyStatus('gemini', 'checking', 'Checking...');
-        const isValid = await api.validateGeminiApiKey(apiKeyToValidate);
-        if (isValid) {
+        const validationResult = await api.validateGeminiApiKey(apiKeyToValidate);
+        if (validationResult.isValid) {
             ui.setApiKeyStatus('gemini', 'valid', 'Valid');
         } else {
-            ui.setApiKeyStatus('gemini', 'invalid', 'Invalid');
+            if (validationResult.reason === 'rate_limit') {
+                ui.setApiKeyStatus('gemini', 'rate_limit', 'Rate Limit');
+            } else { // Covers 'invalid', 'network_error', or any other reason
+                ui.setApiKeyStatus('gemini', 'invalid', 'Invalid');
+            }
         }
     },
 
@@ -881,11 +885,15 @@ const app = {
             return;
         }
         if (!onOpen) ui.setApiKeyStatus('owm', 'checking', 'Checking...');
-        const isValid = await api.validateOwmApiKey(apiKeyToValidate);
-        if (isValid) {
+        const validationResult = await api.validateOwmApiKey(apiKeyToValidate);
+        if (validationResult.isValid) {
             ui.setApiKeyStatus('owm', 'valid', 'Valid');
         } else {
-            ui.setApiKeyStatus('owm', 'invalid', 'Invalid');
+            if (validationResult.reason === 'rate_limit') {
+                ui.setApiKeyStatus('owm', 'rate_limit', 'Rate Limit');
+            } else { // Covers 'invalid', 'network_error', or any other reason
+                ui.setApiKeyStatus('owm', 'invalid', 'Invalid');
+            }
         }
     },
 

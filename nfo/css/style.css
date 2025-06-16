@@ -19,6 +19,7 @@
     /* Status colors */
     --status-fresh-color: #4CAF50;
     --status-fetching-color: #2196F3;
+    --status-rate-limit-color: #f7b731; /* Orange/Yellow for warning */
     --status-fetching-color-rgb: 33, 150, 243; /* RGB for box-shadow */
     --status-error-color: #F44336;
 }
@@ -259,6 +260,10 @@ input[type="color"] {
 .api-key-status.status-checking {
     background-color: #777; /* Neutral color for checking */
     color: #fff;
+}
+.api-key-status.status-rate-limit {
+    background-color: var(--status-rate-limit-color);
+    color: #000; /* Dark text for light orange/yellow */
 }
 
 /* Modal Styles */

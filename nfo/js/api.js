@@ -103,21 +103,25 @@ const api = {
     validateGeminiApiKey: async (apiKey) => {
         if (!apiKey) return false;
         // Use a lightweight call, like listing models, to validate the key.
-        const VALIDATE_URL = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+        // Using a specific model known to exist to ensure the endpoint is valid for a key check.
+        const modelName = "gemini-2.5-flash-preview-05-20";
+        const VALIDATE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}?key=${apiKey}`;
         try {
             const response = await fetch(VALIDATE_URL);
             // A 200 OK response, even with an empty list or specific models, indicates the key is valid for access.
             // A 400 or 403 would indicate an invalid key or permission issue.
             if (response.ok) {
-                // Optionally, check if response.json() has a 'models' array
-                // const data = await response.json();
-                // return data && Array.isArray(data.models);
-                return true;
+                return { isValid: true };
+            } else if (response.status === 429) {
+                console.warn('Gemini API key validation: Rate limit hit (429).');
+                return { isValid: false, reason: 'rate_limit' };
             }
-            return false;
+            // For other errors (400, 401, 403, etc.)
+            console.warn(`Gemini API key validation failed with status: ${response.status}`);
+            return { isValid: false, reason: 'invalid' };
         } catch (error) {
             console.error('Error validating Gemini API key:', error);
-            return false;
+            return { isValid: false, reason: 'network_error' };
         }
     },
 
@@ -131,14 +135,17 @@ const api = {
             const response = await fetch(VALIDATE_URL);
             // OWM returns 401 for invalid API key.
             if (response.ok) {
-                return true;
+                return { isValid: true };
+            } else if (response.status === 429) {
+                console.warn('OpenWeatherMap API key validation: Rate limit hit (429).');
+                return { isValid: false, reason: 'rate_limit' };
             }
-            // const errorData = await response.json().catch(() => null);
-            // console.log("OWM Validation Error Data:", errorData);
-            return false;
+            // For other errors (e.g., 401 for invalid key)
+            console.warn(`OpenWeatherMap API key validation failed with status: ${response.status}`);
+            return { isValid: false, reason: 'invalid' };
         } catch (error) {
             console.error('Error validating OpenWeatherMap API key:', error);
-            return false;
+            return { isValid: false, reason: 'network_error' };
         }
     }
 };
