@@ -203,10 +203,20 @@ input[type="text"], input[type="password"], input[type="color"], input[type="num
     box-sizing: border-box;
     width: 100%;
 }
+/* Wrapper for API key input and status to sit on the same line */
+.api-key-wrapper {
+    display: flex;
+    align-items: center; /* Vertically align input and status */
+    margin-bottom: 10px; /* Keep consistent margin */
+}
 /* Specific for API key inputs to manage width with status span */
 .api-key-input {
-    width: calc(100% - 75px); /* Adjust based on status span width */
-    margin-right: 5px;
+    flex-grow: 1; /* Allow input to take available space */
+    margin: 0 5px 0 0; /* Remove default top/bottom margin, add right margin */
+}
+.rpm-input { /* Style for the RPM input specifically */
+    width: 60px;
+    margin: 5px 0 10px 0; /* Keep its original margin for now */
 }
 
 input[type="color"] {
@@ -234,14 +244,11 @@ input[type="color"] {
 
 /* API Key Status Styling */
 .api-key-status {
-    display: inline-block;
-    vertical-align: middle;
+    /* display: inline-block; No longer needed with flex */
+    /* vertical-align: middle; No longer needed with flex */
     font-size: 0.85em;
     padding: 2px 6px;
     border-radius: 3px;
-    margin-left: 5px; /* Space from input if input width is not 100% */
-}
-.api-key-status.status-valid {
     background-color: var(--status-fresh-color);
     color: var(--button-text-color);
 }

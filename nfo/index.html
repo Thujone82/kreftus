@@ -39,22 +39,24 @@
             <h2>Application Configuration</h2>
             <div id="appConfigError" class="error-message"></div>
             <div>
-                <label for="apiKey">Gemini API Key:</label>
-                <input type="password" id="apiKey" name="apiKey" class="api-key-input">
-                <span id="geminiApiKeyStatus" class="api-key-status"></span>
+                <label for="apiKey">Gemini API Key:</label><div class="api-key-wrapper">
+                    <input type="password" id="apiKey" name="apiKey" class="api-key-input">
+                    <span id="geminiApiKeyStatus" class="api-key-status"></span>
+                </div>
                 <small id="getApiKeyLinkContainer" class="hidden">
                     <a href="https://aistudio.google.com/app/apikey" target="_blank">Get Gemini Key for Free</a>
                 </small>
             </div>
             <div>
                 <label for="rpmLimit">Rate per Minute (Gemini):</label>
-                <input type="number" id="rpmLimit" name="rpmLimit" min="1" value="10" style="width: 60px;">
+                <input type="number" id="rpmLimit" name="rpmLimit" min="1" value="10" class="rpm-input">
                 <small>Default: 10. Adjust based on your API limits.</small>
             </div>
             <div>
-                <label for="owmApiKey">OpenWeatherMap API Key:</label>
-                <input type="password" id="owmApiKey" name="owmApiKey" class="api-key-input">
-                <span id="owmApiKeyStatus" class="api-key-status"></span>
+                <label for="owmApiKey">OpenWeatherMap API Key:</label><div class="api-key-wrapper">
+                    <input type="password" id="owmApiKey" name="owmApiKey" class="api-key-input">
+                    <span id="owmApiKeyStatus" class="api-key-status"></span>
+                </div>
                 <small id="getOwmApiKeyLinkContainer" class="hidden">
                     <a href="https://home.openweathermap.org/api_keys" target="_blank">Get API Key</a>
                     (Billing must be configured, service always free if capped to 1000 calls.)
