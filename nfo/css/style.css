@@ -57,6 +57,16 @@ h1 {
     margin-right: 10px;
     vertical-align: middle;
 }
+.header-icon-loading {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+
 
 h2 {
     color: var(--primary-color);

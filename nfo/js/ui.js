@@ -3,6 +3,7 @@ console.log("ui.js loaded");
 const ui = {
     // DOM Elements
     locationsSection: document.getElementById('locationsSection'),
+    headerIcon: document.querySelector('.header-icon'), // Added
     locationButtonsContainer: document.getElementById('locationButtons'),
     btnLocationsConfig: document.getElementById('btnLocationsConfig'),
     btnInfoCollectionConfig: document.getElementById('btnInfoCollectionConfig'),
@@ -193,6 +194,18 @@ const ui = {
         if(ui.btnLocationsConfig) ui.btnLocationsConfig.disabled = !enabled;
         if(ui.btnInfoCollectionConfig) ui.btnInfoCollectionConfig.disabled = !enabled;
         console.log(`Config buttons ${enabled ? 'enabled' : 'disabled'}`);
+    },
+
+    startHeaderIconLoading: () => {
+        if (ui.headerIcon) {
+            ui.headerIcon.classList.add('header-icon-loading');
+        }
+    },
+
+    stopHeaderIconLoading: () => {
+        if (ui.headerIcon) {
+            ui.headerIcon.classList.remove('header-icon-loading');
+        }
     },
 
     setApiKeyStatus: (apiKeyType, status, message = '') => {

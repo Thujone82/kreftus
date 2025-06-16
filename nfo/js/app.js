@@ -32,6 +32,7 @@ const app = {
     fetchingStatus: {},
     initialEditingLocationsString: '', // For unsaved changes check
     initialEditingTopicsString: '',    // For unsaved changes check
+    activeLoadingOperations: 0,        // Counter for global loading state
     isRefreshingAllStale: false,       // Flag to prevent overlapping global refreshes
 
     init: () => {
@@ -55,6 +56,7 @@ const app = {
         if (app.config && app.config.owmApiKey) {
             console.log('OpenWeatherMap API Key is set. Weather features can be enabled.');
             // Initial weather refresh on load, then update buttons
+            app.incrementActiveLoaders(); // Weather refresh starting
             app.refreshOutdatedWeather().then(() => {
                 const areTopicsDefined = app.topics && app.topics.length > 0;
                 ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
@@ -64,9 +66,11 @@ const app = {
             setInterval(async () => {
                 if (app.config.owmApiKey) { // Re-check in case it's removed during runtime
                     console.log("Periodic weather refresh triggered by timer.");
+                    app.incrementActiveLoaders();
                     await app.refreshOutdatedWeather();
                     const areTopicsDefined = app.topics && app.topics.length > 0;
                     ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
+                    app.decrementActiveLoaders();
                 }
             }, APP_CONSTANTS.CACHE_EXPIRY_WEATHER_MS); // Refresh at the same interval as stale time
 
@@ -74,11 +78,14 @@ const app = {
             document.addEventListener('visibilitychange', async () => {
                 if (document.visibilityState === 'visible' && app.config.owmApiKey) {
                     console.log("App became visible, refreshing weather.");
+                    app.incrementActiveLoaders();
                     await app.refreshOutdatedWeather();
                     const areTopicsDefined = app.topics && app.topics.length > 0;
                     ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
+                    app.decrementActiveLoaders();
                 }
             });
+            app.decrementActiveLoaders(); // Initial weather refresh promise chain
         } else {
             console.log('OpenWeatherMap API Key is NOT set. Weather features will be disabled.');
         }
@@ -237,10 +244,12 @@ const app = {
         if (app.config.owmApiKey) {
             console.log('OpenWeatherMap API Key is set. Weather features can be enabled.');
             // Trigger a weather refresh and UI update if the key was just added
+            app.incrementActiveLoaders();
             app.refreshOutdatedWeather().then(() => {
                 const areTopicsDefined = app.topics && app.topics.length > 0;
                 ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
             });
+            app.decrementActiveLoaders();
             // Validate and display status for OWM key
             app.validateAndDisplayOwmKeyStatus(newOwmApiKey);
         } else {
@@ -277,6 +286,7 @@ const app = {
         for (const location of app.locations) {
             if (!oldLocationIds.has(location.id)) {
                 console.log(`New location added: ${location.description}. Fetching initial data.`);
+                // fetchAndCacheAiDataForLocation will handle its own loader increment/decrement
                 await app.fetchAndCacheAiDataForLocation(location.id, true);
             }
         }
@@ -373,6 +383,7 @@ const app = {
         if (newOrChangedQueryTopicIds.size > 0) {
             const idsToRefresh = Array.from(newOrChangedQueryTopicIds);
             console.log("Info Structure updated. Triggering specific refresh for EDITED/NEW items:", idsToRefresh);
+            // fetchAndCacheAiDataForLocation will handle its own loader increment/decrement for each location
             app.locations.forEach(location => {
                 app.fetchAndCacheAiDataForLocation(location.id, false, idsToRefresh);
             });
@@ -429,7 +440,7 @@ const app = {
         if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${location.description} nfo2Go - Refreshing...`;
         if(ui.infoModalContent) ui.infoModalContent.innerHTML = '<p>Fetching fresh data...</p>';
         await app.fetchAndCacheAiDataForLocation(locationId, false);
-        app.handleOpenLocationInfo(locationId);
+        // app.handleOpenLocationInfo(locationId); // This call is redundant as fetchAndCacheAiDataForLocation updates the modal if open.
     },
 
     fetchAndCacheAiDataForLocation: async (locationId, forceRefreshGeneral = false, specificTopicIdsToForce = null) => {
@@ -459,6 +470,7 @@ const app = {
 
         if (topicsToFetch.length > 0) {
             app.fetchingStatus[locationId] = true;
+            app.incrementActiveLoaders(); // AI fetch starting for this location
             ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
         }
 
@@ -522,6 +534,7 @@ const app = {
         });
 
         delete app.fetchingStatus[locationId];
+        if (topicsToFetch.length > 0) app.decrementActiveLoaders(); // AI fetch ended for this location
         ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
         app.updateGlobalRefreshButtonVisibility();
 
@@ -578,6 +591,7 @@ const app = {
         }
         if (!app.config.apiKey) return;
 
+        app.incrementActiveLoaders(); // Global AI refresh starting
         app.isRefreshingAllStale = true;
         console.log("Starting global refresh of outdated queries...");
         if(ui.globalRefreshButton) ui.globalRefreshButton.classList.add('button-fetching');
@@ -616,6 +630,7 @@ const app = {
                 console.log("All global refresh fetches settled.");
             }
         } finally {
+            app.decrementActiveLoaders(); // Global AI refresh ended
             app.isRefreshingAllStale = false;
             if(ui.globalRefreshButton) ui.globalRefreshButton.classList.remove('button-fetching');
             console.log("Global refresh of outdated queries finished.");
@@ -627,21 +642,28 @@ const app = {
 
     updateGlobalRefreshButtonVisibility: () => {
         if (!ui.globalRefreshButton) return;
-        let anyStaleOrError = false;
+        let outdatedTopicsCount = 0;
+
         if (app.topics.length > 0) {
             for (const location of app.locations) {
                 if (app.fetchingStatus && app.fetchingStatus[location.id]) continue;
                 for (const topic of app.topics) {
                     const cacheEntry = store.getAiCache(location.id, topic.id);
                     const hasError = cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:');
-                    const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > APP_CONSTANTS.CACHE_EXPIRY_MS;
-                    if (hasError || isStale) { anyStaleOrError = true; break; }
+                    const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > APP_CONSTANTS.CACHE_EXPIRY_MS; // AI Cache expiry
+                    if (hasError || isStale) {
+                        outdatedTopicsCount++;
+                    }
                 }
-                if (anyStaleOrError) break;
             }
         }
-        if (anyStaleOrError) ui.globalRefreshButton.classList.remove('hidden');
-        else ui.globalRefreshButton.classList.add('hidden');
+
+        if (outdatedTopicsCount > 0) {
+            ui.globalRefreshButton.textContent = `Refresh Outdated (${outdatedTopicsCount})`;
+            ui.globalRefreshButton.classList.remove('hidden');
+        } else {
+            ui.globalRefreshButton.classList.add('hidden');
+        }
     },
 
     hasUnsavedChanges: (modalId) => {
@@ -747,6 +769,7 @@ const app = {
         }
 
         console.log("Checking and refreshing outdated weather data for all locations...");
+        // Individual fetchAndCacheWeatherData calls don't use the global loader
         let refreshedSomething = false;
         const weatherFetchPromises = app.locations.map(async (location) => {
             const coords = await utils.extractCoordinates(location.location);
@@ -789,6 +812,23 @@ const app = {
             ui.setApiKeyStatus('owm', 'valid', 'Valid');
         } else {
             ui.setApiKeyStatus('owm', 'invalid', 'Invalid');
+        }
+    },
+
+    // Loader Management
+    incrementActiveLoaders: () => {
+        app.activeLoadingOperations++;
+        if (app.activeLoadingOperations === 1 && ui.startHeaderIconLoading) {
+            ui.startHeaderIconLoading();
+        }
+    },
+
+    decrementActiveLoaders: () => {
+        if (app.activeLoadingOperations > 0) {
+            app.activeLoadingOperations--;
+        }
+        if (app.activeLoadingOperations === 0 && ui.stopHeaderIconLoading) {
+            ui.stopHeaderIconLoading();
         }
     }
 
