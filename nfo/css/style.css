@@ -228,6 +228,16 @@ input[type="color"] {
     cursor: pointer;
 }
 
+/* Wrapper for color picker label and input to align them */
+.color-picker-wrapper {
+    display: flex;
+    align-items: center; /* Vertically align label and color input */
+    gap: 10px; /* Add some space between label and input */
+}
+.color-picker-wrapper label {
+    margin-bottom: 0; /* Remove default bottom margin from label if any */
+}
+
 /* API Key Link Styling */
 #getApiKeyLinkContainer, #getOwmApiKeyLinkContainer { /* Combined for OWM key link */
     display: block;
@@ -293,6 +303,11 @@ input[type="color"] {
     border-radius: 8px;
     position: relative;
     box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+/* Add space between direct div children in the App Config modal for better separation */
+#appConfigModal .modal-content > div {
+    margin-bottom: 15px;
 }
 
 .modal-content.large {
