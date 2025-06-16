@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>BTC Track v1.3.5</title>
+    <title>BTC Track v1.3.6</title>
     <link rel="icon" href="./icons/32.png" type="image/png">
     <!-- You can create a 32x32.png from your 512x512.png or 192x192.png -->
     <link rel="apple-touch-icon" href="./icons/192.png">
@@ -1457,7 +1457,7 @@
                         setSwStatus('Service Worker registered.');
 
                         // Check if a new SW is already waiting (e.g., after a page reload before activation)
-                        if (registration && registration.waiting) {
+                        if (registration.waiting) {
                             setSwStatus('Update already waiting. Prompting.', 'info');
                             promptUserToUpdateSW(registration.waiting);
                         }
@@ -1482,14 +1482,14 @@
                                         console.error('The installing service worker became redundant.');
                                         setSwStatus('SW update failed (redundant).', 'error');
                                     }
-                                };
-                            }
-                        };
-                    })
+                                }; // Closes onstatechange
+                            } // Closes if (installingWorker)
+                        }; // Closes onupdatefound
+                    }) // Closes .then(registration => ...)
                     .catch(error => {
                         console.error('Service Worker registration failed:', error);
                         setSwStatus('SW registration failed.', 'error');
-                    });
+                    }); // Closes .catch for register
 
                 // When the new SW takes control, reload the page
                 let refreshing;
@@ -1513,28 +1513,9 @@
                 }).catch(error => {
                      console.error('Service Worker .ready() failed:', error);
                      setSwStatus('SW ready check failed.', 'error');
-                });
-            }
-        });
-    </script>
-</body>
-</html>
-                                }
-                            }
-                        };
-                    };
-                });
-
-                let refreshing;
-                // Detect controller change and refresh the page.
-                navigator.serviceWorker.addEventListener('controllerchange', () => {
-                    if (refreshing) return;
-                    console.log('[SW] Controller changed. Reloading page.');
-                    window.location.reload();
-                    refreshing = true;
-                });
-            }
-        });
+                }); // Closes .catch for .ready
+            } // Closes if ('serviceWorker' in navigator)
+        }); // This is the closing for document.addEventListener('DOMContentLoaded', ...)
     </script>
 </body>
 </html>

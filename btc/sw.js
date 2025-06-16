@@ -1,4 +1,4 @@
-const CACHE_NAME = 'btc-track-cache-v1-0616@1202';
+const CACHE_NAME = 'btc-track-cache-v1-0616@1210';
 const urlsToCache = [
     './',
     './index.html',
