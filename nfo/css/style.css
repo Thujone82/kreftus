@@ -232,10 +232,15 @@ input[type="color"] {
 .color-picker-wrapper {
     display: flex;
     align-items: center; /* Vertically align label and color input */
-    gap: 10px; /* Add some space between label and input */
+    gap: 10px; /* Space between elements */
 }
 .color-picker-wrapper label {
     margin-bottom: 0; /* Remove default bottom margin from label if any */
+}
+
+/* Make labels in App Config modal bold */
+#appConfigModal .modal-content label {
+    font-weight: bold;
 }
 
 /* API Key Link Styling */
