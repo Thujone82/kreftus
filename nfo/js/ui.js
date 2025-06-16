@@ -14,6 +14,7 @@ const ui = {
     appConfigModal: document.getElementById('appConfigModal'),
     appConfigError: document.getElementById('appConfigError'),
     apiKeyInput: document.getElementById('apiKey'),
+    rpmLimitInput: document.getElementById('rpmLimit'), // Added
     geminiApiKeyStatusUI: document.getElementById('geminiApiKeyStatus'), // Added
     getApiKeyLinkContainer: document.getElementById('getApiKeyLinkContainer'),
     primaryColorInput: document.getElementById('primaryColor'),
@@ -173,6 +174,7 @@ const ui = {
 
     loadAppConfigForm: (settings) => {
         if(ui.apiKeyInput) ui.apiKeyInput.value = settings.apiKey || '';
+        if(ui.rpmLimitInput) ui.rpmLimitInput.value = settings.rpmLimit || 10; // Added
         if(ui.owmApiKeyInput) ui.owmApiKeyInput.value = settings.owmApiKey || ''; // Added
         if(ui.primaryColorInput) ui.primaryColorInput.value = settings.primaryColor;
         if(ui.backgroundColorInput) ui.backgroundColorInput.value = settings.backgroundColor; 
@@ -205,10 +207,23 @@ const ui = {
     stopHeaderIconLoading: () => {
         if (ui.headerIcon) {
             ui.headerIcon.classList.remove('header-icon-loading');
+            ui.headerIcon.style.animationPlayState = 'running'; // Ensure it's not paused
         }
     },
 
-    setApiKeyStatus: (apiKeyType, status, message = '') => {
+    pauseHeaderIconLoading: () => {
+        if (ui.headerIcon && ui.headerIcon.classList.contains('header-icon-loading')) {
+            ui.headerIcon.style.animationPlayState = 'paused';
+        }
+    },
+
+    resumeHeaderIconLoading: () => {
+        if (ui.headerIcon && ui.headerIcon.classList.contains('header-icon-loading')) {
+            ui.headerIcon.style.animationPlayState = 'running';
+        }
+    },
+
+    setApiKeyStatus: (apiKeyType, status, message = '') => { // No longer async itself
         let statusElement;
         if (apiKeyType === 'gemini') {
             statusElement = ui.geminiApiKeyStatusUI;

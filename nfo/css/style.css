@@ -192,7 +192,8 @@ button.danger {
     }
 }
 
-input[type="text"], input[type="password"], input[type="color"] {
+/* General input styling */
+input[type="text"], input[type="password"], input[type="color"], input[type="number"] {
     padding: 8px;
     margin: 5px 0 10px 0;
     border: 1px solid var(--input-border-color); /* Uses dynamic variable */
@@ -202,6 +203,12 @@ input[type="text"], input[type="password"], input[type="color"] {
     box-sizing: border-box;
     width: 100%;
 }
+/* Specific for API key inputs to manage width with status span */
+.api-key-input {
+    width: calc(100% - 75px); /* Adjust based on status span width */
+    margin-right: 5px;
+}
+
 input[type="color"] {
     min-height: 40px;
     min-width: 60px;

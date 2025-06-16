@@ -18,6 +18,7 @@ const store = {
         return settings ? JSON.parse(settings) : { 
             apiKey: '',
             owmApiKey: '', // Ensure owmApiKey is part of default settings
+            rpmLimit: 10,  // Default RPM limit
             primaryColor: '#029ec5',
             backgroundColor: '#1E1E1E' // Default content area background
         };
