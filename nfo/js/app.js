@@ -20,6 +20,7 @@ const app = {
     config: { // Initialize config as an object
         apiKey: null, // For Gemini
         owmApiKey: null, // For OpenWeatherMap
+        rpmLimit: 10,  // Default RPM limit for Gemini
         primaryColor: '#029ec5',
         backgroundColor: '#1E1E1E'
     },
@@ -127,6 +128,7 @@ const app = {
         app.config = { // Ensure all expected keys are present
             apiKey: storedSettings.apiKey || null,
             owmApiKey: storedSettings.owmApiKey || null,
+            rpmLimit: storedSettings.rpmLimit || 10,
             primaryColor: storedSettings.primaryColor || '#029ec5',
             backgroundColor: storedSettings.backgroundColor || '#1E1E1E'
         };
@@ -197,7 +199,7 @@ const app = {
         if (ui.globalRefreshButton) {
             ui.globalRefreshButton.onclick = () => {
                 console.log("Global refresh triggered.");
-                app.refreshOutdatedQueries(false);
+                app.refreshOutdatedQueries(false); // Pass false for normal stale check
             };
         }
         console.log("Event listeners set up.");
@@ -211,6 +213,7 @@ const app = {
     handleSaveAppSettings: () => {
         const newGeminiApiKey = ui.apiKeyInput.value.trim(); // Gemini Key
         const newOwmApiKey = ui.owmApiKeyInput.value.trim(); // OpenWeatherMap Key
+        const newRpmLimit = parseInt(ui.rpmLimitInput.value, 10) || 10; // RPM Limit
         const newPrimaryColor = ui.primaryColorInput.value;
         const newBackgroundColor = ui.backgroundColorInput.value;
 
@@ -224,6 +227,7 @@ const app = {
 
         app.config.apiKey = newGeminiApiKey;
         app.config.owmApiKey = newOwmApiKey; // Save OWM key to app.config
+        app.config.rpmLimit = newRpmLimit;   // Save RPM limit
         app.config.primaryColor = newPrimaryColor;
         app.config.backgroundColor = newBackgroundColor;
 
@@ -494,6 +498,7 @@ const app = {
             // If fetchingStatus was set to true but no topics ended up being fetched, clear it.
             if (app.fetchingStatus[locationId]) {
                 delete app.fetchingStatus[locationId];
+                if (topicsToFetch.length > 0) app.decrementActiveLoaders(); // Ensure loader is decremented if it was incremented
                 ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
             }
             return true;
@@ -576,7 +581,7 @@ const app = {
                 if (completed === total){
                      setTimeout(() => {
                         if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal && app.locations.find(l=>l.id === app.currentLocationIdForInfoModal)?.description === locationDescription) {
-                           // Final display update handled by calling function (e.g., handleOpenLocationInfo)
+                           // Final display update handled by calling function (e.g., handleOpenLocationInfo or the end of fetchAndCacheAiDataForLocation)
                         }
                     }, 50);
                 }
@@ -585,12 +590,11 @@ const app = {
     },
 
     refreshOutdatedQueries: async (forceAllStale = false) => {
-        if (app.isRefreshingAllStale) {
-            console.log("Global refresh already in progress. Skipping.");
+        if (app.isRefreshingAllStale) { // Prevent re-entry if already running
+            console.log("Global refresh already in progress. Skipping new request.");
             return;
         }
         if (!app.config.apiKey) return;
-        app.isRefreshingAllStale = true;
 
         const outdatedItemsToFetch = [];
         const sixtyMinutesAgo = Date.now() - APP_CONSTANTS.CACHE_EXPIRY_MS;
@@ -618,7 +622,7 @@ const app = {
 
         if (totalOutdatedCount === 0) {
             console.log("Global refresh: No outdated items to fetch.");
-            app.isRefreshingAllStale = false;
+            // app.isRefreshingAllStale is false here, so no need to reset
             app.updateGlobalRefreshButtonVisibility(); // Ensure button is hidden or text is correct
             return;
         }
@@ -626,17 +630,48 @@ const app = {
         app.incrementActiveLoaders(); // Start global loading indicator
         console.log("Starting global refresh of outdated queries...");
         if (ui.globalRefreshButton) {
+            app.isRefreshingAllStale = true; // Set flag now that we are starting the process
             ui.globalRefreshButton.classList.add('button-fetching');
             ui.globalRefreshButton.textContent = `Fetching (0/${totalOutdatedCount})...`;
         }
 
         let completedFetchCount = 0;
-        const fetchPromises = [];
+        const rpm = app.config.rpmLimit || 10;
 
-        try {
-            outdatedItemsToFetch.forEach(item => {
+        // Define the cleanup function
+        function finishGlobalRefresh() {
+            if (!app.isRefreshingAllStale) return; // Avoid double cleanup
+
+            console.log("Global refresh of outdated queries finished or stopped.");
+            app.decrementActiveLoaders(); // Global AI refresh ended
+            app.isRefreshingAllStale = false;
+            if (ui.globalRefreshButton) {
+                ui.globalRefreshButton.classList.remove('button-fetching');
+            }
+            const areTopicsDefined = app.topics && app.topics.length > 0;
+            ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
+            app.updateGlobalRefreshButtonVisibility();
+        }
+
+        async function processBatch(startIndex) {
+            if (!app.isRefreshingAllStale) { // Check if refresh was cancelled/stopped
+                console.log("Global refresh was stopped before processing a batch.");
+                finishGlobalRefresh();
+                return;
+            }
+
+            const batch = outdatedItemsToFetch.slice(startIndex, startIndex + rpm);
+            if (batch.length === 0) { // All items processed
+                finishGlobalRefresh();
+                return;
+            }
+
+            if (ui.resumeHeaderIconLoading) ui.resumeHeaderIconLoading();
+            if (ui.globalRefreshButton) ui.globalRefreshButton.textContent = `Fetching (${completedFetchCount}/${totalOutdatedCount})...`;
+
+            const batchPromises = batch.map(item => {
                 const modifiedAiQuery = `${item.aiQuery} Ensure the output is in markdown format.`;
-                const promise = api.fetchAiData(app.config.apiKey, item.locationName, modifiedAiQuery)
+                return api.fetchAiData(app.config.apiKey, item.locationName, modifiedAiQuery)
                     .then(aiData => {
                         store.saveAiCache(item.locationId, item.topicId, aiData);
                         console.log(`Global Refresh: Successfully fetched for ${item.locationName} - ${item.topicDescription}`);
@@ -647,28 +682,23 @@ const app = {
                     })
                     .finally(() => {
                         completedFetchCount++;
-                        if (ui.globalRefreshButton) {
+                        if (ui.globalRefreshButton && app.isRefreshingAllStale) {
                             ui.globalRefreshButton.textContent = `Fetching (${completedFetchCount}/${totalOutdatedCount})...`;
                         }
                     });
-                fetchPromises.push(promise);
             });
 
-            if (fetchPromises.length > 0) {
-                await Promise.allSettled(fetchPromises);
-                console.log("All global refresh fetches settled.");
+            await Promise.allSettled(batchPromises);
+
+            if (startIndex + rpm < totalOutdatedCount && app.isRefreshingAllStale) {
+                if (ui.globalRefreshButton) ui.globalRefreshButton.textContent = `Waiting... (${completedFetchCount}/${totalOutdatedCount})`;
+                if (ui.pauseHeaderIconLoading) ui.pauseHeaderIconLoading();
+                setTimeout(() => processBatch(startIndex + rpm), 60 * 1000); // 1 minute timer
+            } else { // All batches processed or refresh stopped
+                finishGlobalRefresh();
             }
-        } finally {
-            app.decrementActiveLoaders(); // Global AI refresh ended
-            app.isRefreshingAllStale = false;
-            if (ui.globalRefreshButton) {
-                ui.globalRefreshButton.classList.remove('button-fetching');
-            }
-            console.log("Global refresh of outdated queries finished.");
-            const areTopicsDefined = app.topics && app.topics.length > 0;
-            ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
-            app.updateGlobalRefreshButtonVisibility();
         }
+        processBatch(0); // Start processing the first batch
     },
 
     updateGlobalRefreshButtonVisibility: () => {
@@ -739,7 +769,7 @@ const app = {
         const coords = await utils.extractCoordinates(location.location); // Ensure this returns { lat, lon }
         if (!coords) {
             console.warn(`Could not extract coordinates from location: ${location.location}`);
-            return;
+            return null; // Return null if no coords
         }
 
         const cachedWeather = store.getWeatherCache(location.id);
@@ -779,7 +809,7 @@ const app = {
 
         if (!weatherData || isWeatherStale) {
             console.log(`Stale or no weather data for ${location.description}. Attempting refresh.`);
-            weatherData = await app.fetchAndCacheWeatherData(location);
+            weatherData = await app.fetchAndCacheWeatherData(location); // This will return null if fetch fails
         }
 
         if (weatherData && weatherData.temp && weatherData.weather && weatherData.weather.length > 0) {
@@ -852,6 +882,10 @@ const app = {
         if (app.activeLoadingOperations === 1 && ui.startHeaderIconLoading) {
             ui.startHeaderIconLoading();
         }
+        // Ensure icon is running if it was paused
+        if (app.activeLoadingOperations > 0 && ui.resumeHeaderIconLoading && ui.headerIcon && ui.headerIcon.style.animationPlayState === 'paused') {
+            ui.resumeHeaderIconLoading();
+        }
     },
 
     decrementActiveLoaders: () => {
@@ -860,6 +894,10 @@ const app = {
         }
         if (app.activeLoadingOperations === 0 && ui.stopHeaderIconLoading) {
             ui.stopHeaderIconLoading();
+            // Also ensure the refresh button is not stuck on "Waiting..." if all ops are done
+            if (ui.globalRefreshButton && ui.globalRefreshButton.textContent.startsWith("Waiting")) {
+                app.updateGlobalRefreshButtonVisibility();
+            }
         }
     }
 
