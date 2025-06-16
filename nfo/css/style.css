@@ -158,10 +158,10 @@ button.danger {
 }
 
 .location-button-weather .weather-icon { /* Icon within main page button */
-    width: 1.2em; /* Increased from 1em to make icon larger */
-    height: 1.2em; /* Increased from 1em to make icon larger */
+    width: 3.2em; /* Increased from 1em to make icon larger */
+    height: 3.2em; /* Increased from 1em to make icon larger */
     vertical-align: middle; /* Keep for good alignment with text if any beside it */
-    margin-left: 4px;
+    margin-left: 3px;
 }
 
 
@@ -450,7 +450,7 @@ input[type="color"] {
 }
 
 .copy-topic-button {
-    padding: 4px 8px; /* Smaller padding for a less intrusive button */
+    padding: 4px 12px; /* Increased side padding from 8px to 12px */
     font-size: 0.85em;
     /* margin-right: auto; Pushes collapse hint to the right if needed, but space-between should handle it */
 }
