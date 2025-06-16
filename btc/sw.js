@@ -1,4 +1,4 @@
-const CACHE_NAME = 'btc-track-cache-v1-0616@1210';
+const CACHE_NAME = 'tc-track-cache-v1-0616@1224'; // Ensure this is updated with current MMDD@HHMM
 const urlsToCache = [
     './',
     './index.html',
@@ -10,6 +10,7 @@ const urlsToCache = [
 
 self.addEventListener('install', event => {
     event.waitUntil(
+        // console.log('Service Worker: Install event triggered.'), // Optional: more logging
         caches.open(CACHE_NAME)
             .then((cache) => {
                 console.log('Service Worker: Caching app shell');
@@ -21,7 +22,8 @@ self.addEventListener('install', event => {
             })
             .then(() => {
                 console.log('Service Worker: App shell cached successfully');
-                return self.skipWaiting(); // Activate worker immediately
+                // DO NOT call self.skipWaiting() here.
+                // We want to wait for the user to click the update button.
             })
             .catch((error) => {
                 console.error('Service Worker: Caching failed', error);
@@ -94,6 +96,7 @@ self.addEventListener('fetch', event => {
 
 self.addEventListener('activate', event => {
     const cacheWhitelist = [CACHE_NAME];
+    // console.log('Service Worker: Activate event triggered. Current cache:', CACHE_NAME); // Optional: more logging
     event.waitUntil(
         caches.keys().then(cacheNames => {
             return Promise.all(

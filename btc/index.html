@@ -210,7 +210,7 @@
         }
 
         #insightModal .insight-content {
-            white-space: pre-wrap; /* Preserve line breaks and spacing from AI */
+            /* white-space: pre-wrap; Removed to allow HTML rendering */
             background-color: #333344; /* Slightly different background for content */
             padding: 15px; border-radius: 4px; 
             flex-grow: 1; /* Allow this to take up remaining vertical space */
@@ -219,6 +219,53 @@
             overflow-y: auto; 
             margin-bottom: 15px; /* Space before buttons */
         }
+        /* Markdown specific styling for insight content */
+        #insightModal .insight-content p {
+            margin-top: 0;
+            margin-bottom: 0.75em;
+            line-height: 1.6;
+        }
+        #insightModal .insight-content h1,
+        #insightModal .insight-content h2,
+        #insightModal .insight-content h3,
+        #insightModal .insight-content h4,
+        #insightModal .insight-content h5,
+        #insightModal .insight-content h6 {
+            margin-top: 1em;
+            margin-bottom: 0.5em;
+            line-height: 1.3;
+            color: var(--accent-color, #f7931a); /* Use accent color for headers */
+        }
+        #insightModal .insight-content ul,
+        #insightModal .insight-content ol {
+            margin-top: 0.5em;
+            margin-bottom: 1em;
+            padding-left: 2em;
+        }
+        #insightModal .insight-content li {
+            margin-bottom: 0.3em;
+        }
+        #insightModal .insight-content code {
+            background-color: #222230; /* Darker than content bg */
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+            font-size: 0.9em;
+        }
+        #insightModal .insight-content a {
+            color: var(--accent-color, #f7931a);
+            text-decoration: underline;
+        }
+        #insightModal .insight-content a:hover {
+            opacity: 0.8;
+        }
+        #insightModal .insight-content hr {
+            border: 0;
+            height: 1px;
+            background-color: #555;
+            margin: 1.5em 0;
+        }
+
 
         /* New styles for arranging label and input/select on the same row */
         .modal-content .config-item-row {
@@ -526,6 +573,97 @@
         // PWA Update Notification Elements
         const updateNotificationEl = document.getElementById('updateNotification');
         const reloadPageButtonEl = document.getElementById('reloadPageButton');
+        let userInitiatedUpdate = false; // Flag to ensure reload is user-triggered
+
+        // Markdown Processing - Adapted from /nfo/js/utils.js
+        function applyInlineFormattingForInsight(lineContent) {
+            // Links: [text](url)
+            lineContent = lineContent.replace(/\[([^\]]+?)\]\(([^)]+?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+            // Inline Code: `code`
+            lineContent = lineContent.replace(/`([^`]+?)`/g, '<code>$1</code>');
+            // Bold and Italic: ***text***
+            lineContent = lineContent.replace(/\*\*\*([^\*]+?)\*\*\*/g, '<b><em>$1</em></b>');
+            // Bold: **text**
+            lineContent = lineContent.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+            // Italic: *text* or _text_
+            lineContent = lineContent.replace(/(?<!\*)\*([^\*]+?)\*(?!\*)/g, '<em>$1</em>'); // Single asterisks
+            lineContent = lineContent.replace(/_([^_]+?)_/g, '<em>$1</em>'); // Underscores
+            return lineContent;
+        }
+
+        function formatAiResponseToHtmlForInsight(text) {
+            if (!text) return '';
+
+            const lines = text.split('\n');
+            let processedLines = [];
+            let inUnorderedList = false;
+            let inOrderedList = false; // Added for completeness, though not used by current Gemini output
+            let inBlockquote = false;  // Added for completeness
+
+            const closeAllOpenBlocks = () => {
+                if (inUnorderedList) { processedLines.push('</ul>'); inUnorderedList = false; }
+                if (inOrderedList) { processedLines.push('</ol>'); inOrderedList = false; }
+                if (inBlockquote) { processedLines.push('</blockquote>'); inBlockquote = false; }
+            };
+
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i];
+                let effectiveContent = line.replace(/[\u00A0\u200B\uFEFF]+/g, ' ').trim();
+
+                if (effectiveContent.length === 0) {
+                    if (!inUnorderedList && !inOrderedList && !inBlockquote) {
+                        if (processedLines.length > 0 && 
+                            !processedLines[processedLines.length -1].endsWith('<br>') &&
+                            !processedLines[processedLines.length -1].endsWith('</ul>') && // Don't add <br> after closing a list
+                            !processedLines[processedLines.length -1].endsWith('</ol>') &&
+                            !processedLines[processedLines.length -1].endsWith('</blockquote>') &&
+                            !processedLines[processedLines.length -1].match(/<\/h[1-6]>$/) // Don't add <br> after a heading
+                            ) {
+                            
+                            let nextLineIsListItem = false;
+                            if (i + 1 < lines.length) {
+                                const nextLineTrimmed = lines[i+1].trim();
+                                if (nextLineTrimmed.startsWith('* ') || nextLineTrimmed.startsWith('- ') || /^\d+\.\s/.test(nextLineTrimmed)) {
+                                    nextLineIsListItem = true;
+                                }
+                            }
+                            if (!nextLineIsListItem) {
+                                processedLines.push('<br>');
+                            }
+                        }
+                    }
+                    continue;
+                }
+
+                let headingMatch = effectiveContent.match(/^(#{1,6})\s+(.*)/);
+                if (headingMatch) {
+                    closeAllOpenBlocks();
+                    let level = headingMatch[1].length;
+                    processedLines.push(`<h${level}>${applyInlineFormattingForInsight(headingMatch[2].trim())}</h${level}>`);
+                    continue;
+                }
+
+                if (/^(\-{3,}|\*{3,}|_{3,})$/.test(effectiveContent)) {
+                    closeAllOpenBlocks();
+                    processedLines.push('<hr>');
+                    continue;
+                }
+
+                if (effectiveContent.startsWith('* ') || effectiveContent.startsWith('- ')) {
+                    if (!inUnorderedList) { closeAllOpenBlocks(); processedLines.push('<ul>'); inUnorderedList = true; }
+                    processedLines.push(`<li>${applyInlineFormattingForInsight(effectiveContent.substring(2).trim())}</li>`);
+                    continue;
+                }
+                if (inUnorderedList && !(effectiveContent.startsWith('* ') || effectiveContent.startsWith('- '))) { closeAllOpenBlocks(); }
+
+                closeAllOpenBlocks();
+                processedLines.push(`<p>${applyInlineFormattingForInsight(effectiveContent)}</p>`);
+            }
+
+            closeAllOpenBlocks();
+            return processedLines.join('').replace(/<\/li><br><li>/g, '</li><li>').replace(/<\/ul><br><ul>/g, '</ul><ul>').replace(/<br><\/ul>/g, '</ul>').replace(/<br><\/ol>/g, '</ol>');
+        }
+
 
         const DEFAULT_ACCENT_COLOR = '#f7931a';
 
@@ -792,7 +930,7 @@
 
             if (config.insightReport && config.insightReport.content && config.insightReport.timestamp) {
                 console.log('[DEBUG] Displaying cached insight report.');
-                insightContentEl.textContent = config.insightReport.content;
+                insightContentEl.innerHTML = formatAiResponseToHtmlForInsight(config.insightReport.content);
                 if(insightTimestampEl) {insightTimestampEl.textContent = formatInsightTimestamp(config.insightReport.timestamp); insightTimestampEl.style.display = 'block';}
 
                 const oneHourInMs = 60 * 60 * 1000;
@@ -801,7 +939,7 @@
                 console.log('[DEBUG] Update button display:', updateInsightButtonEl ? updateInsightButtonEl.style.display : 'N/A (element not found)');
             } else {
                 console.log('[DEBUG] No valid cached insight report found. Triggering new fetch.');
-                insightContentEl.textContent = "No previous insight found. Fetching new report...";
+                insightContentEl.innerHTML = "<p>No previous insight found. Fetching new report...</p>";
                 if(insightTimestampEl) insightTimestampEl.style.display = 'none';
                 if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'none';
                 fetchInsightFromGemini(); // Fetch a new one immediately if no valid stored report
@@ -811,7 +949,7 @@
 
         async function fetchInsightFromGemini() {
             if (!config.googleApiKey) {
-                insightContentEl.textContent = "Google API Key is not configured. Please set it up in Config.";
+                insightContentEl.innerHTML = "<p>Google API Key is not configured. Please set it up in Config.</p>";
                 return;
             }
 
@@ -819,7 +957,7 @@
             toggleInsightModal(true);
             if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'none'; // Hide update button while fetching
             if(insightTimestampEl) insightTimestampEl.style.display = 'none'; // Hide old timestamp while fetching
-            insightContentEl.textContent = "Fetching AI insight, please wait...";
+            insightContentEl.innerHTML = "<p>Fetching AI insight, please wait...</p>";
             console.log('[DEBUG] Set UI to loading state for insight.');
 
 
@@ -862,7 +1000,7 @@
                 
                 // Store the new report and timestamp
                 config.insightReport = {
-                    content: insightText,
+                    content: insightText, // Store raw text
                     timestamp: Date.now()
                 };
                 console.log('[DEBUG] Storing new insight report:', JSON.parse(JSON.stringify(config.insightReport)));
@@ -872,10 +1010,10 @@
                 console.log('[DEBUG] Calling updateInsightModalDisplay after successful fetch.');
                 updateInsightModalDisplay(); // This will also hide the update button as it's a fresh report
             } catch (error) {
-                console.error("Error fetching Gemini insight:", error);
-                insightContentEl.textContent = `Error fetching insight: ${error.message}`;
+                console.error("Error fetching Gemini insight:", error);                
+                insightContentEl.innerHTML = `<p>Error fetching insight: ${error.message}</p>`;
                 // Optionally, keep the old report visible or clear it
-                // document.getElementById('insightTimestamp').style.display = 'block'; // Or hide
+                if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'inline-block'; // Show update button on error
             }
         }
 
@@ -1442,11 +1580,18 @@
             // PWA Update Logic
             function promptUserToUpdateSW(worker) {
                 if (updateNotificationEl && reloadPageButtonEl) {
+                    console.log('[SW Update] Prompting user to update. Worker:', worker);
+                    setSwStatus('Update available. Click to install.', 'info');
                     updateNotificationEl.style.display = 'block';
                     reloadPageButtonEl.onclick = () => {
+                        console.log('[SW Update] User clicked "Update" button.');
+                        userInitiatedUpdate = true; // Set flag
                         worker.postMessage({ action: 'skipWaiting' });
+                        updateNotificationEl.style.display = 'none'; // Hide notification
                         // Reload will be handled by 'controllerchange' event
                     };
+                } else {
+                    console.warn('[SW Update] Could not display update prompt: UI elements missing.');
                 }
             }
 
@@ -1454,11 +1599,11 @@
                 navigator.serviceWorker.register('sw.js')
                     .then(registration => { // Main registration promise
                         console.log('Service Worker registered with scope:', registration.scope);
-                        setSwStatus('Service Worker registered.');
+                        setSwStatus('SW registered.');
 
                         // Check if a new SW is already waiting (e.g., after a page reload before activation)
                         if (registration.waiting) {
-                            setSwStatus('Update already waiting. Prompting.', 'info');
+                            console.log('[SW Update] Found a waiting SW on registration. Prompting user.');
                             promptUserToUpdateSW(registration.waiting);
                         }
 
@@ -1472,11 +1617,11 @@
                                         if (navigator.serviceWorker.controller) {
                                             // New version installed and an old one is controlling.
                                             // installingWorker is now registration.waiting.
-                                            setSwStatus('Update installed. Prompting.', 'info');
+                                            console.log('[SW Update] New SW installed and waiting (controller exists). Prompting user.');
                                             promptUserToUpdateSW(installingWorker);
                                         } else {
                                             // Content is precached for the first time.
-                                            setSwStatus('Content cached for offline use.');
+                                            setSwStatus('SW installed. Content cached for offline use.');
                                         }
                                     } else if (installingWorker.state === 'redundant') {
                                         console.error('The installing service worker became redundant.');
@@ -1492,22 +1637,31 @@
                     }); // Closes .catch for register
 
                 // When the new SW takes control, reload the page
-                let refreshing;
+                let refreshingPage; // Prevents multiple reloads
                 navigator.serviceWorker.addEventListener('controllerchange', () => {
-                    if (refreshing) return;
-                    console.log('[SW] Controller changed. Reloading page.');
-                    window.location.reload();
-                    refreshing = true;
+                    console.log('[SW Update] Controllerchange event fired. userInitiatedUpdate:', userInitiatedUpdate, 'refreshingPage:', refreshingPage);
+                    if (refreshingPage) {
+                        console.log('[SW Update] Already refreshing page, exiting controllerchange.');
+                        return;
+                    }
+                    if (userInitiatedUpdate) {
+                        console.log('[SW Update] User initiated update. Reloading page now.');
+                        setSwStatus('Applying update...');
+                        window.location.reload();
+                        refreshingPage = true;
+                    } else {
+                        console.log('[SW Update] Controller changed, but not user-initiated by button click. Not reloading page via this event.');
+                        // This might happen if the SW activates via other means (e.g. dev tools, or last client closed)
+                        // The prompt should still be shown if an update is genuinely pending for the user.
+                    }
                 });
 
                 // Additionally, use .ready to confirm SW activation and re-check for waiting worker
                 navigator.serviceWorker.ready.then(registration => { // .ready fires when a SW is active and controlling
                     console.log('Service Worker is active and controlling the page.');
-                    setSwStatus('Service Worker active.');
-                    // This can catch cases if the above checks were missed or if the page was loaded
-                    // when an update was already waiting but not yet active.
+                    setSwStatus('SW active & ready.');
                     if (registration.waiting) {
-                        setSwStatus('Update waiting (on SW ready). Prompting.', 'info');
+                        console.log('[SW Update] Found a waiting SW on .ready(). Prompting user.');
                         promptUserToUpdateSW(registration.waiting);
                     }
                 }).catch(error => {
