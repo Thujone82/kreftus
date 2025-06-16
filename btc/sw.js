@@ -1,4 +1,4 @@
-const CACHE_NAME = 'btc-track-cache-v1';
+const CACHE_NAME = 'btc-track-cache-v1-0616@1152';
 const urlsToCache = [
     './',
     './index.html',
@@ -108,4 +108,11 @@ self.addEventListener('activate', event => {
             return self.clients.claim(); // Take control of all open clients
         })
     );
+});
+
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.action === 'skipWaiting') {
+        console.log('Service Worker: Received skipWaiting message. Activating new version.');
+        self.skipWaiting();
+    }
 });
