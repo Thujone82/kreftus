@@ -58,10 +58,17 @@ const app = {
             console.log('OpenWeatherMap API Key is set. Weather features can be enabled.');
             // Initial weather refresh on load, then update buttons
             app.incrementActiveLoaders(); // Weather refresh starting
-            app.refreshOutdatedWeather().then(() => {
-                const areTopicsDefined = app.topics && app.topics.length > 0;
-                ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
-            });
+            app.refreshOutdatedWeather()
+                .then(() => {
+                    const areTopicsDefined = app.topics && app.topics.length > 0;
+                    ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
+                })
+                .catch(error => {
+                    console.error("Error during initial weather refresh:", error);
+                })
+                .finally(() => {
+                    app.decrementActiveLoaders(); // Decrement after initial weather refresh completes
+                });
 
             // Set up periodic refresh for weather
             setInterval(async () => {
@@ -86,7 +93,7 @@ const app = {
                     app.decrementActiveLoaders();
                 }
             });
-            app.decrementActiveLoaders(); // Initial weather refresh promise chain
+            // app.decrementActiveLoaders(); // Moved to the .finally() block of the initial refresh
         } else {
             console.log('OpenWeatherMap API Key is NOT set. Weather features will be disabled.');
         }
@@ -249,11 +256,17 @@ const app = {
             console.log('OpenWeatherMap API Key is set. Weather features can be enabled.');
             // Trigger a weather refresh and UI update if the key was just added
             app.incrementActiveLoaders();
-            app.refreshOutdatedWeather().then(() => {
-                const areTopicsDefined = app.topics && app.topics.length > 0;
-                ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
-            });
-            app.decrementActiveLoaders();
+            app.refreshOutdatedWeather()
+                .then(() => {
+                    const areTopicsDefined = app.topics && app.topics.length > 0;
+                    ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
+                })
+                .catch(error => {
+                    console.error("Error refreshing weather after OWM key save:", error);
+                })
+                .finally(() => {
+                    app.decrementActiveLoaders(); // Decrement after weather refresh completes
+                });
             // Validate and display status for OWM key
             app.validateAndDisplayOwmKeyStatus(newOwmApiKey);
         } else {
