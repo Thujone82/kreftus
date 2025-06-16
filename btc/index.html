@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>BTC Track v1.3.5</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">    
+    <title>BTC Track v1.3.6</title>
     <link rel="icon" href="./icons/32.png" type="image/png">
     <!-- You can create a 32x32.png from your 512x512.png or 192x192.png -->
     <link rel="apple-touch-icon" href="./icons/192.png">
@@ -489,6 +489,99 @@
         const insightTimestampEl = document.getElementById('insightTimestamp'); 
         const updateInsightButtonEl = document.getElementById('updateInsightButton');
 
+        // PWA Update Notification Elements
+        const updateNotificationEl = document.getElementById('updateNotification');
+        const reloadPageButtonEl = document.getElementById('reloadPageButton');
+
+        // Markdown Processing - Adapted from /nfo/js/utils.js
+        function applyInlineFormattingForInsight(lineContent) {
+            // Links: [text](url)
+            lineContent = lineContent.replace(/\[([^\]]+?)\]\(([^)]+?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+            // Inline Code: `code`
+            lineContent = lineContent.replace(/`([^`]+?)`/g, '<code>$1</code>');
+            // Bold and Italic: ***text***
+            lineContent = lineContent.replace(/\*\*\*([^\*]+?)\*\*\*/g, '<b><em>$1</em></b>');
+            // Bold: **text**
+            lineContent = lineContent.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+            // Italic: *text* or _text_
+            lineContent = lineContent.replace(/(?<!\*)\*([^\*]+?)\*(?!\*)/g, '<em>$1</em>'); // Single asterisks
+            lineContent = lineContent.replace(/_([^_]+?)_/g, '<em>$1</em>'); // Underscores
+            return lineContent;
+        }
+
+        function formatAiResponseToHtmlForInsight(text) {
+            if (!text) return '';
+
+            const lines = text.split('\n');
+            let processedLines = [];
+            let inUnorderedList = false;
+            let inOrderedList = false; // Added for completeness, though not used by current Gemini output
+            let inBlockquote = false;  // Added for completeness
+
+            const closeAllOpenBlocks = () => {
+                if (inUnorderedList) { processedLines.push('</ul>'); inUnorderedList = false; }
+                if (inOrderedList) { processedLines.push('</ol>'); inOrderedList = false; }
+                if (inBlockquote) { processedLines.push('</blockquote>'); inBlockquote = false; }
+            };
+
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i];
+                let effectiveContent = line.replace(/[\u00A0\u200B\uFEFF]+/g, ' ').trim();
+
+                if (effectiveContent.length === 0) {
+                    if (!inUnorderedList && !inOrderedList && !inBlockquote) {
+                        if (processedLines.length > 0 && 
+                            !processedLines[processedLines.length -1].endsWith('<br>') &&
+                            !processedLines[processedLines.length -1].endsWith('</ul>') && // Don't add <br> after closing a list
+                            !processedLines[processedLines.length -1].endsWith('</ol>') &&
+                            !processedLines[processedLines.length -1].endsWith('</blockquote>') &&
+                            !processedLines[processedLines.length -1].match(/<\/h[1-6]>$/) // Don't add <br> after a heading
+                            ) {
+                            
+                            let nextLineIsListItem = false;
+                            if (i + 1 < lines.length) {
+                                const nextLineTrimmed = lines[i+1].trim();
+                                if (nextLineTrimmed.startsWith('* ') || nextLineTrimmed.startsWith('- ') || /^\d+\.\s/.test(nextLineTrimmed)) {
+                                    nextLineIsListItem = true;
+                                }
+                            }
+                            if (!nextLineIsListItem) {
+                                processedLines.push('<br>');
+                            }
+                        }
+                    }
+                    continue;
+                }
+
+                let headingMatch = effectiveContent.match(/^(#{1,6})\s+(.*)/);
+                if (headingMatch) {
+                    closeAllOpenBlocks();
+                    let level = headingMatch[1].length;
+                    processedLines.push(`<h${level}>${applyInlineFormattingForInsight(headingMatch[2].trim())}</h${level}>`);
+                    continue;
+                }
+
+                if (/^(\-{3,}|\*{3,}|_{3,})$/.test(effectiveContent)) {
+                    closeAllOpenBlocks();
+                    processedLines.push('<hr>');
+                    continue;
+                }
+
+                if (effectiveContent.startsWith('* ') || effectiveContent.startsWith('- ')) {
+                    if (!inUnorderedList) { closeAllOpenBlocks(); processedLines.push('<ul>'); inUnorderedList = true; }
+                    processedLines.push(`<li>${applyInlineFormattingForInsight(effectiveContent.substring(2).trim())}</li>`);
+                    continue;
+                }
+                if (inUnorderedList && !(effectiveContent.startsWith('* ') || effectiveContent.startsWith('- '))) { closeAllOpenBlocks(); }
+
+                closeAllOpenBlocks();
+                processedLines.push(`<p>${applyInlineFormattingForInsight(effectiveContent)}</p>`);
+            }
+
+            closeAllOpenBlocks();
+            return processedLines.join('').replace(/<\/li><br><li>/g, '</li><li>').replace(/<\/ul><br><ul>/g, '</ul><ul>').replace(/<br><\/ul>/g, '</ul>').replace(/<br><\/ol>/g, '</ol>');
+        }
+
         const DEFAULT_ACCENT_COLOR = '#f7931a';
 
         let _current_data_cache = null; // For storing the main current data object
@@ -753,7 +846,7 @@
 
             if (config.insightReport && config.insightReport.content && config.insightReport.timestamp) {
                 console.log('[DEBUG] Displaying cached insight report.');
-                insightContentEl.textContent = config.insightReport.content;
+                insightContentEl.innerHTML = formatAiResponseToHtmlForInsight(config.insightReport.content);
                 if(insightTimestampEl) {insightTimestampEl.textContent = formatInsightTimestamp(config.insightReport.timestamp); insightTimestampEl.style.display = 'block';}
 
                 const oneHourInMs = 60 * 60 * 1000;
@@ -762,7 +855,7 @@
                 console.log('[DEBUG] Update button display:', updateInsightButtonEl ? updateInsightButtonEl.style.display : 'N/A (element not found)');
             } else {
                 console.log('[DEBUG] No valid cached insight report found. Triggering new fetch.');
-                insightContentEl.textContent = "No previous insight found. Fetching new report...";
+                insightContentEl.innerHTML = "<p>No previous insight found. Fetching new report...</p>";
                 if(insightTimestampEl) insightTimestampEl.style.display = 'none';
                 if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'none';
                 fetchInsightFromGemini(); // Fetch a new one immediately if no valid stored report
@@ -772,7 +865,7 @@
 
         async function fetchInsightFromGemini() {
             if (!config.googleApiKey) {
-                insightContentEl.textContent = "Google API Key is not configured. Please set it up in Config.";
+                insightContentEl.innerHTML = "<p>Google API Key is not configured. Please set it up in Config.</p>";
                 return;
             }
 
@@ -780,7 +873,7 @@
             toggleInsightModal(true);
             if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'none'; // Hide update button while fetching
             if(insightTimestampEl) insightTimestampEl.style.display = 'none'; // Hide old timestamp while fetching
-            insightContentEl.textContent = "Fetching AI insight, please wait...";
+            insightContentEl.innerHTML = "<p>Fetching AI insight, please wait...</p>";
             console.log('[DEBUG] Set UI to loading state for insight.');
 
 
@@ -833,10 +926,11 @@
                 console.log('[DEBUG] Calling updateInsightModalDisplay after successful fetch.');
                 updateInsightModalDisplay(); // This will also hide the update button as it's a fresh report
             } catch (error) {
-                console.error("Error fetching Gemini insight:", error);
-                insightContentEl.textContent = `Error fetching insight: ${error.message}`;
+                console.error("Error fetching Gemini insight:", error);                
+                insightContentEl.innerHTML = `<p>Error fetching insight: ${error.message}</p>`;
                 // Optionally, keep the old report visible or clear it
                 // document.getElementById('insightTimestamp').style.display = 'block'; // Or hide
+                if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'inline-block'; // Show update button on error
             }
         }
 
