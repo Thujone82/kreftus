@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">    
-    <title>BTC Track v1.3.6</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>BTC Track v1.3.5</title>
     <link rel="icon" href="./icons/32.png" type="image/png">
     <!-- You can create a 32x32.png from your 512x512.png or 192x192.png -->
     <link rel="apple-touch-icon" href="./icons/192.png">
@@ -313,6 +313,35 @@
         #insightModal .modal-buttons button#playInsightButton {
             background-color: #4CAF50; /* Green, similar to save/config buttons */
         }
+        /* PWA Update Notification Styling */
+        #updateNotification {
+            display: none;
+            background-color: #3972bd; /* Consistent with loading status */
+            color: white;
+            position: fixed;
+            bottom: 20px; /* Increased bottom margin */
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2000;
+            padding: 15px;
+            border-radius: 8px; /* Slightly larger radius */
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); /* Enhanced shadow */
+            text-align: center;
+        }
+        #updateNotification button {
+            background-color: var(--accent-color, #f7931a); /* Use CSS variable for accent color */
+            color: #1a1a2b; /* Dark text for light button, assuming accent is light */
+            border: none;
+            padding: 10px 15px; /* Slightly larger padding */
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 15px;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+        #updateNotification button:hover {
+            opacity: 0.85;
+        }
 
 
         /* Color Indicators */
@@ -447,6 +476,11 @@
         </div>
     </div>
 
+    <div id="updateNotification">
+        <span>A new version is available.</span>
+        <button id="reloadPageButton">Update</button>
+    </div>
+
     <script>
         const API_BASE_URL = "https://api.livecoinwatch.com";
         const COIN_CODE = "BTC";
@@ -492,95 +526,6 @@
         // PWA Update Notification Elements
         const updateNotificationEl = document.getElementById('updateNotification');
         const reloadPageButtonEl = document.getElementById('reloadPageButton');
-
-        // Markdown Processing - Adapted from /nfo/js/utils.js
-        function applyInlineFormattingForInsight(lineContent) {
-            // Links: [text](url)
-            lineContent = lineContent.replace(/\[([^\]]+?)\]\(([^)]+?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-            // Inline Code: `code`
-            lineContent = lineContent.replace(/`([^`]+?)`/g, '<code>$1</code>');
-            // Bold and Italic: ***text***
-            lineContent = lineContent.replace(/\*\*\*([^\*]+?)\*\*\*/g, '<b><em>$1</em></b>');
-            // Bold: **text**
-            lineContent = lineContent.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
-            // Italic: *text* or _text_
-            lineContent = lineContent.replace(/(?<!\*)\*([^\*]+?)\*(?!\*)/g, '<em>$1</em>'); // Single asterisks
-            lineContent = lineContent.replace(/_([^_]+?)_/g, '<em>$1</em>'); // Underscores
-            return lineContent;
-        }
-
-        function formatAiResponseToHtmlForInsight(text) {
-            if (!text) return '';
-
-            const lines = text.split('\n');
-            let processedLines = [];
-            let inUnorderedList = false;
-            let inOrderedList = false; // Added for completeness, though not used by current Gemini output
-            let inBlockquote = false;  // Added for completeness
-
-            const closeAllOpenBlocks = () => {
-                if (inUnorderedList) { processedLines.push('</ul>'); inUnorderedList = false; }
-                if (inOrderedList) { processedLines.push('</ol>'); inOrderedList = false; }
-                if (inBlockquote) { processedLines.push('</blockquote>'); inBlockquote = false; }
-            };
-
-            for (let i = 0; i < lines.length; i++) {
-                let line = lines[i];
-                let effectiveContent = line.replace(/[\u00A0\u200B\uFEFF]+/g, ' ').trim();
-
-                if (effectiveContent.length === 0) {
-                    if (!inUnorderedList && !inOrderedList && !inBlockquote) {
-                        if (processedLines.length > 0 && 
-                            !processedLines[processedLines.length -1].endsWith('<br>') &&
-                            !processedLines[processedLines.length -1].endsWith('</ul>') && // Don't add <br> after closing a list
-                            !processedLines[processedLines.length -1].endsWith('</ol>') &&
-                            !processedLines[processedLines.length -1].endsWith('</blockquote>') &&
-                            !processedLines[processedLines.length -1].match(/<\/h[1-6]>$/) // Don't add <br> after a heading
-                            ) {
-                            
-                            let nextLineIsListItem = false;
-                            if (i + 1 < lines.length) {
-                                const nextLineTrimmed = lines[i+1].trim();
-                                if (nextLineTrimmed.startsWith('* ') || nextLineTrimmed.startsWith('- ') || /^\d+\.\s/.test(nextLineTrimmed)) {
-                                    nextLineIsListItem = true;
-                                }
-                            }
-                            if (!nextLineIsListItem) {
-                                processedLines.push('<br>');
-                            }
-                        }
-                    }
-                    continue;
-                }
-
-                let headingMatch = effectiveContent.match(/^(#{1,6})\s+(.*)/);
-                if (headingMatch) {
-                    closeAllOpenBlocks();
-                    let level = headingMatch[1].length;
-                    processedLines.push(`<h${level}>${applyInlineFormattingForInsight(headingMatch[2].trim())}</h${level}>`);
-                    continue;
-                }
-
-                if (/^(\-{3,}|\*{3,}|_{3,})$/.test(effectiveContent)) {
-                    closeAllOpenBlocks();
-                    processedLines.push('<hr>');
-                    continue;
-                }
-
-                if (effectiveContent.startsWith('* ') || effectiveContent.startsWith('- ')) {
-                    if (!inUnorderedList) { closeAllOpenBlocks(); processedLines.push('<ul>'); inUnorderedList = true; }
-                    processedLines.push(`<li>${applyInlineFormattingForInsight(effectiveContent.substring(2).trim())}</li>`);
-                    continue;
-                }
-                if (inUnorderedList && !(effectiveContent.startsWith('* ') || effectiveContent.startsWith('- '))) { closeAllOpenBlocks(); }
-
-                closeAllOpenBlocks();
-                processedLines.push(`<p>${applyInlineFormattingForInsight(effectiveContent)}</p>`);
-            }
-
-            closeAllOpenBlocks();
-            return processedLines.join('').replace(/<\/li><br><li>/g, '</li><li>').replace(/<\/ul><br><ul>/g, '</ul><ul>').replace(/<br><\/ul>/g, '</ul>').replace(/<br><\/ol>/g, '</ol>');
-        }
 
         const DEFAULT_ACCENT_COLOR = '#f7931a';
 
@@ -687,10 +632,11 @@
 
         function applyAccentColor() {
             const accent = config.accentColor || DEFAULT_ACCENT_COLOR;
+            document.documentElement.style.setProperty('--accent-color', accent); // Set CSS variable
             document.querySelector('header h1').style.color = accent;
             configModalTitleEl.style.color = accent; // Also color modal title
             insightModalTitleEl.style.color = accent; // Color insight modal title too
-
+            // The #updateNotification button will use var(--accent-color) via CSS
             // Chart line color will be applied directly in drawPriceChart
         }
 
@@ -846,7 +792,7 @@
 
             if (config.insightReport && config.insightReport.content && config.insightReport.timestamp) {
                 console.log('[DEBUG] Displaying cached insight report.');
-                insightContentEl.innerHTML = formatAiResponseToHtmlForInsight(config.insightReport.content);
+                insightContentEl.textContent = config.insightReport.content;
                 if(insightTimestampEl) {insightTimestampEl.textContent = formatInsightTimestamp(config.insightReport.timestamp); insightTimestampEl.style.display = 'block';}
 
                 const oneHourInMs = 60 * 60 * 1000;
@@ -855,7 +801,7 @@
                 console.log('[DEBUG] Update button display:', updateInsightButtonEl ? updateInsightButtonEl.style.display : 'N/A (element not found)');
             } else {
                 console.log('[DEBUG] No valid cached insight report found. Triggering new fetch.');
-                insightContentEl.innerHTML = "<p>No previous insight found. Fetching new report...</p>";
+                insightContentEl.textContent = "No previous insight found. Fetching new report...";
                 if(insightTimestampEl) insightTimestampEl.style.display = 'none';
                 if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'none';
                 fetchInsightFromGemini(); // Fetch a new one immediately if no valid stored report
@@ -865,7 +811,7 @@
 
         async function fetchInsightFromGemini() {
             if (!config.googleApiKey) {
-                insightContentEl.innerHTML = "<p>Google API Key is not configured. Please set it up in Config.</p>";
+                insightContentEl.textContent = "Google API Key is not configured. Please set it up in Config.";
                 return;
             }
 
@@ -873,7 +819,7 @@
             toggleInsightModal(true);
             if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'none'; // Hide update button while fetching
             if(insightTimestampEl) insightTimestampEl.style.display = 'none'; // Hide old timestamp while fetching
-            insightContentEl.innerHTML = "<p>Fetching AI insight, please wait...</p>";
+            insightContentEl.textContent = "Fetching AI insight, please wait...";
             console.log('[DEBUG] Set UI to loading state for insight.');
 
 
@@ -926,11 +872,10 @@
                 console.log('[DEBUG] Calling updateInsightModalDisplay after successful fetch.');
                 updateInsightModalDisplay(); // This will also hide the update button as it's a fresh report
             } catch (error) {
-                console.error("Error fetching Gemini insight:", error);                
-                insightContentEl.innerHTML = `<p>Error fetching insight: ${error.message}</p>`;
+                console.error("Error fetching Gemini insight:", error);
+                insightContentEl.textContent = `Error fetching insight: ${error.message}`;
                 // Optionally, keep the old report visible or clear it
                 // document.getElementById('insightTimestamp').style.display = 'block'; // Or hide
-                if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'inline-block'; // Show update button on error
             }
         }
 
@@ -1494,19 +1439,100 @@
             }, 62 * 1000);
 
 
+            // PWA Update Logic
+            function promptUserToUpdateSW(worker) {
+                if (updateNotificationEl && reloadPageButtonEl) {
+                    updateNotificationEl.style.display = 'block';
+                    reloadPageButtonEl.onclick = () => {
+                        worker.postMessage({ action: 'skipWaiting' });
+                        // Reload will be handled by 'controllerchange' event
+                    };
+                }
+            }
+
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.register('sw.js')
-                    .then(registration => {
+                    .then(registration => { // Main registration promise
                         console.log('Service Worker registered with scope:', registration.scope);
-                        return navigator.serviceWorker.ready;
-                    })
-                    .then(() => {
-                        setSwStatus('Service Worker active');
+                        setSwStatus('Service Worker registered.');
+
+                        // Check if a new SW is already waiting (e.g., after a page reload before activation)
+                        if (registration && registration.waiting) {
+                            setSwStatus('Update already waiting. Prompting.', 'info');
+                            promptUserToUpdateSW(registration.waiting);
+                        }
+
+                        // Listen for new updates being found from this registration
+                        registration.onupdatefound = () => {
+                            setSwStatus('New SW update found. Installing...', 'info');
+                            const installingWorker = registration.installing;
+                            if (installingWorker) {
+                                installingWorker.onstatechange = () => {
+                                    if (installingWorker.state === 'installed') {
+                                        if (navigator.serviceWorker.controller) {
+                                            // New version installed and an old one is controlling.
+                                            // installingWorker is now registration.waiting.
+                                            setSwStatus('Update installed. Prompting.', 'info');
+                                            promptUserToUpdateSW(installingWorker);
+                                        } else {
+                                            // Content is precached for the first time.
+                                            setSwStatus('Content cached for offline use.');
+                                        }
+                                    } else if (installingWorker.state === 'redundant') {
+                                        console.error('The installing service worker became redundant.');
+                                        setSwStatus('SW update failed (redundant).', 'error');
+                                    }
+                                };
+                            }
+                        };
                     })
                     .catch(error => {
-                        console.error('Service Worker registration or activation failed:', error);
-                        setSwStatus('Service Worker failed', 'error');
+                        console.error('Service Worker registration failed:', error);
+                        setSwStatus('SW registration failed.', 'error');
                     });
+
+                // When the new SW takes control, reload the page
+                let refreshing;
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    if (refreshing) return;
+                    console.log('[SW] Controller changed. Reloading page.');
+                    window.location.reload();
+                    refreshing = true;
+                });
+
+                // Additionally, use .ready to confirm SW activation and re-check for waiting worker
+                navigator.serviceWorker.ready.then(registration => { // .ready fires when a SW is active and controlling
+                    console.log('Service Worker is active and controlling the page.');
+                    setSwStatus('Service Worker active.');
+                    // This can catch cases if the above checks were missed or if the page was loaded
+                    // when an update was already waiting but not yet active.
+                    if (registration.waiting) {
+                        setSwStatus('Update waiting (on SW ready). Prompting.', 'info');
+                        promptUserToUpdateSW(registration.waiting);
+                    }
+                }).catch(error => {
+                     console.error('Service Worker .ready() failed:', error);
+                     setSwStatus('SW ready check failed.', 'error');
+                });
+            }
+        });
+    </script>
+</body>
+</html>
+                                }
+                            }
+                        };
+                    };
+                });
+
+                let refreshing;
+                // Detect controller change and refresh the page.
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    if (refreshing) return;
+                    console.log('[SW] Controller changed. Reloading page.');
+                    window.location.reload();
+                    refreshing = true;
+                });
             }
         });
     </script>
