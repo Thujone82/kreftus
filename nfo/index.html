@@ -49,8 +49,11 @@
             </div>
             <div>
                 <label for="rpmLimit">Rate per Minute (Gemini):</label>
+                <small style="display: block; margin-top: -5px; margin-bottom: 5px;">
+                    Note: Adding CC info to your Google account increases free limit to 1000.
+                </small>
                 <input type="number" id="rpmLimit" name="rpmLimit" min="1" value="10" class="rpm-input">
-                <small>Default: 10. Adjust based on your API limits.</small>
+                <small>Default: 10 (Free tier, no CC Saved)</small>
             </div>
             <div>
                 <label for="owmApiKey">OpenWeatherMap API Key:</label><div class="api-key-wrapper">

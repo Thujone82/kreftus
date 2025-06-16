@@ -252,6 +252,9 @@ input[type="color"] {
     border-radius: 3px;
     background-color: var(--status-fresh-color);
     color: var(--button-text-color);
+    min-width: 80px; /* Ensure a consistent minimum width */
+    margin-left: 4px; /* Add space between input and status */
+    text-align: center; /* Center the text within the status span */
 }
 .api-key-status.status-invalid {
     background-color: var(--status-error-color);
