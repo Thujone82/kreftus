@@ -503,7 +503,15 @@ const ui = {
             copyButton.textContent = 'Copy';
             copyButton.classList.add('copy-topic-button');
             copyButton.onclick = function() {
-                const contentToCopy = contentContainer.innerText || contentContainer.textContent; // Get text content
+                // Clone the content container to manipulate it without affecting the displayed version
+                const tempContainer = contentContainer.cloneNode(true);
+                // Find and remove the footer from the cloned container
+                const footerToRemove = tempContainer.querySelector('.topic-content-footer');
+                if (footerToRemove) {
+                    footerToRemove.parentNode.removeChild(footerToRemove);
+                }
+                // Get text content from the modified clone
+                const contentToCopy = tempContainer.innerText || tempContainer.textContent;
                 navigator.clipboard.writeText(contentToCopy).then(() => {
                     copyButton.textContent = 'Copied!';
                     setTimeout(() => {
