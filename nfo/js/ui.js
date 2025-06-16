@@ -498,6 +498,25 @@ const ui = {
             topicFooter.classList.add('topic-content-footer');
             const hr = document.createElement('hr');
             topicFooter.appendChild(hr);
+
+            const copyButton = document.createElement('button');
+            copyButton.textContent = 'Copy';
+            copyButton.classList.add('copy-topic-button');
+            copyButton.onclick = function() {
+                const contentToCopy = contentContainer.innerText || contentContainer.textContent; // Get text content
+                navigator.clipboard.writeText(contentToCopy).then(() => {
+                    copyButton.textContent = 'Copied!';
+                    setTimeout(() => {
+                        copyButton.textContent = 'Copy';
+                    }, 2000);
+                }).catch(err => {
+                    console.error('Failed to copy text: ', err);
+                    copyButton.textContent = 'Error!';
+                    setTimeout(() => { copyButton.textContent = 'Copy'; }, 2000);
+                });
+            };
+            topicFooter.appendChild(copyButton);
+
             const collapseHint = document.createElement('span');
             collapseHint.classList.add('collapse-hint');
             collapseHint.innerHTML = 'Collapse &#9650;'; 
