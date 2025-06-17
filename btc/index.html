@@ -216,6 +216,19 @@
             flex-shrink: 0; /* Prevent title from shrinking */
         }
 
+        #insightModalHeaderLogo {
+            height: 1.3em; /* Approx 30% larger than parent h2 font-size */
+            width: auto;   /* Maintain aspect ratio */
+            vertical-align: middle; /* Better alignment with text */
+            margin-right: 0.3em;
+            border-radius: 3px;
+        }
+
+        #insightModalTitleText {
+            vertical-align: middle; /* Align text with the vertically centered logo */
+        }
+
+
         #insightModal .insight-content {
             /* white-space: pre-wrap; Removed to allow HTML rendering */
             background-color: #333344; /* Slightly different background for content */
@@ -366,6 +379,21 @@
         }
         #insightModal .modal-buttons button#playInsightButton {
             background-color: #4CAF50; /* Green, similar to save/config buttons */
+        }
+        /* Pulse animation for loading state */
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(247, 147, 26, 0.7); /* Accent color #f7931a with alpha */
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(247, 147, 26, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(247, 147, 26, 0);
+            }
+        }
+        .is-pulsing {
+            animation: pulse 1.5s infinite;
         }
         /* PWA Update Notification Styling */
         #updateNotification {
@@ -518,8 +546,7 @@
     <div id="insightModal" class="modal">
         <div class="modal-content">
             <h2 id="insightModalTitle">
-                <img src="./icons/512.png" alt="Logo" id="insightModalHeaderLogo">
-                <span id="insightModalTitleText">AI Bitcoin Insight</span>
+                <img src="./icons/512.png" alt="Logo" id="insightModalHeaderLogo"> <span id="insightModalTitleText">AI Insight</span>
             </h2>
             <div id="insightTimestamp" style="font-size: 0.8em; color: #aaa; margin-bottom: 10px; text-align: center; display: none;">
                 <!-- Timestamp will be populated here -->
@@ -556,6 +583,7 @@
 
 
         // DOM Elements
+        const headerLogo = document.getElementById('headerLogo'); 
         const btcPriceEl = document.getElementById('btcPrice');
         const btcChange24hEl = document.getElementById('btcChange24h');
         const myBtcValueRowEl = document.getElementById('myBtcValueRow');
@@ -582,7 +610,8 @@
 
         const insightsButtonEl = document.getElementById('insightsButton');
         const insightModalEl = document.getElementById('insightModal');
-        const insightModalTitleEl = document.getElementById('insightModalTitle'); // For potential accent color
+        const insightModalTitleEl = document.getElementById('insightModalTitle'); 
+        const insightModalHeaderLogoEl = document.getElementById('insightModalHeaderLogo');
         const insightContentEl = document.getElementById('insightContent');
         const insightTimestampEl = document.getElementById('insightTimestamp'); 
         const updateInsightButtonEl = document.getElementById('updateInsightButton');
@@ -1061,7 +1090,6 @@
 
         function updateInsightModalDisplay() {
             const timestampEl = document.getElementById('insightTimestamp');
-            // updateInsightButtonEl is now a global const
             console.log('[DEBUG] updateInsightModalDisplay called. Current insightReport:', JSON.parse(JSON.stringify(config.insightReport)));
 
             if (config.insightReport && config.insightReport.content && config.insightReport.timestamp) {
@@ -1078,7 +1106,7 @@
                 insightContentEl.innerHTML = "<p>No previous insight found. Fetching new report...</p>";
                 if(insightTimestampEl) insightTimestampEl.style.display = 'none';
                 if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'none';
-                fetchInsightFromGemini(); // Fetch a new one immediately if no valid stored report
+                fetchInsightFromGemini(); 
             }
         }
 
@@ -1091,16 +1119,16 @@
 
             console.log('[DEBUG] fetchInsightFromGemini called.');
             toggleInsightModal(true);
-            if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'none'; // Hide update button while fetching
-            if(insightTimestampEl) insightTimestampEl.style.display = 'none'; // Hide old timestamp while fetching
+            if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'none'; 
+            if(insightTimestampEl) insightTimestampEl.style.display = 'none'; 
             insightContentEl.innerHTML = "<p>Fetching AI insight, please wait...</p>";
-            console.log('[DEBUG] Set UI to loading state for insight.');
+            console.log('[DEBUG] Set UI to loading state for insight. Pulsing logo:', insightModalHeaderLogoEl);
+            if(insightModalHeaderLogoEl) insightModalHeaderLogoEl.classList.add('is-pulsing');
 
 
-            // Using gemini-2.5-flash as a robust choice for a recent Flash model.
-            // Verify with ListModels if a more specific identifier like "gemini-1.5-flash-preview-0520" is needed and available.
             const modelName = "gemini-2.5-flash-preview-05-20"; 
-            const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${config.googleApiKey}`;            const prompt = "What is happening in Bitcoin today, Cover main headlines, with summaries. Length 350-500 words, ensure output is formatted with markdown";
+            const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${config.googleApiKey}`;            
+            const prompt = "What is happening in Bitcoin today, Cover main headlines, with summaries. Length 350-500 words, ensure output is formatted with markdown";
 
             console.log(`[DEBUG] Attempting to fetch insight. Model: ${modelName}, API Key used: ${config.googleApiKey ? 'Yes' : 'No'}`);
             console.log(`[DEBUG] Prompt: "${prompt}"`);
@@ -1113,16 +1141,12 @@
                     },
                     body: JSON.stringify({
                         contents: [{ parts: [{ text: prompt }] }],
-                        tools: [
-                            {
-                                "googleSearch": {} // Corrected tool name
-                            }
-                        ]
+                        tools: [ { "googleSearch": {} } ]
                     }),
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({})); // Try to parse error
+                    const errorData = await response.json().catch(() => ({})); 
                     console.error('[DEBUG] Gemini API response not OK. Status:', response.status, 'Error Data:', errorData);
                     const errorMessage = errorData?.error?.message || `API Error: ${response.status}`;
                     throw new Error(errorMessage);
@@ -1132,36 +1156,35 @@
                 console.log('[DEBUG] Gemini API response OK. Raw data:', data);
 
                 const insightText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No insight received from AI.";
-                console.log('[DEBUG] Extracted insight text:', insightText.substring(0, 100) + "..."); // Log first 100 chars
+                console.log('[DEBUG] Extracted insight text:', insightText.substring(0, 100) + "..."); 
                 
-                // Store the new report and timestamp
                 config.insightReport = {
-                    content: insightText, // Store raw text
+                    content: insightText, 
                     timestamp: Date.now()
                 };
                 console.log('[DEBUG] Storing new insight report:', JSON.parse(JSON.stringify(config.insightReport)));
-                saveAppData(); // Save updated config
+                await saveAppData(); 
 
-                // Update the modal with the new content
                 console.log('[DEBUG] Calling updateInsightModalDisplay after successful fetch.');
-                updateInsightModalDisplay(); // This will also hide the update button as it's a fresh report
+                updateInsightModalDisplay(); 
             } catch (error) {
                 console.error("Error fetching Gemini insight:", error);                
                 insightContentEl.innerHTML = `<p>Error fetching insight: ${error.message}</p>`;
-                // Optionally, keep the old report visible or clear it
-                if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'inline-block'; // Show update button on error
+                if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'inline-block'; 
+            } finally {
+                if(insightModalHeaderLogoEl) insightModalHeaderLogoEl.classList.remove('is-pulsing');
             }
         }
 
         function handleInsightsButtonClick() {
             console.log('[DEBUG] handleInsightsButtonClick called.');
             toggleInsightModal(true);
-            updateInsightModalDisplay(); // This function will decide whether to show old data or fetch new
+            updateInsightModalDisplay(); 
         }
 
         function getHistoryStartMs(timeframe) {
             const now = new Date();
-            const historyEndMs = now.getTime(); // More consistent to use current time as reference
+            const historyEndMs = now.getTime(); 
             let historyStartMs;
 
             switch (timeframe) {
@@ -1169,13 +1192,11 @@
                     historyStartMs = historyEndMs - (7 * 24 * 60 * 60 * 1000);
                     break;
                 case '1m':
-                    // Get the date 1 month ago, preserving the time of day
                     const oneMonthAgo = new Date(now);
                     oneMonthAgo.setMonth(now.getMonth() - 1);
                     historyStartMs = oneMonthAgo.getTime();
                     break;
                 case '1y':
-                    // Get the date 1 year ago, preserving the time of day
                     const oneYearAgo = new Date(now);
                     oneYearAgo.setFullYear(now.getFullYear() - 1);
                     historyStartMs = oneYearAgo.getTime();
@@ -1212,8 +1233,6 @@
                 }
             } else {
                 console.log('Permission for Periodic Background Sync not granted. Status:', status.state);
-                // Optionally, prompt the user or provide instructions on how to enable it.
-                // For now, we just log it. The browser might prompt implicitly if the PWA is installed.
             }
         }
 
@@ -1225,24 +1244,21 @@
                 return;
             }
             
-            // Attempt to load current data from SW background sync cache first
             if (!forceRefresh) {
                 try {
                     const cache = await caches.open(API_DATA_CACHE_NAME);
-                    const cachedResponse = await cache.match('/api/btc/current-data'); // Key used in sw.js
+                    const cachedResponse = await cache.match('/api/btc/current-data'); 
                     if (cachedResponse) {
                         const backgroundFetchedData = await cachedResponse.json();
                         const backgroundFetchTimeHeader = cachedResponse.headers.get('date');
                         const backgroundFetchTime = backgroundFetchTimeHeader ? new Date(backgroundFetchTimeHeader).getTime() : Date.now();
 
-                        // Use if newer than localStorage or very recent, and within general cache duration
                         if (backgroundFetchedData && backgroundFetchedData.rate &&
                             (!config.lastFetchedCurrentDataTimestamp || backgroundFetchTime > config.lastFetchedCurrentDataTimestamp) &&
-                            (Date.now() - backgroundFetchTime < DATA_CACHE_DURATION_MS)) { // Check against standard cache duration
+                            (Date.now() - backgroundFetchTime < DATA_CACHE_DURATION_MS)) { 
                             console.log('[DEBUG] Using current data from background sync cache. Timestamp:', new Date(backgroundFetchTime).toISOString());
                             _current_data_cache = backgroundFetchedData;
-                            config.lastFetchedCurrentDataTimestamp = backgroundFetchTime; // Update timestamp in config
-                            // lastDataFetchTimestamp will be set later if we use this cache
+                            config.lastFetchedCurrentDataTimestamp = backgroundFetchTime; 
                         }
                     }
                 } catch (err) {
@@ -1250,13 +1266,12 @@
                 }
             }
 
-            // Now, check _current_data_cache (possibly from SW or localStorage) and chart cache
             if (!forceRefresh && _current_data_cache && config.lastFetchedCurrentDataTimestamp &&
                 (Date.now() - config.lastFetchedCurrentDataTimestamp < DATA_CACHE_DURATION_MS)) {
                 const selectedChartCache = config.cachedChartData[config.selectedTimeframe];
                 if (selectedChartCache && selectedChartCache.data && selectedChartCache.data.length > 0 && 
                     selectedChartCache.timestamp && (Date.now() - selectedChartCache.timestamp < DATA_CACHE_DURATION_MS) &&
-                    typeof selectedChartCache.historicalRateAtStart === 'number') { // Crucially, check if historicalRateAtStart is cached
+                    typeof selectedChartCache.historicalRateAtStart === 'number') { 
                     console.log('[DEBUG] All data (current, chart, historical start rate) for', config.selectedTimeframe, 'are fresh. Displaying from cache.');
                     lastDataFetchTimestamp = config.lastFetchedCurrentDataTimestamp; 
                     window.lastFetchedCurrentData = _current_data_cache; 
@@ -1269,8 +1284,9 @@
                     console.log('[DEBUG] Current data is fresh (possibly from SW/localStorage), but chart data for', config.selectedTimeframe, 'is old/missing. Proceeding to full network fetch.');
                 }
             }
-
-            setStatus('Fetching data...', 'loading');
+            
+            console.log('[DEBUG] Adding pulse to headerLogo:', headerLogo);
+            if(headerLogo) headerLogo.classList.add('is-pulsing');
 
             const headers = {
                 "Content-Type": "application/json",
@@ -1278,7 +1294,6 @@
             };
 
             try {
-                // Fetch current data
                 const currentDataBody = JSON.stringify({ currency: CURRENCY, code: COIN_CODE, meta: true });
                 const currentResponse = await fetch(`${API_BASE_URL}/coins/single`, { method: 'POST', headers, body: currentDataBody });
                 if (!currentResponse.ok) {
@@ -1286,15 +1301,14 @@
                     throw new Error(`API Error (${currentResponse.status}): ${errorData.message || currentResponse.statusText}`);
                 }
                 const currentData = await currentResponse.json();
-                _current_data_cache = currentData; // Update main cache
+                _current_data_cache = currentData; 
                 config.lastFetchedCurrentDataTimestamp = Date.now();
-                window.lastFetchedCurrentData = _current_data_cache; // For live accent color redraw
+                window.lastFetchedCurrentData = _current_data_cache; 
 
                 if (!currentData || typeof currentData.rate === 'undefined') {
                     throw new Error("Invalid data received from current API.");
                 }
 
-                // Fetch historical rate at the start of the selected timeframe for comparison
                 let rateAtTimeframeStart = null;
                 const targetTimestampForComparisonMs = getHistoryStartMs(config.selectedTimeframe);
                 const startRequestMs = targetTimestampForComparisonMs - (HISTORICAL_WINDOW_MINUTES * 60 * 1000);
@@ -1328,13 +1342,9 @@
                 } catch (histError) {
                     console.warn(`Error fetching historical rate for ${config.selectedTimeframe} start:`, histError);
                 }
-
-                // If rateAtTimeframeStart is still null (e.g., API error or no data),
-                // updateDisplay will handle fallback (e.g., use API's 24h delta if timeframe is '24h', or show N/A)
                 
                 let historicalChartData = null;
                 try {
-                    // For chart data, we want data up to the present.
                     const chartHistoryStartMs = getHistoryStartMs(config.selectedTimeframe);
                     const chartHistoryEndMs = Date.now(); 
 
@@ -1353,39 +1363,37 @@
                             data: historicalChartData,
                             timestamp: Date.now(),
                             allTimeHighUSD: _current_data_cache.allTimeHighUSD,
-                            historicalRateAtStart: rateAtTimeframeStart // Cache the fetched start rate
+                            historicalRateAtStart: rateAtTimeframeStart 
                         };
-                        window.lastFetchedHistoricalChartData = historicalChartData; // For live accent color redraw
+                        window.lastFetchedHistoricalChartData = historicalChartData; 
                     } else { console.warn("Chart historical data fetch failed, status:", chartHistoryResponse.status); }
                 } catch (chartHistError) { console.warn("Error fetching chart historical data:", chartHistError); }
 
                 lastDataFetchTimestamp = config.lastFetchedCurrentDataTimestamp; 
                 updateDisplay(_current_data_cache, rateAtTimeframeStart, historicalChartData);
-                saveAppData(); // Save new data and timestamps
-                updateLastUpdatedMessage(); // Update message immediately
+                await saveAppData(); 
+                updateLastUpdatedMessage(); 
                 setStatus(''); 
-
-
             } catch (error) {
                 console.error("Fetch Data Error:", error);
                 setStatus(`Error: ${error.message}`, 'error');
+            } finally {
+                if(headerLogo) headerLogo.classList.remove('is-pulsing');
             }
         }
 
         function updateDisplay(currentData, historicalRateAtTimeframeStart, historicalChartData) {
             const btcPrice = currentData.rate;
             let priceDifferenceAbsolute = null;
-            let changeForColoring = 0; // Default to 0 for coloring if no diff can be calculated
+            let changeForColoring = 0; 
 
             if (typeof historicalRateAtTimeframeStart === 'number') {
                 priceDifferenceAbsolute = btcPrice - historicalRateAtTimeframeStart;
                 changeForColoring = priceDifferenceAbsolute;
             } else {
-                // Fallback for 24h if specific historical rate fetch failed
                 if (config.selectedTimeframe === '24h' && currentData.delta && typeof currentData.delta.day === 'number') {
                     const changePercentage = currentData.delta.day;
-                    changeForColoring = changePercentage; // Use percentage for coloring
-                    // Estimate absolute difference for display if possible
+                    changeForColoring = changePercentage; 
                     const priceChangeDecimal = changePercentage / 100;
                     if ((1 + priceChangeDecimal) !== 0) {
                         const estimatedPrice24hAgo = btcPrice / (1 + priceChangeDecimal);
@@ -1406,12 +1414,12 @@
             if (priceDifferenceAbsolute !== null) {
                 btcChange24hEl.textContent = `[${priceDifferenceAbsolute >= 0 ? '+' : ''}${formatCurrency(priceDifferenceAbsolute)}]`;
                 applyColor(btcChange24hEl, priceDifferenceAbsolute);
-            } else if (config.selectedTimeframe === '24h' && currentData.delta && typeof currentData.delta.day === 'number') { // Fallback display for 24h
+            } else if (config.selectedTimeframe === '24h' && currentData.delta && typeof currentData.delta.day === 'number') { 
                 btcChange24hEl.textContent = `(${currentData.delta.day >= 0 ? '+' : ''}${formatNumber(currentData.delta.day, 2)}%)`;
                 applyColor(btcChange24hEl, currentData.delta.day);
-            } else { // N/A for other timeframes if historicalRateAtTimeframeStart is missing
+            } else { 
                 btcChange24hEl.textContent = `[N/A]`;
-                applyColor(btcChange24hEl, 0); // Default color
+                applyColor(btcChange24hEl, 0); 
             }
 
             if (config.userBtcAmount > 0) {
@@ -1426,7 +1434,7 @@
                     applyColor(myBtcValueChange24hEl, myBtcValChange24h);
                 } else {
                      myBtcValueChange24hEl.textContent = `[N/A]`; 
-                     applyColor(myBtcValueChange24hEl, 0); // Default color
+                     applyColor(myBtcValueChange24hEl, 0); 
                 }
 
                 if (config.userTotalCost > 0) {
@@ -1444,11 +1452,10 @@
                 myBtcValueRowEl.style.display = 'none';
                 profitLossRowEl.style.display = 'none';
             }
-            // Volume and Market Cap coloring can still be based on 24h delta from API, or just default
             volume24hEl.textContent = formatCurrency(currentData.volume, 0);
-            applyColor(volume24hEl, currentData.delta.day); // Or changeForColoring if preferred
+            applyColor(volume24hEl, currentData.delta.day); 
             marketCapEl.textContent = formatCurrency(currentData.cap, 0);
-            applyColor(marketCapEl, currentData.delta.day); // Or changeForColoring if preferred
+            applyColor(marketCapEl, currentData.delta.day); 
 
             if (historicalChartData && historicalChartData.length > 0) {
                 drawPriceChart(historicalChartData, config.selectedTimeframe, currentData.allTimeHighUSD, config.accentColor || DEFAULT_ACCENT_COLOR);
@@ -1498,22 +1505,21 @@
                 console.log('[DEBUG] saveAppData completed in saveConfigButton.');
             } catch (error) {
                 console.error('[DEBUG] Error during saveAppData from saveConfigButton:', error);
-                // Status message is likely handled in saveAppData's catch block.
             }
             
 
             toggleConfigModal(false);
             applyAccentColor();
-            toggleInsightsButtonVisibility(); // Update visibility after save
+            toggleInsightsButtonVisibility(); 
             if (config.apiKey) {
-                fetchData(true); // Force refresh as config might have changed critical things
+                fetchData(true); 
             } else {
                 setStatus('API Key is required to fetch data.', 'error');
                 clearDisplayData();
                 _current_data_cache = null;
                 config.lastFetchedCurrentDataTimestamp = null;
                 config.cachedChartData = {};
-                await saveAppData(); // Persist the cleared state
+                await saveAppData(); 
             }
             if (config.apiKey && navigator.serviceWorker.controller) {
                 registerPeriodicDataSync();
@@ -1527,13 +1533,12 @@
                 (Date.now() - selectedChartCache.timestamp < DATA_CACHE_DURATION_MS) &&
                 config.lastFetchedCurrentDataTimestamp && 
                 (Date.now() - config.lastFetchedCurrentDataTimestamp < DATA_CACHE_DURATION_MS) &&
-                typeof selectedChartCache.historicalRateAtStart === 'number') { // Check for historicalRateAtStart
+                typeof selectedChartCache.historicalRateAtStart === 'number') { 
                 
                 console.log('[DEBUG] Switching timeframe, using cached data (current, chart, historical start rate) for:', config.selectedTimeframe);
                 window.lastFetchedCurrentData = _current_data_cache; 
                 window.lastFetchedHistoricalChartData = selectedChartCache.data; 
                 
-                // Call updateDisplay to re-render everything with the new timeframe's comparison
                 updateDisplay(_current_data_cache, selectedChartCache.historicalRateAtStart, selectedChartCache.data);
                 lastDataFetchTimestamp = config.lastFetchedCurrentDataTimestamp; 
                 updateLastUpdatedMessage(); 
@@ -1547,8 +1552,6 @@
             await saveAppData(); 
             applyAccentColor();
             if (document.getElementById('priceChartCanvas').offsetParent !== null) { 
-                 // window.lastFetchedCurrentData and window.lastFetchedHistoricalChartData should be up-to-date
-                 // from either fetchData or cache loading.
                  if(window.lastFetchedCurrentData && window.lastFetchedHistoricalChartData) {
                     drawPriceChart(window.lastFetchedHistoricalChartData, config.selectedTimeframe, window.lastFetchedCurrentData.allTimeHighUSD, config.accentColor || DEFAULT_ACCENT_COLOR);
                  }
@@ -1557,9 +1560,8 @@
 
         insightsButtonEl.addEventListener('click', handleInsightsButtonClick);
         document.getElementById('closeInsightButton').addEventListener('click', () => toggleInsightModal(false));
-        // Ensure updateInsightButtonEl exists before adding listener
         if (updateInsightButtonEl) {
-            updateInsightButtonEl.addEventListener('click', fetchInsightFromGemini); // Update button calls fetch directly
+            updateInsightButtonEl.addEventListener('click', fetchInsightFromGemini); 
         }
 
         document.getElementById('refreshButton').addEventListener('click', async () => {
@@ -1567,8 +1569,8 @@
             _current_data_cache = null;
             config.lastFetchedCurrentDataTimestamp = null;
             config.cachedChartData = {}; 
-            await saveAppData(); // Save the cleared cache state
-            fetchData(true); // Pass true to force a full refresh
+            await saveAppData(); 
+            fetchData(true); 
         });
 
 
@@ -1650,7 +1652,6 @@
             ctx.fillText(xLabelMid, padding.left + chartWidth / 2, padding.top + chartHeight + 8);
             ctx.fillText(xLabelEnd, padding.left + chartWidth, padding.top + chartHeight + 8);
 
-            // ATH Proximity Shading
             if (allTimeHighUSD && maxPrice > athThresholdChart) {
                 ctx.beginPath();
                 let firstPoint = true;
@@ -1658,7 +1659,6 @@
 
                 const thresholdYCoord = padding.top + chartHeight - (((Math.min(maxPrice, athThresholdChart) - minPrice) / priceRange) * chartHeight);
 
-                // Start path at the beginning of the chart on the threshold line if first point is above
                 const firstRate = history[0].rate;
                 const firstX = padding.left;
                 if (firstRate >= athThresholdChart) {
@@ -1674,21 +1674,19 @@
                     const y = padding.top + chartHeight - (((point.rate - minPrice) / priceRange) * chartHeight);
 
                     if (point.rate >= athThresholdChart) {
-                        if (i > 0 && history[i-1].rate < athThresholdChart) { // Crossed threshold from below
-                             // If first point was below threshold, start new segment from threshold
+                        if (i > 0 && history[i-1].rate < athThresholdChart) { 
                             if (lastXAbove === -1) ctx.moveTo(x, thresholdYCoord);
-                            else ctx.lineTo(x, thresholdYCoord); // Continue along threshold
+                            else ctx.lineTo(x, thresholdYCoord); 
                         }
                         ctx.lineTo(x, y);
                         lastXAbove = x;
-                    } else if (lastXAbove !== -1) { // Was above, now below
-                        ctx.lineTo(lastXAbove, thresholdYCoord); // Draw down to threshold from last point above
-                        // ctx.lineTo(x, thresholdYCoord); // Draw along threshold to current x (which is below) - this might be too much
-                        lastXAbove = -1; // Reset
+                    } else if (lastXAbove !== -1) { 
+                        ctx.lineTo(lastXAbove, thresholdYCoord); 
+                        lastXAbove = -1; 
                     }
                 }
 
-                if (lastXAbove !== -1) { // If the line ends above threshold
+                if (lastXAbove !== -1) { 
                     ctx.lineTo(lastXAbove, thresholdYCoord);
                 }
                 
@@ -1697,15 +1695,13 @@
                 const rgbAccent = hexToRgb(accentColor);
                 const hslAccent = rgbToHsl(rgbAccent.r, rgbAccent.g, rgbAccent.b);
                 
-                const shadeLightness = Math.min(90, hslAccent.l + 30); // Increase lightness, cap at 90
+                const shadeLightness = Math.min(90, hslAccent.l + 30); 
                 const shadeAlpha = 0.2; 
                 const athShadeColor = `hsla(${hslAccent.h}, ${hslAccent.s}%, ${shadeLightness}%, ${shadeAlpha})`;
                 ctx.fillStyle = athShadeColor;
                 ctx.fill();
             }
 
-
-            // Draw Price Line
             ctx.strokeStyle = accentColor; 
             ctx.lineWidth = 1.5;
             ctx.beginPath();
@@ -1728,26 +1724,23 @@
             }, 250); 
         });
 
-        // Store last fetched data for live chart redraw on accent color change
         window.lastFetchedCurrentData = null;
         window.lastFetchedHistoricalChartData = null;
 
-        // Initial Load
         document.addEventListener('DOMContentLoaded', async () => {
             try {
-                dbInstance = await openAppDb(); // Initialize dbInstance here
+                dbInstance = await openAppDb(); 
                 console.log('[DB] Database instance initialized on DOMContentLoaded:', dbInstance);
                 if (dbInstance && !dbInstance.objectStoreNames.contains(APP_DATA_STORE_NAME)) {
                     console.error(`[DB] CRITICAL FAILURE: Object store "${APP_DATA_STORE_NAME}" NOT FOUND in dbInstance immediately after openAppDb resolved. This should not happen if onupgradeneeded worked.`);
                     setStatus('Error: Database setup failed. Please clear site data and reload.', 'error');
-                    return; // Halt further app initialization
+                    return; 
                 }
-                await loadInitialConfigAndData(); // Load config and data from IndexedDB
+                await loadInitialConfigAndData(); 
                 applyAccentColor();
             } catch (error) {
                  console.error('[DB] Critical error during DOMContentLoaded DB initialization or initial data load:', error);
                 setStatus('Error: Could not initialize application data. Please clear site data or contact support.', 'error');
-                // Prevent further execution if DB init fails critically
             }
 
             
@@ -1779,21 +1772,19 @@
                     console.log('[DEBUG] Initial load: Cache is old, missing, or incomplete. Fetching fresh data.');
                     fetchData();
                 }
-                if (config.apiKey && navigator.serviceWorker.controller) { // Ensure SW is active
+                if (config.apiKey && navigator.serviceWorker.controller) { 
                     registerPeriodicDataSync();
                 }
             }
             updateLastUpdatedMessage(); 
-            if (updateTimestampInterval) clearInterval(updateTimestampInterval); // Clear existing if any
+            if (updateTimestampInterval) clearInterval(updateTimestampInterval); 
 
-            // Schedule the first update after 62 seconds, then subsequent updates every 60 seconds
             setTimeout(() => {
-                updateLastUpdatedMessage(); // First update of "ago"
-                updateTimestampInterval = setInterval(updateLastUpdatedMessage, 60 * 1000); // Subsequent updates
+                updateLastUpdatedMessage(); 
+                updateTimestampInterval = setInterval(updateLastUpdatedMessage, 60 * 1000); 
             }, 62 * 1000);
 
 
-            // PWA Update Logic
             function promptUserToUpdateSW(worker) {
                 if (updateNotificationEl && reloadPageButtonEl) {
                     console.log('[SW Update] Prompting user to update. Worker:', worker);
@@ -1801,10 +1792,9 @@
                     updateNotificationEl.style.display = 'block';
                     reloadPageButtonEl.onclick = () => {
                         console.log('[SW Update] User clicked "Update" button.');
-                        userInitiatedUpdate = true; // Set flag
+                        userInitiatedUpdate = true; 
                         worker.postMessage({ action: 'skipWaiting' });
-                        updateNotificationEl.style.display = 'none'; // Hide notification
-                        // Reload will be handled by 'controllerchange' event
+                        updateNotificationEl.style.display = 'none'; 
                     };
                 } else {
                     console.warn('[SW Update] Could not display update prompt: UI elements missing.');
@@ -1813,17 +1803,15 @@
 
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.register('sw.js')
-                    .then(registration => { // Main registration promise
+                    .then(registration => { 
                         console.log('Service Worker registered with scope:', registration.scope);
                         setSwStatus('SW registered.');
 
-                        // Check if a new SW is already waiting (e.g., after a page reload before activation)
                         if (registration.waiting) {
                             console.log('[SW Update] Found a waiting SW on registration. Prompting user.');
                             promptUserToUpdateSW(registration.waiting);
                         }
 
-                        // Listen for new updates being found from this registration
                         registration.onupdatefound = () => {
                             setSwStatus('New SW update found. Installing...', 'info');
                             const installingWorker = registration.installing;
@@ -1831,29 +1819,25 @@
                                 installingWorker.onstatechange = () => {
                                     if (installingWorker.state === 'installed') {
                                         if (navigator.serviceWorker.controller) {
-                                            // New version installed and an old one is controlling.
-                                            // installingWorker is now registration.waiting.
                                             console.log('[SW Update] New SW installed and waiting (controller exists). Prompting user.');
                                             promptUserToUpdateSW(installingWorker);
                                         } else {
-                                            // Content is precached for the first time.
                                             setSwStatus('SW installed. Content cached for offline use.');
                                         }
                                     } else if (installingWorker.state === 'redundant') {
                                         console.error('The installing service worker became redundant.');
                                         setSwStatus('SW update failed (redundant).', 'error');
                                     }
-                                }; // Closes onstatechange
-                            } // Closes if (installingWorker)
-                        }; // Closes onupdatefound
-                    }) // Closes .then(registration => ...)
+                                }; 
+                            } 
+                        }; 
+                    }) 
                     .catch(error => {
                         console.error('Service Worker registration failed:', error);
                         setSwStatus('SW registration failed.', 'error');
-                    }); // Closes .catch for register
+                    }); 
 
-                // When the new SW takes control, reload the page
-                let refreshingPage; // Prevents multiple reloads
+                let refreshingPage; 
                 navigator.serviceWorker.addEventListener('controllerchange', () => {
                     console.log('[SW Update] Controllerchange event fired. userInitiatedUpdate:', userInitiatedUpdate, 'refreshingPage:', refreshingPage);
                     if (refreshingPage) {
@@ -1867,13 +1851,10 @@
                         refreshingPage = true;
                     } else {
                         console.log('[SW Update] Controller changed, but not user-initiated by button click. Not reloading page via this event.');
-                        // This might happen if the SW activates via other means (e.g. dev tools, or last client closed)
-                        // The prompt should still be shown if an update is genuinely pending for the user.
                     }
                 });
 
-                // Additionally, use .ready to confirm SW activation and re-check for waiting worker
-                navigator.serviceWorker.ready.then(registration => { // .ready fires when a SW is active and controlling
+                navigator.serviceWorker.ready.then(registration => { 
                     console.log('Service Worker is active and controlling the page.');
                     setSwStatus('SW active & ready.');
                     if (registration.waiting) {
@@ -1883,9 +1864,9 @@
                 }).catch(error => {
                      console.error('Service Worker .ready() failed:', error);
                      setSwStatus('SW ready check failed.', 'error');
-                }); // Closes .catch for .ready
-            } // Closes if ('serviceWorker' in navigator)
-        }); // This is the closing for document.addEventListener('DOMContentLoaded', ...)
+                }); 
+            } 
+        }); 
     </script>
 </body>
 </html>
