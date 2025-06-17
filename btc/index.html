@@ -1852,7 +1852,7 @@
                         console.log('[SW Update] User clicked "Update" button.');
                         userInitiatedUpdate = true; 
                         worker.postMessage({ action: 'skipWaiting' });
-                        updateNotificationEl.style.display = 'none'; 
+                        // updateNotificationEl.style.display = 'none'; // Panel will disappear on page reload
                     };
                 } else {
                     console.warn('[SW Update] Could not display update prompt: UI elements missing.');
