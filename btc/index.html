@@ -684,6 +684,8 @@
 
         const DEFAULT_ACCENT_COLOR = '#f7931a';
 
+        let dbInstance = null; // Centralized DB instance
+
         let _current_data_cache = null; // For storing the main current data object
 
         let lastDataFetchTimestamp = null;
@@ -760,22 +762,58 @@
             });
         }
 
-        async function saveDataToIndexedDB(key, data) {
+        async function saveDataToIndexedDB(key, dataToSave) {
+            if (!dbInstance) {
+                console.error('[DB] dbInstance is not initialized in saveDataToIndexedDB. Attempting to open.');
+                try {
+                    dbInstance = await openAppDb(); // Fallback, but ideally should be set
+                } catch (e) {
+                    console.error('[DB] Fallback openAppDb failed in saveDataToIndexedDB:', e);
+                    throw new Error("Database not initialized for saving.");
+                }
+            }
             try {
-                const db = await openAppDb();
-                const transaction = db.transaction(APP_DATA_STORE_NAME, 'readwrite');
+                const transaction = dbInstance.transaction(APP_DATA_STORE_NAME, 'readwrite');
                 const store = transaction.objectStore(APP_DATA_STORE_NAME);
-                await store.put({ id: key, value: data });
-                console.log(`[DB] Data saved to IndexedDB with key: ${key}`);
+                console.log(`[DB] Attempting to save to IndexedDB. Key: ${key}, Data:`, JSON.parse(JSON.stringify(dataToSave)));
+                const request = store.put({ id: key, value: dataToSave });
+
+                return new Promise((resolve, reject) => {
+                    request.onerror = (event) => {
+                        console.error(`[DB] store.put error for key ${key}:`, event.target.error);
+                        reject(event.target.error);
+                    };
+                    transaction.oncomplete = () => {
+                        console.log(`[DB] Transaction completed successfully for saving key: ${key}`);
+                        resolve();
+                    };
+                    transaction.onerror = (event) => {
+                        console.error(`[DB] Transaction error during save for key ${key}:`, event.target.error);
+                        reject(event.target.error);
+                    };
+                    transaction.onabort = (event) => {
+                        console.warn(`[DB] Transaction aborted during save for key ${key}:`, event.target.error);
+                        reject(new Error(`Transaction aborted for key ${key}`));
+                    };
+                });
             } catch (error) {
-                console.error(`[DB] Error saving data to IndexedDB for key ${key}:`, error);
+                console.error(`[DB] Outer catch: Error in saveDataToIndexedDB for key ${key}:`, error);
+                throw error;
             }
         }
 
-        async function loadDataFromIndexedDB(key) {
+        async function loadDataFromIndexedDB(key) { // dbInstance will be used here
+            if (!dbInstance) {
+                console.error('[DB] dbInstance is not initialized in loadDataFromIndexedDB. Attempting to open.');
+                 try {
+                    dbInstance = await openAppDb(); // Fallback
+                } catch (e) {
+                    console.error('[DB] Fallback openAppDb failed in loadDataFromIndexedDB:', e);
+                    return null;
+                }
+            }
             try {
-                const db = await openAppDb();
-                const transaction = db.transaction(APP_DATA_STORE_NAME, 'readonly');
+                const transaction = dbInstance.transaction(APP_DATA_STORE_NAME, 'readonly');
                 const store = transaction.objectStore(APP_DATA_STORE_NAME);
                 const request = store.get(key);
                 return new Promise((resolve, reject) => {
@@ -793,6 +831,7 @@
 
         async function loadInitialConfigAndData() {
             const storedConfig = await loadDataFromIndexedDB(CONFIG_IDB_KEY);
+            console.log('[DB] Loaded storedConfig from IndexedDB:', JSON.parse(JSON.stringify(storedConfig)));
             if (storedConfig) {
                 const parsedConfig = storedConfig; // Already an object from IDB
                 config = { ...config, ...parsedConfig }; // Merge with defaults
@@ -822,27 +861,32 @@
                 accentColorPickerEl.value = DEFAULT_ACCENT_COLOR;
             }
 
+            console.log('[DB] Final `config` object after load/merge:', JSON.parse(JSON.stringify(config)));
+
             const storedCurrentData = await loadDataFromIndexedDB(CURRENT_DATA_IDB_KEY);
             if (storedCurrentData) {
                 _current_data_cache = storedCurrentData; // Already an object
             }
-
             toggleInsightsButtonVisibility();
         }
 
-        function saveAppData() {
-            // Save main config object
-            saveDataToIndexedDB(CONFIG_IDB_KEY, config);
+        async function saveAppData() {
+            try {
+                // Save main config object
+                await saveDataToIndexedDB(CONFIG_IDB_KEY, config);
 
-            // Save current data cache
-            if (_current_data_cache) {
-                saveDataToIndexedDB(CURRENT_DATA_IDB_KEY, _current_data_cache);
-            } else {
-                // Optionally remove from IDB if _current_data_cache is null
-                // For now, just not saving it if null.
-                console.log('[DB] _current_data_cache is null, not saving to IndexedDB.');
+                // Save current data cache
+                if (_current_data_cache) {
+                    await saveDataToIndexedDB(CURRENT_DATA_IDB_KEY, _current_data_cache);
+                } else {
+                    console.log('[DB] _current_data_cache is null, not saving to IndexedDB.');
+                }
+                console.log('[DEBUG] App data (config & current data cache) save process completed.');
+            } catch (error) {
+                console.error('[DEBUG] Failed to save app data to IndexedDB:', error);
+                setStatus('Error: Could not save settings.', 'error');
+                throw error;
             }
-            console.log('[DEBUG] App data (config & current data cache) queued for IndexedDB save.');
         }
 
         function toggleConfigModal(show) {
@@ -1444,14 +1488,21 @@
             });
         }
 
-        document.getElementById('saveConfigButton').addEventListener('click', () => {
+        document.getElementById('saveConfigButton').addEventListener('click', async () => {
             config.apiKey = apiKeyInput.value.trim();
             config.userBtcAmount = parseFloat(userBtcAmountInput.value) || 0.0;
             config.userTotalCost = parseFloat(userTotalCostInput.value) || 0.0;
             config.accentColor = accentColorPickerEl.value || DEFAULT_ACCENT_COLOR;
             config.googleApiKey = googleApiKeyInput.value.trim();
-            saveAppData();
-            // API key is part of 'config' object, which is saved by saveAppData()
+            
+            try {
+                await saveAppData();
+                console.log('[DEBUG] saveAppData completed in saveConfigButton.');
+            } catch (error) {
+                console.error('[DEBUG] Error during saveAppData from saveConfigButton:', error);
+                // Status message is likely handled in saveAppData's catch block.
+            }
+            
 
             toggleConfigModal(false);
             applyAccentColor();
@@ -1464,13 +1515,13 @@
                 _current_data_cache = null;
                 config.lastFetchedCurrentDataTimestamp = null;
                 config.cachedChartData = {};
-                saveAppData();
+                await saveAppData(); // Persist the cleared state
             }
-            if (config.apiKey) { // If API key is set, try to register periodic sync
+            if (config.apiKey && navigator.serviceWorker.controller) {
                 registerPeriodicDataSync();
             }
         });
-        timeframeSelectEl.addEventListener('change', (event) => {
+        timeframeSelectEl.addEventListener('change', async (event) => {
             config.selectedTimeframe = event.target.value;
             const selectedChartCache = config.cachedChartData[config.selectedTimeframe];
 
@@ -1488,14 +1539,14 @@
                 updateDisplay(_current_data_cache, selectedChartCache.historicalRateAtStart, selectedChartCache.data);
                 lastDataFetchTimestamp = config.lastFetchedCurrentDataTimestamp; 
                 updateLastUpdatedMessage(); 
-                saveAppData(); 
+                await saveAppData(); 
             } else {
                 fetchData(); 
             }
         });
-        accentColorPickerEl.addEventListener('input', () => { 
+        accentColorPickerEl.addEventListener('input', async () => { 
             config.accentColor = accentColorPickerEl.value;
-            saveAppData(); 
+            await saveAppData(); 
             applyAccentColor();
             if (document.getElementById('priceChartCanvas').offsetParent !== null) { 
                  // window.lastFetchedCurrentData and window.lastFetchedHistoricalChartData should be up-to-date
@@ -1513,12 +1564,12 @@
             updateInsightButtonEl.addEventListener('click', fetchInsightFromGemini); // Update button calls fetch directly
         }
 
-        document.getElementById('refreshButton').addEventListener('click', () => {
+        document.getElementById('refreshButton').addEventListener('click', async () => {
             console.log('[DEBUG] Refresh button clicked. Clearing caches.');
             _current_data_cache = null;
             config.lastFetchedCurrentDataTimestamp = null;
             config.cachedChartData = {}; 
-            saveAppData(); // Save the cleared cache state
+            await saveAppData(); // Save the cleared cache state
             fetchData(true); // Pass true to force a full refresh
         });
 
@@ -1685,9 +1736,16 @@
 
         // Initial Load
         document.addEventListener('DOMContentLoaded', async () => {
-            await openAppDb(); // Ensure DB is open and upgraded if necessary
-            await loadInitialConfigAndData(); // Load config and data from IndexedDB
-            applyAccentColor();
+            try {
+                dbInstance = await openAppDb(); // Initialize dbInstance here
+                console.log('[DB] Database instance initialized on DOMContentLoaded:', dbInstance);
+                await loadInitialConfigAndData(); // Load config and data from IndexedDB
+                applyAccentColor();
+            } catch (error) {
+                 console.error('[DB] Critical error during DOMContentLoaded DB initialization or initial data load:', error);
+                setStatus('Error: Could not initialize application data. Please clear site data or contact support.', 'error');
+                // Prevent further execution if DB init fails critically
+            }
 
             
             if (!config.apiKey) {
