@@ -1213,7 +1213,7 @@
             const registration = await navigator.serviceWorker.ready;
             if (!registration || !('periodicSync' in registration)) {
                 console.log('Periodic Background Sync not supported.');
-                return;
+                return; // Exit if feature not supported
             }
 
             const status = await navigator.permissions.query({name: 'periodic-background-sync'});
@@ -1230,9 +1230,17 @@
                     console.log('Periodic sync "btc-data-update" registered successfully.');
                 } catch (error) {
                     console.error('Periodic sync registration failed:', error);
+                    setStatus('Could not set up background updates.', 'error');
                 }
+            } else if (status.state === 'prompt') {
+                console.log('Permission for Periodic Background Sync is "prompt". Attempting to register, browser should ask for permission.');
+                // Attempting to register will trigger the browser's permission prompt.
+                // No specific UI from our side here, browser handles it.
+                // We can re-check status after a short delay or on next load if needed, but typically not required.
+                await registration.periodicSync.register('btc-data-update', { minInterval: 20 * 60 * 1000 });
             } else {
                 console.log('Permission for Periodic Background Sync not granted. Status:', status.state);
+                setStatus('Background updates disabled. Please enable "Background Sync" in site settings for automatic updates.', 'error');
             }
         }
 
