@@ -1749,30 +1749,36 @@
                 toggleConfigModal(true);
             } else {
                 toggleInsightsButtonVisibility();
-                let shouldUseCached = false;
-                if (_current_data_cache && config.lastFetchedCurrentDataTimestamp &&
-                    (Date.now() - config.lastFetchedCurrentDataTimestamp < DATA_CACHE_DURATION_MS)) {
-                    
+
+                // Always try to display data from cache first
+                if (_current_data_cache) {
+                    console.log('[DEBUG] Initial load: Attempting to display from _current_data_cache.');
                     const selectedChartCache = config.cachedChartData[config.selectedTimeframe];
-                    if (selectedChartCache && selectedChartCache.data && selectedChartCache.data.length > 0 && 
-                        selectedChartCache.timestamp && (Date.now() - selectedChartCache.timestamp < DATA_CACHE_DURATION_MS) &&
-                        typeof selectedChartCache.historicalRateAtStart === 'number') {
-                        
-                        console.log('[DEBUG] Initial load: Using cached data (current, chart, historical start rate) for timeframe:', config.selectedTimeframe);
-                        lastDataFetchTimestamp = config.lastFetchedCurrentDataTimestamp;
-                        window.lastFetchedCurrentData = _current_data_cache;
-                        window.lastFetchedHistoricalChartData = selectedChartCache.data;
-                        updateDisplay(_current_data_cache, selectedChartCache.historicalRateAtStart, selectedChartCache.data);
-                        setStatus('');
-                        shouldUseCached = true;
+                    let historicalRateAtStartForDisplay = null;
+                    let chartDataForDisplay = null;
+
+                    if (selectedChartCache) {
+                        historicalRateAtStartForDisplay = selectedChartCache.historicalRateAtStart; // Might be null
+                        chartDataForDisplay = selectedChartCache.data; // Might be null or empty
                     }
+
+                    // Update display with whatever cached data we have
+                    updateDisplay(_current_data_cache, historicalRateAtStartForDisplay, chartDataForDisplay);
+                    lastDataFetchTimestamp = config.lastFetchedCurrentDataTimestamp; // Use the timestamp of the cached current data
+                    window.lastFetchedCurrentData = _current_data_cache;
+                    window.lastFetchedHistoricalChartData = chartDataForDisplay;
+                    setStatus(''); // Clear any "loading" or "welcome" status
+                    console.log('[DEBUG] Initial load: Displayed data from cache. Fetching update in background.');
+                } else {
+                    console.log('[DEBUG] Initial load: No _current_data_cache found. Will fetch fresh data.');
+                    // If no current data cache, fetchData will show the loading pulse.
                 }
 
-                if (!shouldUseCached) {
-                    console.log('[DEBUG] Initial load: Cache is old, missing, or incomplete. Fetching fresh data.');
-                    fetchData();
-                }
+                // Always fetch fresh data in the background to update
+                fetchData();
+
                 if (config.apiKey && navigator.serviceWorker.controller) { 
+                    
                     registerPeriodicDataSync();
                 }
             }
