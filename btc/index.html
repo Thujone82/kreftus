@@ -1681,7 +1681,7 @@
         window.lastFetchedHistoricalChartData = null;
 
         // Initial Load
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             await openAppDb(); // Ensure DB is open and upgraded if necessary
             await loadInitialConfigAndData(); // Load config and data from IndexedDB
             applyAccentColor();
