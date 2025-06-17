@@ -303,6 +303,14 @@
             flex-shrink: 0;      /* Prevent label from shrinking */
         }
 
+        #backgroundSyncStatusText {
+            display: none; /* Hidden by default */
+            font-size: 0.8em;
+            color: #ffcc00; /* A warning-like color, adjust as needed */
+            margin-top: -5px; /* Negative margin to pull it closer to the input above */
+            margin-bottom: 10px; /* Space before the next element */
+        }
+
         .modal-content .config-item-row select,
         .modal-content .config-item-row input[type="text"], /* If other inputs were to use this row layout */
         .modal-content .config-item-row input[type="number"] {
@@ -523,6 +531,7 @@
             <h2 id="configModalTitle">Configuration</h2>
             <label for="apiKey">LiveCoinWatch API Key:</label>
             <input type="text" id="apiKey" placeholder="Enter your API Key">
+            <small id="backgroundSyncStatusText"></small> <!-- Element to show background sync status -->
 
             <label for="userBtcAmount">My BTC Amount (Optional):</label>
             <input type="number" id="userBtcAmount" placeholder="e.g., 0.5" step="any">
@@ -916,6 +925,38 @@
             }
         }
 
+        async function updateBackgroundSyncStatusInModal() {
+            const statusTextEl = document.getElementById('backgroundSyncStatusText');
+            if (!statusTextEl) return;
+
+            if (!('serviceWorker' in navigator) || !navigator.serviceWorker.ready) {
+                statusTextEl.textContent = 'Background updates not supported (Service Worker unavailable).';
+                statusTextEl.style.display = 'block';
+                return;
+            }
+
+            try {
+                const registration = await navigator.serviceWorker.ready;
+                if (!('periodicSync' in registration)) {
+                    statusTextEl.textContent = 'Background updates not supported by your browser.';
+                    statusTextEl.style.display = 'block';
+                    return;
+                }
+
+                const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
+                if (status.state === 'denied') {
+                    statusTextEl.textContent = 'Background Updates Not Allowed. Please check site settings.';
+                    statusTextEl.style.display = 'block';
+                } else {
+                    statusTextEl.style.display = 'none'; // Hide if granted or prompt
+                }
+            } catch (error) {
+                console.warn('[Background Sync] Error checking permission status for modal:', error);
+                statusTextEl.textContent = 'Could not determine background update status.'; // Fallback message
+                statusTextEl.style.display = 'block';
+            }
+        }
+
         function toggleConfigModal(show) {
             configModalEl.style.display = show ? 'flex' : 'none';
             if (show) { // Populate inputs when showing
@@ -924,6 +965,7 @@
                 userTotalCostInput.value = config.userTotalCost || '';
                 googleApiKeyInput.value = config.googleApiKey || '';
                 accentColorPickerEl.value = config.accentColor || DEFAULT_ACCENT_COLOR;
+                updateBackgroundSyncStatusInModal(); // Update the status text when modal is shown
             }
         }
 
@@ -1229,7 +1271,7 @@
                     });
                     console.log('Periodic sync "btc-data-update" registered successfully.');
                 } catch (error) {
-                    console.error('Periodic sync registration failed:', error);
+                    console.error('Periodic sync registration failed (granted state):', error);
                     setStatus('Could not set up background updates.', 'error');
                 }
             } else if (status.state === 'prompt') {
@@ -1242,6 +1284,8 @@
                 console.log('Permission for Periodic Background Sync not granted. Status:', status.state);
                 setStatus('Background updates disabled. Please enable "Background Sync" in site settings for automatic updates.', 'error');
             }
+            // Ensure modal message is updated after any attempt or check
+            await updateBackgroundSyncStatusInModal();
         }
 
 
