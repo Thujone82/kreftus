@@ -547,8 +547,9 @@
         // Constants for Service Worker API data cache and IndexedDB
         const API_DATA_CACHE_NAME = 'btc-api-data-v1'; // Must match sw.js
         const API_KEY_DB_NAME = 'btcAppDB';            // Must match sw.js
-        const API_KEY_STORE_NAME = 'appConfigStore';   // Must match sw.js
-        const API_KEY_IDB_KEY = 'apiKey';              // Must match sw.js
+        const APP_DATA_STORE_NAME = 'appDataStore';    // Renamed for clarity, was appConfigStore
+        const CONFIG_IDB_KEY = 'appConfig';            // Key for the main config object
+        const CURRENT_DATA_IDB_KEY = 'currentDataCache'; // Key for _current_data_cache
 
 
         // DOM Elements
@@ -738,65 +739,107 @@
             toggleInsightsButtonVisibility();
         }
 
-        async function openApiKeyDb() {
+        async function openAppDb() {
             return new Promise((resolve, reject) => {
                 const request = indexedDB.open(API_KEY_DB_NAME, 1);
                 request.onupgradeneeded = event => {
                     const db = event.target.result;
-                    if (!db.objectStoreNames.contains(API_KEY_STORE_NAME)) {
-                        db.createObjectStore(API_KEY_STORE_NAME, { keyPath: 'id' });
-                        console.log('[DB] Object store created:', API_KEY_STORE_NAME);
+                    if (!db.objectStoreNames.contains(APP_DATA_STORE_NAME)) {
+                        db.createObjectStore(APP_DATA_STORE_NAME, { keyPath: 'id' });
+                        console.log('[DB] Object store created:', APP_DATA_STORE_NAME);
                     }
                 };
                 request.onsuccess = event => resolve(event.target.result);
                 request.onerror = event => {
-                    console.error('[DB] Error opening IndexedDB:', event.target.error);
+                    console.error('[DB] Error opening IndexedDB for app data:', event.target.error);
                     reject(event.target.error);
                 };
             });
         }
 
-        async function saveApiKeyToIndexedDB(apiKeyToSave) {
-            if (!apiKeyToSave) { // Do not store an empty key
-                console.log('[DB] API key is empty, not saving to IndexedDB.');
-                return;
-            }
+        async function saveDataToIndexedDB(key, data) {
             try {
-                const db = await openApiKeyDb();
-                const transaction = db.transaction(API_KEY_STORE_NAME, 'readwrite');
-                const store = transaction.objectStore(API_KEY_STORE_NAME);
-                await store.put({ id: API_KEY_IDB_KEY, value: apiKeyToSave });
-                console.log('[DB] API Key saved to IndexedDB.');
+                const db = await openAppDb();
+                const transaction = db.transaction(APP_DATA_STORE_NAME, 'readwrite');
+                const store = transaction.objectStore(APP_DATA_STORE_NAME);
+                await store.put({ id: key, value: data });
+                console.log(`[DB] Data saved to IndexedDB with key: ${key}`);
             } catch (error) {
-                console.error('[DB] Error saving API Key to IndexedDB:', error);
+                console.error(`[DB] Error saving data to IndexedDB for key ${key}:`, error);
             }
         }
 
+        async function loadDataFromIndexedDB(key) {
+            try {
+                const db = await openAppDb();
+                const transaction = db.transaction(APP_DATA_STORE_NAME, 'readonly');
+                const store = transaction.objectStore(APP_DATA_STORE_NAME);
+                const request = store.get(key);
+                return new Promise((resolve, reject) => {
+                    request.onsuccess = () => resolve(request.result ? request.result.value : null);
+                    request.onerror = (event) => {
+                        console.error(`[DB] Error loading data from IndexedDB for key ${key}:`, event.target.error);
+                        reject(event.target.error);
+                    };
+                });
+            } catch (error) {
+                console.error(`[DB] Error opening DB or starting transaction for key ${key}:`, error);
+                return null;
+            }
+        }
+
+        async function loadInitialConfigAndData() {
+            const storedConfig = await loadDataFromIndexedDB(CONFIG_IDB_KEY);
+            if (storedConfig) {
+                const parsedConfig = storedConfig; // Already an object from IDB
+                config = { ...config, ...parsedConfig }; // Merge with defaults
+                config.lastFetchedCurrentDataTimestamp = config.lastFetchedCurrentDataTimestamp || null;
+                config.cachedChartData = config.cachedChartData || {};
+                Object.keys(config.cachedChartData).forEach(tf => {
+                    config.cachedChartData[tf].historicalRateAtStart = config.cachedChartData[tf].historicalRateAtStart || null;
+                });
+                if (!config.insightReport) {
+                    config.insightReport = { content: null, timestamp: null };
+                } else {
+                    config.insightReport = {
+                        content: config.insightReport.content || null,
+                        timestamp: config.insightReport.timestamp || null
+                    };
+                }
+
+                apiKeyInput.value = config.apiKey || '';
+                userBtcAmountInput.value = config.userBtcAmount || '';
+                userTotalCostInput.value = config.userTotalCost || '';
+                googleApiKeyInput.value = config.googleApiKey || '';
+                timeframeSelectEl.value = config.selectedTimeframe || '24h';
+                accentColorPickerEl.value = config.accentColor || DEFAULT_ACCENT_COLOR;
+            } else {
+                // No stored config, use defaults
+                config.insightReport = { content: null, timestamp: null };
+                accentColorPickerEl.value = DEFAULT_ACCENT_COLOR;
+            }
+
+            const storedCurrentData = await loadDataFromIndexedDB(CURRENT_DATA_IDB_KEY);
+            if (storedCurrentData) {
+                _current_data_cache = storedCurrentData; // Already an object
+            }
+
+            toggleInsightsButtonVisibility();
+        }
 
         function saveAppData() {
-            try {
-                localStorage.setItem('btcTrackConfig', JSON.stringify(config));
-                if (_current_data_cache) {
-                    localStorage.setItem('btcCurrentDataCache', JSON.stringify(_current_data_cache));
-                } else {
-                    localStorage.removeItem('btcCurrentDataCache');
-                }
-                console.log('[DEBUG] App data (config & current data cache) saved.');
-            } catch (e) {
-                if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-                    console.warn('[DEBUG] localStorage quota exceeded. Attempting to save without current data cache.');
-                    try {
-                        localStorage.setItem('btcTrackConfig', JSON.stringify(config));
-                        localStorage.removeItem('btcCurrentDataCache');
-                        console.warn('[DEBUG] Config saved without current data cache due to quota limits.');
-                    } catch (e2) {
-                        console.error('[DEBUG] Failed to save minimal config:', e2);
-                        alert('Warning: Could not persist settings due to storage limitations.');
-                    }
-                } else {
-                    console.error('[DEBUG] Error saving to localStorage:', e);
-                }
+            // Save main config object
+            saveDataToIndexedDB(CONFIG_IDB_KEY, config);
+
+            // Save current data cache
+            if (_current_data_cache) {
+                saveDataToIndexedDB(CURRENT_DATA_IDB_KEY, _current_data_cache);
+            } else {
+                // Optionally remove from IDB if _current_data_cache is null
+                // For now, just not saving it if null.
+                console.log('[DB] _current_data_cache is null, not saving to IndexedDB.');
             }
+            console.log('[DEBUG] App data (config & current data cache) queued for IndexedDB save.');
         }
 
         function toggleConfigModal(show) {
@@ -1405,7 +1448,7 @@
             config.accentColor = accentColorPickerEl.value || DEFAULT_ACCENT_COLOR;
             config.googleApiKey = googleApiKeyInput.value.trim();
             saveAppData();
-            if (config.apiKey) saveApiKeyToIndexedDB(config.apiKey); // Save to IndexedDB for SW
+            // API key is part of 'config' object, which is saved by saveAppData()
 
             toggleConfigModal(false);
             applyAccentColor();
@@ -1639,8 +1682,8 @@
 
         // Initial Load
         document.addEventListener('DOMContentLoaded', () => {
-            loadConfig();
-            openApiKeyDb(); // Initialize DB early
+            await openAppDb(); // Ensure DB is open and upgraded if necessary
+            await loadInitialConfigAndData(); // Load config and data from IndexedDB
             applyAccentColor();
 
             
@@ -1672,7 +1715,7 @@
                     console.log('[DEBUG] Initial load: Cache is old, missing, or incomplete. Fetching fresh data.');
                     fetchData();
                 }
-                if (config.apiKey) { // If API key is loaded from config, try to register periodic sync
+                if (config.apiKey && navigator.serviceWorker.controller) { // Ensure SW is active
                     registerPeriodicDataSync();
                 }
             }

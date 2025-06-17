@@ -1,10 +1,11 @@
-const CACHE_NAME = 'btc-track-cache-v1-0617@1043'; // Ensure this is updated with current MMDD@HHMM
+const CACHE_NAME = 'btc-track-cache-v1-0617@1057'; // Ensure this is updated with current MMDD@HHMM
 const API_DATA_CACHE_NAME = 'btc-api-data-v1';
 
 // IndexedDB constants for API Key retrieval
 const API_KEY_DB_NAME = 'btcAppDB'; // Should match DB name used in index.html
-const API_KEY_STORE_NAME = 'appConfigStore'; // Should match store name used in index.html
-const API_KEY_IDB_KEY = 'apiKey'; // Key for the LiveCoinWatch API key in IndexedDB
+const APP_DATA_STORE_NAME = 'appDataStore'; // Should match store name used in index.html
+const CONFIG_IDB_KEY = 'appConfig';      // Key for the main config object in IndexedDB
+
 
 const urlsToCache = [
     './',
@@ -138,26 +139,27 @@ async function getApiKeyFromIndexedDB() {
 
         request.onsuccess = event => {
             const db = event.target.result;
-            if (!db.objectStoreNames.contains(API_KEY_STORE_NAME)) {
-                console.warn(`Service Worker: Object store ${API_KEY_STORE_NAME} not found.`);
+            if (!db.objectStoreNames.contains(APP_DATA_STORE_NAME)) {
+                console.warn(`Service Worker: Object store ${APP_DATA_STORE_NAME} not found.`);
                 db.close();
                 resolve(null); // Store doesn't exist yet
                 return;
             }
             try {
-                const transaction = db.transaction(API_KEY_STORE_NAME, 'readonly');
-                const store = transaction.objectStore(API_KEY_STORE_NAME);
-                const getRequest = store.get(API_KEY_IDB_KEY);
+                const transaction = db.transaction(APP_DATA_STORE_NAME, 'readonly');
+                const store = transaction.objectStore(APP_DATA_STORE_NAME);
+                const getRequest = store.get(CONFIG_IDB_KEY); // Fetch the whole config object
 
                 getRequest.onsuccess = () => {
-                    resolve(getRequest.result ? getRequest.result.value : null);
+                    const configObject = getRequest.result ? getRequest.result.value : null;
+                    resolve(configObject ? configObject.apiKey : null); // Extract apiKey
                 };
                 getRequest.onerror = (event) => {
-                    console.error('Service Worker: Error fetching API key from IDB store.', event.target.error);
+                    console.error('Service Worker: Error fetching config from IDB store.', event.target.error);
                     resolve(null);
                 };
             } catch (e) {
-                console.error('Service Worker: Exception during IDB transaction for API key.', e);
+                console.error('Service Worker: Exception during IDB transaction for config.', e);
                 resolve(null);
             } finally {
                 // db.close(); // Closing might be premature if other operations are queued.
