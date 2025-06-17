@@ -746,31 +746,34 @@
 
         async function openAppDb() {
             return new Promise((resolve, reject) => {
-                const request = indexedDB.open(API_KEY_DB_NAME, 1);
+                const newDbVersion = 2; // Incremented DB version
+                console.log(`[DB] Attempting to open IndexedDB: ${API_KEY_DB_NAME} with version ${newDbVersion}`);
+                const request = indexedDB.open(API_KEY_DB_NAME, newDbVersion);
                 request.onupgradeneeded = event => {
                     const db = event.target.result;
+                    console.log(`[DB] onupgradeneeded triggered. Old version: ${event.oldVersion}, New version: ${event.newVersion}`);
                     if (!db.objectStoreNames.contains(APP_DATA_STORE_NAME)) {
                         db.createObjectStore(APP_DATA_STORE_NAME, { keyPath: 'id' });
-                        console.log('[DB] Object store created:', APP_DATA_STORE_NAME);
+                        console.log(`[DB] Object store "${APP_DATA_STORE_NAME}" created.`);
+                    } else {
+                        console.log(`[DB] Object store "${APP_DATA_STORE_NAME}" already exists.`);
                     }
                 };
-                request.onsuccess = event => resolve(event.target.result);
                 request.onerror = event => {
                     console.error('[DB] Error opening IndexedDB for app data:', event.target.error);
                     reject(event.target.error);
+                };
+                request.onsuccess = event => {
+                    console.log('[DB] openAppDb onsuccess. DB version:', event.target.result.version, 'Stores:', Array.from(event.target.result.objectStoreNames));
+                    resolve(event.target.result);
                 };
             });
         }
 
         async function saveDataToIndexedDB(key, dataToSave) {
             if (!dbInstance) {
-                console.error('[DB] dbInstance is not initialized in saveDataToIndexedDB. Attempting to open.');
-                try {
-                    dbInstance = await openAppDb(); // Fallback, but ideally should be set
-                } catch (e) {
-                    console.error('[DB] Fallback openAppDb failed in saveDataToIndexedDB:', e);
-                    throw new Error("Database not initialized for saving.");
-                }
+                console.error('[DB] dbInstance is not initialized in saveDataToIndexedDB. Cannot save.');
+                throw new Error("Database not initialized. Cannot save data.");
             }
             try {
                 const transaction = dbInstance.transaction(APP_DATA_STORE_NAME, 'readwrite');
@@ -804,13 +807,8 @@
 
         async function loadDataFromIndexedDB(key) { // dbInstance will be used here
             if (!dbInstance) {
-                console.error('[DB] dbInstance is not initialized in loadDataFromIndexedDB. Attempting to open.');
-                 try {
-                    dbInstance = await openAppDb(); // Fallback
-                } catch (e) {
-                    console.error('[DB] Fallback openAppDb failed in loadDataFromIndexedDB:', e);
-                    return null;
-                }
+                console.error('[DB] dbInstance is not initialized in loadDataFromIndexedDB. Cannot load.');
+                return null; 
             }
             try {
                 const transaction = dbInstance.transaction(APP_DATA_STORE_NAME, 'readonly');
@@ -1739,6 +1737,11 @@
             try {
                 dbInstance = await openAppDb(); // Initialize dbInstance here
                 console.log('[DB] Database instance initialized on DOMContentLoaded:', dbInstance);
+                if (dbInstance && !dbInstance.objectStoreNames.contains(APP_DATA_STORE_NAME)) {
+                    console.error(`[DB] CRITICAL FAILURE: Object store "${APP_DATA_STORE_NAME}" NOT FOUND in dbInstance immediately after openAppDb resolved. This should not happen if onupgradeneeded worked.`);
+                    setStatus('Error: Database setup failed. Please clear site data and reload.', 'error');
+                    return; // Halt further app initialization
+                }
                 await loadInitialConfigAndData(); // Load config and data from IndexedDB
                 applyAccentColor();
             } catch (error) {
