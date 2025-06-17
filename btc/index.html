@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>BTC Track v1.3.6</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">    
+    <title>BTC Track v1.3.7</title>
     <link rel="icon" href="./icons/32.png" type="image/png">
     <!-- You can create a 32x32.png from your 512x512.png or 192x192.png -->
     <link rel="apple-touch-icon" href="./icons/192.png">
@@ -544,6 +544,12 @@
         const HISTORICAL_WINDOW_MINUTES = 5;
         const DATA_CACHE_DURATION_MS = 10 * 60 * 1000; // 10 minutes
 
+        // Constants for Service Worker API data cache and IndexedDB
+        const API_DATA_CACHE_NAME = 'btc-api-data-v1'; // Must match sw.js
+        const API_KEY_DB_NAME = 'btcAppDB';            // Must match sw.js
+        const API_KEY_STORE_NAME = 'appConfigStore';   // Must match sw.js
+        const API_KEY_IDB_KEY = 'apiKey';              // Must match sw.js
+
 
         // DOM Elements
         const btcPriceEl = document.getElementById('btcPrice');
@@ -731,6 +737,41 @@
 
             toggleInsightsButtonVisibility();
         }
+
+        async function openApiKeyDb() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(API_KEY_DB_NAME, 1);
+                request.onupgradeneeded = event => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains(API_KEY_STORE_NAME)) {
+                        db.createObjectStore(API_KEY_STORE_NAME, { keyPath: 'id' });
+                        console.log('[DB] Object store created:', API_KEY_STORE_NAME);
+                    }
+                };
+                request.onsuccess = event => resolve(event.target.result);
+                request.onerror = event => {
+                    console.error('[DB] Error opening IndexedDB:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        }
+
+        async function saveApiKeyToIndexedDB(apiKeyToSave) {
+            if (!apiKeyToSave) { // Do not store an empty key
+                console.log('[DB] API key is empty, not saving to IndexedDB.');
+                return;
+            }
+            try {
+                const db = await openApiKeyDb();
+                const transaction = db.transaction(API_KEY_STORE_NAME, 'readwrite');
+                const store = transaction.objectStore(API_KEY_STORE_NAME);
+                await store.put({ id: API_KEY_IDB_KEY, value: apiKeyToSave });
+                console.log('[DB] API Key saved to IndexedDB.');
+            } catch (error) {
+                console.error('[DB] Error saving API Key to IndexedDB:', error);
+            }
+        }
+
 
         function saveAppData() {
             try {
@@ -1059,6 +1100,35 @@
             return historyStartMs;
         }
 
+        async function registerPeriodicDataSync() {
+            const registration = await navigator.serviceWorker.ready;
+            if (!registration || !('periodicSync' in registration)) {
+                console.log('Periodic Background Sync not supported.');
+                return;
+            }
+
+            const status = await navigator.permissions.query({name: 'periodic-background-sync'});
+            if (status.state === 'granted') {
+                try {
+                    const tags = await registration.periodicSync.getTags();
+                    if (tags.includes('btc-data-update')) {
+                        console.log('Periodic sync "btc-data-update" already registered.');
+                        return;
+                    }
+                    await registration.periodicSync.register('btc-data-update', {
+                        minInterval: 20 * 60 * 1000, // 20 minutes
+                    });
+                    console.log('Periodic sync "btc-data-update" registered successfully.');
+                } catch (error) {
+                    console.error('Periodic sync registration failed:', error);
+                }
+            } else {
+                console.log('Permission for Periodic Background Sync not granted. Status:', status.state);
+                // Optionally, prompt the user or provide instructions on how to enable it.
+                // For now, we just log it. The browser might prompt implicitly if the PWA is installed.
+            }
+        }
+
 
         async function fetchData(forceRefresh = false) {
             if (!config.apiKey) {
@@ -1067,15 +1137,38 @@
                 return;
             }
             
-            // Check for cached current data if not forceRefresh
+            // Attempt to load current data from SW background sync cache first
+            if (!forceRefresh) {
+                try {
+                    const cache = await caches.open(API_DATA_CACHE_NAME);
+                    const cachedResponse = await cache.match('/api/btc/current-data'); // Key used in sw.js
+                    if (cachedResponse) {
+                        const backgroundFetchedData = await cachedResponse.json();
+                        const backgroundFetchTimeHeader = cachedResponse.headers.get('date');
+                        const backgroundFetchTime = backgroundFetchTimeHeader ? new Date(backgroundFetchTimeHeader).getTime() : Date.now();
+
+                        // Use if newer than localStorage or very recent, and within general cache duration
+                        if (backgroundFetchedData && backgroundFetchedData.rate &&
+                            (!config.lastFetchedCurrentDataTimestamp || backgroundFetchTime > config.lastFetchedCurrentDataTimestamp) &&
+                            (Date.now() - backgroundFetchTime < DATA_CACHE_DURATION_MS)) { // Check against standard cache duration
+                            console.log('[DEBUG] Using current data from background sync cache. Timestamp:', new Date(backgroundFetchTime).toISOString());
+                            _current_data_cache = backgroundFetchedData;
+                            config.lastFetchedCurrentDataTimestamp = backgroundFetchTime; // Update timestamp in config
+                            // lastDataFetchTimestamp will be set later if we use this cache
+                        }
+                    }
+                } catch (err) {
+                    console.warn('[DEBUG] Error accessing background sync cache:', err);
+                }
+            }
+
+            // Now, check _current_data_cache (possibly from SW or localStorage) and chart cache
             if (!forceRefresh && _current_data_cache && config.lastFetchedCurrentDataTimestamp &&
                 (Date.now() - config.lastFetchedCurrentDataTimestamp < DATA_CACHE_DURATION_MS)) {
-                
                 const selectedChartCache = config.cachedChartData[config.selectedTimeframe];
                 if (selectedChartCache && selectedChartCache.data && selectedChartCache.data.length > 0 && 
                     selectedChartCache.timestamp && (Date.now() - selectedChartCache.timestamp < DATA_CACHE_DURATION_MS) &&
                     typeof selectedChartCache.historicalRateAtStart === 'number') { // Crucially, check if historicalRateAtStart is cached
-                    
                     console.log('[DEBUG] All data (current, chart, historical start rate) for', config.selectedTimeframe, 'are fresh. Displaying from cache.');
                     lastDataFetchTimestamp = config.lastFetchedCurrentDataTimestamp; 
                     window.lastFetchedCurrentData = _current_data_cache; 
@@ -1085,7 +1178,7 @@
                     setStatus('');
                     return; 
                 } else {
-                    console.log('[DEBUG] Current data is fresh, but chart data for', config.selectedTimeframe, 'is old/missing. Will fetch chart data (and current data again).');
+                    console.log('[DEBUG] Current data is fresh (possibly from SW/localStorage), but chart data for', config.selectedTimeframe, 'is old/missing. Proceeding to full network fetch.');
                 }
             }
 
@@ -1312,6 +1405,7 @@
             config.accentColor = accentColorPickerEl.value || DEFAULT_ACCENT_COLOR;
             config.googleApiKey = googleApiKeyInput.value.trim();
             saveAppData();
+            if (config.apiKey) saveApiKeyToIndexedDB(config.apiKey); // Save to IndexedDB for SW
 
             toggleConfigModal(false);
             applyAccentColor();
@@ -1325,6 +1419,9 @@
                 config.lastFetchedCurrentDataTimestamp = null;
                 config.cachedChartData = {};
                 saveAppData();
+            }
+            if (config.apiKey) { // If API key is set, try to register periodic sync
+                registerPeriodicDataSync();
             }
         });
         timeframeSelectEl.addEventListener('change', (event) => {
@@ -1543,8 +1640,10 @@
         // Initial Load
         document.addEventListener('DOMContentLoaded', () => {
             loadConfig();
+            openApiKeyDb(); // Initialize DB early
             applyAccentColor();
 
+            
             if (!config.apiKey) {
                 setStatus('Welcome! Please configure your API Key to get started.', 'loading');
                 toggleConfigModal(true);
@@ -1572,6 +1671,9 @@
                 if (!shouldUseCached) {
                     console.log('[DEBUG] Initial load: Cache is old, missing, or incomplete. Fetching fresh data.');
                     fetchData();
+                }
+                if (config.apiKey) { // If API key is loaded from config, try to register periodic sync
+                    registerPeriodicDataSync();
                 }
             }
             updateLastUpdatedMessage(); 

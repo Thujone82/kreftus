@@ -1,4 +1,11 @@
-const CACHE_NAME = 'tc-track-cache-v1-0617@1043'; // Ensure this is updated with current MMDD@HHMM
+const CACHE_NAME = 'btc-track-cache-v1-0617@1043'; // Ensure this is updated with current MMDD@HHMM
+const API_DATA_CACHE_NAME = 'btc-api-data-v1';
+
+// IndexedDB constants for API Key retrieval
+const API_KEY_DB_NAME = 'btcAppDB'; // Should match DB name used in index.html
+const API_KEY_STORE_NAME = 'appConfigStore'; // Should match store name used in index.html
+const API_KEY_IDB_KEY = 'apiKey'; // Key for the LiveCoinWatch API key in IndexedDB
+
 const urlsToCache = [
     './',
     './index.html',
@@ -117,5 +124,90 @@ self.addEventListener('message', (event) => {
     if (event.data && event.data.action === 'skipWaiting') {
         console.log('Service Worker: Received skipWaiting message. Activating new version.');
         self.skipWaiting();
+    }
+});
+
+async function getApiKeyFromIndexedDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(API_KEY_DB_NAME, 1); // Version 1, or match client
+
+        request.onerror = event => {
+            console.error('Service Worker: IndexedDB error:', event.target.errorCode);
+            reject("Error opening IDB for API key");
+        };
+
+        request.onsuccess = event => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(API_KEY_STORE_NAME)) {
+                console.warn(`Service Worker: Object store ${API_KEY_STORE_NAME} not found.`);
+                db.close();
+                resolve(null); // Store doesn't exist yet
+                return;
+            }
+            try {
+                const transaction = db.transaction(API_KEY_STORE_NAME, 'readonly');
+                const store = transaction.objectStore(API_KEY_STORE_NAME);
+                const getRequest = store.get(API_KEY_IDB_KEY);
+
+                getRequest.onsuccess = () => {
+                    resolve(getRequest.result ? getRequest.result.value : null);
+                };
+                getRequest.onerror = (event) => {
+                    console.error('Service Worker: Error fetching API key from IDB store.', event.target.error);
+                    resolve(null);
+                };
+            } catch (e) {
+                console.error('Service Worker: Exception during IDB transaction for API key.', e);
+                resolve(null);
+            } finally {
+                // db.close(); // Closing might be premature if other operations are queued.
+                           // Typically, transactions auto-close.
+            }
+        };
+        // onupgradeneeded is typically handled by the client-side that creates the DB.
+        // If the SW is the first to try and open with a new version or non-existent store,
+        // it might need its own onupgradeneeded, but it's safer if client manages schema.
+    });
+}
+
+async function performBackgroundDataUpdate() {
+    console.log('Service Worker: Performing background data update...');
+    const apiKey = await getApiKeyFromIndexedDB();
+
+    if (!apiKey) {
+        console.log('Service Worker: API key not found in IndexedDB. Cannot perform background update.');
+        return;
+    }
+
+    const API_BASE_URL = "https://api.livecoinwatch.com";
+    const COIN_CODE = "BTC";
+    const CURRENCY = "USD";
+
+    try {
+        const currentDataBody = JSON.stringify({ currency: CURRENCY, code: COIN_CODE, meta: true });
+        const currentResponse = await fetch(`${API_BASE_URL}/coins/single`, {
+            method: 'POST',
+            headers: { "Content-Type": "application/json", "x-api-key": apiKey },
+            body: currentDataBody
+        });
+
+        if (!currentResponse.ok) throw new Error(`Background Sync: Failed to fetch current data: ${currentResponse.status}`);
+        
+        // We need to clone the response to be able to read it here and also cache it.
+        const currentResponseToCache = currentResponse.clone();
+        const cache = await caches.open(API_DATA_CACHE_NAME);
+        await cache.put('/api/btc/current-data', currentResponseToCache); // Using a representative key
+
+        console.log('Service Worker: Background data update successful. Current data cached.');
+        // Optionally, fetch and cache historical data for a default timeframe as well.
+    } catch (error) {
+        console.error('Service Worker: Error during background data update:', error);
+    }
+}
+
+self.addEventListener('periodicsync', (event) => {
+    if (event.tag === 'btc-data-update') { // This tag must match the one registered in index.html
+        console.log('Service Worker: Periodic sync event received for btc-data-update.');
+        event.waitUntil(performBackgroundDataUpdate());
     }
 });
