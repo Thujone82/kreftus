@@ -256,5 +256,22 @@ const utils = {
         }
         // If not a direct lat,lon string or if parsed coordinates were invalid, try geocoding
         return await utils.geocodeLocationString(locationString);
+    },
+
+    /**
+     * Debounces a function, delaying its execution until after a specified wait time
+     * has elapsed since the last time it was invoked.
+     * @param {Function} func The function to debounce.
+     * @param {number} delay The number of milliseconds to delay.
+     * @returns {Function} The new debounced function.
+     */
+    debounce: (func, delay) => {
+        let timeoutId;
+        return (...args) => {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                func.apply(this, args);
+            }, delay);
+        };
     }
 };

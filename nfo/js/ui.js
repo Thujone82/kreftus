@@ -590,7 +590,26 @@ const ui = {
     },
 
     init: () => {
+        const DEBOUNCE_DELAY_MS = 750; // Delay in milliseconds for debouncing API key validation
+
         ui.initModalCloseButtons();
+
+        // Debounced API Key Validation for Gemini
+        if (ui.apiKeyInput) {
+            ui.apiKeyInput.addEventListener('input', utils.debounce((event) => {
+                const key = event.target.value.trim();
+                app.validateAndDisplayGeminiKeyStatus(key, false); // false for onOpen to show "Checking..."
+            }, DEBOUNCE_DELAY_MS));
+        }
+
+        // Debounced API Key Validation for OpenWeatherMap
+        if (ui.owmApiKeyInput) {
+            ui.owmApiKeyInput.addEventListener('input', utils.debounce((event) => {
+                const key = event.target.value.trim();
+                app.validateAndDisplayOwmKeyStatus(key, false); // false for onOpen to show "Checking..."
+            }, DEBOUNCE_DELAY_MS));
+        }
+
         console.log("UI initialized");
     }
 };
