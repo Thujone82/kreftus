@@ -104,7 +104,7 @@ const api = {
         if (!apiKey) return false;
         // Use a lightweight call, like listing models, to validate the key.
         // Using a specific model known to exist to ensure the endpoint is valid for a key check.
-        const modelName = "gemini-2.5-flash-preview-05-20";
+        const modelName = "gemini-2.5-flash";
         const VALIDATE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}?key=${apiKey}`;
         try {
             const response = await fetch(VALIDATE_URL);
