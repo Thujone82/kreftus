@@ -1,10 +1,11 @@
-const CACHE_NAME = 'btc-track-cache-v1-0617@1301'; // Ensure this is updated with current MMDD@HHMM
+const CACHE_NAME = 'btc-track-cache-v1-0617@1535'; // Ensure this is updated with current MMDD@HHMM
 const API_DATA_CACHE_NAME = 'btc-api-data-v1';
 
 // IndexedDB constants for API Key retrieval
 const API_KEY_DB_NAME = 'btcAppDB'; // Should match DB name used in index.html
 const APP_DATA_STORE_NAME = 'appDataStore'; // Should match store name used in index.html
-const CONFIG_IDB_KEY = 'appConfig';      // Key for the main config object in IndexedDB
+const CONFIG_IDB_KEY = 'appConfig'; // Key for the main config object in IndexedDB
+const CURRENT_DATA_IDB_KEY = 'currentDataCache'; // Key for current data in IndexedDB
 
 
 const urlsToCache = [
@@ -128,63 +129,66 @@ self.addEventListener('message', (event) => {
     }
 });
 
-async function getApiKeyFromIndexedDB() {
+const DB_VERSION = 2; // Ensure this matches the version used in index.html that creates/upgrades the DB
+
+async function openSwDb() {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open(API_KEY_DB_NAME, 1); // Version 1, or match client
-
+        const request = indexedDB.open(API_KEY_DB_NAME, DB_VERSION);
         request.onerror = event => {
-            console.error('Service Worker: IndexedDB error:', event.target.errorCode);
-            reject("Error opening IDB for API key");
+            console.error('SW: IndexedDB error in openSwDb:', event.target.error);
+            reject("Error opening IDB in SW");
         };
-
         request.onsuccess = event => {
-            const db = event.target.result;
+            resolve(event.target.result);
+        };
+        // No onupgradeneeded here; client (index.html) handles schema creation and upgrades.
+    });
+}
+
+async function getApiKeyFromIndexedDB() {
+    let db;
+    try {
+        db = await openSwDb();
+        return new Promise((resolve, rejectInner) => { // Renamed reject to avoid conflict
             if (!db.objectStoreNames.contains(APP_DATA_STORE_NAME)) {
-                console.warn(`Service Worker: Object store ${APP_DATA_STORE_NAME} not found.`);
-                db.close();
+                console.warn(`SW: Object store ${APP_DATA_STORE_NAME} not found in getApiKey.`);
                 resolve(null); // Store doesn't exist yet
                 return;
             }
-            try {
-                const transaction = db.transaction(APP_DATA_STORE_NAME, 'readonly');
-                const store = transaction.objectStore(APP_DATA_STORE_NAME);
-                const getRequest = store.get(CONFIG_IDB_KEY); // Fetch the whole config object
+            const transaction = db.transaction(APP_DATA_STORE_NAME, 'readonly');
+            const store = transaction.objectStore(APP_DATA_STORE_NAME);
+            const getRequest = store.get(CONFIG_IDB_KEY);
 
-                getRequest.onsuccess = () => {
-                    const configObject = getRequest.result ? getRequest.result.value : null;
-                    resolve(configObject ? configObject.apiKey : null); // Extract apiKey
-                };
-                getRequest.onerror = (event) => {
-                    console.error('Service Worker: Error fetching config from IDB store.', event.target.error);
-                    resolve(null);
-                };
-            } catch (e) {
-                console.error('Service Worker: Exception during IDB transaction for config.', e);
+            getRequest.onsuccess = () => {
+                const configObject = getRequest.result ? getRequest.result.value : null;
+                resolve(configObject ? configObject.apiKey : null);
+            };
+            getRequest.onerror = (event) => {
+                console.error('SW: Error fetching config from IDB store in getApiKey.', event.target.error);
                 resolve(null);
-            } finally {
-                // db.close(); // Closing might be premature if other operations are queued.
-                           // Typically, transactions auto-close.
-            }
-        };
-        // onupgradeneeded is typically handled by the client-side that creates the DB.
-        // If the SW is the first to try and open with a new version or non-existent store,
-        // it might need its own onupgradeneeded, but it's safer if client manages schema.
-    });
+            };
+        });
+    } catch (error) {
+        console.error('SW: Error in getApiKeyFromIndexedDB (outer):', error);
+        return null;
+    } finally {
+        if (db) {
+            db.close();
+        }
+    }
 }
 
 async function performBackgroundDataUpdate() {
     console.log('Service Worker: Performing background data update...');
     const apiKey = await getApiKeyFromIndexedDB();
-
     if (!apiKey) {
         console.log('Service Worker: API key not found in IndexedDB. Cannot perform background update.');
         return;
     }
-
     const API_BASE_URL = "https://api.livecoinwatch.com";
     const COIN_CODE = "BTC";
     const CURRENCY = "USD";
-
+    let db;
     try {
         const currentDataBody = JSON.stringify({ currency: CURRENCY, code: COIN_CODE, meta: true });
         const currentResponse = await fetch(`${API_BASE_URL}/coins/single`, {
@@ -192,18 +196,43 @@ async function performBackgroundDataUpdate() {
             headers: { "Content-Type": "application/json", "x-api-key": apiKey },
             body: currentDataBody
         });
-
-        if (!currentResponse.ok) throw new Error(`Background Sync: Failed to fetch current data: ${currentResponse.status}`);
+        if (!currentResponse.ok) throw new Error(`SW Background Sync: Failed to fetch current data: ${currentResponse.status}`);
         
-        // We need to clone the response to be able to read it here and also cache it.
-        const currentResponseToCache = currentResponse.clone();
-        const cache = await caches.open(API_DATA_CACHE_NAME);
-        await cache.put('/api/btc/current-data', currentResponseToCache); // Using a representative key
+        const currentData = await currentResponse.json();
 
-        console.log('Service Worker: Background data update successful. Current data cached.');
-        // Optionally, fetch and cache historical data for a default timeframe as well.
+        // Update Cache Storage
+        const responseToCache = new Response(JSON.stringify(currentData), {
+            headers: {
+                'Content-Type': 'application/json',
+                'Date': new Date().toUTCString() // Add a Date header for client-side freshness check
+            }
+        });
+        const cache = await caches.open(API_DATA_CACHE_NAME);
+        await cache.put('/api/btc/current-data', responseToCache);
+        console.log('Service Worker: Current data cached in Cache Storage.');
+
+        // Update IndexedDB
+        db = await openSwDb();
+        const transaction = db.transaction(APP_DATA_STORE_NAME, 'readwrite');
+        const store = transaction.objectStore(APP_DATA_STORE_NAME);
+
+        const getConfigRequest = store.get(CONFIG_IDB_KEY);
+        const configResult = await new Promise((resolve, reject) => { getRequest.onsuccess = () => resolve(getRequest.result); getRequest.onerror = event => reject(event.target.error); });
+        let configObject = configResult ? configResult.value : {};
+        configObject.lastFetchedCurrentDataTimestamp = Date.now();
+
+        store.put({ id: CONFIG_IDB_KEY, value: configObject });
+        store.put({ id: CURRENT_DATA_IDB_KEY, value: currentData });
+
+        await new Promise((resolve, reject) => { transaction.oncomplete = resolve; transaction.onerror = event => reject(event.target.error); });
+        console.log('Service Worker: Successfully updated currentDataCache and appConfig timestamp in IndexedDB.');
+
     } catch (error) {
         console.error('Service Worker: Error during background data update:', error);
+    } finally {
+        if (db) {
+            db.close();
+        }
     }
 }
 
