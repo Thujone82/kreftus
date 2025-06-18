@@ -495,6 +495,9 @@ func displayWeather(city, countryOrState string, weather *WeatherData, overview 
 }
 
 func main() {
+	// Clear screen at the very start of execution
+	fmt.Print("\033[H\033[2J")
+
 	log.SetFlags(0) // No timestamps or prefixes for cleaner error messages from log.Fatal
 
 	helpFlag := flag.Bool("h", false, "Display help information")
@@ -521,9 +524,7 @@ func main() {
 	var locationInput string
 	args := flag.Args()
 	if len(args) == 0 { // No location provided as argument, so prompt
-		// Clear screen only if prompting for location (after API key is handled)
-		// This ANSI escape sequence works on most modern terminals.
-		fmt.Print("\033[H\033[2J")
+		// Welcome banner will now appear on the initially cleared screen
 		showWelcomeBanner()
 		reader := bufio.NewReader(os.Stdin)
 		fmt.Print("Enter a location (Zip Code or City, State): ")
