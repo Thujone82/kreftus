@@ -14,10 +14,12 @@ import (
 	"os/user"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/shirou/gopsutil/v3/process"
 	"gopkg.in/ini.v1"
 )
 
@@ -38,7 +40,7 @@ var (
 	// Colors - attempting to match PowerShell intent
 	colorAlert   = color.New(color.FgRed)
 	colorTitle   = color.New(color.FgGreen)
-	colorInfo    = color.New(color.FgBlue)
+	colorInfo    = color.New(color.FgHiBlue)
 	colorSun     = color.New(color.FgYellow)  // PowerShell DarkYellow
 	colorMoon    = color.New(color.FgHiBlack) // PowerShell DarkGray
 	colorDefault = color.New(color.FgCyan)    // PowerShell DarkCyan
@@ -72,12 +74,12 @@ type GeoDirectResponse struct {
 
 // Weather API structs
 type WeatherData struct {
-	Lat            float64          `json:"lat"`
-	Lon            float64          `json:"lon"`
-	Current        CurrentWeather   `json:"current"`
-	Hourly         []HourlyWeather  `json:"hourly,omitempty"`
-	Daily          []DailyWeather   `json:"daily"`
-	Alerts         []Alert          `json:"alerts,omitempty"`
+	Lat     float64         `json:"lat"`
+	Lon     float64         `json:"lon"`
+	Current CurrentWeather  `json:"current"`
+	Hourly  []HourlyWeather `json:"hourly,omitempty"`
+	Daily   []DailyWeather  `json:"daily"`
+	Alerts  []Alert         `json:"alerts,omitempty"`
 }
 
 type CurrentWeather struct {
@@ -227,20 +229,28 @@ func showHelp() {
 	psColorCyan.Println(" • Observation timestamp")
 	fmt.Println()
 	psColorBlue.Println("Examples:")
-	psColorCyan.Println("  gw 97219") // Changed from goweather
+	psColorCyan.Println("  gw 97219")            // Changed from goweather
 	psColorCyan.Println("  gw \"Portland, OR\"") // Changed from goweather
-	psColorCyan.Println("  gw -h") // Changed from goweather
+	psColorCyan.Println("  gw -h")               // Changed from goweather
 }
 
 func showWelcomeBanner() {
-	psColorYellow.Print("    \\|/     "); psColorCyan.Println("    .-~~~~~~-.")
-	psColorYellow.Print("  -- O --   "); psColorCyan.Println("   /_)      ( \\")
-	psColorYellow.Print("    /|\\     "); psColorCyan.Println("  (   ( )    ( )")
-	psColorYellow.Print("            "); psColorCyan.Println("   `-~~~~~~~~~-`")
-	psColorGreen.Print("  Welcome   "); psColorCyan.Println("     ''    ''")
-	psColorGreen.Print("     to     "); psColorCyan.Println("    ''    ''")
-	psColorGreen.Print("  GetWeather"); psColorCyan.Println("  ________________") // Changed from GoWeather
-	psColorYellow.Print("            "); psColorCyan.Println("~~~~~~~~~~~~~~~~~~~~")
+	psColorYellow.Print("    \\|/     ")
+	psColorCyan.Println("    .-~~~~~~-.")
+	psColorYellow.Print("  -- O --   ")
+	psColorCyan.Println("   /_)      ( \\")
+	psColorYellow.Print("    /|\\     ")
+	psColorCyan.Println("  (   ( )    ( )")
+	psColorYellow.Print("            ")
+	psColorCyan.Println("   `-~~~~~~~~~-`")
+	psColorGreen.Print("  Welcome   ")
+	psColorCyan.Println("     ''    ''")
+	psColorGreen.Print("     to     ")
+	psColorCyan.Println("    ''    ''")
+	psColorGreen.Print("  GetWeather")
+	psColorCyan.Println("  ________________") // Changed from GoWeather
+	psColorYellow.Print("            ")
+	psColorCyan.Println("~~~~~~~~~~~~~~~~~~~~")
 	fmt.Println()
 }
 
@@ -496,12 +506,22 @@ func main() {
 		return
 	}
 
+	// --- API Key Handling (Moved Up) ---
+	configPath, err := getConfigPath()
+	if err != nil {
+		log.Fatalf("Error determining config path: %v", err)
+	}
+
+	apiKey, err := loadAPIKey(configPath)
+	if err != nil {
+		log.Fatalf("Error loading API key: %v", err)
+	}
+
+	// --- Location Input Handling ---
 	var locationInput string
 	args := flag.Args()
-	if len(args) > 0 {
-		locationInput = strings.Join(args, " ")
-	} else {
-		// Clear screen only if prompting (mimicking PowerShell behavior)
+	if len(args) == 0 { // No location provided as argument, so prompt
+		// Clear screen only if prompting for location (after API key is handled)
 		// This ANSI escape sequence works on most modern terminals.
 		fmt.Print("\033[H\033[2J")
 		showWelcomeBanner()
@@ -515,18 +535,11 @@ func main() {
 		if locationInput == "" {
 			log.Fatal("Location input cannot be empty.")
 		}
+	} else { // Location provided as argument
+		locationInput = strings.Join(args, " ")
 	}
 
-	configPath, err := getConfigPath()
-	if err != nil {
-		log.Fatalf("Error determining config path: %v", err)
-	}
-
-	apiKey, err := loadAPIKey(configPath)
-	if err != nil {
-		log.Fatalf("Error loading API key: %v", err)
-	}
-
+	// --- Geocoding and Weather Data Fetching ---
 	lat, lon, city, countryOrState, err := getGeoCoordinates(locationInput, apiKey)
 	if err != nil {
 		log.Fatalf("Error: %v", err)
@@ -542,13 +555,56 @@ func main() {
 		log.Fatalf("Error fetching weather overview: %v", err)
 	}
 
-	// Clear screen if we prompted for input and are now showing weather.
-	// The initial clear was before the prompt. This one is before the output.
-	// This matches the PowerShell script's behavior of clearing before showing weather
-	// if it had to prompt for location.
+	// Clear screen if we prompted for location input before showing weather.
+	// This is done again here to ensure a clean display if the API key prompt occurred
+	// and then the location prompt followed.
 	if len(args) == 0 {
 		fmt.Print("\033[H\033[2J")
 	}
 
 	displayWeather(city, countryOrState, weatherData, overviewData)
+
+	// --- Pause Before Exit Logic ---
+	// Replicate PowerShell script's "pause before exit" logic
+	// Pause if no arguments were passed, unless run from a known terminal that keeps the window open.
+	if len(args) == 0 {
+		shouldPause := true // Default to pause
+
+		ppid := int32(os.Getppid())
+		parentProc, pErr := process.NewProcess(ppid) // Renamed err to pErr to avoid conflict
+		if pErr == nil {
+			parentName, errName := parentProc.Name()
+			if errName == nil {
+				parentNameLower := strings.ToLower(parentName)
+
+				// List of parent processes that typically keep their windows open
+				excludedParents := make(map[string]bool)
+				if runtime.GOOS == "windows" {
+					excludedParents["powershell.exe"] = true
+					excludedParents["cmd.exe"] = true
+					excludedParents["wt.exe"] = true // Windows Terminal
+					// explorer.exe is not in this list, so if it's the parent (double-click), it will pause.
+				} else {
+					// Common terminal emulators/shells on Linux/macOS
+					excludedParents["bash"] = true
+					excludedParents["zsh"] = true
+					excludedParents["sh"] = true
+					excludedParents["fish"] = true
+					excludedParents["gnome-terminal-server"] = true // Often the parent of gnome-terminal
+					excludedParents["konsole"] = true
+					excludedParents["xterm"] = true
+				}
+
+				if _, isExcluded := excludedParents[parentNameLower]; isExcluded {
+					shouldPause = false
+				}
+			} // If parentName can't be determined, default to pausing
+		} // If parentProc can't be determined, default to pausing
+
+		if shouldPause {
+			fmt.Println() // Ensure the prompt is on a new line
+			psColorYellow.Print("Press Enter to exit...")
+			bufio.NewReader(os.Stdin).ReadBytes('\n') // Wait for Enter key
+		}
+	}
 }
