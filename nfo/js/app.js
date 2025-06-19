@@ -770,6 +770,67 @@ const app = {
         return false;
     },
 
+    validateAndDisplayGeminiKeyStatus: async (apiKeyToValidate, onOpen = false) => {
+        if (!apiKeyToValidate) {
+            ui.setApiKeyStatus('gemini', 'empty', 'Enter Key');
+            return;
+        }
+        if (!onOpen) ui.setApiKeyStatus('gemini', 'checking', 'Checking...');
+        const validationResult = await api.validateGeminiApiKey(apiKeyToValidate);
+        if (validationResult.isValid) {
+            ui.setApiKeyStatus('gemini', 'valid', 'Valid');
+        } else {
+            if (validationResult.reason === 'rate_limit') {
+                ui.setApiKeyStatus('gemini', 'rate_limit', 'Rate Limit');
+            } else { // Covers 'invalid', 'network_error', or any other reason
+                ui.setApiKeyStatus('gemini', 'invalid', 'Invalid');
+            }
+        }
+    },
+
+    validateAndDisplayOwmKeyStatus: async (apiKeyToValidate, onOpen = false) => {
+        if (!apiKeyToValidate) {
+            ui.setApiKeyStatus('owm', 'empty', 'Enter Key');
+            return;
+        }
+        if (!onOpen) ui.setApiKeyStatus('owm', 'checking', 'Checking...');
+        const validationResult = await api.validateOwmApiKey(apiKeyToValidate);
+        if (validationResult.isValid) {
+            ui.setApiKeyStatus('owm', 'valid', 'Valid');
+        } else {
+            if (validationResult.reason === 'rate_limit') {
+                ui.setApiKeyStatus('owm', 'rate_limit', 'Rate Limit');
+            } else { // Covers 'invalid', 'network_error', or any other reason
+                ui.setApiKeyStatus('owm', 'invalid', 'Invalid');
+            }
+        }
+    },
+
+    // Loader Management
+    incrementActiveLoaders: () => {
+        app.activeLoadingOperations++;
+        if (app.activeLoadingOperations === 1 && ui.startHeaderIconLoading) {
+            ui.startHeaderIconLoading();
+        }
+        // Ensure icon is running if it was paused
+        if (app.activeLoadingOperations > 0 && ui.resumeHeaderIconLoading && ui.headerIcon && ui.headerIcon.style.animationPlayState === 'paused') {
+            ui.resumeHeaderIconLoading();
+        }
+    },
+
+    decrementActiveLoaders: () => {
+        if (app.activeLoadingOperations > 0) {
+            app.activeLoadingOperations--;
+        }
+        if (app.activeLoadingOperations === 0 && ui.stopHeaderIconLoading) {
+            ui.stopHeaderIconLoading();
+            // Also ensure the refresh button is not stuck on "Waiting..." if all ops are done
+            if (ui.globalRefreshButton && ui.globalRefreshButton.textContent.startsWith("Waiting")) {
+                app.updateGlobalRefreshButtonVisibility();
+            }
+        }
+    }, // <-- This comma was missing, and the functions below were outside the app object.
+
     newWorkerForUpdate: null, // Store the waiting worker
 
     promptUserToUpdate: (worker) => { // Modified to show button instead of confirm
@@ -805,10 +866,10 @@ const app = {
     // Getter for OWM API Key, useful for other modules
     getOwmApiKey: () => {
         return app.config.owmApiKey;
-    }
-    ,
+    },
+
     // Weather Management Functions
-     fetchAndCacheWeatherData: async (location) => {
+    fetchAndCacheWeatherData: async (location) => {
         if (!app.config.owmApiKey) {
             console.log("OpenWeatherMap API key is not set. Skipping weather fetch.");
             return null; // Return null to indicate failure/skip
@@ -893,244 +954,6 @@ const app = {
 
         await Promise.allSettled(weatherFetchPromises);
         console.log("Weather refresh check completed.", refreshedSomething ? "Some data was updated." : "No data needed update or failed to update.");
-    }
-    ,
-
-    validateAndDisplayGeminiKeyStatus: async (apiKeyToValidate, onOpen = false) => {
-        if (!apiKeyToValidate) {
-            ui.setApiKeyStatus('gemini', 'empty', 'Enter Key');
-            return;
-        }
-        if (!onOpen) ui.setApiKeyStatus('gemini', 'checking', 'Checking...');
-        const validationResult = await api.validateGeminiApiKey(apiKeyToValidate);
-        if (validationResult.isValid) {
-            ui.setApiKeyStatus('gemini', 'valid', 'Valid');
-        } else {
-            if (validationResult.reason === 'rate_limit') {
-                ui.setApiKeyStatus('gemini', 'rate_limit', 'Rate Limit');
-            } else { // Covers 'invalid', 'network_error', or any other reason
-                ui.setApiKeyStatus('gemini', 'invalid', 'Invalid');
-            }
-        }
-    },
-
-    validateAndDisplayOwmKeyStatus: async (apiKeyToValidate, onOpen = false) => {
-        if (!apiKeyToValidate) {
-            ui.setApiKeyStatus('owm', 'empty', 'Enter Key');
-            return;
-        }
-        if (!onOpen) ui.setApiKeyStatus('owm', 'checking', 'Checking...');
-        const validationResult = await api.validateOwmApiKey(apiKeyToValidate);
-        if (validationResult.isValid) {
-            ui.setApiKeyStatus('owm', 'valid', 'Valid');
-        } else {
-            if (validationResult.reason === 'rate_limit') {
-                ui.setApiKeyStatus('owm', 'rate_limit', 'Rate Limit');
-            } else { // Covers 'invalid', 'network_error', or any other reason
-                ui.setApiKeyStatus('owm', 'invalid', 'Invalid');
-            }
-        }
-    },
-
-    // Loader Management
-    incrementActiveLoaders: () => {
-        app.activeLoadingOperations++;
-        if (app.activeLoadingOperations === 1 && ui.startHeaderIconLoading) {
-            ui.startHeaderIconLoading();
-        }
-        // Ensure icon is running if it was paused
-        if (app.activeLoadingOperations > 0 && ui.resumeHeaderIconLoading && ui.headerIcon && ui.headerIcon.style.animationPlayState === 'paused') {
-            ui.resumeHeaderIconLoading();
-        }
-    },
-
-    decrementActiveLoaders: () => {
-        if (app.activeLoadingOperations > 0) {
-            app.activeLoadingOperations--;
-        }
-        if (app.activeLoadingOperations === 0 && ui.stopHeaderIconLoading) {
-            ui.stopHeaderIconLoading();
-            // Also ensure the refresh button is not stuck on "Waiting..." if all ops are done
-            if (ui.globalRefreshButton && ui.globalRefreshButton.textContent.startsWith("Waiting")) {
-                app.updateGlobalRefreshButtonVisibility();
-            }
-        }
-    }
-
-};
-
-window.addEventListener('unhandledrejection', function(event) {
-    console.error('Unhandled Promise Rejection:', event.reason);
-});
-
-document.addEventListener('DOMContentLoaded', app.init);
-            worker.postMessage({ type: APP_CONSTANTS.SW_MESSAGES.SKIP_WAITING });
-        }
-    },
-
-    listenForControllerChange: () => {
-        let refreshing;
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-            if (refreshing) return;
-            console.log('Controller changed. New service worker has activated. Reloading page.');
-            window.location.reload();
-            refreshing = true;
-        });
-    },
-
-    // Getter for OWM API Key, useful for other modules
-    getOwmApiKey: () => {
-        return app.config.owmApiKey;
-    }
-    ,
-    // Weather Management Functions
-     fetchAndCacheWeatherData: async (location) => {
-        if (!app.config.owmApiKey) {
-            console.log("OpenWeatherMap API key is not set. Skipping weather fetch.");
-            return null; // Return null to indicate failure/skip
-        }
-
-        const coords = await utils.extractCoordinates(location.location); // Ensure this returns { lat, lon }
-        if (!coords) {
-            console.warn(`Could not extract coordinates from location: ${location.location}`);
-            return null; // Return null if no coords
-        }
-
-        const cachedWeather = store.getWeatherCache(location.id);
-        const isWeatherStale = !cachedWeather || (Date.now() - cachedWeather.timestamp) > APP_CONSTANTS.CACHE_EXPIRY_WEATHER_MS;
-
-        if (!cachedWeather || isWeatherStale) {
-            console.log(`Fetching fresh/stale weather data for ${location.description} at ${coords.lat}, ${coords.lon}`);
-
-            const weatherData = await api.fetchWeatherData(coords.lat, coords.lon, app.config.owmApiKey);
-            if (weatherData) {
-                store.saveWeatherCache(location.id, weatherData);
-                console.log(`Weather data updated for ${location.description}:`, weatherData);
-                return weatherData;
-            } else {
-                console.error(`Failed to fetch or invalid weather data for ${location.description}`);
-                return null;
-            }
-        } else {
-            console.log(`Using cached weather data for ${location.description}`);
-            return cachedWeather.data;
-        }
-    },
-
-    getWeatherDisplayForLocation: async (location) => {
-        if (!app.config.owmApiKey) return null; // Early exit if no API key
-        
-        const cachedWeather = store.getWeatherCache(location.id);
-        let weatherData = cachedWeather?.data;
-
-        const coords = await utils.extractCoordinates(location.location); // Ensure this returns { lat, lon }
-        if (!coords) {
-            console.warn(`Could not extract coordinates from location: ${location.location}`);
-            return null;
-        }
-        // Check staleness based on the timestamp of the original cache entry
-        const isWeatherStale = !cachedWeather || (Date.now() - cachedWeather.timestamp) > APP_CONSTANTS.CACHE_EXPIRY_WEATHER_MS;
-
-        if (!weatherData || isWeatherStale) {
-            console.log(`Stale or no weather data for ${location.description}. Attempting refresh.`);
-            weatherData = await app.fetchAndCacheWeatherData(location); // This will return null if fetch fails
-        }
-
-        if (weatherData && weatherData.temp && weatherData.weather && weatherData.weather.length > 0) {
-            const temp = Math.round(weatherData.temp);
-            const iconCode = weatherData.weather[0].icon;
-            const iconUrl = `https://openweathermap.org/img/wn/${iconCode}.png`;
-            return `<span class="weather-info">${temp}°F <img src="${iconUrl}" alt="Weather Icon" class="weather-icon"></span>`;
-        } else {
-            // If weatherData is null (fetch error, geocoding error) or doesn't have the required properties, return null.
-            return null;
-        }
-    },
-
-    refreshOutdatedWeather: async () => {
-        if (!app.config.owmApiKey) {
-            console.log("OpenWeatherMap API key is not set. Skipping weather refresh.");
-            return;
-        }
-
-        console.log("Checking and refreshing outdated weather data for all locations...");
-        // Individual fetchAndCacheWeatherData calls don't use the global loader
-        let refreshedSomething = false;
-        const weatherFetchPromises = app.locations.map(async (location) => {
-            const coords = await utils.extractCoordinates(location.location);
-            if (!coords) {
-                console.warn(`Could not extract coordinates for weather refresh: ${location.location}`);
-                return;
-            }
-            // fetchAndCacheWeatherData already checks for staleness internally
-            const newData = await app.fetchAndCacheWeatherData(location);
-            if (newData) refreshedSomething = true;
-        });
-
-        await Promise.allSettled(weatherFetchPromises);
-        console.log("Weather refresh check completed.", refreshedSomething ? "Some data was updated." : "No data needed update or failed to update.");
-    }
-    ,
-
-    validateAndDisplayGeminiKeyStatus: async (apiKeyToValidate, onOpen = false) => {
-        if (!apiKeyToValidate) {
-            ui.setApiKeyStatus('gemini', 'empty', 'Enter Key');
-            return;
-        }
-        if (!onOpen) ui.setApiKeyStatus('gemini', 'checking', 'Checking...');
-        const validationResult = await api.validateGeminiApiKey(apiKeyToValidate);
-        if (validationResult.isValid) {
-            ui.setApiKeyStatus('gemini', 'valid', 'Valid');
-        } else {
-            if (validationResult.reason === 'rate_limit') {
-                ui.setApiKeyStatus('gemini', 'rate_limit', 'Rate Limit');
-            } else { // Covers 'invalid', 'network_error', or any other reason
-                ui.setApiKeyStatus('gemini', 'invalid', 'Invalid');
-            }
-        }
-    },
-
-    validateAndDisplayOwmKeyStatus: async (apiKeyToValidate, onOpen = false) => {
-        if (!apiKeyToValidate) {
-            ui.setApiKeyStatus('owm', 'empty', 'Enter Key');
-            return;
-        }
-        if (!onOpen) ui.setApiKeyStatus('owm', 'checking', 'Checking...');
-        const validationResult = await api.validateOwmApiKey(apiKeyToValidate);
-        if (validationResult.isValid) {
-            ui.setApiKeyStatus('owm', 'valid', 'Valid');
-        } else {
-            if (validationResult.reason === 'rate_limit') {
-                ui.setApiKeyStatus('owm', 'rate_limit', 'Rate Limit');
-            } else { // Covers 'invalid', 'network_error', or any other reason
-                ui.setApiKeyStatus('owm', 'invalid', 'Invalid');
-            }
-        }
-    },
-
-    // Loader Management
-    incrementActiveLoaders: () => {
-        app.activeLoadingOperations++;
-        if (app.activeLoadingOperations === 1 && ui.startHeaderIconLoading) {
-            ui.startHeaderIconLoading();
-        }
-        // Ensure icon is running if it was paused
-        if (app.activeLoadingOperations > 0 && ui.resumeHeaderIconLoading && ui.headerIcon && ui.headerIcon.style.animationPlayState === 'paused') {
-            ui.resumeHeaderIconLoading();
-        }
-    },
-
-    decrementActiveLoaders: () => {
-        if (app.activeLoadingOperations > 0) {
-            app.activeLoadingOperations--;
-        }
-        if (app.activeLoadingOperations === 0 && ui.stopHeaderIconLoading) {
-            ui.stopHeaderIconLoading();
-            // Also ensure the refresh button is not stuck on "Waiting..." if all ops are done
-            if (ui.globalRefreshButton && ui.globalRefreshButton.textContent.startsWith("Waiting")) {
-                app.updateGlobalRefreshButtonVisibility();
-            }
-        }
     }
 
 };
