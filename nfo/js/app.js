@@ -36,6 +36,7 @@ const app = {
     activeLoadingOperations: 0,        // Counter for global loading state
     isRefreshingAllStale: false,       // Flag to prevent overlapping global refreshes
     userInitiatedUpdate: false,        // Flag for SW update
+    newWorkerForUpdate: null,          // Store the waiting worker
 
     init: () => {
         console.log("App initializing...");
@@ -112,18 +113,24 @@ const app = {
                 .then(registration => {
                     console.log('Service Worker registered with scope:', registration.scope);
                     if (registration.waiting) {
+                        console.log('SW Registration: Found a waiting SW immediately. Prompting user.');
                         app.promptUserToUpdate(registration.waiting);
                     }
                     registration.onupdatefound = () => {
-                        console.log('New service worker found installing.');
+                        console.log('SW Registration: New service worker found installing.');
                         const installingWorker = registration.installing;
                         if (installingWorker) {
                             installingWorker.onstatechange = () => {
-                                console.log('Service worker state changed:', installingWorker.state);
-                                if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    if (registration.waiting) {
-                                        app.promptUserToUpdate(registration.waiting);
+                                console.log('SW Registration: Installing worker state changed:', installingWorker.state);
+                                if (installingWorker.state === 'installed') {
+                                    if (navigator.serviceWorker.controller) {
+                                        console.log('SW Registration: New SW installed and waiting (controller exists). Prompting user.');
+                                        app.promptUserToUpdate(installingWorker);
+                                    } else {
+                                        console.log('SW Registration: SW installed. Content cached for offline use (first load).');
                                     }
+                                } else if (installingWorker.state === 'redundant') {
+                                    console.error('SW Registration: The installing service worker became redundant.');
                                 }
                             };
                         }
@@ -215,7 +222,8 @@ const app = {
         }
         if (ui.btnAppUpdate) { // Setup listener for the new update button
             ui.btnAppUpdate.onclick = () => {
-                app.triggerUpdate(); // This function will be defined below
+                console.log('App Update Button: Clicked.');
+                app.triggerUpdate();
             };
         }
         console.log("Event listeners set up.");
@@ -830,45 +838,56 @@ const app = {
                 app.updateGlobalRefreshButtonVisibility();
             }
         }
-    }, // <-- This comma was missing, and the functions below were outside the app object.
-
-    newWorkerForUpdate: null, // Store the waiting worker
+    },
 
     promptUserToUpdate: (worker) => { // Modified to show button instead of confirm
-        console.log('Service Worker update available. Showing update button.');
+        console.log('App Update Prompt: Service Worker update available. Showing update button.');
         app.newWorkerForUpdate = worker; // Store the worker
         if (ui.btnAppUpdate) {
+            console.log('App Update Prompt: Making update button visible.');
             ui.btnAppUpdate.classList.remove('hidden');
+        } else {
+             console.warn('App Update Prompt: Update button element (ui.btnAppUpdate) not found.');
         }
     },
 
     triggerUpdate: () => { // New function to be called by the button
+        console.log('App Update Trigger: Triggering update process.');
         if (app.newWorkerForUpdate) {
-            console.log('User clicked update button. Sending SKIP_WAITING to new Service Worker.');
+            console.log('App Update Trigger: Sending SKIP_WAITING to new Service Worker.');
             app.userInitiatedUpdate = true; // Set the flag
             app.newWorkerForUpdate.postMessage({ type: APP_CONSTANTS.SW_MESSAGES.SKIP_WAITING });
             if (ui.btnAppUpdate) {
+                console.log('App Update Trigger: Hiding update button after trigger.');
                 ui.btnAppUpdate.classList.add('hidden'); // Hide button after click
             }
         } else {
-            console.warn('Update button clicked, but no new worker found to update.');
-            if (ui.btnAppUpdate) ui.btnAppUpdate.classList.add('hidden'); // Hide if no worker anyway
+            console.warn('App Update Trigger: Update button clicked, but no new worker found (app.newWorkerForUpdate is null).');
+            if (ui.btnAppUpdate) {
+                 console.log('App Update Trigger: Hiding update button as no worker was found.');
+                 ui.btnAppUpdate.classList.add('hidden'); // Hide if no worker anyway
+            }
         }
     },
 
     listenForControllerChange: () => {
         let refreshing;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-            if (refreshing) return;
+            console.log('SW ControllerChange: Event fired. userInitiatedUpdate:', app.userInitiatedUpdate, 'refreshing:', refreshing);
+            if (refreshing) {
+                console.log('SW ControllerChange: Already refreshing page, exiting.');
+                return;
+            }
             // Only reload if our app triggered the skipWaiting process via the button
             if (app.userInitiatedUpdate) {
-                console.log('Controller changed (user initiated). New service worker has activated. Reloading page.');
+                console.log('SW ControllerChange: User initiated update detected. Reloading page now.');
                 window.location.reload();
                 refreshing = true; // Prevent multiple reloads
             } else {
-                console.log('Controller changed (NOT user initiated by button). New service worker activated. Page will use new SW on next full navigation/reload.');
+                console.log('SW ControllerChange: Controller changed, but NOT user initiated by button click. Page will use new SW on next full navigation/reload.');
                 // If the update button was visible, hide it now as the update has occurred.
                 if (ui.btnAppUpdate && !ui.btnAppUpdate.classList.contains('hidden')) {
+                    console.log('SW ControllerChange: Hiding update button as controller changed without user trigger.');
                     ui.btnAppUpdate.classList.add('hidden');
                     app.newWorkerForUpdate = null; // Clear the stored worker
                 }
@@ -879,10 +898,10 @@ const app = {
     // Getter for OWM API Key, useful for other modules
     getOwmApiKey: () => {
         return app.config.owmApiKey;
-    },
-
+    }
+    ,
     // Weather Management Functions
-    fetchAndCacheWeatherData: async (location) => {
+     fetchAndCacheWeatherData: async (location) => {
         if (!app.config.owmApiKey) {
             console.log("OpenWeatherMap API key is not set. Skipping weather fetch.");
             return null; // Return null to indicate failure/skip
@@ -967,6 +986,68 @@ const app = {
 
         await Promise.allSettled(weatherFetchPromises);
         console.log("Weather refresh check completed.", refreshedSomething ? "Some data was updated." : "No data needed update or failed to update.");
+    }
+    ,
+
+    validateAndDisplayGeminiKeyStatus: async (apiKeyToValidate, onOpen = false) => {
+        if (!apiKeyToValidate) {
+            ui.setApiKeyStatus('gemini', 'empty', 'Enter Key');
+            return;
+        }
+        if (!onOpen) ui.setApiKeyStatus('gemini', 'checking', 'Checking...');
+        const validationResult = await api.validateGeminiApiKey(apiKeyToValidate);
+        if (validationResult.isValid) {
+            ui.setApiKeyStatus('gemini', 'valid', 'Valid');
+        } else {
+            if (validationResult.reason === 'rate_limit') {
+                ui.setApiKeyStatus('gemini', 'rate_limit', 'Rate Limit');
+            } else { // Covers 'invalid', 'network_error', or any other reason
+                ui.setApiKeyStatus('gemini', 'invalid', 'Invalid');
+            }
+        }
+    },
+
+    validateAndDisplayOwmKeyStatus: async (apiKeyToValidate, onOpen = false) => {
+        if (!apiKeyToValidate) {
+            ui.setApiKeyStatus('owm', 'empty', 'Enter Key');
+            return;
+        }
+        if (!onOpen) ui.setApiKeyStatus('owm', 'checking', 'Checking...');
+        const validationResult = await api.validateOwmApiKey(apiKeyToValidate);
+        if (validationResult.isValid) {
+            ui.setApiKeyStatus('owm', 'valid', 'Valid');
+        } else {
+            if (validationResult.reason === 'rate_limit') {
+                ui.setApiKeyStatus('owm', 'rate_limit', 'Rate Limit');
+            } else { // Covers 'invalid', 'network_error', or any other reason
+                ui.setApiKeyStatus('owm', 'invalid', 'Invalid');
+            }
+        }
+    },
+
+    // Loader Management
+    incrementActiveLoaders: () => {
+        app.activeLoadingOperations++;
+        if (app.activeLoadingOperations === 1 && ui.startHeaderIconLoading) {
+            ui.startHeaderIconLoading();
+        }
+        // Ensure icon is running if it was paused
+        if (app.activeLoadingOperations > 0 && ui.resumeHeaderIconLoading && ui.headerIcon && ui.headerIcon.style.animationPlayState === 'paused') {
+            ui.resumeHeaderIconLoading();
+        }
+    },
+
+    decrementActiveLoaders: () => {
+        if (app.activeLoadingOperations > 0) {
+            app.activeLoadingOperations--;
+        }
+        if (app.activeLoadingOperations === 0 && ui.stopHeaderIconLoading) {
+            ui.stopHeaderIconLoading();
+            // Also ensure the refresh button is not stuck on "Waiting..." if all ops are done
+            if (ui.globalRefreshButton && ui.globalRefreshButton.textContent.startsWith("Waiting")) {
+                app.updateGlobalRefreshButtonVisibility();
+            }
+        }
     }
 
 };
