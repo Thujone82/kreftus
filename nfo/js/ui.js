@@ -585,6 +585,22 @@ const ui = {
         if(ui.infoModalContent) ui.infoModalContent.appendChild(errorP);
     },
 
+    refreshInfoModalWeatherOnly: async (location) => {
+        if (!ui.infoModalWeather || !app.config || !app.config.owmApiKey || ui.infoModal.style.display !== 'block') {
+            // Only proceed if the modal is visible, weather element exists, and OWM key is configured
+            return;
+        }
+
+        // ui.infoModalWeather.innerHTML = '<p>Refreshing weather...</p>'; // Optional: Add a temporary loading indicator
+        const weatherDisplayHtml = await app.getWeatherDisplayForLocation(location); // This will fetch if stale or use cache
+        
+        if (weatherDisplayHtml && ui.infoModalWeather) { // Ensure element still exists
+            ui.infoModalWeather.innerHTML = weatherDisplayHtml;
+        } else if (ui.infoModalWeather) {
+            ui.infoModalWeather.innerHTML = ''; // Clear if no weather data
+        }
+        console.log(`UI: Weather in info modal attempted refresh for ${location.description}`);
+    },
     clearInputFields: (fields) => {
         fields.forEach(field => { if (field) field.value = ''; });
     },

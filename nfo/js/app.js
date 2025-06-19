@@ -62,6 +62,7 @@ const app = {
                 .then(() => {
                     const areTopicsDefined = app.topics && app.topics.length > 0;
                     ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
+                    app.updateOpenInfoModalWeather(); // Refresh weather in open info modal
                 })
                 .catch(error => {
                     console.error("Error during initial weather refresh:", error);
@@ -78,6 +79,7 @@ const app = {
                     await app.refreshOutdatedWeather();
                     const areTopicsDefined = app.topics && app.topics.length > 0;
                     ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
+                    await app.updateOpenInfoModalWeather(); // Refresh weather in open info modal
                     app.decrementActiveLoaders();
                 }
             }, APP_CONSTANTS.CACHE_EXPIRY_WEATHER_MS); // Refresh at the same interval as stale time
@@ -90,6 +92,7 @@ const app = {
                     await app.refreshOutdatedWeather();
                     const areTopicsDefined = app.topics && app.topics.length > 0;
                     ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
+                    await app.updateOpenInfoModalWeather(); // Refresh weather in open info modal
                     app.decrementActiveLoaders();
                 }
             });
@@ -260,6 +263,7 @@ const app = {
                 .then(() => {
                     const areTopicsDefined = app.topics && app.topics.length > 0;
                     ui.renderLocationButtons(app.locations, app.handleLocationButtonClick, areTopicsDefined);
+                    app.updateOpenInfoModalWeather(); // Refresh weather in open info modal
                 })
                 .catch(error => {
                     console.error("Error refreshing weather after OWM key save:", error);
@@ -737,6 +741,17 @@ const app = {
             ui.globalRefreshButton.classList.remove('hidden');
         } else {
             ui.globalRefreshButton.classList.add('hidden');
+        }
+    },
+
+    updateOpenInfoModalWeather: async () => {
+        if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal) {
+            const locationForModal = app.locations.find(l => l.id === app.currentLocationIdForInfoModal);
+            if (locationForModal) {
+                console.log(`App: Triggering weather refresh for open info modal: ${locationForModal.description}`);
+                // Call the UI function that specifically updates the weather part in the info modal
+                await ui.refreshInfoModalWeatherOnly(locationForModal);
+            }
         }
     },
 
