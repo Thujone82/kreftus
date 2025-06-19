@@ -123,13 +123,17 @@ const app = {
                             installingWorker.onstatechange = () => {
                                 console.log('SW Registration: Installing worker state changed:', installingWorker.state);
                                 if (installingWorker.state === 'installed') {
+                                    // A new SW has installed.
+                                    // If there's an active SW controlling the page, this new one is waiting.
                                     if (navigator.serviceWorker.controller) {
                                         console.log('SW Registration: New SW installed and waiting (controller exists). Prompting user.');
                                         app.promptUserToUpdate(installingWorker);
                                     } else {
-                                        console.log('SW Registration: SW installed. Content cached for offline use (first load).');
+                                        // No current controller, so this installed SW will activate on next load/claim.
+                                        // This is typical for the first SW installation.
+                                        console.log('SW Registration: SW installed. No active controller. Will activate on next load or if claimed.');
                                     }
-                                } else if (installingWorker.state === 'redundant') {
+                                } else if (installingWorker.state === 'redundant') { // Added for completeness
                                     console.error('SW Registration: The installing service worker became redundant.');
                                 }
                             };
@@ -889,6 +893,7 @@ const app = {
                 if (ui.btnAppUpdate && !ui.btnAppUpdate.classList.contains('hidden')) {
                     console.log('SW ControllerChange: Hiding update button as controller changed without user trigger.');
                     ui.btnAppUpdate.classList.add('hidden');
+                    app.userInitiatedUpdate = false; // Reset flag
                     app.newWorkerForUpdate = null; // Clear the stored worker
                 }
             }
