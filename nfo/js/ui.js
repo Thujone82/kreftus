@@ -8,6 +8,7 @@ const ui = {
     btnLocationsConfig: document.getElementById('btnLocationsConfig'),
     btnInfoCollectionConfig: document.getElementById('btnInfoCollectionConfig'),
     btnAppConfig: document.getElementById('btnAppConfig'),
+    btnAppUpdate: document.getElementById('btnAppUpdate'), // Added Update Button
     globalRefreshButton: document.getElementById('globalRefreshButton'), 
 
     // App Config Modal
