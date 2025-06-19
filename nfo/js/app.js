@@ -35,6 +35,7 @@ const app = {
     initialEditingTopicsString: '',    // For unsaved changes check
     activeLoadingOperations: 0,        // Counter for global loading state
     isRefreshingAllStale: false,       // Flag to prevent overlapping global refreshes
+    userInitiatedUpdate: false,        // Flag for SW update
 
     init: () => {
         console.log("App initializing...");
@@ -844,12 +845,14 @@ const app = {
     triggerUpdate: () => { // New function to be called by the button
         if (app.newWorkerForUpdate) {
             console.log('User clicked update button. Sending SKIP_WAITING to new Service Worker.');
+            app.userInitiatedUpdate = true; // Set the flag
             app.newWorkerForUpdate.postMessage({ type: APP_CONSTANTS.SW_MESSAGES.SKIP_WAITING });
             if (ui.btnAppUpdate) {
                 ui.btnAppUpdate.classList.add('hidden'); // Hide button after click
             }
         } else {
             console.warn('Update button clicked, but no new worker found to update.');
+            if (ui.btnAppUpdate) ui.btnAppUpdate.classList.add('hidden'); // Hide if no worker anyway
         }
     },
 
@@ -857,9 +860,19 @@ const app = {
         let refreshing;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
             if (refreshing) return;
-            console.log('Controller changed. New service worker has activated. Reloading page.');
-            window.location.reload();
-            refreshing = true;
+            // Only reload if our app triggered the skipWaiting process via the button
+            if (app.userInitiatedUpdate) {
+                console.log('Controller changed (user initiated). New service worker has activated. Reloading page.');
+                window.location.reload();
+                refreshing = true; // Prevent multiple reloads
+            } else {
+                console.log('Controller changed (NOT user initiated by button). New service worker activated. Page will use new SW on next full navigation/reload.');
+                // If the update button was visible, hide it now as the update has occurred.
+                if (ui.btnAppUpdate && !ui.btnAppUpdate.classList.contains('hidden')) {
+                    ui.btnAppUpdate.classList.add('hidden');
+                    app.newWorkerForUpdate = null; // Clear the stored worker
+                }
+            }
         });
     },
 
