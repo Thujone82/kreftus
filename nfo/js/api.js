@@ -4,7 +4,7 @@ const OWM_API_BASE_URL = 'https://api.openweathermap.org/data/3.0/onecall';
 
 const api = {
     fetchAiData: async (apiKey, locationName, topicQuery) => {
-        const modelName = "gemini-2.5-flash-preview-05-20"; // DO NOT ALTER 
+        const modelName = "gemini-2.5-flash"; // DO NOT ALTER 
         const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
         
         const promptText = `${locationName}: ${topicQuery}`;
