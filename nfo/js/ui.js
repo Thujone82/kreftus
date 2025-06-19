@@ -511,6 +511,41 @@ const ui = {
                 store.saveTopicCollapsedState(location.id, topic.id, !currentlyCollapsed);
             };
 
+            // Swipe to collapse logic
+            let touchStartX = 0;
+            let touchStartY = 0;
+            const SWIPE_THRESHOLD = 50; // Minimum horizontal distance for a swipe
+            const SWIPE_VERTICAL_MAX = 75; // Maximum vertical distance to still be considered a horizontal swipe
+
+            sectionDiv.addEventListener('touchstart', (e) => {
+                // Only track single touches for swipe
+                if (e.touches.length === 1) {
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                }
+            }, { passive: true });
+
+            sectionDiv.addEventListener('touchend', (e) => {
+                if (e.changedTouches.length === 1) { // Ensure it's the end of a single touch
+                    const touchEndX = e.changedTouches[0].clientX;
+                    const touchEndY = e.changedTouches[0].clientY;
+
+                    const deltaX = touchEndX - touchStartX;
+                    const deltaY = touchEndY - touchStartY;
+
+                    // Check for a right swipe on an expanded section
+                    if (deltaX > SWIPE_THRESHOLD && Math.abs(deltaY) < SWIPE_VERTICAL_MAX) {
+                        if (titleH3.classList.contains('active')) { // If currently expanded
+                            console.log(`UI: Right swipe detected on expanded topic "${topic.description}". Collapsing.`);
+                            titleH3.click(); // Simulate a click on the title to collapse it
+                            // e.preventDefault(); // Optional: if click was also being triggered
+                        }
+                    }
+                }
+                // Reset for next touch
+                touchStartX = 0; touchStartY = 0;
+            }, { passive: true });
+
             if (cacheEntry && cacheEntry.data) {
                 const formattedHtml = utils.formatAiResponseToHtml(cacheEntry.data);
                 // console.log(`HTML for topic "${topic.description}" (Location: ${location.id}):\n`, formattedHtml); // DEBUG LOG
