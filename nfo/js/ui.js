@@ -188,8 +188,6 @@ const ui = {
         if (ui.getOwmApiKeyLinkContainer) { // Added
             ui.getOwmApiKeyLinkContainer.classList.toggle('hidden', !!settings.owmApiKey); // Added
         }
-        if (ui.geminiApiKeyStatusUI) ui.geminiApiKeyStatusUI.textContent = ''; // Clear status on load
-        if (ui.owmApiKeyStatusUI) ui.owmApiKeyStatusUI.textContent = '';   // Clear status on load
         console.log("App config form loaded with settings:", settings);
     },
 

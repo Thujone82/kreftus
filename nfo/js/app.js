@@ -177,10 +177,16 @@ const app = {
             ui.loadAppConfigForm(app.config);
             if (ui.appConfigError) ui.appConfigError.textContent = '';
             // Validate keys when modal is opened if they exist
-            if (app.config.apiKey) app.validateAndDisplayGeminiKeyStatus(app.config.apiKey, true);
-            else if(ui.geminiApiKeyStatusUI) ui.geminiApiKeyStatusUI.textContent = '';
-            if (app.config.owmApiKey) app.validateAndDisplayOwmKeyStatus(app.config.owmApiKey, true);
-            else if(ui.owmApiKeyStatusUI) ui.owmApiKeyStatusUI.textContent = '';
+            if (app.config.apiKey) {
+                app.validateAndDisplayGeminiKeyStatus(app.config.apiKey, true);
+            } else {
+                ui.setApiKeyStatus('gemini', 'checking', 'Key Test');
+            }
+            if (app.config.owmApiKey) {
+                app.validateAndDisplayOwmKeyStatus(app.config.owmApiKey, true);
+            } else {
+                ui.setApiKeyStatus('owm', 'checking', 'Key Test');
+            }
             ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
         };
         ui.btnLocationsConfig.onclick = () => {
@@ -789,7 +795,7 @@ const app = {
 
     validateAndDisplayGeminiKeyStatus: async (apiKeyToValidate, onOpen = false) => {
         if (!apiKeyToValidate) {
-            ui.setApiKeyStatus('gemini', 'empty', 'Enter Key');
+            ui.setApiKeyStatus('gemini', 'checking', 'Enter Key');
             return;
         }
         if (!onOpen) ui.setApiKeyStatus('gemini', 'checking', 'Checking...');
@@ -807,7 +813,7 @@ const app = {
 
     validateAndDisplayOwmKeyStatus: async (apiKeyToValidate, onOpen = false) => {
         if (!apiKeyToValidate) {
-            ui.setApiKeyStatus('owm', 'empty', 'Enter Key');
+            ui.setApiKeyStatus('owm', 'checking', 'Enter Key');
             return;
         }
         if (!onOpen) ui.setApiKeyStatus('owm', 'checking', 'Checking...');
@@ -995,68 +1001,6 @@ const app = {
 
         await Promise.allSettled(weatherFetchPromises);
         console.log("Weather refresh check completed.", refreshedSomething ? "Some data was updated." : "No data needed update or failed to update.");
-    }
-    ,
-
-    validateAndDisplayGeminiKeyStatus: async (apiKeyToValidate, onOpen = false) => {
-        if (!apiKeyToValidate) {
-            ui.setApiKeyStatus('gemini', 'empty', 'Enter Key');
-            return;
-        }
-        if (!onOpen) ui.setApiKeyStatus('gemini', 'checking', 'Checking...');
-        const validationResult = await api.validateGeminiApiKey(apiKeyToValidate);
-        if (validationResult.isValid) {
-            ui.setApiKeyStatus('gemini', 'valid', 'Valid');
-        } else {
-            if (validationResult.reason === 'rate_limit') {
-                ui.setApiKeyStatus('gemini', 'rate_limit', 'Rate Limit');
-            } else { // Covers 'invalid', 'network_error', or any other reason
-                ui.setApiKeyStatus('gemini', 'invalid', 'Invalid');
-            }
-        }
-    },
-
-    validateAndDisplayOwmKeyStatus: async (apiKeyToValidate, onOpen = false) => {
-        if (!apiKeyToValidate) {
-            ui.setApiKeyStatus('owm', 'empty', 'Enter Key');
-            return;
-        }
-        if (!onOpen) ui.setApiKeyStatus('owm', 'checking', 'Checking...');
-        const validationResult = await api.validateOwmApiKey(apiKeyToValidate);
-        if (validationResult.isValid) {
-            ui.setApiKeyStatus('owm', 'valid', 'Valid');
-        } else {
-            if (validationResult.reason === 'rate_limit') {
-                ui.setApiKeyStatus('owm', 'rate_limit', 'Rate Limit');
-            } else { // Covers 'invalid', 'network_error', or any other reason
-                ui.setApiKeyStatus('owm', 'invalid', 'Invalid');
-            }
-        }
-    },
-
-    // Loader Management
-    incrementActiveLoaders: () => {
-        app.activeLoadingOperations++;
-        if (app.activeLoadingOperations === 1 && ui.startHeaderIconLoading) {
-            ui.startHeaderIconLoading();
-        }
-        // Ensure icon is running if it was paused
-        if (app.activeLoadingOperations > 0 && ui.resumeHeaderIconLoading && ui.headerIcon && ui.headerIcon.style.animationPlayState === 'paused') {
-            ui.resumeHeaderIconLoading();
-        }
-    },
-
-    decrementActiveLoaders: () => {
-        if (app.activeLoadingOperations > 0) {
-            app.activeLoadingOperations--;
-        }
-        if (app.activeLoadingOperations === 0 && ui.stopHeaderIconLoading) {
-            ui.stopHeaderIconLoading();
-            // Also ensure the refresh button is not stuck on "Waiting..." if all ops are done
-            if (ui.globalRefreshButton && ui.globalRefreshButton.textContent.startsWith("Waiting")) {
-                app.updateGlobalRefreshButtonVisibility();
-            }
-        }
     }
 
 };
