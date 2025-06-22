@@ -508,6 +508,27 @@ const ui = {
                 const content = this.nextElementSibling;
                 const currentlyCollapsed = (content.style.display === "none" || content.style.display === "");
                 content.style.display = currentlyCollapsed ? "block" : "none";
+
+                // If we just collapsed the item (it was previously not collapsed)
+                if (!currentlyCollapsed) {
+                    // Use a minimal timeout to allow the DOM to reflow after the display change.
+                    // This ensures our measurements of the modal's position are accurate.
+                    setTimeout(() => {
+                        const modalContentEl = ui.infoModal.querySelector('.modal-content');
+                        if (!modalContentEl) return;
+
+                        const modalRect = modalContentEl.getBoundingClientRect();
+                        const viewportHeight = window.innerHeight;
+
+                        // If the bottom of the modal content is now above the bottom of the viewport,
+                        // it means the modal has jumped up. We need to scroll it back down.
+                        if (modalRect.bottom < viewportHeight) {
+                            const scrollOffset = viewportHeight - modalRect.bottom;
+                            ui.infoModal.scrollTop -= scrollOffset;
+                        }
+                    }, 0);
+                }
+
                 store.saveTopicCollapsedState(location.id, topic.id, !currentlyCollapsed);
             };
 

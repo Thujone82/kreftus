@@ -476,6 +476,10 @@ const app = {
         if (!locationId) return;
         const location = app.locations.find(l => l.id === locationId);
         if (!location) return;
+        // Immediately hide the refresh button when a refresh is initiated.
+        if (ui.refreshInfoButton) {
+            ui.refreshInfoButton.classList.add('hidden');
+        }
         if(ui.infoModalTitle) ui.infoModalTitle.textContent = `${location.description} nfo2Go - Refreshing...`;
         if(ui.infoModalContent) ui.infoModalContent.innerHTML = '<p>Fetching fresh data...</p>';
         await app.fetchAndCacheAiDataForLocation(locationId, false);
