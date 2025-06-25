@@ -464,8 +464,13 @@
                         changedProperties.push(`startAngle: ${startAngleInput.value} (evaluates to ${(node.initialAbsoluteAngle * 180/Math.PI).toFixed(2)}°)`);
                     }
                     if (totalRotationsInput) {
-                        node.totalRotations = Math.max(0, parseInt(totalRotationsInput.value, 10) || 0);
-                        changedProperties.push(`totalRotations: ${node.totalRotations}`);
+                        // Ensure value is a non-negative integer, defaulting to 0.
+                        const finalValue = Math.max(0, parseInt(totalRotationsInput.value, 10) || 0);
+                        node.totalRotations = finalValue;
+                        // If the user's input was invalid (e.g., negative, text),
+                        // update the input field itself to show the corrected value.
+                        totalRotationsInput.value = finalValue;
+                        changedProperties.push(`totalRotations: ${finalValue}`);
                     }
                 } else {
                     const relSpeedInput = document.getElementById(`relSpeed${nodeId}`);
