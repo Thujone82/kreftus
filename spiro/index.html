@@ -436,9 +436,6 @@
                 if (widthSlider) node.width = parseFloat(widthSlider.value);
                 const alphaSlider = document.getElementById(`alpha${nodeId}`);
                 if (alphaSlider) node.alpha = parseInt(alphaSlider.value);
-                // For logging, check if values actually changed before adding to changedProperties
-                // This is a simplified check; a more robust check would compare against previous values.
-                // For now, we'll log the action of attempting an update.
 
                 if (drawCheckbox) node.isDrawing = drawCheckbox.checked;
 
@@ -446,6 +443,7 @@
                     const speedSlider = document.getElementById(`speed${nodeId}`);
                     const directionSelect = document.getElementById(`direction${nodeId}`);
                     const startAngleInput = document.getElementById(`startAngle${nodeId}`);
+                    const totalRotationsInput = document.getElementById(`totalRotations${nodeId}`);
 
                     if (speedSlider && directionSelect) {
                         const speedMultiplier = getLogValue(parseFloat(speedSlider.value), 0, 100, 0.1, 10);
@@ -465,11 +463,14 @@
                         }
                         changedProperties.push(`startAngle: ${startAngleInput.value} (evaluates to ${(node.initialAbsoluteAngle * 180/Math.PI).toFixed(2)}°)`);
                     }
+                    if (totalRotationsInput) {
+                        node.totalRotations = Math.max(0, parseInt(totalRotationsInput.value, 10) || 0);
+                        changedProperties.push(`totalRotations: ${node.totalRotations}`);
+                    }
                 } else {
                     const relSpeedInput = document.getElementById(`relSpeed${nodeId}`);
                     if (relSpeedInput) { node.relativeSpeed = parseFloat(relSpeedInput.value) || 0; changedProperties.push(`relativeSpeed: ${node.relativeSpeed}`); }
                 }
-                // Simplified logging for other properties for brevity
                 console.log(`Node ${nodeId} UI updated. Length: ${node.length}, Color: ${node.color}, Width: ${node.width}, Alpha: ${node.alpha}, Drawing: ${node.isDrawing}. ${changedProperties.join(', ')}`);
                 calculateAndSetZoom(); // Recalculate zoom and redraw
             }
@@ -484,9 +485,6 @@
                     if (i === 0) {
                          nodeAbsStaticAngle = node.initialAbsoluteAngle; 
                     } else {
-                        // The `parentAbsStaticAngle` variable now correctly holds the absolute angle
-                        // of the previous node (nodes[i-1]) as calculated in the prior loop iteration.
-                        // We use this directly, ensuring the chain effect.
                         nodeAbsStaticAngle = parentAbsStaticAngle + node.initialRelativeAngle; 
                     }
                     
@@ -515,7 +513,7 @@
                     ctx.beginPath();
                     ctx.moveTo(canvasCenterX + pos.startX * currentZoom, canvasCenterY + pos.startY * currentZoom);
                     ctx.lineTo(canvasCenterX + pos.endX * currentZoom, canvasCenterY + pos.endY * currentZoom);
-                    ctx.strokeStyle = hexToRgba(pos.nodeVisibleColor, 0.5); // Arm itself can keep a fixed alpha for visibility
+                    ctx.strokeStyle = hexToRgba(pos.nodeVisibleColor, 0.5);
                     ctx.lineWidth = Math.max(1, pos.nodeWidth * currentZoom); ctx.stroke();
                     ctx.beginPath();
                     ctx.arc(canvasCenterX + pos.endX * currentZoom, canvasCenterY + pos.endY * currentZoom, Math.max(2, 5 * currentZoom), 0, 2 * Math.PI);
@@ -527,7 +525,6 @@
             function drawAllTraces() {
                 const canvasCenterX = canvas.width / 2 + canvasOffsetX; 
                 const canvasCenterY = canvas.height / 2 + canvasOffsetY; 
-                // ctx.lineWidth set per segment now
                 allTraceSegments.forEach(segment => { 
                     if (segment.points.length > 1) {
                         ctx.strokeStyle = hexToRgba(segment.color, segment.nodeAlpha / 100);
@@ -556,12 +553,15 @@
                         let newAbsoluteAngleThisSubStep;
                         const prevAbsoluteAngleForSubStep = node.currentAbsoluteAngle; 
                         
-                        if (i === 0) { 
+                        if (i === 0) {
+                            const dAngleBase = node.speed * dt_step;
+                            node.totalAngleTraversed += dAngleBase; // Always accumulate positive angle
+
                             if (node.direction === 0) { 
                                 newAbsoluteAngleThisSubStep = node.initialAbsoluteAngle; 
-                                node.virtual_dAngle = node.speed * 1 * dt_step; 
+                                node.virtual_dAngle = dAngleBase; 
                             } else {
-                                const dAngle = node.speed * node.direction * dt_step; 
+                                const dAngle = dAngleBase * node.direction; 
                                 newAbsoluteAngleThisSubStep = prevAbsoluteAngleForSubStep + dAngle; 
                                 node.virtual_dAngle = dAngle; 
                             }
@@ -600,7 +600,7 @@
                     ctx.beginPath();
                     ctx.moveTo(canvasCenterX + currentLogicalX_draw * currentZoom, canvasCenterY + currentLogicalY_draw * currentZoom);
                     ctx.lineTo(canvasCenterX + armEndX_draw * currentZoom, canvasCenterY + armEndY_draw * currentZoom);
-                    ctx.strokeStyle = hexToRgba(displayColor, 0.5); // Arm itself can keep a fixed alpha for visibility
+                    ctx.strokeStyle = hexToRgba(displayColor, 0.5);
                     ctx.lineWidth = Math.max(1, node.width * currentZoom); ctx.stroke();
                     ctx.beginPath();
                     ctx.arc(canvasCenterX + armEndX_draw * currentZoom, canvasCenterY + armEndY_draw * currentZoom, Math.max(2, 5 * currentZoom), 0, 2 * Math.PI);
@@ -608,7 +608,14 @@
                     currentLogicalX_draw = armEndX_draw; currentLogicalY_draw = armEndY_draw;
                 }
                 drawAllTraces(); 
-                animationFrameId = requestAnimationFrame(drawSpirographFrame);
+
+                const node1 = nodes[0];
+                if (node1 && node1.totalRotations > 0 && (node1.totalAngleTraversed >= node1.totalRotations * 2 * Math.PI)) {
+                    console.log(`Target rotations (${node1.totalRotations}) reached. Halting simulation.`);
+                    stopSimulation();
+                } else {
+                    animationFrameId = requestAnimationFrame(drawSpirographFrame);
+                }
             }
 
             function createNodeControls(nodeId, isFirstNode) {
@@ -618,22 +625,26 @@
                 nodeDiv.setAttribute('data-runtime-hide', 'true');
                 const removeBtnHtml = nodeId > 1 ? `<button class="remove-node-btn" data-nodeid="${nodeId}">Remove</button>` : '';
                 
-                let startAngleControlHtml = '';
+                let controlHtml = '';
                 if (isFirstNode) {
                     const initialAngleDeg = (node.initialAbsoluteAngle * (180 / Math.PI)).toFixed(1);
-                    startAngleControlHtml = `
+                    controlHtml = `
                         <div class="input-container" id="node${nodeId}-start-angle-control">
                             <label for="startAngle${nodeId}">Starting Angle:</label>
                             <div class="input-group">
                                 <input type="text" id="startAngle${nodeId}" value="${initialAngleDeg}" data-nodeid="${nodeId}" placeholder="e.g. -90 or 360/3">
                                 <button id="setStartAngle${nodeId}" class="button-secondary">Set</button>
                             </div>
+                        </div>
+                        <div class="input-container" id="node${nodeId}-rotations-control">
+                            <label for="totalRotations${nodeId}">Total Rotations (0 to run till stopped):</label>
+                            <input type="number" id="totalRotations${nodeId}" value="${node.totalRotations}" min="0" step="1" data-nodeid="${nodeId}">
                         </div>`;
                 }
 
                 nodeDiv.innerHTML = `
                     <h4>Node ${nodeId} ${removeBtnHtml}</h4>
-                    ${startAngleControlHtml} 
+                    ${controlHtml} 
                     <div class="slider-container" id="node${nodeId}-length-control">
                         <label for="length${nodeId}">Length: <span id="length${nodeId}-val">${node.length}</span>px</label>
                         <input type="range" id="length${nodeId}" min="10" max="${isFirstNode ? '1000' : '250'}" value="${node.length}" data-nodeid="${nodeId}">
@@ -713,6 +724,10 @@
                     if(setStartAngleBtn) { 
                         setStartAngleBtn.addEventListener('click', () => updateNodeFromUI(nodeId));
                     }
+                    const totalRotationsInputEl = nodeDiv.querySelector(`#totalRotations${nodeId}`);
+                    if (totalRotationsInputEl) {
+                        totalRotationsInputEl.addEventListener('change', () => updateNodeFromUI(nodeId));
+                    }
                 } else {
                     nodeDiv.querySelector(`#relSpeed${nodeId}`).addEventListener('input', () => updateNodeFromUI(nodeId));
                     if(removeBtnHtml) nodeDiv.querySelector('.remove-node-btn').addEventListener('click', () => removeNodeById(nodeId));
@@ -745,9 +760,11 @@
 
                 const newNode = {
                     id: nodeId, length: nodeLength, color: newNodeColor, 
-                    width: 1.5, // Default trace width
-                    alpha: 100, // Default trace alpha (100%)
+                    width: 1.5,
+                    alpha: 100,
                     isDrawing: nodeIsDrawing,
+                    totalRotations: 0,
+                    totalAngleTraversed: 0,
                     speedMultiplier: 1.0, speed: BASE_SPEED_RPM * (2 * Math.PI / 60), 
                     direction: 1, 
                     relativeSpeed: nodeRelativeSpeed, 
@@ -791,9 +808,7 @@
                 nodes = nodes.filter(n => n.id !== nodeIdToRemove);
                 const nodeConfigEl = document.getElementById(`node-config-${nodeIdToRemove}`);
                 if (nodeConfigEl) nodeConfigEl.remove();
-                // CRITICAL FIX: Do NOT filter allTraceSegments here. Traces should persist.
                 console.log(`Node ${nodeIdToRemove} removed.`);
-                // allTraceSegments = allTraceSegments.filter(segment => segment.nodeId !== nodeIdToRemove);
                 updateAddRemoveButtons();
                 calculateAndSetZoom();
             }
@@ -801,7 +816,6 @@
             function resetNodeConfigurations() { 
                 if (isRunning) stopSimulation();
                 nodes = []; 
-                // Zoom and pan will be reset by calculateAndSetZoom called from addNode
                 nodesConfigContainer.innerHTML = ''; 
                 addNode(); addNode(); 
                 updateAddRemoveButtons();
@@ -847,6 +861,7 @@
 
                 nodes.forEach(node => {
                     if (node.id === 1) {
+                        node.totalAngleTraversed = 0; // Reset rotation counter
                         const startAngleInput = document.getElementById(`startAngle${node.id}`);
                         if (startAngleInput) {
                              const defaultAngleDeg = (node.initialAbsoluteAngle * (180 / Math.PI));
@@ -863,8 +878,8 @@
                     if (node.isDrawing) {
                         const newSegment = { 
                             nodeId: node.id, color: node.color, points: [],
-                            nodeWidth: node.width, // Capture width at sim start
-                            nodeAlpha: node.alpha  // Capture alpha at sim start
+                            nodeWidth: node.width,
+                            nodeAlpha: node.alpha
                         };
                         allTraceSegments.push(newSegment);
                         currentSegmentMap.set(node.id, newSegment); 
@@ -892,6 +907,7 @@
                             const isSpeedControl = child.id === 'node1-speed-control-slider' || child.id === 'node1-speed-control-direction';
                             const isHeader = child.tagName.toLowerCase() === 'h4';
                             const isStartAngleControlGroup = child.id === `node1-start-angle-control`;
+                            const isRotationsControlGroup = child.id === `node1-rotations-control`;
                             
                             if (simRunning) { 
                                 if (!isSpeedControl && !isHeader) child.classList.add('control-hidden-during-run');
@@ -902,6 +918,7 @@
                                     const setAngleBtn = el.querySelector(`#setStartAngle1`);
                                     if(setAngleBtn) setAngleBtn.classList.add('control-hidden-during-run');
                                 }
+                                if(isRotationsControlGroup) el.querySelector(`#totalRotations1`).disabled = true;
 
                             } else { 
                                 child.classList.remove('control-hidden-during-run'); 
@@ -910,6 +927,7 @@
                                      const setAngleBtn = el.querySelector(`#setStartAngle1`);
                                      if(setAngleBtn) setAngleBtn.classList.remove('control-hidden-during-run');
                                 }
+                                if(isRotationsControlGroup) el.querySelector(`#totalRotations1`).disabled = false;
                             }
                         });
                     } else { 
@@ -969,7 +987,6 @@
                 canvasOffsetY += dy;
                 lastPanX = pos.x;
                 lastPanY = pos.y;
-                // console.log(`Canvas panned. OffsetX: ${canvasOffsetX.toFixed(2)}, OffsetY: ${canvasOffsetY.toFixed(2)}`); // Can be very verbose
                 if (!isRunning) drawStaticSpirograph();
             }
 
@@ -1007,12 +1024,8 @@
             function handleMouseWheelZoom(event) {
                 event.preventDefault(); // Prevent page scrolling
                 const delta = event.deltaY * ZOOM_SENSITIVITY * -1; // Invert scroll direction for intuitive zoom
-                const oldZoom = currentZoom;
                 currentZoom += delta;
                 currentZoom = Math.max(parseFloat(zoomSlider.min), Math.min(parseFloat(zoomSlider.max), currentZoom));
-
-                // TODO: Implement zoom towards mouse cursor later if desired
-                // For now, it zooms towards the center
 
                 zoomSlider.value = currentZoom;
                 zoomValSpan.textContent = currentZoom.toFixed(2);
@@ -1025,11 +1038,11 @@
             canvas.addEventListener('mousemove', onPanMove);
             canvas.addEventListener('mouseup', onPanEnd);
             canvas.addEventListener('mouseleave', onPanEnd);
-            canvas.addEventListener('touchstart', onPanStart, { passive: false }); // passive: false to allow preventDefault
-            canvas.addEventListener('touchmove', onPanMove, { passive: false });  // passive: false to allow preventDefault
+            canvas.addEventListener('touchstart', onPanStart, { passive: false });
+            canvas.addEventListener('touchmove', onPanMove, { passive: false });
             canvas.addEventListener('touchend', onPanEnd);
             canvas.addEventListener('touchcancel', onPanEnd);
-            canvas.addEventListener('wheel', handleMouseWheelZoom, { passive: false }); // For mouse wheel zoom
+            canvas.addEventListener('wheel', handleMouseWheelZoom, { passive: false });
 
 
             simBgColorPicker.addEventListener('input', (e) => { 
@@ -1056,7 +1069,7 @@
             
             // --- Memory Button Logic ---
             memoryStoreButton.addEventListener('click', () => {
-                if (isRunning) stopSimulation(); // Ensure simulation is stopped before saving
+                if (isRunning) stopSimulation();
                 memorySlot = {
                     traces: JSON.parse(JSON.stringify(allTraceSegments)),
                     zoom: currentZoom,
@@ -1085,12 +1098,10 @@
 
                 document.documentElement.style.setProperty('--sim-background-color', memorySlot.bgColor);
                 document.documentElement.style.setProperty('--main-color', memorySlot.hlColor);
-                updateDynamicTheme(); // Applies color changes and redraws if not running
+                updateDynamicTheme();
 
                 allTraceSegments = JSON.parse(JSON.stringify(memorySlot.traces));
                 
-                // Node configurations are NOT restored, so current nodes remain.
-                // Redraw the static scene with recalled traces and view settings.
                 drawStaticSpirograph(); 
                 console.log("State recalled from memory.");
             });
