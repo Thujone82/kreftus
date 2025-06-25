@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spirograph Generator v2.3</title> 
+    <title>Spirograph Generator v2.4</title> 
     <link rel="icon" href="./icons/s32.png" type="image/png">
     <!-- You can create a 32x32.png from your 512x512.png or 192x192.png -->
     <link rel="apple-touch-icon" href="./icons/s192.png">
@@ -94,7 +94,6 @@
             border-bottom: 1px dashed var(--panel-border-color);
             transition: opacity 0.3s ease, max-height 0.3s ease, margin 0.3s ease, padding 0.3s ease; 
         }
-        .control-group:last-of-type { }
 
 
         .slider-container, .color-picker-container, .input-container, .checkbox-container, .select-container {
@@ -160,7 +159,6 @@
         }
         select {
              appearance: none; -webkit-appearance: none; -moz-appearance: none;
-             background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23%24%7BencodeURIComponent(getComputedStyle(document.documentElement).getPropertyValue('--main-color').trim().substring(1))%7D%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.4-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E');
              background-repeat: no-repeat; background-position: right 10px center;
              background-size: 10px auto; padding-right: 30px; 
         }
@@ -241,7 +239,7 @@
 <body>
     <div class="container">
         <div id="setup-panel" class="panel">
-            <h2>SpiroGen v2.3</h2> 
+            <h2>SpiroGen v2.4</h2> 
             <div class="control-group" id="global-settings-group">
                 <h3>Global Settings</h3>
                 <div class="color-picker-container">
@@ -331,6 +329,17 @@
             function hexToRgba(hex,alpha) { const rgb=hexToRgb(hex); return rgb?`rgba(${rgb.r},${rgb.g},${rgb.b},${alpha})`:`rgba(0,0,0,${alpha})`; }
             function getContrastYIQ(hex){ const rgb=hexToRgb(hex); if(!rgb)return'white'; const yiq=((rgb.r*299)+(rgb.g*587)+(rgb.b*114))/1000; return(yiq>=128)?'black':'white'; }
 
+            function updateSelectArrowColor() {
+                const mainColor = getComputedStyle(document.documentElement).getPropertyValue('--main-color').trim();
+                if (!mainColor) return; // Guard against running before styles are set
+                const encodedColor = encodeURIComponent(mainColor.substring(1));
+                const svgUrl = `url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23${encodedColor}%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.4-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E')`;
+                
+                document.querySelectorAll('select').forEach(selectEl => {
+                    selectEl.style.backgroundImage = svgUrl;
+                });
+            }
+
             function updateDynamicTheme() {
                 const simBg = document.documentElement.style.getPropertyValue('--sim-background-color');
                 const mainC = document.documentElement.style.getPropertyValue('--main-color');
@@ -343,6 +352,7 @@
                 document.documentElement.style.setProperty('--button-text-color', getContrastYIQ(mainC) === 'black' ? '#101020' : '#F0F0F8');
                 const mainColorRGB = hexToRgb(mainC);
                 if (mainColorRGB) document.documentElement.style.setProperty('--main-color-rgb', `${mainColorRGB.r},${mainColorRGB.g},${mainColorRGB.b}`);
+                updateSelectArrowColor();
                 document.querySelectorAll('input[type="range"]').forEach(updateSliderFill);
                 if (!isRunning) drawStaticSpirograph();
             }
@@ -365,6 +375,30 @@
                 const minL = Math.log(minV); const maxL = Math.log(maxV);
                 const scale = (maxL - minL) / (sMax - sMin);
                 return Math.exp(minL + scale * (sliderValue - sMin));
+            }
+            
+            function calculateAndSetZoom() {
+                if (nodes.length === 0) {
+                    resetPanAndRedraw();
+                    return;
+                }
+                // Sum of all node lengths gives the maximum possible radius
+                const maxRadius = nodes.reduce((sum, node) => sum + parseFloat(node.length), 0);
+                const maxDiameter = maxRadius * 2;
+                const canvasSize = canvas.width;
+                let newZoom = 1.0; // Default zoom
+                if (maxDiameter > 0) {
+                    // Fit diameter within 95% of canvas size for a small margin
+                    newZoom = (canvasSize * 0.95) / maxDiameter;
+                }
+                newZoom = Math.max(parseFloat(zoomSlider.min), Math.min(parseFloat(zoomSlider.max), newZoom));
+                if (!isFinite(newZoom) || newZoom <= 0) newZoom = 1.0;
+                currentZoom = newZoom;
+                zoomSlider.value = currentZoom;
+                zoomValSpan.textContent = currentZoom.toFixed(2);
+                updateSliderFill(zoomSlider);
+                console.log(`Auto-zoom calculated. Max radius: ${maxRadius.toFixed(0)}px, New zoom: ${currentZoom.toFixed(2)}x`);
+                resetPanAndRedraw(); // This will reset pan and redraw the canvas
             }
             
             function resetPanAndRedraw() {
@@ -437,7 +471,7 @@
                 }
                 // Simplified logging for other properties for brevity
                 console.log(`Node ${nodeId} UI updated. Length: ${node.length}, Color: ${node.color}, Width: ${node.width}, Alpha: ${node.alpha}, Drawing: ${node.isDrawing}. ${changedProperties.join(', ')}`);
-                resetPanAndRedraw(); // Call redraw after all node properties are updated
+                calculateAndSetZoom(); // Recalculate zoom and redraw
             }
             
             function calculateStaticNodePositions() { 
@@ -699,7 +733,7 @@
                 let nodeRelativeSpeed = isSecondNode ? 2 : 1;
 
                 if (isFirstNode) {
-                    nodeLength = Math.floor(Math.random() * (150 - 50 + 1)) + 50; // Random length 50-150
+                    nodeLength = Math.floor(Math.random() * (200 - 25 + 1)) + 25; // Random length 25-200
                     nodeIsDrawing = false; // Drawing disabled for Node 1
                 } else if (isSecondNode) {
                     nodeLength = Math.floor(Math.random() * (150 - 25 + 1)) + 25; // Random length 25-150
@@ -748,7 +782,7 @@
                      document.getElementById(`speed${nodeId}-val`).textContent = newNode.speedMultiplier.toFixed(2) + 'x';
                 }
                 updateAddRemoveButtons();
-                if (!isRunning) drawStaticSpirograph(); 
+                calculateAndSetZoom();
             }
             
             function removeNodeById(nodeIdToRemove) {
@@ -760,17 +794,14 @@
                 // CRITICAL FIX: Do NOT filter allTraceSegments here. Traces should persist.
                 console.log(`Node ${nodeIdToRemove} removed.`);
                 // allTraceSegments = allTraceSegments.filter(segment => segment.nodeId !== nodeIdToRemove);
-                // currentSegmentMap.delete(nodeIdToRemove); // This is for active segments, so it's okay to clear if node is gone
                 updateAddRemoveButtons();
-                if(isRunning) drawSpirographFrame(); 
-                else drawStaticSpirograph(); 
+                calculateAndSetZoom();
             }
 
             function resetNodeConfigurations() { 
                 if (isRunning) stopSimulation();
                 nodes = []; 
-                canvasOffsetX = 0; canvasOffsetY = 0; 
-                currentZoom = 1.0; zoomSlider.value = 1.0; updateSliderFill(zoomSlider); zoomValSpan.textContent = "1.0";
+                // Zoom and pan will be reset by calculateAndSetZoom called from addNode
                 nodesConfigContainer.innerHTML = ''; 
                 addNode(); addNode(); 
                 updateAddRemoveButtons();
@@ -780,6 +811,7 @@
                 } else {
                     downloadButton.classList.remove('hidden');
                 }
+                updateSelectArrowColor();
                 if (!isRunning) drawStaticSpirograph(); 
             }
 
@@ -1083,7 +1115,7 @@
 
                     tempCtx.stroke(); }});
                 const link = document.createElement('a'); link.href = tempCanvas.toDataURL('image/png');
-                link.download = 'spirograph_v2.3.png'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                link.download = 'spirograph_v2.4.png'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
             });
 
             function initialize() {
@@ -1102,10 +1134,45 @@
                 resizeCanvas(); window.addEventListener('resize', resizeCanvas);
                 updateSliderFill(zoomSlider);
                 memoryRecallButton.disabled = true; // Initially disabled
+                updateSelectArrowColor();
                 
                 if ('serviceWorker' in navigator) {
+                    // This logic handles the auto-update flow.
+                    // When a new service worker is activated, the page is reloaded
+                    // to ensure the user gets the latest version of the app.
+                    let refreshing;
+                    navigator.serviceWorker.addEventListener('controllerchange', () => {
+                        if (refreshing) return;
+                        console.log('Controller changed, reloading for update...');
+                        window.location.reload();
+                        refreshing = true;
+                    });
+
                     navigator.serviceWorker.register('sw.js')
-                    .then((registration) => { console.log('Service Worker registered for SpiroGen v2.3. Scope:', registration.scope); })
+                    .then((registration) => {
+                        console.log('Service Worker registered for SpiroGen v2.4. Scope:', registration.scope);
+                        
+                        // Listen for the updatefound event.
+                        registration.onupdatefound = () => {
+                            const installingWorker = registration.installing;
+                            if (installingWorker == null) {
+                                return;
+                            }
+                            installingWorker.onstatechange = () => {
+                                if (installingWorker.state === 'installed') {
+                                    if (navigator.serviceWorker.controller) {
+                                        // A new service worker has been installed.
+                                        // Because sw.js calls self.skipWaiting(), it will
+                                        // activate automatically, triggering the 'controllerchange'
+                                        // event handled above.
+                                        console.log('New service worker installed. Page will reload shortly.');
+                                    } else {
+                                        console.log('Content is cached for offline use.');
+                                    }
+                                }
+                            };
+                        };
+                    })
                     .catch((error) => { console.error('Service Worker registration failed. Ensure sw.js is present and correctly configured. Error:', error); });
                 }
             }
