@@ -1123,15 +1123,18 @@
                 document.documentElement.style.setProperty('--sim-background-color', currentTheme.bg);
                 document.documentElement.style.setProperty('--main-color', currentTheme.hl);
                 simBgColorPicker.value = currentTheme.bg; mainColorPickerEl.value = currentTheme.hl;
-                updateDynamicTheme(); 
-                addNode(); addNode(); 
+                updateDynamicTheme();
+
+                // Set canvas size *before* adding nodes so initial auto-zoom is correct.
+                resizeCanvas();
+                window.addEventListener('resize', resizeCanvas);
+                addNode(); addNode();
 
                 // Move Global Settings group to its new position
                 setupPanel.insertBefore(globalSettingsGroup, addNodeButton);
 
                 setControlsVisibility(false); 
                 updateAddRemoveButtons(); 
-                resizeCanvas(); window.addEventListener('resize', resizeCanvas);
                 updateSliderFill(zoomSlider);
                 memoryRecallButton.disabled = true; // Initially disabled
                 updateSelectArrowColor();
