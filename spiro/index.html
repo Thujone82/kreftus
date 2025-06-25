@@ -424,6 +424,30 @@
                 return resultDeg * (Math.PI / 180); 
             }
 
+            function evaluateRotationExpression(expressionStr, defaultVal = 0) {
+                let result = defaultVal;
+                try {
+                    const sanitizedExpression = String(expressionStr || '')
+                        .replace(/PI/gi, Math.PI.toString())
+                        .replace(/[^-()\d/*+%.MathpPIi\s]/g, '');
+
+                    if (sanitizedExpression.trim() === "") {
+                        return defaultVal;
+                    }
+
+                    const evaluated = Function('"use strict";return (' + sanitizedExpression + ')')();
+
+                    if (typeof evaluated === 'number' && isFinite(evaluated)) {
+                        result = Math.max(0, evaluated); // Ensure non-negative
+                    } else {
+                        console.warn(`Expression "${expressionStr}" evaluated to non-finite number: ${evaluated}. Using default.`);
+                    }
+                } catch (error) {
+                    console.warn(`Error evaluating rotation expression "${expressionStr}":`, error, `. Using default ${defaultVal}.`);
+                }
+                return result;
+            }
+
             function updateNodeFromUI(nodeId) {
                 const node = nodes.find(n => n.id === nodeId); if (!node) return;
                 let changedProperties = [];
@@ -464,13 +488,11 @@
                         changedProperties.push(`startAngle: ${startAngleInput.value} (evaluates to ${(node.initialAbsoluteAngle * 180/Math.PI).toFixed(2)}°)`);
                     }
                     if (totalRotationsInput) {
-                        // Ensure value is a non-negative integer, defaulting to 0.
-                        const finalValue = Math.max(0, parseInt(totalRotationsInput.value, 10) || 0);
+                        // Keep the user's expression in the input field.
+                        const expression = totalRotationsInput.value;
+                        const finalValue = evaluateRotationExpression(expression, 0);
                         node.totalRotations = finalValue;
-                        // If the user's input was invalid (e.g., negative, text),
-                        // update the input field itself to show the corrected value.
-                        totalRotationsInput.value = finalValue;
-                        changedProperties.push(`totalRotations: ${finalValue}`);
+                        changedProperties.push(`totalRotations: ${expression} (evaluates to ${finalValue.toFixed(3)})`);
                     }
                 } else {
                     const relSpeedInput = document.getElementById(`relSpeed${nodeId}`);
@@ -643,7 +665,7 @@
                         </div>
                         <div class="input-container" id="node${nodeId}-rotations-control">
                             <label for="totalRotations${nodeId}">Total Rotations (0 to run till stopped):</label>
-                            <input type="number" id="totalRotations${nodeId}" value="${node.totalRotations}" min="0" step="1" data-nodeid="${nodeId}">
+                            <input type="text" id="totalRotations${nodeId}" value="${node.totalRotations}" data-nodeid="${nodeId}" placeholder="e.g. 10 or 2*PI">
                         </div>`;
                 }
 
