@@ -523,6 +523,9 @@
             <h2 id="configModalTitle">Configuration</h2>
             <label for="apiKey">LiveCoinWatch API Key:</label>
             <input type="text" id="apiKey" placeholder="Enter your API Key">
+            <div id="getApiKeyLinkContainer" style="text-align: right; margin-top: -5px; margin-bottom: 10px;">
+                <a href="https://www.livecoinwatch.com/tools/api" target="_blank" rel="noopener noreferrer" style="font-size: 0.8em; color: var(--accent-color, #f7931a);">Get Free API Key</a>
+            </div>
 
             <label for="userBtcAmount">My BTC Amount (Optional):</label>
             <input type="number" id="userBtcAmount" placeholder="e.g., 0.5" step="any">
@@ -614,6 +617,7 @@
         const insightContentEl = document.getElementById('insightContent');
         const insightTimestampEl = document.getElementById('insightTimestamp'); 
         const updateInsightButtonEl = document.getElementById('updateInsightButton');
+        const getApiKeyLinkContainerEl = document.getElementById('getApiKeyLinkContainer');
 
         // PWA Update Notification Elements
         const updateNotificationEl = document.getElementById('updateNotification');
@@ -923,6 +927,7 @@
                 userTotalCostInput.value = config.userTotalCost || '';
                 googleApiKeyInput.value = config.googleApiKey || '';
                 accentColorPickerEl.value = config.accentColor || DEFAULT_ACCENT_COLOR;
+                getApiKeyLinkContainerEl.style.display = config.apiKey ? 'none' : 'block';
             }
         }
 
@@ -1518,6 +1523,10 @@
             config.cachedChartData = {}; 
             await saveAppData(); 
             fetchData(true); 
+        });
+
+        apiKeyInput.addEventListener('input', () => {
+            getApiKeyLinkContainerEl.style.display = apiKeyInput.value.trim() ? 'none' : 'block';
         });
 
 
