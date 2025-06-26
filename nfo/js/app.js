@@ -236,6 +236,15 @@ const app = {
                 app.triggerUpdate();
             };
         }
+        // Show/hide API keys on focus/blur for easier editing
+        if (ui.apiKeyInput) {
+            ui.apiKeyInput.addEventListener('focus', (e) => { e.target.type = 'text'; });
+            ui.apiKeyInput.addEventListener('blur', (e) => { e.target.type = 'password'; });
+        }
+        if (ui.owmApiKeyInput) {
+            ui.owmApiKeyInput.addEventListener('focus', (e) => { e.target.type = 'text'; });
+            ui.owmApiKeyInput.addEventListener('blur', (e) => { e.target.type = 'password'; });
+        }
         console.log("Event listeners set up.");
     },
 
