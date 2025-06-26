@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">    
-    <title>BTC Track v1.3.7</title>
+    <title>BTC Track v1.4</title>
     <link rel="icon" href="./icons/32.png" type="image/png">
     <!-- You can create a 32x32.png from your 512x512.png or 192x192.png -->
     <link rel="apple-touch-icon" href="./icons/192.png">
@@ -323,6 +323,7 @@
 
         .modal-content input[type="text"],
         .modal-content input[type="number"],
+        .modal-content input[type="password"],
         .modal-content input[type="color"],
         .modal-content select { /* General styling for select elements in modal */
             width: calc(100% - 20px);
@@ -337,6 +338,23 @@
         .modal-content input[type="color"] { /* Specific for color picker height */
              height: 40px; 
              padding: 5px; /* Adjust padding for color picker */
+        }
+        /* API Key Input Styling */
+        .api-key-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px; /* Space between input and status icon */
+        }
+        .api-key-input {
+            flex-grow: 1; /* Allow input to take up available space */
+            width: auto; /* Override the general input width */
+            min-width: 0; /* Prevent overflow in tight spaces */
+            margin-bottom: 0; /* Wrapper handles vertical spacing */
+        }
+        .api-key-status {
+            font-size: 1.2em;
+            cursor: default;
+            flex-shrink: 0; /* Prevent status icon from shrinking */
         }
          .modal-content input[type="number"]::-webkit-inner-spin-button,
          .modal-content input[type="number"]::-webkit-outer-spin-button {
@@ -522,7 +540,10 @@
         <div class="modal-content">
             <h2 id="configModalTitle">Configuration</h2>
             <label for="apiKey">LiveCoinWatch API Key:</label>
-            <input type="text" id="apiKey" placeholder="Enter your API Key">
+            <div class="api-key-wrapper">
+                <input type="password" id="apiKey" placeholder="Enter your API Key" class="api-key-input">
+                <span id="liveCoinWatchApiKeyStatus" class="api-key-status"></span>
+            </div>
             <div id="getApiKeyLinkContainer" style="text-align: right; margin-top: -5px; margin-bottom: 10px;">
                 <a href="https://www.livecoinwatch.com/tools/api" target="_blank" rel="noopener noreferrer" style="font-size: 0.8em; color: var(--accent-color, #f7931a);">Get Free API Key</a>
             </div>
@@ -534,7 +555,13 @@
             <input type="number" id="userTotalCost" placeholder="e.g., 10000" step="any">
             
             <label for="googleApiKey">Google API Key (for Insights):</label>
-            <input type="text" id="googleApiKey" placeholder="Enter your Google API Key">
+            <div class="api-key-wrapper">
+                <input type="password" id="googleApiKey" placeholder="Enter your Google API Key" class="api-key-input">
+                <span id="googleApiKeyStatus" class="api-key-status"></span>
+            </div>
+            <div id="getGoogleApiKeyLinkContainer" style="text-align: right; margin-top: -5px; margin-bottom: 10px;">
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style="font-size: 0.8em; color: var(--accent-color, #f7931a);">Get Free API Key</a>
+            </div>
 
             <label for="accentColorPicker">Accent Color:</label>
             <input type="color" id="accentColorPicker">
@@ -569,6 +596,88 @@
     </div>
 
     <script>
+        // Debounce function
+        function debounce(func, delay) {
+            let timeout;
+            return function(...args) {
+                const context = this;
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(context, args), delay);
+            };
+        }
+
+        // --- API Key Validation ---
+
+        let validationAbortControllers = {
+            livecoinwatch: null,
+            google: null
+        };
+
+        async function validateLiveCoinWatchApiKey(apiKey) {
+            if (validationAbortControllers.livecoinwatch) {
+                validationAbortControllers.livecoinwatch.abort();
+            }
+            validationAbortControllers.livecoinwatch = new AbortController();
+            const signal = validationAbortControllers.livecoinwatch.signal;
+
+            if (!apiKey) {
+                liveCoinWatchApiKeyStatusEl.textContent = '';
+                return;
+            }
+
+            liveCoinWatchApiKeyStatusEl.textContent = '...'; // Loading/checking indicator
+            liveCoinWatchApiKeyStatusEl.title = 'Checking key...';
+
+            try {
+                // The /credits endpoint is a lightweight way to check for a valid key
+                const response = await fetch(`${API_BASE_URL}/credits`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+                    signal
+                });
+
+                if (signal.aborted) return;
+
+                liveCoinWatchApiKeyStatusEl.textContent = response.ok ? '✅' : '❌';
+                liveCoinWatchApiKeyStatusEl.title = response.ok ? 'API Key is valid!' : `Invalid key (Status: ${response.status})`;
+            } catch (error) {
+                if (error.name === 'AbortError') return; // Abort is expected, do nothing
+                console.error('Error validating LiveCoinWatch API key:', error);
+                liveCoinWatchApiKeyStatusEl.textContent = '⚠️';
+                liveCoinWatchApiKeyStatusEl.title = 'Network error during validation';
+            }
+        }
+
+        async function validateGoogleApiKey(apiKey) {
+            if (validationAbortControllers.google) {
+                validationAbortControllers.google.abort();
+            }
+            validationAbortControllers.google = new AbortController();
+            const signal = validationAbortControllers.google.signal;
+
+            if (!apiKey) {
+                googleApiKeyStatusEl.textContent = '';
+                return;
+            }
+
+            googleApiKeyStatusEl.textContent = '...';
+            googleApiKeyStatusEl.title = 'Checking key...';
+
+            try {
+                const validationUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+                const response = await fetch(validationUrl, { signal });
+
+                if (signal.aborted) return;
+
+                googleApiKeyStatusEl.textContent = response.ok ? '✅' : '❌';
+                googleApiKeyStatusEl.title = response.ok ? 'API Key is valid!' : `Invalid key (Status: ${response.status})`;
+            } catch (error) {
+                if (error.name === 'AbortError') return; // Abort is expected, do nothing
+                console.error('Error validating Google API key:', error);
+                googleApiKeyStatusEl.textContent = '⚠️';
+                googleApiKeyStatusEl.title = 'Network error during validation';
+            }
+        }
         const API_BASE_URL = "https://api.livecoinwatch.com";
         const COIN_CODE = "BTC";
         const CURRENCY = "USD";
@@ -608,7 +717,11 @@
         const userBtcAmountInput = document.getElementById('userBtcAmount');
         const userTotalCostInput = document.getElementById('userTotalCost');
         const googleApiKeyInput = document.getElementById('googleApiKey');
+        const getGoogleApiKeyLinkContainerEl = document.getElementById('getGoogleApiKeyLinkContainer');
         const accentColorPickerEl = document.getElementById('accentColorPicker');
+
+        const liveCoinWatchApiKeyStatusEl = document.getElementById('liveCoinWatchApiKeyStatus');
+        const googleApiKeyStatusEl = document.getElementById('googleApiKeyStatus');
 
         const insightsButtonEl = document.getElementById('insightsButton');
         const insightModalEl = document.getElementById('insightModal');
@@ -626,7 +739,7 @@
 
         // Markdown Processing - Adapted from /nfo/js/utils.js
         function applyInlineFormattingForInsight(lineContent) {
-            // Links: [text](url)
+            // Links: text
             lineContent = lineContent.replace(/\[([^\]]+?)\]\(([^)]+?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
             // Inline Code: `code`
             lineContent = lineContent.replace(/`([^`]+?)`/g, '<code>$1</code>');
@@ -928,6 +1041,11 @@
                 googleApiKeyInput.value = config.googleApiKey || '';
                 accentColorPickerEl.value = config.accentColor || DEFAULT_ACCENT_COLOR;
                 getApiKeyLinkContainerEl.style.display = config.apiKey ? 'none' : 'block';
+                getGoogleApiKeyLinkContainerEl.style.display = config.googleApiKey ? 'none' : 'block';
+
+                // Initial validation status
+                validateLiveCoinWatchApiKey(config.apiKey);
+                validateGoogleApiKey(config.googleApiKey);
             }
         }
 
@@ -1231,7 +1349,7 @@
                     lastDataFetchTimestamp = config.lastFetchedCurrentDataTimestamp; 
                     window.lastFetchedCurrentData = _current_data_cache; 
                     window.lastFetchedHistoricalChartData = selectedChartCache.data; 
-                    updateDisplay(_current_data_cache, selectedChartCache.historicalRateAtStart, selectedChartCache.data);
+                    updateDisplay(_current_data_cache, selectedChartCache.historicalRateAtStart, selectedChartData.data);
                     updateLastUpdatedMessage();
                     setStatus('');
                     return; 
@@ -1529,6 +1647,20 @@
             getApiKeyLinkContainerEl.style.display = apiKeyInput.value.trim() ? 'none' : 'block';
         });
 
+        googleApiKeyInput.addEventListener('input', () => {
+            getGoogleApiKeyLinkContainerEl.style.display = googleApiKeyInput.value.trim() ? 'none' : 'block';
+        });
+
+        const debouncedValidateLcwKey = debounce(validateLiveCoinWatchApiKey, 500);
+        apiKeyInput.addEventListener('input', (e) => {
+            getApiKeyLinkContainerEl.style.display = e.target.value.trim() ? 'none' : 'block';
+            debouncedValidateLcwKey(e.target.value.trim());
+        });
+        const debouncedValidateGoogleKey = debounce(validateGoogleApiKey, 500);
+        googleApiKeyInput.addEventListener('input', (e) => {
+            getGoogleApiKeyLinkContainerEl.style.display = e.target.value.trim() ? 'none' : 'block';
+            debouncedValidateGoogleKey(e.target.value.trim());
+        });
 
 
         function drawPriceChart(history, timeframe, allTimeHighUSD, accentColor) {
