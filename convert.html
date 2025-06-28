@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unit Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a; /* Dark background */
+            color: #f0f0f0; /* Light text */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .converter-container {
+            background-color: #333;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+            width: 100%;
+            max-width: 400px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .converter {
+            display: none;
+            gap: 3px;
+        }
+        .converter.active {
+            display: flex;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex: 1;
+        }
+        label {
+            font-size: 1.1em;
+            color: #ccc;
+        }
+        input[type="number"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #555;
+            border-radius: 5px;
+            background-color: #444;
+            color: #f0f0f0;
+            font-size: 1.2em;
+            box-sizing: border-box;
+            -moz-appearance: textfield;
+        }
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 5px rgba(76, 175, 80, 0.5);
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #333;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover,
+        .close:focus {
+            color: white;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .button-group {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 23px;
+            gap: 3px;
+        }
+        .button {
+            background-color: #444;
+            color: #f0f0f0;
+            border: 1px solid #555;
+            border-radius: 5px;
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .button:hover {
+            background-color: #555;
+        }
+        .button.active {
+            border-color: #4CAF50;
+            box-shadow: 0 0 5px rgba(76, 175, 80, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="converter-container">
+        <div id="temp-converter" class="converter active">
+            <div class="input-group">
+                <label for="fahrenheit">Fahrenheit (°F)</label>
+                <input type="number" id="fahrenheit" value="72">
+            </div>
+            <div class="input-group">
+                <label for="celsius">Celsius (°C)</label>
+                <input type="number" id="celsius">
+            </div>
+        </div>
+        <div id="length-converter" class="converter">
+            <div class="input-group">
+                <label for="miles">Miles (Mi)</label>
+                <input type="number" id="miles" value="1">
+            </div>
+            <div class="input-group">
+                <label for="kilometers">Kilometers (KM)</label>
+                <input type="number" id="kilometers">
+            </div>
+        </div>
+        <div id="fluid-converter" class="converter">
+            <div class="input-group">
+                <label for="fl-oz">Fluid Ounces (Fl Oz)</label>
+                <input type="number" id="fl-oz" value="1">
+            </div>
+            <div class="input-group">
+                <label for="ml">Milliliters (ML)</label>
+                <input type="number" id="ml">
+            </div>
+        </div>
+        <div id="weight-converter" class="converter">
+            <div class="input-group">
+                <label for="pounds">Pounds (Lbs)</label>
+                <input type="number" id="pounds" value="1">
+            </div>
+            <div class="input-group">
+                <label for="kilograms">Kilograms (Kg)</label>
+                <input type="number" id="kilograms">
+            </div>
+        </div>
+
+        <div class="button-group">
+            <button class="button active" id="temp-btn">Temp</button>
+            <button class="button" id="length-btn">Length</button>
+            <button class="button" id="fluid-btn">Fluid</button>
+            <button class="button" id="weight-btn">Weight</button>
+        </div>
+    </div>
+
+    <script>
+        const DEBOUNCE_TIME = 600;
+
+        // Temperature Conversion
+        const fahrenheitInput = document.getElementById('fahrenheit');
+        const celsiusInput = document.getElementById('celsius');
+        let fahrenheitTimer, celsiusTimer;
+
+        function fahrenheitToCelsius(fahrenheit) { return (fahrenheit - 32) * 5 / 9; }
+        function celsiusToFahrenheit(celsius) { return (celsius * 9 / 5) + 32; }
+
+        fahrenheitInput.addEventListener('input', () => {
+            clearTimeout(fahrenheitTimer);
+            fahrenheitTimer = setTimeout(() => {
+                const fahrenheit = parseFloat(fahrenheitInput.value);
+                celsiusInput.value = !isNaN(fahrenheit) ? fahrenheitToCelsius(fahrenheit).toFixed(2) : '';
+            }, DEBOUNCE_TIME);
+        });
+
+        celsiusInput.addEventListener('input', () => {
+            clearTimeout(celsiusTimer);
+            celsiusTimer = setTimeout(() => {
+                const celsius = parseFloat(celsiusInput.value);
+                fahrenheitInput.value = !isNaN(celsius) ? celsiusToFahrenheit(celsius).toFixed(2) : '';
+            }, DEBOUNCE_TIME);
+        });
+
+        // Length Conversion
+        const milesInput = document.getElementById('miles');
+        const kilometersInput = document.getElementById('kilometers');
+        let milesTimer, kilometersTimer;
+
+        function milesToKilometers(miles) { return miles * 1.60934; }
+        function kilometersToMiles(kilometers) { return kilometers / 1.60934; }
+
+        milesInput.addEventListener('input', () => {
+            clearTimeout(milesTimer);
+            milesTimer = setTimeout(() => {
+                const miles = parseFloat(milesInput.value);
+                kilometersInput.value = !isNaN(miles) ? milesToKilometers(miles).toFixed(2) : '';
+            }, DEBOUNCE_TIME);
+        });
+
+        kilometersInput.addEventListener('input', () => {
+            clearTimeout(kilometersTimer);
+            kilometersTimer = setTimeout(() => {
+                const kilometers = parseFloat(kilometersInput.value);
+                milesInput.value = !isNaN(kilometers) ? kilometersToMiles(kilometers).toFixed(2) : '';
+            }, DEBOUNCE_TIME);
+        });
+
+        // Fluid Conversion
+        const flOzInput = document.getElementById('fl-oz');
+        const mlInput = document.getElementById('ml');
+        let flOzTimer, mlTimer;
+
+        function flOzToMl(flOz) { return flOz * 29.5735; }
+        function mlToFlOz(ml) { return ml / 29.5735; }
+
+        flOzInput.addEventListener('input', () => {
+            clearTimeout(flOzTimer);
+            flOzTimer = setTimeout(() => {
+                const flOz = parseFloat(flOzInput.value);
+                mlInput.value = !isNaN(flOz) ? flOzToMl(flOz).toFixed(2) : '';
+            }, DEBOUNCE_TIME);
+        });
+
+        mlInput.addEventListener('input', () => {
+            clearTimeout(mlTimer);
+            mlTimer = setTimeout(() => {
+                const ml = parseFloat(mlInput.value);
+                flOzInput.value = !isNaN(ml) ? mlToFlOz(ml).toFixed(2) : '';
+            }, DEBOUNCE_TIME);
+        });
+
+        // Weight Conversion
+        const poundsInput = document.getElementById('pounds');
+        const kilogramsInput = document.getElementById('kilograms');
+        let poundsTimer, kilogramsTimer;
+
+        function poundsToKilograms(pounds) { return pounds * 0.453592; }
+        function kilogramsToPounds(kilograms) { return kilograms / 0.453592; }
+
+        poundsInput.addEventListener('input', () => {
+            clearTimeout(poundsTimer);
+            poundsTimer = setTimeout(() => {
+                const pounds = parseFloat(poundsInput.value);
+                kilogramsInput.value = !isNaN(pounds) ? poundsToKilograms(pounds).toFixed(2) : '';
+            }, DEBOUNCE_TIME);
+        });
+
+        kilogramsInput.addEventListener('input', () => {
+            clearTimeout(kilogramsTimer);
+            kilogramsTimer = setTimeout(() => {
+                const kilograms = parseFloat(kilogramsInput.value);
+                poundsInput.value = !isNaN(kilograms) ? kilogramsToPounds(kilograms).toFixed(2) : '';
+            }, DEBOUNCE_TIME);
+        });
+
+        // Button Handling
+        const buttons = {
+            'temp-btn': 'temp-converter',
+            'length-btn': 'length-converter',
+            'fluid-btn': 'fluid-converter',
+            'weight-btn': 'weight-converter'
+        };
+
+        const converterDivs = Object.values(buttons).map(id => document.getElementById(id));
+        const btnElements = Object.keys(buttons).map(id => document.getElementById(id));
+
+        Object.keys(buttons).forEach(btnId => {
+            document.getElementById(btnId).addEventListener('click', () => {
+                converterDivs.forEach(div => div.classList.remove('active'));
+                document.getElementById(buttons[btnId]).classList.add('active');
+                btnElements.forEach(btn => btn.classList.remove('active'));
+                document.getElementById(btnId).classList.add('active');
+                // Trigger initial conversion for the newly selected converter
+                triggerInitialConversion(buttons[btnId]);
+            });
+        });
+        
+        function triggerInitialConversion(converterId) {
+            switch (converterId) {
+                case 'temp-converter':
+                    const initialFahrenheit = parseFloat(fahrenheitInput.value);
+                    if (!isNaN(initialFahrenheit)) {
+                        celsiusInput.value = fahrenheitToCelsius(initialFahrenheit).toFixed(2);
+                    }
+                    break;
+                case 'length-converter':
+                    const initialMiles = parseFloat(milesInput.value);
+                    if (!isNaN(initialMiles)) {
+                        kilometersInput.value = milesToKilometers(initialMiles).toFixed(2);
+                    }
+                    break;
+                case 'fluid-converter':
+                    const initialFlOz = parseFloat(flOzInput.value);
+                    if (!isNaN(initialFlOz)) {
+                        mlInput.value = flOzToMl(initialFlOz).toFixed(2);
+                    }
+                    break;
+                case 'weight-converter':
+                    const initialPounds = parseFloat(poundsInput.value);
+                    if (!isNaN(initialPounds)) {
+                        kilogramsInput.value = poundsToKilograms(initialPounds).toFixed(2);
+                    }
+                    break;
+            }
+        }
+
+        // Initial conversion on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            triggerInitialConversion('temp-converter');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Temperature Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a; /* Dark background */
+            color: #f0f0f0; /* Light text */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .converter-container {
+            background-color: #333; /* Slightly lighter dark background for container */
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+            width: 100%;
+            max-width: 400px; /* Limit width for phone view */
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        label {
+            font-size: 1.1em;
+            color: #ccc;
+        }
+        input[type="number"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #555;
+            border-radius: 5px;
+            background-color: #444;
+            color: #f0f0f0;
+            font-size: 1.2em;
+            box-sizing: border-box;
+            /* Remove number input arrows for different browsers */
+            -moz-appearance: textfield; /* Firefox */
+        }
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none; /* Chrome, Safari, Edge */
+            margin: 0;
+        }
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 5px rgba(76, 175, 80, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="converter-container">
+        <div class="input-group">
+            <label for="fahrenheit">Fahrenheit (°F)</label>
+            <input type="number" id="fahrenheit" value="72">
+        </div>
+
+        <div class="input-group">
+            <label for="celsius">Celsius (°C)</label>
+            <input type="number" id="celsius">
+        </div>
+    </div>
+
+    <script>
+        const fahrenheitInput = document.getElementById('fahrenheit');
+        const celsiusInput = document.getElementById('celsius');
+        const DEBOUNCE_TIME = 600; // milliseconds
+
+        let fahrenheitTimer;
+        let celsiusTimer;
+
+        // Function to convert Fahrenheit to Celsius
+        function fahrenheitToCelsius(fahrenheit) {
+            return (fahrenheit - 32) * 5 / 9;
+        }
+
+        // Function to convert Celsius to Fahrenheit
+        function celsiusToFahrenheit(celsius) {
+            return (celsius * 9 / 5) + 32;
+        }
+
+        // Event listener for Fahrenheit input with debounce
+        fahrenheitInput.addEventListener('input', () => {
+            clearTimeout(fahrenheitTimer); // Clear previous timer
+            fahrenheitTimer = setTimeout(() => {
+                const fahrenheit = parseFloat(fahrenheitInput.value);
+                if (!isNaN(fahrenheit)) {
+                    celsiusInput.value = fahrenheitToCelsius(fahrenheit).toFixed(2);
+                } else {
+                    celsiusInput.value = '';
+                }
+            }, DEBOUNCE_TIME);
+        });
+
+        // Event listener for Celsius input with debounce
+        celsiusInput.addEventListener('input', () => {
+            clearTimeout(celsiusTimer); // Clear previous timer
+            celsiusTimer = setTimeout(() => {
+                const celsius = parseFloat(celsiusInput.value);
+                if (!isNaN(celsius)) {
+                    fahrenheitInput.value = celsiusToFahrenheit(celsius).toFixed(2);
+                } else {
+                    fahrenheitInput.value = '';
+                }
+            }, DEBOUNCE_TIME);
+        });
+
+        // Initial conversion on page load (from default Fahrenheit value)
+        document.addEventListener('DOMContentLoaded', () => {
+            const initialFahrenheit = parseFloat(fahrenheitInput.value);
+            if (!isNaN(initialFahrenheit)) {
+                celsiusInput.value = fahrenheitToCelsius(initialFahrenheit).toFixed(2);
+            }
+        });
+    </script>
+</body>
+</html>
