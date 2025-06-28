@@ -780,7 +780,7 @@
                 } else if (isSecondNode) {
                     nodeLength = Math.floor(Math.random() * (150 - 25 + 1)) + 25; // Random length 25-150
                     const randomInt = Math.floor(Math.random() * 13) - 6; // -6 to +6
-                    const randomFracOptions = [0, 0.05, 0.1, 0.2, 0.25];
+                    const randomFracOptions = [0, 0.05, 0.1, 0.2, 0.25, 0.5];
                     const randomFrac = randomFracOptions[Math.floor(Math.random() * randomFracOptions.length)];
                     nodeRelativeSpeed = randomInt + randomFrac;
 
@@ -792,6 +792,7 @@
                             case 0.1:  node1.totalRotations = 10; break;
                             case 0.2:  node1.totalRotations = 5; break;
                             case 0.25: node1.totalRotations = 4; break;
+                            case 0.5:  node1.totalRotations = 2; break;
                             default:   node1.totalRotations = 0; // Default case
                         }
                         const totalRotationsInput = document.getElementById(`totalRotations${node1.id}`);
