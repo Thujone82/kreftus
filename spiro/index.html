@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spirograph Generator v2.4</title> 
+    <title>Spirograph Generator v2.5</title> 
     <link rel="icon" href="./icons/s32.png" type="image/png">
     <!-- You can create a 32x32.png from your 512x512.png or 192x192.png -->
     <link rel="apple-touch-icon" href="./icons/s192.png">
@@ -239,7 +239,7 @@
 <body>
     <div class="container">
         <div id="setup-panel" class="panel">
-            <h2>SpiroGen v2.4</h2> 
+            <h2>SpiroGen v2.5</h2> 
             <div class="control-group" id="global-settings-group">
                 <h3>Global Settings</h3>
                 <div class="color-picker-container">
@@ -575,7 +575,9 @@
                 if (nodes.length === 3) currentPhysicsSubSteps = Math.round(BASE_PHYSICS_SUB_STEPS * 1.5);
                 else if (nodes.length >= 4) currentPhysicsSubSteps = Math.round(BASE_PHYSICS_SUB_STEPS * 1.5 * 1.5);
                 
+                let haltSimulationAfterThisFrame = false;
                 const dt_step = DT / currentPhysicsSubSteps;
+
                 for (let step = 0; step < currentPhysicsSubSteps; step++) {
                     let currentLogicalX_step = 0, currentLogicalY_step = 0;
                     for (let i = 0; i < nodes.length; i++) {
@@ -584,25 +586,34 @@
                         const prevAbsoluteAngleForSubStep = node.currentAbsoluteAngle; 
                         
                         if (i === 0) {
-                            const dAngleBase = node.speed * dt_step;
+                            const targetAngle = node.totalRotations > 0 ? node.totalRotations * 2 * Math.PI : 0;
+                            let dAngleBase = node.speed * dt_step;
+
+                            // Check for overshoot and correct the final step to be precise
+                            if (targetAngle > 0 && (node.totalAngleTraversed + dAngleBase >= targetAngle)) {
+                                dAngleBase = targetAngle - node.totalAngleTraversed;
+                                if (dAngleBase < 0) dAngleBase = 0; // Safeguard against moving backward
+                                haltSimulationAfterThisFrame = true;
+                            }
+
                             node.totalAngleTraversed += dAngleBase; // Always accumulate positive angle
 
                             if (node.direction === 0) { 
                                 newAbsoluteAngleThisSubStep = node.initialAbsoluteAngle; 
                                 node.virtual_dAngle = dAngleBase; 
                             } else {
-                                const dAngle = dAngleBase * node.direction; 
+                                const dAngle = dAngleBase * node.direction;
                                 newAbsoluteAngleThisSubStep = prevAbsoluteAngleForSubStep + dAngle; 
                                 node.virtual_dAngle = dAngle; 
                             }
-                        } else { 
+                        } else {
                             const parentNode = nodes[i-1];
                             const dParentAbsoluteAngle = (parentNode.id === 1 && parentNode.direction === 0) ? 
                                                          parentNode.virtual_dAngle : 
                                                          (parentNode.currentAbsoluteAngle - parentNode.previousAbsoluteAngleSubStep);
                             
                             const dRelativeAngle = node.relativeSpeed * dParentAbsoluteAngle;
-                            node.currentRelativeAngle += dRelativeAngle; 
+                            node.currentRelativeAngle += dRelativeAngle;
                             newAbsoluteAngleThisSubStep = parentNode.currentAbsoluteAngle + node.currentRelativeAngle;
                         }
                         node.previousAbsoluteAngleSubStep = node.currentAbsoluteAngle; 
@@ -610,11 +621,15 @@
 
                         const armEndX_step = currentLogicalX_step + node.length * Math.cos(node.currentAbsoluteAngle);
                         const armEndY_step = currentLogicalY_step + node.length * Math.sin(node.currentAbsoluteAngle);
+
                         if (node.isDrawing) {
                             const activeSegment = currentSegmentMap.get(node.id);
                             if (activeSegment) activeSegment.points.push({ x: armEndX_step, y: armEndY_step });
                         }
                         currentLogicalX_step = armEndX_step; currentLogicalY_step = armEndY_step;
+                    }
+                    if (haltSimulationAfterThisFrame) {
+                        break; // Exit sub-step loop after the final precise step
                     }
                 }
                 ctx.fillStyle = document.documentElement.style.getPropertyValue('--sim-background-color');
@@ -622,25 +637,29 @@
                 const canvasCenterX = canvas.width / 2 + canvasOffsetX; 
                 const canvasCenterY = canvas.height / 2 + canvasOffsetY; 
                 let currentLogicalX_draw = 0, currentLogicalY_draw = 0;
+
                 for (let i = 0; i < nodes.length; i++) {
                     const node = nodes[i];
                     const armEndX_draw = currentLogicalX_draw + node.length * Math.cos(node.currentAbsoluteAngle);
                     const armEndY_draw = currentLogicalY_draw + node.length * Math.sin(node.currentAbsoluteAngle);
                     const displayColor = node.isDrawing ? node.color : document.documentElement.style.getPropertyValue('--main-color');
+
                     ctx.beginPath();
                     ctx.moveTo(canvasCenterX + currentLogicalX_draw * currentZoom, canvasCenterY + currentLogicalY_draw * currentZoom);
                     ctx.lineTo(canvasCenterX + armEndX_draw * currentZoom, canvasCenterY + armEndY_draw * currentZoom);
                     ctx.strokeStyle = hexToRgba(displayColor, 0.5);
                     ctx.lineWidth = Math.max(1, node.width * currentZoom); ctx.stroke();
+
                     ctx.beginPath();
                     ctx.arc(canvasCenterX + armEndX_draw * currentZoom, canvasCenterY + armEndY_draw * currentZoom, Math.max(2, 5 * currentZoom), 0, 2 * Math.PI);
                     ctx.fillStyle = hexToRgba(displayColor, node.alpha / 100); ctx.fill();
+
                     currentLogicalX_draw = armEndX_draw; currentLogicalY_draw = armEndY_draw;
                 }
                 drawAllTraces(); 
 
-                const node1 = nodes[0];
-                if (node1 && node1.totalRotations > 0 && (node1.totalAngleTraversed >= node1.totalRotations * 2 * Math.PI)) {
+                if (haltSimulationAfterThisFrame) {
+                    const node1 = nodes[0];
                     console.log(`Target rotations (${node1.totalRotations}) reached. Halting simulation.`);
                     stopSimulation();
                 } else {
@@ -1192,7 +1211,7 @@
 
                     tempCtx.stroke(); }});
                 const link = document.createElement('a'); link.href = tempCanvas.toDataURL('image/png');
-                link.download = 'spirograph_v2.4.png'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                link.download = 'spirograph_v2.5.png'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
             });
 
             function initialize() {
@@ -1230,7 +1249,7 @@
 
                     navigator.serviceWorker.register('sw.js')
                     .then((registration) => {
-                        console.log('Service Worker registered for SpiroGen v2.4. Scope:', registration.scope);
+                        console.log('Service Worker registered for SpiroGen v2.5. Scope:', registration.scope);
                         
                         // Listen for the updatefound event.
                         registration.onupdatefound = () => {
