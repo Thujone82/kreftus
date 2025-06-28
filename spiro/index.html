@@ -379,7 +379,7 @@
             
             function calculateAndSetZoom() {
                 if (nodes.length === 0) {
-                    resetPanAndRedraw();
+                    if (!isRunning) drawStaticSpirograph();
                     return;
                 }
                 // Sum of all node lengths gives the maximum possible radius
@@ -398,7 +398,7 @@
                 zoomValSpan.textContent = currentZoom.toFixed(2);
                 updateSliderFill(zoomSlider);
                 console.log(`Auto-zoom calculated. Max radius: ${maxRadius.toFixed(0)}px, New zoom: ${currentZoom.toFixed(2)}x`);
-                resetPanAndRedraw(); // This will reset pan and redraw the canvas
+                if (!isRunning) drawStaticSpirograph();
             }
             
             function resetPanAndRedraw() {
@@ -448,7 +448,7 @@
                 return result;
             }
 
-            function updateNodeFromUI(nodeId) {
+            function updateNodeFromUI(nodeId, isAngleReset = false) {
                 const node = nodes.find(n => n.id === nodeId); if (!node) return;
                 let changedProperties = [];
                 const lengthSlider = document.getElementById(`length${nodeId}`);
@@ -477,18 +477,22 @@
                         changedProperties.push(`speed: ${speedMultiplier.toFixed(2)}x`, `direction: ${directionSelect.options[directionSelect.selectedIndex].text}`);
                         document.getElementById(`speed${nodeId}-val`).textContent = speedMultiplier.toFixed(2) + 'x';
                     }
-                    if (startAngleInput) { 
+                    if (startAngleInput && isAngleReset) { 
                         const defaultAngleDeg = (node.initialAbsoluteAngle * (180 / Math.PI));
                         node.initialAbsoluteAngle = evaluateAngleExpressionToRadians(startAngleInput.value, defaultAngleDeg);
-                        if (!isRunning) { 
-                            node.currentAbsoluteAngle = node.initialAbsoluteAngle;
-                            node.previousAbsoluteAngle = node.initialAbsoluteAngle;
-                            node.previousAbsoluteAngleSubStep = node.initialAbsoluteAngle;
+                        node.currentAbsoluteAngle = node.initialAbsoluteAngle;
+                        
+                        // When resetting the base node, reset all children as well
+                        for(let i = 1; i < nodes.length; i++) {
+                            const childNode = nodes[i];
+                            const parentNode = nodes[i-1];
+                            childNode.currentRelativeAngle = childNode.initialRelativeAngle;
+                            childNode.currentAbsoluteAngle = parentNode.currentAbsoluteAngle + childNode.currentRelativeAngle;
                         }
-                        changedProperties.push(`startAngle: ${startAngleInput.value} (evaluates to ${(node.initialAbsoluteAngle * 180/Math.PI).toFixed(2)}°)`);
+                        
+                        changedProperties.push(`startAngle RESET to: ${startAngleInput.value} (evaluates to ${(node.initialAbsoluteAngle * 180/Math.PI).toFixed(2)}°)`);
                     }
                     if (totalRotationsInput) {
-                        // Keep the user's expression in the input field.
                         const expression = totalRotationsInput.value;
                         const finalValue = evaluateRotationExpression(expression, 0);
                         node.totalRotations = finalValue;
@@ -499,31 +503,30 @@
                     if (relSpeedInput) { node.relativeSpeed = parseFloat(relSpeedInput.value) || 0; changedProperties.push(`relativeSpeed: ${node.relativeSpeed}`); }
                 }
                 console.log(`Node ${nodeId} UI updated. Length: ${node.length}, Color: ${node.color}, Width: ${node.width}, Alpha: ${node.alpha}, Drawing: ${node.isDrawing}. ${changedProperties.join(', ')}`);
-                calculateAndSetZoom(); // Recalculate zoom and redraw
+                
+                if (!isRunning) {
+                    if (isAngleReset) {
+                         calculateAndSetZoom(); // This will redraw with the new static positions
+                    } else {
+                         drawStaticSpirograph(); // Just redraw for non-structural changes
+                    }
+                }
             }
             
             function calculateStaticNodePositions() { 
                 let currentX = 0, currentY = 0;
-                let parentAbsStaticAngle = 0;
                 const positions = [];
                 for (let i = 0; i < nodes.length; i++) {
                     const node = nodes[i];
-                    let nodeAbsStaticAngle;
-                    if (i === 0) {
-                         nodeAbsStaticAngle = node.initialAbsoluteAngle; 
-                    } else {
-                        nodeAbsStaticAngle = parentAbsStaticAngle + node.initialRelativeAngle; 
-                    }
                     
-                    const armEndX = currentX + node.length * Math.cos(nodeAbsStaticAngle);
-                    const armEndY = currentY + node.length * Math.sin(nodeAbsStaticAngle);
+                    const armEndX = currentX + node.length * Math.cos(node.currentAbsoluteAngle);
+                    const armEndY = currentY + node.length * Math.sin(node.currentAbsoluteAngle);
                     positions.push({
                         startX: currentX, startY: currentY, endX: armEndX, endY: armEndY,
                         nodeVisibleColor: node.isDrawing ? node.color : document.documentElement.style.getPropertyValue('--main-color'),
                         nodeWidth: node.width, nodeAlpha: node.alpha
                     });
                     currentX = armEndX; currentY = armEndY;
-                    parentAbsStaticAngle = nodeAbsStaticAngle; 
                 }
                 return positions;
             }
@@ -715,7 +718,9 @@
                 if (lengthSliderEl) {
                     lengthSliderEl.addEventListener('input', (e) => {
                         document.getElementById(`length${nodeId}-val`).textContent = e.target.value;
-                        updateNodeFromUI(nodeId); updateSliderFill(e.target); });
+                        updateSliderFill(e.target); 
+                    });
+                    lengthSliderEl.addEventListener('change', () => calculateAndSetZoom()); // Recalculate on release
                     updateSliderFill(lengthSliderEl); 
                 }
                 const widthSliderEl = nodeDiv.querySelector(`#width${nodeId}`);
@@ -745,15 +750,15 @@
                     nodeDiv.querySelector(`#direction${nodeId}`).addEventListener('change', () => updateNodeFromUI(nodeId));
                     const startAngleInputEl = nodeDiv.querySelector(`#startAngle${nodeId}`);
                     if (startAngleInputEl) { 
-                        startAngleInputEl.addEventListener('change', () => updateNodeFromUI(nodeId)); 
+                        startAngleInputEl.addEventListener('change', () => updateNodeFromUI(nodeId, false)); 
                     }
                     const setStartAngleBtn = nodeDiv.querySelector(`#setStartAngle${nodeId}`);
                     if(setStartAngleBtn) { 
-                        setStartAngleBtn.addEventListener('click', () => updateNodeFromUI(nodeId));
+                        setStartAngleBtn.addEventListener('click', () => updateNodeFromUI(nodeId, true));
                     }
                     const totalRotationsInputEl = nodeDiv.querySelector(`#totalRotations${nodeId}`);
                     if (totalRotationsInputEl) {
-                        totalRotationsInputEl.addEventListener('change', () => updateNodeFromUI(nodeId));
+                        totalRotationsInputEl.addEventListener('change', () => updateNodeFromUI(nodeId, false));
                     }
                 } else {
                     nodeDiv.querySelector(`#relSpeed${nodeId}`).addEventListener('input', () => updateNodeFromUI(nodeId));
@@ -898,45 +903,56 @@
             }
 
             function startSimulation() {
-                isRunning = true; startStopButton.textContent = 'Stop Simulation';
-                resetPanAndRedraw(); 
-                setControlsVisibility(true); 
-                currentSegmentMap.clear(); 
+                isRunning = true;
+                startStopButton.textContent = 'Stop Simulation';
+                setControlsVisibility(true);
+                currentSegmentMap.clear();
+
+                // Update totalRotations from UI just before starting
+                const node1 = nodes[0];
+                if (node1) {
+                    const totalRotationsInput = document.getElementById(`totalRotations${node1.id}`);
+                    if (totalRotationsInput) {
+                        const expression = totalRotationsInput.value;
+                        const finalValue = evaluateRotationExpression(expression, 0);
+                        node1.totalRotations = finalValue;
+                    }
+                    node1.totalAngleTraversed = 0; // Reset rotation counter for the new run
+                }
 
                 nodes.forEach(node => {
-                    if (node.id === 1) {
-                        node.totalAngleTraversed = 0; // Reset rotation counter
-                        const startAngleInput = document.getElementById(`startAngle${node.id}`);
-                        if (startAngleInput) {
-                             const defaultAngleDeg = (node.initialAbsoluteAngle * (180 / Math.PI));
-                             node.initialAbsoluteAngle = evaluateAngleExpressionToRadians(startAngleInput.value, defaultAngleDeg);
-                        }
-                        const totalRotationsInput = document.getElementById(`totalRotations${node.id}`);
-                        if (totalRotationsInput) {
-                            const expression = totalRotationsInput.value;
-                            const finalValue = evaluateRotationExpression(expression, 0);
-                            node.totalRotations = finalValue;
-                        }
-                         node.currentAbsoluteAngle = node.initialAbsoluteAngle;
-                    } else {
-                        const parentNode = nodes[nodes.findIndex(n => n.id === node.id) -1]; 
-                        node.currentRelativeAngle = node.initialRelativeAngle; 
-                        node.currentAbsoluteAngle = parentNode.currentAbsoluteAngle + node.currentRelativeAngle;
-                    }
-                    node.previousAbsoluteAngle = node.currentAbsoluteAngle; 
-                    node.previousAbsoluteAngleSubStep = node.currentAbsoluteAngle; 
+                    // Angles are NOT reset here. They persist from the previous state.
+                    node.previousAbsoluteAngle = node.currentAbsoluteAngle;
+                    node.previousAbsoluteAngleSubStep = node.currentAbsoluteAngle;
+
                     if (node.isDrawing) {
-                        const newSegment = { 
-                            nodeId: node.id, color: node.color, points: [],
+                        const newSegment = {
+                            nodeId: node.id,
+                            color: node.color,
+                            points: [],
                             nodeWidth: node.width,
                             nodeAlpha: node.alpha
                         };
+
+                        // To correctly start the new trace segment, find the node's current end point.
+                        let endX = 0;
+                        let endY = 0;
+                        for (let i = 0; i < nodes.length; i++) {
+                            const n = nodes[i];
+                            endX += n.length * Math.cos(n.currentAbsoluteAngle);
+                            endY += n.length * Math.sin(n.currentAbsoluteAngle);
+                            if (n.id === node.id) {
+                                break; // Found our node
+                            }
+                        }
+                        newSegment.points.push({ x: endX, y: endY });
+
                         allTraceSegments.push(newSegment);
-                        currentSegmentMap.set(node.id, newSegment); 
+                        currentSegmentMap.set(node.id, newSegment);
                     }
                 });
                 animationFrameId = requestAnimationFrame(drawSpirographFrame);
-                console.log("Simulation started.");
+                console.log("Simulation started, resuming from current angles.");
             }
 
             function stopSimulation() {
