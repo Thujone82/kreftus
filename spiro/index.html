@@ -910,6 +910,12 @@
                              const defaultAngleDeg = (node.initialAbsoluteAngle * (180 / Math.PI));
                              node.initialAbsoluteAngle = evaluateAngleExpressionToRadians(startAngleInput.value, defaultAngleDeg);
                         }
+                        const totalRotationsInput = document.getElementById(`totalRotations${node.id}`);
+                        if (totalRotationsInput) {
+                            const expression = totalRotationsInput.value;
+                            const finalValue = evaluateRotationExpression(expression, 0);
+                            node.totalRotations = finalValue;
+                        }
                          node.currentAbsoluteAngle = node.initialAbsoluteAngle;
                     } else {
                         const parentNode = nodes[nodes.findIndex(n => n.id === node.id) -1]; 
