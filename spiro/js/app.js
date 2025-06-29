@@ -1048,8 +1048,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillStyle = document.documentElement.style.getPropertyValue('--sim-background-color');
                 ctx.fillRect(0, 0, 256, 256);
 
-                const canvasCenterX = 128 + canvasOffsetX;
-                const canvasCenterY = 128 + canvasOffsetY;
+                // Calculate the new zoom level to fit the spirograph in the GIF canvas
+                const maxRadius = nodes.reduce((sum, node) => sum + parseFloat(node.length), 0);
+                const maxDiameter = maxRadius * 2;
+                const gifZoom = (256 * 0.95) / maxDiameter;
+
+                const canvasCenterX = 128 + canvasOffsetX * gifZoom / currentZoom;
+                const canvasCenterY = 128 + canvasOffsetY * gifZoom / currentZoom;
 
                 ctx.save();
                 ctx.translate(canvasCenterX, canvasCenterY);
@@ -1059,11 +1064,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 allTraceSegments.forEach(segment => {
                     if (segment.points.length > 1) {
                         ctx.strokeStyle = hexToRgba(segment.color, segment.nodeAlpha / 100);
-                        ctx.lineWidth = Math.max(1, segment.nodeWidth * currentZoom);
+                        ctx.lineWidth = Math.max(1, segment.nodeWidth * gifZoom);
                         ctx.beginPath();
-                        ctx.moveTo(canvasCenterX + segment.points[0].x * currentZoom, canvasCenterY + segment.points[0].y * currentZoom);
+                        ctx.moveTo(canvasCenterX + segment.points[0].x * gifZoom, canvasCenterY + segment.points[0].y * gifZoom);
                         for (let k = 1; k < segment.points.length; k++) {
-                            ctx.lineTo(canvasCenterX + segment.points[k].x * currentZoom, canvasCenterY + segment.points[k].y * currentZoom);
+                            ctx.lineTo(canvasCenterX + segment.points[k].x * gifZoom, canvasCenterY + segment.points[k].y * gifZoom);
                         }
                         ctx.stroke();
                     }
