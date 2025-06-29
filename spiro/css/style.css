@@ -211,6 +211,10 @@
             width: auto; background-color: #616161; color: var(--text-color);
         }
         .node-config h4 .remove-node-btn:hover { background-color: #D32F2F; }
+        .node-config h4 .node-title-group {
+            display: flex;
+            align-items: center;
+        }
         .node-config h4.sim-running {
             cursor: default;
         }

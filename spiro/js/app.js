@@ -458,7 +458,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 nodeDiv.innerHTML = `
-                    <h4 class="node-header"><span class="collapse-indicator">▼</span>Node ${nodeId} ${removeBtnHtml}</h4>
+                    <h4 class="node-header">
+                        <div class="node-title-group">
+                            <span class="collapse-indicator">▼</span>
+                            <span>Node ${nodeId}</span>
+                        </div>
+                        ${removeBtnHtml}
+                    </h4>
                     <div class="node-controls">
                     ${controlHtml} 
                     <div class="slider-container" id="node${nodeId}-length-control">
