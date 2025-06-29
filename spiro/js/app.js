@@ -1008,7 +1008,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const wasDecelerating = isDecelerating;
                 isSpinning = true;
                 isDecelerating = false;
-                isAligning = false;
 
                 if (wasDecelerating) {
                     // If we were slowing down, we need to calculate the new start time 
@@ -1024,7 +1023,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 lastSpinFrameTime = performance.now();
                 if (spinAnimationId) cancelAnimationFrame(spinAnimationId);
-                spinAnimationId = requestAnimationFrame(spinLoop);
+                spinAnimationId = requestAnimationFrame(accelerateLoop);
             }
 
             function stopSpinning() {
