@@ -1004,13 +1004,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     quality: 10,
                     width: 256,
                     height: 256,
-                    workerScript: 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js'
+                    workerScript: 'js/gif.worker.js'
                 });
 
                 const tempCanvas = document.createElement('canvas');
                 tempCanvas.width = 256;
                 tempCanvas.height = 256;
-                const tempCtx = tempCanvas.getContext('2d');
+                const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
 
                 const totalFrames = 54;
                 const rotationPerFrame = (2 * Math.PI) / totalFrames;
