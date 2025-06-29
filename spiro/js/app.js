@@ -1,5 +1,4 @@
-
-        document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => {
             const canvas = document.getElementById('spirographCanvas');
             const ctx = canvas.getContext('2d');
             const simBgColorPicker = document.getElementById('simBgColorPicker');
@@ -531,7 +530,7 @@
                     if(setStartAngleBtn) { 
                         setStartAngleBtn.addEventListener('click', () => updateNodeFromUI(nodeId, true));
                     }
-                    const totalRotationsInputEl = nodeDiv.querySelector(`#totalRotations${nodeId}`);
+                    const totalRotationsInputEl = document.getElementById(`totalRotations${nodeId}`);
                     if (totalRotationsInputEl) {
                         totalRotationsInputEl.addEventListener('change', () => updateNodeFromUI(nodeId, false));
                     }
@@ -970,76 +969,6 @@
                 link.download = 'spirograph_v2.5.png'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
             });
 
-            function initialize() {
-                currentTheme = themes[Math.floor(Math.random() * themes.length)];
-                document.documentElement.style.setProperty('--sim-background-color', currentTheme.bg);
-                document.documentElement.style.setProperty('--main-color', currentTheme.hl);
-                simBgColorPicker.value = currentTheme.bg; mainColorPickerEl.value = currentTheme.hl;
-                updateDynamicTheme();
-
-                // Set canvas size *before* adding nodes so initial auto-zoom is correct.
-                resizeCanvas();
-                window.addEventListener('resize', resizeCanvas);
-                addNode(); addNode();
-
-                // Move Global Settings group to its new position
-                setupPanel.insertBefore(globalSettingsGroup, addNodeButton);
-
-                setControlsVisibility(false); 
-                updateAddRemoveButtons(); 
-                updateSliderFill(zoomSlider);
-                memoryRecallButton.disabled = true; // Initially disabled
-                updateSelectArrowColor();
-
-                // Easter Egg Listeners
-                appTitle.addEventListener('mousedown', handlePressStart);
-                appTitle.addEventListener('touchstart', handlePressStart, { passive: false });
-                appTitle.addEventListener('mouseup', handlePressEnd);
-                appTitle.addEventListener('mouseleave', handlePressEnd);
-                appTitle.addEventListener('touchend', handlePressEnd);
-                appTitle.addEventListener('touchcancel', handlePressEnd);
-                
-                if ('serviceWorker' in navigator) {
-                    // This logic handles the auto-update flow.
-                    // When a new service worker is activated, the page is reloaded
-                    // to ensure the user gets the latest version of the app.
-                    let refreshing;
-                    navigator.serviceWorker.addEventListener('controllerchange', () => {
-                        if (refreshing) return;
-                        console.log('Controller changed, reloading for update...');
-                        window.location.reload();
-                        refreshing = true;
-                    });
-
-                    navigator.serviceWorker.register('sw.js')
-                    .then((registration) => {
-                        console.log('Service Worker registered for SpiroGen v2.5. Scope:', registration.scope);
-                        
-                        // Listen for the updatefound event.
-                        registration.onupdatefound = () => {
-                            const installingWorker = registration.installing;
-                            if (installingWorker == null) {
-                                return;
-                            }
-                            installingWorker.onstatechange = () => {
-                                if (installingWorker.state === 'installed') {
-                                    if (navigator.serviceWorker.controller) {
-                                        // A new service worker has been installed.
-                                        // Because sw.js calls self.skipWaiting(), it will
-                                        // activate automatically, triggering the 'controllerchange'
-                                        // event handled above.
-                                        console.log('New service worker installed. Page will reload shortly.');
-                                    } else {
-                                        console.log('Content is cached for offline use.');
-                                    }
-                                }
-                            };
-                        };
-                    })
-                    .catch((error) => { console.error('Service Worker registration failed. Ensure sw.js is present and correctly configured. Error:', error); });
-                }
-            }
-
             // --- Easter Egg Logic ---
             function handlePressStart(e) {
                 e.preventDefault();
@@ -1111,4 +1040,73 @@
             }
 
             function initialize() {
-    
+                currentTheme = themes[Math.floor(Math.random() * themes.length)];
+                document.documentElement.style.setProperty('--sim-background-color', currentTheme.bg);
+                document.documentElement.style.setProperty('--main-color', currentTheme.hl);
+                simBgColorPicker.value = currentTheme.bg; mainColorPickerEl.value = currentTheme.hl;
+                updateDynamicTheme();
+
+                // Set canvas size *before* adding nodes so initial auto-zoom is correct.
+                resizeCanvas();
+                window.addEventListener('resize', resizeCanvas);
+                addNode(); addNode();
+
+                // Move Global Settings group to its new position
+                setupPanel.insertBefore(globalSettingsGroup, addNodeButton);
+
+                setControlsVisibility(false); 
+                updateAddRemoveButtons(); 
+                updateSliderFill(zoomSlider);
+                memoryRecallButton.disabled = true; // Initially disabled
+                updateSelectArrowColor();
+
+                // Easter Egg Listeners
+                appTitle.addEventListener('mousedown', handlePressStart);
+                appTitle.addEventListener('touchstart', handlePressStart, { passive: false });
+                appTitle.addEventListener('mouseup', handlePressEnd);
+                appTitle.addEventListener('mouseleave', handlePressEnd);
+                appTitle.addEventListener('touchend', handlePressEnd);
+                appTitle.addEventListener('touchcancel', handlePressEnd);
+                
+                if ('serviceWorker' in navigator) {
+                    // This logic handles the auto-update flow.
+                    // When a new service worker is activated, the page is reloaded
+                    // to ensure the user gets the latest version of the app.
+                    let refreshing;
+                    navigator.serviceWorker.addEventListener('controllerchange', () => {
+                        if (refreshing) return;
+                        console.log('Controller changed, reloading for update...');
+                        window.location.reload();
+                        refreshing = true;
+                    });
+
+                    navigator.serviceWorker.register('sw.js')
+                    .then((registration) => {
+                        console.log('Service Worker registered for SpiroGen v2.5. Scope:', registration.scope);
+                        
+                        // Listen for the updatefound event.
+                        registration.onupdatefound = () => {
+                            const installingWorker = registration.installing;
+                            if (installingWorker == null) {
+                                return;
+                            }
+                            installingWorker.onstatechange = () => {
+                                if (installingWorker.state === 'installed') {
+                                    if (navigator.serviceWorker.controller) {
+                                        // A new service worker has been installed.
+                                        // Because sw.js calls self.skipWaiting(), it will
+                                        // activate automatically, triggering the 'controllerchange'
+                                        // event handled above.
+                                        console.log('New service worker installed. Page will reload shortly.');
+                                    } else {
+                                        console.log('Content is cached for offline use.');
+                                    }
+                                }
+                            };
+                        };
+                    })
+                    .catch((error) => { console.error('Service Worker registration failed. Ensure sw.js is present and correctly configured. Error:', error); });
+                }
+            }
+            initialize();
+        });
