@@ -1047,15 +1047,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const images = [];
                 const tempCanvas = document.createElement('canvas');
-                const newResolution = 384; // 50% larger than 256
+                const newResolution = 420;
                 tempCanvas.width = newResolution;
                 tempCanvas.height = newResolution;
                 const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
                 tempCtx.imageSmoothingEnabled = true; // Enable antialiasing
 
-                const targetFPS = 60;
-                const targetDuration = 1.8; // seconds
-                const totalFrames = Math.round(targetFPS * targetDuration); // 108 frames
+                const totalFrames = 90;
+                const frameDuration = 1 / 100; // 100 FPS
+                const targetFPS = Math.round(1 / frameDuration);
                 const rotationPerFrame = (2 * Math.PI) / totalFrames;
                 const direction = nodes[0].direction === 0 ? 1 : nodes[0].direction;
 
@@ -1071,7 +1071,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     'images': images,
                     'gifWidth': newResolution,
                     'gifHeight': newResolution,
-                    'frameDuration': 1 / targetFPS, // ~0.0167 seconds per frame
+                    'frameDuration': frameDuration,
                     'palette': essentialColors,
                     'numColors': numColors
                 }, function(obj) {
