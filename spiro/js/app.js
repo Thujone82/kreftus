@@ -1015,6 +1015,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         isSpinning = false;
                         isDecelerating = false;
                         spinAnimationId = null;
+                        totalRotationAngle = 0; // Reset angle
+                        drawStaticSpirograph(); // Redraw in default orientation
+                        return; // Stop the loop
                     } else {
                         const decelFactor = 1 - (timeSinceDecel / decelerationDuration);
                         currentSpinSpeed = initialSpinSpeedOnDecel * decelFactor;
