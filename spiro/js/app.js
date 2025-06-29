@@ -1029,9 +1029,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             function stopSpinning() {
                 isDecelerating = true;
-                isAligning = false;
                 decelStartTime = performance.now();
-                initialSpinSpeedOnDecel = currentSpinSpeed;
+                startAngleOnDecel = totalRotationAngle;
+
+                // Calculate the next clean stopping angle (next full 360-degree rotation)
+                const nextFullRevolution = Math.ceil(totalRotationAngle / (2 * Math.PI)) * (2 * Math.PI);
+                
+                // Also calculate a minimum distance to travel to ensure it feels weighty
+                const minTargetAngle = startAngleOnDecel + 2 * (2 * Math.PI); // Min 2 rotations
+
+                // The final target is the further of the two, ensuring a smooth spindown
+                targetAngleOnDecel = Math.max(nextFullRevolution, minTargetAngle);
             }
 
             function spinLoop(currentTime) {
@@ -1040,53 +1048,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (isDecelerating) {
                     const timeSinceDecel = currentTime - decelStartTime;
-
-                    if (isAligning) {
-                        const timeSinceAlign = currentTime - alignStartTime;
-                        if (timeSinceAlign >= alignDuration) {
-                            totalRotationAngle = targetAngleOnAlign;
-                            currentSpinSpeed = 0;
-                            isSpinning = false;
-                            isDecelerating = false;
-                            isAligning = false;
-                            spinAnimationId = null;
-                            drawStaticSpirograph();
-                            return;
-                        } else {
-                            const t = timeSinceAlign / alignDuration;
-                            const easedT = 1 - Math.pow(1 - t, 5);
-                            totalRotationAngle = startAngleOnAlign + (targetAngleOnAlign - startAngleOnAlign) * easedT;
-                        }
+                    if (timeSinceDecel >= decelerationDuration) {
+                        currentSpinSpeed = 0;
+                        isSpinning = false;
+                        isDecelerating = false;
+                        spinAnimationId = null;
+                        totalRotationAngle = 0; // Reset angle
+                        drawStaticSpirograph(); // Redraw in default orientation
+                        return; // Stop the loop
                     } else {
+                        // Ease-out quint function for a more pronounced ease-out
                         const t = timeSinceDecel / decelerationDuration;
-                        currentSpinSpeed = initialSpinSpeedOnDecel * (1 - t);
-                        
-                        const rpm_rad_per_sec = currentSpinSpeed * 2 * Math.PI / 60;
-                        totalRotationAngle += rpm_rad_per_sec * deltaTime;
-
-                        if (currentSpinSpeed <= 30) {
-                            isAligning = true;
-                            alignStartTime = currentTime;
-                            alignDuration = decelerationDuration - timeSinceDecel;
-                            startAngleOnAlign = totalRotationAngle;
-                            const revolutions = totalRotationAngle / (2 * Math.PI);
-                            const fullRevolutions = Math.ceil(revolutions);
-                            targetAngleOnAlign = fullRevolutions * 2 * Math.PI;
-                        }
-                        
-                        if (timeSinceDecel >= decelerationDuration) {
-                            currentSpinSpeed = 0;
-                            isSpinning = false;
-                            isDecelerating = false;
-                            spinAnimationId = null;
-                            totalRotationAngle = 0;
-                            drawStaticSpirograph();
-                            return;
-                        }
+                        const easedT = 1 - Math.pow(1 - t, 5);
+                        totalRotationAngle = startAngleOnDecel + (targetAngleOnDecel - startAngleOnDecel) * easedT;
                     }
                 } else {
                     const timeSinceSpinStart = currentTime - spinStartTime;
                     const progress = Math.min(timeSinceSpinStart / accelerationDuration, 1.0);
+                    // Logarithmic acceleration
                     currentSpinSpeed = maxSpinSpeed * Math.log1p(progress * (Math.E - 1));
                     const rpm_rad_per_sec = currentSpinSpeed * 2 * Math.PI / 60;
                     totalRotationAngle += rpm_rad_per_sec * deltaTime;
