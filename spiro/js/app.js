@@ -1007,7 +1007,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 tempCanvas.height = 256;
                 const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
 
-                const totalFrames = 108;
+                const totalFrames = 216;
                 const rotationPerFrame = (2 * Math.PI) / totalFrames;
                 const direction = nodes[0].direction === 0 ? 1 : nodes[0].direction;
 
@@ -1023,7 +1023,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     'images': images,
                     'gifWidth': 256,
                     'gifHeight': 256,
-                    'frameDuration': 0.0166
+                    'frameDuration': 1/120
                 }, function(obj) {
                     console.log("gifshot callback object:", obj);
                     if (!obj.error) {
