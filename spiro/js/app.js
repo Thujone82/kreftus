@@ -317,7 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            function drawSpirographFrame(calledFromSpinLoop = false) {
+            function drawSpirographFrame() {
                 if (!isRunning) return;
                 let currentPhysicsSubSteps = BASE_PHYSICS_SUB_STEPS;
                 if (nodes.length === 3) currentPhysicsSubSteps = Math.round(BASE_PHYSICS_SUB_STEPS * 1.5);
@@ -417,7 +417,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const node1 = nodes[0];
                     console.log(`Target rotations (${node1.totalRotations}) reached. Halting simulation.`);
                     stopSimulation();
-                } else if (!calledFromSpinLoop) {
+                } else {
                     animationFrameId = requestAnimationFrame(drawSpirographFrame);
                 }
             }
@@ -725,31 +725,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         currentSegmentMap.set(node.id, newSegment);
                     }
                 });
-                
-                // If the easter egg isn't running, start the animation loop.
-                // If it is running, it will pick up the isRunning=true flag and handle the drawing.
-                if (!isSpinning) {
-                    animationFrameId = requestAnimationFrame(drawSpirographFrame);
-                }
+                animationFrameId = requestAnimationFrame(drawSpirographFrame);
                 console.log("Simulation started, resuming from current angles.");
             }
 
             function stopSimulation() {
-                isRunning = false; 
-                if (animationFrameId) cancelAnimationFrame(animationFrameId);
-                animationFrameId = null; 
-
-                // Also stop the easter egg if it's running
-                if (isSpinning) {
-                    clearTimeout(pressTimer);
-                    if (spinAnimationId) cancelAnimationFrame(spinAnimationId);
-                    spinAnimationId = null;
-                    isSpinning = false;
-                    isDecelerating = false;
-                    currentSpinSpeed = 0;
-                }
-
-                startStopButton.textContent = 'Start Simulation';
+                isRunning = false; if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                animationFrameId = null; startStopButton.textContent = 'Start Simulation';
                 setControlsVisibility(false); 
                 currentSegmentMap.clear(); 
                 console.log("Simulation stopped.");
@@ -991,6 +973,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // --- Easter Egg Logic ---
             function handlePressStart(e) {
+                if (isRunning) return;
                 e.preventDefault();
                 clearTimeout(pressTimer);
                 pressTimer = setTimeout(() => {
@@ -1032,10 +1015,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         isSpinning = false;
                         isDecelerating = false;
                         spinAnimationId = null;
-                        // If the main simulation should be running, hand control back to it
-                        if (isRunning && !animationFrameId) {
-                            animationFrameId = requestAnimationFrame(drawSpirographFrame);
-                        }
                     } else {
                         const decelFactor = 1 - (timeSinceDecel / decelerationDuration);
                         currentSpinSpeed = initialSpinSpeedOnDecel * decelFactor;
@@ -1050,11 +1029,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const rpm_rad_per_sec = currentSpinSpeed * 2 * Math.PI / 60;
                 totalRotationAngle += rpm_rad_per_sec * deltaTime;
 
-                if (isRunning) {
-                    drawSpirographFrame(true); 
-                } else {
-                    drawStaticSpirograph();
-                }
+                drawStaticSpirograph();
 
                 lastSpinFrameTime = currentTime;
                 if (isSpinning) {
