@@ -983,9 +983,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (isRunning) return;
                 e.preventDefault();
                 clearTimeout(pressTimer);
-                pressTimer = setTimeout(() => {
+
+                // If we are currently spinning down, re-accelerate immediately.
+                if (isDecelerating) {
                     startSpinning();
-                }, 1000);
+                } else {
+                    // Otherwise, wait for the 1-second hold to initiate the spin.
+                    pressTimer = setTimeout(() => {
+                        startSpinning();
+                    }, 1000);
+                }
             }
 
             function handlePressEnd() {
@@ -997,10 +1004,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
             function startSpinning() {
                 if (isSpinning && !isDecelerating) return;
+
+                const wasDecelerating = isDecelerating;
                 isSpinning = true;
                 isDecelerating = false;
-                spinStartTime = performance.now();
-                lastSpinFrameTime = spinStartTime;
+                isAligning = false;
+
+                if (wasDecelerating) {
+                    // If we were slowing down, we need to calculate the new start time 
+                    // on the acceleration curve that matches the current speed.
+                    const currentSpeedRatio = currentSpinSpeed / maxSpinSpeed;
+                    // Inverse of the log1p function to find the progress
+                    const progress = (Math.exp(currentSpeedRatio) - 1) / (Math.E - 1);
+                    const equivalentTime = progress * accelerationDuration;
+                    spinStartTime = performance.now() - equivalentTime;
+                } else {
+                    spinStartTime = performance.now();
+                }
+                
+                lastSpinFrameTime = performance.now();
                 if (spinAnimationId) cancelAnimationFrame(spinAnimationId);
                 spinAnimationId = requestAnimationFrame(spinLoop);
             }
