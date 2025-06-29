@@ -1,7 +1,9 @@
-const CACHE_NAME = 'spirograph-generator-v2-062825@1310'; 
+const CACHE_NAME = 'spirograph-generator-v2-062825@1750'; 
 const urlsToCache = [
   './', // For accessing the root
   './index.html',
+  './css/style.css',
+  './js/app.js',
   './manifest.json',
   './icons/s192.png', // Ensure this path is correct and file exists
   './icons/s512.png'  // Ensure this path is correct and file exists
