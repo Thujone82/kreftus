@@ -725,7 +725,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         currentSegmentMap.set(node.id, newSegment);
                     }
                 });
-                animationFrameId = requestAnimationFrame(drawSpirographFrame);
+                
+                // If the easter egg isn't running, start the animation loop.
+                // If it is running, it will pick up the isRunning=true flag and handle the drawing.
+                if (!isSpinning) {
+                    animationFrameId = requestAnimationFrame(drawSpirographFrame);
+                }
                 console.log("Simulation started, resuming from current angles.");
             }
 
@@ -782,11 +787,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (simRunning) {
                     downloadButton.classList.add('control-hidden-during-run');
-                    downloadButton.classList.add('hidden'); 
+                    downloadButton.classList.add('hidden');
+                    appTitle.style.pointerEvents = 'none';
                 } else {
                     downloadButton.classList.remove('control-hidden-during-run');
                      if (!allTraceSegments.some(seg => seg.points.length > 0)) downloadButton.classList.add('hidden');
                      else downloadButton.classList.remove('hidden');
+                    appTitle.style.pointerEvents = 'auto';
                 }
             }
 
