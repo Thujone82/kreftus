@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spirograph-generator-v2-062825@2136'; 
+const CACHE_NAME = 'spirograph-generator-v2-062825@2203'; 
 const urlsToCache = [
   './', // For accessing the root
   './index.html',

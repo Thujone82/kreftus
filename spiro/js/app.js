@@ -1004,7 +1004,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     quality: 10,
                     width: 256,
                     height: 256,
-                    workerScript: 'js/gif.worker.js'
+                    workerScript: 'js/gif.js'
                 });
 
                 const tempCanvas = document.createElement('canvas');
