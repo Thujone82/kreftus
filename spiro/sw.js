@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spirograph-generator-v2-062825@2051'; 
+const CACHE_NAME = 'spirograph-generator-v2-062825@2136'; 
 const urlsToCache = [
   './', // For accessing the root
   './index.html',
@@ -6,7 +6,9 @@ const urlsToCache = [
   './js/app.js',
   './manifest.json',
   './icons/s192.png', // Ensure this path is correct and file exists
-  './icons/s512.png'  // Ensure this path is correct and file exists
+  './icons/s512.png',  // Ensure this path is correct and file exists
+  'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js'
 ];
 
 // Install event: Cache core assets

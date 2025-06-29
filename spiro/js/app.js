@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const memoryRecallButton = document.getElementById('memoryRecallButton');
             const memoryButtonsRow = document.getElementById('memory-buttons-row');
             const appTitle = document.getElementById('app-title');
+            const generateGifButton = document.getElementById('generateGifButton');
 
 
             let nodes = []; 
@@ -790,11 +791,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (simRunning) {
                     downloadButton.classList.add('control-hidden-during-run');
                     downloadButton.classList.add('hidden');
+                    generateGifButton.classList.add('control-hidden-during-run');
+                    generateGifButton.classList.add('hidden');
                     appTitle.style.pointerEvents = 'none';
                 } else {
                     downloadButton.classList.remove('control-hidden-during-run');
-                     if (!allTraceSegments.some(seg => seg.points.length > 0)) downloadButton.classList.add('hidden');
-                     else downloadButton.classList.remove('hidden');
+                    generateGifButton.classList.remove('control-hidden-during-run');
+                     if (!allTraceSegments.some(seg => seg.points.length > 0)) {
+                        downloadButton.classList.add('hidden');
+                        generateGifButton.classList.add('hidden');
+                     }
+                     else {
+                        downloadButton.classList.remove('hidden');
+                        generateGifButton.classList.remove('hidden');
+                     }
                     appTitle.style.pointerEvents = 'auto';
                 }
             }
@@ -977,6 +987,82 @@ document.addEventListener('DOMContentLoaded', () => {
                 const link = document.createElement('a'); link.href = tempCanvas.toDataURL('image/png');
                 link.download = 'spirograph_v2.5.png'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
             });
+
+            generateGifButton.addEventListener('click', generateGif);
+
+            function generateGif() {
+                if (!allTraceSegments.some(seg => seg.points.length > 0)) {
+                    alert("No spirograph trace to generate a GIF from.");
+                    return;
+                }
+
+                generateGifButton.disabled = true;
+                generateGifButton.textContent = 'Generating GIF...';
+
+                const gif = new GIF({
+                    workers: 2,
+                    quality: 10,
+                    width: 256,
+                    height: 256,
+                    workerScript: 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js'
+                });
+
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = 256;
+                tempCanvas.height = 256;
+                const tempCtx = tempCanvas.getContext('2d');
+
+                const totalFrames = 54;
+                const rotationPerFrame = (2 * Math.PI) / totalFrames;
+                const direction = nodes[0].direction === 0 ? 1 : nodes[0].direction;
+
+                for (let i = 0; i < totalFrames; i++) {
+                    const rotation = i * rotationPerFrame * direction;
+                    drawGifFrame(tempCtx, rotation);
+                    gif.addFrame(tempCtx, {copy: true, delay: 1800 / totalFrames});
+                }
+
+                gif.on('finished', function(blob) {
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = 'spirograph.gif';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    generateGifButton.disabled = false;
+                    generateGifButton.textContent = 'Generate GIF';
+                });
+
+                gif.render();
+            }
+
+            function drawGifFrame(ctx, rotation) {
+                ctx.fillStyle = document.documentElement.style.getPropertyValue('--sim-background-color');
+                ctx.fillRect(0, 0, 256, 256);
+
+                const canvasCenterX = 128 + canvasOffsetX;
+                const canvasCenterY = 128 + canvasOffsetY;
+
+                ctx.save();
+                ctx.translate(canvasCenterX, canvasCenterY);
+                ctx.rotate(rotation);
+                ctx.translate(-canvasCenterX, -canvasCenterY);
+
+                allTraceSegments.forEach(segment => {
+                    if (segment.points.length > 1) {
+                        ctx.strokeStyle = hexToRgba(segment.color, segment.nodeAlpha / 100);
+                        ctx.lineWidth = Math.max(1, segment.nodeWidth * currentZoom);
+                        ctx.beginPath();
+                        ctx.moveTo(canvasCenterX + segment.points[0].x * currentZoom, canvasCenterY + segment.points[0].y * currentZoom);
+                        for (let k = 1; k < segment.points.length; k++) {
+                            ctx.lineTo(canvasCenterX + segment.points[k].x * currentZoom, canvasCenterY + segment.points[k].y * currentZoom);
+                        }
+                        ctx.stroke();
+                    }
+                });
+                ctx.restore();
+            }
 
             // --- Easter Egg Logic ---
             function handlePressStart(e) {
