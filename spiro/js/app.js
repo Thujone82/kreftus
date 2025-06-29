@@ -999,14 +999,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 generateGifButton.disabled = true;
                 generateGifButton.textContent = 'Generating GIF...';
 
-                const gif = new GIF({
-                    workers: 2,
-                    quality: 10,
-                    width: 256,
-                    height: 256,
-                    workerScript: 'js/gif.js'
-                });
-
+                const images = [];
                 const tempCanvas = document.createElement('canvas');
                 tempCanvas.width = 256;
                 tempCanvas.height = 256;
@@ -1019,22 +1012,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 for (let i = 0; i < totalFrames; i++) {
                     const rotation = i * rotationPerFrame * direction;
                     drawGifFrame(tempCtx, rotation);
-                    gif.addFrame(tempCtx, {copy: true, delay: 1800 / totalFrames});
+                    images.push(tempCanvas.toDataURL('image/png'));
                 }
 
-                gif.on('finished', function(blob) {
-                    const link = document.createElement('a');
-                    link.href = URL.createObjectURL(blob);
-                    link.download = 'spirograph.gif';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-
+                gifshot.createGIF({
+                    'images': images,
+                    'gifWidth': 256,
+                    'gifHeight': 256,
+                    'frameDuration': 1.8 / totalFrames
+                }, function(obj) {
+                    if (!obj.error) {
+                        const link = document.createElement('a');
+                        link.href = obj.image;
+                        link.download = 'spirograph.gif';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    }
                     generateGifButton.disabled = false;
                     generateGifButton.textContent = 'Generate GIF';
                 });
-
-                gif.render();
             }
 
             function drawGifFrame(ctx, rotation) {
