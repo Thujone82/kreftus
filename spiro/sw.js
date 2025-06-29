@@ -5,11 +5,10 @@ const urlsToCache = [
   './css/style.css',
   './js/app.js',
   './js/gif.js',
-  './js/gif.worker.js',
   './manifest.json',
   './icons/s192.png', // Ensure this path is correct and file exists
   './icons/s512.png'  // Ensure this path is correct and file exists
-];
+];;
 
 // Install event: Cache core assets
 self.addEventListener('install', event => {
