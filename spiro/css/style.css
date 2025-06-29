@@ -187,12 +187,36 @@
         .node-config h4 {
             margin-top: 0; margin-bottom: 15px; color: var(--main-color); font-size: 1em;
             display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; /* Add cursor pointer */
+        }
+        .node-config h4 .collapse-indicator {
+            margin-right: 10px;
+            transition: transform 0.2s ease;
+        }
+        .node-config.collapsed h4 .collapse-indicator {
+            transform: rotate(-90deg);
+        }
+        .node-config .node-controls {
+            transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+            overflow: hidden;
+            max-height: 1000px; /* Set a large max-height for expanded state */
+            opacity: 1;
+        }
+        .node-config.collapsed .node-controls {
+            max-height: 0;
+            opacity: 0;
         }
         .node-config h4 .remove-node-btn {
             font-size: 0.8em; padding: 4px 8px; margin-top: 0; margin-left: 10px;
             width: auto; background-color: #616161; color: var(--text-color);
         }
         .node-config h4 .remove-node-btn:hover { background-color: #D32F2F; }
+        .node-config h4.sim-running {
+            cursor: default;
+        }
+        .node-config h4.sim-running .collapse-indicator {
+            display: none;
+        }
 
         .hidden { display: none !important; }
         

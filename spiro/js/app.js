@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
             let nodes = []; 
+            let collapsedStates = {}; // To store collapsed states
             const MAX_NODES = 4; 
             const BASE_SPEED_RPM = 4.0; 
             const DT = 1/60; 
@@ -433,6 +434,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const node = nodes.find(n => n.id === nodeId); if (!node) return null;
                 const nodeDiv = document.createElement('div');
                 nodeDiv.className = 'node-config'; nodeDiv.id = `node-config-${nodeId}`;
+                if (collapsedStates[nodeId]) {
+                    nodeDiv.classList.add('collapsed');
+                }
                 nodeDiv.setAttribute('data-runtime-hide', 'true');
                 const removeBtnHtml = nodeId > 1 ? `<button class="remove-node-btn" data-nodeid="${nodeId}">Remove</button>` : '';
                 
@@ -454,7 +458,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 nodeDiv.innerHTML = `
-                    <h4>Node ${nodeId} ${removeBtnHtml}</h4>
+                    <h4 class="node-header"><span class="collapse-indicator">▼</span>Node ${nodeId} ${removeBtnHtml}</h4>
+                    <div class="node-controls">
                     ${controlHtml} 
                     <div class="slider-container" id="node${nodeId}-length-control">
                         <label for="length${nodeId}">Length: <span id="length${nodeId}-val">${node.length}</span>px</label>
@@ -494,7 +499,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="checkbox-container" id="node${nodeId}-draw-control">
                         <input type="checkbox" id="draw${nodeId}" ${node.isDrawing ? 'checked' : ''} data-nodeid="${nodeId}">
                         <label for="draw${nodeId}">Enable Drawing</label>
+                    </div>
                     </div>`;
+
+                nodeDiv.querySelector('.node-header').addEventListener('click', (e) => {
+                    if (e.target.classList.contains('remove-node-btn')) {
+                        return;
+                    }
+                    nodeDiv.classList.toggle('collapsed');
+                    collapsedStates[nodeId] = nodeDiv.classList.contains('collapsed');
+                });
+
                 const lengthSliderEl = nodeDiv.querySelector(`#length${nodeId}`);
                 if (lengthSliderEl) {
                     lengthSliderEl.addEventListener('input', (e) => {
@@ -609,8 +624,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (isFirstNode) {
                     newNode.currentAbsoluteAngle = newNode.initialAbsoluteAngle;
                 } else {
-                    const parentNode = nodes[nodes.length - 1]; 
-                    newNode.initialAbsoluteAngle = parentNode.initialAbsoluteAngle + newNode.initialRelativeAngle; 
+                    const parentNode = nodes[nodes.length - 1];
+                    // A new node should extend from the PARENT's CURRENT position.
+                    // Its own initial relative angle is 0.
+                    newNode.initialRelativeAngle = 0;
+                    // Its initial absolute angle is thus the parent's current absolute angle.
+                    newNode.initialAbsoluteAngle = parentNode.currentAbsoluteAngle + newNode.initialRelativeAngle;
                     newNode.currentAbsoluteAngle = newNode.initialAbsoluteAngle;
                 }
                 newNode.previousAbsoluteAngle = newNode.currentAbsoluteAngle;
@@ -647,6 +666,7 @@ document.addEventListener('DOMContentLoaded', () => {
             function resetNodeConfigurations() { 
                 if (isRunning) stopSimulation();
                 nodes = []; 
+                collapsedStates = {}; // Reset collapsed states
                 nodesConfigContainer.innerHTML = ''; 
                 addNode(); addNode(); 
                 updateAddRemoveButtons();
@@ -750,32 +770,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 globalSettingsGroup.classList.toggle('control-hidden-during-run', simRunning);
                 document.querySelectorAll('.node-config').forEach(el => {
                     const nodeId = parseInt(el.id.split('-').pop());
+                    const header = el.querySelector('h4');
+
                     if (nodeId === 1) { 
-                        Array.from(el.children).forEach(child => {
+                        if (header) {
+                            header.classList.toggle('sim-running', simRunning);
+                        }
+                        // When running, we want to see speed/direction, so force-expand it visually
+                        if (simRunning) {
+                            el.classList.remove('collapsed');
+                        } else {
+                            // When stopping, restore its actual collapsed state
+                            if (collapsedStates[nodeId]) {
+                                el.classList.add('collapsed');
+                            }
+                        }
+
+                        Array.from(el.querySelectorAll('.node-controls > div')).forEach(child => {
                             const isSpeedControl = child.id === 'node1-speed-control-slider' || child.id === 'node1-speed-control-direction';
-                            const isHeader = child.tagName.toLowerCase() === 'h4';
-                            const isStartAngleControlGroup = child.id === `node1-start-angle-control`;
-                            const isRotationsControlGroup = child.id === `node1-rotations-control`;
                             
                             if (simRunning) { 
-                                if (!isSpeedControl && !isHeader) child.classList.add('control-hidden-during-run');
-                                else child.classList.remove('control-hidden-during-run');
-                                
-                                if(isStartAngleControlGroup) {
-                                    el.querySelector(`#startAngle1`).disabled = true;
-                                    const setAngleBtn = el.querySelector(`#setStartAngle1`);
-                                    if(setAngleBtn) setAngleBtn.classList.add('control-hidden-during-run');
+                                if (!isSpeedControl) {
+                                    child.classList.add('control-hidden-during-run');
+                                } else {
+                                    child.classList.remove('control-hidden-during-run');
                                 }
-                                if(isRotationsControlGroup) el.querySelector(`#totalRotations1`).disabled = true;
+                                
+                                const startAngleInput = el.querySelector(`#startAngle1`);
+                                if(startAngleInput) startAngleInput.disabled = true;
+                                const setAngleBtn = el.querySelector(`#setStartAngle1`);
+                                if(setAngleBtn) setAngleBtn.classList.add('control-hidden-during-run');
+                                const totalRotationsInput = el.querySelector(`#totalRotations1`);
+                                if(totalRotationsInput) totalRotationsInput.disabled = true;
 
                             } else { 
                                 child.classList.remove('control-hidden-during-run'); 
-                                if(isStartAngleControlGroup) {
-                                     el.querySelector(`#startAngle1`).disabled = false;
-                                     const setAngleBtn = el.querySelector(`#setStartAngle1`);
-                                     if(setAngleBtn) setAngleBtn.classList.remove('control-hidden-during-run');
-                                }
-                                if(isRotationsControlGroup) el.querySelector(`#totalRotations1`).disabled = false;
+                                const startAngleInput = el.querySelector(`#startAngle1`);
+                                if(startAngleInput) startAngleInput.disabled = false;
+                                const setAngleBtn = el.querySelector(`#setStartAngle1`);
+                                if(setAngleBtn) setAngleBtn.classList.remove('control-hidden-during-run');
+                                const totalRotationsInput = el.querySelector(`#totalRotations1`);
+                                if(totalRotationsInput) totalRotationsInput.disabled = false;
                             }
                         });
                     } else { 
