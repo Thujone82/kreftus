@@ -991,8 +991,10 @@ document.addEventListener('DOMContentLoaded', () => {
             generateGifButton.addEventListener('click', generateGif);
 
             function generateGif() {
+                console.log("Starting GIF generation...");
                 if (!allTraceSegments.some(seg => seg.points.length > 0)) {
                     alert("No spirograph trace to generate a GIF from.");
+                    console.log("GIF generation aborted: No trace data.");
                     return;
                 }
 
@@ -1009,11 +1011,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const rotationPerFrame = (2 * Math.PI) / totalFrames;
                 const direction = nodes[0].direction === 0 ? 1 : nodes[0].direction;
 
+                console.log(`Generating ${totalFrames} frames...`);
                 for (let i = 0; i < totalFrames; i++) {
                     const rotation = i * rotationPerFrame * direction;
                     drawGifFrame(tempCtx, rotation);
                     images.push(tempCanvas.toDataURL('image/png'));
                 }
+                console.log("Frames generated. Image data URL length for first frame:", images[0].length);
+                console.log("Total images to process:", images.length);
 
                 gifshot.createGIF({
                     'images': images,
@@ -1021,13 +1026,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     'gifHeight': 256,
                     'frameDuration': 1.8 / totalFrames
                 }, function(obj) {
+                    console.log("gifshot callback object:", obj);
                     if (!obj.error) {
+                        console.log("GIF created successfully. Triggering download.");
                         const link = document.createElement('a');
                         link.href = obj.image;
                         link.download = 'spirograph.gif';
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);
+                    } else {
+                        console.error("Error from gifshot:", obj.error);
+                        alert("Sorry, there was an error creating the GIF.");
                     }
                     generateGifButton.disabled = false;
                     generateGifButton.textContent = 'Generate GIF';
