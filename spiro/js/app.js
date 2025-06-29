@@ -985,7 +985,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     tempCtx.stroke(); }});
                 const link = document.createElement('a'); link.href = tempCanvas.toDataURL('image/png');
-                link.download = 'spirograph_v2.5.png'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                link.download = 'spirograph_v2.6.png'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
             });
 
             generateGifButton.addEventListener('click', generateGif);
