@@ -49,11 +49,13 @@ document.addEventListener('DOMContentLoaded', () => {
             let currentSpinSpeed = 0; // RPM
             const maxSpinSpeed = 300; // RPM
             const accelerationDuration = 5000; // 5 seconds
-            const decelerationDuration = 2000; // 2 seconds
+            const decelerationDuration = 4000; // 4 seconds
             let spinStartTime;
             let decelStartTime;
             let initialSpinSpeedOnDecel;
             let isDecelerating = false;
+            let startAngleOnDecel;
+            let targetAngleOnDecel;
 
             const themes = [
                 { name: 'Cosmic Cyan', bg: '#1A1A2E', hl: '#53D8FB', nodeColors: ['#FF69B4', '#39FF14', '#FFD700', '#FF00FF'] },
@@ -277,13 +279,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillStyle = document.documentElement.style.getPropertyValue('--sim-background-color');
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                ctx.save();
-                ctx.translate(canvas.width / 2, canvas.height / 2);
-                ctx.rotate(totalRotationAngle);
-                ctx.translate(-canvas.width / 2, -canvas.height / 2);
-
                 const canvasCenterX = canvas.width / 2 + canvasOffsetX; 
                 const canvasCenterY = canvas.height / 2 + canvasOffsetY; 
+
+                ctx.save();
+                ctx.translate(canvasCenterX, canvasCenterY);
+                ctx.rotate(totalRotationAngle);
+                ctx.translate(-canvasCenterX, -canvasCenterY);
 
                 const nodePositions = calculateStaticNodePositions();
                 nodePositions.forEach(pos => {
@@ -383,13 +385,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillStyle = document.documentElement.style.getPropertyValue('--sim-background-color');
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                ctx.save();
-                ctx.translate(canvas.width / 2, canvas.height / 2);
-                ctx.rotate(totalRotationAngle);
-                ctx.translate(-canvas.width / 2, -canvas.height / 2);
-
                 const canvasCenterX = canvas.width / 2 + canvasOffsetX; 
                 const canvasCenterY = canvas.height / 2 + canvasOffsetY; 
+
+                ctx.save();
+                ctx.translate(canvasCenterX, canvasCenterY);
+                ctx.rotate(totalRotationAngle);
+                ctx.translate(-canvasCenterX, -canvasCenterY);
+
                 let currentLogicalX_draw = 0, currentLogicalY_draw = 0;
 
                 for (let i = 0; i < nodes.length; i++) {
@@ -1003,6 +1006,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 isDecelerating = true;
                 decelStartTime = performance.now();
                 initialSpinSpeedOnDecel = currentSpinSpeed;
+                startAngleOnDecel = totalRotationAngle;
+                
+                // Calculate the final rotation amount needed to stop at a clean 360-degree angle
+                const revolutions = totalRotationAngle / (2 * Math.PI);
+                const fullRevolutions = Math.ceil(revolutions);
+                targetAngleOnDecel = fullRevolutions * 2 * Math.PI;
             }
 
             function spinLoop(currentTime) {
@@ -1020,18 +1029,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         drawStaticSpirograph(); // Redraw in default orientation
                         return; // Stop the loop
                     } else {
-                        const decelFactor = 1 - (timeSinceDecel / decelerationDuration);
-                        currentSpinSpeed = initialSpinSpeedOnDecel * decelFactor;
+                        // Ease-out cubic function for a smooth stop
+                        const t = timeSinceDecel / decelerationDuration;
+                        const easedT = 1 - Math.pow(1 - t, 3);
+                        totalRotationAngle = startAngleOnDecel + (targetAngleOnDecel - startAngleOnDecel) * easedT;
                     }
                 } else {
                     const timeSinceSpinStart = currentTime - spinStartTime;
                     const progress = Math.min(timeSinceSpinStart / accelerationDuration, 1.0);
                     // Logarithmic acceleration
                     currentSpinSpeed = maxSpinSpeed * Math.log1p(progress * (Math.E - 1));
+                    const rpm_rad_per_sec = currentSpinSpeed * 2 * Math.PI / 60;
+                    totalRotationAngle += rpm_rad_per_sec * deltaTime;
                 }
-
-                const rpm_rad_per_sec = currentSpinSpeed * 2 * Math.PI / 60;
-                totalRotationAngle += rpm_rad_per_sec * deltaTime;
 
                 drawStaticSpirograph();
 
