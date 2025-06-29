@@ -492,6 +492,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (lengthSliderEl) {
                     lengthSliderEl.addEventListener('input', (e) => {
                         document.getElementById(`length${nodeId}-val`).textContent = e.target.value;
+                        updateNodeFromUI(nodeId); // This was missing
                         updateSliderFill(e.target); 
                     });
                     lengthSliderEl.addEventListener('change', () => calculateAndSetZoom()); // Recalculate on release
