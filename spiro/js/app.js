@@ -968,19 +968,11 @@ document.addEventListener('DOMContentLoaded', () => {
             startStopButton.addEventListener('click', () => { if (isRunning) stopSimulation(); else startSimulation(); }); 
             
             // --- Memory Button Logic ---
-            memoryStoreButton.addEventListener('click', () => {
-                if (isRunning) stopSimulation();
-                memorySlot = {
-                    traces: JSON.parse(JSON.stringify(allTraceSegments)),
-                    zoom: currentZoom,
-                    offsetX: canvasOffsetX,
-                    offsetY: canvasOffsetY,
-                    bgColor: simBgColorPicker.value,
-                    hlColor: mainColorPickerEl.value
-                };
-                memoryRecallButton.disabled = false;
-                console.log("State saved to memory.");
-            });
+            memoryStoreButton.addEventListener('mousedown', handleMemoryButtonPressStart);
+            memoryStoreButton.addEventListener('touchstart', handleMemoryButtonPressStart, { passive: false });
+            memoryStoreButton.addEventListener('mouseup', handleMemoryButtonPressEnd);
+            memoryStoreButton.addEventListener('touchend', handleMemoryButtonPressEnd);
+            memoryStoreButton.addEventListener('mouseleave', handleMemoryButtonPressEnd); // Stop if mouse leaves button
 
             memoryRecallButton.addEventListener('click', () => {
                 if (!memorySlot) return;
@@ -1032,7 +1024,7 @@ document.addEventListener('DOMContentLoaded', () => {
             generateGifButton.addEventListener('click', generateGif);
 
             function generateGif() {
-                console.log("Starting GIF generation...");
+                console.log("Starting GIF generation with new quality settings...");
                 if (!allTraceSegments.some(seg => seg.points.length > 0)) {
                     alert("No spirograph trace to generate a GIF from.");
                     console.log("GIF generation aborted: No trace data.");
@@ -1042,29 +1034,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 generateGifButton.disabled = true;
                 generateGifButton.textContent = 'Generating GIF...';
 
+                // --- Intelligent Palette Strategy ---
+                const drawingNodes = nodes.filter(n => n.isDrawing);
+                const essentialColors = [...new Set([simBgColorPicker.value, ...drawingNodes.map(n => n.color)])];
+                
+                // Decide on palette size based on complexity (number of drawing nodes)
+                const numColors = drawingNodes.length <= 2 ? 64 : 128;
+
+                console.log(`Essential colors identified: ${essentialColors.join(', ')}`);
+                console.log(`Complexity: ${drawingNodes.length} drawing nodes. Using a ${numColors}-color palette.`);
+                // --- End of Strategy ---
+
                 const images = [];
                 const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = 256;
-                tempCanvas.height = 256;
+                const newResolution = 384; // 50% larger than 256
+                tempCanvas.width = newResolution;
+                tempCanvas.height = newResolution;
                 const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+                tempCtx.imageSmoothingEnabled = true; // Enable antialiasing
 
-                const totalFrames = 216;
+                const targetFPS = 60;
+                const targetDuration = 1.8; // seconds
+                const totalFrames = Math.round(targetFPS * targetDuration); // 108 frames
                 const rotationPerFrame = (2 * Math.PI) / totalFrames;
                 const direction = nodes[0].direction === 0 ? 1 : nodes[0].direction;
 
-                console.log(`Generating ${totalFrames} frames...`);
+                console.log(`Generating ${totalFrames} frames for a ${newResolution}x${newResolution} GIF at ${targetFPS} FPS...`);
                 for (let i = 0; i < totalFrames; i++) {
                     const rotation = i * rotationPerFrame * direction;
-                    drawGifFrame(tempCtx, rotation);
+                    drawGifFrame(tempCtx, rotation, newResolution);
                     images.push(tempCanvas.toDataURL('image/png'));
                 }
                 console.log("Frames generated. Total images to process:", images.length);
 
                 gifshot.createGIF({
                     'images': images,
-                    'gifWidth': 256,
-                    'gifHeight': 256,
-                    'frameDuration': 1/120
+                    'gifWidth': newResolution,
+                    'gifHeight': newResolution,
+                    'frameDuration': 1 / targetFPS, // ~0.0167 seconds per frame
+                    'palette': essentialColors,
+                    'numColors': numColors
                 }, function(obj) {
                     console.log("gifshot callback object:", obj);
                     if (!obj.error) {
@@ -1084,13 +1093,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            function drawGifFrame(ctx, rotation) {
+            function drawGifFrame(ctx, rotation, resolution) {
                 ctx.fillStyle = document.documentElement.style.getPropertyValue('--sim-background-color');
-                ctx.fillRect(0, 0, 256, 256);
+                ctx.fillRect(0, 0, resolution, resolution);
 
-                const scale = 256 / canvas.width;
-                const canvasCenterX = 128 + canvasOffsetX * scale;
-                const canvasCenterY = 128 + canvasOffsetY * scale;
+                const scale = resolution / canvas.width;
+                const canvasCenterX = (resolution / 2) + canvasOffsetX * scale;
+                const canvasCenterY = (resolution / 2) + canvasOffsetY * scale;
 
                 ctx.save();
                 ctx.translate(canvasCenterX, canvasCenterY);
@@ -1113,6 +1122,54 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // --- Easter Egg Logic ---
+
+            function storeMemoryState() {
+                if (isRunning) stopSimulation();
+                memorySlot = {
+                    traces: JSON.parse(JSON.stringify(allTraceSegments)),
+                    zoom: currentZoom,
+                    offsetX: canvasOffsetX,
+                    offsetY: canvasOffsetY,
+                    bgColor: simBgColorPicker.value,
+                    hlColor: mainColorPickerEl.value
+                };
+                memoryRecallButton.disabled = false;
+                console.log("State saved to memory.");
+            }
+
+            function handleMemoryButtonPressStart(e) {
+                if (isRunning) return;
+                e.preventDefault();
+
+                // If already spinning, this press is an accelerator.
+                if (isSpinning) {
+                    startSpinning();
+                    return;
+                }
+
+                // If not spinning, set a timer to initiate the spin on hold.
+                clearTimeout(pressTimer); // Clear any previous stray timers
+                pressTimer = setTimeout(() => {
+                    pressTimer = null; // Timer has fired, nullify it
+                    startSpinning();
+                }, 1000);
+            }
+
+            function handleMemoryButtonPressEnd(e) {
+                // If pressTimer is not null, it means the hold was released before 1s.
+                // This is our "click" action.
+                if (pressTimer) {
+                    clearTimeout(pressTimer);
+                    pressTimer = null;
+                    // Execute original M+ button logic
+                    storeMemoryState();
+                } else if (isSpinning) {
+                    // If there's no timer but we are spinning, it means the hold was long enough
+                    // to start the spin, and now we need to stop it.
+                    stopSpinning();
+                }
+            }
+
             function handlePressStart(e) {
                 if (isRunning) return;
                 e.preventDefault();
