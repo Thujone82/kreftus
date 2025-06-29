@@ -1044,12 +1044,31 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             function drawGifFrame(ctx, rotation) {
-                // Draw the current state onto the main canvas
-                totalRotationAngle = rotation;
-                drawStaticSpirograph();
+                ctx.fillStyle = document.documentElement.style.getPropertyValue('--sim-background-color');
+                ctx.fillRect(0, 0, 256, 256);
 
-                // Now, take a snapshot of the main canvas and draw it to the temporary GIF canvas
-                ctx.drawImage(canvas, 0, 0, 256, 256);
+                const scale = 256 / canvas.width;
+                const canvasCenterX = 128 + canvasOffsetX * scale;
+                const canvasCenterY = 128 + canvasOffsetY * scale;
+
+                ctx.save();
+                ctx.translate(canvasCenterX, canvasCenterY);
+                ctx.rotate(rotation);
+                ctx.translate(-canvasCenterX, -canvasCenterY);
+
+                allTraceSegments.forEach(segment => {
+                    if (segment.points.length > 1) {
+                        ctx.strokeStyle = hexToRgba(segment.color, segment.nodeAlpha / 100);
+                        ctx.lineWidth = Math.max(1, segment.nodeWidth * currentZoom * scale);
+                        ctx.beginPath();
+                        ctx.moveTo(canvasCenterX + segment.points[0].x * currentZoom * scale, canvasCenterY + segment.points[0].y * currentZoom * scale);
+                        for (let k = 1; k < segment.points.length; k++) {
+                            ctx.lineTo(canvasCenterX + segment.points[k].x * currentZoom * scale, canvasCenterY + segment.points[k].y * currentZoom * scale);
+                        }
+                        ctx.stroke();
+                    }
+                });
+                ctx.restore();
             }
 
             // --- Easter Egg Logic ---
