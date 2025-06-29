@@ -987,7 +987,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // If we are currently spinning down, re-accelerate immediately.
                 if (isDecelerating) {
                     startSpinning();
-                } else {
+                } else if (!isSpinning) { // Only set timer if not already accelerating
                     // Otherwise, wait for the 1-second hold to initiate the spin.
                     pressTimer = setTimeout(() => {
                         startSpinning();
@@ -997,53 +997,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
             function handlePressEnd() {
                 clearTimeout(pressTimer);
-                if (isSpinning) {
+                // Only stop if we are in the acceleration phase.
+                if (isSpinning && !isDecelerating) {
                     stopSpinning();
                 }
             }
 
             function startSpinning() {
-                if (isSpinning && !isDecelerating) return;
+                if (spinAnimationId) cancelAnimationFrame(spinAnimationId);
 
                 const wasDecelerating = isDecelerating;
                 isSpinning = true;
                 isDecelerating = false;
 
                 if (wasDecelerating) {
-                    // If we were slowing down, we need to calculate the new start time 
-                    // on the acceleration curve that matches the current speed.
+                    // We are re-accelerating. We need to find the "time" on the acceleration
+                    // curve that corresponds to our current speed.
                     const currentSpeedRatio = currentSpinSpeed / maxSpinSpeed;
-                    // Inverse of the log1p function to find the progress
+                    // Inverse of the log1p function
                     const progress = (Math.exp(currentSpeedRatio) - 1) / (Math.E - 1);
                     const equivalentTime = progress * accelerationDuration;
                     spinStartTime = performance.now() - equivalentTime;
                 } else {
+                    // Starting from zero.
+                    currentSpinSpeed = 0;
                     spinStartTime = performance.now();
                 }
-                
+
                 lastSpinFrameTime = performance.now();
-                if (spinAnimationId) cancelAnimationFrame(spinAnimationId);
                 spinAnimationId = requestAnimationFrame(accelerateLoop);
             }
 
             function stopSpinning() {
-                // Immediately cancel any running animation loop.
-                if (spinAnimationId) {
-                    cancelAnimationFrame(spinAnimationId);
-                }
+                if (spinAnimationId) cancelAnimationFrame(spinAnimationId);
 
-                // Capture the state at the exact moment of release.
-                initialSpinSpeedOnDecel = currentSpinSpeed;
-                startAngleOnDecel = totalRotationAngle;
+                isDecelerating = true;
                 decelStartTime = performance.now();
+                startAngleOnDecel = totalRotationAngle;
+                initialSpinSpeedOnDecel = currentSpinSpeed;
 
-                // Calculate a natural coasting distance based on the captured speed.
-                const avgSpeedRpm = initialSpinSpeedOnDecel / 2;
-                const avgSpeedRadPerSec = (avgSpeedRpm * 2 * Math.PI) / 60;
-                const estimatedTravelAngle = avgSpeedRadPerSec * (decelerationDuration / 1000);
-                const preliminaryTarget = startAngleOnDecel + estimatedTravelAngle;
+                // Use a simple physics model (d = v*t + 0.5*a*t^2) to find a natural coasting distance.
+                // For a smooth stop (v_final = 0), this simplifies to d = 0.5 * v_initial * t.
+                const initialSpeedRadPerSec = (initialSpinSpeedOnDecel * 2 * Math.PI) / 60;
+                const travelAngle = 0.5 * initialSpeedRadPerSec * (decelerationDuration / 1000);
+                const preliminaryTarget = startAngleOnDecel + travelAngle;
 
-                // Find the next clean 360-degree angle after that natural coasting distance.
+                // Find the next full revolution *after* this natural stopping point.
                 const targetRevolutions = Math.ceil(preliminaryTarget / (2 * Math.PI));
                 targetAngleOnDecel = targetRevolutions * 2 * Math.PI;
 
@@ -1051,8 +1050,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const minTargetAngle = startAngleOnDecel + (2 * Math.PI); // At least one full rotation.
                 targetAngleOnDecel = Math.max(targetAngleOnDecel, minTargetAngle);
 
-                // Start the dedicated deceleration loop.
-                isDecelerating = true;
                 lastSpinFrameTime = performance.now();
                 spinAnimationId = requestAnimationFrame(decelerateLoop);
             }
@@ -1083,12 +1080,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     isDecelerating = false;
                     spinAnimationId = null;
                 } else {
+                    // Use ease-out quad, which corresponds to constant deceleration.
                     const t = timeSinceDecel / decelerationDuration;
-                    const easedT = 1 - Math.pow(1 - t, 5); // Ease-out quint
-                    totalRotationAngle = startAngleOnDecel + (targetAngleOnDecel - startAngleOnDecel) * easedT;
+                    const easedT = t * (2 - t);
+                    const newAngle = startAngleOnDecel + (targetAngleOnDecel - startAngleOnDecel) * easedT;
+
+                    // Live-calculate speed for smooth re-acceleration
+                    const deltaTime = (currentTime - lastSpinFrameTime) / 1000;
+                    if (deltaTime > 0) {
+                        const angleChange = newAngle - totalRotationAngle;
+                        currentSpinSpeed = ((angleChange / deltaTime) * 60) / (2 * Math.PI);
+                    }
+                    totalRotationAngle = newAngle;
                 }
 
                 drawStaticSpirograph();
+                lastSpinFrameTime = currentTime;
 
                 if (isDecelerating) {
                     spinAnimationId = requestAnimationFrame(decelerateLoop);
