@@ -1054,7 +1054,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 tempCtx.imageSmoothingEnabled = true; // Enable antialiasing
 
                 const totalFrames = 90;
-                const frameDuration = 1 / 100; // 100 FPS
+                const frameDuration = .02; // 20ms per frame
                 const targetFPS = Math.round(1 / frameDuration);
                 const rotationPerFrame = (2 * Math.PI) / totalFrames;
                 const direction = nodes[0].direction === 0 ? 1 : nodes[0].direction;
