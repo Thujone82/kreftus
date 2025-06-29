@@ -4,10 +4,10 @@ const urlsToCache = [
   './index.html',
   './css/style.css',
   './js/app.js',
-  './js/gif.js',
   './manifest.json',
   './icons/s192.png', // Ensure this path is correct and file exists
-  './icons/s512.png'  // Ensure this path is correct and file exists
+  './icons/s512.png',  // Ensure this path is correct and file exists
+  'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js'
 ];;
 
 // Install event: Cache core assets
