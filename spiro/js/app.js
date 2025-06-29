@@ -1023,13 +1023,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     'images': images,
                     'gifWidth': 256,
                     'gifHeight': 256,
-                    'frameDuration': 1.8 / totalFrames
+                    'frameDuration': 0.0166
                 }, function(obj) {
                     console.log("gifshot callback object:", obj);
                     if (!obj.error) {
-                        console.log("GIF created successfully. Opening in new tab.");
-                        const newTab = window.open();
-                        newTab.document.write('<img src="' + obj.image + '" />');
+                        console.log("GIF created successfully. Triggering download.");
+                        const link = document.createElement('a');
+                        link.href = obj.image;
+                        link.download = 'spirograph.gif';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
                     } else {
                         console.error("Error from gifshot:", obj.error);
                         alert("Sorry, there was an error creating the GIF.");
