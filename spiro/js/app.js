@@ -1029,9 +1029,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         drawStaticSpirograph(); // Redraw in default orientation
                         return; // Stop the loop
                     } else {
-                        // Ease-out cubic function for a smooth stop
+                        // Ease-out sine function for a smooth stop
                         const t = timeSinceDecel / decelerationDuration;
-                        const easedT = 1 - Math.pow(1 - t, 3);
+                        const easedT = Math.sin(t * Math.PI / 2);
                         totalRotationAngle = startAngleOnDecel + (targetAngleOnDecel - startAngleOnDecel) * easedT;
                     }
                 } else {
