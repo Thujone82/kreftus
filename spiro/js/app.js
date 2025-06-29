@@ -1053,9 +1053,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
                 tempCtx.imageSmoothingEnabled = true; // Enable antialiasing
 
-                const targetFPS = 60;
+                const targetFPS = 50; // Use 50 FPS for clean 0.02s frame delay
                 const targetDuration = 1.8; // seconds
-                const totalFrames = Math.round(targetFPS * targetDuration); // 108 frames
+                const totalFrames = Math.round(targetFPS * targetDuration); // 90 frames
                 const rotationPerFrame = (2 * Math.PI) / totalFrames;
                 const direction = nodes[0].direction === 0 ? 1 : nodes[0].direction;
 
@@ -1071,7 +1071,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     'images': images,
                     'gifWidth': newResolution,
                     'gifHeight': newResolution,
-                    'frameDuration': 1 / targetFPS, // ~0.0167 seconds per frame
+                    'frameDuration': 1 / targetFPS, // 0.02 seconds per frame
                     'palette': essentialColors,
                     'numColors': numColors
                 }, function(obj) {
