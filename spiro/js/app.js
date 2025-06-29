@@ -1007,7 +1007,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 tempCanvas.height = 256;
                 const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
 
-                const totalFrames = 54;
+                const totalFrames = 108;
                 const rotationPerFrame = (2 * Math.PI) / totalFrames;
                 const direction = nodes[0].direction === 0 ? 1 : nodes[0].direction;
 
@@ -1017,8 +1017,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     drawGifFrame(tempCtx, rotation);
                     images.push(tempCanvas.toDataURL('image/png'));
                 }
-                console.log("Frames generated. Image data URL length for first frame:", images[0].length);
-                console.log("Total images to process:", images.length);
+                console.log("Frames generated. Total images to process:", images.length);
 
                 gifshot.createGIF({
                     'images': images,
@@ -1028,13 +1027,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, function(obj) {
                     console.log("gifshot callback object:", obj);
                     if (!obj.error) {
-                        console.log("GIF created successfully. Triggering download.");
-                        const link = document.createElement('a');
-                        link.href = obj.image;
-                        link.download = 'spirograph.gif';
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
+                        console.log("GIF created successfully. Opening in new tab.");
+                        const newTab = window.open();
+                        newTab.document.write('<img src="' + obj.image + '" />');
                     } else {
                         console.error("Error from gifshot:", obj.error);
                         alert("Sorry, there was an error creating the GIF.");
