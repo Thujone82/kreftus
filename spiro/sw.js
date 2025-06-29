@@ -1,13 +1,14 @@
-const CACHE_NAME = 'spirograph-generator-v2-062925@1101'; // Update this version when you change the cache content 
+const CACHE_NAME = 'spirograph-generator-v2-062925@1108'; // Update this version when you change the cache content 
 const urlsToCache = [
   './', // For accessing the root
   './index.html',
   './css/style.css',
   './js/app.js',
+  './js/gif.js',
+  './js/gif.worker.js',
   './manifest.json',
   './icons/s192.png', // Ensure this path is correct and file exists
-  './icons/s512.png',  // Ensure this path is correct and file exists
-  'https://unpkg.com/gifshot/dist/gifshot.js'
+  './icons/s512.png'  // Ensure this path is correct and file exists
 ];;
 
 // Install event: Cache core assets

@@ -1023,74 +1023,61 @@ document.addEventListener('DOMContentLoaded', () => {
 
             generateGifButton.addEventListener('click', generateGif);
 
-            function generateGif() {
-                console.log("Starting GIF generation with new quality settings...");
+            async function generateGif() {
+                console.log("Starting GIF generation with local worker...");
                 if (!allTraceSegments.some(seg => seg.points.length > 0)) {
                     alert("No spirograph trace to generate a GIF from.");
-                    console.log("GIF generation aborted: No trace data.");
                     return;
                 }
 
                 generateGifButton.disabled = true;
                 generateGifButton.textContent = 'Generating GIF...';
 
-                // --- Intelligent Palette Strategy ---
-                const drawingNodes = nodes.filter(n => n.isDrawing);
-                const essentialColors = [...new Set([simBgColorPicker.value, ...drawingNodes.map(n => n.color)])];
-                
-                // Decide on palette size based on complexity (number of drawing nodes)
-                const numColors = drawingNodes.length <= 2 ? 64 : 128;
+                const newResolution = 384;
+                const targetFPS = 50;
+                const frameDelay = 1000 / targetFPS; // delay in ms
 
-                console.log(`Essential colors identified: ${essentialColors.join(', ')}`);
-                console.log(`Complexity: ${drawingNodes.length} drawing nodes. Using a ${numColors}-color palette.`);
-                // --- End of Strategy ---
+                const gif = new GIF({
+                    workers: 2,
+                    quality: 5,
+                    workerScript: 'js/gif.worker.js',
+                    width: newResolution,
+                    height: newResolution
+                });
 
-                const images = [];
                 const tempCanvas = document.createElement('canvas');
-                const newResolution = 384; // 50% larger than 256
                 tempCanvas.width = newResolution;
                 tempCanvas.height = newResolution;
-                const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-                tempCtx.imageSmoothingEnabled = true; // Enable antialiasing
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.imageSmoothingEnabled = true;
 
-                const targetFPS = 50; // Use 50 FPS for clean 0.02s frame delay
                 const targetDuration = 1.8; // seconds
-                const totalFrames = Math.round(targetFPS * targetDuration); // 90 frames
+                const totalFrames = Math.round(targetFPS * targetDuration);
                 const rotationPerFrame = (2 * Math.PI) / totalFrames;
                 const direction = nodes[0].direction === 0 ? 1 : nodes[0].direction;
 
                 console.log(`Generating ${totalFrames} frames for a ${newResolution}x${newResolution} GIF at ${targetFPS} FPS...`);
+
                 for (let i = 0; i < totalFrames; i++) {
                     const rotation = i * rotationPerFrame * direction;
                     drawGifFrame(tempCtx, rotation, newResolution);
-                    images.push(tempCanvas.toDataURL('image/png'));
+                    gif.addFrame(tempCtx, {copy: true, delay: frameDelay});
                 }
-                console.log("Frames generated. Total images to process:", images.length);
 
-                gifshot.createGIF({
-                    'images': images,
-                    'gifWidth': newResolution,
-                    'gifHeight': newResolution,
-                    'frameDuration': 1 / targetFPS, // 0.02 seconds per frame
-                    'palette': essentialColors,
-                    'numColors': numColors
-                }, function(obj) {
-                    console.log("gifshot callback object:", obj);
-                    if (!obj.error) {
-                        console.log("GIF created successfully. Triggering download.");
-                        const link = document.createElement('a');
-                        link.href = obj.image;
-                        link.download = 'spirograph.gif';
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                    } else {
-                        console.error("Error from gifshot:", obj.error);
-                        alert("Sorry, there was an error creating the GIF.");
-                    }
+                gif.on('finished', function(blob) {
+                    console.log("GIF created successfully. Triggering download.");
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = 'spirograph.gif';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
                     generateGifButton.disabled = false;
                     generateGifButton.textContent = 'Generate GIF';
                 });
+
+                gif.render();
             }
 
             function drawGifFrame(ctx, rotation, resolution) {
