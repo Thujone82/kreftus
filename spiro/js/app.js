@@ -735,8 +735,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             function stopSimulation() {
-                isRunning = false; if (animationFrameId) cancelAnimationFrame(animationFrameId);
-                animationFrameId = null; startStopButton.textContent = 'Start Simulation';
+                isRunning = false; 
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                animationFrameId = null; 
+
+                // Also stop the easter egg if it's running
+                if (isSpinning) {
+                    clearTimeout(pressTimer);
+                    if (spinAnimationId) cancelAnimationFrame(spinAnimationId);
+                    spinAnimationId = null;
+                    isSpinning = false;
+                    isDecelerating = false;
+                    currentSpinSpeed = 0;
+                }
+
+                startStopButton.textContent = 'Start Simulation';
                 setControlsVisibility(false); 
                 currentSegmentMap.clear(); 
                 console.log("Simulation stopped.");
@@ -1019,6 +1032,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         isSpinning = false;
                         isDecelerating = false;
                         spinAnimationId = null;
+                        // If the main simulation should be running, hand control back to it
+                        if (isRunning && !animationFrameId) {
+                            animationFrameId = requestAnimationFrame(drawSpirographFrame);
+                        }
                     } else {
                         const decelFactor = 1 - (timeSinceDecel / decelerationDuration);
                         currentSpinSpeed = initialSpinSpeedOnDecel * decelFactor;
@@ -1034,7 +1051,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 totalRotationAngle += rpm_rad_per_sec * deltaTime;
 
                 if (isRunning) {
-                    // We need to call the frame drawing logic without the requestAnimationFrame
                     drawSpirographFrame(true); 
                 } else {
                     drawStaticSpirograph();
