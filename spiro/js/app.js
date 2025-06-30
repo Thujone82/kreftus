@@ -477,7 +477,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="slider-container" id="node${nodeId}-width-control">
                         <label for="width${nodeId}">Width: <span id="width${nodeId}-val">${node.width.toFixed(1)}</span>px</label>
-                        <input type="range" id="width${nodeId}" min="1" max="10" value="${node.width}" step="0.1" data-nodeid="${nodeId}">
+                        <input type="range" id="width${nodeId}" min="1" max="16" value="${node.width}" step="0.1" data-nodeid="${nodeId}">
                     </div>
                     <div class="slider-container" id="node${nodeId}-alpha-control">
                         <label for="alpha${nodeId}">Alpha: <span id="alpha${nodeId}-val">${node.alpha}</span>%</label>
