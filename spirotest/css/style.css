@@ -1,0 +1,250 @@
+
+        :root {
+            --sim-background-color: #1A1A2E; /* Dark Navy/Purple */
+            --main-color: #53D8FB; /* Bright Cyan */
+            --panel-bg-color: rgba(26, 26, 46, 0.85); 
+            --panel-border-color: #35355E; 
+            --text-color: #EAEAEA;
+            --button-text-color: var(--sim-background-color);
+            --slider-thumb-color: var(--main-color);
+            --slider-track-fill-color: var(--main-color);
+            --slider-track-bg-color: #404060; 
+            --input-bg-color: #252545;
+            --input-border-color: var(--panel-border-color);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            background-color: #0D0D17; 
+            overflow-x: hidden; 
+            padding-top: 20px;
+            box-sizing: border-box;
+            transition: background-color 0.3s ease;
+            touch-action: manipulation; 
+        }
+
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            width: 100%;
+            max-width: 1600px; 
+            padding: 0 10px;
+            box-sizing: border-box;
+        }
+
+        .panel {
+            background-color: var(--panel-bg-color);
+            padding: 20px;
+            border-radius: 12px; 
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+            color: var(--text-color);
+            box-sizing: border-box;
+            transition: background-color 0.3s ease;
+            border: 1px solid var(--panel-border-color);
+        }
+
+        #setup-panel {
+            width: 380px; 
+            flex-shrink: 0;
+            max-height: calc(100vh - 60px); 
+            overflow-y: auto;
+        }
+        
+        #setup-panel::-webkit-scrollbar { width: 8px; }
+        #setup-panel::-webkit-scrollbar-track { background: var(--panel-bg-color); border-radius: 10px; }
+        #setup-panel::-webkit-scrollbar-thumb { background: var(--slider-track-bg-color); border-radius: 10px; }
+        #setup-panel::-webkit-scrollbar-thumb:hover { background: var(--main-color); }
+
+        #setup-panel h2, #setup-panel h3 {
+            margin-top: 0; color: var(--main-color); text-align: center;
+            border-bottom: 1px solid var(--panel-border-color);
+            padding-bottom: 10px; margin-bottom: 20px;
+        }
+        #setup-panel h3 {
+            font-size: 1.1em; margin-top: 20px; margin-bottom: 15px;
+            text-align: left; border-bottom: none; padding-bottom: 5px;
+            color: var(--text-color); 
+        }
+
+        .control-group {
+            margin-bottom: 20px; padding-bottom: 15px;
+            border-bottom: 1px dashed var(--panel-border-color);
+            transition: opacity 0.3s ease, max-height 0.3s ease, margin 0.3s ease, padding 0.3s ease; 
+        }
+
+
+        .slider-container, .color-picker-container, .input-container, .checkbox-container, .select-container {
+            margin-bottom: 15px;
+        }
+        .input-group { 
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .input-group input[type="text"] {
+            flex-grow: 1;
+        }
+        .input-group button {
+            padding: 8px 12px;
+            margin-top: 0; 
+            width: auto; 
+            flex-shrink: 0;
+        }
+        .button-row { /* For M+ and MR buttons */
+            display: flex;
+            gap: 10px; /* Space between buttons */
+            margin-bottom: 10px; /* Space before next element */
+        }
+        .button-row button {
+            flex-grow: 1; /* Make buttons share space equally */
+        }
+
+
+        label { display: block; margin-bottom: 8px; font-size: 0.9em; color: #B0B0D0; }
+
+        input[type="range"] {
+            -webkit-appearance: none; appearance: none; width: 100%; height: 10px;
+            background: var(--slider-track-bg-color); border-radius: 5px; outline: none;
+            opacity: 0.9; transition: opacity .15s ease-in-out; margin-top: 5px; margin-bottom: 5px;
+        }
+        input[type="range"]:hover { opacity: 1; }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none; width: 20px; height: 20px;
+            background: var(--slider-thumb-color); border-radius: 50%;
+            border: 3px solid var(--slider-track-bg-color); cursor: pointer; margin-top: -5px;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px; height: 20px; background: var(--slider-thumb-color);
+            border-radius: 50%; border: 3px solid var(--slider-track-bg-color); cursor: pointer;
+        }
+        input[type="range"] { background: var(--slider-track-bg-color); }
+
+
+        input[type="color"] {
+            width: 100%; height: 35px; border: 1px solid var(--input-border-color);
+            background-color: var(--input-bg-color); border-radius: 4px;
+            cursor: pointer; padding: 0; box-sizing: border-box;
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+        input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
+        input[type="color"]::-moz-color-swatch { border: none; border-radius: 2px; }
+
+        input[type="number"], input[type="text"], select { 
+            width: 100%; padding: 8px 10px; background-color: var(--input-bg-color);
+            color: var(--text-color); border: 1px solid var(--input-border-color);
+            border-radius: 4px; box-sizing: border-box; font-size: 0.9em;
+        }
+        select {
+             appearance: none; -webkit-appearance: none; -moz-appearance: none;
+             background-repeat: no-repeat; background-position: right 10px center;
+             background-size: 10px auto; padding-right: 30px; 
+        }
+
+        .checkbox-container { display: flex; align-items: center; margin-top: 10px; }
+        .checkbox-container input[type="checkbox"] { margin-right: 10px; width: 18px; height: 18px; accent-color: var(--main-color); }
+        .checkbox-container label { margin-bottom: 0; font-size: 0.9em; color: var(--text-color); }
+
+        button {
+            display: block; width: 100%; padding: 12px 15px; 
+            background-color: var(--main-color); color: var(--button-text-color);
+            border: none; border-radius: 6px; cursor: pointer; font-size: 1em; font-weight: bold;
+            transition: background-color 0.2s, color 0.2s, opacity 0.2s, transform 0.1s, max-height 0.3s ease, margin 0.3s ease, padding 0.3s ease;
+            margin-top: 10px; box-sizing: border-box;
+        }
+        button:hover { opacity: 0.85; transform: translateY(-1px); }
+        button:active { transform: translateY(0px); }
+        button:disabled { background-color: #555; color: #999; cursor: not-allowed; transform: translateY(0px); }
+        
+        .button-secondary { background-color: var(--slider-track-bg-color); color: var(--text-color); }
+        .button-secondary:hover { background-color: var(--panel-border-color); opacity: 1; }
+        .button-danger { background-color: #B71C1C; color: white; }
+        .button-danger:hover { background-color: #D32F2F; opacity: 1; }
+
+        #simulation-area { display: flex; flex-direction: column; align-items: center; flex-grow: 1; min-width: 320px; }
+        #spirographCanvas {
+            border: 2px solid var(--main-color); display: block;
+            background-color: var(--sim-background-color); max-width: 100%;
+            border-radius: 8px; box-shadow: 0 0 15px rgba(var(--main-color-rgb, 83, 216, 251), 0.3);
+            cursor: grab; 
+            touch-action: none; 
+        }
+        #spirographCanvas.grabbing { cursor: grabbing; }
+
+
+        .node-config {
+            border: 1px solid var(--input-border-color); padding: 15px; margin-bottom: 15px;
+            border-radius: 8px; background-color: rgba(0,0,0,0.1); 
+            transition: opacity 0.3s ease, max-height 0.3s ease, margin 0.3s ease, padding 0.3s ease;
+        }
+        .node-config h4 {
+            margin-top: 0; margin-bottom: 15px; color: var(--main-color); font-size: 1em;
+            display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; /* Add cursor pointer */
+        }
+        .node-config h4 .collapse-indicator {
+            margin-right: 10px;
+            transition: transform 0.2s ease;
+        }
+        .node-config.collapsed h4 .collapse-indicator {
+            transform: rotate(-90deg);
+        }
+        .node-config .node-controls {
+            transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+            overflow: hidden;
+            max-height: 1000px; /* Set a large max-height for expanded state */
+            opacity: 1;
+        }
+        .node-config.collapsed .node-controls {
+            max-height: 0;
+            opacity: 0;
+        }
+        .node-config h4 .remove-node-btn {
+            font-size: 0.8em; padding: 4px 8px; margin-top: 0; margin-left: 10px;
+            width: auto; background-color: #616161; color: var(--text-color);
+        }
+        .node-config h4 .remove-node-btn:hover { background-color: #D32F2F; }
+        .node-config h4 .node-title-group {
+            display: flex;
+            align-items: center;
+        }
+        .node-config h4.sim-running {
+            cursor: default;
+        }
+        .node-config h4.sim-running .collapse-indicator {
+            display: none;
+        }
+
+        .hidden { display: none !important; }
+        
+        .control-hidden-during-run {
+            opacity: 0; max-height: 0 !important; overflow: hidden;
+            margin-top: 0 !important; margin-bottom: 0 !important;
+            padding-top: 0 !important; padding-bottom: 0 !important;
+            border-bottom: none !important; 
+        }
+        .node-config.control-hidden-during-run { border: none !important; }
+        .button-row.control-hidden-during-run {
+             max-height: 0 !important; /* Ensure button row also hides properly */
+             overflow: hidden;
+             margin-top: 0 !important;
+             margin-bottom: 0 !important;
+             padding-top: 0 !important;
+             padding-bottom: 0 !important;
+        }
+
+
+        @media (max-width: 768px) {
+            .container { flex-direction: column; align-items: center; }
+            #setup-panel { width: 95%; max-width: 450px; order: 1; max-height: none; margin-bottom: 20px; }
+            #simulation-area { order: 2; width: 100%; }
+            #spirographCanvas { width: 100% !important; height: auto !important; }
+        }
+    
