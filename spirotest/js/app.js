@@ -1045,9 +1045,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     numWorkers: 2
                 });
 
-                const totalFrames = 90; // 1.8s at 50fps
-                const frameDelay = 20; // 20ms for 50fps
-                ag.setDelay(frameDelay / 1000);
+                const totalFrames = 90;
+                const frameDelay = 50; // 50ms for 20fps
+                ag.setDelay(frameDelay);
 
                 const tempCanvas = document.createElement('canvas');
                 const newResolution = 420;

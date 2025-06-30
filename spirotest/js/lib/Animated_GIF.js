@@ -501,7 +501,7 @@ var Animated_GIF = (function() {
                 data: imageDataArray,
                 width: imageData.width,
                 height: imageData.height,
-                delay: opts.delay !== undefined ? (opts.delay * 0.1) : delay,
+                delay: opts.delay !== undefined ? Math.round(opts.delay / 10) : delay,
                 palette: palette,
                 dithering: dithering,
                 done: false,
