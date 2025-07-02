@@ -81,6 +81,34 @@ function Set-IniConfiguration {
     }
 }
 
+function Get-HistoricalData {
+    param ([hashtable]$Config)
+    Write-Verbose "Getting historical API data..."
+    $apiKey = $Config.Settings.ApiKey
+    if ([string]::IsNullOrEmpty($apiKey)) {
+        Write-Warning "API Key is not configured."
+        return $null
+    }
+    $headers = @{ "Content-Type" = "application/json"; "x-api-key" = $apiKey }
+    $targetTimestamp24hAgoMs = [int64]((([datetime]::UtcNow).AddHours(-24)) - (Get-Date "1970-01-01")).TotalMilliseconds
+    $historicalWindowMinutes = 5
+    $startTimestampMs = $targetTimestamp24hAgoMs - ($historicalWindowMinutes * 60 * 1000)
+    $endTimestampMs = $targetTimestamp24hAgoMs + ($historicalWindowMinutes * 60 * 1000)
+
+    try {
+        $historicalBody = @{ currency = "USD"; code = "BTC"; start = $startTimestampMs; end = $endTimestampMs; meta = $false } | ConvertTo-Json
+        Write-Verbose "Fetching historical price for 24h ago..."
+        $historicalResponse = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single/history" -Method Post -Headers $headers -Body $historicalBody -ErrorAction Stop
+        if ($null -ne $historicalResponse.history -and $historicalResponse.history.Count -gt 0) {
+            $closestDataPoint = $historicalResponse.history | Sort-Object { [Math]::Abs($_.date - $targetTimestamp24hAgoMs) } | Select-Object -First 1
+            if ($null -ne $closestDataPoint) {
+                return $closestDataPoint.rate
+            }
+        } else { Write-Warning "No historical data returned." }
+    } catch { Write-Warning "Failed to fetch historical price: $($_.Exception.Message)" }
+    return $null
+}
+
 function Get-ApiData {
     param ([hashtable]$Config)
     Write-Verbose "Getting API data..."
@@ -95,26 +123,8 @@ function Get-ApiData {
     try {
         Write-Verbose "Fetching main API data..."
         $currentResponse = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single" -Method Post -Headers $headers -Body $body -ErrorAction Stop
+        $currentResponse | Add-Member -MemberType NoteProperty -Name "fetchTime" -Value (Get-Date).ToUniversalTime()
         Write-Verbose "Main API call successful."
-
-        $targetTimestamp24hAgoMs = [int64]((([datetime]::UtcNow).AddHours(-24)) - (Get-Date "1970-01-01")).TotalMilliseconds
-        $historicalWindowMinutes = 5
-        $startTimestampMs = $targetTimestamp24hAgoMs - ($historicalWindowMinutes * 60 * 1000)
-        $endTimestampMs = $targetTimestamp24hAgoMs + ($historicalWindowMinutes * 60 * 1000)
-
-        try {
-            $historicalBody = @{ currency = "USD"; code = "BTC"; start = $startTimestampMs; end = $endTimestampMs; meta = $false } | ConvertTo-Json
-            Write-Verbose "Fetching historical price for 24h ago..."
-            $historicalResponse = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single/history" -Method Post -Headers $headers -Body $historicalBody -ErrorAction Stop
-            if ($null -ne $historicalResponse.history -and $historicalResponse.history.Count -gt 0) {
-                $closestDataPoint = $historicalResponse.history | Sort-Object { [Math]::Abs($_.date - $targetTimestamp24hAgoMs) } | Select-Object -First 1
-                if ($null -ne $closestDataPoint) {
-                    $currentResponse | Add-Member -MemberType NoteProperty -Name "rate24hAgo" -Value $closestDataPoint.rate -Force
-                    Write-Verbose "Historical price found: $($closestDataPoint.rate)"
-                }
-            } else { Write-Warning "No historical data returned." }
-        } catch { Write-Warning "Failed to fetch historical price: $($_.Exception.Message)" }
-
         return $currentResponse
     }
     catch {
@@ -205,7 +215,7 @@ function Show-MainScreen {
         $btcDisplay = "{0:C2}" -f $currentBTC
         $agoDisplay = "{0:C2} [{1}{2}%]" -f $rate24hAgo, $(if($priceDiff -gt 0){"+"}), ("{0:N2}" -f $percentChange)
         $volDisplay = "{0:N0}" -f $ApiData.volume
-        $timeDisplay = Get-Date -Format "MMddyy@HHmm"
+        $timeDisplay = $ApiData.fetchTime.ToLocalTime().ToString("MMddyy@HHmm")
 
     } else {
         # Default/Warning Values
@@ -213,7 +223,7 @@ function Show-MainScreen {
         $btcDisplay = "N/A"
         $agoDisplay = "N/A"
         $volDisplay = "N/A"
-        $timeDisplay = Get-Date -Format "MMddyy@HHmm"
+        $timeDisplay = "N/A"
     }
 
     # --- 2. Screen Rendering ---
@@ -551,6 +561,12 @@ while ($true) {
             "ledger" { Show-LedgerScreen }
             "refresh" {
                 $apiData = Get-ApiData -Config $config
+                if ($apiData) {
+                    $historicalRate = Get-HistoricalData -Config $config
+                    if ($historicalRate) {
+                        $apiData | Add-Member -MemberType NoteProperty -Name "rate24hAgo" -Value $historicalRate -Force
+                    }
+                }
             }
             "config" {
                 Show-ConfigScreen -Config ([ref]$config)

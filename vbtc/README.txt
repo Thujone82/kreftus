@@ -46,6 +46,8 @@ The application uses a simple command-line interface. The following commands are
 -   `help`: Show the help screen with a list of commands.
 -   `exit`: Exit the application and display a final portfolio summary.
 
+**Tip:** You can use shortcuts for commands. For example, `b` for `buy`, `s` for `sell`, `l` for `ledger`, etc. As long as the shortcut is a unique match for a command, it will work.
+
 ## Files
 -   `vbtc.ps1`: The main script file.
 -   `vbtc.ini`: Stores the user's API key and portfolio data.
