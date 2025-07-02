@@ -27,7 +27,7 @@ The main screen displays:
 ## Requirements
 - PowerShell
 - An internet connection
-- A free API key from [LiveCoinWatch](https://www.livecoinwatch.com/developers/api-keys)
+- A free API key from [LiveCoinWatch](https://www.livecoinwatch.com/tools/api)
 
 ## How to Run
 1.  Open a PowerShell terminal.
