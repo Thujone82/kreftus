@@ -381,6 +381,7 @@ function Invoke-Trade {
                 $userInput = $null; Read-Host "Press Enter to continue."; continue
             }
             $satoshiString = $userInput.Trim().TrimEnd("s")
+            $satoshiValue = 0.0
             if ([double]::TryParse($satoshiString, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$satoshiValue)) {
                 $parsedAmount = $satoshiValue / 100000000
                 $parseSuccess = $true
