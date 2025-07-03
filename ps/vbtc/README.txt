@@ -1,12 +1,12 @@
-# vBTC - Virtual Bitcoin Trading Simulator
+'# vBTC - Virtual Bitcoin Trading Simulator
 
-## Version 4.0
+## Version 1.0
 
 ## Author
 Kreft&Gemini[Gemini 2.5 Pro (preview)]
 
 ## Date
-2025-07-02
+2025-07-03
 
 ## Description
 vBTC is an interactive PowerShell-based Bitcoin trading application. Users can buy and sell Bitcoin using a simulated portfolio, track their trades in a ledger, and view real-time market data from the LiveCoinWatch API.
@@ -23,11 +23,12 @@ The main screen displays:
 - **Transaction Ledger:** Records all buy and sell transactions in a `ledger.csv` file.
 - **Configuration Options:** Allows you to update your API key and reset your portfolio.
 - **Command Shortcuts:** Use partial commands (e.g., 'b' for 'buy') for quick trading.
+- **Percentage-based Trading:** Use the 'p' suffix to trade a percentage of your assets (e.g., `50p` for 50%, `1/3p` for 33.3%).
 
 ## Requirements
 - PowerShell
 - An internet connection
-- A free API key from [LiveCoinWatch](https://www.livecoinwatch.com/tools/api)
+- A free API key from [https://www.livecoinwatch.com/tools/api](https://www.livecoinwatch.com/tools/api)
 
 ## How to Run
 1.  Open a PowerShell terminal.
@@ -47,6 +48,8 @@ The application uses a simple command-line interface. The following commands are
 -   `exit`: Exit the application and display a final portfolio summary.
 
 **Tip:** You can use shortcuts for commands. For example, `b` for `buy`, `s` for `sell`, `l` for `ledger`, etc. As long as the shortcut is a unique match for a command, it will work.
+
+**Tip:** You can input a percentage instead of an absolute amount by using the 'p' suffix (e.g., '10p' for 10% of your USD/BTC balance). Math is also accepted (e.g., '100/3p' for 1/3 of your balance).
 
 ## Files
 -   `vbtc.ps1`: The main script file.

@@ -13,17 +13,26 @@
 
     Users can issue commands to interact with the application:
     - buy [amount]: Purchase a specific USD amount of Bitcoin.
-    - sell [amount]: Sell a specific amount of Bitcoin (e.g., 0.5) or satoshis (e.g., 50000s).
+    - sell [amount]: Sell a specific amount of Bitcoin (e.g., .5) or satoshis (e.g., 50000s).
     - ledger: View a history of all transactions.
     - refresh: Manually update the market data.
     - config: Access the configuration menu to update the API key or reset the portfolio.
     - help: Display the help screen with a list of commands.
     - exit: Display a final portfolio summary and exit the application.
 
+    Tip: Commands may be shortened and still accepted, e.g., "b" for "buy", "s" for "sell".
+    Tip: You can input percentage instead of absolute with suffix(e.g., '10p' for 10% of your 
+         USD/BTC balance). Math is also accepted, e.g., '100/3p' for 1/3 of your balance.
+
+    Requirements:
+    - PowerShell
+    - An internet connection
+    - A free API key from https://www.livecoinwatch.com/tools/api
+
 .NOTES
     Author: Kreft&Gemini[Gemini 2.5 Pro (preview)]
-    Date: 2025-07-02
-    Version: 4.0
+    Date: 2025-07-03
+    Version: 1.0
 #>
 
 [CmdletBinding()]
@@ -42,6 +51,7 @@ else {
 $iniFilePath = Join-Path -Path $scriptPath -ChildPath "vbtc.ini"
 $ledgerFilePath = Join-Path -Path $scriptPath -ChildPath "ledger.csv"
 $startingCapital = 1000.00
+$sessionStartTime = Get-Date
 
 # --- Helper Functions ---
 
@@ -266,23 +276,23 @@ function Show-MainScreen {
         }
     }
 
-    $btcLabel = "Bitcoin:"
-    $btcAmountDisplay = $playerBTC.ToString("F8")
-    $btcValueDisplay = ""
-    if ($ApiData -and $ApiData.PSObject.Properties['rate']) {
-        $btcValue = $playerBTC * $ApiData.rate
-        $btcValueDisplay = " ($($btcValue.ToString("C2")))"
-    }
-    
-    Write-Host -NoNewline $btcLabel
-    $paddingRequired = 16 - $btcLabel.Length
-    if ($paddingRequired -gt 0) {
-        Write-Host (" " * $paddingRequired) -NoNewline
-    }
-    Write-Host -NoNewline $btcAmountDisplay
-    Write-Host $btcValueDisplay
-
     if ($playerBTC -gt 0) {
+        $btcLabel = "Bitcoin:"
+        $btcAmountDisplay = $playerBTC.ToString("F8")
+        $btcValueDisplay = ""
+        if ($ApiData -and $ApiData.PSObject.Properties['rate']) {
+            $btcValue = $playerBTC * $ApiData.rate
+            $btcValueDisplay = " ($($btcValue.ToString("C2")))"
+        }
+        
+        Write-Host -NoNewline $btcLabel
+        $paddingRequired = 16 - $btcLabel.Length
+        if ($paddingRequired -gt 0) {
+            Write-Host (" " * $paddingRequired) -NoNewline
+        }
+        Write-Host -NoNewline $btcAmountDisplay
+        Write-Host $btcValueDisplay
+
         $investedLabel = "Invested:"
         $investedDisplay = $playerInvested.ToString("C2")
         $investedChangeDisplay = ""
@@ -303,7 +313,10 @@ function Show-MainScreen {
         Write-Host $investedChangeDisplay -ForegroundColor $changeColor
     }
 
-    Write-AlignedLine -Label "Cash:" -Value $playerUSD.ToString("C2")
+    if ($playerUSD -gt 0) {
+        Write-AlignedLine -Label "Cash:" -Value $playerUSD.ToString("C2")
+    }
+    
     $displayValue = if ($portfolioValue -is [double]) { $portfolioValue.ToString("C2") } else { $portfolioValue }
     Write-AlignedLine -Label "Value (USD):" -Value $displayValue -ValueColor $portfolioColor
     
@@ -382,19 +395,20 @@ function Add-LedgerEntry {
     Add-Content -Path $ledgerFilePath -Value $logEntry
 }
 
-function Get-LedgerSummary {
-    if (-not (Test-Path $ledgerFilePath)) {
-        return $null
-    }
-    $ledgerData = Import-Csv -Path $ledgerFilePath
-    if ($ledgerData.Count -eq 0) {
-        return $null
-    }
+function Calculate-LedgerTotals {
+    param($LedgerData)
 
-    $totalBuyUSD = ($ledgerData | Where-Object { $_.TX -eq "Buy" } | Measure-Object -Property "USD" -Sum).Sum
-    $totalSellUSD = ($ledgerData | Where-Object { $_.TX -eq "Sell" } | Measure-Object -Property "USD" -Sum).Sum
-    $totalBuyBTC = ($ledgerData | Where-Object { $_.TX -eq "Buy" } | Measure-Object -Property "BTC" -Sum).Sum
-    $totalSellBTC = ($ledgerData | Where-Object { $_.TX -eq "Sell" } | Measure-Object -Property "BTC" -Sum).Sum
+    $totalBuyUSD = 0.0
+    $totalSellUSD = 0.0
+    $totalBuyBTC = 0.0
+    $totalSellBTC = 0.0
+
+    if ($null -ne $LedgerData) {
+        $totalBuyUSD = ($LedgerData | Where-Object { $_.TX -eq "Buy" } | ForEach-Object { [double]$_.USD } | Measure-Object -Sum).Sum
+        $totalSellUSD = ($LedgerData | Where-Object { $_.TX -eq "Sell" } | ForEach-Object { [double]$_.USD } | Measure-Object -Sum).Sum
+        $totalBuyBTC = ($LedgerData | Where-Object { $_.TX -eq "Buy" } | ForEach-Object { [double]$_.BTC } | Measure-Object -Sum).Sum
+        $totalSellBTC = ($LedgerData | Where-Object { $_.TX -eq "Sell" } | ForEach-Object { [double]$_.BTC } | Measure-Object -Sum).Sum
+    }
 
     return [PSCustomObject]@{
         TotalBuyUSD  = $totalBuyUSD
@@ -402,6 +416,35 @@ function Get-LedgerSummary {
         TotalBuyBTC  = $totalBuyBTC
         TotalSellBTC = $totalSellBTC
     }
+}
+
+function Get-LedgerSummary {
+    if (-not (Test-Path $ledgerFilePath)) { return $null }
+    $ledgerData = Import-Csv -Path $ledgerFilePath
+    if ($ledgerData.Count -eq 0) { return $null }
+    return Calculate-LedgerTotals -LedgerData $ledgerData
+}
+
+function Get-SessionSummary {
+    param ([datetime]$SessionStartTime)
+    if (-not (Test-Path $ledgerFilePath)) {
+        return $null
+    }
+    $sessionTransactions = @(Import-Csv -Path $ledgerFilePath) | Where-Object {
+        try {
+            return ([datetime]::ParseExact($_.Time, "MMddyy@HHmm", $null) -ge $SessionStartTime)
+        } catch {
+            # This will prevent a crash if a line in the ledger is corrupted
+            Write-Warning "Could not parse timestamp '$($_.Time)' in ledger.csv"
+            return $false
+        }
+    }
+
+    if ($null -eq $sessionTransactions -or $sessionTransactions.Count -eq 0) {
+        return $null
+    }
+
+    return Calculate-LedgerTotals -LedgerData $sessionTransactions
 }
 
 function Invoke-Trade {
@@ -446,6 +489,21 @@ function Invoke-Trade {
                 $parsedAmount = $satoshiValue / 100000000
                 $parseSuccess = $true
             }
+        } elseif ($userInput.Trim().EndsWith("p")) {
+            $percentString = $userInput.Trim().TrimEnd("p")
+            try {
+                $percentValue = Invoke-Expression $percentString
+                if ($percentValue -gt 0 -and $percentValue -le 100) {
+                    $parsedAmount = ($maxAmount * $percentValue) / 100
+                    $parseSuccess = $true
+                } else {
+                    Write-Warning "Percentage must be between 0 and 100."
+                    $userInput = $null; Read-Host "Press Enter to continue."; continue
+                }
+            } catch {
+                Write-Warning "Invalid percentage expression."
+                $userInput = $null; Read-Host "Press Enter to continue."; continue
+            }
         } else {
             if ([double]::TryParse($userInput, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$parsedAmount)) {
                 $parseSuccess = $true
@@ -475,28 +533,41 @@ function Invoke-Trade {
     $offerExpired = $false
     while ($true) {
         Show-LoadingScreen
+        $apiData = Get-ApiData -Config $Config.Value
+        if (-not $apiData) { Read-Host "Error fetching price. Press Enter to continue."; return }
+        $currentBTC = $apiData.rate
+        
+        Clear-Host
+        Write-Host "*** $Type Bitcoin ***" -ForegroundColor Yellow
         if ($offerExpired) {
             Write-Host "`nOffer expired. Fetching a new price..." -ForegroundColor Yellow
         }
 
-        $apiData = Get-ApiData -Config $Config.Value
-        if (-not $apiData) { Read-Host "Error fetching price. Press Enter to continue."; return }
-        $currentBTC = $apiData.rate
-
         $usdAmount = if ($Type -eq "Buy") { $tradeAmount } else { [math]::Floor(($tradeAmount * $currentBTC) * 100) / 100 }
         $btcAmount = if ($Type -eq "Sell") { $tradeAmount } else { [math]::Floor(($tradeAmount / $currentBTC) * 100000000) / 100000000 }
 
+        $priceDiff = $currentBTC - $apiData.rate24hAgo
+        $priceColor = if ($priceDiff -gt 0) { "Green" } elseif ($priceDiff -lt 0) { "Red" } else { "White" }
+
         $confirmPrompt = if ($Type -eq "Buy") {
-            "Purchase $($btcAmount.ToString("F8")) BTC for $($usdAmount.ToString("C2"))? [y/n]"
+            "Purchase $($btcAmount.ToString("F8")) BTC for $($usdAmount.ToString("C2"))? "
         } else {
-            "Sell $($btcAmount.ToString("F8")) BTC for $($usdAmount.ToString("C2"))? [y/n]"
+            "Sell $($btcAmount.ToString("F8")) BTC for $($usdAmount.ToString("C2"))? "
         }
         
-        Write-Host "`nYou have 2 minutes to accept this offer."
-        Write-Host "Market Rate: $($currentBTC.ToString("C2"))"
+        Write-Host "`nYou have 2 minutes to accept this offer." -ForegroundColor Yellow
+        Write-Host -NoNewline "Market Rate: "
+        Write-Host ("{0:C2}" -f $currentBTC) -ForegroundColor $priceColor
+        
+        Write-Host -NoNewline $confirmPrompt
+        Write-Host "[" -NoNewline
+        Write-Host "y" -ForegroundColor Green -NoNewline
+        Write-Host "/" -NoNewline
+        Write-Host "n" -ForegroundColor Red -NoNewline
+        Write-Host "]"
         
         $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-        $input = Read-Host $confirmPrompt
+        $input = Read-Host
 
         if ($stopwatch.Elapsed.TotalMinutes -ge 2) {
             $offerExpired = $true
@@ -514,19 +585,24 @@ function Invoke-Trade {
                 $Config.Value.Portfolio.PlayerInvested = $newInvested.ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
             } else {
                 $newUserBtc = $playerBTC - $btcAmount
-                $newInvested = $playerInvested - $usdAmount
-                if ($newInvested -lt 0) { $newInvested = 0 } # Cannot be negative
+                if ($newUserBtc -le 0) {
+                    $newInvested = 0
+                } else {
+                    $newInvested = $playerInvested - $usdAmount
+                    if ($newInvested -lt 0) { $newInvested = 0 } # Cannot be negative
+                }
                 $Config.Value.Portfolio.PlayerBTC = $newUserBtc.ToString("F8", [System.Globalization.CultureInfo]::InvariantCulture)
                 $Config.Value.Portfolio.PlayerUSD = ($playerUSD + $usdAmount).ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
                 $Config.Value.Portfolio.PlayerInvested = $newInvested.ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
             }
             Set-IniConfiguration -FilePath $iniFilePath -Configuration $Config.Value
             Add-LedgerEntry -Type $Type -UsdAmount $usdAmount -BtcAmount $btcAmount -BtcPrice $currentBTC -UserBtcAfter $newUserBtc
-            Write-Host "`n$Type successful. Press Enter to return to the Main Screen."
+            Write-Host "`n$Type successful."
+            Start-Sleep -Seconds 1
         } else {
-            Write-Host "`n$Type cancelled. Press Enter to continue."
+            Write-Host "`n$Type cancelled."
+            Start-Sleep -Seconds 1
         }
-        Read-Host
         return
     }
 }
@@ -556,30 +632,39 @@ function Show-LedgerScreen {
         if ($ledgerData.Count -eq 0) {
             Write-Host "You have not made any transactions yet."
         } else {
+            # 1. Parse and create display objects
             $displayData = $ledgerData | ForEach-Object {
-                $btcAmount = [double]::Parse($_.BTC, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture)
-                $btcDisplay = if ($btcAmount -lt 0.01 -and $btcAmount -ne 0) {
-                    $satoshiAmount = [math]::Round($btcAmount * 100000000)
-                    "{0}s" -f $satoshiAmount
-                } else {
-                    $btcAmount.ToString("F8")
-                }
-
                 [PSCustomObject]@{
-                    TX = $_.TX
-                    USD = ("{0:C2}" -f ([double]::Parse($_.USD, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture)))
-                    BTC = $btcDisplay
-                    'BTC(USD)' = ("{0:C2}" -f ([double]::Parse($_.'BTC(USD)', [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture)))
-                    'User BTC' = ([double]::Parse($_.'User BTC', [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture)).ToString("F8")
-                    Time = $_.Time
+                    TX         = $_.TX
+                    USD        = [double]::Parse($_.USD, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture)
+                    BTC        = [double]::Parse($_.BTC, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture)
+                    'BTC(USD)' = [double]::Parse($_.'BTC(USD)', [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture)
+                    'User BTC' = [double]::Parse($_.'User BTC', [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture)
+                    Time       = $_.Time
+                    DateTime   = [datetime]::ParseExact($_.Time, "MMddyy@HHmm", $null)
                 }
             }
 
+            # 2. Calculate column widths
             $widths = @{}
             $columns = $displayData[0].psobject.Properties.Name
             foreach ($col in $columns) {
+                if ($col -eq 'DateTime') { continue }
                 $headerLength = $col.Length
-                $maxLength = ($displayData | ForEach-Object { $_.$col.ToString().Length } | Measure-Object -Maximum).Maximum
+                $maxLength = ($displayData | ForEach-Object {
+                    $value = $_.($col)
+                    $stringValue = ""
+                    if ($col -in @('USD', 'BTC(USD)')) {
+                        $stringValue = $value.ToString("C2")
+                    }
+                    elseif ($col -in @('BTC', 'User BTC')) {
+                        $stringValue = $value.ToString("F8")
+                    }
+                    else {
+                        $stringValue = $value.ToString()
+                    }
+                    $stringValue.Length
+                } | Measure-Object -Maximum).Maximum
                 $widths[$col] = [math]::Max($headerLength, $maxLength)
             }
 
@@ -588,20 +673,41 @@ function Show-LedgerScreen {
             $separator = ""
             $formatString = ""
             $padding = 2 # Spaces between columns
+            $valueIndex = 0
             foreach ($col in $columns) {
+                if ($col -eq 'DateTime') { continue }
                 $width = $widths[$col]
                 $headerString += "$($col.PadRight($width))" + (" " * $padding)
                 $separator += ("-" * $width) + (" " * $padding)
-                $formatString += "{"+($columns.IndexOf($col))+",-$width}" + (" " * $padding)
+                $formatString += "{" + $valueIndex + ",-$width}" + (" " * $padding)
+                $valueIndex++
             }
             
             # 4. Print header
             Write-Host $headerString
             Write-Host $separator
 
-            foreach ($row in $displayData) {
+            # 5. Print data rows
+            $sessionStarted = $false
+            foreach ($row in $displayData | Sort-Object DateTime) {
+                if (-not $sessionStarted -and $row.DateTime -ge $sessionStartTime) {
+                    Write-Host "*** Current Session Start ***" -ForegroundColor White
+                    $sessionStarted = $true
+                }
                 $rowColor = if ($row.TX -eq "Buy") { "Green" } else { "Red" }
-                $values = $columns | ForEach-Object { $row.$_ }
+                
+                $values = $columns | Where-Object { $_ -ne 'DateTime' } | ForEach-Object {
+                    $value = $row.$_
+                    if ($_ -in @('USD', 'BTC(USD)')) {
+                        $value.ToString("C2")
+                    }
+                    elseif ($_ -in @('BTC', 'User BTC')) {
+                        $value.ToString("F8")
+                    }
+                    else {
+                        $value.ToString()
+                    }
+                }
                 Write-Host ($formatString -f $values) -ForegroundColor $rowColor
             }
 
@@ -687,20 +793,24 @@ while ($true) {
                 Write-AlignedLine -Label "Portfolio Value:" -Value ("{0:C2}" -f $finalValue) -ValueColor $profitColor
                 Write-AlignedLine -Label "Total Profit/Loss:" -Value ("{0:C2}" -f $profit) -ValueColor $profitColor
 
-                $summary = Get-LedgerSummary
+                $summary = Get-SessionSummary -SessionStartTime $sessionStartTime
                 if ($summary) {
                     Write-Host ""
-                    Write-Host "*** Ledger Summary ***" -ForegroundColor Yellow
-                    Write-AlignedLine -Label "Total Bought (USD):" -Value ("{0:C2}" -f $summary.TotalBuyUSD) -ValueColor "Green"
-                    Write-AlignedLine -Label "Total Sold (USD):" -Value ("{0:C2}" -f $summary.TotalSellUSD) -ValueColor "Red"
-                    Write-AlignedLine -Label "Total Bought (BTC):" -Value $summary.TotalBuyBTC.ToString("F8") -ValueColor "Green"
-                    Write-AlignedLine -Label "Total Sold (BTC):" -Value $summary.TotalSellBTC.ToString("F8") -ValueColor "Red"
+                    Write-Host "*** Session Summary ***" -ForegroundColor Yellow
+                    if ($summary.TotalBuyUSD -gt 0) {
+                        Write-AlignedLine -Label "Total Bought (USD):" -Value ("{0:C2}" -f $summary.TotalBuyUSD) -ValueColor "Green"
+                        Write-AlignedLine -Label "Total Bought (BTC):" -Value $summary.TotalBuyBTC.ToString("F8") -ValueColor "Green"
+                    }
+                    if ($summary.TotalSellUSD -gt 0) {
+                        Write-AlignedLine -Label "Total Sold (USD):" -Value ("{0:C2}" -f $summary.TotalSellUSD) -ValueColor "Red"
+                        Write-AlignedLine -Label "Total Sold (BTC):" -Value $summary.TotalSellBTC.ToString("F8") -ValueColor "Red"
+                    }
                 }
             
                 Write-Host ""
                 $parentProcess = (Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $PID").ParentProcessId
                 $parentProcessName = (Get-Process -Id $parentProcess).ProcessName
-                if ($parentProcessName -notin @("cmd", "powershell")) {
+                if ($parentProcessName -notin @("cmd", "powershell", "explorer")) {
                     Read-Host "Press Enter to exit"
                 }
                 exit
