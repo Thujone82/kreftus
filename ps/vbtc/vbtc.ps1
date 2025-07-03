@@ -30,7 +30,15 @@
 param ()
 
 # --- Script Setup and Configuration ---
-$scriptPath = $PSScriptRoot
+if ($PSScriptRoot) {
+    $scriptPath = $PSScriptRoot
+}
+elseif ($MyInvocation.MyCommand.Path) {
+    $scriptPath = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
+}
+else {
+    $scriptPath = Get-Location
+}
 $iniFilePath = Join-Path -Path $scriptPath -ChildPath "vbtc.ini"
 $ledgerFilePath = Join-Path -Path $scriptPath -ChildPath "ledger.csv"
 $startingCapital = 1000.00
@@ -40,7 +48,7 @@ $startingCapital = 1000.00
 function Get-IniConfiguration {
     param ([string]$FilePath)
     Write-Verbose "Reading INI file from $FilePath"
-    $ini = @{ "Settings" = @{ "ApiKey" = "" }; "Portfolio" = @{ "PlayerUSD" = $startingCapital.ToString("F2"); "PlayerBTC" = "0.0" } }
+    $ini = @{ "Settings" = @{ "ApiKey" = "" }; "Portfolio" = @{ "PlayerUSD" = $startingCapital.ToString("F2"); "PlayerBTC" = "0.0"; "PlayerInvested" = "0.0" } }
     if (Test-Path $FilePath) {
         $fileContent = Get-Content $FilePath -ErrorAction SilentlyContinue
         $currentSection = ""
@@ -192,6 +200,11 @@ function Write-AlignedLine {
     Write-Host $Value -ForegroundColor $ValueColor
 }
 
+function Show-LoadingScreen {
+    Clear-Host
+    Write-Host "Loading Data..." -ForegroundColor "Yellow"
+}
+
 function Show-MainScreen {
     param ($ApiData, [hashtable]$Portfolio)
     if (-not $VerbosePreference) { Clear-Host }
@@ -199,8 +212,10 @@ function Show-MainScreen {
     # --- 1. Data Calculation ---
     $playerBTC = 0.0
     $playerUSD = 0.0
+    $playerInvested = 0.0
     $null = [double]::TryParse($Portfolio.Portfolio.PlayerBTC, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$playerBTC)
     $null = [double]::TryParse($Portfolio.Portfolio.PlayerUSD, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$playerUSD)
+    $null = [double]::TryParse($Portfolio.Portfolio.PlayerInvested, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$playerInvested)
 
     $marketDataAvailable = $ApiData -and $ApiData.PSObject.Properties['rate'] -and $ApiData.PSObject.Properties['volume']
     
@@ -214,7 +229,7 @@ function Show-MainScreen {
         # Display Values
         $btcDisplay = "{0:C2}" -f $currentBTC
         $agoDisplay = "{0:C2} [{1}{2}%]" -f $rate24hAgo, $(if($priceDiff -gt 0){"+"}), ("{0:N2}" -f $percentChange)
-        $volDisplay = "{0:N0}" -f $ApiData.volume
+        $volDisplay = "$($ApiData.volume.ToString("C0"))"
         $timeDisplay = $ApiData.fetchTime.ToLocalTime().ToString("MMddyy@HHmm")
 
     } else {
@@ -265,7 +280,28 @@ function Show-MainScreen {
         Write-Host (" " * $paddingRequired) -NoNewline
     }
     Write-Host -NoNewline $btcAmountDisplay
-    Write-Host $btcValueDisplay -ForegroundColor $portfolioColor
+    Write-Host $btcValueDisplay
+
+    if ($playerBTC -gt 0) {
+        $investedLabel = "Invested:"
+        $investedDisplay = $playerInvested.ToString("C2")
+        $investedChangeDisplay = ""
+        $changeColor = "White"
+        if ($playerInvested -gt 0 -and $ApiData -and $ApiData.PSObject.Properties['rate']) {
+            $btcValue = $playerBTC * $ApiData.rate
+            $percentChange = (($btcValue - $playerInvested) / $playerInvested) * 100
+            $changeColor = if ($percentChange -gt 0) { "Green" } elseif ($percentChange -lt 0) { "Red" } else { "White" }
+            $investedChangeDisplay = " [{0}{1}%]" -f $(if($percentChange -gt 0){"+"}), ("{0:N2}" -f $percentChange)
+        }
+
+        Write-Host -NoNewline $investedLabel
+        $paddingRequired = 16 - $investedLabel.Length
+        if ($paddingRequired -gt 0) {
+            Write-Host (" " * $paddingRequired) -NoNewline
+        }
+        Write-Host -NoNewline $investedDisplay
+        Write-Host $investedChangeDisplay -ForegroundColor $changeColor
+    }
 
     Write-AlignedLine -Label "Cash:" -Value $playerUSD.ToString("C2")
     $displayValue = if ($portfolioValue -is [double]) { $portfolioValue.ToString("C2") } else { $portfolioValue }
@@ -321,6 +357,7 @@ function Show-ConfigScreen {
                 if ($confirmReset -eq "YES") {
                     $Config.Value.Portfolio.PlayerUSD = $startingCapital.ToString("F2")
                     $Config.Value.Portfolio.PlayerBTC = "0.0"
+                    $Config.Value.Portfolio.PlayerInvested = "0.0"
                     if (Test-Path $ledgerFilePath) { Remove-Item $ledgerFilePath }
                     Set-IniConfiguration -FilePath $iniFilePath -Configuration $Config.Value
                     Write-Host "Portfolio has been reset." -ForegroundColor Green
@@ -345,15 +382,37 @@ function Add-LedgerEntry {
     Add-Content -Path $ledgerFilePath -Value $logEntry
 }
 
+function Get-LedgerSummary {
+    if (-not (Test-Path $ledgerFilePath)) {
+        return $null
+    }
+    $ledgerData = Import-Csv -Path $ledgerFilePath
+    if ($ledgerData.Count -eq 0) {
+        return $null
+    }
+
+    $totalBuyUSD = ($ledgerData | Where-Object { $_.TX -eq "Buy" } | Measure-Object -Property "USD" -Sum).Sum
+    $totalSellUSD = ($ledgerData | Where-Object { $_.TX -eq "Sell" } | Measure-Object -Property "USD" -Sum).Sum
+    $totalBuyBTC = ($ledgerData | Where-Object { $_.TX -eq "Buy" } | Measure-Object -Property "BTC" -Sum).Sum
+    $totalSellBTC = ($ledgerData | Where-Object { $_.TX -eq "Sell" } | Measure-Object -Property "BTC" -Sum).Sum
+
+    return [PSCustomObject]@{
+        TotalBuyUSD  = $totalBuyUSD
+        TotalSellUSD = $totalSellUSD
+        TotalBuyBTC  = $totalBuyBTC
+        TotalSellBTC = $totalSellBTC
+    }
+}
+
 function Invoke-Trade {
     param ([ref]$Config, [string]$Type, [string]$AmountString = $null)
-    Clear-Host
-    Write-Host "*** $Type Bitcoin ***" -ForegroundColor Yellow
-
+    
     $playerUSD = 0.0
     $playerBTC = 0.0
+    $playerInvested = 0.0
     $null = [double]::TryParse($Config.Value.Portfolio.PlayerUSD, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$playerUSD)
     $null = [double]::TryParse($Config.Value.Portfolio.PlayerBTC, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$playerBTC)
+    $null = [double]::TryParse($Config.Value.Portfolio.PlayerInvested, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$playerInvested)
 
     $maxAmount = if ($Type -eq "Buy") { $playerUSD } else { $playerBTC }
     $prompt = if ($Type -eq "Buy") {
@@ -365,12 +424,13 @@ function Invoke-Trade {
     $userInput = $AmountString
     $tradeAmount = 0.0
 
+    # --- Input Loop for Trade Amount ---
     while ($true) {
+        Clear-Host
+        Write-Host "*** $Type Bitcoin ***" -ForegroundColor Yellow
         if ([string]::IsNullOrEmpty($userInput)) {
             $userInput = Read-Host $prompt
-            if ([string]::IsNullOrEmpty($userInput)) {
-                return
-            }
+            if ([string]::IsNullOrEmpty($userInput)) { return } # User cancelled
         }
 
         $parsedAmount = 0.0
@@ -408,39 +468,66 @@ function Invoke-Trade {
         }
         
         $tradeAmount = $currentTradeAmount
-        break
+        break # Exit loop once valid trade amount is entered
     }
 
-    $apiData = Get-ApiData -Config $Config.Value
-    if (-not $apiData) { Read-Host "Error fetching price. Press Enter to continue."; return }
-    $currentBTC = $apiData.rate
-
-    $usdAmount = if ($Type -eq "Buy") { $tradeAmount } else { [math]::Floor(($tradeAmount * $currentBTC) * 100) / 100 }
-    $btcAmount = if ($Type -eq "Sell") { $tradeAmount } else { [math]::Floor(($tradeAmount / $currentBTC) * 100000000) / 100000000 }
-
-    $confirmPrompt = if ($Type -eq "Buy") {
-        "Purchase $($btcAmount.ToString("F8")) BTC for $($usdAmount.ToString("C2"))? [y/n]"
-    } else {
-        "Sell $($btcAmount.ToString("F8")) BTC for $($usdAmount.ToString("C2"))? [y/n]"
-    }
-    $confirm = Read-Host $confirmPrompt
-
-    if ($confirm.ToLower() -eq 'y') {
-        $newUserBtc = 0.0
-        if ($Type -eq "Buy") {
-            $Config.Value.Portfolio.PlayerUSD = ($playerUSD - $usdAmount).ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
-            $newUserBtc = $playerBTC + $btcAmount
-            $Config.Value.Portfolio.PlayerBTC = $newUserBtc.ToString("F8", [System.Globalization.CultureInfo]::InvariantCulture)
-        } else {
-            $newUserBtc = $playerBTC - $btcAmount
-            $Config.Value.Portfolio.PlayerBTC = $newUserBtc.ToString("F8", [System.Globalization.CultureInfo]::InvariantCulture)
-            $Config.Value.Portfolio.PlayerUSD = ($playerUSD + $usdAmount).ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
+    # --- Confirmation Loop with Timeout ---
+    $offerExpired = $false
+    while ($true) {
+        Show-LoadingScreen
+        if ($offerExpired) {
+            Write-Host "`nOffer expired. Fetching a new price..." -ForegroundColor Yellow
         }
-        Set-IniConfiguration -FilePath $iniFilePath -Configuration $Config.Value
-        Add-LedgerEntry -Type $Type -UsdAmount $usdAmount -BtcAmount $btcAmount -BtcPrice $currentBTC -UserBtcAfter $newUserBtc
-        Read-Host "$Type successful. Press Enter to return to the Main Screen."
-    } else {
-        Write-Host "$Type cancelled."; Read-Host "Press Enter to continue."
+
+        $apiData = Get-ApiData -Config $Config.Value
+        if (-not $apiData) { Read-Host "Error fetching price. Press Enter to continue."; return }
+        $currentBTC = $apiData.rate
+
+        $usdAmount = if ($Type -eq "Buy") { $tradeAmount } else { [math]::Floor(($tradeAmount * $currentBTC) * 100) / 100 }
+        $btcAmount = if ($Type -eq "Sell") { $tradeAmount } else { [math]::Floor(($tradeAmount / $currentBTC) * 100000000) / 100000000 }
+
+        $confirmPrompt = if ($Type -eq "Buy") {
+            "Purchase $($btcAmount.ToString("F8")) BTC for $($usdAmount.ToString("C2"))? [y/n]"
+        } else {
+            "Sell $($btcAmount.ToString("F8")) BTC for $($usdAmount.ToString("C2"))? [y/n]"
+        }
+        
+        Write-Host "`nYou have 2 minutes to accept this offer."
+        Write-Host "Market Rate: $($currentBTC.ToString("C2"))"
+        
+        $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $input = Read-Host $confirmPrompt
+
+        if ($stopwatch.Elapsed.TotalMinutes -ge 2) {
+            $offerExpired = $true
+            continue
+        }
+
+        if ($input.ToLower() -eq 'y') {
+            $newUserBtc = 0.0
+            $newInvested = 0.0
+            if ($Type -eq "Buy") {
+                $Config.Value.Portfolio.PlayerUSD = ($playerUSD - $usdAmount).ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
+                $newUserBtc = $playerBTC + $btcAmount
+                $newInvested = $playerInvested + $usdAmount
+                $Config.Value.Portfolio.PlayerBTC = $newUserBtc.ToString("F8", [System.Globalization.CultureInfo]::InvariantCulture)
+                $Config.Value.Portfolio.PlayerInvested = $newInvested.ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
+            } else {
+                $newUserBtc = $playerBTC - $btcAmount
+                $newInvested = $playerInvested - $usdAmount
+                if ($newInvested -lt 0) { $newInvested = 0 } # Cannot be negative
+                $Config.Value.Portfolio.PlayerBTC = $newUserBtc.ToString("F8", [System.Globalization.CultureInfo]::InvariantCulture)
+                $Config.Value.Portfolio.PlayerUSD = ($playerUSD + $usdAmount).ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
+                $Config.Value.Portfolio.PlayerInvested = $newInvested.ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
+            }
+            Set-IniConfiguration -FilePath $iniFilePath -Configuration $Config.Value
+            Add-LedgerEntry -Type $Type -UsdAmount $usdAmount -BtcAmount $btcAmount -BtcPrice $currentBTC -UserBtcAfter $newUserBtc
+            Write-Host "`n$Type successful. Press Enter to return to the Main Screen."
+        } else {
+            Write-Host "`n$Type cancelled. Press Enter to continue."
+        }
+        Read-Host
+        return
     }
 }
 
@@ -517,6 +604,16 @@ function Show-LedgerScreen {
                 $values = $columns | ForEach-Object { $row.$_ }
                 Write-Host ($formatString -f $values) -ForegroundColor $rowColor
             }
+
+            $summary = Get-LedgerSummary
+            if ($summary) {
+                Write-Host ""
+                Write-Host "*** Ledger Summary ***" -ForegroundColor Yellow
+                Write-AlignedLine -Label "Total Bought (USD):" -Value ("{0:C2}" -f $summary.TotalBuyUSD) -ValueColor "Green"
+                Write-AlignedLine -Label "Total Sold (USD):" -Value ("{0:C2}" -f $summary.TotalSellUSD) -ValueColor "Red"
+                Write-AlignedLine -Label "Total Bought (BTC):" -Value $summary.TotalBuyBTC.ToString("F8") -ValueColor "Green"
+                Write-AlignedLine -Label "Total Sold (BTC):" -Value $summary.TotalSellBTC.ToString("F8") -ValueColor "Red"
+            }
         }
     }
     
@@ -526,7 +623,7 @@ function Show-LedgerScreen {
 
 # --- Main Game Loop ---
 
-# Initial configuration load
+Show-LoadingScreen
 $config = Get-IniConfiguration -FilePath $iniFilePath
 if ([string]::IsNullOrEmpty($config.Settings.ApiKey)) {
     Show-FirstRunSetup -Config ([ref]$config)
@@ -561,6 +658,7 @@ while ($true) {
             }
             "ledger" { Show-LedgerScreen }
             "refresh" {
+                Show-LoadingScreen
                 $apiData = Get-ApiData -Config $config
                 if ($apiData) {
                     $historicalRate = Get-HistoricalData -Config $config
@@ -585,11 +683,26 @@ while ($true) {
 
                 $profit = $finalValue - $startingCapital
                 $profitColor = if ($profit -gt 0) { "Green" } elseif ($profit -lt 0) { "Red" } else { "White" }
-
+            
                 Write-AlignedLine -Label "Portfolio Value:" -Value ("{0:C2}" -f $finalValue) -ValueColor $profitColor
                 Write-AlignedLine -Label "Total Profit/Loss:" -Value ("{0:C2}" -f $profit) -ValueColor $profitColor
 
+                $summary = Get-LedgerSummary
+                if ($summary) {
+                    Write-Host ""
+                    Write-Host "*** Ledger Summary ***" -ForegroundColor Yellow
+                    Write-AlignedLine -Label "Total Bought (USD):" -Value ("{0:C2}" -f $summary.TotalBuyUSD) -ValueColor "Green"
+                    Write-AlignedLine -Label "Total Sold (USD):" -Value ("{0:C2}" -f $summary.TotalSellUSD) -ValueColor "Red"
+                    Write-AlignedLine -Label "Total Bought (BTC):" -Value $summary.TotalBuyBTC.ToString("F8") -ValueColor "Green"
+                    Write-AlignedLine -Label "Total Sold (BTC):" -Value $summary.TotalSellBTC.ToString("F8") -ValueColor "Red"
+                }
+            
                 Write-Host ""
+                $parentProcess = (Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $PID").ParentProcessId
+                $parentProcessName = (Get-Process -Id $parentProcess).ProcessName
+                if ($parentProcessName -notin @("cmd", "powershell")) {
+                    Read-Host "Press Enter to exit"
+                }
                 exit
             }
         }
