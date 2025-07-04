@@ -12,12 +12,14 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/fatih/color"
 	"gopkg.in/ini.v1"
+	"github.com/shirou/gopsutil/v3/process"
 )
 
 const (
@@ -27,7 +29,7 @@ const (
 )
 
 var (
-	sessionStartTime         = time.Now()
+	sessionStartTime         = time.Now().UTC()
 	sessionStartPortfolioValue float64
 	cfg                      *ini.File
 	apiData                  *ApiDataResponse
@@ -60,6 +62,14 @@ type LedgerEntry struct {
 	UserBTC  float64
 	Time     string
 	DateTime time.Time
+}
+
+// LedgerSummary holds aggregated data from ledger entries.
+type LedgerSummary struct {
+	TotalBuyUSD  float64
+	TotalSellUSD float64
+	TotalBuyBTC  float64
+	TotalSellBTC float64
 }
 
 // --- Main Application ---
@@ -98,7 +108,7 @@ func mainLoop() {
 		"l": "ledger", "ledger": "ledger",
 		"r": "refresh", "refresh": "refresh",
 		"c": "config", "config": "config",
-		"h": "help", "help": "help",	
+		"h": "help", "help": "help",
 		"e": "exit", "exit": "exit",
 	}
 
@@ -210,7 +220,7 @@ func showMainScreen() {
 		writeAlignedLine("Bitcoin (USD):", fmt.Sprintf("$%s", formatFloat(apiData.Rate, 2)), priceColor)
 		writeAlignedLine("24H Ago:", fmt.Sprintf("$%s [%+.2f%%]", formatFloat(apiData.Rate24hAgo, 2), percentChange), priceColor)
 		writeAlignedLine("24H Volume:", fmt.Sprintf("$%s", formatFloat(apiData.Volume, 0)), color.New(color.FgWhite))
-		writeAlignedLine("Time:", apiData.FetchTime.Local().Format("010206@1504"), color.New(color.FgCyan))
+		writeAlignedLine("Time:", apiData.FetchTime.Local().Format("010206@150405"), color.New(color.FgCyan))
 	}
 
 	// Portfolio
@@ -361,77 +371,69 @@ func showHelpScreen() {
 func showLedgerScreen() {
 	clearScreen()
 	color.Yellow("*** Ledger ***")
-
-	file, err := os.Open(ledgerFilePath)
+ 
+	ledgerEntries, err := readAndParseLedger()
 	if err != nil {
+		color.Red("Error reading ledger file: %v", err)
+		fmt.Println("\nPress Enter to return to Main screen")
+		bufio.NewReader(os.Stdin).ReadString('\n')
+		return
+	}
+	if len(ledgerEntries) == 0 {
 		fmt.Println("You have not made any transactions yet.")
 		fmt.Println("\nPress Enter to return to Main screen")
 		bufio.NewReader(os.Stdin).ReadString('\n')
 		return
 	}
-	defer file.Close()
 
-	reader := csv.NewReader(file)
-	records, err := reader.ReadAll()
-	if err != nil || len(records) <= 1 {
-		fmt.Println("You have not made any transactions yet.")
-		fmt.Println("\nPress Enter to return to Main screen")
-		bufio.NewReader(os.Stdin).ReadString('\n')
-		return
-	}
+	// Sort entries by date and time to ensure chronological order for display.
+	sort.Slice(ledgerEntries, func(i, j int) bool {
+		return ledgerEntries[i].DateTime.Before(ledgerEntries[j].DateTime)
+	})
 
-	// 1. Parse records into LedgerEntry structs
-	var ledgerEntries []LedgerEntry
-	for _, record := range records[1:] { // Skip header
-		usd, _ := strconv.ParseFloat(record[1], 64)
-		btc, _ := strconv.ParseFloat(record[2], 64)
-		btcPrice, _ := strconv.ParseFloat(record[3], 64)
-		userBTC, _ := strconv.ParseFloat(record[4], 64)
-		dateTime, _ := time.Parse("010206@1504", record[5])
-		ledgerEntries = append(ledgerEntries, LedgerEntry{
-			TX:       record[0],
-			USD:      usd,
-			BTC:      btc,
-			BTCPrice: btcPrice,
-			UserBTC:  userBTC,
-			Time:     record[5],
-			DateTime: dateTime,
-		})
-	}
-
-	// 2. Calculate column widths
+	// 2. Dynamically calculate column widths for proper alignment.
+	columnOrder := []string{"TX", "USD", "BTC", "BTC(USD)", "User BTC", "Time"}
 	widths := map[string]int{
-		"TX": 4, "USD": 10, "BTC": 12, "BTC(USD)": 10, "User BTC": 12, "Time": 12,
-	}
-	for _, entry := range ledgerEntries {
-		if len(formatFloat(entry.USD, 2)) > widths["USD"] {
-			widths["USD"] = len(formatFloat(entry.USD, 2))
-		}
-		if len(formatFloat(entry.BTCPrice, 2)) > widths["BTC(USD)"] {
-			widths["BTC(USD)"] = len(formatFloat(entry.BTCPrice, 2))
-		}
+		"TX":       len("TX"), "USD": len("USD"), "BTC": len("BTC"),
+		"BTC(USD)": len("BTC(USD)"), "User BTC": len("User BTC"), "Time": len("Time"),
 	}
 
-	// 3. Create and print header
-	header := fmt.Sprintf("%-*s  %-*s  %-*s  %-*s  %-*s  %-*s",
-		widths["TX"], "TX",
-		widths["USD"], "USD",
-		widths["BTC"], "BTC",
-		widths["BTC(USD)"], "BTC(USD)",
-		widths["User BTC"], "User BTC",
-		widths["Time"], "Time",
-	)
+	for _, entry := range ledgerEntries {
+		if len(entry.TX) > widths["TX"] { widths["TX"] = len(entry.TX) }
+		if len(formatFloat(entry.USD, 2)) > widths["USD"] { widths["USD"] = len(formatFloat(entry.USD, 2)) }
+		if len(fmt.Sprintf("%.8f", entry.BTC)) > widths["BTC"] { widths["BTC"] = len(fmt.Sprintf("%.8f", entry.BTC)) }
+		if len(formatFloat(entry.BTCPrice, 2)) > widths["BTC(USD)"] { widths["BTC(USD)"] = len(formatFloat(entry.BTCPrice, 2)) }
+		if len(fmt.Sprintf("%.8f", entry.UserBTC)) > widths["User BTC"] { widths["User BTC"] = len(fmt.Sprintf("%.8f", entry.UserBTC)) }
+		if len(entry.Time) > widths["Time"] { widths["Time"] = len(entry.Time) }
+	}
+
+	// 3. Create header and separator strings based on dynamic widths.
+	var headerParts, separatorParts []string
+	for _, colName := range columnOrder {
+		width := widths[colName]
+		headerParts = append(headerParts, fmt.Sprintf("%-*s", width, colName))
+		separatorParts = append(separatorParts, strings.Repeat("-", width))
+	}
+	header := strings.Join(headerParts, "  ")
 	separator := strings.Repeat("-", len(header))
 	fmt.Println(header)
 	fmt.Println(separator)
 
 	// 4. Print data rows
 	sessionStarted := false
+	// Truncate the session start time to the second. This is crucial for a correct comparison,
+	// as the timestamps stored in the ledger only have second-level precision.
+	sessionStartTruncated := sessionStartTime.Truncate(time.Second)
 	for _, entry := range ledgerEntries {
-		if !sessionStarted && (entry.DateTime.Equal(sessionStartTime) || entry.DateTime.After(sessionStartTime)) {
+		// Compare the entry's time (which has second-level precision) with the truncated session start time.
+		// This prevents issues where a trade in the same second as launch would be considered "before".
+		if !sessionStarted && !entry.DateTime.IsZero() && !entry.DateTime.Before(sessionStartTruncated) {
 			totalWidth := len(separator)
 			sessionText := "*** Current Session Start ***"
-			paddingLength := (totalWidth - len(sessionText)) / 2
+			paddingLength := 0
+			if totalWidth > len(sessionText) {
+				paddingLength = (totalWidth - len(sessionText)) / 2
+			}
 			centeredText := strings.Repeat(" ", paddingLength) + sessionText
 			color.White(centeredText)
 			sessionStarted = true
@@ -442,14 +444,16 @@ func showLedgerScreen() {
 			rowColor = color.New(color.FgRed)
 		}
 
-		row := fmt.Sprintf("%-*s  %*s  %*s  %*s  %*s  %*s",
-			widths["TX"], entry.TX,
-			widths["USD"], formatFloat(entry.USD, 2),
-			widths["BTC"], fmt.Sprintf("%.8f", entry.BTC),
-			widths["BTC(USD)"], formatFloat(entry.BTCPrice, 2),
-			widths["User BTC"], fmt.Sprintf("%.8f", entry.UserBTC),
-			widths["Time"], entry.Time,
-		)
+		// Build the row dynamically with correct alignment.
+		rowParts := []string{
+			fmt.Sprintf("%-*s", widths["TX"], entry.TX),                               // Left-align TX
+			fmt.Sprintf("%*s", widths["USD"], formatFloat(entry.USD, 2)),             // Right-align numbers
+			fmt.Sprintf("%*s", widths["BTC"], fmt.Sprintf("%.8f", entry.BTC)),
+			fmt.Sprintf("%*s", widths["BTC(USD)"], formatFloat(entry.BTCPrice, 2)),
+			fmt.Sprintf("%*s", widths["User BTC"], fmt.Sprintf("%.8f", entry.UserBTC)),
+			fmt.Sprintf("%*s", widths["Time"], entry.Time),
+		}
+		row := strings.Join(rowParts, "  ")
 		rowColor.Println(row)
 	}
 
@@ -489,7 +493,44 @@ func showExitScreen() {
 		writeAlignedLine("Session P/L:", fmt.Sprintf("%s%.2f [%+.2f%%]", plusSign(sessionChange), sessionChange, sessionPercent), sessionColor)
 	}
 
-	// Session Summary from ledger would go here...
+	summary := getSessionSummary()
+	if summary != nil {
+		fmt.Println()
+		color.Yellow("*** Session Summary ***")
+		if summary.TotalBuyUSD > 0 {
+			writeAlignedLine("Total Bought (USD):", fmt.Sprintf("$%s", formatFloat(summary.TotalBuyUSD, 2)), color.New(color.FgGreen))
+			writeAlignedLine("Total Bought (BTC):", fmt.Sprintf("%.8f", summary.TotalBuyBTC), color.New(color.FgGreen))
+		}
+		if summary.TotalSellUSD > 0 {
+			writeAlignedLine("Total Sold (USD):", fmt.Sprintf("$%s", formatFloat(summary.TotalSellUSD, 2)), color.New(color.FgRed))
+			writeAlignedLine("Total Sold (BTC):", fmt.Sprintf("%.8f", summary.TotalSellBTC), color.New(color.FgRed))
+		}
+	}
+
+	// Pause the screen if the application was likely run by double-clicking.
+	// We do this by checking if the parent process is a known interactive shell.
+	parentName, err := getParentProcessName()
+	shouldPause := true // Default to pausing to be safe.
+	if err == nil {
+		parentName = strings.ToLower(strings.TrimSuffix(parentName, ".exe"))
+		// List of shells where we should NOT pause.
+		interactiveShells := []string{"cmd", "powershell", "pwsh", "wt", "alacritty", "explorer"}
+		for _, shell := range interactiveShells {
+			// The check for "explorer" is a special case for running from VS Code's integrated terminal,
+			// which can sometimes have explorer.exe as a parent.
+			if parentName == shell && shell != "explorer" {
+				shouldPause = false
+				break
+			}
+		}
+	} else {
+		fmt.Printf("\nCould not determine parent process: %v. Pausing by default.", err)
+	}
+
+	if shouldPause {
+		fmt.Println("\nPress Enter to exit.")
+		bufio.NewReader(os.Stdin).ReadString('\n')
+	}
 }
 
 func writeAlignedLine(label, value string, c *color.Color) {
@@ -596,6 +637,74 @@ func getPortfolioValue(playerUSD, playerBTC float64, apiData *ApiDataResponse) f
 	return playerUSD
 }
 
+func readAndParseLedger() ([]LedgerEntry, error) {
+	file, err := os.Open(ledgerFilePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil // Not an error, just no ledger yet
+		}
+		return nil, err
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, err
+	}
+	if len(records) <= 1 {
+		return nil, nil // No records or just header
+	}
+
+	var ledgerEntries []LedgerEntry
+	for _, record := range records[1:] { // Skip header
+		usd, _ := strconv.ParseFloat(strings.ReplaceAll(record[1], ",", ""), 64)
+		btc, _ := strconv.ParseFloat(strings.ReplaceAll(record[2], ",", ""), 64)
+		btcPrice, _ := strconv.ParseFloat(strings.ReplaceAll(record[3], ",", ""), 64)
+		userBTC, _ := strconv.ParseFloat(strings.ReplaceAll(record[4], ",", ""), 64)
+		dateTime, err := time.ParseInLocation("010206@150405", record[5], time.UTC)
+		if err != nil {
+			fmt.Printf("\nWarning: Could not parse timestamp '%s' in ledger.csv. Ignoring for calculation.\n", record[5])
+		}
+		ledgerEntries = append(ledgerEntries, LedgerEntry{
+			TX:       record[0], USD: usd, BTC: btc,
+			BTCPrice: btcPrice, UserBTC: userBTC, Time: record[5], DateTime: dateTime,
+		})
+	}
+	return ledgerEntries, nil
+}
+
+func getLedgerTotals(entries []LedgerEntry) *LedgerSummary {
+	summary := &LedgerSummary{}
+	for _, entry := range entries {
+		if entry.TX == "Buy" {
+			summary.TotalBuyUSD += entry.USD
+			summary.TotalBuyBTC += entry.BTC
+		} else if entry.TX == "Sell" {
+			summary.TotalSellUSD += entry.USD
+			summary.TotalSellBTC += entry.BTC
+		}
+	}
+	return summary
+}
+
+func getSessionSummary() *LedgerSummary {
+	allEntries, err := readAndParseLedger()
+	if err != nil || allEntries == nil {
+		return nil
+	}
+	var sessionEntries []LedgerEntry
+	for _, entry := range allEntries {
+		if !entry.DateTime.IsZero() && !entry.DateTime.Before(sessionStartTime) {
+			sessionEntries = append(sessionEntries, entry)
+		}
+	}
+	if len(sessionEntries) == 0 {
+		return nil
+	}
+	return getLedgerTotals(sessionEntries)
+}
+
 func addLedgerEntry(txType string, usdAmount, btcAmount, btcPrice, userBtcAfter float64) {
 	file, err := os.OpenFile(ledgerFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -619,7 +728,7 @@ func addLedgerEntry(txType string, usdAmount, btcAmount, btcPrice, userBtcAfter 
 		fmt.Sprintf("%.8f", btcAmount),
 		fmt.Sprintf("%.2f", btcPrice),
 		fmt.Sprintf("%.8f", userBtcAfter),
-		time.Now().Format("010206@1504"),
+		time.Now().UTC().Format("010206@150405"),
 	}
 	writer.Write(record)
 }
@@ -813,8 +922,24 @@ func parseTradeAmount(input string, maxAmount float64, txType string) (float64, 
 
 // --- Utility Functions ---
 
+func getParentProcessName() (string, error) {
+	ppid := os.Getppid()
+	// On Windows, double-clicking from explorer.exe might make the parent process disappear
+	// by the time we check. A PPID of 1 is not meaningful on Windows as it is on Linux.
+	if ppid <= 1 {
+		return "explorer", nil // Assume it was explorer if the parent is gone or system
+	}
+	parentProcess, err := process.NewProcess(int32(ppid))
+	if err != nil {
+		return "", err
+	}
+	return parentProcess.Name()
+}
+
 func formatFloat(num float64, decimals int) string {
-	str := fmt.Sprintf("%."+strconv.Itoa(decimals)+"f", num)
+	// Use a robust method to format numbers with commas.
+	// 1. Format to a string with the specified number of decimals.
+	str := fmt.Sprintf("%."+strconv.Itoa(decimals)+"f", math.Abs(num))
 	parts := strings.Split(str, ".")
 	integerPart := parts[0]
 	decimalPart := ""
@@ -822,25 +947,32 @@ func formatFloat(num float64, decimals int) string {
 		decimalPart = "." + parts[1]
 	}
 
-	// Add commas
+	// 2. Add commas to the integer part.
 	n := len(integerPart)
 	if n <= 3 {
+		if num < 0 {
+			return "-" + integerPart + decimalPart
+		}
 		return integerPart + decimalPart
 	}
-	startOffset := 0
-	if integerPart[0] == '-' {
-		startOffset = 1
-	}
-	var result strings.Builder
-	result.WriteString(integerPart[:n%3+startOffset])
-	for i := n%3 + startOffset; i < n; i += 3 {
-		if result.Len() > startOffset {
-			result.WriteString(",")
+
+	// Calculate the number of commas needed.
+	commas := (n - 1) / 3
+	// Create a new byte slice to hold the result.
+	result := make([]byte, n+commas)
+	// Iterate from right to left, inserting commas.
+	for i, j, k := n-1, len(result)-1, 0; i >= 0; i, j, k = i-1, j-1, k+1 {
+		if k > 0 && k%3 == 0 {
+			result[j] = ','
+			j--
 		}
-		result.WriteString(integerPart[i : i+3])
+		result[j] = integerPart[i]
 	}
 
-	return result.String() + decimalPart
+	if num < 0 {
+		return "-" + string(result) + decimalPart
+	}
+	return string(result) + decimalPart
 }
 
 func plusSign(num float64) string {
