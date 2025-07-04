@@ -52,6 +52,12 @@ The application will create two files in the same directory:
 - help: Show the help screen.
 - exit: Exit the application and view a summary of your portfolio.
 
+--- Tips ---
+
+- **Command Shortcuts:** You can use shortcuts for commands (e.g., 'b' for 'buy', 's' for 'sell'). As long as the shortcut is a unique match for a command, it will work.
+- **Percentage Trading:** Use the 'p' suffix to trade a percentage of your balance (e.g., '50p' for 50%).
+- **Satoshi Trading:** When selling, use the 's' suffix to specify an amount in satoshis (e.g., '100000s').
+
 --- Configuration (vbtc.ini) ---
 
 This file stores the application's settings and your portfolio data.

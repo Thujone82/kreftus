@@ -693,6 +693,8 @@ function Show-HelpScreen {
     Write-AlignedLine -Label "help" -Value "Show this help screen."
     Write-AlignedLine -Label "exit" -Value "Exit the application."
     Write-Host ""
+    Write-Host "Tip: Use 'p' for percentage trades (e.g., '50p' for 50%, '100/3p' for 33.3%)." -ForegroundColor Cyan
+    Write-Host ""
     Read-Host "Press Enter to return to the Main Screen."
 }
 

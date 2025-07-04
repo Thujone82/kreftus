@@ -382,6 +382,8 @@ func showHelpScreen() {
 	writeAlignedLine("help", "Show this help screen.", color.New(color.FgWhite))
 	writeAlignedLine("exit", "Exit the application.", color.New(color.FgWhite))
 	fmt.Println()
+	color.New(color.FgCyan).Println("Tip: Use 'p' for percentage trades (e.g., '50p' for 50% of your balance).")
+	fmt.Println()
 	fmt.Println("Press Enter to return to the Main Screen.")
 	bufio.NewReader(os.Stdin).ReadString('\n')
 }

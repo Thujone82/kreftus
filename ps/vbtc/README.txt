@@ -55,9 +55,10 @@ The application uses a simple command-line interface. The following commands are
 -   `help`: Show the help screen with a list of commands.
 -   `exit`: Exit the application and display a final portfolio summary.
 
-**Tip:** You can use shortcuts for commands. For example, `b` for `buy`, `s` for `sell`, `l` for `ledger`, etc. As long as the shortcut is a unique match for a command, it will work.
-
-**Tip:** You can input a percentage instead of an absolute amount by using the 'p' suffix (e.g., '10p' for 10% of your USD/BTC balance). Math is also accepted (e.g., '100/3p' for 1/3 of your balance).
+## Tips
+- **Command Shortcuts:** You can use shortcuts for commands (e.g., 'b' for 'buy', 's' for 'sell'). As long as the shortcut is a unique match for a command, it will work.
+- **Percentage Trading:** Use the 'p' suffix to trade a percentage of your balance (e.g., '50p' for 50%). Math expressions are also supported (e.g., '100/3p' for 33.3%).
+- **Satoshi Trading:** When selling, use the 's' suffix to specify an amount in satoshis (e.g., '100000s').
 
 ## Files
 -   `vbtc.ps1`: The main script file.
