@@ -216,7 +216,7 @@ function Show-LoadingScreen {
 }
 
 function Show-MainScreen {
-    param ($ApiData, [hashtable]$Portfolio)
+    param ($ApiData, [hashtable]$Portfolio, [double]$SessionStartValue)
     if (-not $VerbosePreference) { Clear-Host }
 
     # --- 1. Data Calculation ---
@@ -286,7 +286,7 @@ function Show-MainScreen {
         }
         
         Write-Host -NoNewline $btcLabel
-        $paddingRequired = 16 - $btcLabel.Length
+        $paddingRequired = 22 - $btcLabel.Length
         if ($paddingRequired -gt 0) {
             Write-Host (" " * $paddingRequired) -NoNewline
         }
@@ -305,7 +305,7 @@ function Show-MainScreen {
         }
 
         Write-Host -NoNewline $investedLabel
-        $paddingRequired = 16 - $investedLabel.Length
+        $paddingRequired = 22 - $investedLabel.Length
         if ($paddingRequired -gt 0) {
             Write-Host (" " * $paddingRequired) -NoNewline
         }
@@ -319,9 +319,24 @@ function Show-MainScreen {
     
     $displayValue = if ($portfolioValue -is [double]) { $portfolioValue.ToString("C2") } else { $portfolioValue }
     Write-AlignedLine -Label "Value (USD):" -Value $displayValue -ValueColor $portfolioColor
+
+    if ($SessionStartValue -gt 0 -and $portfolioValue -is [double]) {
+        $sessionChange = $portfolioValue - $SessionStartValue
+        $sessionPercent = ($sessionChange / $SessionStartValue) * 100
+        $sessionColor = if ($sessionChange -gt 0) { "Green" } elseif ($sessionChange -lt 0) { "Red" } else { "White" }
+        $sessionDisplay = "{0}{1:C2} [{2}{3:N2}%]" -f $(if($sessionChange -gt 0){"+"}), $sessionChange, $(if($sessionPercent -gt 0){"+"}), $sessionPercent
+        Write-AlignedLine -Label "Session P/L:" -Value $sessionDisplay -ValueColor $sessionColor
+    }
     
     Write-Host ""
-    Write-Host "Commands: Buy Sell Ledger Refresh Config Help Exit" -ForegroundColor Green
+    Write-Host -NoNewline "Commands: " -ForegroundColor Yellow
+    Write-Host -NoNewline "Buy " -ForegroundColor Green
+    Write-Host -NoNewline "Sell " -ForegroundColor Red
+    Write-Host -NoNewline "Ledger " -ForegroundColor Yellow
+    Write-Host -NoNewline "Refresh " -ForegroundColor Cyan
+    Write-Host -NoNewline "Config " -ForegroundColor DarkYellow
+    Write-Host -NoNewline "Help " -ForegroundColor Blue
+    Write-Host "Exit" -ForegroundColor Yellow
 }
 
 function Show-FirstRunSetup {
@@ -387,15 +402,22 @@ function Show-ConfigScreen {
 
 function Add-LedgerEntry {
     param ([string]$Type, [double]$UsdAmount, [double]$BtcAmount, [double]$BtcPrice, [double]$UserBtcAfter)
-    if (-not (Test-Path $ledgerFilePath)) {
-        Set-Content -Path $ledgerFilePath -Value '"TX","USD","BTC","BTC(USD)","User BTC","Time"'
+    
+    try {
+        if (-not (Test-Path $ledgerFilePath)) {
+            Set-Content -Path $ledgerFilePath -Value '"TX","USD","BTC","BTC(USD)","User BTC","Time"' -ErrorAction Stop
+        }
+        $timestamp = Get-Date -Format "MMddyy@HHmm"
+        $logEntry = """$Type"",""$UsdAmount"",""$BtcAmount"",""$BtcPrice"",""$UserBtcAfter"",""$timestamp"""
+        Add-Content -Path $ledgerFilePath -Value $logEntry -ErrorAction Stop
     }
-    $timestamp = Get-Date -Format "MMddyy@HHmm"
-    $logEntry = """$Type"",""$UsdAmount"",""$BtcAmount"",""$BtcPrice"",""$UserBtcAfter"",""$timestamp"""
-    Add-Content -Path $ledgerFilePath -Value $logEntry
+    catch {
+        Write-Warning "Transaction complete, but failed to write to ledger.csv. Please ensure the file is not open in another program."
+        # This is a non-terminating error, so we just warn the user.
+    }
 }
 
-function Calculate-LedgerTotals {
+function Get-LedgerTotals {
     param($LedgerData)
 
     $totalBuyUSD = 0.0
@@ -422,7 +444,7 @@ function Get-LedgerSummary {
     if (-not (Test-Path $ledgerFilePath)) { return $null }
     $ledgerData = Import-Csv -Path $ledgerFilePath
     if ($ledgerData.Count -eq 0) { return $null }
-    return Calculate-LedgerTotals -LedgerData $ledgerData
+    return Get-LedgerTotals -LedgerData $ledgerData
 }
 
 function Get-SessionSummary {
@@ -444,7 +466,7 @@ function Get-SessionSummary {
         return $null
     }
 
-    return Calculate-LedgerTotals -LedgerData $sessionTransactions
+    return Get-LedgerTotals -LedgerData $sessionTransactions
 }
 
 function Invoke-Trade {
@@ -494,7 +516,15 @@ function Invoke-Trade {
             try {
                 $percentValue = Invoke-Expression $percentString
                 if ($percentValue -gt 0 -and $percentValue -le 100) {
-                    $parsedAmount = ($maxAmount * $percentValue) / 100
+                    # Perform calculation and truncate to prevent floating point errors from exceeding the balance.
+                    $calculatedAmount = ($maxAmount * $percentValue) / 100
+                    if ($Type -eq "Sell") {
+                        # Truncate BTC to 8 decimal places (satoshi)
+                        $parsedAmount = [math]::Floor($calculatedAmount * 100000000) / 100000000
+                    } else { # Buy
+                        # Truncate USD to 2 decimal places (cent)
+                        $parsedAmount = [math]::Floor($calculatedAmount * 100) / 100
+                    }
                     $parseSuccess = $true
                 } else {
                     Write-Warning "Percentage must be between 0 and 100."
@@ -546,7 +576,8 @@ function Invoke-Trade {
         $usdAmount = if ($Type -eq "Buy") { $tradeAmount } else { [math]::Floor(($tradeAmount * $currentBTC) * 100) / 100 }
         $btcAmount = if ($Type -eq "Sell") { $tradeAmount } else { [math]::Floor(($tradeAmount / $currentBTC) * 100000000) / 100000000 }
 
-        $priceDiff = $currentBTC - $apiData.rate24hAgo
+        $rate24hAgo = if ($apiData.PSObject.Properties['rate24hAgo']) { $apiData.rate24hAgo } elseif ($apiData.PSObject.Properties['delta'] -and $apiData.delta.PSObject.Properties['day']) { $currentBTC / (1 + ($apiData.delta.day / 100)) } else { $currentBTC }
+        $priceDiff = $currentBTC - $rate24hAgo
         $priceColor = if ($priceDiff -gt 0) { "Green" } elseif ($priceDiff -lt 0) { "Red" } else { "White" }
 
         $confirmPrompt = if ($Type -eq "Buy") {
@@ -563,18 +594,20 @@ function Invoke-Trade {
         Write-Host "[" -NoNewline
         Write-Host "y" -ForegroundColor Green -NoNewline
         Write-Host "/" -NoNewline
+        Write-Host "r" -ForegroundColor Cyan -NoNewline
+        Write-Host "/" -NoNewline
         Write-Host "n" -ForegroundColor Red -NoNewline
         Write-Host "]"
         
         $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-        $input = Read-Host
+        $tradeinput = Read-Host
 
         if ($stopwatch.Elapsed.TotalMinutes -ge 2) {
             $offerExpired = $true
             continue
         }
 
-        if ($input.ToLower() -eq 'y') {
+        if ($tradeinput.ToLower() -eq 'y') {
             $newUserBtc = 0.0
             $newInvested = 0.0
             if ($Type -eq "Buy") {
@@ -583,7 +616,7 @@ function Invoke-Trade {
                 $newInvested = $playerInvested + $usdAmount
                 $Config.Value.Portfolio.PlayerBTC = $newUserBtc.ToString("F8", [System.Globalization.CultureInfo]::InvariantCulture)
                 $Config.Value.Portfolio.PlayerInvested = $newInvested.ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
-            } else {
+            } else { # Sell
                 $newUserBtc = $playerBTC - $btcAmount
                 if ($newUserBtc -le 0) {
                     $newInvested = 0
@@ -599,10 +632,15 @@ function Invoke-Trade {
             Add-LedgerEntry -Type $Type -UsdAmount $usdAmount -BtcAmount $btcAmount -BtcPrice $currentBTC -UserBtcAfter $newUserBtc
             Write-Host "`n$Type successful."
             Start-Sleep -Seconds 1
-        } else {
-            Write-Host "`n$Type cancelled."
-            Start-Sleep -Seconds 1
+            return 
+        } 
+        elseif ($tradeinput.ToLower() -eq 'r') {
+            $offerExpired = $true 
+            continue 
         }
+        
+        Write-Host "`n$Type cancelled."
+        Start-Sleep -Seconds 1
         return
     }
 }
@@ -691,7 +729,11 @@ function Show-LedgerScreen {
             $sessionStarted = $false
             foreach ($row in $displayData | Sort-Object DateTime) {
                 if (-not $sessionStarted -and $row.DateTime -ge $sessionStartTime) {
-                    Write-Host "*** Current Session Start ***" -ForegroundColor White
+                    $totalWidth = $separator.Length
+                    $sessionText = "*** Current Session Start ***"
+                    $paddingLength = [math]::Max(0, [math]::Floor(($totalWidth - $sessionText.Length) / 2))
+                    $centeredText = (" " * $paddingLength) + $sessionText
+                    Write-Host $centeredText -ForegroundColor White
                     $sessionStarted = $true
                 }
                 $rowColor = if ($row.TX -eq "Buy") { "Green" } else { "Red" }
@@ -737,10 +779,16 @@ if ([string]::IsNullOrEmpty($config.Settings.ApiKey)) {
 }
 
 $apiData = Get-ApiData -Config $config
+$initialPlayerUSD = 0.0
+$initialPlayerBTC = 0.0
+$null = [double]::TryParse($config.Portfolio.PlayerUSD, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$initialPlayerUSD)
+$null = [double]::TryParse($config.Portfolio.PlayerBTC, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$initialPlayerBTC)
+$sessionStartPortfolioValue = Get-PortfolioValue -PlayerUSD $initialPlayerUSD -PlayerBTC $initialPlayerBTC -ApiData $apiData
+
 $commands = @("buy", "sell", "ledger", "refresh", "config", "help", "exit")
 
 while ($true) {
-    Show-MainScreen -ApiData $apiData -Portfolio $config
+    Show-MainScreen -ApiData $apiData -Portfolio $config -SessionStartValue $sessionStartPortfolioValue
 
     $userInput = (Read-Host "Enter command").Trim()
     if ([string]::IsNullOrEmpty($userInput)) { continue }
@@ -792,6 +840,14 @@ while ($true) {
             
                 Write-AlignedLine -Label "Portfolio Value:" -Value ("{0:C2}" -f $finalValue) -ValueColor $profitColor
                 Write-AlignedLine -Label "Total Profit/Loss:" -Value ("{0:C2}" -f $profit) -ValueColor $profitColor
+
+                if ($sessionStartPortfolioValue -gt 0 -and $finalValue -is [double]) {
+                    $sessionChange = $finalValue - $sessionStartPortfolioValue
+                    $sessionPercent = ($sessionChange / $sessionStartPortfolioValue) * 100
+                    $sessionColor = if ($sessionChange -gt 0) { "Green" } elseif ($sessionChange -lt 0) { "Red" } else { "White" }
+                    $sessionDisplay = "{0}{1:C2} [{2}{3:N2}%]" -f $(if($sessionChange -gt 0){"+"}), $sessionChange, $(if($sessionPercent -gt 0){"+"}), $sessionPercent
+                    Write-AlignedLine -Label "Session P/L:" -Value $sessionDisplay -ValueColor $sessionColor
+                }
 
                 $summary = Get-SessionSummary -SessionStartTime $sessionStartTime
                 if ($summary) {
