@@ -127,6 +127,19 @@ function Get-HistoricalData {
     return $null
 }
 
+function Update-ApiData {
+    param ([hashtable]$Config)
+    Show-LoadingScreen
+    $apiData = Get-ApiData -Config $Config
+    if ($apiData) {
+        $historicalRate = Get-HistoricalData -Config $Config
+        if ($historicalRate) {
+            $apiData | Add-Member -MemberType NoteProperty -Name "rate24hAgo" -Value $historicalRate -Force
+        }
+    }
+    return $apiData
+}
+
 function Get-ApiData {
     param ([hashtable]$Config)
     Write-Verbose "Getting API data..."
@@ -618,11 +631,18 @@ function Invoke-Trade {
                 $Config.Value.Portfolio.PlayerInvested = $newInvested.ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
             } else { # Sell
                 $newUserBtc = $playerBTC - $btcAmount
-                if ($newUserBtc -le 0) {
+                if ($newUserBtc -le 0.000000005) { # Use a small tolerance for floating point comparison
                     $newInvested = 0
+                    $newUserBtc = 0 # Ensure it's exactly zero if we're clearing it
                 } else {
-                    $newInvested = $playerInvested - $usdAmount
-                    if ($newInvested -lt 0) { $newInvested = 0 } # Cannot be negative
+                    # Reduce invested capital proportionally to the amount of BTC sold.
+                    # This preserves the average cost basis of the remaining holdings.
+                    if ($playerBTC -gt 0) {
+                        $newInvested = $playerInvested * ($newUserBtc / $playerBTC)
+                    }
+                    else {
+                        $newInvested = 0
+                    }
                 }
                 $Config.Value.Portfolio.PlayerBTC = $newUserBtc.ToString("F8", [System.Globalization.CultureInfo]::InvariantCulture)
                 $Config.Value.Portfolio.PlayerUSD = ($playerUSD + $usdAmount).ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
@@ -771,14 +791,13 @@ function Show-LedgerScreen {
 
 # --- Main Game Loop ---
 
-Show-LoadingScreen
 $config = Get-IniConfiguration -FilePath $iniFilePath
 if ([string]::IsNullOrEmpty($config.Settings.ApiKey)) {
     Show-FirstRunSetup -Config ([ref]$config)
     $config = Get-IniConfiguration -FilePath $iniFilePath
 }
 
-$apiData = Get-ApiData -Config $config
+$apiData = Update-ApiData -Config $config
 $initialPlayerUSD = 0.0
 $initialPlayerBTC = 0.0
 $null = [double]::TryParse($config.Portfolio.PlayerUSD, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$initialPlayerUSD)
@@ -811,16 +830,7 @@ while ($true) {
                 $apiData = Get-ApiData -Config $config
             }
             "ledger" { Show-LedgerScreen }
-            "refresh" {
-                Show-LoadingScreen
-                $apiData = Get-ApiData -Config $config
-                if ($apiData) {
-                    $historicalRate = Get-HistoricalData -Config $config
-                    if ($historicalRate) {
-                        $apiData | Add-Member -MemberType NoteProperty -Name "rate24hAgo" -Value $historicalRate -Force
-                    }
-                }
-            }
+            "refresh" { $apiData = Update-ApiData -Config $config }
             "config" {
                 Show-ConfigScreen -Config ([ref]$config)
             }
