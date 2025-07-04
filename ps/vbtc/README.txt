@@ -1,12 +1,12 @@
 '# vBTC - Virtual Bitcoin Trading Simulator
 
-## Version 1.0
+## Version 1.1
 
 ## Author
 Kreft&Gemini[Gemini 2.5 Pro (preview)]
 
 ## Date
-2025-07-03
+2025-07-04
 
 ## Description
 vBTC is an interactive PowerShell-based Bitcoin trading application. Users can buy and sell Bitcoin using a simulated portfolio, track their trades in a ledger, and view real-time market data from the LiveCoinWatch API.
@@ -24,6 +24,14 @@ The main screen displays:
 - **Configuration Options:** Allows you to update your API key and reset your portfolio.
 - **Command Shortcuts:** Use partial commands (e.g., 'b' for 'buy') for quick trading.
 - **Percentage-based Trading:** Use the 'p' suffix to trade a percentage of your assets (e.g., `50p` for 50%, `1/3p` for 33.3%).
+
+## Color Coding
+The application uses colors to provide quick visual feedback:
+
+-   **Green:** Indicates a positive change, such as a price increase, a profitable position, or a "Buy" transaction.
+-   **Red:** Indicates a negative change, such as a price decrease, a position at a loss, or a "Sell" transaction.
+-   **White:** Indicates a neutral or unchanged value.
+-   **Yellow / Cyan / Blue:** Used for UI elements like titles and command prompts for better readability.
 
 ## Requirements
 - PowerShell

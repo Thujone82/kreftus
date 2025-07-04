@@ -31,6 +31,7 @@ const (
 var (
 	sessionStartTime         = time.Now().UTC()
 	sessionStartPortfolioValue float64
+	initialSessionBtcPrice   float64
 	cfg                      *ini.File
 	apiData                  *ApiDataResponse
 )
@@ -95,7 +96,14 @@ func setup() {
 		showFirstRunSetup()
 	}
 
+	// Perform the initial data fetch to get a complete data object.
 	apiData = updateApiData()
+
+	// Only after the data is fully fetched, set the session-start values.
+	// This prevents the race condition and ensures the initial price is correct.
+	if apiData != nil {
+		initialSessionBtcPrice = apiData.Rate
+	}
 	playerUSD, _ := cfg.Section("Portfolio").Key("PlayerUSD").Float64()
 	playerBTC, _ := cfg.Section("Portfolio").Key("PlayerBTC").Float64()
 	sessionStartPortfolioValue = getPortfolioValue(playerUSD, playerBTC, apiData)
@@ -152,10 +160,10 @@ func mainLoop() {
 			switch command {
 			case "buy":
 				invokeTrade("Buy", amount)
-				apiData = getApiData()
+				apiData = updateApiData()
 			case "sell":
 				invokeTrade("Sell", amount)
-				apiData = getApiData()
+				apiData = updateApiData()
 			case "ledger":
 				showLedgerScreen()
 			case "refresh":
@@ -206,19 +214,29 @@ func showMainScreen() {
 	if apiData == nil {
 		color.Red("Could not retrieve market data. Please check your API key in the Config menu.")
 	} else {
-		priceColor := color.New(color.FgWhite)
+		priceColor24h := color.New(color.FgWhite)
 		if apiData.Rate > apiData.Rate24hAgo {
-			priceColor = color.New(color.FgGreen)
+			priceColor24h = color.New(color.FgGreen)
 		} else if apiData.Rate < apiData.Rate24hAgo {
-			priceColor = color.New(color.FgRed)
+			priceColor24h = color.New(color.FgRed)
 		}
+
+		priceColorSession := color.New(color.FgWhite)
+		if initialSessionBtcPrice > 0 {
+			if apiData.Rate > initialSessionBtcPrice {
+				priceColorSession = color.New(color.FgGreen)
+			} else if apiData.Rate < initialSessionBtcPrice {
+				priceColorSession = color.New(color.FgRed)
+			}
+		}
+
 		percentChange := 0.0
 		if apiData.Rate24hAgo != 0 {
 			percentChange = ((apiData.Rate - apiData.Rate24hAgo) / apiData.Rate24hAgo) * 100
 		}
 
-		writeAlignedLine("Bitcoin (USD):", fmt.Sprintf("$%s", formatFloat(apiData.Rate, 2)), priceColor)
-		writeAlignedLine("24H Ago:", fmt.Sprintf("$%s [%+.2f%%]", formatFloat(apiData.Rate24hAgo, 2), percentChange), priceColor)
+		writeAlignedLine("Bitcoin (USD):", fmt.Sprintf("$%s", formatFloat(apiData.Rate, 2)), priceColorSession)
+		writeAlignedLine("24H Ago:", fmt.Sprintf("$%s [%+.2f%%]", formatFloat(apiData.Rate24hAgo, 2), percentChange), priceColor24h)
 		writeAlignedLine("24H Volume:", fmt.Sprintf("$%s", formatFloat(apiData.Volume, 0)), color.New(color.FgWhite))
 		writeAlignedLine("Time:", apiData.FetchTime.Local().Format("010206@150405"), color.New(color.FgCyan))
 	}
@@ -545,34 +563,103 @@ func writeAlignedLine(label, value string, c *color.Color) {
 
 // --- API and Data Functions ---
 
-func getApiData() *ApiDataResponse {
-	apiKey := cfg.Section("Settings").Key("ApiKey").String()
+func fetchCurrentPriceData(apiKey string) (*ApiDataResponse, error) {
 	if apiKey == "" {
-		return nil
+		return nil, fmt.Errorf("API key is empty")
+	}
+	jsonData := map[string]string{"currency": "USD", "code": "BTC", "meta": "true"}
+	jsonValue, err := json.Marshal(jsonData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal json for current price: %w", err)
 	}
 
-	jsonData := map[string]string{"currency": "USD", "code": "BTC", "meta": "true"}
-	jsonValue, _ := json.Marshal(jsonData)
-	req, _ := http.NewRequest("POST", "https://api.livecoinwatch.com/coins/single", bytes.NewBuffer(jsonValue))
+	req, err := http.NewRequest("POST", "https://api.livecoinwatch.com/coins/single", bytes.NewBuffer(jsonValue))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request for current price: %w", err)
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-api-key", apiKey)
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to execute request for current price: %w", err)
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API for current price returned status code %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body for current price: %w", err)
+	}
+
 	var data ApiDataResponse
-	json.Unmarshal(body, &data)
+	if err := json.Unmarshal(body, &data); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response for current price: %w", err)
+	}
 	data.FetchTime = time.Now().UTC()
-	
+	return &data, nil
+}
+
+func getHistoricalData(apiKey string) (*HistoryResponse, error) {
+	if apiKey == "" {
+		return nil, fmt.Errorf("API key is empty")
+	}
+	end := time.Now().UTC().Add(-24 * time.Hour).UnixMilli()
+	start := end - (5 * 60 * 1000) // 5 minute window
+
+	jsonData := map[string]interface{}{"currency": "USD", "code": "BTC", "start": start, "end": end, "meta": false}
+	jsonValue, err := json.Marshal(jsonData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal json for historical price: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", "https://api.livecoinwatch.com/coins/single/history", bytes.NewBuffer(jsonValue))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request for historical price: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-api-key", apiKey)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API for historical price returned status code %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body for historical price: %w", err)
+	}
+
+	var history HistoryResponse
+	if err := json.Unmarshal(body, &history); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response for historical price: %w", err)
+	}
+	return &history, nil
+}
+
+func updateApiData() *ApiDataResponse {
+	showLoadingScreen()
+	apiKey := cfg.Section("Settings").Key("ApiKey").String()
+
+	data, err := fetchCurrentPriceData(apiKey)
+	if err != nil {
+		fmt.Printf("Error fetching current price data: %v\n", err)
+		return nil
+	}
+
 	// Get historical data for 24h ago
 	history, err := getHistoricalData(apiKey)
-	if err == nil && len(history.History) > 0 {
-		targetTs := time.Now().Add(-24 * time.Hour).UnixMilli()
+	if err == nil && history != nil && len(history.History) > 0 {
+		targetTs := time.Now().UTC().Add(-24 * time.Hour).UnixMilli()
 		closest := history.History[0]
 		minDiff := int64(math.Abs(float64(closest.Date - targetTs)))
 		for _, p := range history.History {
@@ -584,38 +671,18 @@ func getApiData() *ApiDataResponse {
 		}
 		data.Rate24hAgo = closest.Rate
 	} else {
-		data.Rate24hAgo = data.Rate / (1 + (data.Delta.Day / 100))
+		if err != nil {
+			fmt.Printf("Warning: could not fetch historical data: %v. Using fallback.\n", err)
+		}
+		// Fallback to using the delta from the current price data if historical fails
+		if data.Delta.Day != 0 {
+			data.Rate24hAgo = data.Rate / (1 + (data.Delta.Day / 100))
+		} else {
+			data.Rate24hAgo = data.Rate // If no historical or delta, assume no change
+		}
 	}
 
-	return &data
-}
-
-func getHistoricalData(apiKey string) (*HistoryResponse, error) {
-	end := time.Now().Add(-24 * time.Hour).UnixMilli()
-	start := end - (5 * 60 * 1000) // 5 minute window
-
-	jsonData := map[string]interface{}{"currency": "USD", "code": "BTC", "start": start, "end": end, "meta": false}
-	jsonValue, _ := json.Marshal(jsonData)
-	req, _ := http.NewRequest("POST", "https://api.livecoinwatch.com/coins/single/history", bytes.NewBuffer(jsonValue))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-api-key", apiKey)
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	var history HistoryResponse
-	json.Unmarshal(body, &history)
-	return &history, nil
-}
-
-func updateApiData() *ApiDataResponse {
-	showLoadingScreen()
-	return getApiData()
+	return data
 }
 
 func testApiKey(apiKey string) bool {
@@ -795,8 +862,7 @@ func invokeTrade(txType, amountString string) {
 
 	// Confirmation Loop
 	for {
-		showLoadingScreen()
-		currentApiData := getApiData()
+		currentApiData := updateApiData()
 		if currentApiData == nil {
 			color.Red("Error fetching price. Press Enter to continue.")
 			reader.ReadString('\n')

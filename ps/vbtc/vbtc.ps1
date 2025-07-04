@@ -32,7 +32,7 @@
 .NOTES
     Author: Kreft&Gemini[Gemini 2.5 Pro (preview)]
     Date: 2025-07-03
-    Version: 1.0
+    Version: 1.1
 #>
 
 [CmdletBinding()]
@@ -135,6 +135,15 @@ function Update-ApiData {
         $historicalRate = Get-HistoricalData -Config $Config
         if ($historicalRate) {
             $apiData | Add-Member -MemberType NoteProperty -Name "rate24hAgo" -Value $historicalRate -Force
+        } else {
+            # Fallback to using the delta from the current price data if historical fails
+            Write-Warning "Could not fetch historical data. Using 24h delta as fallback."
+            $fallbackRate = if ($apiData.PSObject.Properties['delta'] -and $apiData.delta.PSObject.Properties['day'] -and $apiData.delta.day -ne 0) {
+                $apiData.rate / (1 + ($apiData.delta.day / 100))
+            } else {
+                $apiData.rate # If no historical or delta, assume no change
+            }
+            $apiData | Add-Member -MemberType NoteProperty -Name "rate24hAgo" -Value $fallbackRate -Force
         }
     }
     return $apiData
@@ -229,7 +238,7 @@ function Show-LoadingScreen {
 }
 
 function Show-MainScreen {
-    param ($ApiData, [hashtable]$Portfolio, [double]$SessionStartValue)
+    param ($ApiData, [hashtable]$Portfolio, [double]$SessionStartValue, [decimal]$InitialSessionBtcPrice)
     if (-not $VerbosePreference) { Clear-Host }
 
     # --- 1. Data Calculation ---
@@ -245,19 +254,27 @@ function Show-MainScreen {
     if ($marketDataAvailable) {
         $currentBTC = $ApiData.rate
         $rate24hAgo = if ($ApiData.PSObject.Properties['rate24hAgo']) { $ApiData.rate24hAgo } elseif ($ApiData.PSObject.Properties['delta'] -and $ApiData.delta.PSObject.Properties['day']) { $currentBTC / (1 + ($ApiData.delta.day / 100)) } else { $currentBTC }
-        $percentChange = if ($rate24hAgo -ne 0) { (($currentBTC - $rate24hAgo) / $rate24hAgo) * 100 } else { 0 }
-        $priceDiff = $currentBTC - $rate24hAgo
-        $priceColor = if ($priceDiff -gt 0) { "Green" } elseif ($priceDiff -lt 0) { "Red" } else { "White" }
+        $percentChange24h = if ($rate24hAgo -ne 0) { (($currentBTC - $rate24hAgo) / $rate24hAgo) * 100 } else { 0 }
+
+        # Round values to 2 decimal places for color comparison to ensure equality works as expected.
+        $roundedCurrent = [math]::Round([decimal]$currentBTC, 2)
+        $rounded24hAgo = [math]::Round([decimal]$rate24hAgo, 2)
+        $priceColor24h = if ($roundedCurrent -gt $rounded24hAgo) { "Green" } elseif ($roundedCurrent -lt $rounded24hAgo) { "Red" } else { "White" }
+
+        # Color for the main price line is based on session start price
+        $roundedInitial = [math]::Round($InitialSessionBtcPrice, 2) # Already a decimal from param
+        $priceColorSession = if ($roundedCurrent -gt $roundedInitial) { "Green" } elseif ($roundedCurrent -lt $roundedInitial) { "Red" } else { "White" }
         
         # Display Values
         $btcDisplay = "{0:C2}" -f $currentBTC
-        $agoDisplay = "{0:C2} [{1}{2}%]" -f $rate24hAgo, $(if($priceDiff -gt 0){"+"}), ("{0:N2}" -f $percentChange)
+        $agoDisplay = "{0:C2} [{1}{2}%]" -f $rate24hAgo, $(if($roundedCurrent -gt $rounded24hAgo){"+"}), ("{0:N2}" -f $percentChange24h)
         $volDisplay = "$($ApiData.volume.ToString("C0"))"
         $timeDisplay = $ApiData.fetchTime.ToLocalTime().ToString("MMddyy@HHmmss")
 
     } else {
         # Default/Warning Values
-        $priceColor = "White"
+        $priceColorSession = "White"
+        $priceColor24h = "White"
         $btcDisplay = "N/A"
         $agoDisplay = "N/A"
         $volDisplay = "N/A"
@@ -267,8 +284,8 @@ function Show-MainScreen {
     # --- 2. Screen Rendering ---
     Write-Host "*** Bitcoin Market ***" -ForegroundColor Yellow
     if (-not $marketDataAvailable) { Write-Warning "Could not retrieve market data. Please check your API key in the Config menu." }
-    Write-AlignedLine -Label "Bitcoin (USD):" -Value $btcDisplay -ValueColor $priceColor
-    Write-AlignedLine -Label "24H Ago:" -Value $agoDisplay -ValueColor $priceColor
+    Write-AlignedLine -Label "Bitcoin (USD):" -Value $btcDisplay -ValueColor $priceColorSession
+    Write-AlignedLine -Label "24H Ago:" -Value $agoDisplay -ValueColor $priceColor24h
     Write-AlignedLine -Label "24H Volume:" -Value $volDisplay
     Write-AlignedLine -Label "Time:" -Value $timeDisplay -ValueColor "Cyan"
 
@@ -798,6 +815,11 @@ if ([string]::IsNullOrEmpty($config.Settings.ApiKey)) {
 }
 
 $apiData = Update-ApiData -Config $config
+
+# Only after the data is fully fetched, set the session-start values.
+# This prevents the race condition and ensures the initial price is correct.
+$initialSessionBtcPrice = if ($apiData -and $apiData.rate) { [decimal]$apiData.rate } else { 0 }
+
 $initialPlayerUSD = 0.0
 $initialPlayerBTC = 0.0
 $null = [double]::TryParse($config.Portfolio.PlayerUSD, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$initialPlayerUSD)
@@ -807,7 +829,7 @@ $sessionStartPortfolioValue = Get-PortfolioValue -PlayerUSD $initialPlayerUSD -P
 $commands = @("buy", "sell", "ledger", "refresh", "config", "help", "exit")
 
 while ($true) {
-    Show-MainScreen -ApiData $apiData -Portfolio $config -SessionStartValue $sessionStartPortfolioValue
+    Show-MainScreen -ApiData $apiData -Portfolio $config -SessionStartValue $sessionStartPortfolioValue -InitialSessionBtcPrice $initialSessionBtcPrice
 
     $userInput = (Read-Host "Enter command").Trim()
     if ([string]::IsNullOrEmpty($userInput)) { continue }
@@ -823,11 +845,11 @@ while ($true) {
         switch ($command) {
             "buy" {
                 Invoke-Trade -Config ([ref]$config) -Type "Buy" -AmountString $amount
-                $apiData = Get-ApiData -Config $config
+                $apiData = Update-ApiData -Config $config
             }
             "sell" {
                 Invoke-Trade -Config ([ref]$config) -Type "Sell" -AmountString $amount
-                $apiData = Get-ApiData -Config $config
+                $apiData = Update-ApiData -Config $config
             }
             "ledger" { Show-LedgerScreen }
             "refresh" { $apiData = Update-ApiData -Config $config }
