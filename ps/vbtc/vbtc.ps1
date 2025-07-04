@@ -51,7 +51,7 @@ else {
 $iniFilePath = Join-Path -Path $scriptPath -ChildPath "vbtc.ini"
 $ledgerFilePath = Join-Path -Path $scriptPath -ChildPath "ledger.csv"
 $startingCapital = 1000.00
-$sessionStartTime = Get-Date
+$sessionStartTime = (Get-Date).ToUniversalTime()
 
 # --- Helper Functions ---
 
@@ -253,7 +253,7 @@ function Show-MainScreen {
         $btcDisplay = "{0:C2}" -f $currentBTC
         $agoDisplay = "{0:C2} [{1}{2}%]" -f $rate24hAgo, $(if($priceDiff -gt 0){"+"}), ("{0:N2}" -f $percentChange)
         $volDisplay = "$($ApiData.volume.ToString("C0"))"
-        $timeDisplay = $ApiData.fetchTime.ToLocalTime().ToString("MMddyy@HHmm")
+        $timeDisplay = $ApiData.fetchTime.ToLocalTime().ToString("MMddyy@HHmmss")
 
     } else {
         # Default/Warning Values
@@ -420,7 +420,7 @@ function Add-LedgerEntry {
         if (-not (Test-Path $ledgerFilePath)) {
             Set-Content -Path $ledgerFilePath -Value '"TX","USD","BTC","BTC(USD)","User BTC","Time"' -ErrorAction Stop
         }
-        $timestamp = Get-Date -Format "MMddyy@HHmm"
+        $timestamp = (Get-Date).ToUniversalTime().ToString("MMddyy@HHmmss")
         $logEntry = """$Type"",""$UsdAmount"",""$BtcAmount"",""$BtcPrice"",""$UserBtcAfter"",""$timestamp"""
         Add-Content -Path $ledgerFilePath -Value $logEntry -ErrorAction Stop
     }
@@ -467,7 +467,7 @@ function Get-SessionSummary {
     }
     $sessionTransactions = @(Import-Csv -Path $ledgerFilePath) | Where-Object {
         try {
-            return ([datetime]::ParseExact($_.Time, "MMddyy@HHmm", $null) -ge $SessionStartTime)
+            return ([datetime]::ParseExact($_.Time, "MMddyy@HHmmss", $null) -ge $SessionStartTime)
         } catch {
             # This will prevent a crash if a line in the ledger is corrupted
             Write-Warning "Could not parse timestamp '$($_.Time)' in ledger.csv"
@@ -699,7 +699,7 @@ function Show-LedgerScreen {
                     'BTC(USD)' = [double]::Parse($_.'BTC(USD)', [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture)
                     'User BTC' = [double]::Parse($_.'User BTC', [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture)
                     Time       = $_.Time
-                    DateTime   = [datetime]::ParseExact($_.Time, "MMddyy@HHmm", $null)
+                    DateTime   = [datetime]::ParseExact($_.Time, "MMddyy@HHmmss", $null)
                 }
             }
 
