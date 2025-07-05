@@ -25,7 +25,7 @@ if (-not (Get-Command windres -ErrorAction SilentlyContinue)) {
 Write-Host "Tidying Go modules..." -ForegroundColor Cyan
 go mod tidy
 
-Write-Host "Building for Windows (x64)..." -ForegroundColor Cyan
+Write-Host "Building for Windows..." -ForegroundColor Cyan
 Write-Host "  - Compiling icon resource..."
 # Pass the absolute path to the .rc file to avoid any ambiguity for the compiler.
 $rcFilePath = Join-Path $PSScriptRoot 'vbtc.rc'
@@ -34,9 +34,11 @@ $rcFilePath = Join-Path $PSScriptRoot 'vbtc.rc'
 # Use a try/finally block to ensure the Windows-specific .syso file is always cleaned up.
 try {
     windres -I $PSScriptRoot -o vbtc.syso $rcFilePath
-    Write-Host "  - Compiling executable..."
+    Write-Host "  - Compiling executable (x64)..."
     # Explicitly set the OS and Architecture for the Windows build to avoid environment issues.
-    $env:GOOS="windows"; $env:GOARCH="amd64"; go build -ldflags="-s -w" -o bin/pc/vbtc.exe
+    $env:GOOS="windows"; $env:GOARCH="amd64"; go build -ldflags="-s -w" -o bin/pc/x64/vbtc.exe
+    Write-Host "  - Compiling executable (x86)..."
+    $env:GOOS="windows"; $env:GOARCH="386"; go build -ldflags="-s -w" -o bin/pc/x86/vbtc.exe
 }
 finally {
     if (Test-Path "vbtc.syso") {
