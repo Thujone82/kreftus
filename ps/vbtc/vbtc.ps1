@@ -870,30 +870,48 @@ while ($true) {
                 $finalValue = Get-PortfolioValue -PlayerUSD $playerUSD -PlayerBTC $playerBTC -ApiData $apiData
 
                 $profit = $finalValue - $startingCapital
-                $profitColor = if ($profit -gt 0) { "Green" } elseif ($profit -lt 0) { "Red" } else { "White" }
+                $profitColor = if ($profit -gt 0) { "Green" }
+                elseif ($profit -lt 0) { "Red" }
+                else { "White" }
             
                 Write-AlignedLine -Label "Portfolio Value:" -Value ("{0:C2}" -f $finalValue) -ValueColor $profitColor
                 Write-AlignedLine -Label "Total Profit/Loss:" -Value ("{0:C2}" -f $profit) -ValueColor $profitColor
 
+                # --- Session Summary ---
+                Write-Host ""
+                Write-Host "*** Session Summary ***" -ForegroundColor Yellow
+                $sessionValueStartColumn = 22 # Use a consistent start column for this block to align values
+
+
+                $finalBtcPrice = if ($apiData -and $apiData.rate) { [decimal]$apiData.rate } else { $initialSessionBtcPrice }
+                $roundedInitial = [math]::Round($initialSessionBtcPrice, 2)
+                $roundedFinal = [math]::Round($finalBtcPrice, 2)
+                $sessionPriceColor = if ($roundedFinal -gt $roundedInitial) { "Green" }
+                elseif ($roundedFinal -lt $roundedInitial) { "Red" }
+                else { "White" }
+
+                Write-AlignedLine -Label "Start BTC(USD):" -Value ("{0:C2}" -f $initialSessionBtcPrice) -ValueStartColumn $sessionValueStartColumn
+                Write-AlignedLine -Label "End BTC(USD):" -Value ("{0:C2}" -f $finalBtcPrice) -ValueColor $sessionPriceColor -ValueStartColumn $sessionValueStartColumn
+
                 if ($sessionStartPortfolioValue -gt 0 -and $finalValue -is [double]) {
                     $sessionChange = $finalValue - $sessionStartPortfolioValue
                     $sessionPercent = ($sessionChange / $sessionStartPortfolioValue) * 100
-                    $sessionColor = if ($sessionChange -gt 0) { "Green" } elseif ($sessionChange -lt 0) { "Red" } else { "White" }
+                    $sessionColor = if ($sessionChange -gt 0) { "Green" }
+                    elseif ($sessionChange -lt 0) { "Red" }
+                    else { "White" }
                     $sessionDisplay = "{0}{1:C2} [{2}{3:N2}%]" -f $(if($sessionChange -gt 0){"+"}), $sessionChange, $(if($sessionPercent -gt 0){"+"}), $sessionPercent
-                    Write-AlignedLine -Label "Session P/L:" -Value $sessionDisplay -ValueColor $sessionColor
+                    Write-AlignedLine -Label "P/L:" -Value $sessionDisplay -ValueColor $sessionColor -ValueStartColumn $sessionValueStartColumn
                 }
 
                 $summary = Get-SessionSummary -SessionStartTime $sessionStartTime
                 if ($summary) {
-                    Write-Host ""
-                    Write-Host "*** Session Summary ***" -ForegroundColor Yellow
                     if ($summary.TotalBuyUSD -gt 0) {
-                        Write-AlignedLine -Label "Total Bought (USD):" -Value ("{0:C2}" -f $summary.TotalBuyUSD) -ValueColor "Green"
-                        Write-AlignedLine -Label "Total Bought (BTC):" -Value $summary.TotalBuyBTC.ToString("F8") -ValueColor "Green"
+                        Write-AlignedLine -Label "Total Bought (USD):" -Value ("{0:C2}" -f $summary.TotalBuyUSD) -ValueColor "Green" -ValueStartColumn $sessionValueStartColumn
+                        Write-AlignedLine -Label "Total Bought (BTC):" -Value $summary.TotalBuyBTC.ToString("F8") -ValueColor "Green" -ValueStartColumn $sessionValueStartColumn
                     }
                     if ($summary.TotalSellUSD -gt 0) {
-                        Write-AlignedLine -Label "Total Sold (USD):" -Value ("{0:C2}" -f $summary.TotalSellUSD) -ValueColor "Red"
-                        Write-AlignedLine -Label "Total Sold (BTC):" -Value $summary.TotalSellBTC.ToString("F8") -ValueColor "Red"
+                        Write-AlignedLine -Label "Total Sold (USD):" -Value ("{0:C2}" -f $summary.TotalSellUSD) -ValueColor "Red" -ValueStartColumn $sessionValueStartColumn
+                        Write-AlignedLine -Label "Total Sold (BTC):" -Value $summary.TotalSellBTC.ToString("F8") -ValueColor "Red" -ValueStartColumn $sessionValueStartColumn
                     }
                 }
             

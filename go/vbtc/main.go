@@ -18,8 +18,8 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"gopkg.in/ini.v1"
 	"github.com/shirou/gopsutil/v3/process"
+	"gopkg.in/ini.v1"
 )
 
 const (
@@ -29,18 +29,18 @@ const (
 )
 
 var (
-	sessionStartTime         = time.Now().UTC()
+	sessionStartTime           = time.Now().UTC()
 	sessionStartPortfolioValue float64
-	initialSessionBtcPrice   float64
-	cfg                      *ini.File
-	apiData                  *ApiDataResponse
+	initialSessionBtcPrice     float64
+	cfg                        *ini.File
+	apiData                    *ApiDataResponse
 )
 
 // Structs for API responses
 type ApiDataResponse struct {
-	Rate       float64 `json:"rate"`
-	Volume     float64 `json:"volume"`
-	Delta      struct {
+	Rate   float64 `json:"rate"`
+	Volume float64 `json:"volume"`
+	Delta  struct {
 		Day float64 `json:"day"`
 	} `json:"delta"`
 	FetchTime  time.Time
@@ -278,11 +278,19 @@ func showMainScreen() {
 
 	if sessionStartPortfolioValue > 0 {
 		sessionChange := portfolioValue - sessionStartPortfolioValue
-		sessionPercent := (sessionChange / sessionStartPortfolioValue) * 100
+		var sessionPercent float64
+		if sessionStartPortfolioValue != 0 {
+			sessionPercent = (sessionChange / sessionStartPortfolioValue) * 100
+		}
+
+		// Round portfolio values for color comparison to avoid floating point inaccuracies.
+		roundedCurrentValue := math.Round(portfolioValue*100) / 100
+		roundedStartValue := math.Round(sessionStartPortfolioValue*100) / 100
+
 		sessionColor := color.New(color.FgWhite)
-		if sessionChange > 0 {
+		if roundedCurrentValue > roundedStartValue {
 			sessionColor = color.New(color.FgGreen)
-		} else if sessionChange < 0 {
+		} else if roundedCurrentValue < roundedStartValue {
 			sessionColor = color.New(color.FgRed)
 		}
 		writeAlignedLine("Session P/L:", fmt.Sprintf("%+.2f [%+.2f%%]", sessionChange, sessionPercent), sessionColor)
@@ -391,7 +399,7 @@ func showHelpScreen() {
 func showLedgerScreen() {
 	clearScreen()
 	color.Yellow("*** Ledger ***")
- 
+
 	ledgerEntries, err := readAndParseLedger()
 	if err != nil {
 		color.Red("Error reading ledger file: %v", err)
@@ -414,25 +422,36 @@ func showLedgerScreen() {
 	// 2. Dynamically calculate column widths for proper alignment.
 	columnOrder := []string{"TX", "USD", "BTC", "BTC(USD)", "User BTC", "Time"}
 	widths := map[string]int{
-		"TX":       len("TX"), "USD": len("USD"), "BTC": len("BTC"),
+		"TX": len("TX"), "USD": len("USD"), "BTC": len("BTC"),
 		"BTC(USD)": len("BTC(USD)"), "User BTC": len("User BTC"), "Time": len("Time"),
 	}
 
 	for _, entry := range ledgerEntries {
-		if len(entry.TX) > widths["TX"] { widths["TX"] = len(entry.TX) }
-		if len(formatFloat(entry.USD, 2)) > widths["USD"] { widths["USD"] = len(formatFloat(entry.USD, 2)) }
-		if len(fmt.Sprintf("%.8f", entry.BTC)) > widths["BTC"] { widths["BTC"] = len(fmt.Sprintf("%.8f", entry.BTC)) }
-		if len(formatFloat(entry.BTCPrice, 2)) > widths["BTC(USD)"] { widths["BTC(USD)"] = len(formatFloat(entry.BTCPrice, 2)) }
-		if len(fmt.Sprintf("%.8f", entry.UserBTC)) > widths["User BTC"] { widths["User BTC"] = len(fmt.Sprintf("%.8f", entry.UserBTC)) }
-		if len(entry.Time) > widths["Time"] { widths["Time"] = len(entry.Time) }
+		if len(entry.TX) > widths["TX"] {
+			widths["TX"] = len(entry.TX)
+		}
+		if len(formatFloat(entry.USD, 2)) > widths["USD"] {
+			widths["USD"] = len(formatFloat(entry.USD, 2))
+		}
+		if len(fmt.Sprintf("%.8f", entry.BTC)) > widths["BTC"] {
+			widths["BTC"] = len(fmt.Sprintf("%.8f", entry.BTC))
+		}
+		if len(formatFloat(entry.BTCPrice, 2)) > widths["BTC(USD)"] {
+			widths["BTC(USD)"] = len(formatFloat(entry.BTCPrice, 2))
+		}
+		if len(fmt.Sprintf("%.8f", entry.UserBTC)) > widths["User BTC"] {
+			widths["User BTC"] = len(fmt.Sprintf("%.8f", entry.UserBTC))
+		}
+		if len(entry.Time) > widths["Time"] {
+			widths["Time"] = len(entry.Time)
+		}
 	}
 
 	// 3. Create header and separator strings based on dynamic widths.
-	var headerParts, separatorParts []string
+	var headerParts []string
 	for _, colName := range columnOrder {
 		width := widths[colName]
 		headerParts = append(headerParts, fmt.Sprintf("%-*s", width, colName))
-		separatorParts = append(separatorParts, strings.Repeat("-", width))
 	}
 	header := strings.Join(headerParts, "  ")
 	separator := strings.Repeat("-", len(header))
@@ -466,8 +485,8 @@ func showLedgerScreen() {
 
 		// Build the row dynamically with correct alignment.
 		rowParts := []string{
-			fmt.Sprintf("%-*s", widths["TX"], entry.TX),                               // Left-align TX
-			fmt.Sprintf("%*s", widths["USD"], formatFloat(entry.USD, 2)),             // Right-align numbers
+			fmt.Sprintf("%-*s", widths["TX"], entry.TX),                  // Left-align TX
+			fmt.Sprintf("%*s", widths["USD"], formatFloat(entry.USD, 2)), // Right-align numbers
 			fmt.Sprintf("%*s", widths["BTC"], fmt.Sprintf("%.8f", entry.BTC)),
 			fmt.Sprintf("%*s", widths["BTC(USD)"], formatFloat(entry.BTCPrice, 2)),
 			fmt.Sprintf("%*s", widths["User BTC"], fmt.Sprintf("%.8f", entry.UserBTC)),
@@ -501,29 +520,58 @@ func showExitScreen() {
 	writeAlignedLine("Portfolio Value:", fmt.Sprintf("$%s", formatFloat(finalValue, 2)), profitColor)
 	writeAlignedLine("Total Profit/Loss:", fmt.Sprintf("%s%s", plusSign(profit), formatFloat(profit, 2)), profitColor)
 
+	// --- Session Summary ---
+	fmt.Println()
+	color.Yellow("*** Session Summary ***")
+	sessionValueStartColumn := 22 // Use a consistent start column for this block
+
+	finalBtcPrice := initialSessionBtcPrice
+	if apiData != nil {
+		finalBtcPrice = apiData.Rate
+	}
+
+	// Round to 2 decimal places for "to the penny" comparison
+	roundedInitial := math.Round(initialSessionBtcPrice*100) / 100
+	roundedFinal := math.Round(finalBtcPrice*100) / 100
+	sessionPriceColor := color.New(color.FgWhite)
+	if roundedFinal > roundedInitial {
+		sessionPriceColor = color.New(color.FgGreen)
+	} else if roundedFinal < roundedInitial {
+		sessionPriceColor = color.New(color.FgRed)
+	}
+
+	writeAlignedLine("Start BTC(USD):", fmt.Sprintf("$%s", formatFloat(initialSessionBtcPrice, 2)), color.New(color.FgWhite), sessionValueStartColumn)
+	writeAlignedLine("End BTC(USD):", fmt.Sprintf("$%s", formatFloat(finalBtcPrice, 2)), sessionPriceColor, sessionValueStartColumn)
+
 	if sessionStartPortfolioValue > 0 {
 		sessionChange := finalValue - sessionStartPortfolioValue
-		sessionPercent := (sessionChange / sessionStartPortfolioValue) * 100
+		var sessionPercent float64
+		if sessionStartPortfolioValue != 0 {
+			sessionPercent = (sessionChange / sessionStartPortfolioValue) * 100
+		}
+
+		// Round portfolio values for color comparison to avoid floating point inaccuracies.
+		roundedFinalValue := math.Round(finalValue*100) / 100
+		roundedStartValue := math.Round(sessionStartPortfolioValue*100) / 100
+
 		sessionColor := color.New(color.FgWhite)
-		if sessionChange > 0 {
+		if roundedFinalValue > roundedStartValue {
 			sessionColor = color.New(color.FgGreen)
-		} else if sessionChange < 0 {
+		} else if roundedFinalValue < roundedStartValue {
 			sessionColor = color.New(color.FgRed)
 		}
-		writeAlignedLine("Session P/L:", fmt.Sprintf("%s%.2f [%+.2f%%]", plusSign(sessionChange), sessionChange, sessionPercent), sessionColor)
+		writeAlignedLine("P/L:", fmt.Sprintf("%s%.2f [%+.2f%%]", plusSign(sessionChange), sessionChange, sessionPercent), sessionColor, sessionValueStartColumn)
 	}
 
 	summary := getSessionSummary()
 	if summary != nil {
-		fmt.Println()
-		color.Yellow("*** Session Summary ***")
 		if summary.TotalBuyUSD > 0 {
-			writeAlignedLine("Total Bought (USD):", fmt.Sprintf("$%s", formatFloat(summary.TotalBuyUSD, 2)), color.New(color.FgGreen))
-			writeAlignedLine("Total Bought (BTC):", fmt.Sprintf("%.8f", summary.TotalBuyBTC), color.New(color.FgGreen))
+			writeAlignedLine("Total Bought (USD):", fmt.Sprintf("$%s", formatFloat(summary.TotalBuyUSD, 2)), color.New(color.FgGreen), sessionValueStartColumn)
+			writeAlignedLine("Total Bought (BTC):", fmt.Sprintf("%.8f", summary.TotalBuyBTC), color.New(color.FgGreen), sessionValueStartColumn)
 		}
 		if summary.TotalSellUSD > 0 {
-			writeAlignedLine("Total Sold (USD):", fmt.Sprintf("$%s", formatFloat(summary.TotalSellUSD, 2)), color.New(color.FgRed))
-			writeAlignedLine("Total Sold (BTC):", fmt.Sprintf("%.8f", summary.TotalSellBTC), color.New(color.FgRed))
+			writeAlignedLine("Total Sold (USD):", fmt.Sprintf("$%s", formatFloat(summary.TotalSellUSD, 2)), color.New(color.FgRed), sessionValueStartColumn)
+			writeAlignedLine("Total Sold (BTC):", fmt.Sprintf("%.8f", summary.TotalSellBTC), color.New(color.FgRed), sessionValueStartColumn)
 		}
 	}
 
@@ -553,8 +601,12 @@ func showExitScreen() {
 	}
 }
 
-func writeAlignedLine(label, value string, c *color.Color) {
-	padding := 22 - len(label)
+func writeAlignedLine(label, value string, c *color.Color, startColumn ...int) {
+	valueStartColumn := 22 // Default value
+	if len(startColumn) > 0 {
+		valueStartColumn = startColumn[0]
+	}
+	padding := valueStartColumn - len(label)
 	if padding < 0 {
 		padding = 0
 	}
@@ -736,7 +788,7 @@ func readAndParseLedger() ([]LedgerEntry, error) {
 			fmt.Printf("\nWarning: Could not parse timestamp '%s' in ledger.csv. Ignoring for calculation.\n", record[5])
 		}
 		ledgerEntries = append(ledgerEntries, LedgerEntry{
-			TX:       record[0], USD: usd, BTC: btc,
+			TX: record[0], USD: usd, BTC: btc,
 			BTCPrice: btcPrice, UserBTC: userBTC, Time: record[5], DateTime: dateTime,
 		})
 	}
@@ -746,10 +798,11 @@ func readAndParseLedger() ([]LedgerEntry, error) {
 func getLedgerTotals(entries []LedgerEntry) *LedgerSummary {
 	summary := &LedgerSummary{}
 	for _, entry := range entries {
-		if entry.TX == "Buy" {
+		switch entry.TX {
+		case "Buy":
 			summary.TotalBuyUSD += entry.USD
 			summary.TotalBuyBTC += entry.BTC
-		} else if entry.TX == "Sell" {
+		case "Sell":
 			summary.TotalSellUSD += entry.USD
 			summary.TotalSellBTC += entry.BTC
 		}
