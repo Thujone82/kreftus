@@ -32,7 +32,7 @@
 .NOTES
     Author: Kreft&Gemini[Gemini 2.5 Pro (preview)]
     Date: 2025-07-03
-    Version: 1.1
+    Version: 1.2
 #>
 
 [CmdletBinding()]
@@ -395,7 +395,8 @@ function Show-ConfigScreen {
         Write-Host "*** Configuration ***" -ForegroundColor Yellow
         Write-Host "1. Update API Key"
         Write-Host "2. Reset Portfolio"
-        Write-Host "3. Return to Main Screen"
+        Write-Host "3. Archive Ledger"
+        Write-Host "4. Return to Main Screen"
         $choice = Read-Host "Enter your choice"
 
         switch ($choice) {
@@ -424,7 +425,10 @@ function Show-ConfigScreen {
                 }
                 Read-Host "Press Enter to continue."
             }
-            "3" { return }
+            "3" {
+                Invoke-LedgerArchive -LedgerFilePath $ledgerFilePath
+            }
+            "4" { return }
             default { Write-Warning "Invalid choice. Please try again."; Read-Host "Press Enter to continue." }
         }
     }
@@ -497,6 +501,54 @@ function Get-SessionSummary {
     }
 
     return Get-LedgerTotals -LedgerData $sessionTransactions
+}
+
+function Invoke-LedgerArchive {
+    param ([string]$LedgerFilePath)
+
+    if (-not (Test-Path $LedgerFilePath)) {
+        Write-Warning "Ledger file not found. No action taken."
+        Read-Host "Press Enter to continue."
+        return
+    }
+
+    $linesToKeep = -1
+    while ($linesToKeep -lt 0) {
+        $promptinput = Read-Host "Keep X Recent Lines? [0]"
+        if ([string]::IsNullOrEmpty($input)) {
+            $linesToKeep = 0
+            break
+        }
+        if ([int]::TryParse($promptinput, [ref]$linesToKeep) -and $linesToKeep -ge 0) {
+            break
+        } else {
+            Write-Warning "Invalid input. Please enter a non-negative integer."
+            $linesToKeep = -1 # Reset for loop continuation
+        }
+    }
+
+    $archiveFileName = "vBTC - Ledger_$(Get-Date -Format 'MMddyy').csv"
+    try {
+        Copy-Item -Path $LedgerFilePath -Destination $archiveFileName -Force -ErrorAction Stop
+        Write-Host "Ledger successfully backed up to '$archiveFileName'." -ForegroundColor Green
+    } catch {
+        Write-Error "Failed to create ledger archive. Error: $($_.Exception.Message)"
+        Read-Host "Press Enter to continue."
+        return
+    }
+
+    try {
+        $header = Get-Content $LedgerFilePath -TotalCount 1
+        $recordsToKeep = if ($linesToKeep -gt 0) { Get-Content $LedgerFilePath | Select-Object -Skip 1 | Select-Object -Last $linesToKeep } else { @() }
+        
+        Set-Content -Path $LedgerFilePath -Value $header -ErrorAction Stop
+        if ($recordsToKeep.Count -gt 0) { Add-Content -Path $LedgerFilePath -Value $recordsToKeep -ErrorAction Stop }
+
+        Write-Host "Original ledger has been purged, keeping the last $linesToKeep transaction(s)." -ForegroundColor Green
+    } catch {
+        Write-Error "Failed to purge the ledger file. Please check file permissions. The archive was still created. Error: $($_.Exception.Message)"
+    }
+    Read-Host "Press Enter to continue."
 }
 
 function Invoke-Trade {
@@ -596,11 +648,13 @@ function Invoke-Trade {
         $apiData = Get-ApiData -Config $Config.Value
         if (-not $apiData) { Read-Host "Error fetching price. Press Enter to continue."; return }
         $currentBTC = $apiData.rate
+        $offerTimestamp = Get-Date # Record the time the offer is presented.
         
         Clear-Host
         Write-Host "*** $Type Bitcoin ***" -ForegroundColor Yellow
         if ($offerExpired) {
-            Write-Host "`nOffer expired. Fetching a new price..." -ForegroundColor Yellow
+            Write-Host "`nOffer expired. A new price has been fetched." -ForegroundColor Yellow
+            $offerExpired = $false # Reset the flag after showing the message
         }
 
         $usdAmount = if ($Type -eq "Buy") { $tradeAmount } else { [math]::Floor(($tradeAmount * $currentBTC) * 100) / 100 }
@@ -629,15 +683,15 @@ function Invoke-Trade {
         Write-Host "n" -ForegroundColor Red -NoNewline
         Write-Host "]"
         
-        $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $tradeinput = Read-Host
 
-        if ($stopwatch.Elapsed.TotalMinutes -ge 2) {
-            $offerExpired = $true
-            continue
-        }
-
         if ($tradeinput.ToLower() -eq 'y') {
+            # Check if the offer has expired *at the moment of acceptance*.
+            if (((Get-Date) - $offerTimestamp).TotalMinutes -ge 2) {
+                $offerExpired = $true
+                continue # The offer is stale, loop to get a new price.
+            }
+
             $newUserBtc = 0.0
             $newInvested = 0.0
             if ($Type -eq "Buy") {
@@ -672,7 +726,8 @@ function Invoke-Trade {
             return 
         } 
         elseif ($tradeinput.ToLower() -eq 'r') {
-            $offerExpired = $true 
+            # User is manually refreshing, so the offer isn't "expired".
+            # The loop will naturally get a new price.
             continue 
         }
         

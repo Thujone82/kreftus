@@ -82,9 +82,9 @@ $infoPlistContent = @"
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.1</string>
+    <string>1.2</string>
     <key>CFBundleVersion</key>
-    <string>1.1</string>
+    <string>1.2</string>
 </dict>
 </plist>
 "@

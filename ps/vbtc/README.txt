@@ -1,6 +1,6 @@
 '# vBTC - Virtual Bitcoin Trading Simulator
 
-## Version 1.1
+## Version 1.2
 
 ## Author
 Kreft&Gemini[Gemini 2.5 Pro (preview)]
@@ -19,9 +19,9 @@ The main screen displays:
 
 ## Features
 - **Real-time Market Data:** Fetches and displays live Bitcoin prices from LiveCoinWatch.
-- **Portfolio Management:** Tracks your cash (USD) and Bitcoin holdings.
+- **Portfolio:** Tracks your cash (USD) and Bitcoin holdings.
 - **Transaction Ledger:** Records all buy and sell transactions in a `ledger.csv` file.
-- **Configuration Options:** Allows you to update your API key and reset your portfolio.
+- **Configuration Options:** Allows you to update your API key, trim ledger, and reset your portfolio.
 - **Command Shortcuts:** Use partial commands (e.g., 'b' for 'buy') for quick trading.
 - **Percentage-based Trading:** Use the 'p' suffix to trade a percentage of your assets (e.g., `50p` for 50%, `1/3p` for 33.3%).
 

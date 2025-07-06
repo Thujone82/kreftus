@@ -335,7 +335,8 @@ func showConfigScreen() {
 		color.Yellow("*** Configuration ***")
 		fmt.Println("1. Update API Key")
 		fmt.Println("2. Reset Portfolio")
-		fmt.Println("3. Return to Main Screen")
+		fmt.Println("3. Archive Ledger")
+		fmt.Println("4. Return to Main Screen")
 		fmt.Print("Enter your choice: ")
 		choice, _ := reader.ReadString('\n')
 		choice = strings.TrimSpace(choice)
@@ -370,6 +371,8 @@ func showConfigScreen() {
 			fmt.Println("Press Enter to continue.")
 			reader.ReadString('\n')
 		case "3":
+			invokeLedgerArchive()
+		case "4":
 			return
 		default:
 			color.Red("Invalid choice. Please try again.")
@@ -496,7 +499,20 @@ func showLedgerScreen() {
 		rowColor.Println(row)
 	}
 
-	// Ledger Summary would go here...
+	summary := getLedgerTotals(ledgerEntries)
+	if summary != nil {
+		fmt.Println()
+		color.Yellow("*** Ledger Summary ***")
+		summaryValueStartColumn := 22 // Align with portfolio summary
+		if summary.TotalBuyUSD > 0 {
+			writeAlignedLine("Total Bought (USD):", fmt.Sprintf("$%s", formatFloat(summary.TotalBuyUSD, 2)), color.New(color.FgGreen), summaryValueStartColumn)
+			writeAlignedLine("Total Bought (BTC):", fmt.Sprintf("%.8f", summary.TotalBuyBTC), color.New(color.FgGreen), summaryValueStartColumn)
+		}
+		if summary.TotalSellUSD > 0 {
+			writeAlignedLine("Total Sold (USD):", fmt.Sprintf("$%s", formatFloat(summary.TotalSellUSD, 2)), color.New(color.FgRed), summaryValueStartColumn)
+			writeAlignedLine("Total Sold (BTC):", fmt.Sprintf("%.8f", summary.TotalSellBTC), color.New(color.FgRed), summaryValueStartColumn)
+		}
+	}
 
 	fmt.Println("\nPress Enter to return to Main screen")
 	bufio.NewReader(os.Stdin).ReadString('\n')
@@ -795,6 +811,48 @@ func readAndParseLedger() ([]LedgerEntry, error) {
 	return ledgerEntries, nil
 }
 
+func readAndParseLedgerRaw() ([][]string, error) {
+	file, err := os.Open(ledgerFilePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil // Not an error, just no ledger yet
+		}
+		return nil, err
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, err
+	}
+	if len(records) == 0 { // Can be empty even if it exists
+		return nil, nil
+	}
+	return records, nil
+}
+
+func writeLedgerRaw(header []string, dataRecords [][]string) error {
+	file, err := os.Create(ledgerFilePath) // Create truncates the file
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	if err := writer.Write(header); err != nil {
+		return err
+	}
+	if len(dataRecords) > 0 {
+		if err := writer.WriteAll(dataRecords); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func getLedgerTotals(entries []LedgerEntry) *LedgerSummary {
 	summary := &LedgerSummary{}
 	for _, entry := range entries {
@@ -825,6 +883,94 @@ func getSessionSummary() *LedgerSummary {
 		return nil
 	}
 	return getLedgerTotals(sessionEntries)
+}
+
+func invokeLedgerArchive() {
+	// Check if ledger exists
+	if _, err := os.Stat(ledgerFilePath); os.IsNotExist(err) {
+		color.Yellow("Ledger file not found. No action taken.")
+		fmt.Println("\nPress Enter to continue.")
+		bufio.NewReader(os.Stdin).ReadString('\n')
+		return
+	}
+
+	// Get user input
+	reader := bufio.NewReader(os.Stdin)
+	var linesToKeep int
+	for {
+		fmt.Print("Keep X Recent Lines? [0]: ")
+		input, _ := reader.ReadString('\n')
+		input = strings.TrimSpace(input)
+		if input == "" {
+			linesToKeep = 0
+			break
+		}
+		val, err := strconv.Atoi(input)
+		if err == nil && val >= 0 {
+			linesToKeep = val
+			break
+		}
+		color.Red("Invalid input. Please enter a non-negative integer.")
+	}
+
+	// Archive the file
+	archiveFileName := fmt.Sprintf("vBTC - Ledger_%s.csv", time.Now().Format("010206"))
+	sourceFile, err := os.Open(ledgerFilePath)
+	if err != nil {
+		color.Red("Error opening ledger file: %v", err)
+		fmt.Println("Press Enter to continue.")
+		reader.ReadString('\n')
+		return
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(archiveFileName)
+	if err != nil {
+		color.Red("Error creating archive file: %v", err)
+		fmt.Println("Press Enter to continue.")
+		reader.ReadString('\n')
+		return
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	if err != nil {
+		color.Red("Error copying to archive file: %v", err)
+		fmt.Println("Press Enter to continue.")
+		reader.ReadString('\n')
+		return
+	}
+	color.Green("Ledger successfully backed up to '%s'.", archiveFileName)
+
+	// Purge the original file
+	allRecords, err := readAndParseLedgerRaw()
+	if err != nil || len(allRecords) == 0 {
+		color.Red("Error reading records from ledger for purging: %v", err)
+		fmt.Println("Press Enter to continue.")
+		reader.ReadString('\n')
+		return
+	}
+
+	header := allRecords[0]
+	dataRecords := allRecords[1:]
+
+	var recordsToKeep [][]string
+	if linesToKeep > 0 && linesToKeep < len(dataRecords) {
+		startIndex := len(dataRecords) - linesToKeep
+		recordsToKeep = dataRecords[startIndex:]
+	} else if linesToKeep >= len(dataRecords) {
+		recordsToKeep = dataRecords // Keep all if number is >= total records
+	}
+
+	err = writeLedgerRaw(header, recordsToKeep)
+	if err != nil {
+		color.Red("Error purging ledger file: %v", err)
+	} else {
+		color.Green("Original ledger has been purged, keeping the last %d transaction(s).", linesToKeep)
+	}
+
+	fmt.Println("Press Enter to continue.")
+	reader.ReadString('\n')
 }
 
 func addLedgerEntry(txType string, usdAmount, btcAmount, btcPrice, userBtcAfter float64) {
@@ -916,6 +1062,7 @@ func invokeTrade(txType, amountString string) {
 	}
 
 	// Confirmation Loop
+	offerExpired := false
 	for {
 		currentApiData := updateApiData()
 		if currentApiData == nil {
@@ -924,9 +1071,14 @@ func invokeTrade(txType, amountString string) {
 			return
 		}
 		currentBTCPrice := currentApiData.Rate
+		offerTimestamp := time.Now() // Record the time the offer is presented.
 
 		clearScreen()
 		color.Yellow("*** %s Bitcoin ***", txType)
+		if offerExpired {
+			color.Yellow("\nOffer expired. A new price has been fetched.")
+			offerExpired = false // Reset the flag after showing the message
+		}
 
 		var usdAmount, btcAmount float64
 		if txType == "Buy" {
@@ -963,12 +1115,16 @@ func invokeTrade(txType, amountString string) {
 		color.New(color.FgRed).Print("n")
 		color.New(color.FgWhite).Println("]")
 
-		// Timeout logic can be added here if desired
-
 		input, _ := reader.ReadString('\n')
 		input = strings.ToLower(strings.TrimSpace(input))
 
 		if input == "y" {
+			// Check if the offer has expired *at the moment of acceptance*.
+			if time.Since(offerTimestamp).Minutes() >= 2 {
+				offerExpired = true
+				continue // The offer is stale, loop to get a new price.
+			}
+
 			var newUserBtc, newInvested float64
 			if txType == "Buy" {
 				cfg.Section("Portfolio").Key("PlayerUSD").SetValue(fmt.Sprintf("%.2f", playerUSD-usdAmount))
@@ -993,6 +1149,8 @@ func invokeTrade(txType, amountString string) {
 			time.Sleep(1 * time.Second)
 			return
 		} else if input == "r" {
+			// User is manually refreshing, so the offer isn't "expired" in a way that requires a warning.
+			offerExpired = false
 			continue // Reload the loop
 		} else {
 			fmt.Printf("\n%s cancelled.\n", txType)

@@ -1,12 +1,12 @@
 '# vBTC - Virtual Bitcoin Trading Simulator
 
-## Version 1.1
+## Version 1.2
 
 ## Author
 Kreft&Gemini[Gemini 2.5 Pro (preview)]
 
 ## Date
-2025-07-03
+2025-07-05
 
 A command-line application for simulating Bitcoin trading. It uses a live API to fetch real-time Bitcoin prices and allows users to manage a virtual portfolio.
 
@@ -15,7 +15,7 @@ A command-line application for simulating Bitcoin trading. It uses a live API to
 - Live Bitcoin price updates.
 - Buy and sell functionality using a virtual portfolio.
 - Portfolio tracking with profit/loss calculation.
-- Transaction ledger to record all trades.
+- Transaction ledger to record all trades. Archive in config.
 - Configuration file for API key and portfolio management.
 
 --- Color Coding ---
