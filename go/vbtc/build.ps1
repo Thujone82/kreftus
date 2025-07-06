@@ -5,6 +5,9 @@
 #>
 Set-Location $PSScriptRoot
 
+# Define the version number in one place for easy updates.
+$Version = "1.3"
+
 Write-Host "Checking for build tools..." -ForegroundColor Cyan
 # Check for windres command, which is required for embedding the Windows icon.
 if (-not (Get-Command windres -ErrorAction SilentlyContinue)) {
@@ -82,9 +85,9 @@ $infoPlistContent = @"
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.2</string>
+    <string>$Version</string>
     <key>CFBundleVersion</key>
-    <string>1.2</string>
+    <string>$Version</string>
 </dict>
 </plist>
 "@

@@ -31,8 +31,8 @@
 
 .NOTES
     Author: Kreft&Gemini[Gemini 2.5 Pro (preview)]
-    Date: 2025-07-03
-    Version: 1.2
+    Date: 2025-07-05
+    Version: 1.3
 #>
 
 [CmdletBinding()]
@@ -108,21 +108,39 @@ function Get-HistoricalData {
         return $null
     }
     $headers = @{ "Content-Type" = "application/json"; "x-api-key" = $apiKey }
-    $targetTimestamp24hAgoMs = [int64]((([datetime]::UtcNow).AddHours(-24)) - (Get-Date "1970-01-01")).TotalMilliseconds
-    $historicalWindowMinutes = 5
-    $startTimestampMs = $targetTimestamp24hAgoMs - ($historicalWindowMinutes * 60 * 1000)
-    $endTimestampMs = $targetTimestamp24hAgoMs + ($historicalWindowMinutes * 60 * 1000)
+    $endTimestampMs = [int64](([datetime]::UtcNow) - (Get-Date "1970-01-01")).TotalMilliseconds
+    $startTimestampMs = $endTimestampMs - (24 * 60 * 60 * 1000) # Full 24 hours
 
     try {
         $historicalBody = @{ currency = "USD"; code = "BTC"; start = $startTimestampMs; end = $endTimestampMs; meta = $false } | ConvertTo-Json
         Write-Verbose "Fetching historical price for 24h ago..."
         $historicalResponse = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single/history" -Method Post -Headers $headers -Body $historicalBody -ErrorAction Stop
         if ($null -ne $historicalResponse.history -and $historicalResponse.history.Count -gt 0) {
+            # Sort to find min/max points to get their timestamps
+            $sortedByRate = $historicalResponse.history | Sort-Object -Property rate
+            $lowPoint = $sortedByRate | Select-Object -First 1
+            $highPoint = $sortedByRate | Select-Object -Last 1
+
+            $targetTimestamp24hAgoMs = [int64]((([datetime]::UtcNow).AddHours(-24)) - (Get-Date "1970-01-01")).TotalMilliseconds
             $closestDataPoint = $historicalResponse.history | Sort-Object { [Math]::Abs($_.date - $targetTimestamp24hAgoMs) } | Select-Object -First 1
-            if ($null -ne $closestDataPoint) {
-                return $closestDataPoint.rate
+
+            $volatility = 0
+            if ($lowPoint.rate -gt 0) {
+                $volatility = (($highPoint.rate - $lowPoint.rate) / $lowPoint.rate) * 100
             }
-        } else { Write-Warning "No historical data returned." }
+
+            return [PSCustomObject]@{
+                High     = $highPoint.rate
+                Low      = $lowPoint.rate
+                Ago      = $closestDataPoint.rate
+                HighTime = ([datetime]'1970-01-01').AddMilliseconds($highPoint.date)
+                LowTime  = ([datetime]'1970-01-01').AddMilliseconds($lowPoint.date)
+                Volatility = $volatility
+            }
+        }
+        else {
+            Write-Warning "No historical data returned."
+        }
     } catch { Write-Warning "Failed to fetch historical price: $($_.Exception.Message)" }
     return $null
 }
@@ -132,12 +150,20 @@ function Update-ApiData {
     Show-LoadingScreen
     $apiData = Get-ApiData -Config $Config
     if ($apiData) {
-        $historicalRate = Get-HistoricalData -Config $Config
-        if ($historicalRate) {
-            $apiData | Add-Member -MemberType NoteProperty -Name "rate24hAgo" -Value $historicalRate -Force
+        $historicalStats = Get-HistoricalData -Config $Config
+        if ($historicalStats) {
+            $apiData | Add-Member -MemberType NoteProperty -Name "rate24hHigh" -Value $historicalStats.High -Force
+            $apiData | Add-Member -MemberType NoteProperty -Name "rate24hLow" -Value $historicalStats.Low -Force
+            $apiData | Add-Member -MemberType NoteProperty -Name "rate24hHighTime" -Value $historicalStats.HighTime -Force
+            $apiData | Add-Member -MemberType NoteProperty -Name "rate24hLowTime" -Value $historicalStats.LowTime -Force
+            $apiData | Add-Member -MemberType NoteProperty -Name "rate24hAgo" -Value $historicalStats.Ago -Force
+            $apiData | Add-Member -MemberType NoteProperty -Name "volatility24h" -Value $historicalStats.Volatility -Force
         } else {
             # Fallback to using the delta from the current price data if historical fails
             Write-Warning "Could not fetch historical data. Using 24h delta as fallback."
+            $apiData | Add-Member -MemberType NoteProperty -Name "rate24hHigh" -Value $apiData.rate -Force
+            $apiData | Add-Member -MemberType NoteProperty -Name "rate24hLow" -Value $apiData.rate -Force
+            $apiData | Add-Member -MemberType NoteProperty -Name "volatility24h" -Value 0 -Force
             $fallbackRate = if ($apiData.PSObject.Properties['delta'] -and $apiData.delta.PSObject.Properties['day'] -and $apiData.delta.day -ne 0) {
                 $apiData.rate / (1 + ($apiData.delta.day / 100))
             } else {
@@ -268,6 +294,18 @@ function Show-MainScreen {
         # Display Values
         $btcDisplay = "{0:C2}" -f $currentBTC
         $agoDisplay = "{0:C2} [{1}{2}%]" -f $rate24hAgo, $(if($roundedCurrent -gt $rounded24hAgo){"+"}), ("{0:N2}" -f $percentChange24h)
+        
+        $highDisplay = "N/A"
+        if ($apiData.PSObject.Properties['rate24hHigh']) {
+            $highDisplay = "{0:C2}" -f $apiData.rate24hHigh
+            if ($apiData.PSObject.Properties['rate24hHighTime']) { $highDisplay += " (at $($apiData.rate24hHighTime.ToLocalTime().ToString("HH:mm")))" }
+        }
+        $lowDisplay = "N/A"
+        if ($apiData.PSObject.Properties['rate24hLow']) {
+            $lowDisplay = "{0:C2}" -f $apiData.rate24hLow
+            if ($apiData.PSObject.Properties['rate24hLowTime']) { $lowDisplay += " (at $($apiData.rate24hLowTime.ToLocalTime().ToString("HH:mm")))" }
+        }
+
         $volDisplay = "$($ApiData.volume.ToString("C0"))"
         $timeDisplay = $ApiData.fetchTime.ToLocalTime().ToString("MMddyy@HHmmss")
 
@@ -277,6 +315,8 @@ function Show-MainScreen {
         $priceColor24h = "White"
         $btcDisplay = "N/A"
         $agoDisplay = "N/A"
+        $highDisplay = "N/A"
+        $lowDisplay = "N/A"
         $volDisplay = "N/A"
         $timeDisplay = "N/A"
     }
@@ -286,6 +326,12 @@ function Show-MainScreen {
     if (-not $marketDataAvailable) { Write-Warning "Could not retrieve market data. Please check your API key in the Config menu." }
     Write-AlignedLine -Label "Bitcoin (USD):" -Value $btcDisplay -ValueColor $priceColorSession
     Write-AlignedLine -Label "24H Ago:" -Value $agoDisplay -ValueColor $priceColor24h
+    Write-AlignedLine -Label "24H High:" -Value $highDisplay
+    Write-AlignedLine -Label "24H Low:" -Value $lowDisplay
+    if ($apiData.PSObject.Properties['volatility24h'] -and $apiData.volatility24h -gt 0) {
+        $volatilityDisplay = "{0:N2}%" -f $apiData.volatility24h
+        Write-AlignedLine -Label "Volatility:" -Value $volatilityDisplay
+    }
     Write-AlignedLine -Label "24H Volume:" -Value $volDisplay
     Write-AlignedLine -Label "Time:" -Value $timeDisplay -ValueColor "Cyan"
 
@@ -749,6 +795,7 @@ function Show-HelpScreen {
     Write-AlignedLine -Label "exit" -Value "Exit the application."
     Write-Host ""
     Write-Host "Tip: Use 'p' for percentage trades (e.g., '50p' for 50%, '100/3p' for 33.3%)." -ForegroundColor Cyan
+    Write-Host "Tip: Volatility shows the price swing (High vs Low) over the last 24 hours." -ForegroundColor Cyan
     Write-Host ""
     Read-Host "Press Enter to return to the Main Screen."
 }

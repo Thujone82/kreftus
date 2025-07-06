@@ -1,12 +1,12 @@
 '# vBTC - Virtual Bitcoin Trading Simulator
 
-## Version 1.2
+## Version 1.3
 
 ## Author
 Kreft&Gemini[Gemini 2.5 Pro (preview)]
 
 ## Date
-2025-07-04
+2025-07-05
 
 ## Description
 vBTC is an interactive PowerShell-based Bitcoin trading application. Users can buy and sell Bitcoin using a simulated portfolio, track their trades in a ledger, and view real-time market data from the LiveCoinWatch API.

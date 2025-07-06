@@ -46,6 +46,11 @@ type ApiDataResponse struct {
 	} `json:"delta"`
 	FetchTime  time.Time
 	Rate24hAgo float64
+	Rate24hHigh     float64
+	Rate24hLow      float64
+	Rate24hHighTime time.Time
+	Rate24hLowTime  time.Time
+	Volatility24h   float64
 }
 
 type HistoryResponse struct {
@@ -238,6 +243,21 @@ func showMainScreen() {
 
 		writeAlignedLine("Bitcoin (USD):", fmt.Sprintf("$%s", formatFloat(apiData.Rate, 2)), priceColorSession)
 		writeAlignedLine("24H Ago:", fmt.Sprintf("$%s [%+.2f%%]", formatFloat(apiData.Rate24hAgo, 2), percentChange), priceColor24h)
+
+		highDisplay := formatFloat(apiData.Rate24hHigh, 2)
+		if !apiData.Rate24hHighTime.IsZero() {
+			highDisplay += " (at " + apiData.Rate24hHighTime.Local().Format("15:04") + ")"
+		}
+		lowDisplay := formatFloat(apiData.Rate24hLow, 2)
+		if !apiData.Rate24hLowTime.IsZero() {
+			lowDisplay += " (at " + apiData.Rate24hLowTime.Local().Format("15:04") + ")"
+		}
+
+		writeAlignedLine("24H High:", fmt.Sprintf("$%s", highDisplay), color.New(color.FgWhite))
+		writeAlignedLine("24H Low:", fmt.Sprintf("$%s", lowDisplay), color.New(color.FgWhite))
+		if apiData.Volatility24h > 0 {
+			writeAlignedLine("Volatility:", fmt.Sprintf("%.2f%%", apiData.Volatility24h), color.New(color.FgWhite))
+		}
 		writeAlignedLine("24H Volume:", fmt.Sprintf("$%s", formatFloat(apiData.Volume, 0)), color.New(color.FgWhite))
 		writeAlignedLine("Time:", apiData.FetchTime.Local().Format("010206@150405"), color.New(color.FgCyan))
 	}
@@ -400,6 +420,7 @@ func showHelpScreen() {
 	writeAlignedLine("exit", "Exit the application.", color.New(color.FgWhite))
 	fmt.Println()
 	color.New(color.FgCyan).Println("Tip: Use 'p' for percentage trades (e.g., '50p' for 50% of your balance).")
+	color.New(color.FgCyan).Println("Tip: Volatility shows the price swing (High vs Low) over the last 24 hours.")
 	fmt.Println()
 	fmt.Println("Press Enter to return to the Main Screen.")
 	bufio.NewReader(os.Stdin).ReadString('\n')
@@ -680,12 +701,10 @@ func fetchCurrentPriceData(apiKey string) (*ApiDataResponse, error) {
 	return &data, nil
 }
 
-func getHistoricalData(apiKey string) (*HistoryResponse, error) {
+func getHistoricalData(apiKey string, start, end int64) (*HistoryResponse, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("API key is empty")
 	}
-	end := time.Now().UTC().Add(-24 * time.Hour).UnixMilli()
-	start := end - (5 * 60 * 1000) // 5 minute window
 
 	jsonData := map[string]interface{}{"currency": "USD", "code": "BTC", "start": start, "end": end, "meta": false}
 	jsonValue, err := json.Marshal(jsonData)
@@ -732,29 +751,57 @@ func updateApiData() *ApiDataResponse {
 		return nil
 	}
 
-	// Get historical data for 24h ago
-	history, err := getHistoricalData(apiKey)
-	if err == nil && history != nil && len(history.History) > 0 {
-		targetTs := time.Now().UTC().Add(-24 * time.Hour).UnixMilli()
-		closest := history.History[0]
-		minDiff := int64(math.Abs(float64(closest.Date - targetTs)))
+	// Get full 24h history to derive High, Low, and Ago price
+	end := time.Now().UTC()
+	start := end.Add(-24 * time.Hour)
+	history, historyErr := getHistoricalData(apiKey, start.UnixMilli(), end.UnixMilli())
+
+	if historyErr == nil && history != nil && len(history.History) > 0 {
+		minRate := math.MaxFloat64
+		maxRate := 0.0
+		var highTime, lowTime int64
+		var closestRate float64
+		minDiff := int64(math.MaxInt64)
+		targetTs := start.UnixMilli()
+
 		for _, p := range history.History {
+			if p.Rate > maxRate {
+				maxRate = p.Rate
+				highTime = p.Date
+			}
+			if p.Rate < minRate {
+				minRate = p.Rate
+				lowTime = p.Date
+			}
 			diff := int64(math.Abs(float64(p.Date - targetTs)))
 			if diff < minDiff {
 				minDiff = diff
-				closest = p
+				closestRate = p.Rate
 			}
 		}
-		data.Rate24hAgo = closest.Rate
-	} else {
-		if err != nil {
-			fmt.Printf("Warning: could not fetch historical data: %v. Using fallback.\n", err)
+		data.Rate24hHigh = maxRate
+		data.Rate24hLow = minRate
+		if data.Rate24hLow > 0 {
+			data.Volatility24h = ((maxRate - minRate) / minRate) * 100
 		}
-		// Fallback to using the delta from the current price data if historical fails
+		if highTime > 0 {
+			data.Rate24hHighTime = time.UnixMilli(highTime)
+		}
+		if lowTime > 0 {
+			data.Rate24hLowTime = time.UnixMilli(lowTime)
+		}
+		data.Rate24hAgo = closestRate
+	} else {
+		if historyErr != nil {
+			fmt.Printf("Warning: could not fetch 24h history data: %v. Using fallbacks.\n", historyErr)
+		}
+		data.Rate24hHigh = data.Rate // Fallback to current
+		data.Rate24hLow = data.Rate  // Fallback to current
+		data.Volatility24h = 0       // No volatility if we don't have data
 		if data.Delta.Day != 0 {
 			data.Rate24hAgo = data.Rate / (1 + (data.Delta.Day / 100))
 		} else {
-			data.Rate24hAgo = data.Rate // If no historical or delta, assume no change
+			data.Rate24hAgo = data.Rate
 		}
 	}
 
