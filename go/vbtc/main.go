@@ -637,7 +637,7 @@ func fetchCurrentPriceData(apiKey string) (*ApiDataResponse, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("API key is empty")
 	}
-	jsonData := map[string]string{"currency": "USD", "code": "BTC", "meta": "true"}
+	jsonData := map[string]string{"currency": "USD", "code": "BTC", "meta": "false"}
 	jsonValue, err := json.Marshal(jsonData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal json for current price: %w", err)
@@ -756,7 +756,7 @@ func updateApiData() *ApiDataResponse {
 }
 
 func testApiKey(apiKey string) bool {
-	jsonData := map[string]string{"currency": "USD", "code": "BTC", "meta": "true"}
+	jsonData := map[string]string{"currency": "USD", "code": "BTC", "meta": "false"}
 	jsonValue, _ := json.Marshal(jsonData)
 	req, _ := http.NewRequest("POST", "https://api.livecoinwatch.com/coins/single", bytes.NewBuffer(jsonValue))
 	req.Header.Set("Content-Type", "application/json")

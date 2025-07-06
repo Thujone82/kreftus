@@ -159,7 +159,7 @@ function Get-ApiData {
     }
     Write-Verbose "API Key found."
     $headers = @{ "Content-Type" = "application/json"; "x-api-key" = $apiKey }
-    $body = @{ currency = "USD"; code = "BTC"; meta = $true } | ConvertTo-Json
+    $body = @{ currency = "USD"; code = "BTC"; meta = $false } | ConvertTo-Json
     try {
         Write-Verbose "Fetching main API data..."
         $currentResponse = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single" -Method Post -Headers $headers -Body $body -ErrorAction Stop
@@ -183,7 +183,7 @@ function Test-ApiKey {
     param ([string]$ApiKey)
     if ([string]::IsNullOrEmpty($ApiKey)) { return $false }
     $headers = @{ "Content-Type" = "application/json"; "x-api-key" = $ApiKey }
-    $body = @{ currency = "USD"; code = "BTC"; meta = $true } | ConvertTo-Json
+    $body = @{ currency = "USD"; code = "BTC"; meta = $false } | ConvertTo-Json
     try {
         Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single" -Method Post -Headers $headers -Body $body -ErrorAction Stop | Out-Null
         return $true
