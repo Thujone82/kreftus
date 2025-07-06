@@ -9,11 +9,11 @@
 
     If no parameters are provided, the script will interactively prompt the user for the command and the time period.
 
-.PARAMETER Command
+.PARAMETER 1 Command
     The PowerShell command to execute on each iteration. This should be a string.
     If the command contains spaces, it should be enclosed in quotes.
 
-.PARAMETER Period
+.PARAMETER 2 Period
     The time to wait between command executions, in minutes.
     The default value is 5 minutes.
 
