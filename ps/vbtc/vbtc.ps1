@@ -116,26 +116,43 @@ function Get-HistoricalData {
         Write-Verbose "Fetching historical price for 24h ago..."
         $historicalResponse = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single/history" -Method Post -Headers $headers -Body $historicalBody -ErrorAction Stop
         if ($null -ne $historicalResponse.history -and $historicalResponse.history.Count -gt 0) {
-            # Sort to find min/max points to get their timestamps
-            $sortedByRate = $historicalResponse.history | Sort-Object -Property rate
-            $lowPoint = $sortedByRate | Select-Object -First 1
-            $highPoint = $sortedByRate | Select-Object -Last 1
+            # Overall 24h stats
+            $lowPoint24h = $historicalResponse.history | Sort-Object -Property rate | Select-Object -First 1
+            $highPoint24h = $historicalResponse.history | Sort-Object -Property rate -Descending | Select-Object -First 1
 
             $targetTimestamp24hAgoMs = [int64]((([datetime]::UtcNow).AddHours(-24)) - (Get-Date "1970-01-01")).TotalMilliseconds
             $closestDataPoint = $historicalResponse.history | Sort-Object { [Math]::Abs($_.date - $targetTimestamp24hAgoMs) } | Select-Object -First 1
 
-            $volatility = 0
-            if ($lowPoint.rate -gt 0) {
-                $volatility = (($highPoint.rate - $lowPoint.rate) / $lowPoint.rate) * 100
+            $volatility24h = 0
+            if ($lowPoint24h.rate -gt 0) {
+                $volatility24h = (($highPoint24h.rate - $lowPoint24h.rate) / $lowPoint24h.rate) * 100
+            }
+
+            # 12-hour volatility stats
+            $midpointTimestampMs = [int64]((([datetime]::UtcNow).AddHours(-12)) - (Get-Date "1970-01-01")).TotalMilliseconds
+            $recentHistory = $historicalResponse.history | Where-Object { $_.date -ge $midpointTimestampMs }
+            $oldHistory = $historicalResponse.history | Where-Object { $_.date -lt $midpointTimestampMs }
+
+            $volatility12h = 0
+            if ($recentHistory -and $recentHistory.Count -gt 0) {
+                $recentStats = $recentHistory | Measure-Object -Property rate -Minimum -Maximum
+                if ($recentStats.Minimum -gt 0) { $volatility12h = (($recentStats.Maximum - $recentStats.Minimum) / $recentStats.Minimum) * 100 }
+            }
+            $volatility12h_old = 0
+            if ($oldHistory -and $oldHistory.Count -gt 0) {
+                $oldStats = $oldHistory | Measure-Object -Property rate -Minimum -Maximum
+                if ($oldStats.Minimum -gt 0) { $volatility12h_old = (($oldStats.Maximum - $oldStats.Minimum) / $oldStats.Minimum) * 100 }
             }
 
             return [PSCustomObject]@{
-                High     = $highPoint.rate
-                Low      = $lowPoint.rate
+                High              = $highPoint24h.rate
+                Low               = $lowPoint24h.rate
                 Ago      = $closestDataPoint.rate
-                HighTime = ([datetime]'1970-01-01').AddMilliseconds($highPoint.date)
-                LowTime  = ([datetime]'1970-01-01').AddMilliseconds($lowPoint.date)
-                Volatility = $volatility
+                HighTime          = ([datetime]'1970-01-01').AddMilliseconds($highPoint24h.date)
+                LowTime           = ([datetime]'1970-01-01').AddMilliseconds($lowPoint24h.date)
+                Volatility        = $volatility24h
+                Volatility12h     = $volatility12h
+                Volatility12h_old = $volatility12h_old
             }
         }
         else {
@@ -145,34 +162,82 @@ function Get-HistoricalData {
     return $null
 }
 
-function Update-ApiData {
-    param ([hashtable]$Config)
-    Show-LoadingScreen
-    $apiData = Get-ApiData -Config $Config
-    if ($apiData) {
-        $historicalStats = Get-HistoricalData -Config $Config
-        if ($historicalStats) {
-            $apiData | Add-Member -MemberType NoteProperty -Name "rate24hHigh" -Value $historicalStats.High -Force
-            $apiData | Add-Member -MemberType NoteProperty -Name "rate24hLow" -Value $historicalStats.Low -Force
-            $apiData | Add-Member -MemberType NoteProperty -Name "rate24hHighTime" -Value $historicalStats.HighTime -Force
-            $apiData | Add-Member -MemberType NoteProperty -Name "rate24hLowTime" -Value $historicalStats.LowTime -Force
-            $apiData | Add-Member -MemberType NoteProperty -Name "rate24hAgo" -Value $historicalStats.Ago -Force
-            $apiData | Add-Member -MemberType NoteProperty -Name "volatility24h" -Value $historicalStats.Volatility -Force
-        } else {
-            # Fallback to using the delta from the current price data if historical fails
-            Write-Warning "Could not fetch historical data. Using 24h delta as fallback."
-            $apiData | Add-Member -MemberType NoteProperty -Name "rate24hHigh" -Value $apiData.rate -Force
-            $apiData | Add-Member -MemberType NoteProperty -Name "rate24hLow" -Value $apiData.rate -Force
-            $apiData | Add-Member -MemberType NoteProperty -Name "volatility24h" -Value 0 -Force
-            $fallbackRate = if ($apiData.PSObject.Properties['delta'] -and $apiData.delta.PSObject.Properties['day'] -and $apiData.delta.day -ne 0) {
-                $apiData.rate / (1 + ($apiData.delta.day / 100))
-            } else {
-                $apiData.rate # If no historical or delta, assume no change
-            }
-            $apiData | Add-Member -MemberType NoteProperty -Name "rate24hAgo" -Value $fallbackRate -Force
+function Copy-HistoricalData {
+    param ([PSCustomObject]$Source, [PSCustomObject]$Destination)
+    if (-not $Source -or -not $Destination) { return }
+    
+    $propertiesToCopy = @(
+        "rate24hHigh",
+        "rate24hLow",
+        "rate24hHighTime",
+        "rate24hLowTime",
+        "rate24hAgo",
+        "volatility24h",
+        "volatility12h",
+        "volatility12h_old",
+        "HistoricalDataFetchTime"
+    )
+
+    foreach ($prop in $propertiesToCopy) {
+        if ($Source.PSObject.Properties[$prop]) {
+            $Destination | Add-Member -MemberType NoteProperty -Name $prop -Value $Source.$prop -Force
         }
     }
-    return $apiData
+}
+
+function Update-ApiData {
+    param ([hashtable]$Config, [PSCustomObject]$OldApiData)
+    Show-LoadingScreen
+    $newData = Get-ApiData -Config $Config
+    if (-not $newData) {
+        Write-Warning "Failed to fetch current price data. Returning last known data."
+        return $OldApiData
+    }
+
+    $isStale = (-not $OldApiData) -or (-not $OldApiData.PSObject.Properties['HistoricalDataFetchTime']) -or (((Get-Date).ToUniversalTime() - $OldApiData.HistoricalDataFetchTime).TotalMinutes -gt 15)
+
+    if ($isStale) {
+        Write-Host "Fetching updated historical data (High, Low, Volatility)..." -ForegroundColor Yellow
+        Start-Sleep -Seconds 1 # Let user see the message
+
+        $historicalStats = Get-HistoricalData -Config $Config
+        if ($historicalStats) {
+            $newData | Add-Member -MemberType NoteProperty -Name "rate24hHigh" -Value $historicalStats.High -Force
+            $newData | Add-Member -MemberType NoteProperty -Name "rate24hLow" -Value $historicalStats.Low -Force
+            $newData | Add-Member -MemberType NoteProperty -Name "rate24hHighTime" -Value $historicalStats.HighTime -Force
+            $newData | Add-Member -MemberType NoteProperty -Name "rate24hLowTime" -Value $historicalStats.LowTime -Force
+            $newData | Add-Member -MemberType NoteProperty -Name "rate24hAgo" -Value $historicalStats.Ago -Force
+            $newData | Add-Member -MemberType NoteProperty -Name "volatility24h" -Value $historicalStats.Volatility -Force
+            $newData | Add-Member -MemberType NoteProperty -Name "volatility12h" -Value $historicalStats.Volatility12h -Force
+            $newData | Add-Member -MemberType NoteProperty -Name "volatility12h_old" -Value $historicalStats.Volatility12h_old -Force
+            $newData | Add-Member -MemberType NoteProperty -Name "HistoricalDataFetchTime" -Value (Get-Date).ToUniversalTime() -Force
+        } else {
+            Write-Warning "Could not fetch historical data. Using fallbacks."
+            if ($OldApiData) {
+                # If historical fetch fails, try to reuse the old historical data.
+                Copy-HistoricalData -Source $OldApiData -Destination $newData
+            }
+            else {
+                # No old data to fall back on, use the delta from the current price data.
+                $newData | Add-Member -MemberType NoteProperty -Name "rate24hHigh" -Value $newData.rate -Force
+                $newData | Add-Member -MemberType NoteProperty -Name "rate24hLow" -Value $newData.rate -Force
+                $newData | Add-Member -MemberType NoteProperty -Name "volatility24h" -Value 0 -Force
+                $newData | Add-Member -MemberType NoteProperty -Name "volatility12h" -Value 0 -Force
+                $newData | Add-Member -MemberType NoteProperty -Name "volatility12h_old" -Value 0 -Force
+                $fallbackRate = if ($newData.PSObject.Properties['delta'] -and $newData.delta.PSObject.Properties['day'] -and $newData.delta.day -ne 0) {
+                    $newData.rate / (1 + ($newData.delta.day / 100))
+                } else {
+                    $newData.rate
+                }
+                $newData | Add-Member -MemberType NoteProperty -Name "rate24hAgo" -Value $fallbackRate -Force
+            }
+        }
+    } else {
+        # Historical data is fresh, just copy it over.
+        Copy-HistoricalData -Source $OldApiData -Destination $newData
+    }
+
+    return $newData
 }
 
 function Get-ApiData {
@@ -329,8 +394,16 @@ function Show-MainScreen {
     Write-AlignedLine -Label "24H High:" -Value $highDisplay
     Write-AlignedLine -Label "24H Low:" -Value $lowDisplay
     if ($apiData.PSObject.Properties['volatility24h'] -and $apiData.volatility24h -gt 0) {
+        $volatilityColor = "White"
+        if ($apiData.PSObject.Properties['volatility12h'] -and $apiData.PSObject.Properties['volatility12h_old']) {
+            if ($apiData.volatility12h -gt $apiData.volatility12h_old) {
+                $volatilityColor = "Green"
+            } elseif ($apiData.volatility12h -lt $apiData.volatility12h_old) {
+                $volatilityColor = "Red"
+            }
+        }
         $volatilityDisplay = "{0:N2}%" -f $apiData.volatility24h
-        Write-AlignedLine -Label "Volatility:" -Value $volatilityDisplay
+        Write-AlignedLine -Label "Volatility:" -Value $volatilityDisplay -ValueColor $volatilityColor
     }
     Write-AlignedLine -Label "24H Volume:" -Value $volDisplay
     Write-AlignedLine -Label "Time:" -Value $timeDisplay -ValueColor "Cyan"
@@ -918,7 +991,7 @@ if ([string]::IsNullOrEmpty($config.Settings.ApiKey)) {
     $config = Get-IniConfiguration -FilePath $iniFilePath
 }
 
-$apiData = Update-ApiData -Config $config
+$apiData = Update-ApiData -Config $config -OldApiData $apiData
 
 # Only after the data is fully fetched, set the session-start values.
 # This prevents the race condition and ensures the initial price is correct.
@@ -949,14 +1022,14 @@ while ($true) {
         switch ($command) {
             "buy" {
                 Invoke-Trade -Config ([ref]$config) -Type "Buy" -AmountString $amount
-                $apiData = Update-ApiData -Config $config
+                $apiData = Update-ApiData -Config $config -OldApiData $apiData
             }
             "sell" {
                 Invoke-Trade -Config ([ref]$config) -Type "Sell" -AmountString $amount
-                $apiData = Update-ApiData -Config $config
+                $apiData = Update-ApiData -Config $config -OldApiData $apiData
             }
             "ledger" { Show-LedgerScreen }
-            "refresh" { $apiData = Update-ApiData -Config $config }
+            "refresh" { $apiData = Update-ApiData -Config $config -OldApiData $apiData }
             "config" {
                 Show-ConfigScreen -Config ([ref]$config)
             }

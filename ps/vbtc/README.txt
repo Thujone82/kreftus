@@ -6,7 +6,7 @@
 Kreft&Gemini[Gemini 2.5 Pro (preview)]
 
 ## Date
-2025-07-05
+2025-07-06
 
 ## Description
 vBTC is an interactive PowerShell-based Bitcoin trading application. Users can buy and sell Bitcoin using a simulated portfolio, track their trades in a ledger, and view real-time market data from the LiveCoinWatch API.
@@ -14,24 +14,24 @@ vBTC is an interactive PowerShell-based Bitcoin trading application. Users can b
 This script provides a command-line interface for a simulated Bitcoin trading experience. On first run, it guides the user through setting up their LiveCoinWatch API key and initializes their portfolio with a starting capital of $1000.00.
 
 The main screen displays:
-- Real-time Bitcoin market data (Price, 24h Change, Volume).
+- Real-time Bitcoin market data (Price, 24h Change, High, Low, Volatility, Volume).
 - The user's personal portfolio (Cash, BTC holdings, and total value).
 
 ## Features
-- **Real-time Market Data:** Fetches and displays live Bitcoin prices from LiveCoinWatch.
+- **Real-time Market Data:** Fetches and displays live Bitcoin prices from LiveCoinWatch, including 24h high, low, and volatility, with a 15-minute cache for historical data to optimize API calls.
 - **Portfolio:** Tracks your cash (USD) and Bitcoin holdings.
 - **Transaction Ledger:** Records all buy and sell transactions in a `ledger.csv` file.
 - **Configuration Options:** Allows you to update your API key, trim ledger, and reset your portfolio.
 - **Command Shortcuts:** Use partial commands (e.g., 'b' for 'buy') for quick trading.
-- **Percentage-based Trading:** Use the 'p' suffix to trade a percentage of your assets (e.g., `50p` for 50%, `1/3p` for 33.3%).
+- **Percentage-based Trading:** Use the 'p' suffix to trade a percentage of your assets (e.g., `50p` for 50%, `100/3p` for 33.3%).
 
 ## Color Coding
 The application uses colors to provide quick visual feedback:
 
--   **Green:** Indicates a positive change, such as a price increase, a profitable position, or a "Buy" transaction.
--   **Red:** Indicates a negative change, such as a price decrease, a position at a loss, or a "Sell" transaction.
--   **White:** Indicates a neutral or unchanged value.
--   **Yellow / Cyan / Blue:** Used for UI elements like titles and command prompts for better readability.
+- **Green:** Indicates a positive change (price up, profit) or a "Buy" transaction. The Volatility metric is green if the market is more volatile in the last 12 hours than the previous 12.
+- **Red:** Indicates a negative change (price down, loss) or a "Sell" transaction. The Volatility metric is red if the market is less volatile.
+- **White:** Indicates a neutral or unchanged value.
+- **Yellow / Cyan / Blue / DarkYellow:** Used for UI elements like titles and command prompts for better readability.
 
 ## Requirements
 - PowerShell

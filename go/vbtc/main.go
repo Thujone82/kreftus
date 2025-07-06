@@ -51,6 +51,9 @@ type ApiDataResponse struct {
 	Rate24hHighTime time.Time
 	Rate24hLowTime  time.Time
 	Volatility24h   float64
+	Volatility12h   float64
+	Volatility12h_old float64
+	HistoricalDataFetchTime time.Time
 }
 
 type HistoryResponse struct {
@@ -256,7 +259,13 @@ func showMainScreen() {
 		writeAlignedLine("24H High:", fmt.Sprintf("$%s", highDisplay), color.New(color.FgWhite))
 		writeAlignedLine("24H Low:", fmt.Sprintf("$%s", lowDisplay), color.New(color.FgWhite))
 		if apiData.Volatility24h > 0 {
-			writeAlignedLine("Volatility:", fmt.Sprintf("%.2f%%", apiData.Volatility24h), color.New(color.FgWhite))
+			volatilityColor := color.New(color.FgWhite)
+			if apiData.Volatility12h > apiData.Volatility12h_old {
+				volatilityColor = color.New(color.FgGreen)
+			} else if apiData.Volatility12h < apiData.Volatility12h_old {
+				volatilityColor = color.New(color.FgRed)
+			}
+			writeAlignedLine("Volatility:", fmt.Sprintf("%.2f%%", apiData.Volatility24h), volatilityColor)
 		}
 		writeAlignedLine("24H Volume:", fmt.Sprintf("$%s", formatFloat(apiData.Volume, 0)), color.New(color.FgWhite))
 		writeAlignedLine("Time:", apiData.FetchTime.Local().Format("010206@150405"), color.New(color.FgCyan))
@@ -745,67 +754,120 @@ func updateApiData() *ApiDataResponse {
 	showLoadingScreen()
 	apiKey := cfg.Section("Settings").Key("ApiKey").String()
 
-	data, err := fetchCurrentPriceData(apiKey)
+	// 1. Always fetch the latest current price data.
+	newData, err := fetchCurrentPriceData(apiKey)
 	if err != nil {
 		fmt.Printf("Error fetching current price data: %v\n", err)
+		// If we have old data, return it so the screen doesn't go blank on a temporary error.
+		if apiData != nil {
+			return apiData
+		}
 		return nil
 	}
 
-	// Get full 24h history to derive High, Low, and Ago price
-	end := time.Now().UTC()
-	start := end.Add(-24 * time.Hour)
-	history, historyErr := getHistoricalData(apiKey, start.UnixMilli(), end.UnixMilli())
+	// 2. Check if historical data needs to be updated (stale if nil or > 15 mins old).
+	isStale := apiData == nil || time.Since(apiData.HistoricalDataFetchTime).Minutes() > 15
 
-	if historyErr == nil && history != nil && len(history.History) > 0 {
-		minRate := math.MaxFloat64
-		maxRate := 0.0
-		var highTime, lowTime int64
-		var closestRate float64
-		minDiff := int64(math.MaxInt64)
-		targetTs := start.UnixMilli()
+	if isStale {
+		end := time.Now().UTC()
+		start := end.Add(-24 * time.Hour)
+		history, historyErr := getHistoricalData(apiKey, start.UnixMilli(), end.UnixMilli())
 
-		for _, p := range history.History {
-			if p.Rate > maxRate {
-				maxRate = p.Rate
-				highTime = p.Date
+		if historyErr == nil && history != nil && len(history.History) > 0 {
+			// Successfully fetched new historical data.
+			minRate24h, maxRate24h := math.MaxFloat64, 0.0
+			minRate12hRecent, maxRate12hRecent := math.MaxFloat64, 0.0
+			minRate12hOld, maxRate12hOld := math.MaxFloat64, 0.0
+			var highTime, lowTime int64
+			var closestRate float64
+			minDiff := int64(math.MaxInt64)
+
+			now := time.Now().UTC()
+			startTs := now.Add(-24 * time.Hour).UnixMilli()
+			midpointTs := now.Add(-12 * time.Hour).UnixMilli()
+
+			for _, p := range history.History {
+				// Overall 24h stats
+				if p.Rate > maxRate24h {
+					maxRate24h = p.Rate
+					highTime = p.Date
+				}
+				if p.Rate < minRate24h {
+					minRate24h = p.Rate
+					lowTime = p.Date
+				}
+
+				// Split for 12h volatility stats
+				if p.Date >= midpointTs { // Recent 12 hours
+					if p.Rate > maxRate12hRecent {
+						maxRate12hRecent = p.Rate
+					}
+					if p.Rate < minRate12hRecent {
+						minRate12hRecent = p.Rate
+					}
+				} else { // Older 12 hours (12-24h ago)
+					if p.Rate > maxRate12hOld {
+						maxRate12hOld = p.Rate
+					}
+					if p.Rate < minRate12hOld {
+						minRate12hOld = p.Rate
+					}
+				}
+
+				// Find rate from 24h ago
+				diff := int64(math.Abs(float64(p.Date - startTs)))
+				if diff < minDiff {
+					minDiff = diff
+					closestRate = p.Rate
+				}
 			}
-			if p.Rate < minRate {
-				minRate = p.Rate
-				lowTime = p.Date
+			newData.Rate24hHigh = maxRate24h
+			newData.Rate24hLow = minRate24h
+			if newData.Rate24hLow > 0 {
+				newData.Volatility24h = ((maxRate24h - minRate24h) / newData.Rate24hLow) * 100
 			}
-			diff := int64(math.Abs(float64(p.Date - targetTs)))
-			if diff < minDiff {
-				minDiff = diff
-				closestRate = p.Rate
+			if minRate12hRecent < math.MaxFloat64 && minRate12hRecent > 0 {
+				newData.Volatility12h = ((maxRate12hRecent - minRate12hRecent) / minRate12hRecent) * 100
 			}
-		}
-		data.Rate24hHigh = maxRate
-		data.Rate24hLow = minRate
-		if data.Rate24hLow > 0 {
-			data.Volatility24h = ((maxRate - minRate) / minRate) * 100
-		}
-		if highTime > 0 {
-			data.Rate24hHighTime = time.UnixMilli(highTime)
-		}
-		if lowTime > 0 {
-			data.Rate24hLowTime = time.UnixMilli(lowTime)
-		}
-		data.Rate24hAgo = closestRate
-	} else {
-		if historyErr != nil {
-			fmt.Printf("Warning: could not fetch 24h history data: %v. Using fallbacks.\n", historyErr)
-		}
-		data.Rate24hHigh = data.Rate // Fallback to current
-		data.Rate24hLow = data.Rate  // Fallback to current
-		data.Volatility24h = 0       // No volatility if we don't have data
-		if data.Delta.Day != 0 {
-			data.Rate24hAgo = data.Rate / (1 + (data.Delta.Day / 100))
+			if minRate12hOld < math.MaxFloat64 && minRate12hOld > 0 {
+				newData.Volatility12h_old = ((maxRate12hOld - minRate12hOld) / minRate12hOld) * 100
+			}
+			if highTime > 0 {
+				newData.Rate24hHighTime = time.UnixMilli(highTime)
+			}
+			if lowTime > 0 {
+				newData.Rate24hLowTime = time.UnixMilli(lowTime)
+			}
+			newData.Rate24hAgo = closestRate
+			newData.HistoricalDataFetchTime = time.Now().UTC()
 		} else {
-			data.Rate24hAgo = data.Rate
+			// Historical fetch failed, use fallback.
+			if historyErr != nil {
+				fmt.Printf("Warning: could not fetch 24h history data: %v. Using fallbacks.\n", historyErr)
+			}
+			// Try to use old historical data first.
+			if apiData != nil {
+				copyHistoricalData(apiData, newData)
+			} else {
+				// No old data, use the delta fallback
+				newData.Rate24hHigh = newData.Rate
+				newData.Rate24hLow = newData.Rate
+				newData.Volatility24h = 0
+				newData.Volatility12h = 0
+				newData.Volatility12h_old = 0
+				if newData.Delta.Day != 0 {
+					newData.Rate24hAgo = newData.Rate / (1 + (newData.Delta.Day / 100))
+				} else {
+					newData.Rate24hAgo = newData.Rate
+				}
+			}
 		}
+	} else {
+		// Historical data is fresh, just copy it over.
+		copyHistoricalData(apiData, newData)
 	}
 
-	return data
+	return newData
 }
 
 func testApiKey(apiKey string) bool {
@@ -825,6 +887,21 @@ func getPortfolioValue(playerUSD, playerBTC float64, apiData *ApiDataResponse) f
 		return playerUSD + (playerBTC * apiData.Rate)
 	}
 	return playerUSD
+}
+
+func copyHistoricalData(source, dest *ApiDataResponse) {
+	if source == nil || dest == nil {
+		return
+	}
+	dest.Rate24hAgo = source.Rate24hAgo
+	dest.Rate24hHigh = source.Rate24hHigh
+	dest.Rate24hLow = source.Rate24hLow
+	dest.Rate24hHighTime = source.Rate24hHighTime
+	dest.Rate24hLowTime = source.Rate24hLowTime
+	dest.Volatility24h = source.Volatility24h
+	dest.Volatility12h = source.Volatility12h
+	dest.Volatility12h_old = source.Volatility12h_old
+	dest.HistoricalDataFetchTime = source.HistoricalDataFetchTime
 }
 
 func readAndParseLedger() ([]LedgerEntry, error) {
