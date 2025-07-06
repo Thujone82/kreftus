@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/Knetic/govaluate"
 	"github.com/shirou/gopsutil/v3/process"
 	"gopkg.in/ini.v1"
 )
@@ -1172,8 +1173,20 @@ func parseTradeAmount(input string, maxAmount float64, txType string) (float64, 
 	// Percentage
 	if strings.HasSuffix(input, "p") {
 		percentString := strings.TrimSuffix(input, "p")
-		percentVal, err := strconv.ParseFloat(percentString, 64)
-		if err != nil || percentVal <= 0 || percentVal > 100 {
+		expression, err := govaluate.NewEvaluableExpression(percentString)
+		if err != nil {
+			return 0, false // Invalid expression
+		}
+		result, err := expression.Evaluate(nil)
+		if err != nil {
+			return 0, false // Evaluation failed
+		}
+		percentVal, ok := result.(float64)
+		if !ok {
+			return 0, false // Result is not a float
+		}
+
+		if percentVal <= 0 || percentVal > 100 {
 			return 0, false
 		}
 		calculatedAmount := (maxAmount * percentVal) / 100

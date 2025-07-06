@@ -54,8 +54,8 @@ The application will create two files in the same directory:
 
 --- Tips ---
 
-- **Command Shortcuts:** You can use shortcuts for commands (e.g., 'b' for 'buy', 's' for 'sell'). As long as the shortcut is a unique match for a command, it will work.
-- **Percentage Trading:** Use the 'p' suffix to trade a percentage of your balance (e.g., '50p' for 50%).
+- **Command Shortcuts:** You can use shortcuts for commands (e.g., 'b' for 'buy'). As long as the shortcut is a unique match, it will work.
+- **Percentage Trading:** Use the 'p' suffix to trade a percentage of your balance. This field also supports math expressions (e.g., '50p' for 50%, or '100/3p' for 33.3%).
 - **Satoshi Trading:** When selling, use the 's' suffix to specify an amount in satoshis (e.g., '100000s').
 
 --- Configuration (vbtc.ini) ---
