@@ -257,15 +257,20 @@ func showMainScreen() {
 	}
 
 	if playerBTC > 0 {
-		btcValue := playerBTC * apiData.Rate
-		writeAlignedLine("Bitcoin:", fmt.Sprintf("%.8f ($%s)", playerBTC, formatFloat(btcValue, 2)), color.New(color.FgWhite))
+		btcValueDisplay := ""
+		if apiData != nil {
+			btcValue := playerBTC * apiData.Rate
+			btcValueDisplay = fmt.Sprintf(" ($%s)", formatFloat(btcValue, 2))
+		}
+		writeAlignedLine("Bitcoin:", fmt.Sprintf("%.8f%s", playerBTC, btcValueDisplay), color.New(color.FgWhite))
 
 		investedChange := 0.0
-		if playerInvested > 0 {
+		if playerInvested > 0 && apiData != nil {
+			btcValue := playerBTC * apiData.Rate
 			investedChange = ((btcValue - playerInvested) / playerInvested) * 100
 		}
 		investedColor := color.New(color.FgWhite)
-		if investedChange > 0 {
+		if investedChange > 0.005 { // Add a small tolerance for floating point
 			investedColor = color.New(color.FgGreen)
 		} else if investedChange < 0 {
 			investedColor = color.New(color.FgRed)
