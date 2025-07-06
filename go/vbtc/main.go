@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/Knetic/govaluate"
+	"github.com/fatih/color"
 	"github.com/shirou/gopsutil/v3/process"
 	"gopkg.in/ini.v1"
 )
@@ -44,15 +44,16 @@ type ApiDataResponse struct {
 	Delta  struct {
 		Day float64 `json:"day"`
 	} `json:"delta"`
-	FetchTime  time.Time
-	Rate24hAgo float64
-	Rate24hHigh     float64
-	Rate24hLow      float64
-	Rate24hHighTime time.Time
-	Rate24hLowTime  time.Time
-	Volatility24h   float64
-	Volatility12h   float64
-	Volatility12h_old float64
+	FetchTime               time.Time
+	Rate24hAgo              float64
+	Rate24hHigh             float64
+	Rate24hLow              float64
+	Rate24hHighTime         time.Time
+	Rate24hLowTime          time.Time
+	Volatility24h           float64
+	Volatility12h           float64
+	Volatility12h_old       float64
+	Sma1h                   float64
 	HistoricalDataFetchTime time.Time
 }
 
@@ -245,6 +246,17 @@ func showMainScreen() {
 		}
 
 		writeAlignedLine("Bitcoin (USD):", fmt.Sprintf("$%s", formatFloat(apiData.Rate, 2)), priceColorSession)
+
+		if apiData.Sma1h > 0 {
+			smaColor := color.New(color.FgWhite)
+			if apiData.Rate > apiData.Sma1h {
+				smaColor = color.New(color.FgGreen)
+			} else if apiData.Rate < apiData.Sma1h {
+				smaColor = color.New(color.FgRed)
+			}
+			writeAlignedLine("1H SMA:", fmt.Sprintf("$%s", formatFloat(apiData.Sma1h, 2)), smaColor)
+		}
+
 		writeAlignedLine("24H Ago:", fmt.Sprintf("$%s [%+.2f%%]", formatFloat(apiData.Rate24hAgo, 2), percentChange), priceColor24h)
 
 		highDisplay := formatFloat(apiData.Rate24hHigh, 2)
@@ -786,6 +798,11 @@ func updateApiData() *ApiDataResponse {
 			startTs := now.Add(-24 * time.Hour).UnixMilli()
 			midpointTs := now.Add(-12 * time.Hour).UnixMilli()
 
+			// Sort history by date to ensure correct order for SMA calculation
+			sort.Slice(history.History, func(i, j int) bool {
+				return history.History[i].Date < history.History[j].Date
+			})
+
 			for _, p := range history.History {
 				// Overall 24h stats
 				if p.Rate > maxRate24h {
@@ -832,6 +849,22 @@ func updateApiData() *ApiDataResponse {
 			if minRate12hOld < math.MaxFloat64 && minRate12hOld > 0 {
 				newData.Volatility12h_old = ((maxRate12hOld - minRate12hOld) / minRate12hOld) * 100
 			}
+			// Calculate 1H SMA from the most recent points
+			smaPoints := 12 // ~1 hour of data (12 * 5 mins)
+			if len(history.History) > 0 {
+				startIndex := 0
+				if len(history.History) > smaPoints {
+					startIndex = len(history.History) - smaPoints
+				}
+				smaHistory := history.History[startIndex:]
+				var smaSum float64
+				for _, p := range smaHistory {
+					smaSum += p.Rate
+				}
+				if len(smaHistory) > 0 {
+					newData.Sma1h = smaSum / float64(len(smaHistory))
+				}
+			}
 			if highTime > 0 {
 				newData.Rate24hHighTime = time.UnixMilli(highTime)
 			}
@@ -854,6 +887,7 @@ func updateApiData() *ApiDataResponse {
 				newData.Rate24hLow = newData.Rate
 				newData.Volatility24h = 0
 				newData.Volatility12h = 0
+				newData.Sma1h = 0
 				newData.Volatility12h_old = 0
 				if newData.Delta.Day != 0 {
 					newData.Rate24hAgo = newData.Rate / (1 + (newData.Delta.Day / 100))
@@ -900,6 +934,7 @@ func copyHistoricalData(source, dest *ApiDataResponse) {
 	dest.Rate24hLowTime = source.Rate24hLowTime
 	dest.Volatility24h = source.Volatility24h
 	dest.Volatility12h = source.Volatility12h
+	dest.Sma1h = source.Sma1h
 	dest.Volatility12h_old = source.Volatility12h_old
 	dest.HistoricalDataFetchTime = source.HistoricalDataFetchTime
 }

@@ -144,6 +144,17 @@ function Get-HistoricalData {
                 if ($oldStats.Minimum -gt 0) { $volatility12h_old = (($oldStats.Maximum - $oldStats.Minimum) / $oldStats.Minimum) * 100 }
             }
 
+            # 1H SMA Calculation
+            $sma1h = 0
+            $smaPoints = 12 # ~1 hour of data (12 * 5 mins)
+            $sortedHistory = $historicalResponse.history | Sort-Object -Property date
+            if ($sortedHistory.Count -gt 0) {
+                $smaHistory = $sortedHistory | Select-Object -Last $smaPoints
+                if ($smaHistory.Count -gt 0) {
+                    $sma1h = ($smaHistory | Measure-Object -Property rate -Average).Average
+                }
+            }
+
             return [PSCustomObject]@{
                 High              = $highPoint24h.rate
                 Low               = $lowPoint24h.rate
@@ -153,6 +164,7 @@ function Get-HistoricalData {
                 Volatility        = $volatility24h
                 Volatility12h     = $volatility12h
                 Volatility12h_old = $volatility12h_old
+                Sma1h             = $sma1h
             }
         }
         else {
@@ -175,6 +187,7 @@ function Copy-HistoricalData {
         "volatility24h",
         "volatility12h",
         "volatility12h_old",
+        "sma1h",
         "HistoricalDataFetchTime"
     )
 
@@ -210,6 +223,7 @@ function Update-ApiData {
             $newData | Add-Member -MemberType NoteProperty -Name "volatility24h" -Value $historicalStats.Volatility -Force
             $newData | Add-Member -MemberType NoteProperty -Name "volatility12h" -Value $historicalStats.Volatility12h -Force
             $newData | Add-Member -MemberType NoteProperty -Name "volatility12h_old" -Value $historicalStats.Volatility12h_old -Force
+            $newData | Add-Member -MemberType NoteProperty -Name "sma1h" -Value $historicalStats.Sma1h -Force
             $newData | Add-Member -MemberType NoteProperty -Name "HistoricalDataFetchTime" -Value (Get-Date).ToUniversalTime() -Force
         } else {
             Write-Warning "Could not fetch historical data. Using fallbacks."
@@ -224,6 +238,7 @@ function Update-ApiData {
                 $newData | Add-Member -MemberType NoteProperty -Name "volatility24h" -Value 0 -Force
                 $newData | Add-Member -MemberType NoteProperty -Name "volatility12h" -Value 0 -Force
                 $newData | Add-Member -MemberType NoteProperty -Name "volatility12h_old" -Value 0 -Force
+                $newData | Add-Member -MemberType NoteProperty -Name "sma1h" -Value 0 -Force
                 $fallbackRate = if ($newData.PSObject.Properties['delta'] -and $newData.delta.PSObject.Properties['day'] -and $newData.delta.day -ne 0) {
                     $newData.rate / (1 + ($newData.delta.day / 100))
                 } else {
@@ -390,6 +405,16 @@ function Show-MainScreen {
     Write-Host "*** Bitcoin Market ***" -ForegroundColor Yellow
     if (-not $marketDataAvailable) { Write-Warning "Could not retrieve market data. Please check your API key in the Config menu." }
     Write-AlignedLine -Label "Bitcoin (USD):" -Value $btcDisplay -ValueColor $priceColorSession
+    if ($apiData.PSObject.Properties['sma1h'] -and $apiData.sma1h -gt 0) {
+        $smaColor = "White"
+        if ($apiData.rate -gt $apiData.sma1h) {
+            $smaColor = "Green"
+        } elseif ($apiData.rate -lt $apiData.sma1h) {
+            $smaColor = "Red"
+        }
+        $smaDisplay = "{0:C2}" -f $apiData.sma1h
+        Write-AlignedLine -Label "1H SMA:" -Value $smaDisplay -ValueColor $smaColor
+    }
     Write-AlignedLine -Label "24H Ago:" -Value $agoDisplay -ValueColor $priceColor24h
     Write-AlignedLine -Label "24H High:" -Value $highDisplay
     Write-AlignedLine -Label "24H Low:" -Value $lowDisplay
