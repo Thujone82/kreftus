@@ -14,11 +14,11 @@ vBTC is an interactive PowerShell-based Bitcoin trading application. Users can b
 This script provides a command-line interface for a simulated Bitcoin trading experience. On first run, it guides the user through setting up their LiveCoinWatch API key and initializes their portfolio with a starting capital of $1000.00.
 
 The main screen displays:
-- Real-time Bitcoin market data (Price, 24h Change, High, Low, Volatility, Volume).
+- Real-time Bitcoin market data (Price, 1H SMA, 24h Change, High, Low, Volatility, Volume).
 - The user's personal portfolio (Cash, BTC holdings, and total value).
 
 ## Features
-- **Real-time Market Data:** Fetches and displays live Bitcoin prices from LiveCoinWatch, including 24h high, low, and volatility, with a 15-minute cache for historical data to optimize API calls.
+- **Real-time Market Data:** Fetches and displays live Bitcoin prices from LiveCoinWatch, including 24h high, low, volatility, and a 1-Hour Simple Moving Average (SMA), with a 15-minute cache for historical data to optimize API calls.
 - **Portfolio:** Tracks your cash (USD) and Bitcoin holdings.
 - **Transaction Ledger:** Records all buy and sell transactions in a `ledger.csv` file.
 - **Configuration Options:** Allows you to update your API key, trim ledger, and reset your portfolio.
@@ -59,6 +59,7 @@ The application uses a simple command-line interface. The following commands are
 - **Command Shortcuts:** You can use shortcuts for commands (e.g., 'b' for 'buy', 's' for 'sell'). As long as the shortcut is a unique match for a command, it will work.
 - **Percentage Trading:** Use the 'p' suffix to trade a percentage of your balance (e.g., '50p' for 50%). Math expressions are also supported (e.g., '100/3p' for 33.3%).
 - **Satoshi Trading:** When selling, use the 's' suffix to specify an amount in satoshis (e.g., '100000s').
+- **1H SMA:** The 1-Hour Simple Moving Average shows the average price over the last hour. It's green if the current price is above the average (bullish) and red if below (bearish).
 
 ## Files
 -   `vbtc.ps1`: The main script file.

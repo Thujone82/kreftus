@@ -8,7 +8,7 @@
     the user through setting up their LiveCoinWatch API key and initializes their portfolio with a starting capital.
 
     The main screen displays:
-    - Real-time Bitcoin market data (Price, 24h Change, Volume).
+    - Real-time Bitcoin market data (Price, 1H SMA, 24h Change, Volume, etc.).
     - The user's personal portfolio (Cash, BTC holdings, and total value).
 
     Users can issue commands to interact with the application:
@@ -23,6 +23,8 @@
     Tip: Commands may be shortened and still accepted, e.g., "b" for "buy", "s" for "sell".
     Tip: You can input percentage instead of absolute with suffix(e.g., '10p' for 10% of your 
          USD/BTC balance). Math is also accepted, e.g., '100/3p' for 1/3 of your balance.
+    Tip: Volatility shows the price swing (High vs Low) over the last 24 hours.
+    Tip: 1H SMA is the average price over the last hour. Green = price is above average.
 
     Requirements:
     - PowerShell
@@ -894,6 +896,7 @@ function Show-HelpScreen {
     Write-Host ""
     Write-Host "Tip: Use 'p' for percentage trades (e.g., '50p' for 50%, '100/3p' for 33.3%)." -ForegroundColor Cyan
     Write-Host "Tip: Volatility shows the price swing (High vs Low) over the last 24 hours." -ForegroundColor Cyan
+    Write-Host "Tip: 1H SMA is the average price over the last hour. Green = price is above average." -ForegroundColor Cyan
     Write-Host ""
     Read-Host "Press Enter to return to the Main Screen."
 }

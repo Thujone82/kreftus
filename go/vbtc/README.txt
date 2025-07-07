@@ -11,8 +11,12 @@ Kreft&Gemini[Gemini 2.5 Pro (preview)]
 ## Description
 vBTC is a command-line application for simulating Bitcoin trading. It uses a live API to fetch real-time Bitcoin prices and allows users to manage a virtual portfolio with a starting capital of $1000.00.
 
+The main screen displays:
+- Real-time Bitcoin market data (Price, 24h Change, High, Low, Volatility, Volume).
+- The user's personal portfolio (Cash, BTC holdings, and total value).
+
 ## Features
-- **Real-time Market Data:** Fetches and displays live Bitcoin prices from LiveCoinWatch, including 24h high, low, and volatility, with a 15-minute cache for historical data to optimize API calls.
+- **Real-time Market Data:** Fetches and displays live Bitcoin prices from LiveCoinWatch, including 24h high, low, volatility, and a 1-Hour Simple Moving Average (SMA), with a 15-minute cache for historical data to optimize API calls.
 - **Portfolio:** Tracks your cash (USD) and Bitcoin holdings, including invested capital and P/L.
 - **Transaction Ledger:** Records all buy and sell transactions in a `ledger.csv` file, with an in-app viewer and archive function.
 - **Configuration Options:** Allows you to update your API key, reset your portfolio, and archive the ledger.
@@ -26,6 +30,11 @@ The application uses colors to provide quick visual feedback:
 - **Red:** Indicates a negative change (price down, loss) or a "Sell" transaction. The Volatility metric is red if the market is less volatile.
 - **White:** Indicates a neutral or unchanged value.
 - **Yellow / Cyan / Blue / Black (HiBlack):** Used for UI elements like titles and command prompts for better readability.
+
+## Requirements
+- A terminal or command prompt.
+- An internet connection.
+- A free API key from https://www.livecoinwatch.com/tools/api
 
 ## How to Run
 1.  Open a terminal or command prompt.
@@ -48,6 +57,7 @@ The application uses colors to provide quick visual feedback:
 - **Command Shortcuts:** You can use shortcuts for commands (e.g., 'b' for 'buy'). As long as the shortcut is a unique match, it will work.
 - **Percentage Trading:** Use the 'p' suffix to trade a percentage of your balance. This field also supports math expressions (e.g., '50p' for 50%, or '100/3p' for 33.3%).
 - **Satoshi Trading:** When selling, use the 's' suffix to specify an amount in satoshis (e.g., '100000s').
+- **1H SMA:** The 1-Hour Simple Moving Average shows the average price over the last hour. It's green if the current price is above the average (bullish) and red if below (bearish).
 
 ## Files
 - `vbtc.exe` (or `vbtc` on macOS/Linux): The main application executable.
@@ -55,8 +65,7 @@ The application uses colors to provide quick visual feedback:
 - `ledger.csv`: Logs all buy and sell transactions.
 - `README.txt`: This file.
 
---- Dependencies ---
-
+## Dependencies
 This project uses the following third-party Go packages:
 - github.com/fatih/color: For colorized console output.
 - github.com/Knetic/govaluate: For math expression evaluation.

@@ -442,6 +442,7 @@ func showHelpScreen() {
 	fmt.Println()
 	color.New(color.FgCyan).Println("Tip: Use 'p' for percentage trades (e.g., '50p' for 50% of your balance).")
 	color.New(color.FgCyan).Println("Tip: Volatility shows the price swing (High vs Low) over the last 24 hours.")
+	color.New(color.FgCyan).Println("Tip: 1H SMA is the average price over the last hour. Green = price is above average.")
 	fmt.Println()
 	fmt.Println("Press Enter to return to the Main Screen.")
 	bufio.NewReader(os.Stdin).ReadString('\n')
