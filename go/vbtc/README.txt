@@ -39,7 +39,8 @@ The application uses colors to provide quick visual feedback:
 ## How to Run
 1.  Open a terminal or command prompt.
 2.  Navigate to the directory where `vbtc.exe` is located.
-3.  Run the executable: `.\vbtc.exe` on Windows, or `./vbtc` on macOS/Linux.
+3.  Run the executable: `.\vbtc.exe` on Windows, or `./vbtc` on Linux.
+    - **On macOS:** After unzipping, you can double-click `vbtc.app`. The first time, you may need to **right-click** the app and select **Open** to bypass security warnings.
 4.  On the first run, you will be prompted to enter your LiveCoinWatch API key.
 
 ## Commands

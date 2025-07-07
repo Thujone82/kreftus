@@ -6,7 +6,26 @@
 Set-Location $PSScriptRoot
 
 # Define the version number in one place for easy updates.
-$Version = "1.3"
+$Version = "1.4"
+
+# --- Build Helper Tool ---
+# Capture the host's Go environment settings to ensure our helper tool is always
+# built for the platform running this script.
+$ZipperSource = "tools/zipper/main.go"
+# Use Join-Path to create a full, unambiguous path to the helper executable.
+$ZipperExePath = Join-Path $PSScriptRoot "zipper.exe"
+
+Write-Host "Building helper tools..." -ForegroundColor Cyan
+$env:GOOS = "windows"; $env:GOARCH = "amd64"; go build -o $ZipperExePath $ZipperSource
+
+# Add error checking right after the build to ensure the helper was created.
+if (-not (Test-Path $ZipperExePath)) {
+    Write-Host "------------------------------------------------------------------" -ForegroundColor Red
+    Write-Host "Build Error: Failed to compile the helper tool 'zipper.exe'." -ForegroundColor Red
+    Write-Host "Please check for Go compilation errors in the output above." -ForegroundColor Yellow
+    Write-Host "------------------------------------------------------------------" -ForegroundColor Red
+    exit 1
+}
 
 Write-Host "Checking for build tools..." -ForegroundColor Cyan
 # Check for windres command, which is required for embedding the Windows icon.
@@ -103,16 +122,21 @@ $infoPlistContent = @"
         if (Test-Path "vbtc.icns") { Copy-Item -Path "vbtc.icns" -Destination "$appPath/Contents/Resources/vbtc.icns" -Force }
         $infoPlistContent | Set-Content -Path "$appPath/Contents/Info.plist"
     
-        # Compress the .app bundle and README into a .zip file for distribution.
+        # Compress using the custom zipper to preserve executable permissions.
         $zipPath = "bin/mac/$($_.arch)/vbtc.zip"
         $readmePath = "README.txt"
         Write-Host "    - Compressing to $zipPath..."
-        Compress-Archive -Path $appPath, $readmePath -DestinationPath $zipPath -Force
+        # Execute the custom zipper tool. The paths are relative to the script's location.
+        # Use the call operator (&) for robust execution of the helper tool.
+        & $ZipperExePath $zipPath $appPath $readmePath
         Remove-Item -Path $appPath -Recurse -Force # Clean up the .app directory
     
     } else {
         Write-Warning "Skipping packaging for $($_.name) because the binary was not found at $binaryPath."
     }
 }
+
+Write-Host "Cleaning up helper tools..." -ForegroundColor Cyan
+if (Test-Path $ZipperExePath) { Remove-Item $ZipperExePath -Force }
 
 Write-Host "Build complete!" -ForegroundColor Green
