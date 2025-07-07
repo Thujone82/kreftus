@@ -20,7 +20,7 @@
     - help: Display the help screen with a list of commands.
     - exit: Display a final portfolio summary and exit the application.
 
-    Tip: Commands may be shortened and still accepted, e.g., "b" for "buy", "s" for "sell".
+    Tip: Commands may be shortened (e.g. 'b 10' to buy $10 of BTC).
     Tip: You can input percentage instead of absolute with suffix(e.g., '10p' for 10% of your 
          USD/BTC balance). Math is also accepted, e.g., '100/3p' for 1/3 of your balance.
     Tip: Volatility shows the price swing (High vs Low) over the last 24 hours.
@@ -209,7 +209,18 @@ function Update-ApiData {
         return $OldApiData
     }
 
-    $isStale = (-not $OldApiData) -or (-not $OldApiData.PSObject.Properties['HistoricalDataFetchTime']) -or (((Get-Date).ToUniversalTime() - $OldApiData.HistoricalDataFetchTime).TotalMinutes -gt 15)
+    $isStale = $false
+    if (-not $OldApiData) {
+        $isStale = $true
+    } else {
+        # Check if cache is expired by time
+        if ((-not $OldApiData.PSObject.Properties['HistoricalDataFetchTime']) -or (((Get-Date).ToUniversalTime() - $OldApiData.HistoricalDataFetchTime).TotalMinutes -gt 15)) {
+            $isStale = $true
+        } # Also mark as stale if the current price breaks the known 24h high/low.
+        elseif ($OldApiData.PSObject.Properties['rate24hHigh'] -and $OldApiData.PSObject.Properties['rate24hLow'] -and (($newData.rate -gt $OldApiData.rate24hHigh) -or ($newData.rate -lt $OldApiData.rate24hLow))) {
+            $isStale = $true
+        }
+    }
 
     if ($isStale) {
         Write-Host "Fetching updated historical data (High, Low, Volatility)..." -ForegroundColor Yellow
@@ -519,6 +530,7 @@ function Show-FirstRunSetup {
     param ([ref]$Config)
     Clear-Host
     Write-Host "*** First Time Setup ***" -ForegroundColor Yellow
+    Write-Host "Get Free Key: https://www.livecoinwatch.com/tools/api" -ForegroundColor Green
     $validKey = $false
     while (-not $validKey) {
         $apiKey = Read-Host "Please enter your LiveCoinWatch API Key"
@@ -558,8 +570,8 @@ function Show-ConfigScreen {
                 Read-Host "Press Enter to continue."
             }
             "2" {
-                $confirmReset = Read-Host "Are you sure you want to reset your portfolio? This cannot be undone. Type 'YES' to confirm"
-                if ($confirmReset -eq "YES") {
+                $confirmReset = Read-Host "Are you sure you want to reset your portfolio? This cannot be undone. Type 'YES' to confirm" -ForegroundColor Red
+                if ($confirmReset -ceq "YES") { # -ceq is case-sensitive equals
                     $Config.Value.Portfolio.PlayerUSD = $startingCapital.ToString("F2")
                     $Config.Value.Portfolio.PlayerBTC = "0.0"
                     $Config.Value.Portfolio.PlayerInvested = "0.0"
@@ -894,6 +906,7 @@ function Show-HelpScreen {
     Write-AlignedLine -Label "help" -Value "Show this help screen."
     Write-AlignedLine -Label "exit" -Value "Exit the application."
     Write-Host ""
+    Write-Host "Tip: Commands may be shortened (e.g. 'b 10' to buy $10 of BTC)." -ForegroundColor Cyan
     Write-Host "Tip: Use 'p' for percentage trades (e.g., '50p' for 50%, '100/3p' for 33.3%)." -ForegroundColor Cyan
     Write-Host "Tip: Volatility shows the price swing (High vs Low) over the last 24 hours." -ForegroundColor Cyan
     Write-Host "Tip: 1H SMA is the average price over the last hour. Green = price is above average." -ForegroundColor Cyan

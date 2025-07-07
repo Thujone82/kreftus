@@ -56,7 +56,7 @@ The application uses a simple command-line interface. The following commands are
 -   `exit`: Exit the application and display a final portfolio summary.
 
 ## Tips
-- **Command Shortcuts:** You can use shortcuts for commands (e.g., 'b' for 'buy', 's' for 'sell'). As long as the shortcut is a unique match for a command, it will work.
+- **Command Shortcuts:** You can use shortcuts for commands (e.g. 'b 10' to buy $10 of BTC). As long as the shortcut is a unique match for a command, it will work.
 - **Percentage Trading:** Use the 'p' suffix to trade a percentage of your balance (e.g., '50p' for 50%). Math expressions are also supported (e.g., '100/3p' for 33.3%).
 - **Satoshi Trading:** When selling, use the 's' suffix to specify an amount in satoshis (e.g., '100000s').
 - **1H SMA:** The 1-Hour Simple Moving Average shows the average price over the last hour. It's green if the current price is above the average (bullish) and red if below (bearish).

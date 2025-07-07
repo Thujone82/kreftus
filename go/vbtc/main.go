@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Knetic/govaluate"
 	"github.com/fatih/color"
+	"github.com/Knetic/govaluate"
 	"github.com/shirou/gopsutil/v3/process"
 	"gopkg.in/ini.v1"
 )
@@ -44,15 +44,15 @@ type ApiDataResponse struct {
 	Delta  struct {
 		Day float64 `json:"day"`
 	} `json:"delta"`
-	FetchTime               time.Time
-	Rate24hAgo              float64
-	Rate24hHigh             float64
-	Rate24hLow              float64
-	Rate24hHighTime         time.Time
-	Rate24hLowTime          time.Time
-	Volatility24h           float64
-	Volatility12h           float64
-	Volatility12h_old       float64
+	FetchTime  time.Time
+	Rate24hAgo float64
+	Rate24hHigh     float64
+	Rate24hLow      float64
+	Rate24hHighTime time.Time
+	Rate24hLowTime  time.Time
+	Volatility24h   float64
+	Volatility12h   float64
+	Volatility12h_old float64
 	Sma1h                   float64
 	HistoricalDataFetchTime time.Time
 }
@@ -357,6 +357,7 @@ func showMainScreen() {
 func showFirstRunSetup() {
 	clearScreen()
 	color.Yellow("*** First Time Setup ***")
+	color.Green("Get Free Key: https://www.livecoinwatch.com/tools/api")
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		fmt.Print("Please enter your LiveCoinWatch API Key: ")
@@ -403,9 +404,9 @@ func showConfigScreen() {
 			fmt.Println("Press Enter to continue.")
 			reader.ReadString('\n')
 		case "2":
-			fmt.Print("Are you sure you want to reset your portfolio? This cannot be undone. Type 'YES' to confirm: ")
+			color.New(color.FgRed).Print("Are you sure you want to reset your portfolio? This cannot be undone. Type 'YES' to confirm: ")
 			confirm, _ := reader.ReadString('\n')
-			if strings.TrimSpace(confirm) == "YES" {
+			if strings.TrimSpace(confirm) == "YES" { // This comparison is already case-sensitive
 				cfg.Section("Portfolio").Key("PlayerUSD").SetValue(fmt.Sprintf("%.2f", startingCapital))
 				cfg.Section("Portfolio").Key("PlayerBTC").SetValue("0.0")
 				cfg.Section("Portfolio").Key("PlayerInvested").SetValue("0.0")
@@ -440,6 +441,7 @@ func showHelpScreen() {
 	writeAlignedLine("help", "Show this help screen.", color.New(color.FgWhite))
 	writeAlignedLine("exit", "Exit the application.", color.New(color.FgWhite))
 	fmt.Println()
+	color.New(color.FgCyan).Println("Tip: Commands may be shortened (e.g. 'b 10' to buy $10 of BTC).")
 	color.New(color.FgCyan).Println("Tip: Use 'p' for percentage trades (e.g., '50p' for 50% of your balance).")
 	color.New(color.FgCyan).Println("Tip: Volatility shows the price swing (High vs Low) over the last 24 hours.")
 	color.New(color.FgCyan).Println("Tip: 1H SMA is the average price over the last hour. Green = price is above average.")
@@ -779,9 +781,23 @@ func updateApiData() *ApiDataResponse {
 	}
 
 	// 2. Check if historical data needs to be updated (stale if nil or > 15 mins old).
-	isStale := apiData == nil || time.Since(apiData.HistoricalDataFetchTime).Minutes() > 15
+	isStale := false
+	if apiData == nil {
+		isStale = true
+	} else {
+		// apiData is not nil here, so we can safely access its fields.
+		if time.Since(apiData.HistoricalDataFetchTime).Minutes() > 15 {
+			isStale = true
+		} else if newData.Rate > apiData.Rate24hHigh || newData.Rate < apiData.Rate24hLow {
+			// Also mark as stale if the current price breaks the known 24h high/low.
+			isStale = true
+		}
+	}
 
 	if isStale {
+		color.Yellow("Fetching updated historical data (High, Low, Volatility)...")
+		time.Sleep(1 * time.Second) // Let user see the message
+
 		end := time.Now().UTC()
 		start := end.Add(-24 * time.Hour)
 		history, historyErr := getHistoricalData(apiKey, start.UnixMilli(), end.UnixMilli())
@@ -888,8 +904,8 @@ func updateApiData() *ApiDataResponse {
 				newData.Rate24hLow = newData.Rate
 				newData.Volatility24h = 0
 				newData.Volatility12h = 0
-				newData.Sma1h = 0
 				newData.Volatility12h_old = 0
+				newData.Sma1h = 0
 				if newData.Delta.Day != 0 {
 					newData.Rate24hAgo = newData.Rate / (1 + (newData.Delta.Day / 100))
 				} else {
@@ -935,8 +951,8 @@ func copyHistoricalData(source, dest *ApiDataResponse) {
 	dest.Rate24hLowTime = source.Rate24hLowTime
 	dest.Volatility24h = source.Volatility24h
 	dest.Volatility12h = source.Volatility12h
-	dest.Sma1h = source.Sma1h
 	dest.Volatility12h_old = source.Volatility12h_old
+	dest.Sma1h = source.Sma1h
 	dest.HistoricalDataFetchTime = source.HistoricalDataFetchTime
 }
 
