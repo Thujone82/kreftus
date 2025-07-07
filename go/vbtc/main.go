@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/Knetic/govaluate"
+	"github.com/fatih/color"
 	"github.com/shirou/gopsutil/v3/process"
 	"gopkg.in/ini.v1"
 )
@@ -44,15 +44,15 @@ type ApiDataResponse struct {
 	Delta  struct {
 		Day float64 `json:"day"`
 	} `json:"delta"`
-	FetchTime  time.Time
-	Rate24hAgo float64
-	Rate24hHigh     float64
-	Rate24hLow      float64
-	Rate24hHighTime time.Time
-	Rate24hLowTime  time.Time
-	Volatility24h   float64
-	Volatility12h   float64
-	Volatility12h_old float64
+	FetchTime               time.Time
+	Rate24hAgo              float64
+	Rate24hHigh             float64
+	Rate24hLow              float64
+	Rate24hHighTime         time.Time
+	Rate24hLowTime          time.Time
+	Volatility24h           float64
+	Volatility12h           float64
+	Volatility12h_old       float64
 	Sma1h                   float64
 	HistoricalDataFetchTime time.Time
 }
