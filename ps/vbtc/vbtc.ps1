@@ -95,9 +95,11 @@ function Set-IniConfiguration {
     try {
         Set-Content -Path $FilePath -Value $iniContent -ErrorAction Stop
         Write-Verbose "Configuration saved to: $FilePath"
+        return $true
     }
     catch {
         Write-Error "Failed to save configuration to $FilePath. Error: $($_.Exception.Message)"
+        return $false
     }
 }
 
@@ -710,7 +712,7 @@ function Invoke-LedgerArchive {
 }
 
 function Invoke-Trade {
-    param ([ref]$Config, [string]$Type, [string]$AmountString = $null)
+    param ([ref]$Config, [string]$Type, [string]$AmountString = $null, [PSCustomObject]$CurrentApiData)
     
     $playerUSD = 0.0
     $playerBTC = 0.0
@@ -801,11 +803,11 @@ function Invoke-Trade {
 
     # --- Confirmation Loop with Timeout ---
     $offerExpired = $false
+    $tradeApiData = $CurrentApiData # Use a local variable for the loop
     while ($true) {
-        Show-LoadingScreen
-        $apiData = Get-ApiData -Config $Config.Value
-        if (-not $apiData) { Read-Host "Error fetching price. Press Enter to continue."; return }
-        $currentBTC = $apiData.rate
+        # Update the local tradeApiData object
+        $tradeApiData = Update-ApiData -Config $Config.Value -OldApiData $tradeApiData
+        if (-not $tradeApiData) { Read-Host "Error fetching price. Press Enter to continue."; return $CurrentApiData } # return old data on failure
         $offerTimestamp = Get-Date # Record the time the offer is presented.
         
         Clear-Host
@@ -815,11 +817,11 @@ function Invoke-Trade {
             $offerExpired = $false # Reset the flag after showing the message
         }
 
-        $usdAmount = if ($Type -eq "Buy") { $tradeAmount } else { [math]::Floor(($tradeAmount * $currentBTC) * 100) / 100 }
-        $btcAmount = if ($Type -eq "Sell") { $tradeAmount } else { [math]::Floor(($tradeAmount / $currentBTC) * 100000000) / 100000000 }
+        $usdAmount = if ($Type -eq "Buy") { $tradeAmount } else { [math]::Floor(($tradeAmount * $tradeApiData.rate) * 100) / 100 }
+        $btcAmount = if ($Type -eq "Sell") { $tradeAmount } else { [math]::Floor(($tradeAmount / $tradeApiData.rate) * 100000000) / 100000000 }
 
-        $rate24hAgo = if ($apiData.PSObject.Properties['rate24hAgo']) { $apiData.rate24hAgo } elseif ($apiData.PSObject.Properties['delta'] -and $apiData.delta.PSObject.Properties['day']) { $currentBTC / (1 + ($apiData.delta.day / 100)) } else { $currentBTC }
-        $priceDiff = $currentBTC - $rate24hAgo
+        $rate24hAgo = if ($tradeApiData.PSObject.Properties['rate24hAgo']) { $tradeApiData.rate24hAgo } else { $tradeApiData.rate }
+        $priceDiff = $tradeApiData.rate - $rate24hAgo
         $priceColor = if ($priceDiff -gt 0) { "Green" } elseif ($priceDiff -lt 0) { "Red" } else { "White" }
 
         $confirmPrompt = if ($Type -eq "Buy") {
@@ -830,7 +832,7 @@ function Invoke-Trade {
         
         Write-Host "`nYou have 2 minutes to accept this offer." -ForegroundColor Yellow
         Write-Host -NoNewline "Market Rate: "
-        Write-Host ("{0:C2}" -f $currentBTC) -ForegroundColor $priceColor
+        Write-Host ("{0:C2}" -f $tradeApiData.rate) -ForegroundColor $priceColor
         
         Write-Host -NoNewline $confirmPrompt
         Write-Host "[" -NoNewline
@@ -877,11 +879,16 @@ function Invoke-Trade {
                 $Config.Value.Portfolio.PlayerUSD = ($playerUSD + $usdAmount).ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
                 $Config.Value.Portfolio.PlayerInvested = $newInvested.ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
             }
-            Set-IniConfiguration -FilePath $iniFilePath -Configuration $Config.Value
-            Add-LedgerEntry -Type $Type -UsdAmount $usdAmount -BtcAmount $btcAmount -BtcPrice $currentBTC -UserBtcAfter $newUserBtc
-            Write-Host "`n$Type successful."
-            Start-Sleep -Seconds 1
-            return 
+            $saveSuccess = Set-IniConfiguration -FilePath $iniFilePath -Configuration $Config.Value
+            if ($saveSuccess) {
+                Add-LedgerEntry -Type $Type -UsdAmount $usdAmount -BtcAmount $btcAmount -BtcPrice $tradeApiData.rate -UserBtcAfter $newUserBtc
+                Write-Host "`n$Type successful."
+                Start-Sleep -Seconds 1
+            } else {
+                Write-Warning "`nTrade failed: Could not save portfolio update. Please check file permissions for vbtc.ini."
+                Read-Host "Press Enter to continue."
+            }
+            return $tradeApiData # Exit trade loop, returning the latest data
         } 
         elseif ($tradeinput.ToLower() -eq 'r') {
             # User is manually refreshing, so the offer isn't "expired".
@@ -891,7 +898,7 @@ function Invoke-Trade {
         
         Write-Host "`n$Type cancelled."
         Start-Sleep -Seconds 1
-        return
+        return $tradeApiData
     }
 }
 
@@ -1062,15 +1069,16 @@ while ($true) {
         $command = $matchedCommands[0]
         switch ($command) {
             "buy" {
-                Invoke-Trade -Config ([ref]$config) -Type "Buy" -AmountString $amount
-                $apiData = Update-ApiData -Config $config -OldApiData $apiData
+                $apiData = Invoke-Trade -Config ([ref]$config) -Type "Buy" -AmountString $amount -CurrentApiData $apiData
             }
             "sell" {
-                Invoke-Trade -Config ([ref]$config) -Type "Sell" -AmountString $amount
-                $apiData = Update-ApiData -Config $config -OldApiData $apiData
+                $apiData = Invoke-Trade -Config ([ref]$config) -Type "Sell" -AmountString $amount -CurrentApiData $apiData
             }
             "ledger" { Show-LedgerScreen }
-            "refresh" { $apiData = Update-ApiData -Config $config -OldApiData $apiData }
+            "refresh" {
+                $config = Get-IniConfiguration -FilePath $iniFilePath
+                $apiData = Update-ApiData -Config $config -OldApiData $apiData
+            }
             "config" {
                 Show-ConfigScreen -Config ([ref]$config)
             }

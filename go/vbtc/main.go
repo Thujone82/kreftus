@@ -177,6 +177,15 @@ func mainLoop() {
 			case "ledger":
 				showLedgerScreen()
 			case "refresh":
+				// Reload config from disk to sync with other potential clients
+				reloadedCfg, err := ini.Load(iniFilePath)
+				if err != nil {
+					color.Red("Error reloading portfolio from vbtc.ini: %v", err)
+					fmt.Println("Press Enter to continue.")
+					reader.ReadString('\n')
+				} else {
+					cfg = reloadedCfg
+				}
 				apiData = updateApiData()
 			case "config":
 				showConfigScreen()
@@ -1246,13 +1255,12 @@ func invokeTrade(txType, amountString string) {
 	// Confirmation Loop
 	offerExpired := false
 	for {
-		currentApiData := updateApiData()
-		if currentApiData == nil {
+		apiData = updateApiData()
+		if apiData == nil {
 			color.Red("Error fetching price. Press Enter to continue.")
 			reader.ReadString('\n')
 			return
 		}
-		currentBTCPrice := currentApiData.Rate
 		offerTimestamp := time.Now() // Record the time the offer is presented.
 
 		clearScreen()
@@ -1265,21 +1273,21 @@ func invokeTrade(txType, amountString string) {
 		var usdAmount, btcAmount float64
 		if txType == "Buy" {
 			usdAmount = tradeAmount
-			btcAmount = math.Floor((usdAmount/currentBTCPrice)*1e8) / 1e8
+			btcAmount = math.Floor((usdAmount/apiData.Rate)*1e8) / 1e8
 		} else { // Sell
 			btcAmount = tradeAmount
-			usdAmount = math.Floor((btcAmount*currentBTCPrice)*100) / 100
+			usdAmount = math.Floor((btcAmount*apiData.Rate)*100) / 100
 		}
 
 		priceColor := color.New(color.FgWhite)
-		if currentBTCPrice > currentApiData.Rate24hAgo {
+		if apiData.Rate > apiData.Rate24hAgo {
 			priceColor = color.New(color.FgGreen)
-		} else if currentBTCPrice < currentApiData.Rate24hAgo {
+		} else if apiData.Rate < apiData.Rate24hAgo {
 			priceColor = color.New(color.FgRed)
 		}
 
 		fmt.Println("\nYou have 2 minutes to accept this offer.")
-		priceColor.Printf("Market Rate: $%s\n", formatFloat(currentBTCPrice, 2))
+		priceColor.Printf("Market Rate: $%s\n", formatFloat(apiData.Rate, 2))
 
 		var confirmPrompt string
 		if txType == "Buy" {
@@ -1324,12 +1332,19 @@ func invokeTrade(txType, amountString string) {
 			}
 			cfg.Section("Portfolio").Key("PlayerBTC").SetValue(fmt.Sprintf("%.8f", newUserBtc))
 			cfg.Section("Portfolio").Key("PlayerInvested").SetValue(fmt.Sprintf("%.2f", newInvested))
-			cfg.SaveTo(iniFilePath)
-
-			addLedgerEntry(txType, usdAmount, btcAmount, currentBTCPrice, newUserBtc)
-			fmt.Printf("\n%s successful.\n", txType)
-			time.Sleep(1 * time.Second)
-			return
+			err := cfg.SaveTo(iniFilePath)
+			if err != nil {
+				color.Red("\nTrade failed: Could not save portfolio update to vbtc.ini.")
+				color.Red("Error: %v", err)
+				fmt.Println("Please check file permissions and try again.")
+				fmt.Println("Press Enter to continue.")
+				reader.ReadString('\n')
+			} else {
+				addLedgerEntry(txType, usdAmount, btcAmount, apiData.Rate, newUserBtc)
+				fmt.Printf("\n%s successful.\n", txType)
+				time.Sleep(1 * time.Second)
+			}
+			return // Exit trade loop regardless of success or failure
 		} else if input == "r" {
 			// User is manually refreshing, so the offer isn't "expired" in a way that requires a warning.
 			offerExpired = false
