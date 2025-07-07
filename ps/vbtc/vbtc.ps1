@@ -203,7 +203,7 @@ function Copy-HistoricalData {
 }
 
 function Update-ApiData {
-    param ([hashtable]$Config, [PSCustomObject]$OldApiData)
+    param ([hashtable]$Config, [PSCustomObject]$OldApiData, [switch]$SkipHistorical)
     Show-LoadingScreen
     $newData = Get-ApiData -Config $Config
     if (-not $newData) {
@@ -211,59 +211,64 @@ function Update-ApiData {
         return $OldApiData
     }
 
-    $isStale = $false
-    if (-not $OldApiData) {
-        $isStale = $true
-    } else {
-        # Check if cache is expired by time
-        if ((-not $OldApiData.PSObject.Properties['HistoricalDataFetchTime']) -or (((Get-Date).ToUniversalTime() - $OldApiData.HistoricalDataFetchTime).TotalMinutes -gt 15)) {
+    if (-not $SkipHistorical.IsPresent) {
+        $isStale = $false
+        if (-not $OldApiData) {
             $isStale = $true
-        } # Also mark as stale if the current price breaks the known 24h high/low.
-        elseif ($OldApiData.PSObject.Properties['rate24hHigh'] -and $OldApiData.PSObject.Properties['rate24hLow'] -and (($newData.rate -gt $OldApiData.rate24hHigh) -or ($newData.rate -lt $OldApiData.rate24hLow))) {
-            $isStale = $true
-        }
-    }
-
-    if ($isStale) {
-        Write-Host "Fetching updated historical data (High, Low, Volatility)..." -ForegroundColor Yellow
-        Start-Sleep -Seconds 1 # Let user see the message
-
-        $historicalStats = Get-HistoricalData -Config $Config
-        if ($historicalStats) {
-            $newData | Add-Member -MemberType NoteProperty -Name "rate24hHigh" -Value $historicalStats.High -Force
-            $newData | Add-Member -MemberType NoteProperty -Name "rate24hLow" -Value $historicalStats.Low -Force
-            $newData | Add-Member -MemberType NoteProperty -Name "rate24hHighTime" -Value $historicalStats.HighTime -Force
-            $newData | Add-Member -MemberType NoteProperty -Name "rate24hLowTime" -Value $historicalStats.LowTime -Force
-            $newData | Add-Member -MemberType NoteProperty -Name "rate24hAgo" -Value $historicalStats.Ago -Force
-            $newData | Add-Member -MemberType NoteProperty -Name "volatility24h" -Value $historicalStats.Volatility -Force
-            $newData | Add-Member -MemberType NoteProperty -Name "volatility12h" -Value $historicalStats.Volatility12h -Force
-            $newData | Add-Member -MemberType NoteProperty -Name "volatility12h_old" -Value $historicalStats.Volatility12h_old -Force
-            $newData | Add-Member -MemberType NoteProperty -Name "sma1h" -Value $historicalStats.Sma1h -Force
-            $newData | Add-Member -MemberType NoteProperty -Name "HistoricalDataFetchTime" -Value (Get-Date).ToUniversalTime() -Force
         } else {
-            Write-Warning "Could not fetch historical data. Using fallbacks."
-            if ($OldApiData) {
-                # If historical fetch fails, try to reuse the old historical data.
-                Copy-HistoricalData -Source $OldApiData -Destination $newData
-            }
-            else {
-                # No old data to fall back on, use the delta from the current price data.
-                $newData | Add-Member -MemberType NoteProperty -Name "rate24hHigh" -Value $newData.rate -Force
-                $newData | Add-Member -MemberType NoteProperty -Name "rate24hLow" -Value $newData.rate -Force
-                $newData | Add-Member -MemberType NoteProperty -Name "volatility24h" -Value 0 -Force
-                $newData | Add-Member -MemberType NoteProperty -Name "volatility12h" -Value 0 -Force
-                $newData | Add-Member -MemberType NoteProperty -Name "volatility12h_old" -Value 0 -Force
-                $newData | Add-Member -MemberType NoteProperty -Name "sma1h" -Value 0 -Force
-                $fallbackRate = if ($newData.PSObject.Properties['delta'] -and $newData.delta.PSObject.Properties['day'] -and $newData.delta.day -ne 0) {
-                    $newData.rate / (1 + ($newData.delta.day / 100))
-                } else {
-                    $newData.rate
-                }
-                $newData | Add-Member -MemberType NoteProperty -Name "rate24hAgo" -Value $fallbackRate -Force
+            # Check if cache is expired by time
+            if ((-not $OldApiData.PSObject.Properties['HistoricalDataFetchTime']) -or (((Get-Date).ToUniversalTime() - $OldApiData.HistoricalDataFetchTime).TotalMinutes -gt 15)) {
+                $isStale = $true
+            } elseif ($OldApiData.PSObject.Properties['rate24hHigh'] -and $OldApiData.PSObject.Properties['rate24hLow'] -and (($newData.rate -gt $OldApiData.rate24hHigh) -or ($newData.rate -lt $OldApiData.rate24hLow))) {
+                # Also mark as stale if the current price breaks the known 24h high/low.
+                $isStale = $true
             }
         }
-    } else {
-        # Historical data is fresh, just copy it over.
+
+        if ($isStale) {
+            Write-Host "Fetching updated historical data (High, Low, Volatility)..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 1 # Let user see the message
+
+            $historicalStats = Get-HistoricalData -Config $Config
+            if ($historicalStats) {
+                $newData | Add-Member -MemberType NoteProperty -Name "rate24hHigh" -Value $historicalStats.High -Force
+                $newData | Add-Member -MemberType NoteProperty -Name "rate24hLow" -Value $historicalStats.Low -Force
+                $newData | Add-Member -MemberType NoteProperty -Name "rate24hHighTime" -Value $historicalStats.HighTime -Force
+                $newData | Add-Member -MemberType NoteProperty -Name "rate24hLowTime" -Value $historicalStats.LowTime -Force
+                $newData | Add-Member -MemberType NoteProperty -Name "rate24hAgo" -Value $historicalStats.Ago -Force
+                $newData | Add-Member -MemberType NoteProperty -Name "volatility24h" -Value $historicalStats.Volatility -Force
+                $newData | Add-Member -MemberType NoteProperty -Name "volatility12h" -Value $historicalStats.Volatility12h -Force
+                $newData | Add-Member -MemberType NoteProperty -Name "volatility12h_old" -Value $historicalStats.Volatility12h_old -Force
+                $newData | Add-Member -MemberType NoteProperty -Name "sma1h" -Value $historicalStats.Sma1h -Force
+                $newData | Add-Member -MemberType NoteProperty -Name "HistoricalDataFetchTime" -Value (Get-Date).ToUniversalTime() -Force
+            } else {
+                Write-Warning "Could not fetch historical data. Using fallbacks."
+                if ($OldApiData) {
+                    # If historical fetch fails, try to reuse the old historical data.
+                    Copy-HistoricalData -Source $OldApiData -Destination $newData
+                }
+                else {
+                    # No old data to fall back on, use the delta from the current price data.
+                    $newData | Add-Member -MemberType NoteProperty -Name "rate24hHigh" -Value $newData.rate -Force
+                    $newData | Add-Member -MemberType NoteProperty -Name "rate24hLow" -Value $newData.rate -Force
+                    $newData | Add-Member -MemberType NoteProperty -Name "volatility24h" -Value 0 -Force
+                    $newData | Add-Member -MemberType NoteProperty -Name "volatility12h" -Value 0 -Force
+                    $newData | Add-Member -MemberType NoteProperty -Name "volatility12h_old" -Value 0 -Force
+                    $newData | Add-Member -MemberType NoteProperty -Name "sma1h" -Value 0 -Force
+                    $fallbackRate = if ($newData.PSObject.Properties['delta'] -and $newData.delta.PSObject.Properties['day'] -and $newData.delta.day -ne 0) {
+                        $newData.rate / (1 + ($newData.delta.day / 100))
+                    } else {
+                        $newData.rate
+                    }
+                    $newData | Add-Member -MemberType NoteProperty -Name "rate24hAgo" -Value $fallbackRate -Force
+                    }
+            }
+        } else {
+            # Historical data is fresh, just copy it over.
+            Copy-HistoricalData -Source $OldApiData -Destination $newData
+        }
+    } else { # SkipHistorical is true
+        # If skipping historical, just copy the old data over.
         Copy-HistoricalData -Source $OldApiData -Destination $newData
     }
 
@@ -805,8 +810,8 @@ function Invoke-Trade {
     $offerExpired = $false
     $tradeApiData = $CurrentApiData # Use a local variable for the loop
     while ($true) {
-        # Update the local tradeApiData object
-        $tradeApiData = Update-ApiData -Config $Config.Value -OldApiData $tradeApiData
+        # Update the local tradeApiData object, skipping the historical call for speed.
+        $tradeApiData = Update-ApiData -Config $Config.Value -OldApiData $tradeApiData -SkipHistorical
         if (-not $tradeApiData) { Read-Host "Error fetching price. Press Enter to continue."; return $CurrentApiData } # return old data on failure
         $offerTimestamp = Get-Date # Record the time the offer is presented.
         
