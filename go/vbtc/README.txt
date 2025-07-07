@@ -1,12 +1,12 @@
 '# vBTC - Virtual Bitcoin Trading Simulator
 
-## Version 1.3
+## Version 1.4
 
 ## Author
 Kreft&Gemini[Gemini 2.5 Pro (preview)]
 
 ## Date
-2025-07-05
+2025-07-06
 
 ## Description
 vBTC is a command-line application for simulating Bitcoin trading. It uses a live API to fetch real-time Bitcoin prices and allows users to manage a virtual portfolio with a starting capital of $1000.00.

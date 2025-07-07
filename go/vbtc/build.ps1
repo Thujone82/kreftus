@@ -102,6 +102,14 @@ $infoPlistContent = @"
         Move-Item -Path $binaryPath -Destination "$appPath/Contents/MacOS/vbtc" -Force
         if (Test-Path "vbtc.icns") { Copy-Item -Path "vbtc.icns" -Destination "$appPath/Contents/Resources/vbtc.icns" -Force }
         $infoPlistContent | Set-Content -Path "$appPath/Contents/Info.plist"
+    
+        # Compress the .app bundle and README into a .zip file for distribution.
+        $zipPath = "bin/mac/$($_.arch)/vbtc.zip"
+        $readmePath = "README.txt"
+        Write-Host "    - Compressing to $zipPath..."
+        Compress-Archive -Path $appPath, $readmePath -DestinationPath $zipPath -Force
+        Remove-Item -Path $appPath -Recurse -Force # Clean up the .app directory
+    
     } else {
         Write-Warning "Skipping packaging for $($_.name) because the binary was not found at $binaryPath."
     }

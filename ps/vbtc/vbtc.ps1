@@ -34,7 +34,8 @@
 .NOTES
     Author: Kreft&Gemini[Gemini 2.5 Pro (preview)]
     Date: 2025-07-05
-    Version: 1.3
+    Date: 2025-07-06
+    Version: 1.4
 #>
 
 [CmdletBinding()]
