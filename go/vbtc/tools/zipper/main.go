@@ -59,7 +59,6 @@ func createZip(zipPath string, inputPaths []string) error {
 			// This is crucial for cross-platform compatibility, especially for macOS.
 			header := &zip.FileHeader{
 				Name:     filepath.ToSlash(relPath),
-				Method:   zip.Deflate,
 				Modified: info.ModTime(),
 			}
 
@@ -69,9 +68,11 @@ func createZip(zipPath string, inputPaths []string) error {
 			header.CreatorVersion = 3 << 8 // Set creator OS to Unix
 			if info.IsDir() {
 				header.Name += "/"
+				header.Method = zip.Store // Directories should not be compressed.
 				// Set directory permissions: drwxr-xr-x
 				header.ExternalAttrs = (0o755 | 0o40000) << 16
 			} else {
+				header.Method = zip.Deflate // Files should be compressed.
 				// Set standard file permissions: -rw-r--r--
 				perms := uint32(0o644)
 				// Explicitly set executable permissions for the main binary: -rwxr-xr-x
