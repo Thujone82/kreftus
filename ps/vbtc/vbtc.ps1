@@ -175,7 +175,13 @@ function Get-HistoricalData {
         else {
             Write-Warning "No historical data returned."
         }
-    } catch { Write-Warning "Failed to fetch historical price: $($_.Exception.Message)" }
+    }
+    catch {
+        if ($_.Exception -is [System.Net.WebException]) {
+            return [PSCustomObject]@{ IsNetworkError = $true }
+        }
+        Write-Warning "Failed to fetch historical price: $($_.Exception.Message)"
+    }
     return $null
 }
 
@@ -207,6 +213,9 @@ function Update-ApiData {
     param ([hashtable]$Config, [PSCustomObject]$OldApiData, [switch]$SkipHistorical)
     Show-LoadingScreen
     $newData = Get-ApiData -Config $Config
+    if ($newData -and $newData.PSObject.Properties['IsNetworkError']) {
+        return $newData # Propagate the network error object up
+    }
     if (-not $newData) {
         Write-Warning "Failed to fetch current price data. Returning last known data."
         return $OldApiData
@@ -231,7 +240,18 @@ function Update-ApiData {
             Start-Sleep -Seconds 1 # Let user see the message
 
             $historicalStats = Get-HistoricalData -Config $Config
-            if ($historicalStats) {
+            if ($historicalStats -and $historicalStats.PSObject.Properties['IsNetworkError']) {
+                # Historical data failed with a network error.
+                # We have current data, but we should still show the error message.
+                # Let's add the error flag to the newData object.
+                $newData | Add-Member -MemberType NoteProperty -Name "IsNetworkError" -Value $true -Force
+                Write-Warning "Could not fetch historical data due to a network error. Using fallbacks."
+                if ($OldApiData) {
+                    Copy-HistoricalData -Source $OldApiData -Destination $newData
+                }
+                # The fallback logic below will handle the rest
+            }
+            elseif ($historicalStats) {
                 $newData | Add-Member -MemberType NoteProperty -Name "rate24hHigh" -Value $historicalStats.High -Force
                 $newData | Add-Member -MemberType NoteProperty -Name "rate24hLow" -Value $historicalStats.Low -Force
                 $newData | Add-Member -MemberType NoteProperty -Name "rate24hHighTime" -Value $historicalStats.HighTime -Force
@@ -295,6 +315,11 @@ function Get-ApiData {
         return $currentResponse
     }
     catch {
+        if ($_.Exception -is [System.Net.WebException]) {
+            # This is a network error, return the specific object
+            return [PSCustomObject]@{ IsNetworkError = $true }
+        }
+        # For other errors (like bad API key), keep the existing behavior
         Write-Error "API call failed: $($_.Exception.Message)"
         if ($_.Exception.Response) {
             $errorResponse = $_.Exception.Response.GetResponseStream()
@@ -367,7 +392,12 @@ function Show-LoadingScreen {
 function Show-MainScreen {
     param ($ApiData, [hashtable]$Portfolio, [double]$SessionStartValue, [decimal]$InitialSessionBtcPrice)
     if (-not $VerbosePreference) { Clear-Host }
-
+    
+    $isNetworkError = $ApiData -and $ApiData.PSObject.Properties['IsNetworkError'] -and $ApiData.IsNetworkError
+    if ($isNetworkError) {
+        Write-Host "API Provider Down - Try again" -ForegroundColor Red
+    }
+    
     # --- 1. Data Calculation ---
     $playerBTC = 0.0
     $playerUSD = 0.0
@@ -424,7 +454,9 @@ function Show-MainScreen {
 
     # --- 2. Screen Rendering ---
     Write-Host "*** Bitcoin Market ***" -ForegroundColor Yellow
-    if (-not $marketDataAvailable) { Write-Warning "Could not retrieve market data. Please check your API key in the Config menu." }
+    if (-not $marketDataAvailable -and -not $isNetworkError) {
+        Write-Warning "Could not retrieve market data. Please check your API key in the Config menu."
+    }
     Write-AlignedLine -Label "Bitcoin (USD):" -Value $btcDisplay -ValueColor $priceColorSession
     if ($apiData.PSObject.Properties['sma1h'] -and $apiData.sma1h -gt 0) {
         $smaColor = "White"
@@ -813,6 +845,11 @@ function Invoke-Trade {
     while ($true) {
         # Update the local tradeApiData object, skipping the historical call for speed.
         $tradeApiData = Update-ApiData -Config $Config.Value -OldApiData $tradeApiData -SkipHistorical
+        if ($tradeApiData -and $tradeApiData.PSObject.Properties['IsNetworkError'] -and $tradeApiData.IsNetworkError) {
+            Write-Host "`nAPI Provider Down - Try again" -ForegroundColor Red
+            Read-Host "Press Enter to return to the main menu."
+            return $CurrentApiData # Return the old, non-error data to the main loop
+        }
         if (-not $tradeApiData) { Read-Host "Error fetching price. Press Enter to continue."; return $CurrentApiData } # return old data on failure
         $offerTimestamp = Get-Date # Record the time the offer is presented.
         

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -17,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"errors"
 	"github.com/Knetic/govaluate"
 	"github.com/fatih/color"
 	"github.com/shirou/gopsutil/v3/process"
@@ -55,6 +57,7 @@ type ApiDataResponse struct {
 	Volatility12h_old       float64
 	Sma1h                   float64
 	HistoricalDataFetchTime time.Time
+	ApiError                string `json:"-"`
 }
 
 type HistoryResponse struct {
@@ -230,9 +233,17 @@ func showMainScreen() {
 
 	// Market Data
 	color.New(color.FgYellow).Println("*** Bitcoin Market ***")
-	if apiData == nil {
+
+	isNetworkError := apiData != nil && apiData.ApiError == "NetworkError"
+	if isNetworkError {
+		color.Red("API Provider Down - Try again")
+	}
+
+	isDataAvailable := apiData != nil && apiData.Rate > 0
+
+	if !isDataAvailable && !isNetworkError {
 		color.Red("Could not retrieve market data. Please check your API key in the Config menu.")
-	} else {
+	} else if isDataAvailable {
 		priceColor24h := color.New(color.FgWhite)
 		if apiData.Rate > apiData.Rate24hAgo {
 			priceColor24h = color.New(color.FgGreen)
@@ -782,9 +793,21 @@ func updateApiData(skipHistorical bool) *ApiDataResponse {
 	newData, err := fetchCurrentPriceData(apiKey)
 	if err != nil {
 		fmt.Printf("Error fetching current price data: %v\n", err)
+		var netErr net.Error
+		isNetworkError := errors.As(err, &netErr)
+
 		// If we have old data, return it so the screen doesn't go blank on a temporary error.
 		if apiData != nil {
+			if isNetworkError {
+				apiData.ApiError = "NetworkError"
+			} else {
+				apiData.ApiError = "" // Clear any previous network error
+			}
 			return apiData
+		}
+		// No old data, we must return something to show the error.
+		if isNetworkError {
+			return &ApiDataResponse{ApiError: "NetworkError"}
 		}
 		return nil
 	}
@@ -903,7 +926,13 @@ func updateApiData(skipHistorical bool) *ApiDataResponse {
 			} else {
 				// Historical fetch failed, use fallback.
 				if historyErr != nil {
-					fmt.Printf("Warning: could not fetch 24h history data: %v. Using fallbacks.\n", historyErr)
+					var netErr net.Error
+					if errors.As(historyErr, &netErr) {
+						newData.ApiError = "NetworkError"
+						fmt.Printf("Warning: could not fetch 24h history data due to a network error. Using fallbacks.\n")
+					} else {
+						fmt.Printf("Warning: could not fetch 24h history data: %v. Using fallbacks.\n", historyErr)
+					}
 				}
 				// Try to use old historical data first.
 				if apiData != nil {
@@ -1261,7 +1290,13 @@ func invokeTrade(txType, amountString string) {
 	offerExpired := false
 	for {
 		apiData = updateApiData(true)
-		if apiData == nil {
+		if apiData != nil && apiData.ApiError == "NetworkError" {
+			color.Red("\nAPI Provider Down - Try again")
+			fmt.Println("Press Enter to return to the main menu.")
+			reader.ReadString('\n')
+			return // Return to main menu
+		}
+		if apiData == nil || apiData.Rate == 0 {
 			color.Red("Error fetching price. Press Enter to continue.")
 			reader.ReadString('\n')
 			return
