@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	appName            = "gw" // Changed from "goweather"
+	appName            = "gw"     // Changed from "goweather"
 	configFileName     = "gw.ini" // More specific name
 	defaultApiSection  = "openweathermap"
 	defaultApiKeyName  = "apikey"
@@ -343,8 +343,11 @@ func getGeoCoordinates(locationInput, apiKey string) (lat, lon float64, city, co
 		}
 		return geoResp.Lat, geoResp.Lon, geoResp.Name, geoResp.Country, nil
 	} else {
-		// For non-zip inputs, append ",us" to match PowerShell behavior and common API usage.
-		loc := strings.TrimSpace(locationInput) + ",us"
+		// For non-zip inputs, append ",us" if a comma isn't already present.
+		loc := strings.TrimSpace(locationInput)
+		if !strings.Contains(loc, ",") {
+			loc += ",us"
+		}
 		geoURL := fmt.Sprintf("%s?q=%s&limit=1&appid=%s", geoDirectURL, url.QueryEscape(loc), apiKey)
 		var geoRespArr []GeoDirectResponse
 		if err = makeAPIRequest(geoURL, &geoRespArr); err != nil {
@@ -556,30 +559,44 @@ func main() {
 		log.Fatalf("Configuration setup failed: %v", err)
 	}
 
-	// --- Location Input Handling ---
-	var locationInput string
+	// --- Location Input & Geocoding Loop ---
+	var lat, lon float64
+	var city, countryOrState string
 	args := flag.Args()
-	if len(args) == 0 { // No location provided as argument, so prompt
-		clearScreen() // Clear screen after setup before showing welcome banner
-		showWelcomeBanner()
-		reader := bufio.NewReader(os.Stdin)
-		fmt.Print("Enter a location (Zip Code or City, State): ")
-		input, err := reader.ReadString('\n')
-		if err != nil {
-			log.Fatalf("Error reading location input: %v", err)
-		}
-		locationInput = strings.TrimSpace(input)
-		if locationInput == "" {
-			log.Fatal("Location input cannot be empty.")
-		}
-	} else { // Location provided as argument
+	isInteractive := len(args) == 0
+	var locationInput string
+	if !isInteractive {
 		locationInput = strings.Join(args, " ")
 	}
 
-	// --- Geocoding and Weather Data Fetching ---
-	lat, lon, city, countryOrState, err := getGeoCoordinates(locationInput, apiKey)
-	if err != nil {
-		log.Fatalf("Error: %v", err)
+	for {
+		if isInteractive && locationInput == "" {
+			clearScreen()
+			showWelcomeBanner()
+			reader := bufio.NewReader(os.Stdin)
+			fmt.Print("Enter a location (Zip Code or City, State): ")
+			input, err := reader.ReadString('\n')
+			if err != nil {
+				log.Fatalf("Error reading location input: %v", err)
+			}
+			locationInput = strings.TrimSpace(input)
+			if locationInput == "" {
+				return // User hit enter on an empty line, exit cleanly.
+			}
+		}
+
+		var geoErr error
+		lat, lon, city, countryOrState, geoErr = getGeoCoordinates(locationInput, apiKey)
+		if geoErr != nil {
+			color.Red("Location not found, try again")
+			if !isInteractive {
+				os.Exit(1)
+			}
+			locationInput = "" // This will cause the interactive prompt to show again
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		break // Geocoding was successful, exit the loop.
 	}
 
 	weatherData, err := getWeatherData(lat, lon, apiKey)
