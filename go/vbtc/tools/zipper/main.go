@@ -45,44 +45,41 @@ func createZip(zipPath string, inputPaths []string) error {
 				return err
 			}
 
-			// Create a header from the file info
-			header, err := zip.FileInfoHeader(info)
-			if err != nil {
-				return err
-			}
-
-			// Set the path inside the zip file, making it relative.
+			// Determine the relative path for the file inside the zip.
 			relPath, err := filepath.Rel(filepath.Dir(walkRoot), path)
 			if err != nil {
 				return err
 			}
-			if walkRoot == path { // Handle single file case
+			// Handle the case where we are zipping a single file, not a directory.
+			if walkRoot == path {
 				relPath = filepath.Base(path)
 			}
 
-			header.Name = filepath.ToSlash(relPath)
-			if info.IsDir() {
-				header.Name += "/" // Mark it as a directory
+			// Manually create the header to ensure it has Unix attributes,
+			// which is critical for macOS to respect executable permissions.
+			// Using zip.FileInfoHeader() can inherit MS-DOS attributes on Windows.
+			header := &zip.FileHeader{
+				Name:     filepath.ToSlash(relPath),
+				Method:   zip.Deflate,
+				Modified: info.ModTime(),
 			}
 
-			// Set the compression method
-			header.Method = zip.Deflate
-
-			// Set the proper Unix permissions using the standard library's helper.
-			// This is more robust than setting ExternalAttrs manually.
-			var perms fs.FileMode
+			// Set the appropriate file mode.
 			if info.IsDir() {
-				perms = 0755 // rwxr-xr-x for directories
+				header.Name += "/"
+				// Set directory permissions. fs.ModeDir is crucial.
+				header.SetMode(0755 | fs.ModeDir)
 			} else {
-				perms = 0644 // rw-r--r-- for regular files
+				// Set standard file permissions.
+				perms := fs.FileMode(0644)
+				// Explicitly set executable permissions for the main binary.
+				if strings.HasSuffix(header.Name, "vbtc.app/Contents/MacOS/vbtc") {
+					perms = 0755
+				}
+				header.SetMode(perms)
 			}
-			// Special case for our main executable
-			if !info.IsDir() && strings.HasSuffix(header.Name, "vbtc.app/Contents/MacOS/vbtc") {
-				perms = 0755 // rwxr-xr-x for the executable
-			}
-			header.SetMode(perms)
 
-			// Create the entry in the zip file
+			// Create the entry in the zip file.
 			writer, err := zipWriter.CreateHeader(header)
 			if err != nil {
 				return err
