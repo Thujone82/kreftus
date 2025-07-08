@@ -44,10 +44,14 @@ func createZip(zipPath string, inputPaths []string) error {
 			if err != nil {
 				return err
 			}
-			if info.IsDir() {
-				return nil
+
+			// Create a header from the file info
+			header, err := zip.FileInfoHeader(info)
+			if err != nil {
+				return err
 			}
 
+			// Set the path inside the zip file, making it relative.
 			relPath, err := filepath.Rel(filepath.Dir(walkRoot), path)
 			if err != nil {
 				return err
@@ -56,37 +60,46 @@ func createZip(zipPath string, inputPaths []string) error {
 				relPath = filepath.Base(path)
 			}
 
-			header, err := zip.FileInfoHeader(info)
-			if err != nil {
-				return err
-			}
-
 			header.Name = filepath.ToSlash(relPath)
-
-			// Manually set Unix permissions to ensure they are respected on macOS.
-			// The standard zip library sets the creator OS to MS-DOS, which can
-			// cause macOS to ignore the executable bits.
-			var perms fs.FileMode = 0644
-			if strings.HasSuffix(header.Name, "vbtc.app/Contents/MacOS/vbtc") {
-				perms = 0755
+			if info.IsDir() {
+				header.Name += "/" // Mark it as a directory
 			}
-			header.CreatorVersion = 3 << 8                          // Set creator OS to Unix
-			header.ExternalAttrs = (uint32(perms) | 0o100000) << 16 // Set file mode and type
+
+			// Set the compression method
 			header.Method = zip.Deflate
 
+			// Set the proper Unix permissions using the standard library's helper.
+			// This is more robust than setting ExternalAttrs manually.
+			var perms fs.FileMode
+			if info.IsDir() {
+				perms = 0755 // rwxr-xr-x for directories
+			} else {
+				perms = 0644 // rw-r--r-- for regular files
+			}
+			// Special case for our main executable
+			if !info.IsDir() && strings.HasSuffix(header.Name, "vbtc.app/Contents/MacOS/vbtc") {
+				perms = 0755 // rwxr-xr-x for the executable
+			}
+			header.SetMode(perms)
+
+			// Create the entry in the zip file
 			writer, err := zipWriter.CreateHeader(header)
 			if err != nil {
 				return err
 			}
 
-			file, err := os.Open(path)
-			if err != nil {
+			// If it's a file, copy its contents.
+			if !info.IsDir() {
+				file, err := os.Open(path)
+				if err != nil {
+					return err
+				}
+				defer file.Close()
+
+				_, err = io.Copy(writer, file)
 				return err
 			}
-			defer file.Close()
-
-			_, err = io.Copy(writer, file)
-			return err
+			return nil
 		})
 		if err != nil {
 			return err
