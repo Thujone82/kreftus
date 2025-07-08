@@ -63,11 +63,15 @@ func createZip(zipPath string, inputPaths []string) error {
 
 			header.Name = filepath.ToSlash(relPath)
 
-			fileMode := fs.FileMode(0644)
+			// Manually set Unix permissions to ensure they are respected on macOS.
+			// The standard zip library sets the creator OS to MS-DOS, which can
+			// cause macOS to ignore the executable bits.
+			var perms fs.FileMode = 0644
 			if strings.HasSuffix(header.Name, "vbtc.app/Contents/MacOS/vbtc") {
-				fileMode = 0755 // Set executable permissions
+				perms = 0755
 			}
-			header.SetMode(fileMode)
+			header.CreatorVersion = 3 << 8                          // Set creator OS to Unix
+			header.ExternalAttrs = (uint32(perms) | 0o100000) << 16 // Set file mode and type
 			header.Method = zip.Deflate
 
 			writer, err := zipWriter.CreateHeader(header)
