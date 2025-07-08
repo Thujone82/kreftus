@@ -31,6 +31,8 @@ The script first uses a geocoding API to determine the latitude and longitude of
 ## Requirements
 - PowerShell
 - An active internet connection.
+- A free one-call-3 API key from OpenWeatherMap.
+TIP: Set maximum calls per day to 1000 to prevent charges.
 
 ## How to Run
 1.  Open a PowerShell terminal.
@@ -38,6 +40,19 @@ The script first uses a geocoding API to determine the latitude and longitude of
 3.  Run the script using one of the formats below.
 
 *Note: To run PowerShell scripts, you may need to adjust your execution policy. You can do this by running `Set-ExecutionPolicy Bypass` from an administrator PowerShell prompt.*
+
+## Configuration & First-Time Setup
+On the first run, `gw.ps1` will detect that no API key is configured and will guide you through a one-time setup process.
+
+1.  You will be prompted to enter your free **One Call API 3.0 Key** from OpenWeatherMap.
+2.  The script will validate the key to ensure it's working correctly.
+3.  Once validated, the key will be saved to a `gw.ini` configuration file.
+
+This file is stored in a standard user configuration directory on your system. You will not be prompted for the key again unless the file is deleted or the key becomes invalid.
+
+**Configuration File Locations:**
+- **Windows:** `C:\Users\<YourUsername>\AppData\Roaming\gw\gw.ini`
+- **Linux/macOS:** `/home/<YourUsername>/.config/gw/gw.ini`
 
 ## Parameters
 

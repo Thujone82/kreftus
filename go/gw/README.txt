@@ -48,7 +48,6 @@ This file is stored in a standard user configuration directory on your system. Y
 **Configuration File Locations:**
 - **Windows:** `C:\Users\<YourUsername>\AppData\Roaming\gw\gw.ini`
 - **Linux:** `/home/<YourUsername>/.config/gw/gw.ini`
-- **macOS:** `/Users/<YourUsername>/Library/Application Support/gw/gw.ini`
 
 ## Examples
 
