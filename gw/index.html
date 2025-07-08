@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>gw - Get Weather</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        header {
+            background-color: #333;
+            color: #fff;
+            padding: 1.5rem 0;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 3rem;
+            letter-spacing: 2px;
+        }
+
+        .container {
+            width: 80%;
+            margin: auto;
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 2rem;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        td {
+            padding: 1rem;
+            vertical-align: top;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .project-image-cell {
+            width: 256px;
+            padding-right: 1.5rem;
+        }
+
+        .project-image-cell img {
+            width: 100%;
+            height: auto;
+            max-width: 256px;
+            max-height: 256px;
+            display: block;
+            border-radius: 8px;
+        }
+
+        .project-text-cell {
+            font-size: 1rem;
+        }
+
+        .project-text-cell h2 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        .project-text-cell p {
+            margin-bottom: 0.5rem;
+        }
+
+        .project-text-cell h3 {
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 0.25rem;
+        }
+
+        .project-text-cell a {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        .project-text-cell a:hover {
+            text-decoration: underline;
+        }
+
+        .readme-link {
+            padding-left: 1em;
+            margin-top: -0.5em;
+            font-size: 0.9em;
+            margin-bottom: 1rem;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 900px) {
+            .project-row {
+                display: flex;
+                flex-direction: column;
+            }
+            .project-image-cell {
+                width: 100%;
+                padding-right: 0;
+                padding-bottom: 1rem;
+                text-align: center;
+            }
+            .project-image-cell img {
+                max-width: 100%;
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>gw - Get Weather</h1>
+    </header>
+
+    <div class="container">
+        <table>
+            <tbody>
+                <tr class="project-row">
+                    <td class="project-image-cell">
+                        <img src="../images/gw.png" alt="gw Application Screenshot">
+                    </td>
+                    <td class="project-text-cell">
+                        <div>
+                            <h2>gw</h2>
+                            <p>
+                                <b>gw</b> is a command-line application that retrieves and displays detailed weather information for a specified location using the OpenWeatherMap One Call API 3.0. It accepts US zip codes or "City, State" strings, and provides current conditions, daily forecasts, alerts, and more with smart color-coding for at-a-glance information.
+                            </p>
+                            <p>
+                                Available in a native Go version for cross-platform performance and a PowerShell version for Windows environments.
+                            </p>
+
+                            <h3>Downloads</h3>
+                            <p><b>GO Edition:</b> PC [ <a href="../go/gw/bin/win/x86/gw.exe">x86</a> / <a href="../go/gw/bin/win/x64/gw.exe">x64</a> ] Linux [ <a href="../go/gw/bin/linux/x86/gw">x86</a> / <a href="../go/gw/bin/linux/amd64/gw">amd64</a> ]</p>
+                            <p class="readme-link">↳ <a href="../go/gw/README.txt">README</a></p>
+                            <p><b>PowerShell Edition:</b> [ <a href="../ps/gw/gw.ps1">ps1</a> ]</p>
+                            <p class="readme-link">↳ <a href="../ps/gw/README.txt">README</a></p>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+</body>
+</html>
