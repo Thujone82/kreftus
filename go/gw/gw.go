@@ -25,7 +25,7 @@ import (
 
 const (
 	appName            = "gw" // Changed from "goweather"
-	configFileName     = "config.ini"
+	configFileName     = "gw.ini" // More specific name
 	defaultApiSection  = "openweathermap"
 	defaultApiKeyName  = "apikey"
 	defaultPermissions = 0600 // Read/write for user only for config file
@@ -139,6 +139,25 @@ type OverviewData struct {
 	WeatherOverview string `json:"weather_overview"`
 }
 
+func clearScreen() {
+	// This is a simple way to clear the screen on different OSes.
+	fmt.Print("\033[H\033[2J")
+}
+
+// setup will be the new entry point for configuration loading.
+func setup() (string, error) {
+	configPath, err := getConfigPath()
+	if err != nil {
+		return "", fmt.Errorf("error determining config path: %w", err)
+	}
+
+	apiKey, err := loadAPIKey(configPath)
+	if err != nil {
+		return "", err // The error from loadAPIKey is already descriptive.
+	}
+	return apiKey, nil
+}
+
 func getConfigPath() (string, error) {
 	cfgDir, err := os.UserConfigDir()
 	if err != nil {
@@ -158,56 +177,79 @@ func getConfigPath() (string, error) {
 	return filepath.Join(cfgDir, configFileName), nil
 }
 
-func loadAPIKey(configPath string) (string, error) {
-	cfg, err := ini.LoadSources(ini.LoadOptions{Loose: true, AllowShadows: true}, configPath)
+// testApiKey will check if the provided key is valid by making a lightweight API call.
+func testApiKey(apiKey string) bool {
+	if apiKey == "" {
+		return false
+	}
+	// Use a simple geocoding request to a known valid location to test the key.
+	testURL := fmt.Sprintf("%s?zip=90210,us&appid=%s", geoZipURL, apiKey)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(testURL)
 	if err != nil {
-		if os.IsNotExist(err) || strings.Contains(err.Error(), "cannot find file") { // More robust check for file not found
-			fmt.Printf("Configuration file not found at %s.\n", configPath)
-			return promptAndSaveAPIKey(configPath)
+		return false
+	}
+	defer resp.Body.Close()
+	// A 200 OK response means the key is valid and active.
+	return resp.StatusCode == http.StatusOK
+}
+
+// showFirstRunSetup handles the interactive prompt for the API key.
+func showFirstRunSetup(configPath string) (string, error) {
+	clearScreen()
+	psColorYellow.Println("*** First Time Setup ***")
+	psColorGreen.Println("Get Free One Call API 3.0 Key: https://openweathermap.org/api")
+
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		color.White("Please enter your API Key:")
+		apiKey, err := reader.ReadString('\n')
+		if err != nil {
+			return "", fmt.Errorf("failed to read API key from input: %w", err)
+		}
+		apiKey = strings.TrimSpace(apiKey)
+
+		if testApiKey(apiKey) {
+			cfg := ini.Empty()
+			cfg.Section(defaultApiSection).Key(defaultApiKeyName).SetValue(apiKey)
+
+			dir := filepath.Dir(configPath)
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return "", fmt.Errorf("failed to create directory for config file %s: %w", dir, err)
+			}
+			if err := cfg.SaveToIndent(configPath, "  "); err != nil {
+				return "", fmt.Errorf("failed to save API key to %s: %w", configPath, err)
+			}
+			if err := os.Chmod(configPath, defaultPermissions); err != nil {
+				log.Printf("Warning: could not set permissions for config file %s: %v", configPath, err)
+			}
+
+			color.Green("API Key is valid and has been saved to %s", configPath)
+			fmt.Println("Press Enter to continue.")
+			reader.ReadString('\n')
+			return apiKey, nil
+		} else {
+			color.Red("Invalid API Key. Please try again.")
+		}
+	}
+}
+
+func loadAPIKey(configPath string) (string, error) {
+	cfg, err := ini.Load(configPath)
+	if err != nil {
+		if os.IsNotExist(err) || strings.Contains(err.Error(), "cannot find file") {
+			return showFirstRunSetup(configPath)
 		}
 		return "", fmt.Errorf("failed to load config file %s: %w", configPath, err)
 	}
 
 	apiKey := cfg.Section(defaultApiSection).Key(defaultApiKeyName).String()
-	if apiKey == "" {
-		fmt.Println("API key not found in configuration.")
-		return promptAndSaveAPIKey(configPath)
+	if apiKey == "" || !testApiKey(apiKey) {
+		if apiKey != "" {
+			color.Yellow("Your previously saved API key is no longer valid.")
+		}
+		return showFirstRunSetup(configPath)
 	}
-	return apiKey, nil
-}
-
-func promptAndSaveAPIKey(configPath string) (string, error) {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Please enter your OpenWeatherMap API key: ")
-	apiKey, err := reader.ReadString('\n')
-	if err != nil {
-		return "", fmt.Errorf("failed to read API key from input: %w", err)
-	}
-	apiKey = strings.TrimSpace(apiKey)
-
-	if apiKey == "" {
-		return "", fmt.Errorf("API key cannot be empty")
-	}
-
-	cfg := ini.Empty()
-	cfg.Section(defaultApiSection).Key(defaultApiKeyName).SetValue(apiKey)
-
-	// Ensure the directory exists before saving
-	dir := filepath.Dir(configPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", fmt.Errorf("failed to create directory for config file %s: %w", dir, err)
-	}
-
-	err = cfg.SaveToIndent(configPath, "  ") // Save with indentation
-	if err != nil {
-		return "", fmt.Errorf("failed to save API key to %s: %w", configPath, err)
-	}
-	// Set permissions for the config file
-	if err := os.Chmod(configPath, defaultPermissions); err != nil {
-		log.Printf("Warning: could not set permissions for config file %s: %v", configPath, err)
-	}
-
-	fmt.Printf("API key saved to %s\n", configPath)
 	return apiKey, nil
 }
 
@@ -495,8 +537,7 @@ func displayWeather(city, countryOrState string, weather *WeatherData, overview 
 }
 
 func main() {
-	// Clear screen at the very start of execution
-	fmt.Print("\033[H\033[2J")
+	clearScreen()
 
 	log.SetFlags(0) // No timestamps or prefixes for cleaner error messages from log.Fatal
 
@@ -510,21 +551,16 @@ func main() {
 	}
 
 	// --- API Key Handling (Moved Up) ---
-	configPath, err := getConfigPath()
+	apiKey, err := setup()
 	if err != nil {
-		log.Fatalf("Error determining config path: %v", err)
-	}
-
-	apiKey, err := loadAPIKey(configPath)
-	if err != nil {
-		log.Fatalf("Error loading API key: %v", err)
+		log.Fatalf("Configuration setup failed: %v", err)
 	}
 
 	// --- Location Input Handling ---
 	var locationInput string
 	args := flag.Args()
 	if len(args) == 0 { // No location provided as argument, so prompt
-		// Welcome banner will now appear on the initially cleared screen
+		clearScreen() // Clear screen after setup before showing welcome banner
 		showWelcomeBanner()
 		reader := bufio.NewReader(os.Stdin)
 		fmt.Print("Enter a location (Zip Code or City, State): ")
@@ -560,7 +596,7 @@ func main() {
 	// This is done again here to ensure a clean display if the API key prompt occurred
 	// and then the location prompt followed.
 	if len(args) == 0 {
-		fmt.Print("\033[H\033[2J")
+		clearScreen()
 	}
 
 	displayWeather(city, countryOrState, weatherData, overviewData)
