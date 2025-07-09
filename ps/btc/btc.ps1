@@ -178,7 +178,7 @@ $mybtc = $null
 if ($PSBoundParameters.ContainsKey('UserBTCAmount')) { 
     if ($UserBTCAmount -is [double] -and $UserBTCAmount -ge 0) { $mybtc = $UserBTCAmount; Write-Verbose "MyBTC amount overridden by command line: $mybtc" } 
     else { Write-Warning "Invalid -UserBTCAmount provided. Ignoring command line value." } 
-} elseif ($null -ne $config.Portfolio.MyBTC -and $config.Portfolio.MyBTC -as [double] -ne $null -and ($config.Portfolio.MyBTC -as [double]) -ge 0) { 
+} elseif ($null -ne $config.Portfolio.MyBTC -and $null -ne ($config.Portfolio.MyBTC -as [double]) -and ($config.Portfolio.MyBTC -as [double]) -ge 0) { 
     $mybtc = $config.Portfolio.MyBTC -as [double]
     Write-Verbose "MyBTC amount loaded from config.ini: $mybtc"
 } else {
@@ -189,7 +189,7 @@ $myCOST = $null
 if ($PSBoundParameters.ContainsKey('UserTotalCost')) { 
     if ($UserTotalCost -is [double] -and $UserTotalCost -ge 0) { $myCOST = $UserTotalCost; Write-Verbose "MyCOST overridden by command line: $myCOST" } 
     else { Write-Warning "Invalid -UserTotalCost provided. Ignoring command line value." } 
-} elseif ($null -ne $config.Portfolio.MyCOST -and $config.Portfolio.MyCOST -as [double] -ne $null -and ($config.Portfolio.MyCOST -as [double]) -ge 0) { 
+} elseif ($null -ne $config.Portfolio.MyCOST -and $null -ne ($config.Portfolio.MyCOST -as [double]) -and ($config.Portfolio.MyCOST -as [double]) -ge 0) { 
     $myCOST = $config.Portfolio.MyCOST -as [double]
     Write-Verbose "MyCOST loaded from config.ini: $myCOST"
 } else {

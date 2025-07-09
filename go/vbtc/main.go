@@ -770,7 +770,8 @@ func fetchCurrentPriceData(apiKey string) (*ApiDataResponse, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API for current price returned status code %d", resp.StatusCode)
+		// Treat any other non-OK status as a provider problem, so the code is displayed.
+		return nil, &ProviderDownError{StatusCode: resp.StatusCode, Message: fmt.Sprintf("API provider returned non-OK status %d", resp.StatusCode)}
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -810,7 +811,7 @@ func getHistoricalData(apiKey string, start, end int64) (*HistoryResponse, error
 		return nil, fmt.Errorf("failed to execute request for historical price: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode >= 500 && resp.StatusCode <= 599 {
 		return nil, &ProviderDownError{StatusCode: resp.StatusCode, Message: "API provider returned server error for history"}
 	}
@@ -821,7 +822,8 @@ func getHistoricalData(apiKey string, start, end int64) (*HistoryResponse, error
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API for historical price returned status code %d", resp.StatusCode)
+		// Treat any other non-OK status as a provider problem, so the code is displayed.
+		return nil, &ProviderDownError{StatusCode: resp.StatusCode, Message: fmt.Sprintf("API provider for history returned non-OK status %d", resp.StatusCode)}
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -893,7 +895,7 @@ func updateApiData(skipHistorical bool) *ApiDataResponse {
 		}
 
 		if isStale {
-			color.Yellow("Fetching updated historical data (High, Low, Volatility)...")
+			color.Yellow("Fetching updated historical data...")
 			time.Sleep(1 * time.Second) // Let user see the message
 
 			end := time.Now().UTC()

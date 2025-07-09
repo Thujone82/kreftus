@@ -240,7 +240,7 @@ function Update-ApiData {
         }
 
         if ($isStale) {
-            Write-Host "Fetching updated historical data (High, Low, Volatility)..." -ForegroundColor Yellow
+            Write-Host "Fetching updated historical data..." -ForegroundColor Yellow
             Start-Sleep -Seconds 1 # Let user see the message
 
             $historicalStats = Get-HistoricalData -Config $Config
