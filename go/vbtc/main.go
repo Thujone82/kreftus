@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -19,6 +18,7 @@ import (
 	"time"
 
 	"errors"
+
 	"github.com/Knetic/govaluate"
 	"github.com/fatih/color"
 	"github.com/shirou/gopsutil/v3/process"
@@ -58,6 +58,7 @@ type ApiDataResponse struct {
 	Sma1h                   float64
 	HistoricalDataFetchTime time.Time
 	ApiError                string `json:"-"`
+	ApiErrorCode            int    `json:"-"`
 }
 
 type HistoryResponse struct {
@@ -85,6 +86,30 @@ type LedgerSummary struct {
 	TotalBuyBTC  float64
 	TotalSellBTC float64
 }
+
+// ApiKeyError is a custom error for invalid API key responses (401, 403).
+type ApiKeyError struct {
+	StatusCode int
+}
+
+func (e *ApiKeyError) Error() string {
+	return fmt.Sprintf("invalid api key (status %d)", e.StatusCode)
+}
+
+// ProviderDownError is a custom error for API provider issues (like 5xx status codes)
+// that we want to treat as network errors for UI purposes.
+type ProviderDownError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *ProviderDownError) Error() string {
+	return fmt.Sprintf("provider down: %s (status %d)", e.Message, e.StatusCode)
+}
+
+// Implement the net.Error interface to be caught by errors.As
+func (e *ProviderDownError) Timeout() bool   { return false } // Not a timeout
+func (e *ProviderDownError) Temporary() bool { return true }  // It's a temporary issue
 
 // --- Main Application ---
 func main() {
@@ -231,19 +256,26 @@ func showLoadingScreen() {
 func showMainScreen() {
 	clearScreen()
 
-	// Market Data
-	color.New(color.FgYellow).Println("*** Bitcoin Market ***")
-
 	isNetworkError := apiData != nil && apiData.ApiError == "NetworkError"
 	if isNetworkError {
-		color.Red("API Provider Down - Try again")
+		errorMessage := "API Provider Problem"
+		if apiData.ApiErrorCode > 0 {
+			errorMessage = fmt.Sprintf("%s (%d)", errorMessage, apiData.ApiErrorCode)
+		}
+		errorMessage += " - Try again later"
+		color.Red(errorMessage)
 	}
+
+	// Market Data
+	color.New(color.FgYellow).Println("*** Bitcoin Market ***")
 
 	isDataAvailable := apiData != nil && apiData.Rate > 0
 
 	if !isDataAvailable && !isNetworkError {
 		color.Red("Could not retrieve market data. Please check your API key in the Config menu.")
-	} else if isDataAvailable {
+	}
+
+	if isDataAvailable {
 		priceColor24h := color.New(color.FgWhite)
 		if apiData.Rate > apiData.Rate24hAgo {
 			priceColor24h = color.New(color.FgGreen)
@@ -728,6 +760,15 @@ func fetchCurrentPriceData(apiKey string) (*ApiDataResponse, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode >= 500 && resp.StatusCode <= 599 {
+		return nil, &ProviderDownError{StatusCode: resp.StatusCode, Message: "API provider returned server error"}
+	}
+
+	// Check for user-fixable API key errors
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return nil, &ApiKeyError{StatusCode: resp.StatusCode}
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("API for current price returned status code %d", resp.StatusCode)
 	}
@@ -766,9 +807,19 @@ func getHistoricalData(apiKey string, start, end int64) (*HistoryResponse, error
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to execute request for historical price: %w", err)
 	}
 	defer resp.Body.Close()
+	
+	if resp.StatusCode >= 500 && resp.StatusCode <= 599 {
+		return nil, &ProviderDownError{StatusCode: resp.StatusCode, Message: "API provider returned server error for history"}
+	}
+
+	// Check for user-fixable API key errors
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return nil, &ApiKeyError{StatusCode: resp.StatusCode}
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("API for historical price returned status code %d", resp.StatusCode)
 	}
@@ -793,23 +844,37 @@ func updateApiData(skipHistorical bool) *ApiDataResponse {
 	newData, err := fetchCurrentPriceData(apiKey)
 	if err != nil {
 		fmt.Printf("Error fetching current price data: %v\n", err)
-		var netErr net.Error
-		isNetworkError := errors.As(err, &netErr)
 
-		// If we have old data, return it so the screen doesn't go blank on a temporary error.
-		if apiData != nil {
-			if isNetworkError {
-				apiData.ApiError = "NetworkError"
-			} else {
+		var apiKeyErr *ApiKeyError
+		// If it's an API key error, we want the generic "Could not retrieve..." message to show.
+		// We achieve this by returning nil (or old data without an error flag).
+		if errors.As(err, &apiKeyErr) {
+			if apiData != nil {
 				apiData.ApiError = "" // Clear any previous network error
+			}
+			return apiData // Return old data, no error flag.
+		}
+
+		// For any other error, we assume it's a provider/network issue.
+		// We return the old data but with the ApiError flag set.
+		if apiData != nil {
+			apiData.ApiError = "NetworkError"
+			var providerDownErr *ProviderDownError
+			if errors.As(err, &providerDownErr) {
+				apiData.ApiErrorCode = providerDownErr.StatusCode
+			} else {
+				apiData.ApiErrorCode = 0 // Reset if it's a different network error
 			}
 			return apiData
 		}
-		// No old data, we must return something to show the error.
-		if isNetworkError {
-			return &ApiDataResponse{ApiError: "NetworkError"}
+
+		// No old data to return, so create a new object just to hold the error flag.
+		newErrorData := &ApiDataResponse{ApiError: "NetworkError"}
+		var providerDownErr *ProviderDownError
+		if errors.As(err, &providerDownErr) {
+			newErrorData.ApiErrorCode = providerDownErr.StatusCode
 		}
-		return nil
+		return newErrorData
 	}
 
 	if !skipHistorical {
@@ -926,12 +991,22 @@ func updateApiData(skipHistorical bool) *ApiDataResponse {
 			} else {
 				// Historical fetch failed, use fallback.
 				if historyErr != nil {
-					var netErr net.Error
-					if errors.As(historyErr, &netErr) {
+					var apiKeyErr *ApiKeyError
+					// If it's NOT an API key error, flag it as a network error.
+					// If it IS an API key error, we just let it fail silently and use fallbacks,
+					// because the main data fetch would have already succeeded.
+					if !errors.As(historyErr, &apiKeyErr) {
 						newData.ApiError = "NetworkError"
+						var providerDownErr *ProviderDownError
+						if errors.As(historyErr, &providerDownErr) {
+							newData.ApiErrorCode = providerDownErr.StatusCode
+						} else {
+							newData.ApiErrorCode = 0
+						}
 						fmt.Printf("Warning: could not fetch 24h history data due to a network error. Using fallbacks.\n")
 					} else {
-						fmt.Printf("Warning: could not fetch 24h history data: %v. Using fallbacks.\n", historyErr)
+						// The error is an API key error, but we already have current data, so we don't need to shout about it.
+						fmt.Printf("Warning: could not fetch 24h history data (API key issue?). Using fallbacks.\n")
 					}
 				}
 				// Try to use old historical data first.
@@ -1291,7 +1366,12 @@ func invokeTrade(txType, amountString string) {
 	for {
 		apiData = updateApiData(true)
 		if apiData != nil && apiData.ApiError == "NetworkError" {
-			color.Red("\nAPI Provider Down - Try again")
+			errorMessage := "\nAPI Provider Problem"
+			if apiData.ApiErrorCode > 0 {
+				errorMessage = fmt.Sprintf("%s (%d)", errorMessage, apiData.ApiErrorCode)
+			}
+			errorMessage += " - Try again later"
+			color.Red(errorMessage)
 			fmt.Println("Press Enter to return to the main menu.")
 			reader.ReadString('\n')
 			return // Return to main menu

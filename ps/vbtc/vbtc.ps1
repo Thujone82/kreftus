@@ -178,7 +178,11 @@ function Get-HistoricalData {
     }
     catch {
         if ($_.Exception -is [System.Net.WebException]) {
-            return [PSCustomObject]@{ IsNetworkError = $true }
+            $errorCode = $null
+            if ($_.Exception.Response) {
+                $errorCode = [int]$_.Exception.Response.StatusCode
+            }
+            return [PSCustomObject]@{ IsNetworkError = $true; ErrorCode = $errorCode }
         }
         Write-Warning "Failed to fetch historical price: $($_.Exception.Message)"
     }
@@ -245,6 +249,7 @@ function Update-ApiData {
                 # We have current data, but we should still show the error message.
                 # Let's add the error flag to the newData object.
                 $newData | Add-Member -MemberType NoteProperty -Name "IsNetworkError" -Value $true -Force
+                $newData | Add-Member -MemberType NoteProperty -Name "ErrorCode" -Value $historicalStats.ErrorCode -Force
                 Write-Warning "Could not fetch historical data due to a network error. Using fallbacks."
                 if ($OldApiData) {
                     Copy-HistoricalData -Source $OldApiData -Destination $newData
@@ -317,7 +322,11 @@ function Get-ApiData {
     catch {
         if ($_.Exception -is [System.Net.WebException]) {
             # This is a network error, return the specific object
-            return [PSCustomObject]@{ IsNetworkError = $true }
+            $errorCode = $null
+            if ($_.Exception.Response) {
+                $errorCode = [int]$_.Exception.Response.StatusCode
+            }
+            return [PSCustomObject]@{ IsNetworkError = $true; ErrorCode = $errorCode }
         }
         # For other errors (like bad API key), keep the existing behavior
         Write-Error "API call failed: $($_.Exception.Message)"
@@ -395,7 +404,12 @@ function Show-MainScreen {
     
     $isNetworkError = $ApiData -and $ApiData.PSObject.Properties['IsNetworkError'] -and $ApiData.IsNetworkError
     if ($isNetworkError) {
-        Write-Host "API Provider Down - Try again" -ForegroundColor Red
+        $errorMessage = "API Provider Problem"
+        if ($ApiData.PSObject.Properties['ErrorCode'] -and $ApiData.ErrorCode) {
+            $errorMessage += " ($($ApiData.ErrorCode))"
+        }
+        $errorMessage += " - Try again later"
+        Write-Host $errorMessage -ForegroundColor Red
     }
     
     # --- 1. Data Calculation ---
@@ -846,7 +860,12 @@ function Invoke-Trade {
         # Update the local tradeApiData object, skipping the historical call for speed.
         $tradeApiData = Update-ApiData -Config $Config.Value -OldApiData $tradeApiData -SkipHistorical
         if ($tradeApiData -and $tradeApiData.PSObject.Properties['IsNetworkError'] -and $tradeApiData.IsNetworkError) {
-            Write-Host "`nAPI Provider Down - Try again" -ForegroundColor Red
+            $errorMessage = "`nAPI Provider Problem"
+            if ($tradeApiData.PSObject.Properties['ErrorCode'] -and $tradeApiData.ErrorCode) {
+                $errorMessage += " ($($tradeApiData.ErrorCode))"
+            }
+            $errorMessage += " - Try again later"
+            Write-Host $errorMessage -ForegroundColor Red
             Read-Host "Press Enter to return to the main menu."
             return $CurrentApiData # Return the old, non-error data to the main loop
         }
