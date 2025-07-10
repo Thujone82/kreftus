@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fatih/color"
@@ -599,14 +600,31 @@ func main() {
 		break // Geocoding was successful, exit the loop.
 	}
 
-	weatherData, err := getWeatherData(lat, lon, apiKey)
-	if err != nil {
-		log.Fatalf("Error fetching weather data: %v", err)
-	}
+	// Concurrently fetch detailed weather and the overview summary.
+	var weatherData *WeatherData
+	var overviewData *OverviewData
+	var weatherErr, overviewErr error
+	var wg sync.WaitGroup
 
-	overviewData, err := getWeatherOverview(lat, lon, apiKey)
-	if err != nil {
-		log.Fatalf("Error fetching weather overview: %v", err)
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		weatherData, weatherErr = getWeatherData(lat, lon, apiKey)
+	}()
+
+	go func() {
+		defer wg.Done()
+		overviewData, overviewErr = getWeatherOverview(lat, lon, apiKey)
+	}()
+
+	wg.Wait()
+
+	if weatherErr != nil {
+		log.Fatalf("Error fetching weather data: %v", weatherErr)
+	}
+	if overviewErr != nil {
+		log.Fatalf("Error fetching weather overview: %v", overviewErr)
 	}
 
 	// Clear screen if we prompted for location input before showing weather.
