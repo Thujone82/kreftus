@@ -452,7 +452,7 @@ func wrapText(text string, width int) []string {
 	return lines
 }
 
-func displayWeather(city, countryOrState string, weather *WeatherData, overview *OverviewData) {
+func displayWeather(city, countryOrState string, weather *WeatherData, overview *OverviewData, isTerse bool) {
 	current := weather.Current
 	dailyToday := weather.Daily[0] // Assumes at least one day is present, checked in getWeatherData
 
@@ -516,23 +516,27 @@ func displayWeather(city, countryOrState string, weather *WeatherData, overview 
 	colorMoon.Printf("Moonset: %s\n", formatUnixTimeLocal(dailyToday.Moonset, "3:04 PM"))
 	colorMoon.Printf("Moon Phase: %s\n", getMoonPhaseDescription(dailyToday.MoonPhase))
 	colorInfo.Printf("Observed: %s\n", formatUnixTimeLocal(current.Dt, "Jan 2, 2006 3:04 PM"))
-	fmt.Println()
 
-	colorTitle.Printf("*** %s, %s Weather Report ***\n", city, countryOrState)
-	wrappedReport := wrapText(overview.WeatherOverview, 80) // Assuming 80 char width for console
-	for _, line := range wrappedReport {
-		colorDefault.Println(line)
+	if !isTerse && overview != nil {
+		fmt.Println()
+		colorTitle.Printf("*** %s, %s Weather Report ***\n", city, countryOrState)
+		wrappedReport := wrapText(overview.WeatherOverview, 80) // Assuming 80 char width for console
+		for _, line := range wrappedReport {
+			colorDefault.Println(line)
+		}
+		fmt.Println()
+		psColorCyan.Printf("https://forecast.weather.gov/MapClick.php?lat=%f&lon=%f\n", weather.Lat, weather.Lon)
 	}
-	fmt.Println()
-	psColorCyan.Printf("https://forecast.weather.gov/MapClick.php?lat=%f&lon=%f\n", weather.Lat, weather.Lon)
 
 	if len(weather.Alerts) > 0 {
 		for _, alert := range weather.Alerts {
 			fmt.Println()
 			colorAlert.Printf("*** %s - %s ***\n", alert.Event, alert.SenderName)
-			wrappedAlertDesc := wrapText(alert.Description, 80)
-			for _, line := range wrappedAlertDesc {
-				colorDefault.Println(line)
+			if !isTerse {
+				wrappedAlertDesc := wrapText(alert.Description, 80)
+				for _, line := range wrappedAlertDesc {
+					colorDefault.Println(line)
+				}
 			}
 			colorInfo.Printf("Starts: %s\n", formatUnixTimeLocal(alert.Start, "Jan 2, 2006 3:04 PM MST"))
 			colorInfo.Printf("Ends: %s\n", formatUnixTimeLocal(alert.End, "Jan 2, 2006 3:04 PM MST"))
@@ -545,11 +549,14 @@ func main() {
 
 	log.SetFlags(0) // No timestamps or prefixes for cleaner error messages from log.Fatal
 
+	var isTerse bool
 	helpFlag := flag.Bool("h", false, "Display help information")
 	helpLongFlag := flag.Bool("help", false, "Display help information")
+	flag.BoolVar(&isTerse, "terse", false, "Display a terse, less busy view of the weather.")
+	flag.BoolVar(&isTerse, "t", false, "Alias for -terse.")
 	flag.Parse()
 
-	if *helpFlag || *helpLongFlag {
+	if *helpFlag || *helpLongFlag || (isTerse && len(flag.Args()) == 0) {
 		showHelp()
 		return
 	}
@@ -606,24 +613,28 @@ func main() {
 	var weatherErr, overviewErr error
 	var wg sync.WaitGroup
 
-	wg.Add(2)
-
+	// Fetch detailed weather data in all cases.
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		weatherData, weatherErr = getWeatherData(lat, lon, apiKey)
 	}()
 
-	go func() {
-		defer wg.Done()
-		overviewData, overviewErr = getWeatherOverview(lat, lon, apiKey)
-	}()
+	// Only fetch the overview if not in terse mode.
+	if !isTerse {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			overviewData, overviewErr = getWeatherOverview(lat, lon, apiKey)
+		}()
+	}
 
 	wg.Wait()
 
 	if weatherErr != nil {
 		log.Fatalf("Error fetching weather data: %v", weatherErr)
 	}
-	if overviewErr != nil {
+	if !isTerse && overviewErr != nil {
 		log.Fatalf("Error fetching weather overview: %v", overviewErr)
 	}
 
@@ -634,7 +645,7 @@ func main() {
 		clearScreen()
 	}
 
-	displayWeather(city, countryOrState, weatherData, overviewData)
+	displayWeather(city, countryOrState, weatherData, overviewData, isTerse)
 
 	// --- Pause Before Exit Logic ---
 	// Replicate PowerShell script's "pause before exit" logic

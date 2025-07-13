@@ -49,6 +49,25 @@ This file is stored in a standard user configuration directory on your system. Y
 - **Windows:** `C:\Users\<YourUsername>\AppData\Roaming\gw\gw.ini`
 - **Linux:** `/home/<YourUsername>/.config/gw/gw.ini`
 
+## Parameters
+
+- `Location` [string] (Positional: 0)
+  - The location for which to retrieve weather. Can be a 5-digit US zip code or a "City, State" string.
+  - If omitted, the script will prompt you for it.
+
+- `-Help` [switch]
+  - Displays a detailed help and usage message in the console.
+
+- `-Verbose` [switch]
+  - A built-in PowerShell parameter that, when used with this script, will display the URLs being called for geocoding and weather data. Useful for debugging.
+
+- `-Terse` or `-t` [switch]
+  - Provides a less busy, streamlined view. This mode is also faster as it suppresses an API call.
+  - **Removes:** The entire "Weather Report" section, including the descriptive paragraph and the forecast.weather.gov link.
+  - **Simplifies Alerts:** For any active weather alerts, only the main title and the start/end times are shown, hiding the detailed description.
+
+
+
 ## Examples
 
 ### Example 1: Get weather by zip code
@@ -56,9 +75,9 @@ This file is stored in a standard user configuration directory on your system. Y
 ./gw 97219
 ```
 
-### Example 2: Get weather by city and state
+### Example 2: Get terse weather by city and state
 ```shell
-./gw "Portland, OR"
+./gw -t "Portland, OR"
 ```
 
 ### Example 3: View help information
