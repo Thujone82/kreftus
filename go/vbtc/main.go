@@ -1306,7 +1306,6 @@ func addLedgerEntry(txType string, usdAmount, btcAmount, btcPrice, userBtcAfter 
 func invokeTrade(txType, amountString string) {
 	playerUSD, _ := cfg.Section("Portfolio").Key("PlayerUSD").Float64()
 	playerBTC, _ := cfg.Section("Portfolio").Key("PlayerBTC").Float64()
-	playerInvested, _ := cfg.Section("Portfolio").Key("PlayerInvested").Float64()
 
 	var maxAmount float64
 	var prompt string
@@ -1437,24 +1436,57 @@ func invokeTrade(txType, amountString string) {
 				continue // The offer is stale, loop to get a new price.
 			}
 
+			// Reload config from disk to get the absolute latest portfolio state before committing the trade.
+			// This prevents race conditions where another instance of the app has made a trade.
+			tradeCfg, err := ini.Load(iniFilePath)
+			if err != nil {
+				color.Red("\nCritical Error: Could not read portfolio file '%s' to finalize trade.", iniFilePath)
+				color.Red("Error: %v", err)
+				color.Red("Your trade has been CANCELled to prevent data loss.")
+				fmt.Println("Press Enter to continue.")
+				reader.ReadString('\n')
+				return // Cancel the trade
+			}
+
+			// Get the most up-to-date portfolio values
+			currentPlayerUSD, _ := tradeCfg.Section("Portfolio").Key("PlayerUSD").Float64()
+			currentPlayerBTC, _ := tradeCfg.Section("Portfolio").Key("PlayerBTC").Float64()
+			currentPlayerInvested, _ := tradeCfg.Section("Portfolio").Key("PlayerInvested").Float64()
+
+			// Verify if the trade is still possible with the latest balance
+			if txType == "Buy" && usdAmount > currentPlayerUSD {
+				color.Red("\nTrade cancelled. Your USD balance has changed since the trade was initiated.")
+				color.Red("Your current balance is $%s, but the trade required $%s.", formatFloat(currentPlayerUSD, 2), formatFloat(usdAmount, 2))
+				fmt.Println("Press Enter to continue.")
+				reader.ReadString('\n')
+				return
+			}
+			if txType == "Sell" && btcAmount > currentPlayerBTC {
+				color.Red("\nTrade cancelled. Your BTC balance has changed since the trade was initiated.")
+				color.Red("Your current balance is %.8f BTC, but the trade required %.8f BTC.", currentPlayerBTC, btcAmount)
+				fmt.Println("Press Enter to continue.")
+				reader.ReadString('\n')
+				return
+			}
+
 			var newUserBtc, newInvested float64
 			if txType == "Buy" {
-				cfg.Section("Portfolio").Key("PlayerUSD").SetValue(fmt.Sprintf("%.2f", playerUSD-usdAmount))
-				newUserBtc = playerBTC + btcAmount
-				newInvested = playerInvested + usdAmount
+				tradeCfg.Section("Portfolio").Key("PlayerUSD").SetValue(fmt.Sprintf("%.2f", currentPlayerUSD-usdAmount))
+				newUserBtc = currentPlayerBTC + btcAmount
+				newInvested = currentPlayerInvested + usdAmount
 			} else { // Sell
-				newUserBtc = playerBTC - btcAmount
+				newUserBtc = currentPlayerBTC - btcAmount
 				if newUserBtc < 1e-9 { // Tolerance for float comparison
 					newUserBtc = 0
 					newInvested = 0
-				} else if playerBTC > 0 {
-					newInvested = playerInvested * (newUserBtc / playerBTC)
+				} else if currentPlayerBTC > 0 {
+					newInvested = currentPlayerInvested * (newUserBtc / currentPlayerBTC)
 				}
-				cfg.Section("Portfolio").Key("PlayerUSD").SetValue(fmt.Sprintf("%.2f", playerUSD+usdAmount))
+				tradeCfg.Section("Portfolio").Key("PlayerUSD").SetValue(fmt.Sprintf("%.2f", currentPlayerUSD+usdAmount))
 			}
-			cfg.Section("Portfolio").Key("PlayerBTC").SetValue(fmt.Sprintf("%.8f", newUserBtc))
-			cfg.Section("Portfolio").Key("PlayerInvested").SetValue(fmt.Sprintf("%.2f", newInvested))
-			err := cfg.SaveTo(iniFilePath)
+			tradeCfg.Section("Portfolio").Key("PlayerBTC").SetValue(fmt.Sprintf("%.8f", newUserBtc))
+			tradeCfg.Section("Portfolio").Key("PlayerInvested").SetValue(fmt.Sprintf("%.2f", newInvested))
+			err = tradeCfg.SaveTo(iniFilePath)
 			if err != nil {
 				color.Red("\nTrade failed: Could not save portfolio update to vbtc.ini.")
 				color.Red("Error: %v", err)
@@ -1462,6 +1494,7 @@ func invokeTrade(txType, amountString string) {
 				fmt.Println("Press Enter to continue.")
 				reader.ReadString('\n')
 			} else {
+				cfg = tradeCfg // Update the global config to reflect the new state
 				addLedgerEntry(txType, usdAmount, btcAmount, apiData.Rate, newUserBtc)
 				fmt.Printf("\n%s successful.\n", txType)
 				time.Sleep(1 * time.Second)

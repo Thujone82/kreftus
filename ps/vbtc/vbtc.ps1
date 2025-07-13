@@ -914,35 +914,57 @@ function Invoke-Trade {
                 continue # The offer is stale, loop to get a new price.
             }
 
-            $newUserBtc = 0.0
-            $newInvested = 0.0
-            if ($Type -eq "Buy") {
-                $Config.Value.Portfolio.PlayerUSD = ($playerUSD - $usdAmount).ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
-                $newUserBtc = $playerBTC + $btcAmount
-                $newInvested = $playerInvested + $usdAmount
-                $Config.Value.Portfolio.PlayerBTC = $newUserBtc.ToString("F8", [System.Globalization.CultureInfo]::InvariantCulture)
-                $Config.Value.Portfolio.PlayerInvested = $newInvested.ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
-            } else { # Sell
-                $newUserBtc = $playerBTC - $btcAmount
-                if ($newUserBtc -le 0.000000005) { # Use a small tolerance for floating point comparison
-                    $newInvested = 0
-                    $newUserBtc = 0 # Ensure it's exactly zero if we're clearing it
-                } else {
-                    # Reduce invested capital proportionally to the amount of BTC sold.
-                    # This preserves the average cost basis of the remaining holdings.
-                    if ($playerBTC -gt 0) {
-                        $newInvested = $playerInvested * ($newUserBtc / $playerBTC)
-                    }
-                    else {
-                        $newInvested = 0
-                    }
-                }
-                $Config.Value.Portfolio.PlayerBTC = $newUserBtc.ToString("F8", [System.Globalization.CultureInfo]::InvariantCulture)
-                $Config.Value.Portfolio.PlayerUSD = ($playerUSD + $usdAmount).ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
-                $Config.Value.Portfolio.PlayerInvested = $newInvested.ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
+            # --- RACE CONDITION FIX: Read-before-write ---
+            # Reload config from disk to get the absolute latest portfolio state before committing the trade.
+            $tradeConfig = Get-IniConfiguration -FilePath $iniFilePath
+            if (-not $tradeConfig) {
+                Write-Warning "`nCritical Error: Could not read portfolio file to finalize trade."
+                Write-Warning "Your trade has been CANCELLED to prevent data loss."
+                Read-Host "Press Enter to continue."
+                return $tradeApiData # Cancel the trade
             }
-            $saveSuccess = Set-IniConfiguration -FilePath $iniFilePath -Configuration $Config.Value
+
+            # Get the most up-to-date portfolio values
+            $currentPlayerUSD = 0.0; $currentPlayerBTC = 0.0; $currentPlayerInvested = 0.0
+            $null = [double]::TryParse($tradeConfig.Portfolio.PlayerUSD, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$currentPlayerUSD)
+            $null = [double]::TryParse($tradeConfig.Portfolio.PlayerBTC, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$currentPlayerBTC)
+            $null = [double]::TryParse($tradeConfig.Portfolio.PlayerInvested, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$currentPlayerInvested)
+
+            # Re-verify if the trade is still possible with the latest balance
+            if ($Type -eq "Buy" -and $usdAmount -gt $currentPlayerUSD) {
+                Write-Warning "`nTrade cancelled. Your USD balance has changed since the trade was initiated."
+                Write-Warning "Your current balance is $($currentPlayerUSD.ToString("C2")), but the trade required $($usdAmount.ToString("C2"))."
+                Read-Host "Press Enter to continue."
+                return $tradeApiData
+            }
+            if ($Type -eq "Sell" -and $btcAmount -gt $currentPlayerBTC) {
+                Write-Warning "`nTrade cancelled. Your BTC balance has changed since the trade was initiated."
+                Write-Warning "Your current balance is $($currentPlayerBTC.ToString("F8")) BTC, but the trade required $($btcAmount.ToString("F8")) BTC."
+                Read-Host "Press Enter to continue."
+                return $tradeApiData
+            }
+
+            # --- Perform trade with fresh data ---
+            $newUserBtc = 0.0; $newInvested = 0.0
+            if ($Type -eq "Buy") {
+                $tradeConfig.Portfolio.PlayerUSD = ($currentPlayerUSD - $usdAmount).ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
+                $newUserBtc = $currentPlayerBTC + $btcAmount
+                $newInvested = $currentPlayerInvested + $usdAmount
+            } else { # Sell
+                $newUserBtc = $currentPlayerBTC - $btcAmount
+                if ($newUserBtc -le 0.000000005) { $newUserBtc = 0; $newInvested = 0 }
+                else {
+                    if ($currentPlayerBTC -gt 0) { $newInvested = $currentPlayerInvested * ($newUserBtc / $currentPlayerBTC) }
+                    else { $newInvested = 0 }
+                }
+                $tradeConfig.Portfolio.PlayerUSD = ($currentPlayerUSD + $usdAmount).ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
+            }
+            $tradeConfig.Portfolio.PlayerBTC = $newUserBtc.ToString("F8", [System.Globalization.CultureInfo]::InvariantCulture)
+            $tradeConfig.Portfolio.PlayerInvested = $newInvested.ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
+
+            $saveSuccess = Set-IniConfiguration -FilePath $iniFilePath -Configuration $tradeConfig
             if ($saveSuccess) {
+                $Config.Value = $tradeConfig # Update the in-memory config to reflect the successful trade
                 Add-LedgerEntry -Type $Type -UsdAmount $usdAmount -BtcAmount $btcAmount -BtcPrice $tradeApiData.rate -UserBtcAfter $newUserBtc
                 Write-Host "`n$Type successful."
                 Start-Sleep -Seconds 1
