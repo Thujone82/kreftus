@@ -1304,17 +1304,26 @@ func addLedgerEntry(txType string, usdAmount, btcAmount, btcPrice, userBtcAfter 
 }
 
 func invokeTrade(txType, amountString string) {
-	playerUSD, _ := cfg.Section("Portfolio").Key("PlayerUSD").Float64()
-	playerBTC, _ := cfg.Section("Portfolio").Key("PlayerBTC").Float64()
+	// For the most accurate UI prompt, we should read the latest config from disk here too.
+	// This prevents showing the user a stale "Max" amount if another client has made a trade.
+	promptCfg, err := ini.Load(iniFilePath)
+	if err != nil {
+		// If the read fails, fall back to the in-memory config for the prompt.
+		// The critical "read-before-write" is still performed later.
+		color.Yellow("Warning: could not read latest portfolio for prompt, using cached value: %v", err)
+		promptCfg = cfg
+	}
+	playerUSD, _ := promptCfg.Section("Portfolio").Key("PlayerUSD").Float64()
+	playerBTC, _ := promptCfg.Section("Portfolio").Key("PlayerBTC").Float64()
 
 	var maxAmount float64
 	var prompt string
 	if txType == "Buy" {
 		maxAmount = playerUSD
-		prompt = fmt.Sprintf("Amount in USD: [Max $%s]", formatFloat(maxAmount, 2))
+		prompt = fmt.Sprintf("Amount in USD [Max $%s]:", formatFloat(maxAmount, 2))
 	} else {
 		maxAmount = playerBTC
-		prompt = fmt.Sprintf("Amount in BTC: [Max %.8f] (or use 's' for satoshis)", maxAmount)
+		prompt = fmt.Sprintf("Amount in BTC [Max %.8f] (or use 's' for satoshis):", maxAmount)
 	}
 
 	reader := bufio.NewReader(os.Stdin)
@@ -1326,7 +1335,7 @@ func invokeTrade(txType, amountString string) {
 
 		userInput := amountString
 		if userInput == "" {
-			fmt.Print(prompt + ": ")
+			fmt.Print(prompt + " ")
 			userInput, _ = reader.ReadString('\n')
 			userInput = strings.TrimSpace(userInput)
 			if userInput == "" {

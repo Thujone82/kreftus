@@ -765,19 +765,27 @@ function Invoke-LedgerArchive {
 
 function Invoke-Trade {
     param ([ref]$Config, [string]$Type, [string]$AmountString = $null, [PSCustomObject]$CurrentApiData)
-    
+
+    # For the most accurate UI prompt, we should read the latest config from disk here too.
+    # This prevents showing the user a stale "Max" amount if another client has made a trade.
+    $promptConfig = Get-IniConfiguration -FilePath $iniFilePath
+    if (-not $promptConfig) {
+        # If the read fails, fall back to the in-memory config for the prompt.
+        # The critical "read-before-write" is still performed later.
+        Write-Warning "Could not read latest portfolio for prompt, using cached value."
+        $promptConfig = $Config.Value
+    }
+
     $playerUSD = 0.0
     $playerBTC = 0.0
-    $playerInvested = 0.0
-    $null = [double]::TryParse($Config.Value.Portfolio.PlayerUSD, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$playerUSD)
-    $null = [double]::TryParse($Config.Value.Portfolio.PlayerBTC, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$playerBTC)
-    $null = [double]::TryParse($Config.Value.Portfolio.PlayerInvested, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$playerInvested)
+    $null = [double]::TryParse($promptConfig.Portfolio.PlayerUSD, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$playerUSD)
+    $null = [double]::TryParse($promptConfig.Portfolio.PlayerBTC, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$playerBTC)
 
     $maxAmount = if ($Type -eq "Buy") { $playerUSD } else { $playerBTC }
     $prompt = if ($Type -eq "Buy") {
-        "Amount in USD: [Max $($maxAmount.ToString("C2"))]"
+        "Amount in USD [Max $($maxAmount.ToString("C2"))]:"
     } else {
-        "Amount in BTC: [Max $($maxAmount.ToString("F8"))] (or use 's' for satoshis)"
+        "Amount in BTC [Max $($maxAmount.ToString("F8"))] (or use 's' for satoshis):"
     }
 
     $userInput = $AmountString
@@ -787,7 +795,7 @@ function Invoke-Trade {
     while ($true) {
         Clear-Host
         Write-Host "*** $Type Bitcoin ***" -ForegroundColor Yellow
-        if ([string]::IsNullOrEmpty($userInput)) {
+        if ([string]::IsNullOrEmpty($userInput)) { # Prompt for input if not provided as an argument
             $userInput = Read-Host $prompt
             if ([string]::IsNullOrEmpty($userInput)) { return } # User cancelled
         }
