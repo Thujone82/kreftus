@@ -578,7 +578,7 @@ function Show-MainScreen {
         $sessionChange = $portfolioValue - $SessionStartValue
         $sessionPercent = ($sessionChange / $SessionStartValue) * 100
         $sessionColor = if ($sessionChange -gt 0) { "Green" } elseif ($sessionChange -lt 0) { "Red" } else { "White" }
-        $sessionDisplay = "{0} [{1}]" -f (Format-ProfitLoss -Value $sessionChange -FormatString "C2"), (Format-ProfitLoss -Value $sessionPercent -FormatString "N2" -Suffix "%")
+        $sessionDisplay = "{0} [{1}{2:N2}%]" -f (Format-ProfitLoss -Value $sessionChange -FormatString "C2"), $(if($sessionPercent -ge 0){"+"}), $sessionPercent
         Write-AlignedLine -Label "Session P/L:" -Value $sessionDisplay -ValueColor $sessionColor
     }
     
@@ -1230,7 +1230,7 @@ while ($true) {
                     $sessionColor = if ($sessionChange -gt 0) { "Green" }
                     elseif ($sessionChange -lt 0) { "Red" }
                     else { "White" }
-                    $sessionDisplay = "{0} [{1}]" -f (Format-ProfitLoss -Value $sessionChange -FormatString "C2"), (Format-ProfitLoss -Value $sessionPercent -FormatString "N2" -Suffix "%")
+                    $sessionDisplay = "{0} [{1}{2:N2}%]" -f (Format-ProfitLoss -Value $sessionChange -FormatString "C2"), $(if($sessionPercent -ge 0){"+"}), $sessionPercent
                     Write-AlignedLine -Label "P/L:" -Value $sessionDisplay -ValueColor $sessionColor -ValueStartColumn $sessionValueStartColumn
                 }
 
