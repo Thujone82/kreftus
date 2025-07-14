@@ -1,0 +1,35 @@
+{
+    "name": "Habit Tracker",
+    "short_name": "Habit",
+    "description": "A beautiful habit tracking app to build better daily routines",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#1a1a1a",
+    "theme_color": "#22c55e",
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "icons/32.png",
+            "sizes": "32x32",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/256.png",
+            "sizes": "256x256",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ],
+    "categories": ["productivity", "lifestyle", "health"],
+    "screenshots": [
+        {
+            "src": "screenshot1.png",
+            "sizes": "540x720",
+            "type": "image/png"
+        }
+    ]
+}
