@@ -392,7 +392,7 @@ func showMainScreen() {
 		} else if roundedCurrentValue < roundedStartValue {
 			sessionColor = color.New(color.FgRed)
 		}
-		sessionDisplay := fmt.Sprintf("%s [%s]", formatProfitLoss(sessionChange, ""), formatProfitLoss(sessionPercent, "%"))
+		sessionDisplay := fmt.Sprintf("%s [%s]", formatProfitLoss(sessionChange, ""), fmt.Sprintf("%+.2f%%", sessionPercent))
 		writeAlignedLine("Session P/L:", sessionDisplay, sessionColor)
 	}
 
@@ -680,7 +680,7 @@ func showExitScreen() {
 		} else if roundedFinalValue < roundedStartValue {
 			sessionColor = color.New(color.FgRed)
 		}
-		sessionDisplay := fmt.Sprintf("%s [%s]", formatProfitLoss(sessionChange, ""), formatProfitLoss(sessionPercent, "%"))
+		sessionDisplay := fmt.Sprintf("%s [%s]", formatProfitLoss(sessionChange, ""), fmt.Sprintf("%+.2f%%", sessionPercent))
 		writeAlignedLine("P/L:", sessionDisplay, sessionColor, sessionValueStartColumn)
 	}
 
