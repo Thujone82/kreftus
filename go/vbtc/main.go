@@ -392,7 +392,8 @@ func showMainScreen() {
 		} else if roundedCurrentValue < roundedStartValue {
 			sessionColor = color.New(color.FgRed)
 		}
-		writeAlignedLine("Session P/L:", fmt.Sprintf("%+.2f [%+.2f%%]", sessionChange, sessionPercent), sessionColor)
+		sessionDisplay := fmt.Sprintf("%s [%s]", formatProfitLoss(sessionChange, ""), formatProfitLoss(sessionPercent, "%%"))
+		writeAlignedLine("Session P/L:", sessionDisplay, sessionColor)
 	}
 
 	fmt.Println()
@@ -679,7 +680,8 @@ func showExitScreen() {
 		} else if roundedFinalValue < roundedStartValue {
 			sessionColor = color.New(color.FgRed)
 		}
-		writeAlignedLine("P/L:", fmt.Sprintf("%s%.2f [%+.2f%%]", plusSign(sessionChange), sessionChange, sessionPercent), sessionColor, sessionValueStartColumn)
+		sessionDisplay := fmt.Sprintf("%s [%s]", formatProfitLoss(sessionChange, ""), formatProfitLoss(sessionPercent, "%%"))
+		writeAlignedLine("P/L:", sessionDisplay, sessionColor, sessionValueStartColumn)
 	}
 
 	summary := getSessionSummary()
@@ -1632,4 +1634,11 @@ func plusSign(num float64) string {
 		return "+"
 	}
 	return ""
+}
+
+func formatProfitLoss(value float64, formatSuffix string) string {
+	if value < 0 {
+		return fmt.Sprintf("(%.2f%s)", math.Abs(value), formatSuffix)
+	}
+	return fmt.Sprintf("+%.2f%s", value, formatSuffix)
 }

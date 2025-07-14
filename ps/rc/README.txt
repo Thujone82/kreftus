@@ -1,12 +1,12 @@
 '# rc - Run Continuously
 
-## Version 1.1
+## Version 1.2
 
 ## Author
 Kreft&Gemini
 
 ## Date
-2025-07-06
+2025-07-08
 
 ## Description
 `rc.ps1` (Run Continuously) is a flexible PowerShell utility designed to execute a given command repeatedly at a specified interval. It is ideal for simple, recurring tasks, monitoring, or any scenario where a command needs to be run in a loop without the complexity of setting up a formal scheduled task.

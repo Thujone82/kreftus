@@ -42,12 +42,12 @@ var (
 	colorAlert   = color.New(color.FgRed)
 	colorTitle   = color.New(color.FgGreen)
 	colorInfo    = color.New(color.FgHiBlue)
-	colorSun     = color.New(color.FgYellow)  // PowerShell DarkYellow
+	colorSun     = color.New(color.FgHiYellow) // PowerShell Yellow (bright)
 	colorMoon    = color.New(color.FgHiBlack) // PowerShell DarkGray
 	colorDefault = color.New(color.FgCyan)    // PowerShell DarkCyan
 
 	// For welcome banner and help text, specific colors from PS script
-	psColorYellow = color.New(color.FgYellow)
+	psColorYellow = color.New(color.FgHiYellow)
 	psColorCyan   = color.New(color.FgCyan)
 	psColorGreen  = color.New(color.FgGreen)
 	psColorBlue   = color.New(color.FgBlue)
