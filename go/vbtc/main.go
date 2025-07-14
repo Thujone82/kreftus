@@ -473,7 +473,7 @@ func showConfigScreen() {
 			reader.ReadString('\n')
 		case "3":
 			invokeLedgerArchive()
-		case "4":
+		case "4", "": // Default to returning if input is empty
 			return
 		default:
 			color.Red("Invalid choice. Please try again.")

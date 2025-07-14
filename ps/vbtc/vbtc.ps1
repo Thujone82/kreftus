@@ -104,6 +104,19 @@ function Set-IniConfiguration {
     }
 }
 
+function Format-ProfitLoss {
+    param(
+        [double]$Value,
+        [string]$FormatString, # e.g., "C2" for currency, "N2" for number
+        [string]$Suffix = ""
+    )
+    if ($Value -lt 0) {
+        return "({0}{1})" -f (([Math]::Abs($Value)).ToString($FormatString)), $Suffix
+    } else {
+        return "+{0}{1}" -f ($Value.ToString($FormatString)), $Suffix
+    }
+}
+
 function Get-HistoricalData {
     param ([hashtable]$Config)
     Write-Verbose "Getting historical API data..."
@@ -565,7 +578,7 @@ function Show-MainScreen {
         $sessionChange = $portfolioValue - $SessionStartValue
         $sessionPercent = ($sessionChange / $SessionStartValue) * 100
         $sessionColor = if ($sessionChange -gt 0) { "Green" } elseif ($sessionChange -lt 0) { "Red" } else { "White" }
-        $sessionDisplay = "{0}{1:C2} [{2}{3:N2}%]" -f $(if($sessionChange -gt 0){"+"}), $sessionChange, $(if($sessionPercent -gt 0){"+"}), $sessionPercent
+        $sessionDisplay = "{0} [{1}]" -f (Format-ProfitLoss -Value $sessionChange -FormatString "C2"), (Format-ProfitLoss -Value $sessionPercent -FormatString "N2" -Suffix "%")
         Write-AlignedLine -Label "Session P/L:" -Value $sessionDisplay -ValueColor $sessionColor
     }
     
@@ -640,7 +653,9 @@ function Show-ConfigScreen {
             "3" {
                 Invoke-LedgerArchive -LedgerFilePath $ledgerFilePath
             }
-            "4" { return }
+            { $_ -eq '4' -or [string]::IsNullOrEmpty($_) } {
+                return # Return on '4' or if input is empty
+            }
             default { Write-Warning "Invalid choice. Please try again."; Read-Host "Press Enter to continue." }
         }
     }
@@ -1215,7 +1230,7 @@ while ($true) {
                     $sessionColor = if ($sessionChange -gt 0) { "Green" }
                     elseif ($sessionChange -lt 0) { "Red" }
                     else { "White" }
-                    $sessionDisplay = "{0}{1:C2} [{2}{3:N2}%]" -f $(if($sessionChange -gt 0){"+"}), $sessionChange, $(if($sessionPercent -gt 0){"+"}), $sessionPercent
+                    $sessionDisplay = "{0} [{1}]" -f (Format-ProfitLoss -Value $sessionChange -FormatString "C2"), (Format-ProfitLoss -Value $sessionPercent -FormatString "N2" -Suffix "%")
                     Write-AlignedLine -Label "P/L:" -Value $sessionDisplay -ValueColor $sessionColor -ValueStartColumn $sessionValueStartColumn
                 }
 
