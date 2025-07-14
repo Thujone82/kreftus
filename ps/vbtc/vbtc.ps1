@@ -742,7 +742,7 @@ function Invoke-LedgerArchive {
     $linesToKeep = -1
     while ($linesToKeep -lt 0) {
         $promptinput = Read-Host "Keep X Recent Lines? [0]"
-        if ([string]::IsNullOrEmpty($input)) {
+        if ([string]::IsNullOrEmpty($promptinput)) {
             $linesToKeep = 0
             break
         }
