@@ -296,13 +296,14 @@ const utils = {
         const timeoutId = setTimeout(() => controller.abort(), 3000); // 3-second timeout
 
         try {
-            // Using a well-known, highly available resource.
-            await fetch('https://www.google.com/favicon.ico', {
+            // Using a well-known, highly available resource that supports CORS.
+            const response = await fetch('https://httpstat.us/204', {
                 method: 'HEAD',
-                mode: 'no-cors', // Important: Prevents CORS errors from blocking the request
                 signal: controller.signal,
                 cache: 'no-store' // Important: Ensures a fresh network request
             });
+
+            if (!response.ok) throw new Error(`HTTP status ${response.status}`);
 
             clearTimeout(timeoutId);
             console.log("Connectivity Test: Network request succeeded. Setting status to ONLINE.");
