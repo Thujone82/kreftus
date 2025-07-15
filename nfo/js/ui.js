@@ -10,6 +10,7 @@ const ui = {
     btnAppConfig: document.getElementById('btnAppConfig'),
     btnAppUpdate: document.getElementById('btnAppUpdate'), // Added Update Button
     globalRefreshButton: document.getElementById('globalRefreshButton'), 
+    locationsSectionHeader: document.getElementById('locationsSectionHeader'),
 
     // App Config Modal
     appConfigModal: document.getElementById('appConfigModal'),
@@ -336,6 +337,14 @@ const ui = {
         }
         console.log("Location buttons rendered:", locations);
     },
+
+    updateGlobalRefreshProgress: (message) => {
+        if (ui.locationsSectionHeader) {
+            ui.locationsSectionHeader.textContent = message;
+        }
+    },
+
+
 
     updateButtonWeatherDisplay: async (buttonElement, location) => {
         // Ensure this function is robust against the button being removed from DOM

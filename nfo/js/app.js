@@ -559,6 +559,7 @@ const app = {
         }
 
         app.isRefreshingAllStale = true;
+        let completedCount = 0;
         ui.pauseHeaderIconLoading();
 
         for (const location of app.locations) {
@@ -568,6 +569,9 @@ const app = {
         app.isRefreshingAllStale = false;
         ui.resumeHeaderIconLoading();
     },
+
+
+
 
     updateGlobalRefreshButtonVisibility: () => {
         if (!ui.globalRefreshButton || !app.topics || app.topics.length === 0 || !app.locations || app.locations.length === 0) {
