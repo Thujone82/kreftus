@@ -509,6 +509,7 @@ const app = {
 
         console.log(`Fetching ${topicsToFetch.length} topics for ${location.description}`);
         const totalTopics = topicsToFetch.length;
+        const locationIndex = app.locations.findIndex(loc => loc.id === locationId) + 1; 
         let fetchedCount = 0;
         
         const updateLoadingMessage = () => {
@@ -516,6 +517,10 @@ const app = {
                 if (ui.infoModalTitle) ui.infoModalTitle.textContent = `Fetching ${location.description} (${fetchedCount}/${totalTopics})...`;
                 if (ui.infoModalUpdated) ui.infoModalUpdated.textContent = 'Fetching latest AI data...';
              }
+            // Update global progress message
+            if (app.isRefreshingAllStale) {
+                ui.updateGlobalRefreshProgress(`Fetching (${locationIndex} of ${app.locations.length}) ${location.description} (${fetchedCount}/${totalTopics})...`);
+            }
         };
         updateLoadingMessage();
 
@@ -544,6 +549,7 @@ const app = {
             app.topics.forEach(topic => { newCachedData[topic.id] = store.getAiCache(location.id, topic.id); });
             ui.displayInfoModal(location, app.topics, newCachedData, false, !window.isActuallyOnline);
         }
+        if (app.isRefreshingAllStale) ui.updateGlobalRefreshProgress(`Fetching (${locationIndex} of ${app.locations.length}) Complete.`)
         app.updateGlobalRefreshButtonVisibility();
     },
 
@@ -570,8 +576,7 @@ const app = {
         ui.resumeHeaderIconLoading();
     },
 
-
-
+    
 
     updateGlobalRefreshButtonVisibility: () => {
         if (!ui.globalRefreshButton || !app.topics || app.topics.length === 0 || !app.locations || app.locations.length === 0) {
