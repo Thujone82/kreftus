@@ -721,7 +721,7 @@ const app = {
         const iconCode = weatherData.weather[0] ? weatherData.weather[0].icon : null;
         const iconUrl = iconCode ? `https://openweathermap.org/img/wn/${iconCode}.png` : '';
         
-        let displayHtml = `<img src="${iconUrl}" alt="${description}" class="weather-icon-small"> ${temp}°F, ${description}`;
+        let displayHtml = `<img src="${iconUrl}" alt="${description}" class="weather-icon-small"> ${temp}°F`;
         if(isFromCache) {
             displayHtml += ` <span class="weather-cached-indicator">(cached)</span>`;
         }

@@ -268,7 +268,7 @@ const ui = {
                 button.onclick = () => onLocationClickCallback(location.id);
 
                 button.classList.remove('location-button-fresh', 'location-button-fetching', 'location-button-error', 'needs-info-structure');
-
+                
                 if (!areTopicsDefined) {
                     // Structure for button content: Name on one line, weather on another (if available)
                     const nameSpan = `<span class="location-button-name">${location.description}</span>`;
@@ -318,7 +318,7 @@ const ui = {
                     } else { // Default for 'stale'
                         button.title = "AI Data is stale or not yet loaded.";
                     }
-                }              
+                }
                 button.innerHTML = buttonHTML.trim();
                 ui.locationButtonsContainer.appendChild(button);
 
@@ -347,7 +347,7 @@ const ui = {
         if (weatherSpan) { // Check if weatherSpan still exists (button might have been re-rendered)
             if (weatherDisplayHtml) {
                 weatherSpan.innerHTML = weatherDisplayHtml;
-                // Update title intelligently based on existing title and weather presence
+                // Update title intelligently based on existing title and weather presence                
                 const currentTitle = buttonElement.title || "";
                 if (currentTitle.includes("Fetching AI data") && !currentTitle.includes("current weather")) buttonElement.title = "Fetching AI data, showing current weather...";
                 else if (currentTitle.includes("AI Data is stale") && !currentTitle.includes("Weather shown")) buttonElement.title = "AI Data is stale or not yet loaded. Weather shown.";
@@ -358,7 +358,7 @@ const ui = {
         }
     },
 
-    renderConfigList: (items, listElement, type, onRemoveCallback, onEditCallback) => {
+    renderConfigList: (items, listElement, type, onRemoveCallback, onEditCallback) => {        
         if(!listElement) return;
         listElement.innerHTML = ''; 
         items.forEach((item, index) => {
@@ -384,7 +384,7 @@ const ui = {
             buttonContainer.appendChild(removeBtn);
             li.appendChild(buttonContainer);
             listElement.appendChild(li);
-        });
+        });        
         console.log(`${type} list rendered with ${items.length} items`);
     },
 
