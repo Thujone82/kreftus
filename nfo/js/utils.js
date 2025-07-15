@@ -296,6 +296,8 @@ const utils = {
         const timeoutId = setTimeout(() => controller.abort(), 3000); // 3-second timeout
 
         try {
+
+            
             // Using a well-known, highly available resource that supports CORS.
             const response = await fetch('https://httpstat.us/204', {
                 method: 'HEAD',

@@ -46,7 +46,7 @@ const app = {
         app.registerServiceWorker();
         app.setupEventListeners();
 
-        // Check for Gemini API Key for core functionality
+        // Check for Gemini API Key
         if (app.config && app.config.apiKey) {
             ui.toggleConfigButtons(true); // Enable location/topic config
         } else {
@@ -54,6 +54,7 @@ const app = {
             ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
             if (ui.appConfigError) ui.appConfigError.textContent = "Gemini API Key is required for core functionality.";
         }
+
 
         // Check for OpenWeatherMap API Key for weather features (logging for now)
         if (app.config && app.config.owmApiKey) {
