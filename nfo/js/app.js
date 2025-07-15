@@ -554,26 +554,25 @@ const app = {
     },
 
     refreshOutdatedQueries: async (forceAll = false) => {
-        if (app.isRefreshingAllStale) {
-            console.log("Global refresh already in progress. Skipping.");
-            return;
-        }
-        if (!window.isActuallyOnline) {
-            console.warn("Attempted to refresh all while offline. Aborting.");
-            ui.showOfflineIndicator(true);
-            return;
-        }
+     if (app.isRefreshingAllStale) {
+         console.log("Global refresh already in progress. Skipping.");
+         return;
+     }
+     if (!window.isActuallyOnline) {
+         console.warn("Attempted to refresh all while offline. Aborting.");
+         ui.showOfflineIndicator(true);
+         return;
+     }
 
-        app.isRefreshingAllStale = true;
-        let completedCount = 0;
-        ui.pauseHeaderIconLoading();
+     app.isRefreshingAllStale = true;
+     const refreshPromises = app.locations.map(location =>
+         app.handleRefreshLocationInfo(location.id, forceAll)
+     );
 
-        for (const location of app.locations) {
-            await app.handleRefreshLocationInfo(location.id, forceAll);
-        }
+     await Promise.all(refreshPromises);
 
-        app.isRefreshingAllStale = false;
-        ui.resumeHeaderIconLoading();
+     app.isRefreshingAllStale = false;
+     app.updateGlobalRefreshButtonVisibility(); // Update button status at the end
     },
 
     

@@ -328,7 +328,7 @@ const ui = {
                 if (app.config && app.config.owmApiKey) {
                     weatherUpdatePromises.push(ui.updateButtonWeatherDisplay(button, location));
                 }
-            });
+            }).then(() => { // This Promise.all was terminating before button updates complete, and measuring was too early.
 
             // After all buttons are in the DOM and their weather data is being fetched,
             // wait for all weather updates to complete before setting a uniform width.
@@ -353,7 +353,7 @@ const ui = {
                         buttons.forEach(button => button.style.minWidth = `${maxWidth}px`);
                         console.log(`Set uniform min-width for location buttons: ${maxWidth}px`);
                     }
-                }
+                } })
             });
         } else {
             if(ui.locationsSection) ui.locationsSection.classList.add('hidden');
@@ -382,7 +382,7 @@ const ui = {
         const weatherSpan = buttonElement.querySelector('.location-button-weather');
         if (weatherSpan) { // Check if weatherSpan still exists (button might have been re-rendered)
             if (weatherDisplayHtml) {
-                weatherSpan.innerHTML = weatherDisplayHtml;
+                weatherSpan.innerHTML = weatherDisplayHtml; // Set weather display
                 // Update title intelligently based on existing title and weather presence                
                 const currentTitle = buttonElement.title || "";
                 if (currentTitle.includes("Fetching AI data") && !currentTitle.includes("current weather")) buttonElement.title = "Fetching AI data, showing current weather...";
@@ -391,6 +391,7 @@ const ui = {
             } else {
                 weatherSpan.innerHTML = ''; // Clear if no weather
             }
+            return weatherSpan;
         }
     },
 
