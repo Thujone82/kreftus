@@ -273,5 +273,46 @@ const utils = {
                 func.apply(this, args);
             }, delay);
         };
+    },
+
+    /**
+     * Reliably tests for an active internet connection by making a network request.
+     * Sets a global window.isActuallyOnline flag based on the result.
+     * @returns {Promise<boolean>} A promise that resolves to true if online, false if offline.
+     */
+    testAndSetOnlineStatus: async () => {
+        // Start with the browser's less-reliable opinion for a quick offline check.
+        if (!navigator.onLine) {
+            console.warn("Connectivity Test: navigator.onLine is false. Setting status to OFFLINE.");
+            window.isActuallyOnline = false;
+            return false;
+        }
+
+        // If the browser thinks it's online, verify with a real network request.
+        // We use a HEAD request with 'no-cors' to a reliable, small resource.
+        // This is fast as it doesn't download content, it just checks for a response.
+        // The response will be opaque, but success/failure is all we need to determine connectivity.
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3-second timeout
+
+        try {
+            // Using a well-known, highly available resource.
+            await fetch('https://www.google.com/favicon.ico', {
+                method: 'HEAD',
+                mode: 'no-cors', // Important: Prevents CORS errors from blocking the request
+                signal: controller.signal,
+                cache: 'no-store' // Important: Ensures a fresh network request
+            });
+
+            clearTimeout(timeoutId);
+            console.log("Connectivity Test: Network request succeeded. Setting status to ONLINE.");
+            window.isActuallyOnline = true;
+            return true;
+        } catch (error) {
+            clearTimeout(timeoutId);
+            console.warn("Connectivity Test: Network request failed (likely no internet). Setting status to OFFLINE. Error:", error.name);
+            window.isActuallyOnline = false;
+            return false;
+        }
     }
 };
