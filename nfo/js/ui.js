@@ -24,6 +24,7 @@ const ui = {
     getOwmApiKeyLinkContainer: document.getElementById('getOwmApiKeyLinkContainer'), // Added
     backgroundColorInput: document.getElementById('backgroundColor'),
     saveAppConfigBtn: document.getElementById('saveAppConfig'),
+    offlineStatus: document.getElementById('offlineStatus'),
 
     // Location Config Modal
     locationConfigModal: document.getElementById('locationConfigModal'),
@@ -465,6 +466,10 @@ const ui = {
             ui.infoModalTitle.textContent = `${locationData.description} nfo2Go`;
         }
         if(ui.infoModalContent) ui.infoModalContent.innerHTML = '';
+        if (isOffline && ui.offlineStatus) {
+            ui.offlineStatus.classList.remove('hidden');
+        } else if (ui.offlineStatus) {
+            ui.offlineStatus.classList.add('hidden');
         if(ui.refreshInfoButton) ui.refreshInfoButton.classList.add('hidden');
 
         let oldestTimestamp = Date.now(), needsRefreshOverall = false;

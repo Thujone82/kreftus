@@ -9,10 +9,21 @@
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="icons/i32.png" type="image/png">
     <link rel="apple-touch-icon" href="icons/i192.png">
+    <style>
+        .offline-status {
+            background-color: #7a2d2d;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <h1><img src="icons/i192.png" alt="nfo2Go Icon" class="header-icon">nfo2Go v.2</h1>
+        <div id="offlineStatus" class="offline-status hidden">OFFLINE CACHE VIEW</div>
 
         <section id="locationsSection" class="hidden">
             <div class="section-header">

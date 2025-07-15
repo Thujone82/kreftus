@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spirograph-generator-v3-063025@0729'; // Update this version when you change the cache content 
+const CACHE_NAME = 'spirograph-generator-v3-071525@0755'; // Update this version when you change the cache content 
 const urlsToCache = [
   './', // For accessing the root
   './index.html',
@@ -8,9 +8,10 @@ const urlsToCache = [
   './js/lib/Animated_GIF.worker.js',
   './js/lib/NeuQuant.js',
   './manifest.json',
-  './icons/s192.png', // Ensure this path is correct and file exists
-  './icons/s512.png'  // Ensure this path is correct and file exists
-];;
+  './icons/s32.png',
+  './icons/s192.png',
+  './icons/s512.png'
+];
 
 // Install event: Cache core assets
 self.addEventListener('install', event => {
@@ -58,25 +59,30 @@ self.addEventListener('fetch', event => {
     return; // Let the browser handle it directly without calling event.respondWith()
   }
 
-  // For navigation requests (HTML pages), try network first, then cache.
+  // For navigation requests (HTML pages), use a cache-first strategy.
+  // This ensures the app loads instantly from the cache, even in poor network conditions.
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request)
-        .then(response => {
-          // If successful, cache it and return
-          if (response.ok) {
-            const responseToCache = response.clone();
-            caches.open(CACHE_NAME).then(cache => {
-              cache.put(event.request, responseToCache);
-            });
+      caches.match(event.request)
+        .then(cachedResponse => {
+          // Return cached response if found.
+          if (cachedResponse) {
+            return cachedResponse;
           }
-          return response;
-        })
-        .catch(() => {
-          // If network fails, try to serve from cache
-          return caches.match(event.request)
-            .then(cachedResponse => {
-              return cachedResponse || caches.match('./index.html'); // Fallback to cached index.html
+          // If not in cache, fetch from network. This is for the first visit.
+          return fetch(event.request)
+            .then(networkResponse => {
+              if (networkResponse.ok) {
+                const responseToCache = networkResponse.clone();
+                caches.open(CACHE_NAME).then(cache => {
+                  cache.put(event.request, responseToCache);
+                });
+              }
+              return networkResponse;
+            })
+            .catch(() => {
+              // If network fails and it's not in cache, provide the main fallback.
+              return caches.match('./index.html');
             });
         })
     );
