@@ -245,6 +245,12 @@ const ui = {
             }
         }
     },
+ 
+    showOfflineIndicator: (show) => {
+        if (ui.offlineStatus) {
+            ui.offlineStatus.classList.toggle('hidden', !show);
+        }
+    },
 
     renderLocationButtons: (locations, onLocationClickCallback, areTopicsDefined) => { // No longer async itself
         if(!ui.locationButtonsContainer) return;
@@ -253,7 +259,9 @@ const ui = {
             if(ui.locationsSection) ui.locationsSection.classList.remove('hidden');
 
             locations.forEach(location => {
+                const isOffline = !window.isActuallyOnline;
                 const button = document.createElement('button');
+                button.disabled = isOffline; // Disable the button when offline
                 let buttonHTML = '';
                 button.dataset.locationId = location.id;
                 // button.dataset.locationString = location.location; // Not strictly needed if location object is passed
@@ -633,7 +641,7 @@ const ui = {
             ui.infoModalUpdated.textContent = isCurrentlyFetching ? "Fetching latest AI data..." : `AI Data Updated ${utils.formatTimeAgo(overallAge)}`;
         }
 
-        if (needsRefreshOverall && !isCurrentlyFetching && ui.refreshInfoButton) {
+        if (needsRefreshOverall && !isCurrentlyFetching && !isOffline && ui.refreshInfoButton) {
             ui.refreshInfoButton.classList.remove('hidden');
             ui.refreshInfoButton.dataset.locationId = location.id;
         }
