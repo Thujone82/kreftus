@@ -256,6 +256,7 @@ const ui = {
     renderLocationButtons: (locations, onLocationClickCallback, areTopicsDefined) => { // No longer async itself
         if(!ui.locationButtonsContainer) return;
         ui.locationButtonsContainer.innerHTML = ''; 
+        const weatherUpdatePromises = [];
         if (locations && locations.length > 0) {
             if(ui.locationsSection) ui.locationsSection.classList.remove('hidden');
 
@@ -325,7 +326,33 @@ const ui = {
 
                 // Asynchronously update weather for this button
                 if (app.config && app.config.owmApiKey) {
-                    ui.updateButtonWeatherDisplay(button, location);
+                    weatherUpdatePromises.push(ui.updateButtonWeatherDisplay(button, location));
+                }
+            });
+
+            // After all buttons are in the DOM and their weather data is being fetched,
+            // wait for all weather updates to complete before setting a uniform width.
+            Promise.all(weatherUpdatePromises).then(() => {
+                const buttons = ui.locationButtonsContainer.querySelectorAll('button');
+                if (buttons.length > 1) {
+                    let maxWidth = 0;
+                    // First, reset any previously set inline min-width to measure the natural size
+                    buttons.forEach(button => {
+                        button.style.minWidth = '';
+                    });
+
+                    // Next, find the widest button after all content (including weather) is loaded.
+                    buttons.forEach(button => {
+                        if (button.scrollWidth > maxWidth) {
+                            maxWidth = button.scrollWidth;
+                        }
+                    });
+
+                    // Finally, apply the calculated max-width as the min-width for all buttons.
+                    if (maxWidth > 0) {
+                        buttons.forEach(button => button.style.minWidth = `${maxWidth}px`);
+                        console.log(`Set uniform min-width for location buttons: ${maxWidth}px`);
+                    }
                 }
             });
         } else {
