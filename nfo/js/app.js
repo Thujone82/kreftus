@@ -462,6 +462,18 @@ const app = {
         if(ui.infoModalContent) ui.infoModalContent.innerHTML = '<p>Accessing stored data...</p>';
         ui.openModal(APP_CONSTANTS.MODAL_IDS.INFO);
 
+        // Check for offline status immediately after opening the modal
+        if (!navigator.onLine) {
+            console.log("App is offline. Displaying cached data immediately.");
+            const cachedDataForLocation = {};
+            app.topics.forEach(topic => {
+                cachedDataForLocation[topic.id] = store.getAiCache(locationId, topic.id);
+            });
+            // Call displayInfoModal with isOffline = true and isCurrentlyFetching = false
+            ui.displayInfoModal(location, app.topics, cachedDataForLocation, false, true);
+            return; // Stop further execution to prevent network requests
+        }
+
         const cachedDataForLocation = {};
         let needsOverallRefreshForModal = false;
         let isCurrentlyFetchingForThisLocation = app.fetchingStatus[locationId] === true;

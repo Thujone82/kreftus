@@ -456,7 +456,7 @@ const ui = {
         }
     },
 
-    displayInfoModal: async (location, topics, cachedData, isCurrentlyFetching) => {
+    displayInfoModal: async (location, topics, cachedData, isCurrentlyFetching, isOffline) => {
         const locationData = store.getLocations().find(l => l.id === location.id);
         if (!locationData) return;
 
@@ -465,11 +465,12 @@ const ui = {
         if (!isCurrentlyFetching && ui.infoModalTitle) {
             ui.infoModalTitle.textContent = `${locationData.description} nfo2Go`;
         }
-        if(ui.infoModalContent) ui.infoModalContent.innerHTML = '';
-        if (isOffline && ui.offlineStatus) {
+        if (ui.infoModalContent) ui.infoModalContent.innerHTML = '';
+         if (isOffline && ui.offlineStatus) {
             ui.offlineStatus.classList.remove('hidden');
         } else if (ui.offlineStatus) {
             ui.offlineStatus.classList.add('hidden');
+        }
         if(ui.refreshInfoButton) ui.refreshInfoButton.classList.add('hidden');
 
         let oldestTimestamp = Date.now(), needsRefreshOverall = false;
