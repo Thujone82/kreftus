@@ -328,37 +328,15 @@ const ui = {
                 if (app.config && app.config.owmApiKey) {
                     weatherUpdatePromises.push(ui.updateButtonWeatherDisplay(button, location));
                 }
-            }).then(() => { // This Promise.all was terminating before button updates complete, and measuring was too early.
-
-            // After all buttons are in the DOM and their weather data is being fetched,
-            // wait for all weather updates to complete before setting a uniform width.
-            Promise.all(weatherUpdatePromises).then(() => {
-                const buttons = ui.locationButtonsContainer.querySelectorAll('button');
-                if (buttons.length > 1) {
-                    let maxWidth = 0;
-                    // First, reset any previously set inline min-width to measure the natural size
-                    buttons.forEach(button => {
-                        button.style.minWidth = '';
-                    });
-
-                    // Next, find the widest button after all content (including weather) is loaded.
-                    buttons.forEach(button => {
-                        if (button.scrollWidth > maxWidth) {
-                            maxWidth = button.scrollWidth;
-                        }
-                    });
-
-                    // Finally, apply the calculated max-width as the min-width for all buttons.
-                    if (maxWidth > 0) {
-                        buttons.forEach(button => button.style.minWidth = `${maxWidth}px`);
-                        console.log(`Set uniform min-width for location buttons: ${maxWidth}px`);
-                    }
-                } })
             });
-        } else {
-            if(ui.locationsSection) ui.locationsSection.classList.add('hidden');
+            // Consider setting a min-width on the buttons for uniform appearance:
+            // const buttons = ui.locationButtonsContainer.querySelectorAll('button');
+            // let maxWidth = 0;
+            // if (buttons.length > 0) maxWidth = Math.max(...Array.from(buttons).map(button => button.offsetWidth));
+            // if (maxWidth > 0) buttons.forEach(button => button.style.minWidth = maxWidth + 'px');
+        } else if (ui.locationsSection) {
+            ui.locationsSection.classList.add('hidden');
         }
-        
         if (typeof app.updateGlobalRefreshButtonVisibility === 'function') {
             app.updateGlobalRefreshButtonVisibility();
         }
