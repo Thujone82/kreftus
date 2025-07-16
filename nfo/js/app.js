@@ -508,7 +508,7 @@ const app = {
         }
 
         console.log(`Fetching ${topicsToFetch.length} topics for ${location.description}`);
-        const totalTopics = topicsToFetch.length;
+        const totalTopicsForLocation = topicsToFetch.length;
         const locationIndex = app.locations.findIndex(loc => loc.id === locationId) + 1; 
         let fetchedCount = 0;
         
@@ -516,7 +516,7 @@ const app = {
             const totalFetches = app.locations.length * topicsToFetch.length
              if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId) {
                 if (ui.infoModalTitle) ui.infoModalTitle.textContent = `Fetching ${location.description} (${fetchedCount}/${totalTopics})...`;
-                if (ui.infoModalUpdated) ui.infoModalUpdated.textContent = 'Fetching latest AI data...';
+                if (ui.infoModalUpdated) ui.infoModalUpdated.textContent = `Fetching ${fetchedCount} of ${totalTopicsForLocation} latest AI data...`;
              }
             // Update global progress message
             if (app.isRefreshingAllStale) {
