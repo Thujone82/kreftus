@@ -70,11 +70,12 @@
         }
 
         .project-image-cell img {
-            width: 100%; /* Make image responsive within its cell */
+            /* This was forcing a fixed width, causing distortion with max-height. */
             height: auto; /* Maintain aspect ratio */
-            max-width: 256px; /* UPDATED: Explicitly set max-width */
-            max-height: 256px; /* UPDATED: Explicitly set max-height */
+            max-width: 100%;      /* Let the image scale down to fit the container width. */
+            max-height: 256px;    /* Cap the image height. */
             display: block;
+            margin: 0 auto;       /* Center the image horizontally within its cell. */
             border-radius: 8px; /* Optional: for rounded corners on images */
         }
 
