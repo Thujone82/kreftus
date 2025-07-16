@@ -645,7 +645,7 @@ const ui = {
             ui.infoModalUpdated.textContent = isCurrentlyFetching ? "Fetching latest AI data..." : `AI Data Updated ${utils.formatTimeAgo(overallAge)}`;
         }
 
-        if (needsRefreshOverall && !isCurrentlyFetching && ui.refreshInfoButton) {
+        if (needsRefreshOverall && !isCurrentlyFetching && !isOffline && ui.refreshInfoButton) {
             ui.refreshInfoButton.classList.remove('hidden');
             ui.refreshInfoButton.dataset.locationId = location.id;
         }
