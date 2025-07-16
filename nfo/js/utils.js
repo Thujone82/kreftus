@@ -273,5 +273,5 @@ const utils = {
                 func.apply(this, args);
             }, delay);
         };
-    },
+    }
 };

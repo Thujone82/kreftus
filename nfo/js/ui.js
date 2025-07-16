@@ -10,7 +10,6 @@ const ui = {
     btnAppConfig: document.getElementById('btnAppConfig'),
     btnAppUpdate: document.getElementById('btnAppUpdate'), // Added Update Button
     globalRefreshButton: document.getElementById('globalRefreshButton'), 
-    locationsSectionHeader: document.getElementById('locationsSectionHeader'),
 
     // App Config Modal
     appConfigModal: document.getElementById('appConfigModal'),
@@ -246,31 +245,22 @@ const ui = {
             }
         }
     },
- 
-    showOfflineIndicator: (show) => {
-        if (ui.offlineStatus) {
-            ui.offlineStatus.classList.toggle('hidden', !show);
-        }
-    },
 
     renderLocationButtons: (locations, onLocationClickCallback, areTopicsDefined) => { // No longer async itself
         if(!ui.locationButtonsContainer) return;
         ui.locationButtonsContainer.innerHTML = ''; 
-        const weatherUpdatePromises = [];
         if (locations && locations.length > 0) {
             if(ui.locationsSection) ui.locationsSection.classList.remove('hidden');
 
             locations.forEach(location => {
-                const isOffline = !window.isActuallyOnline;
                 const button = document.createElement('button');
-                button.disabled = isOffline; // Disable the button when offline
                 let buttonHTML = '';
                 button.dataset.locationId = location.id;
                 // button.dataset.locationString = location.location; // Not strictly needed if location object is passed
                 button.onclick = () => onLocationClickCallback(location.id);
 
                 button.classList.remove('location-button-fresh', 'location-button-fetching', 'location-button-error', 'needs-info-structure');
-                
+
                 if (!areTopicsDefined) {
                     // Structure for button content: Name on one line, weather on another (if available)
                     const nameSpan = `<span class="location-button-name">${location.description}</span>`;
@@ -320,36 +310,24 @@ const ui = {
                     } else { // Default for 'stale'
                         button.title = "AI Data is stale or not yet loaded.";
                     }
-                }
+                }              
                 button.innerHTML = buttonHTML.trim();
                 ui.locationButtonsContainer.appendChild(button);
 
                 // Asynchronously update weather for this button
                 if (app.config && app.config.owmApiKey) {
-                    weatherUpdatePromises.push(ui.updateButtonWeatherDisplay(button, location));
+                    ui.updateButtonWeatherDisplay(button, location);
                 }
             });
-            // Consider setting a min-width on the buttons for uniform appearance:
-            // const buttons = ui.locationButtonsContainer.querySelectorAll('button');
-            // let maxWidth = 0;
-            // if (buttons.length > 0) maxWidth = Math.max(...Array.from(buttons).map(button => button.offsetWidth));
-            // if (maxWidth > 0) buttons.forEach(button => button.style.minWidth = maxWidth + 'px');
-        } else if (ui.locationsSection) {
-            ui.locationsSection.classList.add('hidden');
+        } else {
+            if(ui.locationsSection) ui.locationsSection.classList.add('hidden');
         }
+        
         if (typeof app.updateGlobalRefreshButtonVisibility === 'function') {
             app.updateGlobalRefreshButtonVisibility();
         }
         console.log("Location buttons rendered:", locations);
     },
-
-    updateGlobalRefreshProgress: (message) => {
-        if (ui.locationsSectionHeader) {
-            ui.locationsSectionHeader.textContent = message;
-        }
-    },
-
-
 
     updateButtonWeatherDisplay: async (buttonElement, location) => {
         // Ensure this function is robust against the button being removed from DOM
@@ -360,8 +338,8 @@ const ui = {
         const weatherSpan = buttonElement.querySelector('.location-button-weather');
         if (weatherSpan) { // Check if weatherSpan still exists (button might have been re-rendered)
             if (weatherDisplayHtml) {
-                weatherSpan.innerHTML = weatherDisplayHtml; // Set weather display
-                // Update title intelligently based on existing title and weather presence                
+                weatherSpan.innerHTML = weatherDisplayHtml;
+                // Update title intelligently based on existing title and weather presence
                 const currentTitle = buttonElement.title || "";
                 if (currentTitle.includes("Fetching AI data") && !currentTitle.includes("current weather")) buttonElement.title = "Fetching AI data, showing current weather...";
                 else if (currentTitle.includes("AI Data is stale") && !currentTitle.includes("Weather shown")) buttonElement.title = "AI Data is stale or not yet loaded. Weather shown.";
@@ -369,11 +347,10 @@ const ui = {
             } else {
                 weatherSpan.innerHTML = ''; // Clear if no weather
             }
-            return weatherSpan;
         }
     },
 
-    renderConfigList: (items, listElement, type, onRemoveCallback, onEditCallback) => {        
+    renderConfigList: (items, listElement, type, onRemoveCallback, onEditCallback) => {
         if(!listElement) return;
         listElement.innerHTML = ''; 
         items.forEach((item, index) => {
@@ -399,7 +376,7 @@ const ui = {
             buttonContainer.appendChild(removeBtn);
             li.appendChild(buttonContainer);
             listElement.appendChild(li);
-        });        
+        });
         console.log(`${type} list rendered with ${items.length} items`);
     },
 
@@ -656,7 +633,7 @@ const ui = {
             ui.infoModalUpdated.textContent = isCurrentlyFetching ? "Fetching latest AI data..." : `AI Data Updated ${utils.formatTimeAgo(overallAge)}`;
         }
 
-        if (needsRefreshOverall && !isCurrentlyFetching && !isOffline && ui.refreshInfoButton) {
+        if (needsRefreshOverall && !isCurrentlyFetching && ui.refreshInfoButton) {
             ui.refreshInfoButton.classList.remove('hidden');
             ui.refreshInfoButton.dataset.locationId = location.id;
         }
