@@ -576,7 +576,7 @@ const app = {
             ui.displayInfoModal(location, app.topics, newCachedData, false, !window.isActuallyOnline);
         }
         
-        if (app.isRefreshingAllStale) ui.updateGlobalRefreshProgress(`Fetching (${locationIndex} of ${app.locations.length}) Complete.`)
+        // if (app.isRefreshingAllStale) ui.updateGlobalRefreshProgress(`Fetching (${locationIndex} of ${app.locations.length}) Complete.`) // REMOVED
         app.updateGlobalRefreshButtonVisibility();
     },
 
@@ -590,16 +590,28 @@ const app = {
          ui.showOfflineIndicator(true);
          return;
      }
-
+     
      app.isRefreshingAllStale = true;
+     // To provide a precise total, we only consider "stale" topics
+     // from locations that are actually being processed in *this* refresh.
+     let totalStaleTopicsAcrossAllLocations = 0;
+     for (const location of app.locations) {
+         const topicsToFetch = app.topics.filter(topic => {
+             const cacheEntry = store.getAiCache(location.id, topic.id);
+             const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > APP_CONSTANTS.CACHE_EXPIRY_MS;
+             const hasError = cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:');
+             return isStale || hasError;
+         });
+         totalStaleTopicsAcrossAllLocations += topicsToFetch.length;
+     }
+     
      const refreshPromises = app.locations.map(location =>
          app.handleRefreshLocationInfo(location.id, forceAll)
      );
-
      await Promise.all(refreshPromises);
-
      app.isRefreshingAllStale = false;
-     app.updateGlobalRefreshButtonVisibility(); // Update button status at the end
+     ui.updateGlobalRefreshProgress(''); // Clear progress message after completion
+     app.updateGlobalRefreshButtonVisibility();
     },
 
     
