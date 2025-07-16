@@ -246,28 +246,6 @@ const ui = {
         }
     },
 
-    setOnlineStatusUI: (isOnline) => {
-        const offlineStatusDiv = ui.offlineStatus;
-        const globalRefreshBtn = ui.globalRefreshButton;
-
-        if (isOnline) {
-            if (offlineStatusDiv) {
-                offlineStatusDiv.classList.add('hidden');
-            }
-            if (globalRefreshBtn) {
-                globalRefreshBtn.disabled = false;
-            }
-        } else {
-            if (offlineStatusDiv) {
-                offlineStatusDiv.textContent = 'OFFLINE - Showing Cached Data';
-                offlineStatusDiv.classList.remove('hidden');
-            }
-            if (globalRefreshBtn) {
-                globalRefreshBtn.disabled = true;
-            }
-        }
-    },
-
     renderLocationButtons: (locations, onLocationClickCallback, areTopicsDefined) => { // No longer async itself
         if(!ui.locationButtonsContainer) return;
         ui.locationButtonsContainer.innerHTML = ''; 

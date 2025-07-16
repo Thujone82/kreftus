@@ -17,7 +17,7 @@ const api = {
         console.log(`Fetching AI data for: ${promptText} using model ${modelName}`);
 
         try {
-            if (!app.state.isOnline) { // Changed to use our new reliable check
+            if (!isOnline()) {
                 console.warn("App is offline. Cannot fetch AI data.");
                 throw new Error("App is offline. Cannot fetch new data.");
             }
@@ -95,7 +95,7 @@ const api = {
         console.log(`Fetching weather data from: ${url}`);
 
         try {
-            if (!app.state.isOnline) { // Changed to use our new reliable check
+            if (!isOnline()) {
                 console.warn("App is offline. Cannot fetch weather data.");
                 // Return null or cached weather data, depending on your caching strategy
                 return null;

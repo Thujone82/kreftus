@@ -38,7 +38,6 @@ const app = {
     userInitiatedUpdate: false,        // Flag for SW update
     newWorkerForUpdate: null,          // Store the waiting worker
 
-
     init: () => {
         console.log("App initializing...");
         app.loadAndApplyAppSettings(); // This will populate app.config
@@ -46,9 +45,6 @@ const app = {
         app.loadTopics();
         app.registerServiceWorker();
         app.setupEventListeners();
-
-        // Perform the initial online status check to set the app's mode
-        app.manageOnlineStatus();
 
         // Check for Gemini API Key for core functionality
         if (app.config && app.config.apiKey) {
@@ -110,43 +106,6 @@ const app = {
         app.updateGlobalRefreshButtonVisibility(); // Initial check for button visibility
         console.log("App initialized.");
     },
-    
-    manageOnlineStatus: async () => {
-        const validationResult = await api.validateGeminiApiKey(app.config.apiKey);
-        if (validationResult.reason === 'network_error') {
-            // Could not connect to Gemini API – App is offline
-            app.state.isOnline = false;
-            console.log("No internet connection (Gemini check failed). App is offline.");
-        } else {
-            // Regardless of API key validity, a successful response means the internet IS reachable
-            app.state.isOnline = true;
-            console.log("Internet connection detected (Gemini check OK). App is online.");
-        }
-        ui.setOnlineStatusUI(app.state.isOnline);
-
-        // If app is offline, start a heartbeat to periodically re-check the connection.
-        if (!app.state.isOnline) {
-            if (!app.heartbeatInterval) {
-                console.log("Starting heartbeat to check internet connection periodically.");
-                app.heartbeatInterval = setInterval(app.manageOnlineStatus, 30000); // Check every 30 seconds
-            }
-        } else {
-            // If we are online, clear any existing heartbeat interval.
-            if (app.heartbeatInterval) {
-                clearInterval(app.heartbeatInterval);
-                app.heartbeatInterval = null;
-                console.log("Heartbeat stopped: Internet connection restored.");
-                // Consider automatically refreshing data when back online
-                document.getElementById('globalRefreshButton')?.click();
-            }
-        }
-        app.state.isInitialCheckDone = true;
-    },
-
-    heartbeatInterval: null,
-
-
-
 
     registerServiceWorker: () => {
         if ('serviceWorker' in navigator) {

@@ -1,5 +1,10 @@
 console.log("utils.js loaded");
-const utils = {    generateId: () => {        return Math.random().toString(36).substr(2, 9);    },
+
+const utils = {
+    generateId: () => {
+        return Math.random().toString(36).substr(2, 9);
+    },
+
     formatTimeAgo: (timestamp) => {
         if (!timestamp) return 'N/A';
         const now = Date.now();
@@ -196,12 +201,6 @@ const utils = {    generateId: () => {        return Math.random().toString(36).
         const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(locationString)}&format=json&limit=1`;
         
         try {
-            // Guard against network calls when offline
-            if (!app.state.isOnline) {
-                console.log(`Offline: Skipping geocode fetch for "${locationString}".`);
-                return null;
-            }
-
             console.log(`Geocoding "${locationString}" via Nominatim`);
             // Nominatim requires a custom User-Agent.
             // Replace 'nfo2go/2.0 (YourAppNameOrContactInfo)' with your actual app name/contact.
