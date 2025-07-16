@@ -951,12 +951,26 @@ const app = {
         if (ui.offlineStatus) {
             ui.offlineStatus.classList.remove('hidden');
         }
+        // Hide refresh buttons when offline to prevent data loss from failed fetches
+        if (ui.globalRefreshButton) {
+            ui.globalRefreshButton.classList.add('hidden');
+        }
+        if (ui.refreshInfoButton) {
+            ui.refreshInfoButton.classList.add('hidden');
+        }
     },
 
     handleOnlineStatus: () => {
         console.log("App is now online. Hiding global status indicator.");
         if (ui.offlineStatus) {
             ui.offlineStatus.classList.add('hidden');
+        }
+        // When coming back online, re-evaluate if refresh buttons should be shown
+        app.updateGlobalRefreshButtonVisibility();
+
+        // If the info modal is open, re-evaluate its state to show the refresh button if needed
+        if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal) {
+            app.handleOpenLocationInfo(app.currentLocationIdForInfoModal);
         }
     },
 
