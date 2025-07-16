@@ -513,13 +513,14 @@ const app = {
         let fetchedCount = 0;
         
         const updateLoadingMessage = () => {
+            const totalFetches = app.locations.length * topicsToFetch.length
              if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId) {
                 if (ui.infoModalTitle) ui.infoModalTitle.textContent = `Fetching ${location.description} (${fetchedCount}/${totalTopics})...`;
                 if (ui.infoModalUpdated) ui.infoModalUpdated.textContent = 'Fetching latest AI data...';
              }
             // Update global progress message
             if (app.isRefreshingAllStale) {
-                ui.updateGlobalRefreshProgress(`Fetching (${locationIndex} of ${app.locations.length})...`);
+                ui.updateGlobalRefreshProgress(`Fetching (${fetchedCount} of ${totalFetches})...`);
             }
         };
         updateLoadingMessage();
