@@ -508,22 +508,47 @@ const app = {
         }
 
         console.log(`Fetching ${topicsToFetch.length} topics for ${location.description}`);
-        const totalTopicsForLocation = topicsToFetch.length;
+        // const totalTopicsForLocation = topicsToFetch.length; // NOT USED?
         const locationIndex = app.locations.findIndex(loc => loc.id === locationId) + 1; 
         let fetchedCount = 0;
-        
+        // To provide a precise total, we only consider "stale" topics
+        // from locations that are actually being processed in *this* refresh.
+        // This gives an accurate count for the progress bar.
+        let totalStaleTopicsAcrossAllLocations = 0;
+        if (app.isRefreshingAllStale) { // Only count in a global refresh
+            totalStaleTopicsAcrossAllLocations = app.locations.reduce((total, loc) => {
+                const staleCount = app.topics.filter(topic => {
+                    const cacheEntry = store.getAiCache(loc.id, topic.id);
+                    const isStale = !cacheEntry || (Date.now() - (cacheEntry.timestamp || 0)) > APP_CONSTANTS.CACHE_EXPIRY_MS;
+                    const hasError = cacheEntry && typeof cacheEntry.data === 'string' && cacheEntry.data.toLowerCase().startsWith('error:');
+                    return isStale || hasError;
+                }).length;
+                return total + staleCount;
+            }, 0);
+        }
+
+        let progressMessage = ""; // Initialize
         const updateLoadingMessage = () => {
-            const totalFetches = app.locations.length * topicsToFetch.length
-             if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId) {
-                if (ui.infoModalTitle) ui.infoModalTitle.textContent = `Fetching ${location.description} (${fetchedCount}/${totalTopics})...`;
-                if (ui.infoModalUpdated) ui.infoModalUpdated.textContent = `Fetching ${fetchedCount} of ${totalTopicsForLocation} latest AI data...`;
-             }
-            // Update global progress message
             if (app.isRefreshingAllStale) {
-                ui.updateGlobalRefreshProgress(`Fetching (${fetchedCount} of ${totalFetches})...`);
+                progressMessage = `Fetching (${fetchedCount} of ${totalStaleTopicsAcrossAllLocations})...`;
+            } else {
+                progressMessage = `Fetching...`; 
+            }
+            ui.updateGlobalRefreshProgress(progressMessage);
+
+            if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal === locationId) {
+                if (ui.infoModalTitle) ui.infoModalTitle.textContent = `Fetching ${location.description} (${fetchedCount} of ${topicsToFetch.length})...`;
+                if (ui.infoModalUpdated) ui.infoModalUpdated.textContent = `Fetching ${fetchedCount} of ${topicsToFetch.length} latest AI data...`;
             }
         };
-        updateLoadingMessage();
+        updateLoadingMessage(); // Initial call to set message
+        
+        console.log(`Fetching ${topicsToFetch.length} topics for ${location.description}. ` +
+                    (app.isRefreshingAllStale ?
+                        `Total stale topics across all locations: ${totalStaleTopicsAcrossAllLocations}. ` :
+                        'This is an individual location refresh.'
+                    ) +
+                    `Initial progress message: "${progressMessage}"`);
 
         const fetchPromises = topicsToFetch.map(async (topic) => {
             try {
@@ -550,6 +575,7 @@ const app = {
             app.topics.forEach(topic => { newCachedData[topic.id] = store.getAiCache(location.id, topic.id); });
             ui.displayInfoModal(location, app.topics, newCachedData, false, !window.isActuallyOnline);
         }
+        
         if (app.isRefreshingAllStale) ui.updateGlobalRefreshProgress(`Fetching (${locationIndex} of ${app.locations.length}) Complete.`)
         app.updateGlobalRefreshButtonVisibility();
     },
