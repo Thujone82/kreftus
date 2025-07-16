@@ -350,6 +350,18 @@ const ui = {
         }
     },
 
+    updateButtonWeatherDisplayOnSuccess: async (buttonElement, location) => {
+         if (!buttonElement || !document.body.contains(buttonElement)) {
+            return;
+        }
+        const weatherDisplayHtml = await app.getWeatherDisplayForLocation(location);
+        const weatherSpan = buttonElement.querySelector('.location-button-weather');
+        if (weatherSpan && weatherDisplayHtml) {
+            weatherSpan.innerHTML = weatherDisplayHtml;
+        }
+    },
+
+
     renderConfigList: (items, listElement, type, onRemoveCallback, onEditCallback) => {
         if(!listElement) return;
         listElement.innerHTML = ''; 
