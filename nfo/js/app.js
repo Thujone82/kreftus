@@ -519,7 +519,7 @@ const app = {
              }
             // Update global progress message
             if (app.isRefreshingAllStale) {
-                ui.updateGlobalRefreshProgress(`Fetching (${locationIndex} of ${app.locations.length}) ${location.description} (${fetchedCount}/${totalTopics})...`);
+                ui.updateGlobalRefreshProgress(`Fetching (${locationIndex} of ${app.locations.length})...`);
             }
         };
         updateLoadingMessage();
