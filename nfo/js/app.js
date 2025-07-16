@@ -46,6 +46,11 @@ const app = {
         app.registerServiceWorker();
         app.setupEventListeners();
 
+        // Global offline status check on initial load
+        if (!navigator.onLine) {
+            app.handleOfflineStatus();
+        }
+        
         // Check for Gemini API Key for core functionality
         if (app.config && app.config.apiKey) {
             ui.toggleConfigButtons(true); // Enable location/topic config
@@ -245,6 +250,12 @@ const app = {
             ui.owmApiKeyInput.addEventListener('focus', (e) => { e.target.type = 'text'; });
             ui.owmApiKeyInput.addEventListener('blur', (e) => { e.target.type = 'password'; });
         }
+        
+        // Listen for global online/offline status changes
+        window.addEventListener('offline', app.handleOfflineStatus);
+        window.addEventListener('online', app.handleOnlineStatus);
+
+
         console.log("Event listeners set up.");
     },
 
@@ -934,8 +945,21 @@ const app = {
     // Getter for OWM API Key, useful for other modules
     getOwmApiKey: () => {
         return app.config.owmApiKey;
-    }
-    ,
+    },
+    handleOfflineStatus: () => {
+        console.log("App is now offline. Showing global status indicator.");
+        if (ui.offlineStatus) {
+            ui.offlineStatus.classList.remove('hidden');
+        }
+    },
+
+    handleOnlineStatus: () => {
+        console.log("App is now online. Hiding global status indicator.");
+        if (ui.offlineStatus) {
+            ui.offlineStatus.classList.add('hidden');
+        }
+    },
+
     // Weather Management Functions
      fetchAndCacheWeatherData: async (location) => {
         if (!app.config.owmApiKey) {
