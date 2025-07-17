@@ -31,6 +31,47 @@ func executeCommand(command string) {
 	}
 }
 
+func printUsage() {
+	color.Yellow("SYNOPSIS")
+	fmt.Println("    Runs a specified command repeatedly at a given interval.")
+	fmt.Println()
+
+	color.Yellow("DESCRIPTION")
+	fmt.Println("    rc (Run Continuously) executes a given command string in a loop.")
+	fmt.Println("    After each execution, it waits for a specified number of minutes")
+	fmt.Println("    before running the command again.")
+	fmt.Println()
+	fmt.Println("    Use the -p or -precision flag to account for the command's")
+	fmt.Println("    execution time to ensure each run starts at a consistent interval.")
+	fmt.Println()
+	fmt.Println("    If no parameters are provided, the script will interactively prompt")
+	fmt.Println("    the user for the command and the time period.")
+	fmt.Println()
+
+	color.Yellow("USAGE")
+	fmt.Println("    rc \"<command>\" [period] [-p]")
+	fmt.Println()
+
+	color.Yellow("PARAMETERS")
+	color.Cyan("  <command>")
+	fmt.Println("    The command to execute, enclosed in quotes if it contains spaces.")
+	fmt.Println()
+	color.Cyan("  [period]")
+	fmt.Println("    Optional. The time in minutes to wait between executions. Defaults to 5.")
+	fmt.Println()
+	color.Cyan("  -p, -precision")
+	fmt.Println("    Optional. Enables precision mode to prevent timing drift.")
+	fmt.Println()
+
+	color.Yellow("EXAMPLES")
+	color.Green("    rc \"go run main.go\" 1")
+	fmt.Println("    Runs 'go run main.go' every 1 minute.")
+	fmt.Println()
+	color.Green("    rc \"gw Portland\" 10 -p")
+	fmt.Println("    Runs the 'gw' command on a fixed 10-minute schedule.")
+	fmt.Println()
+}
+
 func main() {
 	// Manual argument parsing is used to allow flags to be placed anywhere in the command.
 	// The standard `flag` package stops parsing at the first non-flag argument.
@@ -40,9 +81,13 @@ func main() {
 	var nonFlagArgs []string
 
 	for _, arg := range os.Args[1:] {
-		if arg == "-p" || arg == "-precision" {
+		switch arg {
+		case "-p", "-precision":
 			precision = true
-		} else {
+		case "-h", "-help":
+			printUsage()
+			os.Exit(0)
+		default:
 			nonFlagArgs = append(nonFlagArgs, arg)
 		}
 	}
@@ -63,6 +108,8 @@ func main() {
 	// --- Interactive Mode ---
 	// If no command is provided via arguments, prompt the user for input.
 	if commandStr == "" {
+		color.Yellow("*** Run Continuously v1 ***")
+
 		reader := bufio.NewReader(os.Stdin)
 
 		fmt.Print("Command: ")

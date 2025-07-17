@@ -60,6 +60,7 @@ param(
 )
 
 if (-not $Command) {
+    Write-Host "*** Run Continuously v1 ***" -ForegroundColor Yellow
     $Command = Read-Host "Command"
     $inputPeriod = Read-Host "Period (minutes) [default: 5]"
     if ($inputPeriod -and [int]::TryParse($inputPeriod, [ref]$null)) {
