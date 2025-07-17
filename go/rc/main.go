@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"math"
 	"os"
@@ -33,15 +32,33 @@ func executeCommand(command string) {
 }
 
 func main() {
-	// Flag definitions to match rc.ps1
-	period := flag.Int("period", 5, "The time to wait between command executions, in minutes.")
+	// Manual argument parsing is used to allow flags to be placed anywhere in the command.
+	// The standard `flag` package stops parsing at the first non-flag argument.
+	var commandStr string
+	period := 5 // Default period in minutes
 	var precision bool
-	flag.BoolVar(&precision, "precision", false, "Enables precision mode to account for command execution time.")
-	flag.BoolVar(&precision, "p", false, "Alias for -precision.")
+	var nonFlagArgs []string
 
-	flag.Parse()
+	for _, arg := range os.Args[1:] {
+		if arg == "-p" || arg == "-precision" {
+			precision = true
+		} else {
+			nonFlagArgs = append(nonFlagArgs, arg)
+		}
+	}
 
-	commandStr := strings.Join(flag.Args(), " ")
+	// Process the remaining non-flag arguments for the command and period.
+	if len(nonFlagArgs) > 0 {
+		commandStr = nonFlagArgs[0]
+	}
+	if len(nonFlagArgs) > 1 {
+		for _, arg := range nonFlagArgs[1:] {
+			if p, err := strconv.Atoi(arg); err == nil && p > 0 {
+				period = p
+				break // Use the first valid integer found
+			}
+		}
+	}
 
 	// --- Interactive Mode ---
 	// If no command is provided via arguments, prompt the user for input.
@@ -56,9 +73,9 @@ func main() {
 		periodInput, _ := reader.ReadString('\n')
 		periodInput = strings.TrimSpace(periodInput)
 		if p, err := strconv.Atoi(periodInput); err == nil && p > 0 {
-			*period = p
+			period = p
 		} else {
-			*period = 5 // Default if empty or invalid
+			period = 5 // Default if empty or invalid
 		}
 
 		fmt.Print("Enable Precision Mode? (y/n) [default: n]: ")
@@ -75,7 +92,7 @@ func main() {
 	}
 
 	// --- Initial Output ---
-	fmt.Printf("Running \"%s\" every %d minute(s). Press Ctrl+C to stop.\n\n", commandStr, *period)
+	fmt.Printf("Running \"%s\" every %d minute(s). Press Ctrl+C to stop.\n\n", commandStr, period)
 	var scriptStartTime time.Time
 	if precision {
 		scriptStartTime = time.Now()
@@ -83,7 +100,7 @@ func main() {
 	}
 
 	// --- Main Execution Loop ---
-	periodDuration := time.Duration(*period) * time.Minute
+	periodDuration := time.Duration(period) * time.Minute
 	for {
 		loopStartTime := time.Now()
 		color.White("(%s) Executing command...", loopStartTime.Format("15:04:05"))
@@ -91,7 +108,7 @@ func main() {
 
 		if !precision {
 			// Standard mode: Wait for the full period after the command finishes.
-			color.White("Waiting %d minute(s). Press Ctrl+C to stop.\n", *period)
+			color.White("Waiting %d minute(s). Press Ctrl+C to stop.\n", period)
 			fmt.Println() // Extra newline to match PS script's `n
 			time.Sleep(periodDuration)
 		} else {
@@ -100,7 +117,7 @@ func main() {
 			commandDuration := currentTime.Sub(loopStartTime)
 
 			totalElapsed := currentTime.Sub(scriptStartTime)
-			intervalsCompleted := math.Floor(totalElapsed.Minutes() / float64(*period))
+			intervalsCompleted := math.Floor(totalElapsed.Minutes() / float64(period))
 			nextTargetTime := scriptStartTime.Add(time.Duration(intervalsCompleted+1) * periodDuration)
 			sleepDuration := nextTargetTime.Sub(currentTime)
 
