@@ -1,4 +1,4 @@
-'# rc - Run Continuously
+'# rc - Run Continuously (RC v1)
 
 ## Version 1.2
 

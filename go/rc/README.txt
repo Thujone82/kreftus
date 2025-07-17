@@ -1,4 +1,4 @@
-# rc (Go Version) - Run Continuously
+# rc - RunContinuously v1 (RC v1)
 
 ## Version 1.2
 
