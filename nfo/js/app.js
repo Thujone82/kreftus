@@ -992,14 +992,26 @@ const app = {
 
         if (!cachedWeather || isWeatherStale) {
             console.log(`Fetching fresh/stale weather data for ${location.description} at ${coords.lat}, ${coords.lon}`);
-
-            const weatherData = await api.fetchWeatherData(coords.lat, coords.lon, app.config.owmApiKey);
-            if (weatherData) {
-                store.saveWeatherCache(location.id, weatherData);
-                console.log(`Weather data updated for ${location.description}:`, weatherData);
-                return weatherData;
-            } else {
-                console.error(`Failed to fetch or invalid weather data for ${location.description}`);
+            try {
+                const weatherData = await api.fetchWeatherData(coords.lat, coords.lon, app.config.owmApiKey);
+                if (weatherData) {
+                    store.saveWeatherCache(location.id, weatherData);
+                    console.log(`Weather data updated for ${location.description}:`, weatherData);
+                    return weatherData;
+                } else {
+                    // This case might happen if the API returns a valid but empty/error response that isn't an exception
+                    throw new Error("API returned no weather data.");
+                }
+            } catch (error) {
+                console.error(`Failed to fetch weather for ${location.description}: ${error.message}`);
+                // ON FAILURE: This is the key change.
+                // If a fetch fails, we check if we have old data in the cache.
+                if (cachedWeather && cachedWeather.data) {
+                    console.warn(`Using stale weather data for "${location.description}" due to fetch error.`);
+                    // We return the old, stale data instead of null.
+                    return cachedWeather.data;
+                }
+                // If there's no cached data at all, we have to return null.
                 return null;
             }
         } else {
