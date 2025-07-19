@@ -35,6 +35,7 @@ const app = {
     initialEditingTopicsString: '',    // For unsaved changes check
     activeLoadingOperations: 0,        // Counter for global loading state
     isRefreshingAllStale: false,       // Flag to prevent overlapping global refreshes
+    isOnline: true,                    // Assume online, will be verified by heartbeat check
     userInitiatedUpdate: false,        // Flag for SW update
     newWorkerForUpdate: null,          // Store the waiting worker
 
@@ -45,11 +46,8 @@ const app = {
         app.loadTopics();
         app.registerServiceWorker();
         app.setupEventListeners();
-
-        // Global offline status check on initial load
-        if (!navigator.onLine) {
-            app.handleOfflineStatus();
-        }
+        
+        app.checkOnlineStatus(); // Perform initial, robust online status check
         
         // Check for Gemini API Key for core functionality
         if (app.config && app.config.apiKey) {
@@ -251,9 +249,14 @@ const app = {
             ui.owmApiKeyInput.addEventListener('blur', (e) => { e.target.type = 'password'; });
         }
         
-        // Listen for global online/offline status changes
-        window.addEventListener('offline', app.handleOfflineStatus);
-        window.addEventListener('online', app.handleOnlineStatus);
+        // Replace simple online/offline listeners with a robust heartbeat check
+        window.addEventListener('offline', () => app.checkOnlineStatus());
+        window.addEventListener('online', () => app.checkOnlineStatus());
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                app.checkOnlineStatus();
+            }
+        });
 
 
         console.log("Event listeners set up.");
@@ -525,6 +528,11 @@ const app = {
     },
 
     fetchAndCacheAiDataForLocation: async (locationId, forceRefreshGeneral = false, specificTopicIdsToForce = null) => {
+        if (!app.isOnline) {
+            console.warn(`App is offline. Skipping AI data fetch for location ID: ${locationId}`);
+            return false; // Indicate that no fetch was attempted.
+        }
+
         if (!app.config.apiKey) {
             if (document.getElementById(APP_CONSTANTS.MODAL_IDS.APP_CONFIG).style.display !== 'block') {
                  if(ui.appConfigError) ui.appConfigError.textContent = "API Key is required to fetch data.";
@@ -947,6 +955,8 @@ const app = {
         return app.config.owmApiKey;
     },
     handleOfflineStatus: () => {
+        if (app.isOnline === false) return; // Already offline, no change needed
+        app.isOnline = false;
         console.log("App is now offline. Showing global status indicator.");
         if (ui.offlineStatus) {
             ui.offlineStatus.classList.remove('hidden');
@@ -961,6 +971,8 @@ const app = {
     },
 
     handleOnlineStatus: () => {
+        if (app.isOnline === true) return; // Already online, no change needed
+        app.isOnline = true;
         console.log("App is now online. Hiding global status indicator.");
         if (ui.offlineStatus) {
             ui.offlineStatus.classList.add('hidden');
@@ -971,6 +983,31 @@ const app = {
         // If the info modal is open, re-evaluate its state to show the refresh button if needed
         if (ui.infoModal.style.display === 'block' && app.currentLocationIdForInfoModal) {
             app.handleOpenLocationInfo(app.currentLocationIdForInfoModal);
+        }
+    },
+
+    checkOnlineStatus: async () => {
+        // The browser's navigator.onLine is a quick first check.
+        if (!navigator.onLine) {
+            app.handleOfflineStatus();
+            return;
+        }
+
+        // If a Gemini key exists, use it for a "heartbeat" check to confirm real internet access.
+        // This detects "WiFi connected but no internet" scenarios.
+        if (app.config && app.config.apiKey) {
+            const heartbeat = await api.validateGeminiApiKey(app.config.apiKey);
+            if (heartbeat.reason === 'network_error') {
+                // We are connected to a network but can't reach the API.
+                app.handleOfflineStatus();
+            } else {
+                // Covers valid keys, invalid keys, rate limits - all of which mean we can reach the internet.
+                app.handleOnlineStatus();
+            }
+        } else {
+            // No API key to test with, so we have to fall back to the less reliable navigator.onLine.
+            // This is the best we can do without an API key.
+            app.handleOnlineStatus();
         }
     },
 
@@ -991,6 +1028,12 @@ const app = {
         const isWeatherStale = !cachedWeather || (Date.now() - cachedWeather.timestamp) > APP_CONSTANTS.CACHE_EXPIRY_WEATHER_MS;
 
         if (!cachedWeather || isWeatherStale) {
+            // If stale but we are offline, we must use the stale data.
+            if (!app.isOnline) {
+                console.warn(`App is offline. Cannot fetch new weather for ${location.description}. Using stale data if available.`);
+                return cachedWeather ? cachedWeather.data : null;
+            }
+
             console.log(`Fetching fresh/stale weather data for ${location.description} at ${coords.lat}, ${coords.lon}`);
             try {
                 const weatherData = await api.fetchWeatherData(coords.lat, coords.lon, app.config.owmApiKey);

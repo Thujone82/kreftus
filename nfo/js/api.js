@@ -2,12 +2,6 @@ console.log("api.js loaded");
 
 const OWM_API_BASE_URL = 'https://api.openweathermap.org/data/3.0/onecall';
 
-
-const isOnline = () => {
-    // Returns true or false, synchronous
-    return navigator.onLine;
-};
-
 const api = {
     fetchAiData: async (apiKey, locationName, topicQuery) => {
         const modelName = "gemini-2.5-flash"; // DO NOT ALTER 
@@ -17,11 +11,6 @@ const api = {
         console.log(`Fetching AI data for: ${promptText} using model ${modelName}`);
 
         try {
-            if (!isOnline()) {
-                console.warn("App is offline. Cannot fetch AI data.");
-                throw new Error("App is offline. Cannot fetch new data.");
-            }
-
             const response = await fetch(GEMINI_API_URL, {
                 method: 'POST',
                 headers: {
@@ -95,12 +84,6 @@ const api = {
         console.log(`Fetching weather data from: ${url}`);
 
         try {
-            if (!isOnline()) {
-                console.warn("App is offline. Cannot fetch weather data.");
-                // Return null or cached weather data, depending on your caching strategy
-                return null;
-            }
-
             const response = await fetch(url);
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ message: response.statusText }));
