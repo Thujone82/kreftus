@@ -49,7 +49,8 @@
         }
 
         .project-image-cell {
-            width: 256px;
+            width: 30%;
+            max-width: 256px;
             padding-right: 1.5rem;
         }
 
@@ -100,18 +101,21 @@
 
         /* Responsive adjustments */
         @media (max-width: 900px) {
-            .project-row {
-                display: flex;
-                flex-direction: column;
+            /* Make table cells behave like blocks to stack them */
+            .project-image-cell,
+            .project-text-cell {
+                display: block;
+                width: 100%;
+                box-sizing: border-box;
             }
             .project-image-cell {
-                width: 100%;
+                max-width: none; /* Remove the desktop max-width */
                 padding-right: 0;
                 padding-bottom: 1rem;
-                text-align: center;
             }
             .project-image-cell img {
-                max-width: 100%;
+                max-width: 100%; /* Allow image to scale down fully on very small screens */
+                margin: 0; /* Align left */
             }
         }
 

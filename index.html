@@ -65,7 +65,8 @@
         }
 
         .project-image-cell {
-            width: 256px; /* UPDATED: Fixed width for the image column */
+            width: 30%;           /* Give it a flexible proportional width */
+            max-width: 256px;     /* But cap it at a max size */
             padding-right: 1.5rem;
         }
 
@@ -95,18 +96,21 @@
 
         /* Responsive adjustments */
         @media (max-width: 900px) {
-            .project-row a {
-                flex-direction: column; /* Stack image and text vertically on smaller screens */
-                align-items: flex-start;
+            /* Make table cells behave like blocks to stack them */
+            .project-image-cell,
+            .project-text-cell {
+                display: block;
+                width: 100%;
+                box-sizing: border-box;
             }
             .project-image-cell {
-                width: 100%;
+                max-width: none; /* Remove the desktop max-width */
                 padding-right: 0;
                 padding-bottom: 1rem; /* Add some space between image and text */
             }
             .project-image-cell img {
                 max-width: 100%; /* Allow image to scale down fully on very small screens */
-                 /* max-height will still be 256px unless overridden for very small screens if needed */
+                margin: 0; /* Align left */
             }
         }
 
