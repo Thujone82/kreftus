@@ -1437,89 +1437,209 @@ func invokeTrade(txType, amountString string) {
 		color.New(color.FgRed).Print("n")
 		color.New(color.FgWhite).Println("]")
 
-		input, _ := reader.ReadString('\n')
-		input = strings.ToLower(strings.TrimSpace(input))
-
-		if input == "y" {
-			// Check if the offer has expired *at the moment of acceptance*.
-			if time.Since(offerTimestamp).Minutes() >= 2 {
-				offerExpired = true
-				continue // The offer is stale, loop to get a new price.
+		// --- Phase 1: Asynchronous Input Handling ---
+		// Create a channel to receive input from a goroutine.
+		inputChan := make(chan string)
+		go func() {
+			// This goroutine blocks on reading input, but the main loop won't.
+			// We need to handle potential errors from ReadString, though we discard them for now.
+			if input, err := reader.ReadString('\n'); err == nil {
+				inputChan <- input
 			}
+		}()
 
-			// Reload config from disk to get the absolute latest portfolio state before committing the trade.
-			// This prevents race conditions where another instance of the app has made a trade.
-			tradeCfg, err := ini.Load(iniFilePath)
-			if err != nil {
-				color.Red("\nCritical Error: Could not read portfolio file '%s' to finalize trade.", iniFilePath)
-				color.Red("Error: %v", err)
-				color.Red("Your trade has been CANCELled to prevent data loss.")
-				fmt.Println("Press Enter to continue.")
-				reader.ReadString('\n')
-				return // Cancel the trade
-			}
+		// --- Phase 2a-ii: Introduce the Periodic Ticker ---
+		ticker := time.NewTicker(250 * time.Millisecond)
+		defer ticker.Stop()
 
-			// Get the most up-to-date portfolio values
-			currentPlayerUSD, _ := tradeCfg.Section("Portfolio").Key("PlayerUSD").Float64()
-			currentPlayerBTC, _ := tradeCfg.Section("Portfolio").Key("PlayerBTC").Float64()
-			currentPlayerInvested, _ := tradeCfg.Section("Portfolio").Key("PlayerInvested").Float64()
+		displayState := "" // e.g., "Initial", "OneMinute", "ThirtySeconds", "Expired"
 
-			// Verify if the trade is still possible with the latest balance
-			if txType == "Buy" && usdAmount > currentPlayerUSD {
-				color.Red("\nTrade cancelled. Your USD balance has changed since the trade was initiated.")
-				color.Red("Your current balance is $%s, but the trade required $%s.", formatFloat(currentPlayerUSD, 2), formatFloat(usdAmount, 2))
-				fmt.Println("Press Enter to continue.")
-				reader.ReadString('\n')
-				return
-			}
-			if txType == "Sell" && btcAmount > currentPlayerBTC {
-				color.Red("\nTrade cancelled. Your BTC balance has changed since the trade was initiated.")
-				color.Red("Your current balance is %.8f BTC, but the trade required %.8f BTC.", currentPlayerBTC, btcAmount)
-				fmt.Println("Press Enter to continue.")
-				reader.ReadString('\n')
-				return
-			}
+		redrawTradeScreen(txType, offerExpired, apiData, tradeAmount, displayState)
 
-			var newUserBtc, newInvested float64
-			if txType == "Buy" {
-				tradeCfg.Section("Portfolio").Key("PlayerUSD").SetValue(fmt.Sprintf("%.2f", currentPlayerUSD-usdAmount))
-				newUserBtc = currentPlayerBTC + btcAmount
-				newInvested = currentPlayerInvested + usdAmount
-			} else { // Sell
-				newUserBtc = currentPlayerBTC - btcAmount
-				if newUserBtc < 1e-9 { // Tolerance for float comparison
-					newUserBtc = 0
-					newInvested = 0
-				} else if currentPlayerBTC > 0 {
-					newInvested = currentPlayerInvested * (newUserBtc / currentPlayerBTC)
+	EventLoop:
+		for {
+			// The select statement will form the basis of our event loop.
+			select {
+			case <-ticker.C:
+				// --- Phase 2b: Add State Calculation Logic ---
+				secondsRemaining := (2 * time.Minute) - time.Since(offerTimestamp)
+				requiredState := "Initial"
+				if secondsRemaining <= 0 {
+					requiredState = "Expired"
+				} else if secondsRemaining <= 30*time.Second {
+					requiredState = "ThirtySeconds"
+				} else if secondsRemaining <= 1*time.Minute {
+					requiredState = "OneMinute"
 				}
-				tradeCfg.Section("Portfolio").Key("PlayerUSD").SetValue(fmt.Sprintf("%.2f", currentPlayerUSD+usdAmount))
+
+				if requiredState != displayState {
+					displayState = requiredState
+					redrawTradeScreen(txType, offerExpired, apiData, tradeAmount, displayState)
+				}
+			case rawInput := <-inputChan:
+				input := strings.ToLower(strings.TrimSpace(rawInput))
+
+				if displayState == "Expired" && input != "r" {
+					// In expired state, only 'r' is a valid command. Ignore others.
+					// Relaunch the input listener before continuing, as the previous one has completed.
+					go func() {
+						if newInput, err := reader.ReadString('\n'); err == nil {
+							inputChan <- newInput
+						}
+					}()
+					continue EventLoop // Wait for the next valid input.
+				}
+
+				if input == "y" {
+					// Check if the offer has expired *at the moment of acceptance*.
+					if time.Since(offerTimestamp).Minutes() >= 2 {
+						offerExpired = true
+						break EventLoop // The offer is stale, break inner loop to get a new price.
+					}
+
+					// Reload config from disk to get the absolute latest portfolio state before committing the trade.
+					tradeCfg, err := ini.Load(iniFilePath)
+					if err != nil {
+						color.Red("\nCritical Error: Could not read portfolio file '%s' to finalize trade.", iniFilePath)
+						color.Red("Error: %v", err)
+						color.Red("Your trade has been CANCELLED to prevent data loss.")
+						fmt.Println("Press Enter to continue.")
+						reader.ReadString('\n')
+						return // Cancel the trade
+					}
+
+					// Get the most up-to-date portfolio values
+					currentPlayerUSD, _ := tradeCfg.Section("Portfolio").Key("PlayerUSD").Float64()
+					currentPlayerBTC, _ := tradeCfg.Section("Portfolio").Key("PlayerBTC").Float64()
+					currentPlayerInvested, _ := tradeCfg.Section("Portfolio").Key("PlayerInvested").Float64()
+
+					// Verify if the trade is still possible with the latest balance
+					if txType == "Buy" && usdAmount > currentPlayerUSD {
+						color.Red("\nTrade cancelled. Your USD balance has changed since the trade was initiated.")
+						color.Red("Your current balance is $%s, but the trade required $%s.", formatFloat(currentPlayerUSD, 2), formatFloat(usdAmount, 2))
+						fmt.Println("Press Enter to continue.")
+						reader.ReadString('\n')
+						return
+					}
+					if txType == "Sell" && btcAmount > currentPlayerBTC {
+						color.Red("\nTrade cancelled. Your BTC balance has changed since the trade was initiated.")
+						color.Red("Your current balance is %.8f BTC, but the trade required %.8f BTC.", currentPlayerBTC, btcAmount)
+						fmt.Println("Press Enter to continue.")
+						reader.ReadString('\n')
+						return
+					}
+
+					var newUserBtc, newInvested float64
+					if txType == "Buy" {
+						tradeCfg.Section("Portfolio").Key("PlayerUSD").SetValue(fmt.Sprintf("%.2f", currentPlayerUSD-usdAmount))
+						newUserBtc = currentPlayerBTC + btcAmount
+						newInvested = currentPlayerInvested + usdAmount
+					} else { // Sell
+						newUserBtc = currentPlayerBTC - btcAmount
+						if newUserBtc < 1e-9 { // Tolerance for float comparison
+							newUserBtc = 0
+							newInvested = 0
+						} else if currentPlayerBTC > 0 {
+							newInvested = currentPlayerInvested * (newUserBtc / currentPlayerBTC)
+						}
+						tradeCfg.Section("Portfolio").Key("PlayerUSD").SetValue(fmt.Sprintf("%.2f", currentPlayerUSD+usdAmount))
+					}
+					tradeCfg.Section("Portfolio").Key("PlayerBTC").SetValue(fmt.Sprintf("%.8f", newUserBtc))
+					tradeCfg.Section("Portfolio").Key("PlayerInvested").SetValue(fmt.Sprintf("%.2f", newInvested))
+					err = tradeCfg.SaveTo(iniFilePath)
+					if err != nil {
+						color.Red("\nTrade failed: Could not save portfolio update to vbtc.ini.")
+						color.Red("Error: %v", err)
+						fmt.Println("Please check file permissions and try again.")
+						fmt.Println("Press Enter to continue.")
+						reader.ReadString('\n')
+					} else {
+						cfg = tradeCfg // Update the global config to reflect the new state
+						addLedgerEntry(txType, usdAmount, btcAmount, apiData.Rate, newUserBtc)
+						fmt.Printf("\n%s successful.\n", txType)
+						time.Sleep(1 * time.Second)
+					}
+					return // Exit trade loop regardless of success or failure
+				} else if input == "r" {
+					// User is manually refreshing, so the offer isn't "expired" in a way that requires a warning.
+					offerExpired = false
+					break EventLoop // Break inner loop to get a new price.
+				} else {
+					fmt.Printf("\n%s cancelled.\n", txType)
+					time.Sleep(1 * time.Second)
+					return
+				}
 			}
-			tradeCfg.Section("Portfolio").Key("PlayerBTC").SetValue(fmt.Sprintf("%.8f", newUserBtc))
-			tradeCfg.Section("Portfolio").Key("PlayerInvested").SetValue(fmt.Sprintf("%.2f", newInvested))
-			err = tradeCfg.SaveTo(iniFilePath)
-			if err != nil {
-				color.Red("\nTrade failed: Could not save portfolio update to vbtc.ini.")
-				color.Red("Error: %v", err)
-				fmt.Println("Please check file permissions and try again.")
-				fmt.Println("Press Enter to continue.")
-				reader.ReadString('\n')
-			} else {
-				cfg = tradeCfg // Update the global config to reflect the new state
-				addLedgerEntry(txType, usdAmount, btcAmount, apiData.Rate, newUserBtc)
-				fmt.Printf("\n%s successful.\n", txType)
-				time.Sleep(1 * time.Second)
-			}
-			return // Exit trade loop regardless of success or failure
-		} else if input == "r" {
-			// User is manually refreshing, so the offer isn't "expired" in a way that requires a warning.
-			offerExpired = false
-			continue // Reload the loop
-		} else {
-			fmt.Printf("\n%s cancelled.\n", txType)
-			time.Sleep(1 * time.Second)
-			return
 		}
+	}
+}
+
+func redrawTradeScreen(txType string, offerExpired bool, apiData *ApiDataResponse, tradeAmount float64, displayState string) {
+	clearScreen()
+	color.Yellow("*** %s Bitcoin ***", txType)
+	if offerExpired {
+		color.Yellow("\nOffer expired. A new price has been fetched.")
+		// The offerExpired flag is now managed by the caller loop, so no need to reset it here.
+	}
+
+	// Determine message and color based on the new state
+	var timeLeftMessage string
+	var timeLeftColor *color.Color
+	switch displayState {
+	case "OneMinute":
+		timeLeftMessage = "You have 1 minute to accept this offer."
+		timeLeftColor = color.New(color.FgYellow)
+	case "ThirtySeconds":
+		timeLeftMessage = "You have 30 seconds to accept this offer."
+		timeLeftColor = color.New(color.FgRed)
+	case "Expired":
+		timeLeftMessage = "Offer expired, please refresh for new offer."
+		timeLeftColor = color.New(color.FgCyan)
+	default: // "Initial" or fallback
+		timeLeftMessage = "You have 2 minutes to accept this offer."
+		timeLeftColor = color.New(color.FgWhite)
+	}
+
+	var usdAmount, btcAmount float64
+	if txType == "Buy" {
+		usdAmount = tradeAmount
+		btcAmount = math.Floor((usdAmount/apiData.Rate)*1e8) / 1e8
+	} else { // Sell
+		btcAmount = tradeAmount
+		usdAmount = math.Floor((btcAmount*apiData.Rate)*100) / 100
+	}
+
+	priceColor := color.New(color.FgWhite)
+	if apiData.Rate > apiData.Rate24hAgo {
+		priceColor = color.New(color.FgGreen)
+	} else if apiData.Rate < apiData.Rate24hAgo {
+		priceColor = color.New(color.FgRed)
+	}
+
+	fmt.Println()
+	timeLeftColor.Println(timeLeftMessage)
+	priceColor.Printf("Market Rate: $%s\n", formatFloat(apiData.Rate, 2))
+
+	var confirmPrompt string
+	if txType == "Buy" {
+		confirmPrompt = fmt.Sprintf("Purchase %.8f BTC for $%s? ", btcAmount, formatFloat(usdAmount, 2))
+	} else {
+		confirmPrompt = fmt.Sprintf("Sell %.8f BTC for $%s? ", btcAmount, formatFloat(usdAmount, 2))
+	}
+
+	fmt.Print(confirmPrompt)
+	if displayState == "Expired" {
+		color.New(color.FgWhite).Print("[")
+		color.New(color.FgCyan).Print("r")
+		color.New(color.FgWhite).Println("]")
+	} else {
+		color.New(color.FgWhite).Print("[")
+		color.New(color.FgGreen).Print("y")
+		color.New(color.FgWhite).Print("/")
+		color.New(color.FgCyan).Print("r")
+		color.New(color.FgWhite).Print("/")
+		color.New(color.FgRed).Print("n")
+		color.New(color.FgWhite).Println("]")
 	}
 }
 

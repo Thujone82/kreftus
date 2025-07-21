@@ -877,9 +877,10 @@ function Invoke-Trade {
     }
 
     # --- Confirmation Loop with Timeout ---
-    $offerExpired = $false
+    $offerExpiredMessageNeeded = $false
     $tradeApiData = $CurrentApiData # Use a local variable for the loop
-    while ($true) {
+
+    :OuterTradeLoop while ($true) {
         # Update the local tradeApiData object, skipping the historical call for speed.
         $tradeApiData = Update-ApiData -Config $Config.Value -OldApiData $tradeApiData -SkipHistorical
         if ($tradeApiData -and $tradeApiData.PSObject.Properties['IsNetworkError'] -and $tradeApiData.IsNetworkError) {
@@ -894,47 +895,97 @@ function Invoke-Trade {
         }
         if (-not $tradeApiData) { Read-Host "Error fetching price. Press Enter to continue."; return $CurrentApiData } # return old data on failure
         $offerTimestamp = Get-Date # Record the time the offer is presented.
-        
-        Clear-Host
-        Write-Host "*** $Type Bitcoin ***" -ForegroundColor Yellow
-        if ($offerExpired) {
-            Write-Host "`nOffer expired. A new price has been fetched." -ForegroundColor Yellow
-            $offerExpired = $false # Reset the flag after showing the message
-        }
+        $timeoutSeconds = 120
+        $tradeinput = $null # To store the user's choice
 
-        $usdAmount = if ($Type -eq "Buy") { $tradeAmount } else { [math]::Floor(($tradeAmount * $tradeApiData.rate) * 100) / 100 }
-        $btcAmount = if ($Type -eq "Sell") { $tradeAmount } else { [math]::Floor(($tradeAmount / $tradeApiData.rate) * 100000000) / 100000000 }
+        $displayState = $null # Tracks what is currently on screen to prevent flicker
 
-        $rate24hAgo = if ($tradeApiData.PSObject.Properties['rate24hAgo']) { $tradeApiData.rate24hAgo } else { $tradeApiData.rate }
-        $priceDiff = $tradeApiData.rate - $rate24hAgo
-        $priceColor = if ($priceDiff -gt 0) { "Green" } elseif ($priceDiff -lt 0) { "Red" } else { "White" }
+        # This loop will run until user provides input or it times out.
+        :InnerInputLoop while ($true) {
+            # Calculate remaining time and determine message/color
+            $elapsedSeconds = ((Get-Date) - $offerTimestamp).TotalSeconds
+            $secondsRemaining = $timeoutSeconds - $elapsedSeconds
 
-        $confirmPrompt = if ($Type -eq "Buy") {
-            "Purchase $($btcAmount.ToString("F8")) BTC for $($usdAmount.ToString("C2"))? "
-        } else {
-            "Sell $($btcAmount.ToString("F8")) BTC for $($usdAmount.ToString("C2"))? "
-        }
-        
-        Write-Host "`nYou have 2 minutes to accept this offer." -ForegroundColor Yellow
-        Write-Host -NoNewline "Market Rate: "
-        Write-Host ("{0:C2}" -f $tradeApiData.rate) -ForegroundColor $priceColor
-        
-        Write-Host -NoNewline $confirmPrompt
-        Write-Host "[" -NoNewline
-        Write-Host "y" -ForegroundColor Green -NoNewline
-        Write-Host "/" -NoNewline
-        Write-Host "r" -ForegroundColor Cyan -NoNewline
-        Write-Host "/" -NoNewline
-        Write-Host "n" -ForegroundColor Red -NoNewline
-        Write-Host "]"
-        
-        $tradeinput = Read-Host
+            $requiredState = "Initial"
+            if ($secondsRemaining -le 0) {
+                $requiredState = "Expired"
+            } elseif ($secondsRemaining -le 30) {
+                $requiredState = "ThirtySeconds"
+            } elseif ($secondsRemaining -le 60) {
+                $requiredState = "OneMinute"
+            }
+
+            # --- Redraw logic ---
+            # Only redraw the screen if the state has changed.
+            if ($requiredState -ne $displayState) {
+                $displayState = $requiredState # Update the current state
+                $isExpiredOnScreen = ($displayState -eq "Expired")
+
+                # Determine message and color based on the new state
+                switch ($displayState) {
+                    "Initial"       { $timeLeftMessage = "You have 2 minutes to accept this offer."; $timeLeftColor = "White" }
+                    "OneMinute"     { $timeLeftMessage = "You have 1 minute to accept this offer."; $timeLeftColor = "Yellow" }
+                    "ThirtySeconds" { $timeLeftMessage = "You have 30 seconds to accept this offer."; $timeLeftColor = "Red" }
+                    "Expired"       { $timeLeftMessage = "Offer expired, please refresh for new offer."; $timeLeftColor = "Cyan" }
+                }
+
+                Clear-Host
+                Write-Host "*** $Type Bitcoin ***" -ForegroundColor Yellow
+                if ($offerExpiredMessageNeeded) {
+                    Write-Host "`nOffer expired. A new price has been fetched." -ForegroundColor Yellow
+                    $offerExpiredMessageNeeded = $false # Reset the flag after showing the message
+                }
+
+                # Display the offer details (same as before)
+                $usdAmount = if ($Type -eq "Buy") { $tradeAmount } else { [math]::Floor(($tradeAmount * $tradeApiData.rate) * 100) / 100 }
+                $btcAmount = if ($Type -eq "Sell") { $tradeAmount } else { [math]::Floor(($tradeAmount / $tradeApiData.rate) * 100000000) / 100000000 }
+                $rate24hAgo = if ($tradeApiData.PSObject.Properties['rate24hAgo']) { $tradeApiData.rate24hAgo } else { $tradeApiData.rate }
+                $priceDiff = $tradeApiData.rate - $rate24hAgo
+                $priceColor = if ($priceDiff -gt 0) { "Green" } elseif ($priceDiff -lt 0) { "Red" } else { "White" }
+                $confirmPrompt = if ($Type -eq "Buy") { "Purchase $($btcAmount.ToString("F8")) BTC for $($usdAmount.ToString("C2"))? " } else { "Sell $($btcAmount.ToString("F8")) BTC for $($usdAmount.ToString("C2"))? " }
+
+                Write-Host "`n$timeLeftMessage" -ForegroundColor $timeLeftColor
+                Write-Host -NoNewline "Market Rate: "
+                Write-Host ("{0:C2}" -f $tradeApiData.rate) -ForegroundColor $priceColor
+                Write-Host -NoNewline $confirmPrompt
+                if ($isExpiredOnScreen) {
+                    Write-Host "[" -NoNewline; Write-Host "r" -ForegroundColor Cyan -NoNewline; Write-Host "]"
+                } else {
+                    Write-Host "[" -NoNewline; Write-Host "y" -ForegroundColor Green -NoNewline; Write-Host "/" -NoNewline; Write-Host "r" -ForegroundColor Cyan -NoNewline; Write-Host "/" -NoNewline; Write-Host "n" -ForegroundColor Red -NoNewline; Write-Host "]"
+                }
+            }
+
+            # --- Input/Timeout Check ---
+            $loopStart = Get-Date
+            while (((Get-Date) - $loopStart).TotalMilliseconds -lt 250) { # Check for input every 250ms to reduce flicker
+                if ([System.Console]::KeyAvailable) {
+                    $key = [System.Console]::ReadKey($true)
+                    $tradeinput = $key.KeyChar.ToString()
+                    break # Break the inner 250ms loop
+                }
+                Start-Sleep -Milliseconds 50
+            }
+
+            if ($null -ne $tradeinput) {
+                $isExpiredOnScreen = ($displayState -eq "Expired")
+                if ($isExpiredOnScreen) {
+                    # If the offer is expired on-screen, only 'r' is a valid command.
+                    if ($tradeinput.ToLower() -ne 'r') {
+                        $tradeinput = $null # Ignore invalid input (like 'y' or 'n')
+                        continue InnerInputLoop # Redraw the screen
+                    }
+                }
+                # If we reach here, the input is valid for the current state, so break the loop to process it.
+                break InnerInputLoop
+            }
+
+        } # End of InnerInputLoop
 
         if ($tradeinput.ToLower() -eq 'y') {
             # Check if the offer has expired *at the moment of acceptance*.
             if (((Get-Date) - $offerTimestamp).TotalMinutes -ge 2) {
-                $offerExpired = $true
-                continue # The offer is stale, loop to get a new price.
+                $offerExpiredMessageNeeded = $true
+                continue OuterTradeLoop # The offer is stale, loop to get a new price.
             }
 
             # --- RACE CONDITION FIX: Read-before-write ---
@@ -999,8 +1050,8 @@ function Invoke-Trade {
         } 
         elseif ($tradeinput.ToLower() -eq 'r') {
             # User is manually refreshing, so the offer isn't "expired".
-            # The loop will naturally get a new price.
-            continue 
+            # The loop will naturally get a new price by continuing the outer loop.
+            continue OuterTradeLoop
         }
         
         Write-Host "`n$Type cancelled."
