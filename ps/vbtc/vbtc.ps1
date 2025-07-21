@@ -960,7 +960,19 @@ function Invoke-Trade {
             while (((Get-Date) - $loopStart).TotalMilliseconds -lt 250) { # Check for input every 250ms to reduce flicker
                 if ([System.Console]::KeyAvailable) {
                     $key = [System.Console]::ReadKey($true)
-                    $tradeinput = $key.KeyChar.ToString()
+
+                    # Handle Enter key press separately
+                    if ($key.Key -eq 'Enter') {
+                        $isExpiredOnScreen = ($displayState -eq "Expired")
+                        if ($isExpiredOnScreen) {
+                            # On expired screen, Enter returns to main menu immediately.
+                            return $tradeApiData
+                        }
+                        # On an active offer, Enter should cancel. We set a non-y/r value to fall through.
+                        $tradeinput = "n"
+                    } else {
+                        $tradeinput = $key.KeyChar.ToString()
+                    }
                     break # Break the inner 250ms loop
                 }
                 Start-Sleep -Milliseconds 50

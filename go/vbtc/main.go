@@ -1479,15 +1479,22 @@ func invokeTrade(txType, amountString string) {
 			case rawInput := <-inputChan:
 				input := strings.ToLower(strings.TrimSpace(rawInput))
 
-				if displayState == "Expired" && input != "r" {
-					// In expired state, only 'r' is a valid command. Ignore others.
-					// Relaunch the input listener before continuing, as the previous one has completed.
-					go func() {
-						if newInput, err := reader.ReadString('\n'); err == nil {
-							inputChan <- newInput
-						}
-					}()
-					continue EventLoop // Wait for the next valid input.
+				if displayState == "Expired" {
+					if input == "" {
+						// On expired screen, pressing Enter returns to the main menu.
+						return
+					}
+					if input != "r" {
+						// Any other invalid command on the expired screen is ignored.
+						// Relaunch the input listener and wait for a valid command ('r' or Enter).
+						go func() {
+							if newInput, err := reader.ReadString('\n'); err == nil {
+								inputChan <- newInput
+							}
+						}()
+						continue EventLoop
+					}
+					// If input is 'r', it will fall through to the handler below.
 				}
 
 				if input == "y" {
