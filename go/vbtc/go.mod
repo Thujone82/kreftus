@@ -4,6 +4,7 @@ go 1.22.0
 
 require (
 	github.com/Knetic/govaluate v3.0.0+incompatible
+	github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203
 	github.com/fatih/color v1.17.0
 	github.com/shirou/gopsutil/v3 v3.24.5
 	gopkg.in/ini.v1 v1.67.0

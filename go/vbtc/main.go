@@ -21,6 +21,7 @@ import (
 
 	"github.com/Knetic/govaluate"
 	"github.com/fatih/color"
+	"github.com/eiannone/keyboard"
 	"github.com/shirou/gopsutil/v3/process"
 	"gopkg.in/ini.v1"
 )
@@ -1375,6 +1376,16 @@ func invokeTrade(txType, amountString string) {
 
 	// Confirmation Loop
 	offerExpired := false
+
+	// Open keyboard once before the confirmation loop to enable single-key input.
+	if err := keyboard.Open(); err != nil {
+		color.Red("Error: Could not initialize direct keyboard input: %v", err)
+		fmt.Println("Press Enter to return to the main menu.")
+		reader.ReadString('\n')
+		return
+	}
+	defer keyboard.Close()
+
 	for {
 		apiData = updateApiData(true)
 		if apiData != nil && apiData.ApiError == "NetworkError" {
@@ -1442,9 +1453,15 @@ func invokeTrade(txType, amountString string) {
 		inputChan := make(chan string)
 		go func() {
 			// This goroutine blocks on reading input, but the main loop won't.
-			// We need to handle potential errors from ReadString, though we discard them for now.
-			if input, err := reader.ReadString('\n'); err == nil {
-				inputChan <- input
+			char, key, err := keyboard.GetKey()
+			if err != nil {
+				// This can happen on Ctrl+C, so we don't want to spam errors.
+				return
+			}
+			if key == keyboard.KeyEnter {
+				inputChan <- "\n" // Send a newline to simulate the old behavior for Enter key.
+			} else if char != 0 {
+				inputChan <- string(char)
 			}
 		}()
 
