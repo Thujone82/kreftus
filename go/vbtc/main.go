@@ -114,6 +114,17 @@ func (e *ProviderDownError) Temporary() bool { return true }  // It's a temporar
 
 // --- Main Application ---
 func main() {
+	// Open keyboard once for the entire application lifecycle to enable single-key input
+	// without the delay of opening/closing it repeatedly.
+	if err := keyboard.Open(); err != nil {
+		// This is a fatal error for the app's intended UX, so we'll print and exit.
+		color.Red("Fatal Error: Could not initialize direct keyboard input: %v", err)
+		fmt.Println("Please ensure the application is run in a standard terminal.")
+		return
+	}
+	// Ensure the keyboard is closed when the application exits.
+	defer keyboard.Close()
+
 	setup()
 	mainLoop()
 }
@@ -198,7 +209,11 @@ func mainLoop() {
 			command := matchedCommands[0]
 			switch command {
 			case "buy":
-				invokeTrade("Buy", amount)
+				// The invokeTrade function now returns the latest data it fetched.
+				returnedApiData := invokeTrade("Buy", amount)
+				if returnedApiData != nil {
+					apiData = returnedApiData
+				}
 				// After returning from trade, always reload config to ensure the main screen is perfectly in sync.
 				reloadedCfg, err := ini.Load(iniFilePath)
 				if err != nil {
@@ -208,9 +223,11 @@ func mainLoop() {
 				} else {
 					cfg = reloadedCfg
 				}
-				apiData = updateApiData(false)
 			case "sell":
-				invokeTrade("Sell", amount)
+				returnedApiData := invokeTrade("Sell", amount)
+				if returnedApiData != nil {
+					apiData = returnedApiData
+				}
 				// After returning from trade, always reload config to ensure the main screen is perfectly in sync.
 				reloadedCfg, err := ini.Load(iniFilePath)
 				if err != nil {
@@ -220,7 +237,6 @@ func mainLoop() {
 				} else {
 					cfg = reloadedCfg
 				}
-				apiData = updateApiData(false)
 			case "ledger":
 				showLedgerScreen()
 			case "refresh":
@@ -1324,7 +1340,7 @@ func addLedgerEntry(txType string, usdAmount, btcAmount, btcPrice, userBtcAfter 
 	writer.Write(record)
 }
 
-func invokeTrade(txType, amountString string) {
+func invokeTrade(txType, amountString string) *ApiDataResponse {
 	// For the most accurate UI prompt, we should read the latest config from disk here too.
 	// This prevents showing the user a stale "Max" amount if another client has made a trade.
 	promptCfg, err := ini.Load(iniFilePath)
@@ -1360,7 +1376,7 @@ func invokeTrade(txType, amountString string) {
 			userInput, _ = reader.ReadString('\n')
 			userInput = strings.TrimSpace(userInput)
 			if userInput == "" {
-				return // Cancel
+				return apiData // Cancel
 			}
 		}
 
@@ -1395,15 +1411,6 @@ func invokeTrade(txType, amountString string) {
 	// Confirmation Loop
 	offerExpired := false
 
-	// Open keyboard once before the confirmation loop to enable single-key input.
-	if err := keyboard.Open(); err != nil {
-		color.Red("Error: Could not initialize direct keyboard input: %v", err)
-		fmt.Println("Press Enter to return to the main menu.")
-		reader.ReadString('\n')
-		return
-	}
-	defer keyboard.Close()
-
 	for {
 		apiData = updateApiData(true)
 		if apiData != nil && apiData.ApiError == "NetworkError" {
@@ -1415,12 +1422,12 @@ func invokeTrade(txType, amountString string) {
 			color.Red(errorMessage)
 			fmt.Println("Press Enter to return to the main menu.")
 			reader.ReadString('\n')
-			return // Return to main menu
+			return apiData // Return to main menu
 		}
 		if apiData == nil || apiData.Rate == 0 {
 			color.Red("Error fetching price. Press Enter to continue.")
 			reader.ReadString('\n')
-			return
+			return apiData
 		}
 		offerTimestamp := time.Now() // Record the time the offer is presented.
 
@@ -1517,7 +1524,7 @@ func invokeTrade(txType, amountString string) {
 				if displayState == "Expired" {
 					if input == "" {
 						// On expired screen, pressing Enter returns to the main menu.
-						return
+						return apiData
 					}
 					if input != "r" {
 						// Any other invalid command on the expired screen is ignored.
@@ -1547,7 +1554,7 @@ func invokeTrade(txType, amountString string) {
 						color.Red("Your trade has been CANCELLED to prevent data loss.")
 						fmt.Println("Press Enter to continue.")
 						reader.ReadString('\n')
-						return // Cancel the trade
+						return apiData // Cancel the trade
 					}
 
 					// Get the most up-to-date portfolio values
@@ -1561,14 +1568,14 @@ func invokeTrade(txType, amountString string) {
 						color.Red("Your current balance is $%s, but the trade required $%s.", formatFloat(currentPlayerUSD, 2), formatFloat(usdAmount, 2))
 						fmt.Println("Press Enter to continue.")
 						reader.ReadString('\n')
-						return
+						return apiData
 					}
 					if txType == "Sell" && btcAmount > currentPlayerBTC {
 						color.Red("\nTrade cancelled. Your BTC balance has changed since the trade was initiated.")
 						color.Red("Your current balance is %.8f BTC, but the trade required %.8f BTC.", currentPlayerBTC, btcAmount)
 						fmt.Println("Press Enter to continue.")
 						reader.ReadString('\n')
-						return
+						return apiData
 					}
 
 					var newUserBtc, newInvested float64
@@ -1601,7 +1608,7 @@ func invokeTrade(txType, amountString string) {
 						fmt.Printf("\n%s successful.\n", txType)
 						time.Sleep(1 * time.Second)
 					}
-					return // Exit trade loop regardless of success or failure
+					return apiData // Exit trade loop regardless of success or failure
 				} else if input == "r" {
 					// User is manually refreshing, so the offer isn't "expired" in a way that requires a warning.
 					offerExpired = false
@@ -1609,7 +1616,7 @@ func invokeTrade(txType, amountString string) {
 				} else {
 					fmt.Printf("\n%s cancelled.\n", txType)
 					time.Sleep(1 * time.Second)
-					return
+					return apiData
 				}
 			}
 		}
