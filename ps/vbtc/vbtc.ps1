@@ -1240,9 +1240,13 @@ while ($true) {
         switch ($command) {
             "buy" {
                 $apiData = Invoke-Trade -Config ([ref]$config) -Type "Buy" -AmountString $amount -CurrentApiData $apiData
+                # After returning from trade, always reload config to ensure the main screen is perfectly in sync.
+                $config = Get-IniConfiguration -FilePath $iniFilePath
             }
             "sell" {
                 $apiData = Invoke-Trade -Config ([ref]$config) -Type "Sell" -AmountString $amount -CurrentApiData $apiData
+                # After returning from trade, always reload config to ensure the main screen is perfectly in sync.
+                $config = Get-IniConfiguration -FilePath $iniFilePath
             }
             "ledger" { Show-LedgerScreen }
             "refresh" {

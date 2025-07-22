@@ -199,9 +199,27 @@ func mainLoop() {
 			switch command {
 			case "buy":
 				invokeTrade("Buy", amount)
+				// After returning from trade, always reload config to ensure the main screen is perfectly in sync.
+				reloadedCfg, err := ini.Load(iniFilePath)
+				if err != nil {
+					color.Red("Error reloading portfolio from vbtc.ini: %v", err)
+					fmt.Println("Press Enter to continue.")
+					reader.ReadString('\n')
+				} else {
+					cfg = reloadedCfg
+				}
 				apiData = updateApiData(false)
 			case "sell":
 				invokeTrade("Sell", amount)
+				// After returning from trade, always reload config to ensure the main screen is perfectly in sync.
+				reloadedCfg, err := ini.Load(iniFilePath)
+				if err != nil {
+					color.Red("Error reloading portfolio from vbtc.ini: %v", err)
+					fmt.Println("Press Enter to continue.")
+					reader.ReadString('\n')
+				} else {
+					cfg = reloadedCfg
+				}
 				apiData = updateApiData(false)
 			case "ledger":
 				showLedgerScreen()
