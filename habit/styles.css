@@ -1,6 +1,6 @@
 /* Base styles */
 :root {
-  --primary-color: #4CAF50;
+  --primary-color: var(--completion-color, #4CAF50);
   --completion-color: #4CAF50;
   --dark-bg: #121212;
   --dark-surface: #1e1e1e;
@@ -268,13 +268,13 @@ header h1 {
 }
 
 .primary-button {
-  background-color: var(--primary-color);
+  background-color: var(--completion-color);
   color: white;
 }
 
 .secondary-button {
   background-color: transparent;
-  border: 1px solid var(--primary-color);
+  border: 1px solid var(--completion-color);
 }
 
 .dark-theme .secondary-button {
@@ -282,7 +282,7 @@ header h1 {
 }
 
 .light-theme .secondary-button {
-  color: var(--primary-color);
+  color: var(--completion-color);
 }
 
 .primary-button:hover, 
@@ -417,8 +417,48 @@ header h1 {
 }
 
 .item-actions button:hover {
-  background-color: var(--primary-color);
+  background-color: var(--completion-color);
   color: white;
+}
+
+/* Inline task editor */
+.inline-task-editor {
+  margin: 8px 0;
+  padding: 16px;
+  border-radius: 8px;
+  border-left: 4px solid var(--completion-color);
+}
+
+.dark-theme .inline-task-editor {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.light-theme .inline-task-editor {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+.inline-editor-content h4 {
+  margin: 0 0 12px 0;
+  font-size: 1rem;
+  color: var(--completion-color);
+}
+
+.inline-tasks-list {
+  margin-bottom: 12px;
+  min-height: 40px;
+}
+
+.inline-button-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.inline-add-task-btn {
+  margin-bottom: 8px;
+  padding: 6px 12px;
+  font-size: 0.9rem;
 }
 
 /* Utility classes */
@@ -477,45 +517,42 @@ header h1 {
 
 /* Drag and drop */
 .draggable {
+  transition: opacity 0.2s ease;
+}
+
+.draggable[draggable="true"] {
   cursor: move;
 }
 
 .draggable .drag-handle {
   cursor: move;
   padding: 8px;
+  transition: opacity 0.2s ease;
 }
 
-.dragging {
-  opacity: 0.5;
-  transform: rotate(5deg);
-  z-index: 100;
-  pointer-events: none;
-}
-
-.drag-preview {
-  position: fixed;
-  pointer-events: none;
-  z-index: 1000;
-  opacity: 0.8;
-  transform: rotate(5deg);
-  background: var(--completion-color);
-  color: white;
-  padding: 12px;
+.drag-over {
+  background-color: rgba(76, 175, 80, 0.1);
+  border: 2px dashed var(--completion-color);
   border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
-
-.drop-zone {
-  min-height: 4px;
-  background: var(--completion-color);
-  border-radius: 2px;
-  transition: all 0.2s ease;
 }
 
 .drop-indicator {
   height: 3px;
   background: var(--completion-color);
   margin: 4px 0;
+  border-radius: 2px;
+  opacity: 1;
+  box-shadow: 0 0 4px var(--completion-color);
+  animation: pulse-indicator 1s infinite;
+}
+
+@keyframes pulse-indicator {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 /* Progress bars */

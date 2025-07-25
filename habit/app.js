@@ -71,6 +71,12 @@ async function initApp() {
   }
 }
 
+// Drag and drop functions
+function handleDragMove(e) {
+  // This function is referenced but not needed for HTML5 drag and drop
+  // Keeping it empty to prevent errors
+}
+
 // Load categories and their tasks
 async function loadCategories() {
   try {
@@ -248,11 +254,362 @@ function setupEventListeners() {
   // Document-wide event listeners for drag and drop
   document.addEventListener('mousemove', handleDragMove);
   document.addEventListener('touchmove', handleDragMove, { passive: false });
-  document.addEventListener('mouseup', handleDragEnd);
-  document.addEventListener('touchend', handleDragEnd);
 }
 
-// Handle long press for undoing completion
+// Initialize draggable element
+function initDraggable(element) {
+  console.log('initDraggable called for:', element);
+  const dragHandle = element.querySelector('.drag-handle');
+  console.log('Found drag handle:', dragHandle);
+  
+  if (!dragHandle) return;
+  
+  // Make the entire element draggable
+  element.draggable = true;
+  console.log('Set element draggable to true');
+  
+  // Remove existing listeners to prevent duplicates
+  element.removeEventListener('dragstart', handleDragStart);
+  element.removeEventListener('dragend', handleDragEnd);
+  
+  // Add event listeners
+  element.addEventListener('dragstart', handleDragStart);
+  element.addEventListener('dragend', handleDragEnd);
+  console.log('Added drag event listeners');
+  
+  // Add visual feedback on hover
+  dragHandle.removeEventListener('mouseenter', dragHandle._mouseEnterHandler);
+  dragHandle.removeEventListener('mouseleave', dragHandle._mouseLeaveHandler);
+  
+  dragHandle._mouseEnterHandler = () => {
+    dragHandle.style.opacity = '1';
+  };
+  
+  dragHandle._mouseLeaveHandler = () => {
+    dragHandle.style.opacity = '0.5';
+  };
+  
+  dragHandle.addEventListener('mouseenter', () => {
+    dragHandle.style.opacity = '1';
+  });
+  
+  dragHandle.addEventListener('mouseleave', () => {
+    dragHandle.style.opacity = '0.5';
+  });
+}
+
+// Handle drag start
+function handleDragStart(e) {
+  console.log('Drag start triggered for:', e.target);
+  console.log('Event type:', e.type);
+  console.log('DataTransfer available:', !!e.dataTransfer);
+  draggingElement = e.target;
+  dragSourceContainer = draggingElement.parentElement;
+  
+  // Set drag data
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', draggingElement.dataset.id);
+  }
+  
+  // Add visual feedback
+  setTimeout(() => {
+    draggingElement.style.opacity = '0.5';
+  }, 0);
+  
+  // Setup drop zones
+  console.log('Setting up drop zones from drag start');
+  setupDropZones();
+}
+
+// Setup drop zones
+function setupDropZones() {
+  // Find all containers that can accept drops
+  const containers = [
+    categoriesContainer,
+    ...document.querySelectorAll('.tasks-container'),
+    ...document.querySelectorAll('.inline-tasks-list')
+  ];
+  
+  // Add config containers if they exist
+  if (categoriesList && categoriesList.offsetParent !== null) {
+    containers.push(categoriesList);
+    console.log('Added categoriesList to drop zones');
+  }
+  if (tasksList && tasksList.offsetParent !== null) {
+    containers.push(tasksList);
+    console.log('Added tasksList to drop zones');
+  }
+  
+  console.log('Setting up drop zones for containers:', containers.length);
+  
+  containers.forEach(container => {
+    if (!container) return;
+    
+    console.log('Setting up drop zone for:', container.id || container.className);
+    
+    // Remove existing listeners to prevent duplicates
+    container.removeEventListener('dragover', handleDragOver);
+    container.removeEventListener('dragenter', handleDragEnter);
+    container.removeEventListener('dragleave', handleDragLeave);
+    container.removeEventListener('drop', handleDrop);
+    
+    container.addEventListener('dragover', handleDragOver);
+    container.addEventListener('dragenter', handleDragEnter);
+    container.addEventListener('dragleave', handleDragLeave);
+    container.addEventListener('drop', handleDrop);
+  });
+}
+
+// Handle drag over
+function handleDragOver(e) {
+  e.preventDefault();
+  if (e.dataTransfer) {
+    e.dataTransfer.dropEffect = 'move';
+  }
+  
+  const container = e.currentTarget;
+  const afterElement = getDragAfterElement(container, e.clientY);
+  showDropIndicator(container, afterElement);
+  
+}
+
+// Handle drag enter
+function handleDragEnter(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+
+// Handle drag leave
+function handleDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+  hideDropIndicator();
+}
+
+// Get element after which to insert
+function getDragAfterElement(container, y) {
+  const draggableElements = [...container.children].filter(child => 
+    child.classList.contains('draggable') && 
+    child !== draggingElement &&
+    !child.style.opacity.includes('0.5')
+  );
+  
+  // If no elements, return null (drop at beginning)
+  if (draggableElements.length === 0) {
+    return null;
+  }
+  
+  // Check if we're above the first element
+  const firstElement = draggableElements[0];
+  const firstBox = firstElement.getBoundingClientRect();
+  if (y < firstBox.top + firstBox.height / 2) {
+    return firstElement; // Insert before first element
+  }
+  
+  // Check if we're below the last element
+  const lastElement = draggableElements[draggableElements.length - 1];
+  const lastBox = lastElement.getBoundingClientRect();
+  if (y > lastBox.bottom) {
+    return null; // Insert at end
+  }
+  
+  // Find the element we're closest to
+  let closestElement = null;
+  let closestOffset = Number.NEGATIVE_INFINITY;
+  
+  for (const child of draggableElements) {
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    
+    if (offset < 0 && offset > closestOffset) {
+      closestOffset = offset;
+      closestElement = child;
+    }
+  }
+  
+  return closestElement;
+}
+
+// Show drop indicator
+function showDropIndicator(container, afterElement) {
+  hideDropIndicator();
+  
+  // Don't show indicator if we're dragging outside the valid container
+  if (!container || !draggingElement) return;
+  
+  // Check if the container is a valid drop target for the dragging element
+  const draggingElementType = draggingElement.classList.contains('category') ? 'category' : 'task';
+  const isValidContainer = isValidDropContainer(container, draggingElementType);
+  
+  if (!isValidContainer) return;
+  
+  dropIndicator.className = 'drop-indicator';
+  dropIndicator.classList.remove('hidden');
+  
+  if (afterElement === null) {
+    // Insert at end of container, but within container bounds
+    container.appendChild(dropIndicator);
+  } else {
+    // Insert before the specified element, ensuring it stays within container
+    container.insertBefore(dropIndicator, afterElement);
+  }
+}
+
+// Check if container is valid for the dragging element type
+function isValidDropContainer(container, elementType) {
+  if (elementType === 'category') {
+    // Categories can only be dropped in categories container or categories list
+    return container.id === 'categories-container' || container.id === 'categories-list';
+  } else if (elementType === 'task') {
+    // Tasks can be dropped in tasks containers, tasks list, or inline tasks list
+    return container.classList.contains('tasks-container') || 
+           container.id === 'tasks-list' || 
+           container.classList.contains('inline-tasks-list');
+  }
+  return false;
+}
+
+// Handle drop
+function handleDrop(e) {
+  console.log('Drop triggered on:', e.currentTarget.id || e.currentTarget.className);
+  e.preventDefault();
+  e.stopPropagation();
+  
+  // Check if draggingElement is null and return early if so
+  if (!draggingElement) {
+    console.log('No dragging element found');
+    cleanupDragState();
+    return;
+  }
+  
+  const container = e.currentTarget;
+  console.log('Drop container:', container.id || container.className);
+  
+  // Prevent dropping categories inside other categories or tasks containers
+  const draggingElementType = draggingElement.classList.contains('category') ? 'category' : 
+                              (draggingElement.classList.contains('config-item') && 
+                               container.id === 'categories-list') ? 'category' : 'task';
+  
+  console.log('Dragging element type:', draggingElementType);
+  
+  // Additional validation: prevent categories from being dropped in task containers
+  if (draggingElementType === 'category' && container.classList.contains('tasks-container')) {
+    console.log('Cannot drop category in task container');
+    cleanupDragState();
+    return;
+  }
+  
+  // Additional validation: prevent tasks from being dropped in category containers (except task lists)
+  if (draggingElementType === 'task' && container.id === 'categories-container') {
+    console.log('Cannot drop task in categories container');
+    cleanupDragState();
+    return;
+  }
+  
+  // Validate drop target
+  if (!isValidDropContainer(container, draggingElementType)) {
+    console.log('Invalid drop container');
+    cleanupDragState();
+    return;
+  }
+  
+  const afterElement = getDragAfterElement(container, e.clientY);
+  
+  // Move the element to the correct position
+  if (afterElement === null) {
+    container.appendChild(draggingElement);
+  } else {
+    container.insertBefore(draggingElement, afterElement);
+  }
+  
+  console.log('Element moved successfully');
+  
+  // Update database order
+  updateOrderInDatabase(container);
+  
+  // Clean up
+  cleanupDragState();
+}
+
+// Handle drag end
+function handleDragEnd(e) {
+  console.log('Drag end triggered');
+  console.log('Event type:', e.type);
+  cleanupDragState();
+}
+
+// Clean up drag state
+function cleanupDragState() {
+  if (draggingElement) {
+    draggingElement.style.opacity = '';
+  }
+  
+  // Remove drag-over classes
+  document.querySelectorAll('.drag-over').forEach(el => {
+    el.classList.remove('drag-over');
+  });
+  
+  hideDropIndicator();
+  
+  draggingElement = null;
+  dragSourceContainer = null;
+}
+
+// Hide drop indicator
+function hideDropIndicator() {
+  if (dropIndicator.parentNode) {
+    dropIndicator.parentNode.removeChild(dropIndicator);
+  }
+  dropIndicator.classList.add('hidden');
+}
+
+// Update order in database
+async function updateOrderInDatabase(container) {
+  try {
+    if (container.id === 'categories-list') {
+      // Reordering categories in config
+      const orderedCategoryIds = Array.from(container.querySelectorAll('.config-item'))
+        .map(item => parseInt(item.dataset.id));
+      await habitDB.updateCategoryOrder(orderedCategoryIds);
+      
+    } else if (container.id === 'tasks-list') {
+      // Reordering tasks in config
+      if (currentCategoryId) {
+        const orderedTaskIds = Array.from(container.querySelectorAll('.config-item'))
+          .map(item => parseInt(item.dataset.id));
+        await habitDB.updateTaskOrder(currentCategoryId, orderedTaskIds);
+      }
+      
+    } else if (container.classList.contains('inline-tasks-list')) {
+      // Reordering tasks in inline editor
+      const categoryElement = container.closest('.inline-task-editor').previousElementSibling;
+      const categoryId = parseInt(categoryElement.dataset.id);
+      const orderedTaskIds = Array.from(container.querySelectorAll('.config-item'))
+        .map(item => parseInt(item.dataset.id));
+      await habitDB.updateTaskOrder(categoryId, orderedTaskIds);
+      
+    } else if (container.id === 'categories-container') {
+      // Reordering categories in main view
+      const orderedCategoryIds = Array.from(container.querySelectorAll('.category'))
+        .map(item => parseInt(item.dataset.id));
+      await habitDB.updateCategoryOrder(orderedCategoryIds);
+      
+    } else if (container.classList.contains('tasks-container')) {
+      // Reordering tasks within category
+      const category = container.closest('.category');
+      const categoryId = parseInt(category.dataset.id);
+      const orderedTaskIds = Array.from(container.querySelectorAll('.task'))
+        .map(item => parseInt(item.dataset.id));
+      await habitDB.updateTaskOrder(categoryId, orderedTaskIds);
+      
+      // Update progress
+      updateCategoryProgress(categoryId);
+    }
+  } catch (error) {
+    console.error('Error updating order in database:', error);
+  }
+}
+
 function handleLongPress(e) {
   // Only handle long press on category headers or tasks
   const target = e.target.closest('.category-header, .task');
@@ -352,6 +709,10 @@ async function undoTaskCompletion(taskElement) {
     await habitDB.removeCompletion(taskId);
     taskElement.classList.remove('completed');
     
+    // Reset background and text color to default
+    taskElement.style.backgroundColor = '';
+    taskElement.style.color = '';
+    
     // Update progress
     const categoryElement = taskElement.closest('.category');
     const categoryId = parseInt(categoryElement.dataset.id);
@@ -366,8 +727,8 @@ async function undoTaskCompletion(taskElement) {
     updateCategoryProgress(categoryId);
     updateOverallProgress();
     
-    // Update streak
-    const streakInfo = await habitDB.updateStreak();
+    // Recalculate streak from scratch to ensure accuracy
+    const streakInfo = await habitDB.recalculateStreak();
     updateStreakDisplay(streakInfo);
   } catch (error) {
     console.error('Error undoing task completion:', error);
@@ -388,6 +749,8 @@ async function undoCategoryCompletion(categoryElement) {
     
     // Make sure category is not marked as completed
     categoryElement.classList.remove('completed');
+    categoryElement.style.backgroundColor = '';
+    categoryElement.style.color = '';
     const tasksContainer = categoryElement.querySelector('.tasks-container');
     tasksContainer.style.display = 'block';
     
@@ -542,8 +905,6 @@ async function updateStreakDisplay(streakInfo) {
       setTimeout(() => {
         streakRecordNotification.classList.add('hidden');
       }, 5000);
-    } else {
-      streakRecordNotification.classList.add('hidden');
     }
   } catch (error) {
     console.error('Error updating streak display:', error);
@@ -626,23 +987,35 @@ async function loadConfigData() {
 // Load categories for configuration
 async function loadConfigCategories() {
   try {
+    console.log('Loading config categories...');
     categoriesList.innerHTML = '';
     
     const categories = await habitDB.getCategories();
+    console.log('Found categories:', categories);
     
     // Sort categories by order
     categories.sort((a, b) => (a.order || 0) - (b.order || 0));
     
     for (const category of categories) {
       const categoryElement = createConfigCategoryElement(category);
+      console.log('Created category element:', categoryElement);
       categoriesList.appendChild(categoryElement);
     }
     
-    // Set up drag and drop for config items
-    const configItems = categoriesList.querySelectorAll('.config-item');
-    configItems.forEach(item => {
-      initDraggable(item);
-    });
+    // Set up drag and drop for all config items after they're in the DOM
+    setTimeout(() => {
+      const configItems = categoriesList.querySelectorAll('.config-item');
+      console.log('Setting up drag for config items:', configItems.length);
+      configItems.forEach(item => {
+        console.log('Setting up drag for config item:', item.dataset.id);
+        console.log('Item has drag handle:', !!item.querySelector('.drag-handle'));
+        initDraggable(item);
+      });
+      
+      // Setup drop zones initially
+      console.log('Setting up initial drop zones');
+      setupDropZones();
+    }, 0);
   } catch (error) {
     console.error('Error loading config categories:', error);
   }
@@ -655,6 +1028,8 @@ function createConfigCategoryElement(category) {
   
   categoryElement.dataset.id = category.id;
   categoryElement.querySelector('.item-text').textContent = category.name;
+  
+  console.log('Created config category element:', category.id, categoryElement);
   
   return categoryElement;
 }
@@ -818,6 +1193,19 @@ async function deleteConfigItem(itemElement, type) {
 async function openTasksForCategory(categoryElement) {
   try {
     const categoryId = parseInt(categoryElement.dataset.id);
+    
+    // Check if inline editor already exists for this category
+    const existingEditor = categoryElement.parentNode.querySelector('.inline-task-editor');
+    if (existingEditor) {
+      // Close the existing editor
+      existingEditor.remove();
+      return;
+    }
+    
+    // Close any other open inline editors
+    const otherEditors = document.querySelectorAll('.inline-task-editor');
+    otherEditors.forEach(editor => editor.remove());
+    
     currentCategoryId = categoryId;
     
     const categories = await habitDB.getCategories();
@@ -830,8 +1218,11 @@ async function openTasksForCategory(categoryElement) {
     // Load tasks
     await loadConfigTasks(categoryId);
     
-    // Show task editor
-    taskEditor.classList.remove('hidden');
+    // Hide the main task editor and show inline editor
+    taskEditor.classList.add('hidden');
+    
+    // Create or show inline task editor for this category
+    showInlineTaskEditor(categoryElement, categoryId);
   } catch (error) {
     console.error('Error opening tasks for category:', error);
   }
@@ -918,8 +1309,129 @@ async function saveTasks() {
 
 // Close task editor
 function closeTasks() {
+  // Hide all inline task editors
+  const inlineEditors = document.querySelectorAll('.inline-task-editor');
+  inlineEditors.forEach(editor => editor.remove());
+  
   taskEditor.classList.add('hidden');
   currentCategoryId = null;
+}
+
+// Show inline task editor under specific category
+function showInlineTaskEditor(categoryElement, categoryId) {
+  // Remove any existing inline editors
+  const existingEditors = document.querySelectorAll('.inline-task-editor');
+  existingEditors.forEach(editor => editor.remove());
+  
+  // Create inline task editor
+  const inlineEditor = document.createElement('div');
+  inlineEditor.className = 'inline-task-editor';
+  inlineEditor.innerHTML = `
+    <div class="inline-editor-content">
+      <h4>Tasks for ${categoryElement.querySelector('.item-text').textContent}</h4>
+      <div class="inline-tasks-list"></div>
+      <button class="inline-add-task-btn secondary-button">Add Task</button>
+      <div class="inline-button-row">
+        <button class="inline-save-tasks-btn primary-button">Save</button>
+        <button class="inline-close-tasks-btn secondary-button">Close</button>
+      </div>
+    </div>
+  `;
+  
+  // Insert after the category element
+  categoryElement.parentNode.insertBefore(inlineEditor, categoryElement.nextSibling);
+  
+  // Load tasks into inline editor
+  loadInlineConfigTasks(categoryId, inlineEditor);
+  
+  // Set up event listeners for inline editor
+  const addTaskBtn = inlineEditor.querySelector('.inline-add-task-btn');
+  const saveTasksBtn = inlineEditor.querySelector('.inline-save-tasks-btn');
+  const closeTasksBtn = inlineEditor.querySelector('.inline-close-tasks-btn');
+  
+  addTaskBtn.addEventListener('click', () => addInlineTask(categoryId, inlineEditor));
+  saveTasksBtn.addEventListener('click', () => saveInlineTasks(categoryId, inlineEditor));
+  closeTasksBtn.addEventListener('click', () => inlineEditor.remove());
+}
+
+// Load tasks for inline configuration
+async function loadInlineConfigTasks(categoryId, inlineEditor) {
+  try {
+    const tasksList = inlineEditor.querySelector('.inline-tasks-list');
+    tasksList.innerHTML = '';
+    
+    const tasks = await habitDB.getTasksByCategory(categoryId);
+    
+    // Sort tasks by order
+    tasks.sort((a, b) => (a.order || 0) - (b.order || 0));
+    
+    for (const task of tasks) {
+      const taskElement = createInlineConfigTaskElement(task);
+      tasksList.appendChild(taskElement);
+    }
+    
+    // Set up drag and drop for inline config items
+    const configItems = tasksList.querySelectorAll('.config-item');
+    configItems.forEach(item => {
+      initDraggable(item);
+    });
+  } catch (error) {
+    console.error('Error loading inline config tasks:', error);
+  }
+}
+
+// Create a task element for inline configuration
+function createInlineConfigTaskElement(task) {
+  const template = configTaskTemplate.content.cloneNode(true);
+  const taskElement = template.querySelector('.config-item');
+  
+  taskElement.dataset.id = task.id;
+  taskElement.querySelector('.item-text').textContent = task.name;
+  
+  return taskElement;
+}
+
+// Add a new task in inline editor
+async function addInlineTask(categoryId, inlineEditor) {
+  try {
+    const taskName = prompt('Enter task name:');
+    if (!taskName) return;
+    
+    const task = {
+      name: taskName,
+      categoryId: categoryId
+    };
+    
+    const taskId = await habitDB.addTask(task);
+    
+    // Reload inline config tasks
+    await loadInlineConfigTasks(categoryId, inlineEditor);
+  } catch (error) {
+    console.error('Error adding inline task:', error);
+  }
+}
+
+// Save tasks from inline editor
+async function saveInlineTasks(categoryId, inlineEditor) {
+  try {
+    const tasksList = inlineEditor.querySelector('.inline-tasks-list');
+    
+    // Save task order
+    const orderedTaskIds = Array.from(tasksList.querySelectorAll('.config-item'))
+      .map(item => parseInt(item.dataset.id));
+    
+    if (orderedTaskIds.length > 0) {
+      await habitDB.updateTaskOrder(categoryId, orderedTaskIds);
+    }
+    
+    // Reload tasks in main view
+    await loadTasks(categoryId);
+    
+    // Close inline editor
+    inlineEditor.remove();
+  } catch (error) {
+    console.error('Error saving inline tasks:', error);
+  }
 }
 
 // Update theme
@@ -943,6 +1455,7 @@ async function updateCompletionColor(color) {
   try {
     completionColor = color;
     document.documentElement.style.setProperty('--completion-color', color);
+    document.documentElement.style.setProperty('--primary-color', color);
     
     // Update settings
     const settings = await habitDB.getSettings();
@@ -968,6 +1481,37 @@ async function updateCompletionColor(color) {
     progressBars.forEach(bar => {
       bar.style.backgroundColor = color;
     });
+    
+    // Update buttons
+    const primaryButtons = document.querySelectorAll('.primary-button');
+    primaryButtons.forEach(button => {
+      button.style.backgroundColor = color;
+    });
+    
+    // Update secondary buttons
+    const secondaryButtons = document.querySelectorAll('.secondary-button');
+    secondaryButtons.forEach(button => {
+      button.style.borderColor = color;
+      button.style.color = isDarkTheme ? '#ffffff' : color;
+    });
+    
+    // Update streak record notification
+    const streakNotification = document.getElementById('streak-record-notification');
+    if (streakNotification) {
+      streakNotification.style.backgroundColor = color;
+    }
+    
+    // Update inline editor borders
+    const inlineEditors = document.querySelectorAll('.inline-task-editor');
+    inlineEditors.forEach(editor => {
+      editor.style.borderLeftColor = color;
+    });
+    
+    // Update inline editor headings
+    const inlineHeadings = document.querySelectorAll('.inline-editor-content h4');
+    inlineHeadings.forEach(heading => {
+      heading.style.color = color;
+    });
   } catch (error) {
     console.error('Error updating completion color:', error);
   }
@@ -985,350 +1529,6 @@ function getContrastColor(hexColor) {
   
   // Return black for light colors, white for dark colors
   return luminance > 0.5 ? '#000000' : '#ffffff';
-}
-
-// Initialize draggable element
-function initDraggable(element) {
-  const dragHandle = element.querySelector('.drag-handle');
-  
-  if (!dragHandle) return;
-  
-  dragHandle.addEventListener('mousedown', handleDragStart);
-  dragHandle.addEventListener('touchstart', handleDragStart, { passive: false });
-}
-
-// Handle drag start
-function handleDragStart(e) {
-  // Prevent default only for touch events
-  if (e.type === 'touchstart') {
-    e.preventDefault();
-  }
-  
-  // Don't start drag on input elements
-  if (e.target.closest('input, textarea, select, button:not(.drag-handle)')) {
-    return;
-  }
-  
-  const dragHandle = e.target.closest('.drag-handle');
-  if (!dragHandle) return;
-  
-  draggingElement = dragHandle.closest('.draggable');
-  if (!draggingElement) return;
-  
-  // Store the source container and index
-  dragSourceContainer = draggingElement.parentElement;
-  dragSourceIndex = Array.from(dragSourceContainer.children).indexOf(draggingElement);
-  
-  // Create drag preview
-  createDragPreview(draggingElement, e);
-  
-  // Add dragging class
-  draggingElement.classList.add('dragging');
-  
-  // Prevent text selection during drag
-  document.body.style.userSelect = 'none';
-}
-
-// Create drag preview
-function createDragPreview(element, e) {
-  // Remove any existing preview
-  if (dragPreview) {
-    dragPreview.remove();
-  }
-  
-  // Create preview element
-  dragPreview = element.cloneNode(true);
-  dragPreview.classList.add('drag-preview');
-  dragPreview.style.width = `${element.offsetWidth}px`;
-  
-  // Remove any nested draggable elements from the preview
-  const nestedDraggables = dragPreview.querySelectorAll('.draggable');
-  nestedDraggables.forEach(nested => {
-    if (nested !== dragPreview) {
-      nested.remove();
-    }
-  });
-  
-  // Position the preview
-  const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
-  const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
-  
-  dragPreview.style.left = `${clientX}px`;
-  dragPreview.style.top = `${clientY}px`;
-  dragPreview.style.transform = 'translate(-50%, -50%)';
-  
-  // Add to document
-  document.body.appendChild(dragPreview);
-}
-
-// Handle drag move
-function handleDragMove(e) {
-  if (!draggingElement || !dragPreview) return;
-  
-  // Prevent default to stop scrolling on touch devices
-  if (e.type === 'touchmove') {
-    e.preventDefault();
-  }
-  
-  // Update preview position
-  const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
-  const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
-  
-  dragPreview.style.left = `${clientX}px`;
-  dragPreview.style.top = `${clientY}px`;
-  
-  // Find the target container and position
-  const targetContainer = findDropTarget(clientX, clientY);
-  if (!targetContainer) return;
-  
-  // Find the target index
-  const targetIndex = findDropIndex(targetContainer, clientY);
-  
-  // Show drop indicator
-  showDropIndicator(targetContainer, targetIndex);
-  
-  // Store target index
-  dragTargetIndex = targetIndex;
-}
-
-// Find drop target container
-function findDropTarget(x, y) {
-  // Check if we're in the categories list
-  const categoriesListRect = categoriesList.getBoundingClientRect();
-  if (
-    x >= categoriesListRect.left &&
-    x <= categoriesListRect.right &&
-    y >= categoriesListRect.top &&
-    y <= categoriesListRect.bottom
-  ) {
-    return categoriesList;
-  }
-  
-  // Check if we're in the tasks list
-  const tasksListRect = tasksList.getBoundingClientRect();
-  if (
-    x >= tasksListRect.left &&
-    x <= tasksListRect.right &&
-    y >= tasksListRect.top &&
-    y <= tasksListRect.bottom
-  ) {
-    return tasksList;
-  }
-  
-  // Check if we're in a category's tasks container
-  const categories = document.querySelectorAll('.category');
-  for (const category of categories) {
-    const tasksContainer = category.querySelector('.tasks-container');
-    if (tasksContainer.style.display === 'none') continue;
-    
-    const rect = tasksContainer.getBoundingClientRect();
-    if (
-      x >= rect.left &&
-      x <= rect.right &&
-      y >= rect.top &&
-      y <= rect.bottom
-    ) {
-      return tasksContainer;
-    }
-  }
-  
-  // Check if we're in the categories container
-  const categoriesContainerRect = categoriesContainer.getBoundingClientRect();
-  if (
-    x >= categoriesContainerRect.left &&
-    x <= categoriesContainerRect.right &&
-    y >= categoriesContainerRect.top &&
-    y <= categoriesContainerRect.bottom
-  ) {
-    return categoriesContainer;
-  }
-  
-  return null;
-}
-
-// Find drop index
-function findDropIndex(container, y) {
-  const items = Array.from(container.children).filter(
-    child => child !== draggingElement && !child.classList.contains('drop-indicator')
-  );
-  
-  if (items.length === 0) return 0;
-  
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    const rect = item.getBoundingClientRect();
-    const itemMiddle = rect.top + rect.height / 2;
-    
-    if (y < itemMiddle) {
-      return i;
-    }
-  }
-  
-  return items.length;
-}
-
-// Show drop indicator
-function showDropIndicator(container, index) {
-  // Remove any existing indicators
-  hideDropIndicator();
-  
-  // Get the element before which to insert the indicator
-  const items = Array.from(container.children).filter(
-    child => !child.classList.contains('drop-indicator')
-  );
-  
-  // Clone the indicator
-  const indicator = dropIndicator.cloneNode(true);
-  indicator.classList.remove('hidden');
-  
-  // Insert at the correct position
-  if (index >= items.length) {
-    container.appendChild(indicator);
-  } else {
-    container.insertBefore(indicator, items[index]);
-  }
-}
-
-// Hide drop indicator
-function hideDropIndicator() {
-  const indicators = document.querySelectorAll('.drop-indicator:not(.hidden)');
-  indicators.forEach(indicator => {
-    indicator.remove();
-  });
-}
-
-// Handle drag end
-async function handleDragEnd(e) {
-  if (!draggingElement) return;
-  
-  // Remove dragging class
-  draggingElement.classList.remove('dragging');
-  
-  // Remove drag preview
-  if (dragPreview) {
-    dragPreview.remove();
-    dragPreview = null;
-  }
-  
-  // Hide drop indicator
-  hideDropIndicator();
-  
-  // Get the target container
-  const targetContainer = findDropTarget(
-    e.type === 'touchend' ? e.changedTouches[0].clientX : e.clientX,
-    e.type === 'touchend' ? e.changedTouches[0].clientY : e.clientY
-  );
-  
-  // If we have a valid target and index, move the element
-  if (targetContainer && dragTargetIndex !== null) {
-    await moveElement(targetContainer, dragTargetIndex);
-  }
-  
-  // Reset drag state
-  draggingElement = null;
-  dragSourceContainer = null;
-  dragSourceIndex = null;
-  dragTargetIndex = null;
-  
-  // Restore text selection
-  document.body.style.userSelect = '';
-}
-
-// Move element to new position
-async function moveElement(targetContainer, targetIndex) {
-  try {
-    // Don't do anything if source and target are the same
-    if (
-      targetContainer === dragSourceContainer &&
-      targetIndex === dragSourceIndex
-    ) {
-      return;
-    }
-    
-    // Handle different container types
-    if (targetContainer === categoriesList && dragSourceContainer === categoriesList) {
-      // Reordering categories in config
-      moveElementInDOM(targetContainer, targetIndex);
-      
-    } else if (targetContainer === tasksList && dragSourceContainer === tasksList) {
-      // Reordering tasks in config
-      moveElementInDOM(targetContainer, targetIndex);
-      
-    } else if (targetContainer === categoriesContainer && dragSourceContainer === categoriesContainer) {
-      // Reordering categories in main view
-      moveElementInDOM(targetContainer, targetIndex);
-      
-      // Update category order in database
-      const orderedCategoryIds = Array.from(categoriesContainer.querySelectorAll('.category'))
-        .map(item => parseInt(item.dataset.id));
-      
-      await habitDB.updateCategoryOrder(orderedCategoryIds);
-      
-    } else if (
-      targetContainer.classList.contains('tasks-container') &&
-      dragSourceContainer.classList.contains('tasks-container')
-    ) {
-      // Moving task between categories or reordering within category
-      const sourceCategory = dragSourceContainer.closest('.category');
-      const targetCategory = targetContainer.closest('.category');
-      
-      const sourceCategoryId = parseInt(sourceCategory.dataset.id);
-      const targetCategoryId = parseInt(targetCategory.dataset.id);
-      
-      // Move in DOM
-      moveElementInDOM(targetContainer, targetIndex);
-      
-      if (sourceCategoryId === targetCategoryId) {
-        // Reordering within same category
-        const orderedTaskIds = Array.from(targetContainer.querySelectorAll('.task'))
-          .map(item => parseInt(item.dataset.id));
-        
-        await habitDB.updateTaskOrder(targetCategoryId, orderedTaskIds);
-      } else {
-        // Moving between categories
-        const taskId = parseInt(draggingElement.dataset.id);
-        const tasks = await habitDB.getTasks();
-        const task = tasks.find(t => t.id === taskId);
-        
-        if (task) {
-          // Update task's category
-          task.categoryId = targetCategoryId;
-          await habitDB.updateTask(task);
-          
-          // Update order in both categories
-          const sourceOrderedTaskIds = Array.from(sourceCategory.querySelectorAll('.task'))
-            .map(item => parseInt(item.dataset.id));
-          
-          const targetOrderedTaskIds = Array.from(targetCategory.querySelectorAll('.task'))
-            .map(item => parseInt(item.dataset.id));
-          
-          await habitDB.updateTaskOrder(sourceCategoryId, sourceOrderedTaskIds);
-          await habitDB.updateTaskOrder(targetCategoryId, targetOrderedTaskIds);
-          
-          // Update progress
-          updateCategoryProgress(sourceCategoryId);
-          updateCategoryProgress(targetCategoryId);
-        }
-      }
-    }
-  } catch (error) {
-    console.error('Error moving element:', error);
-  }
-}
-
-// Move element in the DOM
-function moveElementInDOM(targetContainer, targetIndex) {
-  // Get all items except the dragging element
-  const items = Array.from(targetContainer.children).filter(
-    child => child !== draggingElement && !child.classList.contains('drop-indicator')
-  );
-  
-  // Insert at the correct position
-  if (targetIndex >= items.length) {
-    targetContainer.appendChild(draggingElement);
-  } else {
-    targetContainer.insertBefore(draggingElement, items[targetIndex]);
-  }
 }
 
 // Initialize the app when the DOM is loaded

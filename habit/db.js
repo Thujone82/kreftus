@@ -245,9 +245,14 @@ class HabitDB {
       
       task.order = maxOrder + 1;
       
-      return await this.transaction('tasks', 'readwrite', (store) => {
+      const result = await this.transaction('tasks', 'readwrite', (store) => {
         return store.add(task);
       });
+      
+      // Reset streak when a new task is added
+      await this.resetStreakForToday();
+      
+      return result;
     } catch (error) {
       console.error('Error adding task:', error);
       throw error;
@@ -371,6 +376,9 @@ class HabitDB {
       await this.transaction('completions', 'readwrite', (store) => {
         return store.delete(completion.id);
       });
+      
+      // Reset streak when a completion is removed for today
+      await this.resetStreakForToday();
     } catch (error) {
       console.error('Error removing completion:', error);
       throw error;
@@ -430,12 +438,28 @@ class HabitDB {
         await this.saveSettings(settings);
         
         // Record the streak
+        // Check if streak record already exists for today
+        const existingStreak = await this.transaction('streaks', 'readonly', (store) => {
+          const index = store.index('date');
+          return index.get(todayStr);
+        });
+        
+        // Record the streak (update existing or create new)
         await this.transaction('streaks', 'readwrite', (store) => {
-          return store.put({
+          const streakData = {
             date: todayStr,
             streak: settings.currentStreak,
             isRecord: settings.currentStreak === settings.recordStreak
-          });
+          };
+          
+          if (existingStreak) {
+            // Update existing record
+            streakData.id = existingStreak.id;
+            return store.put(streakData);
+          } else {
+            // Create new record
+            return store.add(streakData);
+          }
         });
         
         return {
@@ -465,6 +489,130 @@ class HabitDB {
       };
     } catch (error) {
       console.error('Error getting streak info:', error);
+      throw error;
+    }
+  }
+
+  // Reset streak for today when tasks are unmarked or new tasks added
+  async resetStreakForToday() {
+    try {
+      const settings = await this.getSettings();
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      
+      // Only reset if today was the last completion date
+      if (settings.lastCompletionDate === todayStr) {
+        // Check if all tasks are still completed
+        const categories = await this.getCategories();
+        const tasks = await this.getTasks();
+        const completions = await this.getCompletionsForDate(today);
+        const completedTaskIds = completions.map(c => c.taskId);
+        
+        const allCompleted = tasks.every(task => completedTaskIds.includes(task.id));
+        
+        if (!allCompleted || tasks.length === 0) {
+          // Recalculate streak from scratch
+          await this.recalculateStreak();
+        }
+      }
+    } catch (error) {
+      console.error('Error resetting streak for today:', error);
+      throw error;
+    }
+  }
+
+  // Recalculate streak from scratch by checking all completion days
+  async recalculateStreak() {
+    try {
+      const settings = await this.getSettings();
+      const tasks = await this.getTasks();
+      
+      if (tasks.length === 0) {
+        settings.currentStreak = 0;
+        settings.lastCompletionDate = null;
+        await this.saveSettings(settings);
+        return;
+      }
+
+      let currentStreak = 0;
+      let lastCompletionDate = null;
+      const today = new Date();
+      
+      // Check backwards from today to find the actual streak
+      for (let i = 0; i < 365; i++) { // Check up to a year back
+        const checkDate = new Date(today);
+        checkDate.setDate(checkDate.getDate() - i);
+        
+        const completions = await this.getCompletionsForDate(checkDate);
+        const completedTaskIds = completions.map(c => c.taskId);
+        
+        // Check if all tasks were completed on this date
+        const allCompleted = tasks.every(task => completedTaskIds.includes(task.id));
+        
+        if (allCompleted) {
+          currentStreak++;
+          if (!lastCompletionDate) {
+            lastCompletionDate = checkDate.toISOString().split('T')[0];
+          }
+        } else {
+          // Streak is broken, stop counting
+          break;
+        }
+      }
+      
+      // Update settings with recalculated streak
+      settings.currentStreak = currentStreak;
+      settings.lastCompletionDate = lastCompletionDate;
+      
+      // Don't reduce record streak - it should remain the historical maximum
+      // But if current streak somehow exceeds record (shouldn't happen), update it
+      if (currentStreak > settings.recordStreak) {
+        settings.recordStreak = currentStreak;
+      }
+      
+      await this.saveSettings(settings);
+      
+      // Clean up streak records that are no longer valid
+      await this.cleanupStreakRecords();
+      
+      return {
+        currentStreak: settings.currentStreak,
+        recordStreak: settings.recordStreak
+      };
+    } catch (error) {
+      console.error('Error recalculating streak:', error);
+      throw error;
+    }
+  }
+
+  // Clean up invalid streak records
+  async cleanupStreakRecords() {
+    try {
+      const tasks = await this.getTasks();
+      if (tasks.length === 0) return;
+
+      // Get all streak records
+      const streakRecords = await this.transaction('streaks', 'readonly', (store) => {
+        return store.getAll();
+      });
+
+      // Check each record and remove invalid ones
+      for (const record of streakRecords) {
+        const recordDate = new Date(record.date);
+        const completions = await this.getCompletionsForDate(recordDate);
+        const completedTaskIds = completions.map(c => c.taskId);
+        
+        const allCompleted = tasks.every(task => completedTaskIds.includes(task.id));
+        
+        if (!allCompleted) {
+          // This streak record is invalid, remove it
+          await this.transaction('streaks', 'readwrite', (store) => {
+            return store.delete(record.id);
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error cleaning up streak records:', error);
       throw error;
     }
   }
