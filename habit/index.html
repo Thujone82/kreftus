@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#4CAF50">
+  <title>Habit Tracker</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="icons/32.png" sizes="32x32">
+  <link rel="icon" href="icons/256.png" sizes="256x256">
+  <link rel="apple-touch-icon" href="icons/256.png">
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+  <div class="app-container">
+    <header>
+      <h1>Habit Tracker</h1>
+      <div id="streak-container" class="hidden">
+        <div id="streak-record-notification" class="hidden">New Streak Record!</div>
+        <div id="streak-info">
+          <span>Streak: <span id="current-streak">0</span> Record: <span id="record-streak">0</span></span>
+        </div>
+        <div id="progress-container">
+          <div id="progress-bar" class="progress-bar"></div>
+        </div>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <div id="categories-container"></div>
+      
+      <div id="first-time-setup" class="hidden">
+        <div class="setup-message">
+          <h2>Welcome to Habit Tracker!</h2>
+          <p>Please configure your Tasks below to start building better habits.</p>
+        </div>
+      </div>
+      
+      <button id="setup-button" class="primary-button">Setup</button>
+    </main>
+
+    <div id="config-overlay" class="hidden">
+      <div id="config-container">
+        <h2>Settings</h2>
+        
+        <div class="config-section">
+          <label for="theme-select">Theme:</label>
+          <select id="theme-select">
+            <option value="dark">Dark Mode</option>
+            <option value="light">Light Mode</option>
+          </select>
+        </div>
+        
+        <div class="config-section">
+          <label for="color-picker">Completion Color:</label>
+          <input type="color" id="color-picker" value="#4CAF50">
+        </div>
+        
+        <div class="config-section">
+          <h3>Categories</h3>
+          <div id="categories-list"></div>
+          <button id="add-category-btn" class="secondary-button">Add Category</button>
+        </div>
+        
+        <div id="task-editor" class="hidden">
+          <h3>Tasks for <span id="current-category-name"></span></h3>
+          <div id="tasks-list"></div>
+          <button id="add-task-btn" class="secondary-button">Add Task</button>
+          <div class="button-row">
+            <button id="save-tasks-btn" class="primary-button">Save</button>
+            <button id="close-tasks-btn" class="secondary-button">Close</button>
+          </div>
+        </div>
+        
+        <div class="button-row">
+          <button id="save-config-btn" class="primary-button">Save</button>
+          <button id="close-config-btn" class="secondary-button">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Templates -->
+    <template id="category-template">
+      <div class="category draggable" data-id="">
+        <div class="category-header">
+          <div class="category-info">
+            <span class="drag-handle">⋮⋮</span>
+            <h3></h3>
+            <button class="edit-category-btn">✎</button>
+          </div>
+          <button class="category-toggle">▼</button>
+        </div>
+        <div class="category-progress">
+          <div class="progress-bar"></div>
+        </div>
+        <div class="tasks-container"></div>
+      </div>
+    </template>
+
+    <template id="task-template">
+      <div class="task draggable" data-id="">
+        <div class="task-content">
+          <span class="drag-handle">⋮⋮</span>
+          <span class="task-text"></span>
+          <button class="edit-task-btn">✎</button>
+        </div>
+      </div>
+    </template>
+
+    <template id="config-category-template">
+      <div class="config-item draggable" data-id="">
+        <span class="drag-handle">⋮⋮</span>
+        <span class="item-text"></span>
+        <div class="item-actions">
+          <button class="edit-item-btn">Edit</button>
+          <button class="delete-item-btn">Delete</button>
+          <button class="tasks-item-btn">Tasks</button>
+        </div>
+      </div>
+    </template>
+
+    <template id="config-task-template">
+      <div class="config-item draggable" data-id="">
+        <span class="drag-handle">⋮⋮</span>
+        <span class="item-text"></span>
+        <div class="item-actions">
+          <button class="edit-item-btn">Edit</button>
+          <button class="delete-item-btn">Delete</button>
+        </div>
+      </div>
+    </template>
+
+    <div id="drop-indicator" class="drop-indicator hidden"></div>
+  </div>
+
+  <script src="db.js"></script>
+  <script src="app.js"></script>
+  <script>
+    // Register service worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js')
+          .then(reg => console.log('Service worker registered'))
+          .catch(err => console.log('Service worker registration failed:', err));
+      });
+    }
+  </script>
+</body>
+</html>
