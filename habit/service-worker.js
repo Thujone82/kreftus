@@ -1,14 +1,14 @@
 const CACHE_NAME = 'habit-tracker-v1';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/styles.css',
-  '/app.js',
-  '/db.js',
-  '/manifest.json',
-  '/icons/32.png',
-  '/icons/256.png',
-  '/icons/512.png'
+  './',
+  './index.html',
+  './styles.css',
+  './app.js',
+  './db.js',
+  './manifest.json',
+  './icons/32.png',
+  './icons/256.png',
+  './icons/512.png'
 ];
 
 // Install service worker and cache assets
