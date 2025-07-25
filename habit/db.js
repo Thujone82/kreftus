@@ -216,19 +216,17 @@ class HabitDB {
 
   async getTasksByCategory(categoryId) {
     try {
-      return await this.transaction('tasks', 'readonly', (store) => {
+      const tasks = await this.transaction('tasks', 'readonly', (store) => {
         const index = store.index('categoryId');
-        const request = index.getAll(IDBKeyRange.only(categoryId));
-        
-        request.onsuccess = (event) => {
-          const tasks = event.target.result;
-          // Sort by order
-          tasks.sort((a, b) => (a.order || 0) - (b.order || 0));
-          return tasks;
-        };
-        
-        return request;
+        return index.getAll(IDBKeyRange.only(categoryId));
       });
+
+      // Sort tasks by order after they are retrieved
+      if (tasks) {
+        tasks.sort((a, b) => (a.order || 0) - (b.order || 0));
+      }
+
+      return tasks;
     } catch (error) {
       console.error('Error getting tasks by category:', error);
       throw error;
