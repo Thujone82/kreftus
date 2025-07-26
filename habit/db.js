@@ -184,9 +184,9 @@ class HabitDB {
 
   async updateCategoryOrder(orderedIds) {
     try {
-      for (let i = 0; i < orderedIds.length; i++) {
-        await this.transaction('categories', 'readwrite', (store) => {
-          const request = store.get(orderedIds[i]);
+      await this.transaction('categories', 'readwrite', (store) => {
+        orderedIds.forEach((id, i) => {
+          const request = store.get(id);
           request.onsuccess = (event) => {
             const category = event.target.result;
             if (category) {
@@ -195,7 +195,7 @@ class HabitDB {
             }
           };
         });
-      }
+      });
     } catch (error) {
       console.error('Error updating category order:', error);
       throw error;
@@ -296,9 +296,9 @@ class HabitDB {
 
   async updateTaskOrder(categoryId, orderedIds) {
     try {
-      for (let i = 0; i < orderedIds.length; i++) {
-        await this.transaction('tasks', 'readwrite', (store) => {
-          const request = store.get(orderedIds[i]);
+      await this.transaction('tasks', 'readwrite', (store) => {
+        orderedIds.forEach((id, i) => {
+          const request = store.get(id);
           request.onsuccess = (event) => {
             const task = event.target.result;
             if (task) {
@@ -307,7 +307,7 @@ class HabitDB {
             }
           };
         });
-      }
+      });
     } catch (error) {
       console.error('Error updating task order:', error);
       throw error;
@@ -478,6 +478,31 @@ class HabitDB {
     }
   }
 
+  async verifyAndResetStreak() {
+    try {
+      const settings = await this.getSettings();
+      if (!settings.lastCompletionDate || settings.currentStreak === 0) {
+        return; // Nothing to do if there's no streak
+      }
+
+      const today = new Date();
+      const yesterday = new Date();
+      yesterday.setDate(today.getDate() - 1);
+
+      const todayStr = today.toISOString().split('T')[0];
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      const lastCompletionStr = settings.lastCompletionDate;
+
+      // If the last completion was not today and not yesterday, the streak is broken.
+      if (lastCompletionStr !== todayStr && lastCompletionStr !== yesterdayStr) {
+        settings.currentStreak = 0;
+        await this.saveSettings(settings);
+      }
+    } catch (error) {
+      console.error('Error verifying streak:', error);
+    }
+  }
+
   async getStreakInfo() {
     try {
       const settings = await this.getSettings();
@@ -575,7 +600,8 @@ class HabitDB {
       
       return {
         currentStreak: settings.currentStreak,
-        recordStreak: settings.recordStreak
+        recordStreak: settings.recordStreak,
+        isRecord: false // A recalculation should not trigger a new record notification
       };
     } catch (error) {
       console.error('Error recalculating streak:', error);

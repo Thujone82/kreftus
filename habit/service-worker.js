@@ -1,4 +1,5 @@
-const CACHE_NAME = 'habit-tracker-v1';
+// Increment the Timestamp to trigger an update for all users.
+const CACHE_NAME = 'habit-tracker-v2-072625@1052';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -17,8 +18,10 @@ self.addEventListener('install', event => {
     caches.open(CACHE_NAME)
       .then(cache => {
         return cache.addAll(ASSETS_TO_CACHE);
-      })
+      }),
   );
+  // Force the waiting service worker to become the active service worker.
+  self.skipWaiting();
 });
 
 // Activate and clean up old caches
@@ -32,8 +35,10 @@ self.addEventListener('activate', event => {
           return caches.delete(cacheName);
         })
       );
-    })
+    }),
   );
+  // Take control of all clients as soon as the service worker is activated.
+  self.clients.claim();
 });
 
 // Serve cached content when offline

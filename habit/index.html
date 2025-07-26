@@ -10,13 +10,20 @@
   <link rel="icon" href="icons/256.png" sizes="256x256">
   <link rel="apple-touch-icon" href="icons/256.png">
   <link rel="manifest" href="manifest.json">
+  <style>
+    /* Prevent text selection on tap */
+    .task-text, .category h3 {
+      user-select: none;
+      -webkit-user-select: none;
+    }
+  </style>
 </head>
 <body>
   <div class="app-container">
     <header>
       <h1>Habit Tracker</h1>
       <div id="streak-container" class="hidden">
-        <div id="streak-record-notification" class="hidden">New Streak Record!</div>
+        <div id="streak-record-notification" class="hidden">🦄 New Streak Record! 🏅</div>
         <div id="streak-info">
           <span>Streak: <span id="current-streak">0</span> Record: <span id="record-streak">0</span></span>
         </div>
@@ -135,15 +142,5 @@
 
   <script src="db.js"></script>
   <script src="app.js"></script>
-  <script>
-    // Register service worker
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('service-worker.js')
-          .then(reg => console.log('Service worker registered'))
-          .catch(err => console.log('Service worker registration failed:', err));
-      });
-    }
-  </script>
 </body>
 </html>

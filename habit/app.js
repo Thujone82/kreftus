@@ -39,12 +39,17 @@ let dragSourceIndex = null;
 let dragTargetIndex = null;
 let completionColor = '#4CAF50';
 let isDarkTheme = true;
+let lastCheckedDate = new Date().toISOString().split('T')[0];
 
 // Initialize the application
 async function initApp() {
   try {
     // Load settings
     const settings = await habitDB.getSettings();
+
+    // Verify if streak was broken since last use
+    await habitDB.verifyAndResetStreak();
+
     updateTheme(settings.theme);
     updateCompletionColor(settings.completionColor);
     
@@ -70,6 +75,21 @@ async function initApp() {
     console.error('Error initializing app:', error);
   }
 }
+
+// Check if the date has changed since the last check
+function checkForNewDay() {
+  const todayStr = new Date().toISOString().split('T')[0];
+  if (todayStr !== lastCheckedDate) {
+    console.log("New day detected! Refreshing app state.");
+    lastCheckedDate = todayStr;
+
+    // Reset the UI to a clean slate for the new day
+    loadCategories(); // This will re-render tasks, showing them as incomplete
+    updateStreakDisplay(); // This will show the potentially broken streak
+    updateAllProgress(); // Reset progress bars
+  }
+}
+
 
 // Drag and drop functions
 function handleDragMove(e) {
@@ -202,11 +222,18 @@ function setupEventListeners() {
     }
   });
   
-  // Task completion
-  categoriesContainer.addEventListener('click', (e) => {
-    // Only handle clicks on the task text, not on buttons or drag handles
-    if (e.target.classList.contains('task-text')) {
+  // Task completion using pointerup for better mobile responsiveness
+  // This avoids the 300ms delay on touch devices.
+  categoriesContainer.addEventListener('pointerup', (e) => {
+    // We only want to handle taps on the task text.
+    // The 'pointerup' event is suitable for both touch and mouse.
+    // We check if the target is the task-text and not part of a button or drag handle.
+    if (e.target.classList.contains('task-text') && !e.target.closest('button, .drag-handle')) {
+      // Prevent any default action like text selection or triggering a 'click' event.
+      e.preventDefault();
       const task = e.target.closest('.task');
+      // The toggleTaskCompletion function already checks if the task is completed,
+      // so this will only act on incomplete tasks, which is what we want for a tap.
       toggleTaskCompletion(task);
     }
   });
@@ -254,6 +281,10 @@ function setupEventListeners() {
   // Document-wide event listeners for drag and drop
   document.addEventListener('mousemove', handleDragMove);
   document.addEventListener('touchmove', handleDragMove, { passive: false });
+
+  // Check for new day periodically and on focus
+  setInterval(checkForNewDay, 60 * 1000); // Check every minute
+  window.addEventListener('focus', checkForNewDay);
 }
 
 // Initialize draggable element
@@ -1547,4 +1578,13 @@ window.addEventListener('load', () => {
   } else {
     console.log('Service Worker is not supported by this browser.');
   }
+});
+
+// Listen for a new service worker taking control and reload the page to apply the update.
+let refreshing;
+navigator.serviceWorker.addEventListener('controllerchange', () => {
+  if (refreshing) return;
+  console.log('New version available! Refreshing...');
+  window.location.reload();
+  refreshing = true;
 });
