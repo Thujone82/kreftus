@@ -1,5 +1,5 @@
 // Increment the Timestamp to trigger an update for all users.
-const CACHE_NAME = 'habit-tracker-v2-072625@1433';
+const CACHE_NAME = 'habit-tracker-v2-072625@1505';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -43,30 +43,12 @@ self.addEventListener('activate', event => {
 
 // Serve cached content when offline
 self.addEventListener('fetch', event => {
+  // Use a "cache-first" strategy.
   event.respondWith(
     caches.match(event.request)
       .then(response => {
-        if (response) {
-          return response;
-        }
-        return fetch(event.request).then(
-          response => {
-            // Don't cache responses that aren't successful
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-
-            // Clone the response
-            const responseToCache = response.clone();
-
-            caches.open(CACHE_NAME)
-              .then(cache => {
-                cache.put(event.request, responseToCache);
-              });
-
-            return response;
-          }
-        );
+        // If the request is in the cache, return it. Otherwise, fetch from the network.
+        return response || fetch(event.request);
       })
   );
 });

@@ -17,10 +17,20 @@
       -webkit-user-select: none;
     }
 
-    /* Increase the size of the color picker for better visibility */
+    /* Set a consistent width for the settings controls for alignment */
+    #theme-select, #color-picker {
+        width: 120px;
+        vertical-align: middle;
+    }
+
+    /* Style the color picker to be larger and more usable */
     #color-picker {
-      height: 25px;
-      width: 50px;
+        height: 25px;
+        padding: 2px; /* Provides a small inset for the color swatch */
+        box-sizing: border-box; /* Ensures padding and border are included in the total size */
+        border: 1px solid #888; /* A neutral border that works on light/dark themes */
+        border-radius: 4px;
+        background-color: transparent;
     }
   </style>
 </head>
