@@ -20,8 +20,8 @@ import (
 	"errors"
 
 	"github.com/Knetic/govaluate"
-	"github.com/fatih/color"
 	"github.com/eiannone/keyboard"
+	"github.com/fatih/color"
 	"github.com/shirou/gopsutil/v3/process"
 	"gopkg.in/ini.v1"
 )
@@ -114,22 +114,12 @@ func (e *ProviderDownError) Temporary() bool { return true }  // It's a temporar
 
 // --- Main Application ---
 func main() {
-	// Open keyboard once for the entire application lifecycle to enable single-key input
-	// without the delay of opening/closing it repeatedly.
-	if err := keyboard.Open(); err != nil {
-		// This is a fatal error for the app's intended UX, so we'll print and exit.
-		color.Red("Fatal Error: Could not initialize direct keyboard input: %v", err)
-		fmt.Println("Please ensure the application is run in a standard terminal.")
-		return
-	}
-	// Ensure the keyboard is closed when the application exits.
-	defer keyboard.Close()
-
-	setup()
-	mainLoop()
+	reader := bufio.NewReader(os.Stdin) // Create the single, authoritative reader.
+	setup(reader)
+	mainLoop(reader)
 }
 
-func setup() {
+func setup(reader *bufio.Reader) {
 	var err error
 	cfg, err = ini.Load(iniFilePath)
 	if err != nil {
@@ -143,7 +133,7 @@ func setup() {
 	}
 
 	if cfg.Section("Settings").Key("ApiKey").String() == "" {
-		showFirstRunSetup()
+		showFirstRunSetup(reader)
 	}
 
 	// Perform the initial data fetch to get a complete data object.
@@ -159,7 +149,7 @@ func setup() {
 	sessionStartPortfolioValue = getPortfolioValue(playerUSD, playerBTC, apiData)
 }
 
-func mainLoop() {
+func mainLoop(reader *bufio.Reader) {
 	commands := map[string]string{
 		"b": "buy", "buy": "buy",
 		"s": "sell", "sell": "sell",
@@ -169,8 +159,6 @@ func mainLoop() {
 		"h": "help", "help": "help",
 		"e": "exit", "exit": "exit",
 	}
-
-	reader := bufio.NewReader(os.Stdin)
 
 	for {
 		showMainScreen()
@@ -210,7 +198,7 @@ func mainLoop() {
 			switch command {
 			case "buy":
 				// The invokeTrade function now returns the latest data it fetched.
-				returnedApiData := invokeTrade("Buy", amount)
+				returnedApiData := invokeTrade(reader, "Buy", amount)
 				if returnedApiData != nil {
 					apiData = returnedApiData
 				}
@@ -224,7 +212,7 @@ func mainLoop() {
 					cfg = reloadedCfg
 				}
 			case "sell":
-				returnedApiData := invokeTrade("Sell", amount)
+				returnedApiData := invokeTrade(reader, "Sell", amount)
 				if returnedApiData != nil {
 					apiData = returnedApiData
 				}
@@ -238,7 +226,7 @@ func mainLoop() {
 					cfg = reloadedCfg
 				}
 			case "ledger":
-				showLedgerScreen()
+				showLedgerScreen(reader)
 			case "refresh":
 				// Reload config from disk to sync with other potential clients
 				reloadedCfg, err := ini.Load(iniFilePath)
@@ -251,11 +239,11 @@ func mainLoop() {
 				}
 				apiData = updateApiData(false)
 			case "config":
-				showConfigScreen()
+				showConfigScreen(reader)
 			case "help":
-				showHelpScreen()
+				showHelpScreen(reader)
 			case "exit":
-				showExitScreen()
+				showExitScreen(reader)
 				return
 			}
 		} else if len(matchedCommands) > 1 {
@@ -442,11 +430,10 @@ func showMainScreen() {
 	color.New(color.FgYellow).Println("Exit")
 }
 
-func showFirstRunSetup() {
+func showFirstRunSetup(reader *bufio.Reader) {
 	clearScreen()
 	color.Yellow("*** First Time Setup ***")
 	color.Green("Get Free Key: https://www.livecoinwatch.com/tools/api")
-	reader := bufio.NewReader(os.Stdin)
 	for {
 		fmt.Print("Please enter your LiveCoinWatch API Key: ")
 		apiKey, _ := reader.ReadString('\n')
@@ -464,8 +451,7 @@ func showFirstRunSetup() {
 	}
 }
 
-func showConfigScreen() {
-	reader := bufio.NewReader(os.Stdin)
+func showConfigScreen(reader *bufio.Reader) {
 	for {
 		clearScreen()
 		color.Yellow("*** Configuration ***")
@@ -507,7 +493,7 @@ func showConfigScreen() {
 			fmt.Println("Press Enter to continue.")
 			reader.ReadString('\n')
 		case "3":
-			invokeLedgerArchive()
+			invokeLedgerArchive(reader)
 		case "4", "": // Default to returning if input is empty
 			return
 		default:
@@ -518,7 +504,7 @@ func showConfigScreen() {
 	}
 }
 
-func showHelpScreen() {
+func showHelpScreen(reader *bufio.Reader) {
 	clearScreen()
 	color.Yellow("*** Help ***")
 	writeAlignedLine("buy [amount]", "Purchase a specific USD amount of Bitcoin.", color.New(color.FgWhite))
@@ -535,10 +521,10 @@ func showHelpScreen() {
 	color.New(color.FgCyan).Println("Tip: 1H SMA is the average price over the last hour. Green = price is above average.")
 	fmt.Println()
 	fmt.Println("Press Enter to return to the Main Screen.")
-	bufio.NewReader(os.Stdin).ReadString('\n')
+	reader.ReadString('\n')
 }
 
-func showLedgerScreen() {
+func showLedgerScreen(reader *bufio.Reader) {
 	clearScreen()
 	color.Yellow("*** Ledger ***")
 
@@ -546,13 +532,13 @@ func showLedgerScreen() {
 	if err != nil {
 		color.Red("Error reading ledger file: %v", err)
 		fmt.Println("\nPress Enter to return to Main screen")
-		bufio.NewReader(os.Stdin).ReadString('\n')
+		reader.ReadString('\n')
 		return
 	}
 	if len(ledgerEntries) == 0 {
 		fmt.Println("You have not made any transactions yet.")
 		fmt.Println("\nPress Enter to return to Main screen")
-		bufio.NewReader(os.Stdin).ReadString('\n')
+		reader.ReadString('\n')
 		return
 	}
 
@@ -654,10 +640,10 @@ func showLedgerScreen() {
 	}
 
 	fmt.Println("\nPress Enter to return to Main screen")
-	bufio.NewReader(os.Stdin).ReadString('\n')
+	reader.ReadString('\n')
 }
 
-func showExitScreen() {
+func showExitScreen(reader *bufio.Reader) {
 	clearScreen()
 	color.Yellow("*** Portfolio Summary ***")
 	playerUSD, _ := cfg.Section("Portfolio").Key("PlayerUSD").Float64()
@@ -753,7 +739,7 @@ func showExitScreen() {
 
 	if shouldPause {
 		fmt.Println("\nPress Enter to exit.")
-		bufio.NewReader(os.Stdin).ReadString('\n')
+		reader.ReadString('\n')
 	}
 }
 
@@ -1224,17 +1210,16 @@ func getSessionSummary() *LedgerSummary {
 	return getLedgerTotals(sessionEntries)
 }
 
-func invokeLedgerArchive() {
+func invokeLedgerArchive(reader *bufio.Reader) {
 	// Check if ledger exists
 	if _, err := os.Stat(ledgerFilePath); os.IsNotExist(err) {
 		color.Yellow("Ledger file not found. No action taken.")
 		fmt.Println("\nPress Enter to continue.")
-		bufio.NewReader(os.Stdin).ReadString('\n')
+		reader.ReadString('\n')
 		return
 	}
 
 	// Get user input
-	reader := bufio.NewReader(os.Stdin)
 	var linesToKeep int
 	for {
 		fmt.Print("Keep X Recent Lines? [0]: ")
@@ -1312,10 +1297,12 @@ func invokeLedgerArchive() {
 	reader.ReadString('\n')
 }
 
-func addLedgerEntry(txType string, usdAmount, btcAmount, btcPrice, userBtcAfter float64) {
+func addLedgerEntry(reader *bufio.Reader, txType string, usdAmount, btcAmount, btcPrice, userBtcAfter float64) {
 	file, err := os.OpenFile(ledgerFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		color.Red("Transaction complete, but failed to write to ledger.csv. Please ensure the file is not open in another program.")
+		fmt.Println("Press Enter to acknowledge.")
+		reader.ReadString('\n')
 		return
 	}
 	defer file.Close()
@@ -1340,7 +1327,7 @@ func addLedgerEntry(txType string, usdAmount, btcAmount, btcPrice, userBtcAfter 
 	writer.Write(record)
 }
 
-func invokeTrade(txType, amountString string) *ApiDataResponse {
+func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResponse {
 	// For the most accurate UI prompt, we should read the latest config from disk here too.
 	// This prevents showing the user a stale "Max" amount if another client has made a trade.
 	promptCfg, err := ini.Load(iniFilePath)
@@ -1363,7 +1350,6 @@ func invokeTrade(txType, amountString string) *ApiDataResponse {
 		prompt = fmt.Sprintf("Amount in BTC [Max %.8f] (or use 's' for satoshis):", maxAmount)
 	}
 
-	reader := bufio.NewReader(os.Stdin)
 	var tradeAmount float64
 
 	for {
@@ -1410,6 +1396,19 @@ func invokeTrade(txType, amountString string) *ApiDataResponse {
 
 	// Confirmation Loop
 	offerExpired := false
+
+	// Open keyboard for single-key input ONLY for this function.
+	if err := keyboard.Open(); err != nil {
+		color.Red("Error: Could not initialize direct keyboard input: %v", err)
+		color.Red("Trade cancelled.")
+		fmt.Println("Press Enter to continue.")
+		// We still use the standard reader here as keyboard.Open() failed.
+		reader.ReadString('\n')
+		return apiData
+	}
+	// Ensure the keyboard is closed and terminal state is restored when this function exits,
+	// regardless of how it exits (success, cancel, error).
+	defer keyboard.Close()
 
 	for {
 		apiData = updateApiData(true)
@@ -1530,8 +1529,14 @@ func invokeTrade(txType, amountString string) *ApiDataResponse {
 						// Any other invalid command on the expired screen is ignored.
 						// Relaunch the input listener and wait for a valid command ('r' or Enter).
 						go func() {
-							if newInput, err := reader.ReadString('\n'); err == nil {
-								inputChan <- newInput
+							char, key, err := keyboard.GetKey()
+							if err != nil {
+								return
+							}
+							if key == keyboard.KeyEnter {
+								inputChan <- "\n" // Send a newline to simulate the old behavior for Enter key.
+							} else if char != 0 {
+								inputChan <- string(char)
 							}
 						}()
 						continue EventLoop
@@ -1604,19 +1609,37 @@ func invokeTrade(txType, amountString string) *ApiDataResponse {
 						reader.ReadString('\n')
 					} else {
 						cfg = tradeCfg // Update the global config to reflect the new state
-						addLedgerEntry(txType, usdAmount, btcAmount, apiData.Rate, newUserBtc)
-						fmt.Printf("\n%s successful.\n", txType)
+						addLedgerEntry(reader, txType, usdAmount, btcAmount, apiData.Rate, newUserBtc)
+						// Print success message without a newline, sleep, then overwrite with a processing message.
+						fmt.Printf("\n%s successful.", txType)
 						time.Sleep(1 * time.Second)
+						fmt.Printf("\rReturning to main menu...\n")
 					}
 					return apiData // Exit trade loop regardless of success or failure
 				} else if input == "r" {
 					// User is manually refreshing, so the offer isn't "expired" in a way that requires a warning.
 					offerExpired = false
 					break EventLoop // Break inner loop to get a new price.
-				} else {
-					fmt.Printf("\n%s cancelled.\n", txType)
+				} else if input == "n" || input == "" { // Explicitly cancel on 'n' or Enter
+					// Print cancel message without a newline, sleep, then overwrite.
+					fmt.Printf("\n%s cancelled.", txType)
 					time.Sleep(1 * time.Second)
+					fmt.Printf("\rReturning to main menu...\n")
 					return apiData
+				} else {
+					// Invalid key pressed for an active offer. Ignore it and re-arm the listener.
+					go func() {
+						char, key, err := keyboard.GetKey()
+						if err != nil {
+							return
+						}
+						if key == keyboard.KeyEnter {
+							inputChan <- "\n"
+						} else if char != 0 {
+							inputChan <- string(char)
+						}
+					}()
+					continue EventLoop
 				}
 			}
 		}
