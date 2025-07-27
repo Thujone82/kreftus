@@ -1,12 +1,14 @@
 module vbtc
 
-go 1.22.0
+go 1.23.0
+
+toolchain go1.24.4
 
 require (
 	github.com/Knetic/govaluate v3.0.0+incompatible
-	github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203
 	github.com/fatih/color v1.17.0
 	github.com/shirou/gopsutil/v3 v3.24.5
+	golang.org/x/term v0.22.0
 	gopkg.in/ini.v1 v1.67.0
 )
 
@@ -21,5 +23,5 @@ require (
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.8.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	golang.org/x/sys v0.20.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
 )

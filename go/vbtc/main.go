@@ -20,10 +20,10 @@ import (
 	"errors"
 
 	"github.com/Knetic/govaluate"
-	"github.com/eiannone/keyboard"
 	"github.com/fatih/color"
 	"github.com/shirou/gopsutil/v3/process"
 	"gopkg.in/ini.v1"
+	"golang.org/x/term"
 )
 
 const (
@@ -720,22 +720,21 @@ func showExitScreen(reader *bufio.Reader) {
 	// Pause the screen if the application was likely run by double-clicking.
 	// We do this by checking if the parent process is a known interactive shell.
 	parentName, err := getParentProcessName()
-	shouldPause := true // Default to pausing to be safe.
+	isInteractiveShell := false
 	if err == nil {
 		parentName = strings.ToLower(strings.TrimSuffix(parentName, ".exe"))
 		// List of shells where we should NOT pause.
-		interactiveShells := []string{"cmd", "powershell", "pwsh", "wt", "alacritty", "explorer"}
+		interactiveShells := []string{"cmd", "powershell", "pwsh", "wt", "alacritty", "bash", "zsh", "fish"}
 		for _, shell := range interactiveShells {
-			// The check for "explorer" is a special case for running from VS Code's integrated terminal,
-			// which can sometimes have explorer.exe as a parent.
-			if parentName == shell && shell != "explorer" {
-				shouldPause = false
+			if parentName == shell {
+				isInteractiveShell = true
 				break
 			}
 		}
 	} else {
 		fmt.Printf("\nCould not determine parent process: %v. Pausing by default.", err)
 	}
+	shouldPause := !isInteractiveShell
 
 	if shouldPause {
 		fmt.Println("\nPress Enter to exit.")
@@ -1397,18 +1396,49 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 	// Confirmation Loop
 	offerExpired := false
 
-	// Open keyboard for single-key input ONLY for this function.
-	if err := keyboard.Open(); err != nil {
-		color.Red("Error: Could not initialize direct keyboard input: %v", err)
+	// --- Raw Terminal Input Setup ---
+	// Get the file descriptor for standard input.
+	fd := int(os.Stdin.Fd())
+
+	// Check if we are in a terminal, which is required for raw mode.
+	if !term.IsTerminal(fd) {
+		color.Red("Error: Standard input is not a terminal. Cannot enter raw mode.")
 		color.Red("Trade cancelled.")
-		fmt.Println("Press Enter to continue.")
-		// We still use the standard reader here as keyboard.Open() failed.
-		reader.ReadString('\n')
+		time.Sleep(2 * time.Second)
 		return apiData
 	}
-	// Ensure the keyboard is closed and terminal state is restored when this function exits,
-	// regardless of how it exits (success, cancel, error).
-	defer keyboard.Close()
+
+	// Save the original terminal state so we can restore it later.
+	oldState, err := term.GetState(fd)
+	if err != nil {
+		color.Red("Error: Could not get terminal state: %v", err)
+		time.Sleep(2 * time.Second)
+		return apiData
+	}
+	// CRITICAL: Ensure the terminal is restored to its original state when the function exits.
+	defer term.Restore(fd, oldState)
+
+	// Put the terminal into raw mode.
+	_, err = term.MakeRaw(fd)
+	if err != nil {
+		color.Red("Error: Could not set terminal to raw mode: %v", err)
+		time.Sleep(2 * time.Second)
+		return apiData
+	}
+
+	// Create a channel to receive input from a non-blocking goroutine.
+	inputChan := make(chan byte)
+	go func() {
+		defer close(inputChan)
+		buffer := make([]byte, 1)
+		for {
+			n, err := os.Stdin.Read(buffer)
+			if err != nil || n == 0 {
+				return // Exit goroutine on error or EOF
+			}
+			inputChan <- buffer[0]
+		}
+	}()
 
 	for {
 		apiData = updateApiData(true)
@@ -1472,37 +1502,16 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 		color.New(color.FgRed).Print("n")
 		color.New(color.FgWhite).Println("]")
 
-		// --- Phase 1: Asynchronous Input Handling ---
-		// Create a channel to receive input from a goroutine.
-		inputChan := make(chan string)
-		go func() {
-			// This goroutine blocks on reading input, but the main loop won't.
-			char, key, err := keyboard.GetKey()
-			if err != nil {
-				// This can happen on Ctrl+C, so we don't want to spam errors.
-				return
-			}
-			if key == keyboard.KeyEnter {
-				inputChan <- "\n" // Send a newline to simulate the old behavior for Enter key.
-			} else if char != 0 {
-				inputChan <- string(char)
-			}
-		}()
-
-		// --- Phase 2a-ii: Introduce the Periodic Ticker ---
+		// Create a new ticker for each offer to handle the countdown.
 		ticker := time.NewTicker(250 * time.Millisecond)
-		defer ticker.Stop()
 
 		displayState := "" // e.g., "Initial", "OneMinute", "ThirtySeconds", "Expired"
-
 		redrawTradeScreen(txType, offerExpired, apiData, tradeAmount, displayState)
 
 	EventLoop:
 		for {
-			// The select statement will form the basis of our event loop.
 			select {
 			case <-ticker.C:
-				// --- Phase 2b: Add State Calculation Logic ---
 				secondsRemaining := (2 * time.Minute) - time.Since(offerTimestamp)
 				requiredState := "Initial"
 				if secondsRemaining <= 0 {
@@ -1517,28 +1526,36 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 					displayState = requiredState
 					redrawTradeScreen(txType, offerExpired, apiData, tradeAmount, displayState)
 				}
-			case rawInput := <-inputChan:
+			case b, ok := <-inputChan:
+				if !ok {
+					// Input channel was closed, likely due to an error.
+					color.Red("\nInput listener closed unexpectedly. Cancelling trade.")
+					time.Sleep(1 * time.Second)
+					return apiData
+				}
+
+				// Handle Ctrl+C gracefully in raw mode.
+				if b == 3 {
+					term.Restore(fd, oldState) // Restore terminal state BEFORE exiting.
+					os.Exit(1)
+				}
+
+				var rawInput string
+				if b == 13 { // 13 is the ASCII code for Carriage Return (Enter key in raw mode)
+					rawInput = "\n"
+				} else {
+					rawInput = string(b)
+				}
+
 				input := strings.ToLower(strings.TrimSpace(rawInput))
 
 				if displayState == "Expired" {
-					if input == "" {
-						// On expired screen, pressing Enter returns to the main menu.
+					if input == "" { // Enter on expired screen returns to main menu.
+						ticker.Stop()
 						return apiData
 					}
 					if input != "r" {
-						// Any other invalid command on the expired screen is ignored.
-						// Relaunch the input listener and wait for a valid command ('r' or Enter).
-						go func() {
-							char, key, err := keyboard.GetKey()
-							if err != nil {
-								return
-							}
-							if key == keyboard.KeyEnter {
-								inputChan <- "\n" // Send a newline to simulate the old behavior for Enter key.
-							} else if char != 0 {
-								inputChan <- string(char)
-							}
-						}()
+						// On expired screen, ignore any key other than 'r' or Enter.
 						continue EventLoop
 					}
 					// If input is 'r', it will fall through to the handler below.
@@ -1548,6 +1565,7 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 					// Check if the offer has expired *at the moment of acceptance*.
 					if time.Since(offerTimestamp).Minutes() >= 2 {
 						offerExpired = true
+						ticker.Stop()
 						break EventLoop // The offer is stale, break inner loop to get a new price.
 					}
 
@@ -1559,6 +1577,7 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 						color.Red("Your trade has been CANCELLED to prevent data loss.")
 						fmt.Println("Press Enter to continue.")
 						reader.ReadString('\n')
+						ticker.Stop()
 						return apiData // Cancel the trade
 					}
 
@@ -1573,12 +1592,14 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 						color.Red("Your current balance is $%s, but the trade required $%s.", formatFloat(currentPlayerUSD, 2), formatFloat(usdAmount, 2))
 						fmt.Println("Press Enter to continue.")
 						reader.ReadString('\n')
+						ticker.Stop()
 						return apiData
 					}
 					if txType == "Sell" && btcAmount > currentPlayerBTC {
 						color.Red("\nTrade cancelled. Your BTC balance has changed since the trade was initiated.")
 						color.Red("Your current balance is %.8f BTC, but the trade required %.8f BTC.", currentPlayerBTC, btcAmount)
 						fmt.Println("Press Enter to continue.")
+						ticker.Stop()
 						reader.ReadString('\n')
 						return apiData
 					}
@@ -1606,6 +1627,7 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 						color.Red("Error: %v", err)
 						fmt.Println("Please check file permissions and try again.")
 						fmt.Println("Press Enter to continue.")
+						ticker.Stop()
 						reader.ReadString('\n')
 					} else {
 						cfg = tradeCfg // Update the global config to reflect the new state
@@ -1613,33 +1635,22 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 						// Print success message without a newline, sleep, then overwrite with a processing message.
 						fmt.Printf("\n%s successful.", txType)
 						time.Sleep(1 * time.Second)
+						ticker.Stop()
 						fmt.Printf("\rReturning to main menu...\n")
 					}
 					return apiData // Exit trade loop regardless of success or failure
 				} else if input == "r" {
 					// User is manually refreshing, so the offer isn't "expired" in a way that requires a warning.
 					offerExpired = false
+					ticker.Stop()
 					break EventLoop // Break inner loop to get a new price.
 				} else if input == "n" || input == "" { // Explicitly cancel on 'n' or Enter
 					// Print cancel message without a newline, sleep, then overwrite.
 					fmt.Printf("\n%s cancelled.", txType)
 					time.Sleep(1 * time.Second)
+					ticker.Stop()
 					fmt.Printf("\rReturning to main menu...\n")
 					return apiData
-				} else {
-					// Invalid key pressed for an active offer. Ignore it and re-arm the listener.
-					go func() {
-						char, key, err := keyboard.GetKey()
-						if err != nil {
-							return
-						}
-						if key == keyboard.KeyEnter {
-							inputChan <- "\n"
-						} else if char != 0 {
-							inputChan <- string(char)
-						}
-					}()
-					continue EventLoop
 				}
 			}
 		}
