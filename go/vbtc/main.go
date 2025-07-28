@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -455,7 +457,8 @@ func showConfigScreen(reader *bufio.Reader) {
 		fmt.Println("1. Update API Key")
 		fmt.Println("2. Reset Portfolio")
 		fmt.Println("3. Archive Ledger")
-		fmt.Println("4. Return to Main Screen")
+		fmt.Println("4. Merge Archived Ledgers")
+		fmt.Println("5. Return to Main Screen")
 		fmt.Print("Enter your choice: ")
 		choice, _ := reader.ReadString('\n')
 		choice = strings.TrimSpace(choice)
@@ -491,7 +494,9 @@ func showConfigScreen(reader *bufio.Reader) {
 			reader.ReadString('\n')
 		case "3":
 			invokeLedgerArchive(reader)
-		case "4", "": // Default to returning if input is empty
+		case "4":
+			invokeLedgerMerge(reader)
+		case "5", "": // Default to returning if input is empty
 			return
 		default:
 			color.Red("Invalid choice. Please try again.")
@@ -1290,6 +1295,220 @@ func invokeLedgerArchive(reader *bufio.Reader) {
 	}
 
 	fmt.Println("Press Enter to continue.")
+	reader.ReadString('\n')
+}
+
+func readCsvFileRecords(filePath string) ([][]string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return [][]string{}, nil // Not an error, just no file
+		}
+		return nil, err
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	records, err := reader.ReadAll()
+	if err != nil {
+		if err == io.EOF {
+			return [][]string{}, nil
+		}
+		return nil, err
+	}
+
+	if len(records) > 1 {
+		return records[1:], nil // Skip header
+	}
+	return [][]string{}, nil // Only header or empty
+}
+
+func invokeLedgerMerge(reader *bufio.Reader) {
+	clearScreen()
+	color.Yellow("*** Merge Archived Ledgers ***")
+
+	archivePattern := "vBTC - Ledger_??????.csv"
+
+	// 1. Find archives
+	fmt.Println("\nSearching for archives...")
+	archiveFiles, err := filepath.Glob(archivePattern)
+	if err != nil {
+		color.New(color.FgRed).Printf("Error finding archives: %v\n", err)
+		fmt.Println("\nPress Enter to continue.")
+		reader.ReadString('\n')
+		return
+	}
+
+	// Filter out the merged ledger itself from the glob results, just in case
+	var filteredArchives []string
+	for _, file := range archiveFiles {
+		if !strings.HasSuffix(file, "_Merged.csv") {
+			filteredArchives = append(filteredArchives, file)
+		}
+	}
+
+	if len(filteredArchives) == 0 {
+		color.Yellow("No ledger archives found to merge.")
+		fmt.Println("\nPress Enter to continue.")
+		reader.ReadString('\n')
+		return
+	}
+
+	// 2. Sort files
+	re := regexp.MustCompile(`_(\d{6})\.csv$`)
+	sort.Slice(filteredArchives, func(i, j int) bool {
+		matchI := re.FindStringSubmatch(filteredArchives[i])
+		matchJ := re.FindStringSubmatch(filteredArchives[j])
+		const layout = "010206" // MMddyy
+		if len(matchI) < 2 || len(matchJ) < 2 {
+			return false
+		}
+		dateI, _ := time.Parse(layout, matchI[1])
+		dateJ, _ := time.Parse(layout, matchJ[1])
+		return dateI.Before(dateJ)
+	})
+
+	color.Green("Found %d archive(s) to process.", len(filteredArchives))
+
+	// 3. Load existing data for deduplication
+	mergedLedgerPath := "vBTC - Ledger_Merged.csv"
+	processedTimestamps := make(map[string]struct{})
+	var existingRecords [][]string
+	if _, err := os.Stat(mergedLedgerPath); err == nil {
+		var readErr error
+		existingRecords, readErr = readCsvFileRecords(mergedLedgerPath)
+		if err != nil {
+			color.New(color.FgRed).Printf("Could not read existing merged ledger at '%s'. It may be corrupt: %v\n", mergedLedgerPath, readErr)
+			fmt.Println("\nPress Enter to continue.")
+			reader.ReadString('\n')
+			return
+		}
+		for _, record := range existingRecords {
+			if len(record) > 5 { // Ensure timestamp column exists
+				processedTimestamps[record[5]] = struct{}{}
+			}
+		}
+		fmt.Printf("Existing merged ledger contains %d transactions.\n", len(existingRecords))
+	} else {
+		fmt.Println("No existing 'vBTC - Ledger_Merged.csv' found. A new one would be created.")
+	}
+
+	// 4. Process archives and count new unique transactions
+	var newUniqueRecords [][]string
+	totalScannedTxCount := 0
+
+	fmt.Println("Analyzing archives for new transactions...")
+	for _, archivePath := range filteredArchives {
+		records, err := readCsvFileRecords(archivePath)
+		if err != nil {
+			color.Yellow("Could not read or parse '%s'. Skipping this file.", archivePath)
+			continue
+		}
+		totalScannedTxCount += len(records)
+		for _, record := range records {
+			if len(record) > 5 { // Ensure timestamp column exists
+				timestamp := record[5]
+				if _, exists := processedTimestamps[timestamp]; !exists {
+					processedTimestamps[timestamp] = struct{}{} // Add to set to prevent counting duplicates across archives
+					newUniqueRecords = append(newUniqueRecords, record)
+				}
+			}
+		}
+	}
+
+	// 5. Display summary report
+	fmt.Println()
+	color.Yellow("*** Merge Summary ***")
+	writeAlignedLine("Archives Found:", fmt.Sprintf("%d", len(filteredArchives)), color.New(color.FgWhite))
+	writeAlignedLine("Transactions in Archives:", fmt.Sprintf("%d", totalScannedTxCount), color.New(color.FgWhite))
+	writeAlignedLine("Existing Merged TXs:", fmt.Sprintf("%d", len(existingRecords)), color.New(color.FgWhite))
+	writeAlignedLine("New Unique TXs to Add:", fmt.Sprintf("%d", len(newUniqueRecords)), color.New(color.FgGreen))
+	expectedTotal := len(existingRecords) + len(newUniqueRecords)
+	writeAlignedLine("New Total TXs:", fmt.Sprintf("%d", expectedTotal), color.New(color.FgWhite))
+
+	fmt.Println()
+
+	if len(newUniqueRecords) == 0 {
+		color.Cyan("No new transactions to merge.")
+		fmt.Println("\nPress Enter to continue.")
+		reader.ReadString('\n')
+		return
+	}
+
+	// 6. Get confirmation
+	fmt.Print("Proceed with merge? This will create/update 'vBTC - Ledger_Merged.csv'. (y/n): ")
+	confirm, _ := reader.ReadString('\n')
+	if strings.ToLower(strings.TrimSpace(confirm)) != "y" {
+		color.Yellow("Merge cancelled.")
+		fmt.Println("\nPress Enter to continue.")
+		reader.ReadString('\n')
+		return
+	}
+
+	// 7. Perform safe write and verification
+	fmt.Println("Merging transactions...")
+	finalRecords := append(existingRecords, newUniqueRecords...)
+
+	// Sort the final list by date to ensure chronological order
+	sort.Slice(finalRecords, func(i, j int) bool {
+		if len(finalRecords[i]) <= 5 || len(finalRecords[j]) <= 5 {
+			return false
+		}
+		t1, _ := time.Parse("010206@150405", finalRecords[i][5])
+		t2, _ := time.Parse("010206@150405", finalRecords[j][5])
+		return t1.Before(t2)
+	})
+
+	// Use a temporary file for a safer write operation
+	tempFile, err := os.CreateTemp("", "ledger-merge-*.csv")
+	if err != nil {
+		color.Red("Error creating temporary file: %v", err)
+		fmt.Println("\nPress Enter to continue.")
+		reader.ReadString('\n')
+		return
+	}
+	defer os.Remove(tempFile.Name()) // Ensure temp file is cleaned up on exit
+
+	writer := csv.NewWriter(tempFile)
+	header := []string{"TX", "USD", "BTC", "BTC(USD)", "User BTC", "Time"}
+	if err := writer.Write(header); err != nil {
+		color.Red("Error writing header to temp file: %v", err)
+		tempFile.Close()
+		return
+	}
+	if err := writer.WriteAll(finalRecords); err != nil {
+		color.Red("Error writing records to temp file: %v", err)
+		tempFile.Close()
+		return
+	}
+	writer.Flush()
+	tempFile.Close()
+
+	// Verify temp file before replacing the original
+	verificationData, err := readCsvFileRecords(tempFile.Name())
+	if err != nil || len(verificationData) != expectedTotal {
+		color.Red("Verification failed. Expected %d rows, but found %d in the temporary file. Aborting.", expectedTotal, len(verificationData))
+		return
+	}
+
+	// If verification passes, move the temp file to the final destination
+	if err := os.Rename(tempFile.Name(), mergedLedgerPath); err != nil {
+		color.Red("Error moving temporary file to final destination: %v", err)
+		return
+	}
+
+	// 8. Automated Cleanup
+	color.Cyan("Verification successful. Cleaning up source archives...")
+	for _, archivePath := range filteredArchives {
+		if err := os.Remove(archivePath); err != nil {
+			color.Yellow("Warning: Could not delete archive file: %s. Please remove it manually.", archivePath)
+		}
+	}
+
+	color.Green("Merge successful. '%s' has been updated.", mergedLedgerPath)
+	color.Green("%d source archive(s) have been deleted.", len(filteredArchives))
+
+	fmt.Println("\nPress Enter to continue.")
 	reader.ReadString('\n')
 }
 

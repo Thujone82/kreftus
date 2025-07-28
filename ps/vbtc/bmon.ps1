@@ -214,7 +214,7 @@ else {
         Clear-Host
         Write-Host "*** BTC Monitor ***" -ForegroundColor DarkYellow
         Write-Host "Bitcoin (USD): $($currentBtcPrice.ToString("C2"))" -ForegroundColor White
-        Write-Host -NoNewline "Press " -ForegroundColor Cyan; Write-Host -NoNewline "Space Bar" -ForegroundColor Yellow; Write-Host " to Monitor..." -ForegroundColor Cyan
+        Write-Host -NoNewline "Press " -ForegroundColor Yellow; Write-Host -NoNewline "Space" -ForegroundColor Cyan; Write-Host " to Monitor..." -ForegroundColor Yellow
         Write-Host "Press Ctrl+C to Exit" -ForegroundColor White
 
         # Wait for user to start monitoring
@@ -251,9 +251,7 @@ else {
             Clear-Host
             Write-Host "*** BTC Monitor ***" -ForegroundColor DarkYellow
             Write-Host "Bitcoin (USD): $($currentBtcPrice.ToString("C2"))$changeString" -ForegroundColor $priceColor
-            Write-Host -NoNewline "Press " -ForegroundColor Cyan; Write-Host -NoNewline "Space Bar" -ForegroundColor Yellow; Write-Host -NoNewline " to Pause, " -ForegroundColor Cyan; Write-Host -NoNewline "'r'" -ForegroundColor Yellow; Write-Host " to Reset" -ForegroundColor Cyan
-            Write-Host "Press Ctrl+C to Exit" -ForegroundColor White
-
+            Write-Host -NoNewline "Press " -ForegroundColor Yellow; Write-Host -NoNewline "Space" -ForegroundColor Cyan; Write-Host -NoNewline " to Pause, " -ForegroundColor Yellow; Write-Host -NoNewline "R" -ForegroundColor Cyan; Write-Host -NoNewline " to Reset " -ForegroundColor Yellow; Write-Host -NoNewline "Ctrl+C" -ForegroundColor Cyan; Write-Host " to Exit" -ForegroundColor Yellow
             # Wait 5 seconds, but allow pausing by checking for key presses
             $waitStart = Get-Date
             $paused = $false

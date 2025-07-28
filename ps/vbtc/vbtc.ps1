@@ -33,9 +33,8 @@
 
 .NOTES
     Author: Kreft&Gemini[Gemini 2.5 Pro (preview)]
-    Date: 2025-07-05
-    Date: 2025-07-06
-    Version: 1.4
+    Date: 2025-07-28
+    Version: 1.5
 #>
 
 [CmdletBinding()]
@@ -621,7 +620,8 @@ function Show-ConfigScreen {
         Write-Host "1. Update API Key"
         Write-Host "2. Reset Portfolio"
         Write-Host "3. Archive Ledger"
-        Write-Host "4. Return to Main Screen"
+        Write-Host "4. Merge Archived Ledgers"
+        Write-Host "5. Return to Main Screen"
         $choice = Read-Host "Enter your choice"
 
         switch ($choice) {
@@ -653,8 +653,11 @@ function Show-ConfigScreen {
             "3" {
                 Invoke-LedgerArchive -LedgerFilePath $ledgerFilePath
             }
-            { $_ -eq '4' -or [string]::IsNullOrEmpty($_) } {
-                return # Return on '4' or if input is empty
+            "4" {
+                Invoke-LedgerMerge -ScriptPath $scriptPath
+            }
+            { $_ -eq '5' -or [string]::IsNullOrEmpty($_) } {
+                return # Return on '5' or if input is empty
             }
             default { Write-Warning "Invalid choice. Please try again."; Read-Host "Press Enter to continue." }
         }
@@ -775,6 +778,147 @@ function Invoke-LedgerArchive {
     } catch {
         Write-Error "Failed to purge the ledger file. Please check file permissions. The archive was still created. Error: $($_.Exception.Message)"
     }
+    Read-Host "Press Enter to continue."
+}
+
+function Invoke-LedgerMerge {
+    param ([string]$ScriptPath)
+
+    Clear-Host
+    Write-Host "*** Merge Archived Ledgers ***" -ForegroundColor Yellow
+
+    $mergedLedgerPath = Join-Path -Path $ScriptPath -ChildPath "vBTC - Ledger_Merged.csv"
+    $archivePattern = "vBTC - Ledger_??????.csv"
+
+    # 1. Find and sort archives
+    Write-Host "Searching for archives..."
+    $archiveFiles = Get-ChildItem -Path $ScriptPath -Filter $archivePattern |
+        Where-Object { $_.Name -match "vBTC - Ledger_(\d{6})\.csv" } |
+        Sort-Object { [datetime]::ParseExact($_.BaseName.Split('_')[1], 'MMddyy', $null) }
+
+    if ($archiveFiles.Count -eq 0) {
+        Write-Warning "No ledger archives found to merge."
+        Read-Host "Press Enter to continue."
+        return
+    }
+    Write-Host "Found $($archiveFiles.Count) archive(s) to analyze." -ForegroundColor Green
+
+    # 2. Load existing data for deduplication
+    $existingMergedData = @()
+    $existingTimestamps = [System.Collections.Generic.HashSet[string]]::new()
+    if (Test-Path $mergedLedgerPath) {
+        try {
+            $existingMergedData = Import-Csv -Path $mergedLedgerPath -ErrorAction Stop
+            foreach ($row in $existingMergedData) {
+                [void]$existingTimestamps.Add($row.Time)
+            }
+            Write-Host "Existing merged ledger contains $($existingMergedData.Count) transactions."
+        }
+        catch {
+            Write-Warning "Could not read existing merged ledger at '$mergedLedgerPath'. It may be corrupt. Please check the file."
+            Read-Host "Press Enter to continue."
+            return
+        }
+    } else {
+        Write-Host "No existing 'vBTC - Ledger_Merged.csv' found. A new one would be created."
+    }
+
+    # 3. Process archives and collect new unique transactions
+    $newUniqueTransactions = [System.Collections.Generic.List[PSObject]]::new()
+    $totalScannedTxCount = 0
+    $processedTimestamps = [System.Collections.Generic.HashSet[string]]::new($existingTimestamps) # Clone the existing set
+
+    Write-Host "Analyzing archives for new transactions..."
+    foreach ($archiveFile in $archiveFiles) {
+        try {
+            $archiveData = Import-Csv -Path $archiveFile.FullName -ErrorAction Stop
+            $totalScannedTxCount += $archiveData.Count
+            foreach ($row in $archiveData) {
+                if ($processedTimestamps.Add($row.Time)) {
+                    # .Add() returns $true if the item was added (i.e., it was new)
+                    $newUniqueTransactions.Add($row)
+                }
+            }
+        } catch {
+            Write-Warning "Could not read or parse '$($archiveFile.Name)'. Skipping this file."
+        }
+    }
+
+    # 4. Display summary report
+    Write-Host ""
+    Write-Host "*** Merge Summary ***" -ForegroundColor Yellow
+    Write-AlignedLine -Label "Archives Found:" -Value $archiveFiles.Count
+    Write-AlignedLine -Label "Transactions in Archives:" -Value $totalScannedTxCount
+    Write-AlignedLine -Label "Existing Merged TXs:" -Value $existingMergedData.Count
+    Write-AlignedLine -Label "New Unique TXs to Add:" -Value $newUniqueTransactions.Count -ValueColor "Green"
+    $expectedTotal = $existingMergedData.Count + $newUniqueTransactions.Count
+    Write-AlignedLine -Label "New Total TXs:" -Value $expectedTotal
+
+    Write-Host ""
+
+    if ($newUniqueTransactions.Count -eq 0) {
+        Write-Host "No new transactions to merge." -ForegroundColor Cyan
+        Read-Host "Press Enter to continue."
+        return
+    }
+
+    # 5. Get confirmation
+    $mergedFileName = Split-Path -Path $mergedLedgerPath -Leaf
+    $confirm = Read-Host "Proceed with merge? This will create/update '$mergedFileName'. (y/n)"
+    if ($confirm.ToLower() -ne 'y') {
+        Write-Host "Merge cancelled." -ForegroundColor Yellow
+        Read-Host "Press Enter to continue."
+        return
+    }
+
+    # 6. Perform safe write and verification
+    Write-Host "Merging transactions..."
+    $finalLedgerData = $existingMergedData + $newUniqueTransactions
+
+    # Sort the final list by date to ensure chronological order
+    $sortedFinalData = $finalLedgerData | Sort-Object { [datetime]::ParseExact($_.Time, "MMddyy@HHmmss", $null) }
+
+    $tempFilePath = $null
+    try {
+        # Using a temporary file for a safer write operation
+        $tempFilePath = [System.IO.Path]::GetTempFileName()
+        $sortedFinalData | Export-Csv -Path $tempFilePath -NoTypeInformation -Force -ErrorAction Stop
+
+        # Verify temp file before replacing the original
+        $verificationData = Import-Csv -Path $tempFilePath -ErrorAction Stop
+        if ($verificationData.Count -ne $expectedTotal) {
+            throw "Verification failed. Expected $($expectedTotal) rows, but found $($verificationData.Count) in the temporary file."
+        }
+
+        # If verification passes, move the temp file to the final destination
+        Move-Item -Path $tempFilePath -Destination $mergedLedgerPath -Force -ErrorAction Stop
+        $tempFilePath = $null # Prevent deletion in finally block
+
+        Write-Host "Verification successful. Cleaning up source archives..." -ForegroundColor Cyan
+        foreach ($archiveFile in $archiveFiles) {
+            try {
+                Remove-Item -Path $archiveFile.FullName -Force -ErrorAction Stop
+                Write-Verbose "Deleted $($archiveFile.Name)"
+            }
+            catch {
+                Write-Warning "Could not delete archive file: $($archiveFile.FullName). Please remove it manually."
+            }
+        }
+
+        Write-Host "Merge successful. '$mergedFileName' has been updated." -ForegroundColor Green
+        Write-Host "$($archiveFiles.Count) source archive(s) have been deleted." -ForegroundColor Green
+    }
+    catch {
+        Write-Error "An error occurred during the merge process: $($_.Exception.Message)"
+        Write-Error "The merge has been aborted, and the original merged file (if any) is unchanged."
+        Write-Error "No source archives were deleted."
+    }
+    finally {
+        if ($null -ne $tempFilePath -and (Test-Path $tempFilePath)) {
+            Remove-Item $tempFilePath -Force
+        }
+    }
+
     Read-Host "Press Enter to continue."
 }
 
