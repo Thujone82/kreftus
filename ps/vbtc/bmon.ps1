@@ -19,9 +19,30 @@
     Version: 1.0
 #>
 
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName='Monitor')]
 param (
-    [switch]$go
+    [Parameter(ParameterSetName='Monitor')]
+    [switch]$go,
+
+    [Parameter(ParameterSetName='BitcoinToUsd')]
+    [Alias('bu')]
+    [ValidateRange(0, [double]::MaxValue)]
+    [double]$BitcoinToUsd,
+
+    [Parameter(ParameterSetName='UsdToBitcoin')]
+    [Alias('ub')]
+    [ValidateRange(0, [double]::MaxValue)]
+    [double]$UsdToBitcoin,
+
+    [Parameter(ParameterSetName='USDToSats')]
+    [Alias('us')]
+    [ValidateRange(0, [double]::MaxValue)]
+    [double]$USDToSats,
+
+    [Parameter(ParameterSetName='SatsToUSD')]
+    [Alias('su')]
+    [ValidateRange(0, [double]::MaxValue)]
+    [double]$SatsToUSD
 )
 
 # --- Script Setup and Configuration ---
@@ -77,6 +98,38 @@ if ([string]::IsNullOrEmpty($apiKey)) {
     exit
 }
 
+# --- Conversion Logic Branch ---
+if ($PSCmdlet.ParameterSetName -ne 'Monitor') {
+    $price = Get-BtcPrice -ApiKey $apiKey
+    if ($null -eq $price) {
+        Write-Error "Could not retrieve Bitcoin price. Cannot perform conversion."
+        exit 1
+    }
+
+    switch ($PSCmdlet.ParameterSetName) {
+        "BitcoinToUsd" {
+            $usdValue = $BitcoinToUsd * $price
+            Write-Host ('${0}' -f $usdValue.ToString("N2"))
+        }
+        "UsdToBitcoin" {
+            if ($price -eq 0) { Write-Error "Bitcoin price is zero, cannot divide."; exit 1 }
+            $btcValue = $UsdToBitcoin / $price
+            Write-Host ("₿{0}" -f $btcValue.ToString("F8"))
+        }
+        "USDToSats" {
+            if ($price -eq 0) { Write-Error "Bitcoin price is zero, cannot divide."; exit 1 }
+            $satoshiValue = ($USDToSats / $price) * 100000000
+            Write-Host ("{0}s" -f [math]::Round($satoshiValue).ToString("N0"))
+        }
+        "SatsToUSD" {
+            $usdValue = ($SatsToUSD / 100000000) * $price
+            Write-Host ('${0}' -f $usdValue.ToString("N2"))
+        }
+    }
+    exit 0
+}
+
+
 # Initial Price Fetch
 if ($go.IsPresent) {
     # For -go mode, write on one line so it can be overwritten by the first price update.
@@ -97,9 +150,12 @@ if ($go.IsPresent) {
     $monitorStartPrice = $currentBtcPrice
     $monitorStartTime = Get-Date
     $monitorDurationSeconds = 300 # 5 minutes
+    $spinner = @('|', '/', '-', '\')
+    $spinnerIndex = 0
     Clear-Host
  
     try {
+        [System.Console]::CursorVisible = $false
         while (((Get-Date) - $monitorStartTime).TotalSeconds -lt $monitorDurationSeconds) {
             # Calculate change and determine color based on the current price
             $priceChange = $currentBtcPrice - $monitorStartPrice
@@ -113,11 +169,31 @@ if ($go.IsPresent) {
                 $changeString = " [$($priceChange.ToString("C2"))]" # Negative sign is included by ToString("C2")
             }
 
-            # Write the single, updating line to the console
-            Write-Host -NoNewline "Bitcoin (USD): $($currentBtcPrice.ToString("C2"))$changeString`r" -ForegroundColor $priceColor
+            # Wait for 5 seconds, check for 'r' key, and animate the spinner
+            $waitStart = Get-Date
+            $refreshed = $false
+            while (((Get-Date) - $waitStart).TotalSeconds -lt 5) {
+                # Animate spinner and draw the line
+                $spinnerChar = $spinner[$spinnerIndex]
+                $line = "$spinnerChar Bitcoin (USD): $($currentBtcPrice.ToString("C2"))$changeString"
+                $spinnerIndex = ($spinnerIndex + 1) % $spinner.Length
+                $paddedLine = $line.PadRight([System.Console]::WindowWidth - 1)
+                Write-Host -NoNewline "$paddedLine`r" -ForegroundColor $priceColor
 
-            # Wait for 5 seconds
-            Start-Sleep -Seconds 5
+                # Check for refresh key
+                if ([System.Console]::KeyAvailable -and (([System.Console]::ReadKey($true)).KeyChar -eq 'r')) {
+                    $newPrice = Get-BtcPrice -ApiKey $apiKey
+                    if ($null -ne $newPrice) {
+                        $currentBtcPrice = $newPrice
+                        $monitorStartPrice = $currentBtcPrice
+                        $monitorStartTime = Get-Date
+                    }
+                    $refreshed = $true
+                    break # Exit wait loop
+                }
+                Start-Sleep -Milliseconds 500
+            }
+            if ($refreshed) { continue } # Continue main monitoring loop to redraw immediately
 
             # Fetch the next price for the next iteration
             $newPrice = Get-BtcPrice -ApiKey $apiKey
@@ -125,6 +201,7 @@ if ($go.IsPresent) {
         }
     }
     finally {
+        [System.Console]::CursorVisible = $true
         # Clean up console after the loop finishes or is interrupted by Ctrl+C
         Write-Host ""
     }
@@ -135,9 +212,9 @@ else {
     while ($true) {
         # Paused State Display
         Clear-Host
-        Write-Host "*** BTC Monitor ***" -ForegroundColor Yellow
+        Write-Host "*** BTC Monitor ***" -ForegroundColor DarkYellow
         Write-Host "Bitcoin (USD): $($currentBtcPrice.ToString("C2"))" -ForegroundColor White
-        Write-Host "Press Space Bar to Monitor..." -ForegroundColor Cyan
+        Write-Host -NoNewline "Press " -ForegroundColor Cyan; Write-Host -NoNewline "Space Bar" -ForegroundColor Yellow; Write-Host " to Monitor..." -ForegroundColor Cyan
         Write-Host "Press Ctrl+C to Exit" -ForegroundColor White
 
         # Wait for user to start monitoring
@@ -172,22 +249,40 @@ else {
             }
 
             Clear-Host
-            Write-Host "*** BTC Monitor ***" -ForegroundColor Yellow
+            Write-Host "*** BTC Monitor ***" -ForegroundColor DarkYellow
             Write-Host "Bitcoin (USD): $($currentBtcPrice.ToString("C2"))$changeString" -ForegroundColor $priceColor
-            Write-Host "Press Space Bar to Pause..." -ForegroundColor Cyan
+            Write-Host -NoNewline "Press " -ForegroundColor Cyan; Write-Host -NoNewline "Space Bar" -ForegroundColor Yellow; Write-Host -NoNewline " to Pause, " -ForegroundColor Cyan; Write-Host -NoNewline "'r'" -ForegroundColor Yellow; Write-Host " to Reset" -ForegroundColor Cyan
             Write-Host "Press Ctrl+C to Exit" -ForegroundColor White
 
             # Wait 5 seconds, but allow pausing by checking for key presses
             $waitStart = Get-Date
             $paused = $false
+            $refreshed = $false
             while (((Get-Date) - $waitStart).TotalSeconds -lt 5) {
-                if ([System.Console]::KeyAvailable -and (([System.Console]::ReadKey($true)).Key -eq 'Spacebar')) {
-                    $paused = $true
-                    break
+                if ([System.Console]::KeyAvailable) {
+                    $keyInfo = [System.Console]::ReadKey($true)
+                    if ($keyInfo.Key -eq 'Spacebar') {
+                        $paused = $true
+                        break
+                    }
+                    if ($keyInfo.KeyChar -eq 'r') {
+                        $refreshed = $true
+                        break
+                    }
                 }
                 Start-Sleep -Milliseconds 100
             }
             if ($paused) { break } # Exit monitoring loop if user paused
+            if ($refreshed) {
+                # Fetch a new price immediately to set the new baseline
+                $newPrice = Get-BtcPrice -ApiKey $apiKey
+                if ($null -ne $newPrice) {
+                    $currentBtcPrice = $newPrice
+                    $monitorStartPrice = $currentBtcPrice
+                }
+                $monitorStartTime = Get-Date # Reset timer
+                continue # Redraw screen immediately with new baseline
+            }
         }
     }
 }

@@ -11,11 +11,12 @@ Kreft&Gemini[Gemini 2.5 Pro (preview)]
 ## Description
 `bmon.ps1` is a spinoff of the vBTC trading simulator, designed to be a fast and lightweight, real-time Bitcoin price monitor. It operates directly from the command line and leverages the existing configuration from `vbtc.ps1`.
 
-The script has two primary modes of operation: an interactive session and a non-interactive "go" mode for quick, unattended checks.
+The script has two primary modes of operation: real-time monitoring and on-demand currency conversion.
 
 ## Features
-- **Interactive Mode:** A full-screen display that shows the current price. Users can start and pause a 5-minute monitoring session with the space bar.
+- **Interactive Mode:** A full-screen display that shows the current price. Users can start and pause a 5-minute monitoring session with the space bar. The 'r' key can be used to reset the session baseline.
 - **Go Mode:** A non-interactive mode (`-go` switch) that displays a single, updating line of price data for 5 minutes before automatically exiting. Ideal for quick glances or integration into other displays.
+- **Currency Conversion:** Perform quick conversions directly from the command line. The script outputs only the resulting value, making it easy to use in other scripts.
 - **Live Price Tracking:** During a monitoring session, the script tracks the price change from the moment monitoring began.
 - **Dependency on vBTC:** Seamlessly uses the API key configured in `vbtc.ini`, requiring vBTC to be set up first.
 
@@ -36,14 +37,31 @@ The application uses colors to provide quick visual feedback during a monitoring
 1.  Open a PowerShell terminal.
 2.  Navigate to the directory where `bmon.ps1` is located.
 3.  Run the script in one of two ways:
-
-    -   **Interactive Mode:**
-        `.\bmon.ps1`
-        Press the space bar to start/pause monitoring. Press Ctrl+C to exit.
-
-    -   **Go Mode (Non-Interactive):**
-        `.\bmon.ps1 -go`
-        The script will run for 5 minutes and then exit automatically. Press Ctrl+C to exit early.
+    
+### Monitoring Modes
+---
+-   **Interactive Mode:**
+    `.\bmon.ps1`
+    Press the space bar to start/pause monitoring. Press 'r' to reset the session. Press Ctrl+C to exit.
+-   **Go Mode (Non-Interactive):**
+    `.\bmon.ps1 -go`
+    The script will run for 5 minutes and then exit automatically. Press 'r' to reset the session. Press Ctrl+C to exit early.
+    
+### Conversion Mode
+---
+Use the following parameters to perform a conversion. The script will output only the result.
+-   **Bitcoin to USD:**
+    `.\bmon.ps1 -bu <amount_in_btc>`
+    Example: `.\bmon.ps1 -bu 0.5`
+-   **USD to Bitcoin:**
+    `.\bmon.ps1 -ub <amount_in_usd>`
+    Example: `.\bmon.ps1 -ub 100`
+-   **USD to Satoshis:**
+    `.\bmon.ps1 -us <amount_in_usd>`
+    Example: `.\bmon.ps1 -us 50`
+-   **Satoshis to USD:**
+    `.\bmon.ps1 -su <amount_in_sats>`
+    Example: `.\bmon.ps1 -su 250000`
 
 ## Files
 -   `bmon.ps1`: The main script file.
