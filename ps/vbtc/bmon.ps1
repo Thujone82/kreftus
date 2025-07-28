@@ -114,7 +114,7 @@ if ($PSCmdlet.ParameterSetName -ne 'Monitor') {
         "UsdToBitcoin" {
             if ($price -eq 0) { Write-Error "Bitcoin price is zero, cannot divide."; exit 1 }
             $btcValue = $UsdToBitcoin / $price
-            Write-Host ("₿{0}" -f $btcValue.ToString("F8"))
+            Write-Host ("B{0}" -f $btcValue.ToString("F8"))
         }
         "USDToSats" {
             if ($price -eq 0) { Write-Error "Bitcoin price is zero, cannot divide."; exit 1 }
