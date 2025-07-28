@@ -627,18 +627,16 @@ func showLedgerScreen(reader *bufio.Reader) {
 	}
 
 	summary := getLedgerTotals(ledgerEntries)
-	if summary != nil {
-		fmt.Println()
-		color.Yellow("*** Ledger Summary ***")
-		summaryValueStartColumn := 22 // Align with portfolio summary
-		if summary.TotalBuyUSD > 0 {
-			writeAlignedLine("Total Bought (USD):", fmt.Sprintf("$%s", formatFloat(summary.TotalBuyUSD, 2)), color.New(color.FgGreen), summaryValueStartColumn)
-			writeAlignedLine("Total Bought (BTC):", fmt.Sprintf("%.8f", summary.TotalBuyBTC), color.New(color.FgGreen), summaryValueStartColumn)
-		}
-		if summary.TotalSellUSD > 0 {
-			writeAlignedLine("Total Sold (USD):", fmt.Sprintf("$%s", formatFloat(summary.TotalSellUSD, 2)), color.New(color.FgRed), summaryValueStartColumn)
-			writeAlignedLine("Total Sold (BTC):", fmt.Sprintf("%.8f", summary.TotalSellBTC), color.New(color.FgRed), summaryValueStartColumn)
-		}
+	fmt.Println()
+	color.Yellow("*** Ledger Summary ***")
+	summaryValueStartColumn := 22 // Align with portfolio summary
+	if summary.TotalBuyUSD > 0 {
+		writeAlignedLine("Total Bought (USD):", fmt.Sprintf("$%s", formatFloat(summary.TotalBuyUSD, 2)), color.New(color.FgGreen), summaryValueStartColumn)
+		writeAlignedLine("Total Bought (BTC):", fmt.Sprintf("%.8f", summary.TotalBuyBTC), color.New(color.FgGreen), summaryValueStartColumn)
+	}
+	if summary.TotalSellUSD > 0 {
+		writeAlignedLine("Total Sold (USD):", fmt.Sprintf("$%s", formatFloat(summary.TotalSellUSD, 2)), color.New(color.FgRed), summaryValueStartColumn)
+		writeAlignedLine("Total Sold (BTC):", fmt.Sprintf("%.8f", summary.TotalSellBTC), color.New(color.FgRed), summaryValueStartColumn)
 	}
 
 	fmt.Println("\nPress Enter to return to Main screen")
@@ -1377,7 +1375,7 @@ func invokeLedgerMerge(reader *bufio.Reader) {
 	if _, err := os.Stat(mergedLedgerPath); err == nil {
 		var readErr error
 		existingRecords, readErr = readCsvFileRecords(mergedLedgerPath)
-		if err != nil {
+		if readErr != nil {
 			color.New(color.FgRed).Printf("Could not read existing merged ledger at '%s'. It may be corrupt: %v\n", mergedLedgerPath, readErr)
 			fmt.Println("\nPress Enter to continue.")
 			reader.ReadString('\n')

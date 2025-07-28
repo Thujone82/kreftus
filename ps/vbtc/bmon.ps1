@@ -132,6 +132,7 @@ if ($PSCmdlet.ParameterSetName -ne 'Monitor') {
 
 # Initial Price Fetch
 if ($go.IsPresent) {
+    Clear-Host
     # For -go mode, write on one line so it can be overwritten by the first price update.
     Write-Host -NoNewline "Fetching initial price...`r" -ForegroundColor Cyan
 } else {
@@ -152,7 +153,6 @@ if ($go.IsPresent) {
     $monitorDurationSeconds = 300 # 5 minutes
     $spinner = @('|', '/', '-', '\')
     $spinnerIndex = 0
-    Clear-Host
  
     try {
         [System.Console]::CursorVisible = $false
@@ -202,8 +202,20 @@ if ($go.IsPresent) {
     }
     finally {
         [System.Console]::CursorVisible = $true
-        # Clean up console after the loop finishes or is interrupted by Ctrl+C
-        Write-Host ""
+        try {
+            # Ideal cleanup for a standard console. This may fail in the PS2EXE host.
+            # Move to the beginning of the current line.
+            [System.Console]::SetCursorPosition(0, [System.Console]::CursorTop)
+            # Overwrite the entire line with spaces to clear any leftover characters.
+            [System.Console]::Write(' ' * ([System.Console]::WindowWidth - 1))
+            # Move the cursor back to the beginning of the now-blank line, ready for the shell prompt.
+            [System.Console]::SetCursorPosition(0, [System.Console]::CursorTop)
+        } catch {
+            # Fallback for non-interactive/compiled environments where the above might fail.
+            # A direct, unbuffered write of a newline is the most reliable way
+            # to ensure the next shell prompt appears on a fresh line.
+            [System.Console]::Write("`n")
+        }
     }
     exit
 }
