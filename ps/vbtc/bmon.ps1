@@ -97,6 +97,7 @@ if ($go.IsPresent) {
     $monitorStartPrice = $currentBtcPrice
     $monitorStartTime = Get-Date
     $monitorDurationSeconds = 300 # 5 minutes
+    Clear-Host
  
     try {
         while (((Get-Date) - $monitorStartTime).TotalSeconds -lt $monitorDurationSeconds) {

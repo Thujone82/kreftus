@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"errors"
@@ -107,10 +108,6 @@ type ProviderDownError struct {
 func (e *ProviderDownError) Error() string {
 	return fmt.Sprintf("provider down: %s (status %d)", e.Message, e.StatusCode)
 }
-
-// Implement the net.Error interface to be caught by errors.As
-func (e *ProviderDownError) Timeout() bool   { return false } // Not a timeout
-func (e *ProviderDownError) Temporary() bool { return true }  // It's a temporary issue
 
 // --- Main Application ---
 func main() {
@@ -1296,34 +1293,55 @@ func invokeLedgerArchive(reader *bufio.Reader) {
 	reader.ReadString('\n')
 }
 
-func addLedgerEntry(reader *bufio.Reader, txType string, usdAmount, btcAmount, btcPrice, userBtcAfter float64) {
+func addLedgerEntry(txType string, usdAmount, btcAmount, btcPrice, userBtcAfter float64) error {
 	file, err := os.OpenFile(ledgerFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		color.Red("Transaction complete, but failed to write to ledger.csv. Please ensure the file is not open in another program.")
-		fmt.Println("Press Enter to acknowledge.")
-		reader.ReadString('\n')
-		return
+		// Return the error to be handled by the caller, which is aware of the terminal state (raw/cooked)
+		return fmt.Errorf("failed to open ledger file: %w", err)
 	}
 	defer file.Close()
 
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
 
-	// Write header if file is new
 	info, _ := file.Stat()
 	if info.Size() == 0 {
 		writer.Write([]string{"TX", "USD", "BTC", "BTC(USD)", "User BTC", "Time"})
 	}
 
-	record := []string{
+	err = writer.Write([]string{
 		txType,
 		fmt.Sprintf("%.2f", usdAmount),
 		fmt.Sprintf("%.8f", btcAmount),
 		fmt.Sprintf("%.2f", btcPrice),
 		fmt.Sprintf("%.8f", userBtcAfter),
 		time.Now().UTC().Format("010206@150405"),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to write record to ledger: %w", err)
 	}
-	writer.Write(record)
+	return nil
+}
+
+// waitForEnter consumes from the raw input channel until an Enter key is pressed.
+// It's used for "Press Enter to continue" prompts while in raw mode to avoid
+// corrupting the main bufio.Reader. It also handles Ctrl+C.
+func waitForEnter(inputChan chan byte, fd int, oldState *term.State) {
+	for {
+		b, ok := <-inputChan
+		if !ok {
+			return // Channel closed, exit loop.
+		}
+		// Enter is carriage return (13) in raw mode on Windows, or line feed (10) on Unix.
+		if b == 13 || b == 10 {
+			return
+		}
+		// Handle Ctrl+C (ASCII 3) gracefully.
+		if b == 3 {
+			term.Restore(fd, oldState)
+			os.Exit(1)
+		}
+	}
 }
 
 func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResponse {
@@ -1415,10 +1433,20 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 		time.Sleep(2 * time.Second)
 		return apiData
 	}
-	// CRITICAL: Ensure the terminal is restored to its original state when the function exits.
-	defer term.Restore(fd, oldState)
 
-	// Put the terminal into raw mode.
+	done := make(chan struct{}) // Channel to signal the goroutine to stop.
+	var wg sync.WaitGroup
+
+	// CRITICAL: Ensure the goroutine is stopped, terminal is restored,
+	// and the input buffer is reset when the function exits.
+	defer func() {
+		close(done) // 1. Signal the input goroutine to stop.
+		wg.Wait()   // 2. Wait for the input goroutine to finish before proceeding.
+		term.Restore(fd, oldState)
+		reader.Reset(os.Stdin)
+	}()
+
+	// Put the terminal into raw mode using the original descriptor.
 	_, err = term.MakeRaw(fd)
 	if err != nil {
 		color.Red("Error: Could not set terminal to raw mode: %v", err)
@@ -1428,15 +1456,23 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 
 	// Create a channel to receive input from a non-blocking goroutine.
 	inputChan := make(chan byte)
+	wg.Add(1) // Increment the WaitGroup counter before starting the goroutine.
 	go func() {
+		defer wg.Done()
 		defer close(inputChan)
-		buffer := make([]byte, 1)
 		for {
-			n, err := os.Stdin.Read(buffer)
-			if err != nil || n == 0 {
-				return // Exit goroutine on error or EOF
+			// cancellableRead is a platform-aware, non-blocking read.
+			b, err := cancellableRead(done)
+			if err != nil {
+				// This error is expected when 'done' is closed, so we just exit.
+				return
 			}
-			inputChan <- buffer[0]
+			// We got a character, try to send it but don't block.
+			select {
+			case inputChan <- b:
+			case <-done:
+				return
+			}
 		}
 	}()
 
@@ -1448,14 +1484,14 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 				errorMessage = fmt.Sprintf("%s (%d)", errorMessage, apiData.ApiErrorCode)
 			}
 			errorMessage += " - Try again later"
-			color.Red(errorMessage)
-			fmt.Println("Press Enter to return to the main menu.")
-			reader.ReadString('\n')
+			color.Red("\n%s", errorMessage)
+			fmt.Println("\nPress Enter to return to the main menu.")
+			waitForEnter(inputChan, fd, oldState)
 			return apiData // Return to main menu
 		}
 		if apiData == nil || apiData.Rate == 0 {
-			color.Red("Error fetching price. Press Enter to continue.")
-			reader.ReadString('\n')
+			color.Red("\nError fetching price. Press Enter to continue.")
+			waitForEnter(inputChan, fd, oldState)
 			return apiData
 		}
 		offerTimestamp := time.Now() // Record the time the offer is presented.
@@ -1575,9 +1611,9 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 						color.Red("\nCritical Error: Could not read portfolio file '%s' to finalize trade.", iniFilePath)
 						color.Red("Error: %v", err)
 						color.Red("Your trade has been CANCELLED to prevent data loss.")
-						fmt.Println("Press Enter to continue.")
-						reader.ReadString('\n')
+						fmt.Println("\nPress Enter to continue.")
 						ticker.Stop()
+						waitForEnter(inputChan, fd, oldState)
 						return apiData // Cancel the trade
 					}
 
@@ -1590,17 +1626,17 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 					if txType == "Buy" && usdAmount > currentPlayerUSD {
 						color.Red("\nTrade cancelled. Your USD balance has changed since the trade was initiated.")
 						color.Red("Your current balance is $%s, but the trade required $%s.", formatFloat(currentPlayerUSD, 2), formatFloat(usdAmount, 2))
-						fmt.Println("Press Enter to continue.")
-						reader.ReadString('\n')
+						fmt.Println("\nPress Enter to continue.")
 						ticker.Stop()
+						waitForEnter(inputChan, fd, oldState)
 						return apiData
 					}
 					if txType == "Sell" && btcAmount > currentPlayerBTC {
 						color.Red("\nTrade cancelled. Your BTC balance has changed since the trade was initiated.")
 						color.Red("Your current balance is %.8f BTC, but the trade required %.8f BTC.", currentPlayerBTC, btcAmount)
-						fmt.Println("Press Enter to continue.")
+						fmt.Println("\nPress Enter to continue.")
 						ticker.Stop()
-						reader.ReadString('\n')
+						waitForEnter(inputChan, fd, oldState)
 						return apiData
 					}
 
@@ -1625,15 +1661,22 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 					if err != nil {
 						color.Red("\nTrade failed: Could not save portfolio update to vbtc.ini.")
 						color.Red("Error: %v", err)
-						fmt.Println("Please check file permissions and try again.")
-						fmt.Println("Press Enter to continue.")
+						fmt.Println("\nPlease check file permissions and try again.")
+						fmt.Println("\nPress Enter to continue.")
 						ticker.Stop()
-						reader.ReadString('\n')
+						waitForEnter(inputChan, fd, oldState)
 					} else {
 						cfg = tradeCfg // Update the global config to reflect the new state
-						addLedgerEntry(reader, txType, usdAmount, btcAmount, apiData.Rate, newUserBtc)
+						err := addLedgerEntry(txType, usdAmount, btcAmount, apiData.Rate, newUserBtc)
+						if err != nil {
+							color.Red("\nTransaction complete, but failed to write to ledger.csv.")
+							color.Red("Error: %v", err)
+							fmt.Println("\nPlease ensure the file is not open in another program.")
+							fmt.Println("\nPress Enter to acknowledge.")
+							waitForEnter(inputChan, fd, oldState)
+						}
 						// Print success message without a newline, sleep, then overwrite with a processing message.
-						fmt.Printf("\n%s successful.", txType)
+						fmt.Printf("\n\n%s successful.", txType)
 						time.Sleep(1 * time.Second)
 						ticker.Stop()
 						fmt.Printf("\rReturning to main menu...\n")
@@ -1645,11 +1688,10 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 					ticker.Stop()
 					break EventLoop // Break inner loop to get a new price.
 				} else if input == "n" || input == "" { // Explicitly cancel on 'n' or Enter
-					// Print cancel message without a newline, sleep, then overwrite.
-					fmt.Printf("\n%s cancelled.", txType)
+					// Print cancel message with a newline.
+					fmt.Printf("\n\n%s cancelled.\n", txType)
 					time.Sleep(1 * time.Second)
 					ticker.Stop()
-					fmt.Printf("\rReturning to main menu...\n")
 					return apiData
 				}
 			}
