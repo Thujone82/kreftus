@@ -1,4 +1,12 @@
 // IndexedDB wrapper for Habit Tracker
+
+// Helper to get YYYY-MM-DD from a Date object in local time
+function getLocalISODateString(date) {
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 class HabitDB {
   constructor() {
     this.dbName = 'habitTrackerDB';
@@ -288,6 +296,9 @@ class HabitDB {
       await this.transaction('tasks', 'readwrite', (store) => {
         return store.delete(id);
       });
+
+      // After deleting, check if today is now complete
+      await this.updateStreak();
     } catch (error) {
       console.error('Error deleting task:', error);
       throw error;
@@ -317,7 +328,7 @@ class HabitDB {
   // Completion methods
   async getCompletionsForDate(date) {
     try {
-      const dateStr = new Date(date).toISOString().split('T')[0];
+      const dateStr = getLocalISODateString(new Date(date));
       return await this.transaction('completions', 'readonly', (store) => {
         const index = store.index('date');
         return index.getAll(IDBKeyRange.only(dateStr));
@@ -330,7 +341,7 @@ class HabitDB {
 
   async getCompletionForTask(taskId, date) {
     try {
-      const dateStr = new Date(date).toISOString().split('T')[0];
+      const dateStr = getLocalISODateString(new Date(date));
       const completions = await this.transaction('completions', 'readonly', (store) => {
         const index = store.index('taskId');
         return index.getAll(IDBKeyRange.only(taskId));
@@ -345,7 +356,7 @@ class HabitDB {
 
   async addCompletion(taskId, date = new Date()) {
     try {
-      const dateStr = new Date(date).toISOString().split('T')[0];
+      const dateStr = getLocalISODateString(new Date(date));
       
       // Check if completion already exists
       const existing = await this.getCompletionForTask(taskId, date);
@@ -388,7 +399,7 @@ class HabitDB {
     try {
       const settings = await this.getSettings();
       const today = new Date();
-      const todayStr = today.toISOString().split('T')[0];
+      const todayStr = getLocalISODateString(today);
       
       // Get all tasks and categories
       const categories = await this.getCategories();
@@ -403,20 +414,18 @@ class HabitDB {
       
       if (allCompleted && tasks.length > 0) {
         // All tasks completed for today
-        const lastCompletionDate = settings.lastCompletionDate 
-          ? new Date(settings.lastCompletionDate) 
-          : null;
+        const lastCompletionDateStr = settings.lastCompletionDate;
         
-        if (lastCompletionDate) {
+        if (lastCompletionDateStr) {
           // Check if the last completion was yesterday
           const yesterday = new Date(today);
           yesterday.setDate(yesterday.getDate() - 1);
-          const yesterdayStr = yesterday.toISOString().split('T')[0];
+          const yesterdayStr = getLocalISODateString(yesterday);
           
-          if (lastCompletionDate.toISOString().split('T')[0] === yesterdayStr) {
+          if (lastCompletionDateStr === yesterdayStr) {
             // Continuing the streak
             settings.currentStreak++;
-          } else if (lastCompletionDate.toISOString().split('T')[0] !== todayStr) {
+          } else if (lastCompletionDateStr !== todayStr) {
             // Broke the streak, starting a new one
             settings.currentStreak = 1;
           }
@@ -489,8 +498,8 @@ class HabitDB {
       const yesterday = new Date();
       yesterday.setDate(today.getDate() - 1);
 
-      const todayStr = today.toISOString().split('T')[0];
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      const todayStr = getLocalISODateString(today);
+      const yesterdayStr = getLocalISODateString(yesterday);
       const lastCompletionStr = settings.lastCompletionDate;
 
       // If the last completion was not today and not yesterday, the streak is broken.
@@ -521,7 +530,7 @@ class HabitDB {
     try {
       const settings = await this.getSettings();
       const today = new Date();
-      const todayStr = today.toISOString().split('T')[0];
+      const todayStr = getLocalISODateString(today);
       
       // Only reset if today was the last completion date
       if (settings.lastCompletionDate === todayStr) {
@@ -575,7 +584,7 @@ class HabitDB {
         if (allCompleted) {
           currentStreak++;
           if (!lastCompletionDate) {
-            lastCompletionDate = checkDate.toISOString().split('T')[0];
+            lastCompletionDate = getLocalISODateString(checkDate);
           }
         } else {
           // Streak is broken, stop counting

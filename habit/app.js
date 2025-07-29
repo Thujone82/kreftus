@@ -1215,6 +1215,11 @@ async function deleteConfigItem(itemElement, type) {
     
     // Remove from UI
     itemElement.remove();
+
+    // Refresh main UI to reflect the deletion
+    await loadCategories();
+    await updateAllProgress();
+    await updateStreakDisplay();
   } catch (error) {
     console.error('Error deleting config item:', error);
   }

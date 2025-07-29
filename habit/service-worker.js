@@ -1,5 +1,5 @@
 // Increment the Timestamp to trigger an update for all users.
-const CACHE_NAME = 'habit-tracker-v2-072625@1505';
+const CACHE_NAME = 'habit-tracker-v2-072825@1012';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
