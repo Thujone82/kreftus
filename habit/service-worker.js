@@ -1,5 +1,5 @@
 // Increment the Timestamp to trigger an update for all users.
-const CACHE_NAME = 'habit-tracker-v2-072825@1012';
+const CACHE_NAME = 'habit-tracker-v2-072825@1031';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -43,12 +43,22 @@ self.addEventListener('activate', event => {
 
 // Serve cached content when offline
 self.addEventListener('fetch', event => {
-  // Use a "cache-first" strategy.
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // If the request is in the cache, return it. Otherwise, fetch from the network.
-        return response || fetch(event.request);
+  // For navigation requests (e.g., loading the page), try the network first.
+  // This ensures users get the latest HTML shell if they are online.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        // If the network fails, serve the cached index.html.
+        return caches.match('./index.html');
       })
+    );
+    return;
+  }
+
+  // For all other requests (CSS, JS, images), use a "cache-first" strategy.
+  event.respondWith(
+    caches.match(event.request).then(response => {
+      return response || fetch(event.request);
+    })
   );
 });

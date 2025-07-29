@@ -556,57 +556,81 @@ class HabitDB {
   // Recalculate streak from scratch by checking all completion days
   async recalculateStreak() {
     try {
+      // First, ensure streak records are accurate based on current completions
+      await this.cleanupStreakRecords();
+
       const settings = await this.getSettings();
       const tasks = await this.getTasks();
       
       if (tasks.length === 0) {
         settings.currentStreak = 0;
+        settings.recordStreak = 0; // Also reset record streak
         settings.lastCompletionDate = null;
         await this.saveSettings(settings);
         return;
       }
 
+      // Get all valid, fully completed days from the historical record
+      const completedDays = await this.transaction('streaks', 'readonly', (store) => {
+        return store.getAll();
+      });
+
+      if (completedDays.length === 0) {
+        settings.currentStreak = 0;
+        settings.recordStreak = 0; // No completed days means no record
+        settings.lastCompletionDate = null;
+        await this.saveSettings(settings);
+        return { currentStreak: 0, recordStreak: 0, isRecord: false };
+      }
+
+      // Sort dates chronologically to find the longest run
+      const sortedDates = completedDays.map(d => d.date).sort();
+
+      let longestStreak = 0;
+      let currentRun = 0;
+      let previousDate = null;
+
+      for (const dateStr of sortedDates) {
+        const currentDate = new Date(dateStr); // UTC midnight
+        if (previousDate) {
+          const diffDays = (currentDate.getTime() - previousDate.getTime()) / (1000 * 3600 * 24);
+          if (diffDays === 1) {
+            currentRun++;
+          } else {
+            longestStreak = Math.max(longestStreak, currentRun);
+            currentRun = 1; // Reset for the new streak start
+          }
+        } else {
+          currentRun = 1; // First day in the list
+        }
+        previousDate = currentDate;
+      }
+      longestStreak = Math.max(longestStreak, currentRun); // Final check for the last run
+
+      // Now, calculate the current streak by looking backwards from today
       let currentStreak = 0;
       let lastCompletionDate = null;
       const today = new Date();
       
-      // Check backwards from today to find the actual streak
-      for (let i = 0; i < 365; i++) { // Check up to a year back
+      for (let i = 0; i < 365; i++) { // Check up to a year
         const checkDate = new Date(today);
         checkDate.setDate(checkDate.getDate() - i);
+        const checkDateStr = getLocalISODateString(checkDate);
         
-        const completions = await this.getCompletionsForDate(checkDate);
-        const completedTaskIds = completions.map(c => c.taskId);
-        
-        // Check if all tasks were completed on this date
-        const allCompleted = tasks.every(task => completedTaskIds.includes(task.id));
-        
-        if (allCompleted) {
+        if (sortedDates.includes(checkDateStr)) {
           currentStreak++;
-          if (!lastCompletionDate) {
-            lastCompletionDate = getLocalISODateString(checkDate);
-          }
+          if (!lastCompletionDate) lastCompletionDate = checkDateStr;
         } else {
-          // Streak is broken, stop counting
-          break;
+          break; // Current streak is broken
         }
       }
       
-      // Update settings with recalculated streak
+      // Update settings with fully recalculated streak data
       settings.currentStreak = currentStreak;
+      settings.recordStreak = longestStreak;
       settings.lastCompletionDate = lastCompletionDate;
-      
-      // Don't reduce record streak - it should remain the historical maximum
-      // But if current streak somehow exceeds record (shouldn't happen), update it
-      if (currentStreak > settings.recordStreak) {
-        settings.recordStreak = currentStreak;
-      }
-      
       await this.saveSettings(settings);
-      
-      // Clean up streak records that are no longer valid
-      await this.cleanupStreakRecords();
-      
+
       return {
         currentStreak: settings.currentStreak,
         recordStreak: settings.recordStreak,
