@@ -1,5 +1,5 @@
 // Increment the Timestamp to trigger an update for all users.
-const CACHE_NAME = 'habit-tracker-v2-072825@1113';
+const CACHE_NAME = 'habit-tracker-v2-072825@1129';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -17,7 +17,12 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        return cache.addAll(ASSETS_TO_CACHE);
+        // Use { cache: 'reload' } to bypass the browser's HTTP cache.
+        // This ensures the service worker always caches the latest assets from the network.
+        const cachePromises = ASSETS_TO_CACHE.map(asset => {
+          return cache.add(new Request(asset, { cache: 'reload' }));
+        });
+        return Promise.all(cachePromises);
       }),
   );
   // Force the waiting service worker to become the active service worker.
