@@ -216,31 +216,32 @@ function setupEventListeners() {
   
   // Category toggle
   categoriesContainer.addEventListener('click', (e) => {
-    if (e.target.classList.contains('category-toggle')) {
-      const category = e.target.closest('.category');
+    const header = e.target.closest('.category-header');
+    // Only toggle if we clicked the header itself, not a button inside it.
+    if (header && !e.target.closest('button')) {
+      const category = header.closest('.category');
       toggleCategory(category);
     }
   });
   
-  // Task completion using pointerup for better mobile responsiveness
-  // This avoids the 300ms delay on touch devices.
+  // Tap to complete a task
   categoriesContainer.addEventListener('pointerup', (e) => {
-    // We only want to handle taps on the task text.
-    // The 'pointerup' event is suitable for both touch and mouse.
-    // We check if the target is the task-text and not part of a button or drag handle.
-    if (e.target.classList.contains('task-text') && !e.target.closest('button, .drag-handle')) {
-      // Prevent any default action like text selection or triggering a 'click' event.
+    // Use pointerup for fast, responsive taps on both mobile and desktop.
+    // We only want to handle taps on the task itself, not its buttons.
+    const task = e.target.closest('.task');
+    if (task && !e.target.closest('button, .drag-handle')) {
       e.preventDefault();
-      const task = e.target.closest('.task');
-      // The toggleTaskCompletion function already checks if the task is completed,
-      // so this will only act on incomplete tasks, which is what we want for a tap.
       toggleTaskCompletion(task);
     }
   });
   
-  // Long press to undo completion
-  categoriesContainer.addEventListener('mousedown', handleLongPress);
-  categoriesContainer.addEventListener('touchstart', handleLongPress, { passive: true });
+  // Double-click/tap to undo completion
+  categoriesContainer.addEventListener('dblclick', (e) => {
+    const taskElement = e.target.closest('.task');
+    if (taskElement && taskElement.classList.contains('completed')) {
+      undoTaskCompletion(taskElement);
+    }
+  });
   
   // Edit buttons
   categoriesContainer.addEventListener('click', (e) => {
@@ -641,47 +642,6 @@ async function updateOrderInDatabase(container) {
   }
 }
 
-function handleLongPress(e) {
-  // Only handle long press on category headers or tasks
-  const target = e.target.closest('.category-header, .task');
-  if (!target) return;
-  
-  // Don't handle long press on interactive elements
-  if (e.target.closest('button, input, .drag-handle')) return;
-  
-  const startTime = Date.now();
-  const longPressTimeout = 1000; // 1 second
-  
-  const element = target;
-  let longPressTimer;
-  
-  const cancelLongPress = () => {
-    clearTimeout(longPressTimer);
-    element.removeEventListener('mouseup', cancelLongPress);
-    element.removeEventListener('mouseleave', cancelLongPress);
-    element.removeEventListener('touchend', cancelLongPress);
-    element.removeEventListener('touchcancel', cancelLongPress);
-  };
-  
-  const handleLongPressEnd = () => {
-    cancelLongPress();
-    
-    if (element.classList.contains('category-header')) {
-      const category = element.closest('.category');
-      undoCategoryCompletion(category);
-    } else if (element.classList.contains('task') && element.classList.contains('completed')) {
-      undoTaskCompletion(element);
-    }
-  };
-  
-  longPressTimer = setTimeout(handleLongPressEnd, longPressTimeout);
-  
-  element.addEventListener('mouseup', cancelLongPress);
-  element.addEventListener('mouseleave', cancelLongPress);
-  element.addEventListener('touchend', cancelLongPress);
-  element.addEventListener('touchcancel', cancelLongPress);
-}
-
 // Toggle category expansion
 function toggleCategory(category) {
   const tasksContainer = category.querySelector('.tasks-container');
@@ -703,7 +663,7 @@ async function toggleTaskCompletion(taskElement) {
     
     if (taskElement.classList.contains('completed')) {
       // Task is already completed, do nothing on click
-      // (use long press to undo)
+      // (use double-tap to undo)
       return;
     }
     
@@ -751,6 +711,10 @@ async function undoTaskCompletion(taskElement) {
     // Undo category completion if it was completed
     if (categoryElement.classList.contains('completed')) {
       categoryElement.classList.remove('completed');
+      // Reset background and text color to default for the category
+      categoryElement.style.backgroundColor = '';
+      categoryElement.style.color = '';
+
       const tasksContainer = categoryElement.querySelector('.tasks-container');
       tasksContainer.style.display = 'block';
     }
@@ -763,33 +727,6 @@ async function undoTaskCompletion(taskElement) {
     updateStreakDisplay(streakInfo);
   } catch (error) {
     console.error('Error undoing task completion:', error);
-  }
-}
-
-// Undo all completions for a category
-async function undoCategoryCompletion(categoryElement) {
-  try {
-    const categoryId = parseInt(categoryElement.dataset.id);
-    const taskElements = categoryElement.querySelectorAll('.task');
-    
-    for (const taskElement of taskElements) {
-      if (taskElement.classList.contains('completed')) {
-        await undoTaskCompletion(taskElement);
-      }
-    }
-    
-    // Make sure category is not marked as completed
-    categoryElement.classList.remove('completed');
-    categoryElement.style.backgroundColor = '';
-    categoryElement.style.color = '';
-    const tasksContainer = categoryElement.querySelector('.tasks-container');
-    tasksContainer.style.display = 'block';
-    
-    // Update progress
-    updateCategoryProgress(categoryId);
-    updateOverallProgress();
-  } catch (error) {
-    console.error('Error undoing category completion:', error);
   }
 }
 
