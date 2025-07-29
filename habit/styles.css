@@ -82,6 +82,28 @@ header h1 {
     opacity: 0.8;
   }
 }
+/* --- Setup Screen Usability Improvements --- */
+
+/* Prevent text selection during drag and drop in setup to make it smoother */
+.config-item .item-text {
+  user-select: none;
+  -webkit-user-select: none; /* For Safari */
+  -moz-user-select: none;    /* For Firefox */
+  -ms-user-select: none;     /* For IE/Edge */
+}
+
+/* On smaller screens (portrait phones), move config buttons to a new line */
+@media (max-width: 600px) {
+  .config-item {
+    flex-wrap: wrap; /* Allow items to wrap */
+  }
+
+  .config-item .item-actions {
+    flex-basis: 100%; /* Make button group take full width */
+    justify-content: flex-end; /* Align buttons to the right */
+    margin-top: 8px; /* Add space between text and buttons */
+  }
+}
 
 #streak-info {
   display: flex;
