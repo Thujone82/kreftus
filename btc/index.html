@@ -851,45 +851,6 @@
             }
         };
 
-        function loadConfig() {
-            const storedConfig = localStorage.getItem('btcTrackConfig');
-            if (storedConfig) {
-                const parsedConfig = JSON.parse(storedConfig);
-                config = { ...config, ...parsedConfig };
-                config.lastFetchedCurrentDataTimestamp = config.lastFetchedCurrentDataTimestamp || null;
-                config.cachedChartData = config.cachedChartData || {};
-                Object.keys(config.cachedChartData).forEach(tf => {
-                    config.cachedChartData[tf].historicalRateAtStart = config.cachedChartData[tf].historicalRateAtStart || null;
-                });
-                if (!config.insightReport) {
-                    config.insightReport = { content: null, timestamp: null };
-                } else {
-                    // Ensure only expected fields are present, effectively clearing old audio fields
-                    config.insightReport = {
-                        content: config.insightReport.content || null,
-                        timestamp: config.insightReport.timestamp || null
-                    };
-                }
-
-                apiKeyInput.value = config.apiKey || '';
-                userBtcAmountInput.value = config.userBtcAmount || '';
-                userTotalCostInput.value = config.userTotalCost || '';
-                googleApiKeyInput.value = config.googleApiKey || '';
-                timeframeSelectEl.value = config.selectedTimeframe || '24h';
-                accentColorPickerEl.value = config.accentColor || DEFAULT_ACCENT_COLOR;
-            } else {
-                config.insightReport = { content: null, timestamp: null };
-                accentColorPickerEl.value = DEFAULT_ACCENT_COLOR;
-            }
-
-            const storedCurrentData = localStorage.getItem('btcCurrentDataCache');
-            if (storedCurrentData) {
-                _current_data_cache = JSON.parse(storedCurrentData);
-            }
-
-            toggleInsightsButtonVisibility();
-        }
-
         async function openAppDb() {
             return new Promise((resolve, reject) => {
                 const newDbVersion = 2; // Incremented DB version
