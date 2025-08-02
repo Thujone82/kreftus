@@ -9,11 +9,16 @@ Kreft&Gemini[Gemini 2.5 Pro (preview)]
 2025-08-02
 
 ## Description
-`bmon.ps1` is a spinoff of the vBTC trading simulator, designed to be a fast and lightweight, real-time Bitcoin price monitor. It operates directly from the command line and leverages the existing configuration from `vbtc.ps1`.
+`bmon.ps1` is a spinoff of the vBTC trading simulator, designed to be a fast and lightweight, real-time Bitcoin price monitor. It operates directly from the command line.
+
+On first run, if no API key is found, it will guide the user through a one-time setup process. The script checks for an API key in this order:
+1.  `bmon.ini` (in the same directory)
+2.  `vbtc.ini` (as a fallback for users of the vBTC application)
 
 The script has two primary modes of operation: real-time monitoring and on-demand currency conversion.
 
 ## Features
+- **Onboarding:** If no API key is found, the script will prompt the user to enter one, which is then saved to `bmon.ini` for future use.
 - **Interactive Mode:** A full-screen display that shows the current price. Users can start and pause a 5-minute monitoring session with the space bar. The 'r' key can be used to reset the session baseline.
 - **Go Mode:** A non-interactive mode (`-go` switch) that displays a single, updating line of price data for 5 minutes before automatically exiting. Ideal for quick glances or integration into other displays.
 - **Long Go Mode:** A variation of Go Mode (`-golong` switch) for extended, low-intensity monitoring over 24 hours with a 20-second update interval.
@@ -22,7 +27,7 @@ The script has two primary modes of operation: real-time monitoring and on-deman
 - **Dynamic Mode Toggling:** While in `-go` or `-golong` mode, press 'm' to toggle between the two modes, resetting the duration timer for the newly selected mode.
 - **Audible Alerts:** Optionally enable sound with the 's' key to get high/low tones for every price change of at least $0.01.
 - **Sparkline History:** Toggle a mini-chart with the 'h' key to visualize the last 8 price ticks.
-- **Dependency on vBTC:** Seamlessly uses the API key configured in `vbtc.ini`, requiring vBTC to be set up first.
+- **vBTC Integration:** Can seamlessly use the API key configured in `vbtc.ini` if `bmon.ini` is not present, requiring no extra setup for existing vBTC users.
 
 ## Color Coding
 The application uses colors to provide quick visual feedback during a monitoring session:
@@ -35,7 +40,7 @@ The application uses colors to provide quick visual feedback during a monitoring
 ## Requirements
 - PowerShell
 - An internet connection
-- A configured `vbtc.ini` file from the vBTC application with a valid LiveCoinWatch API key.
+- A LiveCoinWatch API key (the script will prompt for one on first run if not found).
 
 ## How to Run
 1.  Open a PowerShell terminal.
@@ -78,4 +83,5 @@ Use the following parameters to perform a conversion. The script will output onl
 
 ## Files
 -   `bmon.ps1`: The main script file.
--   `vbtc.ini`: The configuration file shared with `vbtc.ps1`, which must contain the API key.
+-   `bmon.ini`: The configuration file created on first run to store the API key.
+-   `vbtc.ini`: (Optional) The configuration file shared with `vbtc.ps1`, used as a fallback for the API key.

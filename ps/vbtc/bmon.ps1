@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     This script provides a simple command-line interface to monitor the real-time price of Bitcoin.
-    It reads the API key from the vBTC configuration file (vbtc.ini).
+    If an API key is not found in a local bmon.ini, it will check for the vbtc.ini file from the vBTC application. If no key is found in either location, it will guide the user through a one-time setup to create bmon.ini.
  
     It can be run in two modes:
     - Interactive Mode: The main screen displays the current price. Press the space bar to start/pause monitoring.
@@ -12,12 +12,9 @@
  
     In both modes, the price line will flash with an inverted color for 500ms to draw attention to significant price movements. This flash occurs when the price color changes (e.g., from neutral to green) or when the price continues to move in an already established direction (e.g., ticking up again while a green).
  
-    This script requires the vbtc.ini file from the vBTC application to be configured with a
-    valid LiveCoinWatch API key.
-
 .NOTES
     Author: Kreft&Gemini[Gemini 2.5 Pro (preview)]
-    Date: 2025-08-02@0017
+    Date: 2025-08-02@1058
     Version: 1.4
 #>
 
@@ -63,7 +60,9 @@ elseif ($MyInvocation.MyCommand.Path) {
 else {
     $scriptPath = Get-Location
 }
-$iniFilePath = Join-Path -Path $scriptPath -ChildPath "vbtc.ini"
+$bmonIniFilePath = Join-Path -Path $scriptPath -ChildPath "bmon.ini"
+$vbtcIniFilePath = Join-Path -Path $scriptPath -ChildPath "vbtc.ini"
+
 
 # --- Helper Functions ---
 
@@ -92,6 +91,73 @@ function Get-IniConfiguration {
     return $ini
 }
 
+function Set-IniConfiguration {
+    param ([string]$FilePath, [hashtable]$Configuration)
+    $iniContent = @()
+    foreach ($sectionKey in $Configuration.Keys | Sort-Object) {
+        $iniContent += "[$sectionKey]"
+        $section = $Configuration[$sectionKey]
+        foreach ($key in $section.Keys | Sort-Object) {
+            $iniContent += "$key=$($section[$key])"
+        }
+        $iniContent += ""
+    }
+    try {
+        Set-Content -Path $FilePath -Value $iniContent -ErrorAction Stop
+        return $true
+    }
+    catch {
+        Write-Error "Failed to save configuration to $FilePath. Error: $($_.Exception.Message)"
+        return $false
+    }
+}
+
+function Test-ApiKey {
+    param ([string]$ApiKey)
+    if ([string]::IsNullOrEmpty($ApiKey)) { return $false }
+    $headers = @{ "Content-Type" = "application/json"; "x-api-key" = $ApiKey }
+    $body = @{ currency = "USD"; code = "BTC"; meta = $false } | ConvertTo-Json
+    try {
+        Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single" -Method Post -Headers $headers -Body $body -ErrorAction Stop | Out-Null
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+function Invoke-Onboarding {
+    param([string]$BmonIniPath)
+    Clear-Host
+    Write-Host "*** bmon First Time Setup ***" -ForegroundColor Yellow
+    Write-Host "A LiveCoinWatch API key is required to monitor prices." -ForegroundColor White
+    Write-Host "Get a free key at: https://www.livecoinwatch.com/tools/api" -ForegroundColor Green
+    $validKey = $false
+    $newApiKey = $null
+    while (-not $validKey) {
+        $userInput = Read-Host "Please enter your LiveCoinWatch API Key (or press Enter to exit)"
+        if ([string]::IsNullOrEmpty($userInput)) {
+            return $null # User cancelled
+        }
+        if (Test-ApiKey -ApiKey $userInput) {
+            $validKey = $true
+            $newApiKey = $userInput
+            $configToSave = @{ "Settings" = @{ "ApiKey" = $newApiKey } }
+            if (Set-IniConfiguration -FilePath $BmonIniPath -Configuration $configToSave) {
+                Write-Host "API Key is valid and has been saved to bmon.ini." -ForegroundColor Green
+                Read-Host "Press Enter to start monitoring."
+            } else {
+                Write-Error "API Key was valid, but failed to save to bmon.ini. Please check file permissions."
+                Read-Host "Press Enter to exit."
+                return $null
+            }
+        } else {
+            Write-Warning "Invalid API Key. Please try again."
+        }
+    }
+    return $newApiKey
+}
+
 function Get-BtcPrice {
     param ([string]$ApiKey)
     
@@ -100,14 +166,12 @@ function Get-BtcPrice {
     try {
         $response = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single" -Method Post -Headers $headers -Body $body -ErrorAction Stop
         
-        # Safely attempt to cast the rate to a double.
-        # If the rate is non-numeric (e.g., a string or null), this will result in $null.
         $price = $response.rate -as [double] 
         
         if ($null -eq $price) {
             Write-Warning "API returned a non-numeric rate: '$($response.rate)'"
         }
-        return $price # Will return the price as a [double] or $null if the cast failed
+        return $price
     }
     catch {
         Write-Warning "API call failed: $($_.Exception.Message)"
@@ -118,11 +182,11 @@ function Get-BtcPrice {
 function Invoke-SoundToggle {
     param([ref]$SoundEnabled)
     $SoundEnabled.Value = -not $SoundEnabled.Value
-    if ($SoundEnabled.Value) { # Sound was just turned ON
-        [System.Console]::Beep(1200, 350) # High tone
+    if ($SoundEnabled.Value) {
+        [System.Console]::Beep(1200, 350)
     }
-    else { # Sound was just turned OFF
-        [System.Console]::Beep(400, 350) # Low tone
+    else {
+        [System.Console]::Beep(400, 350)
     }
 }
 
@@ -135,7 +199,6 @@ function Get-Sparkline {
     $maxPrice = ($History | Measure-Object -Maximum).Maximum
     $priceRange = $maxPrice - $minPrice
 
-    # If range is zero, all bars are at lowest level.
     if ($priceRange -eq 0) { return ([string]$sparkChars[0] * $History.Count).PadRight(8) }
 
     $sparkline = ""
@@ -149,13 +212,27 @@ function Get-Sparkline {
 
 # --- Main Script ---
 
-$config = Get-IniConfiguration -FilePath $iniFilePath
-$apiKey = $config.Settings.ApiKey
+# Try to get API key from bmon.ini first
+$bmonConfig = Get-IniConfiguration -FilePath $bmonIniFilePath
+$apiKey = $bmonConfig.Settings.ApiKey
 
+# If not found, try vbtc.ini
 if ([string]::IsNullOrEmpty($apiKey)) {
-    Write-Host "Configure vBTC first..." -ForegroundColor Red
+    $vbtcConfig = Get-IniConfiguration -FilePath $vbtcIniFilePath
+    $apiKey = $vbtcConfig.Settings.ApiKey
+}
+
+# If still not found, start onboarding
+if ([string]::IsNullOrEmpty($apiKey)) {
+    $apiKey = Invoke-Onboarding -BmonIniPath $bmonIniFilePath
+}
+
+# Final check, if onboarding was cancelled or failed
+if ([string]::IsNullOrEmpty($apiKey)) {
+    Write-Host "API Key not found or configured. Exiting." -ForegroundColor Red
     exit
 }
+
 
 # --- Conversion Logic Branch ---
 if ($PSCmdlet.ParameterSetName -ne 'Monitor') {
@@ -192,7 +269,6 @@ if ($PSCmdlet.ParameterSetName -ne 'Monitor') {
 # Initial Price Fetch for monitor modes
 if ($go.IsPresent -or $golong.IsPresent) {
     Clear-Host
-    # For -go mode, write on one line so it can be overwritten by the first price update.
     Write-Host -NoNewline "Fetching initial price...`r" -ForegroundColor Cyan
 } else {
     Write-Host "Fetching initial price..." -ForegroundColor Cyan
@@ -208,7 +284,6 @@ if ($null -eq $currentBtcPrice) {
 if ($go.IsPresent -or $golong.IsPresent) {
     # --- Mode Configuration ---
     $modeSettings = @{
-        # 'go'     = @{ duration = 300;   interval = 5;  spinner = @('|', '/', '-', '\') } # Old spinner
         'go'     = @{ duration = 300;   interval = 5;  spinner = @('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏') }
         'golong' = @{ duration = 86400; interval = 20; spinner = @('*') }
     }
@@ -224,24 +299,19 @@ if ($go.IsPresent -or $golong.IsPresent) {
     $priceHistory = [System.Collections.Generic.List[double]]::new()
     $priceHistory.Add($currentBtcPrice)
 
-    # These will be updated by the loop based on the current mode
     $monitorDurationSeconds = 0
     $waitIntervalSeconds = 0
     $spinner = @()
     $spinnerIndex = 0
  
-    # Trap the Ctrl+C event (PipelineStoppedException) for a clean exit.
-    # This has a better chance of running before the shell writes "^C" than a finally block.
     trap [System.Management.Automation.PipelineStoppedException] {
         [System.Console]::CursorVisible = $true
         [System.Console]::ResetColor()
         try {
-            # Attempt to perfectly clear the line (works in standard PowerShell)
             $clearLine = "`r" + (' ' * ([System.Console]::WindowWidth - 1)) + "`r"
             Write-Host -NoNewline $clearLine
         }
         catch {
-            # Fallback for ps2exe where the above fails. Just add a newline.
             Write-Host "`n"
         }
         exit
@@ -249,13 +319,11 @@ if ($go.IsPresent -or $golong.IsPresent) {
 
     try {
         [System.Console]::CursorVisible = $false
-        while ($true) { # Loop indefinitely until duration is met or Ctrl+C
-            # Set parameters based on the current mode
+        while ($true) {
             $monitorDurationSeconds = $modeSettings[$currentMode].duration
             $waitIntervalSeconds = $modeSettings[$currentMode].interval
             $spinner = $modeSettings[$currentMode].spinner
 
-            # Calculate change and determine current color
             $priceChange = $currentBtcPrice - $monitorStartPrice
             $priceColor = "White"
             $changeString = ""
@@ -264,49 +332,39 @@ if ($go.IsPresent -or $golong.IsPresent) {
                 $changeString = " [+$($priceChange.ToString("C2"))]"
             } elseif ($priceChange -le -0.01) {
                 $priceColor = "Red"
-                $changeString = " [$($priceChange.ToString("C2"))]" # Negative sign is included by ToString("C2")
+                $changeString = " [$($priceChange.ToString("C2"))]"
             }
 
-            # Determine if a flash is needed based on the plan
             $flashNeeded = $false
-            # Condition 1: Color has changed from its previous state (and isn't just neutral)
             if ($priceColor -ne "White" -and $priceColor -ne $previousPriceColor) {
                 $flashNeeded = $true
             }
-            # Condition 2: Price continues to move in the same direction
             elseif (($priceColor -eq "Green" -and $currentBtcPrice -gt $previousIntervalPrice) -or
                     ($priceColor -eq "Red" -and $currentBtcPrice -lt $previousIntervalPrice)) {
                 $flashNeeded = $true
             }
-            # Exit if duration is met for the current mode
             if (((Get-Date) - $monitorStartTime).TotalSeconds -ge $monitorDurationSeconds) { break }
 
-            # Wait for interval, check for keys, and animate the spinner
             $waitStart = Get-Date
             $refreshed = $false
             $modeSwitched = $false
-            $isFirstTick = $true # Flag for the first 500ms flash
+            $isFirstTick = $true
             while (((Get-Date) - $waitStart).TotalSeconds -lt $waitIntervalSeconds) {
-                # Animate spinner and draw the line
                 $spinnerChar = $spinner[$spinnerIndex]
                 $sparklineString = if ($sparklineEnabled) { " $(Get-Sparkline -History $priceHistory)" } else { "" }
                 $restOfLine = " Bitcoin (USD): $($currentBtcPrice.ToString("C2"))$changeString$sparklineString"
 
-                # For 'go' mode, the spinner index animates. For 'golong', it's always 0.
                 if ($currentMode -eq 'go') {
                     $spinnerIndex = ($spinnerIndex + 1) % $spinner.Length
                 }
 
-                # Drawing logic using Write-Host
                 $fullLine = "$spinnerChar$restOfLine"
                 $paddedLine = $fullLine.PadRight([System.Console]::WindowWidth)
 
                 if ($flashNeeded -and $isFirstTick) {
-                    # Inverted flash colors for the first 500ms
                     Write-Host -NoNewline -BackgroundColor $priceColor -ForegroundColor Black "$paddedLine`r"
                 }
                 else {
-                    # Normal drawing
                     Write-Host -NoNewline -ForegroundColor White $spinnerChar
                     Write-Host -NoNewline -ForegroundColor $priceColor $restOfLine
                     $paddingSize = [System.Console]::WindowWidth - $fullLine.Length
@@ -316,28 +374,23 @@ if ($go.IsPresent -or $golong.IsPresent) {
                     Write-Host -NoNewline "`r"
                 }
                 
-                $isFirstTick = $false # The flash has occurred (or not), subsequent ticks are normal
+                $isFirstTick = $false
 
-                # Check for refresh or mode toggle key
                 if ([System.Console]::KeyAvailable) {
                     $keyInfo = [System.Console]::ReadKey($true)
                     if ($keyInfo.KeyChar -eq 'r') {
-                        # Reset the comparison point to the current price without a new API call.
                         $monitorStartPrice = $currentBtcPrice
                         $monitorStartTime = Get-Date
                         $refreshed = $true
-                        break # Exit wait loop
+                        break
                     }
                     if ($keyInfo.KeyChar -eq 'm') {
-                        # Toggle mode
                         $currentMode = if ($currentMode -eq 'go') { 'golong' } else { 'go' }
-                        # Reset timer for the new mode's duration
                         $monitorStartTime = Get-Date
-                        $monitorStartPrice = $currentBtcPrice # Also reset start price
+                        $monitorStartPrice = $currentBtcPrice
                         $modeSwitched = $true
-                        # Reset spinner index to avoid out-of-bounds on array change
                         $spinnerIndex = 0
-                        break # Exit wait loop to apply new settings
+                        break
                     }
                     if ($keyInfo.KeyChar -eq 's') {
                         Invoke-SoundToggle -SoundEnabled ([ref]$soundEnabled)
@@ -348,16 +401,14 @@ if ($go.IsPresent -or $golong.IsPresent) {
                 }
                 Start-Sleep -Milliseconds 500
             }
-            if ($refreshed -or $modeSwitched) { continue } # Continue main monitoring loop to redraw immediately
+            if ($refreshed -or $modeSwitched) { continue }
 
-            # Update state for the next interval
             $previousIntervalPrice = $currentBtcPrice
             $previousPriceColor = $priceColor
 
-            # Redraw the line with a cyan spinner to indicate an active API fetch is about to happen.
             if ($currentMode -eq 'go') {
                 $spinnerIndex = ($spinnerIndex + 1) % $spinner.Length
-            } # For golong, index is always 0
+            }
             $spinnerChar = $spinner[$spinnerIndex]
             $sparklineString = if ($sparklineEnabled) { " $(Get-Sparkline -History $priceHistory)" } else { "" }
             $restOfLine = " Bitcoin (USD): $($currentBtcPrice.ToString("C2"))$changeString$sparklineString"
@@ -371,12 +422,11 @@ if ($go.IsPresent -or $golong.IsPresent) {
             }
             Write-Host -NoNewline "`r"
 
-            # Fetch the next price for the next iteration
             $newPrice = Get-BtcPrice -ApiKey $apiKey
             if ($null -ne $newPrice) {
                 if ($soundEnabled) {
-                    if ($newPrice -ge ($currentBtcPrice + 0.01)) { [System.Console]::Beep(1200, 150) } # High tone
-                    elseif ($newPrice -le ($currentBtcPrice - 0.01)) { [System.Console]::Beep(400, 150) } # Low tone
+                    if ($newPrice -ge ($currentBtcPrice + 0.01)) { [System.Console]::Beep(1200, 150) }
+                    elseif ($newPrice -le ($currentBtcPrice - 0.01)) { [System.Console]::Beep(400, 150) }
                 }
                 $currentBtcPrice = $newPrice
                 $priceHistory.Add($currentBtcPrice)
@@ -388,14 +438,12 @@ if ($go.IsPresent -or $golong.IsPresent) {
     }
     finally {
         [System.Console]::CursorVisible = $true
-        [System.Console]::ResetColor() # Ensure background is reset on exit
-        # On exit, we try to perform a "perfect clear" of the line.
+        [System.Console]::ResetColor()
         try {
             $clearLine = "`r" + (' ' * ([System.Console]::WindowWidth - 1)) + "`r"
             Write-Host -NoNewline $clearLine
         }
         catch {
-            # Fallback simply writes a newline.
             Write-Host "`n"
         }
     }
@@ -406,13 +454,11 @@ else {
     $soundEnabled = $false
     $sparklineEnabled = $false
     while ($true) {
-        # Paused State Display
         Clear-Host
         Write-Host "*** BTC Monitor ***" -ForegroundColor DarkYellow
         Write-Host "Bitcoin (USD): $($currentBtcPrice.ToString("C2"))" -ForegroundColor White
         Write-Host -NoNewline "Start[" -ForegroundColor White; Write-Host -NoNewline "Space" -ForegroundColor Cyan; Write-Host -NoNewline "], Exit[" -ForegroundColor White; Write-Host -NoNewline "Ctrl+C" -ForegroundColor Cyan; Write-Host "]" -ForegroundColor White;
 
-        # Wait for user to start monitoring
         while ($true) {
             if ([System.Console]::KeyAvailable) {
                 if (([System.Console]::ReadKey($true)).Key -eq 'Spacebar') { break }
@@ -420,24 +466,19 @@ else {
             Start-Sleep -Milliseconds 100
         }
 
-        # Fetch a fresh price to set an accurate baseline for this monitoring session.
         Write-Host "`nStarting monitoring..." -ForegroundColor Cyan
         $newPrice = Get-BtcPrice -ApiKey $apiKey
         if ($null -ne $newPrice) { $currentBtcPrice = $newPrice }
 
-        # Set the baseline for this monitoring session
         $monitorStartPrice = $currentBtcPrice
         $monitorStartTime = Get-Date
         $priceHistory = [System.Collections.Generic.List[double]]::new()
         $priceHistory.Add($currentBtcPrice)
 
-        # Reset the flash-tracking state for this new session. This ensures the first
-        # display is always neutral (white) and becomes the new comparison point.
         $previousIntervalPrice = $currentBtcPrice
         $previousPriceColor = "White"
-        $monitorDurationSeconds = 300 # 5 minutes
+        $monitorDurationSeconds = 300
 
-        # Reusable block to draw the screen content, defined once per session
         $drawScreen = {
             param([boolean]$InvertColors)
 
@@ -464,9 +505,7 @@ else {
             Write-Host -NoNewline "Pause[" -ForegroundColor White; Write-Host -NoNewline "Space" -ForegroundColor Cyan; Write-Host -NoNewline "], Reset[" -ForegroundColor White; Write-Host -NoNewline "R" -ForegroundColor Cyan; Write-Host -NoNewline "], Exit[" -ForegroundColor White; Write-Host -NoNewline "Ctrl+C" -ForegroundColor Cyan; Write-Host "]" -ForegroundColor White;
         }
 
-        # Monitoring State Loop (do-while style)
         do {
-            # Calculate change and determine color
             $priceChange = $currentBtcPrice - $monitorStartPrice
             $priceColor = "White"
             $changeString = ""
@@ -475,16 +514,13 @@ else {
                 $changeString = " [+$($priceChange.ToString("C2"))]"
             } elseif ($priceChange -le -0.01) {
                 $priceColor = "Red"
-                $changeString = " [$($priceChange.ToString("C2"))]" # Negative sign is included by ToString("C2")
+                $changeString = " [$($priceChange.ToString("C2"))]"
             }
  
-            # Determine if a flash is needed based on the plan
             $flashNeeded = $false
-            # Condition 1: Color has changed from its previous state (and isn't just neutral)
             if ($priceColor -ne "White" -and $priceColor -ne $previousPriceColor) {
                 $flashNeeded = $true
             }
-            # Condition 2: Price continues to move in the same direction
             elseif (($priceColor -eq "Green" -and $currentBtcPrice -gt $previousIntervalPrice) -or
                     ($priceColor -eq "Red" -and $currentBtcPrice -lt $previousIntervalPrice)) {
                 $flashNeeded = $true
@@ -493,7 +529,6 @@ else {
             if ($flashNeeded) { & $drawScreen -InvertColors $true; Start-Sleep -Milliseconds 500 }
             & $drawScreen -InvertColors $false
 
-            # Wait 5 seconds, but allow pausing by checking for key presses
             $waitStart = Get-Date
             $paused = $false
             $refreshed = $false
@@ -513,29 +548,26 @@ else {
                     }
                     if ($keyInfo.KeyChar -eq 'h') {
                         $sparklineEnabled = -not $sparklineEnabled
-                        & $drawScreen -InvertColors $false # Redraw immediately to reflect the change
+                        & $drawScreen -InvertColors $false
                     }
                 }
                 Start-Sleep -Milliseconds 100
             }
-            if ($paused) { break } # Exit monitoring loop if user paused
+            if ($paused) { break }
             if ($refreshed) {
-                # Reset the comparison point to the current price without a new API call.
                 $monitorStartPrice = $currentBtcPrice
-                $monitorStartTime = Get-Date # Reset timer
-                continue # Redraw screen immediately with new baseline
+                $monitorStartTime = Get-Date
+                continue
             }
 
-            # Update state for the next interval
             $previousIntervalPrice = $currentBtcPrice
             $previousPriceColor = $priceColor
 
-            # Fetch the next price for the next iteration
             $newPrice = Get-BtcPrice -ApiKey $apiKey
             if ($null -ne $newPrice) {
                 if ($soundEnabled) {
-                    if ($newPrice -ge ($currentBtcPrice + 0.01)) { [System.Console]::Beep(1200, 150) } # High tone
-                    elseif ($newPrice -le ($currentBtcPrice - 0.01)) { [System.Console]::Beep(400, 150) } # Low tone
+                    if ($newPrice -ge ($currentBtcPrice + 0.01)) { [System.Console]::Beep(1200, 150) }
+                    elseif ($newPrice -le ($currentBtcPrice - 0.01)) { [System.Console]::Beep(400, 150) }
                 }
                 $currentBtcPrice = $newPrice
                 $priceHistory.Add($currentBtcPrice)
