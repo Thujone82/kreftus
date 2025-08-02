@@ -11,12 +11,3 @@ Invoke-ps2exe "vbtc.ps1" "vbtc.exe" `
     -copyright "Copyright (c) 2025" `
     -version "1.5.0.0"
 Write-Host "bmon.ps1 -> bmon.exe..." -ForegroundColor Cyan
-Invoke-ps2exe "bmon.ps1" "bmon.exe" `
-    -iconFile "../../btc/icons/bitcoin_small.ico" `
-    -title "Bitcoin Monitor" `
-    -description "Lightweight BTC Price Monitor" `
-    -product "Bmon" `
-    -company "kreft.us" `
-    -copyright "Copyright (c) 2025" `
-    -version "1.4.0.0"
-Write-Host "Build complete!" -ForegroundColor Green
