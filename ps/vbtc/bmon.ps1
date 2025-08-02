@@ -376,8 +376,8 @@ if ($go.IsPresent -or $golong.IsPresent) {
             $newPrice = Get-BtcPrice -ApiKey $apiKey
             if ($null -ne $newPrice) {
                 if ($soundEnabled) {
-                    if ($newPrice -gt $currentBtcPrice) { [System.Console]::Beep(1200, 150) } # High tone
-                    elseif ($newPrice -lt $currentBtcPrice) { [System.Console]::Beep(400, 150) } # Low tone
+                    if ($newPrice -ge ($currentBtcPrice + 0.01)) { [System.Console]::Beep(1200, 150) } # High tone
+                    elseif ($newPrice -le ($currentBtcPrice - 0.01)) { [System.Console]::Beep(400, 150) } # Low tone
                 }
                 $currentBtcPrice = $newPrice
             }
@@ -482,7 +482,7 @@ else {
                     [System.Console]::ForegroundColor = $oldFg
                     [System.Console]::BackgroundColor = $oldBg
                 }
-                Write-Host -NoNewline "Pause[" -ForegroundColor White; Write-Host -NoNewline "Space" -ForegroundColor Cyan; Write-Host -NoNewline "], Reset[" -ForegroundColor White; Write-Host -NoNewline "R" -ForegroundColor Cyan; Write-Host -NoNewline "], Sound[" -ForegroundColor White; Write-Host -NoNewline "S" -ForegroundColor Cyan; Write-Host -NoNewline "], Exit[" -ForegroundColor White; Write-Host -NoNewline "Ctrl+C" -ForegroundColor Cyan; Write-Host "]" -ForegroundColor White;
+                Write-Host -NoNewline "Pause[" -ForegroundColor White; Write-Host -NoNewline "Space" -ForegroundColor Cyan; Write-Host -NoNewline "], Reset[" -ForegroundColor White; Write-Host -NoNewline "R" -ForegroundColor Cyan; Write-Host -NoNewline "], Exit[" -ForegroundColor White; Write-Host -NoNewline "Ctrl+C" -ForegroundColor Cyan; Write-Host "]" -ForegroundColor White;
             }
 
             if ($flashNeeded) { & $drawScreen -InvertColors $true; Start-Sleep -Milliseconds 500 }
@@ -526,8 +526,8 @@ else {
             $newPrice = Get-BtcPrice -ApiKey $apiKey
             if ($null -ne $newPrice) {
                 if ($soundEnabled) {
-                    if ($newPrice -gt $currentBtcPrice) { [System.Console]::Beep(1200, 150) } # High tone
-                    elseif ($newPrice -lt $currentBtcPrice) { [System.Console]::Beep(400, 150) } # Low tone
+                    if ($newPrice -ge ($currentBtcPrice + 0.01)) { [System.Console]::Beep(1200, 150) } # High tone
+                    elseif ($newPrice -le ($currentBtcPrice - 0.01)) { [System.Console]::Beep(400, 150) } # Low tone
                 }
                 $currentBtcPrice = $newPrice
             }
