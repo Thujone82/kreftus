@@ -1,12 +1,12 @@
 # bmon - Lightweight Bitcoin Monitor
 
-## Version 1.0
+## Version 1.2
 
 ## Author
 Kreft&Gemini[Gemini 2.5 Pro (preview)]
 
 ## Date
-2025-07-06
+2025-07-28
 
 ## Description
 `bmon.ps1` is a spinoff of the vBTC trading simulator, designed to be a fast and lightweight, real-time Bitcoin price monitor. It operates directly from the command line and leverages the existing configuration from `vbtc.ps1`.
@@ -16,8 +16,10 @@ The script has two primary modes of operation: real-time monitoring and on-deman
 ## Features
 - **Interactive Mode:** A full-screen display that shows the current price. Users can start and pause a 5-minute monitoring session with the space bar. The 'r' key can be used to reset the session baseline.
 - **Go Mode:** A non-interactive mode (`-go` switch) that displays a single, updating line of price data for 5 minutes before automatically exiting. Ideal for quick glances or integration into other displays.
+- **Long Go Mode:** A variation of Go Mode (`-golong` switch) for extended, low-intensity monitoring over 24 hours with a 20-second update interval.
 - **Currency Conversion:** Perform quick conversions directly from the command line. The script outputs only the resulting value, making it easy to use in other scripts.
 - **Live Price Tracking:** During a monitoring session, the script tracks the price change from the moment monitoring began.
+- **Dynamic Mode Toggling:** While in `-go` or `-golong` mode, press 'm' to toggle between the two modes, resetting the duration timer for the newly selected mode.
 - **Dependency on vBTC:** Seamlessly uses the API key configured in `vbtc.ini`, requiring vBTC to be set up first.
 
 ## Color Coding
@@ -43,10 +45,13 @@ The application uses colors to provide quick visual feedback during a monitoring
 -   **Interactive Mode:**
     `.\bmon.ps1`
     Press the space bar to start/pause monitoring. Press 'r' to reset the session. Press Ctrl+C to exit.
--   **Go Mode (Non-Interactive):**
-    `.\bmon.ps1 -go`
-    The script will run for 5 minutes and then exit automatically. Press 'r' to reset the session. Press Ctrl+C to exit early.
-    
+-   **Go / GoLong Modes (Non-Interactive):**
+    `.\bmon.ps1 -go` (5-minute session, 5-second updates)
+    `.\bmon.ps1 -golong` (24-hour session, 20-second updates)
+    The script will run for the specified duration and then exit.
+    - Press 'r' to reset the session baseline to the current price.
+    - Press 'm' to toggle between -go and -golong modes.
+    - Press Ctrl+C to exit early.
 ### Conversion Mode
 ---
 Use the following parameters to perform a conversion. The script will output only the result.
