@@ -18,5 +18,5 @@ Invoke-ps2exe "bmon.ps1" "bmon.exe" `
     -product "Bmon" `
     -company "kreft.us" `
     -copyright "Copyright (c) 2025" `
-    -version "1.3.0.0"
+    -version "1.4.0.0"
 Write-Host "Build complete!" -ForegroundColor Green

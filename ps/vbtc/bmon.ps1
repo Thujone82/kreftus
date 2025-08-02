@@ -17,8 +17,8 @@
 
 .NOTES
     Author: Kreft&Gemini[Gemini 2.5 Pro (preview)]
-    Date: 2025-08-01
-    Version: 1.3
+    Date: 2025-08-02@0017
+    Version: 1.4
 #>
 
 [CmdletBinding(DefaultParameterSetName='Monitor')]
@@ -51,6 +51,9 @@ param (
 )
 
 # --- Script Setup and Configuration ---
+# Set output encoding to UTF-8 to properly display special characters.
+[System.Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
 if ($PSScriptRoot) {
     $scriptPath = $PSScriptRoot
 }
@@ -96,7 +99,15 @@ function Get-BtcPrice {
     $body = @{ currency = "USD"; code = "BTC"; meta = $false } | ConvertTo-Json
     try {
         $response = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single" -Method Post -Headers $headers -Body $body -ErrorAction Stop
-        return $response.rate
+        
+        # Safely attempt to cast the rate to a double.
+        # If the rate is non-numeric (e.g., a string or null), this will result in $null.
+        $price = $response.rate -as [double] 
+        
+        if ($null -eq $price) {
+            Write-Warning "API returned a non-numeric rate: '$($response.rate)'"
+        }
+        return $price # Will return the price as a [double] or $null if the cast failed
     }
     catch {
         Write-Warning "API call failed: $($_.Exception.Message)"
@@ -113,6 +124,27 @@ function Invoke-SoundToggle {
     else { # Sound was just turned OFF
         [System.Console]::Beep(400, 350) # Low tone
     }
+}
+
+function Get-Sparkline {
+    param ([System.Collections.Generic.List[double]]$History)
+    if ($History.Count -lt 2) { return "".PadRight(8) }
+
+    $sparkChars = [char[]](' ', '▂', '▃', '▄', '▅', '▆', '▇', '█')
+    $minPrice = ($History | Measure-Object -Minimum).Minimum
+    $maxPrice = ($History | Measure-Object -Maximum).Maximum
+    $priceRange = $maxPrice - $minPrice
+
+    # If range is zero, all bars are at lowest level.
+    if ($priceRange -eq 0) { return ([string]$sparkChars[0] * $History.Count).PadRight(8) }
+
+    $sparkline = ""
+    foreach ($price in $History) {
+        $normalized = ($price - $minPrice) / $priceRange
+        $charIndex = [math]::Floor($normalized * ($sparkChars.Length - 1))
+        $sparkline += $sparkChars[$charIndex]
+    }
+    return $sparkline.PadRight(8)
 }
 
 # --- Main Script ---
@@ -176,7 +208,8 @@ if ($null -eq $currentBtcPrice) {
 if ($go.IsPresent -or $golong.IsPresent) {
     # --- Mode Configuration ---
     $modeSettings = @{
-        'go'     = @{ duration = 300;   interval = 5;  spinner = @('|', '/', '-', '\') }
+        # 'go'     = @{ duration = 300;   interval = 5;  spinner = @('|', '/', '-', '\') } # Old spinner
+        'go'     = @{ duration = 300;   interval = 5;  spinner = @('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏') }
         'golong' = @{ duration = 86400; interval = 20; spinner = @('*') }
     }
     $currentMode = if ($golong.IsPresent) { 'golong' } else { 'go' }
@@ -187,6 +220,9 @@ if ($go.IsPresent -or $golong.IsPresent) {
     $previousPriceColor = "White"
     $monitorStartTime = Get-Date
     $soundEnabled = $false
+    $sparklineEnabled = $false
+    $priceHistory = [System.Collections.Generic.List[double]]::new()
+    $priceHistory.Add($currentBtcPrice)
 
     # These will be updated by the loop based on the current mode
     $monitorDurationSeconds = 0
@@ -202,11 +238,11 @@ if ($go.IsPresent -or $golong.IsPresent) {
         try {
             # Attempt to perfectly clear the line (works in standard PowerShell)
             $clearLine = "`r" + (' ' * ([System.Console]::WindowWidth - 1)) + "`r"
-            [System.Console]::Write($clearLine)
+            Write-Host -NoNewline $clearLine
         }
         catch {
             # Fallback for ps2exe where the above fails. Just add a newline.
-            [System.Console]::Write("`n")
+            Write-Host "`n"
         }
         exit
     }
@@ -253,59 +289,33 @@ if ($go.IsPresent -or $golong.IsPresent) {
             while (((Get-Date) - $waitStart).TotalSeconds -lt $waitIntervalSeconds) {
                 # Animate spinner and draw the line
                 $spinnerChar = $spinner[$spinnerIndex]
-                $restOfLine = " Bitcoin (USD): $($currentBtcPrice.ToString("C2"))$changeString"
+                $sparklineString = if ($sparklineEnabled) { " $(Get-Sparkline -History $priceHistory)" } else { "" }
+                $restOfLine = " Bitcoin (USD): $($currentBtcPrice.ToString("C2"))$changeString$sparklineString"
 
                 # For 'go' mode, the spinner index animates. For 'golong', it's always 0.
                 if ($currentMode -eq 'go') {
                     $spinnerIndex = ($spinnerIndex + 1) % $spinner.Length
                 }
 
-                # Use a try/finally block to ensure console colors are always reset
-                $oldFgColor = [System.Console]::ForegroundColor
-                $oldBgColor = [System.Console]::BackgroundColor
-                try {
-                    if ($flashNeeded -and $isFirstTick) {
-                        # Inverted flash colors for the first 500ms (spinner and text)
-                        [System.Console]::ForegroundColor = "Black"
-                        [System.Console]::BackgroundColor = $priceColor
-                        $fullLine = ($spinnerChar + $restOfLine).PadRight([System.Console]::WindowWidth)
-                        [System.Console]::Write("$fullLine`r")
-                    }
-                    elseif ($currentMode -eq 'golong') {
-                        # For -golong, the spinner is always white unless fetching (handled later)
-                        [System.Console]::ForegroundColor = "White"
-                        [System.Console]::Write($spinnerChar)
-                        [System.Console]::ForegroundColor = $priceColor
-                        [System.Console]::Write($restOfLine)
-                        $lineLength = $spinnerChar.Length + $restOfLine.Length
-                        $padding = [System.Console]::WindowWidth - $lineLength
-                        if ($padding -gt 0) {
-                            [System.Console]::Write(' ' * $padding)
-                        }
-                        [System.Console]::Write("`r")
-                    }
-                    else { # Normal 'go' mode drawing
-                        # Normal colors: Spinner is always white during the 5-second wait.
-                        $spinnerColor = "White"
-                        [System.Console]::ForegroundColor = $spinnerColor
-                        [System.Console]::Write($spinnerChar)
+                # Drawing logic using Write-Host
+                $fullLine = "$spinnerChar$restOfLine"
+                $paddedLine = $fullLine.PadRight([System.Console]::WindowWidth)
 
-                        [System.Console]::ForegroundColor = $priceColor
-                        [System.Console]::Write($restOfLine)
-
-                        # Pad the rest of the line to clear previous, longer lines
-                        $lineLength = $spinnerChar.Length + $restOfLine.Length
-                        $padding = [System.Console]::WindowWidth - $lineLength
-                        if ($padding -gt 0) {
-                            [System.Console]::Write(' ' * $padding)
-                        }
-                        [System.Console]::Write("`r")
+                if ($flashNeeded -and $isFirstTick) {
+                    # Inverted flash colors for the first 500ms
+                    Write-Host -NoNewline -BackgroundColor $priceColor -ForegroundColor Black "$paddedLine`r"
+                }
+                else {
+                    # Normal drawing
+                    Write-Host -NoNewline -ForegroundColor White $spinnerChar
+                    Write-Host -NoNewline -ForegroundColor $priceColor $restOfLine
+                    $paddingSize = [System.Console]::WindowWidth - $fullLine.Length
+                    if ($paddingSize -gt 0) {
+                        Write-Host -NoNewline (' ' * $paddingSize)
                     }
+                    Write-Host -NoNewline "`r"
                 }
-                finally {
-                    [System.Console]::ForegroundColor = $oldFgColor
-                    [System.Console]::BackgroundColor = $oldBgColor
-                }
+                
                 $isFirstTick = $false # The flash has occurred (or not), subsequent ticks are normal
 
                 # Check for refresh or mode toggle key
@@ -332,6 +342,9 @@ if ($go.IsPresent -or $golong.IsPresent) {
                     if ($keyInfo.KeyChar -eq 's') {
                         Invoke-SoundToggle -SoundEnabled ([ref]$soundEnabled)
                     }
+                    if ($keyInfo.KeyChar -eq 'h') {
+                        $sparklineEnabled = -not $sparklineEnabled
+                    }
                 }
                 Start-Sleep -Milliseconds 500
             }
@@ -342,35 +355,21 @@ if ($go.IsPresent -or $golong.IsPresent) {
             $previousPriceColor = $priceColor
 
             # Redraw the line with a cyan spinner to indicate an active API fetch is about to happen.
-            # This provides a seamless visual cue without clearing the screen.
             if ($currentMode -eq 'go') {
                 $spinnerIndex = ($spinnerIndex + 1) % $spinner.Length
             } # For golong, index is always 0
             $spinnerChar = $spinner[$spinnerIndex]
-            $restOfLine = " Bitcoin (USD): $($currentBtcPrice.ToString("C2"))$changeString"
-
-            $oldFg = [System.Console]::ForegroundColor
-            $oldBg = [System.Console]::BackgroundColor
-            try {
-                # Draw the line with a Cyan spinner to indicate fetching
-                [System.Console]::ForegroundColor = "Cyan"
-                [System.Console]::Write($spinnerChar)
-
-                [System.Console]::ForegroundColor = $priceColor
-                [System.Console]::Write($restOfLine)
-
-                # Pad the rest of the line to clear previous, longer lines
-                $lineLength = $spinnerChar.Length + $restOfLine.Length
-                $padding = [System.Console]::WindowWidth - $lineLength
-                if ($padding -gt 0) {
-                    [System.Console]::Write(' ' * $padding)
-                }
-                [System.Console]::Write("`r")
+            $sparklineString = if ($sparklineEnabled) { " $(Get-Sparkline -History $priceHistory)" } else { "" }
+            $restOfLine = " Bitcoin (USD): $($currentBtcPrice.ToString("C2"))$changeString$sparklineString"
+            
+            Write-Host -NoNewline -ForegroundColor Cyan $spinnerChar
+            Write-Host -NoNewline -ForegroundColor $priceColor $restOfLine
+            $fullLine = "$spinnerChar$restOfLine"
+            $paddingSize = [System.Console]::WindowWidth - $fullLine.Length
+            if ($paddingSize -gt 0) {
+                Write-Host -NoNewline (' ' * $paddingSize)
             }
-            finally {
-                [System.Console]::ForegroundColor = $oldFg
-                [System.Console]::BackgroundColor = $oldBg
-            }
+            Write-Host -NoNewline "`r"
 
             # Fetch the next price for the next iteration
             $newPrice = Get-BtcPrice -ApiKey $apiKey
@@ -380,24 +379,24 @@ if ($go.IsPresent -or $golong.IsPresent) {
                     elseif ($newPrice -le ($currentBtcPrice - 0.01)) { [System.Console]::Beep(400, 150) } # Low tone
                 }
                 $currentBtcPrice = $newPrice
+                $priceHistory.Add($currentBtcPrice)
+                if ($priceHistory.Count -gt 8) {
+                    $priceHistory.RemoveAt(0)
+                }
             }
         }
     }
     finally {
         [System.Console]::CursorVisible = $true
         [System.Console]::ResetColor() # Ensure background is reset on exit
-        # On exit, we try to perform a "perfect clear" of the line. This works reliably
-        # in a standard PowerShell terminal.
+        # On exit, we try to perform a "perfect clear" of the line.
         try {
-            # Move cursor to the start, overwrite the line with spaces, then move back.
             $clearLine = "`r" + (' ' * ([System.Console]::WindowWidth - 1)) + "`r"
-            [System.Console]::Write($clearLine)
+            Write-Host -NoNewline $clearLine
         }
         catch {
-            # In the ps2exe host, the 'try' block can fail. This fallback simply
-            # writes a newline. It's less tidy (leaves the last price line visible)
-            # but reliably prevents the prompt from overwriting the output.
-            [System.Console]::Write("`n")
+            # Fallback simply writes a newline.
+            Write-Host "`n"
         }
     }
     exit
@@ -405,6 +404,7 @@ if ($go.IsPresent -or $golong.IsPresent) {
 else {
     # Interactive Mode (original behavior)
     $soundEnabled = $false
+    $sparklineEnabled = $false
     while ($true) {
         # Paused State Display
         Clear-Host
@@ -428,12 +428,41 @@ else {
         # Set the baseline for this monitoring session
         $monitorStartPrice = $currentBtcPrice
         $monitorStartTime = Get-Date
+        $priceHistory = [System.Collections.Generic.List[double]]::new()
+        $priceHistory.Add($currentBtcPrice)
 
         # Reset the flash-tracking state for this new session. This ensures the first
         # display is always neutral (white) and becomes the new comparison point.
         $previousIntervalPrice = $currentBtcPrice
         $previousPriceColor = "White"
         $monitorDurationSeconds = 300 # 5 minutes
+
+        # Reusable block to draw the screen content, defined once per session
+        $drawScreen = {
+            param([boolean]$InvertColors)
+
+            Clear-Host
+            Write-Host "*** BTC Monitor ***" -ForegroundColor DarkYellow
+
+            $sparklineString = if ($sparklineEnabled) { " $(Get-Sparkline -History $priceHistory)" } else { "" }
+            $priceLine = "Bitcoin (USD): $($currentBtcPrice.ToString("C2"))$changeString$sparklineString"
+
+            $fgColor = if ($InvertColors) { "Black" } else { $priceColor }
+            $bgColor = if ($InvertColors) { $priceColor } else { [System.Console]::BackgroundColor }
+
+            $oldFg = [System.Console]::ForegroundColor
+            $oldBg = [System.Console]::BackgroundColor
+            try {
+                [System.Console]::ForegroundColor = $fgColor
+                [System.Console]::BackgroundColor = $bgColor
+                Write-Host $priceLine
+            }
+            finally {
+                [System.Console]::ForegroundColor = $oldFg
+                [System.Console]::BackgroundColor = $oldBg
+            }
+            Write-Host -NoNewline "Pause[" -ForegroundColor White; Write-Host -NoNewline "Space" -ForegroundColor Cyan; Write-Host -NoNewline "], Reset[" -ForegroundColor White; Write-Host -NoNewline "R" -ForegroundColor Cyan; Write-Host -NoNewline "], Exit[" -ForegroundColor White; Write-Host -NoNewline "Ctrl+C" -ForegroundColor Cyan; Write-Host "]" -ForegroundColor White;
+        }
 
         # Monitoring State Loop (do-while style)
         do {
@@ -460,31 +489,7 @@ else {
                     ($priceColor -eq "Red" -and $currentBtcPrice -lt $previousIntervalPrice)) {
                 $flashNeeded = $true
             }
-            # --- Screen Drawing with Flash Logic ---
-            # Reusable block to draw the screen content
-            $drawScreen = {
-                param([boolean]$InvertColors)
-
-                Clear-Host
-                Write-Host "*** BTC Monitor ***" -ForegroundColor DarkYellow
-
-                $fgColor = if ($InvertColors) { "Black" } else { $priceColor }
-                $bgColor = if ($InvertColors) { $priceColor } else { [System.Console]::BackgroundColor }
-
-                $oldFg = [System.Console]::ForegroundColor
-                $oldBg = [System.Console]::BackgroundColor
-                try {
-                    [System.Console]::ForegroundColor = $fgColor
-                    [System.Console]::BackgroundColor = $bgColor
-                    Write-Host "Bitcoin (USD): $($currentBtcPrice.ToString("C2"))$changeString"
-                }
-                finally {
-                    [System.Console]::ForegroundColor = $oldFg
-                    [System.Console]::BackgroundColor = $oldBg
-                }
-                Write-Host -NoNewline "Pause[" -ForegroundColor White; Write-Host -NoNewline "Space" -ForegroundColor Cyan; Write-Host -NoNewline "], Reset[" -ForegroundColor White; Write-Host -NoNewline "R" -ForegroundColor Cyan; Write-Host -NoNewline "], Exit[" -ForegroundColor White; Write-Host -NoNewline "Ctrl+C" -ForegroundColor Cyan; Write-Host "]" -ForegroundColor White;
-            }
-
+            
             if ($flashNeeded) { & $drawScreen -InvertColors $true; Start-Sleep -Milliseconds 500 }
             & $drawScreen -InvertColors $false
 
@@ -506,13 +511,16 @@ else {
                     if ($keyInfo.KeyChar -eq 's') {
                         Invoke-SoundToggle -SoundEnabled ([ref]$soundEnabled)
                     }
+                    if ($keyInfo.KeyChar -eq 'h') {
+                        $sparklineEnabled = -not $sparklineEnabled
+                        & $drawScreen -InvertColors $false # Redraw immediately to reflect the change
+                    }
                 }
                 Start-Sleep -Milliseconds 100
             }
             if ($paused) { break } # Exit monitoring loop if user paused
             if ($refreshed) {
                 # Reset the comparison point to the current price without a new API call.
-                # The main loop will fetch a new price on its next iteration.
                 $monitorStartPrice = $currentBtcPrice
                 $monitorStartTime = Get-Date # Reset timer
                 continue # Redraw screen immediately with new baseline
@@ -530,6 +538,10 @@ else {
                     elseif ($newPrice -le ($currentBtcPrice - 0.01)) { [System.Console]::Beep(400, 150) } # Low tone
                 }
                 $currentBtcPrice = $newPrice
+                $priceHistory.Add($currentBtcPrice)
+                if ($priceHistory.Count -gt 8) {
+                    $priceHistory.RemoveAt(0)
+                }
             }
         } while (((Get-Date) - $monitorStartTime).TotalSeconds -lt $monitorDurationSeconds)
     }

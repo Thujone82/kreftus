@@ -1,12 +1,12 @@
 # bmon - Lightweight Bitcoin Monitor
 
-## Version 1.3
+## Version 1.4
 
 ## Author
 Kreft&Gemini[Gemini 2.5 Pro (preview)]
 
 ## Date
-2025-08-01
+2025-08-02
 
 ## Description
 `bmon.ps1` is a spinoff of the vBTC trading simulator, designed to be a fast and lightweight, real-time Bitcoin price monitor. It operates directly from the command line and leverages the existing configuration from `vbtc.ps1`.
@@ -20,7 +20,8 @@ The script has two primary modes of operation: real-time monitoring and on-deman
 - **Currency Conversion:** Perform quick conversions directly from the command line. The script outputs only the resulting value, making it easy to use in other scripts.
 - **Live Price Tracking:** During a monitoring session, the script tracks the price change from the moment monitoring began.
 - **Dynamic Mode Toggling:** While in `-go` or `-golong` mode, press 'm' to toggle between the two modes, resetting the duration timer for the newly selected mode.
-- **Audible Alerts:** Optionally enable sound with the 's' key to get high/low tones corresponding to the visual price flash alerts.
+- **Audible Alerts:** Optionally enable sound with the 's' key to get high/low tones for every price change of at least $0.01.
+- **Sparkline History:** Toggle a mini-chart with the 'h' key to visualize the last 8 price ticks.
 - **Dependency on vBTC:** Seamlessly uses the API key configured in `vbtc.ini`, requiring vBTC to be set up first.
 
 ## Color Coding
@@ -47,6 +48,7 @@ The application uses colors to provide quick visual feedback during a monitoring
     `.\bmon.ps1` or `bmon.exe`
     - Press `Spacebar` to start/pause monitoring.
     - Press `r` to reset the session baseline.
+    - Press `h` to toggle the price history sparkline.
     - Press `s` to toggle sound alerts on/off.
     - Press `Ctrl+C` to exit.
 -   **Go / GoLong Modes (Non-Interactive):**
@@ -55,6 +57,7 @@ The application uses colors to provide quick visual feedback during a monitoring
     The script will run for the specified duration and then exit.
     - Press `r` to reset the session baseline to the current price.
     - Press `m` to toggle between -go and -golong modes.
+    - Press `h` to toggle the price history sparkline.
     - Press `s` to toggle sound alerts on/off.
     - Press `Ctrl+C` to exit early.
 ### Conversion Mode
