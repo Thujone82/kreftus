@@ -1,12 +1,12 @@
 # bmon - Lightweight Bitcoin Monitor
 
-## Version 1.2
+## Version 1.3
 
 ## Author
 Kreft&Gemini[Gemini 2.5 Pro (preview)]
 
 ## Date
-2025-07-28
+2025-08-01
 
 ## Description
 `bmon.ps1` is a spinoff of the vBTC trading simulator, designed to be a fast and lightweight, real-time Bitcoin price monitor. It operates directly from the command line and leverages the existing configuration from `vbtc.ps1`.
@@ -20,6 +20,7 @@ The script has two primary modes of operation: real-time monitoring and on-deman
 - **Currency Conversion:** Perform quick conversions directly from the command line. The script outputs only the resulting value, making it easy to use in other scripts.
 - **Live Price Tracking:** During a monitoring session, the script tracks the price change from the moment monitoring began.
 - **Dynamic Mode Toggling:** While in `-go` or `-golong` mode, press 'm' to toggle between the two modes, resetting the duration timer for the newly selected mode.
+- **Audible Alerts:** Optionally enable sound with the 's' key to get high/low tones corresponding to the visual price flash alerts.
 - **Dependency on vBTC:** Seamlessly uses the API key configured in `vbtc.ini`, requiring vBTC to be set up first.
 
 ## Color Coding
@@ -43,15 +44,19 @@ The application uses colors to provide quick visual feedback during a monitoring
 ### Monitoring Modes
 ---
 -   **Interactive Mode:**
-    `.\bmon.ps1`
-    Press the space bar to start/pause monitoring. Press 'r' to reset the session. Press Ctrl+C to exit.
+    `.\bmon.ps1` or `bmon.exe`
+    - Press `Spacebar` to start/pause monitoring.
+    - Press `r` to reset the session baseline.
+    - Press `s` to toggle sound alerts on/off.
+    - Press `Ctrl+C` to exit.
 -   **Go / GoLong Modes (Non-Interactive):**
     `.\bmon.ps1 -go` (5-minute session, 5-second updates)
     `.\bmon.ps1 -golong` (24-hour session, 20-second updates)
     The script will run for the specified duration and then exit.
-    - Press 'r' to reset the session baseline to the current price.
-    - Press 'm' to toggle between -go and -golong modes.
-    - Press Ctrl+C to exit early.
+    - Press `r` to reset the session baseline to the current price.
+    - Press `m` to toggle between -go and -golong modes.
+    - Press `s` to toggle sound alerts on/off.
+    - Press `Ctrl+C` to exit early.
 ### Conversion Mode
 ---
 Use the following parameters to perform a conversion. The script will output only the result.

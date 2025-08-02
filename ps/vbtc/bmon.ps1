@@ -17,8 +17,8 @@
 
 .NOTES
     Author: Kreft&Gemini[Gemini 2.5 Pro (preview)]
-    Date: 2025-07-28
-    Version: 1.2
+    Date: 2025-08-01
+    Version: 1.3
 #>
 
 [CmdletBinding(DefaultParameterSetName='Monitor')]
@@ -104,6 +104,17 @@ function Get-BtcPrice {
     }
 }
 
+function Invoke-SoundToggle {
+    param([ref]$SoundEnabled)
+    $SoundEnabled.Value = -not $SoundEnabled.Value
+    if ($SoundEnabled.Value) { # Sound was just turned ON
+        [System.Console]::Beep(1200, 350) # High tone
+    }
+    else { # Sound was just turned OFF
+        [System.Console]::Beep(400, 350) # Low tone
+    }
+}
+
 # --- Main Script ---
 
 $config = Get-IniConfiguration -FilePath $iniFilePath
@@ -175,6 +186,7 @@ if ($go.IsPresent -or $golong.IsPresent) {
     $previousIntervalPrice = $currentBtcPrice
     $previousPriceColor = "White"
     $monitorStartTime = Get-Date
+    $soundEnabled = $false
 
     # These will be updated by the loop based on the current mode
     $monitorDurationSeconds = 0
@@ -230,7 +242,6 @@ if ($go.IsPresent -or $golong.IsPresent) {
                     ($priceColor -eq "Red" -and $currentBtcPrice -lt $previousIntervalPrice)) {
                 $flashNeeded = $true
             }
-
             # Exit if duration is met for the current mode
             if (((Get-Date) - $monitorStartTime).TotalSeconds -ge $monitorDurationSeconds) { break }
 
@@ -253,7 +264,7 @@ if ($go.IsPresent -or $golong.IsPresent) {
                 $oldFgColor = [System.Console]::ForegroundColor
                 $oldBgColor = [System.Console]::BackgroundColor
                 try {
-                    if ($flashNeeded -and $isFirstTick -and $currentMode -eq 'go') {
+                    if ($flashNeeded -and $isFirstTick) {
                         # Inverted flash colors for the first 500ms (spinner and text)
                         [System.Console]::ForegroundColor = "Black"
                         [System.Console]::BackgroundColor = $priceColor
@@ -318,6 +329,9 @@ if ($go.IsPresent -or $golong.IsPresent) {
                         $spinnerIndex = 0
                         break # Exit wait loop to apply new settings
                     }
+                    if ($keyInfo.KeyChar -eq 's') {
+                        Invoke-SoundToggle -SoundEnabled ([ref]$soundEnabled)
+                    }
                 }
                 Start-Sleep -Milliseconds 500
             }
@@ -360,7 +374,13 @@ if ($go.IsPresent -or $golong.IsPresent) {
 
             # Fetch the next price for the next iteration
             $newPrice = Get-BtcPrice -ApiKey $apiKey
-            if ($null -ne $newPrice) { $currentBtcPrice = $newPrice }
+            if ($null -ne $newPrice) {
+                if ($soundEnabled) {
+                    if ($newPrice -gt $currentBtcPrice) { [System.Console]::Beep(1200, 150) } # High tone
+                    elseif ($newPrice -lt $currentBtcPrice) { [System.Console]::Beep(400, 150) } # Low tone
+                }
+                $currentBtcPrice = $newPrice
+            }
         }
     }
     finally {
@@ -384,6 +404,7 @@ if ($go.IsPresent -or $golong.IsPresent) {
 }
 else {
     # Interactive Mode (original behavior)
+    $soundEnabled = $false
     while ($true) {
         # Paused State Display
         Clear-Host
@@ -439,7 +460,6 @@ else {
                     ($priceColor -eq "Red" -and $currentBtcPrice -lt $previousIntervalPrice)) {
                 $flashNeeded = $true
             }
- 
             # --- Screen Drawing with Flash Logic ---
             # Reusable block to draw the screen content
             $drawScreen = {
@@ -462,7 +482,7 @@ else {
                     [System.Console]::ForegroundColor = $oldFg
                     [System.Console]::BackgroundColor = $oldBg
                 }
-                Write-Host -NoNewline "Pause[" -ForegroundColor White; Write-Host -NoNewline "Space" -ForegroundColor Cyan; Write-Host -NoNewline "], Reset[" -ForegroundColor White; Write-Host -NoNewline "R" -ForegroundColor Cyan; Write-Host -NoNewline "], Exit[" -ForegroundColor White; Write-Host -NoNewline "Ctrl+C" -ForegroundColor Cyan; Write-Host "]" -ForegroundColor White;
+                Write-Host -NoNewline "Pause[" -ForegroundColor White; Write-Host -NoNewline "Space" -ForegroundColor Cyan; Write-Host -NoNewline "], Reset[" -ForegroundColor White; Write-Host -NoNewline "R" -ForegroundColor Cyan; Write-Host -NoNewline "], Sound[" -ForegroundColor White; Write-Host -NoNewline "S" -ForegroundColor Cyan; Write-Host -NoNewline "], Exit[" -ForegroundColor White; Write-Host -NoNewline "Ctrl+C" -ForegroundColor Cyan; Write-Host "]" -ForegroundColor White;
             }
 
             if ($flashNeeded) { & $drawScreen -InvertColors $true; Start-Sleep -Milliseconds 500 }
@@ -483,6 +503,9 @@ else {
                         $refreshed = $true
                         break
                     }
+                    if ($keyInfo.KeyChar -eq 's') {
+                        Invoke-SoundToggle -SoundEnabled ([ref]$soundEnabled)
+                    }
                 }
                 Start-Sleep -Milliseconds 100
             }
@@ -501,7 +524,13 @@ else {
 
             # Fetch the next price for the next iteration
             $newPrice = Get-BtcPrice -ApiKey $apiKey
-            if ($null -ne $newPrice) { $currentBtcPrice = $newPrice }
+            if ($null -ne $newPrice) {
+                if ($soundEnabled) {
+                    if ($newPrice -gt $currentBtcPrice) { [System.Console]::Beep(1200, 150) } # High tone
+                    elseif ($newPrice -lt $currentBtcPrice) { [System.Console]::Beep(400, 150) } # Low tone
+                }
+                $currentBtcPrice = $newPrice
+            }
         } while (((Get-Date) - $monitorStartTime).TotalSeconds -lt $monitorDurationSeconds)
     }
 }
