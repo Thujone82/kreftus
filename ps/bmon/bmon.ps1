@@ -6,11 +6,14 @@
     This script provides a simple command-line interface to monitor the real-time price of Bitcoin.
     If an API key is not found in a local bmon.ini, it will check for the vbtc.ini file from the vBTC application. If no key is found in either location, it will guide the user through a one-time setup to create bmon.ini.
  
-    It can be run in two modes:
+    It can be run in several modes:
     - Interactive Mode: The main screen displays the current price. Press the space bar to start/pause monitoring.
-    - Continuous Mode (`-go`): Monitors the price immediately for 5 minutes and then exits.
+    - Go Mode (`-go`): Monitors the price immediately for 5 minutes and then exits.
+    - Long Go Mode (`-golong`): Monitors for 24 hours with a longer update interval.
+
+    Sound (`-s`) and the history sparkline (`-h`) can be enabled from the command line for any monitoring mode.
  
-    In both modes, the price line will flash with an inverted color for 500ms to draw attention to significant price movements. This flash occurs when the price color changes (e.g., from neutral to green) or when the price continues to move in an already established direction (e.g., ticking up again while a green).
+    In monitoring modes, the price line will flash with an inverted color for 500ms to draw attention to significant price movements. This flash occurs when the price color changes (e.g., from neutral to green) or when the price continues to move in an already established direction (e.g., ticking up again while a green).
  
 .NOTES
     Author: Kreft&Gemini[Gemini 2.5 Pro (preview)]
@@ -25,6 +28,14 @@ param (
 
     [Parameter(ParameterSetName='Monitor')]
     [switch]$golong,
+
+    [Parameter(ParameterSetName='Monitor')]
+    [Alias('history')]
+    [switch]$h,
+
+    [Parameter(ParameterSetName='Monitor')]
+    [Alias('sound')]
+    [switch]$s,
 
     [Parameter(ParameterSetName='BitcoinToUsd')]
     [Alias('bu')]
@@ -209,14 +220,14 @@ function Invoke-SoundToggle {
 
 function Get-Sparkline {
     param ([System.Collections.Generic.List[double]]$History)
-    if ($History.Count -lt 2) { return "".PadRight(8) }
+    if ($History.Count -lt 2) { return "‖      ‖".PadRight(10) }
 
     $sparkChars = [char[]](' ', '▂', '▃', '▄', '▅', '▆', '▇', '█')
     $minPrice = ($History | Measure-Object -Minimum).Minimum
     $maxPrice = ($History | Measure-Object -Maximum).Maximum
     $priceRange = $maxPrice - $minPrice
 
-    if ($priceRange -eq 0) { return ([string]$sparkChars[0] * $History.Count).PadRight(8) }
+    if ($priceRange -eq 0) { return "‖$([string]$sparkChars[0] * 8)‖".PadRight(10) }
 
     $sparkline = ""
     foreach ($price in $History) {
@@ -224,7 +235,15 @@ function Get-Sparkline {
         $charIndex = [math]::Floor($normalized * ($sparkChars.Length - 1))
         $sparkline += $sparkChars[$charIndex]
     }
-    return $sparkline.PadRight(8)
+    # Pad to 8 characters on the left if needed (to make new updates appear from the right)
+    if ($sparkline.Length -lt 8) {
+        $sparkline = $sparkline.PadLeft(8)
+    }
+    # Truncate to 8 characters if needed (keep the most recent data on the right)
+    if ($sparkline.Length -gt 8) {
+        $sparkline = $sparkline.Substring($sparkline.Length - 8)
+    }
+    return "‖$sparkline‖".PadRight(10)
 }
 
 # --- Main Script ---
@@ -311,8 +330,8 @@ if ($go.IsPresent -or $golong.IsPresent) {
     $previousIntervalPrice = $currentBtcPrice
     $previousPriceColor = "White"
     $monitorStartTime = Get-Date
-    $soundEnabled = $false
-    $sparklineEnabled = $false
+    $soundEnabled = $s.IsPresent
+    $sparklineEnabled = $h.IsPresent
     $priceHistory = [System.Collections.Generic.List[double]]::new()
     $priceHistory.Add($currentBtcPrice)
 
@@ -468,8 +487,8 @@ if ($go.IsPresent -or $golong.IsPresent) {
 }
 else {
     # Interactive Mode (original behavior)
-    $soundEnabled = $false
-    $sparklineEnabled = $false
+    $soundEnabled = $s.IsPresent
+    $sparklineEnabled = $h.IsPresent
     while ($true) {
         Clear-Host
         Write-Host "*** BTC Monitor ***" -ForegroundColor DarkYellow

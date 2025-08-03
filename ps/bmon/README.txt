@@ -27,6 +27,7 @@ The script has two primary modes of operation: real-time monitoring and on-deman
 - **Dynamic Mode Toggling:** While in `-go` or `-golong` mode, press 'm' to toggle between the two modes, resetting the duration timer for the newly selected mode.
 - **Audible Alerts:** Optionally enable sound with the 's' key to get high/low tones for every price change of at least $0.01.
 - **Sparkline History:** Toggle a mini-chart with the 'h' key to visualize the last 8 price ticks.
+- **Command-line Toggles:** Start with sound (`-s`) or the sparkline history (`-h`) enabled from the command line.
 - **vBTC Integration:** Can seamlessly use the API key configured in `vbtc.ini` if `bmon.ini` is not present, requiring no extra setup for existing vBTC users.
 
 ## Color Coding
@@ -50,15 +51,15 @@ The application uses colors to provide quick visual feedback during a monitoring
 ### Monitoring Modes
 ---
 -   **Interactive Mode:**
-    `.\bmon.ps1` or `bmon.exe`
+    `.\bmon.ps1 [-s] [-h]` or `bmon.exe [-s] [-h]`
     - Press `Spacebar` to start/pause monitoring.
     - Press `r` to reset the session baseline.
     - Press `h` to toggle the price history sparkline.
     - Press `s` to toggle sound alerts on/off.
     - Press `Ctrl+C` to exit.
 -   **Go / GoLong Modes (Non-Interactive):**
-    `.\bmon.ps1 -go` (5-minute session, 5-second updates)
-    `.\bmon.ps1 -golong` (24-hour session, 20-second updates)
+    `.\bmon.ps1 -go [-s] [-h]` (5-minute session, 5-second updates)
+    `.\bmon.ps1 -golong [-s] [-h]` (24-hour session, 20-second updates)
     The script will run for the specified duration and then exit.
     - Press `r` to reset the session baseline to the current price.
     - Press `m` to toggle between -go and -golong modes.

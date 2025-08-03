@@ -23,7 +23,7 @@ The tool operates in several modes:
 - **API Key Management:** Automatically prompts for a LiveCoinWatch API key on first run and saves it to `bmon.ini`. It can also read the key from `vbtc.ini` if present.
 - **Multiple Monitoring Modes:** Supports interactive, short-term (`-go`), and long-term (`-golong`) monitoring.
 - **Dynamic Controls:** In all modes, users can reset the price baseline (`r`), toggle sound alerts (`s`), and toggle a price history sparkline (`h`). In `-go`/`-golong` modes, users can also switch between them (`m`).
-- **Visual & Audible Alerts:** Uses color-coding (green for price up, red for down) and optional beeps to indicate price changes.
+- **Visual & Audible Alerts:** Uses color-coding (green for price up, red for down) and optional beeps to indicate price changes. Sound (`-s`) and the history sparkline (`-h`) can be enabled from launch.
 - **Currency Conversion:** Provides direct command-line arguments for converting between USD, BTC, and Satoshis (e.g., `-bu`, `-ub`, `-us`, `-su`).
 - **Error Handling:** Includes retry logic with exponential backoff for API calls to handle network instability.
 
@@ -35,6 +35,7 @@ The script is executed from a PowerShell terminal.
 - **Interactive:** `.\bmon.ps1`
 - **Go Mode (5 mins):** `.\bmon.ps1 -go`
 - **Long Go Mode (24 hrs):** `.\bmon.ps1 -golong`
+- **With Options:** Any monitoring mode can be started with sound (`-s`) and/or the history sparkline (`-h`) enabled. Example: `.\bmon.ps1 -go -s -h`
 
 **Conversion:**
 - **BTC to USD:** `.\bmon.ps1 -bu <amount>`
