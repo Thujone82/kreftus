@@ -160,23 +160,40 @@ function Invoke-Onboarding {
 
 function Get-BtcPrice {
     param ([string]$ApiKey)
-    
+
     $headers = @{ "Content-Type" = "application/json"; "x-api-key" = $ApiKey }
     $body = @{ currency = "USD"; code = "BTC"; meta = $false } | ConvertTo-Json
-    try {
-        $response = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single" -Method Post -Headers $headers -Body $body -ErrorAction Stop
-        
-        $price = $response.rate -as [double] 
-        
-        if ($null -eq $price) {
-            Write-Warning "API returned a non-numeric rate: '$($response.rate)'"
+    
+    $maxAttempts = 3
+    $baseDelaySeconds = 2
+
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        try {
+            $response = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single" -Method Post -Headers $headers -Body $body -ErrorAction Stop
+            
+            $price = $response.rate -as [double] 
+            
+            if ($null -eq $price) {
+                Write-Warning "API returned a non-numeric rate: '$($response.rate)'"
+            }
+            return $price
         }
-        return $price
+        catch {
+            if ($attempt -ge $maxAttempts) {
+                Write-Warning "API call failed after $maxAttempts attempts: $($_.Exception.Message)"
+                return $null
+            }
+            
+            # Exponential backoff with jitter
+            $jitterMs = Get-Random -Minimum 0 -Maximum 1000
+            $backoffSeconds = [math]::Pow(2, $attempt - 1) * $baseDelaySeconds
+            $sleepDurationMs = [int]($backoffSeconds * 1000) + $jitterMs
+            
+            Write-Warning "API call failed. Retrying in $([math]::Round($sleepDurationMs/1000, 1)) seconds... (Retry $attempt of $($maxAttempts - 1))"
+            Start-Sleep -Milliseconds $sleepDurationMs
+        }
     }
-    catch {
-        Write-Warning "API call failed: $($_.Exception.Message)"
-        return $null
-    }
+    return $null
 }
 
 function Invoke-SoundToggle {
