@@ -8,7 +8,7 @@
  
     It can be run in several modes:
     - Interactive Mode: The main screen displays the current price. Press the space bar to start/pause monitoring.
-    - Go Mode (`-go`): Monitors the price immediately for 5 minutes and then exits.
+    - Go Mode (`-go`): Monitors the price immediately for 15 minutes and then exits.
     - Long Go Mode (`-golong`): Monitors for 24 hours with a longer update interval.
 
     Sound (`-s`) and the history sparkline (`-h`) can be enabled from the command line for any monitoring mode.
@@ -326,7 +326,7 @@ if ($null -eq $currentBtcPrice) {
 if ($go.IsPresent -or $golong.IsPresent) {
     # --- Mode Configuration ---
     $modeSettings = @{
-        'go'     = @{ duration = 300;   interval = 5;  spinner = @('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏') }
+        'go'     = @{ duration = 900;   interval = 5;  spinner = @('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏') }
         'golong' = @{ duration = 86400; interval = 20; spinner = @('*') }
     }
     $currentMode = if ($golong.IsPresent) { 'golong' } else { 'go' }
