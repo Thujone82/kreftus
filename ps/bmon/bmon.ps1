@@ -185,13 +185,17 @@ function Get-BtcPrice {
             $price = $response.rate -as [double] 
             
             if ($null -eq $price) {
-                Write-Warning "API returned a non-numeric rate: '$($response.rate)'"
+                # Use Write-Host instead of Write-Warning to maintain display consistency
+                $warningMsg = "API returned a non-numeric rate: '$($response.rate)'"
+                Write-Host -ForegroundColor Yellow "`r$warningMsg$(' ' * ([System.Console]::WindowWidth - $warningMsg.Length - 1))`r" -NoNewline
             }
             return $price
         }
         catch {
             if ($attempt -ge $maxAttempts) {
-                Write-Warning "API call failed after $maxAttempts attempts: $($_.Exception.Message)"
+                # Use Write-Host instead of Write-Warning to maintain display consistency
+                $warningMsg = "API call failed after $maxAttempts attempts: $($_.Exception.Message)"
+                Write-Host -ForegroundColor Yellow "`r$warningMsg$(' ' * ([System.Console]::WindowWidth - $warningMsg.Length - 1))`r" -NoNewline
                 return $null
             }
             
@@ -200,7 +204,9 @@ function Get-BtcPrice {
             $backoffSeconds = [math]::Pow(2, $attempt - 1) * $baseDelaySeconds
             $sleepDurationMs = [int]($backoffSeconds * 1000) + $jitterMs
             
-            Write-Warning "API call failed. Retrying in $([math]::Round($sleepDurationMs/1000, 1)) seconds... (Retry $attempt of $($maxAttempts - 1))"
+            # Use Write-Host instead of Write-Warning to maintain display consistency
+            $warningMsg = "API call failed. Retrying in $([math]::Round($sleepDurationMs/1000, 1)) seconds... (Retry $attempt of $($maxAttempts - 1))"
+            Write-Host -ForegroundColor Yellow "`r$warningMsg$(' ' * ([System.Console]::WindowWidth - $warningMsg.Length - 1))`r" -NoNewline
             Start-Sleep -Milliseconds $sleepDurationMs
         }
     }
