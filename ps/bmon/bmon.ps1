@@ -226,14 +226,14 @@ function Invoke-SoundToggle {
 
 function Get-Sparkline {
     param ([System.Collections.Generic.List[double]]$History)
-    if ($History.Count -lt 2) { return "‖      ‖".PadRight(10) }
+    if ($History.Count -lt 2) { return "‖            ‖".PadRight(14) }
 
     $sparkChars = [char[]](' ', '▂', '▃', '▄', '▅', '▆', '▇', '█')
     $minPrice = ($History | Measure-Object -Minimum).Minimum
     $maxPrice = ($History | Measure-Object -Maximum).Maximum
     $priceRange = $maxPrice - $minPrice
 
-    if ($priceRange -eq 0) { return "‖$([string]$sparkChars[0] * 8)‖".PadRight(10) }
+    if ($priceRange -eq 0) { return "‖$([string]$sparkChars[0] * 12)‖".PadRight(14) }
 
     $sparkline = ""
     foreach ($price in $History) {
@@ -241,15 +241,15 @@ function Get-Sparkline {
         $charIndex = [math]::Floor($normalized * ($sparkChars.Length - 1))
         $sparkline += $sparkChars[$charIndex]
     }
-    # Pad to 8 characters on the left if needed (to make new updates appear from the right)
-    if ($sparkline.Length -lt 8) {
-        $sparkline = $sparkline.PadLeft(8)
+    # Pad to 12 characters on the left if needed (to make new updates appear from the right)
+    if ($sparkline.Length -lt 12) {
+        $sparkline = $sparkline.PadLeft(12)
     }
-    # Truncate to 8 characters if needed (keep the most recent data on the right)
-    if ($sparkline.Length -gt 8) {
-        $sparkline = $sparkline.Substring($sparkline.Length - 8)
+    # Truncate to 12 characters if needed (keep the most recent data on the right)
+    if ($sparkline.Length -gt 12) {
+        $sparkline = $sparkline.Substring($sparkline.Length - 12)
     }
-    return "‖$sparkline‖".PadRight(10)
+    return "‖$sparkline‖".PadRight(14)
 }
 
 # --- Main Script ---
@@ -393,8 +393,8 @@ if ($go.IsPresent -or $golong.IsPresent) {
             $isFirstTick = $true
             while (((Get-Date) - $waitStart).TotalSeconds -lt $waitIntervalSeconds) {
                 $spinnerChar = $spinner[$spinnerIndex]
-                $sparklineString = if ($sparklineEnabled) { " $(Get-Sparkline -History $priceHistory)" } else { "" }
-                $restOfLine = " Bitcoin (USD): $($currentBtcPrice.ToString("C2"))$changeString$sparklineString"
+                $sparklineString = if ($sparklineEnabled) { " $(Get-Sparkline -History $priceHistory)" } else { " Bitcoin (USD):" }
+                $restOfLine = "$sparklineString $($currentBtcPrice.ToString("C2"))$changeString"
 
                 if ($currentMode -eq 'go') {
                     $spinnerIndex = ($spinnerIndex + 1) % $spinner.Length
@@ -452,8 +452,8 @@ if ($go.IsPresent -or $golong.IsPresent) {
                 $spinnerIndex = ($spinnerIndex + 1) % $spinner.Length
             }
             $spinnerChar = $spinner[$spinnerIndex]
-            $sparklineString = if ($sparklineEnabled) { " $(Get-Sparkline -History $priceHistory)" } else { "" }
-            $restOfLine = " Bitcoin (USD): $($currentBtcPrice.ToString("C2"))$changeString$sparklineString"
+            $sparklineString = if ($sparklineEnabled) { " $(Get-Sparkline -History $priceHistory)" } else { " Bitcoin (USD):" }
+            $restOfLine = "$sparklineString $($currentBtcPrice.ToString("C2"))$changeString"
             
             Write-Host -NoNewline -ForegroundColor Cyan $spinnerChar
             Write-Host -NoNewline -ForegroundColor $priceColor $restOfLine
@@ -472,7 +472,7 @@ if ($go.IsPresent -or $golong.IsPresent) {
                 }
                 $currentBtcPrice = $newPrice
                 $priceHistory.Add($currentBtcPrice)
-                if ($priceHistory.Count -gt 8) {
+                if ($priceHistory.Count -gt 12) {
                     $priceHistory.RemoveAt(0)
                 }
             }
@@ -527,8 +527,8 @@ else {
             Clear-Host
             Write-Host "*** BTC Monitor ***" -ForegroundColor DarkYellow
 
-            $sparklineString = if ($sparklineEnabled) { " $(Get-Sparkline -History $priceHistory)" } else { "" }
-            $priceLine = "Bitcoin (USD): $($currentBtcPrice.ToString("C2"))$changeString$sparklineString"
+            $sparklineString = if ($sparklineEnabled) { "$(Get-Sparkline -History $priceHistory)" } else { "Bitcoin (USD):" }
+            $priceLine = "$sparklineString $($currentBtcPrice.ToString("C2"))$changeString"
 
             $fgColor = if ($InvertColors) { "Black" } else { $priceColor }
             $bgColor = if ($InvertColors) { $priceColor } else { [System.Console]::BackgroundColor }
@@ -613,7 +613,7 @@ else {
                 }
                 $currentBtcPrice = $newPrice
                 $priceHistory.Add($currentBtcPrice)
-                if ($priceHistory.Count -gt 8) {
+                if ($priceHistory.Count -gt 12) {
                     $priceHistory.RemoveAt(0)
                 }
             }
