@@ -175,7 +175,7 @@ function Get-BtcPrice {
     $headers = @{ "Content-Type" = "application/json"; "x-api-key" = $ApiKey }
     $body = @{ currency = "USD"; code = "BTC"; meta = $false } | ConvertTo-Json
     
-    $maxAttempts = 3
+    $maxAttempts = 5
     $baseDelaySeconds = 2
 
     for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
