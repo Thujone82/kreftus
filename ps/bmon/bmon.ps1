@@ -187,7 +187,7 @@ function Get-BtcPrice {
             if ($null -eq $price) {
                 # Use Write-Host instead of Write-Warning to maintain display consistency
                 $warningMsg = "API returned a non-numeric rate: '$($response.rate)'"
-                Write-Host -ForegroundColor Yellow "`r$warningMsg$(' ' * ([System.Console]::WindowWidth - $warningMsg.Length - 1))`r" -NoNewline
+                Write-Host -ForegroundColor Yellow "`r$warningMsg$(' ' * [math]::Max(0, [System.Console]::WindowWidth - $warningMsg.Length - 1))`r" -NoNewline
             }
             return $price
         }
@@ -195,7 +195,7 @@ function Get-BtcPrice {
             if ($attempt -ge $maxAttempts) {
                 # Use Write-Host instead of Write-Warning to maintain display consistency
                 $warningMsg = "API call failed after $maxAttempts attempts: $($_.Exception.Message)"
-                Write-Host -ForegroundColor Yellow "`r$warningMsg$(' ' * ([System.Console]::WindowWidth - $warningMsg.Length - 1))`r" -NoNewline
+                Write-Host -ForegroundColor Yellow "`r$warningMsg$(' ' * [math]::Max(0, [System.Console]::WindowWidth - $warningMsg.Length - 1))`r" -NoNewline
                 return $null
             }
             
@@ -206,7 +206,7 @@ function Get-BtcPrice {
             
             # Use Write-Host instead of Write-Warning to maintain display consistency
             $warningMsg = "API call failed. Retrying in $([math]::Round($sleepDurationMs/1000, 1)) seconds... (Retry $attempt of $($maxAttempts - 1))"
-            Write-Host -ForegroundColor Yellow "`r$warningMsg$(' ' * ([System.Console]::WindowWidth - $warningMsg.Length - 1))`r" -NoNewline
+            Write-Host -ForegroundColor Yellow "`r$warningMsg$(' ' * [math]::Max(0, [System.Console]::WindowWidth - $warningMsg.Length - 1))`r" -NoNewline
             Start-Sleep -Milliseconds $sleepDurationMs
         }
     }
@@ -350,7 +350,7 @@ if ($go.IsPresent -or $golong.IsPresent) {
         [System.Console]::CursorVisible = $true
         [System.Console]::ResetColor()
         try {
-            $clearLine = "`r" + (' ' * ([System.Console]::WindowWidth - 1)) + "`r"
+            $clearLine = "`r" + (' ' * [math]::Max(0, [System.Console]::WindowWidth - 1)) + "`r"
             Write-Host -NoNewline $clearLine
         }
         catch {
@@ -362,7 +362,10 @@ if ($go.IsPresent -or $golong.IsPresent) {
     try {
         [System.Console]::CursorVisible = $false
         while ($true) {
+            # Set mode-specific variables and immediately check for termination.
             $monitorDurationSeconds = $modeSettings[$currentMode].duration
+            if (((Get-Date) - $monitorStartTime).TotalSeconds -ge $monitorDurationSeconds) { break }
+
             $waitIntervalSeconds = $modeSettings[$currentMode].interval
             $spinner = $modeSettings[$currentMode].spinner
 
@@ -385,7 +388,6 @@ if ($go.IsPresent -or $golong.IsPresent) {
                     ($priceColor -eq "Red" -and $currentBtcPrice -lt $previousIntervalPrice)) {
                 $flashNeeded = $true
             }
-            if (((Get-Date) - $monitorStartTime).TotalSeconds -ge $monitorDurationSeconds) { break }
 
             $waitStart = Get-Date
             $refreshed = $false
@@ -482,7 +484,7 @@ if ($go.IsPresent -or $golong.IsPresent) {
         [System.Console]::CursorVisible = $true
         [System.Console]::ResetColor()
         try {
-            $clearLine = "`r" + (' ' * ([System.Console]::WindowWidth - 1)) + "`r"
+            $clearLine = "`r" + (' ' * [math]::Max(0, [System.Console]::WindowWidth - 1)) + "`r"
             Write-Host -NoNewline $clearLine
         }
         catch {
