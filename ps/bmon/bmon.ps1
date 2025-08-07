@@ -67,47 +67,52 @@ param (
 
 # Show help if requested
 if ($Help.IsPresent) {
-    Write-Host @"
-Bitcoin Monitor (bmon) - Version 1.5
-
-USAGE:
-    .\bmon.ps1              # Interactive mode
-    .\bmon.ps1 -go          # Monitor for 15 minutes
-    .\bmon.ps1 -golong      # Monitor for 24 hours
-    .\bmon.ps1 -s           # Enable sound alerts
-    .\bmon.ps1 -h           # Enable history sparkline
-    .\bmon.ps1 -bu 0.5      # 0.5 BTC to USD
-    .\bmon.ps1 -ub 50000    # $50,000 to BTC
-    .\bmon.ps1 -us 100      # $100 to satoshis
-    .\bmon.ps1 -su 1000000  # 1M satoshis to USD
-
-MONITORING MODES:
-    Interactive: Press Space to start/pause, R to reset, Ctrl+C 
-    to exit Go Mode: 15-minute monitoring with 5-second updates
-    Long Go Mode: 24-hour monitoring with 20-second updates
-
-CONTROLS (during monitoring):
-    R - Reset baseline price and timer
-    M - Switch between go/golong modes
-    S - Toggle sound alerts
-    H - Toggle history sparkline
-
-FEATURES:
-    - Real-time Bitcoin price monitoring
-    - Price change indicators (green/red)
-    - Visual price flash alerts
-    - Sound alerts for price movements
-    - Historical price sparkline
-    - BTC/USD conversion tools
-    - Satoshi conversion tools
-    - Automatic API key management
-
-API KEY:
-    Get a free API key from: 
-    https://www.livecoinwatch.com/tools/api
-    The script will guide you through setup on first run.
-
-"@ -ForegroundColor Cyan
+    Write-Host "Bitcoin Monitor (bmon) - Version 1.5" -ForegroundColor Yellow
+    Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor DarkGray
+    Write-Host ""
+    
+    Write-Host "USAGE:" -ForegroundColor Cyan
+    Write-Host "    .\bmon.ps1              " -NoNewline -ForegroundColor White; Write-Host "# Interactive mode" -ForegroundColor Gray
+    Write-Host "    .\bmon.ps1 -go          " -NoNewline -ForegroundColor White; Write-Host "# Monitor for 15 minutes" -ForegroundColor Gray
+    Write-Host "    .\bmon.ps1 -golong      " -NoNewline -ForegroundColor White; Write-Host "# Monitor for 24 hours" -ForegroundColor Gray
+    Write-Host "    .\bmon.ps1 -s           " -NoNewline -ForegroundColor White; Write-Host "# Enable sound alerts" -ForegroundColor Gray
+    Write-Host "    .\bmon.ps1 -h           " -NoNewline -ForegroundColor White; Write-Host "# Enable history sparkline" -ForegroundColor Gray
+    Write-Host "    .\bmon.ps1 -bu 0.5      " -NoNewline -ForegroundColor White; Write-Host "# 0.5 BTC to USD" -ForegroundColor Gray
+    Write-Host "    .\bmon.ps1 -ub 50000    " -NoNewline -ForegroundColor White; Write-Host "# `$50,000 to BTC" -ForegroundColor Gray
+    Write-Host "    .\bmon.ps1 -us 100      " -NoNewline -ForegroundColor White; Write-Host "# `$100 to satoshis" -ForegroundColor Gray
+    Write-Host "    .\bmon.ps1 -su 1000000  " -NoNewline -ForegroundColor White; Write-Host "# 1M satoshis to USD" -ForegroundColor Gray
+    Write-Host ""
+    
+    Write-Host "MONITORING MODES:" -ForegroundColor Green
+    Write-Host "    Interactive: " -NoNewline -ForegroundColor White; Write-Host "Press Space to start/pause, R to reset, Ctrl+C to exit" -ForegroundColor Gray
+    Write-Host "    Go Mode: " -NoNewline -ForegroundColor White; Write-Host "15-minute monitoring with 5-second updates" -ForegroundColor Gray
+    Write-Host "    Long Go Mode: " -NoNewline -ForegroundColor White; Write-Host "24-hour monitoring with 20-second updates" -ForegroundColor Gray
+    Write-Host ""
+    
+    Write-Host "CONTROLS (during monitoring):" -ForegroundColor Magenta
+    Write-Host "    R - " -NoNewline -ForegroundColor White; Write-Host "Reset baseline price and timer" -ForegroundColor Gray
+    Write-Host "    M - " -NoNewline -ForegroundColor White; Write-Host "Switch between go/golong modes" -ForegroundColor Gray
+    Write-Host "    S - " -NoNewline -ForegroundColor White; Write-Host "Toggle sound alerts" -ForegroundColor Gray
+    Write-Host "    H - " -NoNewline -ForegroundColor White; Write-Host "Toggle history sparkline" -ForegroundColor Gray
+    Write-Host ""
+    
+    Write-Host "FEATURES:" -ForegroundColor Blue
+    Write-Host "    • " -NoNewline -ForegroundColor Yellow; Write-Host "Real-time Bitcoin price monitoring" -ForegroundColor Gray
+    Write-Host "    • " -NoNewline -ForegroundColor Yellow; Write-Host "Price change indicators (green/red)" -ForegroundColor Gray
+    Write-Host "    • " -NoNewline -ForegroundColor Yellow; Write-Host "Visual price flash alerts" -ForegroundColor Gray
+    Write-Host "    • " -NoNewline -ForegroundColor Yellow; Write-Host "Sound alerts for price movements" -ForegroundColor Gray
+    Write-Host "    • " -NoNewline -ForegroundColor Yellow; Write-Host "Historical price sparkline" -ForegroundColor Gray
+    Write-Host "    • " -NoNewline -ForegroundColor Yellow; Write-Host "BTC/USD conversion tools" -ForegroundColor Gray
+    Write-Host "    • " -NoNewline -ForegroundColor Yellow; Write-Host "Satoshi conversion tools" -ForegroundColor Gray
+    Write-Host "    • " -NoNewline -ForegroundColor Yellow; Write-Host "Automatic API key management" -ForegroundColor Gray
+    Write-Host ""
+    
+    Write-Host "API KEY:" -ForegroundColor Red
+    Write-Host "    Get a free API key from: " -ForegroundColor White
+    Write-Host "    " -NoNewline -ForegroundColor White; Write-Host "https://www.livecoinwatch.com/tools/api" -ForegroundColor Cyan
+    Write-Host "    The script will guide you through setup on first run." -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor DarkGray
     exit 0
 }
 
