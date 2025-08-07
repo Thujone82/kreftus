@@ -1,12 +1,12 @@
 # bmon - Lightweight Bitcoin Monitor
 
-## Version 1.4
+## Version 1.5
 
 ## Author
 Kreft&Gemini[Gemini 2.5 Pro (preview)]
 
 ## Date
-2025-08-02
+2025-08-07
 
 ## Description
 `bmon.ps1` is a spinoff of the vBTC trading simulator, designed to be a fast and lightweight, real-time Bitcoin price monitor. It operates directly from the command line.

@@ -17,8 +17,8 @@
  
 .NOTES
     Author: Kreft&Gemini[Gemini 2.5 Pro (preview)]
-    Date: 2025-08-02@1058
-    Version: 1.4
+    Date: 2025-08-07@1430
+    Version: 1.5
 #>
 
 [CmdletBinding(DefaultParameterSetName='Monitor')]
@@ -36,6 +36,9 @@ param (
     [Parameter(ParameterSetName='Monitor')]
     [Alias('sound')]
     [switch]$s,
+
+    [Parameter(ParameterSetName='Monitor')]
+    [switch]$Help,
 
     [Parameter(ParameterSetName='BitcoinToUsd')]
     [Alias('bu')]
@@ -61,6 +64,52 @@ param (
 # --- Script Setup and Configuration ---
 # Set output encoding to UTF-8 to properly display special characters.
 [System.Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+# Show help if requested
+if ($Help.IsPresent) {
+    Write-Host @"
+Bitcoin Monitor (bmon) - Version 1.5
+
+USAGE:
+    .\bmon.ps1              # Interactive mode
+    .\bmon.ps1 -go          # Monitor for 15 minutes
+    .\bmon.ps1 -golong      # Monitor for 24 hours
+    .\bmon.ps1 -s           # Enable sound alerts
+    .\bmon.ps1 -h           # Enable history sparkline
+    .\bmon.ps1 -bu 0.5      # 0.5 BTC to USD
+    .\bmon.ps1 -ub 50000    # $50,000 to BTC
+    .\bmon.ps1 -us 100      # $100 to satoshis
+    .\bmon.ps1 -su 1000000  # 1M satoshis to USD
+
+MONITORING MODES:
+    Interactive: Press Space to start/pause, R to reset, Ctrl+C 
+    to exit Go Mode: 15-minute monitoring with 5-second updates
+    Long Go Mode: 24-hour monitoring with 20-second updates
+
+CONTROLS (during monitoring):
+    R - Reset baseline price and timer
+    M - Switch between go/golong modes
+    S - Toggle sound alerts
+    H - Toggle history sparkline
+
+FEATURES:
+    - Real-time Bitcoin price monitoring
+    - Price change indicators (green/red)
+    - Visual price flash alerts
+    - Sound alerts for price movements
+    - Historical price sparkline
+    - BTC/USD conversion tools
+    - Satoshi conversion tools
+    - Automatic API key management
+
+API KEY:
+    Get a free API key from: 
+    https://www.livecoinwatch.com/tools/api
+    The script will guide you through setup on first run.
+
+"@ -ForegroundColor Cyan
+    exit 0
+}
 
 if ($PSScriptRoot) {
     $scriptPath = $PSScriptRoot
@@ -129,7 +178,7 @@ function Test-ApiKey {
     $headers = @{ "Content-Type" = "application/json"; "x-api-key" = $ApiKey }
     $body = @{ currency = "USD"; code = "BTC"; meta = $false } | ConvertTo-Json
     try {
-        Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single" -Method Post -Headers $headers -Body $body -ErrorAction Stop | Out-Null
+        Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single" -Method Post -Headers $headers -Body $body -TimeoutSec 10 -ErrorAction Stop | Out-Null
         return $true
     }
     catch {
@@ -172,30 +221,45 @@ function Invoke-Onboarding {
 function Get-BtcPrice {
     param ([string]$ApiKey)
 
+    if ([string]::IsNullOrEmpty($ApiKey)) {
+        Write-Error "API Key is null or empty"
+        return $null
+    }
+
     $headers = @{ "Content-Type" = "application/json"; "x-api-key" = $ApiKey }
     $body = @{ currency = "USD"; code = "BTC"; meta = $false } | ConvertTo-Json
     
     $maxAttempts = 5
     $baseDelaySeconds = 2
 
+    $retried = $false
     for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
         try {
-            $response = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single" -Method Post -Headers $headers -Body $body -ErrorAction Stop
+            $response = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single" -Method Post -Headers $headers -Body $body -TimeoutSec 10 -ErrorAction Stop
             
-            $price = $response.rate -as [double] 
+            if ($retried) {
+                # On successful fetch after a retry, clear the "Retrying..." message from the line.
+                Write-ClearLine
+            }
+
+            $price = $response.rate -as [double]
             
-            if ($null -eq $price) {
+            if ($null -eq $price -or $price -le 0) {
                 # Use Write-Host instead of Write-Warning to maintain display consistency
-                $warningMsg = "API returned a non-numeric rate: '$($response.rate)'"
-                Write-Host -ForegroundColor Yellow "`r$warningMsg$(' ' * [math]::Max(0, [System.Console]::WindowWidth - $warningMsg.Length - 1))`r" -NoNewline
+                $warningMsg = "API returned invalid price: '$($response.rate)'"
+                Write-ClearLine
+                Write-Host -ForegroundColor Yellow $warningMsg -NoNewline
+                return $null
             }
             return $price
         }
         catch {
+            $retried = $true
             if ($attempt -ge $maxAttempts) {
                 # Use Write-Host instead of Write-Warning to maintain display consistency
                 $warningMsg = "API call failed after $maxAttempts attempts: $($_.Exception.Message)"
-                Write-Host -ForegroundColor Yellow "`r$warningMsg$(' ' * [math]::Max(0, [System.Console]::WindowWidth - $warningMsg.Length - 1))`r" -NoNewline
+                Write-ClearLine
+                Write-Host -ForegroundColor Yellow $warningMsg -NoNewline
                 return $null
             }
             
@@ -206,7 +270,8 @@ function Get-BtcPrice {
             
             # Use Write-Host instead of Write-Warning to maintain display consistency
             $warningMsg = "API call failed. Retrying in $([math]::Round($sleepDurationMs/1000, 1)) seconds... (Retry $attempt of $($maxAttempts - 1))"
-            Write-Host -ForegroundColor Yellow "`r$warningMsg$(' ' * [math]::Max(0, [System.Console]::WindowWidth - $warningMsg.Length - 1))`r" -NoNewline
+            Write-ClearLine
+            Write-Host -ForegroundColor Yellow $warningMsg -NoNewline
             Start-Sleep -Milliseconds $sleepDurationMs
         }
     }
@@ -226,14 +291,14 @@ function Invoke-SoundToggle {
 
 function Get-Sparkline {
     param ([System.Collections.Generic.List[double]]$History)
-    if ($History.Count -lt 2) { return "‖            ‖".PadRight(14) }
+    if ($null -eq $History -or $History.Count -lt 2) { return "‖            ‖".PadRight(14) }
 
     $sparkChars = [char[]](' ', '▂', '▃', '▄', '▅', '▆', '▇', '█')
     $minPrice = ($History | Measure-Object -Minimum).Minimum
     $maxPrice = ($History | Measure-Object -Maximum).Maximum
     $priceRange = $maxPrice - $minPrice
 
-    if ($priceRange -eq 0) { return "‖$([string]$sparkChars[0] * 12)‖".PadRight(14) }
+    if ($priceRange -eq 0 -or $priceRange -lt 0.00000001) { return "‖$([string]$sparkChars[0] * 12)‖".PadRight(14) }
 
     $sparkline = ""
     foreach ($price in $History) {
@@ -250,6 +315,30 @@ function Get-Sparkline {
         $sparkline = $sparkline.Substring($sparkline.Length - 12)
     }
     return "‖$sparkline‖".PadRight(14)
+}
+
+function Get-ConsoleWidth {
+    try {
+        return [System.Console]::WindowWidth
+    }
+    catch {
+        return 80  # Default fallback width
+    }
+}
+
+function Write-ClearLine {
+    param([string]$Message = "")
+    try {
+        $consoleWidth = Get-ConsoleWidth
+        $clearLine = "`r" + (' ' * [math]::Max(0, $consoleWidth - 1)) + "`r"
+        Write-Host -NoNewline $clearLine
+        if ($Message) {
+            Write-Host -NoNewline $Message
+        }
+    }
+    catch {
+        Write-Host "`n"
+    }
 }
 
 # --- Main Script ---
@@ -290,12 +379,12 @@ if ($PSCmdlet.ParameterSetName -ne 'Monitor') {
             Write-Host ('${0}' -f $usdValue.ToString("N2"))
         }
         "UsdToBitcoin" {
-            if ($price -eq 0) { Write-Error "Bitcoin price is zero, cannot divide."; exit 1 }
+            if ($price -le 0.00000001) { Write-Error "Bitcoin price is too low or zero, cannot divide."; exit 1 }
             $btcValue = $UsdToBitcoin / $price
             Write-Host ("B{0}" -f $btcValue.ToString("F8"))
         }
         "USDToSats" {
-            if ($price -eq 0) { Write-Error "Bitcoin price is zero, cannot divide."; exit 1 }
+            if ($price -le 0.00000001) { Write-Error "Bitcoin price is too low or zero, cannot divide."; exit 1 }
             $satoshiValue = ($USDToSats / $price) * 100000000
             Write-Host ("{0}s" -f [math]::Round($satoshiValue).ToString("N0"))
         }
@@ -350,8 +439,7 @@ if ($go.IsPresent -or $golong.IsPresent) {
         [System.Console]::CursorVisible = $true
         [System.Console]::ResetColor()
         try {
-            $clearLine = "`r" + (' ' * [math]::Max(0, [System.Console]::WindowWidth - 1)) + "`r"
-            Write-Host -NoNewline $clearLine
+            Write-ClearLine
         }
         catch {
             Write-Host "`n"
@@ -484,8 +572,7 @@ if ($go.IsPresent -or $golong.IsPresent) {
         [System.Console]::CursorVisible = $true
         [System.Console]::ResetColor()
         try {
-            $clearLine = "`r" + (' ' * [math]::Max(0, [System.Console]::WindowWidth - 1)) + "`r"
-            Write-Host -NoNewline $clearLine
+            Write-ClearLine
         }
         catch {
             Write-Host "`n"
@@ -524,16 +611,16 @@ else {
         $monitorDurationSeconds = 300
 
         $drawScreen = {
-            param([boolean]$InvertColors)
+            param([boolean]$InvertColors, [string]$ChangeString, [string]$PriceColor)
 
             Clear-Host
             Write-Host "*** BTC Monitor ***" -ForegroundColor DarkYellow
 
             $sparklineString = if ($sparklineEnabled) { "$(Get-Sparkline -History $priceHistory)" } else { "Bitcoin (USD):" }
-            $priceLine = "$sparklineString $($currentBtcPrice.ToString("C2"))$changeString"
+            $priceLine = "$sparklineString $($currentBtcPrice.ToString("C2"))$ChangeString"
 
-            $fgColor = if ($InvertColors) { "Black" } else { $priceColor }
-            $bgColor = if ($InvertColors) { $priceColor } else { [System.Console]::BackgroundColor }
+            $fgColor = if ($InvertColors) { "Black" } else { $PriceColor }
+            $bgColor = if ($InvertColors) { $PriceColor } else { [System.Console]::BackgroundColor }
 
             $oldFg = [System.Console]::ForegroundColor
             $oldBg = [System.Console]::BackgroundColor
@@ -570,8 +657,8 @@ else {
                 $flashNeeded = $true
             }
             
-            if ($flashNeeded) { & $drawScreen -InvertColors $true; Start-Sleep -Milliseconds 500 }
-            & $drawScreen -InvertColors $false
+            if ($flashNeeded) { & $drawScreen -InvertColors $true -ChangeString $changeString -PriceColor $priceColor; Start-Sleep -Milliseconds 500 }
+            & $drawScreen -InvertColors $false -ChangeString $changeString -PriceColor $priceColor
 
             $waitStart = Get-Date
             $paused = $false
@@ -592,7 +679,7 @@ else {
                     }
                     if ($keyInfo.KeyChar -eq 'h') {
                         $sparklineEnabled = -not $sparklineEnabled
-                        & $drawScreen -InvertColors $false
+                        & $drawScreen -InvertColors $false -ChangeString $changeString -PriceColor $priceColor
                     }
                 }
                 Start-Sleep -Milliseconds 100
