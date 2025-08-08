@@ -471,21 +471,16 @@ func getSparkline(history []float64) string {
 		sparkline += string(sparkChars[charIndex])
 	}
 
-	// Pad to 12 characters on the left (like PowerShell) to make new updates appear from the right
-	if len(sparkline) < 12 {
-		sparkline = strings.Repeat(" ", 12-len(sparkline)) + sparkline
-	}
-	// Truncate to 12 characters if needed (keep the most recent data on the right)
+	// Ensure sparkline content is exactly 12 characters
+	// First truncate if too long (keep the most recent data on the right)
 	if len(sparkline) > 12 {
 		sparkline = sparkline[len(sparkline)-12:]
 	}
+	// Then pad to exactly 12 characters on the left (like PowerShell)
+	sparkline = fmt.Sprintf("%12s", sparkline)
 
-	// Return with wrapper and ensure it's exactly 14 characters wide (like PowerShell)
+	// Return with wrapper - should always be exactly 14 characters
 	result := "‖" + sparkline + "‖"
-	// Pad to 14 characters to match PowerShell's .PadRight(14)
-	if len(result) < 14 {
-		result = result + strings.Repeat(" ", 14-len(result))
-	}
 
 	return result
 }
