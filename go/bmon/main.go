@@ -388,6 +388,8 @@ func getBtcPrice() (float64, error) {
 			return 0, fmt.Errorf("invalid price returned")
 		}
 
+		// Clear any retry messages on successful price fetch
+		clearLine()
 		return apiResp.Rate, nil
 	}
 
@@ -586,6 +588,7 @@ func runMonitoringMode(args Args) {
 		refreshed := false
 		modeSwitched := false
 		isFirstTick := true
+		previousWasFlash := false
 		for time.Since(waitStart).Seconds() < float64(settings.interval) {
 			spinnerChar := settings.spinner[spinnerIndex%len(settings.spinner)]
 			sparklineString := ""
@@ -603,9 +606,8 @@ func runMonitoringMode(args Args) {
 
 			fullLine := spinnerChar + restOfLine
 
-			// Handle flash (matches PowerShell exactly)
+			// Handle flash: hold for one 500ms tick, then draw normal line on next tick
 			if flashNeeded && isFirstTick {
-				// Pad the line to actual console width (like PowerShell)
 				width := getConsoleWidth()
 				paddedLine := fmt.Sprintf("%-*s", width, fullLine)
 				switch priceColor {
@@ -616,24 +618,11 @@ func runMonitoringMode(args Args) {
 				default:
 					fmt.Printf("\r%s\r", paddedLine)
 				}
-				// Immediately show normal display after flash (no blank line)
-				// First clear any background colors by padding the entire line width
-				fmt.Printf("\r%s\r", strings.Repeat(" ", width))
-
-				// Build the complete line with colors
-				var coloredLine string
-				switch priceColor {
-				case "Green":
-					coloredLine = fmt.Sprintf("\033[32m%s\033[0m", restOfLine)
-				case "Red":
-					coloredLine = fmt.Sprintf("\033[31m%s\033[0m", restOfLine)
-				default:
-					coloredLine = restOfLine
-				}
-
-				// Print the complete line with spinner and padding
-				paddedLine = fmt.Sprintf("%-*s", width, spinnerChar+coloredLine)
-				fmt.Printf("\r%s\r", paddedLine)
+				// Hold the flash for one tick and continue
+				time.Sleep(500 * time.Millisecond)
+				isFirstTick = false
+				previousWasFlash = true
+				continue
 			} else {
 				// Normal display - matches PowerShell exactly
 				// Build the complete line with colors
@@ -649,6 +638,11 @@ func runMonitoringMode(args Args) {
 
 				// Print the complete line with spinner and padding
 				width := getConsoleWidth()
+				if previousWasFlash {
+					// Clear any lingering background color from prior flash
+					fmt.Printf("\r%s\r", strings.Repeat(" ", width))
+					previousWasFlash = false
+				}
 				paddedLine := fmt.Sprintf("%-*s", width, spinnerChar+coloredLine)
 				fmt.Printf("\r%s\r", paddedLine)
 			}
