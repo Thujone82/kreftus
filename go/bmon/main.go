@@ -16,9 +16,12 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/fatih/color"
 	"golang.org/x/term"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 	"gopkg.in/ini.v1"
 )
 
@@ -85,6 +88,8 @@ type Args struct {
 }
 
 func main() {
+	// Ensure Windows console uses UTF-8 and supports ANSI (for spinners, sparklines, colors)
+	configureWindowsConsole()
 	// Set up signal handling for Ctrl+C
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -347,6 +352,7 @@ func getBtcPrice() (float64, error) {
 	// Retry logic
 	maxAttempts := 5
 	baseDelay := 2 * time.Second
+	warningShown := false
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		resp, err := client.Do(req)
@@ -362,8 +368,11 @@ func getBtcPrice() (float64, error) {
 
 			warningMsg := fmt.Sprintf("API call failed. Retrying in %.1f seconds... (Retry %d of %d)",
 				sleepTime.Seconds(), attempt, maxAttempts-1)
-			clearLine()
-			color.Yellow(warningMsg)
+			// Draw warning in-place on a single line without advancing
+			width := getConsoleWidth()
+			padded := fmt.Sprintf("%-*s", width, "\x1b[33m"+warningMsg+"\x1b[0m")
+			fmt.Printf("\r%s\r", padded)
+			warningShown = true
 
 			time.Sleep(sleepTime)
 			continue
@@ -383,13 +392,19 @@ func getBtcPrice() (float64, error) {
 
 		if apiResp.Rate <= 0 {
 			warningMsg := fmt.Sprintf("API returned invalid price: '%.2f'", apiResp.Rate)
-			clearLine()
-			color.Yellow(warningMsg)
+			width := getConsoleWidth()
+			padded := fmt.Sprintf("%-*s", width, "\x1b[33m"+warningMsg+"\x1b[0m")
+			fmt.Printf("\r%s\r", padded)
+			warningShown = true
 			return 0, fmt.Errorf("invalid price returned")
 		}
 
-		// Clear any retry messages on successful price fetch
-		clearLine()
+		// Clear screen after a successful retry to ensure no messages remain
+		if warningShown {
+			clearScreen()
+		} else {
+			clearLine()
+		}
 		return apiResp.Rate, nil
 	}
 
@@ -400,31 +415,27 @@ func getConsoleWidth() int {
 	// Try to get console width, default to 80 if we can't
 	if runtime.GOOS == "windows" {
 		// On Windows, we can try to get the console width
-		cmd := exec.Command("cmd", "/c", "mode con")
+		cmd := exec.Command("cmd", "/c", "mode con | findstr Columns")
 		output, err := cmd.Output()
 		if err == nil {
-			lines := strings.Split(string(output), "\n")
-			for _, line := range lines {
-				if strings.Contains(line, "Columns:") {
-					parts := strings.Fields(line)
-					if len(parts) >= 2 {
-						if width, err := strconv.Atoi(parts[1]); err == nil {
-							return width
-						}
+			// Expect something like: "   Columns:         120"
+			fields := strings.Fields(string(output))
+			for i := 0; i < len(fields); i++ {
+				if strings.HasPrefix(fields[i], "Columns") && i+1 < len(fields) {
+					if width, err := strconv.Atoi(fields[i+1]); err == nil {
+						return width
 					}
 				}
 			}
 		}
 	} else {
 		// On Linux, try to get terminal width
-		cmd := exec.Command("stty", "size")
+		cmd := exec.Command("sh", "-c", "stty size 2>/dev/null | awk '{print $2}'")
 		output, err := cmd.Output()
 		if err == nil {
-			parts := strings.Fields(string(output))
-			if len(parts) >= 2 {
-				if width, err := strconv.Atoi(parts[1]); err == nil {
-					return width
-				}
+			trim := strings.TrimSpace(string(output))
+			if width, err := strconv.Atoi(trim); err == nil && width > 0 {
+				return width
 			}
 		}
 	}
@@ -444,7 +455,9 @@ func getSparkline(history []float64) string {
 		return "‖            ‖"
 	}
 
-	sparkChars := []rune{' ', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
+	// Choose a charset that renders reliably. On Windows when launched
+	// directly in classic conhost (no WT_SESSION), prefer CP437 shading.
+	sparkChars := getSparkChars()
 
 	// Find min and max
 	minPrice := history[0]
@@ -473,18 +486,32 @@ func getSparkline(history []float64) string {
 		sparkline += string(sparkChars[charIndex])
 	}
 
-	// Ensure sparkline content is exactly 12 characters
+	// Ensure sparkline content is exactly 12 characters (ASCII spaces for pad)
 	// First truncate if too long (keep the most recent data on the right)
 	if len(sparkline) > 12 {
 		sparkline = sparkline[len(sparkline)-12:]
 	}
 	// Then pad to exactly 12 characters on the left (like PowerShell)
+	// Use ASCII spaces; ensure no stray runes get into the buffer
 	sparkline = fmt.Sprintf("%12s", sparkline)
 
 	// Return with wrapper - should always be exactly 14 characters
 	result := "‖" + sparkline + "‖"
 
 	return result
+}
+
+// getSparkChars selects characters for the sparkline that the current
+// terminal can reliably render. Falls back to CP437 shading on classic conhost.
+func getSparkChars() []rune {
+	if runtime.GOOS == "windows" {
+		// Windows Terminal sets WT_SESSION. Classic conhost typically does not.
+		if os.Getenv("WT_SESSION") == "" {
+			return []rune{' ', '░', '▒', '▓', '█'}
+		}
+	}
+	// Default: finer Unicode block elements
+	return []rune{' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
 }
 
 func playSound(frequency int, duration int) {
@@ -506,7 +533,7 @@ func handleConversion(args Args) {
 	switch args.conversionMode {
 	case "bu":
 		usdValue := args.conversionVal * price
-		fmt.Printf("$%.2f\n", usdValue)
+		fmt.Printf("$%s\n", formatUSD(usdValue))
 	case "ub":
 		if price <= 0.00000001 {
 			color.Red("Bitcoin price is too low or zero, cannot divide.")
@@ -523,7 +550,7 @@ func handleConversion(args Args) {
 		fmt.Printf("%.0fs\n", satoshiValue)
 	case "su":
 		usdValue := (args.conversionVal / 100000000) * price
-		fmt.Printf("$%.2f\n", usdValue)
+		fmt.Printf("$%s\n", formatUSD(usdValue))
 	}
 }
 
@@ -598,7 +625,7 @@ func runMonitoringMode(args Args) {
 				sparklineString = " Bitcoin (USD):"
 			}
 
-			restOfLine := fmt.Sprintf("%s $%.2f%s", sparklineString, currentBtcPrice, changeString)
+			restOfLine := fmt.Sprintf("%s $%s%s", sparklineString, formatUSD(currentBtcPrice), changeString)
 
 			if mode == "go" {
 				spinnerIndex = (spinnerIndex + 1) % len(settings.spinner)
@@ -702,7 +729,7 @@ func runMonitoringMode(args Args) {
 		} else {
 			sparklineString = " Bitcoin (USD):"
 		}
-		restOfLine := fmt.Sprintf("%s $%.2f%s", sparklineString, currentBtcPrice, changeString)
+		restOfLine := fmt.Sprintf("%s $%s%s", sparklineString, formatUSD(currentBtcPrice), changeString)
 
 		// Final display - matches PowerShell exactly
 		// Build the complete line with colors
@@ -748,7 +775,7 @@ func runInteractiveMode(args Args) {
 		// Main screen - clear screen first (matches PowerShell)
 		clearScreen()
 		color.Yellow("*** BTC Monitor ***")
-		fmt.Printf("Bitcoin (USD): $%.2f\n", currentBtcPrice)
+		fmt.Printf("Bitcoin (USD): $%s\n", formatUSD(currentBtcPrice))
 		white := color.New(color.FgWhite)
 		cyan := color.New(color.FgCyan)
 		white.Print("Start[")
@@ -889,7 +916,7 @@ func drawScreen(invertColors bool, changeString, priceColor string) {
 		sparklineString = "Bitcoin (USD):"
 	}
 
-	priceLine := fmt.Sprintf("%s $%.2f%s", sparklineString, currentBtcPrice, changeString)
+	priceLine := fmt.Sprintf("%s $%s%s", sparklineString, formatUSD(currentBtcPrice), changeString)
 
 	if invertColors {
 		switch priceColor {
@@ -926,12 +953,61 @@ func drawScreen(invertColors bool, changeString, priceColor string) {
 func clearScreen() {
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
+		// Ensure UTF-8 code page for proper box-drawing and braille characters
+		exec.Command("cmd", "/c", "chcp 65001 >nul").Run()
 		cmd = exec.Command("cmd", "/c", "cls")
 	} else {
 		cmd = exec.Command("clear")
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Run()
+}
+
+// configureWindowsConsole ensures the Windows console uses UTF-8 code page
+// so Unicode characters (spinners, sparklines, wrappers) render correctly.
+func configureWindowsConsole() {
+	if runtime.GOOS != "windows" {
+		return
+	}
+	// Switch to UTF-8 code page quietly for legacy APIs
+	_ = exec.Command("cmd", "/c", "chcp 65001 >nul").Run()
+
+	// Also set code page via Win32 to help Go's console writes
+	kernel32 := syscall.NewLazyDLL("kernel32.dll")
+	setConsoleOutputCP := kernel32.NewProc("SetConsoleOutputCP")
+	setConsoleCP := kernel32.NewProc("SetConsoleCP")
+	getStdHandle := kernel32.NewProc("GetStdHandle")
+	getConsoleMode := kernel32.NewProc("GetConsoleMode")
+	setConsoleMode := kernel32.NewProc("SetConsoleMode")
+
+	const (
+		CP_UTF8                  = 65001
+		ENABLE_VTP_OUTPUT uint32 = 0x0004 // ENABLE_VIRTUAL_TERMINAL_PROCESSING
+		ENABLE_VTP_INPUT  uint32 = 0x0200 // ENABLE_VIRTUAL_TERMINAL_INPUT
+	)
+
+	// Set UTF-8 code pages
+	_, _, _ = setConsoleOutputCP.Call(uintptr(CP_UTF8))
+	_, _, _ = setConsoleCP.Call(uintptr(CP_UTF8))
+
+	// Enable VT processing on output
+	// Use DWORD for handle constants to avoid negative literal to uintptr
+	outHandle, _, _ := getStdHandle.Call(uintptr(^uint32(11) + 1)) // STD_OUTPUT_HANDLE = -11
+	if outHandle != 0 {
+		var mode uint32
+		_, _, _ = getConsoleMode.Call(outHandle, uintptr(unsafe.Pointer(&mode)))
+		mode |= ENABLE_VTP_OUTPUT
+		_, _, _ = setConsoleMode.Call(outHandle, uintptr(mode))
+	}
+
+	// Enable VT on input (optional, harmless)
+	inHandle, _, _ := getStdHandle.Call(uintptr(^uint32(10) + 1)) // STD_INPUT_HANDLE = -10
+	if inHandle != 0 {
+		var mode uint32
+		_, _, _ = getConsoleMode.Call(inHandle, uintptr(unsafe.Pointer(&mode)))
+		mode |= ENABLE_VTP_INPUT
+		_, _, _ = setConsoleMode.Call(inHandle, uintptr(mode))
+	}
 }
 
 // KeyEvent represents a keyboard event
@@ -1115,4 +1191,10 @@ func printHelp() {
 	white.Print("    The script will guide you through setup on first run.")
 	fmt.Println()
 	color.White("═══════════════════════════════════════════════════════════════")
+}
+
+// formatUSD formats a float with thousands separators and two decimals, like 116,802.19
+func formatUSD(v float64) string {
+	p := message.NewPrinter(language.English)
+	return p.Sprintf("%0.2f", v)
 }
