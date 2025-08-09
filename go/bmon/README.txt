@@ -16,7 +16,7 @@ The application can run in several modes: interactive monitoring with keyboard c
 ## Features
 - **Real-time Price Monitoring:** Fetches live Bitcoin prices from LiveCoinWatch API
 - **Multiple Monitoring Modes:**
-  - **Interactive Mode:** Press Space to start/pause, R to reset, Ctrl+C to exit
+  - **Interactive Mode:** Press Space to start/pause, R to reset, Ctrl+C to exit. Press G on the landing screen to jump directly into Go mode.
   - **Go Mode:** 15-minute monitoring with 5-second updates
   - **Long Go Mode:** 24-hour monitoring with 20-second updates
 - **Visual Indicators:** Color-coded price changes (green for gains, red for losses)
@@ -57,6 +57,7 @@ The application can run in several modes: interactive monitoring with keyboard c
 - `M` - Switch between go/golong modes
 - `S` - Toggle sound alerts
 - `H` - Toggle history sparkline
+ - `I` - Switch back to interactive mode (from go/golong)
 
 ## Examples
 

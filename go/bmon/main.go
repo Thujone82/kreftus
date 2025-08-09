@@ -16,6 +16,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf16"
 	"unsafe"
 
 	"github.com/fatih/color"
@@ -458,7 +459,8 @@ func clearLine() {
 
 func getSparkline(history []float64) string {
 	if len(history) < 2 {
-		return "‖            ‖"
+		left, right := getSparkWrappers()
+		return left + strings.Repeat(" ", 12) + right
 	}
 
 	// Choose a charset that renders reliably. On Windows when launched
@@ -502,7 +504,8 @@ func getSparkline(history []float64) string {
 	sparkline = fmt.Sprintf("%12s", sparkline)
 
 	// Return with wrapper - should always be exactly 14 characters
-	result := "‖" + sparkline + "‖"
+	left, right := getSparkWrappers()
+	result := left + sparkline + right
 
 	return result
 }
@@ -510,14 +513,37 @@ func getSparkline(history []float64) string {
 // getSparkChars selects characters for the sparkline that the current
 // terminal can reliably render. Falls back to CP437 shading on classic conhost.
 func getSparkChars() []rune {
-	if runtime.GOOS == "windows" {
-		// Windows Terminal sets WT_SESSION. Classic conhost typically does not.
-		if os.Getenv("WT_SESSION") == "" {
-			return []rune{' ', '░', '▒', '▓', '█'}
-		}
+	// Classic cmd.exe: use numeric heights 0-7 for reliable rendering
+	if runtime.GOOS == "windows" && os.Getenv("WT_SESSION") == "" {
+		return []rune{'0', '1', '2', '3', '4', '5', '6', '7'}
 	}
-	// Default: finer Unicode block elements
-	return []rune{' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
+	// Unicode blocks to match PowerShell look elsewhere
+	return []rune{' ', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
+}
+
+// getSparkWrappers returns the left/right wrapper characters around the sparkline.
+// On Windows default to ASCII '|' for maximum compatibility; Unicode double-bar can be enabled via BMON_SPARKLINE=unicode.
+func getSparkWrappers() (string, string) {
+	if runtime.GOOS == "windows" && os.Getenv("WT_SESSION") == "" {
+		return "|", "|"
+	}
+	return "‖", "‖"
+}
+
+// getSpinnerForEnv returns a spinner character set appropriate for the host.
+// In classic conhost (no WT_SESSION), braille spinners can be unreliable.
+// We fall back to ASCII bar spinner while preserving Unicode in modern terminals.
+func getSpinnerForEnv(mode string) []string {
+	// Preserve explicit '*' spinner for golong
+	if mode == "golong" {
+		return []string{"*"}
+	}
+	if runtime.GOOS == "windows" && os.Getenv("WT_SESSION") == "" {
+		// ASCII bar spinner that is safe in classic cmd.exe
+		return []string{"|", "/", "-", "\\"}
+	}
+	// Unicode braille spinner (same as PS look)
+	return []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 }
 
 func playSound(frequency int, duration int) {
@@ -568,6 +594,7 @@ func runMonitoringMode(args Args) {
 	}
 
 	settings := modeSettings[mode]
+	settings.spinner = getSpinnerForEnv(mode)
 
 	// Initialize state
 	monitorStartPrice = currentBtcPrice
@@ -582,8 +609,8 @@ func runMonitoringMode(args Args) {
 
 	// Clear screen and hide cursor (matches PowerShell behavior)
 	clearScreen()
-	fmt.Print("\033[?25l")
-	defer fmt.Print("\033[?25h") // Show cursor on exit
+	writeConsole("\x1b[?25l")
+	defer writeConsole("\x1b[?25h") // Show cursor on exit
 
 	spinnerIndex := 0
 
@@ -645,11 +672,11 @@ func runMonitoringMode(args Args) {
 				paddedLine := fmt.Sprintf("%-*s", width, fullLine)
 				switch priceColor {
 				case "Green":
-					fmt.Printf("\r\033[42;30m%s\033[0m\r", paddedLine)
+					writeConsole("\r\x1b[42;30m" + paddedLine + "\x1b[0m\r")
 				case "Red":
-					fmt.Printf("\r\033[41;30m%s\033[0m\r", paddedLine)
+					writeConsole("\r\x1b[41;30m" + paddedLine + "\x1b[0m\r")
 				default:
-					fmt.Printf("\r%s\r", paddedLine)
+					writeConsole("\r" + paddedLine + "\r")
 				}
 				// Hold the flash for one tick and continue
 				time.Sleep(500 * time.Millisecond)
@@ -673,11 +700,11 @@ func runMonitoringMode(args Args) {
 				width := getConsoleWidth()
 				if previousWasFlash {
 					// Clear any lingering background color from prior flash
-					fmt.Printf("\r%s\r", strings.Repeat(" ", width))
+					writeConsole("\r" + strings.Repeat(" ", width) + "\r")
 					previousWasFlash = false
 				}
 				paddedLine := fmt.Sprintf("%-*s", width, spinnerChar+coloredLine)
-				fmt.Printf("\r%s\r", paddedLine)
+				writeConsole("\r" + paddedLine + "\r")
 			}
 
 			isFirstTick = false
@@ -709,6 +736,10 @@ func runMonitoringMode(args Args) {
 					}
 				case 'h':
 					sparklineEnabled = !sparklineEnabled
+				case 'i':
+					// Switch to interactive mode
+					runInteractiveMode(args)
+					return
 				}
 			}
 			if refreshed || modeSwitched {
@@ -750,10 +781,14 @@ func runMonitoringMode(args Args) {
 		}
 
 		// Print the complete line with cyan spinner and padding
-		cyanSpinner := fmt.Sprintf("\033[36m%s\033[0m", spinnerChar)
+		// In classic cmd.exe, ANSI colors may not be fully honored; only colorize in modern terminals
+		cyanSpinner := spinnerChar
+		if !(runtime.GOOS == "windows" && os.Getenv("WT_SESSION") == "") {
+			cyanSpinner = fmt.Sprintf("\x1b[36m%s\x1b[0m", spinnerChar)
+		}
 		width := getConsoleWidth()
 		paddedLine := fmt.Sprintf("%-*s", width, cyanSpinner+coloredLine)
-		fmt.Printf("\r%s\r", paddedLine)
+		writeConsole("\r" + paddedLine + "\r")
 
 		// Fetch new price
 		if newPrice, err := getBtcPrice(); err == nil {
@@ -789,16 +824,24 @@ func runInteractiveMode(args Args) {
 		cyan := color.New(color.FgCyan)
 		white.Print("Start[")
 		cyan.Print("Space")
+		white.Print("], Go Mode[")
+		cyan.Print("G")
 		white.Print("], Exit[")
 		cyan.Print("Ctrl+C")
 		white.Print("]")
 
-		// Wait for space bar
+		// Wait for space bar or 'G' to jump into go mode
 		fmt.Print("\nPress Space to start monitoring...")
 		for {
 			key := getKeyPress()
 			if key == ' ' {
 				break
+			}
+			if key == 'g' {
+				// Start go mode directly from interactive landing screen
+				args.goMode = true
+				runMonitoringMode(args)
+				return
 			}
 		}
 
@@ -927,25 +970,28 @@ func drawScreen(invertColors bool, changeString, priceColor string) {
 
 	priceLine := fmt.Sprintf("%s $%s%s", sparklineString, formatUSD(currentBtcPrice), changeString)
 
+	// Use writeConsole with ANSI so Unicode sparkline and wrappers are written via WriteConsoleW on Windows
+	var styled string
 	if invertColors {
 		switch priceColor {
 		case "Green":
-			color.New(color.BgGreen, color.FgBlack).Println(priceLine)
+			styled = "\x1b[42;30m" + priceLine + "\x1b[0m\n"
 		case "Red":
-			color.New(color.BgRed, color.FgBlack).Println(priceLine)
+			styled = "\x1b[41;30m" + priceLine + "\x1b[0m\n"
 		default:
-			color.White(priceLine)
+			styled = priceLine + "\n"
 		}
 	} else {
 		switch priceColor {
 		case "Green":
-			color.Green(priceLine)
+			styled = "\x1b[32m" + priceLine + "\x1b[0m\n"
 		case "Red":
-			color.Red(priceLine)
+			styled = "\x1b[31m" + priceLine + "\x1b[0m\n"
 		default:
-			color.White(priceLine)
+			styled = priceLine + "\n"
 		}
 	}
+	writeConsole(styled)
 
 	// Control line - matches PowerShell exactly (no newline)
 	white := color.New(color.FgWhite)
@@ -1017,6 +1063,81 @@ func configureWindowsConsole() {
 		mode |= ENABLE_VTP_INPUT
 		_, _, _ = setConsoleMode.Call(inHandle, uintptr(mode))
 	}
+
+	// Ensure a TrueType console font that supports Unicode block/Braille (e.g., Consolas)
+	setConsoleFontWindows("Consolas", 16)
+}
+
+// setConsoleFontWindows attempts to switch the console font to a Unicode-capable
+// TrueType font so block elements and Braille render correctly in classic conhost.
+// Face is typically "Consolas"; height in pixels is a hint. Fails gracefully.
+func setConsoleFontWindows(face string, height int16) {
+	kernel32 := syscall.NewLazyDLL("kernel32.dll")
+	getStdHandle := kernel32.NewProc("GetStdHandle")
+	getCurrentConsoleFontEx := kernel32.NewProc("GetCurrentConsoleFontEx")
+	setCurrentConsoleFontEx := kernel32.NewProc("SetCurrentConsoleFontEx")
+
+	type coord struct {
+		X int16
+		Y int16
+	}
+	type consoleFontInfoEx struct {
+		CbSize     uint32
+		NFont      uint32
+		DwFontSize coord
+		FontFamily uint32
+		FontWeight uint32
+		FaceName   [32]uint16
+	}
+
+	h, _, _ := getStdHandle.Call(uintptr(^uint32(11) + 1)) // STD_OUTPUT_HANDLE
+	if h == 0 {
+		return
+	}
+	var info consoleFontInfoEx
+	info.CbSize = uint32(unsafe.Sizeof(info))
+	// Read current
+	_, _, _ = getCurrentConsoleFontEx.Call(h, 0, uintptr(unsafe.Pointer(&info)))
+	// Set face name
+	faceUTF16, _ := syscall.UTF16FromString(face)
+	for i := range info.FaceName {
+		info.FaceName[i] = 0
+	}
+	copy(info.FaceName[:], faceUTF16)
+	if height > 0 {
+		info.DwFontSize.Y = height
+	}
+	// Mark as TrueType family if not already (FF_DONTCARE|TMPF_TRUETYPE approx 0x36 commonly seen)
+	if info.FontFamily == 0 {
+		info.FontFamily = 0x36
+	}
+	if info.FontWeight == 0 {
+		info.FontWeight = 400
+	}
+	_, _, _ = setCurrentConsoleFontEx.Call(h, 0, uintptr(unsafe.Pointer(&info)))
+}
+
+// writeConsole writes text to the console. On Windows it uses WriteConsoleW
+// to bypass code page issues and ensure Unicode glyphs render correctly.
+func writeConsole(s string) {
+	if runtime.GOOS == "windows" {
+		kernel32 := syscall.NewLazyDLL("kernel32.dll")
+		getStdHandle := kernel32.NewProc("GetStdHandle")
+		writeConsoleW := kernel32.NewProc("WriteConsoleW")
+		// STD_OUTPUT_HANDLE (-11)
+		h, _, _ := getStdHandle.Call(uintptr(^uint32(11) + 1))
+		if h != 0 {
+			// Convert to UTF-16 without relying on active code page
+			// syscall.UTF16FromString appends a terminating null.
+			utf16buf, _ := syscall.UTF16FromString(s)
+			// Some consoles prefer explicit encoding; ensure buffer allocated
+			_ = utf16.Encode([]rune(s))
+			var written uint32
+			writeConsoleW.Call(h, uintptr(unsafe.Pointer(&utf16buf[0])), uintptr(len(utf16buf)-1), uintptr(unsafe.Pointer(&written)), 0)
+			return
+		}
+	}
+	fmt.Print(s)
 }
 
 // KeyEvent represents a keyboard event
@@ -1062,6 +1183,14 @@ func startKeyboardListener() chan KeyEvent {
 				key = 's'
 			case 104: // 'h'
 				key = 'h'
+			case 105: // 'i'
+				key = 'i'
+			case 73: // 'I'
+				key = 'i'
+			case 103: // 'g'
+				key = 'g'
+			case 71: // 'G'
+				key = 'g'
 			default:
 				key = rune(buf[0])
 			}
@@ -1120,6 +1249,10 @@ func getKeyPress() rune {
 		return 's'
 	case 104: // 'h'
 		return 'h'
+	case 105, 73: // 'i' or 'I'
+		return 'i'
+	case 103, 71: // 'g' or 'G'
+		return 'g'
 	}
 
 	return rune(buf[0])

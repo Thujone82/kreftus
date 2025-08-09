@@ -529,6 +529,10 @@ if ($go.IsPresent -or $golong.IsPresent) {
                         $spinnerIndex = 0
                         break
                     }
+                    if ($keyInfo.KeyChar -eq 'i' -or $keyInfo.KeyChar -eq 'I') {
+                        $paused = $true
+                        break
+                    }
                     if ($keyInfo.KeyChar -eq 's') {
                         Invoke-SoundToggle -SoundEnabled ([ref]$soundEnabled)
                     }
@@ -593,11 +597,19 @@ else {
         Clear-Host
         Write-Host "*** BTC Monitor ***" -ForegroundColor DarkYellow
         Write-Host "Bitcoin (USD): $($currentBtcPrice.ToString("C2"))" -ForegroundColor White
-        Write-Host -NoNewline "Start[" -ForegroundColor White; Write-Host -NoNewline "Space" -ForegroundColor Cyan; Write-Host -NoNewline "], Exit[" -ForegroundColor White; Write-Host -NoNewline "Ctrl+C" -ForegroundColor Cyan; Write-Host "]" -ForegroundColor White;
+        Write-Host -NoNewline "Start[" -ForegroundColor White; Write-Host -NoNewline "Space" -ForegroundColor Cyan; Write-Host -NoNewline "], Go Mode[" -ForegroundColor White; Write-Host -NoNewline "G" -ForegroundColor Cyan; Write-Host -NoNewline "], Exit[" -ForegroundColor White; Write-Host -NoNewline "Ctrl+C" -ForegroundColor Cyan; Write-Host "]" -ForegroundColor White;
 
         while ($true) {
             if ([System.Console]::KeyAvailable) {
-                if (([System.Console]::ReadKey($true)).Key -eq 'Spacebar') { break }
+                $key = [System.Console]::ReadKey($true)
+                if ($key.Key -eq 'Spacebar') { break }
+                if ($key.KeyChar -eq 'g' -or $key.KeyChar -eq 'G') {
+                    $argsList = @()
+                    if ($s.IsPresent) { $argsList += '-s' }
+                    if ($h.IsPresent) { $argsList += '-h' }
+                    & $PSCommandPath -go @argsList
+                    return
+                }
             }
             Start-Sleep -Milliseconds 100
         }

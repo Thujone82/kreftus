@@ -19,12 +19,12 @@ The script has two primary modes of operation: real-time monitoring and on-deman
 
 ## Features
 - **Onboarding:** If no API key is found, the script will prompt the user to enter one, which is then saved to `bmon.ini` for future use.
-- **Interactive Mode:** A full-screen display that shows the current price. Users can start and pause a 5-minute monitoring session with the space bar. The 'r' key can be used to reset the session baseline.
+- **Interactive Mode:** A full-screen display that shows the current price. Users can start and pause a 5-minute monitoring session with the space bar. The 'r' key can be used to reset the session baseline. Press 'G' to jump directly into Go mode from the landing screen.
 - **Go Mode:** A non-interactive mode (`-go` switch) that displays a single, updating line of price data for 15 minutes before automatically exiting. Ideal for quick glances or integration into other displays.
 - **Long Go Mode:** A variation of Go Mode (`-golong` switch) for extended, low-intensity monitoring over 24 hours with a 20-second update interval.
 - **Currency Conversion:** Perform quick conversions directly from the command line. The script outputs only the resulting value, making it easy to use in other scripts.
 - **Live Price Tracking:** During a monitoring session, the script tracks the price change from the moment monitoring began.
-- **Dynamic Mode Toggling:** While in `-go` or `-golong` mode, press 'm' to toggle between the two modes, resetting the duration timer for the newly selected mode.
+- **Dynamic Mode Toggling:** While in `-go` or `-golong` mode, press 'm' to toggle between the two modes, resetting the duration timer for the newly selected mode. Press 'I' to switch back to the interactive mode.
 - **Audible Alerts:** Optionally enable sound with the 's' key to get high/low tones for every price change of at least $0.01.
 - **Sparkline History:** Toggle a mini-chart with the 'h' key to visualize the last 8 price ticks.
 - **Command-line Toggles:** Start with sound (`-s`) or the sparkline history (`-h`) enabled from the command line.
@@ -53,6 +53,7 @@ The application uses colors to provide quick visual feedback during a monitoring
 -   **Interactive Mode:**
     `.\bmon.ps1 [-s] [-h]` or `bmon.exe [-s] [-h]`
     - Press `Spacebar` to start/pause monitoring.
+    - Press `G` to start Go mode immediately.
     - Press `r` to reset the session baseline.
     - Press `h` to toggle the price history sparkline.
     - Press `s` to toggle sound alerts on/off.
@@ -63,6 +64,7 @@ The application uses colors to provide quick visual feedback during a monitoring
     The script will run for the specified duration and then exit.
     - Press `r` to reset the session baseline to the current price.
     - Press `m` to toggle between -go and -golong modes.
+    - Press `I` to switch back to interactive mode.
     - Press `h` to toggle the price history sparkline.
     - Press `s` to toggle sound alerts on/off.
     - Press `Ctrl+C` to exit early.
