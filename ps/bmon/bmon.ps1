@@ -298,7 +298,7 @@ function Get-Sparkline {
     param ([System.Collections.Generic.List[double]]$History)
     if ($null -eq $History -or $History.Count -lt 2) { return "‖            ‖".PadRight(14) }
 
-    $sparkChars = [char[]](' ', '▂', '▃', '▄', '▅', '▆', '▇', '█')
+    $sparkChars = [char[]]('▁', '▂', '▃', '▄', '▅', '▆', '▇', '█')
     $minPrice = ($History | Measure-Object -Minimum).Minimum
     $maxPrice = ($History | Measure-Object -Maximum).Maximum
     $priceRange = $maxPrice - $minPrice

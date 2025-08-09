@@ -14,11 +14,11 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
-	"unicode/utf16"
-	"unsafe"
 
+	bspinner "github.com/charmbracelet/bubbles/spinner"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/fatih/color"
 	"golang.org/x/term"
 	"golang.org/x/text/language"
@@ -89,11 +89,11 @@ type Args struct {
 }
 
 func main() {
-	// Ensure Windows console uses UTF-8 and supports ANSI (for spinners, sparklines, colors)
+	// Ensure Windows console uses UTF-8 and supports ANSI (no-op on non-Windows)
 	configureWindowsConsole()
 	// Set up signal handling for Ctrl+C
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigChan, os.Interrupt)
 
 	go func() {
 		<-sigChan
@@ -138,13 +138,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Handle monitoring modes
-	if args.goMode || args.golongMode {
-		runMonitoringMode(args)
-	} else {
-		// Interactive mode - no screen clear here (matches PowerShell)
-		runInteractiveMode(args)
-	}
+	// Handle monitoring modes via Bubble Tea TUI
+	runTUI(args)
 }
 
 func parseArgs() Args {
@@ -481,27 +476,33 @@ func getSparkline(history []float64) string {
 
 	priceRange := maxPrice - minPrice
 	if priceRange < 0.00000001 {
-		return "‖            ‖"
+		left, right := getSparkWrappers()
+		return left + strings.Repeat(" ", 12) + right
 	}
 
-	sparkline := ""
+	// Build as runes to measure by glyph count, not bytes
+	var sparkRunes []rune
 	for _, price := range history {
 		normalized := (price - minPrice) / priceRange
 		charIndex := int(normalized * float64(len(sparkChars)-1))
 		if charIndex >= len(sparkChars) {
 			charIndex = len(sparkChars) - 1
 		}
-		sparkline += string(sparkChars[charIndex])
+		sparkRunes = append(sparkRunes, sparkChars[charIndex])
 	}
 
-	// Ensure sparkline content is exactly 12 characters (ASCII spaces for pad)
-	// First truncate if too long (keep the most recent data on the right)
-	if len(sparkline) > 12 {
-		sparkline = sparkline[len(sparkline)-12:]
+	// Ensure exactly 12 glyphs (truncate keeping most recent on the right)
+	if len(sparkRunes) > 12 {
+		sparkRunes = sparkRunes[len(sparkRunes)-12:]
 	}
-	// Then pad to exactly 12 characters on the left (like PowerShell)
-	// Use ASCII spaces; ensure no stray runes get into the buffer
-	sparkline = fmt.Sprintf("%12s", sparkline)
+	if len(sparkRunes) < 12 {
+		pad := make([]rune, 12-len(sparkRunes))
+		for i := range pad {
+			pad[i] = ' '
+		}
+		sparkRunes = append(pad, sparkRunes...)
+	}
+	sparkline := string(sparkRunes)
 
 	// Return with wrapper - should always be exactly 14 characters
 	left, right := getSparkWrappers()
@@ -513,17 +514,14 @@ func getSparkline(history []float64) string {
 // getSparkChars selects characters for the sparkline that the current
 // terminal can reliably render. Falls back to CP437 shading on classic conhost.
 func getSparkChars() []rune {
-	// Classic cmd.exe: use numeric heights 0-7 for reliable rendering
-	if runtime.GOOS == "windows" && os.Getenv("WT_SESSION") == "" {
-		return []rune{'0', '1', '2', '3', '4', '5', '6', '7'}
-	}
-	// Unicode blocks to match PowerShell look elsewhere
-	return []rune{' ', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
+	// Use block elements including the lowest bar to avoid blank/glyph issues
+	return []rune{'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
 }
 
 // getSparkWrappers returns the left/right wrapper characters around the sparkline.
 // On Windows default to ASCII '|' for maximum compatibility; Unicode double-bar can be enabled via BMON_SPARKLINE=unicode.
 func getSparkWrappers() (string, string) {
+	// In Windows Terminal or non-Windows terminals, prefer Unicode double-bar
 	if runtime.GOOS == "windows" && os.Getenv("WT_SESSION") == "" {
 		return "|", "|"
 	}
@@ -1018,127 +1016,7 @@ func clearScreen() {
 	cmd.Run()
 }
 
-// configureWindowsConsole ensures the Windows console uses UTF-8 code page
-// so Unicode characters (spinners, sparklines, wrappers) render correctly.
-func configureWindowsConsole() {
-	if runtime.GOOS != "windows" {
-		return
-	}
-	// Switch to UTF-8 code page quietly for legacy APIs
-	_ = exec.Command("cmd", "/c", "chcp 65001 >nul").Run()
-
-	// Also set code page via Win32 to help Go's console writes
-	kernel32 := syscall.NewLazyDLL("kernel32.dll")
-	setConsoleOutputCP := kernel32.NewProc("SetConsoleOutputCP")
-	setConsoleCP := kernel32.NewProc("SetConsoleCP")
-	getStdHandle := kernel32.NewProc("GetStdHandle")
-	getConsoleMode := kernel32.NewProc("GetConsoleMode")
-	setConsoleMode := kernel32.NewProc("SetConsoleMode")
-
-	const (
-		CP_UTF8                  = 65001
-		ENABLE_VTP_OUTPUT uint32 = 0x0004 // ENABLE_VIRTUAL_TERMINAL_PROCESSING
-		ENABLE_VTP_INPUT  uint32 = 0x0200 // ENABLE_VIRTUAL_TERMINAL_INPUT
-	)
-
-	// Set UTF-8 code pages
-	_, _, _ = setConsoleOutputCP.Call(uintptr(CP_UTF8))
-	_, _, _ = setConsoleCP.Call(uintptr(CP_UTF8))
-
-	// Enable VT processing on output
-	// Use DWORD for handle constants to avoid negative literal to uintptr
-	outHandle, _, _ := getStdHandle.Call(uintptr(^uint32(11) + 1)) // STD_OUTPUT_HANDLE = -11
-	if outHandle != 0 {
-		var mode uint32
-		_, _, _ = getConsoleMode.Call(outHandle, uintptr(unsafe.Pointer(&mode)))
-		mode |= ENABLE_VTP_OUTPUT
-		_, _, _ = setConsoleMode.Call(outHandle, uintptr(mode))
-	}
-
-	// Enable VT on input (optional, harmless)
-	inHandle, _, _ := getStdHandle.Call(uintptr(^uint32(10) + 1)) // STD_INPUT_HANDLE = -10
-	if inHandle != 0 {
-		var mode uint32
-		_, _, _ = getConsoleMode.Call(inHandle, uintptr(unsafe.Pointer(&mode)))
-		mode |= ENABLE_VTP_INPUT
-		_, _, _ = setConsoleMode.Call(inHandle, uintptr(mode))
-	}
-
-	// Ensure a TrueType console font that supports Unicode block/Braille (e.g., Consolas)
-	setConsoleFontWindows("Consolas", 16)
-}
-
-// setConsoleFontWindows attempts to switch the console font to a Unicode-capable
-// TrueType font so block elements and Braille render correctly in classic conhost.
-// Face is typically "Consolas"; height in pixels is a hint. Fails gracefully.
-func setConsoleFontWindows(face string, height int16) {
-	kernel32 := syscall.NewLazyDLL("kernel32.dll")
-	getStdHandle := kernel32.NewProc("GetStdHandle")
-	getCurrentConsoleFontEx := kernel32.NewProc("GetCurrentConsoleFontEx")
-	setCurrentConsoleFontEx := kernel32.NewProc("SetCurrentConsoleFontEx")
-
-	type coord struct {
-		X int16
-		Y int16
-	}
-	type consoleFontInfoEx struct {
-		CbSize     uint32
-		NFont      uint32
-		DwFontSize coord
-		FontFamily uint32
-		FontWeight uint32
-		FaceName   [32]uint16
-	}
-
-	h, _, _ := getStdHandle.Call(uintptr(^uint32(11) + 1)) // STD_OUTPUT_HANDLE
-	if h == 0 {
-		return
-	}
-	var info consoleFontInfoEx
-	info.CbSize = uint32(unsafe.Sizeof(info))
-	// Read current
-	_, _, _ = getCurrentConsoleFontEx.Call(h, 0, uintptr(unsafe.Pointer(&info)))
-	// Set face name
-	faceUTF16, _ := syscall.UTF16FromString(face)
-	for i := range info.FaceName {
-		info.FaceName[i] = 0
-	}
-	copy(info.FaceName[:], faceUTF16)
-	if height > 0 {
-		info.DwFontSize.Y = height
-	}
-	// Mark as TrueType family if not already (FF_DONTCARE|TMPF_TRUETYPE approx 0x36 commonly seen)
-	if info.FontFamily == 0 {
-		info.FontFamily = 0x36
-	}
-	if info.FontWeight == 0 {
-		info.FontWeight = 400
-	}
-	_, _, _ = setCurrentConsoleFontEx.Call(h, 0, uintptr(unsafe.Pointer(&info)))
-}
-
-// writeConsole writes text to the console. On Windows it uses WriteConsoleW
-// to bypass code page issues and ensure Unicode glyphs render correctly.
-func writeConsole(s string) {
-	if runtime.GOOS == "windows" {
-		kernel32 := syscall.NewLazyDLL("kernel32.dll")
-		getStdHandle := kernel32.NewProc("GetStdHandle")
-		writeConsoleW := kernel32.NewProc("WriteConsoleW")
-		// STD_OUTPUT_HANDLE (-11)
-		h, _, _ := getStdHandle.Call(uintptr(^uint32(11) + 1))
-		if h != 0 {
-			// Convert to UTF-16 without relying on active code page
-			// syscall.UTF16FromString appends a terminating null.
-			utf16buf, _ := syscall.UTF16FromString(s)
-			// Some consoles prefer explicit encoding; ensure buffer allocated
-			_ = utf16.Encode([]rune(s))
-			var written uint32
-			writeConsoleW.Call(h, uintptr(unsafe.Pointer(&utf16buf[0])), uintptr(len(utf16buf)-1), uintptr(unsafe.Pointer(&written)), 0)
-			return
-		}
-	}
-	fmt.Print(s)
-}
+// non-Windows stubs live in console_other.go; Windows implementations live in console_windows.go
 
 // KeyEvent represents a keyboard event
 type KeyEvent struct {
@@ -1339,4 +1217,349 @@ func printHelp() {
 func formatUSD(v float64) string {
 	p := message.NewPrinter(language.English)
 	return p.Sprintf("%0.2f", v)
+}
+
+// ------------- Bubble Tea TUI -------------
+
+// tea messages
+type tickMsg struct{}
+type priceMsg struct {
+	price float64
+	err   error
+}
+type fetchStartMsg struct{}
+
+// session modes
+const (
+	modeLanding     = "landing"
+	modeInteractive = "interactive"
+	modeGo          = "go"
+	modeGoLong      = "golong"
+)
+
+type tuiModel struct {
+	// flags
+	args Args
+
+	// screen
+	width  int
+	height int
+
+	// components
+	spinner bspinner.Model
+
+	// state
+	mode              string
+	sessionStartTime  time.Time
+	monitorStartPrice float64
+	previousPrice     float64
+	previousColor     string
+	flashUntil        time.Time
+	fetchingNow       bool
+	soundEnabled      bool
+	sparklineEnabled  bool
+	history           []float64
+}
+
+func newTUIModel(args Args) tuiModel {
+	sp := bspinner.New()
+	// PS-style braille spinner frames, 500ms per frame
+	sp.Spinner = bspinner.Spinner{Frames: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}, FPS: 500 * time.Millisecond}
+	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("15")) // white by default
+
+	m := tuiModel{
+		args:             args,
+		spinner:          sp,
+		soundEnabled:     args.sound,
+		sparklineEnabled: args.sparkline,
+		history:          []float64{},
+		previousColor:    "White",
+	}
+	// choose start mode
+	if args.goMode {
+		m.mode = modeGo
+	} else if args.golongMode {
+		m.mode = modeGoLong
+	} else {
+		m.mode = modeLanding
+	}
+	// seed price/history from globals populated earlier
+	if currentBtcPrice > 0 {
+		m.monitorStartPrice = currentBtcPrice
+		m.previousPrice = currentBtcPrice
+		m.history = append(m.history, currentBtcPrice)
+	}
+	m.sessionStartTime = time.Now()
+	return m
+}
+
+func (m tuiModel) Init() tea.Cmd {
+	cmds := []tea.Cmd{m.spinner.Tick, tickEvery(500 * time.Millisecond)}
+	// if monitoring, schedule first price fetch according to mode interval
+	if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeInteractive {
+		cmds = append(cmds, fetchPriceCmdAfter(m.currentInterval()))
+	}
+	return tea.Batch(cmds...)
+}
+
+func (m tuiModel) currentInterval() time.Duration {
+	switch m.mode {
+	case modeGo:
+		return 5 * time.Second
+	case modeGoLong:
+		return 20 * time.Second
+	case modeInteractive:
+		return 5 * time.Second
+	default:
+		return 5 * time.Second
+	}
+}
+
+func (m tuiModel) sessionDuration() time.Duration {
+	switch m.mode {
+	case modeGo:
+		return 15 * time.Minute
+	case modeGoLong:
+		return 24 * time.Hour
+	case modeInteractive:
+		return 5 * time.Minute
+	default:
+		return 0
+	}
+}
+
+func tickEvery(d time.Duration) tea.Cmd {
+	return tea.Tick(d, func(time.Time) tea.Msg { return tickMsg{} })
+}
+
+func fetchPriceCmd() tea.Cmd {
+	return func() tea.Msg {
+		p, err := getBtcPrice()
+		return priceMsg{price: p, err: err}
+	}
+}
+
+func fetchPriceCmdAfter(d time.Duration) tea.Cmd {
+	return tea.Tick(d, func(time.Time) tea.Msg { return fetchStartMsg{} })
+}
+
+func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	// Always let spinner process messages so it can animate
+	var sc tea.Cmd
+	m.spinner, sc = m.spinner.Update(msg)
+	if sc != nil {
+		cmds = append(cmds, sc)
+	}
+
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width, m.height = msg.Width, msg.Height
+
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c":
+			return m, tea.Quit
+		case " ":
+			if m.mode == modeLanding {
+				m.mode = modeInteractive
+				m.sessionStartTime = time.Now()
+				m.monitorStartPrice = currentBtcPrice
+				m.previousPrice = currentBtcPrice
+				cmds = append(cmds, fetchPriceCmd())
+			} else if m.mode == modeInteractive {
+				// pause/return to landing
+				m.mode = modeLanding
+			}
+		case "g":
+			if m.mode == modeLanding {
+				m.mode = modeGo
+				m.sessionStartTime = time.Now()
+				m.monitorStartPrice = currentBtcPrice
+				m.previousPrice = currentBtcPrice
+				cmds = append(cmds, fetchPriceCmd())
+			}
+		case "r":
+			if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeInteractive {
+				m.monitorStartPrice = currentBtcPrice
+				m.sessionStartTime = time.Now()
+			}
+		case "m":
+			if m.mode == modeGo || m.mode == modeGoLong {
+				if m.mode == modeGo {
+					m.mode = modeGoLong
+				} else {
+					m.mode = modeGo
+				}
+				m.sessionStartTime = time.Now()
+				m.monitorStartPrice = currentBtcPrice
+			}
+		case "s":
+			m.soundEnabled = !m.soundEnabled
+			if m.soundEnabled {
+				playSound(1200, 350)
+			} else {
+				playSound(400, 350)
+			}
+		case "h":
+			m.sparklineEnabled = !m.sparklineEnabled
+		case "i":
+			if m.mode == modeGo || m.mode == modeGoLong {
+				m.mode = modeInteractive
+				m.sessionStartTime = time.Now()
+				m.monitorStartPrice = currentBtcPrice
+			}
+		}
+
+	case tickMsg:
+		// periodic maintenance: duration checks
+		// end-of-session logic
+		dur := m.sessionDuration()
+		if dur > 0 && time.Since(m.sessionStartTime) >= dur {
+			if m.mode == modeInteractive {
+				// return to landing after 5 minutes
+				m.mode = modeLanding
+			} else {
+				return m, tea.Quit
+			}
+		}
+		// schedule next UI tick
+		cmds = append(cmds, tickEvery(500*time.Millisecond))
+
+	case fetchStartMsg:
+		m.fetchingNow = true
+		cmds = append(cmds, fetchPriceCmd())
+
+	case priceMsg:
+		if msg.err == nil && msg.price > 0 {
+			newPrice := msg.price
+			// sound cues
+			if m.soundEnabled {
+				if newPrice >= currentBtcPrice+0.01 {
+					playSound(1200, 150)
+				} else if newPrice <= currentBtcPrice-0.01 {
+					playSound(400, 150)
+				}
+			}
+			currentBtcPrice = newPrice
+			// history
+			m.history = append(m.history, newPrice)
+			if len(m.history) > 12 {
+				m.history = m.history[1:]
+			}
+			// flash logic
+			priceChange := newPrice - m.monitorStartPrice
+			priceColor := "White"
+			if priceChange >= 0.01 {
+				priceColor = "Green"
+			} else if priceChange <= -0.01 {
+				priceColor = "Red"
+			}
+			flashNeeded := false
+			if priceColor != "White" && priceColor != m.previousColor {
+				flashNeeded = true
+			} else if (priceColor == "Green" && newPrice > m.previousPrice) ||
+				(priceColor == "Red" && newPrice < m.previousPrice) {
+				flashNeeded = true
+			}
+			if flashNeeded {
+				m.flashUntil = time.Now().Add(500 * time.Millisecond)
+			}
+			m.previousPrice = newPrice
+			m.previousColor = priceColor
+			// schedule next fetch
+			cmds = append(cmds, fetchPriceCmdAfter(m.currentInterval()))
+		}
+		m.fetchingNow = false
+	}
+
+	return m, tea.Batch(cmds...)
+}
+
+func (m tuiModel) View() string {
+	// landing view
+	if m.mode == modeLanding {
+		title := lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Render("*** BTC Monitor ***") // yellow
+		priceLine := fmt.Sprintf("Bitcoin (USD): $%s", formatUSD(currentBtcPrice))
+		controls := lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Render("Start[") +
+			lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Render("Space") +
+			lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Render("], Go Mode[") +
+			lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Render("G") +
+			lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Render("], Exit[") +
+			lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Render("Ctrl+C") +
+			lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Render("]")
+		prompt := "Press Space to start monitoring..."
+		return strings.Join([]string{title, priceLine, controls, prompt}, "\n")
+	}
+
+	// monitoring views
+	priceChange := currentBtcPrice - m.monitorStartPrice
+	priceColor := "White"
+	changeString := ""
+	if priceChange >= 0.01 {
+		priceColor = "Green"
+		changeString = fmt.Sprintf(" [+$%0.2f]", priceChange)
+	} else if priceChange <= -0.01 {
+		priceColor = "Red"
+		changeString = fmt.Sprintf(" [$%0.2f]", priceChange)
+	}
+
+	var left string
+	if m.sparklineEnabled {
+		// simple unicode sparkline to match PS feel, relying on VT support
+		left = " " + getSparkline(m.history)
+	} else {
+		left = " Bitcoin (USD):"
+	}
+
+	// spinner char
+	spinnerChar := ""
+	if m.mode == modeGoLong {
+		spinnerChar = "*"
+	} else {
+		// spinner color: white by default; cyan only on fetch ticks
+		if m.fetchingNow {
+			m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
+		} else {
+			m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
+		}
+		spinnerChar = m.spinner.View()
+	}
+
+	rest := fmt.Sprintf("%s $%s%s", left, formatUSD(currentBtcPrice), changeString)
+
+	// colorize/invert
+	var styledRest string
+	if time.Now().Before(m.flashUntil) && (priceColor == "Green" || priceColor == "Red") {
+		bg := lipgloss.Color("2") // green
+		if priceColor == "Red" {
+			bg = lipgloss.Color("1")
+		}
+		styledRest = lipgloss.NewStyle().Background(bg).Foreground(lipgloss.Color("0")).Render(rest)
+	} else {
+		switch priceColor {
+		case "Green":
+			styledRest = lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Render(rest)
+		case "Red":
+			styledRest = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render(rest)
+		default:
+			styledRest = rest
+		}
+	}
+
+	line := spinnerChar + styledRest
+	// pad to width
+	if m.width > 0 {
+		pad := m.width - lipgloss.Width(line)
+		if pad > 0 {
+			line += strings.Repeat(" ", pad)
+		}
+	}
+	return line + "\n"
+}
+
+func runTUI(args Args) {
+	m := newTUIModel(args)
+	p := tea.NewProgram(m, tea.WithAltScreen())
+	_ = p.Start()
 }
