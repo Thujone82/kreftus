@@ -243,8 +243,8 @@ function Get-BtcPrice {
             $response = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single" -Method Post -Headers $headers -Body $body -TimeoutSec 10 -ErrorAction Stop
             
             if ($retried) {
-                # On successful fetch after a retry, clear the "Retrying..." message from the line.
-                Write-ClearLine
+                # On successful fetch after a retry, fully clear the screen to avoid any leftover messages
+                Clear-Host
             }
 
             $price = $response.rate -as [double]

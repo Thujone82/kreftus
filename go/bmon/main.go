@@ -358,6 +358,12 @@ func getBtcPrice() (float64, error) {
 		resp, err := client.Do(req)
 		if err != nil {
 			if attempt >= maxAttempts {
+				// Last failure: ensure any prior warning line is removed before returning
+				if warningShown {
+					clearScreen()
+				} else {
+					clearLine()
+				}
 				return 0, fmt.Errorf("API call failed after %d attempts: %v", maxAttempts, err)
 			}
 
@@ -763,6 +769,9 @@ func runMonitoringMode(args Args) {
 			if len(priceHistory) > 12 {
 				priceHistory = priceHistory[1:]
 			}
+		} else {
+			// Ensure warnings from getBtcPrice are not left behind
+			clearScreen()
 		}
 	}
 }
