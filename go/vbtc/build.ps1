@@ -80,6 +80,28 @@ $env:GOOS="linux"; $env:GOARCH="amd64"; go build -ldflags="-s -w" -o bin/linux/a
 Write-Host "Building for Linux (x86)..." -ForegroundColor Cyan
 $env:GOOS="linux"; $env:GOARCH="386"; go build -ldflags="-s -w" -o bin/linux/x86/vbtc
 
+# --- Optional UPX compression for all binaries ---
+$upxCmd = Get-Command upx -ErrorAction SilentlyContinue
+if ($upxCmd -and $upxCmd.Path) {
+    Write-Host "Compressing binaries with UPX (--best --lzma)..." -ForegroundColor Yellow
+    $binaries = @(
+        "bin/pc/x64/vbtc.exe",
+        "bin/pc/x86/vbtc.exe",
+        "bin/mac/arm64/vbtc",
+        "bin/mac/amd64/vbtc",
+        "bin/linux/amd64/vbtc",
+        "bin/linux/x86/vbtc"
+    )
+    foreach ($bin in $binaries) {
+        if (Test-Path $bin) {
+            & $upxCmd.Path --best --lzma $bin | Out-Null
+        }
+    }
+    Write-Host "UPX compression completed." -ForegroundColor Green
+} else {
+    Write-Host "UPX not found in PATH. Skipping binary compression." -ForegroundColor DarkGray
+}
+
 # --- Package macOS Applications ---
 Write-Host "Packaging macOS applications..." -ForegroundColor Cyan
 
