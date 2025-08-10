@@ -22,6 +22,7 @@ Kreft & GPT-5
   - Regular car: length 3, speeds 2–4, glyph: `<#>`
   - Semi trailer: length 5, speeds 1–3, glyphs: `####>` (right) / `<####` (left)
 - Resize-aware rendering
+- Top-10 scoreboard with name entry and saved history (MMDDYY date)
 
 ## Controls
 - Move: Arrow keys or WASD
