@@ -20,7 +20,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/fatih/color"
-	"golang.org/x/term"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 	"gopkg.in/ini.v1"
@@ -43,39 +42,13 @@ type APIResponse struct {
 	Rate float64 `json:"rate"`
 }
 
-// Mode settings
-type ModeSettings struct {
-	duration int
-	interval int
-	spinner  []string
-}
-
 // Global variables
 var (
-	apiKey            string
-	currentBtcPrice   float64
-	monitorStartPrice float64
-	monitorStartTime  time.Time
-	previousPrice     float64
-	previousColor     string
-	priceHistory      []float64
-	soundEnabled      bool
-	sparklineEnabled  bool
+	apiKey          string
+	currentBtcPrice float64
 )
 
-// Mode configurations
-var modeSettings = map[string]ModeSettings{
-	"go": {
-		duration: 900, // 15 minutes
-		interval: 5,
-		spinner:  []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
-	},
-	"golong": {
-		duration: 86400, // 24 hours
-		interval: 20,
-		spinner:  []string{"*"},
-	},
-}
+// (legacy mode settings removed; TUI handles timing and spinners)
 
 // Command line arguments structure
 type Args struct {
@@ -317,7 +290,6 @@ func fetchInitialPrice() error {
 	}
 
 	currentBtcPrice = price
-	priceHistory = append(priceHistory, price)
 	return nil
 }
 
@@ -531,18 +503,7 @@ func getSparkWrappers() (string, string) {
 // getSpinnerForEnv returns a spinner character set appropriate for the host.
 // In classic conhost (no WT_SESSION), braille spinners can be unreliable.
 // We fall back to ASCII bar spinner while preserving Unicode in modern terminals.
-func getSpinnerForEnv(mode string) []string {
-	// Preserve explicit '*' spinner for golong
-	if mode == "golong" {
-		return []string{"*"}
-	}
-	if runtime.GOOS == "windows" && os.Getenv("WT_SESSION") == "" {
-		// ASCII bar spinner that is safe in classic cmd.exe
-		return []string{"|", "/", "-", "\\"}
-	}
-	// Unicode braille spinner (same as PS look)
-	return []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-}
+// (legacy spinner selection removed; Bubble Tea handles spinners)
 
 func playSound(frequency int, duration int) {
 	if runtime.GOOS == "windows" {
@@ -584,424 +545,11 @@ func handleConversion(args Args) {
 	}
 }
 
-func runMonitoringMode(args Args) {
-	// Determine mode
-	mode := "go"
-	if args.golongMode {
-		mode = "golong"
-	}
+// (legacy CLI monitoring mode removed; Bubble Tea TUI handles monitoring)
 
-	settings := modeSettings[mode]
-	settings.spinner = getSpinnerForEnv(mode)
+// (legacy interactive mode removed; Bubble Tea TUI provides interactive flow)
 
-	// Initialize state
-	monitorStartPrice = currentBtcPrice
-	previousPrice = currentBtcPrice
-	previousColor = "White"
-	monitorStartTime = time.Now()
-	soundEnabled = args.sound
-	sparklineEnabled = args.sparkline
-
-	// Start keyboard listener
-	keyChan := startKeyboardListener()
-
-	// Clear screen and hide cursor (matches PowerShell behavior)
-	clearScreen()
-	writeConsole("\x1b[?25l")
-	defer writeConsole("\x1b[?25h") // Show cursor on exit
-
-	spinnerIndex := 0
-
-	// Main monitoring loop
-	for {
-		// Check if duration exceeded
-		if time.Since(monitorStartTime).Seconds() >= float64(settings.duration) {
-			break
-		}
-
-		// Calculate price change and color
-		priceChange := currentBtcPrice - monitorStartPrice
-		priceColor := "White"
-		changeString := ""
-
-		if priceChange >= 0.01 {
-			priceColor = "Green"
-			changeString = fmt.Sprintf(" [+$%.2f]", priceChange)
-		} else if priceChange <= -0.01 {
-			priceColor = "Red"
-			changeString = fmt.Sprintf(" [$%.2f]", priceChange)
-		}
-
-		// Determine if flash is needed
-		flashNeeded := false
-		if priceColor != "White" && priceColor != previousColor {
-			flashNeeded = true
-		} else if (priceColor == "Green" && currentBtcPrice > previousPrice) ||
-			(priceColor == "Red" && currentBtcPrice < previousPrice) {
-			flashNeeded = true
-		}
-
-		// Wait for interval with keyboard polling (like PowerShell script)
-		waitStart := time.Now()
-		refreshed := false
-		modeSwitched := false
-		isFirstTick := true
-		previousWasFlash := false
-		for time.Since(waitStart).Seconds() < float64(settings.interval) {
-			spinnerChar := settings.spinner[spinnerIndex%len(settings.spinner)]
-			sparklineString := ""
-			if sparklineEnabled {
-				sparklineString = " " + getSparkline(priceHistory)
-			} else {
-				sparklineString = " Bitcoin (USD):"
-			}
-
-			restOfLine := fmt.Sprintf("%s $%s%s", sparklineString, formatUSD(currentBtcPrice), changeString)
-
-			if mode == "go" {
-				spinnerIndex = (spinnerIndex + 1) % len(settings.spinner)
-			}
-
-			fullLine := spinnerChar + restOfLine
-
-			// Handle flash: hold for one 500ms tick, then draw normal line on next tick
-			if flashNeeded && isFirstTick {
-				width := getConsoleWidth()
-				paddedLine := fmt.Sprintf("%-*s", width, fullLine)
-				switch priceColor {
-				case "Green":
-					writeConsole("\r\x1b[42;30m" + paddedLine + "\x1b[0m\r")
-				case "Red":
-					writeConsole("\r\x1b[41;30m" + paddedLine + "\x1b[0m\r")
-				default:
-					writeConsole("\r" + paddedLine + "\r")
-				}
-				// Hold the flash for one tick and continue
-				time.Sleep(500 * time.Millisecond)
-				isFirstTick = false
-				previousWasFlash = true
-				continue
-			} else {
-				// Normal display - matches PowerShell exactly
-				// Build the complete line with colors
-				var coloredLine string
-				switch priceColor {
-				case "Green":
-					coloredLine = fmt.Sprintf("\033[32m%s\033[0m", restOfLine)
-				case "Red":
-					coloredLine = fmt.Sprintf("\033[31m%s\033[0m", restOfLine)
-				default:
-					coloredLine = restOfLine
-				}
-
-				// Print the complete line with spinner and padding
-				width := getConsoleWidth()
-				if previousWasFlash {
-					// Clear any lingering background color from prior flash
-					writeConsole("\r" + strings.Repeat(" ", width) + "\r")
-					previousWasFlash = false
-				}
-				paddedLine := fmt.Sprintf("%-*s", width, spinnerChar+coloredLine)
-				writeConsole("\r" + paddedLine + "\r")
-			}
-
-			isFirstTick = false
-
-			// Check for key press (non-blocking)
-			if key, pressed := checkKeyPress(keyChan); pressed {
-				switch key {
-				case 'r':
-					monitorStartPrice = currentBtcPrice
-					monitorStartTime = time.Now()
-					refreshed = true
-				case 'm':
-					if mode == "go" {
-						mode = "golong"
-					} else {
-						mode = "go"
-					}
-					settings = modeSettings[mode]
-					monitorStartTime = time.Now()
-					monitorStartPrice = currentBtcPrice
-					modeSwitched = true
-					spinnerIndex = 0
-				case 's':
-					soundEnabled = !soundEnabled
-					if soundEnabled {
-						playSound(1200, 350)
-					} else {
-						playSound(400, 350)
-					}
-				case 'h':
-					sparklineEnabled = !sparklineEnabled
-				case 'i':
-					// Switch to interactive mode
-					runInteractiveMode(args)
-					return
-				}
-			}
-			if refreshed || modeSwitched {
-				break
-			}
-			time.Sleep(500 * time.Millisecond)
-		}
-		if refreshed || modeSwitched {
-			continue
-		}
-
-		// Update previous values
-		previousPrice = currentBtcPrice
-		previousColor = priceColor
-
-		// Final display update (matches PowerShell exactly)
-		if mode == "go" {
-			spinnerIndex = (spinnerIndex + 1) % len(settings.spinner)
-		}
-		spinnerChar := settings.spinner[spinnerIndex%len(settings.spinner)]
-		sparklineString := ""
-		if sparklineEnabled {
-			sparklineString = " " + getSparkline(priceHistory)
-		} else {
-			sparklineString = " Bitcoin (USD):"
-		}
-		restOfLine := fmt.Sprintf("%s $%s%s", sparklineString, formatUSD(currentBtcPrice), changeString)
-
-		// Final display - matches PowerShell exactly
-		// Build the complete line with colors
-		var coloredLine string
-		switch priceColor {
-		case "Green":
-			coloredLine = fmt.Sprintf("\033[32m%s\033[0m", restOfLine)
-		case "Red":
-			coloredLine = fmt.Sprintf("\033[31m%s\033[0m", restOfLine)
-		default:
-			coloredLine = restOfLine
-		}
-
-		// Print the complete line with cyan spinner and padding
-		// In classic cmd.exe, ANSI colors may not be fully honored; only colorize in modern terminals
-		cyanSpinner := spinnerChar
-		if !(runtime.GOOS == "windows" && os.Getenv("WT_SESSION") == "") {
-			cyanSpinner = fmt.Sprintf("\x1b[36m%s\x1b[0m", spinnerChar)
-		}
-		width := getConsoleWidth()
-		paddedLine := fmt.Sprintf("%-*s", width, cyanSpinner+coloredLine)
-		writeConsole("\r" + paddedLine + "\r")
-
-		// Fetch new price
-		if newPrice, err := getBtcPrice(); err == nil {
-			if soundEnabled {
-				if newPrice >= currentBtcPrice+0.01 {
-					playSound(1200, 150)
-				} else if newPrice <= currentBtcPrice-0.01 {
-					playSound(400, 150)
-				}
-			}
-			currentBtcPrice = newPrice
-			priceHistory = append(priceHistory, newPrice)
-			if len(priceHistory) > 12 {
-				priceHistory = priceHistory[1:]
-			}
-		} else {
-			// Ensure warnings from getBtcPrice are not left behind
-			clearScreen()
-		}
-	}
-}
-
-func runInteractiveMode(args Args) {
-	soundEnabled = args.sound
-	sparklineEnabled = args.sparkline
-
-	for {
-		// Main screen - clear screen first (matches PowerShell)
-		clearScreen()
-		color.Yellow("*** BTC Monitor ***")
-		fmt.Printf("Bitcoin (USD): $%s\n", formatUSD(currentBtcPrice))
-		white := color.New(color.FgWhite)
-		cyan := color.New(color.FgCyan)
-		white.Print("Start[")
-		cyan.Print("Space")
-		white.Print("], Go Mode[")
-		cyan.Print("G")
-		white.Print("], Exit[")
-		cyan.Print("Ctrl+C")
-		white.Print("]")
-
-		// Wait for space bar or 'G' to jump into go mode
-		fmt.Print("\nPress Space to start monitoring...")
-		for {
-			key := getKeyPress()
-			if key == ' ' {
-				break
-			}
-			if key == 'g' {
-				// Start go mode directly from interactive landing screen
-				args.goMode = true
-				runMonitoringMode(args)
-				return
-			}
-		}
-
-		color.Cyan("\nStarting monitoring...")
-
-		// Get new price (no screen clear after this - matches PowerShell)
-		if newPrice, err := getBtcPrice(); err == nil {
-			currentBtcPrice = newPrice
-		}
-
-		// Initialize monitoring state
-		monitorStartPrice = currentBtcPrice
-		monitorStartTime = time.Now()
-		priceHistory = []float64{currentBtcPrice}
-		previousPrice = currentBtcPrice
-		previousColor = "White"
-		monitorDuration := 300 // 5 minutes
-
-		// Start keyboard listener for interactive mode
-		keyChan := startKeyboardListener()
-
-		// Monitoring loop
-		for time.Since(monitorStartTime).Seconds() < float64(monitorDuration) {
-			// Calculate price change and color
-			priceChange := currentBtcPrice - monitorStartPrice
-			priceColor := "White"
-			changeString := ""
-
-			if priceChange >= 0.01 {
-				priceColor = "Green"
-				changeString = fmt.Sprintf(" [+$%.2f]", priceChange)
-			} else if priceChange <= -0.01 {
-				priceColor = "Red"
-				changeString = fmt.Sprintf(" [$%.2f]", priceChange)
-			}
-
-			// Determine if flash is needed
-			flashNeeded := false
-			if priceColor != "White" && priceColor != previousColor {
-				flashNeeded = true
-			} else if (priceColor == "Green" && currentBtcPrice > previousPrice) ||
-				(priceColor == "Red" && currentBtcPrice < previousPrice) {
-				flashNeeded = true
-			}
-
-			// Handle flash (matches PowerShell exactly)
-			if flashNeeded {
-				drawScreen(true, changeString, priceColor)
-				time.Sleep(500 * time.Millisecond)
-			}
-
-			// Draw normal screen
-			drawScreen(false, changeString, priceColor)
-
-			// Wait for 5 seconds with keyboard polling (like PowerShell script)
-			waitStart := time.Now()
-			paused := false
-			refreshed := false
-			for time.Since(waitStart).Seconds() < 5 {
-				// Check for key press (non-blocking)
-				if key, pressed := checkKeyPress(keyChan); pressed {
-					switch key {
-					case ' ':
-						paused = true
-					case 'r':
-						refreshed = true
-					case 's':
-						soundEnabled = !soundEnabled
-						if soundEnabled {
-							playSound(1200, 350)
-						} else {
-							playSound(400, 350)
-						}
-					case 'h':
-						sparklineEnabled = !sparklineEnabled
-						drawScreen(false, changeString, priceColor)
-					}
-				}
-				if paused || refreshed {
-					break
-				}
-				time.Sleep(100 * time.Millisecond)
-			}
-			if paused {
-				break // Return to main screen
-			}
-			if refreshed {
-				monitorStartPrice = currentBtcPrice
-				monitorStartTime = time.Now()
-				continue
-			}
-
-			// Update previous values
-			previousPrice = currentBtcPrice
-			previousColor = priceColor
-
-			// Fetch new price
-			if newPrice, err := getBtcPrice(); err == nil {
-				if soundEnabled {
-					if newPrice >= currentBtcPrice+0.01 {
-						playSound(1200, 150)
-					} else if newPrice <= currentBtcPrice-0.01 {
-						playSound(400, 150)
-					}
-				}
-				currentBtcPrice = newPrice
-				priceHistory = append(priceHistory, newPrice)
-				if len(priceHistory) > 12 {
-					priceHistory = priceHistory[1:]
-				}
-			}
-		}
-	}
-}
-
-func drawScreen(invertColors bool, changeString, priceColor string) {
-	clearScreen()
-	color.Yellow("*** BTC Monitor ***")
-
-	sparklineString := ""
-	if sparklineEnabled {
-		sparklineString = getSparkline(priceHistory)
-	} else {
-		sparklineString = "Bitcoin (USD):"
-	}
-
-	priceLine := fmt.Sprintf("%s $%s%s", sparklineString, formatUSD(currentBtcPrice), changeString)
-
-	// Use writeConsole with ANSI so Unicode sparkline and wrappers are written via WriteConsoleW on Windows
-	var styled string
-	if invertColors {
-		switch priceColor {
-		case "Green":
-			styled = "\x1b[42;30m" + priceLine + "\x1b[0m\n"
-		case "Red":
-			styled = "\x1b[41;30m" + priceLine + "\x1b[0m\n"
-		default:
-			styled = priceLine + "\n"
-		}
-	} else {
-		switch priceColor {
-		case "Green":
-			styled = "\x1b[32m" + priceLine + "\x1b[0m\n"
-		case "Red":
-			styled = "\x1b[31m" + priceLine + "\x1b[0m\n"
-		default:
-			styled = priceLine + "\n"
-		}
-	}
-	writeConsole(styled)
-
-	// Control line - matches PowerShell exactly (no newline)
-	white := color.New(color.FgWhite)
-	cyan := color.New(color.FgCyan)
-	white.Print("Pause[")
-	cyan.Print("Space")
-	white.Print("], Reset[")
-	cyan.Print("R")
-	white.Print("], Exit[")
-	cyan.Print("Ctrl+C")
-	white.Print("]")
-}
+// (legacy drawScreen removed)
 
 func clearScreen() {
 	var cmd *exec.Cmd
@@ -1018,123 +566,7 @@ func clearScreen() {
 
 // non-Windows stubs live in console_other.go; Windows implementations live in console_windows.go
 
-// KeyEvent represents a keyboard event
-type KeyEvent struct {
-	Key rune
-	Err error
-}
-
-// startKeyboardListener starts a goroutine that listens for keyboard input
-func startKeyboardListener() chan KeyEvent {
-	keyChan := make(chan KeyEvent, 1)
-
-	go func() {
-		// Set terminal to raw mode
-		oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
-		if err != nil {
-			keyChan <- KeyEvent{Err: err}
-			return
-		}
-		defer term.Restore(int(os.Stdin.Fd()), oldState)
-
-		for {
-			// Read a single character
-			var buf [1]byte
-			_, err := os.Stdin.Read(buf[:])
-			if err != nil {
-				keyChan <- KeyEvent{Err: err}
-				return
-			}
-
-			// Handle special keys
-			var key rune
-			switch buf[0] {
-			case 3: // Ctrl+C
-				os.Exit(0)
-			case 32: // Space
-				key = ' '
-			case 114: // 'r'
-				key = 'r'
-			case 109: // 'm'
-				key = 'm'
-			case 115: // 's'
-				key = 's'
-			case 104: // 'h'
-				key = 'h'
-			case 105: // 'i'
-				key = 'i'
-			case 73: // 'I'
-				key = 'i'
-			case 103: // 'g'
-				key = 'g'
-			case 71: // 'G'
-				key = 'g'
-			default:
-				key = rune(buf[0])
-			}
-
-			select {
-			case keyChan <- KeyEvent{Key: key}:
-			default:
-				// Channel is full, skip this key
-			}
-		}
-	}()
-
-	return keyChan
-}
-
-// checkKeyPress checks if a key is available (non-blocking)
-func checkKeyPress(keyChan chan KeyEvent) (rune, bool) {
-	select {
-	case event := <-keyChan:
-		if event.Err != nil {
-			return 0, false
-		}
-		return event.Key, true
-	default:
-		return 0, false
-	}
-}
-
-// getKeyPress reads a single key press (blocking)
-func getKeyPress() rune {
-	// Set terminal to raw mode
-	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
-	if err != nil {
-		return 0
-	}
-	defer term.Restore(int(os.Stdin.Fd()), oldState)
-
-	// Read a single character
-	var buf [1]byte
-	_, err = os.Stdin.Read(buf[:])
-	if err != nil {
-		return 0
-	}
-
-	// Handle special keys
-	switch buf[0] {
-	case 3: // Ctrl+C
-		os.Exit(0)
-	case 32: // Space
-		return ' '
-	case 114: // 'r'
-		return 'r'
-	case 109: // 'm'
-		return 'm'
-	case 115: // 's'
-		return 's'
-	case 104: // 'h'
-		return 'h'
-	case 105, 73: // 'i' or 'I'
-		return 'i'
-	case 103, 71: // 'g' or 'G'
-		return 'g'
-	}
-
-	return rune(buf[0])
-}
+// (legacy keyboard input helpers removed; Bubble Tea handles input)
 
 func printHelp() {
 	color.Yellow("Bitcoin Monitor (bmon) - Version %s", version)
@@ -1361,13 +793,14 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return m, tea.Quit
 		case " ":
-			if m.mode == modeLanding {
+			switch m.mode {
+			case modeLanding:
 				m.mode = modeInteractive
 				m.sessionStartTime = time.Now()
 				m.monitorStartPrice = currentBtcPrice
 				m.previousPrice = currentBtcPrice
 				cmds = append(cmds, fetchPriceCmd())
-			} else if m.mode == modeInteractive {
+			case modeInteractive:
 				// pause/return to landing
 				m.mode = modeLanding
 			}

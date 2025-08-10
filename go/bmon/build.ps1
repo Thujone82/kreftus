@@ -56,15 +56,15 @@ if (-not (Test-Path "bmon.rc") -or -not (Test-Path "bitcoin_small.ico")) {
 try {
     Write-Host "Building for Windows 32-bit (x86)..."
     Write-Host "  -> Generating 32-bit resources..." -ForegroundColor DarkGray
-    $env:GOOS = "windows"; $env:GOARCH = "386"
+    $env:GOOS = "windows"; $env:GOARCH = "386"; $env:CGO_ENABLED = "0"
     windres -F pe-i386 -i bmon.rc -o bmon.syso -I .
-    go build -ldflags="-s -w" -o ".\bin\win\x86\bmon.exe" .
+    go build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o ".\bin\win\x86\bmon.exe" .
 
     Write-Host "Building for Windows 64-bit (amd64)..."
     Write-Host "  -> Generating 64-bit resources..." -ForegroundColor DarkGray
-    $env:GOOS = "windows"; $env:GOARCH = "amd64"
+    $env:GOOS = "windows"; $env:GOARCH = "amd64"; $env:CGO_ENABLED = "0"
     windres -F pe-x86-64 -i bmon.rc -o bmon.syso -I .
-    go build -ldflags="-s -w" -o ".\bin\win\x64\bmon.exe" .
+    go build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o ".\bin\win\x64\bmon.exe" .
 }
 finally {
     if (Test-Path "bmon.syso") { Remove-Item "bmon.syso" -Force }
@@ -72,9 +72,29 @@ finally {
 
 # --- 4. Linux Builds ---
 Write-Host "Building for Linux 32-bit (x86)..."
-$env:GOOS = "linux"; $env:GOARCH = "386"; go build -ldflags="-s -w" -o ".\bin\linux\x86\bmon" .
+$env:GOOS = "linux"; $env:GOARCH = "386"; $env:CGO_ENABLED = "0"; go build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o ".\bin\linux\x86\bmon" .
 
 Write-Host "Building for Linux 64-bit (amd64)..."
-$env:GOOS = "linux"; $env:GOARCH = "amd64"; go build -ldflags="-s -w" -o ".\bin\linux\amd64\bmon" .
+$env:GOOS = "linux"; $env:GOARCH = "amd64"; $env:CGO_ENABLED = "0"; go build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o ".\bin\linux\amd64\bmon" .
+
+# --- 5. Optional UPX compression ---
+$upxCmd = Get-Command upx -ErrorAction SilentlyContinue
+if ($upxCmd -and $upxCmd.Path) {
+    Write-Host "Compressing binaries with UPX (--best --lzma)..." -ForegroundColor Yellow
+    $binaries = @(
+        ".\bin\win\x86\bmon.exe",
+        ".\bin\win\x64\bmon.exe",
+        ".\bin\linux\x86\bmon",
+        ".\bin\linux\amd64\bmon"
+    )
+    foreach ($bin in $binaries) {
+        if (Test-Path $bin) {
+            & $upxCmd.Path --best --lzma $bin | Out-Null
+        }
+    }
+    Write-Host "UPX compression completed." -ForegroundColor Green
+} else {
+    Write-Host "UPX not found in PATH. Skipping binary compression." -ForegroundColor DarkGray
+}
 
 Write-Host "Build process completed successfully!" -ForegroundColor Green
