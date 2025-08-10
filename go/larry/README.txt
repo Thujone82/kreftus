@@ -1,7 +1,7 @@
 # larry - Terminal Frogger-like Game
 
 ## Version
-1.0
+1.1
 
 ## Author
 Kreft & GPT-5
@@ -25,7 +25,8 @@ Kreft & GPT-5
 
 ## Controls
 - Move: Arrow keys or WASD
-- Quit: `Q` or `Esc`
+- Pause: Space
+- Quit: Esc
 
 ## Scoring
 - +10 for each new upward row reached within a level

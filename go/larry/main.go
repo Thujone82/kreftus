@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"math/rand/v2"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -40,21 +43,36 @@ type game struct {
 	width  int
 	height int
 
-	level       int
-	score       int
-	topScore    int
-	lives       int
-	frogX       int
-	frogY       int
-	highestY    int
-	hudY        int
-	lanes       []lane
-	safeTopY    int
-	safeBottomY int
-	safeRow     []bool
-	rng         *rand.Rand
-	theme       theme
-	paused      bool
+	level            int
+	score            int
+	topScore         int
+	lives            int
+	frogX            int
+	frogY            int
+	highestY         int
+	hudY             int
+	lanes            []lane
+	safeTopY         int
+	safeBottomY      int
+	safeRow          []bool
+	rng              *rand.Rand
+	theme            theme
+	paused           bool
+	events           chan tcell.Event
+	acceptInputAfter time.Time
+	// High scores
+	highScores   []scoreEntry
+	historyTop   int
+	gameOver     bool
+	enteringName bool
+	nameBuffer   string
+}
+
+type scoreEntry struct {
+	Name  string `json:"name"`
+	Score int    `json:"score"`
+	Time  int64  `json:"time"`
+	Date  string `json:"date,omitempty"`
 }
 
 func main() {
@@ -69,15 +87,22 @@ func main() {
 	s.Clear()
 	s.HideCursor()
 
+	setTerminalTitle("Go Larry!")
+
 	g := &game{screen: s, rng: rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0))}
+	g.loadHighScores()
+	if len(g.highScores) > 0 {
+		g.historyTop = g.highScores[0].Score
+	}
 	g.initLevel(1)
 
-	events := make(chan tcell.Event, 32)
+	events := make(chan tcell.Event, 64)
 	go func() {
 		for {
 			events <- s.PollEvent()
 		}
 	}()
+	g.events = events
 
 	tick := time.NewTicker(time.Second / 30)
 	defer tick.Stop()
@@ -117,10 +142,19 @@ func (g *game) resize() {
 	g.createLanes()
 }
 
+func (g *game) respawnAtStart() {
+	g.frogX = g.width / 2
+	g.frogY = g.safeBottomY
+	g.highestY = g.frogY
+}
+
 func (g *game) initLevel(level int) {
 	g.level = level
 	g.width, g.height = g.screen.Size()
 	// Lives/score are set on first game start; keep values across levels.
+	if g.lives <= 0 {
+		g.lives = 3
+	}
 	g.hudY = 0
 	g.safeTopY = 1
 	g.safeBottomY = g.height - 1
@@ -187,10 +221,11 @@ func (g *game) createLanes() {
 		for li := 0; li < lanesThisRoad && y < h-1; li++ {
 			// Vehicle class selection per lane
 			vehType := g.rng.IntN(3) // 0 compact, 1 regular, 2 semi
-			minSpd, maxSpd := 3, 5
-			color := g.theme.carSmall
+			var minSpd, maxSpd int
+			var color tcell.Color
 			var glyph []rune
-			if vehType == 0 {
+			switch vehType {
+			case 0: // compact
 				minSpd, maxSpd = 3, 5
 				color = g.theme.carSmall
 				if dirRight {
@@ -198,15 +233,12 @@ func (g *game) createLanes() {
 				} else {
 					glyph = []rune{'<', '='} // carSmall '<='
 				}
-			} else if vehType == 1 {
+			case 1: // regular
 				minSpd, maxSpd = 2, 4
 				color = g.theme.carRegular
-				if dirRight {
-					glyph = []rune{'<', '#', '>'} // carRegular '<#>' (same both ways visually)
-				} else {
-					glyph = []rune{'<', '#', '>'}
-				}
-			} else { // vehType == 2 semi
+				// visually symmetric
+				glyph = []rune{'<', '#', '>'}
+			default: // 2: semi
 				minSpd, maxSpd = 1, 3
 				color = g.theme.carSemi
 				if dirRight {
@@ -255,6 +287,36 @@ func (g *game) createLanes() {
 }
 
 func (g *game) handleInput(e *tcell.EventKey) {
+	// ignore inputs for a brief period after death/gameover to prevent buffered arrows into name field
+	if time.Now().Before(g.acceptInputAfter) {
+		return
+	}
+	if g.enteringName {
+		// Simple name input handler
+		switch e.Key() {
+		case tcell.KeyEnter:
+			g.commitScoreName()
+			return
+		case tcell.KeyEscape:
+			g.enteringName = false
+			return
+		case tcell.KeyUp, tcell.KeyDown, tcell.KeyLeft, tcell.KeyRight:
+			return
+		case tcell.KeyBackspace, tcell.KeyBackspace2:
+			if len(g.nameBuffer) > 0 {
+				g.nameBuffer = g.nameBuffer[:len(g.nameBuffer)-1]
+			}
+			return
+		case tcell.KeyRune:
+			r := e.Rune()
+			if r >= 32 && r <= 126 && len(g.nameBuffer) < 8 {
+				g.nameBuffer += string(r)
+			}
+			return
+		default:
+			return
+		}
+	}
 	// Toggle pause on Space
 	if e.Key() == tcell.KeyRune && e.Rune() == ' ' {
 		g.paused = !g.paused
@@ -320,6 +382,9 @@ func (g *game) update() {
 	if g.paused {
 		return
 	}
+	if g.enteringName {
+		return
+	}
 	// Advance lanes
 	for i := range g.lanes {
 		ln := &g.lanes[i]
@@ -346,22 +411,16 @@ func (g *game) update() {
 						// Hit! Lose a life
 						g.lives--
 						if g.lives <= 0 {
-							g.gameOverFlash()
-							// Reset whole game
-							g.lives = 3
-							g.score = 0
-							g.level = 1
-							g.theme = themeForLevel(g.level)
-							g.createLanes()
-							g.frogX = g.width / 2
-							g.frogY = g.safeBottomY
-							g.highestY = g.frogY
+							// Delay accepting input until overlay is up
+							g.acceptInputAfter = time.Now().Add(200 * time.Millisecond)
+							g.gameOverSequence()
 						} else {
-							// Show a brief death message and respawn at bottom safe row
+							// Respawn at start row and show brief message
+							g.respawnAtStart()
+							// Drain any pending input before showing overlay
+							g.flushInput()
+							g.acceptInputAfter = time.Now().Add(200 * time.Millisecond)
 							g.youDiedFlash()
-							g.frogX = g.width / 2
-							g.frogY = g.safeBottomY
-							g.highestY = g.frogY
 						}
 						break
 					}
@@ -421,9 +480,13 @@ func (g *game) render() {
 		}
 	}
 
-	// Draw HUD (top status bar on row 0) with right-aligned TopScore
-	left := fmt.Sprintf("Score:%d  Level:%d  Lives:%d  (Space:Pause, Q/Esc)", g.score, g.level, g.lives)
-	right := fmt.Sprintf("Top:%d", g.topScore)
+	// Draw HUD with right-aligned Top and Best. Hide help when narrow.
+	left := fmt.Sprintf("Score:%d  Level:%d  Lives:%d", g.score, g.level, g.lives)
+	help := "  (Space:Pause Esc:Quit)"
+	right := fmt.Sprintf("Top:%d  Best:%d", g.topScore, g.historyTop)
+	if len(left)+len(help)+len(right)+1 <= w {
+		left += help
+	}
 	hudLine := left
 	if len(left)+1+len(right) < w {
 		pad := w - len(left) - len(right)
@@ -438,8 +501,12 @@ func (g *game) render() {
 	frogStyle := tcell.StyleDefault.Foreground(g.theme.frog).Bold(true)
 	s.SetContent(g.frogX, g.frogY, '@', nil, frogStyle)
 
-	// Ensure pause overlay is drawn last, on top of vehicles and frog
-	if g.paused {
+	// Ensure overlays are drawn last, on top of vehicles and frog
+	if g.enteringName {
+		g.drawNameEntryOverlay()
+	} else if g.gameOver {
+		g.drawScoreboardOverlay()
+	} else if g.paused {
 		g.drawPauseOverlay()
 	}
 
@@ -456,8 +523,88 @@ func (g *game) gameOverFlash() {
 		}
 		drawCentered(g.screen, g.width/2, g.height/2, "Game Over!", tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorMaroon).Bold(true))
 		g.screen.Show()
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(350 * time.Millisecond)
 	}
+}
+
+func (g *game) gameOverSequence() {
+	g.gameOverFlash()
+	g.gameOver = true
+	// Check if score qualifies for top 10
+	qualifies := false
+	if len(g.highScores) < 10 {
+		qualifies = g.score > 0
+	} else if g.score > g.highScores[len(g.highScores)-1].Score {
+		qualifies = true
+	}
+	if qualifies {
+		g.enteringName = true
+		g.nameBuffer = ""
+		return
+	}
+	g.resetGame()
+}
+
+func (g *game) commitScoreName() {
+	name := strings.TrimSpace(g.nameBuffer)
+	if name == "" {
+		name = "PLAYER"
+	}
+	if len(name) > 8 {
+		name = name[:8]
+	}
+	now := time.Now()
+	entry := scoreEntry{Name: name, Score: g.score, Time: now.Unix(), Date: now.Format("010206")}
+	g.highScores = append(g.highScores, entry)
+	// sort desc
+	for i := 0; i < len(g.highScores); i++ {
+		for j := i + 1; j < len(g.highScores); j++ {
+			if g.highScores[j].Score > g.highScores[i].Score {
+				g.highScores[i], g.highScores[j] = g.highScores[j], g.highScores[i]
+			}
+		}
+	}
+	if len(g.highScores) > 10 {
+		g.highScores = g.highScores[:10]
+	}
+	g.saveHighScores()
+	if len(g.highScores) > 0 {
+		g.historyTop = g.highScores[0].Score
+	}
+	g.enteringName = false
+	g.resetGame()
+}
+
+func (g *game) resetGame() {
+	g.lives = 3
+	g.score = 0
+	g.level = 1
+	g.theme = themeForLevel(g.level)
+	g.createLanes()
+	g.frogX = g.width / 2
+	g.frogY = g.safeBottomY
+	g.highestY = g.frogY
+	g.gameOver = false
+	g.acceptInputAfter = time.Now().Add(200 * time.Millisecond)
+}
+
+func (g *game) loadHighScores() {
+	data, err := os.ReadFile("larry.scores.json")
+	if err != nil {
+		return
+	}
+	var list []scoreEntry
+	if json.Unmarshal(data, &list) == nil {
+		g.highScores = list
+	}
+}
+
+func (g *game) saveHighScores() {
+	data, err := json.MarshalIndent(g.highScores, "", "  ")
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile("larry.scores.json", data, 0644)
 }
 
 func (g *game) youDiedFlash() {
@@ -470,7 +617,21 @@ func (g *game) youDiedFlash() {
 		}
 		drawCentered(g.screen, g.width/2, g.height/2, "You Died!", tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorDarkRed).Bold(true))
 		g.screen.Show()
-		time.Sleep(150 * time.Millisecond)
+		time.Sleep(350 * time.Millisecond)
+	}
+}
+
+func (g *game) flushInput() {
+	if g.events == nil {
+		return
+	}
+	for {
+		select {
+		case <-g.events:
+			// drop
+		default:
+			return
+		}
 	}
 }
 
@@ -478,8 +639,7 @@ func handleQuit(e *tcell.EventKey) bool {
 	if e.Key() == tcell.KeyEscape || e.Key() == tcell.KeyCtrlC {
 		return true
 	}
-	r := e.Rune()
-	return r == 'q' || r == 'Q'
+	return false
 }
 
 func drawText(s tcell.Screen, x, y int, text string, st tcell.Style) {
@@ -523,6 +683,100 @@ func (g *game) drawPauseOverlay() {
 		drawText(g.screen, 0, y0+dy, spaces(w), st)
 	}
 	drawCentered(g.screen, w/2, y0+1, title, st)
+}
+
+func (g *game) drawNameEntryOverlay() {
+	w, h := g.width, g.height
+	if w <= 0 || h <= 0 {
+		return
+	}
+	title := "NEW HIGH SCORE!"
+	// prompt intentionally removed from single-line entry rendering
+	// Reserve space for top-10 (up to 12 lines including headers)
+	y0 := h/2 - 6
+	if y0 < 0 {
+		y0 = 0
+	}
+	if y0+12 >= h {
+		y0 = max(0, h-13)
+	}
+	st := tcell.StyleDefault.Background(g.theme.frog).Foreground(tcell.ColorBlack).Bold(true)
+	for dy := 0; dy < 13; dy++ {
+		drawText(g.screen, 0, y0+dy, spaces(w), st)
+	}
+	drawCentered(g.screen, w/2, y0+1, title, st)
+	prov := g.getProvisionalScores()
+	g.drawHighScoreListAt(w/2, y0+3, st, prov)
+	// Prompt for name only (no duplicate score line)
+	drawCentered(g.screen, w/2, y0+10, "Enter Name:", st)
+	name := g.nameBuffer
+	if name == "" {
+		name = "_"
+	}
+	drawCentered(g.screen, w/2, y0+11, name, st)
+}
+
+func (g *game) drawScoreboardOverlay() {
+	w, h := g.width, g.height
+	if w <= 0 || h <= 0 {
+		return
+	}
+	title := "GAME OVER"
+	y0 := h/2 - 6
+	if y0 < 0 {
+		y0 = 0
+	}
+	if y0+12 >= h {
+		y0 = max(0, h-13)
+	}
+	st := tcell.StyleDefault.Background(g.theme.frog).Foreground(tcell.ColorBlack).Bold(true)
+	for dy := 0; dy < 13; dy++ {
+		drawText(g.screen, 0, y0+dy, spaces(w), st)
+	}
+	drawCentered(g.screen, w/2, y0+1, title, st)
+	g.drawHighScoreListAt(w/2, y0+3, st, g.highScores)
+	// If player didn't make Top 10, show their score/name in the prompt area
+	if len(g.highScores) == 0 || g.score > g.highScores[len(g.highScores)-1].Score {
+		// reached only when no scores; otherwise name entry covers this path
+		// fallback to simple retry prompt
+		drawCentered(g.screen, w/2, y0+11, "Hit Return to Try Again", st)
+	} else {
+		you := fmt.Sprintf("Your Score: %d", g.score)
+		drawCentered(g.screen, w/2, y0+11, you, st)
+	}
+}
+
+func (g *game) drawHighScoreListAt(cx, startY int, st tcell.Style, list []scoreEntry) {
+	// Render Top 10 with the top entry highlighted
+	for i := 0; i < 10 && i < len(list); i++ {
+		e := list[i]
+		// Include date in MMDDYY
+		line := fmt.Sprintf("%2d. %-8s  %6d  %s", i+1, e.Name, e.Score, e.Date)
+		rowStyle := st
+		if i == 0 {
+			// Highlight champion
+			rowStyle = tcell.StyleDefault.Background(tcell.ColorYellow).Foreground(tcell.ColorBlack).Bold(true)
+		}
+		drawCentered(g.screen, cx, startY+i, line, rowStyle)
+	}
+}
+
+func (g *game) getProvisionalScores() []scoreEntry {
+	list := make([]scoreEntry, len(g.highScores))
+	copy(list, g.highScores)
+	now := time.Now()
+	list = append(list, scoreEntry{Name: "YOUR SCORE", Score: g.score, Time: now.Unix(), Date: now.Format("010206")})
+	for i := 0; i < len(list); i++ {
+		for j := i + 1; j < len(list); j++ {
+			if list[j].Score > list[i].Score {
+				list[i], list[j] = list[j], list[i]
+			}
+		}
+	}
+	if len(list) > 10 {
+		list = list[:10]
+	}
+	return list
 }
 
 func themeForLevel(level int) theme {
