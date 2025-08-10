@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Larry - Terminal Frogger-like Game</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin:0; padding:0; background:#f4f4f4; color:#333; line-height:1.6; }
+        header { background:#333; color:#fff; padding:1.5rem 0; text-align:center; margin-bottom:2rem; }
+        header h1 { margin:0; font-size:3rem; letter-spacing:2px; }
+        .container { width:80%; margin:auto; overflow:hidden; }
+        table { width:100%; border-collapse:collapse; margin-top:2rem; background:#fff; box-shadow:0 0 10px rgba(0,0,0,0.1); }
+        td { padding:1rem; vertical-align:top; border-bottom:1px solid #ddd; }
+        .project-image-cell { width:30%; max-width:256px; padding-right:1.5rem; }
+        .project-image-cell img { width:100%; height:auto; max-width:256px; max-height:256px; display:block; border-radius:8px; }
+        .project-text-cell { font-size:1rem; }
+        .project-text-cell h2 { margin-top:0; color:#333; }
+        .project-text-cell h3 { margin-top:1.5rem; margin-bottom:0.5rem; border-bottom:1px solid #ccc; padding-bottom:0.25rem; }
+        .project-text-cell a { color:#007bff; text-decoration:none; }
+        .project-text-cell a:hover { text-decoration:underline; }
+        .readme-link { padding-left:1em; margin-top:-0.5em; font-size:0.9em; margin-bottom:1rem; }
+        @media (max-width:900px){ .project-image-cell, .project-text-cell{ display:block; width:100%; box-sizing:border-box; } .project-image-cell{ max-width:none; padding-right:0; padding-bottom:1rem; } .project-image-cell img{ width:auto; max-width:100%; margin:0; } }
+    </style>
+    <meta name="description" content="Larry is a fast, cross-platform terminal Frogger-like game written in Go using tcell.">
+</head>
+<body>
+
+    <header>
+        <h1>Larry - Terminal Frogger-like Game</h1>
+    </header>
+
+    <div class="container">
+        <table>
+            <tbody>
+                <tr class="project-row">
+                    <td class="project-image-cell">
+                        <img src="../images/larry.png" alt="Larry Game Screenshot">
+                    </td>
+                    <td class="project-text-cell">
+                        <div>
+                            <h2>Larry v1.0</h2>
+                            <p>
+                                <b>Larry</b> is a console arcade game where you guide a green <code>@</code> across roads with moving traffic. Levels add a fresh color theme, more cars, and faster lanes. Safe shoulders and gaps offer breathing room, and you earn points for each row climbed and for reaching the far side.
+                            </p>
+                            <h3>Controls</h3>
+                            <p>Arrows or WASD to move, Space to pause, Q/Esc to quit.</p>
+                            <h3>Downloads</h3>
+                            <p><b>Go Build:</b> PC [ <a href="../go/larry/bin/win/x86/larry.exe">x86</a> / <a href="../go/larry/bin/win/x64/larry.exe">x64</a> ] Linux [ <a href="../go/larry/bin/linux/x86/larry">x86</a> / <a href="../go/larry/bin/linux/amd64/larry">amd64</a> ]</p>
+                            <p class="readme-link">↳ <a href="../go/larry/README.txt">README</a></p>
+                            <h3>Features</h3>
+                            <ul>
+                                <li>WASD/Arrow controls, Space to pause with overlay</li>
+                                <li>Safe shoulders top/bottom and random safe gaps</li>
+                                <li>Per-lane vehicle classes: compact (=>), regular (<#>), semi (####>)</li>
+                                <li>Level-based color themes, density and speed scaling</li>
+                                <li>Lives, per-row scoring, and session Top score</li>
+                            </ul>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+</body>
+</html>
+
+
