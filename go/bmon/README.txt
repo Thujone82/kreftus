@@ -27,6 +27,7 @@ The application can run in several modes: interactive monitoring with keyboard c
 - **API Key Management:** Automatic setup and configuration file handling
 - **Cross-Platform:** Native executables for Windows and Linux
 - **Color-coded Output:** Clear, colorized feedback for all operations
+- **Compact Retry Indicator:** During temporary network/API hiccups in `-go`/`-golong` modes, the spinner is briefly replaced with a single digit to indicate retries: yellow `1`, `2`, `3`, `4`, and a red `5` on the final attempt. On the next successful fetch the indicator disappears and the normal spinner resumes. This keeps the line clean with no wrapping or warning text.
 
 ## Requirements
 - Go (for building from source). The compiled executable has no external dependencies.

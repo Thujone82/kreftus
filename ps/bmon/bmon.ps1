@@ -180,6 +180,26 @@ function Set-IniConfiguration {
 # Tracks whether the previous operation printed a one-line warning/retry message
 $script:WarningLineShown = $false
 
+function Write-RetryIndicator {
+    param(
+        [int]$Attempt,
+        [switch]$Final
+    )
+    $fg = if ($Final) { 'Red' } else { 'Yellow' }
+    $width = Get-ConsoleWidth
+    if ($width -lt 1) { $width = 80 }
+    $digit = [string]$Attempt
+    try {
+        Write-Host -NoNewline "`r"
+        Write-Host -NoNewline -ForegroundColor $fg $digit
+        $padLen = [math]::Max(0, $width - 1)
+        if ($padLen -gt 0) { Write-Host -NoNewline (' ' * $padLen) }
+        Write-Host -NoNewline "`r"
+    } catch {
+        Write-Host -NoNewline "`r$digit"
+    }
+}
+
 function Test-ApiKey {
     param ([string]$ApiKey)
     if ([string]::IsNullOrEmpty($ApiKey)) { return $false }
@@ -245,7 +265,7 @@ function Get-BtcPrice {
         try {
             $response = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single" -Method Post -Headers $headers -Body $body -TimeoutSec 10 -ErrorAction Stop
             
-            # If we previously showed a warning line in any prior call, ensure it is cleared now
+            # Clear any prior retry indicator on success
             if ($retried -or $script:WarningLineShown) {
                 Write-ClearLine
                 $script:WarningLineShown = $false
@@ -254,10 +274,8 @@ function Get-BtcPrice {
             $price = $response.rate -as [double]
             
             if ($null -eq $price -or $price -le 0) {
-                # Use Write-Host instead of Write-Warning to maintain display consistency
-                $warningMsg = "API returned invalid price: '$($response.rate)'"
-                Write-ClearLine
-                Write-Host -ForegroundColor Yellow $warningMsg -NoNewline
+                # Treat invalid price as transient; show a retry digit '1'
+                Write-RetryIndicator -Attempt 1
                 $script:WarningLineShown = $true
                 return $null
             }
@@ -266,10 +284,8 @@ function Get-BtcPrice {
         catch {
             $retried = $true
             if ($attempt -ge $maxAttempts) {
-                # Use Write-Host instead of Write-Warning to maintain display consistency
-                $warningMsg = "API call failed after $maxAttempts attempts: $($_.Exception.Message)"
-                Write-ClearLine
-                Write-Host -ForegroundColor Yellow $warningMsg -NoNewline
+                # Final failure indicator: red '5'
+                Write-RetryIndicator -Attempt $maxAttempts -Final
                 $script:WarningLineShown = $true
                 return $null
             }
@@ -279,10 +295,8 @@ function Get-BtcPrice {
             $backoffSeconds = [math]::Pow(2, $attempt - 1) * $baseDelaySeconds
             $sleepDurationMs = [int]($backoffSeconds * 1000) + $jitterMs
             
-            # Use Write-Host instead of Write-Warning to maintain display consistency
-            $warningMsg = "API call failed. Retrying in $([math]::Round($sleepDurationMs/1000, 1)) seconds... (Retry $attempt of $($maxAttempts - 1))"
-            Write-ClearLine
-            Write-Host -ForegroundColor Yellow $warningMsg -NoNewline
+            # Show attempt number in yellow at spinner position
+            Write-RetryIndicator -Attempt $attempt
             $script:WarningLineShown = $true
             Start-Sleep -Milliseconds $sleepDurationMs
         }
@@ -340,17 +354,30 @@ function Get-ConsoleWidth {
 
 function Write-ClearLine {
     param([string]$Message = "")
+    # Prefer VT sequence to clear the entire line, fallback to space padding
     try {
-        $consoleWidth = Get-ConsoleWidth
-        $clearLine = "`r" + (' ' * [math]::Max(0, $consoleWidth - 1)) + "`r"
-        Write-Host -NoNewline $clearLine
-        if ($Message) {
-            Write-Host -NoNewline $Message
-        }
+        $esc = [char]27
+        # ESC[2K clears the entire current line; CR returns cursor to column 0
+        Write-Host -NoNewline ("${esc}[2K`r")
+        if ($Message) { Write-Host -NoNewline $Message }
     }
     catch {
-        Write-Host "`n"
+        try {
+            $consoleWidth = Get-ConsoleWidth
+            $clearLine = "`r" + (' ' * [math]::Max(0, $consoleWidth)) + "`r"
+            Write-Host -NoNewline $clearLine
+            if ($Message) { Write-Host -NoNewline $Message }
+        }
+        catch { Write-Host "" }
     }
+}
+
+# Optional: full-screen clear via VT, used if a warning wrapped onto more than one line
+function Write-ClearScreen {
+    try {
+        $esc = [char]27
+        Write-Host -NoNewline ("${esc}[2J${esc}[H")
+    } catch { Clear-Host }
 }
 
 # --- Main Script ---

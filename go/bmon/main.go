@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	bspinner "github.com/charmbracelet/bubbles/spinner"
@@ -307,32 +308,26 @@ func getBtcPrice() (float64, error) {
 
 	jsonData, _ := json.Marshal(payload)
 
-	req, err := http.NewRequest("POST", url, strings.NewReader(string(jsonData)))
-	if err != nil {
-		return 0, err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-api-key", apiKey)
-
 	client := &http.Client{Timeout: 10 * time.Second}
-	// Track whether a warning/retry line was printed on the previous call(s)
-	// so that any eventual success clears it. This is kept static across calls
-	// using a package-level variable.
 
 	// Retry logic
 	maxAttempts := 5
 	baseDelay := 2 * time.Second
-	warningShown := false
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		// Create a fresh request each attempt (request bodies are one-shot)
+		req, err := http.NewRequest("POST", url, strings.NewReader(string(jsonData)))
+		if err != nil {
+			return 0, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("x-api-key", apiKey)
+
 		resp, err := client.Do(req)
 		if err != nil {
 			if attempt >= maxAttempts {
-				// Last failure: ensure any prior warning line is removed before returning
-				if warningShown || lastWarningLineShown() {
-					clearLine()
-				}
+				// Final failure: show red '5' indicator for TUI
+				setRetryIndicator("5", "1", true)
 				return 0, fmt.Errorf("API call failed after %d attempts: %v", maxAttempts, err)
 			}
 
@@ -341,14 +336,8 @@ func getBtcPrice() (float64, error) {
 			jitter := time.Duration(time.Now().UnixNano()%1000) * time.Millisecond
 			sleepTime := backoff + jitter
 
-			warningMsg := fmt.Sprintf("API call failed. Retrying in %.1f seconds... (Retry %d of %d)",
-				sleepTime.Seconds(), attempt, maxAttempts-1)
-			// Draw warning in-place on a single line without advancing
-			width := getConsoleWidth()
-			padded := fmt.Sprintf("%-*s", width, "\x1b[33m"+warningMsg+"\x1b[0m")
-			fmt.Printf("\r%s\r", padded)
-			warningShown = true
-			setLastWarningLineShown(true)
+			// Show yellow digit for current attempt (1-4)
+			setRetryIndicator(strconv.Itoa(attempt), "11", true)
 
 			time.Sleep(sleepTime)
 			continue
@@ -367,76 +356,57 @@ func getBtcPrice() (float64, error) {
 		}
 
 		if apiResp.Rate <= 0 {
-			warningMsg := fmt.Sprintf("API returned invalid price: '%.2f'", apiResp.Rate)
-			width := getConsoleWidth()
-			padded := fmt.Sprintf("%-*s", width, "\x1b[33m"+warningMsg+"\x1b[0m")
-			fmt.Printf("\r%s\r", padded)
-			warningShown = true
-			return 0, fmt.Errorf("invalid price returned")
+			if attempt >= maxAttempts {
+				setRetryIndicator("5", "1", true)
+				return 0, fmt.Errorf("invalid price returned")
+			}
+			// treat as transient; set yellow digit and retry with backoff
+			setRetryIndicator(strconv.Itoa(attempt), "11", true)
+			backoff := time.Duration(math.Pow(2, float64(attempt-1))) * baseDelay
+			jitter := time.Duration(time.Now().UnixNano()%1000) * time.Millisecond
+			time.Sleep(backoff + jitter)
+			continue
 		}
 
-		// Clear any prior warning message on success
-		if warningShown || lastWarningLineShown() {
-			clearLine()
-			setLastWarningLineShown(false)
-		} else {
-			clearLine()
-		}
+		// Success: clear indicator so spinner resumes
+		clearRetryIndicator()
 		return apiResp.Rate, nil
 	}
 
 	return 0, fmt.Errorf("failed to get price after all attempts")
 }
 
-// Keep a process-wide flag indicating whether we left a warning line on screen.
-var prevWarningLine bool
+// (legacy line-warning flag removed; retry indicator handles UI signaling)
 
-func lastWarningLineShown() bool {
-	return prevWarningLine
+// Retry indicator shared state for TUI
+var (
+	retryMu     sync.RWMutex
+	retryActive bool
+	retryDigit  string
+	retryColor  string
+)
+
+func setRetryIndicator(digit string, color string, active bool) {
+	retryMu.Lock()
+	retryActive = active
+	retryDigit = digit
+	retryColor = color
+	retryMu.Unlock()
 }
 
-func setLastWarningLineShown(v bool) {
-	prevWarningLine = v
+func clearRetryIndicator() {
+	setRetryIndicator("", "", false)
 }
 
-func getConsoleWidth() int {
-	// Try to get console width, default to 80 if we can't
-	if runtime.GOOS == "windows" {
-		// On Windows, we can try to get the console width
-		cmd := exec.Command("cmd", "/c", "mode con | findstr Columns")
-		output, err := cmd.Output()
-		if err == nil {
-			// Expect something like: "   Columns:         120"
-			fields := strings.Fields(string(output))
-			for i := 0; i < len(fields); i++ {
-				if strings.HasPrefix(fields[i], "Columns") && i+1 < len(fields) {
-					if width, err := strconv.Atoi(fields[i+1]); err == nil {
-						return width
-					}
-				}
-			}
-		}
-	} else {
-		// On Linux, try to get terminal width
-		cmd := exec.Command("sh", "-c", "stty size 2>/dev/null | awk '{print $2}'")
-		output, err := cmd.Output()
-		if err == nil {
-			trim := strings.TrimSpace(string(output))
-			if width, err := strconv.Atoi(trim); err == nil && width > 0 {
-				return width
-			}
-		}
-	}
-	return 80 // Default fallback
+func getRetryIndicator() (bool, string, string) {
+	retryMu.RLock()
+	defer retryMu.RUnlock()
+	return retryActive, retryDigit, retryColor
 }
 
-func clearLine() {
-	width := getConsoleWidth()
-	fmt.Print("\r")
-	// Clear the line by printing spaces
-	fmt.Print(strings.Repeat(" ", width))
-	fmt.Print("\r")
-}
+// (legacy helpers removed)
+
+// (legacy console width and line clearing helpers removed)
 
 func getSparkline(history []float64) string {
 	if len(history) < 2 {
@@ -959,18 +929,25 @@ func (m tuiModel) View() string {
 		left = " Bitcoin (USD):"
 	}
 
-	// spinner char
+	// spinner char or retry indicator
 	spinnerChar := ""
 	if m.mode == modeGoLong {
 		spinnerChar = "*"
 	} else {
-		// spinner color: white by default; cyan only on fetch ticks
-		if m.fetchingNow {
-			m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
+		// If a retry is active, show the indicator digit in color; else show spinner
+		active, digit, colorCode := getRetryIndicator()
+		if active && digit != "" {
+			// map retry colors: "11" (yellow) or "1" (red)
+			spinnerChar = lipgloss.NewStyle().Foreground(lipgloss.Color(colorCode)).Render(digit)
 		} else {
-			m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
+			// spinner color: white by default; cyan only on fetch ticks
+			if m.fetchingNow {
+				m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
+			} else {
+				m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
+			}
+			spinnerChar = m.spinner.View()
 		}
-		spinnerChar = m.spinner.View()
 	}
 
 	rest := fmt.Sprintf("%s $%s%s", left, formatUSD(currentBtcPrice), changeString)

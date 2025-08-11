@@ -29,6 +29,7 @@ The script has two primary modes of operation: real-time monitoring and on-deman
 - **Sparkline History:** Toggle a mini-chart with the 'h' key to visualize the last 8 price ticks.
 - **Command-line Toggles:** Start with sound (`-s`) or the sparkline history (`-h`) enabled from the command line.
 - **vBTC Integration:** Can seamlessly use the API key configured in `vbtc.ini` if `bmon.ini` is not present, requiring no extra setup for existing vBTC users.
+- **Compact Retry Indicator:** In `-go` and `-golong` modes, temporary API/network failures no longer print long warnings. Instead, the spinner position shows a single digit for each retry: yellow `1`, `2`, `3`, `4`, and a red `5` on the final attempt. On a successful fetch, the spinner returns to normal immediately, keeping the display clean.
 
 ## Color Coding
 The application uses colors to provide quick visual feedback during a monitoring session:
