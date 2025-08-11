@@ -24,6 +24,11 @@
     The script expects 'gw.go' and 'gw.ico' to be in the same directory.
 #>
 
+[CmdletBinding()]
+param(
+    [switch]$upx
+)
+
 $ErrorActionPreference = "Stop"
 
 Write-Host "Starting build process for gw..." -ForegroundColor Cyan
@@ -84,24 +89,28 @@ $env:GOOS = "linux"; $env:GOARCH = "386"; go build -ldflags="-s -w" -o ".\bin\li
 Write-Host "Building for Linux 64-bit (amd64)..."
 $env:GOOS = "linux"; $env:GOARCH = "amd64"; go build -ldflags="-s -w" -o ".\bin\linux\amd64\gw" "gw.go"
 
-# --- 5. Optional UPX compression ---
-$upxCmd = Get-Command upx -ErrorAction SilentlyContinue
-if ($upxCmd -and $upxCmd.Path) {
-    Write-Host "Compressing binaries with UPX (--best --lzma)..." -ForegroundColor Yellow
-    $binaries = @(
-        ".\bin\win\x86\gw.exe",
-        ".\bin\win\x64\gw.exe",
-        ".\bin\linux\x86\gw",
-        ".\bin\linux\amd64\gw"
-    )
-    foreach ($bin in $binaries) {
-        if (Test-Path $bin) {
-            & $upxCmd.Path --best --lzma $bin | Out-Null
+# --- 5. Optional UPX compression (only when -upx is specified) ---
+if ($upx.IsPresent) {
+    $upxCmd = Get-Command upx -ErrorAction SilentlyContinue
+    if ($upxCmd -and $upxCmd.Path) {
+        Write-Host "Compressing binaries with UPX (--best --lzma)..." -ForegroundColor Yellow
+        $binaries = @(
+            ".\bin\win\x86\gw.exe",
+            ".\bin\win\x64\gw.exe",
+            ".\bin\linux\x86\gw",
+            ".\bin\linux\amd64\gw"
+        )
+        foreach ($bin in $binaries) {
+            if (Test-Path $bin) {
+                & $upxCmd.Path --best --lzma $bin | Out-Null
+            }
         }
+        Write-Host "UPX compression completed." -ForegroundColor Green
+    } else {
+        Write-Host "-upx specified but UPX not found in PATH. Skipping compression." -ForegroundColor DarkGray
     }
-    Write-Host "UPX compression completed." -ForegroundColor Green
 } else {
-    Write-Host "UPX not found in PATH. Skipping binary compression." -ForegroundColor DarkGray
+    Write-Host "UPX compression disabled by default. Pass -upx to enable." -ForegroundColor DarkGray
 }
 
 Write-Host "Build process completed successfully!" -ForegroundColor Green

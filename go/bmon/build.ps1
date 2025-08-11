@@ -17,6 +17,10 @@
     The script expects 'main.go', 'bmon.rc', and 'bitcoin_small.ico' to be in the same directory.
 #>
 
+$PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'
+# Optional flag parsing: use UPX only when '-upx' is provided
+$useUpx = $args -contains '-upx'
+
 $ErrorActionPreference = "Stop"
 
 Write-Host "Starting build process for bmon..." -ForegroundColor Cyan
@@ -77,24 +81,28 @@ $env:GOOS = "linux"; $env:GOARCH = "386"; $env:CGO_ENABLED = "0"; go build -trim
 Write-Host "Building for Linux 64-bit (amd64)..."
 $env:GOOS = "linux"; $env:GOARCH = "amd64"; $env:CGO_ENABLED = "0"; go build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o ".\bin\linux\amd64\bmon" .
 
-# --- 5. Optional UPX compression ---
-$upxCmd = Get-Command upx -ErrorAction SilentlyContinue
-if ($upxCmd -and $upxCmd.Path) {
-    Write-Host "Compressing binaries with UPX (--best --lzma)..." -ForegroundColor Yellow
-    $binaries = @(
-        ".\bin\win\x86\bmon.exe",
-        ".\bin\win\x64\bmon.exe",
-        ".\bin\linux\x86\bmon",
-        ".\bin\linux\amd64\bmon"
-    )
-    foreach ($bin in $binaries) {
-        if (Test-Path $bin) {
-            & $upxCmd.Path --best --lzma $bin | Out-Null
+# --- 5. Optional UPX compression (only when -upx is specified) ---
+if ($useUpx) {
+    $upxCmd = Get-Command upx -ErrorAction SilentlyContinue
+    if ($upxCmd -and $upxCmd.Path) {
+        Write-Host "Compressing binaries with UPX (--best --lzma)..." -ForegroundColor Yellow
+        $binaries = @(
+            ".\bin\win\x86\bmon.exe",
+            ".\bin\win\x64\bmon.exe",
+            ".\bin\linux\x86\bmon",
+            ".\bin\linux\amd64\bmon"
+        )
+        foreach ($bin in $binaries) {
+            if (Test-Path $bin) {
+                & $upxCmd.Path --best --lzma $bin | Out-Null
+            }
         }
+        Write-Host "UPX compression completed." -ForegroundColor Green
+    } else {
+        Write-Host "-upx specified but UPX not found in PATH. Skipping compression." -ForegroundColor DarkGray
     }
-    Write-Host "UPX compression completed." -ForegroundColor Green
 } else {
-    Write-Host "UPX not found in PATH. Skipping binary compression." -ForegroundColor DarkGray
+    Write-Host "UPX compression disabled by default. Pass -upx to enable." -ForegroundColor DarkGray
 }
 
 Write-Host "Build process completed successfully!" -ForegroundColor Green

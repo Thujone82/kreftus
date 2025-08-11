@@ -10,6 +10,11 @@
     - Places artifacts under ./bin/...
 #>
 
+[CmdletBinding()]
+param(
+    [switch]$upx
+)
+
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
@@ -74,24 +79,28 @@ finally {
     Remove-Item Env:\GOARCH -ErrorAction SilentlyContinue
 }
 
-# 6) Optional UPX compression
-$upxCmd = Get-Command upx -ErrorAction SilentlyContinue
-if ($upxCmd -and $upxCmd.Path) {
-    Write-Host "Compressing binaries with UPX (--best --lzma)..." -ForegroundColor Yellow
-    $binaries = @(
-        "./bin/win/x86/larry.exe",
-        "./bin/win/x64/larry.exe",
-        "./bin/linux/x86/larry",
-        "./bin/linux/amd64/larry"
-    )
-    foreach ($bin in $binaries) {
-        if (Test-Path $bin) {
-            & $upxCmd.Path --best --lzma $bin | Out-Null
+# 6) Optional UPX compression (only when -upx is specified)
+if ($upx.IsPresent) {
+    $upxCmd = Get-Command upx -ErrorAction SilentlyContinue
+    if ($upxCmd -and $upxCmd.Path) {
+        Write-Host "Compressing binaries with UPX (--best --lzma)..." -ForegroundColor Yellow
+        $binaries = @(
+            "./bin/win/x86/larry.exe",
+            "./bin/win/x64/larry.exe",
+            "./bin/linux/x86/larry",
+            "./bin/linux/amd64/larry"
+        )
+        foreach ($bin in $binaries) {
+            if (Test-Path $bin) {
+                & $upxCmd.Path --best --lzma $bin | Out-Null
+            }
         }
+        Write-Host "UPX compression completed." -ForegroundColor Green
+    } else {
+        Write-Host "-upx specified but UPX not found in PATH. Skipping compression." -ForegroundColor DarkGray
     }
-    Write-Host "UPX compression completed." -ForegroundColor Green
 } else {
-    Write-Host "UPX not found in PATH. Skipping binary compression." -ForegroundColor DarkGray
+    Write-Host "UPX compression disabled by default. Pass -upx to enable." -ForegroundColor DarkGray
 }
 
 Write-Host "Build process completed successfully!" -ForegroundColor Green
