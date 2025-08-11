@@ -70,13 +70,15 @@ try {
     Write-Host "  -> Generating 32-bit resources..." -ForegroundColor DarkGray
     $env:GOOS = "windows"; $env:GOARCH = "386"
     windres -F pe-i386 -i gw.rc -o gw.syso -I .
-    go build -ldflags="-s -w" -o ".\bin\win\x86\gw.exe" .
+    Write-Host "  -> go build (windows/386) with -v" -ForegroundColor DarkGray
+    go build -v -ldflags="-s -w" -o ".\bin\win\x86\gw.exe" .
 
     Write-Host "Building for Windows 64-bit (amd64)..."
     Write-Host "  -> Generating 64-bit resources..." -ForegroundColor DarkGray
     $env:GOOS = "windows"; $env:GOARCH = "amd64"
     windres -F pe-x86-64 -i gw.rc -o gw.syso -I .
-    go build -ldflags="-s -w" -o ".\bin\win\x64\gw.exe" .
+    Write-Host "  -> go build (windows/amd64) with -v" -ForegroundColor DarkGray
+    go build -v -ldflags="-s -w" -o ".\bin\win\x64\gw.exe" .
 }
 finally {
     if (Test-Path "gw.syso") { Remove-Item "gw.syso" -Force }
@@ -84,10 +86,10 @@ finally {
 
 # --- 4. Linux Builds ---
 Write-Host "Building for Linux 32-bit (x86)..."
-$env:GOOS = "linux"; $env:GOARCH = "386"; go build -ldflags="-s -w" -o ".\bin\linux\x86\gw" "gw.go"
+$env:GOOS = "linux"; $env:GOARCH = "386"; Write-Host "  -> go build (linux/386) with -v" -ForegroundColor DarkGray; go build -v -ldflags="-s -w" -o ".\bin\linux\x86\gw" "gw.go"
 
 Write-Host "Building for Linux 64-bit (amd64)..."
-$env:GOOS = "linux"; $env:GOARCH = "amd64"; go build -ldflags="-s -w" -o ".\bin\linux\amd64\gw" "gw.go"
+$env:GOOS = "linux"; $env:GOARCH = "amd64"; Write-Host "  -> go build (linux/amd64) with -v" -ForegroundColor DarkGray; go build -v -ldflags="-s -w" -o ".\bin\linux\amd64\gw" "gw.go"
 
 # --- 5. Optional UPX compression (only when -upx is specified) ---
 if ($upx.IsPresent) {
@@ -102,7 +104,8 @@ if ($upx.IsPresent) {
         )
         foreach ($bin in $binaries) {
             if (Test-Path $bin) {
-                & $upxCmd.Path --best --lzma $bin | Out-Null
+                Write-Host "  -> upx $bin" -ForegroundColor DarkGray
+                & $upxCmd.Path --best --lzma $bin
             }
         }
         Write-Host "UPX compression completed." -ForegroundColor Green

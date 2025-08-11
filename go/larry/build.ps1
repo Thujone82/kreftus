@@ -50,28 +50,30 @@ try {
         Write-Host "Building for Windows (x86) with icon..." -ForegroundColor Cyan
         $env:GOOS = "windows"; $env:GOARCH = "386"
         windres -F pe-i386 -I $PSScriptRoot -i $rcFile -o larry.syso
-        go build -ldflags "$ldflags" -o "./bin/win/x86/larry.exe" .
+        Write-Host "  -> go build (windows/386) with -v" -ForegroundColor DarkGray
+        go build -v -ldflags "$ldflags" -o "./bin/win/x86/larry.exe" .
 
         Write-Host "Building for Windows (x64) with icon..." -ForegroundColor Cyan
         $env:GOOS = "windows"; $env:GOARCH = "amd64"
         windres -F pe-x86-64 -I $PSScriptRoot -i $rcFile -o larry.syso
-        go build -ldflags "$ldflags" -o "./bin/win/x64/larry.exe" .
+        Write-Host "  -> go build (windows/amd64) with -v" -ForegroundColor DarkGray
+        go build -v -ldflags "$ldflags" -o "./bin/win/x64/larry.exe" .
 
         if (Test-Path "larry.syso") { Remove-Item "larry.syso" -Force }
     } else {
         Write-Host "Building for Windows (x86)..." -ForegroundColor Cyan
-        $env:GOOS = "windows"; $env:GOARCH = "386"; go build -ldflags "$ldflags" -o "./bin/win/x86/larry.exe" .
+        $env:GOOS = "windows"; $env:GOARCH = "386"; Write-Host "  -> go build (windows/386) with -v" -ForegroundColor DarkGray; go build -v -ldflags "$ldflags" -o "./bin/win/x86/larry.exe" .
 
         Write-Host "Building for Windows (x64)..." -ForegroundColor Cyan
-        $env:GOOS = "windows"; $env:GOARCH = "amd64"; go build -ldflags "$ldflags" -o "./bin/win/x64/larry.exe" .
+        $env:GOOS = "windows"; $env:GOARCH = "amd64"; Write-Host "  -> go build (windows/amd64) with -v" -ForegroundColor DarkGray; go build -v -ldflags "$ldflags" -o "./bin/win/x64/larry.exe" .
     }
 
     # 5) Linux builds
     Write-Host "Building for Linux (x86)..." -ForegroundColor Cyan
-    $env:GOOS = "linux"; $env:GOARCH = "386"; go build -ldflags "$ldflags" -o "./bin/linux/x86/larry" .
+    $env:GOOS = "linux"; $env:GOARCH = "386"; Write-Host "  -> go build (linux/386) with -v" -ForegroundColor DarkGray; go build -v -ldflags "$ldflags" -o "./bin/linux/x86/larry" .
 
     Write-Host "Building for Linux (amd64)..." -ForegroundColor Cyan
-    $env:GOOS = "linux"; $env:GOARCH = "amd64"; go build -ldflags "$ldflags" -o "./bin/linux/amd64/larry" .
+    $env:GOOS = "linux"; $env:GOARCH = "amd64"; Write-Host "  -> go build (linux/amd64) with -v" -ForegroundColor DarkGray; go build -v -ldflags "$ldflags" -o "./bin/linux/amd64/larry" .
 }
 finally {
     # Clean env overrides
@@ -92,7 +94,8 @@ if ($upx.IsPresent) {
         )
         foreach ($bin in $binaries) {
             if (Test-Path $bin) {
-                & $upxCmd.Path --best --lzma $bin | Out-Null
+                Write-Host "  -> upx $bin" -ForegroundColor DarkGray
+                & $upxCmd.Path --best --lzma $bin
             }
         }
         Write-Host "UPX compression completed." -ForegroundColor Green

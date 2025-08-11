@@ -106,15 +106,42 @@ function Invoke-ProjectBuild {
         [string]$ProjectName,
         [bool]$UpxEnabled
     )
+    # Helper to invoke a child PowerShell and stream all output live (stdout, stderr, information, etc.)
+    function Invoke-StreamingPwsh {
+        param(
+            [string]$WorkingDirectory,
+            [bool]$PassUpx
+        )
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = "pwsh"
+        $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File build.ps1" + ($(if($PassUpx){' -upx'}else{''}))
+        $psi.WorkingDirectory = $WorkingDirectory
+        $psi.UseShellExecute = $false
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.CreateNoWindow = $true
+        $proc = New-Object System.Diagnostics.Process
+        $proc.StartInfo = $psi
+        [void]$proc.Start()
+        while (-not $proc.HasExited -or -not $proc.StandardOutput.EndOfStream -or -not $proc.StandardError.EndOfStream) {
+            while (-not $proc.StandardOutput.EndOfStream) {
+                $line = $proc.StandardOutput.ReadLine()
+                if ($null -ne $line) { Write-Host $line }
+            }
+            while (-not $proc.StandardError.EndOfStream) {
+                $eline = $proc.StandardError.ReadLine()
+                if ($null -ne $eline) { Write-Host $eline -ForegroundColor Red }
+            }
+            Start-Sleep -Milliseconds 25
+        }
+        return $proc.ExitCode
+    }
     Write-Host ""; Write-Host ("─" * (Get-ConsoleWidth)) -ForegroundColor DarkGray
     Write-Host ("Building " + $ProjectName + " …") -ForegroundColor Yellow
     Push-Location $ProjectPath
     try {
-        $argsList = @('-NoProfile','-ExecutionPolicy','Bypass','-File','build.ps1')
-        if ($UpxEnabled) { $argsList += '-upx' }
-        Write-Host ("Executing: pwsh " + ($argsList -join ' ')) -ForegroundColor DarkGray
-        & pwsh @argsList
-        $exitCode = $LASTEXITCODE
+        Write-Host ("Executing: pwsh -NoProfile -ExecutionPolicy Bypass -File build.ps1" + ($(if($UpxEnabled){' -upx'}else{''}))) -ForegroundColor DarkGray
+        $exitCode = Invoke-StreamingPwsh -WorkingDirectory (Get-Location).Path -PassUpx:$UpxEnabled
         if ($exitCode -eq 0) {
             Write-Host ("✔ Completed: " + $ProjectName) -ForegroundColor Green
             return $true

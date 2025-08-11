@@ -63,13 +63,15 @@ try {
     Write-Host "  -> Generating 32-bit resources..." -ForegroundColor DarkGray
     $env:GOOS = "windows"; $env:GOARCH = "386"
     windres -F pe-i386 -i rc.rc -o rc.syso -I .
-    go build -ldflags="-s -w" -o ".\bin\win\x86\rc.exe" .
+    Write-Host "  -> go build (windows/386) with -v" -ForegroundColor DarkGray
+    go build -v -ldflags="-s -w" -o ".\bin\win\x86\rc.exe" .
 
     Write-Host "Building for Windows 64-bit (amd64)..."
     Write-Host "  -> Generating 64-bit resources..." -ForegroundColor DarkGray
     $env:GOOS = "windows"; $env:GOARCH = "amd64"
     windres -F pe-x86-64 -i rc.rc -o rc.syso -I .
-    go build -ldflags="-s -w" -o ".\bin\win\x64\rc.exe" .
+    Write-Host "  -> go build (windows/amd64) with -v" -ForegroundColor DarkGray
+    go build -v -ldflags="-s -w" -o ".\bin\win\x64\rc.exe" .
 }
 finally {
     if (Test-Path "rc.syso") { Remove-Item "rc.syso" -Force }
@@ -77,10 +79,10 @@ finally {
 
 # --- 4. Linux Builds ---
 Write-Host "Building for Linux 32-bit (x86)..."
-$env:GOOS = "linux"; $env:GOARCH = "386"; go build -ldflags="-s -w" -o ".\bin\linux\x86\rc" .
+$env:GOOS = "linux"; $env:GOARCH = "386"; Write-Host "  -> go build (linux/386) with -v" -ForegroundColor DarkGray; go build -v -ldflags="-s -w" -o ".\bin\linux\x86\rc" .
 
 Write-Host "Building for Linux 64-bit (amd64)..."
-$env:GOOS = "linux"; $env:GOARCH = "amd64"; go build -ldflags="-s -w" -o ".\bin\linux\amd64\rc" .
+$env:GOOS = "linux"; $env:GOARCH = "amd64"; Write-Host "  -> go build (linux/amd64) with -v" -ForegroundColor DarkGray; go build -v -ldflags="-s -w" -o ".\bin\linux\amd64\rc" .
 
 # --- 5. Optional UPX compression (only when -upx is specified) ---
 if ($upx.IsPresent) {
@@ -95,7 +97,8 @@ if ($upx.IsPresent) {
         )
         foreach ($bin in $binaries) {
             if (Test-Path $bin) {
-                & $upxCmd.Path --best --lzma $bin | Out-Null
+                Write-Host "  -> upx $bin" -ForegroundColor DarkGray
+                & $upxCmd.Path --best --lzma $bin
             }
         }
         Write-Host "UPX compression completed." -ForegroundColor Green

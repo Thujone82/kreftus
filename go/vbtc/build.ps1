@@ -19,7 +19,7 @@ $ZipperSource = "tools/zipper/main.go"
 $ZipperExePath = Join-Path $PSScriptRoot "zipper.exe"
 
 Write-Host "Building helper tools..." -ForegroundColor Cyan
-$env:GOOS = "windows"; $env:GOARCH = "amd64"; go build -o $ZipperExePath $ZipperSource
+$env:GOOS = "windows"; $env:GOARCH = "amd64"; Write-Host "  -> go build helper with -v" -ForegroundColor DarkGray; go build -v -o $ZipperExePath $ZipperSource
 
 # Add error checking right after the build to ensure the helper was created.
 if (-not (Test-Path $ZipperExePath)) {
@@ -61,9 +61,9 @@ try {
     windres -I $PSScriptRoot -o vbtc.syso $rcFilePath
     Write-Host "  - Compiling executable (x64)..."
     # Explicitly set the OS and Architecture for the Windows build to avoid environment issues.
-    $env:GOOS="windows"; $env:GOARCH="amd64"; go build -ldflags="-s -w" -o bin/pc/x64/vbtc.exe
+    $env:GOOS="windows"; $env:GOARCH="amd64"; Write-Host "  -> go build (windows/amd64) with -v" -ForegroundColor DarkGray; go build -v -ldflags="-s -w" -o bin/pc/x64/vbtc.exe
     Write-Host "  - Compiling executable (x86)..."
-    $env:GOOS="windows"; $env:GOARCH="386"; go build -ldflags="-s -w" -o bin/pc/x86/vbtc.exe
+    $env:GOOS="windows"; $env:GOARCH="386"; Write-Host "  -> go build (windows/386) with -v" -ForegroundColor DarkGray; go build -v -ldflags="-s -w" -o bin/pc/x86/vbtc.exe
 }
 finally {
     if (Test-Path "vbtc.syso") {
@@ -72,16 +72,16 @@ finally {
 }
 
 Write-Host "Building for macOS (Apple Silicon)..." -ForegroundColor Cyan
-$env:GOOS="darwin"; $env:GOARCH="arm64"; go build -ldflags="-s -w" -o bin/mac/arm64/vbtc
+$env:GOOS="darwin"; $env:GOARCH="arm64"; Write-Host "  -> go build (darwin/arm64) with -v" -ForegroundColor DarkGray; go build -v -ldflags="-s -w" -o bin/mac/arm64/vbtc
 
 Write-Host "Building for macOS (Intel)..." -ForegroundColor Cyan
-$env:GOOS="darwin"; $env:GOARCH="amd64"; go build -ldflags="-s -w" -o bin/mac/amd64/vbtc
+$env:GOOS="darwin"; $env:GOARCH="amd64"; Write-Host "  -> go build (darwin/amd64) with -v" -ForegroundColor DarkGray; go build -v -ldflags="-s -w" -o bin/mac/amd64/vbtc
 
 Write-Host "Building for Linux (x64)..." -ForegroundColor Cyan
-$env:GOOS="linux"; $env:GOARCH="amd64"; go build -ldflags="-s -w" -o bin/linux/amd64/vbtc
+$env:GOOS="linux"; $env:GOARCH="amd64"; Write-Host "  -> go build (linux/amd64) with -v" -ForegroundColor DarkGray; go build -v -ldflags="-s -w" -o bin/linux/amd64/vbtc
 
 Write-Host "Building for Linux (x86)..." -ForegroundColor Cyan
-$env:GOOS="linux"; $env:GOARCH="386"; go build -ldflags="-s -w" -o bin/linux/x86/vbtc
+$env:GOOS="linux"; $env:GOARCH="386"; Write-Host "  -> go build (linux/386) with -v" -ForegroundColor DarkGray; go build -v -ldflags="-s -w" -o bin/linux/x86/vbtc
 
 # --- Optional UPX compression for all binaries (only when -upx is specified) ---
 if ($useUpx) {
@@ -98,7 +98,8 @@ if ($useUpx) {
         )
         foreach ($bin in $binaries) {
             if (Test-Path $bin) {
-                & $upxCmd.Path --best --lzma $bin | Out-Null
+                Write-Host "    -> upx $bin" -ForegroundColor DarkGray
+                & $upxCmd.Path --best --lzma $bin
             }
         }
         Write-Host "UPX compression completed." -ForegroundColor Green
