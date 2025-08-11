@@ -583,7 +583,7 @@ func clearScreen() {
 // (legacy keyboard input helpers removed; Bubble Tea handles input)
 
 func printHelp() {
-	color.Yellow("Bitcoin Monitor (bmon) - Version %s", version)
+	color.Yellow("Bitcoin Monitor (bmon) - Version %s (%s)", version, date)
 	color.White("═══════════════════════════════════════════════════════════════")
 	fmt.Println()
 

@@ -62,13 +62,15 @@ try {
     Write-Host "  -> Generating 32-bit resources..." -ForegroundColor DarkGray
     $env:GOOS = "windows"; $env:GOARCH = "386"; $env:CGO_ENABLED = "0"
     windres -F pe-i386 -i bmon.rc -o bmon.syso -I .
-    go build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o ".\bin\win\x86\bmon.exe" .
+    Write-Host "  -> go build (windows/386) with -v" -ForegroundColor DarkGray
+    go build -v -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o ".\bin\win\x86\bmon.exe" .
 
     Write-Host "Building for Windows 64-bit (amd64)..."
     Write-Host "  -> Generating 64-bit resources..." -ForegroundColor DarkGray
     $env:GOOS = "windows"; $env:GOARCH = "amd64"; $env:CGO_ENABLED = "0"
     windres -F pe-x86-64 -i bmon.rc -o bmon.syso -I .
-    go build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o ".\bin\win\x64\bmon.exe" .
+    Write-Host "  -> go build (windows/amd64) with -v" -ForegroundColor DarkGray
+    go build -v -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o ".\bin\win\x64\bmon.exe" .
 }
 finally {
     if (Test-Path "bmon.syso") { Remove-Item "bmon.syso" -Force }
@@ -76,10 +78,10 @@ finally {
 
 # --- 4. Linux Builds ---
 Write-Host "Building for Linux 32-bit (x86)..."
-$env:GOOS = "linux"; $env:GOARCH = "386"; $env:CGO_ENABLED = "0"; go build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o ".\bin\linux\x86\bmon" .
+$env:GOOS = "linux"; $env:GOARCH = "386"; $env:CGO_ENABLED = "0"; Write-Host "  -> go build (linux/386) with -v" -ForegroundColor DarkGray; go build -v -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o ".\bin\linux\x86\bmon" .
 
 Write-Host "Building for Linux 64-bit (amd64)..."
-$env:GOOS = "linux"; $env:GOARCH = "amd64"; $env:CGO_ENABLED = "0"; go build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o ".\bin\linux\amd64\bmon" .
+$env:GOOS = "linux"; $env:GOARCH = "amd64"; $env:CGO_ENABLED = "0"; Write-Host "  -> go build (linux/amd64) with -v" -ForegroundColor DarkGray; go build -v -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -o ".\bin\linux\amd64\bmon" .
 
 # --- 5. Optional UPX compression (only when -upx is specified) ---
 if ($useUpx) {
@@ -94,7 +96,8 @@ if ($useUpx) {
         )
         foreach ($bin in $binaries) {
             if (Test-Path $bin) {
-                & $upxCmd.Path --best --lzma $bin | Out-Null
+                Write-Host "  -> upx $bin" -ForegroundColor DarkGray
+                & $upxCmd.Path --best --lzma $bin
             }
         }
         Write-Host "UPX compression completed." -ForegroundColor Green
