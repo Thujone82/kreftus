@@ -316,6 +316,9 @@ func getBtcPrice() (float64, error) {
 	req.Header.Set("x-api-key", apiKey)
 
 	client := &http.Client{Timeout: 10 * time.Second}
+	// Track whether a warning/retry line was printed on the previous call(s)
+	// so that any eventual success clears it. This is kept static across calls
+	// using a package-level variable.
 
 	// Retry logic
 	maxAttempts := 5
@@ -327,9 +330,7 @@ func getBtcPrice() (float64, error) {
 		if err != nil {
 			if attempt >= maxAttempts {
 				// Last failure: ensure any prior warning line is removed before returning
-				if warningShown {
-					clearScreen()
-				} else {
+				if warningShown || lastWarningLineShown() {
 					clearLine()
 				}
 				return 0, fmt.Errorf("API call failed after %d attempts: %v", maxAttempts, err)
@@ -347,6 +348,7 @@ func getBtcPrice() (float64, error) {
 			padded := fmt.Sprintf("%-*s", width, "\x1b[33m"+warningMsg+"\x1b[0m")
 			fmt.Printf("\r%s\r", padded)
 			warningShown = true
+			setLastWarningLineShown(true)
 
 			time.Sleep(sleepTime)
 			continue
@@ -373,9 +375,10 @@ func getBtcPrice() (float64, error) {
 			return 0, fmt.Errorf("invalid price returned")
 		}
 
-		// Clear screen after a successful retry to ensure no messages remain
-		if warningShown {
-			clearScreen()
+		// Clear any prior warning message on success
+		if warningShown || lastWarningLineShown() {
+			clearLine()
+			setLastWarningLineShown(false)
 		} else {
 			clearLine()
 		}
@@ -383,6 +386,17 @@ func getBtcPrice() (float64, error) {
 	}
 
 	return 0, fmt.Errorf("failed to get price after all attempts")
+}
+
+// Keep a process-wide flag indicating whether we left a warning line on screen.
+var prevWarningLine bool
+
+func lastWarningLineShown() bool {
+	return prevWarningLine
+}
+
+func setLastWarningLineShown(v bool) {
+	prevWarningLine = v
 }
 
 func getConsoleWidth() int {

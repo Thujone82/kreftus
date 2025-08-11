@@ -177,6 +177,9 @@ function Set-IniConfiguration {
     }
 }
 
+# Tracks whether the previous operation printed a one-line warning/retry message
+$script:WarningLineShown = $false
+
 function Test-ApiKey {
     param ([string]$ApiKey)
     if ([string]::IsNullOrEmpty($ApiKey)) { return $false }
@@ -242,9 +245,10 @@ function Get-BtcPrice {
         try {
             $response = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single" -Method Post -Headers $headers -Body $body -TimeoutSec 10 -ErrorAction Stop
             
-            if ($retried) {
-                # On successful fetch after a retry, fully clear the screen to avoid any leftover messages
-                Clear-Host
+            # If we previously showed a warning line in any prior call, ensure it is cleared now
+            if ($retried -or $script:WarningLineShown) {
+                Write-ClearLine
+                $script:WarningLineShown = $false
             }
 
             $price = $response.rate -as [double]
@@ -254,6 +258,7 @@ function Get-BtcPrice {
                 $warningMsg = "API returned invalid price: '$($response.rate)'"
                 Write-ClearLine
                 Write-Host -ForegroundColor Yellow $warningMsg -NoNewline
+                $script:WarningLineShown = $true
                 return $null
             }
             return $price
@@ -265,6 +270,7 @@ function Get-BtcPrice {
                 $warningMsg = "API call failed after $maxAttempts attempts: $($_.Exception.Message)"
                 Write-ClearLine
                 Write-Host -ForegroundColor Yellow $warningMsg -NoNewline
+                $script:WarningLineShown = $true
                 return $null
             }
             
@@ -277,6 +283,7 @@ function Get-BtcPrice {
             $warningMsg = "API call failed. Retrying in $([math]::Round($sleepDurationMs/1000, 1)) seconds... (Retry $attempt of $($maxAttempts - 1))"
             Write-ClearLine
             Write-Host -ForegroundColor Yellow $warningMsg -NoNewline
+            $script:WarningLineShown = $true
             Start-Sleep -Milliseconds $sleepDurationMs
         }
     }
