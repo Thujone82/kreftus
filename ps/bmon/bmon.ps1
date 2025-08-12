@@ -186,14 +186,12 @@ function Write-RetryIndicator {
         [switch]$Final
     )
     $fg = if ($Final) { 'Red' } else { 'Yellow' }
-    $width = Get-ConsoleWidth
-    if ($width -lt 1) { $width = 80 }
     $digit = [string]$Attempt
     try {
+        # Move to column 0, write the colored digit only, then return to column 0.
+        # Do NOT pad the rest of the line; leave existing content intact.
         Write-Host -NoNewline "`r"
         Write-Host -NoNewline -ForegroundColor $fg $digit
-        $padLen = [math]::Max(0, $width - 1)
-        if ($padLen -gt 0) { Write-Host -NoNewline (' ' * $padLen) }
         Write-Host -NoNewline "`r"
     } catch {
         Write-Host -NoNewline "`r$digit"
@@ -266,10 +264,7 @@ function Get-BtcPrice {
             $response = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single" -Method Post -Headers $headers -Body $body -TimeoutSec 10 -ErrorAction Stop
             
             # Clear any prior retry indicator on success
-            if ($retried -or $script:WarningLineShown) {
-                Write-ClearLine
-                $script:WarningLineShown = $false
-            }
+            if ($retried -or $script:WarningLineShown) { $script:WarningLineShown = $false }
 
             $price = $response.rate -as [double]
             

@@ -937,7 +937,7 @@ func (m tuiModel) View() string {
 		// If a retry is active, show the indicator digit in color; else show spinner
 		active, digit, colorCode := getRetryIndicator()
 		if active && digit != "" {
-			// map retry colors: "11" (yellow) or "1" (red)
+			// map retry colors: "11" (yellow) or "1" (red). Only replace the spinner glyph itself.
 			spinnerChar = lipgloss.NewStyle().Foreground(lipgloss.Color(colorCode)).Render(digit)
 		} else {
 			// spinner color: white by default; cyan only on fetch ticks
