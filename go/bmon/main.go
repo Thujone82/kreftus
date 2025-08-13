@@ -788,6 +788,11 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// pause/return to landing
 				m.mode = modeLanding
 			}
+		case "e":
+			// Extend session timeout without changing comparison baseline
+			if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeInteractive {
+				m.sessionStartTime = time.Now()
+			}
 		case "g":
 			if m.mode == modeLanding {
 				m.mode = modeGo

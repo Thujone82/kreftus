@@ -64,6 +64,7 @@ The application uses colors to provide quick visual feedback during a monitoring
     `.\bmon.ps1 -golong [-s] [-h]` (24-hour session, 20-second updates)
     The script will run for the specified duration and then exit.
     - Press `r` to reset the session baseline to the current price.
+    - Press `e` to extend the current session timeout (back to 15 minutes or 24 hours depending on mode) without changing the comparison baseline.
     - Press `m` to toggle between -go and -golong modes.
     - Press `I` to switch back to interactive mode.
     - Press `h` to toggle the price history sparkline.

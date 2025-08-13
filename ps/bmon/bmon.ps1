@@ -550,6 +550,11 @@ if ($go.IsPresent -or $golong.IsPresent) {
                         $refreshed = $true
                         break
                     }
+                    if ($keyInfo.KeyChar -eq 'e' -or $keyInfo.KeyChar -eq 'E') {
+                        # Extend session timer without changing comparison baseline
+                        $monitorStartTime = Get-Date
+                        # do not mark refreshed; keep baseline
+                    }
                     if ($keyInfo.KeyChar -eq 'm') {
                         $currentMode = if ($currentMode -eq 'go') { 'golong' } else { 'go' }
                         $monitorStartTime = Get-Date
@@ -719,6 +724,11 @@ else {
                     if ($keyInfo.KeyChar -eq 'r') {
                         $refreshed = $true
                         break
+                    }
+                    if ($keyInfo.KeyChar -eq 'e' -or $keyInfo.KeyChar -eq 'E') {
+                        # Extend interactive session timer without changing baseline
+                        $monitorStartTime = Get-Date
+                        & $drawScreen -InvertColors $false -ChangeString $changeString -PriceColor $priceColor
                     }
                     if ($keyInfo.KeyChar -eq 's') {
                         Invoke-SoundToggle -SoundEnabled ([ref]$soundEnabled)

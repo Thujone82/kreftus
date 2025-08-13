@@ -55,6 +55,7 @@ The application can run in several modes: interactive monitoring with keyboard c
 
 ### Controls (during monitoring)
 - `R` - Reset baseline price and timer
+- `E` - Extend the current session timeout without changing the comparison baseline
 - `M` - Switch between go/golong modes
 - `S` - Toggle sound alerts
 - `H` - Toggle history sparkline

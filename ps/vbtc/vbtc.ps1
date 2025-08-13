@@ -956,7 +956,7 @@ function Invoke-Trade {
         Write-Host "*** $Type Bitcoin ***" -ForegroundColor Yellow
         if ([string]::IsNullOrEmpty($userInput)) { # Prompt for input if not provided as an argument
             $userInput = Read-Host $prompt
-            if ([string]::IsNullOrEmpty($userInput)) { return } # User cancelled
+            if ([string]::IsNullOrEmpty($userInput)) { return $CurrentApiData } # User cancelled: return prior data so main screen doesn't lose display
         }
 
         $parsedAmount = 0.0
@@ -1137,6 +1137,11 @@ function Invoke-Trade {
 
         } # End of InnerInputLoop
 
+        if ($null -eq $tradeinput) {
+            # Defensive: if somehow we fall through with no input, keep current data
+            return $tradeApiData
+        }
+        
         if ($tradeinput.ToLower() -eq 'y') {
             # Check if the offer has expired *at the moment of acceptance*.
             if (((Get-Date) - $offerTimestamp).TotalMinutes -ge 2) {
@@ -1210,6 +1215,8 @@ function Invoke-Trade {
             continue OuterTradeLoop
         }
         
+        # For any other outcome ('n' cancel or Enter-cancel), return the latest tradeApiData so
+        # the caller retains a valid (possibly cached) snapshot without forcing a full refresh.
         Write-Host "`n$Type cancelled."
         Start-Sleep -Seconds 1
         return $tradeApiData
