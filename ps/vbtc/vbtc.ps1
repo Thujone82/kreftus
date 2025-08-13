@@ -54,6 +54,7 @@ $iniFilePath = Join-Path -Path $scriptPath -ChildPath "vbtc.ini"
 $ledgerFilePath = Join-Path -Path $scriptPath -ChildPath "ledger.csv"
 $startingCapital = 1000.00
 $sessionStartTime = (Get-Date).ToUniversalTime()
+$script:LastGoodApiData = $null
 
 # --- Helper Functions ---
 
@@ -310,6 +311,10 @@ function Update-ApiData {
         Copy-HistoricalData -Source $OldApiData -Destination $newData
     }
 
+    # Update last-known good dataset when we have a valid rate
+    if ($newData -and $newData.PSObject.Properties['rate'] -and $newData.rate) {
+        $script:LastGoodApiData = $newData
+    }
     return $newData
 }
 
@@ -350,6 +355,13 @@ function Get-ApiData {
         }
         return $null
     }
+}
+
+function Get-BestApiData {
+    param([object]$Preferred)
+    if ($Preferred -and $Preferred.PSObject.Properties['rate'] -and $Preferred.rate) { return $Preferred }
+    if ($script:LastGoodApiData) { return $script:LastGoodApiData }
+    return $Preferred
 }
 
 function Test-ApiKey {
@@ -956,7 +968,7 @@ function Invoke-Trade {
         Write-Host "*** $Type Bitcoin ***" -ForegroundColor Yellow
         if ([string]::IsNullOrEmpty($userInput)) { # Prompt for input if not provided as an argument
             $userInput = Read-Host $prompt
-            if ([string]::IsNullOrEmpty($userInput)) { return $CurrentApiData } # User cancelled: return prior data so main screen doesn't lose display
+            if ([string]::IsNullOrEmpty($userInput)) { return (Get-BestApiData -Preferred $CurrentApiData) } # User cancelled: prefer last good snapshot
         }
 
         $parsedAmount = 0.0
@@ -1035,9 +1047,9 @@ function Invoke-Trade {
             $errorMessage += " - Try again later"
             Write-Host $errorMessage -ForegroundColor Red
             Read-Host "Press Enter to return to the main menu."
-            return $CurrentApiData # Return the old, non-error data to the main loop
+            return (Get-BestApiData -Preferred $CurrentApiData)
         }
-        if (-not $tradeApiData) { Read-Host "Error fetching price. Press Enter to continue."; return $CurrentApiData } # return old data on failure
+        if (-not $tradeApiData) { Read-Host "Error fetching price. Press Enter to continue."; return (Get-BestApiData -Preferred $CurrentApiData) } # return old/best on failure
         $offerTimestamp = Get-Date # Record the time the offer is presented.
         $timeoutSeconds = 120
         $tradeinput = $null # To store the user's choice
@@ -1139,7 +1151,7 @@ function Invoke-Trade {
 
         if ($null -eq $tradeinput) {
             # Defensive: if somehow we fall through with no input, keep current data
-            return $tradeApiData
+            return (Get-BestApiData -Preferred $tradeApiData)
         }
         
         if ($tradeinput.ToLower() -eq 'y') {
@@ -1170,7 +1182,7 @@ function Invoke-Trade {
                 Write-Warning "`nTrade cancelled. Your USD balance has changed since the trade was initiated."
                 Write-Warning "Your current balance is $($currentPlayerUSD.ToString("C2")), but the trade required $($usdAmount.ToString("C2"))."
                 Read-Host "Press Enter to continue."
-                return $tradeApiData
+            return (Get-BestApiData -Preferred $tradeApiData)
             }
             if ($Type -eq "Sell" -and $btcAmount -gt $currentPlayerBTC) {
                 Write-Warning "`nTrade cancelled. Your BTC balance has changed since the trade was initiated."
@@ -1219,7 +1231,7 @@ function Invoke-Trade {
         # the caller retains a valid (possibly cached) snapshot without forcing a full refresh.
         Write-Host "`n$Type cancelled."
         Start-Sleep -Seconds 1
-        return $tradeApiData
+        return (Get-BestApiData -Preferred $tradeApiData)
     }
 }
 
@@ -1390,12 +1402,14 @@ while ($true) {
         $command = $matchedCommands[0]
         switch ($command) {
             "buy" {
-                $apiData = Invoke-Trade -Config ([ref]$config) -Type "Buy" -AmountString $amount -CurrentApiData $apiData
+                $returned = Invoke-Trade -Config ([ref]$config) -Type "Buy" -AmountString $amount -CurrentApiData $apiData
+                $apiData = Get-BestApiData -Preferred $returned
                 # After returning from trade, always reload config to ensure the main screen is perfectly in sync.
                 $config = Get-IniConfiguration -FilePath $iniFilePath
             }
             "sell" {
-                $apiData = Invoke-Trade -Config ([ref]$config) -Type "Sell" -AmountString $amount -CurrentApiData $apiData
+                $returned = Invoke-Trade -Config ([ref]$config) -Type "Sell" -AmountString $amount -CurrentApiData $apiData
+                $apiData = Get-BestApiData -Preferred $returned
                 # After returning from trade, always reload config to ensure the main screen is perfectly in sync.
                 $config = Get-IniConfiguration -FilePath $iniFilePath
             }
