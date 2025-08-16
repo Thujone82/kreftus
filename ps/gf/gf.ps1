@@ -19,10 +19,10 @@
     Displays usage information for this script.
     
 .EXAMPLE
-    .\gw.ps1 97219 -Verbose
+    .\gf.ps1 97219 -Verbose
 
 .EXAMPLE
-    .\gw.ps1 "Portland, OR" -Verbose
+    .\gf.ps1 "Portland, OR" -Verbose
 
 .NOTES
     This script uses the free National Weather Service API which requires no API key.
@@ -45,102 +45,8 @@ param(
 
 # --- Helper Functions ---
 
-function Get-GwConfigPath {
-    $appName = "gw"
-    $configFileName = "gw.ini"
-    $configDir = ""
-
-    if ($env:APPDATA) {
-        $configDir = Join-Path -Path $env:APPDATA -ChildPath $appName
-    }
-    elseif ($env:HOME) {
-        # This covers Linux and macOS
-        $configDir = Join-Path -Path $env:HOME -ChildPath ".config/$appName"
-    }
-    else {
-        # Fallback for environments without standard config paths
-        $configDir = Join-Path -Path $PSScriptRoot -ChildPath ".config"
-    }
-
-    if (-not (Test-Path $configDir)) {
-        try {
-            New-Item -Path $configDir -ItemType Directory -Force -ErrorAction Stop | Out-Null
-        }
-        catch {
-            Write-Error "Failed to create configuration directory at '$configDir'. Please check permissions."
-            return $null
-        }
-    }
-    return Join-Path -Path $configDir -ChildPath $configFileName
-}
-
-function Get-GwConfiguration {
-    param ([string]$FilePath)
-    Write-Verbose "Reading INI file from $FilePath"
-    # Define the default structure
-    $defaultConfig = @{ "nws" = @{ "user_agent" = "202508161459PDX" } }
-    if (-not (Test-Path $FilePath)) {
-        return $defaultConfig
-    }
-
-    $ini = @{}
-    $fileContent = Get-Content $FilePath -ErrorAction SilentlyContinue
-    $currentSection = ""
-    foreach ($line in $fileContent) {
-        $trimmedLine = $line.Trim()
-        if ($trimmedLine -match "^\[(.+)\]$") {
-            $currentSection = $matches[1].Trim()
-            if (-not $ini.ContainsKey($currentSection)) { $ini[$currentSection] = @{} }
-        }
-        elseif ($trimmedLine -match "^([^#;].*?)=(.*)$" -and $currentSection) {
-            $key = $matches[1].Trim()
-            $value = $matches[2].Trim()
-            $ini[$currentSection][$key] = $value
-        }
-    }
-    # Ensure the structure matches the default to prevent errors
-    if (-not $ini.nws) { $ini.nws = @{} }
-    if (-not $ini.nws.user_agent) { $ini.nws.user_agent = "202508161459PDX" }
-    return $ini
-}
-
-function Set-GwConfiguration {
-    param ([string]$FilePath, [hashtable]$Configuration)
-    $iniContent = @()
-    foreach ($sectionKey in $Configuration.Keys | Sort-Object) {
-        $iniContent += "[$sectionKey]"
-        $section = $Configuration[$sectionKey]
-        foreach ($key in $section.Keys | Sort-Object) {
-            $iniContent += "$key=$($section[$key])"
-        }
-        $iniContent += ""
-    }
-    try {
-        Set-Content -Path $FilePath -Value $iniContent -ErrorAction Stop
-        Write-Verbose "Configuration saved to: $FilePath"
-        return $true
-    }
-    catch {
-        Write-Error "Failed to save configuration to $FilePath. Error: $($_.Exception.Message)"
-        return $false
-    }
-}
-
-function Initialize-GwConfiguration {
-    $configPath = Get-GwConfigPath
-    if (-not $configPath) {
-        # Error already shown in Get-GwConfigPath
-        exit 1
-    }
- 
-    $config = Get-GwConfiguration -FilePath $configPath
-    $userAgent = $config.nws.user_agent
-    
-    return $userAgent
-}
-
 if ($Help -or ($Terse.IsPresent -and -not $Location)) {
-    Write-Host "Usage: .\gw.ps1 [ZipCode | `"City, State`"] [-Verbose]" -ForegroundColor Green
+    Write-Host "Usage: .\gf.ps1 [ZipCode | `"City, State`"] [-Verbose]" -ForegroundColor Green
     Write-Host " • Provide a 5-digit zipcode or a City, State (e.g., 'Portland, OR')." -ForegroundColor Cyan
     Write-Host ""
     Write-Host "This script retrieves weather info from National Weather Service API and outputs:" -ForegroundColor Blue
@@ -154,16 +60,17 @@ if ($Help -or ($Terse.IsPresent -and -not $Location)) {
     Write-Host " • Observation timestamp" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Examples:" -ForegroundColor Blue
-    Write-Host "  .\gw.ps1 97219 -Verbose" -ForegroundColor Cyan
-    Write-Host "  .\gw.ps1 `"Portland, OR`" -Verbose" -ForegroundColor Cyan
-    Write-Host "  .\gw.ps1 -Help" -ForegroundColor Cyan
+    Write-Host "  .\gf.ps1 97219 -Verbose" -ForegroundColor Cyan
+    Write-Host "  .\gf.ps1 `"Portland, OR`" -Verbose" -ForegroundColor Cyan
+    Write-Host "  .\gf.ps1 -Help" -ForegroundColor Cyan
     return
 }
 
 # Force TLS 1.2.
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$userAgent = Initialize-GwConfiguration
+# Define User-Agent for NWS API requests
+$userAgent = "GetForecast/1.0 (081625PDX)"
 
 # Function to get the parent process name using CIM
 function Get-ParentProcessName {
@@ -201,7 +108,7 @@ while ($true) { # Loop for location input and geocoding
             Write-Host '            ' -ForegroundColor Yellow -NoNewline; Write-Host "   `-~~~~~~~~~-`    " -ForegroundColor Cyan
             Write-Host '  Welcome   ' -ForegroundColor Green  -NoNewline; Write-Host "     ''    ''       " -ForegroundColor Cyan
             Write-Host '     to     ' -ForegroundColor Green  -NoNewline; Write-Host "    ''    ''        " -ForegroundColor Cyan
-            Write-Host ' GetWeather ' -ForegroundColor Green  -NoNewline; Write-Host "  ________________  " -ForegroundColor Cyan
+            Write-Host ' GetForecast ' -ForegroundColor Green  -NoNewline; Write-Host "  ________________  " -ForegroundColor Cyan
             Write-Host '            ' -ForegroundColor Yellow -NoNewline; Write-Host "~~~~~~~~~~~~~~~~~~~~" -ForegroundColor Cyan
             Write-Host ""
             $Location = Read-Host "Enter a location (Zip Code or City, State)"
@@ -302,7 +209,28 @@ $office = $pointsData.properties.cwa
 $gridX = $pointsData.properties.gridX
 $gridY = $pointsData.properties.gridY
 
+# Extract additional location information
+$timeZone = $pointsData.properties.timeZone
+$radarStation = $pointsData.properties.radarStation
+
+# Try to get county information from different possible locations
+$county = $null
+if ($pointsData.properties.relativeLocation.properties.county) {
+    $county = $pointsData.properties.relativeLocation.properties.county
+    # Clean up county name if it's a URL
+    if ($county -match "county/([^/]+)$") {
+        $county = $matches[1]
+    }
+} elseif ($pointsData.properties.county) {
+    $county = $pointsData.properties.county
+    # Clean up county name if it's a URL
+    if ($county -match "county/([^/]+)$") {
+        $county = $matches[1]
+    }
+}
+
 Write-Verbose "Grid info: Office=$office, GridX=$gridX, GridY=$gridY"
+Write-Verbose "Location info: County=$county, TimeZone=$timeZone, Radar=$radarStation"
 
 # --- CONCURRENTLY FETCH FORECAST AND HOURLY DATA ---
 Write-Verbose "Starting API calls for forecast data."
@@ -433,6 +361,19 @@ $currentConditions = $currentPeriod.shortForecast
 $currentWind = $currentPeriod.windSpeed
 $currentWindDir = $currentPeriod.windDirection
 $currentTime = $currentPeriod.startTime
+$currentHumidity = $currentPeriod.relativeHumidity.value
+$currentDewPoint = $currentPeriod.dewpoint.value
+$currentPrecipProb = $currentPeriod.probabilityOfPrecipitation.value
+$currentIsDaytime = $currentPeriod.isDaytime
+$currentTempTrend = $currentPeriod.temperatureTrend
+$currentIcon = $currentPeriod.icon
+
+# Check for wind gusts in the wind speed string
+$windGust = $null
+if ($currentWind -match "(\d+)\s*to\s*(\d+)\s*mph") {
+    $windGust = $matches[2]
+    $currentWind = "$($matches[1]) mph"
+}
 
 # Extract today's forecast
 $todayPeriod = $forecastData.properties.periods[0]
@@ -455,6 +396,36 @@ function Get-WindSpeed ($windString) {
         return [int]$matches[1]
     }
     return 0
+}
+
+# Convert weather icon to ASCII art with proper spacing
+function Get-WeatherIcon ($iconUrl) {
+    if (-not $iconUrl) { return "" }
+    
+    # Extract weather condition from icon URL
+    if ($iconUrl -match "/([^/]+)\?") {
+        $condition = $matches[1]
+        
+        # Map conditions to ASCII art with spacing consideration
+        switch -Wildcard ($condition) {
+            "*skc*" { return "☀️ " }  # Clear/Sunny (single-width)
+            "*few*" { return "🌤️" }  # Few clouds (double-width)
+            "*sct*" { return "⛅" }   # Scattered clouds (double-width)
+            "*bkn*" { return "☁️ " }  # Broken clouds (single-width)
+            "*ovc*" { return "☁️ " }  # Overcast (single-width)
+            "*rain*" { return "🌧️" } # Rain (double-width)
+            "*snow*" { return "❄️" }  # Snow (double-width)
+            "*fzra*" { return "🧊" }  # Freezing rain (double-width)
+            "*tsra*" { return "⛈️" }  # Thunderstorm (double-width)
+            "*fog*" { return "🌫️" }   # Fog (double-width)
+            "*haze*" { return "🌫️" }  # Haze (double-width)
+            "*smoke*" { return "💨" } # Smoke (double-width)
+            "*dust*" { return "💨" }  # Dust (double-width)
+            "*wind*" { return "💨" }  # Windy (double-width)
+            default { return "🌡️" }   # Default (double-width)
+        }
+    }
+    return "🌡️"
 }
 
 $windSpeed = Get-WindSpeed $currentWind
@@ -485,10 +456,35 @@ if ($VerbosePreference -ne 'Continue') {
 }
 
 # Output the results.
+$weatherIcon = Get-WeatherIcon $currentIcon
+$dayNightIndicator = if ($currentIsDaytime) { "☀️  Day" } else { "🌙 Night" }
+
 Write-Host "*** $city, $state Current Conditions ***" -ForegroundColor $titleColor
-Write-Host "Currently: $currentConditions" -ForegroundColor $defaultColor
-Write-Host "Temperature: $currentTemp°F" -ForegroundColor $tempColor
-Write-Host "Wind: $currentWind $currentWindDir" -ForegroundColor $windColor
+Write-Host "Currently: $weatherIcon $currentConditions ($dayNightIndicator)" -ForegroundColor $defaultColor
+Write-Host "Temperature: $currentTemp°F" -ForegroundColor $tempColor -NoNewline
+if ($currentTempTrend) {
+    $trendIcon = switch ($currentTempTrend) {
+        "rising" { "↗️" }
+        "falling" { "↘️" }
+        "steady" { "→" }
+        default { "" }
+    }
+    Write-Host " $trendIcon " -ForegroundColor $defaultColor -NoNewline
+}
+Write-Host ""
+
+Write-Host "Wind: $currentWind $currentWindDir" -ForegroundColor $windColor -NoNewline
+if ($windGust) {
+    Write-Host " (gusts to $windGust mph)" -ForegroundColor $alertColor -NoNewline
+}
+Write-Host ""
+
+Write-Host "Humidity: $currentHumidity%" -ForegroundColor $defaultColor
+Write-Host "Dew Point: $([math]::Round($currentDewPoint * 9/5 + 32, 1))°F" -ForegroundColor $defaultColor
+if ($currentPrecipProb -gt 0) {
+    Write-Host "Precipitation: $currentPrecipProb% chance" -ForegroundColor $defaultColor
+}
+
 Write-Host "Time: $($currentTimeLocal.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $infoColor
 
 Write-Host ""
@@ -500,6 +496,106 @@ Write-Host ""
 Write-Host "*** Tomorrow's Forecast ***" -ForegroundColor $titleColor
 $wrappedTomorrow = Format-TextWrap -Text $tomorrowForecast -Width $Host.UI.RawUI.WindowSize.Width
 $wrappedTomorrow | ForEach-Object { Write-Host $_ -ForegroundColor $defaultColor }
+
+# --- Hourly Forecast (Next 12 Hours) ---
+Write-Host ""
+Write-Host "*** Hourly Forecast (Next 12 Hours) ***" -ForegroundColor $titleColor
+$hourlyPeriods = $hourlyData.properties.periods
+$hourCount = 0
+
+foreach ($period in $hourlyPeriods) {
+    if ($hourCount -ge 12) { break }
+    
+    $periodTime = [DateTime]::Parse($period.startTime)
+    $hourDisplay = $periodTime.ToString("HH:mm").Replace(":", "h")
+    $temp = $period.temperature
+    $shortForecast = $period.shortForecast
+    $wind = $period.windSpeed
+    $windDir = $period.windDirection
+    $precipProb = $period.probabilityOfPrecipitation.value
+    $periodIcon = Get-WeatherIcon $period.icon
+    
+    # Color code temperature
+    $tempColor = if ([int]$temp -lt 33 -or [int]$temp -gt 89) { $alertColor } else { $defaultColor }
+    
+    # Color code precipitation probability
+    $precipColor = if ($precipProb -gt 50) { $alertColor } elseif ($precipProb -gt 20) { "Yellow" } else { $defaultColor }
+    
+    Write-Host "$hourDisplay " -ForegroundColor $defaultColor -NoNewline
+    Write-Host "$periodIcon" -ForegroundColor $defaultColor -NoNewline
+    Write-Host " $temp°F " -ForegroundColor $tempColor -NoNewline
+    Write-Host "$wind $windDir" -ForegroundColor $defaultColor -NoNewline
+    
+    if ($precipProb -gt 0) {
+        Write-Host " ($precipProb%)" -ForegroundColor $precipColor -NoNewline
+    }
+    
+    Write-Host " - $shortForecast" -ForegroundColor $defaultColor
+    
+    $hourCount++
+}
+
+# --- 7-Day Forecast Summary ---
+Write-Host ""
+Write-Host "*** 7-Day Forecast Summary ***" -ForegroundColor $titleColor
+$forecastPeriods = $forecastData.properties.periods
+$dayCount = 0
+$processedDays = @{}
+
+foreach ($period in $forecastPeriods) {
+    if ($dayCount -ge 7) { break }
+    
+    $periodTime = [DateTime]::Parse($period.startTime)
+    $dayName = $periodTime.ToString("ddd")
+    
+    # Skip if we've already processed this day
+    if ($processedDays.ContainsKey($dayName)) { continue }
+    
+    $temp = $period.temperature
+    $shortForecast = $period.shortForecast
+    $precipProb = $period.probabilityOfPrecipitation.value
+    $periodIcon = Get-WeatherIcon $period.icon
+    
+    # Find the corresponding night period for high/low
+    $nightTemp = $null
+    foreach ($nightPeriod in $forecastPeriods) {
+        $nightTime = [DateTime]::Parse($nightPeriod.startTime)
+        $nightDayName = $nightTime.ToString("ddd")
+        $nightPeriodName = $nightPeriod.name
+        
+        if ($nightDayName -eq $dayName -and ($nightPeriodName -match "Night" -or $nightPeriodName -match "Overnight")) {
+            $nightTemp = $nightPeriod.temperature
+            break
+        }
+    }
+    
+    # Color code temperature
+    $tempColor = if ([int]$temp -lt 33 -or [int]$temp -gt 89) { $alertColor } else { $defaultColor }
+    
+    # Color code precipitation probability
+    $precipColor = if ($precipProb -gt 50) { $alertColor } elseif ($precipProb -gt 20) { "Yellow" } else { $defaultColor }
+    
+    # Display day with icon and temperature range
+    Write-Host "$dayName`: " -ForegroundColor $defaultColor -NoNewline
+    Write-Host "$periodIcon" -ForegroundColor $defaultColor -NoNewline
+    
+    if ($nightTemp) {
+        Write-Host " H:$temp°F L:$nightTemp°F" -ForegroundColor $tempColor -NoNewline
+    } else {
+        Write-Host " $temp°F" -ForegroundColor $tempColor -NoNewline
+    }
+    
+    Write-Host " - $shortForecast" -ForegroundColor $defaultColor -NoNewline
+    
+    if ($precipProb -gt 0) {
+        Write-Host " ($precipProb% precip)" -ForegroundColor $precipColor
+    } else {
+        Write-Host ""
+    }
+    
+    $processedDays[$dayName] = $true
+    $dayCount++
+}
 
 # --- Alert Handling ---
 if ($alertsData -and $alertsData.features.Count -gt 0) {
@@ -524,6 +620,15 @@ if ($alertsData -and $alertsData.features.Count -gt 0) {
         Write-Host ""
     }
 }
+
+Write-Host ""
+Write-Host "*** Location Information ***" -ForegroundColor $titleColor
+if ($county) {
+    Write-Host "County: $county" -ForegroundColor $defaultColor
+}
+Write-Host "Time Zone: $timeZone" -ForegroundColor $defaultColor
+Write-Host "Radar Station: $radarStation" -ForegroundColor $defaultColor
+Write-Host "Coordinates: $lat, $lon" -ForegroundColor $defaultColor
 
 Write-Host ""
 Write-Host "https://forecast.weather.gov/MapClick.php?lat=$lat&lon=$lon" -ForegroundColor Cyan

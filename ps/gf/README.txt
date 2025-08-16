@@ -1,10 +1,10 @@
-# gw - Get Weather (NWS Edition)
+# gf - Get Forecast (NWS Edition)
 
 ## Author
-Kreft&Gemini
+Kreft&Cursor
 
 ## Description
-`gw.ps1` is a PowerShell script that retrieves and displays detailed weather information for a specified location using the National Weather Service API. It can accept a US zip code or a "City, State" string as input.
+`gf.ps1` is a PowerShell script that retrieves and displays detailed weather information for a specified location using the National Weather Service API. It can accept a US zip code or a "City, State" string as input.
 
 The script first uses a geocoding service to determine the latitude and longitude of the location, then fetches the current weather, daily forecasts, and weather alerts from the National Weather Service.
 

@@ -1,8 +1,8 @@
 # Gemini Project File
 
-## Project: gw (Get Weather) - NWS Edition
+## Project: gf (Get Forecast) - NWS Edition
 
-**Author:** Kreft&Gemini[Gemini 2.5 Pro (preview)]
+**Author:** Kreft&Cursor
 **Date:** 2025-08-16
 **Version:** 2.0
 
@@ -10,7 +10,7 @@
 
 ### Description
 
-`gw` is a command-line weather utility for PowerShell that provides detailed, real-time weather information for any specified location within the United States. It leverages the National Weather Service API to fetch comprehensive weather data, including current conditions, daily forecasts, and active weather alerts.
+`gf` is a command-line weather utility for PowerShell that provides detailed, real-time weather information for any specified location within the United States. It leverages the National Weather Service API to fetch comprehensive weather data, including current conditions, daily forecasts, and active weather alerts.
 
 The script is designed for ease of use, accepting flexible location inputs like US zip codes or "City, State" strings. It uses free geocoding services to determine coordinates and then fetches weather data from the official National Weather Service API. The output is color-coded to highlight important metrics, making it easy to assess conditions at a glance.
 
