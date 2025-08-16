@@ -755,29 +755,34 @@ func (g *game) drawNameEntryOverlay() {
 		return
 	}
 	title := "NEW HIGH SCORE!"
-	// prompt intentionally removed from single-line entry rendering
-	// Reserve space for top-10 (up to 12 lines including headers)
-	y0 := h/2 - 6
+	// Reserve space for title + scores + prompt (up to 15 lines total)
+	y0 := h/2 - 7
 	if y0 < 0 {
 		y0 = 0
 	}
-	if y0+12 >= h {
-		y0 = max(0, h-13)
+	if y0+15 >= h {
+		y0 = max(0, h-16)
 	}
 	st := tcell.StyleDefault.Background(g.theme.frog).Foreground(tcell.ColorBlack).Bold(true)
-	for dy := 0; dy < 13; dy++ {
+	for dy := 0; dy < 16; dy++ {
 		drawText(g.screen, 0, y0+dy, spaces(w), st)
 	}
 	drawCentered(g.screen, w/2, y0+1, title, st)
 	prov := g.getProvisionalScores()
-	g.drawHighScoreListAt(w/2, y0+3, st, prov)
-	// Prompt for name only (no duplicate score line)
-	drawCentered(g.screen, w/2, y0+10, "Enter Name:", st)
+	// Show top 10 if space allows, otherwise top 3
+	maxScores := 10
+	if y0+3+maxScores+4 >= h { // title + scores + gap + prompt + cursor
+		maxScores = 3
+	}
+	g.drawHighScoreListAt(w/2, y0+3, st, prov, maxScores)
+	// Prompt for name below the score list
+	promptY := y0 + 3 + maxScores + 1
+	promptText := "Enter Name: "
 	name := g.nameBuffer
 	if name == "" {
 		name = "_"
 	}
-	drawCentered(g.screen, w/2, y0+11, name, st)
+	drawCentered(g.screen, w/2, promptY, promptText+name, st)
 }
 
 func (g *game) drawScoreboardOverlay() {
@@ -798,7 +803,7 @@ func (g *game) drawScoreboardOverlay() {
 		drawText(g.screen, 0, y0+dy, spaces(w), st)
 	}
 	drawCentered(g.screen, w/2, y0+1, title, st)
-	g.drawHighScoreListAt(w/2, y0+3, st, g.highScores)
+	g.drawHighScoreListAt(w/2, y0+3, st, g.highScores, 10)
 	// If player didn't make Top 10, show their score/name in the prompt area
 	if len(g.highScores) == 0 || g.score > g.highScores[len(g.highScores)-1].Score {
 		// reached only when no scores; otherwise name entry covers this path
@@ -810,9 +815,9 @@ func (g *game) drawScoreboardOverlay() {
 	}
 }
 
-func (g *game) drawHighScoreListAt(cx, startY int, st tcell.Style, list []scoreEntry) {
-	// Render Top 10 with the top entry highlighted
-	for i := 0; i < 10 && i < len(list); i++ {
+func (g *game) drawHighScoreListAt(cx, startY int, st tcell.Style, list []scoreEntry, maxScores int) {
+	// Render up to maxScores entries with the top entry highlighted
+	for i := 0; i < maxScores && i < len(list); i++ {
 		e := list[i]
 		// Include date in MMDDYY
 		line := fmt.Sprintf("%2d. %-8s  %6d  %s", i+1, e.Name, e.Score, e.Date)
