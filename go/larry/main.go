@@ -60,6 +60,12 @@ type game struct {
 	paused           bool
 	events           chan tcell.Event
 	acceptInputAfter time.Time
+	// Per-level score decay
+	scoreTimerActive   bool
+	nextScoreDecrement time.Time
+	// HUD throttling
+	hudLine       string
+	nextHudUpdate time.Time
 	// High scores
 	highScores   []scoreEntry
 	historyTop   int
@@ -162,6 +168,9 @@ func (g *game) initLevel(level int) {
 	g.frogY = g.safeBottomY
 	g.highestY = g.frogY
 	g.theme = themeForLevel(level)
+	// score decay starts only after first action each level
+	g.scoreTimerActive = false
+	g.updateHUD()
 	g.createLanes()
 }
 
@@ -181,6 +190,9 @@ func (g *game) nextLevel() {
 	// Reward: extra life each cleared level
 	g.lives++
 	g.theme = themeForLevel(g.level)
+	// reset decay timer for new level
+	g.scoreTimerActive = false
+	g.updateHUD()
 	g.createLanes()
 }
 
@@ -319,19 +331,32 @@ func (g *game) handleInput(e *tcell.EventKey) {
 	}
 	// Toggle pause on Space
 	if e.Key() == tcell.KeyRune && e.Rune() == ' ' {
-		g.paused = !g.paused
+		if g.paused {
+			// resuming
+			g.paused = false
+			if g.scoreTimerActive {
+				g.nextScoreDecrement = time.Now().Add(time.Second)
+			}
+		} else {
+			// pausing
+			g.paused = true
+		}
 		return
 	}
 	if g.paused {
 		return
 	}
+	moved := false
 	switch e.Key() {
 	case tcell.KeyLeft:
 		g.frogX--
+		moved = true
 	case tcell.KeyRight:
 		g.frogX++
+		moved = true
 	case tcell.KeyUp:
 		g.frogY--
+		moved = true
 		if g.frogY < g.highestY {
 			g.score += (g.highestY - g.frogY) * 10 // per-line bonus when advancing upward
 			g.highestY = g.frogY
@@ -341,14 +366,18 @@ func (g *game) handleInput(e *tcell.EventKey) {
 		}
 	case tcell.KeyDown:
 		g.frogY++
+		moved = true
 	default:
 		switch e.Rune() {
 		case 'a', 'A':
 			g.frogX--
+			moved = true
 		case 'd', 'D':
 			g.frogX++
+			moved = true
 		case 'w', 'W':
 			g.frogY--
+			moved = true
 			if g.frogY < g.highestY {
 				g.score += (g.highestY - g.frogY) * 10
 				g.highestY = g.frogY
@@ -358,9 +387,14 @@ func (g *game) handleInput(e *tcell.EventKey) {
 			}
 		case 's', 'S':
 			g.frogY++
+			moved = true
 		}
 	}
 	g.clampFrog()
+	if moved && !g.scoreTimerActive {
+		g.scoreTimerActive = true
+		g.nextScoreDecrement = time.Now().Add(time.Second)
+	}
 }
 
 func (g *game) clampFrog() {
@@ -438,6 +472,21 @@ func (g *game) update() {
 		}
 		g.nextLevel()
 	}
+
+	// Per-second score decay while level is active
+	if g.scoreTimerActive && time.Now().After(g.nextScoreDecrement) {
+		if g.score > 0 {
+			g.score--
+		}
+		g.nextScoreDecrement = time.Now().Add(time.Second)
+		// ensure HUD reflects the new score immediately
+		g.updateHUD()
+	}
+
+	// Ensure HUD refreshes once per second during active play
+	if time.Now().After(g.nextHudUpdate) {
+		g.updateHUD()
+	}
 }
 
 func (g *game) render() {
@@ -480,22 +529,14 @@ func (g *game) render() {
 		}
 	}
 
-	// Draw HUD with right-aligned Top and Best. Hide help when narrow.
-	left := fmt.Sprintf("Score:%d  Level:%d  Lives:%d", g.score, g.level, g.lives)
-	help := "  (Space:Pause Esc:Quit)"
-	right := fmt.Sprintf("Top:%d  Best:%d", g.topScore, g.historyTop)
-	if len(left)+len(help)+len(right)+1 <= w {
-		left += help
+	// Draw HUD (throttled to once per second for visible score decay)
+	if time.Now().After(g.nextHudUpdate) {
+		g.updateHUD()
 	}
-	hudLine := left
-	if len(left)+1+len(right) < w {
-		pad := w - len(left) - len(right)
-		if pad < 1 {
-			pad = 1
-		}
-		hudLine = left + spaces(pad) + right
-	}
-	drawText(s, 0, 0, hudLine, tcell.StyleDefault.Foreground(g.theme.fg).Background(g.theme.safe))
+	// HUD uses Larry's contrasting color to clearly separate from playfield
+	hudStyle := tcell.StyleDefault.Foreground(tcell.ColorBlack).Background(g.theme.frog).Bold(true)
+	drawText(s, 0, 0, spaces(w), hudStyle)
+	drawText(s, 0, 0, g.hudLine, hudStyle)
 
 	// Draw Larry as a green '@' for wide-compat terminals
 	frogStyle := tcell.StyleDefault.Foreground(g.theme.frog).Bold(true)
@@ -586,6 +627,9 @@ func (g *game) resetGame() {
 	g.highestY = g.frogY
 	g.gameOver = false
 	g.acceptInputAfter = time.Now().Add(200 * time.Millisecond)
+	// fresh start: no decay until first move
+	g.scoreTimerActive = false
+	g.updateHUD()
 }
 
 func (g *game) loadHighScores() {
@@ -662,6 +706,27 @@ func spaces(n int) string {
 		b[i] = ' '
 	}
 	return string(b)
+}
+
+func (g *game) updateHUD() {
+	// Build the HUD string and schedule next update in one second
+	w := g.width
+	left := fmt.Sprintf("Score:%d  Level:%d  Lives:%d", g.score, g.level, g.lives)
+	help := "  (Space:Pause Esc:Quit)"
+	right := fmt.Sprintf("Top:%d  Best:%d", g.topScore, g.historyTop)
+	if len(left)+len(help)+len(right)+1 <= w {
+		left += help
+	}
+	hudLine := left
+	if len(left)+1+len(right) < w {
+		pad := w - len(left) - len(right)
+		if pad < 1 {
+			pad = 1
+		}
+		hudLine = left + spaces(pad) + right
+	}
+	g.hudLine = hudLine
+	g.nextHudUpdate = time.Now().Add(time.Second)
 }
 
 func (g *game) drawPauseOverlay() {
