@@ -64,8 +64,8 @@ type game struct {
 	scoreTimerActive   bool
 	nextScoreDecrement time.Time
 	// HUD throttling
-	hudLine       string
-	nextHudUpdate time.Time
+	hudLine           string
+	lastRenderedScore int
 	// High scores
 	highScores   []scoreEntry
 	historyTop   int
@@ -160,7 +160,9 @@ func (g *game) initLevel(level int) {
 	// Lives/score are set on first game start; keep values across levels.
 	if g.lives <= 0 {
 		g.lives = 3
+		g.score = 0
 	}
+	g.lastRenderedScore = -1 // force initial HUD draw
 	g.hudY = 0
 	g.safeTopY = 1
 	g.safeBottomY = g.height - 1
@@ -187,6 +189,9 @@ func (g *game) nextLevel() {
 	g.frogX = g.width / 2
 	g.frogY = g.safeBottomY
 	g.highestY = g.frogY
+	// Clear input buffer and pause input to prevent instant death on new level
+	g.flushInput()
+	g.acceptInputAfter = time.Now().Add(200 * time.Millisecond)
 	// Reward: extra life each cleared level
 	g.lives++
 	g.theme = themeForLevel(g.level)
@@ -446,14 +451,14 @@ func (g *game) update() {
 						g.lives--
 						if g.lives <= 0 {
 							// Delay accepting input until overlay is up
-							g.acceptInputAfter = time.Now().Add(200 * time.Millisecond)
+							g.acceptInputAfter = time.Now().Add(1250 * time.Millisecond) // 1050ms flash + 200ms buffer
 							g.gameOverSequence()
 						} else {
 							// Respawn at start row and show brief message
 							g.respawnAtStart()
 							// Drain any pending input before showing overlay
 							g.flushInput()
-							g.acceptInputAfter = time.Now().Add(200 * time.Millisecond)
+							g.acceptInputAfter = time.Now().Add(900 * time.Millisecond) // 700ms flash + 200ms buffer
 							g.youDiedFlash()
 						}
 						break
@@ -479,13 +484,6 @@ func (g *game) update() {
 			g.score--
 		}
 		g.nextScoreDecrement = time.Now().Add(time.Second)
-		// ensure HUD reflects the new score immediately
-		g.updateHUD()
-	}
-
-	// Ensure HUD refreshes once per second during active play
-	if time.Now().After(g.nextHudUpdate) {
-		g.updateHUD()
 	}
 }
 
@@ -529,9 +527,10 @@ func (g *game) render() {
 		}
 	}
 
-	// Draw HUD (throttled to once per second for visible score decay)
-	if time.Now().After(g.nextHudUpdate) {
+	// Draw HUD - will refresh only when score changes
+	if g.score != g.lastRenderedScore {
 		g.updateHUD()
+		g.lastRenderedScore = g.score
 	}
 	// HUD uses Larry's contrasting color to clearly separate from playfield
 	hudStyle := tcell.StyleDefault.Foreground(tcell.ColorBlack).Background(g.theme.frog).Bold(true)
@@ -619,6 +618,7 @@ func (g *game) commitScoreName() {
 func (g *game) resetGame() {
 	g.lives = 3
 	g.score = 0
+	g.lastRenderedScore = -1
 	g.level = 1
 	g.theme = themeForLevel(g.level)
 	g.createLanes()
@@ -709,7 +709,7 @@ func spaces(n int) string {
 }
 
 func (g *game) updateHUD() {
-	// Build the HUD string and schedule next update in one second
+	// Build the HUD string
 	w := g.width
 	left := fmt.Sprintf("Score:%d  Level:%d  Lives:%d", g.score, g.level, g.lives)
 	help := "  (Space:Pause Esc:Quit)"
@@ -726,7 +726,6 @@ func (g *game) updateHUD() {
 		hudLine = left + spaces(pad) + right
 	}
 	g.hudLine = hudLine
-	g.nextHudUpdate = time.Now().Add(time.Second)
 }
 
 func (g *game) drawPauseOverlay() {
