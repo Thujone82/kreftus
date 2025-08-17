@@ -22,6 +22,12 @@ The script first uses a geocoding service to determine the latitude and longitud
 - **Weather Alerts:** Automatically displays any active weather alerts (e.g., warnings, watches) for the location.
 - **Quick Link:** Provides a direct URL to the weather.gov forecast map for the location.
 - **Smart Exit:** If run from an environment other than a standard command prompt (like by double-clicking), it will pause and wait for user input before closing the window.
+- **Interactive Mode:** When run interactively, provides keyboard shortcuts to switch between different display modes:
+  - **[H]** - Switch to hourly forecast only
+  - **[D]** - Switch to 7-day forecast only  
+  - **[T]** - Switch to terse mode (current conditions + today's forecast)
+  - **[ESC]** - Return to full display
+  - **[Enter]** - Exit the script
 
 ## Requirements
 - PowerShell
@@ -36,11 +42,7 @@ The script first uses a geocoding service to determine the latitude and longitud
 *Note: To run PowerShell scripts, you may need to adjust your execution policy. You can do this by running `Set-ExecutionPolicy Bypass` from an administrator PowerShell prompt.*
 
 ## Configuration
-The script uses a user agent string "202508161459PDX" for API requests, which is stored in the configuration file. This can be modified if needed.
-
-**Configuration File Locations:**
-- **Windows:** `C:\Users\<YourUsername>\AppData\Roaming\gw\gw.ini`
-- **Linux/macOS:** `/home/<YourUsername>/.config/gw/gw.ini`
+The script uses a user agent string "GetForecast/1.0 (081625PDX)" for API requests. This is hardcoded in the script and does not require a configuration file.
 
 ## Parameters
 
@@ -55,25 +57,77 @@ The script uses a user agent string "202508161459PDX" for API requests, which is
   - A built-in PowerShell parameter that, when used with this script, will display the URLs being called for geocoding and weather data. Useful for debugging.
 
 - `-Terse` or `-t` [switch]
-  - Provides a less busy, streamlined view.
-  - **Simplifies Alerts:** For any active weather alerts, only the main title and the start/end times are shown, hiding the detailed description.
+  - Shows only current conditions and today's forecast (plus alerts if they exist).
+  - Provides a streamlined, focused view for quick weather checks.
+
+- `-Hourly` or `-h` [switch]
+  - Shows only the 12-hour hourly forecast.
+  - Perfect for planning activities throughout the day.
+
+- `-SevenDay` or `-7` [switch]
+  - Shows only the 7-day forecast summary.
+  - Great for weekly planning.
+
+- `-Daily` or `-d` [switch]
+  - Same as `-7` (shows only the 7-day forecast summary).
+  - Alternative flag for the same functionality.
 
 ## Examples
 
 ### Example 1: Get weather by zip code
 ```powershell
-.\gw.ps1 97219
+.\gf.ps1 97219
 ```
 
 ### Example 2: Get terse weather by city and state
 ```powershell
-.\gw.ps1 -t "Portland, OR"
+.\gf.ps1 -t "Portland, OR"
 ```
 
-### Example 3: View help information
+### Example 3: Get hourly forecast only
 ```powershell
-.\gw.ps1 -Help
+.\gf.ps1 -h "Portland, OR"
 ```
+
+### Example 4: Get 7-day forecast only
+```powershell
+.\gf.ps1 -7 "Portland, OR"
+```
+
+### Example 5: View help information
+```powershell
+.\gf.ps1 -Help
+```
+
+## Interactive Mode
+
+When you run the script by double-clicking it or from a non-terminal environment, it enters **Interactive Mode**. This mode allows you to switch between different display views using keyboard shortcuts without having to restart the script.
+
+### How to Use Interactive Mode:
+
+1. **Run the script interactively** (double-click the .ps1 file or run from Windows Explorer)
+2. **Wait for the weather data to load** and display
+3. **Use keyboard shortcuts** to switch between views:
+   - **H** - Switch to hourly forecast only (12-hour view)
+   - **D** - Switch to 7-day forecast only (weekly view)
+   - **T** - Switch to terse mode (current conditions + today's forecast)
+   - **ESC** - Return to full display (all information)
+   - **Enter** - Exit the script
+
+### Interactive Mode Benefits:
+
+- **Quick View Switching:** No need to restart the script to see different data
+- **Efficient Planning:** Switch between hourly and daily views for different planning needs
+- **Focused Information:** Get exactly the weather data you need without scrolling through everything
+- **User-Friendly:** Perfect for users who prefer mouse/keyboard interaction over command-line options
+
+### When Interactive Mode Activates:
+
+Interactive mode automatically activates when the script detects it's not running from a standard terminal environment (PowerShell, Command Prompt, or Windows Terminal). This typically happens when:
+- Double-clicking the .ps1 file
+- Running from Windows Explorer
+- Running from a GUI application
+- Running from certain development environments
 
 ## Notes
 - The National Weather Service API is free and requires no API key.
@@ -97,6 +151,6 @@ Due to differences in the National Weather Service API, the following features a
 
 ## API Information
 - **Base URL:** https://api.weather.gov/
-- **User Agent:** 202508161459PDX
+- **User Agent:** GetForecast/1.0 (081625PDX)
 - **Format:** GeoJSON
 - **Rate Limits:** None specified, but please be respectful of the service

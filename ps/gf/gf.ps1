@@ -40,14 +40,38 @@ param(
     [switch]$Help,
 
     [Alias('t')]
-    [switch]$Terse
+    [switch]$Terse,
+
+    [Alias('h')]
+    [switch]$Hourly,
+
+    [Alias('7')]
+    [switch]$SevenDay,
+
+    [Alias('d')]
+    [switch]$Daily
 )
 
 # --- Helper Functions ---
 
-if ($Help -or ($Terse.IsPresent -and -not $Location)) {
-    Write-Host "Usage: .\gf.ps1 [ZipCode | `"City, State`"] [-Verbose]" -ForegroundColor Green
+if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $SevenDay.IsPresent -or $Daily.IsPresent) -and -not $Location)) {
+    Write-Host "Usage: .\gf.ps1 [ZipCode | `"City, State`"] [Options] [-Verbose]" -ForegroundColor Green
     Write-Host " • Provide a 5-digit zipcode or a City, State (e.g., 'Portland, OR')." -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Options:" -ForegroundColor Blue
+    Write-Host "  -t, -Terse    Show only current conditions and today's forecast" -ForegroundColor Cyan
+    Write-Host "  -h, -Hourly   Show only the 12-hour hourly forecast" -ForegroundColor Cyan
+    Write-Host "  -7, -SevenDay Show only the 7-day forecast summary" -ForegroundColor Cyan
+    Write-Host "  -d, -Daily    Same as -7 (7-day forecast summary)" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Interactive Mode:" -ForegroundColor Blue
+    Write-Host "  When run interactively (not from terminal), the script enters interactive mode." -ForegroundColor Cyan
+    Write-Host "  Use keyboard shortcuts to switch between display modes:" -ForegroundColor Cyan
+    Write-Host "    [H] - Switch to hourly forecast only" -ForegroundColor Cyan
+    Write-Host "    [D] - Switch to 7-day forecast only" -ForegroundColor Cyan
+    Write-Host "    [T] - Switch to terse mode (current + today)" -ForegroundColor Cyan
+    Write-Host "    [ESC] - Return to full display" -ForegroundColor Cyan
+    Write-Host "    [Enter] - Exit the script" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "This script retrieves weather info from National Weather Service API and outputs:" -ForegroundColor Blue
     Write-Host " • Location (City, State)" -ForegroundColor Cyan
@@ -62,6 +86,9 @@ if ($Help -or ($Terse.IsPresent -and -not $Location)) {
     Write-Host "Examples:" -ForegroundColor Blue
     Write-Host "  .\gf.ps1 97219 -Verbose" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 `"Portland, OR`" -Verbose" -ForegroundColor Cyan
+    Write-Host "  .\gf.ps1 97219 -t" -ForegroundColor Cyan
+    Write-Host "  .\gf.ps1 `"Portland, OR`" -h" -ForegroundColor Cyan
+    Write-Host "  .\gf.ps1 97219 -7" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 -Help" -ForegroundColor Cyan
     return
 }
@@ -454,149 +481,194 @@ if ($VerbosePreference -ne 'Continue') {
     Clear-Host
 }
 
+# Determine display mode
+$showCurrentConditions = $true
+$showTodayForecast = $true
+$showTomorrowForecast = $true
+$showHourlyForecast = $true
+$showSevenDayForecast = $true
+$showAlerts = $true
+$showLocationInfo = $true
+
+if ($Terse.IsPresent) {
+    # Terse mode: only current conditions and today's forecast
+    $showTomorrowForecast = $false
+    $showHourlyForecast = $false
+    $showSevenDayForecast = $false
+    $showLocationInfo = $false
+}
+elseif ($Hourly.IsPresent) {
+    # Hourly mode: only hourly forecast
+    $showCurrentConditions = $false
+    $showTodayForecast = $false
+    $showTomorrowForecast = $false
+    $showSevenDayForecast = $false
+    $showAlerts = $false
+    $showLocationInfo = $false
+}
+elseif ($SevenDay.IsPresent -or $Daily.IsPresent) {
+    # 7-day mode: only 7-day forecast
+    $showCurrentConditions = $false
+    $showTodayForecast = $false
+    $showTomorrowForecast = $false
+    $showHourlyForecast = $false
+    $showAlerts = $false
+    $showLocationInfo = $false
+}
+
 # Output the results.
 $weatherIcon = Get-WeatherIcon $currentIcon
 
-Write-Host "*** $city, $state Current Conditions ***" -ForegroundColor $titleColor
-Write-Host "Currently: $weatherIcon $currentConditions" -ForegroundColor $defaultColor
-Write-Host "Temperature: $currentTemp°F" -ForegroundColor $tempColor -NoNewline
-if ($currentTempTrend) {
-    $trendIcon = switch ($currentTempTrend) {
-        "rising" { "↗️" }
-        "falling" { "↘️" }
-        "steady" { "→" }
-        default { "" }
+if ($showCurrentConditions) {
+    Write-Host "*** $city, $state Current Conditions ***" -ForegroundColor $titleColor
+    Write-Host "Currently: $weatherIcon $currentConditions" -ForegroundColor $defaultColor
+    Write-Host "Temperature: $currentTemp°F" -ForegroundColor $tempColor -NoNewline
+    if ($currentTempTrend) {
+        $trendIcon = switch ($currentTempTrend) {
+            "rising" { "↗️" }
+            "falling" { "↘️" }
+            "steady" { "→" }
+            default { "" }
+        }
+        Write-Host " $trendIcon " -ForegroundColor $defaultColor -NoNewline
     }
-    Write-Host " $trendIcon " -ForegroundColor $defaultColor -NoNewline
+    Write-Host ""
+
+    Write-Host "Wind: $currentWind $currentWindDir" -ForegroundColor $windColor -NoNewline
+    if ($windGust) {
+        Write-Host " (gusts to $windGust mph)" -ForegroundColor $alertColor -NoNewline
+    }
+    Write-Host ""
+
+    Write-Host "Humidity: $currentHumidity%" -ForegroundColor $defaultColor
+    Write-Host "Dew Point: $([math]::Round($currentDewPoint * 9/5 + 32, 1))°F" -ForegroundColor $defaultColor
+    if ($currentPrecipProb -gt 0) {
+        Write-Host "Precipitation: $currentPrecipProb% chance" -ForegroundColor $defaultColor
+    }
+
+    Write-Host "Time: $($currentTimeLocal.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $infoColor
 }
-Write-Host ""
 
-Write-Host "Wind: $currentWind $currentWindDir" -ForegroundColor $windColor -NoNewline
-if ($windGust) {
-    Write-Host " (gusts to $windGust mph)" -ForegroundColor $alertColor -NoNewline
-}
-Write-Host ""
-
-Write-Host "Humidity: $currentHumidity%" -ForegroundColor $defaultColor
-Write-Host "Dew Point: $([math]::Round($currentDewPoint * 9/5 + 32, 1))°F" -ForegroundColor $defaultColor
-if ($currentPrecipProb -gt 0) {
-    Write-Host "Precipitation: $currentPrecipProb% chance" -ForegroundColor $defaultColor
+if ($showTodayForecast) {
+    Write-Host ""
+    Write-Host "*** Today's Forecast ***" -ForegroundColor $titleColor
+    $wrappedForecast = Format-TextWrap -Text $todayForecast -Width $Host.UI.RawUI.WindowSize.Width
+    $wrappedForecast | ForEach-Object { Write-Host $_ -ForegroundColor $defaultColor }
 }
 
-Write-Host "Time: $($currentTimeLocal.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $infoColor
-
-Write-Host ""
-Write-Host "*** Today's Forecast ***" -ForegroundColor $titleColor
-$wrappedForecast = Format-TextWrap -Text $todayForecast -Width $Host.UI.RawUI.WindowSize.Width
-$wrappedForecast | ForEach-Object { Write-Host $_ -ForegroundColor $defaultColor }
-
-Write-Host ""
-Write-Host "*** Tomorrow's Forecast ***" -ForegroundColor $titleColor
-$wrappedTomorrow = Format-TextWrap -Text $tomorrowForecast -Width $Host.UI.RawUI.WindowSize.Width
-$wrappedTomorrow | ForEach-Object { Write-Host $_ -ForegroundColor $defaultColor }
+if ($showTomorrowForecast) {
+    Write-Host ""
+    Write-Host "*** Tomorrow's Forecast ***" -ForegroundColor $titleColor
+    $wrappedTomorrow = Format-TextWrap -Text $tomorrowForecast -Width $Host.UI.RawUI.WindowSize.Width
+    $wrappedTomorrow | ForEach-Object { Write-Host $_ -ForegroundColor $defaultColor }
+}
 
 # --- Hourly Forecast (Next 12 Hours) ---
-Write-Host ""
-Write-Host "*** Hourly Forecast (Next 12 Hours) ***" -ForegroundColor $titleColor
-$hourlyPeriods = $hourlyData.properties.periods
-$hourCount = 0
+if ($showHourlyForecast) {
+    Write-Host ""
+    Write-Host "*** Hourly Forecast (Next 12 Hours) ***" -ForegroundColor $titleColor
+    $hourlyPeriods = $hourlyData.properties.periods
+    $hourCount = 0
 
-foreach ($period in $hourlyPeriods) {
-    if ($hourCount -ge 12) { break }
-    
-    $periodTime = [DateTime]::Parse($period.startTime)
-    $hourDisplay = $periodTime.ToString("HH:mm")
-    $temp = $period.temperature
-    $shortForecast = $period.shortForecast
-    $wind = $period.windSpeed
-    $windDir = $period.windDirection
-    $precipProb = $period.probabilityOfPrecipitation.value
-    $periodIcon = Get-WeatherIcon $period.icon
-    
-    # Color code temperature
-    $tempColor = if ([int]$temp -lt 33 -or [int]$temp -gt 89) { $alertColor } else { $defaultColor }
-    
-    # Color code precipitation probability
-    $precipColor = if ($precipProb -gt 50) { $alertColor } elseif ($precipProb -gt 20) { "Yellow" } else { $defaultColor }
-    
-    Write-Host "$hourDisplay " -ForegroundColor $defaultColor -NoNewline
-    Write-Host "$periodIcon" -ForegroundColor $defaultColor -NoNewline
-    Write-Host " $temp°F " -ForegroundColor $tempColor -NoNewline
-    Write-Host "$wind $windDir" -ForegroundColor $defaultColor -NoNewline
-    
-    if ($precipProb -gt 0) {
-        Write-Host " ($precipProb%)" -ForegroundColor $precipColor -NoNewline
+    foreach ($period in $hourlyPeriods) {
+        if ($hourCount -ge 12) { break }
+        
+        $periodTime = [DateTime]::Parse($period.startTime)
+        $hourDisplay = $periodTime.ToString("HH:mm")
+        $temp = $period.temperature
+        $shortForecast = $period.shortForecast
+        $wind = $period.windSpeed
+        $windDir = $period.windDirection
+        $precipProb = $period.probabilityOfPrecipitation.value
+        $periodIcon = Get-WeatherIcon $period.icon
+        
+        # Color code temperature
+        $tempColor = if ([int]$temp -lt 33 -or [int]$temp -gt 89) { $alertColor } else { $defaultColor }
+        
+        # Color code precipitation probability
+        $precipColor = if ($precipProb -gt 50) { $alertColor } elseif ($precipProb -gt 20) { "Yellow" } else { $defaultColor }
+        
+        Write-Host "$hourDisplay " -ForegroundColor $defaultColor -NoNewline
+        Write-Host "$periodIcon" -ForegroundColor $defaultColor -NoNewline
+        Write-Host " $temp°F " -ForegroundColor $tempColor -NoNewline
+        Write-Host "$wind $windDir" -ForegroundColor $defaultColor -NoNewline
+        
+        if ($precipProb -gt 0) {
+            Write-Host " ($precipProb%)" -ForegroundColor $precipColor -NoNewline
+        }
+        
+        Write-Host " - $shortForecast" -ForegroundColor $defaultColor
+        
+        $hourCount++
     }
-    
-    Write-Host " - $shortForecast" -ForegroundColor $defaultColor
-    
-    $hourCount++
 }
 
 # --- 7-Day Forecast Summary ---
-Write-Host ""
-Write-Host "*** 7-Day Forecast Summary ***" -ForegroundColor $titleColor
-$forecastPeriods = $forecastData.properties.periods
-$dayCount = 0
-$processedDays = @{}
+if ($showSevenDayForecast) {
+    Write-Host ""
+    Write-Host "*** 7-Day Forecast Summary ***" -ForegroundColor $titleColor
+    $forecastPeriods = $forecastData.properties.periods
+    $dayCount = 0
+    $processedDays = @{}
 
-foreach ($period in $forecastPeriods) {
-    if ($dayCount -ge 7) { break }
-    
-    $periodTime = [DateTime]::Parse($period.startTime)
-    $dayName = $periodTime.ToString("ddd")
-    
-    # Skip if we've already processed this day
-    if ($processedDays.ContainsKey($dayName)) { continue }
-    
-    $temp = $period.temperature
-    $shortForecast = $period.shortForecast
-    $precipProb = $period.probabilityOfPrecipitation.value
-    $periodIcon = Get-WeatherIcon $period.icon
-    
-    # Find the corresponding night period for high/low
-    $nightTemp = $null
-    foreach ($nightPeriod in $forecastPeriods) {
-        $nightTime = [DateTime]::Parse($nightPeriod.startTime)
-        $nightDayName = $nightTime.ToString("ddd")
-        $nightPeriodName = $nightPeriod.name
+    foreach ($period in $forecastPeriods) {
+        if ($dayCount -ge 7) { break }
         
-        if ($nightDayName -eq $dayName -and ($nightPeriodName -match "Night" -or $nightPeriodName -match "Overnight")) {
-            $nightTemp = $nightPeriod.temperature
-            break
+        $periodTime = [DateTime]::Parse($period.startTime)
+        $dayName = $periodTime.ToString("ddd")
+        
+        # Skip if we've already processed this day
+        if ($processedDays.ContainsKey($dayName)) { continue }
+        
+        $temp = $period.temperature
+        $shortForecast = $period.shortForecast
+        $precipProb = $period.probabilityOfPrecipitation.value
+        $periodIcon = Get-WeatherIcon $period.icon
+        
+        # Find the corresponding night period for high/low
+        $nightTemp = $null
+        foreach ($nightPeriod in $forecastPeriods) {
+            $nightTime = [DateTime]::Parse($nightPeriod.startTime)
+            $nightDayName = $nightTime.ToString("ddd")
+            $nightPeriodName = $nightPeriod.name
+            
+            if ($nightDayName -eq $dayName -and ($nightPeriodName -match "Night" -or $nightPeriodName -match "Overnight")) {
+                $nightTemp = $nightPeriod.temperature
+                break
+            }
         }
+        
+        # Color code temperature
+        $tempColor = if ([int]$temp -lt 33 -or [int]$temp -gt 89) { $alertColor } else { $defaultColor }
+        
+        # Color code precipitation probability
+        $precipColor = if ($precipProb -gt 50) { $alertColor } elseif ($precipProb -gt 20) { "Yellow" } else { $defaultColor }
+        
+        # Display day with icon and temperature range
+        Write-Host "$dayName`:" -ForegroundColor $defaultColor -NoNewline
+        Write-Host "$periodIcon" -ForegroundColor $defaultColor -NoNewline
+        
+        if ($nightTemp) {
+            Write-Host " H:$temp°F L:$nightTemp°F" -ForegroundColor $tempColor -NoNewline
+        } else {
+            Write-Host " $temp°F" -ForegroundColor $tempColor -NoNewline
+        }
+        
+        Write-Host " - $shortForecast" -ForegroundColor $defaultColor -NoNewline
+        
+        if ($precipProb -gt 0) {
+            Write-Host " ($precipProb% precip)" -ForegroundColor $precipColor
+        } else {
+            Write-Host ""
+        }
+        
+        $processedDays[$dayName] = $true
+        $dayCount++
     }
-    
-    # Color code temperature
-    $tempColor = if ([int]$temp -lt 33 -or [int]$temp -gt 89) { $alertColor } else { $defaultColor }
-    
-    # Color code precipitation probability
-    $precipColor = if ($precipProb -gt 50) { $alertColor } elseif ($precipProb -gt 20) { "Yellow" } else { $defaultColor }
-    
-    # Display day with icon and temperature range
-    Write-Host "$dayName`: " -ForegroundColor $defaultColor -NoNewline
-    Write-Host "$periodIcon" -ForegroundColor $defaultColor -NoNewline
-    
-    if ($nightTemp) {
-        Write-Host " H:$temp°F L:$nightTemp°F" -ForegroundColor $tempColor -NoNewline
-    } else {
-        Write-Host " $temp°F" -ForegroundColor $tempColor -NoNewline
-    }
-    
-    Write-Host " - $shortForecast" -ForegroundColor $defaultColor -NoNewline
-    
-    if ($precipProb -gt 0) {
-        Write-Host " ($precipProb% precip)" -ForegroundColor $precipColor
-    } else {
-        Write-Host ""
-    }
-    
-    $processedDays[$dayName] = $true
-    $dayCount++
 }
 
 # --- Alert Handling ---
-if ($alertsData -and $alertsData.features.Count -gt 0) {
+if ($showAlerts -and $alertsData -and $alertsData.features.Count -gt 0) {
     Write-Host ""
     Write-Host "*** Active Weather Alerts ***" -ForegroundColor $alertColor
     foreach ($alert in $alertsData.features) {
@@ -619,19 +691,398 @@ if ($alertsData -and $alertsData.features.Count -gt 0) {
     }
 }
 
-Write-Host ""
-Write-Host "*** Location Information ***" -ForegroundColor $titleColor
-if ($county) {
-    Write-Host "County: $county" -ForegroundColor $defaultColor
-}
-Write-Host "Time Zone: $timeZone" -ForegroundColor $defaultColor
-Write-Host "Radar Station: $radarStation" -ForegroundColor $defaultColor
-Write-Host "Coordinates: $lat, $lon" -ForegroundColor $defaultColor
+if ($showLocationInfo) {
+    Write-Host ""
+    Write-Host "*** Location Information ***" -ForegroundColor $titleColor
+    if ($county) {
+        Write-Host "County: $county" -ForegroundColor $defaultColor
+    }
+    Write-Host "Time Zone: $timeZone" -ForegroundColor $defaultColor
+    Write-Host "Radar Station: $radarStation" -ForegroundColor $defaultColor
+    Write-Host "Coordinates: $lat, $lon" -ForegroundColor $defaultColor
 
-Write-Host ""
-Write-Host "https://forecast.weather.gov/MapClick.php?lat=$lat&lon=$lon" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "https://forecast.weather.gov/MapClick.php?lat=$lat&lon=$lon" -ForegroundColor Cyan
+}
 
 if ($parentName -notmatch '^(WindowsTerminal.exe|PowerShell|cmd)') {
     Write-Verbose "Parent:$parentName"
-    Read-Host -Prompt "Hit Enter to Exit"
+    
+    # Interactive mode - listen for keys to switch display modes
+    Write-Host ""
+    Write-Host "*** Interactive Mode ***" -ForegroundColor $titleColor
+    Write-Host "Hourly[" -ForegroundColor White -NoNewline; Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "], 7-Day[" -ForegroundColor White -NoNewline; Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "], Terse[" -ForegroundColor White -NoNewline; Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "], Full[" -ForegroundColor White -NoNewline; Write-Host "ESC" -ForegroundColor Cyan -NoNewline; Write-Host "], Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
+    
+    while ($true) {
+        $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        
+        # Debug: Show key code (comment out after testing)
+        # Write-Host "Key pressed: $($key.VirtualKeyCode)" -ForegroundColor Yellow
+        
+        switch ($key.VirtualKeyCode) {
+            72 { # H key
+                Clear-Host
+                Write-Host "*** $city, $state - Hourly Forecast Only ***" -ForegroundColor $titleColor
+                # Show only hourly forecast
+                Write-Host ""
+                Write-Host "*** Hourly Forecast (Next 12 Hours) ***" -ForegroundColor $titleColor
+                $hourlyPeriods = $hourlyData.properties.periods
+                $hourCount = 0
+
+                foreach ($period in $hourlyPeriods) {
+                    if ($hourCount -ge 12) { break }
+                    
+                    $periodTime = [DateTime]::Parse($period.startTime)
+                    $hourDisplay = $periodTime.ToString("HH:mm")
+                    $temp = $period.temperature
+                    $shortForecast = $period.shortForecast
+                    $wind = $period.windSpeed
+                    $windDir = $period.windDirection
+                    $precipProb = $period.probabilityOfPrecipitation.value
+                    $periodIcon = Get-WeatherIcon $period.icon
+                    
+                    # Color code temperature
+                    $tempColor = if ([int]$temp -lt 33 -or [int]$temp -gt 89) { $alertColor } else { $defaultColor }
+                    
+                    # Color code precipitation probability
+                    $precipColor = if ($precipProb -gt 50) { $alertColor } elseif ($precipProb -gt 20) { "Yellow" } else { $defaultColor }
+                    
+                    Write-Host "$hourDisplay " -ForegroundColor $defaultColor -NoNewline
+                    Write-Host "$periodIcon" -ForegroundColor $defaultColor -NoNewline
+                    Write-Host " $temp°F " -ForegroundColor $tempColor -NoNewline
+                    Write-Host "$wind $windDir" -ForegroundColor $defaultColor -NoNewline
+                    
+                    if ($precipProb -gt 0) {
+                        Write-Host " ($precipProb%)" -ForegroundColor $precipColor -NoNewline
+                    }
+                    
+                    Write-Host " - $shortForecast" -ForegroundColor $defaultColor
+                    
+                    $hourCount++
+                }
+                Write-Host ""
+                Write-Host "Hourly[" -ForegroundColor White -NoNewline; Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "], 7-Day[" -ForegroundColor White -NoNewline; Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "], Terse[" -ForegroundColor White -NoNewline; Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "], Full[" -ForegroundColor White -NoNewline; Write-Host "ESC" -ForegroundColor Cyan -NoNewline; Write-Host "], Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
+            }
+            68 { # D key
+                Clear-Host
+                Write-Host "*** $city, $state - 7-Day Forecast Only ***" -ForegroundColor $titleColor
+                # Show only 7-day forecast
+                Write-Host ""
+                Write-Host "*** 7-Day Forecast Summary ***" -ForegroundColor $titleColor
+                $forecastPeriods = $forecastData.properties.periods
+                $dayCount = 0
+                $processedDays = @{}
+
+                foreach ($period in $forecastPeriods) {
+                    if ($dayCount -ge 7) { break }
+                    
+                    $periodTime = [DateTime]::Parse($period.startTime)
+                    $dayName = $periodTime.ToString("ddd")
+                    
+                    # Skip if we've already processed this day
+                    if ($processedDays.ContainsKey($dayName)) { continue }
+                    
+                    $temp = $period.temperature
+                    $shortForecast = $period.shortForecast
+                    $precipProb = $period.probabilityOfPrecipitation.value
+                    $periodIcon = Get-WeatherIcon $period.icon
+                    
+                    # Find the corresponding night period for high/low
+                    $nightTemp = $null
+                    foreach ($nightPeriod in $forecastPeriods) {
+                        $nightTime = [DateTime]::Parse($nightPeriod.startTime)
+                        $nightDayName = $nightTime.ToString("ddd")
+                        $nightPeriodName = $nightPeriod.name
+                        
+                        if ($nightDayName -eq $dayName -and ($nightPeriodName -match "Night" -or $nightPeriodName -match "Overnight")) {
+                            $nightTemp = $nightPeriod.temperature
+                            break
+                        }
+                    }
+                    
+                    # Color code temperature
+                    $tempColor = if ([int]$temp -lt 33 -or [int]$temp -gt 89) { $alertColor } else { $defaultColor }
+                    
+                    # Color code precipitation probability
+                    $precipColor = if ($precipProb -gt 50) { $alertColor } elseif ($precipProb -gt 20) { "Yellow" } else { $defaultColor }
+                    
+                    # Display day with icon and temperature range
+                    Write-Host "$dayName`: " -ForegroundColor $defaultColor -NoNewline
+                    Write-Host "$periodIcon" -ForegroundColor $defaultColor -NoNewline
+                    
+                    if ($nightTemp) {
+                        Write-Host " H:$temp°F L:$nightTemp°F" -ForegroundColor $tempColor -NoNewline
+                    } else {
+                        Write-Host " $temp°F" -ForegroundColor $tempColor -NoNewline
+                    }
+                    
+                    Write-Host " - $shortForecast" -ForegroundColor $defaultColor -NoNewline
+                    
+                    if ($precipProb -gt 0) {
+                        Write-Host " ($precipProb% precip)" -ForegroundColor $precipColor
+                    } else {
+                        Write-Host ""
+                    }
+                    
+                    $processedDays[$dayName] = $true
+                    $dayCount++
+                }
+                Write-Host ""
+                Write-Host "Hourly[" -ForegroundColor White -NoNewline; Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "], 7-Day[" -ForegroundColor White -NoNewline; Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "], Terse[" -ForegroundColor White -NoNewline; Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "], Full[" -ForegroundColor White -NoNewline; Write-Host "ESC" -ForegroundColor Cyan -NoNewline; Write-Host "], Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
+            }
+            84 { # T key
+                Clear-Host
+                Write-Host "*** $city, $state - Terse Mode ***" -ForegroundColor $titleColor
+                # Show current conditions and today's forecast only
+                Write-Host "Currently: $weatherIcon $currentConditions" -ForegroundColor $defaultColor
+                Write-Host "Temperature: $currentTemp°F" -ForegroundColor $tempColor -NoNewline
+                if ($currentTempTrend) {
+                    $trendIcon = switch ($currentTempTrend) {
+                        "rising" { "↗️" }
+                        "falling" { "↘️" }
+                        "steady" { "→" }
+                        default { "" }
+                    }
+                    Write-Host " $trendIcon " -ForegroundColor $defaultColor -NoNewline
+                }
+                Write-Host ""
+
+                Write-Host "Wind: $currentWind $currentWindDir" -ForegroundColor $windColor -NoNewline
+                if ($windGust) {
+                    Write-Host " (gusts to $windGust mph)" -ForegroundColor $alertColor -NoNewline
+                }
+                Write-Host ""
+
+                Write-Host "Humidity: $currentHumidity%" -ForegroundColor $defaultColor
+                Write-Host "Dew Point: $([math]::Round($currentDewPoint * 9/5 + 32, 1))°F" -ForegroundColor $defaultColor
+                if ($currentPrecipProb -gt 0) {
+                    Write-Host "Precipitation: $currentPrecipProb% chance" -ForegroundColor $defaultColor
+                }
+
+                Write-Host "Time: $($currentTimeLocal.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $infoColor
+
+                Write-Host ""
+                Write-Host "*** Today's Forecast ***" -ForegroundColor $titleColor
+                $wrappedForecast = Format-TextWrap -Text $todayForecast -Width $Host.UI.RawUI.WindowSize.Width
+                $wrappedForecast | ForEach-Object { Write-Host $_ -ForegroundColor $defaultColor }
+
+                # Show alerts if they exist
+                if ($alertsData -and $alertsData.features.Count -gt 0) {
+                    Write-Host ""
+                    Write-Host "*** Active Weather Alerts ***" -ForegroundColor $alertColor
+                    foreach ($alert in $alertsData.features) {
+                        $alertProps = $alert.properties
+                        $alertEvent = $alertProps.event
+                        $alertHeadline = $alertProps.headline
+                        $alertStart = ([DateTime]::Parse($alertProps.effective)).ToLocalTime()
+                        $alertEnd = ([DateTime]::Parse($alertProps.expires)).ToLocalTime()
+                        
+                        Write-Host "*** $alertEvent ***" -ForegroundColor $alertColor
+                        Write-Host "$alertHeadline" -ForegroundColor $defaultColor
+                        Write-Host "Effective: $($alertStart.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $infoColor
+                        Write-Host "Expires: $($alertEnd.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $infoColor
+                        Write-Host ""
+                    }
+                }
+                Write-Host ""
+                Write-Host "Hourly[" -ForegroundColor White -NoNewline; Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "], 7-Day[" -ForegroundColor White -NoNewline; Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "], Terse[" -ForegroundColor White -NoNewline; Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "], Full[" -ForegroundColor White -NoNewline; Write-Host "ESC" -ForegroundColor Cyan -NoNewline; Write-Host "], Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
+            }
+            27 { # ESC key
+                Clear-Host
+                # Show full display (re-run the original display logic)
+                if ($showCurrentConditions) {
+                    Write-Host "*** $city, $state Current Conditions ***" -ForegroundColor $titleColor
+                    Write-Host "Currently: $weatherIcon $currentConditions" -ForegroundColor $defaultColor
+                    Write-Host "Temperature: $currentTemp°F" -ForegroundColor $tempColor -NoNewline
+                    if ($currentTempTrend) {
+                        $trendIcon = switch ($currentTempTrend) {
+                            "rising" { "↗️" }
+                            "falling" { "↘️" }
+                            "steady" { "→" }
+                            default { "" }
+                        }
+                        Write-Host " $trendIcon " -ForegroundColor $defaultColor -NoNewline
+                    }
+                    Write-Host ""
+
+                    Write-Host "Wind: $currentWind $currentWindDir" -ForegroundColor $windColor -NoNewline
+                    if ($windGust) {
+                        Write-Host " (gusts to $windGust mph)" -ForegroundColor $alertColor -NoNewline
+                    }
+                    Write-Host ""
+
+                    Write-Host "Humidity: $currentHumidity%" -ForegroundColor $defaultColor
+                    Write-Host "Dew Point: $([math]::Round($currentDewPoint * 9/5 + 32, 1))°F" -ForegroundColor $defaultColor
+                    if ($currentPrecipProb -gt 0) {
+                        Write-Host "Precipitation: $currentPrecipProb% chance" -ForegroundColor $defaultColor
+                    }
+
+                    Write-Host "Time: $($currentTimeLocal.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $infoColor
+                }
+
+                if ($showTodayForecast) {
+                    Write-Host ""
+                    Write-Host "*** Today's Forecast ***" -ForegroundColor $titleColor
+                    $wrappedForecast = Format-TextWrap -Text $todayForecast -Width $Host.UI.RawUI.WindowSize.Width
+                    $wrappedForecast | ForEach-Object { Write-Host $_ -ForegroundColor $defaultColor }
+                }
+
+                if ($showTomorrowForecast) {
+                    Write-Host ""
+                    Write-Host "*** Tomorrow's Forecast ***" -ForegroundColor $titleColor
+                    $wrappedTomorrow = Format-TextWrap -Text $tomorrowForecast -Width $Host.UI.RawUI.WindowSize.Width
+                    $wrappedTomorrow | ForEach-Object { Write-Host $_ -ForegroundColor $defaultColor }
+                }
+
+                if ($showHourlyForecast) {
+                    Write-Host ""
+                    Write-Host "*** Hourly Forecast (Next 12 Hours) ***" -ForegroundColor $titleColor
+                    $hourlyPeriods = $hourlyData.properties.periods
+                    $hourCount = 0
+
+                    foreach ($period in $hourlyPeriods) {
+                        if ($hourCount -ge 12) { break }
+                        
+                        $periodTime = [DateTime]::Parse($period.startTime)
+                        $hourDisplay = $periodTime.ToString("HH:mm")
+                        $temp = $period.temperature
+                        $shortForecast = $period.shortForecast
+                        $wind = $period.windSpeed
+                        $windDir = $period.windDirection
+                        $precipProb = $period.probabilityOfPrecipitation.value
+                        $periodIcon = Get-WeatherIcon $period.icon
+                        
+                        # Color code temperature
+                        $tempColor = if ([int]$temp -lt 33 -or [int]$temp -gt 89) { $alertColor } else { $defaultColor }
+                        
+                        # Color code precipitation probability
+                        $precipColor = if ($precipProb -gt 50) { $alertColor } elseif ($precipProb -gt 20) { "Yellow" } else { $defaultColor }
+                        
+                        Write-Host "$hourDisplay " -ForegroundColor $defaultColor -NoNewline
+                        Write-Host "$periodIcon" -ForegroundColor $defaultColor -NoNewline
+                        Write-Host " $temp°F " -ForegroundColor $tempColor -NoNewline
+                        Write-Host "$wind $windDir" -ForegroundColor $defaultColor -NoNewline
+                        
+                        if ($precipProb -gt 0) {
+                            Write-Host " ($precipProb%)" -ForegroundColor $precipColor -NoNewline
+                        }
+                        
+                        Write-Host " - $shortForecast" -ForegroundColor $defaultColor
+                        
+                        $hourCount++
+                    }
+                }
+
+                if ($showSevenDayForecast) {
+                    Write-Host ""
+                    Write-Host "*** 7-Day Forecast Summary ***" -ForegroundColor $titleColor
+                    $forecastPeriods = $forecastData.properties.periods
+                    $dayCount = 0
+                    $processedDays = @{}
+
+                    foreach ($period in $forecastPeriods) {
+                        if ($dayCount -ge 7) { break }
+                        
+                        $periodTime = [DateTime]::Parse($period.startTime)
+                        $dayName = $periodTime.ToString("ddd")
+                        
+                        # Skip if we've already processed this day
+                        if ($processedDays.ContainsKey($dayName)) { continue }
+                        
+                        $temp = $period.temperature
+                        $shortForecast = $period.shortForecast
+                        $precipProb = $period.probabilityOfPrecipitation.value
+                        $periodIcon = Get-WeatherIcon $period.icon
+                        
+                        # Find the corresponding night period for high/low
+                        $nightTemp = $null
+                        foreach ($nightPeriod in $forecastPeriods) {
+                            $nightTime = [DateTime]::Parse($nightPeriod.startTime)
+                            $nightDayName = $nightTime.ToString("ddd")
+                            $nightPeriodName = $nightPeriod.name
+                            
+                            if ($nightDayName -eq $dayName -and ($nightPeriodName -match "Night" -or $nightPeriodName -match "Overnight")) {
+                                $nightTemp = $nightPeriod.temperature
+                                break
+                            }
+                        }
+                        
+                        # Color code temperature
+                        $tempColor = if ([int]$temp -lt 33 -or [int]$temp -gt 89) { $alertColor } else { $defaultColor }
+                        
+                        # Color code precipitation probability
+                        $precipColor = if ($precipProb -gt 50) { $alertColor } elseif ($precipProb -gt 20) { "Yellow" } else { $defaultColor }
+                        
+                        # Display day with icon and temperature range
+                        Write-Host "$dayName`: " -ForegroundColor $defaultColor -NoNewline
+                        Write-Host "$periodIcon" -ForegroundColor $defaultColor -NoNewline
+                        
+                        if ($nightTemp) {
+                            Write-Host " H:$temp°F L:$nightTemp°F" -ForegroundColor $tempColor -NoNewline
+                        } else {
+                            Write-Host " $temp°F" -ForegroundColor $tempColor -NoNewline
+                        }
+                        
+                        Write-Host " - $shortForecast" -ForegroundColor $defaultColor -NoNewline
+                        
+                        if ($precipProb -gt 0) {
+                            Write-Host " ($precipProb% precip)" -ForegroundColor $precipColor
+                        } else {
+                            Write-Host ""
+                        }
+                        
+                        $processedDays[$dayName] = $true
+                        $dayCount++
+                    }
+                }
+
+                if ($showAlerts -and $alertsData -and $alertsData.features.Count -gt 0) {
+                    Write-Host ""
+                    Write-Host "*** Active Weather Alerts ***" -ForegroundColor $alertColor
+                    foreach ($alert in $alertsData.features) {
+                        $alertProps = $alert.properties
+                        $alertEvent = $alertProps.event
+                        $alertHeadline = $alertProps.headline
+                        $alertDesc = $alertProps.description
+                        $alertStart = ([DateTime]::Parse($alertProps.effective)).ToLocalTime()
+                        $alertEnd = ([DateTime]::Parse($alertProps.expires)).ToLocalTime()
+                        
+                        Write-Host "*** $alertEvent ***" -ForegroundColor $alertColor
+                        Write-Host "$alertHeadline" -ForegroundColor $defaultColor
+                        if (-not $Terse.IsPresent) {
+                            $wrappedAlert = Format-TextWrap -Text $alertDesc -Width $Host.UI.RawUI.WindowSize.Width
+                            $wrappedAlert | ForEach-Object { Write-Host $_ -ForegroundColor $defaultColor }
+                        }
+                        Write-Host "Effective: $($alertStart.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $infoColor
+                        Write-Host "Expires: $($alertEnd.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $infoColor
+                        Write-Host ""
+                    }
+                }
+
+                if ($showLocationInfo) {
+                    Write-Host ""
+                    Write-Host "*** Location Information ***" -ForegroundColor $titleColor
+                    if ($county) {
+                        Write-Host "County: $county" -ForegroundColor $defaultColor
+                    }
+                    Write-Host "Time Zone: $timeZone" -ForegroundColor $defaultColor
+                    Write-Host "Radar Station: $radarStation" -ForegroundColor $defaultColor
+                    Write-Host "Coordinates: $lat, $lon" -ForegroundColor $defaultColor
+
+                    Write-Host ""
+                    Write-Host "https://forecast.weather.gov/MapClick.php?lat=$lat&lon=$lon" -ForegroundColor Cyan
+                }
+                Write-Host ""
+                Write-Host "Hourly[" -ForegroundColor White -NoNewline; Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "], 7-Day[" -ForegroundColor White -NoNewline; Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "], Terse[" -ForegroundColor White -NoNewline; Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "], Full[" -ForegroundColor White -NoNewline; Write-Host "ESC" -ForegroundColor Cyan -NoNewline; Write-Host "], Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
+            }
+            13 { # Enter key
+                Write-Host "Exiting..." -ForegroundColor Yellow
+                return
+            }
+            28 { # NumPad Enter key
+                Write-Host "Exiting..." -ForegroundColor Yellow
+                return
+            }
+        }
+    }
 }
