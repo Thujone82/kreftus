@@ -49,20 +49,24 @@ param(
     [switch]$SevenDay,
 
     [Alias('d')]
-    [switch]$Daily
+    [switch]$Daily,
+
+    [Alias('x')]
+    [switch]$NoInteractive
 )
 
 # --- Helper Functions ---
 
-if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $SevenDay.IsPresent -or $Daily.IsPresent) -and -not $Location)) {
+if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $SevenDay.IsPresent -or $Daily.IsPresent -or $NoInteractive.IsPresent) -and -not $Location)) {
     Write-Host "Usage: .\gf.ps1 [ZipCode | `"City, State`"] [Options] [-Verbose]" -ForegroundColor Green
     Write-Host " • Provide a 5-digit zipcode or a City, State (e.g., 'Portland, OR')." -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Options:" -ForegroundColor Blue
     Write-Host "  -t, -Terse    Show only current conditions and today's forecast" -ForegroundColor Cyan
     Write-Host "  -h, -Hourly   Show only the 12-hour hourly forecast" -ForegroundColor Cyan
-    Write-Host "  -7, -SevenDay Show only the 7-day forecast summary" -ForegroundColor Cyan
-    Write-Host "  -d, -Daily    Same as -7 (7-day forecast summary)" -ForegroundColor Cyan
+         Write-Host "  -7, -SevenDay Show only the 7-day forecast summary" -ForegroundColor Cyan
+     Write-Host "  -d, -Daily    Same as -7 (7-day forecast summary)" -ForegroundColor Cyan
+     Write-Host "  -x, -NoInteractive Exit immediately (no interactive mode)" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Interactive Mode:" -ForegroundColor Blue
     Write-Host "  When run interactively (not from terminal), the script enters interactive mode." -ForegroundColor Cyan
@@ -88,8 +92,9 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $SevenDay.IsPresent -
     Write-Host "  .\gf.ps1 `"Portland, OR`" -Verbose" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 97219 -t" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 `"Portland, OR`" -h" -ForegroundColor Cyan
-    Write-Host "  .\gf.ps1 97219 -7" -ForegroundColor Cyan
-    Write-Host "  .\gf.ps1 -Help" -ForegroundColor Cyan
+         Write-Host "  .\gf.ps1 97219 -7" -ForegroundColor Cyan
+     Write-Host "  .\gf.ps1 97219 -h -x" -ForegroundColor Cyan
+     Write-Host "  .\gf.ps1 -Help" -ForegroundColor Cyan
     return
 }
 
@@ -424,7 +429,107 @@ function Get-WindSpeed ($windString) {
     return 0
 }
 
-# Convert weather icon to ASCII art with proper spacing
+# Function to get the display width of a string (accounting for emoji width)
+function Get-StringDisplayWidth {
+    param([string]$Text)
+    
+    $width = 0
+    $i = 0
+    while ($i -lt $Text.Length) {
+        $char = $Text[$i]
+        $codePoint = [int][char]$char
+        
+        # Check if this is a surrogate pair (emoji)
+        if ($codePoint -ge 0xD800 -and $codePoint -le 0xDBFF -and $i + 1 -lt $Text.Length) {
+            $nextChar = $Text[$i + 1]
+            $nextCodePoint = [int][char]$nextChar
+            if ($nextCodePoint -ge 0xDC00 -and $nextCodePoint -le 0xDFFF) {
+                # This is a surrogate pair - check if it's a double-width emoji
+                $surrogatePair = $char + $nextChar
+                $width += Get-EmojiWidth $surrogatePair
+                $i += 2
+                continue
+            }
+        }
+        
+        # Regular character
+        if ($codePoint -ge 0x1F600 -and $codePoint -le 0x1F64F) { # Emoticons
+            $width += 2
+        } elseif ($codePoint -ge 0x1F300 -and $codePoint -le 0x1F5FF) { # Misc Symbols and Pictographs
+            $width += 2
+        } elseif ($codePoint -ge 0x1F900 -and $codePoint -le 0x1F9FF) { # Supplemental Symbols and Pictographs
+            $width += 2
+        } elseif ($codePoint -ge 0x2600 -and $codePoint -le 0x27BF) { # Misc Symbols
+            $width += 1
+        } else {
+            $width += 1
+        }
+        $i++
+    }
+    return $width
+}
+
+# Function to detect terminal type and emoji behavior
+function Get-TerminalEmojiBehavior {
+    # Check for SSH connection
+    if ($env:SSH_CONNECTION) {
+        Write-Verbose "SSH connection detected - using single-width emoji rendering"
+        return 1  # Assume single-width for SSH
+    }
+    
+    # Check for Windows Terminal
+    if ($parentName -match 'WindowsTerminal') {
+        Write-Verbose "Windows Terminal detected - using double-width emoji rendering"
+        return 2  # Windows Terminal typically renders as double-width
+    }
+    
+    # Check for PowerShell
+    if ($parentName -match 'PowerShell') {
+        Write-Verbose "PowerShell detected - using double-width emoji rendering"
+        return 2  # PowerShell typically renders as double-width
+    }
+    
+    # Check for common terminal emulators
+    if ($env:TERM -match 'xterm|screen|tmux') {
+        Write-Verbose "Unix terminal detected - using single-width emoji rendering"
+        return 1  # Unix terminals often render as single-width
+    }
+    
+    # Default to double-width for unknown terminals
+    Write-Verbose "Unknown terminal type - defaulting to double-width emoji rendering"
+    return 2
+}
+
+# Cache the terminal behavior
+$script:terminalEmojiWidth = $null
+
+# Function to get emoji width for specific emoji
+function Get-EmojiWidth {
+    param([string]$Emoji)
+    
+    # Initialize terminal behavior if not cached
+    if ($null -eq $script:terminalEmojiWidth) {
+        $script:terminalEmojiWidth = Get-TerminalEmojiBehavior
+    }
+    
+    # Map specific emoji to their expected widths based on terminal behavior
+    switch ($Emoji) {
+        "☀️" { return 1 }  # Clear/Sunny (always single-width)
+        "🌤️" { return 2 }  # Few clouds (always double-width)
+        "⛅" { return $script:terminalEmojiWidth }   # Scattered clouds (varies by terminal)
+        "☁️" { return 1 }  # Broken/Overcast clouds (always single-width)
+        "🌧️" { return 2 }  # Rain (always double-width)
+        "❄️" { return 2 }  # Snow (always double-width)
+        "🧊" { return 2 }  # Freezing rain (always double-width)
+        "⛈️" { return 2 }  # Thunderstorm (always double-width)
+        "🌫️" { return 2 }  # Fog/Haze (always double-width)
+        "💨" { return 2 }  # Smoke/Dust/Wind (always double-width)
+        "🌡️" { return 2 }  # Default (always double-width)
+        default { return 2 } # Default to double-width for unknown emoji
+    }
+}
+
+# Convert weather icon to emoji with dynamic spacing
 function Get-WeatherIcon ($iconUrl) {
     if (-not $iconUrl) { return "" }
     
@@ -432,25 +537,38 @@ function Get-WeatherIcon ($iconUrl) {
     if ($iconUrl -match "/([^/]+)\?") {
         $condition = $matches[1]
         
-        # Map conditions to ASCII art with spacing consideration
-        switch -Wildcard ($condition) {
-            "*skc*" { return "☀️ " }  # Clear/Sunny (single-width)
-            "*few*" { return "🌤️" }  # Few clouds (double-width)
-            "*sct*" { return "⛅" }   # Scattered clouds (double-width)
-            "*bkn*" { return "☁️ " }  # Broken clouds (single-width)
-            "*ovc*" { return "☁️ " }  # Overcast (single-width)
-            "*rain*" { return "🌧️" } # Rain (double-width)
-            "*snow*" { return "❄️" }  # Snow (double-width)
-            "*fzra*" { return "🧊" }  # Freezing rain (double-width)
-            "*tsra*" { return "⛈️" }  # Thunderstorm (double-width)
-            "*fog*" { return "🌫️" }   # Fog (double-width)
-            "*haze*" { return "🌫️" }  # Haze (double-width)
-            "*smoke*" { return "💨" } # Smoke (double-width)
-            "*dust*" { return "💨" }  # Dust (double-width)
-            "*wind*" { return "💨" }  # Windy (double-width)
-            default { return "🌡️" }   # Default (double-width)
+        # Map conditions to emoji
+        $emoji = switch -Wildcard ($condition) {
+            "*skc*" { "☀️" }  # Clear/Sunny
+            "*few*" { "🌤️" }  # Few clouds
+            "*sct*" { "⛅" }   # Scattered clouds
+            "*bkn*" { "☁️" }  # Broken clouds
+            "*ovc*" { "☁️" }  # Overcast
+            "*rain*" { "🌧️" } # Rain
+            "*snow*" { "❄️" }  # Snow
+            "*fzra*" { "🧊" }  # Freezing rain
+            "*tsra*" { "⛈️" }  # Thunderstorm
+            "*fog*" { "🌫️" }   # Fog
+            "*haze*" { "🌫️" }  # Haze
+            "*smoke*" { "💨" } # Smoke
+            "*dust*" { "💨" }  # Dust
+            "*wind*" { "💨" }  # Windy
+            default { "🌡️" }   # Default
+        }
+        
+        # Get the expected width for this emoji in the current terminal
+        $expectedWidth = Get-EmojiWidth $emoji
+        
+        # Add padding to ensure consistent alignment
+        # Most emoji should align to 2 character positions
+        if ($expectedWidth -eq 1) {
+            return "$emoji "
+        } else {
+            return $emoji
         }
     }
+    
+    # Default fallback
     return "🌡️"
 }
 
@@ -705,8 +823,24 @@ if ($showLocationInfo) {
     Write-Host "https://forecast.weather.gov/MapClick.php?lat=$lat&lon=$lon" -ForegroundColor Cyan
 }
 
-if ($parentName -notmatch '^(WindowsTerminal.exe|PowerShell|cmd)') {
-    Write-Verbose "Parent:$parentName"
+# Check if we're in an interactive environment that supports ReadKey
+$isInteractiveEnvironment = $false
+
+# Check if we're in a Windows terminal environment
+if ($parentName -match '^(WindowsTerminal.exe|PowerShell|cmd)') {
+    $isInteractiveEnvironment = $true
+}
+# Check if we're in an SSH session with a proper terminal
+elseif ($env:SSH_CONNECTION -and $Host.UI.RawUI.WindowSize.Width -gt 0) {
+    $isInteractiveEnvironment = $true
+}
+# Check if we have a proper terminal size (indicating interactive terminal)
+elseif ($Host.UI.RawUI.WindowSize.Width -gt 0 -and $Host.UI.RawUI.WindowSize.Height -gt 0) {
+    $isInteractiveEnvironment = $true
+}
+
+if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
+    Write-Verbose "Parent:$parentName - Interactive environment detected"
     
     # Interactive mode - listen for keys to switch display modes
     Write-Host ""
@@ -714,12 +848,13 @@ if ($parentName -notmatch '^(WindowsTerminal.exe|PowerShell|cmd)') {
     Write-Host "Hourly[" -ForegroundColor White -NoNewline; Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "], 7-Day[" -ForegroundColor White -NoNewline; Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "], Terse[" -ForegroundColor White -NoNewline; Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "], Full[" -ForegroundColor White -NoNewline; Write-Host "ESC" -ForegroundColor Cyan -NoNewline; Write-Host "], Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
     
     while ($true) {
-        $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-        
-        # Debug: Show key code (comment out after testing)
-        # Write-Host "Key pressed: $($key.VirtualKeyCode)" -ForegroundColor Yellow
-        
-        switch ($key.VirtualKeyCode) {
+        try {
+            $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            
+            # Debug: Show key code (comment out after testing)
+            # Write-Host "Key pressed: $($key.VirtualKeyCode)" -ForegroundColor Yellow
+            
+            switch ($key.VirtualKeyCode) {
             72 { # H key
                 Clear-Host
                 Write-Host "*** $city, $state - Hourly Forecast Only ***" -ForegroundColor $titleColor
@@ -1083,6 +1218,11 @@ if ($parentName -notmatch '^(WindowsTerminal.exe|PowerShell|cmd)') {
                 Write-Host "Exiting..." -ForegroundColor Yellow
                 return
             }
+        }
+        }
+        catch {
+            Write-Host "Interactive mode not supported in this environment. Exiting..." -ForegroundColor Yellow
+            return
         }
     }
 }

@@ -26,6 +26,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
   - **Terse Mode (`-t`):** Shows only current conditions and today's forecast (plus alerts)
   - **Hourly Mode (`-h`):** Shows only the 12-hour hourly forecast
   - **7-Day Mode (`-7` or `-d`):** Shows only the 7-day forecast summary
+  - **No-Interactive Mode (`-x`):** Exits immediately after displaying data (perfect for scripting)
 - **Interactive Mode:** When run from non-terminal environments, provides keyboard shortcuts for dynamic view switching:
   - **[H]** - Switch to hourly forecast only
   - **[D]** - Switch to 7-day forecast only
@@ -102,6 +103,12 @@ Due to differences between the OpenWeatherMap and National Weather Service APIs,
 # Alternative 7-day forecast command
 .\gf.ps1 -d "Portland, OR"
 
+# Get hourly forecast and exit immediately (for scripting)
+.\gf.ps1 -h -x "Portland, OR"
+
+# Get terse forecast and exit immediately
+.\gf.ps1 -t -x 97219
+
 # View help
 .\gf.ps1 -Help
 ```
@@ -113,6 +120,7 @@ The script features an advanced **Interactive Mode** that activates when run fro
 #### How Interactive Mode Works:
 
 1. **Automatic Activation:** When the script detects it's not running from a standard terminal (PowerShell, Command Prompt, Windows Terminal), it automatically enters interactive mode
+2. **Manual Override:** Interactive mode can be disabled using the `-x` or `-NoInteractive` flag for scripting scenarios
 2. **Display Options:** After showing the initial weather data, the script presents keyboard shortcuts for different view modes
 3. **Dynamic Switching:** Users can switch between different display modes without restarting the script
 4. **Persistent Session:** The script remains active until the user chooses to exit
@@ -147,6 +155,7 @@ The interactive mode uses PowerShell's `$Host.UI.RawUI.ReadKey()` method to capt
 - **Planning Activities:** Use [H] to see hourly breakdown for day planning
 - **Weekly Planning:** Use [D] to see the 7-day outlook for weekly scheduling
 - **Comprehensive Review:** Use [ESC] to see all available weather information
+- **Scripting & Automation:** Use `-x` flag for automated weather checks in scripts, cron jobs, or scheduled tasks
 
 ### Future Enhancements
 

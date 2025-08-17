@@ -72,6 +72,11 @@ The script uses a user agent string "GetForecast/1.0 (081625PDX)" for API reques
   - Same as `-7` (shows only the 7-day forecast summary).
   - Alternative flag for the same functionality.
 
+- `-NoInteractive` or `-x` [switch]
+  - Exits immediately after displaying weather data (no interactive mode).
+  - Perfect for scripting and automation scenarios.
+  - Can be combined with other display flags (e.g., `-h -x` for hourly view then exit).
+
 ## Examples
 
 ### Example 1: Get weather by zip code
@@ -94,7 +99,17 @@ The script uses a user agent string "GetForecast/1.0 (081625PDX)" for API reques
 .\gf.ps1 -7 "Portland, OR"
 ```
 
-### Example 5: View help information
+### Example 5: Get hourly forecast and exit immediately (for scripting)
+```powershell
+.\gf.ps1 -h -x "Portland, OR"
+```
+
+### Example 6: Get terse forecast and exit immediately
+```powershell
+.\gf.ps1 -t -x 97219
+```
+
+### Example 7: View help information
 ```powershell
 .\gf.ps1 -Help
 ```
@@ -128,6 +143,8 @@ Interactive mode automatically activates when the script detects it's not runnin
 - Running from Windows Explorer
 - Running from a GUI application
 - Running from certain development environments
+
+**Note:** Interactive mode can be disabled using the `-x` or `-NoInteractive` flag, which is useful for scripting and automation scenarios.
 
 ## Notes
 - The National Weather Service API is free and requires no API key.
