@@ -364,7 +364,6 @@ $currentTime = $currentPeriod.startTime
 $currentHumidity = $currentPeriod.relativeHumidity.value
 $currentDewPoint = $currentPeriod.dewpoint.value
 $currentPrecipProb = $currentPeriod.probabilityOfPrecipitation.value
-$currentIsDaytime = $currentPeriod.isDaytime
 $currentTempTrend = $currentPeriod.temperatureTrend
 $currentIcon = $currentPeriod.icon
 
@@ -457,10 +456,9 @@ if ($VerbosePreference -ne 'Continue') {
 
 # Output the results.
 $weatherIcon = Get-WeatherIcon $currentIcon
-$dayNightIndicator = if ($currentIsDaytime) { "☀️  Day" } else { "🌙 Night" }
 
 Write-Host "*** $city, $state Current Conditions ***" -ForegroundColor $titleColor
-Write-Host "Currently: $weatherIcon $currentConditions ($dayNightIndicator)" -ForegroundColor $defaultColor
+Write-Host "Currently: $weatherIcon $currentConditions" -ForegroundColor $defaultColor
 Write-Host "Temperature: $currentTemp°F" -ForegroundColor $tempColor -NoNewline
 if ($currentTempTrend) {
     $trendIcon = switch ($currentTempTrend) {
@@ -507,7 +505,7 @@ foreach ($period in $hourlyPeriods) {
     if ($hourCount -ge 12) { break }
     
     $periodTime = [DateTime]::Parse($period.startTime)
-    $hourDisplay = $periodTime.ToString("HH:mm").Replace(":", "h")
+    $hourDisplay = $periodTime.ToString("HH:mm")
     $temp = $period.temperature
     $shortForecast = $period.shortForecast
     $wind = $period.windSpeed
