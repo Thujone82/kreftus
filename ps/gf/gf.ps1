@@ -64,9 +64,9 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $SevenDay.IsPresent -
     Write-Host "Options:" -ForegroundColor Blue
     Write-Host "  -t, -Terse    Show only current conditions and today's forecast" -ForegroundColor Cyan
     Write-Host "  -h, -Hourly   Show only the 12-hour hourly forecast" -ForegroundColor Cyan
-         Write-Host "  -7, -SevenDay Show only the 7-day forecast summary" -ForegroundColor Cyan
-     Write-Host "  -d, -Daily    Same as -7 (7-day forecast summary)" -ForegroundColor Cyan
-     Write-Host "  -x, -NoInteractive Exit immediately (no interactive mode)" -ForegroundColor Cyan
+    Write-Host "  -7, -SevenDay Show only the 7-day forecast summary" -ForegroundColor Cyan
+    Write-Host "  -d, -Daily    Same as -7 (7-day forecast summary)" -ForegroundColor Cyan
+    Write-Host "  -x, -NoInteractive Exit immediately (no interactive mode)" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Interactive Mode:" -ForegroundColor Blue
     Write-Host "  When run interactively (not from terminal), the script enters interactive mode." -ForegroundColor Cyan
@@ -74,7 +74,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $SevenDay.IsPresent -
     Write-Host "    [H] - Switch to hourly forecast only" -ForegroundColor Cyan
     Write-Host "    [D] - Switch to 7-day forecast only" -ForegroundColor Cyan
     Write-Host "    [T] - Switch to terse mode (current + today)" -ForegroundColor Cyan
-    Write-Host "    [ESC] - Return to full display" -ForegroundColor Cyan
+    Write-Host "    [F] - Return to full display" -ForegroundColor Cyan
     Write-Host "    [Enter] - Exit the script" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "This script retrieves weather info from National Weather Service API and outputs:" -ForegroundColor Blue
@@ -429,107 +429,7 @@ function Get-WindSpeed ($windString) {
     return 0
 }
 
-# Function to get the display width of a string (accounting for emoji width)
-function Get-StringDisplayWidth {
-    param([string]$Text)
-    
-    $width = 0
-    $i = 0
-    while ($i -lt $Text.Length) {
-        $char = $Text[$i]
-        $codePoint = [int][char]$char
-        
-        # Check if this is a surrogate pair (emoji)
-        if ($codePoint -ge 0xD800 -and $codePoint -le 0xDBFF -and $i + 1 -lt $Text.Length) {
-            $nextChar = $Text[$i + 1]
-            $nextCodePoint = [int][char]$nextChar
-            if ($nextCodePoint -ge 0xDC00 -and $nextCodePoint -le 0xDFFF) {
-                # This is a surrogate pair - check if it's a double-width emoji
-                $surrogatePair = $char + $nextChar
-                $width += Get-EmojiWidth $surrogatePair
-                $i += 2
-                continue
-            }
-        }
-        
-        # Regular character
-        if ($codePoint -ge 0x1F600 -and $codePoint -le 0x1F64F) { # Emoticons
-            $width += 2
-        } elseif ($codePoint -ge 0x1F300 -and $codePoint -le 0x1F5FF) { # Misc Symbols and Pictographs
-            $width += 2
-        } elseif ($codePoint -ge 0x1F900 -and $codePoint -le 0x1F9FF) { # Supplemental Symbols and Pictographs
-            $width += 2
-        } elseif ($codePoint -ge 0x2600 -and $codePoint -le 0x27BF) { # Misc Symbols
-            $width += 1
-        } else {
-            $width += 1
-        }
-        $i++
-    }
-    return $width
-}
-
-# Function to detect terminal type and emoji behavior
-function Get-TerminalEmojiBehavior {
-    # Check for SSH connection
-    if ($env:SSH_CONNECTION) {
-        Write-Verbose "SSH connection detected - using single-width emoji rendering"
-        return 1  # Assume single-width for SSH
-    }
-    
-    # Check for Windows Terminal
-    if ($parentName -match 'WindowsTerminal') {
-        Write-Verbose "Windows Terminal detected - using double-width emoji rendering"
-        return 2  # Windows Terminal typically renders as double-width
-    }
-    
-    # Check for PowerShell
-    if ($parentName -match 'PowerShell') {
-        Write-Verbose "PowerShell detected - using double-width emoji rendering"
-        return 2  # PowerShell typically renders as double-width
-    }
-    
-    # Check for common terminal emulators
-    if ($env:TERM -match 'xterm|screen|tmux') {
-        Write-Verbose "Unix terminal detected - using single-width emoji rendering"
-        return 1  # Unix terminals often render as single-width
-    }
-    
-    # Default to double-width for unknown terminals
-    Write-Verbose "Unknown terminal type - defaulting to double-width emoji rendering"
-    return 2
-}
-
-# Cache the terminal behavior
-$script:terminalEmojiWidth = $null
-
-# Function to get emoji width for specific emoji
-function Get-EmojiWidth {
-    param([string]$Emoji)
-    
-    # Initialize terminal behavior if not cached
-    if ($null -eq $script:terminalEmojiWidth) {
-        $script:terminalEmojiWidth = Get-TerminalEmojiBehavior
-    }
-    
-    # Map specific emoji to their expected widths based on terminal behavior
-    switch ($Emoji) {
-        "☀️" { return 1 }  # Clear/Sunny (always single-width)
-        "🌤️" { return 2 }  # Few clouds (always double-width)
-        "⛅" { return $script:terminalEmojiWidth }   # Scattered clouds (varies by terminal)
-        "☁️" { return 1 }  # Broken/Overcast clouds (always single-width)
-        "🌧️" { return 2 }  # Rain (always double-width)
-        "❄️" { return 2 }  # Snow (always double-width)
-        "🧊" { return 2 }  # Freezing rain (always double-width)
-        "⛈️" { return 2 }  # Thunderstorm (always double-width)
-        "🌫️" { return 2 }  # Fog/Haze (always double-width)
-        "💨" { return 2 }  # Smoke/Dust/Wind (always double-width)
-        "🌡️" { return 2 }  # Default (always double-width)
-        default { return 2 } # Default to double-width for unknown emoji
-    }
-}
-
-# Convert weather icon to emoji with dynamic spacing
+# Convert weather icon to emoji (no padding - we'll handle alignment differently)
 function Get-WeatherIcon ($iconUrl) {
     if (-not $iconUrl) { return "" }
     
@@ -556,20 +456,179 @@ function Get-WeatherIcon ($iconUrl) {
             default { "🌡️" }   # Default
         }
         
-        # Get the expected width for this emoji in the current terminal
-        $expectedWidth = Get-EmojiWidth $emoji
-        
-        # Add padding to ensure consistent alignment
-        # Most emoji should align to 2 character positions
-        if ($expectedWidth -eq 1) {
-            return "$emoji "
-        } else {
-            return $emoji
-        }
+        return $emoji
     }
     
     # Default fallback
     return "🌡️"
+}
+
+# Function to get emoji width based on terminal environment
+function Get-EmojiWidth {
+    param([string]$Emoji)
+    
+    # Detect if we're in Cursor's or VS Code's integrated terminal
+    $isCursorTerminal = $false
+    
+    # Check various ways to detect Cursor/VS Code
+    if ($parentName -match 'Code' -or 
+        $parentName -match 'Cursor' -or 
+        $env:TERM_PROGRAM -eq 'vscode' -or
+        $env:VSCODE_PID -or
+        $env:CURSOR_PID) {
+        $isCursorTerminal = $true
+    }
+    
+    # Debug: Log the detection (comment out after testing)
+    # Write-Verbose "Parent: $parentName, TERM_PROGRAM: $($env:TERM_PROGRAM), VSCODE_PID: $($env:VSCODE_PID), CURSOR_PID: $($env:CURSOR_PID), isCursorTerminal: $isCursorTerminal"
+    
+    # In Cursor's terminal, emojis render as single-width
+    if ($isCursorTerminal) {
+        return 1
+    }
+    
+    # In regular PowerShell, treat all emojis as double-width for consistency
+    return 2
+}
+
+# Function to calculate the display width of a string (accounting for emoji width)
+function Get-StringDisplayWidth {
+    param([string]$Text)
+    
+    $width = 0
+    $i = 0
+    while ($i -lt $Text.Length) {
+        $char = $Text[$i]
+        $codePoint = [int][char]$char
+        
+        # Check if this is a surrogate pair (emoji)
+        if ($codePoint -ge 0xD800 -and $codePoint -le 0xDBFF -and $i + 1 -lt $Text.Length) {
+            $nextChar = $Text[$i + 1]
+            $nextCodePoint = [int][char]$nextChar
+            if ($nextCodePoint -ge 0xDC00 -and $nextCodePoint -le 0xDFFF) {
+                # This is a surrogate pair - get the emoji
+                $emoji = $char + $nextChar
+                $width += Get-EmojiWidth $emoji
+                $i += 2
+                continue
+            }
+        }
+        
+        # Regular character
+        if ($codePoint -ge 0x1F600 -and $codePoint -le 0x1F64F) { # Emoji
+            $width += Get-EmojiWidth $char
+        } elseif ($codePoint -ge 0x1F300 -and $codePoint -le 0x1F5FF) { # Misc Symbols and Pictographs
+            $width += Get-EmojiWidth $char
+        } elseif ($codePoint -ge 0x1F680 -and $codePoint -le 0x1F6FF) { # Transport and Map Symbols
+            $width += Get-EmojiWidth $char
+        } elseif ($codePoint -ge 0x1F1E0 -and $codePoint -le 0x1F1FF) { # Regional Indicator Symbols
+            $width += Get-EmojiWidth $char
+        } elseif ($codePoint -ge 0x2600 -and $codePoint -le 0x26FF) { # Misc Symbols
+            $width += Get-EmojiWidth $char
+        } elseif ($codePoint -ge 0x2700 -and $codePoint -le 0x27BF) { # Dingbats
+            $width += Get-EmojiWidth $char
+        } else {
+            $width += 1
+        }
+        $i++
+    }
+    return $width
+}
+
+# Function to build a formatted hourly forecast line with proper alignment
+function Format-HourlyLine {
+    param(
+        [string]$Time,
+        [string]$Icon,
+        [string]$Temp,
+        [string]$Wind,
+        [string]$WindDir,
+        [int]$PrecipProb,
+        [string]$Forecast
+    )
+    
+    # Build the line components
+    $timePart = "$Time "
+    $iconPart = "$Icon"
+    $tempPart = " $Temp°F "
+    $windPart = "$Wind $WindDir"
+    $precipPart = if ($PrecipProb -gt 0) { " ($PrecipProb%)" } else { "" }
+    $forecastPart = " - $Forecast"
+    
+    # For Cursor/VS Code terminals, use a fixed-width approach
+    # Detect if we're in Cursor's or VS Code's integrated terminal
+    $isCursorTerminal = $false
+    if ($parentName -match 'Code' -or 
+        $parentName -match 'Cursor' -or 
+        $env:TERM_PROGRAM -eq 'vscode' -or
+        $env:VSCODE_PID -or
+        $env:CURSOR_PID) {
+        $isCursorTerminal = $true
+    }
+    
+    if ($isCursorTerminal) {
+        # In Cursor, use a simple fixed-width approach
+        # Time is 5 chars + space = 6 chars, then add fixed spaces after icon
+        $padding = "  "  # Fixed 2 spaces after icon
+        $completeLine = $timePart + $iconPart + $padding + $tempPart + $windPart + $precipPart + $forecastPart
+    } else {
+        # In regular terminals, use the width calculation approach
+        $targetTempColumn = 8
+        $lineBeforeTemp = $timePart + $iconPart
+        $currentDisplayWidth = Get-StringDisplayWidth $lineBeforeTemp
+        $spacesNeeded = $targetTempColumn - $currentDisplayWidth
+        $padding = " " * [Math]::Max(0, $spacesNeeded)
+        $completeLine = $lineBeforeTemp + $padding + $tempPart + $windPart + $precipPart + $forecastPart
+    }
+    
+    return $completeLine
+}
+
+# Function to build a formatted daily forecast line with proper alignment
+function Format-DailyLine {
+    param(
+        [string]$DayName,
+        [string]$Icon,
+        [string]$Temp,
+        [string]$NightTemp,
+        [string]$Forecast,
+        [int]$PrecipProb
+    )
+    
+    # Build the line components
+    $dayPart = "$DayName`: "
+    $iconPart = "$Icon"
+    $tempPart = if ($NightTemp) { " H:$Temp°F L:$NightTemp°F" } else { " $Temp°F" }
+    $forecastPart = " - $Forecast"
+    $precipPart = if ($PrecipProb -gt 0) { " ($PrecipProb% precip)" } else { "" }
+    
+    # For Cursor/VS Code terminals, use a fixed-width approach
+    # Detect if we're in Cursor's or VS Code's integrated terminal
+    $isCursorTerminal = $false
+    if ($parentName -match 'Code' -or 
+        $parentName -match 'Cursor' -or 
+        $env:TERM_PROGRAM -eq 'vscode' -or
+        $env:VSCODE_PID -or
+        $env:CURSOR_PID) {
+        $isCursorTerminal = $true
+    }
+    
+    if ($isCursorTerminal) {
+        # In Cursor, use a simple fixed-width approach
+        # Each day name is 4 chars + ": " = 6 chars, then add fixed spaces after icon
+        $padding = "  "  # Fixed 2 spaces after icon
+        $completeLine = $dayPart + $iconPart + $padding + $tempPart + $forecastPart + $precipPart
+    } else {
+        # In regular terminals, use the width calculation approach
+        $targetTempColumn = 6
+        $lineBeforeTemp = $dayPart + $iconPart
+        $currentDisplayWidth = Get-StringDisplayWidth $lineBeforeTemp
+        $spacesNeeded = $targetTempColumn - $currentDisplayWidth
+        $padding = " " * [Math]::Max(0, $spacesNeeded)
+        $completeLine = $lineBeforeTemp + $padding + $tempPart + $forecastPart + $precipPart
+    }
+    
+    return $completeLine
 }
 
 $windSpeed = Get-WindSpeed $currentWind
@@ -681,10 +740,10 @@ if ($showTomorrowForecast) {
     $wrappedTomorrow | ForEach-Object { Write-Host $_ -ForegroundColor $defaultColor }
 }
 
-# --- Hourly Forecast (Next 12 Hours) ---
+# --- Hourly Forecast ---
 if ($showHourlyForecast) {
     Write-Host ""
-    Write-Host "*** Hourly Forecast (Next 12 Hours) ***" -ForegroundColor $titleColor
+    Write-Host "*** Hourly Forecast ***" -ForegroundColor $titleColor
     $hourlyPeriods = $hourlyData.properties.periods
     $hourCount = 0
 
@@ -706,16 +765,38 @@ if ($showHourlyForecast) {
         # Color code precipitation probability
         $precipColor = if ($precipProb -gt 50) { $alertColor } elseif ($precipProb -gt 20) { "Yellow" } else { $defaultColor }
         
-        Write-Host "$hourDisplay " -ForegroundColor $defaultColor -NoNewline
-        Write-Host "$periodIcon" -ForegroundColor $defaultColor -NoNewline
-        Write-Host " $temp°F " -ForegroundColor $tempColor -NoNewline
-        Write-Host "$wind $windDir" -ForegroundColor $defaultColor -NoNewline
+        # Build the formatted line
+        $formattedLine = Format-HourlyLine -Time $hourDisplay -Icon $periodIcon -Temp $temp -Wind $wind -WindDir $windDir -PrecipProb $precipProb -Forecast $shortForecast
         
-        if ($precipProb -gt 0) {
-            Write-Host " ($precipProb%)" -ForegroundColor $precipColor -NoNewline
+        # Split the line into parts for color coding
+        $tempStart = $formattedLine.IndexOf(" $temp°F ")
+        $precipStart = $formattedLine.IndexOf(" ($precipProb%)")
+        
+        if ($tempStart -ge 0) {
+            # Write everything before temperature
+            Write-Host $formattedLine.Substring(0, $tempStart) -ForegroundColor $defaultColor -NoNewline
+            # Write temperature with color
+            Write-Host " $temp°F " -ForegroundColor $tempColor -NoNewline
+            
+            # Handle precipitation probability color coding
+            if ($precipStart -ge 0) {
+                # Write everything between temperature and precipitation
+                $afterTemp = $formattedLine.Substring($tempStart + " $temp°F ".Length, $precipStart - ($tempStart + " $temp°F ".Length))
+                Write-Host $afterTemp -ForegroundColor $defaultColor -NoNewline
+                # Write precipitation probability with color
+                Write-Host " ($precipProb%)" -ForegroundColor $precipColor -NoNewline
+                # Write everything after precipitation
+                $afterPrecip = $formattedLine.Substring($precipStart + " ($precipProb%)".Length)
+                Write-Host $afterPrecip -ForegroundColor $defaultColor
+            } else {
+                # Write everything after temperature (no precipitation probability)
+                $afterTemp = $formattedLine.Substring($tempStart + " $temp°F ".Length)
+                Write-Host $afterTemp -ForegroundColor $defaultColor
+            }
+        } else {
+            # Fallback if temperature not found
+            Write-Host $formattedLine -ForegroundColor $defaultColor
         }
-        
-        Write-Host " - $shortForecast" -ForegroundColor $defaultColor
         
         $hourCount++
     }
@@ -762,22 +843,33 @@ if ($showSevenDayForecast) {
         # Color code precipitation probability
         $precipColor = if ($precipProb -gt 50) { $alertColor } elseif ($precipProb -gt 20) { "Yellow" } else { $defaultColor }
         
-        # Display day with icon and temperature range
-        Write-Host "$dayName`:" -ForegroundColor $defaultColor -NoNewline
-        Write-Host "$periodIcon" -ForegroundColor $defaultColor -NoNewline
+        # Build the formatted line
+        $formattedLine = Format-DailyLine -DayName $dayName -Icon $periodIcon -Temp $temp -NightTemp $nightTemp -Forecast $shortForecast -PrecipProb $precipProb
         
-        if ($nightTemp) {
-            Write-Host " H:$temp°F L:$nightTemp°F" -ForegroundColor $tempColor -NoNewline
-        } else {
-            Write-Host " $temp°F" -ForegroundColor $tempColor -NoNewline
+        # Split the line into parts for color coding
+        $tempStart = $formattedLine.IndexOf(" H:$temp°F")
+        if ($tempStart -lt 0) {
+            $tempStart = $formattedLine.IndexOf(" $temp°F")
         }
         
-        Write-Host " - $shortForecast" -ForegroundColor $defaultColor -NoNewline
-        
-        if ($precipProb -gt 0) {
-            Write-Host " ($precipProb% precip)" -ForegroundColor $precipColor
+        if ($tempStart -ge 0) {
+            # Write everything before temperature
+            Write-Host $formattedLine.Substring(0, $tempStart) -ForegroundColor $defaultColor -NoNewline
+            
+            # Write temperature with color
+            if ($nightTemp) {
+                Write-Host " H:$temp°F L:$nightTemp°F" -ForegroundColor $tempColor -NoNewline
+            } else {
+                Write-Host " $temp°F" -ForegroundColor $tempColor -NoNewline
+            }
+            
+            # Write everything after temperature
+            $tempEnd = if ($nightTemp) { " H:$temp°F L:$nightTemp°F".Length } else { " $temp°F".Length }
+            $afterTemp = $formattedLine.Substring($tempStart + $tempEnd)
+            Write-Host $afterTemp -ForegroundColor $defaultColor
         } else {
-            Write-Host ""
+            # Fallback if temperature not found
+            Write-Host $formattedLine -ForegroundColor $defaultColor
         }
         
         $processedDays[$dayName] = $true
@@ -845,7 +937,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
     # Interactive mode - listen for keys to switch display modes
     Write-Host ""
     Write-Host "*** Interactive Mode ***" -ForegroundColor $titleColor
-    Write-Host "Hourly[" -ForegroundColor White -NoNewline; Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "], 7-Day[" -ForegroundColor White -NoNewline; Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "], Terse[" -ForegroundColor White -NoNewline; Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "], Full[" -ForegroundColor White -NoNewline; Write-Host "ESC" -ForegroundColor Cyan -NoNewline; Write-Host "], Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
+    Write-Host "Hourly[" -ForegroundColor White -NoNewline; Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "], 7-Day[" -ForegroundColor White -NoNewline; Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "], Terse[" -ForegroundColor White -NoNewline; Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "], Full[" -ForegroundColor White -NoNewline; Write-Host "F" -ForegroundColor Cyan -NoNewline; Write-Host "], Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
     
     while ($true) {
         try {
@@ -860,7 +952,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                 Write-Host "*** $city, $state - Hourly Forecast Only ***" -ForegroundColor $titleColor
                 # Show only hourly forecast
                 Write-Host ""
-                Write-Host "*** Hourly Forecast (Next 12 Hours) ***" -ForegroundColor $titleColor
+                Write-Host "*** Hourly Forecast ***" -ForegroundColor $titleColor
                 $hourlyPeriods = $hourlyData.properties.periods
                 $hourCount = 0
 
@@ -882,21 +974,43 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     # Color code precipitation probability
                     $precipColor = if ($precipProb -gt 50) { $alertColor } elseif ($precipProb -gt 20) { "Yellow" } else { $defaultColor }
                     
-                    Write-Host "$hourDisplay " -ForegroundColor $defaultColor -NoNewline
-                    Write-Host "$periodIcon" -ForegroundColor $defaultColor -NoNewline
-                    Write-Host " $temp°F " -ForegroundColor $tempColor -NoNewline
-                    Write-Host "$wind $windDir" -ForegroundColor $defaultColor -NoNewline
+                    # Build the formatted line
+                    $formattedLine = Format-HourlyLine -Time $hourDisplay -Icon $periodIcon -Temp $temp -Wind $wind -WindDir $windDir -PrecipProb $precipProb -Forecast $shortForecast
                     
-                    if ($precipProb -gt 0) {
-                        Write-Host " ($precipProb%)" -ForegroundColor $precipColor -NoNewline
+                    # Split the line into parts for color coding
+                    $tempStart = $formattedLine.IndexOf(" $temp°F ")
+                    $precipStart = $formattedLine.IndexOf(" ($precipProb%)")
+                    
+                    if ($tempStart -ge 0) {
+                        # Write everything before temperature
+                        Write-Host $formattedLine.Substring(0, $tempStart) -ForegroundColor $defaultColor -NoNewline
+                        # Write temperature with color
+                        Write-Host " $temp°F " -ForegroundColor $tempColor -NoNewline
+                        
+                        # Handle precipitation probability color coding
+                        if ($precipStart -ge 0) {
+                            # Write everything between temperature and precipitation
+                            $afterTemp = $formattedLine.Substring($tempStart + " $temp°F ".Length, $precipStart - ($tempStart + " $temp°F ".Length))
+                            Write-Host $afterTemp -ForegroundColor $defaultColor -NoNewline
+                            # Write precipitation probability with color
+                            Write-Host " ($precipProb%)" -ForegroundColor $precipColor -NoNewline
+                            # Write everything after precipitation
+                            $afterPrecip = $formattedLine.Substring($precipStart + " ($precipProb%)".Length)
+                            Write-Host $afterPrecip -ForegroundColor $defaultColor
+                        } else {
+                            # Write everything after temperature (no precipitation probability)
+                            $afterTemp = $formattedLine.Substring($tempStart + " $temp°F ".Length)
+                            Write-Host $afterTemp -ForegroundColor $defaultColor
+                        }
+                    } else {
+                        # Fallback if temperature not found
+                        Write-Host $formattedLine -ForegroundColor $defaultColor
                     }
-                    
-                    Write-Host " - $shortForecast" -ForegroundColor $defaultColor
                     
                     $hourCount++
                 }
                 Write-Host ""
-                Write-Host "Hourly[" -ForegroundColor White -NoNewline; Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "], 7-Day[" -ForegroundColor White -NoNewline; Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "], Terse[" -ForegroundColor White -NoNewline; Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "], Full[" -ForegroundColor White -NoNewline; Write-Host "ESC" -ForegroundColor Cyan -NoNewline; Write-Host "], Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
+                Write-Host "Hourly[" -ForegroundColor White -NoNewline; Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "], 7-Day[" -ForegroundColor White -NoNewline; Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "], Terse[" -ForegroundColor White -NoNewline; Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "], Full[" -ForegroundColor White -NoNewline; Write-Host "F" -ForegroundColor Cyan -NoNewline; Write-Host "], Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
             }
             68 { # D key
                 Clear-Host
@@ -941,29 +1055,40 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     # Color code precipitation probability
                     $precipColor = if ($precipProb -gt 50) { $alertColor } elseif ($precipProb -gt 20) { "Yellow" } else { $defaultColor }
                     
-                    # Display day with icon and temperature range
-                    Write-Host "$dayName`: " -ForegroundColor $defaultColor -NoNewline
-                    Write-Host "$periodIcon" -ForegroundColor $defaultColor -NoNewline
+                    # Build the formatted line
+                    $formattedLine = Format-DailyLine -DayName $dayName -Icon $periodIcon -Temp $temp -NightTemp $nightTemp -Forecast $shortForecast -PrecipProb $precipProb
                     
-                    if ($nightTemp) {
-                        Write-Host " H:$temp°F L:$nightTemp°F" -ForegroundColor $tempColor -NoNewline
-                    } else {
-                        Write-Host " $temp°F" -ForegroundColor $tempColor -NoNewline
+                    # Split the line into parts for color coding
+                    $tempStart = $formattedLine.IndexOf(" H:$temp°F")
+                    if ($tempStart -lt 0) {
+                        $tempStart = $formattedLine.IndexOf(" $temp°F")
                     }
                     
-                    Write-Host " - $shortForecast" -ForegroundColor $defaultColor -NoNewline
-                    
-                    if ($precipProb -gt 0) {
-                        Write-Host " ($precipProb% precip)" -ForegroundColor $precipColor
+                    if ($tempStart -ge 0) {
+                        # Write everything before temperature
+                        Write-Host $formattedLine.Substring(0, $tempStart) -ForegroundColor $defaultColor -NoNewline
+                        
+                        # Write temperature with color
+                        if ($nightTemp) {
+                            Write-Host " H:$temp°F L:$nightTemp°F" -ForegroundColor $tempColor -NoNewline
+                        } else {
+                            Write-Host " $temp°F" -ForegroundColor $tempColor -NoNewline
+                        }
+                        
+                        # Write everything after temperature
+                        $tempEnd = if ($nightTemp) { " H:$temp°F L:$nightTemp°F".Length } else { " $temp°F".Length }
+                        $afterTemp = $formattedLine.Substring($tempStart + $tempEnd)
+                        Write-Host $afterTemp -ForegroundColor $defaultColor
                     } else {
-                        Write-Host ""
+                        # Fallback if temperature not found
+                        Write-Host $formattedLine -ForegroundColor $defaultColor
                     }
                     
                     $processedDays[$dayName] = $true
                     $dayCount++
                 }
                 Write-Host ""
-                Write-Host "Hourly[" -ForegroundColor White -NoNewline; Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "], 7-Day[" -ForegroundColor White -NoNewline; Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "], Terse[" -ForegroundColor White -NoNewline; Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "], Full[" -ForegroundColor White -NoNewline; Write-Host "ESC" -ForegroundColor Cyan -NoNewline; Write-Host "], Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
+                Write-Host "Hourly[" -ForegroundColor White -NoNewline; Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "], 7-Day[" -ForegroundColor White -NoNewline; Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "], Terse[" -ForegroundColor White -NoNewline; Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "], Full[" -ForegroundColor White -NoNewline; Write-Host "F" -ForegroundColor Cyan -NoNewline; Write-Host "], Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
             }
             84 { # T key
                 Clear-Host
@@ -1020,10 +1145,19 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     }
                 }
                 Write-Host ""
-                Write-Host "Hourly[" -ForegroundColor White -NoNewline; Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "], 7-Day[" -ForegroundColor White -NoNewline; Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "], Terse[" -ForegroundColor White -NoNewline; Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "], Full[" -ForegroundColor White -NoNewline; Write-Host "ESC" -ForegroundColor Cyan -NoNewline; Write-Host "], Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
+                Write-Host "Hourly[" -ForegroundColor White -NoNewline; Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "], 7-Day[" -ForegroundColor White -NoNewline; Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "], Terse[" -ForegroundColor White -NoNewline; Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "], Full[" -ForegroundColor White -NoNewline; Write-Host "F" -ForegroundColor Cyan -NoNewline; Write-Host "], Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
             }
-            27 { # ESC key
+            70 { # F key
                 Clear-Host
+                # Force full view regardless of initial flags
+                $showCurrentConditions = $true
+                $showTodayForecast = $true
+                $showTomorrowForecast = $true
+                $showHourlyForecast = $true
+                $showSevenDayForecast = $true
+                $showAlerts = $true
+                $showLocationInfo = $true
+                
                 # Show full display (re-run the original display logic)
                 if ($showCurrentConditions) {
                     Write-Host "*** $city, $state Current Conditions ***" -ForegroundColor $titleColor
@@ -1071,7 +1205,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
 
                 if ($showHourlyForecast) {
                     Write-Host ""
-                    Write-Host "*** Hourly Forecast (Next 12 Hours) ***" -ForegroundColor $titleColor
+                    Write-Host "*** Hourly Forecast ***" -ForegroundColor $titleColor
                     $hourlyPeriods = $hourlyData.properties.periods
                     $hourCount = 0
 
@@ -1093,16 +1227,38 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         # Color code precipitation probability
                         $precipColor = if ($precipProb -gt 50) { $alertColor } elseif ($precipProb -gt 20) { "Yellow" } else { $defaultColor }
                         
-                        Write-Host "$hourDisplay " -ForegroundColor $defaultColor -NoNewline
-                        Write-Host "$periodIcon" -ForegroundColor $defaultColor -NoNewline
-                        Write-Host " $temp°F " -ForegroundColor $tempColor -NoNewline
-                        Write-Host "$wind $windDir" -ForegroundColor $defaultColor -NoNewline
+                        # Build the formatted line
+                        $formattedLine = Format-HourlyLine -Time $hourDisplay -Icon $periodIcon -Temp $temp -Wind $wind -WindDir $windDir -PrecipProb $precipProb -Forecast $shortForecast
                         
-                        if ($precipProb -gt 0) {
-                            Write-Host " ($precipProb%)" -ForegroundColor $precipColor -NoNewline
+                        # Split the line into parts for color coding
+                        $tempStart = $formattedLine.IndexOf(" $temp°F ")
+                        $precipStart = $formattedLine.IndexOf(" ($precipProb%)")
+                        
+                        if ($tempStart -ge 0) {
+                            # Write everything before temperature
+                            Write-Host $formattedLine.Substring(0, $tempStart) -ForegroundColor $defaultColor -NoNewline
+                            # Write temperature with color
+                            Write-Host " $temp°F " -ForegroundColor $tempColor -NoNewline
+                            
+                            # Handle precipitation probability color coding
+                            if ($precipStart -ge 0) {
+                                # Write everything between temperature and precipitation
+                                $afterTemp = $formattedLine.Substring($tempStart + " $temp°F ".Length, $precipStart - ($tempStart + " $temp°F ".Length))
+                                Write-Host $afterTemp -ForegroundColor $defaultColor -NoNewline
+                                # Write precipitation probability with color
+                                Write-Host " ($precipProb%)" -ForegroundColor $precipColor -NoNewline
+                                # Write everything after precipitation
+                                $afterPrecip = $formattedLine.Substring($precipStart + " ($precipProb%)".Length)
+                                Write-Host $afterPrecip -ForegroundColor $defaultColor
+                            } else {
+                                # Write everything after temperature (no precipitation probability)
+                                $afterTemp = $formattedLine.Substring($tempStart + " $temp°F ".Length)
+                                Write-Host $afterTemp -ForegroundColor $defaultColor
+                            }
+                        } else {
+                            # Fallback if temperature not found
+                            Write-Host $formattedLine -ForegroundColor $defaultColor
                         }
-                        
-                        Write-Host " - $shortForecast" -ForegroundColor $defaultColor
                         
                         $hourCount++
                     }
@@ -1148,22 +1304,33 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         # Color code precipitation probability
                         $precipColor = if ($precipProb -gt 50) { $alertColor } elseif ($precipProb -gt 20) { "Yellow" } else { $defaultColor }
                         
-                        # Display day with icon and temperature range
-                        Write-Host "$dayName`: " -ForegroundColor $defaultColor -NoNewline
-                        Write-Host "$periodIcon" -ForegroundColor $defaultColor -NoNewline
+                        # Build the formatted line
+                        $formattedLine = Format-DailyLine -DayName $dayName -Icon $periodIcon -Temp $temp -NightTemp $nightTemp -Forecast $shortForecast -PrecipProb $precipProb
                         
-                        if ($nightTemp) {
-                            Write-Host " H:$temp°F L:$nightTemp°F" -ForegroundColor $tempColor -NoNewline
-                        } else {
-                            Write-Host " $temp°F" -ForegroundColor $tempColor -NoNewline
+                        # Split the line into parts for color coding
+                        $tempStart = $formattedLine.IndexOf(" H:$temp°F")
+                        if ($tempStart -lt 0) {
+                            $tempStart = $formattedLine.IndexOf(" $temp°F")
                         }
                         
-                        Write-Host " - $shortForecast" -ForegroundColor $defaultColor -NoNewline
-                        
-                        if ($precipProb -gt 0) {
-                            Write-Host " ($precipProb% precip)" -ForegroundColor $precipColor
+                        if ($tempStart -ge 0) {
+                            # Write everything before temperature
+                            Write-Host $formattedLine.Substring(0, $tempStart) -ForegroundColor $defaultColor -NoNewline
+                            
+                            # Write temperature with color
+                            if ($nightTemp) {
+                                Write-Host " H:$temp°F L:$nightTemp°F" -ForegroundColor $tempColor -NoNewline
+                            } else {
+                                Write-Host " $temp°F" -ForegroundColor $tempColor -NoNewline
+                            }
+                            
+                            # Write everything after temperature
+                            $tempEnd = if ($nightTemp) { " H:$temp°F L:$nightTemp°F".Length } else { " $temp°F".Length }
+                            $afterTemp = $formattedLine.Substring($tempStart + $tempEnd)
+                            Write-Host $afterTemp -ForegroundColor $defaultColor
                         } else {
-                            Write-Host ""
+                            # Fallback if temperature not found
+                            Write-Host $formattedLine -ForegroundColor $defaultColor
                         }
                         
                         $processedDays[$dayName] = $true
@@ -1208,7 +1375,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     Write-Host "https://forecast.weather.gov/MapClick.php?lat=$lat&lon=$lon" -ForegroundColor Cyan
                 }
                 Write-Host ""
-                Write-Host "Hourly[" -ForegroundColor White -NoNewline; Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "], 7-Day[" -ForegroundColor White -NoNewline; Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "], Terse[" -ForegroundColor White -NoNewline; Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "], Full[" -ForegroundColor White -NoNewline; Write-Host "ESC" -ForegroundColor Cyan -NoNewline; Write-Host "], Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
+                Write-Host "Hourly[" -ForegroundColor White -NoNewline; Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "], 7-Day[" -ForegroundColor White -NoNewline; Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "], Terse[" -ForegroundColor White -NoNewline; Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "], Full[" -ForegroundColor White -NoNewline; Write-Host "F" -ForegroundColor Cyan -NoNewline; Write-Host "], Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
             }
             13 { # Enter key
                 Write-Host "Exiting..." -ForegroundColor Yellow

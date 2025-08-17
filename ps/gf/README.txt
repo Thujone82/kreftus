@@ -23,11 +23,11 @@ The script first uses a geocoding service to determine the latitude and longitud
 - **Quick Link:** Provides a direct URL to the weather.gov forecast map for the location.
 - **Smart Exit:** If run from an environment other than a standard command prompt (like by double-clicking), it will pause and wait for user input before closing the window.
 - **Interactive Mode:** When run interactively, provides keyboard shortcuts to switch between different display modes:
-  - **[H]** - Switch to hourly forecast only
-  - **[D]** - Switch to 7-day forecast only  
-  - **[T]** - Switch to terse mode (current conditions + today's forecast)
-  - **[ESC]** - Return to full display
-  - **[Enter]** - Exit the script
+     - **[H]** - Switch to hourly forecast only
+   - **[D]** - Switch to 7-day forecast only  
+   - **[T]** - Switch to terse mode (current conditions + today's forecast)
+   - **[F]** - Return to full display
+   - **[Enter]** - Exit the script
 
 ## Requirements
 - PowerShell
@@ -123,11 +123,11 @@ When you run the script by double-clicking it or from a non-terminal environment
 1. **Run the script interactively** (double-click the .ps1 file or run from Windows Explorer)
 2. **Wait for the weather data to load** and display
 3. **Use keyboard shortcuts** to switch between views:
-   - **H** - Switch to hourly forecast only (12-hour view)
-   - **D** - Switch to 7-day forecast only (weekly view)
-   - **T** - Switch to terse mode (current conditions + today's forecast)
-   - **ESC** - Return to full display (all information)
-   - **Enter** - Exit the script
+       - **H** - Switch to hourly forecast only (12-hour view)
+    - **D** - Switch to 7-day forecast only (weekly view)
+    - **T** - Switch to terse mode (current conditions + today's forecast)
+    - **F** - Return to full display (all information)
+    - **Enter** - Exit the script
 
 ### Interactive Mode Benefits:
 

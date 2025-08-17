@@ -31,7 +31,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
   - **[H]** - Switch to hourly forecast only
   - **[D]** - Switch to 7-day forecast only
   - **[T]** - Switch to terse mode
-  - **[ESC]** - Return to full display
+  - **[F]** - Return to full display
   - **[Enter]** - Exit the script
 - **Interactive & Scriptable:** Can be run with command-line arguments or interactively, where it will prompt the user for a location.
 - **Smart Exit:** Pauses for user input before closing if run outside of a standard terminal (e.g., by double-clicking).
@@ -130,7 +130,7 @@ The script features an advanced **Interactive Mode** that activates when run fro
 - **[H]** - **Hourly View:** Switch to 12-hour hourly forecast display
 - **[D]** - **Daily View:** Switch to 7-day forecast summary display  
 - **[T]** - **Terse View:** Switch to streamlined view (current conditions + today's forecast)
-- **[ESC]** - **Full View:** Return to complete weather information display
+- **[F]** - **Full View:** Return to complete weather information display
 - **[Enter]** - **Exit:** Close the script and return to the system
 
 #### Benefits of Interactive Mode:
@@ -144,7 +144,7 @@ The script features an advanced **Interactive Mode** that activates when run fro
 #### Technical Implementation:
 
 The interactive mode uses PowerShell's `$Host.UI.RawUI.ReadKey()` method to capture keyboard input without requiring the Enter key. It implements a state machine that:
-- Monitors for specific virtual key codes (H=72, D=68, T=84, ESC=27, Enter=13)
+- Monitors for specific virtual key codes (H=72, D=68, T=84, F=70, Enter=13)
 - Dynamically re-renders the display based on the selected mode
 - Maintains all weather data in memory for instant switching
 - Provides clear visual feedback about available options
@@ -154,7 +154,7 @@ The interactive mode uses PowerShell's `$Host.UI.RawUI.ReadKey()` method to capt
 - **Quick Weather Checks:** Double-click the script and use [T] for immediate current conditions
 - **Planning Activities:** Use [H] to see hourly breakdown for day planning
 - **Weekly Planning:** Use [D] to see the 7-day outlook for weekly scheduling
-- **Comprehensive Review:** Use [ESC] to see all available weather information
+- **Comprehensive Review:** Use [F] to see all available weather information
 - **Scripting & Automation:** Use `-x` flag for automated weather checks in scripts, cron jobs, or scheduled tasks
 
 ### Future Enhancements
