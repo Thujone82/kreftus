@@ -91,6 +91,7 @@ if ($Help.IsPresent) {
     
     Write-Host "CONTROLS (during monitoring):" -ForegroundColor Magenta
     Write-Host "    R - " -NoNewline -ForegroundColor White; Write-Host "Reset baseline price and timer" -ForegroundColor Gray
+    Write-Host "    E - " -NoNewline -ForegroundColor White; Write-Host "Extend session timer (keep baseline)" -ForegroundColor Gray
     Write-Host "    M - " -NoNewline -ForegroundColor White; Write-Host "Switch between go/golong modes" -ForegroundColor Gray
     Write-Host "    S - " -NoNewline -ForegroundColor White; Write-Host "Toggle sound alerts" -ForegroundColor Gray
     Write-Host "    H - " -NoNewline -ForegroundColor White; Write-Host "Toggle history sparkline" -ForegroundColor Gray

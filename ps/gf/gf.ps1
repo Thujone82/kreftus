@@ -463,27 +463,21 @@ function Get-WeatherIcon ($iconUrl) {
     return "🌡️"
 }
 
+# Function to detect if we're in Cursor/VS Code terminal
+function Test-CursorTerminal {
+    return $parentName -match 'Code' -or 
+           $parentName -match 'Cursor' -or 
+           $env:TERM_PROGRAM -eq 'vscode' -or
+           $env:VSCODE_PID -or
+           $env:CURSOR_PID
+}
+
 # Function to get emoji width based on terminal environment
 function Get-EmojiWidth {
     param([string]$Emoji)
     
-    # Detect if we're in Cursor's or VS Code's integrated terminal
-    $isCursorTerminal = $false
-    
-    # Check various ways to detect Cursor/VS Code
-    if ($parentName -match 'Code' -or 
-        $parentName -match 'Cursor' -or 
-        $env:TERM_PROGRAM -eq 'vscode' -or
-        $env:VSCODE_PID -or
-        $env:CURSOR_PID) {
-        $isCursorTerminal = $true
-    }
-    
-    # Debug: Log the detection (comment out after testing)
-    # Write-Verbose "Parent: $parentName, TERM_PROGRAM: $($env:TERM_PROGRAM), VSCODE_PID: $($env:VSCODE_PID), CURSOR_PID: $($env:CURSOR_PID), isCursorTerminal: $isCursorTerminal"
-    
     # In Cursor's terminal, emojis render as single-width
-    if ($isCursorTerminal) {
+    if (Test-CursorTerminal) {
         return 1
     }
     
@@ -514,7 +508,7 @@ function Get-StringDisplayWidth {
             }
         }
         
-        # Regular character
+        # Regular character - check if it's an emoji
         if ($codePoint -ge 0x1F600 -and $codePoint -le 0x1F64F) { # Emoji
             $width += Get-EmojiWidth $char
         } elseif ($codePoint -ge 0x1F300 -and $codePoint -le 0x1F5FF) { # Misc Symbols and Pictographs
@@ -555,18 +549,7 @@ function Format-HourlyLine {
     $precipPart = if ($PrecipProb -gt 0) { " ($PrecipProb%)" } else { "" }
     $forecastPart = " - $Forecast"
     
-    # For Cursor/VS Code terminals, use a fixed-width approach
-    # Detect if we're in Cursor's or VS Code's integrated terminal
-    $isCursorTerminal = $false
-    if ($parentName -match 'Code' -or 
-        $parentName -match 'Cursor' -or 
-        $env:TERM_PROGRAM -eq 'vscode' -or
-        $env:VSCODE_PID -or
-        $env:CURSOR_PID) {
-        $isCursorTerminal = $true
-    }
-    
-    if ($isCursorTerminal) {
+    if (Test-CursorTerminal) {
         # In Cursor, use a simple fixed-width approach
         # Time is 5 chars + space = 6 chars, then add fixed spaces after icon
         $padding = "  "  # Fixed 2 spaces after icon
@@ -602,18 +585,7 @@ function Format-DailyLine {
     $forecastPart = " - $Forecast"
     $precipPart = if ($PrecipProb -gt 0) { " ($PrecipProb% precip)" } else { "" }
     
-    # For Cursor/VS Code terminals, use a fixed-width approach
-    # Detect if we're in Cursor's or VS Code's integrated terminal
-    $isCursorTerminal = $false
-    if ($parentName -match 'Code' -or 
-        $parentName -match 'Cursor' -or 
-        $env:TERM_PROGRAM -eq 'vscode' -or
-        $env:VSCODE_PID -or
-        $env:CURSOR_PID) {
-        $isCursorTerminal = $true
-    }
-    
-    if ($isCursorTerminal) {
+    if (Test-CursorTerminal) {
         # In Cursor, use a simple fixed-width approach
         # Each day name is 4 chars + ": " = 6 chars, then add fixed spaces after icon
         $padding = "  "  # Fixed 2 spaces after icon
@@ -943,8 +915,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
         try {
             $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
             
-            # Debug: Show key code (comment out after testing)
-            # Write-Host "Key pressed: $($key.VirtualKeyCode)" -ForegroundColor Yellow
+
             
             switch ($key.VirtualKeyCode) {
             72 { # H key
