@@ -429,38 +429,54 @@ function Get-WindSpeed ($windString) {
     return 0
 }
 
+# Function to determine if it's currently day or night based on NWS API isDaytime property
+function Test-IsDaytime {
+    param(
+        [object]$Period
+    )
+    
+    # Use the NWS API's isDaytime property if available
+    if ($Period.PSObject.Properties['isDaytime']) {
+        return $Period.isDaytime
+    }
+    
+    # Fallback: use current local time to estimate day/night
+    $currentHour = (Get-Date).Hour
+    return $currentHour -ge 6 -and $currentHour -lt 18
+}
+
 # Convert weather icon to emoji (no padding - we'll handle alignment differently)
-function Get-WeatherIcon ($iconUrl) {
+function Get-WeatherIcon ($iconUrl, $isDaytime = $true) {
     if (-not $iconUrl) { return "" }
     
     # Extract weather condition from icon URL
     if ($iconUrl -match "/([^/]+)\?") {
         $condition = $matches[1]
         
-        # Map conditions to emoji
+        # Map conditions to emoji with day/night variants
         $emoji = switch -Wildcard ($condition) {
-            "*skc*" { "☀️" }  # Clear/Sunny
-            "*few*" { "🌤️" }  # Few clouds
-            "*sct*" { "⛅" }   # Scattered clouds
-            "*bkn*" { "☁️" }  # Broken clouds
-            "*ovc*" { "☁️" }  # Overcast
-            "*rain*" { "🌧️" } # Rain
-            "*snow*" { "❄️" }  # Snow
-            "*fzra*" { "🧊" }  # Freezing rain
-            "*tsra*" { "⛈️" }  # Thunderstorm
-            "*fog*" { "🌫️" }   # Fog
-            "*haze*" { "🌫️" }  # Haze
-            "*smoke*" { "💨" } # Smoke
-            "*dust*" { "💨" }  # Dust
-            "*wind*" { "💨" }  # Windy
-            default { "🌡️" }   # Default
+            "*skc*" { if ($isDaytime) { "☀️" } else { "🌙" } }  # Clear - sun during day, moon at night
+            "*few*" { if ($isDaytime) { "🌤️" } else { "🌙" } }  # Few clouds - sun with clouds during day, moon at night
+            "*sct*" { if ($isDaytime) { "⛅" } else { "☁️" } }   # Scattered clouds - sun with clouds during day, just clouds at night
+            "*bkn*" { "☁️" }  # Broken clouds - same for day/night
+            "*ovc*" { "☁️" }  # Overcast - same for day/night
+            "*rain*" { "🌧️" } # Rain - same for day/night
+            "*snow*" { "❄️" }  # Snow - same for day/night
+            "*fzra*" { "🧊" }  # Freezing rain - same for day/night
+            "*tsra*" { "⛈️" }  # Thunderstorm - same for day/night
+            "*fog*" { "🌫️" }   # Fog - same for day/night
+            "*haze*" { "🌫️" }  # Haze - same for day/night
+            "*smoke*" { "💨" } # Smoke - same for day/night
+            "*dust*" { "💨" }  # Dust - same for day/night
+            "*wind*" { "💨" }  # Windy - same for day/night
+            default { if ($isDaytime) { "🌡️" } else { "🌙" } }   # Default - thermometer during day, moon at night
         }
         
         return $emoji
     }
     
     # Default fallback
-    return "🌡️"
+    return if ($isDaytime) { "🌡️" } else { "🌙" }
 }
 
 # Function to detect if we're in Cursor/VS Code terminal
@@ -665,8 +681,11 @@ elseif ($SevenDay.IsPresent -or $Daily.IsPresent) {
     $showLocationInfo = $false
 }
 
+# Determine if it's currently day or night using NWS API isDaytime property
+$isCurrentlyDaytime = Test-IsDaytime $currentPeriod
+
 # Output the results.
-$weatherIcon = Get-WeatherIcon $currentIcon
+$weatherIcon = Get-WeatherIcon $currentIcon $isCurrentlyDaytime
 
 if ($showCurrentConditions) {
     Write-Host "*** $city, $state Current Conditions ***" -ForegroundColor $titleColor
@@ -729,7 +748,10 @@ if ($showHourlyForecast) {
         $wind = $period.windSpeed
         $windDir = $period.windDirection
         $precipProb = $period.probabilityOfPrecipitation.value
-        $periodIcon = Get-WeatherIcon $period.icon
+        
+        # Determine if this period is during day or night using NWS API isDaytime property
+        $isPeriodDaytime = Test-IsDaytime $period
+        $periodIcon = Get-WeatherIcon $period.icon $isPeriodDaytime
         
         # Color code temperature
         $tempColor = if ([int]$temp -lt 33 -or [int]$temp -gt 89) { $alertColor } else { $defaultColor }
@@ -794,7 +816,10 @@ if ($showSevenDayForecast) {
         $temp = $period.temperature
         $shortForecast = $period.shortForecast
         $precipProb = $period.probabilityOfPrecipitation.value
-        $periodIcon = Get-WeatherIcon $period.icon
+        
+        # Determine if this period is during day or night using NWS API isDaytime property
+        $isPeriodDaytime = Test-IsDaytime $period
+        $periodIcon = Get-WeatherIcon $period.icon $isPeriodDaytime
         
         # Find the corresponding night period for high/low
         $nightTemp = $null
@@ -937,7 +962,10 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $wind = $period.windSpeed
                     $windDir = $period.windDirection
                     $precipProb = $period.probabilityOfPrecipitation.value
-                    $periodIcon = Get-WeatherIcon $period.icon
+                    
+                    # Determine if this period is during day or night using NWS API isDaytime property
+                    $isPeriodDaytime = Test-IsDaytime $period
+                    $periodIcon = Get-WeatherIcon $period.icon $isPeriodDaytime
                     
                     # Color code temperature
                     $tempColor = if ([int]$temp -lt 33 -or [int]$temp -gt 89) { $alertColor } else { $defaultColor }
@@ -1005,7 +1033,10 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $temp = $period.temperature
                     $shortForecast = $period.shortForecast
                     $precipProb = $period.probabilityOfPrecipitation.value
-                    $periodIcon = Get-WeatherIcon $period.icon
+                    
+                    # Determine if this period is during day or night using NWS API isDaytime property
+                    $isPeriodDaytime = Test-IsDaytime $period
+                    $periodIcon = Get-WeatherIcon $period.icon $isPeriodDaytime
                     
                     # Find the corresponding night period for high/low
                     $nightTemp = $null
@@ -1190,7 +1221,10 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         $wind = $period.windSpeed
                         $windDir = $period.windDirection
                         $precipProb = $period.probabilityOfPrecipitation.value
-                        $periodIcon = Get-WeatherIcon $period.icon
+                        
+                        # Determine if this period is during day or night using NWS API isDaytime property
+                        $isPeriodDaytime = Test-IsDaytime $period
+                        $periodIcon = Get-WeatherIcon $period.icon $isPeriodDaytime
                         
                         # Color code temperature
                         $tempColor = if ([int]$temp -lt 33 -or [int]$temp -gt 89) { $alertColor } else { $defaultColor }
@@ -1254,7 +1288,10 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         $temp = $period.temperature
                         $shortForecast = $period.shortForecast
                         $precipProb = $period.probabilityOfPrecipitation.value
-                        $periodIcon = Get-WeatherIcon $period.icon
+                        
+                        # Determine if this period is during day or night using NWS API isDaytime property
+                        $isPeriodDaytime = Test-IsDaytime $period
+                        $periodIcon = Get-WeatherIcon $period.icon $isPeriodDaytime
                         
                         # Find the corresponding night period for high/low
                         $nightTemp = $null
