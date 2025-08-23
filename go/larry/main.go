@@ -6,7 +6,9 @@ import (
 	"math"
 	"math/rand/v2"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -82,6 +84,17 @@ type scoreEntry struct {
 }
 
 func main() {
+	// Set up panic recovery to ensure cleanup
+	defer func() {
+		if r := recover(); r != nil {
+			// Reset terminal colors to default using ANSI escape codes
+			fmt.Print("\033[0m")
+			// Also reset cursor visibility
+			fmt.Print("\033[?25h")
+			panic(r) // Re-panic after cleanup
+		}
+	}()
+
 	s, err := tcell.NewScreen()
 	if err != nil {
 		panic(err)
@@ -92,6 +105,23 @@ func main() {
 	defer s.Fini()
 	s.Clear()
 	s.HideCursor()
+
+	// Set up signal handling for clean exit
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Cleanup function to reset terminal colors
+	cleanup := func() {
+		// Reset terminal colors to default using ANSI escape codes
+		fmt.Print("\033[0m")
+		// Also reset cursor visibility
+		fmt.Print("\033[?25h")
+		// Finalize the screen
+		s.Fini()
+	}
+
+	// Ensure cleanup runs on exit
+	defer cleanup()
 
 	setTerminalTitle("Go Larry!")
 
@@ -128,6 +158,9 @@ func main() {
 		case <-tick.C:
 			g.update()
 			g.render()
+		case <-sigChan:
+			// Handle Ctrl+C and other termination signals
+			return
 		}
 	}
 }
