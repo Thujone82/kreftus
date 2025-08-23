@@ -57,22 +57,46 @@ param(
 
 # --- Helper Functions ---
 
+# Force TLS 1.2.
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+# --- CONSTANTS ---
+# Temperature thresholds for color coding (°F)
+$script:COLD_TEMP_THRESHOLD = 33
+$script:HOT_TEMP_THRESHOLD = 89
+
+# Wind speed threshold for alert color (mph)
+$script:WIND_ALERT_THRESHOLD = 16
+
+# Precipitation probability thresholds (%)
+$script:HIGH_PRECIP_THRESHOLD = 50
+$script:MEDIUM_PRECIP_THRESHOLD = 20
+
+# API configuration
+$script:USER_AGENT = "GetForecast/1.0 (081625PDX)"
+$script:MAX_HOURLY_FORECAST_HOURS = 12  # Max 96 available in API
+$script:MAX_DAILY_FORECAST_DAYS = 7
+
+# Define User-Agent for NWS API requests
+$userAgent = $script:USER_AGENT
+
+# --- HELP LOGIC ---
 if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $SevenDay.IsPresent -or $Daily.IsPresent -or $NoInteractive.IsPresent) -and -not $Location)) {
     Write-Host "Usage: .\gf.ps1 [ZipCode | `"City, State`"] [Options] [-Verbose]" -ForegroundColor Green
     Write-Host " • Provide a 5-digit zipcode or a City, State (e.g., 'Portland, OR')." -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Options:" -ForegroundColor Blue
     Write-Host "  -t, -Terse    Show only current conditions and today's forecast" -ForegroundColor Cyan
-    Write-Host "  -h, -Hourly   Show only the 12-hour hourly forecast" -ForegroundColor Cyan
-    Write-Host "  -7, -SevenDay Show only the 7-day forecast summary" -ForegroundColor Cyan
-    Write-Host "  -d, -Daily    Same as -7 (7-day forecast summary)" -ForegroundColor Cyan
+    Write-Host "  -h, -Hourly   Show only the hourly forecast (up to $($script:MAX_HOURLY_FORECAST_HOURS) hours)" -ForegroundColor Cyan
+    Write-Host "  -d, -Daily    Show only the $($script:MAX_DAILY_FORECAST_DAYS)-day forecast summary" -ForegroundColor Cyan
+    Write-Host "  -7, -SevenDay Show only the $($script:MAX_DAILY_FORECAST_DAYS)-day forecast summary" -ForegroundColor Cyan
     Write-Host "  -x, -NoInteractive Exit immediately (no interactive mode)" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Interactive Mode:" -ForegroundColor Blue
     Write-Host "  When run interactively (not from terminal), the script enters interactive mode." -ForegroundColor Cyan
     Write-Host "  Use keyboard shortcuts to switch between display modes:" -ForegroundColor Cyan
     Write-Host "    [H] - Switch to hourly forecast only" -ForegroundColor Cyan
-    Write-Host "    [D] - Switch to 7-day forecast only" -ForegroundColor Cyan
+    Write-Host "    [D] - Switch to $($script:MAX_DAILY_FORECAST_DAYS)-day forecast only" -ForegroundColor Cyan
     Write-Host "    [T] - Switch to terse mode (current + today)" -ForegroundColor Cyan
     Write-Host "    [F] - Return to full display" -ForegroundColor Cyan
     Write-Host "    [Enter] - Exit the script" -ForegroundColor Cyan
@@ -92,34 +116,11 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $SevenDay.IsPresent -
     Write-Host "  .\gf.ps1 `"Portland, OR`" -Verbose" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 97219 -t" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 `"Portland, OR`" -h" -ForegroundColor Cyan
-         Write-Host "  .\gf.ps1 97219 -7" -ForegroundColor Cyan
-     Write-Host "  .\gf.ps1 97219 -h -x" -ForegroundColor Cyan
-     Write-Host "  .\gf.ps1 -Help" -ForegroundColor Cyan
+    Write-Host "  .\gf.ps1 97219 -d For Daily Forecast" -ForegroundColor Cyan
+    Write-Host "  .\gf.ps1 97219 -h -x For Hourly Forecast and Exit" -ForegroundColor Cyan
+    Write-Host "  .\gf.ps1 -Help" -ForegroundColor Cyan
     return
 }
-
-# Force TLS 1.2.
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-
-# --- CONSTANTS ---
-# Temperature thresholds for color coding (°F)
-$script:COLD_TEMP_THRESHOLD = 33
-$script:HOT_TEMP_THRESHOLD = 89
-
-# Wind speed threshold for alert color (mph)
-$script:WIND_ALERT_THRESHOLD = 16
-
-# Precipitation probability thresholds (%)
-$script:HIGH_PRECIP_THRESHOLD = 50
-$script:MEDIUM_PRECIP_THRESHOLD = 20
-
-# API configuration
-$script:USER_AGENT = "GetForecast/1.0 (081625PDX)"
-$script:MAX_HOURLY_FORECAST_HOURS = 12
-$script:MAX_DAILY_FORECAST_DAYS = 7
-
-# Define User-Agent for NWS API requests
-$userAgent = $script:USER_AGENT
 
 # Function to get the parent process name using CIM
 function Get-ParentProcessName {
@@ -729,7 +730,7 @@ function Show-HourlyForecast {
         [string]$TitleColor,
         [string]$DefaultColor,
         [string]$AlertColor,
-        [int]$MaxHours = 12
+        [int]$MaxHours = $script:MAX_HOURLY_FORECAST_HOURS
     )
     
     Write-Host ""
@@ -802,7 +803,7 @@ function Show-SevenDayForecast {
         [string]$TitleColor,
         [string]$DefaultColor,
         [string]$AlertColor,
-        [int]$MaxDays = 7
+        [int]$MaxDays = $script:MAX_DAILY_FORECAST_DAYS
     )
     
     Write-Host ""
@@ -1149,7 +1150,7 @@ if ($Terse.IsPresent) {
     $showLocationInfo = $false
 }
 elseif ($Hourly.IsPresent) {
-    # Hourly mode: Show only the 12-hour hourly forecast
+    # Hourly mode: Show only the hourly forecast (up to $($script:MAX_HOURLY_FORECAST_HOURS) hours)
     $showCurrentConditions = $false
     $showTodayForecast = $false
     $showTomorrowForecast = $false
@@ -1158,7 +1159,7 @@ elseif ($Hourly.IsPresent) {
     $showLocationInfo = $false
 }
 elseif ($SevenDay.IsPresent -or $Daily.IsPresent) {
-    # 7-day mode: Show only the 7-day forecast summary
+    # $($script:MAX_DAILY_FORECAST_DAYS)-day mode: Show only the $($script:MAX_DAILY_FORECAST_DAYS)-day forecast summary
     $showCurrentConditions = $false
     $showTodayForecast = $false
     $showTomorrowForecast = $false
@@ -1193,7 +1194,7 @@ function Show-HourlyForecast {
         [string]$TitleColor,
         [string]$DefaultColor,
         [string]$AlertColor,
-        [int]$MaxHours = 12
+        [int]$MaxHours = $script:MAX_HOURLY_FORECAST_HOURS
     )
     
     Write-Host ""
@@ -1266,7 +1267,7 @@ function Show-SevenDayForecast {
         [string]$TitleColor,
         [string]$DefaultColor,
         [string]$AlertColor,
-        [int]$MaxDays = 7
+        [int]$MaxDays = $script:MAX_DAILY_FORECAST_DAYS
     )
     
     Write-Host ""
