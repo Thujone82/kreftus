@@ -45,9 +45,6 @@ param(
     [Alias('h')]
     [switch]$Hourly,
 
-    [Alias('7')]
-    [switch]$SevenDay,
-
     [Alias('d')]
     [switch]$Daily,
 
@@ -81,7 +78,7 @@ $script:MAX_DAILY_FORECAST_DAYS = 7
 $userAgent = $script:USER_AGENT
 
 # --- HELP LOGIC ---
-if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $SevenDay.IsPresent -or $Daily.IsPresent -or $NoInteractive.IsPresent) -and -not $Location)) {
+if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or $NoInteractive.IsPresent) -and -not $Location)) {
     Write-Host "Usage: .\gf.ps1 [ZipCode | `"City, State`"] [Options] [-Verbose]" -ForegroundColor Green
     Write-Host " • Provide a 5-digit zipcode or a City, State (e.g., 'Portland, OR')." -ForegroundColor Cyan
     Write-Host ""
@@ -1157,7 +1154,7 @@ elseif ($Hourly.IsPresent) {
     $showAlerts = $false
     $showLocationInfo = $false
 }
-elseif ($SevenDay.IsPresent -or $Daily.IsPresent) {
+elseif ($Daily.IsPresent) {
     # $($script:MAX_DAILY_FORECAST_DAYS)-day mode: Show only the $($script:MAX_DAILY_FORECAST_DAYS)-day forecast summary
     $showCurrentConditions = $false
     $showTodayForecast = $false
