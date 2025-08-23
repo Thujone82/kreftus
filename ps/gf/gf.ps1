@@ -89,7 +89,6 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $SevenDay.IsPresent -
     Write-Host "  -t, -Terse    Show only current conditions and today's forecast" -ForegroundColor Cyan
     Write-Host "  -h, -Hourly   Show only the hourly forecast (up to $($script:MAX_HOURLY_FORECAST_HOURS) hours)" -ForegroundColor Cyan
     Write-Host "  -d, -Daily    Show only the $($script:MAX_DAILY_FORECAST_DAYS)-day forecast summary" -ForegroundColor Cyan
-    Write-Host "  -7, -SevenDay Show only the $($script:MAX_DAILY_FORECAST_DAYS)-day forecast summary" -ForegroundColor Cyan
     Write-Host "  -x, -NoInteractive Exit immediately (no interactive mode)" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Interactive Mode:" -ForegroundColor Blue
