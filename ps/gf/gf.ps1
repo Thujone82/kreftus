@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     A PowerShell script to retrieve and display detailed weather information for a specified location.
     
@@ -56,6 +56,12 @@ param(
 
 # Force TLS 1.2.
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+# Ensure Unicode output (degree symbol, emoji) renders correctly
+try {
+    [System.Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    [System.Console]::InputEncoding  = [System.Text.Encoding]::UTF8
+} catch {}
 
 # --- CONSTANTS ---
 # Temperature thresholds for color coding (°F)
@@ -525,24 +531,24 @@ function Get-WeatherIcon ($iconUrl, $isDaytime = $true) {
     if ($iconUrl -match "/([^/]+)\?") {
         $condition = $matches[1]
         
-        # Map NWS conditions to emoji with day/night variants
-        $emoji = switch -Wildcard ($condition) {
-            "*skc*" { if ($isDaytime) { "☀️" } else { "🌙" } }  # Clear - sun during day, moon at night
-            "*few*" { if ($isDaytime) { "🌤️" } else { "🌙" } }  # Few clouds - sun with clouds during day, moon at night
-            "*sct*" { if ($isDaytime) { "⛅" } else { "☁️" } }   # Scattered clouds - sun with clouds during day, just clouds at night
-            "*bkn*" { "☁️" }  # Broken clouds - same for day/night
-            "*ovc*" { "☁️" }  # Overcast - same for day/night
-            "*rain*" { "🌧️" } # Rain - same for day/night
-            "*snow*" { "❄️" }  # Snow - same for day/night
-            "*fzra*" { "🧊" }  # Freezing rain - same for day/night
-            "*tsra*" { "⛈️" }  # Thunderstorm - same for day/night
-            "*fog*" { "🌫️" }   # Fog - same for day/night
-            "*haze*" { "🌫️" }  # Haze - same for day/night
-            "*smoke*" { "💨" } # Smoke - same for day/night
-            "*dust*" { "💨" }  # Dust - same for day/night
-            "*wind*" { "💨" }  # Windy - same for day/night
-            default { if ($isDaytime) { "🌡️" } else { "🌙" } }   # Default - thermometer during day, moon at night
-        }
+                 # Map NWS conditions to emoji with day/night variants
+         $emoji = switch -Wildcard ($condition) {
+             "*skc*" { if ($isDaytime) { "☀️" } else { "🌙" } }  # Clear - sun during day, moon at night
+             "*few*" { if ($isDaytime) { "🌤️" } else { "🌙" } }  # Few clouds - sun with clouds during day, moon at night
+             "*sct*" { if ($isDaytime) { "⛅" } else { "☁️" } }   # Scattered clouds - sun with clouds during day, just clouds at night
+             "*bkn*" { "☁️" }  # Broken clouds - same for day/night
+             "*ovc*" { "☁️" }  # Overcast - same for day/night
+             "*rain*" { "🌧️" } # Rain - same for day/night
+             "*snow*" { "❄️" }  # Snow - same for day/night
+             "*fzra*" { "🧊" }  # Freezing rain - same for day/night
+             "*tsra*" { "⛈️" }  # Thunderstorm - same for day/night
+             "*fog*" { "🌫️" }   # Fog - same for day/night
+             "*haze*" { "🌫️" }  # Haze - same for day/night
+             "*smoke*" { "💨" } # Smoke - same for day/night
+             "*dust*" { "💨" }  # Dust - same for day/night
+             "*wind*" { "💨" }  # Windy - same for day/night
+             default { if ($isDaytime) { "🌡️" } else { "🌙" } }   # Default - thermometer during day, moon at night
+         }
         
         return $emoji
     }
@@ -648,12 +654,12 @@ function Show-CurrentConditions {
     Write-Host "Currently: $weatherIcon $currentConditions" -ForegroundColor $DefaultColor
     Write-Host "Temperature: $currentTemp°F" -ForegroundColor $TempColor -NoNewline
     if ($currentTempTrend) {
-        $trendIcon = switch ($currentTempTrend) {
-            "rising" { "↗️" }
-            "falling" { "↘️" }
-            "steady" { "→" }
-            default { "" }
-        }
+                 $trendIcon = switch ($currentTempTrend) {
+             "rising" { "↗️" }
+             "falling" { "↘️" }
+             "steady" { "→" }
+             default { "" }
+         }
         Write-Host " $trendIcon " -ForegroundColor $DefaultColor -NoNewline
     }
     Write-Host ""
@@ -758,33 +764,37 @@ function Show-HourlyForecast {
         # Build the formatted line
         $formattedLine = Format-HourlyLine -Time $hourDisplay -Icon $periodIcon -Temp $temp -Wind $wind -WindDir $windDir -PrecipProb $precipProb -Forecast $shortForecast
         
-        # Split the line into parts for color coding
-        $tempStart = $formattedLine.IndexOf(" $temp°F ")
+        # Robust colorization using the degree marker rather than exact padding
+        $degIndex = $formattedLine.IndexOf("°F")
         $precipStart = $formattedLine.IndexOf(" ($precipProb%)")
-        
-        if ($tempStart -ge 0) {
-            # Write everything before temperature
-            Write-Host $formattedLine.Substring(0, $tempStart) -ForegroundColor $DefaultColor -NoNewline
-            # Write temperature with color
-            Write-Host " $temp°F " -ForegroundColor $tempColor -NoNewline
-            
-            # Handle precipitation probability color coding
-            if ($precipStart -ge 0) {
-                # Write everything between temperature and precipitation
-                $afterTemp = $formattedLine.Substring($tempStart + " $temp°F ".Length, $precipStart - ($tempStart + " $temp°F ".Length))
-                Write-Host $afterTemp -ForegroundColor $DefaultColor -NoNewline
-                # Write precipitation probability with color
+        if ($degIndex -ge 0) {
+            $tempSegStart = $formattedLine.LastIndexOf(' ', $degIndex)
+            if ($tempSegStart -lt 0) { $tempSegStart = 0 }
+            # include the trailing space after °F if present
+            $afterTempIdx = $formattedLine.IndexOf(' ', $degIndex + 2)
+            if ($afterTempIdx -lt 0) { $afterTempIdx = $formattedLine.Length }
+
+            # before temp
+            Write-Host $formattedLine.Substring(0, $tempSegStart) -ForegroundColor $DefaultColor -NoNewline
+            # temp segment colored
+            Write-Host $formattedLine.Substring($tempSegStart, $afterTempIdx - $tempSegStart) -ForegroundColor $tempColor -NoNewline
+
+            # remainder, possibly with colored precip
+            $rest = $formattedLine.Substring($afterTempIdx)
+            if ($precipStart -ge 0 -and $precipStart -ge $afterTempIdx) {
+                $precipRel = $precipStart - $afterTempIdx
+                Write-Host $rest.Substring(0, $precipRel) -ForegroundColor $DefaultColor -NoNewline
                 Write-Host " ($precipProb%)" -ForegroundColor $precipColor -NoNewline
-                # Write everything after precipitation
-                $afterPrecip = $formattedLine.Substring($precipStart + " ($precipProb%)".Length)
-                Write-Host $afterPrecip -ForegroundColor $DefaultColor
+                $afterPrecRelIdx = $precipRel + " ($precipProb%)".Length
+                if ($afterPrecRelIdx -lt $rest.Length) {
+                    Write-Host $rest.Substring($afterPrecRelIdx) -ForegroundColor $DefaultColor
+                } else {
+                    Write-Host "" -ForegroundColor $DefaultColor
+                }
             } else {
-                # Write everything after temperature (no precipitation probability)
-                $afterTemp = $formattedLine.Substring($tempStart + " $temp°F ".Length)
-                Write-Host $afterTemp -ForegroundColor $DefaultColor
+                Write-Host $rest -ForegroundColor $DefaultColor
             }
         } else {
-            # Fallback if temperature not found
             Write-Host $formattedLine -ForegroundColor $DefaultColor
         }
         
@@ -978,6 +988,7 @@ function Show-FullWeatherReport {
         [bool]$ShowHourlyForecast = $true,
         [bool]$ShowSevenDayForecast = $true,
         [bool]$ShowAlerts = $true,
+        [bool]$ShowAlertDetails = $true,
         [bool]$ShowLocationInfo = $true
     )
     
@@ -1002,7 +1013,11 @@ function Show-FullWeatherReport {
     }
 
     if ($ShowAlerts) {
-        Show-WeatherAlerts -AlertsData $AlertsData -AlertColor $AlertColor -DefaultColor $DefaultColor -InfoColor $InfoColor -ShowDetails $true
+        Show-WeatherAlerts -AlertsData $AlertsData -AlertColor $AlertColor -DefaultColor $DefaultColor -InfoColor $InfoColor -ShowDetails $ShowAlertDetails
+    }
+
+    if ($ShowAlertDetails) {
+        
     }
 
     if ($ShowLocationInfo) {
@@ -1117,7 +1132,7 @@ if ([int]$currentTemp -lt $script:COLD_TEMP_THRESHOLD -or [int]$currentTemp -gt 
     $tempColor = $defaultColor
 }
 
-# Wind: Red if wind speed is high (≥16 mph)
+# Wind: Red if wind speed is high (=16 mph)
 if ($windSpeed -ge $script:WIND_ALERT_THRESHOLD) {
     $windColor = $alertColor
 } else {
@@ -1136,6 +1151,7 @@ $showTomorrowForecast = $true
 $showHourlyForecast = $true
 $showSevenDayForecast = $true
 $showAlerts = $true
+$showAlertDetails = $true
 $showLocationInfo = $true
 
 if ($Terse.IsPresent) {
@@ -1143,6 +1159,7 @@ if ($Terse.IsPresent) {
     $showTomorrowForecast = $false
     $showHourlyForecast = $false
     $showSevenDayForecast = $false
+    $showAlertDetails = $false
     $showLocationInfo = $false
 }
 elseif ($Hourly.IsPresent) {
@@ -1442,6 +1459,7 @@ function Show-FullWeatherReport {
         [bool]$ShowHourlyForecast = $true,
         [bool]$ShowSevenDayForecast = $true,
         [bool]$ShowAlerts = $true,
+        [bool]$ShowAlertDetails = $true,
         [bool]$ShowLocationInfo = $true
     )
     
@@ -1466,7 +1484,11 @@ function Show-FullWeatherReport {
     }
 
     if ($ShowAlerts) {
-        Show-WeatherAlerts -AlertsData $AlertsData -AlertColor $AlertColor -DefaultColor $DefaultColor -InfoColor $InfoColor -ShowDetails $true
+        Show-WeatherAlerts -AlertsData $AlertsData -AlertColor $AlertColor -DefaultColor $DefaultColor -InfoColor $InfoColor -ShowDetails $ShowAlertDetails
+    }
+
+    if ($ShowAlertDetails) {
+        
     }
 
     if ($ShowLocationInfo) {
@@ -1475,7 +1497,7 @@ function Show-FullWeatherReport {
 }
 
 # Display the weather report using the refactored function
-Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $currentTimeLocal -TodayForecast $todayForecast -TomorrowForecast $tomorrowForecast -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowLocationInfo $showLocationInfo
+Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $currentTimeLocal -TodayForecast $todayForecast -TomorrowForecast $tomorrowForecast -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo
 
 # Detect if we're in an interactive environment that supports ReadKey
 # This determines whether to enable interactive mode with keyboard controls
@@ -1522,12 +1544,12 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                 Clear-Host
                 Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $currentTimeLocal -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor
                 Show-ForecastText -Title "Today's Forecast" -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
-                Show-WeatherAlerts -AlertsData $alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $true
+                Show-WeatherAlerts -AlertsData $alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false
                 Show-InteractiveControls
             }
             70 { # F key - Switch to full weather report
                 Clear-Host
-                Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $currentTimeLocal -TodayForecast $todayForecast -TomorrowForecast $tomorrowForecast -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowLocationInfo $true
+                Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $currentTimeLocal -TodayForecast $todayForecast -TomorrowForecast $tomorrowForecast -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true
                 Show-InteractiveControls
             }
             13 { # Enter key - Exit interactive mode
