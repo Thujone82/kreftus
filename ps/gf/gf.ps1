@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     A PowerShell script to retrieve and display detailed weather information for a specified location.
     
@@ -61,6 +61,8 @@ param(
 try {
     [System.Console]::OutputEncoding = [System.Text.Encoding]::UTF8
     [System.Console]::InputEncoding  = [System.Text.Encoding]::UTF8
+    $OutputEncoding = [System.Text.Encoding]::UTF8
+    $PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'
 } catch {}
 
 # --- CONSTANTS ---
