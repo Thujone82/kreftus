@@ -6,10 +6,10 @@
     This script accepts a US zip code or a "City, State" string as input. It uses the
     National Weather Service API to retrieve and display detailed weather information.
 
-    The script first uses a geocoding service to determine the latitude and longitude of the location,
-    then fetches the current weather, daily forecasts, and weather alerts.
+    The script first uses the OpenStreetMap Nominatim API for geocoding to determine the latitude 
+    and longitude of the location, then fetches the current weather, daily forecasts, and weather alerts.
 
-    No API key is required as the National Weather Service API is free and open.
+    No API key is required as both the National Weather Service API and OpenStreetMap Nominatim API are free and open.
     
 .PARAMETER Location
     The location for which to retrieve weather. Can be a 5-digit US zip code or a "City, State" string.
@@ -25,8 +25,8 @@
     .\gf.ps1 "Portland, OR" -Verbose
 
 .NOTES
-    This script uses the free National Weather Service API which requires no API key.
-    The API is limited to locations within the United States.
+    This script uses the free National Weather Service API and OpenStreetMap Nominatim API, 
+    both of which require no API key. The APIs are limited to locations within the United States.
 
     To execute PS Scripts run the following from an admin prompt "Set-ExecutionPolicy bypass"
     Execute with ./<scriptname>, or simply <scriptname> if placed in your %PATH%
@@ -106,7 +106,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
      Write-Host "    [Enter] - Exit the script" -ForegroundColor Cyan
      Write-Host "  In hourly mode, use [↑] and [↓] arrows to scroll through all 48 hours" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "This script retrieves weather info from National Weather Service API and outputs:" -ForegroundColor Blue
+    Write-Host "This script retrieves weather info from National Weather Service API (geocoding via OpenStreetMap) and outputs:" -ForegroundColor Blue
     Write-Host " • Location (City, State)" -ForegroundColor Cyan
     Write-Host " • Current Conditions" -ForegroundColor Cyan
     Write-Host " • Temperature with forecast range (red if <33°F or >89°F)" -ForegroundColor Cyan
@@ -199,24 +199,104 @@ while ($true) { # Loop for location input and geocoding
 
         # --- GEOCODING ---
         # Use OpenStreetMap Nominatim API for all geocoding (free, no API key required)
+        # This consolidates our API providers and reduces dependencies
+        Write-Verbose "Using OpenStreetMap Nominatim API for geocoding."
+        
+        # Prepare location for API query
         $locationForApi = if ($Location -match ",") { $Location } else { "$Location,US" }
         $encodedLocation = [uri]::EscapeDataString($locationForApi)
         $geoUrl = "https://nominatim.openstreetmap.org/search?q=$encodedLocation&format=json&limit=1&countrycodes=us"
         Write-Verbose "Geocoding URL: $geoUrl"
+        
         $geoData = Invoke-RestMethod "$geoUrl" -ErrorAction Stop
         if ($geoData.Count -eq 0) { throw "No geocoding results found for '$Location'." }
         
-        $geoResult = $geoData[0]
-        $lat = [double]$geoResult.lat
-        $lon = [double]$geoResult.lon
+        $lat = [double]$geoData[0].lat
+        $lon = [double]$geoData[0].lon
         
-        # Extract city and state, preferring the 'address' object properties
-        $city = $geoResult.address.city ?? $geoResult.address.town ?? $geoResult.address.village ?? $geoResult.name
-        $state = $geoResult.address.state
-
-        # Fallback for state if not in address object
-        if (-not $state -and ($Location -match ',\s*([A-Za-z]{2})$' -or $Location -match ',\s*([A-Za-z]{2})\s+\d{5}')) {
-            $state = $matches[1].ToUpper()
+        # Extract city and state based on the type of location returned
+        if ($geoData[0].type -eq "postcode") {
+            # For zipcodes, parse city and state from display_name
+            # Format: "97219, Multnomah, Portland, Multnomah County, Oregon, United States"
+            $displayName = $geoData[0].display_name
+            Write-Verbose "Parsing zipcode location from display_name: $displayName"
+            
+            # Extract city (usually the third element after zipcode)
+            if ($displayName -match "^\d{5}, [^,]+,\s*([^,]+),") {
+                $city = $matches[1].Trim()
+            } else {
+                # Fallback: use the name field (which contains the zipcode)
+                $city = $geoData[0].name
+            }
+            
+            # Extract state from display_name
+            # Format: "97219, Multnomah, Portland, Multnomah County, Oregon, United States"
+            # Look for state abbreviation in the display_name
+            if ($displayName -match ", ([A-Z]{2}), United States$") {
+                $state = $matches[1]
+            } elseif ($displayName -match ", ([A-Z]{2})$") {
+                $state = $matches[1]
+            } else {
+                # Try to extract state from the full state name in display_name
+                # Look for patterns like "Oregon, United States" and map to abbreviation
+                $stateMap = @{
+                    "Alabama" = "AL"; "Alaska" = "AK"; "Arizona" = "AZ"; "Arkansas" = "AR"; "California" = "CA"
+                    "Colorado" = "CO"; "Connecticut" = "CT"; "Delaware" = "DE"; "Florida" = "FL"; "Georgia" = "GA"
+                    "Hawaii" = "HI"; "Idaho" = "ID"; "Illinois" = "IL"; "Indiana" = "IN"; "Iowa" = "IA"
+                    "Kansas" = "KS"; "Kentucky" = "KY"; "Louisiana" = "LA"; "Maine" = "ME"; "Maryland" = "MD"
+                    "Massachusetts" = "MA"; "Michigan" = "MI"; "Minnesota" = "MN"; "Mississippi" = "MS"; "Missouri" = "MO"
+                    "Montana" = "MT"; "Nebraska" = "NE"; "Nevada" = "NV"; "New Hampshire" = "NH"; "New Jersey" = "NJ"
+                    "New Mexico" = "NM"; "New York" = "NY"; "North Carolina" = "NC"; "North Dakota" = "ND"; "Ohio" = "OH"
+                    "Oklahoma" = "OK"; "Oregon" = "OR"; "Pennsylvania" = "PA"; "Rhode Island" = "RI"; "South Carolina" = "SC"
+                    "South Dakota" = "SD"; "Tennessee" = "TN"; "Texas" = "TX"; "Utah" = "UT"; "Vermont" = "VT"
+                    "Virginia" = "VA"; "Washington" = "WA"; "West Virginia" = "WV"; "Wisconsin" = "WI"; "Wyoming" = "WY"
+                }
+                
+                foreach ($stateName in $stateMap.Keys) {
+                    if ($displayName -match ", $stateName, United States$") {
+                        $state = $stateMap[$stateName]
+                        break
+                    }
+                }
+                
+                # If still no match, try fallback methods
+                if (-not $state -or $state -eq "US") {
+                    # Fallback: extract state from original input if it contains a comma
+                    if ($Location -match ", ([A-Z]{2})") {
+                        $state = $matches[1]
+                    } else {
+                        # For zipcodes without state info, we'll need to use a fallback
+                        # This is a limitation of the consolidated approach
+                        $state = "US"
+                    }
+                }
+            }
+        } else {
+            # For city/state queries, use the name field for city
+            $city = $geoData[0].name
+            
+            # Try to get state from address, fallback to display_name parsing
+            if ($geoData[0].address.state) {
+                $state = $geoData[0].address.state
+            } elseif ($geoData[0].address.state_code) {
+                $state = $geoData[0].address.state_code
+            } else {
+                # Parse state from display_name if available
+                $displayName = $geoData[0].display_name
+                Write-Verbose "Parsing state from display_name: $displayName"
+                if ($displayName -match ", ([A-Z]{2}),") {
+                    $state = $matches[1]
+                } elseif ($displayName -match ", ([A-Z]{2})$") {
+                    $state = $matches[1]
+                } else {
+                    # Fallback: extract state from original input if it contains a comma
+                    if ($Location -match ", ([A-Z]{2})") {
+                        $state = $matches[1]
+                    } else {
+                        $state = "US"
+                    }
+                }
+            }
         }
         break # Exit loop on successful geocoding
     }
