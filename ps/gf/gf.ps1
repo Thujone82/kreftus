@@ -780,42 +780,28 @@ function Show-HourlyForecast {
         # Color code precipitation probability
         $precipColor = if ($precipProb -gt $script:HIGH_PRECIP_THRESHOLD) { $AlertColor } elseif ($precipProb -gt $script:MEDIUM_PRECIP_THRESHOLD) { "Yellow" } else { $DefaultColor }
         
-        # Build the formatted line
-        $formattedLine = Format-HourlyLine -Time $hourDisplay -Icon $periodIcon -Temp $temp -Wind $wind -WindDir $windDir -PrecipProb $precipProb -Forecast $shortForecast
-        
-        # Robust colorization using the degree marker rather than exact padding
-        $degIndex = $formattedLine.IndexOf("°F")
-        $precipStart = $formattedLine.IndexOf(" ($precipProb%)")
-        if ($degIndex -ge 0) {
-            $tempSegStart = $formattedLine.LastIndexOf(' ', $degIndex)
-            if ($tempSegStart -lt 0) { $tempSegStart = 0 }
-            # include the trailing space after °F if present
-            $afterTempIdx = $formattedLine.IndexOf(' ', $degIndex + 2)
-            if ($afterTempIdx -lt 0) { $afterTempIdx = $formattedLine.Length }
+        # Build and write the line piece-by-piece for easier colorization
+        $timePart = "$hourDisplay "
+        $iconPart = "$periodIcon"
+        $tempPart = " $temp°F "
+        $windPart = "$wind $windDir"
+        $precipPart = if ($precipProb -gt 0) { " ($precipProb%)" } else { "" }
+        $forecastPart = " - $shortForecast"
 
-            # before temp
-            Write-Host $formattedLine.Substring(0, $tempSegStart) -ForegroundColor $DefaultColor -NoNewline
-            # temp segment colored
-            Write-Host $formattedLine.Substring($tempSegStart, $afterTempIdx - $tempSegStart) -ForegroundColor $tempColor -NoNewline
+        # Calculate padding for alignment
+        $targetTempColumn = 8
+        $lineBeforeTemp = $timePart + $iconPart
+        $currentDisplayWidth = Get-StringDisplayWidth $lineBeforeTemp
+        $spacesNeeded = $targetTempColumn - $currentDisplayWidth
+        $padding = " " * [Math]::Max(0, $spacesNeeded)
 
-            # remainder, possibly with colored precip
-            $rest = $formattedLine.Substring($afterTempIdx)
-            if ($precipStart -ge 0 -and $precipStart -ge $afterTempIdx) {
-                $precipRel = $precipStart - $afterTempIdx
-                Write-Host $rest.Substring(0, $precipRel) -ForegroundColor $DefaultColor -NoNewline
-                Write-Host " ($precipProb%)" -ForegroundColor $precipColor -NoNewline
-                $afterPrecRelIdx = $precipRel + " ($precipProb%)".Length
-                if ($afterPrecRelIdx -lt $rest.Length) {
-                    Write-Host $rest.Substring($afterPrecRelIdx) -ForegroundColor $DefaultColor
-                } else {
-                    Write-Host "" -ForegroundColor $DefaultColor
-                }
-            } else {
-                Write-Host $rest -ForegroundColor $DefaultColor
-            }
-        } else {
-            Write-Host $formattedLine -ForegroundColor $DefaultColor
-        }
+        Write-Host $timePart -ForegroundColor $DefaultColor -NoNewline
+        Write-Host $iconPart -ForegroundColor $DefaultColor -NoNewline
+        Write-Host $padding -ForegroundColor $DefaultColor -NoNewline
+        Write-Host $tempPart -ForegroundColor $tempColor -NoNewline
+        Write-Host $windPart -ForegroundColor $DefaultColor -NoNewline
+        if ($precipPart) { Write-Host $precipPart -ForegroundColor $precipColor -NoNewline }
+        Write-Host $forecastPart -ForegroundColor $DefaultColor
         
         $hourCount++
     }
@@ -1048,44 +1034,6 @@ function Show-FullWeatherReport {
     if ($ShowLocationInfo) {
         Show-LocationInfo -County $County -TimeZone $TimeZone -RadarStation $RadarStation -Lat $Lat -Lon $Lon -TitleColor $TitleColor -DefaultColor $DefaultColor
     }
-}
-
-# Function to build a formatted hourly forecast line with proper alignment
-function Format-HourlyLine {
-    param(
-        [string]$Time,
-        [string]$Icon,
-        [string]$Temp,
-        [string]$Wind,
-        [string]$WindDir,
-        [int]$PrecipProb,
-        [string]$Forecast
-    )
-    
-    # Build the line components
-    $timePart = "$Time "
-    $iconPart = "$Icon"
-    $tempPart = " $Temp°F "
-    $windPart = "$Wind $WindDir"
-    $precipPart = if ($PrecipProb -gt 0) { " ($PrecipProb%)" } else { "" }
-    $forecastPart = " - $Forecast"
-    
-    if (Test-CursorTerminal) {
-        # In Cursor, use a simple fixed-width approach
-        # Time is 5 chars + space = 6 chars, then add fixed spaces after icon
-        $padding = "  "  # Fixed 2 spaces after icon
-        $completeLine = $timePart + $iconPart + $padding + $tempPart + $windPart + $precipPart + $forecastPart
-    } else {
-        # In regular terminals, use the width calculation approach
-        $targetTempColumn = 8
-        $lineBeforeTemp = $timePart + $iconPart
-        $currentDisplayWidth = Get-StringDisplayWidth $lineBeforeTemp
-        $spacesNeeded = $targetTempColumn - $currentDisplayWidth
-        $padding = " " * [Math]::Max(0, $spacesNeeded)
-        $completeLine = $lineBeforeTemp + $padding + $tempPart + $windPart + $precipPart + $forecastPart
-    }
-    
-    return $completeLine
 }
 
 # Function to build a formatted daily forecast line with proper alignment
