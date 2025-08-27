@@ -198,51 +198,25 @@ while ($true) { # Loop for location input and geocoding
         Write-Verbose "Input provided: $Location"
 
         # --- GEOCODING ---
-        # Determine if input is a zip code or city/state and use appropriate geocoding service
-        if ($Location -match "^\d{5}(-\d{4})?$") {
-            Write-Verbose "Input identified as a zipcode."
-            # Use zippopotam.us API for US zip code geocoding (free, no API key required)
-            $geoUrl = "https://api.zippopotam.us/us/$Location"
-            Write-Verbose "Geocoding URL (zip): $geoUrl"
-            $geoData = Invoke-RestMethod "$geoUrl" -ErrorAction Stop
-            if (-not $geoData) { throw "No geocoding results found for zipcode '$Location'." }
-            $lat = [double]$geoData.places[0].latitude
-            $lon = [double]$geoData.places[0].longitude
-            $city = $geoData.places[0].'place name'
-            $state = $geoData.places[0].'state abbreviation'
-        }
-        else {
-            Write-Verbose "Input assumed to be a City, State."
-            # Use OpenStreetMap Nominatim API for city/state geocoding (free, no API key required)
-            $locationForApi = if ($Location -match ",") { $Location } else { "$Location,US" }
-            $encodedLocation = [uri]::EscapeDataString($locationForApi)
-            $geoUrl = "https://nominatim.openstreetmap.org/search?q=$encodedLocation&format=json&limit=1&countrycodes=us"
-            Write-Verbose "Geocoding URL (direct): $geoUrl"
-            $geoData = Invoke-RestMethod "$geoUrl" -ErrorAction Stop
-            if ($geoData.Count -eq 0) { throw "No geocoding results found for '$Location'." }
-            $lat = [double]$geoData[0].lat
-            $lon = [double]$geoData[0].lon
-            $city = $geoData[0].name
-            # Try to get state from address, fallback to display_name parsing
-            if ($geoData[0].address.state) {
-                $state = $geoData[0].address.state
-            } elseif ($geoData[0].address.state_code) {
-                $state = $geoData[0].address.state_code
-            } else {
-                # Parse state from display_name if available
-                $displayName = $geoData[0].display_name
-                Write-Verbose "Parsing state from display_name: $displayName"
-                if ($displayName -match ", ([A-Z]{2}),") {
-                    $state = $matches[1]
-                } elseif ($displayName -match ", ([A-Z]{2})$") {
-                    $state = $matches[1]
-                } else {
-                    # Fallback: extract state from original input if it contains a comma
-                    if ($Location -match ", ([A-Z]{2})") {
-                        $state = $matches[1]
-                    }
-                }
-            }
+        # Use OpenStreetMap Nominatim API for all geocoding (free, no API key required)
+        $locationForApi = if ($Location -match ",") { $Location } else { "$Location,US" }
+        $encodedLocation = [uri]::EscapeDataString($locationForApi)
+        $geoUrl = "https://nominatim.openstreetmap.org/search?q=$encodedLocation&format=json&limit=1&countrycodes=us"
+        Write-Verbose "Geocoding URL: $geoUrl"
+        $geoData = Invoke-RestMethod "$geoUrl" -ErrorAction Stop
+        if ($geoData.Count -eq 0) { throw "No geocoding results found for '$Location'." }
+        
+        $geoResult = $geoData[0]
+        $lat = [double]$geoResult.lat
+        $lon = [double]$geoResult.lon
+        
+        # Extract city and state, preferring the 'address' object properties
+        $city = $geoResult.address.city ?? $geoResult.address.town ?? $geoResult.address.village ?? $geoResult.name
+        $state = $geoResult.address.state
+
+        # Fallback for state if not in address object
+        if (-not $state -and ($Location -match ',\s*([A-Za-z]{2})$' -or $Location -match ',\s*([A-Za-z]{2})\s+\d{5}')) {
+            $state = $matches[1].ToUpper()
         }
         break # Exit loop on successful geocoding
     }
