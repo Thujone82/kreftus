@@ -275,26 +275,19 @@ while ($true) { # Loop for location input and geocoding
             # For city/state queries, use the name field for city
             $city = $geoData[0].name
             
-            # Try to get state from address, fallback to display_name parsing
-            if ($geoData[0].address.state) {
-                $state = $geoData[0].address.state
-            } elseif ($geoData[0].address.state_code) {
-                $state = $geoData[0].address.state_code
+            # Parse state from display_name or original input
+            $displayName = $geoData[0].display_name
+            Write-Verbose "Parsing state from display_name: $displayName"
+            if ($displayName -match ", ([A-Z]{2}),") {
+                $state = $matches[1]
+            } elseif ($displayName -match ", ([A-Z]{2})$") {
+                $state = $matches[1]
             } else {
-                # Parse state from display_name if available
-                $displayName = $geoData[0].display_name
-                Write-Verbose "Parsing state from display_name: $displayName"
-                if ($displayName -match ", ([A-Z]{2}),") {
-                    $state = $matches[1]
-                } elseif ($displayName -match ", ([A-Z]{2})$") {
+                # Fallback: extract state from original input if it contains a comma
+                if ($Location -match ", ([A-Z]{2})") {
                     $state = $matches[1]
                 } else {
-                    # Fallback: extract state from original input if it contains a comma
-                    if ($Location -match ", ([A-Z]{2})") {
-                        $state = $matches[1]
-                    } else {
-                        $state = "US"
-                    }
+                    $state = "US"
                 }
             }
         }
@@ -349,7 +342,6 @@ $timeZone = $pointsData.properties.timeZone
 $radarStation = $pointsData.properties.radarStation
 
 # Extract county information from NWS API response
-# County data can be in different locations depending on the API response structure
 $county = $null
 if ($pointsData.properties.relativeLocation.properties.county) {
     $county = $pointsData.properties.relativeLocation.properties.county
@@ -480,11 +472,10 @@ $currentWindDir = $currentPeriod.windDirection
 $currentTime = $hourlyData.properties.updateTime
 $currentHumidity = $currentPeriod.relativeHumidity.value
 
-# Safely extract dew point with validation - only if available in API response
+# Extract dew point if available in API response
 $currentDewPoint = $null
 if ($currentPeriod.PSObject.Properties['dewpoint'] -and $null -ne $currentPeriod.dewpoint.value) {
     try {
-        # Convert the dew point value directly to double (API provides it in Celsius)
         $currentDewPoint = [double]$currentPeriod.dewpoint.value
         Write-Verbose "Successfully extracted dew point: $currentDewPoint°C"
     }
@@ -498,18 +489,15 @@ $currentPrecipProb = $currentPeriod.probabilityOfPrecipitation.value
 $currentIcon = $currentPeriod.icon
 
 # --- Temperature Trend Detection ---
-# First try to use the NWS API's temperatureTrend property
 $currentTempTrend = $currentPeriod.temperatureTrend
 
-# Fallback: If NWS API doesn't provide trend, calculate it from hourly data
-# Similar to gw.ps1 approach - compare current temp with next hour's temp
+# Fallback: Calculate trend from hourly data if not provided by API
 if (-not $currentTempTrend -or $currentTempTrend -eq "") {
     $hourlyPeriods = $hourlyData.properties.periods
     if ($hourlyPeriods.Count -gt 1) {
-        $nextHourPeriod = $hourlyPeriods[1]  # Next hour in the forecast
+        $nextHourPeriod = $hourlyPeriods[1]
         $nextHourTemp = $nextHourPeriod.temperature
         
-        # Calculate temperature difference (using same threshold as gw.ps1: ±0.67°F)
         $tempDiff = [double]$nextHourTemp - [double]$currentTemp
         Write-Verbose "Temperature trend calculation: Current=$currentTemp°F, Next=$nextHourTemp°F, Diff=$tempDiff°F"
         
@@ -530,11 +518,10 @@ if (-not $currentTempTrend -or $currentTempTrend -eq "") {
 }
 
 # Extract wind gust information from wind speed string
-# NWS API sometimes provides wind as "X to Y mph" where Y is the gust speed
 $windGust = $null
 if ($currentWind -match "(\d+)\s*to\s*(\d+)\s*mph") {
-    $windGust = $matches[2]  # Second number is the gust speed
-    $currentWind = "$($matches[1]) mph"  # First number is the sustained wind speed
+    $windGust = $matches[2]
+    $currentWind = "$($matches[1]) mph"
 }
 
 # Extract today's detailed forecast (first period in forecast data)
@@ -545,13 +532,7 @@ $todayForecast = $todayPeriod.detailedForecast
 $tomorrowPeriod = $forecastData.properties.periods[1]
 $tomorrowForecast = $tomorrowPeriod.detailedForecast
 
-# Function: Convert wind degrees to cardinal direction (N, NE, E, SE, etc.)
-# Uses 16-point compass rose with 22.5° intervals
-function Get-CardinalDirection ($deg) {
-    $val = [math]::Floor(($deg / 22.5) + 0.5)
-    $directions = @("N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW")
-    return $directions[($val % 16)]
-}
+
 
 # Function: Extract numeric wind speed from wind speed string
 # Handles formats like "10 mph", "5 to 15 mph", etc.
@@ -729,12 +710,10 @@ function Show-CurrentConditions {
 
     Write-Host "Humidity: $currentHumidity%" -ForegroundColor $DefaultColor
     
-    # Display dew point only if available in API response
+    # Display dew point if available
     if ($null -ne $currentDewPoint) {
         try {
-            # Ensure we have a proper numeric value for conversion
             $dewPointCelsius = [double]$currentDewPoint
-            # Convert from Celsius to Fahrenheit: °F = (°C × 9/5) + 32
             $dewPointF = [math]::Round($dewPointCelsius * 9/5 + 32, 1)
             Write-Host "Dew Point: $dewPointF°F" -ForegroundColor $DefaultColor
             Write-Verbose "Dew point conversion: $dewPointCelsius°C → $dewPointF°F"
@@ -1128,8 +1107,7 @@ function Format-DailyLine {
 
 $windSpeed = Get-WindSpeed $currentWind
 
-# Convert API update time to local time with error handling
-# This represents when the weather data was last updated by the NWS
+# Convert API update time to local time
 $currentTimeLocal = $null
 Write-Verbose "Raw update time from API: $currentTime"
 try {
@@ -1218,18 +1196,14 @@ $weatherIcon = Get-WeatherIcon $currentIcon $isCurrentlyDaytime
 Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $currentTimeLocal -TodayForecast $todayForecast -TomorrowForecast $tomorrowForecast -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo
 
 # Detect if we're in an interactive environment that supports ReadKey
-# This determines whether to enable interactive mode with keyboard controls
 $isInteractiveEnvironment = $false
 
-# Check if we're in a Windows terminal environment (WindowsTerminal, PowerShell, cmd)
 if ($parentName -match '^(WindowsTerminal.exe|PowerShell|cmd)') {
     $isInteractiveEnvironment = $true
 }
-# Check if we're in an SSH session with a proper terminal
 elseif ($env:SSH_CONNECTION -and $Host.UI.RawUI.WindowSize.WindowSize.Width -gt 0) {
     $isInteractiveEnvironment = $true
 }
-# Check if we have a proper terminal size (indicating interactive terminal)
 elseif ($Host.UI.RawUI.WindowSize.Width -gt 0 -and $Host.UI.RawUI.WindowSize.Height -gt 0) {
     $isInteractiveEnvironment = $true
 }
