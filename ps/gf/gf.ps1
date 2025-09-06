@@ -562,6 +562,7 @@ function Test-IsDaytime {
 
 # Function: Convert NWS weather icon URLs to appropriate emoji
 # Maps NWS icon conditions to emoji with day/night variants for better visual representation
+# Prioritizes precipitation-related conditions when present
 function Get-WeatherIcon ($iconUrl, $isDaytime = $true) {
     if (-not $iconUrl) { return "" }
     
@@ -569,30 +570,39 @@ function Get-WeatherIcon ($iconUrl, $isDaytime = $true) {
     if ($iconUrl -match "/([^/]+)\?") {
         $condition = $matches[1]
         
-                 # Map NWS conditions to emoji with day/night variants
-         $emoji = switch -Wildcard ($condition) {
-             "*skc*" { if ($isDaytime) { "☀️" } else { "🌙" } }  # Clear - sun during day, moon at night
-             "*few*" { if ($isDaytime) { "🌤️" } else { "🌙" } }  # Few clouds - sun with clouds during day, moon at night
-             "*sct*" { if ($isDaytime) { "⛅" } else { "☁️" } }   # Scattered clouds - sun with clouds during day, just clouds at night
-             "*bkn*" { "☁️" }  # Broken clouds - same for day/night
-             "*ovc*" { "☁️" }  # Overcast - same for day/night
-             "*rain*" { "🌧️" } # Rain - same for day/night
-             "*snow*" { "❄️" }  # Snow - same for day/night
-             "*fzra*" { "🧊" }  # Freezing rain - same for day/night
-             "*tsra*" { "⛈️" }  # Thunderstorm - same for day/night
-             "*fog*" { "🌫️" }   # Fog - same for day/night
-             "*haze*" { "🌫️" }  # Haze - same for day/night
-             "*smoke*" { "💨" } # Smoke - same for day/night
-             "*dust*" { "💨" }  # Dust - same for day/night
-             "*wind*" { "💨" }  # Windy - same for day/night
-             default { if ($isDaytime) { "🌡️" } else { "🌙" } }   # Default - thermometer during day, moon at night
-         }
+        # Prioritize precipitation-related conditions when present
+        # Check for precipitation conditions first (highest priority)
+        if ($condition -match "tsra") { return "⛈️" }  # Thunderstorm
+        if ($condition -match "rain") { return "🌧️" }  # Rain
+        if ($condition -match "snow") { return "❄️" }  # Snow
+        if ($condition -match "fzra") { return "🧊" }  # Freezing rain
         
-        return $emoji
+        # Check for other weather conditions
+        if ($condition -match "fog") { return "🌫️" }   # Fog
+        if ($condition -match "haze") { return "🌫️" }  # Haze
+        if ($condition -match "smoke") { return "💨" } # Smoke
+        if ($condition -match "dust") { return "💨" }  # Dust
+        if ($condition -match "wind") { return "💨" }  # Windy
+        
+        # Check for cloud conditions (lower priority than precipitation)
+        if ($condition -match "ovc") { return "☁️" }   # Overcast
+        if ($condition -match "bkn") { return "☁️" }   # Broken clouds
+        if ($condition -match "sct") { 
+            if ($isDaytime) { return "⛅" } else { return "☁️" }
+        }  # Scattered clouds
+        if ($condition -match "few") { 
+            if ($isDaytime) { return "🌤️" } else { return "🌙" }
+        }  # Few clouds
+        if ($condition -match "skc") { 
+            if ($isDaytime) { return "☀️" } else { return "🌙" }
+        }  # Clear
+        
+        # Default fallback
+        if ($isDaytime) { return "🌡️" } else { return "🌙" }
     }
     
     # Default fallback if URL parsing fails
-    return if ($isDaytime) { "🌡️" } else { "🌙" }
+    if ($isDaytime) { return "🌡️" } else { return "🌙" }
 }
 
 # Function: Detect if running in Cursor/VS Code terminal
