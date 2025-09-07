@@ -182,14 +182,14 @@ while ($true) { # Loop for location input and geocoding
     try {
         if (-not $Location) {
             if ($VerbosePreference -ne 'Continue') { Clear-Host }
-            Write-Host '    \|/     ' -ForegroundColor Yellow -NoNewline; Write-Host "    .-~~~~~~-.      " -ForegroundColor Cyan
-            Write-Host '  -- O --   ' -ForegroundColor Yellow -NoNewline; Write-Host "   /_)      ( \     " -ForegroundColor Cyan
-            Write-Host '    /|\     ' -ForegroundColor Yellow -NoNewline; Write-Host "  (   ( )    ( )    " -ForegroundColor Cyan
-            Write-Host '            ' -ForegroundColor Yellow -NoNewline; Write-Host "   `-~~~~~~~~~-`    " -ForegroundColor Cyan
-            Write-Host '  Welcome   ' -ForegroundColor Green  -NoNewline; Write-Host "     ''    ''       " -ForegroundColor Cyan
-            Write-Host '     to     ' -ForegroundColor Green  -NoNewline; Write-Host "    ''    ''        " -ForegroundColor Cyan
-            Write-Host ' GetForecast' -ForegroundColor Green  -NoNewline; Write-Host "  ________________  " -ForegroundColor Cyan
-            Write-Host '            ' -ForegroundColor Yellow -NoNewline; Write-Host "~~~~~~~~~~~~~~~~~~~~" -ForegroundColor Cyan
+            Write-Host '     \|/    ' -ForegroundColor Yellow -NoNewline; Write-Host "      .-~~~~~~-.    " -ForegroundColor Gray
+            Write-Host '   -- O --  ' -ForegroundColor Yellow -NoNewline; Write-Host "     /_)      ( \   " -ForegroundColor Gray
+            Write-Host '     /|\    ' -ForegroundColor Yellow -NoNewline; Write-Host "    (   ( )    ( )  " -ForegroundColor Gray
+            Write-Host '            ' -ForegroundColor Yellow -NoNewline; Write-Host "     `-~~~~~~~~~-`  " -ForegroundColor Gray
+            Write-Host '   Welcome  ' -ForegroundColor White  -NoNewline; Write-Host "       ''    ''     " -ForegroundColor Cyan
+            Write-Host '      to    ' -ForegroundColor White  -NoNewline; Write-Host "      ''    ''      " -ForegroundColor Cyan
+            Write-Host ' GetForecast' -ForegroundColor Green  -NoNewline; Write-Host "     ''    ''       " -ForegroundColor Cyan
+            Write-Host '~~~~~~~~~~~~~~' -ForegroundColor Yellow -NoNewline; Write-Host "~~~~~~~~~~~~~~~~~~" -ForegroundColor Green
             Write-Host ""
             $Location = Read-Host "Enter a location (Zip Code or City, State)"
             if ([string]::IsNullOrEmpty($Location)) { exit } # Exit if user enters nothing
