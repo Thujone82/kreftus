@@ -188,7 +188,7 @@ while ($true) { # Loop for location input and geocoding
             Write-Host '            ' -ForegroundColor Yellow -NoNewline; Write-Host "   `-~~~~~~~~~-`    " -ForegroundColor Cyan
             Write-Host '  Welcome   ' -ForegroundColor Green  -NoNewline; Write-Host "     ''    ''       " -ForegroundColor Cyan
             Write-Host '     to     ' -ForegroundColor Green  -NoNewline; Write-Host "    ''    ''        " -ForegroundColor Cyan
-            Write-Host ' GetForecast ' -ForegroundColor Green  -NoNewline; Write-Host "  ________________  " -ForegroundColor Cyan
+            Write-Host ' GetForecast' -ForegroundColor Green  -NoNewline; Write-Host "  ________________  " -ForegroundColor Cyan
             Write-Host '            ' -ForegroundColor Yellow -NoNewline; Write-Host "~~~~~~~~~~~~~~~~~~~~" -ForegroundColor Cyan
             Write-Host ""
             $Location = Read-Host "Enter a location (Zip Code or City, State)"
