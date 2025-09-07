@@ -734,7 +734,9 @@ function Show-CurrentConditions {
     }
     
     if ($currentPrecipProb -gt 0) {
-        Write-Host "Precipitation: $currentPrecipProb% chance" -ForegroundColor $DefaultColor
+        # Color code precipitation probability
+        $precipColor = if ($currentPrecipProb -gt $script:HIGH_PRECIP_THRESHOLD) { $AlertColor } elseif ($currentPrecipProb -gt $script:MEDIUM_PRECIP_THRESHOLD) { "Yellow" } else { $DefaultColor }
+        Write-Host "Precipitation: $currentPrecipProb% chance" -ForegroundColor $precipColor
     }
 
     # Safely display API update time with validation
