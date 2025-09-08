@@ -563,7 +563,7 @@ function Test-IsDaytime {
 # Function: Convert NWS weather icon URLs to appropriate emoji
 # Maps NWS icon conditions to emoji with day/night variants for better visual representation
 # Prioritizes precipitation-related conditions when present
-function Get-WeatherIcon ($iconUrl, $isDaytime = $true) {
+function Get-WeatherIcon ($iconUrl, $isDaytime = $true, $precipProb = 0) {
     if (-not $iconUrl) { return "" }
     
     # Extract weather condition from NWS icon URL
@@ -573,7 +573,7 @@ function Get-WeatherIcon ($iconUrl, $isDaytime = $true) {
         # Prioritize precipitation-related conditions when present
         # Check for precipitation conditions first (highest priority)
         if ($condition -match "tsra") { return "⛈️" }  # Thunderstorm
-        if ($condition -match "rain") { return "🌧️" }  # Rain
+        if ($condition -match "rain" -and $precipProb -ge 50) { return "🌧️" }  # Rain (only if >= 50% chance)
         if ($condition -match "snow") { return "❄️" }  # Snow
         if ($condition -match "fzra") { return "🧊" }  # Freezing rain
         
@@ -597,12 +597,17 @@ function Get-WeatherIcon ($iconUrl, $isDaytime = $true) {
             if ($isDaytime) { return "☀️" } else { return "🌙" }
         }  # Clear
         
-        # Default fallback
-        if ($isDaytime) { return "🌡️" } else { return "🌙" }
+        # Check for other common cloud patterns that might not be caught above
+        if ($condition -match "cloud") { return "☁️" }  # Generic cloud
+        if ($condition -match "shower") { return "☁️" }  # Showers (cloudy with precipitation)
+        if ($condition -match "drizzle") { return "☁️" }  # Drizzle (light rain, cloudy)
+        
+        # Default fallback - use cloud emoji instead of thermometer for unknown conditions
+        if ($isDaytime) { return "☁️" } else { return "🌙" }
     }
     
     # Default fallback if URL parsing fails
-    if ($isDaytime) { return "🌡️" } else { return "🌙" }
+    if ($isDaytime) { return "☁️" } else { return "🌙" }
 }
 
 # Function: Detect if running in Cursor/VS Code terminal
@@ -817,7 +822,7 @@ function Show-HourlyForecast {
         
         # Determine if this period is during day or night using NWS API isDaytime property
         $isPeriodDaytime = Test-IsDaytime $period
-        $periodIcon = Get-WeatherIcon $period.icon $isPeriodDaytime
+        $periodIcon = Get-WeatherIcon $period.icon $isPeriodDaytime $precipProb
         
         # Color code temperature
         $tempColor = if ([int]$temp -lt $script:COLD_TEMP_THRESHOLD -or [int]$temp -gt $script:HOT_TEMP_THRESHOLD) { $AlertColor } else { $DefaultColor }
@@ -883,7 +888,7 @@ function Show-SevenDayForecast {
         
         # Determine if this period is during day or night using NWS API isDaytime property
         $isPeriodDaytime = Test-IsDaytime $period
-        $periodIcon = Get-WeatherIcon $period.icon $isPeriodDaytime
+        $periodIcon = Get-WeatherIcon $period.icon $isPeriodDaytime $precipProb
         
         # Find the corresponding night period for high/low
         $nightTemp = $null
@@ -1202,7 +1207,7 @@ elseif ($Daily.IsPresent) {
 $isCurrentlyDaytime = Test-IsDaytime $currentPeriod
 
 # Output the results.
-$weatherIcon = Get-WeatherIcon $currentIcon $isCurrentlyDaytime
+$weatherIcon = Get-WeatherIcon $currentIcon $isCurrentlyDaytime $currentPrecipProb
 
 # Display the weather report using the refactored function
 Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $currentTimeLocal -TodayForecast $todayForecast -TomorrowForecast $tomorrowForecast -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo
