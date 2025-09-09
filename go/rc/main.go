@@ -49,7 +49,7 @@ func printUsage() {
 	fmt.Println()
 
 	color.Yellow("USAGE")
-	fmt.Println("    rc \"<command>\" [period] [-p]")
+	fmt.Println("    rc \"<command>\" [period] [-p] [-s]")
 	fmt.Println()
 
 	color.Yellow("PARAMETERS")
@@ -62,6 +62,9 @@ func printUsage() {
 	color.Cyan("  -p, -precision")
 	fmt.Println("    Optional. Enables precision mode to prevent timing drift.")
 	fmt.Println()
+	color.Cyan("  -s, -silent")
+	fmt.Println("    Optional. Enables silent mode to suppress status output messages.")
+	fmt.Println()
 
 	color.Yellow("EXAMPLES")
 	color.Green("    rc \"go run main.go\" 1")
@@ -69,6 +72,12 @@ func printUsage() {
 	fmt.Println()
 	color.Green("    rc \"gw Portland\" 10 -p")
 	fmt.Println("    Runs the 'gw' command on a fixed 10-minute schedule.")
+	fmt.Println()
+	color.Green("    rc \"date\" 1 -s")
+	fmt.Println("    Runs 'date' every minute in silent mode, suppressing status messages.")
+	fmt.Println()
+	color.Green("    rc \"my-script.sh\" 5 -p -s")
+	fmt.Println("    Runs 'my-script.sh' every 5 minutes with precision timing and silent output.")
 	fmt.Println()
 }
 
@@ -78,12 +87,15 @@ func main() {
 	var commandStr string
 	period := 5 // Default period in minutes
 	var precision bool
+	var silent bool
 	var nonFlagArgs []string
 
 	for _, arg := range os.Args[1:] {
 		switch arg {
 		case "-p", "-precision":
 			precision = true
+		case "-s", "-silent":
+			silent = true
 		case "-h", "-help":
 			printUsage()
 			os.Exit(0)
@@ -139,24 +151,32 @@ func main() {
 	}
 
 	// --- Initial Output ---
-	fmt.Printf("Running \"%s\" every %d minute(s). Press Ctrl+C to stop.\n\n", commandStr, period)
+	if !silent {
+		fmt.Printf("Running \"%s\" every %d minute(s). Press Ctrl+C to stop.\n\n", commandStr, period)
+	}
 	var scriptStartTime time.Time
 	if precision {
 		scriptStartTime = time.Now()
-		color.Cyan("Precision mode is enabled. Aligning to grid starting at %s.", scriptStartTime.Format("15:04:05"))
+		if !silent {
+			color.Cyan("Precision mode is enabled. Aligning to grid starting at %s.", scriptStartTime.Format("15:04:05"))
+		}
 	}
 
 	// --- Main Execution Loop ---
 	periodDuration := time.Duration(period) * time.Minute
 	for {
 		loopStartTime := time.Now()
-		color.White("(%s) Executing command...", loopStartTime.Format("15:04:05"))
+		if !silent {
+			color.White("(%s) Executing command...", loopStartTime.Format("15:04:05"))
+		}
 		executeCommand(commandStr)
 
 		if !precision {
 			// Standard mode: Wait for the full period after the command finishes.
-			color.White("Waiting %d minute(s). Press Ctrl+C to stop.\n", period)
-			fmt.Println() // Extra newline to match PS script's `n
+			if !silent {
+				color.White("Waiting %d minute(s). Press Ctrl+C to stop.\n", period)
+				fmt.Println() // Extra newline to match PS script's `n
+			}
 			time.Sleep(periodDuration)
 		} else {
 			// Precision mode: Account for execution time to maintain a fixed grid.
@@ -169,10 +189,14 @@ func main() {
 			sleepDuration := nextTargetTime.Sub(currentTime)
 
 			if sleepDuration.Seconds() > 0 {
-				color.White("Command took %.2fs. Waiting for %.0fs. Next run at %s.\nPress Ctrl+C to stop.\n", commandDuration.Seconds(), math.Round(sleepDuration.Seconds()), nextTargetTime.Format("15:04:05"))
+				if !silent {
+					color.White("Command took %.2fs. Waiting for %.0fs. Next run at %s.\nPress Ctrl+C to stop.\n", commandDuration.Seconds(), math.Round(sleepDuration.Seconds()), nextTargetTime.Format("15:04:05"))
+				}
 				time.Sleep(sleepDuration)
 			} else {
-				color.Yellow("WARNING: Command execution time (%.2fs) overran its schedule. Running next iteration immediately.\n", commandDuration.Seconds())
+				if !silent {
+					color.Yellow("WARNING: Command execution time (%.2fs) overran its schedule. Running next iteration immediately.\n", commandDuration.Seconds())
+				}
 			}
 		}
 	}

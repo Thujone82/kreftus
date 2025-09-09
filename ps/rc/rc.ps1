@@ -27,6 +27,12 @@
     interval from the start of the previous one. This prevents timing drift.
     Alias: -p
 
+.PARAMETER Silent
+    A switch to enable "Silent Mode". When enabled, the script suppresses status
+    output messages such as execution timing and wait periods, while still
+    displaying the actual command output and any errors.
+    Alias: -s
+
 .EXAMPLE
     .\rc.ps1 "Get-Process -Name 'chrome' | Stop-Process -Force" 1
     
@@ -44,6 +50,11 @@
     If a run starts at 10:00:00 and takes 20 seconds, the next run will be scheduled for exactly 10:10:00.
     If a run takes 11 minutes, it will finish late, and the script will immediately start the next run to get back on schedule.
 
+.EXAMPLE
+    .\rc.ps1 "Get-Date" 1 -Silent
+
+    Runs 'Get-Date' every minute in silent mode, suppressing status messages while still showing the date output.
+
 .NOTES
     To stop the script, press Ctrl+C in the terminal window where it is running.
 #>
@@ -56,7 +67,11 @@ param(
 
     [Parameter(Mandatory=$false, HelpMessage="Enables precision mode to account for command execution time.")]
     [Alias('p')]
-    [switch]$Precision
+    [switch]$Precision,
+
+    [Parameter(Mandatory=$false, HelpMessage="Enables silent mode to suppress status output messages.")]
+    [Alias('s')]
+    [switch]$Silent
 )
 
 if (-not $Command) {
@@ -74,16 +89,20 @@ if (-not $Command) {
     }
 }
 
-Write-Host "Running `"$Command`" every $Period minute(s). Press Ctrl+C to stop.`n"
+if (-not $Silent.IsPresent) {
+    Write-Host "Running `"$Command`" every $Period minute(s). Press Ctrl+C to stop.`n"
+}
 $scriptStartTime = Get-Date
-if ($Precision.IsPresent) {
+if ($Precision.IsPresent -and -not $Silent.IsPresent) {
     Write-Host "Precision mode is enabled. Aligning to grid starting at $($scriptStartTime.ToString('HH:mm:ss'))." -ForegroundColor Cyan
 }
 
 while ($true) {
     $loopStartTime = Get-Date
     try {
-        Write-Host "($(Get-Date -Format 'HH:mm:ss')) Executing command..."
+        if (-not $Silent.IsPresent) {
+            Write-Host "($(Get-Date -Format 'HH:mm:ss')) Executing command..."
+        }
         Invoke-Expression $Command
     }
     catch {
@@ -102,14 +121,20 @@ while ($true) {
         $sleepTimeSpan = $nextTargetTime - $currentTime
 
         if ($sleepTimeSpan.TotalSeconds -gt 0) {
-            Write-Host "Command took $($commandDuration.TotalSeconds.ToString('F2'))s. Waiting for $([math]::Round($sleepTimeSpan.TotalSeconds, 0))s. Next run at $($nextTargetTime.ToString('HH:mm:ss')).`nPress Ctrl+C to stop."
+            if (-not $Silent.IsPresent) {
+                Write-Host "Command took $($commandDuration.TotalSeconds.ToString('F2'))s. Waiting for $([math]::Round($sleepTimeSpan.TotalSeconds, 0))s. Next run at $($nextTargetTime.ToString('HH:mm:ss')).`nPress Ctrl+C to stop."
+            }
             Start-Sleep -Seconds $sleepTimeSpan.TotalSeconds
         } else {
-            Write-Warning "Command execution time ($($commandDuration.TotalSeconds.ToString('F2'))s) overran its schedule. Running next iteration immediately."
+            if (-not $Silent.IsPresent) {
+                Write-Warning "Command execution time ($($commandDuration.TotalSeconds.ToString('F2'))s) overran its schedule. Running next iteration immediately."
+            }
         }
     } else {
         # Original behavior
-        Write-Host "Waiting $Period minute(s). Press Ctrl+C to stop.`n"
+        if (-not $Silent.IsPresent) {
+            Write-Host "Waiting $Period minute(s). Press Ctrl+C to stop.`n"
+        }
         Start-Sleep -Seconds ($Period * 60)
     }
 }

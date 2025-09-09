@@ -1,6 +1,6 @@
 # rc - RunContinuously v1 (RC v1)
 
-## Version 1.2
+## Version 1.3
 
 ## Author
 Kreft&Gemini
@@ -16,6 +16,7 @@ The application can run in two modes: a standard mode that waits for a fixed dur
 - **Two Timing Modes:**
   - **Standard Mode (Default):** Waits for the full period *after* the command has finished executing. Simple and straightforward.
   - **Precision Mode (`-p`):** Accounts for the command's execution time to ensure each new run starts on a fixed, predictable schedule. Ideal for tasks requiring consistent timing.
+- **Silent Mode (`-s`):** Suppresses status output messages such as execution timing and wait periods, while still displaying the actual command output and any errors. Perfect for logging scenarios.
 - **Interactive Mode:** If run without any arguments, `rc` will interactively prompt you for the command, period, and timing mode.
 - **Cross-Platform:** The included `build.ps1` script compiles native executables for both Windows and Linux.
 - **Color-coded Output:** Provides clear, colorized feedback for execution status and timing information.
@@ -41,6 +42,9 @@ The application can run in two modes: a standard mode that waits for a fixed dur
 - `-p`, `-precision`
   - A switch to enable "Precision Mode".
 
+- `-s`, `-silent`
+  - A switch to enable "Silent Mode".
+
 ## Examples
 
 ### Example 1: Run a command every 10 minutes
@@ -53,7 +57,17 @@ The application can run in two modes: a standard mode that waits for a fixed dur
 ./rc -p -period 1 ".\my-data-logger.ps1"
 ```
 
-### Example 3: Run in interactive mode
+### Example 3: Run in silent mode
+```sh
+./rc -s -period 1 "date"
+```
+
+### Example 4: Combined precision and silent modes
+```sh
+./rc -p -s -period 5 "my-monitor.sh"
+```
+
+### Example 5: Run in interactive mode
 ```sh
 ./rc
 ```
