@@ -792,6 +792,14 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Extend session timeout without changing comparison baseline
 			if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeInteractive {
 				m.sessionStartTime = time.Now()
+
+				// Visual feedback: flash the screen
+				m.flashUntil = time.Now().Add(300 * time.Millisecond)
+
+				// Audio feedback: brief beep if sound is enabled
+				if m.soundEnabled {
+					playSound(800, 200)
+				}
 			}
 		case "g":
 			if m.mode == modeLanding {
