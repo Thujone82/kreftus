@@ -1124,12 +1124,13 @@ function Format-DailyLine {
 
 $windSpeed = Get-WindSpeed $currentWind
 
-# Convert API update time to local time
+# Parse API update time (already in local timezone, no conversion needed)
 $currentTimeLocal = $null
 Write-Verbose "Raw update time from API: $currentTime"
 try {
     if ($currentTime -and $currentTime -ne "") {
-        $currentTimeLocal = ([DateTime]::Parse($currentTime)).ToLocalTime()
+        # NWS API returns times in the local timezone, so no conversion is needed
+        $currentTimeLocal = [DateTime]::Parse($currentTime)
         Write-Verbose "Successfully parsed update time: $currentTimeLocal"
     } else {
         Write-Verbose "Update time is null or empty"
