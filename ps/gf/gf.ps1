@@ -1124,21 +1124,53 @@ function Format-DailyLine {
 
 $windSpeed = Get-WindSpeed $currentWind
 
-# Parse API update time (already in local timezone, no conversion needed)
+# Parse API update time and adjust for daylight saving time
 $currentTimeLocal = $null
 Write-Verbose "Raw update time from API: $currentTime"
+Write-Verbose "Location timezone: $timeZone"
 try {
     if ($currentTime -and $currentTime -ne "") {
-        # NWS API returns times in the local timezone, so no conversion is needed
-        $currentTimeLocal = [DateTime]::Parse($currentTime)
-        Write-Verbose "Successfully parsed update time: $currentTimeLocal"
+        # Parse the time from the API
+        $parsedTime = [DateTime]::Parse($currentTime)
+        
+        # Get the timezone info for the location
+        $locationTimeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById($timeZone)
+        
+        # Check if daylight saving time is currently in effect for the location
+        $isDstInEffect = $locationTimeZone.IsDaylightSavingTime($parsedTime)
+        Write-Verbose "DST in effect for location: $isDstInEffect"
+        
+        # Check if daylight saving time is currently in effect for local timezone
+        $localTimeZone = [System.TimeZoneInfo]::Local
+        $isLocalDstInEffect = $localTimeZone.IsDaylightSavingTime($parsedTime)
+        Write-Verbose "DST in effect for local: $isLocalDstInEffect"
+        
+        # Apply DST adjustment - NWS API doesn't handle DST, so we need to add 1 hour when DST is in effect
+        if ($isLocalDstInEffect) {
+            # Local timezone is in DST, so add 1 hour to account for NWS API not handling DST
+            $parsedTime = $parsedTime.AddHours(1)
+            Write-Verbose "Applied DST adjustment: +1 hour (NWS API doesn't handle DST)"
+        }
+        
+        # Convert from the location's timezone to local time
+        $currentTimeLocal = [System.TimeZoneInfo]::ConvertTime($parsedTime, $locationTimeZone, $localTimeZone)
+        
+        Write-Verbose "Successfully parsed and converted update time: $currentTimeLocal"
     } else {
         Write-Verbose "Update time is null or empty"
     }
 }
 catch {
     Write-Verbose "Error parsing API update time: $currentTime - $($_.Exception.Message)"
-    $currentTimeLocal = $null
+    # Fallback to simple parsing if timezone conversion fails
+    try {
+        $currentTimeLocal = [DateTime]::Parse($currentTime)
+        Write-Verbose "Fallback parsing successful: $currentTimeLocal"
+    }
+    catch {
+        Write-Verbose "Fallback parsing also failed: $($_.Exception.Message)"
+        $currentTimeLocal = $null
+    }
 }
 
 # Define color scheme for weather display
