@@ -74,6 +74,8 @@ type game struct {
 	gameOver     bool
 	enteringName bool
 	nameBuffer   string
+	// Start screen
+	showStartScreen bool
 }
 
 type scoreEntry struct {
@@ -130,6 +132,7 @@ func main() {
 	if len(g.highScores) > 0 {
 		g.historyTop = g.highScores[0].Score
 	}
+	g.showStartScreen = true
 	g.initLevel(1)
 
 	events := make(chan tcell.Event, 64)
@@ -259,13 +262,26 @@ func (g *game) createLanes() {
 			lanesThisRoad = 8
 		}
 		// Adjust density and speed by level
-		densityFactor := 0.5 + 0.05*float64(max(0, g.level-1)) // 0.5 at L1, +5% each level
-		speedFactor := 0.67 + 0.05*float64(max(0, g.level-1))  // ~33% slower at L1, +5% each level
-		if densityFactor > 1.5 {
-			densityFactor = 1.5
+		var densityFactor, speedFactor float64
+		if g.level <= 5 {
+			// Original progression for levels 1-5
+			densityFactor = 0.5 + 0.05*float64(max(0, g.level-1)) // 0.5 at L1, +5% each level
+			speedFactor = 0.67 + 0.05*float64(max(0, g.level-1))  // ~33% slower at L1, +5% each level
+		} else {
+			// New progression after level 5
+			// Speed increases each level after 5
+			speedFactor = 0.92 + 0.08*float64(g.level-5) // Start at 0.92, +8% each level after 5
+			// Density only increases every 5 levels after level 5 (at levels 10, 15, 20, etc.)
+			densityIncreases := (g.level - 5) / 5
+			densityFactor = 0.75 + 0.1*float64(densityIncreases) // Start at 0.75, +10% every 5 levels
 		}
-		if speedFactor > 1.25 {
-			speedFactor = 1.25
+
+		// Apply caps
+		if densityFactor > 2.0 {
+			densityFactor = 2.0
+		}
+		if speedFactor > 2.0 {
+			speedFactor = 2.0
 		}
 
 		for li := 0; li < lanesThisRoad && y < h-1; li++ {
@@ -337,6 +353,12 @@ func (g *game) createLanes() {
 }
 
 func (g *game) handleInput(e *tcell.EventKey) {
+	// Handle start screen
+	if g.showStartScreen {
+		// Any key press starts the game
+		g.showStartScreen = false
+		return
+	}
 	// ignore inputs for a brief period after death/gameover to prevent buffered arrows into name field
 	if time.Now().Before(g.acceptInputAfter) {
 		return
@@ -525,6 +547,13 @@ func (g *game) render() {
 	s.Clear()
 	w, h := g.width, g.height
 
+	// Show start screen if active
+	if g.showStartScreen {
+		g.drawStartScreen()
+		s.Show()
+		return
+	}
+
 	// Background fill (safe rows visually distinct)
 	for y := 0; y < h; y++ {
 		var bg tcell.Color
@@ -659,6 +688,7 @@ func (g *game) resetGame() {
 	g.frogY = g.safeBottomY
 	g.highestY = g.frogY
 	g.gameOver = false
+	g.showStartScreen = true
 	g.acceptInputAfter = time.Now().Add(200 * time.Millisecond)
 	// fresh start: no decay until first move
 	g.scoreTimerActive = false
@@ -897,4 +927,84 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func getLarryASCII() []string {
+	return []string{
+		"+------------------------------+",
+		"| L     AAA  RRRR  RRRR  Y   Y |",
+		"| L    A   A R   R R   R  Y Y  |",
+		"| L    AAAAA RRRR  RRRR    Y   |",
+		"| L    A   A R  R  R  R    Y   |",
+		"| LLLL A   A R   R R   R   Y   |",
+		"+------------------------------+",
+	}
+}
+
+func (g *game) drawStartScreen() {
+	w, h := g.width, g.height
+	if w <= 0 || h <= 0 {
+		return
+	}
+
+	// Fill background with a nice gradient-like pattern
+	for y := 0; y < h; y++ {
+		var bg tcell.Color
+		switch y % 3 {
+		case 0:
+			bg = g.theme.road
+		case 1:
+			bg = g.theme.river
+		default:
+			bg = g.theme.safe
+		}
+		st := tcell.StyleDefault.Background(bg)
+		for x := 0; x < w; x++ {
+			g.screen.SetContent(x, y, ' ', nil, st)
+		}
+	}
+
+	// Get ASCII art
+	ascii := getLarryASCII()
+	asciiHeight := len(ascii)
+	startY := h/2 - asciiHeight/2 - 3
+
+	// Draw ASCII art
+	titleStyle := tcell.StyleDefault.Foreground(g.theme.frog).Bold(true)
+	for i, line := range ascii {
+		y := startY + i
+		if y >= 0 && y < h {
+			drawCentered(g.screen, w/2, y, line, titleStyle)
+		}
+	}
+
+	// Draw high score with player name and date
+	highScoreY := startY + asciiHeight + 2
+	if highScoreY >= 0 && highScoreY < h {
+		var highScoreText string
+		if len(g.highScores) > 0 {
+			topScore := g.highScores[0]
+			highScoreText = fmt.Sprintf("High Score: %d by %s (%s)", topScore.Score, topScore.Name, topScore.Date)
+		} else {
+			highScoreText = "High Score: 0"
+		}
+		scoreStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Bold(true)
+		drawCentered(g.screen, w/2, highScoreY, highScoreText, scoreStyle)
+	}
+
+	// Draw start prompt
+	promptY := highScoreY + 3
+	if promptY >= 0 && promptY < h {
+		promptText := "Press any key to start"
+		promptStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite).Bold(true)
+		drawCentered(g.screen, w/2, promptY, promptText, promptStyle)
+	}
+
+	// Draw controls help
+	helpY := promptY + 2
+	if helpY >= 0 && helpY < h {
+		helpText := "Use arrow keys or WASD to move"
+		helpStyle := tcell.StyleDefault.Foreground(tcell.ColorLightGray)
+		drawCentered(g.screen, w/2, helpY, helpText, helpStyle)
+	}
 }
