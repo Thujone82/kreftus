@@ -60,6 +60,17 @@ param(
 # Force TLS 1.2.
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
+# Global error handler for 503 Server Unavailable errors
+$ErrorActionPreference = "Stop"
+trap {
+    if ($_.Exception.Message -match "503.*Server Unavailable" -or $_.Exception.Message -match "503 Server Unavailable") {
+        Write-Host "The server is not currently available, try again later." -ForegroundColor Red
+        exit 1
+    } else {
+        throw
+    }
+}
+
 # Ensure Unicode output (degree symbol, emoji) renders correctly
 try {
     [System.Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -160,7 +171,11 @@ function Start-ApiJob {
             return $response | ConvertTo-Json -Depth 10
         }
         catch {
-            throw "Failed to retrieve data from job: $($_.Exception.Message)"
+            if ($_.Exception.Message -match "503.*Server Unavailable") {
+                throw "503 Server Unavailable"
+            } else {
+                throw "Failed to retrieve data from job: $($_.Exception.Message)"
+            }
         }
     } -ArgumentList $Url, $Headers
     
