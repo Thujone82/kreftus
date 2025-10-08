@@ -49,7 +49,10 @@ param(
     [switch]$Daily,
 
     [Alias('x')]
-    [switch]$NoInteractive
+    [switch]$NoInteractive,
+
+    [Alias('r')]
+    [switch]$Rain
 )
 
 # --- Helper Functions ---
@@ -86,7 +89,7 @@ $script:MAX_DAILY_FORECAST_DAYS = 7
 $userAgent = $script:USER_AGENT
 
 # --- HELP LOGIC ---
-if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or $NoInteractive.IsPresent) -and -not $Location)) {
+if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or $Rain.IsPresent -or $NoInteractive.IsPresent) -and -not $Location)) {
     Write-Host "Usage: .\gf.ps1 [ZipCode | `"City, State`"] [Options] [-Verbose]" -ForegroundColor Green
     Write-Host " • Provide a 5-digit zipcode or a City, State (e.g., 'Portland, OR')." -ForegroundColor Cyan
     Write-Host ""
@@ -94,6 +97,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host "  -t, -Terse    Show only current conditions and today's forecast" -ForegroundColor Cyan
     Write-Host "  -h, -Hourly   Show only the hourly forecast (up to $($script:MAX_HOURLY_FORECAST_HOURS) hours)" -ForegroundColor Cyan
     Write-Host "  -d, -Daily    Show only the $($script:MAX_DAILY_FORECAST_DAYS)-day forecast summary" -ForegroundColor Cyan
+    Write-Host "  -r, -Rain     Show rain likelihood forecast with sparklines (exits immediately)" -ForegroundColor Cyan
     Write-Host "  -x, -NoInteractive Exit immediately (no interactive mode)" -ForegroundColor Cyan
     Write-Host ""
          Write-Host "Interactive Mode:" -ForegroundColor Blue
@@ -123,6 +127,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host "  .\gf.ps1 `"Portland, OR`" -h" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 97219 -d For Daily Forecast" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 97219 -h -x For Hourly Forecast and Exit" -ForegroundColor Cyan
+    Write-Host "  .\gf.ps1 97219 -r For Rain Likelihood Forecast" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 -Help" -ForegroundColor Cyan
     return
 }
@@ -1086,6 +1091,75 @@ function Show-FullWeatherReport {
     }
 }
 
+# Function to map rain percentage to sparkline character and color
+function Get-RainSparkline {
+    param([int]$RainPercent)
+    
+    if ($RainPercent -le 10) { return @{Char="▁"; Color="Cyan"} }
+    elseif ($RainPercent -le 25) { return @{Char="▂"; Color="Cyan"} }
+    elseif ($RainPercent -le 40) { return @{Char="▃"; Color="Yellow"} }
+    elseif ($RainPercent -le 65) { return @{Char="▄"; Color="Yellow"} }
+    elseif ($RainPercent -le 80) { return @{Char="▅"; Color="Red"} }
+    else { return @{Char="▆"; Color="Red"} }
+}
+
+# Function to display rain likelihood forecast with sparklines
+function Show-RainForecast {
+    param(
+        [object]$HourlyData,
+        [string]$TitleColor,
+        [string]$DefaultColor
+    )
+    
+    Write-Host ""
+    Write-Host "*** Rain Likelihood Forecast ***" -ForegroundColor $TitleColor
+    
+    $hourlyPeriods = $hourlyData.properties.periods
+    $totalHours = [Math]::Min($hourlyPeriods.Count, 96)  # Use 96 hours for rain mode
+    
+    # Group periods by day
+    $daysData = @{}
+    foreach ($period in $hourlyPeriods[0..($totalHours-1)]) {
+        $periodTime = [DateTime]::Parse($period.startTime)
+        $dayKey = $periodTime.ToString("yyyy-MM-dd")
+        $hour = $periodTime.Hour
+        
+        if (-not $daysData.ContainsKey($dayKey)) {
+            $daysData[$dayKey] = @{}
+        }
+        $daysData[$dayKey][$hour] = $period
+    }
+    
+    # Get sorted day keys
+    $sortedDays = $daysData.Keys | Sort-Object
+    $dayCount = 0
+    
+    foreach ($dayKey in $sortedDays) {
+        if ($dayCount -ge 5) { break }  # Limit to 5 days
+        
+        $periodTime = [DateTime]::Parse($dayKey)
+        $dayName = $periodTime.ToString("ddd")
+        $dayData = $daysData[$dayKey]
+        
+        # Write day name in white
+        Write-Host "$dayName " -ForegroundColor White -NoNewline
+        
+        # Build sparkline for this day (24 hours: 00:00 to 23:00)
+        for ($hour = 0; $hour -lt 24; $hour++) {
+            if ($dayData.ContainsKey($hour)) {
+                $period = $dayData[$hour]
+                $rainPercent = if ($period.probabilityOfPrecipitation.value) { $period.probabilityOfPrecipitation.value } else { 0 }
+                $sparklineData = Get-RainSparkline $rainPercent
+                Write-Host $sparklineData.Char -ForegroundColor $sparklineData.Color -NoNewline
+            } else {
+                Write-Host " " -ForegroundColor $DefaultColor -NoNewline  # Blank for no data
+            }
+        }
+        Write-Host ""  # New line after each day
+        $dayCount++
+    }
+}
+
 # Function to build a formatted daily forecast line with proper alignment
 function Format-DailyLine {
     param(
@@ -1203,6 +1277,17 @@ elseif ($Daily.IsPresent) {
     $showAlerts = $false
     $showLocationInfo = $false
 }
+elseif ($Rain.IsPresent) {
+    # Rain mode: Show only rain likelihood forecast with sparklines, then exit
+    $showCurrentConditions = $false
+    $showTodayForecast = $false
+    $showTomorrowForecast = $false
+    $showHourlyForecast = $false
+    $showSevenDayForecast = $false
+    $showAlerts = $false
+    $showLocationInfo = $false
+    $NoInteractive = $true  # Rain mode implies -x (no interactive mode)
+}
 
 # Determine if it's currently day or night using NWS API isDaytime property
 $isCurrentlyDaytime = Test-IsDaytime $currentPeriod
@@ -1211,7 +1296,12 @@ $isCurrentlyDaytime = Test-IsDaytime $currentPeriod
 $weatherIcon = Get-WeatherIcon $currentIcon $isCurrentlyDaytime $currentPrecipProb
 
 # Display the weather report using the refactored function
-Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $currentTimeLocal -TodayForecast $todayForecast -TomorrowForecast $tomorrowForecast -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo
+if ($Rain.IsPresent) {
+    # Rain mode: Show only rain likelihood forecast with sparklines
+    Show-RainForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor
+} else {
+    Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $currentTimeLocal -TodayForecast $todayForecast -TomorrowForecast $tomorrowForecast -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo
+}
 
 # Detect if we're in an interactive environment that supports ReadKey
 $isInteractiveEnvironment = $false

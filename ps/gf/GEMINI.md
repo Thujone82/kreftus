@@ -3,8 +3,8 @@
 ## Project: gf (Get Forecast) - NWS Edition
 
 **Author:** Kreft&Cursor
-**Date:** 2025-08-16
-**Version:** 2.0
+**Date:** 2025-01-27
+**Version:** 2.1
 
 ---
 
@@ -18,14 +18,15 @@ The script is designed for ease of use, accepting flexible location inputs like 
 
 - **No API Key Required:** Uses the free National Weather Service API which requires no registration or API key.
 - **Flexible Location Input:** Can determine latitude and longitude from either a 5-digit US zip code or a "City, State" formatted string.
-- **Comprehensive Data Display:** Shows current temperature, conditions, detailed forecasts for today and tomorrow, and wind information.
+- **Comprehensive Data Display:** Shows current temperature, conditions, detailed forecasts for today and tomorrow, wind information, and rain likelihood forecasts with visual sparklines.
 - **Weather Alerts:** Automatically fetches and displays any active weather alerts (e.g., warnings, watches) from official sources.
-- **Color-Coded Metrics:** Key data points (temperature, wind speed) change color to red to indicate potentially hazardous conditions.
+- **Color-Coded Metrics:** Key data points (temperature, wind speed) change color to red to indicate potentially hazardous conditions. Rain likelihood sparklines use color coding (cyan for low, yellow for medium, red for high probability).
 - **Multiple Display Modes:**
   - **Full Mode (default):** Shows all available weather information
   - **Terse Mode (`-t`):** Shows only current conditions and today's forecast (plus alerts)
   - **Hourly Mode (`-h`):** Shows only the 12-hour hourly forecast
   - **7-Day Mode (`-7` or `-d`):** Shows only the 7-day forecast summary
+  - **Rain Forecast Mode (`-r` or `-rain`):** Shows rain likelihood forecast with visual sparklines for 96 hours
   - **No-Interactive Mode (`-x`):** Exits immediately after displaying data (perfect for scripting)
 - **Interactive Mode:** When run from non-terminal environments, provides keyboard shortcuts for dynamic view switching:
   - **[H]** - Switch to hourly forecast only
@@ -109,6 +110,12 @@ Due to differences between the OpenWeatherMap and National Weather Service APIs,
 # Get terse forecast and exit immediately
 .\gf.ps1 -t -x 97219
 
+# Get rain likelihood forecast with sparklines
+.\gf.ps1 97219 -r
+
+# Get rain forecast for city and state
+.\gf.ps1 -rain "Portland, OR"
+
 # View help
 .\gf.ps1 -Help
 ```
@@ -157,6 +164,47 @@ The interactive mode uses PowerShell's `$Host.UI.RawUI.ReadKey()` method to capt
 - **Comprehensive Review:** Use [F] to see all available weather information
 - **Scripting & Automation:** Use `-x` flag for automated weather checks in scripts, cron jobs, or scheduled tasks
 
+### Rain Forecast Mode (v2.1)
+
+The rain forecast mode (`-r` or `-rain`) is a unique feature that provides visual representation of rain likelihood over the next 96 hours using sparklines. This mode is particularly useful for planning outdoor activities and understanding precipitation patterns.
+
+#### Rain Forecast Features:
+
+- **96-Hour Coverage:** Shows rain probability for the next 4 days (96 hours)
+- **Visual Sparklines:** Each character represents one hour of rain likelihood
+- **Color-Coded Intensity:**
+  - **Cyan** (▁▂): Low rain likelihood (0-25%)
+  - **Yellow** (▃▄): Medium rain likelihood (26-65%)
+  - **Red** (▅▆): High rain likelihood (66%+)
+- **Day-by-Day Display:** Up to 5 days shown with abbreviated day names
+- **Hourly Precision:** Each sparkline character represents one hour (00:00 to 23:00)
+- **Automatic Exit:** No interactive mode - displays data and exits immediately
+
+#### Rain Forecast Use Cases:
+
+- **Outdoor Planning:** Identify dry periods for events and activities
+- **Travel Planning:** Understand precipitation timing for trips
+- **Quick Assessment:** Visual overview of rain patterns at a glance
+- **Activity Scheduling:** Plan outdoor activities during low-rain periods
+- **Precipitation Analysis:** Understand rain intensity and timing patterns
+
+#### Technical Implementation:
+
+The rain forecast mode uses the same NWS hourly forecast data but processes it differently:
+- Groups hourly data by day for display
+- Maps rain probability percentages to sparkline characters
+- Applies color coding based on probability thresholds
+- Handles missing data gracefully with blank spaces
+- Uses 96-hour data limit for comprehensive coverage
+
+### Recent Enhancements (v2.1)
+
+- **Rain Forecast Mode:** Added visual sparkline representation of rain likelihood over 96 hours
+- **Enhanced Color Coding:** Implemented color-coded sparklines for rain probability visualization
+- **Extended Forecast Coverage:** Rain mode uses 96-hour data instead of standard 12-hour limit
+- **Improved Visual Design:** Better sparkline characters that don't interfere with each other
+- **Comprehensive Documentation:** Updated README and project documentation
+
 ### Future Enhancements
 
 Potential improvements could include:
@@ -167,3 +215,5 @@ Potential improvements could include:
 - Additional display modes for specific use cases
 - Export functionality for weather data
 - Integration with calendar/scheduling applications
+- Interactive rain forecast mode with scrolling capabilities
+- Additional sparkline visualizations for other weather metrics (temperature, wind, etc.)

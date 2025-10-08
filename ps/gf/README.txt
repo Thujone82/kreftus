@@ -16,9 +16,11 @@ The script first uses a geocoding service to determine the latitude and longitud
   - Detailed daily and tomorrow forecasts.
   - Wind speed and direction.
   - Weather alerts and warnings.
+  - Rain likelihood forecast with visual sparklines.
 - **Smart Color-Coding:** Important metrics are color-coded for quick assessment:
   - **Temperature:** Turns red if below 33°F or above 89°F.
   - **Wind:** Turns red if wind speed is 16 mph or greater.
+  - **Rain Likelihood:** Color-coded sparklines show rain probability at a glance.
 - **Weather Alerts:** Automatically displays any active weather alerts (e.g., warnings, watches) for the location.
 - **Quick Link:** Provides a direct URL to the weather.gov forecast map for the location.
 - **Smart Exit:** If run from an environment other than a standard command prompt (like by double-clicking), it will pause and wait for user input before closing the window.
@@ -100,6 +102,13 @@ To change the font in Windows Terminal:
   - Same as `-7` (shows only the 7-day forecast summary).
   - Alternative flag for the same functionality.
 
+- `-Rain` or `-r` [switch]
+  - Shows rain likelihood forecast with sparklines for the next 96 hours (4 days).
+  - Displays up to 5 days of hourly rain probability data in a visual sparkline format.
+  - Uses color-coded sparklines: Cyan (low), Yellow (medium), Red (high) rain likelihood.
+  - Automatically exits after display (no interactive mode).
+  - Perfect for quick rain planning and outdoor activity scheduling.
+
 - `-NoInteractive` or `-x` [switch]
   - Exits immediately after displaying weather data (no interactive mode).
   - Perfect for scripting and automation scenarios.
@@ -137,7 +146,17 @@ To change the font in Windows Terminal:
 .\gf.ps1 -t -x 97219
 ```
 
-### Example 7: View help information
+### Example 7: Get rain likelihood forecast with sparklines
+```powershell
+.\gf.ps1 -r 97219
+```
+
+### Example 8: Get rain forecast for city and state
+```powershell
+.\gf.ps1 -rain "Portland, OR"
+```
+
+### Example 9: View help information
 ```powershell
 .\gf.ps1 -Help
 ```
@@ -173,6 +192,49 @@ Interactive mode automatically activates when the script detects it's not runnin
 - Running from certain development environments
 
 **Note:** Interactive mode can be disabled using the `-x` or `-NoInteractive` flag, which is useful for scripting and automation scenarios.
+
+## Rain Forecast Mode
+
+The rain forecast mode (`-r` or `-rain`) provides a unique visual representation of rain likelihood over the next 96 hours using sparklines. This mode is perfect for planning outdoor activities and understanding precipitation patterns.
+
+### Rain Forecast Features:
+
+- **96-Hour Coverage:** Shows rain probability for the next 4 days (96 hours)
+- **Visual Sparklines:** Each character represents one hour of rain likelihood
+- **Color-Coded Intensity:**
+  - **Cyan** (▁▂): Low rain likelihood (0-25%)
+  - **Yellow** (▃▄): Medium rain likelihood (26-65%)
+  - **Red** (▅▆): High rain likelihood (66%+)
+- **Day-by-Day Display:** Up to 5 days shown with abbreviated day names
+- **Hourly Precision:** Each sparkline character represents one hour (00:00 to 23:00)
+- **Automatic Exit:** No interactive mode - displays data and exits immediately
+
+### Rain Forecast Usage:
+
+```powershell
+# Basic rain forecast
+.\gf.ps1 -r 97219
+
+# Rain forecast for city/state
+.\gf.ps1 -rain "Portland, OR"
+
+# Rain forecast with verbose output
+.\gf.ps1 -r 97219 -Verbose
+```
+
+### Reading the Rain Forecast:
+
+- **Day Labels:** White text showing abbreviated day names (Mon, Tue, Wed, etc.)
+- **Sparkline Characters:** Visual representation of rain likelihood for each hour
+- **Color Coding:** Instantly identify high-risk periods for rain
+- **Time Alignment:** Each character represents one hour, aligned from 00:00 to 23:00
+- **Missing Data:** Hours without forecast data show as blank spaces
+
+This mode is particularly useful for:
+- Planning outdoor events and activities
+- Understanding precipitation timing
+- Identifying dry periods for travel
+- Quick visual assessment of rain patterns
 
 ## Notes
 - The National Weather Service API is free and requires no API key.
