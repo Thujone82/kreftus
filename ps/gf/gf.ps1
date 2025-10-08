@@ -1095,7 +1095,8 @@ function Show-FullWeatherReport {
 function Get-RainSparkline {
     param([int]$RainPercent)
     
-    if ($RainPercent -le 10) { return @{Char="▁"; Color="Cyan"} }
+    if ($RainPercent -eq 0) { return @{Char=" "; Color="White"} }
+    elseif ($RainPercent -le 10) { return @{Char="▁"; Color="Cyan"} }
     elseif ($RainPercent -le 25) { return @{Char="▂"; Color="Cyan"} }
     elseif ($RainPercent -le 40) { return @{Char="▃"; Color="Yellow"} }
     elseif ($RainPercent -le 65) { return @{Char="▄"; Color="Yellow"} }

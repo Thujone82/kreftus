@@ -202,7 +202,8 @@ The rain forecast mode (`-r` or `-rain`) provides a unique visual representation
 - **96-Hour Coverage:** Shows rain probability for the next 4 days (96 hours)
 - **Visual Sparklines:** Each character represents one hour of rain likelihood
 - **Color-Coded Intensity:**
-  - **Cyan** (▁▂): Low rain likelihood (0-25%)
+  - **Blank** ( ): No rain likelihood (0%)
+  - **Cyan** (▁▂): Low rain likelihood (1-25%)
   - **Yellow** (▃▄): Medium rain likelihood (26-65%)
   - **Red** (▅▆): High rain likelihood (66%+)
 - **Day-by-Day Display:** Up to 5 days shown with abbreviated day names
