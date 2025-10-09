@@ -52,7 +52,10 @@ param(
     [switch]$NoInteractive,
 
     [Alias('r')]
-    [switch]$Rain
+    [switch]$Rain,
+
+    [Alias('w')]
+    [switch]$Wind
 )
 
 # --- Helper Functions ---
@@ -100,7 +103,7 @@ $script:MAX_DAILY_FORECAST_DAYS = 7
 $userAgent = $script:USER_AGENT
 
 # --- HELP LOGIC ---
-if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or $Rain.IsPresent -or $NoInteractive.IsPresent) -and -not $Location)) {
+if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or $Rain.IsPresent -or $Wind.IsPresent -or $NoInteractive.IsPresent) -and -not $Location)) {
     Write-Host "Usage: .\gf.ps1 [ZipCode | `"City, State`"] [Options] [-Verbose]" -ForegroundColor Green
     Write-Host " • Provide a 5-digit zipcode or a City, State (e.g., 'Portland, OR')." -ForegroundColor Cyan
     Write-Host ""
@@ -109,6 +112,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host "  -h, -Hourly   Show only the hourly forecast (up to $($script:MAX_HOURLY_FORECAST_HOURS) hours)" -ForegroundColor Cyan
     Write-Host "  -d, -Daily    Show only the $($script:MAX_DAILY_FORECAST_DAYS)-day forecast summary" -ForegroundColor Cyan
     Write-Host "  -r, -Rain     Show rain likelihood forecast with sparklines (exits immediately)" -ForegroundColor Cyan
+    Write-Host "  -w, -Wind     Show wind outlook forecast with direction glyphs (exits immediately)" -ForegroundColor Cyan
     Write-Host "  -x, -NoInteractive Exit immediately (no interactive mode)" -ForegroundColor Cyan
     Write-Host ""
          Write-Host "Interactive Mode:" -ForegroundColor Blue
@@ -139,6 +143,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host "  .\gf.ps1 97219 -d For Daily Forecast" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 97219 -h -x For Hourly Forecast and Exit" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 97219 -r For Rain Likelihood Forecast" -ForegroundColor Cyan
+    Write-Host "  .\gf.ps1 97219 -w For Wind Outlook Forecast" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 -Help" -ForegroundColor Cyan
     return
 }
@@ -1119,6 +1124,46 @@ function Get-RainSparkline {
     else { return @{Char="▇"; Color="Red"} }
 }
 
+# Function to map wind direction to glyph and get wind speed color
+function Get-WindGlyph {
+    param(
+        [string]$WindDirection,
+        [int]$WindSpeed
+    )
+    
+    # Wind direction glyphs (N, NE, E, SE, S, SW, W, NW)
+    $directionMap = @{
+        "N" = 0; "NNE" = 0; "NNW" = 0
+        "NE" = 1; "ENE" = 1
+        "E" = 2; "ESE" = 2
+        "SE" = 3; "SSE" = 3
+        "S" = 4; "SSW" = 4
+        "SW" = 5; "WSW" = 5
+        "W" = 6; "WNW" = 6
+        "NW" = 7
+    }
+    
+    # Get direction index (default to 0 for N if not found)
+    $dirIndex = if ($directionMap.ContainsKey($WindDirection)) { $directionMap[$WindDirection] } else { 0 }
+    
+    # Choose glyph set based on wind speed
+    if ($WindSpeed -lt 7) {
+        $glyphs = @("△", "◹", "▷", "◿", "▽", "◺", "◁", "◸")
+    } else {
+        $glyphs = @("▲", "◥", "▶", "◢", "▼", "◣", "◀", "◤")
+    }
+    
+    $glyph = $glyphs[$dirIndex]
+    
+    # Get color based on wind speed
+    $color = if ($WindSpeed -le 5) { "White" }
+            elseif ($WindSpeed -le 9) { "Yellow" }
+            elseif ($WindSpeed -le 14) { "Red" }
+            else { "Magenta" }
+    
+    return @{Char=$glyph; Color=$color}
+}
+
 # Function to display rain likelihood forecast with sparklines
 function Show-RainForecast {
     param(
@@ -1128,7 +1173,7 @@ function Show-RainForecast {
     )
     
     Write-Host ""
-    Write-Host "*** Rain Likelihood Forecast ***" -ForegroundColor $TitleColor
+    Write-Host "       *** Rain Outlook ***" -ForegroundColor $TitleColor
     
     $hourlyPeriods = $hourlyData.properties.periods
     $totalHours = [Math]::Min($hourlyPeriods.Count, 96)  # Use 96 hours for rain mode
@@ -1190,6 +1235,82 @@ function Show-RainForecast {
                 $rainPercent = if ($period.probabilityOfPrecipitation.value) { $period.probabilityOfPrecipitation.value } else { 0 }
                 $sparklineData = Get-RainSparkline $rainPercent
                 Write-Host $sparklineData.Char -ForegroundColor $sparklineData.Color -NoNewline
+            } else {
+                Write-Host " " -ForegroundColor $DefaultColor -NoNewline  # Blank for no data
+            }
+        }
+        Write-Host ""  # New line after each day
+        $dayCount++
+    }
+}
+
+# Function to display wind outlook forecast with direction glyphs
+function Show-WindForecast {
+    param(
+        [object]$HourlyData,
+        [string]$TitleColor,
+        [string]$DefaultColor
+    )
+    
+    Write-Host ""
+    Write-Host "       *** Wind Outlook ***" -ForegroundColor Green
+    
+    $hourlyPeriods = $hourlyData.properties.periods
+    $totalHours = [Math]::Min($hourlyPeriods.Count, 96)  # Use 96 hours for wind mode
+    
+    # Group periods by day
+    $daysData = @{}
+    foreach ($period in $hourlyPeriods[0..($totalHours-1)]) {
+        $periodTime = [DateTime]::Parse($period.startTime)
+        $dayKey = $periodTime.ToString("yyyy-MM-dd")
+        $hour = $periodTime.Hour
+        
+        if (-not $daysData.ContainsKey($dayKey)) {
+            $daysData[$dayKey] = @{}
+        }
+        $daysData[$dayKey][$hour] = $period
+    }
+    
+    # Get sorted day keys
+    $sortedDays = $daysData.Keys | Sort-Object
+    $dayCount = 0
+    
+    foreach ($dayKey in $sortedDays) {
+        if ($dayCount -ge 5) { break }  # Limit to 5 days
+        
+        $periodTime = [DateTime]::Parse($dayKey)
+        $dayName = $periodTime.ToString("ddd")
+        $dayData = $daysData[$dayKey]
+        
+        # Find the highest wind speed for this day
+        $maxWindSpeed = 0
+        foreach ($hour in $dayData.Keys) {
+            $period = $dayData[$hour]
+            $windSpeed = Get-WindSpeed $period.windSpeed
+            if ($windSpeed -gt $maxWindSpeed) {
+                $maxWindSpeed = $windSpeed
+            }
+        }
+        
+        # Get color for the highest wind speed
+        $maxWindColor = if ($maxWindSpeed -le 5) { "White" }
+                       elseif ($maxWindSpeed -le 9) { "Yellow" }
+                       elseif ($maxWindSpeed -le 14) { "Red" }
+                       else { "Magenta" }
+        
+        # Write day name and max wind speed with color coding and proper padding
+        Write-Host "$dayName " -ForegroundColor White -NoNewline
+        $paddedSpeed = if ($maxWindSpeed -lt 10) { " $maxWindSpeed" } else { "$maxWindSpeed" }
+        Write-Host "${paddedSpeed}mph " -ForegroundColor $maxWindColor -NoNewline
+        
+        # Build wind glyphs for this day (24 hours: 00:00 to 23:00)
+        for ($hour = 0; $hour -lt 24; $hour++) {
+            if ($dayData.ContainsKey($hour)) {
+                $period = $dayData[$hour]
+                $windSpeed = Get-WindSpeed $period.windSpeed
+                $windDirection = $period.windDirection
+                $windGlyphData = Get-WindGlyph $windDirection $windSpeed
+                Write-Host $windGlyphData.Char -ForegroundColor $windGlyphData.Color -NoNewline
             } else {
                 Write-Host " " -ForegroundColor $DefaultColor -NoNewline  # Blank for no data
             }
@@ -1327,6 +1448,17 @@ elseif ($Rain.IsPresent) {
     $showLocationInfo = $false
     $NoInteractive = $true  # Rain mode implies -x (no interactive mode)
 }
+elseif ($Wind.IsPresent) {
+    # Wind mode: Show only wind outlook forecast with direction glyphs, then exit
+    $showCurrentConditions = $false
+    $showTodayForecast = $false
+    $showTomorrowForecast = $false
+    $showHourlyForecast = $false
+    $showSevenDayForecast = $false
+    $showAlerts = $false
+    $showLocationInfo = $false
+    $NoInteractive = $true  # Wind mode implies -x (no interactive mode)
+}
 
 # Determine if it's currently day or night using NWS API isDaytime property
 $isCurrentlyDaytime = Test-IsDaytime $currentPeriod
@@ -1338,6 +1470,9 @@ $weatherIcon = Get-WeatherIcon $currentIcon $isCurrentlyDaytime $currentPrecipPr
 if ($Rain.IsPresent) {
     # Rain mode: Show only rain likelihood forecast with sparklines
     Show-RainForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor
+} elseif ($Wind.IsPresent) {
+    # Wind mode: Show only wind outlook forecast with direction glyphs
+    Show-WindForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor
 } else {
     Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $currentTimeLocal -TodayForecast $todayForecast -TomorrowForecast $tomorrowForecast -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo
 }

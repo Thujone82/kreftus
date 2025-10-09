@@ -17,10 +17,12 @@ The script first uses a geocoding service to determine the latitude and longitud
   - Wind speed and direction.
   - Weather alerts and warnings.
   - Rain likelihood forecast with visual sparklines.
+  - Wind outlook forecast with direction glyphs.
 - **Smart Color-Coding:** Important metrics are color-coded for quick assessment:
   - **Temperature:** Turns red if below 33°F or above 89°F.
   - **Wind:** Turns red if wind speed is 16 mph or greater.
   - **Rain Likelihood:** Color-coded sparklines show rain probability at a glance.
+  - **Wind Outlook:** Color-coded directional glyphs show wind patterns and intensity.
 - **Weather Alerts:** Automatically displays any active weather alerts (e.g., warnings, watches) for the location.
 - **Quick Link:** Provides a direct URL to the weather.gov forecast map for the location.
 - **Smart Exit:** If run from an environment other than a standard command prompt (like by double-clicking), it will pause and wait for user input before closing the window.
@@ -109,6 +111,13 @@ To change the font in Windows Terminal:
   - Automatically exits after display (no interactive mode).
   - Perfect for quick rain planning and outdoor activity scheduling.
 
+- `-Wind` or `-w` [switch]
+  - Shows wind outlook forecast with direction glyphs for the next 96 hours (4 days).
+  - Displays up to 5 days of hourly wind direction and speed data in a visual glyph format.
+  - Uses color-coded directional glyphs: White (calm), Yellow (light), Red (moderate), Magenta (strong).
+  - Automatically exits after display (no interactive mode).
+  - Perfect for wind assessment and outdoor activity planning.
+
 - `-NoInteractive` or `-x` [switch]
   - Exits immediately after displaying weather data (no interactive mode).
   - Perfect for scripting and automation scenarios.
@@ -156,7 +165,17 @@ To change the font in Windows Terminal:
 .\gf.ps1 -rain "Portland, OR"
 ```
 
-### Example 9: View help information
+### Example 9: Get wind outlook forecast with direction glyphs
+```powershell
+.\gf.ps1 -w 97219
+```
+
+### Example 10: Get wind forecast for city and state
+```powershell
+.\gf.ps1 -wind "Portland, OR"
+```
+
+### Example 11: View help information
 ```powershell
 .\gf.ps1 -Help
 ```
@@ -236,6 +255,52 @@ This mode is particularly useful for:
 - Understanding precipitation timing
 - Identifying dry periods for travel
 - Quick visual assessment of rain patterns
+
+## Wind Forecast Mode
+
+The wind forecast mode (`-w` or `-wind`) provides a unique visual representation of wind patterns over the next 96 hours using directional glyphs. This mode is perfect for understanding wind patterns, planning outdoor activities, and assessing wind conditions.
+
+### Wind Forecast Features:
+
+- **96-Hour Coverage:** Shows wind direction and speed for the next 4 days (96 hours)
+- **Visual Direction Glyphs:** Each character represents one hour of wind direction and speed
+- **Color-Coded Intensity:**
+  - **White**: Calm conditions (≤5mph)
+  - **Yellow**: Light breeze (>5mph and ≤9mph)
+  - **Red**: Moderate wind (>9mph and ≤14mph)
+  - **Magenta**: Strong wind (>14mph)
+- **Day-by-Day Display:** Up to 5 days shown with abbreviated day names
+- **Hourly Precision:** Each glyph represents one hour (00:00 to 23:00)
+- **Automatic Exit:** No interactive mode - displays data and exits immediately
+
+### Wind Forecast Usage:
+
+```powershell
+# Basic wind forecast
+.\gf.ps1 -w 97219
+
+# Wind forecast for city/state
+.\gf.ps1 -wind "Portland, OR"
+
+# Wind forecast with verbose output
+.\gf.ps1 -w 97219 -Verbose
+```
+
+### Reading the Wind Forecast:
+
+- **Day Labels:** White text showing abbreviated day names (Mon, Tue, Wed, etc.)
+- **Max Wind Speed:** Highest wind speed for each day with color coding
+- **Direction Glyphs:** Visual representation of wind direction and intensity for each hour
+- **Color Coding:** Instantly identify wind intensity levels
+- **Time Alignment:** Each glyph represents one hour, aligned from 00:00 to 23:00
+- **Missing Data:** Hours without forecast data show as blank spaces
+
+This mode is particularly useful for:
+- Planning outdoor activities and wind-dependent sports
+- Understanding wind patterns and direction changes
+- Identifying calm periods for outdoor events
+- Quick visual assessment of wind conditions
+- Planning wind-dependent activities (sailing, flying, etc.)
 
 ## Notes
 - The National Weather Service API is free and requires no API key.

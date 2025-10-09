@@ -18,15 +18,16 @@ The script is designed for ease of use, accepting flexible location inputs like 
 
 - **No API Key Required:** Uses the free National Weather Service API which requires no registration or API key.
 - **Flexible Location Input:** Can determine latitude and longitude from either a 5-digit US zip code or a "City, State" formatted string.
-- **Comprehensive Data Display:** Shows current temperature, conditions, detailed forecasts for today and tomorrow, wind information, and rain likelihood forecasts with visual sparklines.
+- **Comprehensive Data Display:** Shows current temperature, conditions, detailed forecasts for today and tomorrow, wind information, rain likelihood forecasts with visual sparklines, and wind outlook forecasts with direction glyphs.
 - **Weather Alerts:** Automatically fetches and displays any active weather alerts (e.g., warnings, watches) from official sources.
-- **Color-Coded Metrics:** Key data points (temperature, wind speed) change color to red to indicate potentially hazardous conditions. Rain likelihood sparklines use color coding (cyan for low, yellow for medium, red for high probability).
+- **Color-Coded Metrics:** Key data points (temperature, wind speed) change color to red to indicate potentially hazardous conditions. Rain likelihood sparklines use color coding (cyan for low, yellow for medium, red for high probability). Wind outlook glyphs use color coding (white for calm, yellow for light breeze, red for moderate wind, magenta for strong wind).
 - **Multiple Display Modes:**
   - **Full Mode (default):** Shows all available weather information
   - **Terse Mode (`-t`):** Shows only current conditions and today's forecast (plus alerts)
   - **Hourly Mode (`-h`):** Shows only the 12-hour hourly forecast
   - **7-Day Mode (`-7` or `-d`):** Shows only the 7-day forecast summary
   - **Rain Forecast Mode (`-r` or `-rain`):** Shows rain likelihood forecast with visual sparklines for 96 hours
+  - **Wind Forecast Mode (`-w` or `-wind`):** Shows wind outlook forecast with direction glyphs for 96 hours
   - **No-Interactive Mode (`-x`):** Exits immediately after displaying data (perfect for scripting)
 - **Interactive Mode:** When run from non-terminal environments, provides keyboard shortcuts for dynamic view switching:
   - **[H]** - Switch to hourly forecast only
@@ -116,6 +117,12 @@ Due to differences between the OpenWeatherMap and National Weather Service APIs,
 # Get rain forecast for city and state
 .\gf.ps1 -rain "Portland, OR"
 
+# Get wind outlook forecast with direction glyphs
+.\gf.ps1 97219 -w
+
+# Get wind forecast for city and state
+.\gf.ps1 -wind "Portland, OR"
+
 # View help
 .\gf.ps1 -Help
 ```
@@ -198,12 +205,48 @@ The rain forecast mode uses the same NWS hourly forecast data but processes it d
 - Handles missing data gracefully with blank spaces
 - Uses 96-hour data limit for comprehensive coverage
 
+### Wind Forecast Mode (v2.1)
+
+The wind forecast mode (`-w` or `-wind`) provides a unique visual representation of wind patterns over the next 96 hours using directional glyphs. This mode is particularly useful for understanding wind patterns, planning outdoor activities, and assessing wind conditions.
+
+#### Wind Forecast Features:
+
+- **96-Hour Coverage:** Shows wind direction and speed for the next 4 days (96 hours)
+- **Visual Direction Glyphs:** Each character represents one hour of wind direction and speed
+- **Color-Coded Intensity:**
+  - **White**: Calm conditions (≤5mph)
+  - **Yellow**: Light breeze (>5mph and ≤9mph)
+  - **Red**: Moderate wind (>9mph and ≤14mph)
+  - **Magenta**: Strong wind (>14mph)
+- **Day-by-Day Display:** Up to 5 days shown with abbreviated day names
+- **Hourly Precision:** Each glyph represents one hour (00:00 to 23:00)
+- **Automatic Exit:** No interactive mode - displays data and exits immediately
+
+#### Wind Forecast Use Cases:
+
+- **Outdoor Planning:** Identify calm periods for outdoor activities
+- **Wind Assessment:** Understand wind patterns and direction changes
+- **Activity Scheduling:** Plan wind-dependent activities (sailing, flying, etc.)
+- **Quick Assessment:** Visual overview of wind conditions at a glance
+- **Direction Analysis:** Track wind direction changes throughout the day
+
+#### Technical Implementation:
+
+The wind forecast mode uses the same NWS hourly forecast data but processes it differently:
+- Groups hourly data by day for display
+- Maps wind direction to directional glyphs (N, NE, E, SE, S, SW, W, NW)
+- Applies color coding based on wind speed thresholds
+- Uses different glyph sets for light winds (<7mph) vs strong winds (≥7mph)
+- Handles missing data gracefully with blank spaces
+- Uses 96-hour data limit for comprehensive coverage
+
 ### Recent Enhancements (v2.1)
 
 - **Rain Forecast Mode:** Added visual sparkline representation of rain likelihood over 96 hours
-- **Enhanced Color Coding:** Implemented color-coded sparklines for rain probability visualization
-- **Extended Forecast Coverage:** Rain mode uses 96-hour data instead of standard 12-hour limit
-- **Improved Visual Design:** Better sparkline characters that don't interfere with each other
+- **Wind Forecast Mode:** Added visual directional glyph representation of wind patterns over 96 hours
+- **Enhanced Color Coding:** Implemented color-coded sparklines for rain probability and wind speed visualization
+- **Extended Forecast Coverage:** Both rain and wind modes use 96-hour data instead of standard 12-hour limit
+- **Improved Visual Design:** Better sparkline characters and directional glyphs that don't interfere with each other
 - **Comprehensive Documentation:** Updated README and project documentation
 
 ### Future Enhancements
