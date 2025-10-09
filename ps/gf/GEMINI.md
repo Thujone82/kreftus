@@ -20,7 +20,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
 - **Flexible Location Input:** Can determine latitude and longitude from either a 5-digit US zip code or a "City, State" formatted string.
 - **Comprehensive Data Display:** Shows current temperature, conditions, detailed forecasts for today and tomorrow, wind information, rain likelihood forecasts with visual sparklines, and wind outlook forecasts with direction glyphs.
 - **Weather Alerts:** Automatically fetches and displays any active weather alerts (e.g., warnings, watches) from official sources.
-- **Color-Coded Metrics:** Key data points (temperature, wind speed) change color to red to indicate potentially hazardous conditions. Rain likelihood sparklines use color coding (white for very low, cyan for low, green for light, yellow for medium, red for high probability). Wind outlook glyphs use color coding (white for calm, yellow for light breeze, red for moderate wind, magenta for strong wind).
+- **Color-Coded Metrics:** Key data points (temperature, wind speed) change color to red to indicate potentially hazardous conditions. Rain likelihood sparklines use color coding (white for very low, cyan for low, green for light, yellow for medium, red for high probability). Wind outlook glyphs use color coding (white for calm, yellow for light breeze, red for moderate wind, magenta for strong wind) with peak wind hours highlighted using inverted colors.
 - **Multiple Display Modes:**
   - **Full Mode (default):** Shows all available weather information
   - **Terse Mode (`-t`):** Shows only current conditions and today's forecast (plus alerts)
@@ -222,6 +222,7 @@ The wind forecast mode (`-w` or `-wind`) provides a unique visual representation
   - **Magenta**: Strong wind (>14mph)
 - **Day-by-Day Display:** Up to 5 days shown with abbreviated day names
 - **Hourly Precision:** Each glyph represents one hour (00:00 to 23:00)
+- **Peak Wind Highlighting:** Hours with the highest wind speed for each day are displayed with inverted colors (black text on colored background)
 - **Automatic Exit:** No interactive mode - displays data and exits immediately
 
 #### Wind Forecast Use Cases:
@@ -231,6 +232,7 @@ The wind forecast mode (`-w` or `-wind`) provides a unique visual representation
 - **Activity Scheduling:** Plan wind-dependent activities (sailing, flying, etc.)
 - **Quick Assessment:** Visual overview of wind conditions at a glance
 - **Direction Analysis:** Track wind direction changes throughout the day
+- **Peak Wind Identification:** Instantly spot the strongest wind hours for each day
 
 #### Technical Implementation:
 
@@ -247,6 +249,7 @@ The wind forecast mode uses the same NWS hourly forecast data but processes it d
 - **Rain Forecast Mode:** Added visual sparkline representation of rain likelihood over 96 hours
 - **Wind Forecast Mode:** Added visual directional glyph representation of wind patterns over 96 hours
 - **Enhanced Color Coding:** Implemented color-coded sparklines for rain probability and wind speed visualization
+- **Peak Wind Highlighting:** Added visual feedback mechanism that inverts colors for peak wind hours
 - **Extended Forecast Coverage:** Both rain and wind modes use 96-hour data instead of standard 12-hour limit
 - **Improved Visual Design:** Better sparkline characters and directional glyphs that don't interfere with each other
 - **Comprehensive Documentation:** Updated README and project documentation

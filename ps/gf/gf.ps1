@@ -112,7 +112,12 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host "  -h, -Hourly   Show only the hourly forecast (up to $($script:MAX_HOURLY_FORECAST_HOURS) hours)" -ForegroundColor Cyan
     Write-Host "  -d, -Daily    Show only the $($script:MAX_DAILY_FORECAST_DAYS)-day forecast summary" -ForegroundColor Cyan
     Write-Host "  -r, -Rain     Show rain likelihood forecast with sparklines (exits immediately)" -ForegroundColor Cyan
+    Write-Host "                • 96-hour visual sparklines with color-coded intensity" -ForegroundColor Gray
+    Write-Host "                • White (0%), White (1-10%), Cyan (11-33%), Green (34-40%), Yellow (41-80%), Red (81%+)" -ForegroundColor Gray
     Write-Host "  -w, -Wind     Show wind outlook forecast with direction glyphs (exits immediately)" -ForegroundColor Cyan
+    Write-Host "                • 96-hour directional glyphs with color-coded wind speed" -ForegroundColor Gray
+    Write-Host "                • White (≤5mph), Yellow (6-9mph), Red (10-14mph), Magenta (15mph+)" -ForegroundColor Gray
+    Write-Host "                • Peak wind hours highlighted with inverted colors" -ForegroundColor Gray
     Write-Host "  -x, -NoInteractive Exit immediately (no interactive mode)" -ForegroundColor Cyan
     Write-Host ""
          Write-Host "Interactive Mode:" -ForegroundColor Blue
@@ -1319,7 +1324,16 @@ function Show-WindForecast {
                 $windSpeed = Get-WindSpeed $period.windSpeed
                 $windDirection = $period.windDirection
                 $windGlyphData = Get-WindGlyph $windDirection $windSpeed
-                Write-Host $windGlyphData.Char -ForegroundColor $windGlyphData.Color -NoNewline
+                
+                # Check if this hour matches the peak wind speed for the day
+                # Visual feedback: Invert colors (black text on colored background) for peak wind hours
+                if ($windSpeed -eq $maxWindSpeed) {
+                    # Invert colors for peak wind hours - makes them stand out visually
+                    Write-Host $windGlyphData.Char -ForegroundColor Black -BackgroundColor $windGlyphData.Color -NoNewline
+                } else {
+                    # Normal colors for non-peak hours
+                    Write-Host $windGlyphData.Char -ForegroundColor $windGlyphData.Color -NoNewline
+                }
             } else {
                 Write-Host " " -ForegroundColor $DefaultColor -NoNewline  # Blank for no data
             }

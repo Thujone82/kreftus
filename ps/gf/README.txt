@@ -22,7 +22,7 @@ The script first uses a geocoding service to determine the latitude and longitud
   - **Temperature:** Turns red if below 33°F or above 89°F.
   - **Wind:** Turns red if wind speed is 16 mph or greater.
   - **Rain Likelihood:** Color-coded sparklines show rain probability at a glance (white for very low, cyan for low, green for light, yellow for medium, red for high).
-  - **Wind Outlook:** Color-coded directional glyphs show wind patterns and intensity.
+  - **Wind Outlook:** Color-coded directional glyphs show wind patterns and intensity, with peak wind hours highlighted using inverted colors.
 - **Weather Alerts:** Automatically displays any active weather alerts (e.g., warnings, watches) for the location.
 - **Quick Link:** Provides a direct URL to the weather.gov forecast map for the location.
 - **Smart Exit:** If run from an environment other than a standard command prompt (like by double-clicking), it will pause and wait for user input before closing the window.
@@ -115,6 +115,7 @@ To change the font in Windows Terminal:
   - Shows wind outlook forecast with direction glyphs for the next 96 hours (4 days).
   - Displays up to 5 days of hourly wind direction and speed data in a visual glyph format.
   - Uses color-coded directional glyphs: White (calm), Yellow (light), Red (moderate), Magenta (strong).
+  - Peak wind hours are highlighted with inverted colors (black text on colored background) for easy identification.
   - Automatically exits after display (no interactive mode).
   - Perfect for wind assessment and outdoor activity planning.
 
@@ -273,6 +274,7 @@ The wind forecast mode (`-w` or `-wind`) provides a unique visual representation
   - **Magenta**: Strong wind (>14mph)
 - **Day-by-Day Display:** Up to 5 days shown with abbreviated day names
 - **Hourly Precision:** Each glyph represents one hour (00:00 to 23:00)
+- **Peak Wind Highlighting:** Hours with the highest wind speed for each day are displayed with inverted colors (black text on colored background)
 - **Automatic Exit:** No interactive mode - displays data and exits immediately
 
 ### Wind Forecast Usage:
@@ -294,6 +296,7 @@ The wind forecast mode (`-w` or `-wind`) provides a unique visual representation
 - **Max Wind Speed:** Highest wind speed for each day with color coding
 - **Direction Glyphs:** Visual representation of wind direction and intensity for each hour
 - **Color Coding:** Instantly identify wind intensity levels
+- **Peak Wind Highlighting:** Hours with the highest wind speed for each day are highlighted with inverted colors
 - **Time Alignment:** Each glyph represents one hour, aligned from 00:00 to 23:00
 - **Missing Data:** Hours without forecast data show as blank spaces
 
