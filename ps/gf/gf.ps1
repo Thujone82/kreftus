@@ -1178,9 +1178,10 @@ function Show-RainForecast {
                        elseif ($maxRainPercent -le 65) { "Yellow" }
                        else { "Red" }
         
-        # Write day name and max percentage with color coding
+        # Write day name and max percentage with color coding and proper padding
         Write-Host "$dayName " -ForegroundColor White -NoNewline
-        Write-Host "$maxRainPercent% " -ForegroundColor $maxRainColor -NoNewline
+        $paddedPercent = if ($maxRainPercent -lt 10) { " $maxRainPercent%" } else { "$maxRainPercent%" }
+        Write-Host "$paddedPercent " -ForegroundColor $maxRainColor -NoNewline
         
         # Build sparkline for this day (24 hours: 00:00 to 23:00)
         for ($hour = 0; $hour -lt 24; $hour++) {
