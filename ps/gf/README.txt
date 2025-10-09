@@ -21,7 +21,7 @@ The script first uses a geocoding service to determine the latitude and longitud
 - **Smart Color-Coding:** Important metrics are color-coded for quick assessment:
   - **Temperature:** Turns red if below 33°F or above 89°F.
   - **Wind:** Turns red if wind speed is 16 mph or greater.
-  - **Rain Likelihood:** Color-coded sparklines show rain probability at a glance.
+  - **Rain Likelihood:** Color-coded sparklines show rain probability at a glance (white for very low, cyan for low, green for light, yellow for medium, red for high).
   - **Wind Outlook:** Color-coded directional glyphs show wind patterns and intensity.
 - **Weather Alerts:** Automatically displays any active weather alerts (e.g., warnings, watches) for the location.
 - **Quick Link:** Provides a direct URL to the weather.gov forecast map for the location.
@@ -107,7 +107,7 @@ To change the font in Windows Terminal:
 - `-Rain` or `-r` [switch]
   - Shows rain likelihood forecast with sparklines for the next 96 hours (4 days).
   - Displays up to 5 days of hourly rain probability data in a visual sparkline format.
-  - Uses color-coded sparklines: Cyan (low), Yellow (medium), Red (high) rain likelihood.
+  - Uses color-coded sparklines: White (very low), Cyan (low), Green (light), Yellow (medium), Red (high) rain likelihood.
   - Automatically exits after display (no interactive mode).
   - Perfect for quick rain planning and outdoor activity scheduling.
 
@@ -221,10 +221,12 @@ The rain forecast mode (`-r` or `-rain`) provides a unique visual representation
 - **96-Hour Coverage:** Shows rain probability for the next 4 days (96 hours)
 - **Visual Sparklines:** Each character represents one hour of rain likelihood
 - **Color-Coded Intensity:**
-  - **Blank** ( ): No rain likelihood (0%)
-  - **Cyan** (▁▂): Low rain likelihood (1-25%)
-  - **Yellow** (▃▄): Medium rain likelihood (26-65%)
-  - **Red** (▅▆): High rain likelihood (66%+)
+  - **White** ( ): No rain likelihood (0%)
+  - **White** (▁): Very low rain likelihood (1-10%)
+  - **Cyan** (▂): Low rain likelihood (11-33%)
+  - **Green** (▃): Light rain likelihood (34-40%)
+  - **Yellow** (▄▅): Medium rain likelihood (41-80%)
+  - **Red** (▇): High rain likelihood (81%+)
 - **Day-by-Day Display:** Up to 5 days shown with abbreviated day names
 - **Hourly Precision:** Each sparkline character represents one hour (00:00 to 23:00)
 - **Automatic Exit:** No interactive mode - displays data and exits immediately

@@ -1112,15 +1112,16 @@ function Show-FullWeatherReport {
 }
 
 # Function to map rain percentage to sparkline character and color
+# Color coding: White (0%), White (1-10%), Cyan (11-33%), Green (34-40%), Yellow (41-80%), Red (81%+)
 function Get-RainSparkline {
     param([int]$RainPercent)
     
     if ($RainPercent -eq 0) { return @{Char=" "; Color="White"} }
-    elseif ($RainPercent -le 10) { return @{Char="▁"; Color="Cyan"} }
+    elseif ($RainPercent -le 10) { return @{Char="▁"; Color="White"} }
     elseif ($RainPercent -le 33) { return @{Char="▂"; Color="Cyan"} }
-    elseif ($RainPercent -le 40) { return @{Char="▃"; Color="Yellow"} }
+    elseif ($RainPercent -le 40) { return @{Char="▃"; Color="Green"} }
     elseif ($RainPercent -le 66) { return @{Char="▄"; Color="Yellow"} }
-    elseif ($RainPercent -le 80) { return @{Char="▆"; Color="Red"} }
+    elseif ($RainPercent -le 80) { return @{Char="▅"; Color="Yellow"} }
     else { return @{Char="▇"; Color="Red"} }
 }
 
@@ -1217,7 +1218,7 @@ function Show-RainForecast {
             $maxRainPercent = 99
         }
         
-        # Get color for the highest percentage
+        # Get color for the highest percentage (White: 0%, Cyan: 1-33%, Yellow: 34-66%, Red: 67%+)
         $maxRainColor = if ($maxRainPercent -eq 0) { "White" }
                        elseif ($maxRainPercent -le 33) { "Cyan" }
                        elseif ($maxRainPercent -le 66) { "Yellow" }
