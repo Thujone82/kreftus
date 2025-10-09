@@ -1119,7 +1119,7 @@ function Get-RainSparkline {
     elseif ($RainPercent -le 10) { return @{Char="▁"; Color="Cyan"} }
     elseif ($RainPercent -le 33) { return @{Char="▂"; Color="Cyan"} }
     elseif ($RainPercent -le 40) { return @{Char="▃"; Color="Yellow"} }
-    elseif ($RainPercent -le 66) { return @{Char="▅"; Color="Yellow"} }
+    elseif ($RainPercent -le 66) { return @{Char="▄"; Color="Yellow"} }
     elseif ($RainPercent -le 80) { return @{Char="▆"; Color="Red"} }
     else { return @{Char="▇"; Color="Red"} }
 }
@@ -1148,9 +1148,9 @@ function Get-WindGlyph {
     
     # Choose glyph set based on wind speed
     if ($WindSpeed -lt 7) {
-        $glyphs = @("△", "◹", "▷", "◿", "▽", "◺", "◁", "◸")
+        $glyphs = @("▽", "◺", "◁", "◸", "△", "◹", "▷", "◿")
     } else {
-        $glyphs = @("▲", "◥", "▶", "◢", "▼", "◣", "◀", "◤")
+        $glyphs = @("▼", "◣", "◀", "◤", "▲", "◥", "▶", "◢")
     }
     
     $glyph = $glyphs[$dirIndex]
