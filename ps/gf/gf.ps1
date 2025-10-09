@@ -1157,8 +1157,30 @@ function Show-RainForecast {
         $dayName = $periodTime.ToString("ddd")
         $dayData = $daysData[$dayKey]
         
-        # Write day name in white
+        # Find the highest rain percentage for this day
+        $maxRainPercent = 0
+        foreach ($hour in $dayData.Keys) {
+            $period = $dayData[$hour]
+            $rainPercent = if ($period.probabilityOfPrecipitation.value) { $period.probabilityOfPrecipitation.value } else { 0 }
+            if ($rainPercent -gt $maxRainPercent) {
+                $maxRainPercent = $rainPercent
+            }
+        }
+        
+        # Cap at 99% to prevent alignment issues
+        if ($maxRainPercent -eq 100) {
+            $maxRainPercent = 99
+        }
+        
+        # Get color for the highest percentage
+        $maxRainColor = if ($maxRainPercent -eq 0) { "White" }
+                       elseif ($maxRainPercent -le 25) { "Cyan" }
+                       elseif ($maxRainPercent -le 65) { "Yellow" }
+                       else { "Red" }
+        
+        # Write day name and max percentage with color coding
         Write-Host "$dayName " -ForegroundColor White -NoNewline
+        Write-Host "$maxRainPercent% " -ForegroundColor $maxRainColor -NoNewline
         
         # Build sparkline for this day (24 hours: 00:00 to 23:00)
         for ($hour = 0; $hour -lt 24; $hour++) {
