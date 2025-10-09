@@ -1170,11 +1170,15 @@ function Show-RainForecast {
     param(
         [object]$HourlyData,
         [string]$TitleColor,
-        [string]$DefaultColor
+        [string]$DefaultColor,
+        [string]$City
     )
     
     Write-Host ""
-    Write-Host "       *** Rain Outlook ***" -ForegroundColor $TitleColor
+    $headerText = "*** $City Rain Outlook ***"
+    $padding = [Math]::Max(0, (34 - $headerText.Length) / 2)
+    $paddedHeader = " " * $padding + $headerText
+    Write-Host $paddedHeader -ForegroundColor $TitleColor
     
     $hourlyPeriods = $hourlyData.properties.periods
     $totalHours = [Math]::Min($hourlyPeriods.Count, 96)  # Use 96 hours for rain mode
@@ -1250,11 +1254,15 @@ function Show-WindForecast {
     param(
         [object]$HourlyData,
         [string]$TitleColor,
-        [string]$DefaultColor
+        [string]$DefaultColor,
+        [string]$City
     )
     
     Write-Host ""
-    Write-Host "       *** Wind Outlook ***" -ForegroundColor Green
+    $headerText = "*** $City Wind Outlook ***"
+    $padding = [Math]::Max(0, (34 - $headerText.Length) / 2)
+    $paddedHeader = " " * $padding + $headerText
+    Write-Host $paddedHeader -ForegroundColor Green
     
     $hourlyPeriods = $hourlyData.properties.periods
     $totalHours = [Math]::Min($hourlyPeriods.Count, 96)  # Use 96 hours for wind mode
@@ -1470,10 +1478,10 @@ $weatherIcon = Get-WeatherIcon $currentIcon $isCurrentlyDaytime $currentPrecipPr
 # Display the weather report using the refactored function
 if ($Rain.IsPresent) {
     # Rain mode: Show only rain likelihood forecast with sparklines
-    Show-RainForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor
+    Show-RainForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
 } elseif ($Wind.IsPresent) {
     # Wind mode: Show only wind outlook forecast with direction glyphs
-    Show-WindForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor
+    Show-WindForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
 } else {
     Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $currentTimeLocal -TodayForecast $todayForecast -TomorrowForecast $tomorrowForecast -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo
 }
