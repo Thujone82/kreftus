@@ -313,14 +313,14 @@ function Invoke-SoundToggle {
 
 function Get-Sparkline {
     param ([System.Collections.Generic.List[double]]$History)
-    if ($null -eq $History -or $History.Count -lt 2) { return "‖            ‖".PadRight(14) }
+    if ($null -eq $History -or $History.Count -lt 2) { return "              ".PadRight(14) }
 
     $sparkChars = [char[]]('▁', '▂', '▃', '▄', '▅', '▆', '▇', '█')
     $minPrice = ($History | Measure-Object -Minimum).Minimum
     $maxPrice = ($History | Measure-Object -Maximum).Maximum
     $priceRange = $maxPrice - $minPrice
 
-    if ($priceRange -eq 0 -or $priceRange -lt 0.00000001) { return "‖$([string]$sparkChars[0] * 12)‖".PadRight(14) }
+    if ($priceRange -eq 0 -or $priceRange -lt 0.00000001) { return ([string]$sparkChars[0] * 14).PadRight(14) }
 
     $sparkline = ""
     foreach ($price in $History) {
@@ -328,15 +328,15 @@ function Get-Sparkline {
         $charIndex = [math]::Floor($normalized * ($sparkChars.Length - 1))
         $sparkline += $sparkChars[$charIndex]
     }
-    # Pad to 12 characters on the left if needed (to make new updates appear from the right)
-    if ($sparkline.Length -lt 12) {
-        $sparkline = $sparkline.PadLeft(12)
+    # Pad to 14 characters on the left if needed (to make new updates appear from the right)
+    if ($sparkline.Length -lt 14) {
+        $sparkline = $sparkline.PadLeft(14)
     }
-    # Truncate to 12 characters if needed (keep the most recent data on the right)
-    if ($sparkline.Length -gt 12) {
-        $sparkline = $sparkline.Substring($sparkline.Length - 12)
+    # Truncate to 14 characters if needed (keep the most recent data on the right)
+    if ($sparkline.Length -gt 14) {
+        $sparkline = $sparkline.Substring($sparkline.Length - 14)
     }
-    return "‖$sparkline‖".PadRight(14)
+    return $sparkline.PadRight(14)
 }
 
 function Get-ConsoleWidth {

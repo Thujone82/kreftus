@@ -410,8 +410,7 @@ func getRetryIndicator() (bool, string, string) {
 
 func getSparkline(history []float64) string {
 	if len(history) < 2 {
-		left, right := getSparkWrappers()
-		return left + strings.Repeat(" ", 12) + right
+		return strings.Repeat(" ", 14)
 	}
 
 	// Choose a charset that renders reliably. On Windows when launched
@@ -432,8 +431,7 @@ func getSparkline(history []float64) string {
 
 	priceRange := maxPrice - minPrice
 	if priceRange < 0.00000001 {
-		left, right := getSparkWrappers()
-		return left + strings.Repeat(" ", 12) + right
+		return strings.Repeat(" ", 14)
 	}
 
 	// Build as runes to measure by glyph count, not bytes
@@ -447,12 +445,12 @@ func getSparkline(history []float64) string {
 		sparkRunes = append(sparkRunes, sparkChars[charIndex])
 	}
 
-	// Ensure exactly 12 glyphs (truncate keeping most recent on the right)
-	if len(sparkRunes) > 12 {
-		sparkRunes = sparkRunes[len(sparkRunes)-12:]
+	// Ensure exactly 14 glyphs (truncate keeping most recent on the right)
+	if len(sparkRunes) > 14 {
+		sparkRunes = sparkRunes[len(sparkRunes)-14:]
 	}
-	if len(sparkRunes) < 12 {
-		pad := make([]rune, 12-len(sparkRunes))
+	if len(sparkRunes) < 14 {
+		pad := make([]rune, 14-len(sparkRunes))
 		for i := range pad {
 			pad[i] = ' '
 		}
@@ -460,11 +458,7 @@ func getSparkline(history []float64) string {
 	}
 	sparkline := string(sparkRunes)
 
-	// Return with wrapper - should always be exactly 14 characters
-	left, right := getSparkWrappers()
-	result := left + sparkline + right
-
-	return result
+	return sparkline
 }
 
 // getSparkChars selects characters for the sparkline that the current
