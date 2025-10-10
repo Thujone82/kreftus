@@ -111,10 +111,10 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host "  -t, -Terse    Show only current conditions and today's forecast" -ForegroundColor Cyan
     Write-Host "  -h, -Hourly   Show only the hourly forecast (up to $($script:MAX_HOURLY_FORECAST_HOURS) hours)" -ForegroundColor Cyan
     Write-Host "  -d, -Daily    Show only the $($script:MAX_DAILY_FORECAST_DAYS)-day forecast summary" -ForegroundColor Cyan
-    Write-Host "  -r, -Rain     Show rain likelihood forecast with sparklines (exits immediately)" -ForegroundColor Cyan
+    Write-Host "  -r, -Rain     Show rain likelihood forecast with sparklines" -ForegroundColor Cyan
     Write-Host "                • 96-hour visual sparklines with color-coded intensity" -ForegroundColor Gray
     Write-Host "                • White (0%), White (1-10%), Cyan (11-33%), Green (34-40%), Yellow (41-80%), Red (81%+)" -ForegroundColor Gray
-    Write-Host "  -w, -Wind     Show wind outlook forecast with direction glyphs (exits immediately)" -ForegroundColor Cyan
+    Write-Host "  -w, -Wind     Show wind outlook forecast with direction glyphs" -ForegroundColor Cyan
     Write-Host "                • 96-hour directional glyphs with color-coded wind speed" -ForegroundColor Gray
     Write-Host "                • White (≤5mph), Yellow (6-9mph), Red (10-14mph), Magenta (15mph+)" -ForegroundColor Gray
     Write-Host "                • Peak wind hours highlighted with inverted colors" -ForegroundColor Gray
@@ -126,6 +126,8 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
      Write-Host "    [H] - Switch to hourly forecast only (with scrolling)" -ForegroundColor Cyan
      Write-Host "    [D] - Switch to $($script:MAX_DAILY_FORECAST_DAYS)-day forecast only" -ForegroundColor Cyan
      Write-Host "    [T] - Switch to terse mode (current + today)" -ForegroundColor Cyan
+     Write-Host "    [R] - Switch to rain forecast mode (sparklines)" -ForegroundColor Cyan
+     Write-Host "    [W] - Switch to wind forecast mode (direction glyphs)" -ForegroundColor Cyan
      Write-Host "    [F] - Return to full display" -ForegroundColor Cyan
      Write-Host "    [Enter] - Exit the script" -ForegroundColor Cyan
      Write-Host "  In hourly mode, use [↑] and [↓] arrows to scroll through all 48 hours" -ForegroundColor Cyan
@@ -147,8 +149,8 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host "  .\gf.ps1 `"Portland, OR`" -h" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 97219 -d For Daily Forecast" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 97219 -h -x For Hourly Forecast and Exit" -ForegroundColor Cyan
-    Write-Host "  .\gf.ps1 97219 -r For Rain Likelihood Forecast" -ForegroundColor Cyan
-    Write-Host "  .\gf.ps1 97219 -w For Wind Outlook Forecast" -ForegroundColor Cyan
+    Write-Host "  .\gf.ps1 97219 -r For Rain Outlook" -ForegroundColor Cyan
+    Write-Host "  .\gf.ps1 97219 -w For Wind Outlook" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 -Help" -ForegroundColor Cyan
     return
 }
@@ -1037,9 +1039,20 @@ function Show-InteractiveControls {
     
     Write-Host ""
     if ($IsHourlyMode) {
-        Write-Host "Scroll[" -ForegroundColor White -NoNewline; Write-Host "↑↓" -ForegroundColor Cyan -NoNewline; Write-Host "], 7-Day[" -ForegroundColor White -NoNewline; Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "], Terse[" -ForegroundColor White -NoNewline; Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "], Full[" -ForegroundColor White -NoNewline; Write-Host "F" -ForegroundColor Cyan -NoNewline; Write-Host "], Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
+        Write-Host "Scroll[" -ForegroundColor White -NoNewline; Write-Host "↑↓" -ForegroundColor Cyan -NoNewline; Write-Host "], " -ForegroundColor White -NoNewline
+        Write-Host "F" -ForegroundColor Cyan -NoNewline; Write-Host "ull " -ForegroundColor White -NoNewline
+        Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "erse " -ForegroundColor White -NoNewline
+        Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "aily " -ForegroundColor White -NoNewline
+        Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "ourly " -ForegroundColor White -NoNewline
+        Write-Host "R" -ForegroundColor Cyan -NoNewline; Write-Host "ain " -ForegroundColor White -NoNewline
+        Write-Host "W" -ForegroundColor Cyan -NoNewline; Write-Host "ind Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
     } else {
-        Write-Host "Hourly[" -ForegroundColor White -NoNewline; Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "], 7-Day[" -ForegroundColor White -NoNewline; Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "], Terse[" -ForegroundColor White -NoNewline; Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "], Full[" -ForegroundColor White -NoNewline; Write-Host "F" -ForegroundColor Cyan -NoNewline; Write-Host "], Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
+        Write-Host "F" -ForegroundColor Cyan -NoNewline; Write-Host "ull " -ForegroundColor White -NoNewline
+        Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "erse " -ForegroundColor White -NoNewline
+        Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "aily " -ForegroundColor White -NoNewline
+        Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "ourly " -ForegroundColor White -NoNewline
+        Write-Host "R" -ForegroundColor Cyan -NoNewline; Write-Host "ain " -ForegroundColor White -NoNewline
+        Write-Host "W" -ForegroundColor Cyan -NoNewline; Write-Host "ind Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
     }
 }
 
@@ -1139,7 +1152,7 @@ function Get-WindGlyph {
     
     # Wind direction glyphs (N, NE, E, SE, S, SW, W, NW)
     $directionMap = @{
-        "N" = 0; "NNE" = 0; "NNW" = 0
+        "N" = 0; "NNE" = 0; "NNW" = 7
         "NE" = 1; "ENE" = 1
         "E" = 2; "ESE" = 2
         "SE" = 3; "SSE" = 3
@@ -1461,7 +1474,7 @@ elseif ($Daily.IsPresent) {
     $showLocationInfo = $false
 }
 elseif ($Rain.IsPresent) {
-    # Rain mode: Show only rain likelihood forecast with sparklines, then exit
+    # Rain mode: Show only rain likelihood forecast with sparklines
     $showCurrentConditions = $false
     $showTodayForecast = $false
     $showTomorrowForecast = $false
@@ -1469,10 +1482,9 @@ elseif ($Rain.IsPresent) {
     $showSevenDayForecast = $false
     $showAlerts = $false
     $showLocationInfo = $false
-    $NoInteractive = $true  # Rain mode implies -x (no interactive mode)
 }
 elseif ($Wind.IsPresent) {
-    # Wind mode: Show only wind outlook forecast with direction glyphs, then exit
+    # Wind mode: Show only wind outlook forecast with direction glyphs
     $showCurrentConditions = $false
     $showTodayForecast = $false
     $showTomorrowForecast = $false
@@ -1480,7 +1492,6 @@ elseif ($Wind.IsPresent) {
     $showSevenDayForecast = $false
     $showAlerts = $false
     $showLocationInfo = $false
-    $NoInteractive = $true  # Wind mode implies -x (no interactive mode)
 }
 
 # Determine if it's currently day or night using NWS API isDaytime property
@@ -1521,14 +1532,31 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
     
     # Interactive mode variables
     $isHourlyMode = $initialHourlyMode
+    $isRainMode = $false  # State tracking for rain forecast mode
+    $isWindMode = $false  # State tracking for wind forecast mode
     $hourlyScrollIndex = 0
     $totalHourlyPeriods = [Math]::Min($hourlyData.properties.periods.Count, 48)  # Limit to 48 hours
+    
+    # Initialize mode state tracking
+    Write-Verbose "Interactive mode initialized - Hourly: $isHourlyMode, Rain: $isRainMode, Wind: $isWindMode"
     
     # If starting in hourly mode, show hourly forecast first
     if ($isHourlyMode) {
         Clear-Host
         Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true
         Show-InteractiveControls -IsHourlyMode $true
+    } elseif ($Rain.IsPresent) {
+        # If starting in rain mode, show rain forecast first
+        Clear-Host
+        $isRainMode = $true
+        Show-RainForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
+        Show-InteractiveControls
+    } elseif ($Wind.IsPresent) {
+        # If starting in wind mode, show wind forecast first
+        Clear-Host
+        $isWindMode = $true
+        Show-WindForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
+        Show-InteractiveControls
     } else {
         # Interactive mode: Listen for keyboard input to switch between display modes
         Show-InteractiveControls
@@ -1543,6 +1571,8 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                 72 { # H key - Switch to hourly forecast only
                     Clear-Host
                     $isHourlyMode = $true
+                    $isRainMode = $false
+                    $isWindMode = $false
                     $hourlyScrollIndex = 0  # Reset to first 12 hours
                     Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true
                     Show-InteractiveControls -IsHourlyMode $true
@@ -1550,12 +1580,16 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                 68 { # D key - Switch to 7-day forecast only
                     Clear-Host
                     $isHourlyMode = $false
+                    $isRainMode = $false
+                    $isWindMode = $false
                     Show-SevenDayForecast -ForecastData $forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor
                     Show-InteractiveControls
                 }
                 84 { # T key - Switch to terse mode (current + today + alerts)
                     Clear-Host
                     $isHourlyMode = $false
+                    $isRainMode = $false
+                    $isWindMode = $false
                     Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $currentTimeLocal -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor
                     Show-ForecastText -Title "Today's Forecast" -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                     Show-WeatherAlerts -AlertsData $alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false
@@ -1564,7 +1598,25 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                 70 { # F key - Switch to full weather report
                     Clear-Host
                     $isHourlyMode = $false
+                    $isRainMode = $false
+                    $isWindMode = $false
                     Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $currentTimeLocal -TodayForecast $todayForecast -TomorrowForecast $tomorrowForecast -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true
+                    Show-InteractiveControls
+                }
+                82 { # R key - Switch to rain forecast mode
+                    Clear-Host
+                    $isHourlyMode = $false
+                    $isRainMode = $true
+                    $isWindMode = $false
+                    Show-RainForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
+                    Show-InteractiveControls
+                }
+                87 { # W key - Switch to wind forecast mode
+                    Clear-Host
+                    $isHourlyMode = $false
+                    $isRainMode = $false
+                    $isWindMode = $true
+                    Show-WindForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
                     Show-InteractiveControls
                 }
                 38 { # Up arrow - Scroll up in hourly mode

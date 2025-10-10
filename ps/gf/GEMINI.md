@@ -33,6 +33,8 @@ The script is designed for ease of use, accepting flexible location inputs like 
   - **[H]** - Switch to hourly forecast only
   - **[D]** - Switch to 7-day forecast only
   - **[T]** - Switch to terse mode
+  - **[R]** - Switch to rain forecast mode (sparklines)
+  - **[W]** - Switch to wind forecast mode (direction glyphs)
   - **[F]** - Return to full display
   - **[Enter]** - Exit the script
 - **Interactive & Scriptable:** Can be run with command-line arguments or interactively, where it will prompt the user for a location.
@@ -188,7 +190,7 @@ The rain forecast mode (`-r` or `-rain`) is a unique feature that provides visua
   - **Red** (▇): High rain likelihood (81%+)
 - **Day-by-Day Display:** Up to 5 days shown with abbreviated day names
 - **Hourly Precision:** Each sparkline character represents one hour (00:00 to 23:00)
-- **Automatic Exit:** No interactive mode - displays data and exits immediately
+- **Interactive Mode:** Enters interactive mode after display (use -x to exit immediately)
 
 #### Rain Forecast Use Cases:
 
@@ -223,7 +225,7 @@ The wind forecast mode (`-w` or `-wind`) provides a unique visual representation
 - **Day-by-Day Display:** Up to 5 days shown with abbreviated day names
 - **Hourly Precision:** Each glyph represents one hour (00:00 to 23:00)
 - **Peak Wind Highlighting:** Hours with the highest wind speed for each day are displayed with inverted colors (black text on colored background)
-- **Automatic Exit:** No interactive mode - displays data and exits immediately
+- **Interactive Mode:** Enters interactive mode after display (use -x to exit immediately)
 
 #### Wind Forecast Use Cases:
 
@@ -248,6 +250,7 @@ The wind forecast mode uses the same NWS hourly forecast data but processes it d
 
 - **Rain Forecast Mode:** Added visual sparkline representation of rain likelihood over 96 hours
 - **Wind Forecast Mode:** Added visual directional glyph representation of wind patterns over 96 hours
+- **Interactive Integration:** Both rain and wind modes now fully integrated into interactive mode
 - **Enhanced Color Coding:** Implemented color-coded sparklines for rain probability and wind speed visualization
 - **Peak Wind Highlighting:** Added visual feedback mechanism that inverts colors for peak wind hours
 - **Extended Forecast Coverage:** Both rain and wind modes use 96-hour data instead of standard 12-hour limit

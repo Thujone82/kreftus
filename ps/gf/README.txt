@@ -30,6 +30,8 @@ The script first uses a geocoding service to determine the latitude and longitud
      - **[H]** - Switch to hourly forecast only
    - **[D]** - Switch to 7-day forecast only  
    - **[T]** - Switch to terse mode (current conditions + today's forecast)
+   - **[R]** - Switch to rain forecast mode (sparklines)
+   - **[W]** - Switch to wind forecast mode (direction glyphs)
    - **[F]** - Return to full display
    - **[Enter]** - Exit the script
 
@@ -108,7 +110,7 @@ To change the font in Windows Terminal:
   - Shows rain likelihood forecast with sparklines for the next 96 hours (4 days).
   - Displays up to 5 days of hourly rain probability data in a visual sparkline format.
   - Uses color-coded sparklines: White (very low), Cyan (low), Green (light), Yellow (medium), Red (high) rain likelihood.
-  - Automatically exits after display (no interactive mode).
+  - Enters interactive mode after display (use -x to exit immediately).
   - Perfect for quick rain planning and outdoor activity scheduling.
 
 - `-Wind` or `-w` [switch]
@@ -116,7 +118,7 @@ To change the font in Windows Terminal:
   - Displays up to 5 days of hourly wind direction and speed data in a visual glyph format.
   - Uses color-coded directional glyphs: White (calm), Yellow (light), Red (moderate), Magenta (strong).
   - Peak wind hours are highlighted with inverted colors (black text on colored background) for easy identification.
-  - Automatically exits after display (no interactive mode).
+  - Enters interactive mode after display (use -x to exit immediately).
   - Perfect for wind assessment and outdoor activity planning.
 
 - `-NoInteractive` or `-x` [switch]
