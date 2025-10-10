@@ -129,7 +129,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
      Write-Host "    [R] - Switch to rain forecast mode (sparklines)" -ForegroundColor Cyan
      Write-Host "    [W] - Switch to wind forecast mode (direction glyphs)" -ForegroundColor Cyan
      Write-Host "    [F] - Return to full display" -ForegroundColor Cyan
-     Write-Host "    [Enter] - Exit the script" -ForegroundColor Cyan
+     Write-Host "    [Enter] or [Esc] - Exit the script" -ForegroundColor Cyan
      Write-Host "  In hourly mode, use [↑] and [↓] arrows to scroll through all 48 hours" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "This script retrieves weather info from National Weather Service API (geocoding via OpenStreetMap) and outputs:" -ForegroundColor Blue
@@ -1039,20 +1039,22 @@ function Show-InteractiveControls {
     
     Write-Host ""
     if ($IsHourlyMode) {
+        Write-Host "Mode: " -ForegroundColor Green -NoNewline
         Write-Host "Scroll[" -ForegroundColor White -NoNewline; Write-Host "↑↓" -ForegroundColor Cyan -NoNewline; Write-Host "], " -ForegroundColor White -NoNewline
         Write-Host "F" -ForegroundColor Cyan -NoNewline; Write-Host "ull " -ForegroundColor White -NoNewline
         Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "erse " -ForegroundColor White -NoNewline
         Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "aily " -ForegroundColor White -NoNewline
         Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "ourly " -ForegroundColor White -NoNewline
         Write-Host "R" -ForegroundColor Cyan -NoNewline; Write-Host "ain " -ForegroundColor White -NoNewline
-        Write-Host "W" -ForegroundColor Cyan -NoNewline; Write-Host "ind Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
+        Write-Host "W" -ForegroundColor Cyan -NoNewline; Write-Host "ind" -ForegroundColor White
     } else {
+        Write-Host "Mode: " -ForegroundColor Green -NoNewline
         Write-Host "F" -ForegroundColor Cyan -NoNewline; Write-Host "ull " -ForegroundColor White -NoNewline
         Write-Host "T" -ForegroundColor Cyan -NoNewline; Write-Host "erse " -ForegroundColor White -NoNewline
         Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "aily " -ForegroundColor White -NoNewline
         Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "ourly " -ForegroundColor White -NoNewline
         Write-Host "R" -ForegroundColor Cyan -NoNewline; Write-Host "ain " -ForegroundColor White -NoNewline
-        Write-Host "W" -ForegroundColor Cyan -NoNewline; Write-Host "ind Exit[" -ForegroundColor White -NoNewline; Write-Host "Enter" -ForegroundColor Cyan -NoNewline; Write-Host "]" -ForegroundColor White
+        Write-Host "W" -ForegroundColor Cyan -NoNewline; Write-Host "ind" -ForegroundColor White
     }
 }
 
@@ -1646,6 +1648,10 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     return
                 }
                 28 { # NumPad Enter key - Exit interactive mode
+                    Write-Host "Exiting..." -ForegroundColor Yellow
+                    return
+                }
+                27 { # Esc key - Exit interactive mode
                     Write-Host "Exiting..." -ForegroundColor Yellow
                     return
                 }

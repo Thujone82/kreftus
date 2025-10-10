@@ -36,7 +36,8 @@ The script is designed for ease of use, accepting flexible location inputs like 
   - **[R]** - Switch to rain forecast mode (sparklines)
   - **[W]** - Switch to wind forecast mode (direction glyphs)
   - **[F]** - Return to full display
-  - **[Enter]** - Exit the script
+  - **[Enter]** or **[Esc]** - Exit the script
+  - **Ctrl+C** will also exit the script
 - **Interactive & Scriptable:** Can be run with command-line arguments or interactively, where it will prompt the user for a location.
 - **Smart Exit:** Pauses for user input before closing if run outside of a standard terminal (e.g., by double-clicking).
 

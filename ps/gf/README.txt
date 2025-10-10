@@ -33,7 +33,8 @@ The script first uses a geocoding service to determine the latitude and longitud
    - **[R]** - Switch to rain forecast mode (sparklines)
    - **[W]** - Switch to wind forecast mode (direction glyphs)
    - **[F]** - Return to full display
-   - **[Enter]** - Exit the script
+   - **[Enter]** or **[Esc]** - Exit the script
+   - **Ctrl+C** will also exit the script
 
 ## Requirements
 - PowerShell
@@ -71,7 +72,7 @@ To change the font in Windows Terminal:
 #### 2. Change Console Encoding to UTF-8 [Note: The script attempts to do this for you]
 Emojis are complex Unicode characters (often outside the Basic Multilingual Plane) that require UTF-8 encoding. While modern Windows Terminal handles this well, you can explicitly set the output encoding in your PowerShell profile script to prevent issues, especially when redirecting output.
 
-In PowerShell [Note: The script attempts to set these on your behalf, see step 2 for Font which is more likely to be the problem]
+Execute In PowerShell 
 
 # Set console output encoding to UTF-8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
