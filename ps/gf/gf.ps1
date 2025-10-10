@@ -864,7 +864,7 @@ function Show-HourlyForecast {
         $timePart = "$hourDisplay "
         $iconPart = "$periodIcon"
         $tempPart = " $temp°F "
-        $windPart = "$wind $windDir"
+        $windPart = "$wind $($windDir.PadRight(3))"
         $precipPart = if ($precipProb -gt 0) { " ($precipProb%)" } else { "" }
         $forecastPart = " - $shortForecast"
 
