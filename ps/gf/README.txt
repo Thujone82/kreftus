@@ -53,18 +53,7 @@ The script uses a user agent string "GetForecast/1.0 (081625PDX)" for API reques
 ### Essential Configuration Tips
 To ensure proper emoji display, you must ensure your terminal and PowerShell are set to use the correct encoding and a font that supports emoji glyphs.
 
-#### 1. Change Console Encoding to UTF-8
-Emojis are complex Unicode characters (often outside the Basic Multilingual Plane) that require UTF-8 encoding. While modern Windows Terminal handles this well, you can explicitly set the output encoding in your PowerShell profile script ($\texttt{Microsoft.PowerShell_profile.ps1}$) to prevent issues, especially when redirecting output.
-
-PowerShell
-
-# Set console output encoding to UTF-8
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-
-# Set PowerShell output encoding for cmdlets
-$OutputEncoding = [System.Text.Encoding]::UTF8
-
-#### 2. Use a Unicode-Compliant Font
+#### 1. Use a Unicode-Compliant Font
 The default console font may not contain all the necessary emoji glyphs. You should use a font that is designed for terminal use and includes broad Unicode support.
 
 **Cascadia Code PL / Cascadia Mono PL:** These are Microsoft's recommended fonts. The "PL" (Powerline) versions include extra glyphs for powerline symbols, which also helps with general Unicode support.
@@ -77,6 +66,19 @@ To change the font in Windows Terminal:
 2. Select the PowerShell profile on the left.
 3. Go to the Appearance section.
 4. In the Font face dropdown, select a font like Cascadia Code PL or a Nerd Font.
+
+
+#### 2. Change Console Encoding to UTF-8 [Note: The script attempts to do this for you]
+Emojis are complex Unicode characters (often outside the Basic Multilingual Plane) that require UTF-8 encoding. While modern Windows Terminal handles this well, you can explicitly set the output encoding in your PowerShell profile script to prevent issues, especially when redirecting output.
+
+In PowerShell [Note: The script attempts to set these on your behalf, see step 2 for Font which is more likely to be the problem]
+
+# Set console output encoding to UTF-8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+# Set PowerShell output encoding for cmdlets
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 
 ## Parameters
 
