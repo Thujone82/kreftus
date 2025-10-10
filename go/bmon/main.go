@@ -868,7 +868,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			currentBtcPrice = newPrice
 			// history
 			m.history = append(m.history, newPrice)
-			if len(m.history) > 12 {
+			if len(m.history) > 14 {
 				m.history = m.history[1:]
 			}
 			// flash logic

@@ -622,7 +622,7 @@ if ($go.IsPresent -or $golong.IsPresent) {
                 }
                 $currentBtcPrice = $newPrice
                 $priceHistory.Add($currentBtcPrice)
-                if ($priceHistory.Count -gt 12) {
+                if ($priceHistory.Count -gt 14) {
                     $priceHistory.RemoveAt(0)
                 }
             }
@@ -784,7 +784,7 @@ else {
                 }
                 $currentBtcPrice = $newPrice
                 $priceHistory.Add($currentBtcPrice)
-                if ($priceHistory.Count -gt 12) {
+                if ($priceHistory.Count -gt 14) {
                     $priceHistory.RemoveAt(0)
                 }
             }
