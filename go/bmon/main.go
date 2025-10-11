@@ -122,9 +122,9 @@ func parseArgs() Args {
 	for i := 1; i < len(os.Args); i++ {
 		arg := os.Args[i]
 		switch arg {
-		case "-go":
+		case "-go", "-g":
 			args.goMode = true
-		case "-golong":
+		case "-golong", "-gl":
 			args.golongMode = true
 		case "-s":
 			args.sound = true
@@ -468,20 +468,6 @@ func getSparkChars() []rune {
 	return []rune{'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
 }
 
-// getSparkWrappers returns the left/right wrapper characters around the sparkline.
-// On Windows default to ASCII '|' for maximum compatibility; Unicode double-bar can be enabled via BMON_SPARKLINE=unicode.
-func getSparkWrappers() (string, string) {
-	// In Windows Terminal or non-Windows terminals, prefer Unicode double-bar
-	if runtime.GOOS == "windows" && os.Getenv("WT_SESSION") == "" {
-		return "|", "|"
-	}
-	return "‖", "‖"
-}
-
-// getSpinnerForEnv returns a spinner character set appropriate for the host.
-// In classic conhost (no WT_SESSION), braille spinners can be unreliable.
-// We fall back to ASCII bar spinner while preserving Unicode in modern terminals.
-// (legacy spinner selection removed; Bubble Tea handles spinners)
 
 func playSound(frequency int, duration int) {
 	if runtime.GOOS == "windows" {
@@ -556,9 +542,9 @@ func printHelp() {
 	gray := color.New(color.FgWhite) // Using white as gray equivalent
 	white.Print("    ./bmon              ")
 	gray.Println("# Interactive mode")
-	white.Print("    ./bmon -go          ")
+	white.Print("    ./bmon -go [Alias -g]")
 	gray.Println("# Monitor for 15 minutes")
-	white.Print("    ./bmon -golong      ")
+	white.Print("    ./bmon -golong [Alias -gl]")
 	gray.Println("# Monitor for 24 hours")
 	white.Print("    ./bmon -s           ")
 	gray.Println("# Enable sound alerts")
@@ -579,7 +565,7 @@ func printHelp() {
 	gray.Println("Press Space to start/pause, R to reset, Ctrl+C to exit")
 	white.Print("    Go Mode: ")
 	gray.Println("15-minute monitoring with 5-second updates")
-	white.Print("    Long Go Mode: ")
+	white.Print("    Go Long Mode: ")
 	gray.Println("24-hour monitoring with 20-second updates")
 	fmt.Println()
 

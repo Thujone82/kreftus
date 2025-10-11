@@ -60,8 +60,8 @@ The application uses colors to provide quick visual feedback during a monitoring
     - Press `s` to toggle sound alerts on/off.
     - Press `Ctrl+C` to exit.
 -   **Go / GoLong Modes (Non-Interactive):**
-    `.\bmon.ps1 -go [-s] [-h]` (5-minute session, 5-second updates)
-    `.\bmon.ps1 -golong [-s] [-h]` (24-hour session, 20-second updates)
+    `.\bmon.ps1 -go [-s] [-h]` or `.\bmon.ps1 -g [-s] [-h]` (5-minute session, 5-second updates)
+    `.\bmon.ps1 -golong [-s] [-h]` or `.\bmon.ps1 -gl [-s] [-h]` (24-hour session, 20-second updates)
     The script will run for the specified duration and then exit.
     - Press `r` to reset the session baseline to the current price.
     - Press `e` to extend the current session timeout (back to 15 minutes or 24 hours depending on mode) without changing the comparison baseline.

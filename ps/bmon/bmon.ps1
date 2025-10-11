@@ -24,9 +24,11 @@
 [CmdletBinding(DefaultParameterSetName='Monitor')]
 param (
     [Parameter(ParameterSetName='Monitor')]
+    [Alias('g')]
     [switch]$go,
 
     [Parameter(ParameterSetName='Monitor')]
+    [Alias('gl')]
     [switch]$golong,
 
     [Parameter(ParameterSetName='Monitor')]
@@ -74,7 +76,9 @@ if ($Help.IsPresent) {
     Write-Host "USAGE:" -ForegroundColor Cyan
     Write-Host "    .\bmon.ps1              " -NoNewline -ForegroundColor White; Write-Host "# Interactive mode" -ForegroundColor Gray
     Write-Host "    .\bmon.ps1 -go          " -NoNewline -ForegroundColor White; Write-Host "# Monitor for 15 minutes" -ForegroundColor Gray
+    Write-Host "    .\bmon.ps1 -g           " -NoNewline -ForegroundColor White; Write-Host "# Monitor for 15 minutes (alias)" -ForegroundColor Gray
     Write-Host "    .\bmon.ps1 -golong      " -NoNewline -ForegroundColor White; Write-Host "# Monitor for 24 hours" -ForegroundColor Gray
+    Write-Host "    .\bmon.ps1 -gl          " -NoNewline -ForegroundColor White; Write-Host "# Monitor for 24 hours (alias)" -ForegroundColor Gray
     Write-Host "    .\bmon.ps1 -s           " -NoNewline -ForegroundColor White; Write-Host "# Enable sound alerts" -ForegroundColor Gray
     Write-Host "    .\bmon.ps1 -h           " -NoNewline -ForegroundColor White; Write-Host "# Enable history sparkline" -ForegroundColor Gray
     Write-Host "    .\bmon.ps1 -bu 0.5      " -NoNewline -ForegroundColor White; Write-Host "# 0.5 BTC to USD" -ForegroundColor Gray

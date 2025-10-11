@@ -33,9 +33,9 @@ The script is executed from a PowerShell terminal.
 
 **Monitoring:**
 - **Interactive:** `.\bmon.ps1`
-- **Go Mode (5 mins):** `.\bmon.ps1 -go`
-- **Long Go Mode (24 hrs):** `.\bmon.ps1 -golong`
-- **With Options:** Any monitoring mode can be started with sound (`-s`) and/or the history sparkline (`-h`) enabled. Example: `.\bmon.ps1 -go -s -h`
+- **Go Mode (5 mins):** `.\bmon.ps1 -go` or `.\bmon.ps1 -g`
+- **Long Go Mode (24 hrs):** `.\bmon.ps1 -golong` or `.\bmon.ps1 -gl`
+- **With Options:** Any monitoring mode can be started with sound (`-s`) and/or the history sparkline (`-h`) enabled. Example: `.\bmon.ps1 -go -s -h` or `.\bmon.ps1 -g -s -h`
 
 **Conversion:**
 - **BTC to USD:** `.\bmon.ps1 -bu <amount>`

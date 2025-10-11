@@ -42,8 +42,8 @@ The application can run in several modes: interactive monitoring with keyboard c
 ## Command-Line Flags
 
 ### Monitoring Modes
-- `-go` - Monitor for 15 minutes with 5-second updates
-- `-golong` - Monitor for 24 hours with 20-second updates
+- `-go` or `-g` - Monitor for 15 minutes with 5-second updates
+- `-golong` or `-gl` - Monitor for 24 hours with 20-second updates
 - `-s` - Enable sound alerts
 - `-h` - Enable history sparkline
 
@@ -71,6 +71,10 @@ The application can run in several modes: interactive monitoring with keyboard c
 ### Example 2: Monitor for 15 minutes with sound
 ```sh
 ./bmon -go -s
+```
+or
+```sh
+./bmon -g -s
 ```
 
 ### Example 3: Convert 0.5 BTC to USD
