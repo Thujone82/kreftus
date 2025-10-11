@@ -1139,7 +1139,7 @@ function Get-RainSparkline {
     if ($RainPercent -eq 0) { return @{Char=" "; Color="White"} }
     elseif ($RainPercent -le 10) { return @{Char="▁"; Color="White"} }
     elseif ($RainPercent -le 33) { return @{Char="▂"; Color="Cyan"} }
-    elseif ($RainPercent -le 40) { return @{Char="▃"; Color="Green"} }
+    elseif ($RainPercent -le 44) { return @{Char="▃"; Color="Green"} }
     elseif ($RainPercent -le 66) { return @{Char="▄"; Color="Yellow"} }
     elseif ($RainPercent -le 80) { return @{Char="▅"; Color="Yellow"} }
     else { return @{Char="▇"; Color="Red"} }
@@ -1243,9 +1243,10 @@ function Show-RainForecast {
         }
         
         # Get color for the highest percentage (White: 0%, Cyan: 1-33%, Yellow: 34-66%, Red: 67%+)
-        $maxRainColor = if ($maxRainPercent -eq 0) { "White" }
+        $maxRainColor = if ($maxRainPercent -le 10) { "White" }
                        elseif ($maxRainPercent -le 33) { "Cyan" }
-                       elseif ($maxRainPercent -le 66) { "Yellow" }
+                       elseif ($maxRainPercent -le 44) { "Green" }
+                       elseif ($maxRainPercent -le 80) { "Yellow" }
                        else { "Red" }
         
         # Write day name and max percentage with color coding and proper padding
