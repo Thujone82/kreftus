@@ -147,6 +147,9 @@ The script features an advanced **Interactive Mode** that activates when run fro
 - **[H]** - **Hourly View:** Switch to 12-hour hourly forecast display
 - **[D]** - **Daily View:** Switch to 7-day forecast summary display  
 - **[T]** - **Terse View:** Switch to streamlined view (current conditions + today's forecast)
+- **[R]** - **Rain View:** Switch to rain forecast mode with sparklines
+- **[W]** - **Wind View:** Switch to wind forecast mode with direction glyphs
+- **[G]** - **Get/Refresh:** Manually refresh weather data (auto-refreshes every 10 minutes)
 - **[F]** - **Full View:** Return to complete weather information display
 - **[Enter]** - **Exit:** Close the script and return to the system
 
@@ -256,7 +259,34 @@ The wind forecast mode uses the same NWS hourly forecast data but processes it d
 - **Peak Wind Highlighting:** Added visual feedback mechanism that inverts colors for peak wind hours
 - **Extended Forecast Coverage:** Both rain and wind modes use 96-hour data instead of standard 12-hour limit
 - **Improved Visual Design:** Better sparkline characters and directional glyphs that don't interfere with each other
+- **Auto-Refresh Functionality:** Weather data automatically refreshes every 10 minutes in interactive mode
+- **Manual Refresh Control:** Added 'G' key for manual data refresh while preserving current view mode
+- **Dynamic Period Names:** Forecast sections now use actual NWS period names instead of hardcoded labels
 - **Comprehensive Documentation:** Updated README and project documentation
+
+### Auto-Refresh Technical Implementation
+
+The auto-refresh functionality provides seamless data updates in interactive mode:
+
+#### Key Components:
+- **Timer Tracking:** Uses `$dataFetchTime` to track when data was last fetched
+- **Staleness Detection:** Checks if current time exceeds 10-minute threshold (`$dataStaleThreshold = 600`)
+- **Refresh Function:** `Update-WeatherData` re-fetches all API endpoints and updates global variables
+- **View Preservation:** Maintains current display mode (hourly/daily/terse/rain/wind/full) during refresh
+- **Error Handling:** Graceful fallback to existing data if refresh fails
+
+#### Implementation Details:
+- **Automatic Refresh:** Triggered in interactive loop before `ReadKey()` when data is stale
+- **Manual Refresh:** 'G' key handler calls refresh function and re-renders current view
+- **Data Consistency:** All weather variables updated atomically to prevent partial updates
+- **User Feedback:** Visual indicators show refresh status and completion
+- **Performance:** Reuses existing API job infrastructure for consistent behavior
+
+#### Benefits:
+- **Always Current:** Weather data never becomes outdated during long interactive sessions
+- **Seamless Experience:** Users don't need to restart the script to get fresh data
+- **Flexible Control:** Manual refresh available for immediate updates when needed
+- **View Continuity:** Current display mode preserved across refreshes
 
 ### Future Enhancements
 

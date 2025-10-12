@@ -32,6 +32,7 @@ The script first uses a geocoding service to determine the latitude and longitud
    - **[T]** - Switch to terse mode (current conditions + today's forecast)
    - **[R]** - Switch to rain forecast mode (sparklines)
    - **[W]** - Switch to wind forecast mode (direction glyphs)
+   - **[G]** - Refresh weather data (auto-refreshes every 10 minutes)
    - **[F]** - Return to full display
    - **[Enter]** or **[Esc]** - Exit the script
    - **Ctrl+C** will also exit the script
@@ -198,6 +199,9 @@ When you run the script by double-clicking it or from a non-terminal environment
        - **H** - Switch to hourly forecast only (12-hour view)
     - **D** - Switch to 7-day forecast only (weekly view)
     - **T** - Switch to terse mode (current conditions + today's forecast)
+    - **R** - Switch to rain forecast mode (sparklines)
+    - **W** - Switch to wind forecast mode (direction glyphs)
+    - **G** - Refresh weather data (auto-refreshes every 10 minutes)
     - **F** - Return to full display (all information)
     - **Enter** - Exit the script
 
@@ -206,6 +210,8 @@ When you run the script by double-clicking it or from a non-terminal environment
 - **Quick View Switching:** No need to restart the script to see different data
 - **Efficient Planning:** Switch between hourly and daily views for different planning needs
 - **Focused Information:** Get exactly the weather data you need without scrolling through everything
+- **Auto-Refresh:** Weather data automatically refreshes every 10 minutes to keep information current
+- **Manual Refresh:** Press 'G' to manually refresh data at any time
 - **User-Friendly:** Perfect for users who prefer mouse/keyboard interaction over command-line options
 
 ### When Interactive Mode Activates:

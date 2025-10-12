@@ -128,6 +128,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
      Write-Host "    [T] - Switch to terse mode (current + today)" -ForegroundColor Cyan
      Write-Host "    [R] - Switch to rain forecast mode (sparklines)" -ForegroundColor Cyan
      Write-Host "    [W] - Switch to wind forecast mode (direction glyphs)" -ForegroundColor Cyan
+     Write-Host "    [G] - Refresh weather data (auto-refreshes every 10 minutes)" -ForegroundColor Cyan
      Write-Host "    [F] - Return to full display" -ForegroundColor Cyan
      Write-Host "    [Enter] or [Esc] - Exit the script" -ForegroundColor Cyan
      Write-Host "  In hourly mode, use [↑] and [↓] arrows to scroll through all 48 hours" -ForegroundColor Cyan
@@ -192,6 +193,122 @@ function Start-ApiJob {
     } -ArgumentList $Url, $Headers
     
     return $job
+}
+
+# Function to refresh weather data
+function Update-WeatherData {
+    param(
+        [string]$Lat,
+        [string]$Lon,
+        [hashtable]$Headers
+    )
+    
+    try {
+        Write-Host "Refreshing weather data..." -ForegroundColor Yellow
+        
+        # Re-fetch points data
+        $pointsUrl = "https://api.weather.gov/points/$lat,$lon"
+        $pointsJob = Start-ApiJob -Url $pointsUrl -Headers $headers -JobName "PointsData"
+        Wait-Job -Job $pointsJob | Out-Null
+        
+        if ($pointsJob.State -ne 'Completed') { 
+            throw "Points data job failed: $($pointsJob | Receive-Job)"
+        }
+        
+        $pointsJson = $pointsJob | Receive-Job
+        if ([string]::IsNullOrWhiteSpace($pointsJson)) { 
+            throw "Empty response from points API"
+        }
+        
+        $pointsData = $pointsJson | ConvertFrom-Json
+        Remove-Job -Job $pointsJob
+        
+        # Extract grid information
+        $office = $pointsData.properties.cwa
+        $gridX = $pointsData.properties.gridX
+        $gridY = $pointsData.properties.gridY
+        
+        # Re-fetch forecast and hourly data
+        $forecastUrl = "https://api.weather.gov/gridpoints/$office/$gridX,$gridY/forecast"
+        $hourlyUrl = "https://api.weather.gov/gridpoints/$office/$gridX,$gridY/forecast/hourly"
+        
+        $forecastJob = Start-ApiJob -Url $forecastUrl -Headers $headers -JobName "ForecastData"
+        $hourlyJob = Start-ApiJob -Url $hourlyUrl -Headers $headers -JobName "HourlyData"
+        
+        $jobsToWaitFor = @($forecastJob, $hourlyJob)
+        Wait-Job -Job $jobsToWaitFor | Out-Null
+        
+        # Check forecast job
+        if ($forecastJob.State -ne 'Completed') { 
+            throw "Forecast data job failed: $($forecastJob | Receive-Job)"
+        }
+        
+        $forecastJson = $forecastJob | Receive-Job
+        if ([string]::IsNullOrWhiteSpace($forecastJson)) { 
+            throw "Empty response from forecast API"
+        }
+        
+        $forecastData = $forecastJson | ConvertFrom-Json
+        
+        # Check hourly job
+        if ($hourlyJob.State -ne 'Completed') { 
+            throw "Hourly data job failed: $($hourlyJob | Receive-Job)"
+        }
+        
+        $hourlyJson = $hourlyJob | Receive-Job
+        if ([string]::IsNullOrWhiteSpace($hourlyJson)) { 
+            throw "Empty response from hourly API"
+        }
+        
+        $hourlyData = $hourlyJson | ConvertFrom-Json
+        Remove-Job -Job $jobsToWaitFor
+        
+        # Re-fetch alerts
+        $alertsData = $null
+        try {
+            $alertsUrl = "https://api.weather.gov/alerts/active?point=$lat,$lon"
+            $alertsResponse = Invoke-RestMethod -Uri $alertsUrl -Method Get -Headers $headers -ErrorAction Stop
+            $alertsData = $alertsResponse
+        }
+        catch {
+            # Alerts are optional, continue without them
+        }
+        
+        # Update global variables
+        $script:forecastData = $forecastData
+        $script:hourlyData = $hourlyData
+        $script:alertsData = $alertsData
+        
+        # Update current conditions
+        $script:currentPeriod = $hourlyData.properties.periods[0]
+        $script:currentTemp = $currentPeriod.temperature
+        $script:currentConditions = $currentPeriod.shortForecast
+        $script:currentWind = $currentPeriod.windSpeed
+        $script:currentWindDir = $currentPeriod.windDirection
+        $script:currentTime = $hourlyData.properties.updateTime
+        $script:currentHumidity = $currentPeriod.relativeHumidity.value
+        $script:currentPrecipProb = $currentPeriod.probabilityOfPrecipitation.value
+        $script:currentIcon = $currentPeriod.icon
+        
+        # Update forecast data
+        $script:todayPeriod = $forecastData.properties.periods[0]
+        $script:todayForecast = $todayPeriod.detailedForecast
+        $script:todayPeriodName = $todayPeriod.name
+        
+        $script:tomorrowPeriod = $forecastData.properties.periods[1]
+        $script:tomorrowForecast = $tomorrowPeriod.detailedForecast
+        $script:tomorrowPeriodName = $tomorrowPeriod.name
+        
+        # Update fetch time
+        $script:dataFetchTime = Get-Date
+        
+        Write-Host "Data refreshed successfully" -ForegroundColor Green
+        return $true
+    }
+    catch {
+        Write-Host "Failed to refresh data: $($_.Exception.Message)" -ForegroundColor Red
+        return $false
+    }
 }
 
 # Define common header for NWS API.
@@ -438,6 +555,10 @@ $hourlyData = $hourlyJson | ConvertFrom-Json
 Write-Verbose "Hourly data retrieved successfully"
 
 Remove-Job -Job $jobsToWaitFor
+
+# --- TIMER TRACKING FOR AUTO-REFRESH ---
+$dataFetchTime = Get-Date
+$dataStaleThreshold = 600  # 10 minutes in seconds
 
 # --- FETCH ALERTS ---
 $alertsData = $null
@@ -1571,6 +1692,29 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
     
     while ($true) {
         try {
+            # Check if data is stale and refresh if needed
+            $timeSinceLastFetch = (Get-Date) - $dataFetchTime
+            if ($timeSinceLastFetch.TotalSeconds -gt $dataStaleThreshold) {
+                $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers
+                if ($refreshSuccess) {
+                    # Re-render current view with fresh data
+                    Clear-Host
+                    if ($isHourlyMode) {
+                        Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true
+                        Show-InteractiveControls -IsHourlyMode $true
+                    } elseif ($isRainMode) {
+                        Show-RainForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
+                        Show-InteractiveControls
+                    } elseif ($isWindMode) {
+                        Show-WindForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
+                        Show-InteractiveControls
+                    } else {
+                        Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $currentTimeLocal -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo
+                        Show-InteractiveControls
+                    }
+                }
+            }
+            
             $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
             
             # Handle keyboard input for interactive mode
@@ -1625,6 +1769,26 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isWindMode = $true
                     Show-WindForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
                     Show-InteractiveControls
+                }
+                71 { # G key - Refresh weather data
+                    $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers
+                    if ($refreshSuccess) {
+                        # Re-render current view with fresh data
+                        Clear-Host
+                        if ($isHourlyMode) {
+                            Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true
+                            Show-InteractiveControls -IsHourlyMode $true
+                        } elseif ($isRainMode) {
+                            Show-RainForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
+                            Show-InteractiveControls
+                        } elseif ($isWindMode) {
+                            Show-WindForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
+                            Show-InteractiveControls
+                        } else {
+                            Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $currentTimeLocal -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo
+                            Show-InteractiveControls
+                        }
+                    }
                 }
                 38 { # Up arrow - Scroll up in hourly mode
                     if ($isHourlyMode) {
