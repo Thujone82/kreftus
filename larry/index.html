@@ -44,6 +44,11 @@
                             </p>
                             <h3>Controls</h3>
                             <p>Arrows or WASD to move, Space to pause, Esc to quit.</p>
+                            <h3>Updates</h3>
+                            <div id="updates-container">
+                                <p>Loading updates...</p>
+                            </div>
+
                             <h3>Downloads</h3>
                             <p><b>Go Build:</b> PC [ <a href="../go/larry/bin/win/x86/larry.exe">x86</a> / <a href="../go/larry/bin/win/x64/larry.exe">x64</a> ] Linux [ <a href="../go/larry/bin/linux/x86/larry">x86</a> / <a href="../go/larry/bin/linux/amd64/larry">amd64</a> ]</p>
                             <p class="readme-link">↳ <a href="../go/larry/README.txt">README</a></p>
@@ -62,6 +67,61 @@
             </tbody>
         </table>
     </div>
+
+    <script>
+        // Fetch and display updates from GitHub API
+        async function loadUpdates() {
+            const updatesContainer = document.getElementById('updates-container');
+            
+            try {
+                const response = await fetch('https://api.github.com/repos/Thujone82/kreftus/commits?sha=main&path=go/larry&per_page=3');
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch updates');
+                }
+                
+                const commits = await response.json();
+                
+                if (commits.length === 0) {
+                    updatesContainer.style.display = 'none';
+                    return;
+                }
+                
+                // Format timestamp from ISO 8601 to MMDDYY@HHMMSS
+                function formatTimestamp(isoString) {
+                    const date = new Date(isoString);
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const year = String(date.getFullYear()).slice(-2);
+                    const hours = String(date.getHours()).padStart(2, '0');
+                    const minutes = String(date.getMinutes()).padStart(2, '0');
+                    const seconds = String(date.getSeconds()).padStart(2, '0');
+                    
+                    return `${month}${day}${year}@${hours}${minutes}${seconds}`;
+                }
+                
+                // Clear loading message and add updates
+                updatesContainer.innerHTML = '';
+                
+                commits.forEach(commit => {
+                    const timestamp = formatTimestamp(commit.commit.author.date);
+                    const message = commit.commit.message;
+                    
+                    const updateElement = document.createElement('p');
+                    updateElement.innerHTML = `<b>${timestamp}:</b> ${message}`;
+                    updatesContainer.appendChild(updateElement);
+                });
+                
+            } catch (error) {
+                console.error('Error loading updates:', error);
+                // Hide the Updates section on error
+                updatesContainer.parentElement.style.display = 'none';
+            }
+        }
+        
+        // Load updates when page loads
+        document.addEventListener('DOMContentLoaded', loadUpdates);
+    </script>
 
 </body>
 </html>
