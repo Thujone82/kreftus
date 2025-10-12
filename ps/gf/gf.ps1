@@ -285,7 +285,8 @@ function Update-WeatherData {
         $script:currentConditions = $currentPeriod.shortForecast
         $script:currentWind = $currentPeriod.windSpeed
         $script:currentWindDir = $currentPeriod.windDirection
-        $script:currentTime = $hourlyData.properties.updateTime
+        $script:currentTime = $script:dataFetchTime
+        $script:currentTimeLocal = $script:dataFetchTime
         $script:currentHumidity = $currentPeriod.relativeHumidity.value
         $script:currentPrecipProb = $currentPeriod.probabilityOfPrecipitation.value
         $script:currentIcon = $currentPeriod.icon
@@ -621,8 +622,8 @@ $currentTemp = $currentPeriod.temperature
 $currentConditions = $currentPeriod.shortForecast
 $currentWind = $currentPeriod.windSpeed
 $currentWindDir = $currentPeriod.windDirection
-# Use the API update time for the observation timestamp (more accurate than period start time)
-$currentTime = $hourlyData.properties.updateTime
+# Use our API call time for the observation timestamp (when we fetched the data)
+$currentTime = $dataFetchTime
 $currentHumidity = $currentPeriod.relativeHumidity.value
 
 # Extract dew point if available in API response
@@ -1226,7 +1227,7 @@ function Show-FullWeatherReport {
     )
     
     if ($ShowCurrentConditions) {
-        Show-CurrentConditions -City $City -State $State -WeatherIcon $WeatherIcon -CurrentConditions $CurrentConditions -CurrentTemp $CurrentTemp -TempColor $TempColor -CurrentTempTrend $CurrentTempTrend -CurrentWind $CurrentWind -WindColor $WindColor -CurrentWindDir $CurrentWindDir -WindGust $WindGust -CurrentHumidity $CurrentHumidity -CurrentDewPoint $CurrentDewPoint -CurrentPrecipProb $CurrentPrecipProb -CurrentTimeLocal $CurrentTimeLocal -DefaultColor $DefaultColor -AlertColor $AlertColor -TitleColor $TitleColor -InfoColor $InfoColor
+        Show-CurrentConditions -City $City -State $State -WeatherIcon $WeatherIcon -CurrentConditions $CurrentConditions -CurrentTemp $CurrentTemp -TempColor $TempColor -CurrentTempTrend $CurrentTempTrend -CurrentWind $CurrentWind -WindColor $WindColor -CurrentWindDir $CurrentWindDir -WindGust $WindGust -CurrentHumidity $CurrentHumidity -CurrentDewPoint $CurrentDewPoint -CurrentPrecipProb $CurrentPrecipProb -CurrentTimeLocal $dataFetchTime -DefaultColor $DefaultColor -AlertColor $AlertColor -TitleColor $TitleColor -InfoColor $InfoColor
     }
 
     if ($ShowTodayForecast) {
@@ -1522,22 +1523,9 @@ function Format-DailyLine {
 
 $windSpeed = Get-WindSpeed $currentWind
 
-# Parse API update time (API provides local time for the location)
-$currentTimeLocal = $null
-Write-Verbose "Raw update time from API: $currentTime"
-try {
-    if ($currentTime -and $currentTime -ne "") {
-        # Parse the time from the API (this is already local time for the location)
-        $currentTimeLocal = [DateTime]::Parse($currentTime)
-        Write-Verbose "Successfully parsed update time: $currentTimeLocal"
-    } else {
-        Write-Verbose "Update time is null or empty"
-    }
-}
-catch {
-    Write-Verbose "Error parsing API update time: $currentTime - $($_.Exception.Message)"
-    $currentTimeLocal = $null
-}
+# Use our API call time for the display timestamp
+$currentTimeLocal = $dataFetchTime
+Write-Verbose "Using API call time: $currentTimeLocal"
 
 # Define color scheme for weather display
 $defaultColor = "DarkCyan"
@@ -1636,7 +1624,7 @@ if ($Rain.IsPresent) {
     # Wind mode: Show only wind outlook forecast with direction glyphs
     Show-WindForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
 } else {
-    Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $currentTimeLocal -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo
+    Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo
 }
 
 # Detect if we're in an interactive environment that supports ReadKey
@@ -1709,7 +1697,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         Show-WindForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
                         Show-InteractiveControls
                     } else {
-                        Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $currentTimeLocal -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo
+                        Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo
                         Show-InteractiveControls
                     }
                 }
@@ -1741,7 +1729,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isHourlyMode = $false
                     $isRainMode = $false
                     $isWindMode = $false
-                    Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $currentTimeLocal -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor
+                    Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor
                     Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                     Show-WeatherAlerts -AlertsData $alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false
                     Show-InteractiveControls
@@ -1751,7 +1739,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isHourlyMode = $false
                     $isRainMode = $false
                     $isWindMode = $false
-                    Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $currentTimeLocal -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true
+                    Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true
                     Show-InteractiveControls
                 }
                 82 { # R key - Switch to rain forecast mode
@@ -1785,7 +1773,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             Show-WindForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
                             Show-InteractiveControls
                         } else {
-                            Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $currentTimeLocal -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo
+                            Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo
                             Show-InteractiveControls
                         }
                     }
