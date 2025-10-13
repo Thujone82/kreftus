@@ -9,7 +9,8 @@ Kreft&Cursor
 The script first uses a geocoding service to determine the latitude and longitude of the location, then fetches the current weather, daily forecasts, and weather alerts from the National Weather Service.
 
 ## Features
-- **Flexible Location Input:** Accepts 5-digit zip codes or city/state names (e.g., "Portland, OR").
+- **Flexible Location Input:** Accepts 5-digit zip codes, city/state names (e.g., "Portland, OR"), or "here" for automatic location detection.
+- **Automatic Location Detection:** Use "here" to automatically detect your location based on your IP address.
 - **Interactive Prompt:** If no location is provided, the script displays a welcome screen and prompts for input.
 - **Comprehensive Weather Data:** Displays a wide range of information, including:
   - Current temperature and conditions.
@@ -143,52 +144,62 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 .\gf.ps1 97219
 ```
 
-### Example 2: Get terse weather by city and state
+### Example 2: Get weather using automatic location detection
+```powershell
+.\gf.ps1 here
+```
+
+### Example 3: Get terse weather by city and state
 ```powershell
 .\gf.ps1 -t "Portland, OR"
 ```
 
-### Example 3: Get hourly forecast only
+### Example 4: Get terse weather using automatic location detection
+```powershell
+.\gf.ps1 here -t
+```
+
+### Example 5: Get hourly forecast only
 ```powershell
 .\gf.ps1 -h "Portland, OR"
 ```
 
-### Example 4: Get 7-day forecast only
+### Example 6: Get 7-day forecast only
 ```powershell
 .\gf.ps1 -7 "Portland, OR"
 ```
 
-### Example 5: Get hourly forecast and exit immediately (for scripting)
+### Example 7: Get hourly forecast and exit immediately (for scripting)
 ```powershell
 .\gf.ps1 -h -x "Portland, OR"
 ```
 
-### Example 6: Get terse forecast and exit immediately
+### Example 8: Get terse forecast and exit immediately
 ```powershell
 .\gf.ps1 -t -x 97219
 ```
 
-### Example 7: Get rain likelihood forecast with sparklines
+### Example 9: Get rain likelihood forecast with sparklines
 ```powershell
 .\gf.ps1 -r 97219
 ```
 
-### Example 8: Get rain forecast for city and state
+### Example 10: Get rain forecast for city and state
 ```powershell
 .\gf.ps1 -rain "Portland, OR"
 ```
 
-### Example 9: Get wind outlook forecast with direction glyphs
+### Example 11: Get wind outlook forecast with direction glyphs
 ```powershell
 .\gf.ps1 -w 97219
 ```
 
-### Example 10: Get wind forecast for city and state
+### Example 12: Get wind forecast for city and state
 ```powershell
 .\gf.ps1 -wind "Portland, OR"
 ```
 
-### Example 11: View help information
+### Example 13: View help information
 ```powershell
 .\gf.ps1 -Help
 ```

@@ -12,12 +12,13 @@
 
 `gf` is a command-line weather utility for PowerShell that provides detailed, real-time weather information for any specified location within the United States. It leverages the National Weather Service API to fetch comprehensive weather data, including current conditions, daily forecasts, and active weather alerts.
 
-The script is designed for ease of use, accepting flexible location inputs like US zip codes or "City, State" strings. It uses free geocoding services to determine coordinates and then fetches weather data from the official National Weather Service API. The output is color-coded to highlight important metrics, making it easy to assess conditions at a glance.
+The script is designed for ease of use, accepting flexible location inputs like US zip codes, "City, State" strings, or the special "here" keyword for automatic location detection. It uses free geocoding services to determine coordinates and then fetches weather data from the official National Weather Service API. The output is color-coded to highlight important metrics, making it easy to assess conditions at a glance.
 
 ### Key Functionality
 
 - **No API Key Required:** Uses the free National Weather Service API which requires no registration or API key.
-- **Flexible Location Input:** Can determine latitude and longitude from either a 5-digit US zip code or a "City, State" formatted string.
+- **Flexible Location Input:** Can determine latitude and longitude from either a 5-digit US zip code, a "City, State" formatted string, or the "here" keyword for automatic location detection.
+- **Automatic Location Detection:** Uses ip-api.com to automatically detect the user's current location based on their IP address when "here" is specified.
 - **Comprehensive Data Display:** Shows current temperature, conditions, detailed forecasts for today and tomorrow, wind information, rain likelihood forecasts with visual sparklines, and wind outlook forecasts with direction glyphs.
 - **Weather Alerts:** Automatically fetches and displays any active weather alerts (e.g., warnings, watches) from official sources.
 - **Color-Coded Metrics:** Key data points (temperature, wind speed) change color to red to indicate potentially hazardous conditions. Rain likelihood sparklines use color coding (white for very low, cyan for low, green for light, yellow for medium, red for high probability). Wind outlook glyphs use color coding (white for calm, yellow for light breeze, red for moderate wind, magenta for strong wind) with peak wind hours highlighted using inverted colors.
@@ -96,8 +97,14 @@ Due to differences between the OpenWeatherMap and National Weather Service APIs,
 # Get weather for a city and state
 .\gf.ps1 "Portland, OR"
 
+# Get weather using automatic location detection
+.\gf.ps1 here
+
 # Get terse output (current conditions + today's forecast only)
 .\gf.ps1 -t "Seattle, WA"
+
+# Get terse output using automatic location detection
+.\gf.ps1 here -t
 
 # Get hourly forecast only
 .\gf.ps1 -h "Portland, OR"
