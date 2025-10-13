@@ -179,6 +179,9 @@ window.addEventListener('DOMContentLoaded', function() {
 
   // Saved state for M+/MR buttons
   let savedGridState = null;
+  
+  // Track last selected pattern for dropdown persistence
+  let lastSelectedPattern = 'none';
 
   // Predefined patterns (coordinates are relative to top-left of pattern)
   const P = {
@@ -403,10 +406,8 @@ window.addEventListener('DOMContentLoaded', function() {
     updateZoomSliderMode();
   });
 
-  // Event listener for pattern selection
-  patternSelect.addEventListener('change', e => {
-    console.log(`Pattern selected: ${e.target.value}`);
-    const name = e.target.value;
+  // Function to load a pattern by name
+  function loadPattern(name) {
     if (name !== 'none') {
       grid.clear();
       const coords = P[name];
@@ -437,7 +438,25 @@ window.addEventListener('DOMContentLoaded', function() {
       });
       console.log(`Pattern "${name}" placed. ${coords.length} cells added.`);
       stepCount = 0; draw();
-      patternSelect.value = 'none'; // Reset dropdown
+      
+      // Store the selected pattern
+      lastSelectedPattern = name;
+    }
+  }
+
+  // Event listener for pattern selection
+  patternSelect.addEventListener('change', e => {
+    console.log(`Pattern selected: ${e.target.value}`);
+    const name = e.target.value;
+    loadPattern(name);
+  });
+
+  // Event listener for pattern dropdown click - allows reloading same pattern
+  patternSelect.addEventListener('click', e => {
+    // Only reload if clicking on the currently selected pattern
+    if (lastSelectedPattern !== 'none' && patternSelect.value === lastSelectedPattern) {
+      console.log(`Reloading pattern: ${lastSelectedPattern}`);
+      loadPattern(lastSelectedPattern);
     }
   });
 
@@ -891,13 +910,85 @@ window.addEventListener('DOMContentLoaded', function() {
     ctx.restore();
   }
 
-  // Register Service Worker
+  // Register Service Worker with update handling
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./service-worker.js') // Ensure manifest.json is correctly linked if needed by SW
-        .then(reg => console.log('Service Worker registered', reg))
+      navigator.serviceWorker.register('./service-worker.js')
+        .then(reg => {
+          console.log('Service Worker registered', reg);
+          
+          // Listen for updates from service worker
+          navigator.serviceWorker.addEventListener('message', event => {
+            if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
+              showUpdateNotification(event.data.message);
+            }
+          });
+          
+          // Check for updates on page load
+          reg.update();
+        })
         .catch(err => console.error('SW registration failed', err));
     });
+  }
+
+  // Function to show update notification
+  function showUpdateNotification(message) {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: var(--accent);
+      color: #111;
+      padding: 15px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 1000;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    `;
+    notification.innerHTML = `
+      <div style="margin-bottom: 10px;">${message}</div>
+      <button id="updateBtn" style="
+        background: #111;
+        color: var(--accent);
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+        margin-right: 10px;
+      ">Update Now</button>
+      <button id="dismissBtn" style="
+        background: transparent;
+        color: #111;
+        border: 1px solid #111;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+      ">Later</button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Add event listeners
+    document.getElementById('updateBtn').addEventListener('click', () => {
+      window.location.reload();
+    });
+    
+    document.getElementById('dismissBtn').addEventListener('click', () => {
+      notification.remove();
+    });
+    
+    // Auto-dismiss after 10 seconds
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.remove();
+      }
+    }, 10000);
   }
 
 // Initial setup calls
