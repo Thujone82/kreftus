@@ -284,6 +284,7 @@
                 <label for="mainColorPicker">Pendulum/Trace Color:</label>
                 <input type="color" id="mainColorPicker" value="#F0F0F8">
             </div>
+            <button id="randomizeButton">Randomize Values</button>
             <button id="startButton">Start Simulation</button>
         </div>
 
@@ -330,6 +331,7 @@
                 const simBgColorPicker = document.getElementById('simBgColorPicker'); 
                 const mainColorPickerEl = document.getElementById('mainColorPicker'); 
 
+                const randomizeButton = document.getElementById('randomizeButton');
                 const startButton = document.getElementById('startButton');
                 const stopButton = document.getElementById('stopButton');
                 const downloadButton = document.getElementById('downloadButton');
@@ -421,6 +423,42 @@
                     return `rgba(${rgb.r},${rgb.g},${rgb.b},${alpha})`;
                 }
                 // --- End Color Helper Functions ---
+
+                /**
+                 * Generates random values for pendulum parameters and updates the sliders.
+                 * Lengths: 5-20 (scaled to 30-200 for display), Masses: 1-20, Angles: -180 to 180
+                 */
+                function randomizePendulumValues() {
+                    // Generate random lengths between 5 and 20 (scaled to 30-200 for slider)
+                    const randomLength1 = Math.floor(Math.random() * 16) + 5; // 5-20
+                    const randomLength2 = Math.floor(Math.random() * 16) + 5; // 5-20
+                    const scaledLength1 = Math.floor((randomLength1 - 5) * (200 - 30) / (20 - 5) + 30);
+                    const scaledLength2 = Math.floor((randomLength2 - 5) * (200 - 30) / (20 - 5) + 30);
+                    
+                    // Generate random masses between 1 and 20
+                    const randomMass1 = Math.floor(Math.random() * 20) + 1; // 1-20
+                    const randomMass2 = Math.floor(Math.random() * 20) + 1; // 1-20
+                    
+                    // Generate random angles between -180 and 180
+                    const randomAngle1 = Math.floor(Math.random() * 361) - 180; // -180 to 180
+                    const randomAngle2 = Math.floor(Math.random() * 361) - 180; // -180 to 180
+                    
+                    // Update slider values
+                    length1Slider.value = scaledLength1;
+                    length2Slider.value = scaledLength2;
+                    mass1Slider.value = randomMass1;
+                    mass2Slider.value = randomMass2;
+                    angle1Slider.value = randomAngle1;
+                    angle2Slider.value = randomAngle2;
+                    
+                    // Update display values and redraw static pendulum
+                    updateSliderValue(length1Slider, length1Val);
+                    updateSliderValue(length2Slider, length2Val);
+                    updateSliderValue(mass1Slider, mass1Val);
+                    updateSliderValue(mass2Slider, mass2Val);
+                    updateSliderValue(angle1Slider, angle1Val);
+                    updateSliderValue(angle2Slider, angle2Val);
+                }
 
                 /**
                  * Converts an HSL color value to RGB.
@@ -709,6 +747,12 @@
                 });
 
                 /**
+                 * Event listener for the "Randomize Values" button.
+                 * @listens click
+                 */
+                randomizeButton.addEventListener('click', randomizePendulumValues);
+
+                /**
                  * Event listener for the "Start Simulation" button.
                  * @listens click
                  */
@@ -828,10 +872,8 @@
                     document.documentElement.style.setProperty('--main-color', currentMainColor);
                     updateDynamicTheme(); 
 
-                    [length1Slider, length2Slider, mass1Slider, mass2Slider, angle1Slider, angle2Slider].forEach(slider => {
-                        const display = document.getElementById(slider.id + '-val');
-                        updateSliderValue(slider, display); 
-                    });
+                    // Initialize with random values
+                    randomizePendulumValues();
                     
                     stopButton.disabled = true;
                     downloadButton.disabled = true;
