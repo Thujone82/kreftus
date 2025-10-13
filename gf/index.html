@@ -20,6 +20,74 @@
             padding: 1.5rem 0;
             text-align: center;
             margin-bottom: 2rem;
+            position: relative;
+        }
+
+        .github-link {
+            position: absolute;
+            top: 1.5rem;
+            right: 2rem;
+            display: inline-block;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .github-link:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .github-link img {
+            width: 32px;
+            height: 32px;
+            display: block;
+        }
+
+        .home-link {
+            position: absolute;
+            top: 1.5rem;
+            left: 2rem;
+            display: inline-block;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .home-link:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .home-link img {
+            width: 32px;
+            height: 32px;
+            display: block;
+        }
+
+        /* Responsive adjustments for GitHub and home links */
+        @media (max-width: 768px) {
+            .github-link, .home-link {
+                top: 1rem;
+                padding: 0.4rem;
+            }
+            
+            .github-link {
+                right: 1rem;
+            }
+            
+            .home-link {
+                left: 1rem;
+            }
+            
+            .github-link img, .home-link img {
+                width: 28px;
+                height: 28px;
+            }
         }
 
         header h1 {
@@ -125,6 +193,12 @@
 <body>
 
     <header>
+        <a href="../" class="home-link" title="Back to Home">
+            <img src="../images/home.png" alt="Home">
+        </a>
+        <a href="https://github.com/Thujone82/kreftus" target="_blank" rel="noopener noreferrer" class="github-link" title="View on GitHub">
+            <img src="../images/github-mark-white.png" alt="GitHub">
+        </a>
         <h1>gf - GetForecast</h1>
     </header>
 
