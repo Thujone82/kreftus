@@ -55,7 +55,10 @@ param(
     [switch]$Rain,
 
     [Alias('w')]
-    [switch]$Wind
+    [switch]$Wind,
+
+    [Alias('u')]
+    [switch]$NoAutoUpdate
 )
 
 # --- Helper Functions ---
@@ -118,6 +121,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host "                • 96-hour directional glyphs with color-coded wind speed" -ForegroundColor Gray
     Write-Host "                • White (≤5mph), Yellow (6-9mph), Red (10-14mph), Magenta (15mph+)" -ForegroundColor Gray
     Write-Host "                • Peak wind hours highlighted with inverted colors" -ForegroundColor Gray
+    Write-Host "  -u, -NoAutoUpdate Start with automatic updates disabled" -ForegroundColor Cyan
     Write-Host "  -x, -NoInteractive Exit immediately (no interactive mode)" -ForegroundColor Cyan
     Write-Host ""
          Write-Host "Interactive Mode:" -ForegroundColor Blue
@@ -128,9 +132,10 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
      Write-Host "    [T] - Switch to terse mode (current + today)" -ForegroundColor Cyan
      Write-Host "    [R] - Switch to rain forecast mode (sparklines)" -ForegroundColor Cyan
      Write-Host "    [W] - Switch to wind forecast mode (direction glyphs)" -ForegroundColor Cyan
-     Write-Host "    [G] - Refresh weather data (auto-refreshes every 10 minutes)" -ForegroundColor Cyan
-     Write-Host "    [F] - Return to full display" -ForegroundColor Cyan
-     Write-Host "    [Enter] or [Esc] - Exit the script" -ForegroundColor Cyan
+    Write-Host "    [G] - Refresh weather data (auto-refreshes every 10 minutes)" -ForegroundColor Cyan
+    Write-Host "    [U] - Toggle automatic updates on/off" -ForegroundColor Cyan
+    Write-Host "    [F] - Return to full display" -ForegroundColor Cyan
+    Write-Host "    [Enter] or [Esc] - Exit the script" -ForegroundColor Cyan
      Write-Host "  In hourly mode, use [↑] and [↓] arrows to scroll through all 48 hours" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "This script retrieves weather info from National Weather Service API (geocoding via OpenStreetMap) and outputs:" -ForegroundColor Blue
@@ -1651,11 +1656,15 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
     $isRainMode = $false  # State tracking for rain forecast mode
     $isWindMode = $false  # State tracking for wind forecast mode
     $isTerseMode = $false  # State tracking for terse mode
+    $autoUpdateEnabled = -not $NoAutoUpdate.IsPresent  # State tracking for auto-updates
+    if (-not $autoUpdateEnabled) {
+        Write-Verbose "Auto-updates disabled via command line flag"
+    }
     $hourlyScrollIndex = 0
     $totalHourlyPeriods = [Math]::Min($hourlyData.properties.periods.Count, 48)  # Limit to 48 hours
     
     # Initialize mode state tracking
-    Write-Verbose "Interactive mode initialized - Hourly: $isHourlyMode, Rain: $isRainMode, Wind: $isWindMode"
+    Write-Verbose "Interactive mode initialized - Hourly: $isHourlyMode, Rain: $isRainMode, Wind: $isWindMode, Auto-Update: $autoUpdateEnabled"
     
     # If starting in hourly mode, show hourly forecast first
     if ($isHourlyMode) {
@@ -1681,9 +1690,11 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
     
     while ($true) {
         try {
-            # Check if data is stale and refresh if needed
-            $timeSinceLastFetch = (Get-Date) - $dataFetchTime
-            if ($timeSinceLastFetch.TotalSeconds -gt $dataStaleThreshold) {
+            # Check if data is stale and refresh if needed (only if auto-update is enabled)
+            if ($autoUpdateEnabled) {
+                $timeSinceLastFetch = (Get-Date) - $dataFetchTime
+                if ($timeSinceLastFetch.TotalSeconds -gt $dataStaleThreshold) {
+                    Write-Verbose "Auto-refresh triggered - data is stale ($([math]::Round($timeSinceLastFetch.TotalSeconds, 1)) seconds old)"
                     $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers
                     if ($refreshSuccess) {
                         # Re-render current view with fresh data
@@ -1711,6 +1722,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         }
                     }
                 }
+            }
             
             # Check for key input (non-blocking) - using same approach as bmon.ps1
             if ([System.Console]::KeyAvailable) {
@@ -1765,6 +1777,44 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isTerseMode = $false
                     Show-RainForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
                     Show-InteractiveControls
+                }
+                'u' { # U key - Toggle automatic updates
+                    $autoUpdateEnabled = -not $autoUpdateEnabled
+                    Write-Verbose "Auto-update toggled: $autoUpdateEnabled"
+                    $statusMessage = if ($autoUpdateEnabled) { 
+                        $dataFetchTime = Get-Date  # Reset timer when re-enabling
+                        "Automatic Updates Enabled" 
+                    } else { 
+                        "Automatic Updates Disabled" 
+                    }
+                    
+                    # Show status message briefly
+                    Write-Host "`n$statusMessage" -ForegroundColor $(if ($autoUpdateEnabled) { "Green" } else { "Yellow" })
+                    Start-Sleep -Milliseconds 800
+                    
+                    # Re-render current view
+                    Clear-Host
+                    if ($isHourlyMode) {
+                        Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true
+                        Show-InteractiveControls -IsHourlyMode $true
+                    } elseif ($isRainMode) {
+                        Show-RainForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
+                        Show-InteractiveControls
+                    } elseif ($isWindMode) {
+                        Show-WindForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
+                        Show-InteractiveControls
+                    } else {
+                        # Preserve current mode - show terse mode if in terse mode
+                        if ($isTerseMode) {
+                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor
+                            Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
+                            Show-WeatherAlerts -AlertsData $alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false
+                            Show-InteractiveControls
+                        } else {
+                            Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo
+                            Show-InteractiveControls
+                        }
+                    }
                 }
                 'w' { # W key - Switch to wind forecast mode
                     Clear-Host

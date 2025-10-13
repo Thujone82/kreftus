@@ -33,6 +33,7 @@ The script first uses a geocoding service to determine the latitude and longitud
    - **[R]** - Switch to rain forecast mode (sparklines)
    - **[W]** - Switch to wind forecast mode (direction glyphs)
    - **[G]** - Refresh weather data (auto-refreshes every 10 minutes)
+   - **[U]** - Toggle automatic updates on/off
    - **[F]** - Return to full display
    - **[Enter]** or **[Esc]** - Exit the script
    - **Ctrl+C** will also exit the script
@@ -125,6 +126,11 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
   - Enters interactive mode after display (use -x to exit immediately).
   - Perfect for wind assessment and outdoor activity planning.
 
+- `-NoAutoUpdate` or `-u` [switch]
+  - Starts with automatic updates disabled.
+  - Auto-updates are enabled by default (every 10 minutes).
+  - Can be toggled on/off during interactive mode with the 'U' key.
+
 - `-NoInteractive` or `-x` [switch]
   - Exits immediately after displaying weather data (no interactive mode).
   - Perfect for scripting and automation scenarios.
@@ -202,6 +208,7 @@ When you run the script by double-clicking it or from a non-terminal environment
     - **R** - Switch to rain forecast mode (sparklines)
     - **W** - Switch to wind forecast mode (direction glyphs)
     - **G** - Refresh weather data (auto-refreshes every 10 minutes)
+    - **U** - Toggle automatic updates on/off
     - **F** - Return to full display (all information)
     - **Enter** - Exit the script
 

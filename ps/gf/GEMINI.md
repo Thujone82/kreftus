@@ -150,6 +150,7 @@ The script features an advanced **Interactive Mode** that activates when run fro
 - **[R]** - **Rain View:** Switch to rain forecast mode with sparklines
 - **[W]** - **Wind View:** Switch to wind forecast mode with direction glyphs
 - **[G]** - **Get/Refresh:** Manually refresh weather data (auto-refreshes every 10 minutes)
+- **[U]** - **Update Toggle:** Toggle automatic updates on/off
 - **[F]** - **Full View:** Return to complete weather information display
 - **[Enter]** - **Exit:** Close the script and return to the system
 
@@ -260,6 +261,8 @@ The wind forecast mode uses the same NWS hourly forecast data but processes it d
 - **Extended Forecast Coverage:** Both rain and wind modes use 96-hour data instead of standard 12-hour limit
 - **Improved Visual Design:** Better sparkline characters and directional glyphs that don't interfere with each other
 - **Auto-Refresh Functionality:** Weather data automatically refreshes every 10 minutes in interactive mode
+- **Auto-Update Toggle:** Added 'U' key to toggle automatic updates on/off during interactive mode
+- **Command Line Control:** Added `-u` flag to start with automatic updates disabled
 - **Manual Refresh Control:** Added 'G' key for manual data refresh while preserving current view mode
 - **Dynamic Period Names:** Forecast sections now use actual NWS period names instead of hardcoded labels
 - **Comprehensive Documentation:** Updated README and project documentation
@@ -287,6 +290,34 @@ The auto-refresh functionality provides seamless data updates in interactive mod
 - **Seamless Experience:** Users don't need to restart the script to get fresh data
 - **Flexible Control:** Manual refresh available for immediate updates when needed
 - **View Continuity:** Current display mode preserved across refreshes
+- **User Control:** Toggle auto-updates on/off as needed with 'U' key
+- **Battery Friendly:** Disable auto-updates to save battery on mobile devices
+- **Network Conscious:** Turn off auto-updates when on limited data connections
+
+### Auto-Update Toggle Feature (v2.1)
+
+The auto-update toggle provides users with control over automatic data refreshing:
+
+#### Key Features:
+- **Toggle Control:** Press 'U' key to toggle automatic updates on/off
+- **Visual Feedback:** Clear status messages show current auto-update state
+- **Timer Reset:** When re-enabling updates, the refresh timer resets to current time
+- **Command Line Option:** Use `-u` flag to start with auto-updates disabled
+- **State Preservation:** Current display mode maintained when toggling updates
+
+#### Implementation Details:
+- **Status Display:** Green text for "Automatic Updates Enabled", Yellow for "Automatic Updates Disabled"
+- **Timer Management:** `$dataFetchTime` reset when re-enabling to prevent immediate refresh
+- **Conditional Logic:** Auto-refresh only occurs when `$autoUpdateEnabled` is true
+- **User Feedback:** 800ms status message display with appropriate color coding
+- **Mode Continuity:** Current view (hourly/daily/terse/rain/wind/full) preserved during toggle
+
+#### Use Cases:
+- **Battery Conservation:** Disable auto-updates on mobile devices to save battery
+- **Data Usage Control:** Turn off updates when on limited data connections
+- **Manual Control:** Users who prefer to manually refresh data only when needed
+- **Network Issues:** Disable updates when experiencing network connectivity problems
+- **Focused Sessions:** Turn off updates during focused work sessions to avoid interruptions
 
 ### Future Enhancements
 
