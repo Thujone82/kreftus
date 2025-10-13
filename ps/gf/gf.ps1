@@ -1650,6 +1650,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
     $isHourlyMode = $initialHourlyMode
     $isRainMode = $false  # State tracking for rain forecast mode
     $isWindMode = $false  # State tracking for wind forecast mode
+    $isTerseMode = $false  # State tracking for terse mode
     $hourlyScrollIndex = 0
     $totalHourlyPeriods = [Math]::Min($hourlyData.properties.periods.Count, 48)  # Limit to 48 hours
     
@@ -1683,82 +1684,98 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
             # Check if data is stale and refresh if needed
             $timeSinceLastFetch = (Get-Date) - $dataFetchTime
             if ($timeSinceLastFetch.TotalSeconds -gt $dataStaleThreshold) {
-                $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers
-                if ($refreshSuccess) {
-                    # Re-render current view with fresh data
-                    Clear-Host
-                    if ($isHourlyMode) {
-                        Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true
-                        Show-InteractiveControls -IsHourlyMode $true
-                    } elseif ($isRainMode) {
-                        Show-RainForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
-                        Show-InteractiveControls
-                    } elseif ($isWindMode) {
-                        Show-WindForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
-                        Show-InteractiveControls
-                    } else {
-                        Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo
-                        Show-InteractiveControls
+                    $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers
+                    if ($refreshSuccess) {
+                        # Re-render current view with fresh data
+                        Clear-Host
+                        if ($isHourlyMode) {
+                            Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true
+                            Show-InteractiveControls -IsHourlyMode $true
+                        } elseif ($isRainMode) {
+                            Show-RainForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
+                            Show-InteractiveControls
+                        } elseif ($isWindMode) {
+                            Show-WindForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
+                            Show-InteractiveControls
+                        } else {
+                            # Preserve current mode - show terse mode if in terse mode
+                            if ($isTerseMode) {
+                                Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor
+                                Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
+                                Show-WeatherAlerts -AlertsData $alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false
+                                Show-InteractiveControls
+                            } else {
+                                Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo
+                                Show-InteractiveControls
+                            }
+                        }
                     }
                 }
-            }
             
-            $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-            
-            # Handle keyboard input for interactive mode
-            switch ($key.VirtualKeyCode) {
-                72 { # H key - Switch to hourly forecast only
+            # Check for key input (non-blocking) - using same approach as bmon.ps1
+            if ([System.Console]::KeyAvailable) {
+                $keyInfo = [System.Console]::ReadKey($true)
+                
+                # Handle keyboard input for interactive mode
+                switch ($keyInfo.KeyChar) {
+                'h' { # H key - Switch to hourly forecast only
                     Clear-Host
                     $isHourlyMode = $true
                     $isRainMode = $false
                     $isWindMode = $false
+                    $isTerseMode = $false
                     $hourlyScrollIndex = 0  # Reset to first 12 hours
                     Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true
                     Show-InteractiveControls -IsHourlyMode $true
                 }
-                68 { # D key - Switch to 7-day forecast only
+                'd' { # D key - Switch to 7-day forecast only
                     Clear-Host
                     $isHourlyMode = $false
                     $isRainMode = $false
                     $isWindMode = $false
+                    $isTerseMode = $false
                     Show-SevenDayForecast -ForecastData $forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor
                     Show-InteractiveControls
                 }
-                84 { # T key - Switch to terse mode (current + today + alerts)
+                't' { # T key - Switch to terse mode (current + today + alerts)
                     Clear-Host
                     $isHourlyMode = $false
                     $isRainMode = $false
                     $isWindMode = $false
+                    $isTerseMode = $true
                     Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor
                     Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                     Show-WeatherAlerts -AlertsData $alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false
                     Show-InteractiveControls
                 }
-                70 { # F key - Switch to full weather report
+                'f' { # F key - Switch to full weather report
                     Clear-Host
                     $isHourlyMode = $false
                     $isRainMode = $false
                     $isWindMode = $false
+                    $isTerseMode = $false
                     Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true
                     Show-InteractiveControls
                 }
-                82 { # R key - Switch to rain forecast mode
+                'r' { # R key - Switch to rain forecast mode
                     Clear-Host
                     $isHourlyMode = $false
                     $isRainMode = $true
                     $isWindMode = $false
+                    $isTerseMode = $false
                     Show-RainForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
                     Show-InteractiveControls
                 }
-                87 { # W key - Switch to wind forecast mode
+                'w' { # W key - Switch to wind forecast mode
                     Clear-Host
                     $isHourlyMode = $false
                     $isRainMode = $false
                     $isWindMode = $true
+                    $isTerseMode = $false
                     Show-WindForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
                     Show-InteractiveControls
                 }
-                71 { # G key - Refresh weather data
+                'g' { # G key - Refresh weather data
                     $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers
                     if ($refreshSuccess) {
                         # Re-render current view with fresh data
@@ -1778,7 +1795,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         }
                     }
                 }
-                38 { # Up arrow - Scroll up in hourly mode
+                { $keyInfo.Key -eq 'UpArrow' } { # Up arrow - Scroll up in hourly mode
                     if ($isHourlyMode) {
                         $newIndex = $hourlyScrollIndex - $script:MAX_HOURLY_FORECAST_HOURS
                         if ($newIndex -ge 0) {
@@ -1789,7 +1806,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         }
                     }
                 }
-                40 { # Down arrow - Scroll down in hourly mode
+                { $keyInfo.Key -eq 'DownArrow' } { # Down arrow - Scroll down in hourly mode
                     if ($isHourlyMode) {
                         $newIndex = $hourlyScrollIndex + $script:MAX_HOURLY_FORECAST_HOURS
                         if ($newIndex -lt $totalHourlyPeriods) {
@@ -1800,18 +1817,26 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         }
                     }
                 }
-                13 { # Enter key - Exit interactive mode
+                { $keyInfo.Key -eq 'Enter' } { # Enter key - Exit interactive mode
                     Write-Host "Exiting..." -ForegroundColor Yellow
                     return
                 }
-                28 { # NumPad Enter key - Exit interactive mode
+                { $keyInfo.Key -eq 'NumPadEnter' } { # NumPad Enter key - Exit interactive mode
                     Write-Host "Exiting..." -ForegroundColor Yellow
                     return
                 }
-                27 { # Esc key - Exit interactive mode
+                { $keyInfo.Key -eq 'Escape' } { # Esc key - Exit interactive mode
                     Write-Host "Exiting..." -ForegroundColor Yellow
                     return
                 }
+                default {
+                    # Ignore unhandled keys (like spacebar, etc.)
+                    # Do nothing - just continue the loop
+                }
+            }
+            } else {
+                # No key available - sleep briefly to prevent CPU spinning
+                Start-Sleep -Milliseconds 100
             }
         }
         catch {
