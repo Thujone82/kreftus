@@ -69,12 +69,11 @@ param(
 # Global error handler for 503 Server Unavailable errors
 $ErrorActionPreference = "Stop"
 trap {
-    if ($_.Exception.Message -match "503.*Server Unavailable" -or $_.Exception.Message -match "503 Server Unavailable") {
+    if ($_.Exception.Message -match "503" -or $_.Exception.Message -match "Service Unavailable") {
         Write-Host "The server is not currently available, try again later." -ForegroundColor Red
         exit 1
     } else {
         Write-Host "An error occurred: $($_.Exception.Message)" -ForegroundColor Red
-        Write-Host "Error details: $($_.ScriptStackTrace)" -ForegroundColor Yellow
         exit 1
     }
 }
