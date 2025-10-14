@@ -380,7 +380,7 @@ function Edit-Job {
 function Show-UpdateScreen {
     while ($true) {
         Clear-Screen
-        Show-Header "UPDate Tool"
+        Show-Header "*** UPDate Tool ***"
         
         if ($script:Jobs.Count -eq 0) {
             Write-White "No jobs configured. Redirecting to Jobs management..."
@@ -403,7 +403,7 @@ function Show-UpdateScreen {
         
         # Command bar with proper highlighting
         $jobRange = if ($script:Jobs.Count -eq 1) { "1" } else { "1-$($script:Jobs.Count)" }
-        Write-Host "Enable [" -ForegroundColor White -NoNewline
+        Write-Host "Enable[" -ForegroundColor White -NoNewline
         Write-Host $jobRange -ForegroundColor Cyan -NoNewline
         Write-Host "] [" -ForegroundColor White -NoNewline
         Write-Host "A" -ForegroundColor Cyan -NoNewline
@@ -476,7 +476,7 @@ function Show-UpdateScreen {
 
 function Show-JobsScreen {
     Clear-Screen
-    Show-Header "Jobs Management"
+    Show-Header "*** Jobs Management ***"
     
     # Display existing jobs
     for ($i = 0; $i -lt $script:Jobs.Count; $i++) {
