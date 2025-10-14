@@ -73,7 +73,9 @@ trap {
         Write-Host "The server is not currently available, try again later." -ForegroundColor Red
         exit 1
     } else {
-        throw
+        Write-Host "An error occurred: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Error details: $($_.ScriptStackTrace)" -ForegroundColor Yellow
+        exit 1
     }
 }
 
