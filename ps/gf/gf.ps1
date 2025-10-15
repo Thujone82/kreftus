@@ -189,6 +189,7 @@ function Get-ParentProcessName {
 function Get-CurrentLocation {
     try {
         $ipApiUrl = "http://ip-api.com/json/"
+        Write-Verbose "GET: $ipApiUrl"
         $response = Invoke-RestMethod -Uri $ipApiUrl -Method Get -ErrorAction Stop
         
         if ($response.status -eq "success") {
@@ -307,6 +308,7 @@ function Update-WeatherData {
         $alertsData = $null
         try {
             $alertsUrl = "https://api.weather.gov/alerts/active?point=$lat,$lon"
+            Write-Verbose "GET: $alertsUrl"
             $alertsResponse = Invoke-RestMethod -Uri $alertsUrl -Method Get -Headers $headers -ErrorAction Stop
             $alertsData = $alertsResponse
         }
@@ -508,8 +510,8 @@ Write-Verbose "Geocoding result: City: $city, State: $state, Lat: $lat, Lon: $lo
 
 # --- FETCH NWS POINTS DATA ---
 Write-Verbose "Starting API call for NWS points data."
-
 $pointsUrl = "https://api.weather.gov/points/$lat,$lon"
+Write-Verbose "GET: $pointsUrl"
 
 $pointsJob = Start-ApiJob -Url $pointsUrl -Headers $headers -JobName "PointsData"
 
@@ -533,10 +535,16 @@ Write-Verbose "Points data retrieved successfully"
 
 Remove-Job -Job $pointsJob
 
-# Extract grid information
+# Extract forecast URLs directly from Points API response
+# This ensures we use the correct office code (e.g., AER vs AFC)
+$forecastUrl = $pointsData.properties.forecast
+$hourlyUrl = $pointsData.properties.forecastHourly
+
+# Extract grid information (for reference/debugging)
 $office = $pointsData.properties.cwa
 $gridX = $pointsData.properties.gridX
 $gridY = $pointsData.properties.gridY
+$gridId = $pointsData.properties.gridId
 
 # Extract additional location information
 $timeZone = $pointsData.properties.timeZone
@@ -558,14 +566,14 @@ if ($pointsData.properties.relativeLocation.properties.county) {
     }
 }
 
-Write-Verbose "Grid info: Office=$office, GridX=$gridX, GridY=$gridY"
+Write-Verbose "Grid info: Office=$office (CWA), GridId=$gridId, GridX=$gridX, GridY=$gridY"
 Write-Verbose "Location info: County=$county, TimeZone=$timeZone, Radar=$radarStation"
+Write-Verbose "Forecast URLs extracted from Points API response"
 
 # --- CONCURRENTLY FETCH FORECAST AND HOURLY DATA ---
 Write-Verbose "Starting API calls for forecast data."
-
-$forecastUrl = "https://api.weather.gov/gridpoints/$office/$gridX,$gridY/forecast"
-$hourlyUrl = "https://api.weather.gov/gridpoints/$office/$gridX,$gridY/forecast/hourly"
+Write-Verbose "GET: $forecastUrl"
+Write-Verbose "GET: $hourlyUrl"
 
 $forecastJob = Start-ApiJob -Url $forecastUrl -Headers $headers -JobName "ForecastData"
 $hourlyJob = Start-ApiJob -Url $hourlyUrl -Headers $headers -JobName "HourlyData"
@@ -617,6 +625,7 @@ $alertsData = $null
 try {
     $alertsUrl = "https://api.weather.gov/alerts/active?point=$lat,$lon"
     Write-Verbose "Fetching alerts from: $alertsUrl"
+    Write-Verbose "GET: $alertsUrl"
     $alertsResponse = Invoke-RestMethod -Uri $alertsUrl -Method Get -Headers $headers -ErrorAction Stop
     $alertsData = $alertsResponse
     Write-Verbose "Alerts found: $($alertsData.features.Count)"
