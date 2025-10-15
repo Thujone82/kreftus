@@ -6,13 +6,18 @@
     This script accepts a US zip code or a "City, State" string as input. It uses the
     National Weather Service API to retrieve and display detailed weather information.
 
-    The script first uses the OpenStreetMap Nominatim API for geocoding to determine the latitude 
-    and longitude of the location, then fetches the current weather, daily forecasts, and weather alerts.
+    The script uses three free APIs, none of which require API keys:
+    - OpenStreetMap Nominatim API: For geocoding (converting locations to coordinates)
+    - ip-api.com: For IP-based geolocation when no location is specified
+    - National Weather Service API: For weather data, forecasts, and alerts
 
-    No API key is required as both the National Weather Service API and OpenStreetMap Nominatim API are free and open.
+    When 'here' is specified, the script automatically detects your location using 
+    ip-api.com to determine coordinates based on your public IP address. For specified 
+    locations, OpenStreetMap Nominatim API is used to convert the location to coordinates, 
+    then the National Weather Service API fetches current weather, daily forecasts, and alerts.
     
 .PARAMETER Location
-    The location for which to retrieve weather. Can be a 5-digit US zip code or a "City, State" string.
+    The location for which to retrieve weather. Can be a 5-digit US zip code or a "City, State" string, or 'here'.
     If omitted, the script will prompt you for it.
     
 .PARAMETER Help
@@ -25,8 +30,13 @@
     .\gf.ps1 "Portland, OR" -Verbose
 
 .NOTES
-    This script uses the free National Weather Service API and OpenStreetMap Nominatim API, 
-    both of which require no API key. The APIs are limited to locations within the United States.
+    This script uses three free APIs, none of which require API keys:
+    - National Weather Service API (weather.gov) - Weather data for US locations
+    - OpenStreetMap Nominatim API (nominatim.openstreetmap.org) - Geocoding for US locations
+    - ip-api.com - IP-based geolocation for automatic location detection
+    
+    The weather data is limited to locations within the United States due to the 
+    National Weather Service API's coverage area.
 
     To execute PS Scripts run the following from an admin prompt "Set-ExecutionPolicy bypass"
     Execute with ./<scriptname>, or simply <scriptname> if placed in your %PATH%
