@@ -340,6 +340,9 @@ func getBtcPrice() (float64, error) {
 			setRetryIndicator(strconv.Itoa(attempt), "11", true)
 
 			time.Sleep(sleepTime)
+
+			// Change to cyan before retry attempt (like spinner does before fetch)
+			setRetryIndicator(strconv.Itoa(attempt), "6", true)
 			continue
 		}
 
@@ -365,6 +368,9 @@ func getBtcPrice() (float64, error) {
 			backoff := time.Duration(math.Pow(2, float64(attempt-1))) * baseDelay
 			jitter := time.Duration(time.Now().UnixNano()%1000) * time.Millisecond
 			time.Sleep(backoff + jitter)
+
+			// Change to cyan before retry attempt (like spinner does before fetch)
+			setRetryIndicator(strconv.Itoa(attempt), "6", true)
 			continue
 		}
 
@@ -467,7 +473,6 @@ func getSparkChars() []rune {
 	// Use block elements including the lowest bar to avoid blank/glyph issues
 	return []rune{'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
 }
-
 
 func playSound(frequency int, duration int) {
 	if runtime.GOOS == "windows" {

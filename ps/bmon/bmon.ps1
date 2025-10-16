@@ -188,9 +188,11 @@ $script:WarningLineShown = $false
 function Write-RetryIndicator {
     param(
         [int]$Attempt,
-        [switch]$Final
+        [switch]$Final,
+        [switch]$Fetching
     )
-    $fg = if ($Final) { 'Red' } else { 'Yellow' }
+    # Color logic: Cyan when fetching (like spinner), Red on final failure, Yellow during wait
+    $fg = if ($Fetching) { 'Cyan' } elseif ($Final) { 'Red' } else { 'Yellow' }
     $digit = [string]$Attempt
     try {
         # Move to column 0, write the colored digit only, then return to column 0.
@@ -299,6 +301,9 @@ function Get-BtcPrice {
             Write-RetryIndicator -Attempt $attempt
             $script:WarningLineShown = $true
             Start-Sleep -Milliseconds $sleepDurationMs
+            
+            # Change to cyan before retry attempt (like spinner does before fetch)
+            Write-RetryIndicator -Attempt $attempt -Fetching
         }
     }
     return $null
