@@ -907,7 +907,52 @@ func (m tuiModel) View() string {
 		return strings.Join([]string{title, priceLine, controls, prompt}, "\n")
 	}
 
-	// monitoring views
+	// interactive mode view - multi-line like PS version
+	if m.mode == modeInteractive {
+		title := lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Render("*** BTC Monitor ***") // yellow
+
+		// Build price line with sparkline and change indicator
+		priceChange := currentBtcPrice - m.monitorStartPrice
+		priceColor := lipgloss.Color("15") // white
+		changeString := ""
+		if priceChange >= 0.01 {
+			priceColor = lipgloss.Color("2") // green
+			changeString = fmt.Sprintf(" [+$%0.2f]", priceChange)
+		} else if priceChange <= -0.01 {
+			priceColor = lipgloss.Color("1") // red
+			changeString = fmt.Sprintf(" [$%0.2f]", priceChange)
+		}
+
+		var sparklineOrLabel string
+		if m.sparklineEnabled {
+			sparklineOrLabel = getSparkline(m.history)
+		} else {
+			sparklineOrLabel = "Bitcoin (USD):"
+		}
+
+		priceLine := fmt.Sprintf("%s $%s%s", sparklineOrLabel, formatUSD(currentBtcPrice), changeString)
+
+		// Apply color and flash effect
+		var styledPriceLine string
+		if time.Now().Before(m.flashUntil) && (priceChange >= 0.01 || priceChange <= -0.01) {
+			// Inverted colors for flash
+			styledPriceLine = lipgloss.NewStyle().Background(priceColor).Foreground(lipgloss.Color("0")).Render(priceLine)
+		} else {
+			styledPriceLine = lipgloss.NewStyle().Foreground(priceColor).Render(priceLine)
+		}
+
+		controls := lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Render("Pause[") +
+			lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Render("Space") +
+			lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Render("], Reset[") +
+			lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Render("R") +
+			lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Render("], Exit[") +
+			lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Render("Ctrl+C") +
+			lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Render("]")
+
+		return strings.Join([]string{title, styledPriceLine, controls}, "\n")
+	}
+
+	// go/golong mode views (single-line)
 	priceChange := currentBtcPrice - m.monitorStartPrice
 	priceColor := "White"
 	changeString := ""
