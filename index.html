@@ -37,6 +37,7 @@
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="./favicon.ico">
     <style>
+        /* Critical CSS - Above the fold styles */
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
@@ -120,11 +121,20 @@
 
         .project-row {
             cursor: pointer;
-            transition: background-color 0.3s ease;
+            transition: all 0.3s ease;
+            /* Add touch feedback */
+            -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
         }
 
         .project-row:hover {
             background-color: #e9e9e9;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .project-row:focus {
+            outline: 2px solid #007bff;
+            outline-offset: 2px;
         }
 
         .project-row a {
@@ -148,6 +158,37 @@
             display: block;
             margin: 0 auto;       /* Center the image horizontally within its cell. */
             border-radius: 8px; /* Optional: for rounded corners on images */
+            transition: opacity 0.3s ease;
+        }
+        
+        /* Loading state for images */
+        .project-image-cell img[loading="lazy"] {
+            opacity: 0;
+        }
+        
+        .project-image-cell img[loading="lazy"].loaded {
+            opacity: 1;
+        }
+        
+        /* Skeleton loading placeholder */
+        .image-skeleton {
+            width: 100%;
+            max-width: 256px;
+            height: 256px;
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-size: 14px;
+        }
+        
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
         }
 
         .project-text-cell {
@@ -185,13 +226,56 @@
         }
 
     </style>
+    
+    <!-- Structured Data for SEO -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "KREFT.US PROJECTS",
+        "url": "https://kreft.us",
+        "description": "A collection of innovative web applications and CLI tools including games, Bitcoin trackers, weather utilities, and interactive simulations.",
+        "author": {
+            "@type": "Person",
+            "name": "Thujone82"
+        },
+        "mainEntity": {
+            "@type": "ItemList",
+            "name": "Project Portfolio",
+            "description": "Web applications and CLI tools collection",
+            "itemListElement": [
+                {
+                    "@type": "SoftwareApplication",
+                    "name": "Snake VS",
+                    "description": "A multiplayer & AI snake game with Battle Royale mode",
+                    "url": "https://kreft.us/snake/",
+                    "applicationCategory": "Game"
+                },
+                {
+                    "@type": "SoftwareApplication", 
+                    "name": "Conway's Game of Life",
+                    "description": "Interactive cellular automaton simulation",
+                    "url": "https://kreft.us/gol/",
+                    "applicationCategory": "Simulation"
+                },
+                {
+                    "@type": "SoftwareApplication",
+                    "name": "BTC Track",
+                    "description": "Bitcoin price tracking and portfolio monitoring",
+                    "url": "https://kreft.us/btc/",
+                    "applicationCategory": "Finance"
+                }
+            ]
+        }
+    }
+    </script>
 </head>
 <body>
 
     <header>
         <h1>KREFT.US PROJECTS</h1>
         <a href="https://github.com/Thujone82/kreftus" target="_blank" rel="noopener noreferrer" class="github-link" title="View on GitHub">
-            <img src="./images/github-mark-white.png" alt="GitHub">
+            <img src="./images/github-mark-white.png" alt="GitHub repository link" loading="lazy">
         </a>
     </header>
 
@@ -201,7 +285,7 @@
             <tbody>
                 <tr class="project-row" onclick="window.location.href='./snake/';">
                     <td class="project-image-cell">
-                        <a href="./snake/" tabindex="-1"> <img src="./images/snake.png" alt="Snake VS">
+                        <a href="./snake/" tabindex="-1"> <img src="./images/snake.png" alt="Snake VS multiplayer game screenshot showing colorful snake characters" loading="lazy">
                         </a>
                     </td>
                     <td class="project-text-cell">
@@ -215,7 +299,7 @@
                 <tr class="project-row" onclick="window.location.href='./nfo/';">
                     <td class="project-image-cell">
                         <a href="./nfo/" tabindex="-1">
-                            <img src="./images/nfo.png" alt="nfo2go Icon Image">
+                            <img src="./images/nfo.png" alt="nfo2go floppy disk icon with information symbol" loading="lazy">
                         </a>
                     </td>
                     <td class="project-text-cell">
@@ -230,7 +314,7 @@
                 <tr class="project-row" onclick="window.location.href='./spiro/';">
                     <td class="project-image-cell">
                         <a href="./spiro/" tabindex="-1">
-                            <img src="./images/spiro.png" alt="Spirograph Playground Image">
+                            <img src="./images/spiro.png" alt="Colorful spirograph pattern with concentric circles and interwoven lines" loading="lazy">
                         </a>
                     </td>
                     <td class="project-text-cell">
@@ -245,7 +329,7 @@
                 <tr class="project-row" onclick="window.location.href='./btc/';">
                     <td class="project-image-cell">
                         <a href="./btc/" tabindex="-1">
-                            <img src="./images/btc.png" alt="Bitcoin Track Icon Image">
+                            <img src="./images/btc.png" alt="Orange Bitcoin logo on 3D square background" loading="lazy">
                         </a>
                     </td>
                     <td class="project-text-cell">
@@ -260,7 +344,7 @@
                 <tr class="project-row" onclick="window.location.href='./gene/';">
                     <td class="project-image-cell">
                         <a href="./gene/" tabindex="-1">
-                            <img src="./images/gene.png" alt="GENE Project Image">
+                            <img src="./images/gene.png" alt="GENE digital life simulation with colorful scattered dots" loading="lazy">
                         </a>
                     </td>
                     <td class="project-text-cell">
@@ -275,7 +359,7 @@
                 <tr class="project-row" onclick="window.location.href='./gol/';">
                     <td class="project-image-cell">
                         <a href="./gol/" tabindex="-1">
-                            <img src="./images/gol.png" alt="Conway's Game of Life Image">
+                            <img src="./images/gol.png" alt="Conway's Game of Life cellular automaton grid with colored cells" loading="lazy">
                         </a>
                     </td>
                     <td class="project-text-cell">
@@ -290,7 +374,7 @@
                 <tr class="project-row" onclick="window.location.href='./pendulum/';">
                     <td class="project-image-cell">
                         <a href="./pendulum/" tabindex="-1">
-                            <img src="./images/pendulum.png" alt="Double Pendulum Sim Image">
+                            <img src="./images/pendulum.png" alt="Double pendulum physics simulation with connected bobs" loading="lazy">
                         </a>
                     </td>
                     <td class="project-text-cell">
@@ -311,7 +395,7 @@
                 <tr class="project-row" onclick="window.location.href='./larry/';">
                     <td class="project-image-cell">
                         <a href="./larry/" tabindex="-1">
-                            <img src="./images/larry.png" alt="Larry - Terminal Frogger-like Game">
+                            <img src="./images/larry.png" alt="Larry terminal game screenshot showing retro-style traffic and character" loading="lazy">
                         </a>
                     </td>
                     <td class="project-text-cell">
@@ -326,7 +410,7 @@
                 <tr class="project-row" onclick="window.location.href='./gf/';">
                     <td class="project-image-cell">
                         <a href="./gf/" tabindex="-1">
-                            <img src="./images/gf.png" alt="GetForecast CLI Screenshot">
+                            <img src="./images/gf.png" alt="GetForecast terminal weather application showing Portland OR weather data" loading="lazy">
                         </a>
                     </td>
                     <td class="project-text-cell">
@@ -341,7 +425,7 @@
                 <tr class="project-row" onclick="window.location.href='./vbtc/';">
                     <td class="project-image-cell">
                         <a href="./vbtc/" tabindex="-1">
-                            <img src="./images/vbtc.png" alt="vBTC - Virtual Bitcoin Trading Simulator Screenshot">
+                            <img src="./images/vbtc.png" alt="vBTC Bitcoin trading simulator terminal interface with market data" loading="lazy">
                         </a>
                     </td>
                     <td class="project-text-cell">
@@ -356,7 +440,7 @@
                 <tr class="project-row" onclick="window.location.href='./bmon/';">
                     <td class="project-image-cell">
                         <a href="./bmon/" tabindex="-1">
-                            <img src="./images/bmon.png" alt="Bmon - Bitcoin Price Monitor Screenshot">
+                            <img src="./images/bmon.png" alt="Bmon Bitcoin price monitor terminal with sparkline charts" loading="lazy">
                         </a>
                     </td>
                     <td class="project-text-cell">
@@ -371,7 +455,7 @@
                 <tr class="project-row" onclick="window.location.href='./gw/';">
                     <td class="project-image-cell">
                         <a href="./gw/" tabindex="-1">
-                            <img src="./images/gw.png" alt="GetWeather CLI Screenshot">
+                            <img src="./images/gw.png" alt="GetWeather CLI terminal application showing weather forecast data" loading="lazy">
                         </a>
                     </td>
                     <td class="project-text-cell">
@@ -386,7 +470,7 @@
                 <tr class="project-row" onclick="window.location.href='./rc/';">
                     <td class="project-image-cell">
                         <a href="./rc/" tabindex="-1">
-                            <img src="./images/rc.png" alt="rc (Run Continuously) Screenshot">
+                            <img src="./images/rc.png" alt="rc Run Continuously terminal utility showing command execution output" loading="lazy">
                         </a>
                     </td>
                     <td class="project-text-cell">
@@ -402,5 +486,60 @@
         </table>
     </div>
 <p></p>
+
+<!-- Enhanced Loading and UX Script -->
+<script>
+// Handle lazy loading with smooth transitions
+document.addEventListener('DOMContentLoaded', function() {
+    // Add loading states to lazy images
+    const lazyImages = document.querySelectorAll('img[loading="lazy"]');
+    
+    lazyImages.forEach(img => {
+        // Add skeleton placeholder
+        const skeleton = document.createElement('div');
+        skeleton.className = 'image-skeleton';
+        skeleton.textContent = 'Loading...';
+        img.parentNode.insertBefore(skeleton, img);
+        
+        // Handle image load
+        img.addEventListener('load', function() {
+            skeleton.style.display = 'none';
+            img.classList.add('loaded');
+        });
+        
+        // Handle image error
+        img.addEventListener('error', function() {
+            skeleton.textContent = 'Image failed to load';
+            skeleton.style.background = '#ffebee';
+            skeleton.style.color = '#c62828';
+        });
+    });
+    
+    // Add smooth scrolling for better UX
+    document.documentElement.style.scrollBehavior = 'smooth';
+    
+    // Add focus management for accessibility
+    const projectRows = document.querySelectorAll('.project-row');
+    projectRows.forEach(row => {
+        row.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                row.click();
+            }
+        });
+    });
+    
+    // Add touch feedback for mobile
+    projectRows.forEach(row => {
+        row.addEventListener('touchstart', function() {
+            this.style.transform = 'scale(0.98)';
+        });
+        
+        row.addEventListener('touchend', function() {
+            this.style.transform = 'scale(1)';
+        });
+    });
+});
+</script>
 </body>
 </html>
