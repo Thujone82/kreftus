@@ -675,6 +675,110 @@ function Format-TextWrap {
     return $lines
 }
 
+# Helper: resolve a TimeZoneInfo from an ID (supports IANA -> Windows mapping for common US zones)
+function Get-ResolvedTimeZoneInfo {
+    param([string]$TimeZoneId)
+
+    if (-not $TimeZoneId -or [string]::IsNullOrWhiteSpace($TimeZoneId)) {
+        return [System.TimeZoneInfo]::Local
+    }
+
+    try { return [System.TimeZoneInfo]::FindSystemTimeZoneById($TimeZoneId) } catch {}
+
+    $ianaToWindows = @{
+        'America/Los_Angeles' = 'Pacific Standard Time'
+        'America/Denver'      = 'Mountain Standard Time'
+        'America/Phoenix'     = 'US Mountain Standard Time'
+        'America/Chicago'     = 'Central Standard Time'
+        'America/New_York'    = 'Eastern Standard Time'
+        'America/Anchorage'   = 'Alaskan Standard Time'
+        'Pacific/Honolulu'    = 'Hawaiian Standard Time'
+        'America/Boise'       = 'Mountain Standard Time'
+        'America/Detroit'     = 'Eastern Standard Time'
+        'America/Indiana/Indianapolis' = 'US Eastern Standard Time'
+    }
+
+    if ($ianaToWindows.ContainsKey($TimeZoneId)) {
+        try { return [System.TimeZoneInfo]::FindSystemTimeZoneById($ianaToWindows[$TimeZoneId]) } catch {}
+    }
+
+    return [System.TimeZoneInfo]::Local
+}
+
+# Function to calculate sunrise and sunset (NOAA-based, returns local times using provided time zone)
+function Get-SunriseSunset {
+    param(
+        [double]$Latitude,
+        [double]$Longitude,
+        [DateTime]$Date,
+        [string]$TimeZoneId
+    )
+
+    # Constants
+    $zenithDegrees = 90.833 # Includes standard atmospheric refraction
+
+    # Helpers
+    function ToRadians([double]$deg) { return [Math]::PI * $deg / 180.0 }
+    function ToDegrees([double]$rad) { return 180.0 * $rad / [Math]::PI }
+
+    $latRad = ToRadians $Latitude
+    $dayOfYear = $Date.DayOfYear
+
+    # Fractional year (radians) for day N at 12:00 (good enough for sunrise/sunset)
+    $gamma = 2.0 * [Math]::PI * ($dayOfYear - 1) / 365.0
+
+    # Equation of time (minutes) - NOAA approximation
+    $equationOfTime = 229.18 * (0.000075 + 0.001868 * [Math]::Cos($gamma) - 0.032077 * [Math]::Sin($gamma) - 0.014615 * [Math]::Cos(2*$gamma) - 0.040849 * [Math]::Sin(2*$gamma))
+
+    # Solar declination (radians) - NOAA series
+    $declination = 0.006918 - 0.399912 * [Math]::Cos($gamma) + 0.070257 * [Math]::Sin($gamma) - 0.006758 * [Math]::Cos(2*$gamma) + 0.000907 * [Math]::Sin(2*$gamma) - 0.002697 * [Math]::Cos(3*$gamma) + 0.00148 * [Math]::Sin(3*$gamma)
+
+    # Hour angle for the sun at sunrise/sunset
+    $cosH = ([Math]::Cos((ToRadians $zenithDegrees)) - [Math]::Sin($latRad) * [Math]::Sin($declination)) / ([Math]::Cos($latRad) * [Math]::Cos($declination))
+
+    if ($cosH -gt 1) {
+        # Polar night - no sunrise
+        return @{ Sunrise = $null; Sunset = $null; IsPolarNight = $true; IsPolarDay = $false }
+    }
+    if ($cosH -lt -1) {
+        # Polar day - no sunset
+        return @{ Sunrise = $null; Sunset = $null; IsPolarNight = $false; IsPolarDay = $true }
+    }
+
+    $H = [Math]::Acos([Math]::Min(1.0, [Math]::Max(-1.0, $cosH))) # Clamp for safety
+    $Hdeg = ToDegrees $H
+
+    # Solar noon in minutes from UTC midnight
+    $solarNoonUtcMin = 720.0 - 4.0 * $Longitude - $equationOfTime
+
+    # Sunrise/Sunset in minutes from UTC midnight
+    $sunriseUtcMin = $solarNoonUtcMin - 4.0 * $Hdeg
+    $sunsetUtcMin  = $solarNoonUtcMin + 4.0 * $Hdeg
+
+    # Normalize to 0..1440 range to build DateTime values
+    while ($sunriseUtcMin -lt 0) { $sunriseUtcMin += 1440 }
+    while ($sunriseUtcMin -ge 1440) { $sunriseUtcMin -= 1440 }
+    while ($sunsetUtcMin -lt 0) { $sunsetUtcMin += 1440 }
+    while ($sunsetUtcMin -ge 1440) { $sunsetUtcMin -= 1440 }
+
+    # Build UTC DateTimes (note: sunset can be next-day local, conversion handles it)
+    $utcMidnight = [DateTime]::new($Date.Year, $Date.Month, $Date.Day, 0, 0, 0, [System.DateTimeKind]::Utc)
+    $sunriseUtc = $utcMidnight.AddMinutes($sunriseUtcMin)
+    $sunsetUtc  = $utcMidnight.AddMinutes($sunsetUtcMin)
+
+    # Convert to target time zone (falls back to local if mapping fails)
+    $tzInfo = Get-ResolvedTimeZoneInfo -TimeZoneId $TimeZoneId
+    $sunriseLocal = [System.TimeZoneInfo]::ConvertTimeFromUtc($sunriseUtc, $tzInfo)
+    $sunsetLocal  = [System.TimeZoneInfo]::ConvertTimeFromUtc($sunsetUtc,  $tzInfo)
+
+    return @{
+        Sunrise = $sunriseLocal
+        Sunset  = $sunsetLocal
+        IsPolarDay = $false
+        IsPolarNight = $false
+    }
+}
+
 # Extract current weather conditions from the first period of hourly data
 # This represents the most recent weather observation
 $currentPeriod = $hourlyData.properties.periods[0]
@@ -913,6 +1017,8 @@ function Show-CurrentConditions {
         [string]$CurrentDewPoint,
         [string]$CurrentPrecipProb,
         [string]$CurrentTimeLocal,
+        [string]$SunriseTime,
+        [string]$SunsetTime,
         [string]$DefaultColor,
         [string]$AlertColor,
         [string]$TitleColor,
@@ -958,6 +1064,14 @@ function Show-CurrentConditions {
         # Color code precipitation probability
         $precipColor = if ($currentPrecipProb -gt $script:HIGH_PRECIP_THRESHOLD) { $AlertColor } elseif ($currentPrecipProb -gt $script:MEDIUM_PRECIP_THRESHOLD) { "Yellow" } else { $DefaultColor }
         Write-Host "Precipitation: $currentPrecipProb% chance" -ForegroundColor $precipColor
+    }
+
+    # Display sunrise and sunset times
+    if ($SunriseTime) {
+        Write-Host "Sunrise: $SunriseTime" -ForegroundColor Yellow
+    }
+    if ($SunsetTime) {
+        Write-Host "Sunset: $SunsetTime" -ForegroundColor Yellow
     }
 
     # Safely display API update time with validation
@@ -1287,7 +1401,7 @@ function Show-FullWeatherReport {
     )
     
     if ($ShowCurrentConditions) {
-        Show-CurrentConditions -City $City -State $State -WeatherIcon $WeatherIcon -CurrentConditions $CurrentConditions -CurrentTemp $CurrentTemp -TempColor $TempColor -CurrentTempTrend $CurrentTempTrend -CurrentWind $CurrentWind -WindColor $WindColor -CurrentWindDir $CurrentWindDir -WindGust $WindGust -CurrentHumidity $CurrentHumidity -CurrentDewPoint $CurrentDewPoint -CurrentPrecipProb $CurrentPrecipProb -CurrentTimeLocal $dataFetchTime -DefaultColor $DefaultColor -AlertColor $AlertColor -TitleColor $TitleColor -InfoColor $InfoColor
+        Show-CurrentConditions -City $City -State $State -WeatherIcon $WeatherIcon -CurrentConditions $CurrentConditions -CurrentTemp $CurrentTemp -TempColor $TempColor -CurrentTempTrend $CurrentTempTrend -CurrentWind $CurrentWind -WindColor $WindColor -CurrentWindDir $CurrentWindDir -WindGust $WindGust -CurrentHumidity $CurrentHumidity -CurrentDewPoint $CurrentDewPoint -CurrentPrecipProb $CurrentPrecipProb -CurrentTimeLocal $dataFetchTime -SunriseTime $($sunriseTime.ToString('h:mm tt')) -SunsetTime $($sunsetTime.ToString('h:mm tt')) -DefaultColor $DefaultColor -AlertColor $AlertColor -TitleColor $TitleColor -InfoColor $InfoColor
     }
 
     if ($ShowTodayForecast) {
@@ -1587,6 +1701,11 @@ $windSpeed = Get-WindSpeed $currentWind
 $currentTimeLocal = $dataFetchTime
 Write-Verbose "Using API call time: $currentTimeLocal"
 
+# Calculate sunrise and sunset times
+$sunTimes = Get-SunriseSunset -Latitude $lat -Longitude $lon -Date (Get-Date) -TimeZoneId $timeZone
+$sunriseTime = $sunTimes.Sunrise
+$sunsetTime = $sunTimes.Sunset
+
 # Define color scheme for weather display
 $defaultColor = "DarkCyan"
 $alertColor = "Red"
@@ -1766,7 +1885,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         } else {
                             # Preserve current mode - show terse mode if in terse mode
                             if ($isTerseMode) {
-                                Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor
+                                Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -SunriseTime $($sunriseTime.ToString('h:mm tt')) -SunsetTime $($sunsetTime.ToString('h:mm tt')) -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor
                                 Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                                 Show-WeatherAlerts -AlertsData $alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false
                                 Show-InteractiveControls
@@ -1810,7 +1929,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isRainMode = $false
                     $isWindMode = $false
                     $isTerseMode = $true
-                    Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor
+                    Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -SunriseTime $($sunriseTime.ToString('h:mm tt')) -SunsetTime $($sunsetTime.ToString('h:mm tt')) -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor
                     Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                     Show-WeatherAlerts -AlertsData $alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false
                     Show-InteractiveControls
@@ -1861,7 +1980,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     } else {
                         # Preserve current mode - show terse mode if in terse mode
                         if ($isTerseMode) {
-                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor
+                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -SunriseTime $($sunriseTime.ToString('h:mm tt')) -SunsetTime $($sunsetTime.ToString('h:mm tt')) -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor
                             Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                             Show-WeatherAlerts -AlertsData $alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false
                             Show-InteractiveControls
