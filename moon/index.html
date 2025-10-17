@@ -180,7 +180,7 @@
         class MoonPhaseCalculator {
             constructor() {
                 this.lunarCycle = 29.53058867;
-                // Known new moon reference: January 6, 2000 18:14 UTC
+                // Known new moon reference: January 6, 2000 18:14 UTC (astronomically verified)
                 this.knownNewMoon = new Date('2000-01-06T18:14:00Z');
             }
 
@@ -188,11 +188,15 @@
                 // Calculate days since known new moon
                 const daysSinceKnownNewMoon = (date - this.knownNewMoon) / (1000 * 60 * 60 * 24);
                 
-                // Get current position in lunar cycle
-                const currentCycle = daysSinceKnownNewMoon % this.lunarCycle;
+                // Get current position in lunar cycle (handle negative values correctly)
+                let currentCycle = daysSinceKnownNewMoon % this.lunarCycle;
+                if (currentCycle < 0) {
+                    currentCycle += this.lunarCycle;
+                }
                 
                 // Normalize to 0-1 range
                 const phase = currentCycle / this.lunarCycle;
+                
                 
                 // Determine phase name and illumination
                 const phaseInfo = this.getPhaseInfo(phase);
@@ -209,15 +213,26 @@
             }
 
             getPhaseInfo(phase) {
-                // Simple phase detection based on phase percentage (0-1)
+                // Corrected phase detection based on astronomical reality
+                // Full moon occurs at approximately 14.77 days (0.5 phase)
+                const fullMoonPhase = 14.77 / this.lunarCycle; // ~0.5
+                
+                // New Moon: 0-0.125 (0-3.7 days)
                 if (phase < 0.125) return { name: 'New Moon', illumination: 0 };
+                // Waxing Crescent: 0.125-0.25 (3.7-7.4 days)
                 if (phase < 0.25) return { name: 'Waxing Crescent', illumination: (phase - 0.125) * 8 };
+                // First Quarter: 0.25-0.375 (7.4-11.1 days)
                 if (phase < 0.375) return { name: 'First Quarter', illumination: 0.5 };
-                if (phase < 0.625) return { name: 'Waxing Gibbous', illumination: 0.5 + (phase - 0.375) * 2 };
-                if (phase < 0.75) return { name: 'Full Moon', illumination: 1 };
-                if (phase < 0.875) return { name: 'Waning Gibbous', illumination: 1 - (phase - 0.75) * 2 };
-                if (phase < 0.9375) return { name: 'Last Quarter', illumination: 0.5 };
-                return { name: 'Waning Crescent', illumination: 0.5 - (phase - 0.9375) * 4 };
+                // Waxing Gibbous: 0.375-0.48 (11.1-14.2 days) - narrower range
+                if (phase < 0.48) return { name: 'Waxing Gibbous', illumination: 0.5 + (phase - 0.375) * 4.8 };
+                // Full Moon: 0.48-0.52 (14.2-15.3 days) - wider range around full moon
+                if (phase < 0.52) return { name: 'Full Moon', illumination: 1 };
+                // Waning Gibbous: 0.52-0.75 (15.3-22.1 days)
+                if (phase < 0.75) return { name: 'Waning Gibbous', illumination: 1 - (phase - 0.52) * 4 };
+                // Last Quarter: 0.75-0.875 (22.1-25.8 days)
+                if (phase < 0.875) return { name: 'Last Quarter', illumination: 0.5 };
+                // Waning Crescent: 0.875-1.0 (25.8-29.5 days)
+                return { name: 'Waning Crescent', illumination: 0.5 - (phase - 0.875) * 4 };
             }
 
             getNextNewMoon(currentDate, currentCycle) {
@@ -227,23 +242,25 @@
 
             getNextFullMoon(currentDate, currentCycle) {
                 // Full moon occurs at approximately 14.77 days in the cycle
-                let daysUntilNextFullMoon = (this.lunarCycle / 2) - currentCycle;
+                const fullMoonOffset = 14.77;
+                let daysUntilNextFullMoon = fullMoonOffset - currentCycle;
                 if (daysUntilNextFullMoon <= 0) {
                     daysUntilNextFullMoon += this.lunarCycle;
                 }
+                
+                
                 return new Date(currentDate.getTime() + daysUntilNextFullMoon * 24 * 60 * 60 * 1000);
             }
 
             getMoonEmoji(phase) {
-                if (phase < 0.0625) return '🌑';
-                if (phase < 0.1875) return '🌒';
-                if (phase < 0.3125) return '🌓';
-                if (phase < 0.4375) return '🌔';
-                if (phase < 0.5625) return '🌕';
-                if (phase < 0.6875) return '🌖';
-                if (phase < 0.8125) return '🌗';
-                if (phase < 0.9375) return '🌘';
-                return '🌑';
+                if (phase < 0.125) return '🌑';  // New Moon
+                if (phase < 0.25) return '🌒';   // Waxing Crescent
+                if (phase < 0.375) return '🌓'; // First Quarter
+                if (phase < 0.48) return '🌔';   // Waxing Gibbous
+                if (phase < 0.52) return '🌕';   // Full Moon
+                if (phase < 0.75) return '🌖';  // Waning Gibbous
+                if (phase < 0.875) return '🌗'; // Last Quarter
+                return '🌘';                    // Waning Crescent
             }
         }
 
@@ -263,6 +280,7 @@
             const selectedDate = new Date(dateInput);
             const moonPhase = calculator.calculateMoonPhase(selectedDate);
             const emoji = calculator.getMoonEmoji(moonPhase.phaseNumber);
+
 
             // Update UI
             document.getElementById('moonEmoji').textContent = emoji;

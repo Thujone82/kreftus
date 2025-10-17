@@ -800,10 +800,10 @@ function Get-MoonPhase {
     $currentCycle = $daysSince % $lunarCycle
     $phase = $currentCycle / $lunarCycle
     
-    # Determine phase name and emoji using simple method
+    # Determine phase name and emoji using corrected astronomical method
     # Phase ranges: New (0-0.125), Waxing Crescent (0.125-0.25), First Quarter (0.25-0.375),
-    # Waxing Gibbous (0.375-0.625), Full (0.625-0.75), Waning Gibbous (0.75-0.875),
-    # Last Quarter (0.875-0.9375), Waning Crescent (0.9375-1.0)
+    # Waxing Gibbous (0.375-0.48), Full (0.48-0.52), Waning Gibbous (0.52-0.75),
+    # Last Quarter (0.75-0.875), Waning Crescent (0.875-1.0)
     
     $phaseName = ""
     $emoji = ""
@@ -817,16 +817,16 @@ function Get-MoonPhase {
     } elseif ($phase -lt 0.375) {
         $phaseName = "First Quarter"
         $emoji = "🌓"
-    } elseif ($phase -lt 0.625) {
+    } elseif ($phase -lt 0.48) {
         $phaseName = "Waxing Gibbous"
         $emoji = "🌔"
-    } elseif ($phase -lt 0.75) {
+    } elseif ($phase -lt 0.52) {
         $phaseName = "Full Moon"
         $emoji = "🌕"
-    } elseif ($phase -lt 0.875) {
+    } elseif ($phase -lt 0.75) {
         $phaseName = "Waning Gibbous"
         $emoji = "🌖"
-    } elseif ($phase -lt 0.9375) {
+    } elseif ($phase -lt 0.875) {
         $phaseName = "Last Quarter"
         $emoji = "🌗"
     } else {
@@ -835,10 +835,10 @@ function Get-MoonPhase {
     }
     
     # Calculate next full moon and new moon dates
-    $isFullMoon = ($phase -ge 0.625 -and $phase -lt 0.75)
+    $isFullMoon = ($phase -ge 0.48 -and $phase -lt 0.52)
     $isNewMoon = ($phase -lt 0.125)
-    $showNextFullMoon = ($phase -lt 0.625)  # Before Full Moon
-    $showNextNewMoon = ($phase -ge 0.625)   # At/After Full Moon
+    $showNextFullMoon = ($phase -lt 0.48)  # Before Full Moon
+    $showNextNewMoon = ($phase -ge 0.52)   # At/After Full Moon
     
     # Calculate next full moon
     $daysUntilNextFullMoon = (14.77 - $currentCycle) % $lunarCycle
