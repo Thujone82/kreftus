@@ -1,5 +1,5 @@
 <#
-    This build script uses PS2EXE to conver bmon PowerShell script into an executable.
+    This build script uses PS2EXE to convert bmon PowerShell script into an executable.
 #>
 Write-Host "bmon.ps1 -> bmon.exe..." -ForegroundColor Cyan
 Invoke-ps2exe "bmon.ps1" "bmon.exe" `
