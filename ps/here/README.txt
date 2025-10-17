@@ -80,11 +80,11 @@ EXAMPLES:
           Country   : United States
       
       Coordinates
-          Latitude  : 45.4805
-          Longitude : -122.6363
+          Latitude  : 45.4
+          Longitude : -122.6
       
       Network
-          Public IP : 71.34.69.157
+          Public IP : 78.134.69.157
           Provider  : CenturyLink
       
       ----------------------------------------------------------------
