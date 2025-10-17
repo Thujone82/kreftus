@@ -244,10 +244,11 @@
                 // Full moon occurs at approximately 14.77 days in the cycle
                 const fullMoonOffset = 14.77;
                 let daysUntilNextFullMoon = fullMoonOffset - currentCycle;
-                if (daysUntilNextFullMoon <= 0) {
+                
+                // If we're at or very close to the full moon (within 1 day), get the next one
+                if (daysUntilNextFullMoon <= 1.0) {
                     daysUntilNextFullMoon += this.lunarCycle;
                 }
-                
                 
                 return new Date(currentDate.getTime() + daysUntilNextFullMoon * 24 * 60 * 60 * 1000);
             }
