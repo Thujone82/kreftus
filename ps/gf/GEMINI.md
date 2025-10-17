@@ -19,7 +19,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
 - **No API Key Required:** Uses the free National Weather Service API which requires no registration or API key.
 - **Flexible Location Input:** Can determine latitude and longitude from either a 5-digit US zip code, a "City, State" formatted string, or the "here" keyword for automatic location detection.
 - **Automatic Location Detection:** Uses ip-api.com to automatically detect the user's current location based on their IP address when "here" is specified.
-- **Comprehensive Data Display:** Shows current temperature, conditions, detailed forecasts for today and tomorrow, wind information, sunrise and sunset times (calculated astronomically), rain likelihood forecasts with visual sparklines, and wind outlook forecasts with direction glyphs.
+- **Comprehensive Data Display:** Shows current temperature, conditions, wind chill and heat index calculations (using NWS formulas), detailed forecasts for today and tomorrow, wind information, sunrise and sunset times (calculated astronomically), rain likelihood forecasts with visual sparklines, and wind outlook forecasts with direction glyphs.
 - **Weather Alerts:** Automatically fetches and displays any active weather alerts (e.g., warnings, watches) from official sources.
 - **Color-Coded Metrics:** Key data points (temperature, wind speed) change color to red to indicate potentially hazardous conditions. Rain likelihood sparklines use color coding (white for very low, cyan for low, green for light, yellow for medium, red for high probability). Wind outlook glyphs use color coding (white for calm, yellow for light breeze, red for moderate wind, magenta for strong wind) with peak wind hours highlighted using inverted colors.
 - **Multiple Display Modes:**
@@ -341,3 +341,89 @@ Potential improvements could include:
 - Integration with calendar/scheduling applications
 - Interactive rain forecast mode with scrolling capabilities
 - Additional sparkline visualizations for other weather metrics (temperature, wind, etc.)
+
+## Wind Chill and Heat Index Calculations
+
+The script includes sophisticated wind chill and heat index calculations using official NWS formulas to provide accurate "feels like" temperature information.
+
+### Wind Chill Calculation
+
+**Function:** `Get-WindChill`
+**Formula:** NWS Wind Chill Formula
+**Conditions:** Only calculated when temperature ≤ 50°F and wind speed ≥ 3 mph
+**Display:** Blue color when difference > 1°F from actual temperature
+
+**Mathematical Formula:**
+```
+Wind Chill = 35.74 + (0.6215 × T) - (35.75 × V^0.16) + (0.4275 × T × V^0.16)
+```
+Where:
+- T = Temperature in Fahrenheit
+- V = Wind speed in mph
+
+**Implementation Details:**
+- Uses `[Math]::Pow()` for power calculations
+- Rounds result to nearest integer
+- Returns `$null` if conditions not met
+- Displayed as `[value°F]` in blue when significant difference
+
+### Heat Index Calculation
+
+**Function:** `Get-HeatIndex`
+**Formula:** NWS Rothfusz Regression
+**Conditions:** Only calculated when temperature ≥ 80°F
+**Display:** Red color when difference > 1°F from actual temperature
+
+**Mathematical Formula:**
+```
+HI = -42.379 + (2.04901523 × T) + (10.14333127 × RH) - (0.22475541 × T × RH) 
+     - (0.00683783 × T²) - (0.05481717 × RH²) + (0.00122874 × T² × RH) 
+     + (0.00085282 × T × RH²) - (0.00000199 × T² × RH²)
+```
+Where:
+- T = Temperature in Fahrenheit
+- RH = Relative Humidity percentage
+
+**Adjustment Factors:**
+- **Low Humidity (RH < 13%):** Additional adjustment for dry conditions
+- **High Humidity (RH > 85%):** Additional adjustment for very humid conditions
+
+**Implementation Details:**
+- Uses full Rothfusz regression for temperatures ≥ 80°F
+- Includes humidity adjustment factors for extreme conditions
+- Rounds result to nearest integer
+- Returns `$null` if conditions not met
+- Displayed as `[value°F]` in red when significant difference
+
+### Display Integration
+
+**Temperature Display Format:**
+- **Wind Chill:** `Temperature: 45°F [37°F] ↗️` (blue wind chill)
+- **Heat Index:** `Temperature: 85°F [92°F] ↘️` (red heat index)
+- **Normal:** `Temperature: 65°F →` (no additional values)
+
+**Color Coding:**
+- **Wind Chill:** Blue (`-ForegroundColor Blue`)
+- **Heat Index:** Red (`-ForegroundColor Red`)
+- **Integration:** Seamlessly works with existing temperature trend icons
+
+**Thresholds:**
+- **Wind Chill:** Only displays when temp ≤ 50°F and difference > 1°F
+- **Heat Index:** Only displays when temp ≥ 80°F and difference > 1°F
+- **Significance:** Only shows when the calculated value differs significantly from actual temperature
+
+### Technical Implementation
+
+**Function Location:** After `Get-WindSpeed` function (around line 868)
+**Integration Point:** `Show-CurrentConditions` function temperature display section
+**Data Sources:** 
+- Temperature: `$currentTemp` (from NWS API)
+- Wind Speed: `$currentWind` (parsed by `Get-WindSpeed`)
+- Humidity: `$currentHumidity` (from NWS API)
+
+**Error Handling:**
+- Graceful handling of missing or invalid data
+- Returns `$null` for invalid conditions
+- No display when calculation not applicable
+
+This implementation provides users with accurate "feels like" temperature information using official NWS standards, enhancing the weather display with scientifically validated comfort metrics.

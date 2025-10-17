@@ -14,6 +14,7 @@ The script first uses a geocoding service to determine the latitude and longitud
 - **Interactive Prompt:** If no location is provided, the script displays a welcome screen and prompts for input.
 - **Comprehensive Weather Data:** Displays a wide range of information, including:
   - Current temperature and conditions.
+  - Wind chill and heat index calculations (using NWS formulas).
   - Detailed daily and tomorrow forecasts.
   - Wind speed and direction.
   - Sunrise and sunset times (calculated astronomically).
@@ -22,6 +23,8 @@ The script first uses a geocoding service to determine the latitude and longitud
   - Wind outlook forecast with direction glyphs.
 - **Smart Color-Coding:** Important metrics are color-coded for quick assessment:
   - **Temperature:** Turns red if below 33°F or above 89°F.
+  - **Wind Chill:** Displayed in blue when temperature <= 50°F and difference > 1°F.
+  - **Heat Index:** Displayed in red when temperature >= 80°F and difference > 1°F.
   - **Wind:** Turns red if wind speed is 16 mph or greater.
   - **Rain Likelihood:** Color-coded sparklines show rain probability at a glance (white for very low, cyan for low, green for light, yellow for medium, red for high).
   - **Wind Outlook:** Color-coded directional glyphs show wind patterns and intensity, with peak wind hours highlighted using inverted colors.

@@ -17,6 +17,10 @@
     then the National Weather Service API fetches current weather, daily forecasts, and alerts.
     Sunrise and sunset times are calculated astronomically using NOAA algorithms.
     
+    The script includes wind chill and heat index calculations using NWS formulas:
+    - Wind Chill: Displayed in blue when temperature <= 50°F and difference > 1°F
+    - Heat Index: Displayed in red when temperature >= 80°F and difference > 1°F
+    
 .PARAMETER Location
     The location for which to retrieve weather. Can be a 5-digit US zip code or a "City, State" string, or 'here'.
     If omitted, the script will prompt you for it.
@@ -865,6 +869,58 @@ function Get-WindSpeed ($windString) {
     return 0
 }
 
+# Function: Calculate wind chill using NWS formula
+function Get-WindChill {
+    param(
+        [double]$TempF,
+        [double]$WindSpeedMph
+    )
+    
+    # Wind chill only applies when temp <= 50°F and wind speed >= 3 mph
+    if ($TempF -gt 50 -or $WindSpeedMph -lt 3) {
+        return $null
+    }
+    
+    # NWS Wind Chill Formula
+    $windChill = 35.74 + (0.6215 * $TempF) - (35.75 * [Math]::Pow($WindSpeedMph, 0.16)) + (0.4275 * $TempF * [Math]::Pow($WindSpeedMph, 0.16))
+    return [Math]::Round($windChill)
+}
+
+# Function: Calculate heat index using NWS Rothfusz regression
+function Get-HeatIndex {
+    param(
+        [double]$TempF,
+        [double]$Humidity
+    )
+    
+    # Heat index only applies when temp >= 80°F
+    if ($TempF -lt 80) {
+        return $null
+    }
+    
+    # NWS Heat Index Formula (Rothfusz regression)
+    $T = $TempF
+    $RH = $Humidity
+    
+    # Simple formula for initial estimate
+    $HI = 0.5 * ($T + 61.0 + (($T - 68.0) * 1.2) + ($RH * 0.094))
+    
+    # If >= 80°F, use full Rothfusz regression
+    if ($HI -ge 80) {
+        $HI = -42.379 + (2.04901523 * $T) + (10.14333127 * $RH) - (0.22475541 * $T * $RH) - (0.00683783 * $T * $T) - (0.05481717 * $RH * $RH) + (0.00122874 * $T * $T * $RH) + (0.00085282 * $T * $RH * $RH) - (0.00000199 * $T * $T * $RH * $RH)
+        
+        # Adjustments for low/high RH
+        if ($RH -lt 13 -and $T -ge 80 -and $T -le 112) {
+            $HI = $HI - ((13 - $RH) / 4) * [Math]::Sqrt((17 - [Math]::Abs($T - 95)) / 17)
+        }
+        elseif ($RH -gt 85 -and $T -ge 80 -and $T -le 87) {
+            $HI = $HI + (($RH - 85) / 10) * ((87 - $T) / 5)
+        }
+    }
+    
+    return [Math]::Round($HI)
+}
+
 # Function: Determine if a weather period is during day or night
 # Uses NWS API isDaytime property when available, falls back to time-based estimation
 function Test-IsDaytime {
@@ -1057,6 +1113,24 @@ function Show-CurrentConditions {
     Write-Host "*** $city, $state Current Conditions ***" -ForegroundColor $TitleColor
     Write-Host "Currently: $weatherIcon $currentConditions" -ForegroundColor $DefaultColor
     Write-Host "Temperature: $currentTemp°F" -ForegroundColor $TempColor -NoNewline
+
+    # Calculate and display wind chill or heat index
+    $tempNum = [double]$currentTemp
+    if ($tempNum -le 50) {
+        $windSpeedNum = Get-WindSpeed $currentWind
+        $windChill = Get-WindChill $tempNum $windSpeedNum
+        if ($null -ne $windChill -and ($tempNum - $windChill) -gt 1) {
+            Write-Host " [$windChill°F]" -ForegroundColor Blue -NoNewline
+        }
+    }
+    elseif ($tempNum -ge 80) {
+        $humidityNum = [double]$currentHumidity
+        $heatIndex = Get-HeatIndex $tempNum $humidityNum
+        if ($null -ne $heatIndex -and ($heatIndex - $tempNum) -gt 1) {
+            Write-Host " [$heatIndex°F]" -ForegroundColor Red -NoNewline
+        }
+    }
+
     if ($currentTempTrend) {
                  $trendIcon = switch ($currentTempTrend) {
              "rising" { "↗️" }
