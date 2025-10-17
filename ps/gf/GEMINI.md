@@ -19,7 +19,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
 - **No API Key Required:** Uses the free National Weather Service API which requires no registration or API key.
 - **Flexible Location Input:** Can determine latitude and longitude from either a 5-digit US zip code, a "City, State" formatted string, or the "here" keyword for automatic location detection.
 - **Automatic Location Detection:** Uses ip-api.com to automatically detect the user's current location based on their IP address when "here" is specified.
-- **Comprehensive Data Display:** Shows current temperature, conditions, wind chill and heat index calculations (using NWS formulas), detailed forecasts for today and tomorrow, wind information, sunrise and sunset times (calculated astronomically), rain likelihood forecasts with visual sparklines, and wind outlook forecasts with direction glyphs.
+- **Comprehensive Data Display:** Shows current temperature, conditions, wind chill and heat index calculations (using NWS formulas), detailed forecasts for today and tomorrow, wind information, sunrise and sunset times (calculated astronomically), moon phase information with emoji and next full moon date, rain likelihood forecasts with visual sparklines, and wind outlook forecasts with direction glyphs.
 - **Weather Alerts:** Automatically fetches and displays any active weather alerts (e.g., warnings, watches) from official sources.
 - **Color-Coded Metrics:** Key data points (temperature, wind speed) change color to red to indicate potentially hazardous conditions. Rain likelihood sparklines use color coding (white for very low, cyan for low, green for light, yellow for medium, red for high probability). Wind outlook glyphs use color coding (white for calm, yellow for light breeze, red for moderate wind, magenta for strong wind) with peak wind hours highlighted using inverted colors.
 - **Multiple Display Modes:**
@@ -73,7 +73,6 @@ Due to differences between the OpenWeatherMap and National Weather Service APIs,
 
 - UV Index data
 - Moonrise/Moonset times
-- Moon phase information
 - Temperature trend indicators (rising/falling)
 - Detailed weather overview reports
 - Rain/Snow precipitation amounts
@@ -81,6 +80,7 @@ Due to differences between the OpenWeatherMap and National Weather Service APIs,
 ### Features Added/Enhanced
 
 - **Sunrise/Sunset Times:** Calculated using NOAA astronomical algorithms based on location coordinates and time zone
+- **Moon Phase Information:** Astronomical moon phase calculation with emoji display and next full moon date
 - **Humidity Data:** Available in current conditions display
 
 ### Benefits of NWS API
@@ -261,8 +261,115 @@ The wind forecast mode uses the same NWS hourly forecast data but processes it d
 - Handles missing data gracefully with blank spaces
 - Uses 96-hour data limit for comprehensive coverage
 
+### Moon Phase Information (v2.1)
+
+The moon phase feature provides astronomical moon phase information with visual emoji representation and next full moon date calculation. This feature enhances the weather display with lunar information that's useful for planning outdoor activities, understanding natural lighting conditions, and general astronomical awareness.
+
+#### Moon Phase Features:
+
+- **8 Moon Phases:** Complete lunar cycle representation with accurate phase names
+  - **New Moon** (🌑): 0-12.5% of lunar cycle
+  - **Waxing Crescent** (🌒): 12.5-25% of lunar cycle  
+  - **First Quarter** (🌓): 25-37.5% of lunar cycle
+  - **Waxing Gibbous** (🌔): 37.5-62.5% of lunar cycle
+  - **Full Moon** (🌕): 62.5-75% of lunar cycle
+  - **Waning Gibbous** (🌖): 75-87.5% of lunar cycle
+  - **Last Quarter** (🌗): 87.5-93.75% of lunar cycle
+  - **Waning Crescent** (🌘): 93.75-100% of lunar cycle
+
+- **Astronomical Calculation:** Uses precise astronomical method with:
+  - **Reference New Moon:** January 6, 2000 18:14 UTC (known astronomical event)
+  - **Lunar Cycle:** 29.53058867 days (average synodic month)
+  - **Phase Detection:** Simple percentage-based phase determination
+  - **Next Full Moon:** Calculates next full moon date (occurs at ~14.77 days in cycle)
+
+- **Visual Display:**
+  - **Emoji Representation:** Each phase displays appropriate moon emoji
+  - **Phase Name:** Full descriptive name of current moon phase
+  - **Next Full Moon:** Shows "Next Full Moon: MM/DD/YYYY" only when not currently full moon
+  - **Gray Color:** Displays in gray color for subtle integration
+  - **Position:** Appears after sunset information in current conditions
+
+#### Moon Phase Use Cases:
+
+- **Outdoor Planning:** Understand natural lighting conditions for evening activities
+- **Astronomical Awareness:** Track lunar cycle for astronomical observations
+- **Activity Scheduling:** Plan moon-dependent activities (stargazing, photography, etc.)
+- **Natural Lighting:** Assess available moonlight for outdoor activities
+- **Lunar Calendar:** Track moon phases for personal or cultural reasons
+- **Photography Planning:** Plan moon photography sessions and timing
+
+#### Technical Implementation:
+
+The moon phase calculation uses a simple but accurate astronomical method:
+
+**Function:** `Get-MoonPhase`
+**Location:** After `Get-SunriseSunset` function (around line 788)
+**Algorithm:** Simple astronomical calculation with known reference point
+
+**Mathematical Formula:**
+```
+Days Since Reference = (Current Date - Reference New Moon).TotalDays
+Current Cycle Position = Days Since Reference % 29.53058867
+Phase = Current Cycle Position / 29.53058867
+```
+
+**Phase Detection Logic:**
+```powershell
+if ($phase -lt 0.125) return "New Moon"
+elseif ($phase -lt 0.25) return "Waxing Crescent"  
+elseif ($phase -lt 0.375) return "First Quarter"
+elseif ($phase -lt 0.625) return "Waxing Gibbous"
+elseif ($phase -lt 0.75) return "Full Moon"
+elseif ($phase -lt 0.875) return "Waning Gibbous"
+elseif ($phase -lt 0.9375) return "Last Quarter"
+else return "Waning Crescent"
+```
+
+**Next Full Moon Calculation:**
+```powershell
+$daysUntilNextFullMoon = (14.77 - $currentCycle) % $lunarCycle
+if ($daysUntilNextFullMoon -le 0) {
+    $daysUntilNextFullMoon += $lunarCycle
+}
+$nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
+```
+
+**Display Integration:**
+- **Function:** `Show-CurrentConditions` (line 1251-1257)
+- **Parameters:** `MoonPhase`, `MoonEmoji`, `IsFullMoon`, `NextFullMoonDate`
+- **Display Logic:** Shows moon phase info after sunset line in gray color
+- **Conditional Display:** Only shows "Next Full Moon" when not currently full moon
+
+**Data Flow:**
+1. **Calculation:** `Get-MoonPhase` called in main script after sunrise/sunset calculation
+2. **Storage:** Results stored in `$moonPhaseInfo` hashtable
+3. **Passing:** Moon phase data passed to all `Show-CurrentConditions` calls
+4. **Display:** Moon phase information rendered in current conditions section
+
+**Error Handling:**
+- **Graceful Degradation:** Missing moon phase data doesn't break display
+- **Null Safety:** Handles missing or invalid date inputs
+- **Fallback:** Returns empty values for invalid calculations
+
+**Performance Considerations:**
+- **Lightweight Calculation:** Simple arithmetic operations for fast execution
+- **Single Calculation:** Moon phase calculated once per script run
+- **Memory Efficient:** Minimal memory footprint for moon phase data
+- **No External APIs:** No additional network requests required
+
+#### Benefits:
+
+- **Astronomical Accuracy:** Uses scientifically validated lunar cycle calculations
+- **Visual Clarity:** Emoji representation makes moon phase instantly recognizable
+- **Practical Utility:** Next full moon date helps with planning and scheduling
+- **Seamless Integration:** Fits naturally into existing weather display
+- **No Dependencies:** Self-contained calculation requiring no external services
+- **Cultural Relevance:** Moon phases have cultural and practical significance worldwide
+
 ### Recent Enhancements (v2.1)
 
+- **Moon Phase Information:** Added astronomical moon phase calculation with emoji display and next full moon date
 - **Rain Forecast Mode:** Added visual sparkline representation of rain likelihood over 96 hours
 - **Wind Forecast Mode:** Added visual directional glyph representation of wind patterns over 96 hours
 - **Interactive Integration:** Both rain and wind modes now fully integrated into interactive mode

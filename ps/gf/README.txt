@@ -18,6 +18,7 @@ The script first uses a geocoding service to determine the latitude and longitud
   - Detailed daily and tomorrow forecasts.
   - Wind speed and direction.
   - Sunrise and sunset times (calculated astronomically).
+  - Moon phase information with emoji and next full moon date.
   - Weather alerts and warnings.
   - Rain likelihood forecast with visual sparklines.
   - Wind outlook forecast with direction glyphs.
@@ -31,6 +32,12 @@ The script first uses a geocoding service to determine the latitude and longitud
 - **Weather Alerts:** Automatically displays any active weather alerts (e.g., warnings, watches) for the location.
 - **Quick Link:** Provides a direct URL to the weather.gov forecast map for the location.
 - **Smart Exit:** If run from an environment other than a standard command prompt (like by double-clicking), it will pause and wait for user input before closing the window.
+- **Moon Phase Information:** Displays current moon phase with emoji and next full moon date:
+  - Shows 8 moon phases: New Moon, Waxing Crescent, First Quarter, Waxing Gibbous, Full Moon, Waning Gibbous, Last Quarter, Waning Crescent
+  - Uses astronomical calculation based on known new moon reference (January 6, 2000)
+  - Displays appropriate emoji for each phase: 🌑🌒🌓🌔🌕🌖🌗🌘
+  - Shows "Next Full Moon: MM/DD/YYYY" only when not currently a full moon
+  - Appears in gray color after sunset information
 - **Interactive Mode:** When run interactively, provides keyboard shortcuts to switch between different display modes:
      - **[H]** - Switch to hourly forecast only
    - **[D]** - Switch to 7-day forecast only  
