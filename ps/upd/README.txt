@@ -28,6 +28,8 @@ USAGE:
         .\upd.ps1 -jobname -a
         .\upd.ps1 -jobname -auto
         
+    Note: Auto mode (-a) now completes without requiring key press and leaves output visible
+        
     Verbose Mode:
         .\upd.ps1 -Verbose
         .\upd.ps1 -jobname -a -Verbose
@@ -39,11 +41,16 @@ INTERACTIVE COMMANDS:
         A           Select all jobs
         J           Open Jobs management screen
         E/Enter     Execute selected jobs (with confirmation)
+        Esc         Exit application
         
     Jobs Management Screen:
         [1-N]       Edit existing job
         N           Create new job
         D/Esc/Enter Return to main update screen
+        
+    Job Editing:
+        Remove Job? [y/N]  Remove job from configuration (yellow prompt)
+        Any other input   Continue with normal editing
 
 JOB CONFIGURATION:
     Each job consists of:
@@ -132,6 +139,12 @@ NOTES:
     - Multiple jobs can be selected and executed together
 
 VERSION HISTORY:
+    v1.1 - Enhanced navigation and job management
+        - Added Esc key navigation (exit from main, return from jobs)
+        - Added job removal functionality in edit mode
+        - Improved auto mode (-a) behavior (no key press required, output remains visible)
+        - Enhanced output display with Source/Destination information
+        
     v1.0 - Initial release
         - Interactive job management
         - Multiple job selection

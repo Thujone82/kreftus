@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>upd - UPDate Tool</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        header {
+            background-color: #333;
+            color: #fff;
+            padding: 1.5rem 0;
+            text-align: center;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+
+        .github-link {
+            position: absolute;
+            top: 1.5rem;
+            right: 2rem;
+            display: inline-block;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .github-link:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .github-link img {
+            width: 32px;
+            height: 32px;
+            display: block;
+        }
+
+        .home-link {
+            position: absolute;
+            top: 1.5rem;
+            left: 2rem;
+            display: inline-block;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .home-link:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .home-link img {
+            width: 32px;
+            height: 32px;
+            display: block;
+        }
+
+        /* Responsive adjustments for GitHub and home links */
+        @media (max-width: 768px) {
+            .github-link, .home-link {
+                top: 1rem;
+                padding: 0.4rem;
+            }
+            
+            .github-link {
+                right: 1rem;
+            }
+            
+            .home-link {
+                left: 1rem;
+            }
+            
+            .github-link img, .home-link img {
+                width: 28px;
+                height: 28px;
+            }
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 3rem;
+            letter-spacing: 2px;
+        }
+
+        .container {
+            width: 80%;
+            margin: auto;
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 2rem;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        td {
+            padding: 1rem;
+            vertical-align: top;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .project-image-cell {
+            width: 30%;
+            max-width: 256px;
+            padding-right: 1.5rem;
+        }
+
+        .project-image-cell img {
+            width: 100%;
+            height: auto;
+            max-width: 256px;
+            max-height: 256px;
+            display: block;
+            border-radius: 8px;
+        }
+
+        .project-text-cell {
+            font-size: 1rem;
+        }
+
+        .project-text-cell h2 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        .project-text-cell p {
+            margin-bottom: 0.5rem;
+        }
+
+        .project-text-cell h3 {
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 0.25rem;
+        }
+
+        .project-text-cell a {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        .project-text-cell a:hover {
+            text-decoration: underline;
+        }
+
+        .readme-link {
+            padding-left: 1em;
+            margin-top: -0.5em;
+            font-size: 0.9em;
+            margin-bottom: 1rem;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 900px) {
+            /* Make table cells behave like blocks to stack them */
+            .project-image-cell,
+            .project-text-cell {
+                display: block;
+                width: 100%;
+                box-sizing: border-box;
+            }
+            .project-image-cell {
+                max-width: none; /* Remove the desktop max-width */
+                padding-right: 0;
+                padding-bottom: 1rem;
+            }
+            .project-image-cell img {
+                width: auto; /* Let aspect ratio be determined by height and max-width */
+                max-width: 100%; /* Allow image to scale down fully on very small screens */
+                margin: 0; /* Align left */
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <a href="../" class="home-link" title="Back to Home">
+            <img src="../images/home.png" alt="Home">
+        </a>
+        <a href="https://github.com/Thujone82/kreftus" target="_blank" rel="noopener noreferrer" class="github-link" title="View on GitHub">
+            <img src="../images/github-mark-white.png" alt="GitHub">
+        </a>
+        <h1>upd - UPDate Tool</h1>
+    </header>
+
+    <div class="container">
+        <table>
+            <tbody>
+                <tr class="project-row">
+                    <td class="project-image-cell">
+                        <img src="../images/upd.png" alt="UPDate Tool Application Screenshot">
+                    </td>
+                    <td class="project-text-cell">
+                        <div>
+                            <h2>UPDate Tool</h2>
+                            <p>
+                                <b>UPDate</b> is an interactive PowerShell command-line tool for managing and executing file update jobs. It allows you to configure update sources (local paths or URLs) and destination directories, then execute updates with a simple interactive interface featuring color-coded output and multiple job selection capabilities.
+                            </p>
+                            <p>
+                                Features include interactive CLI with color-coded output, multiple job selection and execution, support for local file copying and URL downloads, JSON-based configuration storage, command-line arguments for automation, and verbose mode for debugging. The tool supports both interactive and automated execution modes with enhanced navigation using Esc key functionality.
+                            </p>
+
+                            <h3>Updates</h3>
+                            <div id="updates-container">
+                                <p>Loading updates...</p>
+                            </div>
+
+                            <h3>Downloads</h3>
+                            <p><b>PowerShell Edition:</b> [ <a href="../ps/upd/upd.ps1">ps1</a> ]</p>
+                            <p class="readme-link">↳ <a href="../ps/upd/README.txt">README</a></p>
+                            <p class="readme-link">↳ <a href="../ps/upd/GEMINI.md">Development Documentation</a></p>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Fetch and display updates from GitHub API
+        async function loadUpdates() {
+            const updatesContainer = document.getElementById('updates-container');
+            
+            try {
+                const response = await fetch('https://api.github.com/repos/Thujone82/kreftus/commits?sha=main&path=ps/upd&per_page=3');
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch updates');
+                }
+                
+                const commits = await response.json();
+                
+                if (commits.length === 0) {
+                    updatesContainer.style.display = 'none';
+                    return;
+                }
+                
+                // Format timestamp from ISO 8601 to MMDDYY@HHMMSS
+                function formatTimestamp(isoString) {
+                    const date = new Date(isoString);
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const year = String(date.getFullYear()).slice(-2);
+                    const hours = String(date.getHours()).padStart(2, '0');
+                    const minutes = String(date.getMinutes()).padStart(2, '0');
+                    const seconds = String(date.getSeconds()).padStart(2, '0');
+                    
+                    return `${month}${day}${year}@${hours}${minutes}${seconds}`;
+                }
+                
+                // Clear loading message and add updates
+                updatesContainer.innerHTML = '';
+                
+                commits.forEach(commit => {
+                    const timestamp = formatTimestamp(commit.commit.author.date);
+                    const message = commit.commit.message;
+                    
+                    const updateElement = document.createElement('p');
+                    updateElement.innerHTML = `<b>${timestamp}:</b> ${message}`;
+                    updatesContainer.appendChild(updateElement);
+                });
+                
+            } catch (error) {
+                console.error('Error loading updates:', error);
+                // Hide the Updates section on error
+                updatesContainer.parentElement.style.display = 'none';
+            }
+        }
+        
+        // Load updates when page loads
+        document.addEventListener('DOMContentLoaded', loadUpdates);
+    </script>
+
+</body>
+</html>

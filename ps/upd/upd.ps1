@@ -237,7 +237,8 @@ function Invoke-UpdateJob {
                 $localPath = Join-Path $local $fileName
                 Write-Verbose "Copying to: $localPath"
                 Copy-Item -Path $remote -Destination $localPath -Force
-                Write-Green "Copied: $localPath"
+                Write-White "Source: $remote"
+                Write-White "Destination: $localPath"
             }
             else {
                 Write-Red "Source file not found: $remote"
@@ -345,6 +346,21 @@ function Edit-Job {
     $job = $script:Jobs[$Index]
     Write-White "Editing job: $($job.Name)"
     Write-Host ""
+    
+    # Ask if user wants to remove the job
+    Write-Host "Remove Job? [y/N]" -ForegroundColor Yellow -NoNewline
+    $removeJob = Read-Host " "
+    if ($removeJob -eq 'y' -or $removeJob -eq 'Y') {
+        # Remove the job from the array
+        $script:Jobs = $script:Jobs | Where-Object { $_ -ne $script:Jobs[$Index] }
+        if (Export-Config) {
+            Write-Green "Job '$($job.Name)' removed successfully."
+        }
+        else {
+            Write-Red "Failed to save changes."
+        }
+        return
+    }
     
     $name = Read-Host "Name [$($job.Name)]"
     if ([string]::IsNullOrWhiteSpace($name)) {
@@ -470,6 +486,10 @@ function Show-UpdateScreen {
                     continue
                 }
             }
+            { $_ -eq [char]27 } {  # Esc key
+                Write-White "Exiting..."
+                return
+            }
         }
     }
 }
@@ -564,9 +584,6 @@ function Test-CommandLineArgs {
         if ($script:SelectedJobs.Count -gt 0) {
             Write-White "Auto mode: Executing selected jobs..."
             Start-SelectedJobs
-            Write-Host "Press any key to continue..." -ForegroundColor Yellow
-            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-            Clear-Screen
             return $true
         }
         else {

@@ -214,19 +214,95 @@ Command Line Args → Test-CommandLineArgs → Pre-select Jobs
    - Jobs screen to Main screen
    - Job editing workflow
    - New job creation
+   - Esc key navigation (exit and return)
+   - Job removal workflow
+
+## Recent Updates (v1.1)
+
+### New Features Added
+
+1. **Esc Key Navigation**
+   - Main screen: Esc key exits the application
+   - Jobs screen: Esc key returns to main screen
+   - Provides consistent navigation pattern
+
+2. **Job Removal Functionality**
+   - Added "Remove Job? [y/N]" prompt in job editing
+   - Yellow-colored prompt for visibility
+   - Only 'y' or 'Y' triggers removal, all other inputs continue with editing
+   - Removed jobs are immediately saved to configuration
+
+3. **Enhanced Auto Mode (-a)**
+   - Removed forced key press requirement
+   - Removed screen clear to leave output visible
+   - Script completes automatically without user interaction
+   - Output remains on screen for review
+
+4. **Improved Output Display**
+   - Replaced "Copied:" message with "Source:" and "Destination:" lines
+   - Provides clearer information about file operations
+   - Better visibility of what was copied and where
+
+### Technical Implementation Details
+
+#### Esc Key Handling
+```powershell
+# Main screen exit
+{ $_ -eq [char]27 } {  # Esc key
+    Write-White "Exiting..."
+    return
+}
+
+# Jobs screen return (already implemented)
+{ $_ -eq [char]27 -or $_ -eq [char]13 } {  # Esc or Enter
+    Show-UpdateScreen
+}
+```
+
+#### Job Removal Logic
+```powershell
+# Ask if user wants to remove the job
+Write-Host "Remove Job? [y/N]" -ForegroundColor Yellow -NoNewline
+$removeJob = Read-Host " "
+if ($removeJob -eq 'y' -or $removeJob -eq 'Y') {
+    # Remove the job from the array
+    $script:Jobs = $script:Jobs | Where-Object { $_ -ne $script:Jobs[$Index] }
+    if (Export-Config) {
+        Write-Green "Job '$($job.Name)' removed successfully."
+    }
+    return
+}
+```
+
+#### Auto Mode Improvements
+```powershell
+# Before: Required key press and cleared screen
+if ($Auto) {
+    Start-SelectedJobs
+    Write-Host "Press any key to continue..." -ForegroundColor Yellow
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    Clear-Screen
+    return $true
+}
+
+# After: Clean completion without interaction
+if ($Auto) {
+    Start-SelectedJobs
+    return $true
+}
+```
 
 ## Future Enhancement Possibilities
 
-1. **Job Deletion:** Add ability to remove jobs from configuration
-2. **Job Reordering:** Allow users to change job display order
-3. **Job Categories:** Group jobs into categories for better organization
-4. **Scheduled Execution:** Integration with Windows Task Scheduler
-5. **Backup Before Update:** Automatic backup of existing files before update
-6. **Update History:** Log of executed updates with timestamps
-7. **Job Dependencies:** Define job execution order based on dependencies
-8. **Wildcard Support:** Allow multiple file updates with wildcards
-9. **Progress Indicators:** Show download progress for large files
-10. **Configuration Export/Import:** Share job configurations between machines
+1. **Job Reordering:** Allow users to change job display order
+2. **Job Categories:** Group jobs into categories for better organization
+3. **Scheduled Execution:** Integration with Windows Task Scheduler
+4. **Backup Before Update:** Automatic backup of existing files before update
+5. **Update History:** Log of executed updates with timestamps
+6. **Job Dependencies:** Define job execution order based on dependencies
+7. **Wildcard Support:** Allow multiple file updates with wildcards
+8. **Progress Indicators:** Show download progress for large files
+9. **Configuration Export/Import:** Share job configurations between machines
 
 ## Lessons Learned
 
