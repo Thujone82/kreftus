@@ -16,6 +16,7 @@ The script first uses a geocoding service to determine the latitude and longitud
   - Current temperature and conditions.
   - Detailed daily and tomorrow forecasts.
   - Wind speed and direction.
+  - Sunrise and sunset times (calculated astronomically).
   - Weather alerts and warnings.
   - Rain likelihood forecast with visual sparklines.
   - Wind outlook forecast with direction glyphs.
@@ -348,13 +349,15 @@ This mode is particularly useful for:
 ## Features Removed from Original OpenWeatherMap Version
 Due to differences in the National Weather Service API, the following features are not available:
 - UV Index data
-- Humidity data
-- Sunrise/Sunset times
 - Moonrise/Moonset times
 - Moon phase information
 - Temperature trend indicators (rising/falling)
 - Detailed weather overview reports
 - Rain/Snow precipitation amounts
+
+## Features Added/Enhanced
+- **Sunrise/Sunset Times:** Calculated using NOAA astronomical algorithms based on location coordinates and time zone
+- **Humidity Data:** Available in current conditions display
 
 ## API Information
 - **Base URL:** https://api.weather.gov/

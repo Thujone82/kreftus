@@ -15,6 +15,7 @@
     ip-api.com to determine coordinates based on your public IP address. For specified 
     locations, OpenStreetMap Nominatim API is used to convert the location to coordinates, 
     then the National Weather Service API fetches current weather, daily forecasts, and alerts.
+    Sunrise and sunset times are calculated astronomically using NOAA algorithms.
     
 .PARAMETER Location
     The location for which to retrieve weather. Can be a 5-digit US zip code or a "City, State" string, or 'here'.
@@ -156,6 +157,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host " • Temperature with forecast range (red if <33°F or >89°F)" -ForegroundColor Cyan
     Write-Host " • Humidity" -ForegroundColor Cyan
     Write-Host " • Wind (with gust if available; red if wind speed >=16 mph)" -ForegroundColor Cyan
+    Write-Host " • Sunrise and Sunset times (calculated astronomically)" -ForegroundColor Cyan
     Write-Host " • Detailed Forecast" -ForegroundColor Cyan
     Write-Host " • Weather Alerts" -ForegroundColor Cyan
     Write-Host " • Observation timestamp" -ForegroundColor Cyan

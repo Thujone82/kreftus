@@ -19,7 +19,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
 - **No API Key Required:** Uses the free National Weather Service API which requires no registration or API key.
 - **Flexible Location Input:** Can determine latitude and longitude from either a 5-digit US zip code, a "City, State" formatted string, or the "here" keyword for automatic location detection.
 - **Automatic Location Detection:** Uses ip-api.com to automatically detect the user's current location based on their IP address when "here" is specified.
-- **Comprehensive Data Display:** Shows current temperature, conditions, detailed forecasts for today and tomorrow, wind information, rain likelihood forecasts with visual sparklines, and wind outlook forecasts with direction glyphs.
+- **Comprehensive Data Display:** Shows current temperature, conditions, detailed forecasts for today and tomorrow, wind information, sunrise and sunset times (calculated astronomically), rain likelihood forecasts with visual sparklines, and wind outlook forecasts with direction glyphs.
 - **Weather Alerts:** Automatically fetches and displays any active weather alerts (e.g., warnings, watches) from official sources.
 - **Color-Coded Metrics:** Key data points (temperature, wind speed) change color to red to indicate potentially hazardous conditions. Rain likelihood sparklines use color coding (white for very low, cyan for low, green for light, yellow for medium, red for high probability). Wind outlook glyphs use color coding (white for calm, yellow for light breeze, red for moderate wind, magenta for strong wind) with peak wind hours highlighted using inverted colors.
 - **Multiple Display Modes:**
@@ -72,13 +72,16 @@ The script uses a hardcoded user agent string "GetForecast/1.0 (081625PDX)" for 
 Due to differences between the OpenWeatherMap and National Weather Service APIs, the following features are not available in this version:
 
 - UV Index data
-- Humidity data  
-- Sunrise/Sunset times
 - Moonrise/Moonset times
 - Moon phase information
 - Temperature trend indicators (rising/falling)
 - Detailed weather overview reports
 - Rain/Snow precipitation amounts
+
+### Features Added/Enhanced
+
+- **Sunrise/Sunset Times:** Calculated using NOAA astronomical algorithms based on location coordinates and time zone
+- **Humidity Data:** Available in current conditions display
 
 ### Benefits of NWS API
 
