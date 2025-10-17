@@ -882,6 +882,33 @@ function Test-IsDaytime {
     return $currentHour -ge 6 -and $currentHour -lt 18
 }
 
+# Function: Determine if a weather period is during day or night using calculated sunrise/sunset times
+# More accurate than NWS API isDaytime property as it uses astronomical calculations
+function Test-IsDaytimeAstronomical {
+    param(
+        [object]$Period,
+        [DateTime]$SunriseTime,
+        [DateTime]$SunsetTime
+    )
+    
+    # Parse the period start time
+    $periodTime = [DateTime]::Parse($period.startTime)
+    
+    # Extract just the time portion for comparison and round to the hour
+    $periodTimeOnly = $periodTime.TimeOfDay
+    $sunriseTimeOnly = [TimeSpan]::FromHours([Math]::Round($SunriseTime.TimeOfDay.TotalHours))
+    $sunsetTimeOnly = [TimeSpan]::FromHours([Math]::Round($SunsetTime.TimeOfDay.TotalHours))
+    
+    # Handle cases where sunset is the next day (after midnight) - polar regions
+    if ($sunsetTimeOnly -lt $sunriseTimeOnly) {
+        # Sunset is the next day, so daytime is from sunrise to midnight OR midnight to sunset
+        return ($periodTimeOnly -ge $sunriseTimeOnly) -or ($periodTimeOnly -lt $sunsetTimeOnly)
+    } else {
+        # Normal case: sunset is same day as sunrise
+        return $periodTimeOnly -ge $sunriseTimeOnly -and $periodTimeOnly -lt $sunsetTimeOnly
+    }
+}
+
 # Function: Convert NWS weather icon URLs to appropriate emoji
 # Maps NWS icon conditions to emoji with day/night variants for better visual representation
 # Prioritizes precipitation-related conditions when present
@@ -1119,7 +1146,9 @@ function Show-HourlyForecast {
         [string]$AlertColor,
         [int]$MaxHours = $script:MAX_HOURLY_FORECAST_HOURS,
         [int]$StartIndex = 0,
-        [bool]$IsInteractive = $false
+        [bool]$IsInteractive = $false,
+        [DateTime]$SunriseTime = $null,
+        [DateTime]$SunsetTime = $null
     )
     
     Write-Host ""
@@ -1152,8 +1181,13 @@ function Show-HourlyForecast {
         $windDir = $period.windDirection
         $precipProb = $period.probabilityOfPrecipitation.value
         
-        # Determine if this period is during day or night using NWS API isDaytime property
-        $isPeriodDaytime = Test-IsDaytime $period
+        # Determine if this period is during day or night using astronomical calculations
+        if ($SunriseTime -and $SunsetTime) {
+            $isPeriodDaytime = Test-IsDaytimeAstronomical $period $SunriseTime $SunsetTime
+        } else {
+            # Fallback to NWS API isDaytime property if sunrise/sunset not available
+            $isPeriodDaytime = Test-IsDaytime $period
+        }
         $periodIcon = Get-WeatherIcon $period.icon $isPeriodDaytime $precipProb
         
         # Color code temperature
@@ -1196,7 +1230,9 @@ function Show-SevenDayForecast {
         [string]$TitleColor,
         [string]$DefaultColor,
         [string]$AlertColor,
-        [int]$MaxDays = $script:MAX_DAILY_FORECAST_DAYS
+        [int]$MaxDays = $script:MAX_DAILY_FORECAST_DAYS,
+        [DateTime]$SunriseTime = $null,
+        [DateTime]$SunsetTime = $null
     )
     
     Write-Host ""
@@ -1218,8 +1254,13 @@ function Show-SevenDayForecast {
         $shortForecast = $period.shortForecast
         $precipProb = $period.probabilityOfPrecipitation.value
         
-        # Determine if this period is during day or night using NWS API isDaytime property
-        $isPeriodDaytime = Test-IsDaytime $period
+        # Determine if this period is during day or night using astronomical calculations
+        if ($SunriseTime -and $SunsetTime) {
+            $isPeriodDaytime = Test-IsDaytimeAstronomical $period $SunriseTime $SunsetTime
+        } else {
+            # Fallback to NWS API isDaytime property if sunrise/sunset not available
+            $isPeriodDaytime = Test-IsDaytime $period
+        }
         $periodIcon = Get-WeatherIcon $period.icon $isPeriodDaytime $precipProb
         
         # Find the corresponding night period for high/low
@@ -1415,11 +1456,11 @@ function Show-FullWeatherReport {
     }
 
     if ($ShowHourlyForecast) {
-        Show-HourlyForecast -HourlyData $HourlyData -TitleColor $TitleColor -DefaultColor $DefaultColor -AlertColor $AlertColor -IsInteractive $false
+        Show-HourlyForecast -HourlyData $HourlyData -TitleColor $TitleColor -DefaultColor $DefaultColor -AlertColor $AlertColor -IsInteractive $false -SunriseTime $SunriseTime -SunsetTime $SunsetTime
     }
 
     if ($ShowSevenDayForecast) {
-        Show-SevenDayForecast -ForecastData $ForecastData -TitleColor $TitleColor -DefaultColor $DefaultColor -AlertColor $AlertColor
+        Show-SevenDayForecast -ForecastData $ForecastData -TitleColor $TitleColor -DefaultColor $DefaultColor -AlertColor $AlertColor -SunriseTime $SunriseTime -SunsetTime $SunsetTime
     }
 
     if ($ShowAlerts) {
@@ -1845,7 +1886,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
     # If starting in hourly mode, show hourly forecast first
     if ($isHourlyMode) {
         Clear-Host
-        Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true
+        Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime
         Show-InteractiveControls -IsHourlyMode $true
     } elseif ($Rain.IsPresent) {
         # If starting in rain mode, show rain forecast first
@@ -1876,7 +1917,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         # Re-render current view with fresh data
                         Clear-Host
                         if ($isHourlyMode) {
-                            Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true
+                            Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime
                             Show-InteractiveControls -IsHourlyMode $true
                         } elseif ($isRainMode) {
                             Show-RainForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
@@ -1913,7 +1954,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isWindMode = $false
                     $isTerseMode = $false
                     $hourlyScrollIndex = 0  # Reset to first 12 hours
-                    Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true
+                    Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime
                     Show-InteractiveControls -IsHourlyMode $true
                 }
                 'd' { # D key - Switch to 7-day forecast only
@@ -1922,7 +1963,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isRainMode = $false
                     $isWindMode = $false
                     $isTerseMode = $false
-                    Show-SevenDayForecast -ForecastData $forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor
+                    Show-SevenDayForecast -ForecastData $forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime
                     Show-InteractiveControls
                 }
                 't' { # T key - Switch to terse mode (current + today + alerts)
@@ -1971,7 +2012,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     # Re-render current view
                     Clear-Host
                     if ($isHourlyMode) {
-                        Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true
+                        Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime
                         Show-InteractiveControls -IsHourlyMode $true
                     } elseif ($isRainMode) {
                         Show-RainForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
@@ -2007,7 +2048,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         # Re-render current view with fresh data
                         Clear-Host
                         if ($isHourlyMode) {
-                            Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true
+                            Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime
                             Show-InteractiveControls -IsHourlyMode $true
                         } elseif ($isRainMode) {
                             Show-RainForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
@@ -2027,7 +2068,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         if ($newIndex -ge 0) {
                             $hourlyScrollIndex = $newIndex
                             Clear-Host
-                            Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true
+                            Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime
                             Show-InteractiveControls -IsHourlyMode $true
                         }
                     }
@@ -2038,7 +2079,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         if ($newIndex -lt $totalHourlyPeriods) {
                             $hourlyScrollIndex = $newIndex
                             Clear-Host
-                            Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true
+                            Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime
                             Show-InteractiveControls -IsHourlyMode $true
                         }
                     }
