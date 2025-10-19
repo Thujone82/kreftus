@@ -2096,6 +2096,12 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     Write-Verbose "Auto-refresh triggered - data is stale ($([math]::Round($timeSinceLastFetch.TotalSeconds, 1)) seconds old)"
                     $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers
                     if ($refreshSuccess) {
+                        # Recalculate moon phase and sunrise/sunset for current time
+                        $moonPhaseInfo = Get-MoonPhase -Date (Get-Date)
+                        $sunTimes = Get-SunriseSunset -Latitude $lat -Longitude $lon -Date (Get-Date) -TimeZoneId $timeZone
+                        $sunriseTime = $sunTimes.Sunrise
+                        $sunsetTime = $sunTimes.Sunset
+                        
                         # Re-render current view with fresh data
                         Clear-Host
                         if ($isHourlyMode) {
@@ -2227,6 +2233,12 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                 'g' { # G key - Refresh weather data
                     $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers
                     if ($refreshSuccess) {
+                        # Recalculate moon phase and sunrise/sunset for current time
+                        $moonPhaseInfo = Get-MoonPhase -Date (Get-Date)
+                        $sunTimes = Get-SunriseSunset -Latitude $lat -Longitude $lon -Date (Get-Date) -TimeZoneId $timeZone
+                        $sunriseTime = $sunTimes.Sunrise
+                        $sunsetTime = $sunTimes.Sunset
+                        
                         # Re-render current view with fresh data
                         Clear-Host
                         if ($isHourlyMode) {
