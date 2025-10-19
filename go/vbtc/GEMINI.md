@@ -19,7 +19,7 @@ As a Go application, it is designed to be a compiled, cross-platform executable,
 - **Cross-Platform:** Written in Go, it can be compiled and run on Windows, macOS, and Linux.
 - **Real-time Data Simulation:** Fetches live Bitcoin market data, including a 1-Hour Simple Moving Average (SMA) and 24-hour volatility metrics. Historical data is cached for 15 minutes to optimize API usage.
 - **Portfolio Management:** Initializes users with a starting capital of $1000 and tracks their cash (USD), Bitcoin (BTC) holdings, and total portfolio value in `vbtc.ini`.
-- **Transaction Ledger:** All buy and sell activities are recorded in `ledger.csv`, providing a complete history of trades.
+- **Transaction Ledger:** All buy and sell activities are recorded in `ledger.csv`, providing a complete history of trades with comprehensive statistics including average prices, net profit/loss, and transaction counts across all historical data.
 - **Configuration & Maintenance:** A `config` menu allows users to update their API key, reset their portfolio, archive the main ledger, and merge multiple archives into a master file.
 - **Flexible Trading:** Supports trading by specific amounts, percentages of the user's balance (e.g., `50p`), and selling amounts specified in satoshis (e.g., `50000s`).
 - **User-Friendly Interface:** Employs command shortcuts (e.g., `b` for `buy`), color-coded feedback for market and portfolio changes, and a trade confirmation screen with a 2-minute timeout to ensure prices are current.
@@ -43,11 +43,11 @@ As a Go application, it is designed to be a compiled, cross-platform executable,
 
 -   `buy [amount]`: Purchase Bitcoin with a specified USD amount.
 -   `sell [amount]`: Sell a specified amount of BTC or satoshis.
--   `ledger`: View the transaction history.
+-   `ledger`: View comprehensive transaction history with detailed statistics including average purchase/sale prices, net profit/loss, transaction counts, and net BTC position across current and archived ledgers.
 -   `refresh`: Manually force an update of market data.
 -   `config`: Access the configuration menu.
 -   `help`: Display the help screen.
--   `exit`: Close the application and view a final summary.
+-   `exit`: Close the application and view a comprehensive final summary including portfolio performance, session statistics, and complete trading history with all-time statistics.
 
 ### Dependencies
 
@@ -67,3 +67,29 @@ As a Go application, it is designed to be a compiled, cross-platform executable,
 -   `vbtc.ini`: Stores the API key and user's portfolio data (auto-generated).
 -   `ledger.csv`: Logs all buy and sell transactions (auto-generated).
 -   `vBTC - Ledger_*.csv`: Archived ledger files created via the config menu.
+-   `vBTC - Ledger_Merged.csv`: Combined ledger file created when merging archives.
+
+### Ledger Summary Features
+
+The application now provides comprehensive trading statistics across all historical data:
+
+#### Statistics Displayed
+- **Transaction Count**: Total number of buy and sell transactions
+- **Total Bought/Sold (USD & BTC)**: Complete trading volume
+- **Average Purchase Price**: Weighted average BTC price for all buy transactions
+- **Average Sale Price**: Weighted average BTC price for all sell transactions  
+- **Net BTC Position**: Current Bitcoin holdings (Total Bought - Total Sold)
+- **Net Trading P/L (USD)**: Overall trading profit/loss
+
+#### Archive Support
+- **Current Ledger**: Reads from `ledger.csv`
+- **Merged Ledger**: Prefers `vBTC - Ledger_Merged.csv` if available
+- **Individual Archives**: Falls back to `vBTC - Ledger_MMDDYY.csv` files
+- **Deduplication**: Automatically removes duplicate transactions by timestamp
+- **Chronological Order**: All data is sorted by transaction date
+
+#### Color Coding
+- **Green**: Positive values, buy-related statistics, net gains
+- **Red**: Negative values, sell-related statistics, net losses
+- **White**: Neutral values (zero or informational counts)
+- **Yellow**: Section headers

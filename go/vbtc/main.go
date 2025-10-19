@@ -25,8 +25,8 @@ import (
 	"github.com/Knetic/govaluate"
 	"github.com/fatih/color"
 	"github.com/shirou/gopsutil/v3/process"
-	"gopkg.in/ini.v1"
 	"golang.org/x/term"
+	"gopkg.in/ini.v1"
 )
 
 const (
@@ -85,10 +85,14 @@ type LedgerEntry struct {
 
 // LedgerSummary holds aggregated data from ledger entries.
 type LedgerSummary struct {
-	TotalBuyUSD  float64
-	TotalSellUSD float64
-	TotalBuyBTC  float64
-	TotalSellBTC float64
+	TotalBuyUSD      float64
+	TotalSellUSD     float64
+	TotalBuyBTC      float64
+	TotalSellBTC     float64
+	AvgBuyPrice      float64
+	AvgSalePrice     float64
+	BuyTransactions  int
+	SellTransactions int
 }
 
 // ApiKeyError is a custom error for invalid API key responses (401, 403).
@@ -530,9 +534,9 @@ func showLedgerScreen(reader *bufio.Reader) {
 	clearScreen()
 	color.Yellow("*** Ledger ***")
 
-	ledgerEntries, err := readAndParseLedger()
+	ledgerEntries, err := readAllLedgerEntries()
 	if err != nil {
-		color.Red("Error reading ledger file: %v", err)
+		color.Red("Error reading ledger files: %v", err)
 		fmt.Println("\nPress Enter to return to Main screen")
 		reader.ReadString('\n')
 		return
@@ -639,6 +643,40 @@ func showLedgerScreen(reader *bufio.Reader) {
 		writeAlignedLine("Total Sold (BTC):", fmt.Sprintf("%.8f", summary.TotalSellBTC), color.New(color.FgRed), summaryValueStartColumn)
 	}
 
+	// Display additional statistics
+	totalTransactions := summary.BuyTransactions + summary.SellTransactions
+	if totalTransactions > 0 {
+		writeAlignedLine("Transaction Count:", fmt.Sprintf("%d", totalTransactions), color.New(color.FgWhite), summaryValueStartColumn)
+	}
+
+	if summary.AvgBuyPrice > 0 {
+		writeAlignedLine("Average Purchase Price:", fmt.Sprintf("$%s", formatFloat(summary.AvgBuyPrice, 2)), color.New(color.FgGreen), summaryValueStartColumn)
+	}
+
+	if summary.AvgSalePrice > 0 {
+		writeAlignedLine("Average Sale Price:", fmt.Sprintf("$%s", formatFloat(summary.AvgSalePrice, 2)), color.New(color.FgRed), summaryValueStartColumn)
+	}
+
+	// Net BTC Position
+	netBTC := summary.TotalBuyBTC - summary.TotalSellBTC
+	netBTCColor := color.New(color.FgWhite)
+	if netBTC > 0 {
+		netBTCColor = color.New(color.FgGreen)
+	} else if netBTC < 0 {
+		netBTCColor = color.New(color.FgRed)
+	}
+	writeAlignedLine("Net BTC Position:", fmt.Sprintf("%.8f", netBTC), netBTCColor, summaryValueStartColumn)
+
+	// Net Profit/Loss USD
+	netProfitLoss := summary.TotalSellUSD - summary.TotalBuyUSD
+	netPLColor := color.New(color.FgWhite)
+	if netProfitLoss > 0 {
+		netPLColor = color.New(color.FgGreen)
+	} else if netProfitLoss < 0 {
+		netPLColor = color.New(color.FgRed)
+	}
+	writeAlignedLine("Net Profit/Loss (USD):", fmt.Sprintf("$%s", formatFloat(netProfitLoss, 2)), netPLColor, summaryValueStartColumn)
+
 	fmt.Println("\nPress Enter to return to Main screen")
 	reader.ReadString('\n')
 }
@@ -715,6 +753,61 @@ func showExitScreen(reader *bufio.Reader) {
 			writeAlignedLine("Total Sold (USD):", fmt.Sprintf("$%s", formatFloat(summary.TotalSellUSD, 2)), color.New(color.FgRed), sessionValueStartColumn)
 			writeAlignedLine("Total Sold (BTC):", fmt.Sprintf("%.8f", summary.TotalSellBTC), color.New(color.FgRed), sessionValueStartColumn)
 		}
+	}
+
+	// --- Comprehensive Ledger Summary ---
+	fmt.Println()
+	color.Yellow("*** Trading History Summary ***")
+	allEntries, err := readAllLedgerEntries()
+	if err == nil && len(allEntries) > 0 {
+		allTimeSummary := getLedgerTotals(allEntries)
+		ledgerValueStartColumn := 22 // Use consistent column alignment
+
+		// Display transaction counts
+		totalTransactions := allTimeSummary.BuyTransactions + allTimeSummary.SellTransactions
+		if totalTransactions > 0 {
+			writeAlignedLine("Total Transactions:", fmt.Sprintf("%d", totalTransactions), color.New(color.FgWhite), ledgerValueStartColumn)
+		}
+
+		// Display totals
+		if allTimeSummary.TotalBuyUSD > 0 {
+			writeAlignedLine("Total Bought (USD):", fmt.Sprintf("$%s", formatFloat(allTimeSummary.TotalBuyUSD, 2)), color.New(color.FgGreen), ledgerValueStartColumn)
+			writeAlignedLine("Total Bought (BTC):", fmt.Sprintf("%.8f", allTimeSummary.TotalBuyBTC), color.New(color.FgGreen), ledgerValueStartColumn)
+		}
+		if allTimeSummary.TotalSellUSD > 0 {
+			writeAlignedLine("Total Sold (USD):", fmt.Sprintf("$%s", formatFloat(allTimeSummary.TotalSellUSD, 2)), color.New(color.FgRed), ledgerValueStartColumn)
+			writeAlignedLine("Total Sold (BTC):", fmt.Sprintf("%.8f", allTimeSummary.TotalSellBTC), color.New(color.FgRed), ledgerValueStartColumn)
+		}
+
+		// Display average prices
+		if allTimeSummary.AvgBuyPrice > 0 {
+			writeAlignedLine("Average Purchase Price:", fmt.Sprintf("$%s", formatFloat(allTimeSummary.AvgBuyPrice, 2)), color.New(color.FgGreen), ledgerValueStartColumn)
+		}
+		if allTimeSummary.AvgSalePrice > 0 {
+			writeAlignedLine("Average Sale Price:", fmt.Sprintf("$%s", formatFloat(allTimeSummary.AvgSalePrice, 2)), color.New(color.FgRed), ledgerValueStartColumn)
+		}
+
+		// Net BTC Position
+		netBTC := allTimeSummary.TotalBuyBTC - allTimeSummary.TotalSellBTC
+		netBTCColor := color.New(color.FgWhite)
+		if netBTC > 0 {
+			netBTCColor = color.New(color.FgGreen)
+		} else if netBTC < 0 {
+			netBTCColor = color.New(color.FgRed)
+		}
+		writeAlignedLine("Net BTC Position:", fmt.Sprintf("%.8f", netBTC), netBTCColor, ledgerValueStartColumn)
+
+		// Net Profit/Loss USD
+		netProfitLoss := allTimeSummary.TotalSellUSD - allTimeSummary.TotalBuyUSD
+		netPLColor := color.New(color.FgWhite)
+		if netProfitLoss > 0 {
+			netPLColor = color.New(color.FgGreen)
+		} else if netProfitLoss < 0 {
+			netPLColor = color.New(color.FgRed)
+		}
+		writeAlignedLine("Net Trading P/L (USD):", fmt.Sprintf("$%s", formatFloat(netProfitLoss, 2)), netPLColor, ledgerValueStartColumn)
+	} else {
+		color.New(color.FgCyan).Println("No trading history found.")
 	}
 
 	// Pause the screen if the application was likely run by double-clicking.
@@ -1135,6 +1228,109 @@ func readAndParseLedger() ([]LedgerEntry, error) {
 	return ledgerEntries, nil
 }
 
+func readAllLedgerEntries() ([]LedgerEntry, error) {
+	var allEntries []LedgerEntry
+	processedTimestamps := make(map[string]struct{})
+
+	// 1. Read current ledger
+	currentEntries, err := readAndParseLedger()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read current ledger: %w", err)
+	}
+	for _, entry := range currentEntries {
+		if _, exists := processedTimestamps[entry.Time]; !exists {
+			processedTimestamps[entry.Time] = struct{}{}
+			allEntries = append(allEntries, entry)
+		}
+	}
+
+	// 2. Check for merged ledger first (preferred over individual archives)
+	mergedLedgerPath := "vBTC - Ledger_Merged.csv"
+	if _, err := os.Stat(mergedLedgerPath); err == nil {
+		mergedEntries, err := readLedgerFromFile(mergedLedgerPath)
+		if err == nil {
+			for _, entry := range mergedEntries {
+				if _, exists := processedTimestamps[entry.Time]; !exists {
+					processedTimestamps[entry.Time] = struct{}{}
+					allEntries = append(allEntries, entry)
+				}
+			}
+		}
+	} else {
+		// 3. If no merged ledger, read individual archives
+		archivePattern := "vBTC - Ledger_??????.csv"
+		archiveFiles, err := filepath.Glob(archivePattern)
+		if err == nil {
+			// Sort archives by date
+			re := regexp.MustCompile(`_(\d{6})\.csv$`)
+			sort.Slice(archiveFiles, func(i, j int) bool {
+				matchI := re.FindStringSubmatch(archiveFiles[i])
+				matchJ := re.FindStringSubmatch(archiveFiles[j])
+				const layout = "010206" // MMddyy
+				if len(matchI) < 2 || len(matchJ) < 2 {
+					return false
+				}
+				dateI, _ := time.Parse(layout, matchI[1])
+				dateJ, _ := time.Parse(layout, matchJ[1])
+				return dateI.Before(dateJ)
+			})
+
+			for _, archivePath := range archiveFiles {
+				archiveEntries, err := readLedgerFromFile(archivePath)
+				if err == nil {
+					for _, entry := range archiveEntries {
+						if _, exists := processedTimestamps[entry.Time]; !exists {
+							processedTimestamps[entry.Time] = struct{}{}
+							allEntries = append(allEntries, entry)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 4. Sort all entries by DateTime chronologically
+	sort.Slice(allEntries, func(i, j int) bool {
+		return allEntries[i].DateTime.Before(allEntries[j].DateTime)
+	})
+
+	return allEntries, nil
+}
+
+func readLedgerFromFile(filePath string) ([]LedgerEntry, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, err
+	}
+	if len(records) <= 1 {
+		return nil, nil // No records or just header
+	}
+
+	var ledgerEntries []LedgerEntry
+	for _, record := range records[1:] { // Skip header
+		usd, _ := strconv.ParseFloat(strings.ReplaceAll(record[1], ",", ""), 64)
+		btc, _ := strconv.ParseFloat(strings.ReplaceAll(record[2], ",", ""), 64)
+		btcPrice, _ := strconv.ParseFloat(strings.ReplaceAll(record[3], ",", ""), 64)
+		userBTC, _ := strconv.ParseFloat(strings.ReplaceAll(record[4], ",", ""), 64)
+		dateTime, err := time.ParseInLocation("010206@150405", record[5], time.UTC)
+		if err != nil {
+			fmt.Printf("\nWarning: Could not parse timestamp '%s' in %s. Ignoring for calculation.\n", record[5], filePath)
+		}
+		ledgerEntries = append(ledgerEntries, LedgerEntry{
+			TX: record[0], USD: usd, BTC: btc,
+			BTCPrice: btcPrice, UserBTC: userBTC, Time: record[5], DateTime: dateTime,
+		})
+	}
+	return ledgerEntries, nil
+}
+
 func readAndParseLedgerRaw() ([][]string, error) {
 	file, err := os.Open(ledgerFilePath)
 	if err != nil {
@@ -1179,16 +1375,31 @@ func writeLedgerRaw(header []string, dataRecords [][]string) error {
 
 func getLedgerTotals(entries []LedgerEntry) *LedgerSummary {
 	summary := &LedgerSummary{}
+	var totalWeightedBuyPrice, totalWeightedSellPrice float64
+
 	for _, entry := range entries {
 		switch entry.TX {
 		case "Buy":
 			summary.TotalBuyUSD += entry.USD
 			summary.TotalBuyBTC += entry.BTC
+			summary.BuyTransactions++
+			totalWeightedBuyPrice += entry.BTCPrice * entry.BTC
 		case "Sell":
 			summary.TotalSellUSD += entry.USD
 			summary.TotalSellBTC += entry.BTC
+			summary.SellTransactions++
+			totalWeightedSellPrice += entry.BTCPrice * entry.BTC
 		}
 	}
+
+	// Calculate average prices (weighted by BTC amount)
+	if summary.TotalBuyBTC > 0 {
+		summary.AvgBuyPrice = totalWeightedBuyPrice / summary.TotalBuyBTC
+	}
+	if summary.TotalSellBTC > 0 {
+		summary.AvgSalePrice = totalWeightedSellPrice / summary.TotalSellBTC
+	}
+
 	return summary
 }
 
