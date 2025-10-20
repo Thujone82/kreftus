@@ -285,7 +285,7 @@ func testAPIKey(key string) bool {
 }
 
 func fetchInitialPrice() error {
-	price, err := getBtcPrice()
+	price, err := getBtcPriceWithContext(true)
 	if err != nil {
 		return err
 	}
@@ -295,6 +295,10 @@ func fetchInitialPrice() error {
 }
 
 func getBtcPrice() (float64, error) {
+	return getBtcPriceWithContext(false)
+}
+
+func getBtcPriceWithContext(isInitialFetch bool) (float64, error) {
 	if apiKey == "" {
 		return 0, fmt.Errorf("API key is null or empty")
 	}
@@ -329,6 +333,12 @@ func getBtcPrice() (float64, error) {
 				// Final failure: show red '5' indicator for TUI
 				setRetryIndicator("5", "1", true)
 				return 0, fmt.Errorf("API call failed after %d attempts: %v", maxAttempts, err)
+			}
+
+			// Show timeout message for initial fetch on first retry
+			if isInitialFetch && attempt == 1 {
+				fmt.Print("\r")
+				color.Yellow("  Timeout, retrying...")
 			}
 
 			// Exponential backoff with jitter
@@ -484,7 +494,7 @@ func playSound(frequency int, duration int) {
 }
 
 func handleConversion(args Args) {
-	price, err := getBtcPrice()
+	price, err := getBtcPriceWithContext(true)
 	if err != nil {
 		color.Red("Could not retrieve Bitcoin price. Cannot perform conversion.")
 		os.Exit(1)

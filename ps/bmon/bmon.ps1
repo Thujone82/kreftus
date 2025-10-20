@@ -252,7 +252,7 @@ function Invoke-Onboarding {
 }
 
 function Get-BtcPrice {
-    param ([string]$ApiKey)
+    param ([string]$ApiKey, [switch]$IsInitialFetch)
 
     if ([string]::IsNullOrEmpty($ApiKey)) {
         Write-Error "API Key is null or empty"
@@ -290,6 +290,12 @@ function Get-BtcPrice {
                 Write-RetryIndicator -Attempt $maxAttempts -Final
                 $script:WarningLineShown = $true
                 return $null
+            }
+            
+            # Show timeout message for initial fetch on first retry
+            if ($IsInitialFetch -and $attempt -eq 1) {
+                Write-ClearLine
+                Write-Host -NoNewline "  Timeout, retrying...`r" -ForegroundColor Yellow
             }
             
             # Exponential backoff with jitter
@@ -411,7 +417,7 @@ if ([string]::IsNullOrEmpty($apiKey)) {
 
 # --- Conversion Logic Branch ---
 if ($PSCmdlet.ParameterSetName -ne 'Monitor') {
-    $price = Get-BtcPrice -ApiKey $apiKey
+    $price = Get-BtcPrice -ApiKey $apiKey -IsInitialFetch
     if ($null -eq $price) {
         Write-Error "Could not retrieve Bitcoin price. Cannot perform conversion."
         exit 1
@@ -448,7 +454,7 @@ if ($go.IsPresent -or $golong.IsPresent) {
 } else {
     Write-Host "Fetching initial price..." -ForegroundColor Cyan
 }
-$currentBtcPrice = Get-BtcPrice -ApiKey $apiKey
+$currentBtcPrice = Get-BtcPrice -ApiKey $apiKey -IsInitialFetch
 if ($null -eq $currentBtcPrice) {
     Write-Host "Failed to fetch initial price. Check API key or network." -ForegroundColor Red
     exit
