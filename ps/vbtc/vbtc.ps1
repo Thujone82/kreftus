@@ -1,35 +1,9 @@
 <#
 .SYNOPSIS
-    An interactive PowerShell-based Bitcoin trading application. Users can buy and sell Bitcoin using a simulated portfolio,
-    track their trades in a ledger, and view real-time market data from the LiveCoinWatch API.
+    Virtual Bitcoin Trader (vBTC) - Interactive Bitcoin trading simulation
 
 .DESCRIPTION
-    This script provides a command-line interface for a simulated Bitcoin trading experience. On first run, it guides 
-    the user through setting up their LiveCoinWatch API key and initializes their portfolio with a starting capital.
-
-    The main screen displays:
-    - Real-time Bitcoin market data (Price, 1H SMA, 24h Change, Volume, etc.).
-    - The user's personal portfolio (Cash, BTC holdings, and total value).
-
-    Users can issue commands to interact with the application:
-    - buy [amount]: Purchase a specific USD amount of Bitcoin.
-    - sell [amount]: Sell a specific amount of Bitcoin (e.g., .5) or satoshis (e.g., 50000s).
-    - ledger: View a history of all transactions.
-    - refresh: Manually update the market data.
-    - config: Access the configuration menu to update the API key or reset the portfolio.
-    - help: Display the help screen with a list of commands.
-    - exit: Display a final portfolio summary and exit the application.
-
-    Tip: Commands may be shortened (e.g. 'b 10' to buy $10 of BTC).
-    Tip: You can input percentage instead of absolute with suffix(e.g., '10p' for 10% of your 
-         USD/BTC balance). Math is also accepted, e.g., '100/3p' for 1/3 of your balance.
-    Tip: Volatility shows the price swing (High vs Low) over the last 24 hours.
-    Tip: 1H SMA is the average price over the last hour. Green = price is above average.
-
-    Requirements:
-    - PowerShell
-    - An internet connection
-    - A free API key from https://www.livecoinwatch.com/tools/api
+    Use -help or -? to display the help screen with commands and usage information.
 
 .NOTES
     Author: Kreft&Gemini[Gemini 2.5 Pro (preview)]
@@ -39,7 +13,6 @@
 
 [CmdletBinding()]
 param (
-    [Alias('?')]
     [switch]$Help
 )
 
@@ -59,7 +32,7 @@ $startingCapital = 1000.00
 $sessionStartTime = (Get-Date).ToUniversalTime()
 $script:LastGoodApiData = $null
 
-# Show help if requested (before any other processing)
+# Check for help parameters (before any other processing)
 if ($Help.IsPresent) {
     # Define the help function inline to avoid dependency issues
     function Show-HelpScreen {
