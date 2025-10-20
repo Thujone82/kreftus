@@ -571,9 +571,10 @@ func showLedgerScreen(reader *bufio.Reader) {
 	clearScreen()
 	color.Yellow("*** Ledger ***")
 
-	ledgerEntries, err := readAllLedgerEntries()
+	// Read only current ledger for display
+	ledgerEntries, err := readAndParseLedger()
 	if err != nil {
-		color.Red("Error reading ledger files: %v", err)
+		color.Red("Error reading ledger file: %v", err)
 		fmt.Println("\nPress Enter to return to Main screen")
 		reader.ReadString('\n')
 		return
@@ -667,7 +668,16 @@ func showLedgerScreen(reader *bufio.Reader) {
 		rowColor.Println(row)
 	}
 
-	summary := getLedgerTotals(ledgerEntries)
+	// Calculate summary from all historical data (including archives)
+	allEntries, err := readAllLedgerEntries()
+	if err != nil {
+		color.Red("Error reading historical ledger data: %v", err)
+		fmt.Println("\nPress Enter to return to Main screen")
+		reader.ReadString('\n')
+		return
+	}
+
+	summary := getLedgerTotals(allEntries)
 	fmt.Println()
 	color.Yellow("*** Ledger Summary ***")
 	summaryValueStartColumn := 22 // Align with portfolio summary

@@ -1366,129 +1366,136 @@ function Show-LedgerScreen {
     Clear-Host
     Write-Host "*** Ledger ***" -ForegroundColor Yellow
     
-    $allLedgerData = Get-AllLedgerData
-    if ($null -eq $allLedgerData -or $allLedgerData.Count -eq 0) {
+    # Read only current ledger for display
+    if (-not (Test-Path $ledgerFilePath)) {
         Write-Host "You have not made any transactions yet."
     } else {
-        # 1. Parse and create display objects
-        $displayData = $allLedgerData | ForEach-Object {
-            [PSCustomObject]@{
-                TX         = $_.TX
-                USD        = [double]::Parse($_.USD, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture)
-                BTC        = [double]::Parse($_.BTC, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture)
-                'BTC(USD)' = [double]::Parse($_.'BTC(USD)', [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture)
-                'User BTC' = [double]::Parse($_.'User BTC', [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture)
-                Time       = $_.Time
-                DateTime   = [datetime]::ParseExact($_.Time, "MMddyy@HHmmss", $null)
+        $currentLedgerData = Import-Csv -Path $ledgerFilePath -ErrorAction SilentlyContinue
+        if ($null -eq $currentLedgerData -or $currentLedgerData.Count -eq 0) {
+            Write-Host "You have not made any transactions yet."
+        } else {
+            # 1. Parse and create display objects
+            $displayData = $currentLedgerData | ForEach-Object {
+                [PSCustomObject]@{
+                    TX         = $_.TX
+                    USD        = [double]::Parse($_.USD, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture)
+                    BTC        = [double]::Parse($_.BTC, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture)
+                    'BTC(USD)' = [double]::Parse($_.'BTC(USD)', [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture)
+                    'User BTC' = [double]::Parse($_.'User BTC', [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture)
+                    Time       = $_.Time
+                    DateTime   = [datetime]::ParseExact($_.Time, "MMddyy@HHmmss", $null)
+                }
             }
-        }
 
-        # 2. Calculate column widths
-        $widths = @{}
-        $columns = $displayData[0].psobject.Properties.Name
-        foreach ($col in $columns) {
-            if ($col -eq 'DateTime') { continue }
-            $headerLength = $col.Length
-            $maxLength = ($displayData | ForEach-Object {
-                $value = $_.($col)
-                $stringValue = ""
-                if ($col -in @('USD', 'BTC(USD)')) {
-                    $stringValue = $value.ToString("C2")
-                }
-                elseif ($col -in @('BTC', 'User BTC')) {
-                    $stringValue = $value.ToString("F8")
-                }
-                else {
-                    $stringValue = $value.ToString()
-                }
-                $stringValue.Length
-            } | Measure-Object -Maximum).Maximum
-            $widths[$col] = [math]::Max($headerLength, $maxLength)
-        }
-
-        # 3. Create header and format string
-        $headerString = ""
-        $separator = ""
-        $formatString = ""
-        $padding = 2 # Spaces between columns
-        $valueIndex = 0
-        foreach ($col in $columns) {
-            if ($col -eq 'DateTime') { continue }
-            $width = $widths[$col]
-            $headerString += "$($col.PadRight($width))" + (" " * $padding)
-            $separator += ("-" * $width) + (" " * $padding)
-            $formatString += "{" + $valueIndex + ",-$width}" + (" " * $padding)
-            $valueIndex++
-        }
-        
-        # 4. Print header
-        Write-Host $headerString
-        Write-Host $separator
-
-        # 5. Print data rows
-        $sessionStarted = $false
-        foreach ($row in $displayData | Sort-Object DateTime) {
-            if (-not $sessionStarted -and $row.DateTime -ge $sessionStartTime) {
-                $totalWidth = $separator.Length
-                $sessionText = "*** Current Session Start ***"
-                $paddingLength = [math]::Max(0, [math]::Floor(($totalWidth - $sessionText.Length) / 2))
-                $centeredText = (" " * $paddingLength) + $sessionText
-                Write-Host $centeredText -ForegroundColor White
-                $sessionStarted = $true
+            # 2. Calculate column widths
+            $widths = @{}
+            $columns = $displayData[0].psobject.Properties.Name
+            foreach ($col in $columns) {
+                if ($col -eq 'DateTime') { continue }
+                $headerLength = $col.Length
+                $maxLength = ($displayData | ForEach-Object {
+                    $value = $_.($col)
+                    $stringValue = ""
+                    if ($col -in @('USD', 'BTC(USD)')) {
+                        $stringValue = $value.ToString("C2")
+                    }
+                    elseif ($col -in @('BTC', 'User BTC')) {
+                        $stringValue = $value.ToString("F8")
+                    }
+                    else {
+                        $stringValue = $value.ToString()
+                    }
+                    $stringValue.Length
+                } | Measure-Object -Maximum).Maximum
+                $widths[$col] = [math]::Max($headerLength, $maxLength)
             }
-            $rowColor = if ($row.TX -eq "Buy") { "Green" } else { "Red" }
+
+            # 3. Create header and format string
+            $headerString = ""
+            $separator = ""
+            $formatString = ""
+            $padding = 2 # Spaces between columns
+            $valueIndex = 0
+            foreach ($col in $columns) {
+                if ($col -eq 'DateTime') { continue }
+                $width = $widths[$col]
+                $headerString += "$($col.PadRight($width))" + (" " * $padding)
+                $separator += ("-" * $width) + (" " * $padding)
+                $formatString += "{" + $valueIndex + ",-$width}" + (" " * $padding)
+                $valueIndex++
+            }
             
-            $values = $columns | Where-Object { $_ -ne 'DateTime' } | ForEach-Object {
-                $value = $row.$_
-                if ($_ -in @('USD', 'BTC(USD)')) {
-                    $value.ToString("C2")
+            # 4. Print header
+            Write-Host $headerString
+            Write-Host $separator
+
+            # 5. Print data rows
+            $sessionStarted = $false
+            foreach ($row in $displayData | Sort-Object DateTime) {
+                if (-not $sessionStarted -and $row.DateTime -ge $sessionStartTime) {
+                    $totalWidth = $separator.Length
+                    $sessionText = "*** Current Session Start ***"
+                    $paddingLength = [math]::Max(0, [math]::Floor(($totalWidth - $sessionText.Length) / 2))
+                    $centeredText = (" " * $paddingLength) + $sessionText
+                    Write-Host $centeredText -ForegroundColor White
+                    $sessionStarted = $true
                 }
-                elseif ($_ -in @('BTC', 'User BTC')) {
-                    $value.ToString("F8")
+                $rowColor = if ($row.TX -eq "Buy") { "Green" } else { "Red" }
+                
+                $values = $columns | Where-Object { $_ -ne 'DateTime' } | ForEach-Object {
+                    $value = $row.$_
+                    if ($_ -in @('USD', 'BTC(USD)')) {
+                        $value.ToString("C2")
+                    }
+                    elseif ($_ -in @('BTC', 'User BTC')) {
+                        $value.ToString("F8")
+                    }
+                    else {
+                        $value.ToString()
+                    }
                 }
-                else {
-                    $value.ToString()
+                Write-Host ($formatString -f $values) -ForegroundColor $rowColor
+            }
+
+            # Calculate summary from all historical data (including archives)
+            $allLedgerData = Get-AllLedgerData
+            $summary = Get-LedgerTotals -LedgerData $allLedgerData
+            if ($summary) {
+                Write-Host ""
+                Write-Host "*** Ledger Summary ***" -ForegroundColor Yellow
+                Write-AlignedLine -Label "Total Bought (USD):" -Value ("{0:C2}" -f $summary.TotalBuyUSD) -ValueColor "Green"
+                Write-AlignedLine -Label "Total Sold (USD):" -Value ("{0:C2}" -f $summary.TotalSellUSD) -ValueColor "Red"
+                Write-AlignedLine -Label "Total Bought (BTC):" -Value $summary.TotalBuyBTC.ToString("F8") -ValueColor "Green"
+                Write-AlignedLine -Label "Total Sold (BTC):" -Value $summary.TotalSellBTC.ToString("F8") -ValueColor "Red"
+
+                # Display additional statistics
+                $totalTransactions = $summary.BuyTransactions + $summary.SellTransactions
+                if ($totalTransactions -gt 0) {
+                    Write-AlignedLine -Label "Transaction Count:" -Value $totalTransactions.ToString() -ValueColor "White"
                 }
+
+                if ($summary.AvgBuyPrice -gt 0) {
+                    Write-AlignedLine -Label "Average Purchase Price:" -Value ("{0:C2}" -f $summary.AvgBuyPrice) -ValueColor "Green"
+                }
+
+                if ($summary.AvgSalePrice -gt 0) {
+                    Write-AlignedLine -Label "Average Sale Price:" -Value ("{0:C2}" -f $summary.AvgSalePrice) -ValueColor "Red"
+                }
+
+                # Net BTC Position
+                $netBTC = $summary.TotalBuyBTC - $summary.TotalSellBTC
+                $netBTCColor = "White"
+                if ($netBTC -gt 0) { $netBTCColor = "Green" }
+                elseif ($netBTC -lt 0) { $netBTCColor = "Red" }
+                Write-AlignedLine -Label "Net BTC Position:" -Value $netBTC.ToString("F8") -ValueColor $netBTCColor
+
+                # Net Profit/Loss USD
+                $netProfitLoss = $summary.TotalSellUSD - $summary.TotalBuyUSD
+                $netPLColor = "White"
+                if ($netProfitLoss -gt 0) { $netPLColor = "Green" }
+                elseif ($netProfitLoss -lt 0) { $netPLColor = "Red" }
+                Write-AlignedLine -Label "Net Profit/Loss (USD):" -Value ("{0:C2}" -f $netProfitLoss) -ValueColor $netPLColor
             }
-            Write-Host ($formatString -f $values) -ForegroundColor $rowColor
-        }
-
-        $summary = Get-LedgerTotals -LedgerData $allLedgerData
-        if ($summary) {
-            Write-Host ""
-            Write-Host "*** Ledger Summary ***" -ForegroundColor Yellow
-            Write-AlignedLine -Label "Total Bought (USD):" -Value ("{0:C2}" -f $summary.TotalBuyUSD) -ValueColor "Green"
-            Write-AlignedLine -Label "Total Sold (USD):" -Value ("{0:C2}" -f $summary.TotalSellUSD) -ValueColor "Red"
-            Write-AlignedLine -Label "Total Bought (BTC):" -Value $summary.TotalBuyBTC.ToString("F8") -ValueColor "Green"
-            Write-AlignedLine -Label "Total Sold (BTC):" -Value $summary.TotalSellBTC.ToString("F8") -ValueColor "Red"
-
-            # Display additional statistics
-            $totalTransactions = $summary.BuyTransactions + $summary.SellTransactions
-            if ($totalTransactions -gt 0) {
-                Write-AlignedLine -Label "Transaction Count:" -Value $totalTransactions.ToString() -ValueColor "White"
-            }
-
-            if ($summary.AvgBuyPrice -gt 0) {
-                Write-AlignedLine -Label "Average Purchase Price:" -Value ("{0:C2}" -f $summary.AvgBuyPrice) -ValueColor "Green"
-            }
-
-            if ($summary.AvgSalePrice -gt 0) {
-                Write-AlignedLine -Label "Average Sale Price:" -Value ("{0:C2}" -f $summary.AvgSalePrice) -ValueColor "Red"
-            }
-
-            # Net BTC Position
-            $netBTC = $summary.TotalBuyBTC - $summary.TotalSellBTC
-            $netBTCColor = "White"
-            if ($netBTC -gt 0) { $netBTCColor = "Green" }
-            elseif ($netBTC -lt 0) { $netBTCColor = "Red" }
-            Write-AlignedLine -Label "Net BTC Position:" -Value $netBTC.ToString("F8") -ValueColor $netBTCColor
-
-            # Net Profit/Loss USD
-            $netProfitLoss = $summary.TotalSellUSD - $summary.TotalBuyUSD
-            $netPLColor = "White"
-            if ($netProfitLoss -gt 0) { $netPLColor = "Green" }
-            elseif ($netProfitLoss -lt 0) { $netPLColor = "Red" }
-            Write-AlignedLine -Label "Net Profit/Loss (USD):" -Value ("{0:C2}" -f $netProfitLoss) -ValueColor $netPLColor
         }
     }
     
