@@ -26,7 +26,8 @@ The script is designed for ease of use, accepting flexible location inputs like 
   - **Full Mode (default):** Shows all available weather information
   - **Terse Mode (`-t`):** Shows only current conditions and today's forecast (plus alerts)
   - **Hourly Mode (`-h`):** Shows only the 12-hour hourly forecast
-  - **7-Day Mode (`-7` or `-d`):** Shows only the 7-day forecast summary
+  - **7-Day Mode (`-7`):** Shows only the 7-day forecast summary
+  - **Enhanced Daily Mode (`-d`):** Shows comprehensive 7-day forecast with detailed wind information, windchill/heat index, and word-wrapped detailed forecasts
   - **Rain Forecast Mode (`-r` or `-rain`):** Shows rain likelihood forecast with visual sparklines for 96 hours
   - **Wind Forecast Mode (`-w` or `-wind`):** Shows wind outlook forecast with direction glyphs for 96 hours
   - **No-Interactive Mode (`-x`):** Exits immediately after displaying data (perfect for scripting)
@@ -260,6 +261,115 @@ The wind forecast mode uses the same NWS hourly forecast data but processes it d
 - Uses different glyph sets for light winds (<7mph) vs strong winds (≥7mph)
 - Handles missing data gracefully with blank spaces
 - Uses 96-hour data limit for comprehensive coverage
+
+### Enhanced Daily Mode (v2.1)
+
+The Enhanced Daily Mode (`-d`) provides a comprehensive 7-day forecast with detailed wind information, windchill/heat index calculations, and word-wrapped detailed forecasts. This mode is designed for users who need detailed weather information for comprehensive weekly planning.
+
+#### Enhanced Daily Mode Features:
+
+- **3-Line Display Per Day:** Each day shows summary line, day detailed forecast, and night detailed forecast
+- **Wind Information:** Wind speed and direction with color coding (red for high wind ≥16mph)
+- **Temperature Indices:** Windchill (≤50°F) and Heat Index (≥80°F) calculations when applicable
+- **Precipitation Clarity:** Precipitation percentage with "Precip" label for clarity
+- **Word Wrapping:** Detailed forecasts automatically wrap to terminal width
+- **Smart Period Detection:** Automatically detects day vs night periods for single-period days
+- **Consistent Styling:** All detailed forecast text uses configurable gray color
+- **Interactive Mode:** Enters interactive mode after display (use -x to exit immediately)
+
+#### Enhanced Daily Mode Display Format:
+
+```
+Sun: ☁ H:47°F 2 to 8mph SSW (36% Precip)
+  Day: A chance of rain showers before 5am. Mostly cloudy, with a low around 47. 
+       South southwest wind 2 to 6 mph. Chance of precipitation is 30%.
+  Night: Mostly clear, with a low around 43. North wind around 3 mph.
+
+Mon: ☀ H:62°F L:43°F 5mph ESE (10% Precip)
+  Day: Mostly sunny. High near 62, with temperatures falling to around 60 in 
+       the afternoon. East southeast wind around 5 mph.
+  Night: Mostly clear, with a low around 43. North wind around 3 mph.
+```
+
+#### Enhanced Daily Mode Use Cases:
+
+- **Comprehensive Planning:** Detailed weekly weather assessment for complex planning
+- **Outdoor Activities:** Wind and temperature information for activity planning
+- **Travel Planning:** Detailed forecasts for multi-day trips and events
+- **Weather Analysis:** In-depth understanding of weather patterns and conditions
+- **Professional Use:** Detailed weather information for work planning and scheduling
+
+#### Technical Implementation:
+
+The Enhanced Daily Mode uses advanced processing techniques:
+
+- **Wind Speed Extraction:** Parses wind speed from NWS forecast data and applies color coding
+- **Temperature Index Calculations:** Implements NWS formulas for windchill and heat index
+- **Text Wrapping:** Uses `Format-TextWrap` function with terminal width detection
+- **Period Detection:** Time-based logic to determine day vs night periods (6 PM to 6 AM = night)
+- **Color Management:** Centralized `$detailedForecastColor` variable for consistent styling
+- **Interactive Integration:** Full integration with interactive mode keyboard shortcuts
+
+#### Text Wrapping Implementation:
+
+The Enhanced Daily Mode implements sophisticated text wrapping to ensure detailed forecasts display properly across different terminal widths:
+
+**Core Wrapping Function:**
+- **Function:** `Format-TextWrap` (lines 644-683)
+- **Algorithm:** Word-boundary splitting with intelligent line building
+- **Width Calculation:** `$terminalWidth - $labelLength` to account for label space
+- **Array Return:** Returns array of wrapped lines for multi-line display
+
+**Wrapping Process:**
+1. **Terminal Width Detection:** `$Host.UI.RawUI.WindowSize.Width`
+2. **Label Length Calculation:** Accounts for "  Day: " (7 chars) and "  Night: " (9 chars)
+3. **Text Processing:** Splits detailed forecast text on word boundaries
+4. **Line Building:** Constructs lines that fit within calculated width
+5. **Array Output:** Returns array of properly wrapped lines
+
+**Indentation Strategy:**
+- **First Line:** Uses label prefix ("  Day: " or "  Night: ")
+- **Subsequent Lines:** Padded with spaces to align with text start
+  - Day lines: 7-space indentation to align with "  Day: " text
+  - Night lines: 9-space indentation to align with "  Night: " text
+- **Visual Alignment:** Maintains consistent left margin for wrapped text
+
+**Color Coding:**
+- **Labels:** White color for "Day:" and "Night:" labels
+- **Forecast Text:** Configurable gray color via `$detailedForecastColor` variable
+- **Consistency:** All detailed forecast text uses same color scheme
+
+**Terminal Width Handling:**
+- **Dynamic Adaptation:** Automatically adjusts to current terminal width
+- **Narrow Terminal Support:** Gracefully handles very narrow terminals
+- **Word Boundary Respect:** Never breaks words mid-character
+- **Overflow Prevention:** Ensures text never exceeds terminal boundaries
+
+**Implementation Example:**
+```powershell
+# Get terminal width for text wrapping
+$terminalWidth = $Host.UI.RawUI.WindowSize.Width
+
+# Day detailed forecast with wrapping
+$dayLabel = "  Day: "
+$wrappedDayForecast = Format-TextWrap -Text $dayForecastText -Width ($terminalWidth - $dayLabel.Length)
+
+Write-Host $dayLabel -ForegroundColor White -NoNewline
+Write-Host $wrappedDayForecast[0] -ForegroundColor $detailedForecastColor
+# Additional wrapped lines with proper indentation
+for ($i = 1; $i -lt $wrappedDayForecast.Count; $i++) {
+    Write-Host ("       " + $wrappedDayForecast[$i]) -ForegroundColor $detailedForecastColor
+}
+```
+
+#### Color Coding System:
+
+- **Wind Speed:** Red for high wind (≥16mph), default color for normal wind
+- **Temperature:** Red for extreme temperatures (<33°F or >89°F)
+- **Precipitation:** Red for high probability (>80%), yellow for medium (40-80%), default for low
+- **Windchill:** Blue color when applicable (≤50°F and difference >1°F)
+- **Heat Index:** Red color when applicable (≥80°F and difference >1°F)
+- **Detailed Forecasts:** Configurable gray color (default: "Gray")
 
 ### Moon Phase Information (v2.1)
 

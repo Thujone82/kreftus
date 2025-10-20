@@ -31,6 +31,13 @@ The script first uses a geocoding service to determine the latitude and longitud
   - **Wind Outlook:** Color-coded directional glyphs show wind patterns and intensity, with peak wind hours highlighted using inverted colors.
 - **Weather Alerts:** Automatically displays any active weather alerts (e.g., warnings, watches) for the location.
 - **Quick Link:** Provides a direct URL to the weather.gov forecast map for the location.
+- **Enhanced Daily Mode:** Comprehensive 7-day forecast with detailed information:
+  - Wind speed and direction with color coding (red for high wind)
+  - Windchill and Heat Index calculations when applicable
+  - Precipitation probability with "Precip" label for clarity
+  - Word-wrapped detailed forecasts for both day and night periods
+  - Smart day/night period detection for single-period days
+  - Consistent gray color for all detailed forecast text
 - **Smart Exit:** If run from an environment other than a standard command prompt (like by double-clicking), it will pause and wait for user input before closing the window.
 - **Moon Phase Information:** Displays current moon phase with emoji and next full moon date:
   - Shows 8 moon phases: New Moon, Waxing Crescent, First Quarter, Waxing Gibbous, Full Moon, Waning Gibbous, Last Quarter, Waning Crescent
@@ -120,8 +127,11 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
   - Great for weekly planning.
 
 - `-Daily` or `-d` [switch]
-  - Same as `-7` (shows only the 7-day forecast summary).
-  - Alternative flag for the same functionality.
+  - Shows enhanced 7-day forecast with detailed wind information, windchill/heat index, and word-wrapped detailed forecasts.
+  - Displays 3 lines per day: summary line with wind info, day detailed forecast, and night detailed forecast.
+  - Includes color-coded wind speeds, precipitation percentages, and temperature indices.
+  - Enters interactive mode after display (use -x to exit immediately).
+  - Perfect for comprehensive weekly planning with detailed weather information.
 
 - `-Rain` or `-r` [switch]
   - Shows rain likelihood forecast with sparklines for the next 96 hours (4 days).
@@ -178,6 +188,11 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 ### Example 6: Get 7-day forecast only
 ```powershell
 .\gf.ps1 -7 "Portland, OR"
+```
+
+### Example 6a: Get enhanced 7-day forecast with detailed information
+```powershell
+.\gf.ps1 -d "Portland, OR"
 ```
 
 ### Example 7: Get hourly forecast and exit immediately (for scripting)

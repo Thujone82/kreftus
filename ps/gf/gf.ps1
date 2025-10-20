@@ -1306,7 +1306,7 @@ function Show-ForecastText {
     Write-Host ""
     Write-Host "*** $Title ***" -ForegroundColor $TitleColor
     $wrappedForecast = Format-TextWrap -Text $ForecastText -Width $Host.UI.RawUI.WindowSize.Width
-    $wrappedForecast | ForEach-Object { Write-Host $_ -ForegroundColor $DefaultColor }
+    $wrappedForecast | ForEach-Object { Write-Host $_ -ForegroundColor $detailedForecastColor }
 }
 
 # Function to display hourly forecast with scrolling capability
@@ -1515,10 +1515,10 @@ function Show-SevenDayForecast {
                 $wrappedDayForecast = Format-TextWrap -Text $dayForecastText -Width ($terminalWidth - $dayLabel.Length)
                 
                 Write-Host $dayLabel -ForegroundColor White -NoNewline
-                Write-Host $wrappedDayForecast[0] -ForegroundColor Gray
+                Write-Host $wrappedDayForecast[0] -ForegroundColor $detailedForecastColor
                 # Additional wrapped lines with proper indentation
                 for ($i = 1; $i -lt $wrappedDayForecast.Count; $i++) {
-                    Write-Host ("       " + $wrappedDayForecast[$i]) -ForegroundColor Gray
+                    Write-Host ("       " + $wrappedDayForecast[$i]) -ForegroundColor $detailedForecastColor
                 }
                 
                 # Night detailed forecast with wrapping
@@ -1527,10 +1527,10 @@ function Show-SevenDayForecast {
                 $wrappedNightForecast = Format-TextWrap -Text $nightDetailedForecast -Width ($terminalWidth - $nightLabel.Length)
                 
                 Write-Host $nightLabel -ForegroundColor White -NoNewline
-                Write-Host $wrappedNightForecast[0] -ForegroundColor Gray
+                Write-Host $wrappedNightForecast[0] -ForegroundColor $detailedForecastColor
                 # Additional wrapped lines with proper indentation
                 for ($i = 1; $i -lt $wrappedNightForecast.Count; $i++) {
-                    Write-Host ("         " + $wrappedNightForecast[$i]) -ForegroundColor Gray
+                    Write-Host ("         " + $wrappedNightForecast[$i]) -ForegroundColor $detailedForecastColor
                 }
             } else {
                 # Only one period available - determine if it's day or night
@@ -1540,11 +1540,11 @@ function Show-SevenDayForecast {
                 $wrappedSingleForecast = Format-TextWrap -Text $singlePeriodText -Width ($terminalWidth - $singlePeriodLabel.Length)
                 
                 Write-Host $singlePeriodLabel -ForegroundColor White -NoNewline
-                Write-Host $wrappedSingleForecast[0] -ForegroundColor Gray
+                Write-Host $wrappedSingleForecast[0] -ForegroundColor $detailedForecastColor
                 # Additional wrapped lines with proper indentation
                 $indentSpaces = if ($isCurrentPeriodNight) { "         " } else { "       " }
                 for ($i = 1; $i -lt $wrappedSingleForecast.Count; $i++) {
-                    Write-Host ($indentSpaces + $wrappedSingleForecast[$i]) -ForegroundColor Gray
+                    Write-Host ($indentSpaces + $wrappedSingleForecast[$i]) -ForegroundColor $detailedForecastColor
                 }
             }
         } else {
@@ -2035,6 +2035,7 @@ $defaultColor = "DarkCyan"
 $alertColor = "Red"
 $titleColor = "Green"
 $infoColor = "Blue"
+$detailedForecastColor = "Gray"
 
 # Apply color coding based on weather conditions
 # Temperature: Red if too cold (<33°F) or too hot (>89°F)
