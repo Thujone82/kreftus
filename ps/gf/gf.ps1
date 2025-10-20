@@ -1633,14 +1633,8 @@ function Show-LocationInfo {
     
     Write-Host ""
     Write-Host "*** Location Information ***" -ForegroundColor $TitleColor
-    if ($county) {
-        Write-Host "County: $county" -ForegroundColor $DefaultColor
-    }
     Write-Host "Time Zone: $timeZone" -ForegroundColor $DefaultColor
-    Write-Host "Radar Station: $radarStation" -ForegroundColor $DefaultColor
     Write-Host "Coordinates: $lat, $lon" -ForegroundColor $DefaultColor
-
-    Write-Host ""
     Write-Host "https://forecast.weather.gov/MapClick.php?lat=$lat&lon=$lon" -ForegroundColor Cyan
 }
 
@@ -2322,6 +2316,9 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         Show-InteractiveControls
                     } elseif ($isWindMode) {
                         Show-WindForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
+                        Show-InteractiveControls
+                    } elseif ($isDailyMode) {
+                        Show-SevenDayForecast -ForecastData $forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true
                         Show-InteractiveControls
                     } else {
                         # Preserve current mode - show terse mode if in terse mode
