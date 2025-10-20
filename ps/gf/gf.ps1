@@ -1403,7 +1403,8 @@ function Show-SevenDayForecast {
         [string]$AlertColor,
         [int]$MaxDays = $script:MAX_DAILY_FORECAST_DAYS,
         [DateTime]$SunriseTime = $null,
-        [DateTime]$SunsetTime = $null
+        [DateTime]$SunsetTime = $null,
+        [bool]$IsEnhancedMode = $false
     )
     
     Write-Host ""
@@ -1429,8 +1430,9 @@ function Show-SevenDayForecast {
         # This ensures consistent daytime icons in the 7-day summary
         $periodIcon = Get-WeatherIcon $period.icon $true $precipProb
         
-        # Find the corresponding night period for high/low
+        # Find the corresponding night period for high/low and detailed forecast
         $nightTemp = $null
+        $nightDetailedForecast = $null
         foreach ($nightPeriod in $forecastPeriods) {
             $nightTime = [DateTime]::Parse($nightPeriod.startTime)
             $nightDayName = $nightTime.ToString("ddd")
@@ -1438,6 +1440,7 @@ function Show-SevenDayForecast {
             
             if ($nightDayName -eq $dayName -and ($nightPeriodName -match "Night" -or $nightPeriodName -match "Overnight")) {
                 $nightTemp = $nightPeriod.temperature
+                $nightDetailedForecast = $nightPeriod.detailedForecast
                 break
             }
         }
@@ -1445,8 +1448,58 @@ function Show-SevenDayForecast {
         # Color code temperature
         $tempColor = if ([int]$temp -lt $script:COLD_TEMP_THRESHOLD -or [int]$temp -gt $script:HOT_TEMP_THRESHOLD) { $AlertColor } else { $DefaultColor }
         
-        # Build the formatted line
-        $formattedLine = Format-DailyLine -DayName $dayName -Icon $periodIcon -Temp $temp -NightTemp $nightTemp -Forecast $shortForecast -PrecipProb $precipProb
+        if ($IsEnhancedMode) {
+            # Enhanced Daily mode display
+            # Extract wind information
+            $windSpeed = Get-WindSpeed $period.windSpeed
+            $windColor = if ($windSpeed -ge $script:WIND_ALERT_THRESHOLD) { $AlertColor } else { $DefaultColor }
+            $windDisplay = $period.windSpeed -replace '\s+mph', 'mph'
+            
+            # Calculate windchill or heat index
+            $tempNum = [double]$temp
+            $windChillHeatIndex = ""
+            if ($tempNum -le 50) {
+                $windChill = Get-WindChill $tempNum $windSpeed
+                if ($null -ne $windChill -and ($tempNum - $windChill) -gt 1) {
+                    $windChillHeatIndex = " [$windChill°F]"
+                }
+            } elseif ($tempNum -ge 80) {
+                $humidityNum = [double]$period.relativeHumidity.value
+                $heatIndex = Get-HeatIndex $tempNum $humidityNum
+                if ($null -ne $heatIndex -and ($heatIndex - $tempNum) -gt 1) {
+                    $windChillHeatIndex = " [$heatIndex°F]"
+                }
+            }
+            
+            # Color code precipitation probability
+            $precipColor = if ($precipProb -gt $script:HIGH_PRECIP_THRESHOLD) { $AlertColor } elseif ($precipProb -gt $script:MEDIUM_PRECIP_THRESHOLD) { "Yellow" } else { $DefaultColor }
+            
+            # Display enhanced format
+            Write-Host "$dayName`: " -ForegroundColor White -NoNewline
+            Write-Host "$periodIcon " -ForegroundColor $DefaultColor -NoNewline
+            Write-Host "H:$temp°F" -ForegroundColor $tempColor -NoNewline
+            if ($windChillHeatIndex) {
+                Write-Host $windChillHeatIndex -ForegroundColor Blue -NoNewline
+            }
+            if ($nightTemp) {
+                Write-Host " L:$nightTemp°F" -ForegroundColor $tempColor -NoNewline
+            }
+            Write-Host " $windDisplay $($period.windDirection)" -ForegroundColor $windColor -NoNewline
+            if ($precipProb -gt 0) {
+                Write-Host " ($precipProb%)" -ForegroundColor $precipColor -NoNewline
+            }
+            Write-Host ""
+            
+            # Day detailed forecast
+            Write-Host "  Day: $($period.detailedForecast)" -ForegroundColor White
+            
+            # Night detailed forecast
+            if ($nightDetailedForecast) {
+                Write-Host "  Night: $nightDetailedForecast" -ForegroundColor White
+            }
+        } else {
+            # Standard Full mode display (unchanged)
+            $formattedLine = Format-DailyLine -DayName $dayName -Icon $periodIcon -Temp $temp -NightTemp $nightTemp -Forecast $shortForecast -PrecipProb $precipProb
         
         # Split the line into parts for color coding
         $tempStart = $formattedLine.IndexOf(" H:$temp°F")
@@ -1472,6 +1525,7 @@ function Show-SevenDayForecast {
         } else {
             # Fallback if temperature not found
             Write-Host $formattedLine -ForegroundColor $DefaultColor
+        }
         }
         
         $processedDays[$dayName] = $true
@@ -2022,6 +2076,9 @@ if ($Rain.IsPresent) {
 } elseif ($Wind.IsPresent) {
     # Wind mode: Show only wind outlook forecast with direction glyphs
     Show-WindForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city
+} elseif ($Daily.IsPresent) {
+    # Daily mode: Show enhanced 7-day forecast with wind info and detailed forecasts
+    Show-SevenDayForecast -ForecastData $forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true
 } else {
     Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon
 }
@@ -2146,7 +2203,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isRainMode = $false
                     $isWindMode = $false
                     $isTerseMode = $false
-                    Show-SevenDayForecast -ForecastData $forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime
+                    Show-SevenDayForecast -ForecastData $forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true
                     Show-InteractiveControls
                 }
                 't' { # T key - Switch to terse mode (current + today + alerts)
