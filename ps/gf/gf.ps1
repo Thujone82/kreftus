@@ -1431,6 +1431,10 @@ function Show-SevenDayForecast {
         # This ensures consistent daytime icons in the 7-day summary
         $periodIcon = Get-WeatherIcon $period.icon $true $precipProb
         
+        # Calculate moon phase for this specific day (current time + day offset)
+        $moonPhaseInfo = Get-MoonPhase -Date (Get-Date).AddDays($dayCount)
+        $moonEmoji = $moonPhaseInfo.Emoji
+        
         # Find the corresponding night period for high/low and detailed forecast
         $nightTemp = $null
         $nightDetailedForecast = $null
@@ -1485,7 +1489,6 @@ function Show-SevenDayForecast {
             
             # Display enhanced format
             Write-Host "$dayName`: " -ForegroundColor White -NoNewline
-            Write-Host "$periodIcon " -ForegroundColor $DefaultColor -NoNewline
             Write-Host "H:$temp°F" -ForegroundColor $tempColor -NoNewline
             if ($windChillHeatIndex) {
                 Write-Host $windChillHeatIndex -ForegroundColor Blue -NoNewline
@@ -1509,7 +1512,7 @@ function Show-SevenDayForecast {
             # If we have both day and night periods, show both
             if ($nightDetailedForecast) {
                 # Day detailed forecast with wrapping
-                $dayLabel = "  Day: "
+                $dayLabel = "$periodIcon Day: "
                 $dayForecastText = if ($period.detailedForecast) { $period.detailedForecast } else { "No detailed forecast available" }
                 
                 $wrappedDayForecast = Format-TextWrap -Text $dayForecastText -Width ($terminalWidth - $dayLabel.Length)
@@ -1522,7 +1525,7 @@ function Show-SevenDayForecast {
                 }
                 
                 # Night detailed forecast with wrapping
-                $nightLabel = "  Night: "
+                $nightLabel = "$moonEmoji Night: "
                 
                 $wrappedNightForecast = Format-TextWrap -Text $nightDetailedForecast -Width ($terminalWidth - $nightLabel.Length)
                 
@@ -1534,7 +1537,7 @@ function Show-SevenDayForecast {
                 }
             } else {
                 # Only one period available - determine if it's day or night
-                $singlePeriodLabel = if ($isCurrentPeriodNight) { "  Night: " } else { "  Day: " }
+                $singlePeriodLabel = if ($isCurrentPeriodNight) { "$moonEmoji Night: " } else { "$periodIcon Day: " }
                 $singlePeriodText = if ($period.detailedForecast) { $period.detailedForecast } else { "No detailed forecast available" }
                 
                 $wrappedSingleForecast = Format-TextWrap -Text $singlePeriodText -Width ($terminalWidth - $singlePeriodLabel.Length)
