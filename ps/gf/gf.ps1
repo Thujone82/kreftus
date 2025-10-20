@@ -679,7 +679,8 @@ function Format-TextWrap {
         $lines += $currentLine
     }
 
-    return $lines
+    # Ensure we always return an array, even if it's a single element
+    return ,$lines
 }
 
 # Helper: resolve a TimeZoneInfo from an ID (supports IANA -> Windows mapping for common US zones)
@@ -1433,12 +1434,20 @@ function Show-SevenDayForecast {
         # Find the corresponding night period for high/low and detailed forecast
         $nightTemp = $null
         $nightDetailedForecast = $null
+        
+        # Get the current period's start time to find the next period for the same day
+        $currentPeriodTime = [DateTime]::Parse($period.startTime)
+        $currentDay = $currentPeriodTime.ToString("yyyy-MM-dd")
+        
+        # Debug: Check the period structure
+        
+        # Look for the next period on the same day (which should be the night period)
         foreach ($nightPeriod in $forecastPeriods) {
             $nightTime = [DateTime]::Parse($nightPeriod.startTime)
-            $nightDayName = $nightTime.ToString("ddd")
-            $nightPeriodName = $nightPeriod.name
+            $nightDay = $nightTime.ToString("yyyy-MM-dd")
             
-            if ($nightDayName -eq $dayName -and ($nightPeriodName -match "Night" -or $nightPeriodName -match "Overnight")) {
+            # Check if this is the next period on the same day
+            if ($nightDay -eq $currentDay -and $nightTime -gt $currentPeriodTime) {
                 $nightTemp = $nightPeriod.temperature
                 $nightDetailedForecast = $nightPeriod.detailedForecast
                 break
@@ -1486,16 +1495,57 @@ function Show-SevenDayForecast {
             }
             Write-Host " $windDisplay $($period.windDirection)" -ForegroundColor $windColor -NoNewline
             if ($precipProb -gt 0) {
-                Write-Host " ($precipProb%)" -ForegroundColor $precipColor -NoNewline
+                Write-Host " ($precipProb% Precip)" -ForegroundColor $precipColor -NoNewline
             }
             Write-Host ""
             
-            # Day detailed forecast
-            Write-Host "  Day: $($period.detailedForecast)" -ForegroundColor White
+            # Get terminal width for text wrapping
+            $terminalWidth = $Host.UI.RawUI.WindowSize.Width
             
-            # Night detailed forecast
+            # Determine if current period is day or night based on time
+            $currentHour = $currentPeriodTime.Hour
+            $isCurrentPeriodNight = ($currentHour -ge 18 -or $currentHour -lt 6)  # Evening (6 PM) to morning (6 AM)
+            
+            # If we have both day and night periods, show both
             if ($nightDetailedForecast) {
-                Write-Host "  Night: $nightDetailedForecast" -ForegroundColor White
+                # Day detailed forecast with wrapping
+                $dayLabel = "  Day: "
+                $dayForecastText = if ($period.detailedForecast) { $period.detailedForecast } else { "No detailed forecast available" }
+                
+                $wrappedDayForecast = Format-TextWrap -Text $dayForecastText -Width ($terminalWidth - $dayLabel.Length)
+                
+                Write-Host $dayLabel -ForegroundColor White -NoNewline
+                Write-Host $wrappedDayForecast[0] -ForegroundColor Gray
+                # Additional wrapped lines with proper indentation
+                for ($i = 1; $i -lt $wrappedDayForecast.Count; $i++) {
+                    Write-Host ("       " + $wrappedDayForecast[$i]) -ForegroundColor Gray
+                }
+                
+                # Night detailed forecast with wrapping
+                $nightLabel = "  Night: "
+                
+                $wrappedNightForecast = Format-TextWrap -Text $nightDetailedForecast -Width ($terminalWidth - $nightLabel.Length)
+                
+                Write-Host $nightLabel -ForegroundColor White -NoNewline
+                Write-Host $wrappedNightForecast[0] -ForegroundColor Gray
+                # Additional wrapped lines with proper indentation
+                for ($i = 1; $i -lt $wrappedNightForecast.Count; $i++) {
+                    Write-Host ("         " + $wrappedNightForecast[$i]) -ForegroundColor Gray
+                }
+            } else {
+                # Only one period available - determine if it's day or night
+                $singlePeriodLabel = if ($isCurrentPeriodNight) { "  Night: " } else { "  Day: " }
+                $singlePeriodText = if ($period.detailedForecast) { $period.detailedForecast } else { "No detailed forecast available" }
+                
+                $wrappedSingleForecast = Format-TextWrap -Text $singlePeriodText -Width ($terminalWidth - $singlePeriodLabel.Length)
+                
+                Write-Host $singlePeriodLabel -ForegroundColor White -NoNewline
+                Write-Host $wrappedSingleForecast[0] -ForegroundColor Gray
+                # Additional wrapped lines with proper indentation
+                $indentSpaces = if ($isCurrentPeriodNight) { "         " } else { "       " }
+                for ($i = 1; $i -lt $wrappedSingleForecast.Count; $i++) {
+                    Write-Host ($indentSpaces + $wrappedSingleForecast[$i]) -ForegroundColor Gray
+                }
             }
         } else {
             # Standard Full mode display (unchanged)
@@ -2079,6 +2129,10 @@ if ($Rain.IsPresent) {
 } elseif ($Daily.IsPresent) {
     # Daily mode: Show enhanced 7-day forecast with wind info and detailed forecasts
     Show-SevenDayForecast -ForecastData $forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true
+    # Exit only if -x flag is present, otherwise continue to interactive mode
+    if ($NoInteractive.IsPresent) {
+        exit 0
+    }
 } else {
     Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -County $county -TimeZone $timeZone -RadarStation $radarStation -Lat $lat -Lon $lon -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon
 }
