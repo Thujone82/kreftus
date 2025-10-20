@@ -117,6 +117,12 @@ func (e *ProviderDownError) Error() string {
 
 // --- Main Application ---
 func main() {
+	// Check for help flag
+	if len(os.Args) > 1 && (os.Args[1] == "-help" || os.Args[1] == "-h" || os.Args[1] == "--help") {
+		showHelpScreen(nil)
+		return
+	}
+
 	reader := bufio.NewReader(os.Stdin) // Create the single, authoritative reader.
 	setup(reader)
 	mainLoop(reader)
@@ -512,22 +518,53 @@ func showConfigScreen(reader *bufio.Reader) {
 
 func showHelpScreen(reader *bufio.Reader) {
 	clearScreen()
-	color.Yellow("*** Help ***")
-	writeAlignedLine("buy [amount]", "Purchase a specific USD amount of Bitcoin.", color.New(color.FgWhite))
-	writeAlignedLine("sell [amount]", "Sell a specific amount of BTC (e.g., 0.5) or satoshis (e.g., 50000s).", color.New(color.FgWhite))
-	writeAlignedLine("ledger", "View a history of all your transactions.", color.New(color.FgWhite))
-	writeAlignedLine("refresh", "Manually update the market data.", color.New(color.FgWhite))
-	writeAlignedLine("config", "Access the configuration menu.", color.New(color.FgWhite))
-	writeAlignedLine("help", "Show this help screen.", color.New(color.FgWhite))
-	writeAlignedLine("exit", "Exit the application.", color.New(color.FgWhite))
+	color.Yellow("Virtual Bitcoin Trader (vBTC) - Version 1.5")
+	color.New(color.FgHiBlack).Println("═══════════════════════════════════════════════════════════════")
 	fmt.Println()
-	color.New(color.FgCyan).Println("Tip: Commands may be shortened (e.g. 'b 10' to buy $10 of BTC).")
-	color.New(color.FgCyan).Println("Tip: Use 'p' for percentage trades (e.g., '50p' for 50% of your balance).")
-	color.New(color.FgCyan).Println("Tip: Volatility shows the price swing (High vs Low) over the last 24 hours.")
-	color.New(color.FgCyan).Println("Tip: 1H SMA is the average price over the last hour. Green = price is above average.")
+
+	color.New(color.FgCyan).Println("COMMANDS:")
+	color.New(color.FgWhite).Print("    buy [amount]     ")
+	color.New(color.FgHiBlack).Println("Purchase a specific USD amount of Bitcoin")
+	color.New(color.FgWhite).Print("    sell [amount]    ")
+	color.New(color.FgHiBlack).Println("Sell a specific amount of BTC (e.g., 0.5) or satoshis (e.g., 50000s)")
+	color.New(color.FgWhite).Print("    ledger           ")
+	color.New(color.FgHiBlack).Println("View a history of all your transactions")
+	color.New(color.FgWhite).Print("    refresh          ")
+	color.New(color.FgHiBlack).Println("Manually update the market data")
+	color.New(color.FgWhite).Print("    config           ")
+	color.New(color.FgHiBlack).Println("Access the configuration menu")
+	color.New(color.FgWhite).Print("    help             ")
+	color.New(color.FgHiBlack).Println("Show this help screen")
+	color.New(color.FgWhite).Print("    exit             ")
+	color.New(color.FgHiBlack).Println("Exit the application")
 	fmt.Println()
-	fmt.Println("Press Enter to return to the Main Screen.")
-	reader.ReadString('\n')
+
+	color.New(color.FgGreen).Println("TIPS:")
+	color.New(color.FgYellow).Print("    • ")
+	color.New(color.FgHiBlack).Println("Commands may be shortened (e.g. 'b 10' to buy $10 of BTC)")
+	color.New(color.FgYellow).Print("    • ")
+	color.New(color.FgHiBlack).Println("Use 'p' for percentage trades (e.g., '50p' for 50%, '100/3p' for 33.3%)")
+	color.New(color.FgYellow).Print("    • ")
+	color.New(color.FgHiBlack).Println("Volatility shows the price swing (High vs Low) over the last 24 hours")
+	color.New(color.FgYellow).Print("    • ")
+	color.New(color.FgHiBlack).Println("1H SMA is the average price over the last hour. Green = price is above average")
+	fmt.Println()
+
+	color.New(color.FgBlue).Println("REQUIREMENTS:")
+	color.New(color.FgYellow).Print("    • ")
+	color.New(color.FgHiBlack).Println("Go runtime")
+	color.New(color.FgYellow).Print("    • ")
+	color.New(color.FgHiBlack).Println("An internet connection")
+	color.New(color.FgYellow).Print("    • ")
+	color.New(color.FgHiBlack).Println("A free API key from https://www.livecoinwatch.com/tools/api")
+	fmt.Println()
+	color.New(color.FgHiBlack).Println("═══════════════════════════════════════════════════════════════")
+	fmt.Println()
+
+	if reader != nil {
+		fmt.Println("Press Enter to return to the Main Screen.")
+		reader.ReadString('\n')
+	}
 }
 
 func showLedgerScreen(reader *bufio.Reader) {

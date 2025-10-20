@@ -39,6 +39,11 @@ As a Go application, it is designed to be a compiled, cross-platform executable,
     - **Windows:** `.\vbtc.exe`
     - **Linux/macOS:** `./vbtc`
 
+### Help Options
+
+- Run with `-help`, `-h`, or `--help` to display the help screen and exit
+- Use the `help` command within the application to view available commands
+
 ### Commands
 
 -   `buy [amount]`: Purchase Bitcoin with a specified USD amount.

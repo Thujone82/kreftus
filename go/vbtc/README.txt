@@ -43,6 +43,10 @@ The application uses colors to provide quick visual feedback:
     - **On macOS:** After unzipping, you can double-click `vbtc.app`. The first time, you may need to **right-click** the app and select **Open** to bypass security warnings.
 4.  On the first run, you will be prompted to enter your LiveCoinWatch API key.
 
+## Help Options
+- Run with `-help`, `-h`, or `--help` to display the help screen and exit
+- Use the `help` command within the application to view available commands
+
 ## Commands
 - `buy [amount]`: Purchase a specific USD amount of Bitcoin. If no amount is provided, you will be prompted.
 - `sell [amount]`: Sell a specific amount of BTC (e.g., `0.5`) or satoshis (e.g., `50000s`). If no amount is provided, you will be prompted.

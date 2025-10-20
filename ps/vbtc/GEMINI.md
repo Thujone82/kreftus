@@ -33,6 +33,11 @@ The script is executed from a PowerShell terminal.
 2.  Run the command: `.\vbtc.ps1` or `vbtc.exe`
 3.  On the first run, the script will prompt for a LiveCoinWatch API key.
 
+### Help Options
+
+- Run with `.\vbtc.ps1 -help` to display the help screen and exit
+- Use the `help` command within the application to view available commands
+
 ### Commands
 
 -   `buy [amount]`: Purchase Bitcoin with a specified USD amount.

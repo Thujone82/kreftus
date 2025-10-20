@@ -44,6 +44,10 @@ The application uses colors to provide quick visual feedback:
 3.  Run the script with the command: `.\vbtc.ps1`
 4.  On the first run, you will be prompted to enter your LiveCoinWatch API key.
 
+## Help Options
+- Run with `.\vbtc.ps1 -help` to display the help screen and exit
+- Use the `help` command within the application to view available commands
+
 ## Commands
 The application uses a simple command-line interface. The following commands are available:
 

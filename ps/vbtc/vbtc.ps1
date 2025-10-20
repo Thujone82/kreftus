@@ -38,7 +38,10 @@
 #>
 
 [CmdletBinding()]
-param ()
+param (
+    [Alias('?')]
+    [switch]$Help
+)
 
 # --- Script Setup and Configuration ---
 if ($PSScriptRoot) {
@@ -55,6 +58,44 @@ $ledgerFilePath = Join-Path -Path $scriptPath -ChildPath "ledger.csv"
 $startingCapital = 1000.00
 $sessionStartTime = (Get-Date).ToUniversalTime()
 $script:LastGoodApiData = $null
+
+# Show help if requested (before any other processing)
+if ($Help.IsPresent) {
+    # Define the help function inline to avoid dependency issues
+    function Show-HelpScreen {
+        Clear-Host
+        Write-Host "Virtual Bitcoin Trader (vBTC) - Version 1.5" -ForegroundColor Yellow
+        Write-Host "===============================================================" -ForegroundColor DarkGray
+        Write-Host ""
+        
+        Write-Host "COMMANDS:" -ForegroundColor Cyan
+        Write-Host "    buy [amount]     " -NoNewline -ForegroundColor White; Write-Host "Purchase a specific USD amount of Bitcoin" -ForegroundColor Gray
+        Write-Host "    sell [amount]    " -NoNewline -ForegroundColor White; Write-Host "Sell a specific amount of BTC (e.g., 0.5) or satoshis (e.g., 50000s)" -ForegroundColor Gray
+        Write-Host "    ledger           " -NoNewline -ForegroundColor White; Write-Host "View a history of all your transactions" -ForegroundColor Gray
+        Write-Host "    refresh          " -NoNewline -ForegroundColor White; Write-Host "Manually update the market data" -ForegroundColor Gray
+        Write-Host "    config           " -NoNewline -ForegroundColor White; Write-Host "Access the configuration menu" -ForegroundColor Gray
+        Write-Host "    help             " -NoNewline -ForegroundColor White; Write-Host "Show this help screen" -ForegroundColor Gray
+        Write-Host "    exit             " -NoNewline -ForegroundColor White; Write-Host "Exit the application" -ForegroundColor Gray
+        Write-Host ""
+        
+        Write-Host "TIPS:" -ForegroundColor Green
+        Write-Host "    * " -NoNewline -ForegroundColor Yellow; Write-Host "Commands may be shortened (e.g. 'b 10' to buy $10 of BTC)" -ForegroundColor Gray
+        Write-Host "    * " -NoNewline -ForegroundColor Yellow; Write-Host "Use 'p' for percentage trades (e.g., '50p' for 50%, '100/3p' for 33.3%)" -ForegroundColor Gray
+        Write-Host "    * " -NoNewline -ForegroundColor Yellow; Write-Host "Volatility shows the price swing (High vs Low) over the last 24 hours" -ForegroundColor Gray
+        Write-Host "    * " -NoNewline -ForegroundColor Yellow; Write-Host "1H SMA is the average price over the last hour. Green = price is above average" -ForegroundColor Gray
+        Write-Host ""
+        
+        Write-Host "REQUIREMENTS:" -ForegroundColor Blue
+        Write-Host "    * " -NoNewline -ForegroundColor Yellow; Write-Host "PowerShell" -ForegroundColor Gray
+        Write-Host "    * " -NoNewline -ForegroundColor Yellow; Write-Host "An internet connection" -ForegroundColor Gray
+        Write-Host "    * " -NoNewline -ForegroundColor Yellow; Write-Host "A free API key from https://www.livecoinwatch.com/tools/api" -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "===============================================================" -ForegroundColor DarkGray
+        Write-Host ""
+    }
+    Show-HelpScreen
+    exit 0
+}
 
 # --- Helper Functions ---
 
@@ -1317,19 +1358,33 @@ function Invoke-Trade {
 
 function Show-HelpScreen {
     Clear-Host
-    Write-Host "*** Help ***" -ForegroundColor Yellow
-    Write-AlignedLine -Label "buy [amount]" -Value "Purchase a specific USD amount of Bitcoin."
-    Write-AlignedLine -Label "sell [amount]" -Value "Sell a specific amount of BTC (e.g., 0.5) or satoshis (e.g., 50000s)."
-    Write-AlignedLine -Label "ledger" -Value "View a history of all your transactions."
-    Write-AlignedLine -Label "refresh" -Value "Manually update the market data."
-    Write-AlignedLine -Label "config" -Value "Access the configuration menu."
-    Write-AlignedLine -Label "help" -Value "Show this help screen."
-    Write-AlignedLine -Label "exit" -Value "Exit the application."
+    Write-Host "Virtual Bitcoin Trader (vBTC) - Version 1.5" -ForegroundColor Yellow
+    Write-Host "===============================================================" -ForegroundColor DarkGray
     Write-Host ""
-    Write-Host "Tip: Commands may be shortened (e.g. 'b 10' to buy $10 of BTC)." -ForegroundColor Cyan
-    Write-Host "Tip: Use 'p' for percentage trades (e.g., '50p' for 50%, '100/3p' for 33.3%)." -ForegroundColor Cyan
-    Write-Host "Tip: Volatility shows the price swing (High vs Low) over the last 24 hours." -ForegroundColor Cyan
-    Write-Host "Tip: 1H SMA is the average price over the last hour. Green = price is above average." -ForegroundColor Cyan
+    
+    Write-Host "COMMANDS:" -ForegroundColor Cyan
+    Write-Host "    buy [amount]     " -NoNewline -ForegroundColor White; Write-Host "Purchase a specific USD amount of Bitcoin" -ForegroundColor Gray
+    Write-Host "    sell [amount]    " -NoNewline -ForegroundColor White; Write-Host "Sell a specific amount of BTC (e.g., 0.5) or satoshis (e.g., 50000s)" -ForegroundColor Gray
+    Write-Host "    ledger           " -NoNewline -ForegroundColor White; Write-Host "View a history of all your transactions" -ForegroundColor Gray
+    Write-Host "    refresh          " -NoNewline -ForegroundColor White; Write-Host "Manually update the market data" -ForegroundColor Gray
+    Write-Host "    config           " -NoNewline -ForegroundColor White; Write-Host "Access the configuration menu" -ForegroundColor Gray
+    Write-Host "    help             " -NoNewline -ForegroundColor White; Write-Host "Show this help screen" -ForegroundColor Gray
+    Write-Host "    exit             " -NoNewline -ForegroundColor White; Write-Host "Exit the application" -ForegroundColor Gray
+    Write-Host ""
+    
+    Write-Host "TIPS:" -ForegroundColor Green
+    Write-Host "    * " -NoNewline -ForegroundColor Yellow; Write-Host "Commands may be shortened (e.g. 'b 10' to buy $10 of BTC)" -ForegroundColor Gray
+    Write-Host "    * " -NoNewline -ForegroundColor Yellow; Write-Host "Use 'p' for percentage trades (e.g., '50p' for 50%, '100/3p' for 33.3%)" -ForegroundColor Gray
+    Write-Host "    * " -NoNewline -ForegroundColor Yellow; Write-Host "Volatility shows the price swing (High vs Low) over the last 24 hours" -ForegroundColor Gray
+    Write-Host "    * " -NoNewline -ForegroundColor Yellow; Write-Host "1H SMA is the average price over the last hour. Green = price is above average" -ForegroundColor Gray
+    Write-Host ""
+    
+    Write-Host "REQUIREMENTS:" -ForegroundColor Blue
+    Write-Host "    * " -NoNewline -ForegroundColor Yellow; Write-Host "PowerShell" -ForegroundColor Gray
+    Write-Host "    * " -NoNewline -ForegroundColor Yellow; Write-Host "An internet connection" -ForegroundColor Gray
+    Write-Host "    * " -NoNewline -ForegroundColor Yellow; Write-Host "A free API key from https://www.livecoinwatch.com/tools/api" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "===============================================================" -ForegroundColor DarkGray
     Write-Host ""
     Read-Host "Press Enter to return to the Main Screen."
 }
@@ -1487,6 +1542,7 @@ $initialPlayerBTC = 0.0
 $null = [double]::TryParse($config.Portfolio.PlayerUSD, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$initialPlayerUSD)
 $null = [double]::TryParse($config.Portfolio.PlayerBTC, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$initialPlayerBTC)
 $sessionStartPortfolioValue = Get-PortfolioValue -PlayerUSD $initialPlayerUSD -PlayerBTC $initialPlayerBTC -ApiData $apiData
+
 
 $commands = @("buy", "sell", "ledger", "refresh", "config", "help", "exit")
 
