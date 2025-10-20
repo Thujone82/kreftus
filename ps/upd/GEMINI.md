@@ -243,6 +243,12 @@ Command Line Args → Test-CommandLineArgs → Pre-select Jobs
    - Provides clearer information about file operations
    - Better visibility of what was copied and where
 
+5. **Job Name Validation**
+   - Enforces strict naming rules for job names
+   - Prevents spaces and special characters
+   - Ensures compatibility with file systems and command-line usage
+   - Provides clear error messages and persistent prompting
+
 ### Technical Implementation Details
 
 #### Esc Key Handling
@@ -291,6 +297,67 @@ if ($Auto) {
     return $true
 }
 ```
+
+#### Job Name Validation Implementation
+```powershell
+# Validation function with regex patterns
+function Test-JobName {
+    param([string]$Name)
+    
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return $false
+    }
+    
+    # Check for spaces using \s pattern
+    if ($Name -match '\s') {
+        return $false
+    }
+    
+    # Check for special characters (allow only alphanumeric, hyphens, underscores)
+    if ($Name -match '[^a-zA-Z0-9_-]') {
+        return $false
+    }
+    
+    return $true
+}
+
+# New-Job function with validation loop
+do {
+    $name = Read-Host "Name"
+    if ([string]::IsNullOrWhiteSpace($name)) {
+        Write-Red "Name cannot be empty."
+        continue
+    }
+    if (-not (Test-JobName $name)) {
+        Write-Red "Job name must contain only letters, numbers, hyphens, and underscores. No spaces or special characters allowed."
+        continue
+    }
+    break
+} while ($true)
+
+# Edit-Job function with conditional validation
+do {
+    $name = Read-Host "Name [$($job.Name)]"
+    if ([string]::IsNullOrWhiteSpace($name)) {
+        $name = $job.Name  # Keep original if empty
+        break
+    }
+    if (-not (Test-JobName $name)) {
+        Write-Red "Job name must contain only letters, numbers, hyphens, and underscores. No spaces or special characters allowed."
+        continue
+    }
+    break
+} while ($true)
+```
+
+**Validation Rules:**
+- **Allowed Characters:** Letters (a-z, A-Z), numbers (0-9), hyphens (-), underscores (_)
+- **Prohibited Characters:** Spaces, special characters (@, #, $, %, etc.)
+- **Empty Input:** Handled differently in New-Job (error) vs Edit-Job (keep original)
+- **Regex Patterns:** 
+  - `\s` detects any whitespace characters
+  - `[^a-zA-Z0-9_-]` detects any character not in the allowed set
+- **User Experience:** Clear error messages with specific guidance on valid characters
 
 ## Future Enhancement Possibilities
 

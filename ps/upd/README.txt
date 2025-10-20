@@ -16,6 +16,7 @@ FEATURES:
     - JSON-based configuration storage
     - Command-line arguments for automation
     - Verbose mode for debugging
+    - Job name validation (no spaces or special characters)
 
 USAGE:
     Interactive Mode:
@@ -54,9 +55,15 @@ INTERACTIVE COMMANDS:
 
 JOB CONFIGURATION:
     Each job consists of:
-        Name:       Display name for the job
+        Name:       Display name for the job (validated for safety)
         Remote:     Source location (file path or URL)
         Local:      Destination directory path
+        
+    Job Name Validation:
+        - Only letters, numbers, hyphens (-), and underscores (_) allowed
+        - No spaces or special characters
+        - Case-insensitive matching for command-line selection
+        - Examples: "my-job", "job_1", "BackupScript", "update-v2"
         
     Example Job:
         Name:       BMON

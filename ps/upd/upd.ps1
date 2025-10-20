@@ -278,16 +278,44 @@ function Start-SelectedJobs {
     Write-Green "Completed: $successCount of $($script:SelectedJobs.Count) jobs successful"
 }
 
+# Function to validate job names (no spaces or special characters)
+function Test-JobName {
+    param([string]$Name)
+    
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return $false
+    }
+    
+    # Check for spaces
+    if ($Name -match '\s') {
+        return $false
+    }
+    
+    # Check for special characters (allow only alphanumeric, hyphens, and underscores)
+    if ($Name -match '[^a-zA-Z0-9_-]') {
+        return $false
+    }
+    
+    return $true
+}
+
 # Job creation and editing
 function New-Job {
     Write-White "Creating new job..."
     Write-Host ""
     
-    $name = Read-Host "Name"
-    if ([string]::IsNullOrWhiteSpace($name)) {
-        Write-Red "Name cannot be empty."
-        return
-    }
+    do {
+        $name = Read-Host "Name"
+        if ([string]::IsNullOrWhiteSpace($name)) {
+            Write-Red "Name cannot be empty."
+            continue
+        }
+        if (-not (Test-JobName $name)) {
+            Write-Red "Job name must contain only letters, numbers, hyphens, and underscores. No spaces or special characters allowed."
+            continue
+        }
+        break
+    } while ($true)
     
     $remote = Read-Host "Remote (file path or URL)"
     if ([string]::IsNullOrWhiteSpace($remote)) {
@@ -362,10 +390,18 @@ function Edit-Job {
         return
     }
     
-    $name = Read-Host "Name [$($job.Name)]"
-    if ([string]::IsNullOrWhiteSpace($name)) {
-        $name = $job.Name
-    }
+    do {
+        $name = Read-Host "Name [$($job.Name)]"
+        if ([string]::IsNullOrWhiteSpace($name)) {
+            $name = $job.Name
+            break
+        }
+        if (-not (Test-JobName $name)) {
+            Write-Red "Job name must contain only letters, numbers, hyphens, and underscores. No spaces or special characters allowed."
+            continue
+        }
+        break
+    } while ($true)
     
     $remote = Read-Host "Remote [$($job.Remote)]"
     if ([string]::IsNullOrWhiteSpace($remote)) {
