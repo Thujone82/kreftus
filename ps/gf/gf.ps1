@@ -1425,14 +1425,9 @@ function Show-SevenDayForecast {
         $shortForecast = $period.shortForecast
         $precipProb = $period.probabilityOfPrecipitation.value
         
-        # Determine if this period is during day or night using astronomical calculations
-        if ($SunriseTime -and $SunsetTime) {
-            $isPeriodDaytime = Test-IsDaytimeAstronomical $period $SunriseTime $SunsetTime
-        } else {
-            # Fallback to NWS API isDaytime property if sunrise/sunset not available
-            $isPeriodDaytime = Test-IsDaytime $period
-        }
-        $periodIcon = Get-WeatherIcon $period.icon $isPeriodDaytime $precipProb
+        # For daily forecast, always use daytime icons regardless of actual time
+        # This ensures consistent daytime icons in the 7-day summary
+        $periodIcon = Get-WeatherIcon $period.icon $true $precipProb
         
         # Find the corresponding night period for high/low
         $nightTemp = $null
