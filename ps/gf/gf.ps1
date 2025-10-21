@@ -1419,7 +1419,7 @@ function Show-SevenDayForecast {
         if ($dayCount -ge $MaxDays) { break }
         
         $periodTime = [DateTime]::Parse($period.startTime)
-        $dayName = $periodTime.ToString("ddd")
+        $dayName = if ($IsEnhancedMode) { $periodTime.ToString("dddd") } else { $periodTime.ToString("ddd") }
         
         # Skip if we've already processed this day
         if ($processedDays.ContainsKey($dayName)) { continue }
@@ -1491,8 +1491,15 @@ function Show-SevenDayForecast {
             # Color code precipitation probability
             $precipColor = if ($precipProb -gt $script:HIGH_PRECIP_THRESHOLD) { $AlertColor } elseif ($precipProb -gt $script:MEDIUM_PRECIP_THRESHOLD) { "Yellow" } else { $DefaultColor }
             
-            # Display enhanced format
-            Write-Host "$dayName`: " -ForegroundColor White -NoNewline
+            # Display enhanced format with proper padding to align to column 10
+            $dayNameWithColon = "$dayName`:"
+            $targetColumn = 10
+            $currentWidth = Get-StringDisplayWidth $dayNameWithColon
+            $paddingNeeded = $targetColumn - $currentWidth
+            $padding = " " * [Math]::Max(0, $paddingNeeded)
+            
+            Write-Host $dayNameWithColon -ForegroundColor White -NoNewline
+            Write-Host $padding -ForegroundColor White -NoNewline
             Write-Host "H:$temp°F" -ForegroundColor $tempColor -NoNewline
             if ($windChillHeatIndex) {
                 Write-Host $windChillHeatIndex -ForegroundColor $windChillHeatIndexColor -NoNewline
