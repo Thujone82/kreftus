@@ -1383,7 +1383,7 @@ function Show-HourlyForecast {
         $spacesNeeded = $targetTempColumn - $currentDisplayWidth
         $padding = " " * [Math]::Max(0, $spacesNeeded)
 
-        Write-Host $timePart -ForegroundColor $DefaultColor -NoNewline
+        Write-Host $timePart -ForegroundColor White -NoNewline
         Write-Host $iconPart -ForegroundColor $DefaultColor -NoNewline
         Write-Host $padding -ForegroundColor $DefaultColor -NoNewline
         Write-Host $tempPart -ForegroundColor $tempColor -NoNewline
@@ -1471,16 +1471,19 @@ function Show-SevenDayForecast {
             # Calculate windchill or heat index
             $tempNum = [double]$temp
             $windChillHeatIndex = ""
+            $windChillHeatIndexColor = ""
             if ($tempNum -le 50) {
                 $windChill = Get-WindChill $tempNum $windSpeed
                 if ($null -ne $windChill -and ($tempNum - $windChill) -gt 1) {
                     $windChillHeatIndex = " [$windChill°F]"
+                    $windChillHeatIndexColor = "Blue"
                 }
             } elseif ($tempNum -ge 80) {
                 $humidityNum = [double]$period.relativeHumidity.value
                 $heatIndex = Get-HeatIndex $tempNum $humidityNum
                 if ($null -ne $heatIndex -and ($heatIndex - $tempNum) -gt 1) {
                     $windChillHeatIndex = " [$heatIndex°F]"
+                    $windChillHeatIndexColor = "Red"
                 }
             }
             
@@ -1491,14 +1494,14 @@ function Show-SevenDayForecast {
             Write-Host "$dayName`: " -ForegroundColor White -NoNewline
             Write-Host "H:$temp°F" -ForegroundColor $tempColor -NoNewline
             if ($windChillHeatIndex) {
-                Write-Host $windChillHeatIndex -ForegroundColor Blue -NoNewline
+                Write-Host $windChillHeatIndex -ForegroundColor $windChillHeatIndexColor -NoNewline
             }
             if ($nightTemp) {
                 Write-Host " L:$nightTemp°F" -ForegroundColor $tempColor -NoNewline
             }
             Write-Host " $windDisplay $($period.windDirection)" -ForegroundColor $windColor -NoNewline
             if ($precipProb -gt 0) {
-                Write-Host " ($precipProb% Precip)" -ForegroundColor $precipColor -NoNewline
+                Write-Host " ($precipProb%☔️)" -ForegroundColor $precipColor -NoNewline
             }
             Write-Host ""
             
@@ -1512,40 +1515,40 @@ function Show-SevenDayForecast {
             # If we have both day and night periods, show both
             if ($nightDetailedForecast) {
                 # Day detailed forecast with wrapping
-                $dayLabel = "$periodIcon Day: "
+                $dayLabel = "$periodIcon Day:   "
                 $dayForecastText = if ($period.detailedForecast) { $period.detailedForecast } else { "No detailed forecast available" }
                 
-                $wrappedDayForecast = Format-TextWrap -Text $dayForecastText -Width ($terminalWidth - $dayLabel.Length)
+                $wrappedDayForecast = Format-TextWrap -Text $dayForecastText -Width ($terminalWidth - (Get-StringDisplayWidth $dayLabel))
                 
                 Write-Host $dayLabel -ForegroundColor White -NoNewline
                 Write-Host $wrappedDayForecast[0] -ForegroundColor $detailedForecastColor
                 # Additional wrapped lines with proper indentation
                 for ($i = 1; $i -lt $wrappedDayForecast.Count; $i++) {
-                    Write-Host ("       " + $wrappedDayForecast[$i]) -ForegroundColor $detailedForecastColor
+                    Write-Host ("          " + $wrappedDayForecast[$i]) -ForegroundColor $detailedForecastColor
                 }
                 
                 # Night detailed forecast with wrapping
                 $nightLabel = "$moonEmoji Night: "
                 
-                $wrappedNightForecast = Format-TextWrap -Text $nightDetailedForecast -Width ($terminalWidth - $nightLabel.Length)
+                $wrappedNightForecast = Format-TextWrap -Text $nightDetailedForecast -Width ($terminalWidth - (Get-StringDisplayWidth $nightLabel))
                 
                 Write-Host $nightLabel -ForegroundColor White -NoNewline
                 Write-Host $wrappedNightForecast[0] -ForegroundColor $detailedForecastColor
                 # Additional wrapped lines with proper indentation
                 for ($i = 1; $i -lt $wrappedNightForecast.Count; $i++) {
-                    Write-Host ("         " + $wrappedNightForecast[$i]) -ForegroundColor $detailedForecastColor
+                    Write-Host ("          " + $wrappedNightForecast[$i]) -ForegroundColor $detailedForecastColor
                 }
             } else {
                 # Only one period available - determine if it's day or night
-                $singlePeriodLabel = if ($isCurrentPeriodNight) { "$moonEmoji Night: " } else { "$periodIcon Day: " }
+                $singlePeriodLabel = if ($isCurrentPeriodNight) { "$moonEmoji Night: " } else { "$periodIcon Day:   " }
                 $singlePeriodText = if ($period.detailedForecast) { $period.detailedForecast } else { "No detailed forecast available" }
                 
-                $wrappedSingleForecast = Format-TextWrap -Text $singlePeriodText -Width ($terminalWidth - $singlePeriodLabel.Length)
+                $wrappedSingleForecast = Format-TextWrap -Text $singlePeriodText -Width ($terminalWidth - (Get-StringDisplayWidth $singlePeriodLabel))
                 
                 Write-Host $singlePeriodLabel -ForegroundColor White -NoNewline
                 Write-Host $wrappedSingleForecast[0] -ForegroundColor $detailedForecastColor
                 # Additional wrapped lines with proper indentation
-                $indentSpaces = if ($isCurrentPeriodNight) { "         " } else { "       " }
+                $indentSpaces = if ($isCurrentPeriodNight) { "          " } else { "          " }
                 for ($i = 1; $i -lt $wrappedSingleForecast.Count; $i++) {
                     Write-Host ($indentSpaces + $wrappedSingleForecast[$i]) -ForegroundColor $detailedForecastColor
                 }
@@ -1561,8 +1564,14 @@ function Show-SevenDayForecast {
         }
         
         if ($tempStart -ge 0) {
-            # Write everything before temperature
-            Write-Host $formattedLine.Substring(0, $tempStart) -ForegroundColor $DefaultColor -NoNewline
+            # Write day name in white, then the rest in default color
+            $dayNameEnd = $formattedLine.IndexOf(": ")
+            if ($dayNameEnd -ge 0) {
+                Write-Host $formattedLine.Substring(0, $dayNameEnd + 2) -ForegroundColor White -NoNewline
+                Write-Host $formattedLine.Substring($dayNameEnd + 2, $tempStart - $dayNameEnd - 2) -ForegroundColor $DefaultColor -NoNewline
+            } else {
+                Write-Host $formattedLine.Substring(0, $tempStart) -ForegroundColor $DefaultColor -NoNewline
+            }
             
             # Write temperature with color
             if ($nightTemp) {
@@ -1571,10 +1580,35 @@ function Show-SevenDayForecast {
                 Write-Host " $temp°F" -ForegroundColor $tempColor -NoNewline
             }
             
-            # Write everything after temperature
+            # Write everything after temperature with proper precipitation color coding
             $tempEnd = if ($nightTemp) { " H:$temp°F L:$nightTemp°F".Length } else { " $temp°F".Length }
             $afterTemp = $formattedLine.Substring($tempStart + $tempEnd)
-            Write-Host $afterTemp -ForegroundColor $DefaultColor
+            
+            # Check if there's precipitation data and apply color coding
+            if ($precipProb -gt 0) {
+                # Find the precipitation part in the line
+                $precipStart = $afterTemp.IndexOf("($precipProb%☔️)")
+                if ($precipStart -ge 0) {
+                    # Write everything before precipitation
+                    Write-Host $afterTemp.Substring(0, $precipStart) -ForegroundColor $DefaultColor -NoNewline
+                    
+                    # Write precipitation with proper color
+                    $precipColor = if ($precipProb -gt $script:HIGH_PRECIP_THRESHOLD) { $AlertColor } elseif ($precipProb -gt $script:MEDIUM_PRECIP_THRESHOLD) { "Yellow" } else { $DefaultColor }
+                    Write-Host "($precipProb%☔️)" -ForegroundColor $precipColor -NoNewline
+                    
+                    # Write everything after precipitation
+                    $precipEnd = "($precipProb%☔️)".Length
+                    if ($precipStart + $precipEnd -lt $afterTemp.Length) {
+                        Write-Host $afterTemp.Substring($precipStart + $precipEnd) -ForegroundColor $DefaultColor
+                    } else {
+                        Write-Host ""
+                    }
+                } else {
+                    Write-Host $afterTemp -ForegroundColor $DefaultColor
+                }
+            } else {
+                Write-Host $afterTemp -ForegroundColor $DefaultColor
+            }
         } else {
             # Fallback if temperature not found
             Write-Host $formattedLine -ForegroundColor $DefaultColor
@@ -1993,7 +2027,7 @@ function Format-DailyLine {
     $iconPart = "$Icon"
     $tempPart = if ($NightTemp) { " H:$Temp°F L:$NightTemp°F" } else { " $Temp°F" }
     $forecastPart = " - $Forecast"
-    $precipPart = if ($PrecipProb -gt 0) { " ($PrecipProb% precip)" } else { "" }
+    $precipPart = if ($PrecipProb -gt 0) { " ($PrecipProb%☔️)" } else { "" }
     
     if (Test-CursorTerminal) {
         # In Cursor, use a simple fixed-width approach
