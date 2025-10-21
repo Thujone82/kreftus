@@ -1409,7 +1409,8 @@ function Show-SevenDayForecast {
     )
     
     Write-Host ""
-    Write-Host "*** 7-Day Summary ***" -ForegroundColor $TitleColor
+    $titleText = if ($IsEnhancedMode) { "*** 7-Day Forecast ***" } else { "*** 7-Day Summary ***" }
+    Write-Host $titleText -ForegroundColor $TitleColor
     $forecastPeriods = $forecastData.properties.periods
     $dayCount = 0
     $processedDays = @{}
