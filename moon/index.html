@@ -236,7 +236,13 @@
             }
 
             getNextNewMoon(currentDate, currentCycle) {
-                const daysUntilNextNewMoon = this.lunarCycle - currentCycle;
+                // If we're at or very close to the new moon (within 1 day), get the next one
+                let daysUntilNextNewMoon = this.lunarCycle - currentCycle;
+                
+                if (daysUntilNextNewMoon <= 1.0) {
+                    daysUntilNextNewMoon += this.lunarCycle;
+                }
+                
                 return new Date(currentDate.getTime() + daysUntilNextNewMoon * 24 * 60 * 60 * 1000);
             }
 
