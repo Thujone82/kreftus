@@ -56,6 +56,7 @@ The script first uses a geocoding service to determine the latitude and longitud
    - **[W]** - Switch to wind forecast mode (direction glyphs)
    - **[G]** - Refresh weather data (auto-refreshes every 10 minutes)
    - **[U]** - Toggle automatic updates on/off
+   - **[B]** - Toggle control bar on/off
    - **[F]** - Return to full display
    - **[Enter]** or **[Esc]** - Exit the script
    - **Ctrl+C** will also exit the script
@@ -231,6 +232,11 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 ### Example 13: View help information
 ```powershell
 .\gf.ps1 -Help
+```
+
+### Example 14: Start with control bar hidden
+```powershell
+.\gf.ps1 -b "Portland, OR"
 ```
 
 ## Interactive Mode

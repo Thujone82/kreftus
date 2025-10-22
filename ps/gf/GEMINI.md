@@ -493,6 +493,7 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 - **Manual Refresh Control:** Added 'G' key for manual data refresh while preserving current view mode
 - **Dynamic Period Names:** Forecast sections now use actual NWS period names instead of hardcoded labels
 - **NWS Resources Links:** Added clickable links to official NWS resources with custom display text
+- **Control Bar Toggle:** Added command line flag and interactive key to hide/show control bar
 - **Comprehensive Documentation:** Updated README and project documentation
 
 ### Auto-Refresh Technical Implementation
@@ -611,6 +612,64 @@ Write-Host "`e]8;;$radarUrl`e\Radar`e]8;;`e\" -ForegroundColor Cyan
 - **Radar Analysis:** Click "Radar" to view current radar imagery for the area
 - **Weather Planning:** Access official NWS resources for detailed weather analysis
 - **Professional Use:** Direct access to authoritative weather information sources
+
+### Control Bar Toggle Feature (v2.1)
+
+The Control Bar Toggle feature provides users with the ability to hide the interactive control bar for a cleaner display experience.
+
+#### Key Features:
+
+- **Command Line Control:** Start with control bar hidden using `-b` or `-NoBar` flag
+- **Interactive Toggle:** Use 'B' key during interactive mode to toggle control bar on/off
+- **State Persistence:** Control bar state is maintained across mode changes and data refreshes
+- **Status Feedback:** Visual confirmation when toggling control bar state
+
+#### Technical Implementation:
+
+**Command Line Parameter:**
+```powershell
+[Alias('b')]
+[switch]$NoBar
+```
+
+**State Management:**
+```powershell
+# Initialize control bar visibility (can be toggled with 'b' key)
+$script:showControlBar = -not $NoBar.IsPresent
+```
+
+**Control Function Modification:**
+```powershell
+function Show-InteractiveControls {
+    # Don't show controls if bar is hidden
+    if (-not $script:showControlBar) {
+        return
+    }
+    # ... existing control bar display code ...
+}
+```
+
+**Interactive Toggle Handler:**
+```powershell
+'b' { # B key - Toggle control bar
+    $script:showControlBar = -not $script:showControlBar
+    # Show status message and re-render current view
+}
+```
+
+#### Benefits:
+
+- **Cleaner Display:** Hide control bar for distraction-free weather viewing
+- **Flexible Usage:** Toggle on/off as needed during interactive sessions
+- **State Persistence:** Control bar setting maintained across all mode changes
+- **User Control:** Both command line and interactive control options
+
+#### Use Cases:
+
+- **Clean Screenshots:** Hide control bar for cleaner weather display captures
+- **Distraction-Free Viewing:** Focus on weather data without interface clutter
+- **Presentation Mode:** Hide controls when displaying weather information to others
+- **Custom Workflows:** Start with hidden bar and toggle as needed
 
 ### Future Enhancements
 
