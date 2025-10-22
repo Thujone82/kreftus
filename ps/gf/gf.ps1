@@ -1351,10 +1351,32 @@ function Show-HourlyForecast {
         # Color code precipitation probability
         $precipColor = if ($precipProb -gt $script:HIGH_PRECIP_THRESHOLD) { $AlertColor } elseif ($precipProb -gt $script:MEDIUM_PRECIP_THRESHOLD) { "Yellow" } else { $DefaultColor }
         
+        # Calculate windchill or heat index for hourly display
+        $tempNum = [double]$temp
+        $windchillHeatIndex = ""
+        $windchillHeatIndexColor = ""
+        
+        if ($tempNum -le 50) {
+            $windSpeedNum = Get-WindSpeed $wind
+            $windChill = Get-WindChill $tempNum $windSpeedNum
+            if ($null -ne $windChill -and ($tempNum - $windChill) -gt 1) {
+                $windchillHeatIndex = " [$windChill°F]"
+                $windchillHeatIndexColor = "Blue"
+            }
+        }
+        elseif ($tempNum -ge 80) {
+            $humidityNum = [double]$period.relativeHumidity.value
+            $heatIndex = Get-HeatIndex $tempNum $humidityNum
+            if ($null -ne $heatIndex -and ($heatIndex - $tempNum) -gt 1) {
+                $windchillHeatIndex = " [$heatIndex°F]"
+                $windchillHeatIndexColor = "Red"
+            }
+        }
+
         # Build and write the line piece-by-piece for easier colorization
         $timePart = "$hourDisplay "
         $iconPart = "$periodIcon"
-        $tempPart = " $temp°F "
+        $tempPart = " $temp°F"
         $windPart = "$wind $($windDir.PadRight(3))"
         $precipPart = if ($precipProb -gt 0) { " ($precipProb%)" } else { "" }
         $forecastPart = " - $shortForecast"
@@ -1370,6 +1392,10 @@ function Show-HourlyForecast {
         Write-Host $iconPart -ForegroundColor $DefaultColor -NoNewline
         Write-Host $padding -ForegroundColor $DefaultColor -NoNewline
         Write-Host $tempPart -ForegroundColor $tempColor -NoNewline
+        if ($windchillHeatIndex) {
+            Write-Host $windchillHeatIndex -ForegroundColor $windchillHeatIndexColor -NoNewline
+        }
+        Write-Host " " -ForegroundColor $DefaultColor -NoNewline
         Write-Host $windPart -ForegroundColor $DefaultColor -NoNewline
         if ($precipPart) { Write-Host $precipPart -ForegroundColor $precipColor -NoNewline }
         Write-Host $forecastPart -ForegroundColor $DefaultColor
