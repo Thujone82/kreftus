@@ -1,4 +1,7 @@
 # UPDate PowerShell Tool
+# Supports dynamic date placeholders in Remote and Local paths using [dateformat] notation
+# Example: http://radar.com?time=[MMddHH]-[mm].png becomes http://radar.com?time=112209-41.png
+# Example: Local C:\downloads\[yyyy-MM]\ creates monthly folders like C:\downloads\2025-01\
 param(
     [string[]]$JobNames = @(),
     [alias("a")][switch]$Auto,
@@ -203,13 +206,33 @@ function Get-JobByName {
     return -1
 }
 
+# Date placeholder expansion
+function Expand-DatePlaceholders {
+    param([string]$Path)
+    
+    $currentDate = Get-Date
+    $result = $Path
+    
+    # Find all [dateformat] patterns
+    $pattern = '\[([^\]]+)\]'
+    $patternMatches = [regex]::Matches($Path, $pattern)
+    
+    foreach ($match in $patternMatches) {
+        $formatString = $match.Groups[1].Value
+        $dateValue = $currentDate.ToString($formatString)
+        $result = $result.Replace($match.Value, $dateValue)
+    }
+    
+    return $result
+}
+
 # File operations
 function Invoke-UpdateJob {
     param([hashtable]$Job)
     
     try {
-        $remote = $Job.Remote
-        $local = $Job.Local
+        $remote = Expand-DatePlaceholders -Path $Job.Remote
+        $local = Expand-DatePlaceholders -Path $Job.Local
         $bytesTransferred = 0
         
         Write-Verbose "Updating job '$($Job.Name)' from '$remote' to '$local'"
@@ -366,13 +389,13 @@ function New-Job {
         break
     } while ($true)
     
-    $remote = Read-Host "Remote (file path or URL)"
+    $remote = Read-Host "Remote (file path or URL. Use [dateformat] for dynamic dates)"
     if ([string]::IsNullOrWhiteSpace($remote)) {
         Write-Red "Remote cannot be empty."
         return
     }
     
-    $local = Read-Host "Local (directory path)"
+    $local = Read-Host "Local (directory path. Use [dateformat] for dynamic dates)"
     if ([string]::IsNullOrWhiteSpace($local)) {
         Write-Red "Local cannot be empty."
         return
@@ -452,12 +475,12 @@ function Edit-Job {
         break
     } while ($true)
     
-    $remote = Read-Host "Remote [$($job.Remote)]"
+    $remote = Read-Host "Remote [$($job.Remote)] (Use [dateformat] for dates)"
     if ([string]::IsNullOrWhiteSpace($remote)) {
         $remote = $job.Remote
     }
     
-    $local = Read-Host "Local [$($job.Local)]"
+    $local = Read-Host "Local [$($job.Local)] (Use [dateformat] for dates)"
     if ([string]::IsNullOrWhiteSpace($local)) {
         $local = $job.Local
     }

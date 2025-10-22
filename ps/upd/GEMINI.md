@@ -217,6 +217,179 @@ Command Line Args → Test-CommandLineArgs → Pre-select Jobs
    - Esc key navigation (exit and return)
    - Job removal workflow
 
+## Dynamic Date Placeholder System
+
+### Overview
+
+The UPDate tool supports dynamic date/time placeholders in both Remote and Local paths, allowing users to specify date format patterns wrapped in square brackets `[...]` that get replaced with the current date/time when jobs execute. This feature enables time-sensitive file operations like downloading weather radar images, accessing timestamped log files, creating time-based backups, and organizing downloads into date-based folder structures.
+
+### Technical Implementation
+
+#### Core Function: `Expand-DatePlaceholders`
+
+```powershell
+function Expand-DatePlaceholders {
+    param([string]$Path)
+    
+    $currentDate = Get-Date
+    $result = $Path
+    
+    # Find all [dateformat] patterns
+    $pattern = '\[([^\]]+)\]'
+    $patternMatches = [regex]::Matches($Path, $pattern)
+    
+    foreach ($match in $patternMatches) {
+        $formatString = $match.Groups[1].Value
+        $dateValue = $currentDate.ToString($formatString)
+        $result = $result.Replace($match.Value, $dateValue)
+    }
+    
+    return $result
+}
+```
+
+#### Regex Pattern Analysis
+
+The regex pattern `\[([^\]]+)\]` works as follows:
+- `\[` - Matches literal opening bracket `[`
+- `([^\]]+)` - Captures one or more characters that are not closing brackets
+- `\]` - Matches literal closing bracket `]`
+
+This pattern ensures that:
+- Only properly formatted bracket pairs are matched
+- Nested brackets are not supported (by design)
+- Empty brackets `[]` are not matched (no capture group content)
+
+#### .NET DateTime Format Support
+
+The function leverages .NET's `DateTime.ToString(string format)` method, which supports:
+
+**Standard Format Specifiers:**
+- `yyyy` - 4-digit year (2025)
+- `yy` - 2-digit year (25)
+- `MM` - 2-digit month with leading zero (01-12)
+- `M` - 1-2 digit month (1-12)
+- `dd` - 2-digit day with leading zero (01-31)
+- `d` - 1-2 digit day (1-31)
+- `HH` - 2-digit hour 24-hour format (00-23)
+- `hh` - 2-digit hour 12-hour format (01-12)
+- `mm` - 2-digit minute (00-59)
+- `ss` - 2-digit second (00-59)
+- `tt` - AM/PM designator
+
+**Custom Format Strings:**
+- `[yyyy-MM-dd]` - ISO date format (2025-01-15)
+- `[MMddHH]` - Compact date/time (011523)
+- `[HH:mm:ss]` - Time format (14:30:45)
+- `[yyyyMMdd_HHmmss]` - Full timestamp (20250115_143045)
+
+#### Integration Points
+
+The function is called in `Invoke-UpdateJob` before processing both Remote and Local paths:
+
+```powershell
+$remote = Expand-DatePlaceholders -Path $Job.Remote
+$local = Expand-DatePlaceholders -Path $Job.Local
+```
+
+This ensures that:
+- Date expansion occurs once per job execution
+- All placeholders in a single job use the same timestamp
+- Both Remote and Local paths support dynamic date placeholders
+- The expanded paths are used for both URL downloads and local file operations
+
+### Real-World Use Cases
+
+#### Weather Radar Images
+```
+Remote: http://radar.weather.gov/ridge/RadarImg/N0R/[MMddHH]/[MMddHH]_N0R_0.gif
+Expands to: http://radar.weather.gov/ridge/RadarImg/N0R/011523/011523_N0R_0.gif
+```
+
+#### Log File Archival
+```
+Remote: C:\logs\application-[yyyy-MM-dd].log
+Expands to: C:\logs\application-2025-01-15.log
+```
+
+#### API Data with Timestamps
+```
+Remote: https://api.example.com/data?date=[yyyyMMdd]&time=[HHmmss]
+Expands to: https://api.example.com/data?date=20250115&time=143045
+```
+
+#### Backup File Naming
+```
+Remote: backup-[yyyy-MM-dd_HH-mm-ss].zip
+Expands to: backup-2025-01-15_14-30-45.zip
+```
+
+#### Monthly Download Organization
+```
+Remote: https://example.com/monthly-report.pdf
+Local: C:\downloads\[yyyy-MM]\
+Expands to: C:\downloads\2025-01\
+Result: Downloads to monthly folders for organization
+```
+
+#### Daily Archive Structure
+```
+Remote: https://api.example.com/data.json
+Local: C:\data\[yyyy-MM-dd]\
+Expands to: C:\data\2025-01-15\
+Result: Creates daily folders for data organization
+```
+
+#### Time-Based Log Archival
+```
+Remote: C:\logs\application.log
+Local: C:\archive\[yyyy-MM]\logs\
+Expands to: C:\archive\2025-01\logs\
+Result: Archives logs into monthly folders
+```
+
+### Performance Considerations
+
+- **Regex Compilation:** The regex pattern is compiled once per function call
+- **String Operations:** Multiple string replacements per path (one per placeholder)
+- **Date Calculation:** Single `Get-Date` call per job execution
+- **Memory Impact:** Minimal - only string manipulation operations
+
+### Error Handling
+
+The function includes implicit error handling through .NET's `DateTime.ToString()` method:
+- Invalid format strings throw `FormatException`
+- Malformed brackets are ignored (no regex match)
+- Empty format strings result in empty replacement
+
+### Testing Scenarios
+
+#### Basic Functionality
+- Single placeholder: `[yyyy]` → `2025`
+- Multiple placeholders: `[MM]-[dd]-[yyyy]` → `01-15-2025`
+- Mixed content: `file-[HHmmss].txt` → `file-143045.txt`
+
+#### Edge Cases
+- No placeholders: `static-file.txt` → `static-file.txt` (unchanged)
+- Empty brackets: `file[].txt` → `file[].txt` (unchanged)
+- Invalid format: `[invalid]` → throws exception
+- Special characters: `[yyyy-MM-dd_HH:mm:ss]` → `2025-01-15_14:30:45`
+
+#### Real-World Patterns
+- Weather services: `[MMddHH]` for radar images
+- Log rotation: `[yyyy-MM-dd]` for daily logs
+- API endpoints: `[yyyyMMdd]` for date-based queries
+- Backup systems: `[yyyy-MM-dd_HH-mm-ss]` for timestamped archives
+
+### Future Enhancement Possibilities
+
+1. **Timezone Support:** Allow specification of different timezones
+2. **Relative Dates:** Support for `[yesterday]`, `[last-week]` patterns
+3. **Custom Functions:** User-defined date calculation functions
+4. **Validation:** Pre-execution validation of date format strings
+5. **Caching:** Cache expanded paths for repeated executions
+6. **Logging:** Track which placeholders were expanded and their values
+
 ## Recent Updates (v1.1)
 
 ### New Features Added

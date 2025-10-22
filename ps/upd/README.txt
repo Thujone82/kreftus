@@ -72,6 +72,34 @@ JOB CONFIGURATION:
         
     Result: Downloads bmon.exe to C:\Tools\bmon.exe
 
+DYNAMIC DATE PLACEHOLDERS:
+    Both Remote and Local paths support dynamic date/time placeholders using [dateformat] notation.
+    Placeholders are replaced with current date/time when jobs execute.
+    
+    Format Specifiers:
+        yyyy    - 4-digit year (2025)
+        yy      - 2-digit year (25)
+        MM      - 2-digit month (01-12)
+        M       - 1-2 digit month (1-12)
+        dd      - 2-digit day (01-31)
+        d       - 1-2 digit day (1-31)
+        HH      - 2-digit hour 24h (00-23)
+        hh      - 2-digit hour 12h (01-12)
+        mm      - 2-digit minute (00-59)
+        ss      - 2-digit second (00-59)
+        tt      - AM/PM designator
+    
+    Examples:
+        Weather Radar:     http://radar.com?time=[MMddHH]-[mm].png
+        Log Files:         C:\logs\app-[yyyy-MM-dd].log
+        Timestamped API:   https://api.com/data?date=[yyyyMMdd]&time=[HHmmss]
+        Backup Files:      backup-[yyyy-MM-dd_HH-mm-ss].zip
+        Monthly Folders:   Local: C:\downloads\[yyyy-MM]\ (creates monthly folders)
+        Daily Archives:    Local: C:\backups\[yyyy-MM-dd]\ (creates daily folders)
+    
+    Multiple placeholders in a single path are supported.
+    All placeholders use the same timestamp (when job execution starts).
+
 COMMAND LINE ARGUMENTS:
     -jobname        Pre-select a job by name (case-insensitive)
     -a, -auto       Auto-execute pre-selected jobs without confirmation
