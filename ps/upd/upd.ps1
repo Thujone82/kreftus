@@ -70,6 +70,11 @@ function Write-White {
     Write-ColorText $Text "White"
 }
 
+function Write-Yellow {
+    param([string]$Text)
+    Write-ColorText $Text "Yellow"
+}
+
 # Configuration management
 function Import-Config {
     Write-Verbose "Loading configuration from: $script:ConfigPath"
@@ -205,6 +210,7 @@ function Invoke-UpdateJob {
     try {
         $remote = $Job.Remote
         $local = $Job.Local
+        $bytesTransferred = 0
         
         Write-Verbose "Updating job '$($Job.Name)' from '$remote' to '$local'"
         
@@ -227,6 +233,7 @@ function Invoke-UpdateJob {
             $localPath = Join-Path $local $fileName
             Write-Verbose "Saving to: $localPath"
             [System.IO.File]::WriteAllBytes($localPath, $response.Content)
+            $bytesTransferred = $response.Content.Length
             Write-Green "Downloaded: $localPath"
         }
         else {
@@ -236,6 +243,11 @@ function Invoke-UpdateJob {
                 $fileName = Split-Path $remote -Leaf
                 $localPath = Join-Path $local $fileName
                 Write-Verbose "Copying to: $localPath"
+                
+                # Get file size before copying
+                $fileInfo = Get-Item $remote
+                $bytesTransferred = $fileInfo.Length
+                
                 Copy-Item -Path $remote -Destination $localPath -Force
                 Write-White "Source: $remote"
                 Write-White "Destination: $localPath"
@@ -245,7 +257,12 @@ function Invoke-UpdateJob {
                 return $false
             }
         }
-        return $true
+        
+        # Return success with bytes transferred information
+        return @{
+            Success = $true
+            BytesTransferred = $bytesTransferred
+        }
     }
     catch {
         Write-Red "Error updating job '$($Job.Name)': $($_.Exception.Message)"
@@ -261,11 +278,20 @@ function Start-SelectedJobs {
     
     Write-Verbose "Starting execution of $($script:SelectedJobs.Count) selected jobs"
     $successCount = 0
+    $totalStartTime = Get-Date
+    $totalBytesTransferred = 0
+    
     foreach ($index in $script:SelectedJobs) {
         if ($index -lt $script:Jobs.Count) {
             Write-White "Executing job: $($script:Jobs[$index].Name)"
             Write-Verbose "Job details - Remote: $($script:Jobs[$index].Remote), Local: $($script:Jobs[$index].Local)"
-            if (Invoke-UpdateJob -Job $script:Jobs[$index]) {
+            $jobResult = Invoke-UpdateJob -Job $script:Jobs[$index]
+            if ($jobResult -is [hashtable] -and $jobResult.Success) {
+                $successCount++
+                $totalBytesTransferred += $jobResult.BytesTransferred
+                Write-Verbose "Job '$($script:Jobs[$index].Name)' completed successfully"
+            }
+            elseif ($jobResult -eq $true) {
                 $successCount++
                 Write-Verbose "Job '$($script:Jobs[$index].Name)' completed successfully"
             }
@@ -273,6 +299,29 @@ function Start-SelectedJobs {
                 Write-Verbose "Job '$($script:Jobs[$index].Name)' failed"
             }
         }
+    }
+    
+    $totalEndTime = Get-Date
+    $totalDuration = $totalEndTime - $totalStartTime
+    
+    # Calculate speed and display informational line
+    if ($totalBytesTransferred -gt 0 -and $totalDuration.TotalSeconds -gt 0) {
+        $speedMBps = [math]::Round(($totalBytesTransferred / 1MB) / $totalDuration.TotalSeconds, 2)
+        $speedKBps = [math]::Round(($totalBytesTransferred / 1KB) / $totalDuration.TotalSeconds, 2)
+        $sizeMB = [math]::Round($totalBytesTransferred / 1MB, 2)
+        $durationStr = if ($totalDuration.TotalSeconds -lt 1) { 
+            "$([math]::Round($totalDuration.TotalMilliseconds, 0))ms" 
+        } else { 
+            "$([math]::Round($totalDuration.TotalSeconds, 2))s" 
+        }
+        
+        $speedStr = if ($speedMBps -ge 1) { 
+            "$speedMBps MB/s" 
+        } else { 
+            "$speedKBps KB/s" 
+        }
+        
+        Write-Yellow "Transfer: $sizeMB MB in $durationStr ($speedStr)"
     }
     
     Write-Green "Completed: $successCount of $($script:SelectedJobs.Count) jobs successful"
