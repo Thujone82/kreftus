@@ -30,7 +30,10 @@ The script first uses a geocoding service to determine the latitude and longitud
   - **Rain Likelihood:** Color-coded sparklines show rain probability at a glance (white for very low, cyan for low, green for light, yellow for medium, red for high).
   - **Wind Outlook:** Color-coded directional glyphs show wind patterns and intensity, with peak wind hours highlighted using inverted colors.
 - **Weather Alerts:** Automatically displays any active weather alerts (e.g., warnings, watches) for the location.
-- **Quick Link:** Provides a direct URL to the weather.gov forecast map for the location.
+- **NWS Resources:** Provides clickable links to official NWS resources:
+  - **Forecast:** Direct link to weather.gov forecast map for the location
+  - **Graph:** Direct link to NWS graphical forecast with detailed charts
+  - **Radar:** Direct link to NWS radar imagery for the local radar station
 - **Enhanced Daily Mode:** Comprehensive 7-day forecast with detailed information:
   - Wind speed and direction with color coding (red for high wind)
   - Windchill and Heat Index calculations when applicable

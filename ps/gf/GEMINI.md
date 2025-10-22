@@ -492,6 +492,7 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 - **Command Line Control:** Added `-u` flag to start with automatic updates disabled
 - **Manual Refresh Control:** Added 'G' key for manual data refresh while preserving current view mode
 - **Dynamic Period Names:** Forecast sections now use actual NWS period names instead of hardcoded labels
+- **NWS Resources Links:** Added clickable links to official NWS resources with custom display text
 - **Comprehensive Documentation:** Updated README and project documentation
 
 ### Auto-Refresh Technical Implementation
@@ -545,6 +546,71 @@ The auto-update toggle provides users with control over automatic data refreshin
 - **Manual Control:** Users who prefer to manually refresh data only when needed
 - **Network Issues:** Disable updates when experiencing network connectivity problems
 - **Focused Sessions:** Turn off updates during focused work sessions to avoid interruptions
+
+### NWS Resources Links Feature (v2.1)
+
+The NWS Resources feature provides direct access to official National Weather Service resources through clickable links in the Location Information section.
+
+#### Key Features:
+
+- **Custom Link Text:** Displays "Forecast" and "Radar" instead of full URLs
+- **ANSI Escape Sequences:** Uses modern terminal hyperlink support for clickable links
+- **Dynamic Radar Station:** Automatically determines the appropriate radar station for the location
+- **Fallback Support:** Includes fallback display for terminals that don't support ANSI sequences
+
+#### Technical Implementation:
+
+**Data Extraction:**
+- **Radar Station ID:** Extracted from `$pointsData.properties.radarStation` in NWS points API response
+- **Location Coordinates:** Uses existing latitude and longitude variables
+- **Auto-Refresh Support:** Radar station preserved during data refresh operations
+
+**Link Construction:**
+- **Forecast Link:** `https://forecast.weather.gov/MapClick.php?lat={lat}&lon={lon}`
+- **Graph Link:** `https://forecast.weather.gov/MapClick.php?lat={lat}&lon={lon}&unit=0&lg=english&FcstType=graphical`
+- **Radar Link:** `https://radar.weather.gov/ridge/standard/{RADAR_STATION}_loop.gif`
+- **Display Format:** "NWS Resources: Forecast | Graph | Radar"
+
+**ANSI Escape Sequence Format:**
+```powershell
+# Forecast link
+$forecastUrl = "https://forecast.weather.gov/MapClick.php?lat=$lat&lon=$lon"
+Write-Host "`e]8;;$forecastUrl`e\Forecast`e]8;;`e\" -ForegroundColor Cyan -NoNewline
+
+# Graph link
+$graphUrl = "https://forecast.weather.gov/MapClick.php?lat=$lat&lon=$lon&unit=0&lg=english&FcstType=graphical"
+Write-Host "`e]8;;$graphUrl`e\Graph`e]8;;`e\" -ForegroundColor Cyan -NoNewline
+
+# Radar link  
+$radarUrl = "https://radar.weather.gov/ridge/standard/${radarStation}_loop.gif"
+Write-Host "`e]8;;$radarUrl`e\Radar`e]8;;`e\" -ForegroundColor Cyan
+```
+
+**Function Updates:**
+- **Show-LocationInfo:** Added `[string]$RadarStation` parameter
+- **Show-FullWeatherReport:** Added `[string]$RadarStation` parameter
+- **Update-WeatherData:** Added radar station extraction and preservation
+
+**Terminal Compatibility:**
+- **Supported:** Windows Terminal, PowerShell 7+, VS Code integrated terminal, most modern terminals
+- **Fallback:** Full URLs displayed for terminals without ANSI support
+- **Visual Feedback:** Links appear underlined and clickable in supported terminals
+
+#### Benefits:
+
+- **Direct Access:** One-click access to official NWS forecast and radar pages
+- **Location-Specific:** Radar link automatically uses the correct local radar station
+- **Clean Interface:** Custom text instead of long URLs improves readability
+- **Modern UX:** Clickable links provide modern terminal experience
+- **Official Sources:** Links directly to authoritative NWS resources
+
+#### Use Cases:
+
+- **Quick Forecast Check:** Click "Forecast" to view detailed NWS forecast page
+- **Graphical Analysis:** Click "Graph" to view detailed graphical forecast with charts and graphs
+- **Radar Analysis:** Click "Radar" to view current radar imagery for the area
+- **Weather Planning:** Access official NWS resources for detailed weather analysis
+- **Professional Use:** Direct access to authoritative weather information sources
 
 ### Future Enhancements
 
