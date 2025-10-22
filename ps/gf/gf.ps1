@@ -1727,17 +1727,17 @@ function Show-LocationInfo {
     
     # Forecast link
     $forecastUrl = "https://forecast.weather.gov/MapClick.php?lat=$lat&lon=$lon"
-    Write-Host "`e]8;;$forecastUrl`e\Forecast`e]8;;`e\" -ForegroundColor Cyan -NoNewline
+    Write-Host "`e]8;;$forecastUrl`e\Forecast`e]8;;`e\" -ForegroundColor Blue -NoNewline
     Write-Host " | " -ForegroundColor $DefaultColor -NoNewline
     
     # Graph link
     $graphUrl = "https://forecast.weather.gov/MapClick.php?lat=$lat&lon=$lon&unit=0&lg=english&FcstType=graphical"
-    Write-Host "`e]8;;$graphUrl`e\Graph`e]8;;`e\" -ForegroundColor Cyan -NoNewline
+    Write-Host "`e]8;;$graphUrl`e\Graph`e]8;;`e\" -ForegroundColor Blue -NoNewline
     Write-Host " | " -ForegroundColor $DefaultColor -NoNewline
     
     # Radar link
     $radarUrl = "https://radar.weather.gov/ridge/standard/${radarStation}_loop.gif"
-    Write-Host "`e]8;;$radarUrl`e\Radar`e]8;;`e\" -ForegroundColor Cyan
+    Write-Host "`e]8;;$radarUrl`e\Radar`e]8;;`e\" -ForegroundColor Blue
     
     # Fallback: If ANSI sequences don't work, uncomment the lines below and comment out the above
     # Write-Host "NWS Resources: " -ForegroundColor $DefaultColor -NoNewline
