@@ -1737,15 +1737,7 @@ function Show-LocationInfo {
     
     # Radar link
     $radarUrl = "https://radar.weather.gov/ridge/standard/${radarStation}_loop.gif"
-    Write-Host "`e]8;;$radarUrl`e\Radar`e]8;;`e\" -ForegroundColor Blue
-    
-    # Fallback: If ANSI sequences don't work, uncomment the lines below and comment out the above
-    # Write-Host "NWS Resources: " -ForegroundColor $DefaultColor -NoNewline
-    # Write-Host "https://forecast.weather.gov/MapClick.php?lat=$lat&lon=$lon" -ForegroundColor Cyan -NoNewline
-    # Write-Host " | " -ForegroundColor $DefaultColor -NoNewline
-    # Write-Host "https://forecast.weather.gov/MapClick.php?lat=$lat&lon=$lon&unit=0&lg=english&FcstType=graphical" -ForegroundColor Cyan -NoNewline
-    # Write-Host " | " -ForegroundColor $DefaultColor -NoNewline
-    # Write-Host "https://radar.weather.gov/ridge/standard/${radarStation}_loop.gif" -ForegroundColor Cyan
+    Write-Host "`e]8;;$radarUrl`e\Radar`e]8;;`e\" -ForegroundColor Blue    
 }
 
 # Function to display interactive mode controls
@@ -2267,13 +2259,12 @@ elseif ($Host.UI.RawUI.WindowSize.Width -gt 0 -and $Host.UI.RawUI.WindowSize.Hei
 }
 
 # Set initial mode based on command line flags
-$initialHourlyMode = $Hourly.IsPresent
 
 if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
     Write-Verbose "Parent:$parentName - Interactive environment detected"
     
     # Interactive mode variables
-    $isHourlyMode = $initialHourlyMode
+    $isHourlyMode = $Hourly.IsPresent  # State tracking for hourly forecast mode
     $isRainMode = $Rain.IsPresent  # State tracking for rain forecast mode
     $isWindMode = $Wind.IsPresent  # State tracking for wind forecast mode
     $isTerseMode = $Terse.IsPresent  # State tracking for terse mode
