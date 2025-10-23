@@ -1463,10 +1463,35 @@ function Show-LedgerScreen {
             if ($summary) {
                 Write-Host ""
                 Write-Host "*** Ledger Summary ***" -ForegroundColor Yellow
-                Write-AlignedLine -Label "Total Bought (USD):" -Value ("{0:C2}" -f $summary.TotalBuyUSD) -ValueColor "Green"
-                Write-AlignedLine -Label "Total Sold (USD):" -Value ("{0:C2}" -f $summary.TotalSellUSD) -ValueColor "Red"
-                Write-AlignedLine -Label "Total Bought (BTC):" -Value $summary.TotalBuyBTC.ToString("F8") -ValueColor "Green"
-                Write-AlignedLine -Label "Total Sold (BTC):" -Value $summary.TotalSellBTC.ToString("F8") -ValueColor "Red"
+                
+                # Portfolio Summary Section
+                $playerUSD = 0.0
+                $playerBTC = 0.0
+                $playerInvested = 0.0
+                $null = [double]::TryParse($config.Portfolio.PlayerUSD, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$playerUSD)
+                $null = [double]::TryParse($config.Portfolio.PlayerBTC, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$playerBTC)
+                $null = [double]::TryParse($config.Portfolio.PlayerInvested, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$playerInvested)
+                $portfolioValue = Get-PortfolioValue -PlayerUSD $playerUSD -PlayerBTC $playerBTC -ApiData $apiData
+
+                $portfolioColor = "White"
+                if ($portfolioValue -is [double]) {
+                    if ($portfolioValue -gt $startingCapital) { $portfolioColor = "Green" }
+                    elseif ($portfolioValue -lt $startingCapital) { $portfolioColor = "Red" }
+                }
+
+                Write-AlignedLine -Label "Portfolio Value:" -Value ("{0:C2}" -f $portfolioValue) -ValueColor $portfolioColor
+
+                $profit = $portfolioValue - $startingCapital
+                $profitColor = "White"
+                if ($profit -gt 0) { $profitColor = "Green" }
+                elseif ($profit -lt 0) { $profitColor = "Red" }
+                Write-AlignedLine -Label "Total Profit/Loss:" -Value ("{0:C2}" -f $profit) -ValueColor $profitColor
+
+                # Trading Statistics Section
+                if ($summary.TotalBuyUSD -gt 0) {
+                    Write-AlignedLine -Label "Total Bought (USD):" -Value ("{0:C2}" -f $summary.TotalBuyUSD) -ValueColor "Green"
+                    Write-AlignedLine -Label "Total Bought (BTC):" -Value $summary.TotalBuyBTC.ToString("F8") -ValueColor "Green"
+                }
 
                 # Display additional statistics
                 $totalTransactions = $summary.BuyTransactions + $summary.SellTransactions
@@ -1481,20 +1506,6 @@ function Show-LedgerScreen {
                 if ($summary.AvgSalePrice -gt 0) {
                     Write-AlignedLine -Label "Average Sale Price:" -Value ("{0:C2}" -f $summary.AvgSalePrice) -ValueColor "Red"
                 }
-
-                # Net BTC Position
-                $netBTC = $summary.TotalBuyBTC - $summary.TotalSellBTC
-                $netBTCColor = "White"
-                if ($netBTC -gt 0) { $netBTCColor = "Green" }
-                elseif ($netBTC -lt 0) { $netBTCColor = "Red" }
-                Write-AlignedLine -Label "Net BTC Position:" -Value $netBTC.ToString("F8") -ValueColor $netBTCColor
-
-                # Net Profit/Loss USD
-                $netProfitLoss = $summary.TotalSellUSD - $summary.TotalBuyUSD
-                $netPLColor = "White"
-                if ($netProfitLoss -gt 0) { $netPLColor = "Green" }
-                elseif ($netProfitLoss -lt 0) { $netPLColor = "Red" }
-                Write-AlignedLine -Label "Net Profit/Loss (USD):" -Value ("{0:C2}" -f $netProfitLoss) -ValueColor $netPLColor
             }
         }
     }

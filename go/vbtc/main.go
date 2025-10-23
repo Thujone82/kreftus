@@ -681,13 +681,34 @@ func showLedgerScreen(reader *bufio.Reader) {
 	fmt.Println()
 	color.Yellow("*** Ledger Summary ***")
 	summaryValueStartColumn := 22 // Align with portfolio summary
+
+	// Portfolio Summary Section
+	playerUSD, _ := cfg.Section("Portfolio").Key("PlayerUSD").Float64()
+	playerBTC, _ := cfg.Section("Portfolio").Key("PlayerBTC").Float64()
+	portfolioValue := getPortfolioValue(playerUSD, playerBTC, apiData)
+
+	portfolioColor := color.New(color.FgWhite)
+	if portfolioValue > startingCapital {
+		portfolioColor = color.New(color.FgGreen)
+	} else if portfolioValue < startingCapital {
+		portfolioColor = color.New(color.FgRed)
+	}
+
+	writeAlignedLine("Portfolio Value:", fmt.Sprintf("$%s", formatFloat(portfolioValue, 2)), portfolioColor, summaryValueStartColumn)
+
+	profit := portfolioValue - startingCapital
+	profitColor := color.New(color.FgWhite)
+	if profit > 0 {
+		profitColor = color.New(color.FgGreen)
+	} else if profit < 0 {
+		profitColor = color.New(color.FgRed)
+	}
+	writeAlignedLine("Total Profit/Loss:", fmt.Sprintf("%s%s", plusSign(profit), formatFloat(profit, 2)), profitColor, summaryValueStartColumn)
+
+	// Trading Statistics Section
 	if summary.TotalBuyUSD > 0 {
 		writeAlignedLine("Total Bought (USD):", fmt.Sprintf("$%s", formatFloat(summary.TotalBuyUSD, 2)), color.New(color.FgGreen), summaryValueStartColumn)
 		writeAlignedLine("Total Bought (BTC):", fmt.Sprintf("%.8f", summary.TotalBuyBTC), color.New(color.FgGreen), summaryValueStartColumn)
-	}
-	if summary.TotalSellUSD > 0 {
-		writeAlignedLine("Total Sold (USD):", fmt.Sprintf("$%s", formatFloat(summary.TotalSellUSD, 2)), color.New(color.FgRed), summaryValueStartColumn)
-		writeAlignedLine("Total Sold (BTC):", fmt.Sprintf("%.8f", summary.TotalSellBTC), color.New(color.FgRed), summaryValueStartColumn)
 	}
 
 	// Display additional statistics
@@ -703,26 +724,6 @@ func showLedgerScreen(reader *bufio.Reader) {
 	if summary.AvgSalePrice > 0 {
 		writeAlignedLine("Average Sale Price:", fmt.Sprintf("$%s", formatFloat(summary.AvgSalePrice, 2)), color.New(color.FgRed), summaryValueStartColumn)
 	}
-
-	// Net BTC Position
-	netBTC := summary.TotalBuyBTC - summary.TotalSellBTC
-	netBTCColor := color.New(color.FgWhite)
-	if netBTC > 0 {
-		netBTCColor = color.New(color.FgGreen)
-	} else if netBTC < 0 {
-		netBTCColor = color.New(color.FgRed)
-	}
-	writeAlignedLine("Net BTC Position:", fmt.Sprintf("%.8f", netBTC), netBTCColor, summaryValueStartColumn)
-
-	// Net Profit/Loss USD
-	netProfitLoss := summary.TotalSellUSD - summary.TotalBuyUSD
-	netPLColor := color.New(color.FgWhite)
-	if netProfitLoss > 0 {
-		netPLColor = color.New(color.FgGreen)
-	} else if netProfitLoss < 0 {
-		netPLColor = color.New(color.FgRed)
-	}
-	writeAlignedLine("Net Profit/Loss (USD):", fmt.Sprintf("$%s", formatFloat(netProfitLoss, 2)), netPLColor, summaryValueStartColumn)
 
 	fmt.Println("\nPress Enter to return to Main screen")
 	reader.ReadString('\n')

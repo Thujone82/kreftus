@@ -20,7 +20,7 @@ The main screen displays:
 ## Features
 - **Real-time Market Data:** Fetches and displays live Bitcoin prices from LiveCoinWatch, including 24h high, low, volatility, and a 1-Hour Simple Moving Average (SMA), with a 15-minute cache for historical data to optimize API calls.
 - **Portfolio:** Tracks your cash (USD) and Bitcoin holdings.
-- **Transaction Ledger:** Records all buy and sell transactions in a `ledger.csv` file, with comprehensive statistics including average prices, net profit/loss, and transaction counts across all historical data.
+- **Transaction Ledger:** Records all buy and sell transactions in a `ledger.csv` file, with comprehensive statistics including portfolio summary, average prices, and transaction counts across all historical data.
 - **Configuration Options:** Allows you to update your API key, reset your portfolio, archive the main ledger, and merge old archives into a single master file.
 - **Command Shortcuts:** Use partial commands (e.g., 'b' for 'buy') for quick trading.
 - **Percentage-based Trading:** Use the 'p' suffix to trade a percentage of your assets (e.g., `50p` for 50%, `100/3p` for 33.3%).
@@ -53,7 +53,7 @@ The application uses a simple command-line interface. The following commands are
 
 -   `buy [amount]`: Purchase a specific USD amount of Bitcoin. If no amount is provided, you will be prompted to enter one.
 -   `sell [amount]`: Sell a specific amount of Bitcoin (e.g., `0.5`) or satoshis (e.g., `50000s`). If no amount is provided, you will be prompted to enter one.
--   `ledger`: View a comprehensive history of all your transactions with detailed statistics including average purchase/sale prices, net profit/loss, transaction counts, and net BTC position across current and archived ledgers.
+-   `ledger`: View a comprehensive history of all your transactions with detailed statistics including portfolio summary, average purchase/sale prices, and transaction counts across current and archived ledgers.
 -   `refresh`: Manually update the market data.
 -   `config`: Access the configuration menu. From here you can:
     - Update your API key.
@@ -74,12 +74,11 @@ The application uses a simple command-line interface. The following commands are
 The `ledger` command now provides comprehensive trading statistics across all your historical data:
 
 ### Statistics Displayed
+- **Portfolio Summary**: Current portfolio value, total profit/loss, Bitcoin holdings, invested amount, and cash
 - **Transaction Count**: Total number of buy and sell transactions
-- **Total Bought/Sold (USD & BTC)**: Complete trading volume
+- **Total Bought (USD & BTC)**: Complete buy trading volume
 - **Average Purchase Price**: Weighted average BTC price for all buy transactions
-- **Average Sale Price**: Weighted average BTC price for all sell transactions  
-- **Net BTC Position**: Current Bitcoin holdings (Total Bought - Total Sold)
-- **Net Trading P/L (USD)**: Overall trading profit/loss
+- **Average Sale Price**: Weighted average BTC price for all sell transactions
 
 ### Archive Support
 - **Current Ledger**: Reads from `ledger.csv`

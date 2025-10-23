@@ -18,7 +18,7 @@ The application provides a comprehensive main screen displaying live market stat
 
 - **Real-time Data Simulation:** Fetches live Bitcoin market data, including a 1-Hour Simple Moving Average (SMA) and 24-hour volatility metrics. Historical data is cached for 15 minutes to optimize API usage.
 - **Portfolio Management:** Initializes users with a starting capital of $1000 and tracks their cash (USD), Bitcoin (BTC) holdings, and total portfolio value.
-- **Transaction Ledger:** All buy and sell activities are recorded in `ledger.csv`, providing a complete history of trades with comprehensive statistics including average prices, net profit/loss, and transaction counts across all historical data.
+- **Transaction Ledger:** All buy and sell activities are recorded in `ledger.csv`, providing a complete history of trades with comprehensive statistics including portfolio summary, average prices, and transaction counts across all historical data.
 - **Configuration & Maintenance:** A `config` menu allows users to update their API key, reset their portfolio, archive the main ledger, and merge multiple archives into a master file.
 - **Flexible Trading:** Supports trading by specific amounts, percentages of the user's balance (e.g., `50p`), and selling amounts specified in satoshis (e.g., `50000s`).
 - **User-Friendly Interface:** Employs command shortcuts (e.g., `b` for `buy`), color-coded feedback for market and portfolio changes, and a trade confirmation screen with a timeout to ensure prices are current.
@@ -42,7 +42,7 @@ The script is executed from a PowerShell terminal.
 
 -   `buy [amount]`: Purchase Bitcoin with a specified USD amount.
 -   `sell [amount]`: Sell a specified amount of BTC or satoshis.
--   `ledger`: View comprehensive transaction history with detailed statistics including average purchase/sale prices, net profit/loss, transaction counts, and net BTC position across current and archived ledgers.
+-   `ledger`: View comprehensive transaction history with detailed statistics including portfolio summary, average purchase/sale prices, and transaction counts across current and archived ledgers.
 -   `refresh`: Manually force an update of market data.
 -   `config`: Access the configuration menu.
 -   `help`: Display the help screen.
@@ -70,12 +70,11 @@ The script is executed from a PowerShell terminal.
 The application now provides comprehensive trading statistics across all historical data:
 
 #### Statistics Displayed
+- **Portfolio Summary**: Current portfolio value, total profit/loss, Bitcoin holdings, invested amount, and cash
 - **Transaction Count**: Total number of buy and sell transactions
-- **Total Bought/Sold (USD & BTC)**: Complete trading volume
+- **Total Bought (USD & BTC)**: Complete buy trading volume
 - **Average Purchase Price**: Weighted average BTC price for all buy transactions
-- **Average Sale Price**: Weighted average BTC price for all sell transactions  
-- **Net BTC Position**: Current Bitcoin holdings (Total Bought - Total Sold)
-- **Net Trading P/L (USD)**: Overall trading profit/loss
+- **Average Sale Price**: Weighted average BTC price for all sell transactions
 
 #### Archive Support
 - **Current Ledger**: Reads from `ledger.csv`
