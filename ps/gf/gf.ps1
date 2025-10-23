@@ -1724,20 +1724,19 @@ function Show-LocationInfo {
     
     # Display NWS Resources with clickable links
     Write-Host "NWS Resources: " -ForegroundColor $DefaultColor -NoNewline
-    
     # Forecast link
     $forecastUrl = "https://forecast.weather.gov/MapClick.php?lat=$lat&lon=$lon"
-    Write-Host "`e]8;;$forecastUrl`e\Forecast`e]8;;`e\" -ForegroundColor Blue -NoNewline
+    Write-Host "$([char]27)]8;;$forecastUrl$([char]27)\Forecast$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
     Write-Host " | " -ForegroundColor $DefaultColor -NoNewline
     
     # Graph link
     $graphUrl = "https://forecast.weather.gov/MapClick.php?lat=$lat&lon=$lon&unit=0&lg=english&FcstType=graphical"
-    Write-Host "`e]8;;$graphUrl`e\Graph`e]8;;`e\" -ForegroundColor Blue -NoNewline
+    Write-Host "$([char]27)]8;;$graphUrl$([char]27)\Graph$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
     Write-Host " | " -ForegroundColor $DefaultColor -NoNewline
     
     # Radar link
     $radarUrl = "https://radar.weather.gov/ridge/standard/${radarStation}_loop.gif"
-    Write-Host "`e]8;;$radarUrl`e\Radar`e]8;;`e\" -ForegroundColor Blue    
+    Write-Host "$([char]27)]8;;$radarUrl$([char]27)\Radar$([char]27)]8;;$([char]27)\" -ForegroundColor Blue    
 }
 
 # Function to display interactive mode controls
