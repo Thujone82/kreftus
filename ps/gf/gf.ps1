@@ -1234,7 +1234,14 @@ function Show-CurrentConditions {
     }
     Write-Host ""
 
-    Write-Host "Wind: $currentWind $currentWindDir" -ForegroundColor $WindColor -NoNewline
+    # Apply wind mode color scheme to current wind display
+    $currentWindSpeed = Get-WindSpeed $currentWind
+    $windDisplayColor = if ($currentWindSpeed -le 5) { "White" }
+                       elseif ($currentWindSpeed -le 9) { "Yellow" }
+                       elseif ($currentWindSpeed -le 14) { "Red" }
+                       else { "Magenta" }
+    
+    Write-Host "Wind: $currentWind $currentWindDir" -ForegroundColor $windDisplayColor -NoNewline
     if ($windGust) {
         Write-Host " (gusts to $windGust mph)" -ForegroundColor $AlertColor -NoNewline
     }
