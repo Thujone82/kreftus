@@ -22,6 +22,13 @@
     - Wind Chill: Displayed in blue when temperature <= 50°F and difference > 1°F
     - Heat Index: Displayed in red when temperature >= 80°F and difference > 1°F
     
+    Color-coded weather indicators:
+    - Temperature: Red (<33°F or >89°F), White (normal range)
+    - Wind Speed: White (≤5 mph), Yellow (6-9 mph), Red (10-14 mph), Magenta (≥15 mph)
+    - Precipitation: Red (>50%), Yellow (21-50%), White (≤20%)
+    - Humidity: Cyan (<30%), White (30-60%), Yellow (61-70%), Red (>70%)
+    - Dew Point: Cyan (<40°F), White (40-54°F), Yellow (55-64°F), Red (≥65°F)
+    
 .PARAMETER Location
     The location for which to retrieve weather. Can be a 5-digit US zip code or a "City, State" string, or 'here'.
     If omitted, the script will prompt you for it.
@@ -1247,14 +1254,28 @@ function Show-CurrentConditions {
     }
     Write-Host ""
 
-    Write-Host "Humidity: $currentHumidity%" -ForegroundColor $DefaultColor
+    # Apply humidity color scheme based on comfort levels
+    $humidityValue = [double]$currentHumidity
+    $humidityColor = if ($humidityValue -lt 30) { "Cyan" }
+                    elseif ($humidityValue -le 60) { "White" }
+                    elseif ($humidityValue -le 70) { "Yellow" }
+                    else { "Red" }
+    
+    Write-Host "Humidity: $currentHumidity%" -ForegroundColor $humidityColor
     
     # Display dew point if available
     if ($null -ne $currentDewPoint) {
         try {
             $dewPointCelsius = [double]$currentDewPoint
             $dewPointF = [math]::Round($dewPointCelsius * 9/5 + 32, 1)
-            Write-Host "Dew Point: $dewPointF°F" -ForegroundColor $DefaultColor
+            
+            # Apply dew point color scheme based on comfort levels
+            $dewPointColor = if ($dewPointF -lt 40) { "Cyan" }
+                            elseif ($dewPointF -le 54) { "White" }
+                            elseif ($dewPointF -le 64) { "Yellow" }
+                            else { "Red" }
+            
+            Write-Host "Dew Point: $dewPointF°F" -ForegroundColor $dewPointColor
             Write-Verbose "Dew point conversion: $dewPointCelsius°C → $dewPointF°F"
         }
         catch {

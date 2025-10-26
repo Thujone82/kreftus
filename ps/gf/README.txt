@@ -29,6 +29,16 @@ The script first uses a geocoding service to determine the latitude and longitud
   - **Wind:** Turns red if wind speed is 16 mph or greater.
   - **Rain Likelihood:** Color-coded sparklines show rain probability at a glance (white for very low, cyan for low, green for light, yellow for medium, red for high).
   - **Wind Outlook:** Color-coded directional glyphs show wind patterns and intensity, with peak wind hours highlighted using inverted colors.
+  - **Humidity:** Color-coded based on comfort levels:
+    - Cyan: Very dry (<30%)
+    - White: Comfortable (30-60%)
+    - Yellow: Getting humid (61-70%)
+    - Red: Very humid (>70%)
+  - **Dew Point:** Color-coded based on comfort levels:
+    - Cyan: Very dry, crisp air (<40°F)
+    - White: Comfortable, pleasant (40-54°F)
+    - Yellow: Getting sticky/muggy (55-64°F)
+    - Red: Oppressive, very uncomfortable (≥65°F)
 - **Weather Alerts:** Automatically displays any active weather alerts (e.g., warnings, watches) for the location.
 - **NWS Resources:** Provides clickable links to official NWS resources:
   - **Forecast:** Direct link to weather.gov forecast map for the location
