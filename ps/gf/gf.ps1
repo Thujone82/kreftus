@@ -1412,6 +1412,13 @@ function Show-HourlyForecast {
         $windPart = "$wind $($windDir.PadRight(3))"
         $precipPart = if ($precipProb -gt 0) { " ($precipProb%)" } else { "" }
         $forecastPart = " - $shortForecast"
+        
+        # Apply wind mode color scheme to hourly wind display
+        $hourlyWindSpeed = Get-WindSpeed $wind
+        $windDisplayColor = if ($hourlyWindSpeed -le 5) { "White" }
+                           elseif ($hourlyWindSpeed -le 9) { "Yellow" }
+                           elseif ($hourlyWindSpeed -le 14) { "Red" }
+                           else { "Magenta" }
 
         # Calculate padding for alignment
         $targetTempColumn = 8
@@ -1428,7 +1435,7 @@ function Show-HourlyForecast {
             Write-Host $windchillHeatIndex -ForegroundColor $windchillHeatIndexColor -NoNewline
         }
         Write-Host " " -ForegroundColor $DefaultColor -NoNewline
-        Write-Host $windPart -ForegroundColor $DefaultColor -NoNewline
+        Write-Host $windPart -ForegroundColor $windDisplayColor -NoNewline
         if ($precipPart) { Write-Host $precipPart -ForegroundColor $precipColor -NoNewline }
         Write-Host $forecastPart -ForegroundColor $DefaultColor
         
