@@ -23,7 +23,7 @@ The script first uses a geocoding service to determine the latitude and longitud
   - Rain likelihood forecast with visual sparklines.
   - Wind outlook forecast with direction glyphs.
 - **Smart Color-Coding:** Important metrics are color-coded for quick assessment:
-  - **Temperature:** Turns red if below 33°F or above 89°F.
+  - **Temperature:** Turns blue if below 33°F and red if above 89°F.
   - **Wind Chill:** Displayed in blue when temperature <= 50°F and difference > 1°F.
   - **Heat Index:** Displayed in red when temperature >= 80°F and difference > 1°F.
   - **Wind:** Turns red if wind speed is 16 mph or greater.

@@ -23,7 +23,7 @@
     - Heat Index: Displayed in red when temperature >= 80°F and difference > 1°F
     
     Color-coded weather indicators:
-    - Temperature: Red (<33°F or >89°F), White (normal range)
+    - Temperature: Blue (<33°F), Red (>89°F), White (normal range)
     - Wind Speed: White (≤5 mph), Yellow (6-9 mph), Red (10-14 mph), Magenta (≥15 mph)
     - Precipitation: Red (>50%), Yellow (21-50%), White (≤20%)
     - Humidity: Cyan (<30%), White (30-60%), Yellow (61-70%), Red (>70%)
@@ -1399,7 +1399,7 @@ function Show-HourlyForecast {
         $periodIcon = Get-WeatherIcon $period.icon $isPeriodDaytime $precipProb
         
         # Color code temperature
-        $tempColor = if ([int]$temp -lt $script:COLD_TEMP_THRESHOLD -or [int]$temp -gt $script:HOT_TEMP_THRESHOLD) { $AlertColor } else { $DefaultColor }
+        $tempColor = if ([int]$temp -lt $script:COLD_TEMP_THRESHOLD) { "Blue" } elseif ([int]$temp -gt $script:HOT_TEMP_THRESHOLD) { $AlertColor } else { $DefaultColor }
         
         # Color code precipitation probability
         $precipColor = if ($precipProb -gt $script:HIGH_PRECIP_THRESHOLD) { $AlertColor } elseif ($precipProb -gt $script:MEDIUM_PRECIP_THRESHOLD) { "Yellow" } else { $DefaultColor }
@@ -1535,7 +1535,7 @@ function Show-SevenDayForecast {
         }
         
         # Color code temperature
-        $tempColor = if ([int]$temp -lt $script:COLD_TEMP_THRESHOLD -or [int]$temp -gt $script:HOT_TEMP_THRESHOLD) { $AlertColor } else { $DefaultColor }
+        $tempColor = if ([int]$temp -lt $script:COLD_TEMP_THRESHOLD) { "Blue" } elseif ([int]$temp -gt $script:HOT_TEMP_THRESHOLD) { $AlertColor } else { $DefaultColor }
         
         if ($IsEnhancedMode) {
             # Enhanced Daily mode display
@@ -2179,8 +2179,10 @@ $infoColor = "Blue"
 $detailedForecastColor = "Gray"
 
 # Apply color coding based on weather conditions
-# Temperature: Red if too cold (<33°F) or too hot (>89°F)
-if ([int]$currentTemp -lt $script:COLD_TEMP_THRESHOLD -or [int]$currentTemp -gt $script:HOT_TEMP_THRESHOLD) {
+# Temperature: Blue if too cold (<33°F), Red if too hot (>89°F)
+if ([int]$currentTemp -lt $script:COLD_TEMP_THRESHOLD) {
+    $tempColor = "Blue"
+} elseif ([int]$currentTemp -gt $script:HOT_TEMP_THRESHOLD) {
     $tempColor = $alertColor
 } else {
     $tempColor = $defaultColor
