@@ -56,6 +56,8 @@ The script follows a multi-step process:
 
 **Color Threshold Implementation:** The script implements meteorological comfort thresholds for humidity and dew point based on established meteorological standards. Humidity thresholds are based on relative humidity percentage impact on human comfort and health. Dew point thresholds are based on the temperature at which air becomes saturated, providing a more reliable comfort indicator than humidity alone. These thresholds are applied in the Show-CurrentConditions function using conditional logic that evaluates numeric values and assigns appropriate PowerShell color names (Cyan, White, Yellow, Red) for terminal display.
 
+**Exponential Backoff Retry Logic:** The script implements robust error handling through exponential backoff retry logic in the Update-WeatherData function. This addresses temporary service unavailability (HTTP 503 errors) by implementing a retry mechanism with increasing delays between attempts. The algorithm uses a base delay of 1 second with exponential growth: 1s, 2s, 4s, 8s, 16s, 32s, 64s, 128s, 256s, 512s (capped at 512 seconds). The implementation includes screen clearing between retry attempts for a clean user experience, progress indication showing current attempt number, and graceful exit after maximum retry attempts (10) with a clear "Service Unavailable" message. This prevents the script from flooding the terminal with error messages during service outages while providing respectful retry behavior that doesn't overwhelm the NWS API servers.
+
 ### API Endpoints Used
 
 - **Geocoding:** 

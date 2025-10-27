@@ -39,6 +39,7 @@ The script first uses a geocoding service to determine the latitude and longitud
     - White: Comfortable, pleasant (40-54°F)
     - Yellow: Getting sticky/muggy (55-64°F)
     - Red: Oppressive, very uncomfortable (≥65°F)
+- **Robust Error Handling:** Implements exponential backoff retry logic for service unavailability, automatically retrying up to 10 times with increasing delays (1s to 512s) before gracefully exiting with a clear error message.
 - **Weather Alerts:** Automatically displays any active weather alerts (e.g., warnings, watches) for the location.
 - **NWS Resources:** Provides clickable links to official NWS resources:
   - **Forecast:** Direct link to weather.gov forecast map for the location
