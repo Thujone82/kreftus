@@ -278,125 +278,125 @@ function Update-WeatherData {
     $retryCount = 0
     
     while ($retryCount -lt $maxRetries) {
-        try {
+    try {
             if ($retryCount -gt 0) {
                 Clear-Host
                 Write-Host "Retrying weather data refresh... (Attempt $($retryCount + 1)/$maxRetries)" -ForegroundColor Yellow
             } else {
-                Write-Host "Refreshing weather data..." -ForegroundColor Yellow
+        Write-Host "Refreshing weather data..." -ForegroundColor Yellow
             }
-            
-            # Re-fetch points data
-            $pointsUrl = "https://api.weather.gov/points/$lat,$lon"
-            $pointsJob = Start-ApiJob -Url $pointsUrl -Headers $headers -JobName "PointsData"
-            Wait-Job -Job $pointsJob | Out-Null
-            
-            if ($pointsJob.State -ne 'Completed') { 
-                throw "Points data job failed: $($pointsJob | Receive-Job)"
-            }
-            
-            $pointsJson = $pointsJob | Receive-Job
-            if ([string]::IsNullOrWhiteSpace($pointsJson)) { 
-                throw "Empty response from points API"
-            }
-            
-            $pointsData = $pointsJson | ConvertFrom-Json
-            Remove-Job -Job $pointsJob
-            
-            # Extract grid information
-            $office = $pointsData.properties.cwa
-            $gridX = $pointsData.properties.gridX
-            $gridY = $pointsData.properties.gridY
+        
+        # Re-fetch points data
+        $pointsUrl = "https://api.weather.gov/points/$lat,$lon"
+        $pointsJob = Start-ApiJob -Url $pointsUrl -Headers $headers -JobName "PointsData"
+        Wait-Job -Job $pointsJob | Out-Null
+        
+        if ($pointsJob.State -ne 'Completed') { 
+            throw "Points data job failed: $($pointsJob | Receive-Job)"
+        }
+        
+        $pointsJson = $pointsJob | Receive-Job
+        if ([string]::IsNullOrWhiteSpace($pointsJson)) { 
+            throw "Empty response from points API"
+        }
+        
+        $pointsData = $pointsJson | ConvertFrom-Json
+        Remove-Job -Job $pointsJob
+        
+        # Extract grid information
+        $office = $pointsData.properties.cwa
+        $gridX = $pointsData.properties.gridX
+        $gridY = $pointsData.properties.gridY
             
             # Extract radar station
             $script:radarStation = $pointsData.properties.radarStation
             Write-Verbose "Radar Station: $script:radarStation"
-            
-            # Re-fetch forecast and hourly data
-            $forecastUrl = "https://api.weather.gov/gridpoints/$office/$gridX,$gridY/forecast"
-            $hourlyUrl = "https://api.weather.gov/gridpoints/$office/$gridX,$gridY/forecast/hourly"
-            
-            $forecastJob = Start-ApiJob -Url $forecastUrl -Headers $headers -JobName "ForecastData"
-            $hourlyJob = Start-ApiJob -Url $hourlyUrl -Headers $headers -JobName "HourlyData"
-            
-            $jobsToWaitFor = @($forecastJob, $hourlyJob)
-            Wait-Job -Job $jobsToWaitFor | Out-Null
-            
-            # Check forecast job
-            if ($forecastJob.State -ne 'Completed') { 
-                throw "Forecast data job failed: $($forecastJob | Receive-Job)"
-            }
-            
-            $forecastJson = $forecastJob | Receive-Job
-            if ([string]::IsNullOrWhiteSpace($forecastJson)) { 
-                throw "Empty response from forecast API"
-            }
-            
-            $forecastData = $forecastJson | ConvertFrom-Json
+        
+        # Re-fetch forecast and hourly data
+        $forecastUrl = "https://api.weather.gov/gridpoints/$office/$gridX,$gridY/forecast"
+        $hourlyUrl = "https://api.weather.gov/gridpoints/$office/$gridX,$gridY/forecast/hourly"
+        
+        $forecastJob = Start-ApiJob -Url $forecastUrl -Headers $headers -JobName "ForecastData"
+        $hourlyJob = Start-ApiJob -Url $hourlyUrl -Headers $headers -JobName "HourlyData"
+        
+        $jobsToWaitFor = @($forecastJob, $hourlyJob)
+        Wait-Job -Job $jobsToWaitFor | Out-Null
+        
+        # Check forecast job
+        if ($forecastJob.State -ne 'Completed') { 
+            throw "Forecast data job failed: $($forecastJob | Receive-Job)"
+        }
+        
+        $forecastJson = $forecastJob | Receive-Job
+        if ([string]::IsNullOrWhiteSpace($forecastJson)) { 
+            throw "Empty response from forecast API"
+        }
+        
+        $forecastData = $forecastJson | ConvertFrom-Json
             
             # Extract elevation from forecast data
             $script:elevationMeters = $forecastData.properties.elevation.value
             $script:elevationFeet = [math]::Round($script:elevationMeters * 3.28084, 0)
             Write-Verbose "Elevation: $script:elevationMeters meters ($script:elevationFeet feet)"
-            
-            # Check hourly job
-            if ($hourlyJob.State -ne 'Completed') { 
-                throw "Hourly data job failed: $($hourlyJob | Receive-Job)"
-            }
-            
-            $hourlyJson = $hourlyJob | Receive-Job
-            if ([string]::IsNullOrWhiteSpace($hourlyJson)) { 
-                throw "Empty response from hourly API"
-            }
-            
-            $hourlyData = $hourlyJson | ConvertFrom-Json
-            Remove-Job -Job $jobsToWaitFor
-            
-            # Re-fetch alerts
-            $alertsData = $null
-            try {
-                $alertsUrl = "https://api.weather.gov/alerts/active?point=$lat,$lon"
-                Write-Verbose "GET: $alertsUrl"
-                $alertsResponse = Invoke-RestMethod -Uri $alertsUrl -Method Get -Headers $headers -ErrorAction Stop
-                $alertsData = $alertsResponse
-            }
-            catch {
-                # Alerts are optional, continue without them
-            }
-            
-            # Update global variables
-            $script:forecastData = $forecastData
-            $script:hourlyData = $hourlyData
-            $script:alertsData = $alertsData
-            
-            # Update current conditions
-            $script:currentPeriod = $hourlyData.properties.periods[0]
-            $script:currentTemp = $currentPeriod.temperature
-            $script:currentConditions = $currentPeriod.shortForecast
-            $script:currentWind = $currentPeriod.windSpeed
-            $script:currentWindDir = $currentPeriod.windDirection
-            $script:currentTime = $script:dataFetchTime
-            $script:currentTimeLocal = $script:dataFetchTime
-            $script:currentHumidity = $currentPeriod.relativeHumidity.value
-            $script:currentPrecipProb = $currentPeriod.probabilityOfPrecipitation.value
-            $script:currentIcon = $currentPeriod.icon
-            
-            # Update forecast data
-            $script:todayPeriod = $forecastData.properties.periods[0]
-            $script:todayForecast = $todayPeriod.detailedForecast
-            $script:todayPeriodName = $todayPeriod.name
-            
-            $script:tomorrowPeriod = $forecastData.properties.periods[1]
-            $script:tomorrowForecast = $tomorrowPeriod.detailedForecast
-            $script:tomorrowPeriodName = $tomorrowPeriod.name
-            
-            # Update fetch time
-            $script:dataFetchTime = Get-Date
-            
-            Write-Host "Data refreshed successfully" -ForegroundColor Green
-            return $true
+        
+        # Check hourly job
+        if ($hourlyJob.State -ne 'Completed') { 
+            throw "Hourly data job failed: $($hourlyJob | Receive-Job)"
+        }
+        
+        $hourlyJson = $hourlyJob | Receive-Job
+        if ([string]::IsNullOrWhiteSpace($hourlyJson)) { 
+            throw "Empty response from hourly API"
+        }
+        
+        $hourlyData = $hourlyJson | ConvertFrom-Json
+        Remove-Job -Job $jobsToWaitFor
+        
+        # Re-fetch alerts
+        $alertsData = $null
+        try {
+            $alertsUrl = "https://api.weather.gov/alerts/active?point=$lat,$lon"
+            Write-Verbose "GET: $alertsUrl"
+            $alertsResponse = Invoke-RestMethod -Uri $alertsUrl -Method Get -Headers $headers -ErrorAction Stop
+            $alertsData = $alertsResponse
         }
         catch {
+            # Alerts are optional, continue without them
+        }
+        
+        # Update global variables
+        $script:forecastData = $forecastData
+        $script:hourlyData = $hourlyData
+        $script:alertsData = $alertsData
+        
+        # Update current conditions
+        $script:currentPeriod = $hourlyData.properties.periods[0]
+        $script:currentTemp = $currentPeriod.temperature
+        $script:currentConditions = $currentPeriod.shortForecast
+        $script:currentWind = $currentPeriod.windSpeed
+        $script:currentWindDir = $currentPeriod.windDirection
+        $script:currentTime = $script:dataFetchTime
+        $script:currentTimeLocal = $script:dataFetchTime
+        $script:currentHumidity = $currentPeriod.relativeHumidity.value
+        $script:currentPrecipProb = $currentPeriod.probabilityOfPrecipitation.value
+        $script:currentIcon = $currentPeriod.icon
+        
+        # Update forecast data
+        $script:todayPeriod = $forecastData.properties.periods[0]
+        $script:todayForecast = $todayPeriod.detailedForecast
+        $script:todayPeriodName = $todayPeriod.name
+        
+        $script:tomorrowPeriod = $forecastData.properties.periods[1]
+        $script:tomorrowForecast = $tomorrowPeriod.detailedForecast
+        $script:tomorrowPeriodName = $tomorrowPeriod.name
+        
+        # Update fetch time
+        $script:dataFetchTime = Get-Date
+        
+        Write-Host "Data refreshed successfully" -ForegroundColor Green
+        return $true
+    }
+    catch {
             $retryCount++
             if ($retryCount -ge $maxRetries) {
                 Clear-Host
@@ -409,7 +409,7 @@ function Update-WeatherData {
             
             # Calculate exponential backoff delay: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512 seconds
             $delay = [Math]::Min($baseDelay * [Math]::Pow(2, $retryCount - 1), 512)
-            Write-Host "Failed to refresh data: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Failed to refresh data: $($_.Exception.Message)" -ForegroundColor Red
             Write-Host "Retrying in $delay seconds..." -ForegroundColor Yellow
             Start-Sleep -Seconds $delay
         }
@@ -1456,7 +1456,7 @@ function Show-HourlyForecast {
                 $windchillHeatIndexColor = "Red"
             }
         }
-
+        
         # Build and write the line piece-by-piece for easier colorization
         $timePart = "$hourDisplay "
         $iconPart = "$periodIcon"
@@ -1514,7 +1514,7 @@ function Show-SevenDayForecast {
     if ($ShowCityInTitle -and $City) {
         $titleText = if ($IsEnhancedMode) { "*** $City 7-Day Forecast ***" } else { "*** $City 7-Day Summary ***" }
     } else {
-        $titleText = if ($IsEnhancedMode) { "*** 7-Day Forecast ***" } else { "*** 7-Day Summary ***" }
+    $titleText = if ($IsEnhancedMode) { "*** 7-Day Forecast ***" } else { "*** 7-Day Summary ***" }
     }
     Write-Host $titleText -ForegroundColor $TitleColor
     $forecastPeriods = $forecastData.properties.periods
@@ -1747,7 +1747,8 @@ function Show-WeatherAlerts {
     if ($alertsData -and $alertsData.features.Count -gt 0) {
         Write-Host ""
         Write-Host "*** Active Weather Alerts ***" -ForegroundColor $AlertColor
-        foreach ($alert in $alertsData.features) {
+        for ($i = 0; $i -lt $alertsData.features.Count; $i++) {
+            $alert = $alertsData.features[$i]
             $alertProps = $alert.properties
             $alertEvent = $alertProps.event
             $alertHeadline = $alertProps.headline
@@ -1765,7 +1766,11 @@ function Show-WeatherAlerts {
                 Write-Host "Effective: $($alertStart.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $InfoColor
             }
             Write-Host "Expires: $($alertEnd.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $InfoColor
-            Write-Host ""
+            
+            # Only add blank line if this is not the last alert
+            if ($i -lt $alertsData.features.Count - 1) {
+                Write-Host ""
+            }
         }
     }
 }
@@ -1916,8 +1921,6 @@ function Show-FullWeatherReport {
     if ($ShowAlerts) {
         Show-WeatherAlerts -AlertsData $AlertsData -AlertColor $AlertColor -DefaultColor $DefaultColor -InfoColor $InfoColor -ShowDetails $ShowAlertDetails
     }
-
-
 
     if ($ShowLocationInfo) {
         Show-LocationInfo -TimeZone $TimeZone -Lat $Lat -Lon $Lon -ElevationFeet $ElevationFeet -RadarStation $RadarStation -TitleColor $TitleColor -DefaultColor $DefaultColor
@@ -2440,8 +2443,8 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         } else {
                             # Default to full weather report if no specific mode is set
                             Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon
-                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
-                        }
+                                Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                            }
                         }
                     }
                 }
