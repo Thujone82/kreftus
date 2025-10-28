@@ -547,6 +547,8 @@ function Show-UpdateScreen {
         Write-Host "J" -ForegroundColor Cyan -NoNewline
         Write-Host "]obs [" -ForegroundColor White -NoNewline
         Write-Host "E" -ForegroundColor Cyan -NoNewline
+        Write-Host "/" -ForegroundColor White -NoNewline
+        Write-Host "Enter" -ForegroundColor Cyan -NoNewline
         Write-Host "]xecute" -ForegroundColor White
         
         # Handle input
