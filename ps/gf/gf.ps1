@@ -245,14 +245,19 @@ function Start-ApiJob {
         param($url, $hdrs)
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         try {
-            $response = Invoke-RestMethod -Uri $url -Method Get -Headers $hdrs -ErrorAction Stop
+            $response = Invoke-RestMethod -Uri $url -Method Get -Headers $hdrs -ErrorAction Stop -TimeoutSec 30
             return $response | ConvertTo-Json -Depth 10
         }
         catch {
-            if ($_.Exception.Message -match "503.*Server Unavailable") {
+            $errorMsg = $_.Exception.Message
+            if ($errorMsg -match "503.*Server Unavailable") {
                 throw "503 Server Unavailable"
+            } elseif ($errorMsg -match "timeout") {
+                throw "Request timeout after 30 seconds"
+            } elseif ($errorMsg -match "connection") {
+                throw "Connection failed: $errorMsg"
             } else {
-                throw "Failed to retrieve data from job: $($_.Exception.Message)"
+                throw "API call failed: $errorMsg"
             }
         }
     } -ArgumentList $Url, $Headers
@@ -289,19 +294,29 @@ function Update-WeatherData {
         # Re-fetch points data
         $pointsUrl = "https://api.weather.gov/points/$lat,$lon"
         $pointsJob = Start-ApiJob -Url $pointsUrl -Headers $headers -JobName "PointsData"
-        Wait-Job -Job $pointsJob | Out-Null
+        
+        # Wait for job with timeout
+        $jobResult = Wait-Job -Job $pointsJob -Timeout 30
+        if (-not $jobResult) {
+            Stop-Job -Job $pointsJob
+            Remove-Job -Job $pointsJob -Force
+            throw "Points data job timed out after 30 seconds"
+        }
         
         if ($pointsJob.State -ne 'Completed') { 
-            throw "Points data job failed: $($pointsJob | Receive-Job)"
+            $errorMsg = try { $pointsJob | Receive-Job } catch { "Job failed with state: $($pointsJob.State)" }
+            Remove-Job -Job $pointsJob -Force
+            throw "Points data job failed: $errorMsg"
         }
         
         $pointsJson = $pointsJob | Receive-Job
+        Remove-Job -Job $pointsJob
+        
         if ([string]::IsNullOrWhiteSpace($pointsJson)) { 
             throw "Empty response from points API"
         }
         
         $pointsData = $pointsJson | ConvertFrom-Json
-        Remove-Job -Job $pointsJob
         
         # Extract grid information
         $office = $pointsData.properties.cwa
@@ -320,15 +335,25 @@ function Update-WeatherData {
         $hourlyJob = Start-ApiJob -Url $hourlyUrl -Headers $headers -JobName "HourlyData"
         
         $jobsToWaitFor = @($forecastJob, $hourlyJob)
-        Wait-Job -Job $jobsToWaitFor | Out-Null
+        
+        # Wait for jobs with timeout
+        $jobResult = Wait-Job -Job $jobsToWaitFor -Timeout 30
+        if (-not $jobResult) {
+            Stop-Job -Job $jobsToWaitFor
+            Remove-Job -Job $jobsToWaitFor -Force
+            throw "Forecast/hourly jobs timed out after 30 seconds"
+        }
         
         # Check forecast job
         if ($forecastJob.State -ne 'Completed') { 
-            throw "Forecast data job failed: $($forecastJob | Receive-Job)"
+            $errorMsg = try { $forecastJob | Receive-Job } catch { "Job failed with state: $($forecastJob.State)" }
+            Remove-Job -Job $jobsToWaitFor -Force
+            throw "Forecast data job failed: $errorMsg"
         }
         
         $forecastJson = $forecastJob | Receive-Job
         if ([string]::IsNullOrWhiteSpace($forecastJson)) { 
+            Remove-Job -Job $jobsToWaitFor -Force
             throw "Empty response from forecast API"
         }
         
@@ -341,11 +366,14 @@ function Update-WeatherData {
         
         # Check hourly job
         if ($hourlyJob.State -ne 'Completed') { 
-            throw "Hourly data job failed: $($hourlyJob | Receive-Job)"
+            $errorMsg = try { $hourlyJob | Receive-Job } catch { "Job failed with state: $($hourlyJob.State)" }
+            Remove-Job -Job $jobsToWaitFor -Force
+            throw "Hourly data job failed: $errorMsg"
         }
         
         $hourlyJson = $hourlyJob | Receive-Job
         if ([string]::IsNullOrWhiteSpace($hourlyJson)) { 
+            Remove-Job -Job $jobsToWaitFor -Force
             throw "Empty response from hourly API"
         }
         

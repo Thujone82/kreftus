@@ -5,15 +5,15 @@
 
 DESCRIPTION:
     This PowerShell script retrieves the machine's approximate geographical 
-    location using a public IP Geolocation API. It provides a professional,
+    location using a public IP Geolocation API. It provides a clean, modern
     colorized output showing location details, coordinates, and network 
-    information.
+    information with professional formatting.
 
 FEATURES:
-    - Professional colorized output with status indicators
+    - Modern colorized output with clean formatting
     - Real-time API query feedback
-    - Organized information display (Location, Coordinates, Network)
-    - Error handling with clear status messages
+    - Organized information display with modern headers
+    - Comprehensive error handling with timeout detection
     - Clean ASCII-based formatting for universal compatibility
 
 REQUIREMENTS:
@@ -27,10 +27,21 @@ USAGE:
     Or from any directory:
     PowerShell -ExecutionPolicy Bypass -File "C:\path\to\here.ps1"
 
-OUTPUT SECTIONS:
-    Location    - City, Region, Country
-    Coordinates - Latitude and Longitude
-    Network     - Public IP Address and ISP Provider
+OUTPUT FORMAT:
+    The script displays information in a clean, modern format with:
+    - Cyan-colored header with title
+    - Yellow labels for each data field
+    - White values for the actual data
+    - Gray informational notes
+
+INFORMATION DISPLAYED:
+    Country   - Country name
+    Region    - State/Province/Region
+    City      - City name
+    Latitude  - Geographic latitude coordinate
+    Longitude - Geographic longitude coordinate
+    Public IP - Your public IP address
+    Provider  - Internet Service Provider name
 
 ACCURACY NOTE:
     Location accuracy is based on your ISP's IP address assignment, not GPS.
@@ -42,54 +53,40 @@ API USED:
     - No API key required
     - Automatic IP detection
     - JSON response format
+    - 5-second timeout
 
 ERROR HANDLING:
-    - Connection timeout detection
-    - API failure messages
-    - Network connectivity checks
-    - Clear error status indicators
-
-STATUS INDICATORS:
-    [OK]     - Successful data retrieval
-    [FAIL]   - API returned error
-    [ERROR]  - Connection failed
-    [!]      - Request timeout warning
-    [X]      - Location could not be determined
+    - Connection timeout detection (5 seconds)
+    - API failure message handling
+    - Network connectivity validation
+    - Clear error messages with appropriate colors
 
 COLOR SCHEME:
-    Cyan     - Headers and titles
-    Yellow   - Section headers
-    Green    - Success indicators
-    Red      - Error messages
-    Gray     - Data labels and notes
+    Cyan     - Headers and borders
+    Yellow   - Field labels
     White    - Data values
+    Red      - Error messages
+    Gray     - Status messages and notes
+    DarkRed  - Detailed error messages
+    DarkYellow - Timeout warnings
 
-EXAMPLES:
+EXAMPLE OUTPUT:
     PS C:\Users\Username> .\here.ps1
     
-    Querying geolocation service...
-    [OK] Location data received
+    Querying public IP geolocation service...
     
-      ================================================================
-                        GEOLOCATION INFORMATION                      
-      ================================================================
-      
-      Location
-          City      : Portland
-          Region    : Oregon
-          Country   : United States
-      
-      Coordinates
-          Latitude  : 45.4
-          Longitude : -122.6
-      
-      Network
-          Public IP : 78.134.69.157
-          Provider  : CenturyLink
-      
-      ----------------------------------------------------------------
-      [i] Location accuracy is based on ISP IP assignment, not GPS
-      ----------------------------------------------------------------
+    ================================================
+        IP Location Found (Approximate)        
+    ================================================
+    Country   : United States
+    Region    : Oregon
+    City      : Portland
+    Latitude  : 45.4805
+    Longitude : -122.6363
+    Public IP : 71.34.69.157
+    Provider  : CenturyLink
+    
+    Accuracy is based on your ISP's IP address assignment, not GPS.
 
 TROUBLESHOOTING:
     - Ensure internet connectivity
