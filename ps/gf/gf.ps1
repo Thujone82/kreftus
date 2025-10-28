@@ -275,7 +275,8 @@ function Update-WeatherData {
     param(
         [string]$Lat,
         [string]$Lon,
-        [hashtable]$Headers
+        [hashtable]$Headers,
+        [bool]$UseRetryLogic = $true
     )
     
     $maxRetries = 10
@@ -303,7 +304,16 @@ function Update-WeatherData {
             throw "Points data job timed out after 30 seconds"
         }
         
-        if ($pointsJob.State -ne 'Completed') { 
+        if ($pointsJob.State -eq 'Failed') {
+            $errorMsg = try { 
+                $pointsJob | Receive-Job -ErrorAction SilentlyContinue
+                "Job failed with state: $($pointsJob.State)"
+            } catch { 
+                "Job failed with state: $($pointsJob.State)" 
+            }
+            Remove-Job -Job $pointsJob -Force
+            throw "Points data job failed: $errorMsg"
+        } elseif ($pointsJob.State -ne 'Completed') { 
             $errorMsg = try { $pointsJob | Receive-Job } catch { "Job failed with state: $($pointsJob.State)" }
             Remove-Job -Job $pointsJob -Force
             throw "Points data job failed: $errorMsg"
@@ -344,41 +354,48 @@ function Update-WeatherData {
             throw "Forecast/hourly jobs timed out after 30 seconds"
         }
         
-        # Check forecast job
-        if ($forecastJob.State -ne 'Completed') { 
-            $errorMsg = try { $forecastJob | Receive-Job } catch { "Job failed with state: $($forecastJob.State)" }
-            Remove-Job -Job $jobsToWaitFor -Force
-            throw "Forecast data job failed: $errorMsg"
+        # Check forecast job - allow partial failure
+        $forecastData = $null
+        if ($forecastJob.State -eq 'Failed') {
+            Write-Verbose "Forecast data job failed, continuing without forecast data"
+            Remove-Job -Job $forecastJob -Force
+        } elseif ($forecastJob.State -ne 'Completed') {
+            Write-Verbose "Forecast data job in unexpected state: $($forecastJob.State), continuing without forecast data"
+            Remove-Job -Job $forecastJob -Force
+        } else {
+            $forecastJson = $forecastJob | Receive-Job
+            if ([string]::IsNullOrWhiteSpace($forecastJson)) { 
+                Write-Verbose "Empty response from forecast API, continuing without forecast data"
+                Remove-Job -Job $forecastJob -Force
+            } else {
+                $forecastData = $forecastJson | ConvertFrom-Json
+                Write-Verbose "Forecast data retrieved successfully"
+                
+                # Extract elevation from forecast data
+                $script:elevationMeters = $forecastData.properties.elevation.value
+                $script:elevationFeet = [math]::Round($script:elevationMeters * 3.28084, 0)
+                Write-Verbose "Elevation: $script:elevationMeters meters ($script:elevationFeet feet)"
+            }
         }
         
-        $forecastJson = $forecastJob | Receive-Job
-        if ([string]::IsNullOrWhiteSpace($forecastJson)) { 
-            Remove-Job -Job $jobsToWaitFor -Force
-            throw "Empty response from forecast API"
+        # Check hourly job - allow partial failure
+        $hourlyData = $null
+        if ($hourlyJob.State -eq 'Failed') {
+            Write-Verbose "Hourly data job failed, continuing without hourly data"
+            Remove-Job -Job $hourlyJob -Force
+        } elseif ($hourlyJob.State -ne 'Completed') {
+            Write-Verbose "Hourly data job in unexpected state: $($hourlyJob.State), continuing without hourly data"
+            Remove-Job -Job $hourlyJob -Force
+        } else {
+            $hourlyJson = $hourlyJob | Receive-Job
+            if ([string]::IsNullOrWhiteSpace($hourlyJson)) { 
+                Write-Verbose "Empty response from hourly API, continuing without hourly data"
+                Remove-Job -Job $hourlyJob -Force
+            } else {
+                $hourlyData = $hourlyJson | ConvertFrom-Json
+                Write-Verbose "Hourly data retrieved successfully"
+            }
         }
-        
-        $forecastData = $forecastJson | ConvertFrom-Json
-            
-            # Extract elevation from forecast data
-            $script:elevationMeters = $forecastData.properties.elevation.value
-            $script:elevationFeet = [math]::Round($script:elevationMeters * 3.28084, 0)
-            Write-Verbose "Elevation: $script:elevationMeters meters ($script:elevationFeet feet)"
-        
-        # Check hourly job
-        if ($hourlyJob.State -ne 'Completed') { 
-            $errorMsg = try { $hourlyJob | Receive-Job } catch { "Job failed with state: $($hourlyJob.State)" }
-            Remove-Job -Job $jobsToWaitFor -Force
-            throw "Hourly data job failed: $errorMsg"
-        }
-        
-        $hourlyJson = $hourlyJob | Receive-Job
-        if ([string]::IsNullOrWhiteSpace($hourlyJson)) { 
-            Remove-Job -Job $jobsToWaitFor -Force
-            throw "Empty response from hourly API"
-        }
-        
-        $hourlyData = $hourlyJson | ConvertFrom-Json
-        Remove-Job -Job $jobsToWaitFor
         
         # Re-fetch alerts
         $alertsData = $null
@@ -392,39 +409,66 @@ function Update-WeatherData {
             # Alerts are optional, continue without them
         }
         
-        # Update global variables
-        $script:forecastData = $forecastData
-        $script:hourlyData = $hourlyData
+        # Update global variables (only if data is available)
+        if ($forecastData) {
+            $script:forecastData = $forecastData
+        }
+        if ($hourlyData) {
+            $script:hourlyData = $hourlyData
+        }
         $script:alertsData = $alertsData
         
-        # Update current conditions
-        $script:currentPeriod = $hourlyData.properties.periods[0]
-        $script:currentTemp = $currentPeriod.temperature
-        $script:currentConditions = $currentPeriod.shortForecast
-        $script:currentWind = $currentPeriod.windSpeed
-        $script:currentWindDir = $currentPeriod.windDirection
-        $script:currentTime = $script:dataFetchTime
-        $script:currentTimeLocal = $script:dataFetchTime
-        $script:currentHumidity = $currentPeriod.relativeHumidity.value
-        $script:currentPrecipProb = $currentPeriod.probabilityOfPrecipitation.value
-        $script:currentIcon = $currentPeriod.icon
+        # Update current conditions (only if hourly data is available)
+        if ($hourlyData) {
+            $script:currentPeriod = $hourlyData.properties.periods[0]
+            $script:currentTemp = $currentPeriod.temperature
+            $script:currentConditions = $currentPeriod.shortForecast
+            $script:currentWind = $currentPeriod.windSpeed
+            $script:currentWindDir = $currentPeriod.windDirection
+            $script:currentTime = $script:dataFetchTime
+            $script:currentTimeLocal = $script:dataFetchTime
+            $script:currentHumidity = $currentPeriod.relativeHumidity.value
+            $script:currentPrecipProb = $currentPeriod.probabilityOfPrecipitation.value
+            $script:currentIcon = $currentPeriod.icon
+        }
         
-        # Update forecast data
-        $script:todayPeriod = $forecastData.properties.periods[0]
-        $script:todayForecast = $todayPeriod.detailedForecast
-        $script:todayPeriodName = $todayPeriod.name
-        
-        $script:tomorrowPeriod = $forecastData.properties.periods[1]
-        $script:tomorrowForecast = $tomorrowPeriod.detailedForecast
-        $script:tomorrowPeriodName = $tomorrowPeriod.name
+        # Update forecast data (only if forecast data is available)
+        if ($forecastData) {
+            $script:todayPeriod = $forecastData.properties.periods[0]
+            $script:todayForecast = $todayPeriod.detailedForecast
+            $script:todayPeriodName = $todayPeriod.name
+            
+            $script:tomorrowPeriod = $forecastData.properties.periods[1]
+            $script:tomorrowForecast = $tomorrowPeriod.detailedForecast
+            $script:tomorrowPeriodName = $tomorrowPeriod.name
+        }
         
         # Update fetch time
         $script:dataFetchTime = Get-Date
         
-        Write-Host "Data refreshed successfully" -ForegroundColor Green
-        return $true
+        # Determine if refresh was successful
+        # Success if we got points data (critical) and at least one of forecast or hourly data
+        $hasPointsData = $true  # We already validated points data above
+        $hasForecastData = $null -ne $forecastData
+        $hasHourlyData = $null -ne $hourlyData
+        
+        if ($hasPointsData -and ($hasForecastData -or $hasHourlyData)) {
+            Write-Host "Data refreshed successfully" -ForegroundColor Green
+            Write-Verbose "Refresh success: Points=$hasPointsData, Forecast=$hasForecastData, Hourly=$hasHourlyData"
+            return $true
+        } else {
+            Write-Host "Partial data refresh - some services unavailable" -ForegroundColor Yellow
+            Write-Verbose "Partial refresh: Points=$hasPointsData, Forecast=$hasForecastData, Hourly=$hasHourlyData"
+            return $true  # Still consider this a success since we have some data
+        }
     }
     catch {
+            if (-not $UseRetryLogic) {
+                # For auto-refresh calls, fail fast without retries
+                Write-Verbose "Update-WeatherData failed (no retry): $($_.Exception.Message)"
+                return $false
+            }
+            
             $retryCount++
             if ($retryCount -ge $maxRetries) {
                 Clear-Host
@@ -695,7 +739,7 @@ Write-Verbose "Hourly data retrieved successfully"
 Remove-Job -Job $jobsToWaitFor
 
 # --- TIMER TRACKING FOR AUTO-REFRESH ---
-$dataFetchTime = Get-Date
+$script:dataFetchTime = Get-Date
 $dataStaleThreshold = 600  # 10 minutes in seconds
 
 # --- FETCH ALERTS ---
@@ -2416,12 +2460,12 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
     
     while ($true) {
         try {
-            # Check if data is stale and refresh if needed (only if auto-update is enabled)
-            if ($autoUpdateEnabled) {
-                $timeSinceLastFetch = (Get-Date) - $dataFetchTime
+            # Check if data is stale and refresh if needed (only if auto-update is enabled and interactive mode is supported)
+            if ($autoUpdateEnabled -and -not [System.Console]::IsInputRedirected) {
+                $timeSinceLastFetch = (Get-Date) - $script:dataFetchTime
                 if ($timeSinceLastFetch.TotalSeconds -gt $dataStaleThreshold) {
                     Write-Verbose "Auto-refresh triggered - data is stale ($([math]::Round($timeSinceLastFetch.TotalSeconds, 1)) seconds old)"
-                    $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers
+                    $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers -UseRetryLogic $false
                     if ($refreshSuccess) {
                         # Recalculate moon phase and sunrise/sunset for current time
                         $moonPhaseInfo = Get-MoonPhase -Date (Get-Date)
@@ -2542,7 +2586,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $autoUpdateEnabled = -not $autoUpdateEnabled
                     Write-Verbose "Auto-update toggled: $autoUpdateEnabled"
                     $statusMessage = if ($autoUpdateEnabled) { 
-                        $dataFetchTime = Get-Date  # Reset timer when re-enabling
+                        $script:dataFetchTime = Get-Date  # Reset timer when re-enabling
                         "Automatic Updates Enabled" 
                     } else { 
                         "Automatic Updates Disabled" 
@@ -2630,7 +2674,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
                 }
                 'g' { # G key - Refresh weather data
-                    $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers
+                    $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers -UseRetryLogic $true
                     if ($refreshSuccess) {
                         # Recalculate moon phase and sunrise/sunset for current time
                         $moonPhaseInfo = Get-MoonPhase -Date (Get-Date)
