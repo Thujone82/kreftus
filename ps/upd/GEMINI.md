@@ -390,9 +390,46 @@ The function includes implicit error handling through .NET's `DateTime.ToString(
 5. **Caching:** Cache expanded paths for repeated executions
 6. **Logging:** Track which placeholders were expanded and their values
 
-## Recent Updates (v1.1)
+## Recent Updates
 
-### New Features Added
+### v1.2 - Transfer Size Formatting Enhancement
+
+#### Problem Identified
+The original implementation always displayed transfer sizes in MB, which resulted in confusing output for small files. For example, a 5.39 KB file would display as "0 MB", making it appear as if no data was transferred.
+
+#### Solution Implemented
+Implemented intelligent transfer size formatting that automatically selects the most appropriate unit based on file size:
+
+```powershell
+# Format size with appropriate units
+$sizeStr = if ($totalBytesTransferred -ge 1GB) {
+    $sizeGB = [math]::Round($totalBytesTransferred / 1GB, 2)
+    "$sizeGB GB"
+} elseif ($totalBytesTransferred -ge 1MB) {
+    $sizeMB = [math]::Round($totalBytesTransferred / 1MB, 2)
+    "$sizeMB MB"
+} else {
+    $sizeKB = [math]::Round($totalBytesTransferred / 1KB, 2)
+    "$sizeKB KB"
+}
+```
+
+#### Technical Details
+- **Thresholds**: 1 MB (1,048,576 bytes) and 1 GB (1,073,741,824 bytes)
+- **Precision**: 2 decimal places for all units
+- **Consistency**: Both transfer size and speed use the same logic
+- **Performance**: Minimal overhead - only string formatting operations
+
+#### User Experience Impact
+- **Before**: "Transfer: 0 MB in 496ms (5.39 KB/s)" - confusing for small files
+- **After**: "Transfer: 5.39 KB in 496ms (5.39 KB/s)" - clear and accurate
+
+#### Testing Performed
+- Verified formatting for files ranging from 512 bytes to 2.5 GB
+- Confirmed proper unit selection at threshold boundaries
+- Validated decimal precision and rounding behavior
+
+### v1.1 - Enhanced Navigation and Job Management
 
 1. **Esc Key Navigation**
    - Main screen: Esc key exits the application

@@ -331,7 +331,19 @@ function Start-SelectedJobs {
     if ($totalBytesTransferred -gt 0 -and $totalDuration.TotalSeconds -gt 0) {
         $speedMBps = [math]::Round(($totalBytesTransferred / 1MB) / $totalDuration.TotalSeconds, 2)
         $speedKBps = [math]::Round(($totalBytesTransferred / 1KB) / $totalDuration.TotalSeconds, 2)
-        $sizeMB = [math]::Round($totalBytesTransferred / 1MB, 2)
+        
+        # Format size with appropriate units
+        $sizeStr = if ($totalBytesTransferred -ge 1GB) {
+            $sizeGB = [math]::Round($totalBytesTransferred / 1GB, 2)
+            "$sizeGB GB"
+        } elseif ($totalBytesTransferred -ge 1MB) {
+            $sizeMB = [math]::Round($totalBytesTransferred / 1MB, 2)
+            "$sizeMB MB"
+        } else {
+            $sizeKB = [math]::Round($totalBytesTransferred / 1KB, 2)
+            "$sizeKB KB"
+        }
+        
         $durationStr = if ($totalDuration.TotalSeconds -lt 1) { 
             "$([math]::Round($totalDuration.TotalMilliseconds, 0))ms" 
         } else { 
@@ -344,7 +356,7 @@ function Start-SelectedJobs {
             "$speedKBps KB/s" 
         }
         
-        Write-Yellow "Transfer: $sizeMB MB in $durationStr ($speedStr)"
+        Write-Yellow "Transfer: $sizeStr in $durationStr ($speedStr)"
     }
     
     Write-Green "Completed: $successCount of $($script:SelectedJobs.Count) jobs successful"
@@ -404,7 +416,7 @@ function New-Job {
     # Validate local path
     try {
         if (-not (Test-Path $local)) {
-            $create = Read-Host "Directory '$local' does not exist. Create it? (y/n)"
+            $create = Read-Host "Directory '$local' does not exist. Create it? (y/N)"
             if ($create -eq 'y' -or $create -eq 'Y') {
                 New-Item -ItemType Directory -Path $local -Force | Out-Null
             }
@@ -457,7 +469,7 @@ function Edit-Job {
             Write-Green "Job '$($job.Name)' removed successfully."
         }
         else {
-            Write-Red "Failed to save changes."
+            Write-Red "Failed to make changes."
         }
         return
     }
@@ -558,7 +570,7 @@ function Show-UpdateScreen {
             }
             'e' {
                 if ($script:SelectedJobs.Count -gt 0) {
-                    $confirm = Read-Host "Execute $($script:SelectedJobs.Count) selected job(s)? (y/n)"
+                    $confirm = Read-Host "Execute $($script:SelectedJobs.Count) selected job(s)? (y/N)"
                     if ($confirm -eq 'y' -or $confirm -eq 'Y') {
                         Start-SelectedJobs
                         Write-Host "Press any key to continue..." -ForegroundColor Yellow
@@ -577,7 +589,7 @@ function Show-UpdateScreen {
             }
             { $_ -eq [char]13 } {  # Enter key
                 if ($script:SelectedJobs.Count -gt 0) {
-                    $confirm = Read-Host "Execute $($script:SelectedJobs.Count) selected job(s)? (y/n)"
+                    $confirm = Read-Host "Execute $($script:SelectedJobs.Count) selected job(s)? (y/N)"
                     if ($confirm -eq 'y' -or $confirm -eq 'Y') {
                         Start-SelectedJobs
                         Write-Host "Press any key to continue..." -ForegroundColor Yellow

@@ -17,6 +17,7 @@ FEATURES:
     - Command-line arguments for automation
     - Verbose mode for debugging
     - Job name validation (no spaces or special characters)
+    - Smart transfer size formatting (KB/MB/GB based on file size)
 
 USAGE:
     Interactive Mode:
@@ -166,6 +167,16 @@ TROUBLESHOOTING:
     A: Ensure job names match exactly (case-insensitive)
        Use -Verbose flag to see what's being processed
 
+TRANSFER SIZE FORMATTING:
+    The tool automatically formats transfer sizes with appropriate units:
+    - Files < 1 MB: Displayed in KB (e.g., "5.39 KB")
+    - Files 1 MB to < 1 GB: Displayed in MB (e.g., "1.5 MB")
+    - Files >= 1 GB: Displayed in GB (e.g., "2.5 GB")
+    
+    Transfer speed is also intelligently formatted:
+    - Speeds < 1 MB/s: Displayed in KB/s (e.g., "5.39 KB/s")
+    - Speeds >= 1 MB/s: Displayed in MB/s (e.g., "1.2 MB/s")
+
 NOTES:
     - Local directories are created automatically if they don't exist
     - Downloaded files retain their original filename
@@ -174,6 +185,11 @@ NOTES:
     - Multiple jobs can be selected and executed together
 
 VERSION HISTORY:
+    v1.2 - Improved transfer size display
+        - Smart transfer size formatting (KB/MB/GB based on file size)
+        - Better visibility for small file transfers
+        - Consistent unit formatting for both size and speed
+        
     v1.1 - Enhanced navigation and job management
         - Added Esc key navigation (exit from main, return from jobs)
         - Added job removal functionality in edit mode
