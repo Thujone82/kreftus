@@ -5,24 +5,25 @@
     difference calculation. Uses -Verbose for detailed operational messages. Clears console on start.
 
 .PARAMETER UserBTCAmount
-    Optional. Amount of Bitcoin owned. Overrides 'MyBTC' from config.ini.
+    Optional. Amount of Bitcoin owned. Overrides 'MyBTC' from btc.ini.
 .PARAMETER UserTotalCost
-    Optional. Total cost for the 'UserBTCAmount' of Bitcoin. Overrides 'MyCOST' from config.ini.
+    Optional. Total cost for the 'UserBTCAmount' of Bitcoin. Overrides 'MyCOST' from btc.ini.
     Required for Profit/Loss calculation if UserBTCAmount is also provided.
 .PARAMETER LogToFile
-    Optional. Path to the CSV log file. Overrides 'LogPath' from config.ini.
+    Optional. Path to the CSV log file. Overrides 'LogPath' from btc.ini.
 .PARAMETER Update
-    Optional. Switch to interactively update MyBTC, MyCOST, and LogPath in config.ini.
+    Optional. Switch to interactively update MyBTC, MyCOST, and LogPath in btc.ini.
+    Aliases: -u, -config, -c
 .PARAMETER Verbose
     Optional. Common parameter to display detailed operational messages.
 
 .DESCRIPTION
-    Clears the console. If config.ini or ApiKey is missing, prompts for first-run setup.
-    If -Update switch is used, prompts to update portfolio/log settings in config.ini.
+    Clears the console. If btc.ini or ApiKey is missing, prompts for first-run setup.
+    If -Update switch is used, prompts to update portfolio/log settings in btc.ini.
     Then fetches detailed Bitcoin data via LiveCoinWatch API.
     Core financial data is always displayed. Use -Verbose to see step-by-step messages.
     Features:
-    - Reads/Writes configuration to 'config.ini' (ApiKey, LogPath, MyBTC, MyCOST).
+    - Reads/Writes configuration to 'btc.ini' (ApiKey, LogPath, MyBTC, MyCOST).
     - Command-line parameters override .ini settings for the current run.
     - Bitcoin price line: Current price (color-coded), 24h price difference (e.g., [+$100.50])
       calculated from actual historical price. Color is purple if current price is within 5%
@@ -37,10 +38,10 @@
 
 .NOTES
     Author: Kreft&Gemini[Gemini 2.5 Pro (preview)]
-    Date: 2025-05-17
-    Version: 2.0 
+    Date: 2025-10-31
+    Version: 2.1 
     Added [CmdletBinding()] for robust -Verbose handling.
-    config.ini will be created/updated in the same directory as the script.
+    btc.ini will be created/updated in the same directory as the script.
     Uses a second API call to /coins/single/history for more accurate 24h price difference.
     Color coding for BTC price and My BTC value now directly reflects the sign of the calculated 24h dollar difference.
 #>
@@ -50,6 +51,7 @@ param (
     [double]$UserBTCAmount,
     [double]$UserTotalCost,
     [string]$LogToFile,
+    [Alias('u','config','c')]
     [switch]$Update
 )
 
@@ -121,7 +123,7 @@ function Write-ColoredLine {
 
 # --- Configuration File Path ---
 $scriptPath = $PSScriptRoot
-$iniFilePath = Join-Path -Path $scriptPath -ChildPath "config.ini"
+$iniFilePath = Join-Path -Path $scriptPath -ChildPath "btc.ini"
 Write-Verbose "INI configuration file path set to: $iniFilePath"
 
 # --- Initial Load of Configuration ---
@@ -165,13 +167,13 @@ if (-not [string]::IsNullOrEmpty($LogToFile)) {
 } elseif ($config.Settings.ContainsKey('LogPath')) { 
     if (-not [string]::IsNullOrEmpty($config.Settings.LogPath)) { 
         $effectiveLogPath = Join-Path -Path $scriptPath -ChildPath $config.Settings.LogPath
-        Write-Verbose "Log path set from config.ini: $effectiveLogPath" 
+        Write-Verbose "Log path set from btc.ini: $effectiveLogPath" 
     } else { 
-        Write-Verbose "Logging disabled: LogPath is present but empty in config.ini."
+        Write-Verbose "Logging disabled: LogPath is present but empty in btc.ini."
     } 
 } else { 
     $effectiveLogPath = Join-Path -Path $scriptPath -ChildPath "btc_log.csv" 
-    Write-Verbose "Log path key not found in config.ini, defaulted to: $effectiveLogPath" 
+    Write-Verbose "Log path key not found in btc.ini, defaulted to: $effectiveLogPath" 
 }
 
 $mybtc = $null
@@ -180,9 +182,9 @@ if ($PSBoundParameters.ContainsKey('UserBTCAmount')) {
     else { Write-Warning "Invalid -UserBTCAmount provided. Ignoring command line value." } 
 } elseif ($null -ne $config.Portfolio.MyBTC -and $null -ne ($config.Portfolio.MyBTC -as [double]) -and ($config.Portfolio.MyBTC -as [double]) -ge 0) { 
     $mybtc = $config.Portfolio.MyBTC -as [double]
-    Write-Verbose "MyBTC amount loaded from config.ini: $mybtc"
+    Write-Verbose "MyBTC amount loaded from btc.ini: $mybtc"
 } else {
-    Write-Verbose "MyBTC amount not set from command line or config.ini (or value is invalid/zero)."
+    Write-Verbose "MyBTC amount not set from command line or btc.ini (or value is invalid/zero)."
 }
 
 $myCOST = $null
@@ -191,9 +193,9 @@ if ($PSBoundParameters.ContainsKey('UserTotalCost')) {
     else { Write-Warning "Invalid -UserTotalCost provided. Ignoring command line value." } 
 } elseif ($null -ne $config.Portfolio.MyCOST -and $null -ne ($config.Portfolio.MyCOST -as [double]) -and ($config.Portfolio.MyCOST -as [double]) -ge 0) { 
     $myCOST = $config.Portfolio.MyCOST -as [double]
-    Write-Verbose "MyCOST loaded from config.ini: $myCOST"
+    Write-Verbose "MyCOST loaded from btc.ini: $myCOST"
 } else {
-    Write-Verbose "MyCOST not set from command line or config.ini (or value is invalid/zero)."
+    Write-Verbose "MyCOST not set from command line or btc.ini (or value is invalid/zero)."
 }
 
 if ($null -ne $myCOST -and ($null -eq $mybtc -or $mybtc -eq 0)) { Write-Warning "MyCOST set but MyBTC is zero/not set. P/L skipped."; $myCOST = $null }
