@@ -40,6 +40,9 @@ param (
     [switch]$s,
 
     [Parameter(ParameterSetName='Monitor')]
+    [switch]$k,
+
+    [Parameter(ParameterSetName='Monitor')]
     [switch]$Help,
 
     [Parameter(ParameterSetName='BitcoinToUsd')]
@@ -414,6 +417,7 @@ if ([string]::IsNullOrEmpty($apiKey)) {
     exit
 }
 
+# Handle undocumented -k switch: acts as shortcut for -go with -h enabled
 
 # --- Conversion Logic Branch ---
 if ($PSCmdlet.ParameterSetName -ne 'Monitor') {
@@ -448,7 +452,7 @@ if ($PSCmdlet.ParameterSetName -ne 'Monitor') {
 
 
 # Initial Price Fetch for monitor modes
-if ($go.IsPresent -or $golong.IsPresent) {
+if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent) {
     Clear-Host
     Write-Host -NoNewline "Fetching initial price...`r" -ForegroundColor Cyan
 } else {
@@ -462,7 +466,7 @@ if ($null -eq $currentBtcPrice) {
 
 # --- Main Logic Branch ---
 
-if ($go.IsPresent -or $golong.IsPresent) {
+if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent) {
     # --- Mode Configuration ---
     $modeSettings = @{
         'go'     = @{ duration = 900;   interval = 5;  spinner = @('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏') }
@@ -476,7 +480,7 @@ if ($go.IsPresent -or $golong.IsPresent) {
     $previousPriceColor = "White"
     $monitorStartTime = Get-Date
     $soundEnabled = $s.IsPresent
-    $sparklineEnabled = $h.IsPresent
+    $sparklineEnabled = $h.IsPresent -or $k.IsPresent
     $priceHistory = [System.Collections.Generic.List[double]]::new()
     $priceHistory.Add($currentBtcPrice)
 
@@ -501,7 +505,12 @@ if ($go.IsPresent -or $golong.IsPresent) {
         [System.Console]::CursorVisible = $false
         while ($true) {
             # Set mode-specific variables and immediately check for termination.
-            $monitorDurationSeconds = $modeSettings[$currentMode].duration
+            # When -k is used, extend go mode timeout to 30 minutes (1800 seconds)
+            if ($k.IsPresent -and $currentMode -eq 'go') {
+                $monitorDurationSeconds = 1800
+            } else {
+                $monitorDurationSeconds = $modeSettings[$currentMode].duration
+            }
             if (((Get-Date) - $monitorStartTime).TotalSeconds -ge $monitorDurationSeconds) { break }
 
             $waitIntervalSeconds = $modeSettings[$currentMode].interval
