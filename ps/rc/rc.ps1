@@ -109,8 +109,7 @@ if (-not $Command) {
 }
 
 # Clear screen if requested - must be done before any output
-# Check parameter in multiple ways to ensure it's recognized
-if ($PSBoundParameters.ContainsKey('Clear') -or $Clear.IsPresent -or $Clear) {
+if ($Clear.IsPresent) {
     Clear-Host
 }
 
@@ -125,17 +124,8 @@ if ($Precision.IsPresent -and -not $Silent.IsPresent) {
 while ($true) {
     $loopStartTime = Get-Date
     try {
-        if ($Clear -or $Clear.IsPresent) {
-            try {
-                [Console]::Clear()
-            } catch {
-                try {
-                    Clear-Host
-                } catch {
-                    # Fallback: output ANSI escape sequence
-                    Write-Host "`e[2J`e[H" -NoNewline
-                }
-            }
+        if ($Clear.IsPresent) {
+            Clear-Host
         }
         if (-not $Silent.IsPresent) {
             Write-Host "($(Get-Date -Format 'HH:mm:ss')) Executing command..."

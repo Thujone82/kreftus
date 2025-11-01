@@ -17,6 +17,7 @@ The application can run in two modes: a standard mode that waits for a fixed dur
   - **Standard Mode (Default):** Waits for the full period *after* the command has finished executing. Simple and straightforward.
   - **Precision Mode (`-p`):** Accounts for the command's execution time to ensure each new run starts on a fixed, predictable schedule. Ideal for tasks requiring consistent timing.
 - **Silent Mode (`-s`):** Suppresses status output messages such as execution timing and wait periods, while still displaying the actual command output and any errors. Perfect for logging scenarios.
+- **Clear Mode (`-c`):** Clears the screen before executing the command in each iteration, providing a clean output display for each run. Useful for monitoring scenarios where you want to see only the current command output.
 - **Interactive Mode:** If run without any arguments, `rc` will interactively prompt you for the command, period, and timing mode.
 - **Cross-Platform:** The included `build.ps1` script compiles native executables for both Windows and Linux.
 - **Color-coded Output:** Provides clear, colorized feedback for execution status and timing information.
@@ -45,6 +46,10 @@ The application can run in two modes: a standard mode that waits for a fixed dur
 - `-s`, `-silent`
   - A switch to enable "Silent Mode".
 
+- `-c`, `-clear`
+  - A switch to enable "Clear Mode".
+  - When enabled, clears the screen before executing the command in each iteration.
+
 ## Examples
 
 ### Example 1: Run a command every 10 minutes
@@ -67,7 +72,13 @@ The application can run in two modes: a standard mode that waits for a fixed dur
 ./rc -p -s -period 5 "my-monitor.sh"
 ```
 
-### Example 5: Run in interactive mode
+### Example 5: Run with clear mode
+```sh
+./rc -c -period 1 "date"
+```
+Runs 'date' every minute with the screen cleared before each execution, providing a clean output display for monitoring.
+
+### Example 6: Run in interactive mode
 ```sh
 ./rc
 ```

@@ -14,6 +14,19 @@ import (
 	"github.com/fatih/color"
 )
 
+// clearScreen clears the terminal screen using platform-specific commands or ANSI escape sequences.
+func clearScreen() {
+	if runtime.GOOS == "windows" {
+		// On Windows, use cls command
+		cmd := exec.Command("cmd", "/C", "cls")
+		cmd.Stdout = os.Stdout
+		cmd.Run()
+	} else {
+		// On Unix-like systems, use ANSI escape sequence
+		fmt.Print("\033[2J\033[H")
+	}
+}
+
 // executeCommand runs the given command string in the appropriate shell for the OS.
 // It pipes the command's stdout and stderr to the application's stdout and stderr.
 func executeCommand(command string) {
@@ -49,7 +62,7 @@ func printUsage() {
 	fmt.Println()
 
 	color.Yellow("USAGE")
-	fmt.Println("    rc \"<command>\" [period] [-p] [-s]")
+	fmt.Println("    rc \"<command>\" [period] [-p] [-s] [-c]")
 	fmt.Println()
 
 	color.Yellow("PARAMETERS")
@@ -65,6 +78,9 @@ func printUsage() {
 	color.Cyan("  -s, -silent")
 	fmt.Println("    Optional. Enables silent mode to suppress status output messages.")
 	fmt.Println()
+	color.Cyan("  -c, -clear")
+	fmt.Println("    Optional. Clears the screen before executing the command in each iteration.")
+	fmt.Println()
 
 	color.Yellow("EXAMPLES")
 	color.Green("    rc \"go run main.go\" 1")
@@ -79,6 +95,9 @@ func printUsage() {
 	color.Green("    rc \"my-script.sh\" 5 -p -s")
 	fmt.Println("    Runs 'my-script.sh' every 5 minutes with precision timing and silent output.")
 	fmt.Println()
+	color.Green("    rc \"date\" 1 -c")
+	fmt.Println("    Runs 'date' every minute with the screen cleared before each execution.")
+	fmt.Println()
 }
 
 func main() {
@@ -88,6 +107,7 @@ func main() {
 	period := 5 // Default period in minutes
 	var precision bool
 	var silent bool
+	var clear bool
 	var nonFlagArgs []string
 
 	for _, arg := range os.Args[1:] {
@@ -96,6 +116,8 @@ func main() {
 			precision = true
 		case "-s", "-silent":
 			silent = true
+		case "-c", "-clear":
+			clear = true
 		case "-h", "-help":
 			printUsage()
 			os.Exit(0)
@@ -142,6 +164,12 @@ func main() {
 		if strings.ToLower(strings.TrimSpace(precisionInput)) == "y" {
 			precision = true
 		}
+
+		fmt.Print("Enable Clear Mode? (y/n) [default: n]: ")
+		clearInput, _ := reader.ReadString('\n')
+		if strings.ToLower(strings.TrimSpace(clearInput)) == "y" {
+			clear = true
+		}
 	}
 
 	// Exit if no command was provided either by argument or interactively.
@@ -151,6 +179,9 @@ func main() {
 	}
 
 	// --- Initial Output ---
+	if clear {
+		clearScreen()
+	}
 	if !silent {
 		fmt.Printf("Running \"%s\" every %d minute(s). Press Ctrl+C to stop.\n\n", commandStr, period)
 	}
@@ -166,6 +197,9 @@ func main() {
 	periodDuration := time.Duration(period) * time.Minute
 	for {
 		loopStartTime := time.Now()
+		if clear {
+			clearScreen()
+		}
 		if !silent {
 			color.White("(%s) Executing command...", loopStartTime.Format("15:04:05"))
 		}
