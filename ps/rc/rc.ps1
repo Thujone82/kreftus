@@ -33,6 +33,12 @@
     displaying the actual command output and any errors.
     Alias: -s
 
+.PARAMETER Clear
+    A switch to enable "Clear Mode". When enabled, the script clears the screen
+    before executing the command in each iteration, providing a clean output for
+    each run.
+    Alias: -c
+
 .EXAMPLE
     .\rc.ps1 "Get-Process -Name 'chrome' | Stop-Process -Force" 1
     
@@ -55,6 +61,11 @@
 
     Runs 'Get-Date' every minute in silent mode, suppressing status messages while still showing the date output.
 
+.EXAMPLE
+    .\rc.ps1 "Get-Date" 1 -Clear
+
+    Runs 'Get-Date' every minute with the screen cleared before each execution, providing a clean output display.
+
 .NOTES
     To stop the script, press Ctrl+C in the terminal window where it is running.
 #>
@@ -71,7 +82,11 @@ param(
 
     [Parameter(Mandatory=$false, HelpMessage="Enables silent mode to suppress status output messages.")]
     [Alias('s')]
-    [switch]$Silent
+    [switch]$Silent,
+
+    [Parameter(Mandatory=$false, HelpMessage="Clears the screen before executing the command in each iteration.")]
+    [Alias('cl', 'c')]
+    [switch]$Clear
 )
 
 if (-not $Command) {
@@ -87,6 +102,16 @@ if (-not $Command) {
     if ($inputPrecision.ToLower() -eq 'y') {
         $Precision = $true
     }
+    $inputClear = Read-Host "Enable Clear Mode? (y/n) [default: n]"
+    if ($inputClear.ToLower() -eq 'y') {
+        $Clear = $true
+    }
+}
+
+# Clear screen if requested - must be done before any output
+# Check parameter in multiple ways to ensure it's recognized
+if ($PSBoundParameters.ContainsKey('Clear') -or $Clear.IsPresent -or $Clear) {
+    Clear-Host
 }
 
 if (-not $Silent.IsPresent) {
@@ -100,6 +125,18 @@ if ($Precision.IsPresent -and -not $Silent.IsPresent) {
 while ($true) {
     $loopStartTime = Get-Date
     try {
+        if ($Clear -or $Clear.IsPresent) {
+            try {
+                [Console]::Clear()
+            } catch {
+                try {
+                    Clear-Host
+                } catch {
+                    # Fallback: output ANSI escape sequence
+                    Write-Host "`e[2J`e[H" -NoNewline
+                }
+            }
+        }
         if (-not $Silent.IsPresent) {
             Write-Host "($(Get-Date -Format 'HH:mm:ss')) Executing command..."
         }

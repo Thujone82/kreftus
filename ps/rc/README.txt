@@ -20,6 +20,7 @@ The script offers two modes for scheduling: a simple delay mode and a high-preci
 - **Standard Mode (Default):** After a command finishes, the script waits for the specified interval before the next run. This is simple but can lead to timing "drift" if the command's execution time varies.
 - **Precision Mode (`-p`):** This mode establishes a fixed-interval "grid" based on the script's start time. It accounts for the command's execution time to ensure each new run starts at a predictable, precise moment (e.g., exactly every 10 minutes at :00, :10, :20, etc.). If a command runs longer than its interval, the script will immediately start the next iteration to get back on schedule.
 - **Silent Mode (`-s`):** Suppresses status output messages such as execution timing and wait periods, while still displaying the actual command output and any errors. Ideal for logging or when you only want to see the command results.
+- **Clear Mode (`-c`):** Clears the screen before executing the command in each iteration, providing a clean output display for each run. Useful for monitoring scenarios where you want to see only the current command output.
 
 ## Requirements
 - PowerShell
@@ -48,6 +49,10 @@ The script offers two modes for scheduling: a simple delay mode and a high-preci
 - `-Silent` or `-s` [switch]
   - A switch to enable "Silent Mode".
   - When enabled, suppresses status output messages while preserving command output and errors.
+
+- `-Clear` or `-c` [switch]
+  - A switch to enable "Clear Mode".
+  - When enabled, clears the screen before executing the command in each iteration.
 
 ## Examples
 
@@ -80,6 +85,12 @@ Runs 'Get-Date' every minute in silent mode, suppressing status messages while s
 .\rc.ps1 ".\my-monitor.ps1" 5 -Precision -Silent
 ```
 Runs 'my-monitor.ps1' every 5 minutes with both precision timing and silent output, ideal for background monitoring tasks.
+
+### Example 6: Clear Mode
+```powershell
+.\rc.ps1 "Get-Date" 1 -Clear
+```
+Runs 'Get-Date' every minute with the screen cleared before each execution, providing a clean output display for monitoring.
 
 ## Notes
 - To stop the script at any time, press `Ctrl+C` in the terminal window where it is running.
