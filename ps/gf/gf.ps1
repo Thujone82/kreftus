@@ -232,6 +232,14 @@ function Get-CurrentLocation {
     }
 }
 
+# Helper function to clear screen with optional delay in verbose mode
+function Clear-HostWithDelay {
+    if ($VerbosePreference -eq 'Continue') {
+        Start-Sleep -Milliseconds 600
+    }
+    Clear-Host
+}
+
 # Function to create and execute API jobs
 function Start-ApiJob {
     param(
@@ -250,16 +258,17 @@ function Start-ApiJob {
             return $response | ConvertTo-Json -Depth 10
         }
         catch {
-            $errorMsg = $_.Exception.Message
-            if ($errorMsg -match "503.*Server Unavailable") {
-                throw "503 Server Unavailable"
-            } elseif ($errorMsg -match "timeout") {
-                throw "Request timeout after 30 seconds"
-            } elseif ($errorMsg -match "connection") {
-                throw "Connection failed: $errorMsg"
-            } else {
-                throw "API call failed: $errorMsg"
+            $errorInfo = @{
+                Error = $true
+                Message = $_.Exception.Message
+                InnerException = if ($_.Exception.InnerException) { $_.Exception.InnerException.Message } else { $null }
+                StatusCode = if ($_.Exception.Response) { $_.Exception.Response.StatusCode } else { $null }
+                StatusDescription = if ($_.Exception.Response) { $_.Exception.Response.StatusDescription } else { $null }
             }
+            # Write error to error stream so it can be captured
+            Write-Error -Message $errorInfo.Message -Exception $_.Exception
+            # Also return as JSON for structured error handling
+            return ($errorInfo | ConvertTo-Json -Compress)
         }
     } -ArgumentList $Url, $Headers
     
@@ -280,14 +289,14 @@ function Update-WeatherData {
         [bool]$UseRetryLogic = $true
     )
     
-    $maxRetries = 10
+    $maxRetries = if ($UseRetryLogic) { 10 } else { 1 }  # Only retry if UseRetryLogic is true
     $baseDelay = 1  # Start with 1 second
     $retryCount = 0
     
     while ($retryCount -lt $maxRetries) {
     try {
             if ($retryCount -gt 0) {
-                Clear-Host
+                Clear-HostWithDelay
                 Write-Host "Retrying weather data refresh... (Attempt $($retryCount + 1)/$maxRetries)" -ForegroundColor Yellow
             } else {
         Write-Host "Refreshing weather data..." -ForegroundColor Yellow
@@ -338,44 +347,110 @@ function Update-WeatherData {
             $script:radarStation = $pointsData.properties.radarStation
             Write-Verbose "Radar Station: $script:radarStation"
         
-        # Re-fetch forecast and hourly data
-        $forecastUrl = "https://api.weather.gov/gridpoints/$office/$gridX,$gridY/forecast"
-        $hourlyUrl = "https://api.weather.gov/gridpoints/$office/$gridX,$gridY/forecast/hourly"
+        # Use URLs directly from Points API response (same as initial load)
+        # This ensures we use the exact URLs the API provides, avoiding potential URL construction issues
+        $forecastUrl = $pointsData.properties.forecast
+        $hourlyUrl = $pointsData.properties.forecastHourly
         
         $forecastJob = Start-ApiJob -Url $forecastUrl -Headers $headers -JobName "ForecastData"
         $hourlyJob = Start-ApiJob -Url $hourlyUrl -Headers $headers -JobName "HourlyData"
         
         $jobsToWaitFor = @($forecastJob, $hourlyJob)
         
-        # Wait for jobs with timeout
-        $jobResult = Wait-Job -Job $jobsToWaitFor -Timeout 30
-        if (-not $jobResult) {
-            Stop-Job -Job $jobsToWaitFor
-            Remove-Job -Job $jobsToWaitFor -Force
-            throw "Forecast/hourly jobs timed out after 30 seconds"
-        }
+        # Wait for jobs (same as initial load - wait indefinitely, no timeout)
+        # Jobs have their own 30-second timeout in Start-ApiJob
+        Wait-Job -Job $jobsToWaitFor | Out-Null
         
         # Check forecast job - allow partial failure
         $forecastData = $null
         $forecastFailed = $false
         if ($forecastJob.State -eq 'Failed') {
-            $errorMsg = try { 
-                $forecastJob | Receive-Job -ErrorAction SilentlyContinue
-                "Job failed with state: $($forecastJob.State)"
-            } catch { 
-                "Job failed with state: $($forecastJob.State) - $($_.Exception.Message)" 
+            # Capture detailed error information from job
+            $errorDetails = @()
+            try {
+                # First, try to get output (might contain error JSON)
+                $jobOutput = $forecastJob | Receive-Job -ErrorVariable jobErrors -ErrorAction SilentlyContinue 2>&1
+                
+                # Check if output contains error JSON
+                foreach ($item in $jobOutput) {
+                    if ($item -is [System.Management.Automation.ErrorRecord]) {
+                        $errorDetails += $item.Exception.Message
+                        if ($item.Exception.InnerException) {
+                            $errorDetails += "Inner: $($item.Exception.InnerException.Message)"
+                        }
+                        if ($item.Exception.Response) {
+                            $errorDetails += "Response: $($item.Exception.Response.StatusCode) $($item.Exception.Response.StatusDescription)"
+                        }
+                    } elseif ($item) {
+                        $str = $item.ToString()
+                        # Check if it's a JSON error object
+                        try {
+                            $errorObj = $str | ConvertFrom-Json -ErrorAction SilentlyContinue
+                            if ($errorObj.Error) {
+                                $errorDetails += "Message: $($errorObj.Message)"
+                                if ($errorObj.InnerException) {
+                                    $errorDetails += "Inner: $($errorObj.InnerException)"
+                                }
+                                if ($errorObj.StatusCode) {
+                                    $errorDetails += "HTTP: $($errorObj.StatusCode) $($errorObj.StatusDescription)"
+                                }
+                            } else {
+                                if ($str -and $str -ne "") {
+                                    $errorDetails += $str
+                                }
+                            }
+                        } catch {
+                            if ($str -and $str -ne "") {
+                                $errorDetails += $str
+                            }
+                        }
+                    }
+                }
+                
+                # Also check error stream
+                if ($jobErrors) {
+                    foreach ($err in $jobErrors) {
+                        $errorDetails += $err.Exception.Message
+                        if ($err.Exception.InnerException) {
+                            $errorDetails += "Inner: $($err.Exception.InnerException.Message)"
+                        }
+                    }
+                }
+                
+                # Check job's error collection
+                if ($forecastJob.ChildJobs) {
+                    foreach ($childJob in $forecastJob.ChildJobs) {
+                        if ($childJob.Error) {
+                            foreach ($err in $childJob.Error) {
+                                $errorDetails += $err.Exception.Message
+                                if ($err.Exception.InnerException) {
+                                    $errorDetails += "Inner: $($err.Exception.InnerException.Message)"
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch {
+                $errorDetails += "Error capturing job error: $($_.Exception.Message)"
             }
-            Write-Verbose "Forecast API failed for location: $lat,$lon (Office: $office, Grid: $gridX,$gridY) - Error: $errorMsg"
+            
+            $errorMsg = if ($errorDetails.Count -gt 0) {
+                ($errorDetails | Select-Object -First 5) -join "; "
+            } else {
+                "Job failed with state: $($forecastJob.State) - No error details captured"
+            }
+            
+            Write-Verbose "Forecast API failed for location: $lat,$lon (Office: $office, Grid: $gridX,$gridY) - URL: $forecastUrl - Error: $errorMsg"
             Remove-Job -Job $forecastJob -Force
             $forecastFailed = $true
         } elseif ($forecastJob.State -ne 'Completed') {
-            Write-Verbose "Forecast API failed for location: $lat,$lon (Office: $office, Grid: $gridX,$gridY) - Job in unexpected state: $($forecastJob.State)"
+            Write-Verbose "Forecast API failed for location: $lat,$lon (Office: $office, Grid: $gridX,$gridY) - URL: $forecastUrl - Job in unexpected state: $($forecastJob.State)"
             Remove-Job -Job $forecastJob -Force
             $forecastFailed = $true
         } else {
             $forecastJson = $forecastJob | Receive-Job
             if ([string]::IsNullOrWhiteSpace($forecastJson)) { 
-                Write-Verbose "Forecast API failed for location: $lat,$lon (Office: $office, Grid: $gridX,$gridY) - Empty response from forecast API"
+                Write-Verbose "Forecast API failed for location: $lat,$lon (Office: $office, Grid: $gridX,$gridY) - URL: $forecastUrl - Empty response from forecast API"
                 Remove-Job -Job $forecastJob -Force
                 $forecastFailed = $true
             } else {
@@ -393,23 +468,92 @@ function Update-WeatherData {
         $hourlyData = $null
         $hourlyFailed = $false
         if ($hourlyJob.State -eq 'Failed') {
-            $errorMsg = try { 
-                $hourlyJob | Receive-Job -ErrorAction SilentlyContinue
-                "Job failed with state: $($hourlyJob.State)"
-            } catch { 
-                "Job failed with state: $($hourlyJob.State) - $($_.Exception.Message)" 
+            # Capture detailed error information from job
+            $errorDetails = @()
+            try {
+                # First, try to get output (might contain error JSON)
+                $jobOutput = $hourlyJob | Receive-Job -ErrorVariable jobErrors -ErrorAction SilentlyContinue 2>&1
+                
+                # Check if output contains error JSON
+                foreach ($item in $jobOutput) {
+                    if ($item -is [System.Management.Automation.ErrorRecord]) {
+                        $errorDetails += $item.Exception.Message
+                        if ($item.Exception.InnerException) {
+                            $errorDetails += "Inner: $($item.Exception.InnerException.Message)"
+                        }
+                        if ($item.Exception.Response) {
+                            $errorDetails += "Response: $($item.Exception.Response.StatusCode) $($item.Exception.Response.StatusDescription)"
+                        }
+                    } elseif ($item) {
+                        $str = $item.ToString()
+                        # Check if it's a JSON error object
+                        try {
+                            $errorObj = $str | ConvertFrom-Json -ErrorAction SilentlyContinue
+                            if ($errorObj.Error) {
+                                $errorDetails += "Message: $($errorObj.Message)"
+                                if ($errorObj.InnerException) {
+                                    $errorDetails += "Inner: $($errorObj.InnerException)"
+                                }
+                                if ($errorObj.StatusCode) {
+                                    $errorDetails += "HTTP: $($errorObj.StatusCode) $($errorObj.StatusDescription)"
+                                }
+                            } else {
+                                if ($str -and $str -ne "") {
+                                    $errorDetails += $str
+                                }
+                            }
+                        } catch {
+                            if ($str -and $str -ne "") {
+                                $errorDetails += $str
+                            }
+                        }
+                    }
+                }
+                
+                # Also check error stream
+                if ($jobErrors) {
+                    foreach ($err in $jobErrors) {
+                        $errorDetails += $err.Exception.Message
+                        if ($err.Exception.InnerException) {
+                            $errorDetails += "Inner: $($err.Exception.InnerException.Message)"
+                        }
+                    }
+                }
+                
+                # Check job's error collection
+                if ($hourlyJob.ChildJobs) {
+                    foreach ($childJob in $hourlyJob.ChildJobs) {
+                        if ($childJob.Error) {
+                            foreach ($err in $childJob.Error) {
+                                $errorDetails += $err.Exception.Message
+                                if ($err.Exception.InnerException) {
+                                    $errorDetails += "Inner: $($err.Exception.InnerException.Message)"
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch {
+                $errorDetails += "Error capturing job error: $($_.Exception.Message)"
             }
-            Write-Verbose "Hourly API failed for location: $lat,$lon (Office: $office, Grid: $gridX,$gridY) - Error: $errorMsg"
+            
+            $errorMsg = if ($errorDetails.Count -gt 0) {
+                ($errorDetails | Select-Object -First 5) -join "; "
+            } else {
+                "Job failed with state: $($hourlyJob.State) - No error details captured"
+            }
+            
+            Write-Verbose "Hourly API failed for location: $lat,$lon (Office: $office, Grid: $gridX,$gridY) - URL: $hourlyUrl - Error: $errorMsg"
             Remove-Job -Job $hourlyJob -Force
             $hourlyFailed = $true
         } elseif ($hourlyJob.State -ne 'Completed') {
-            Write-Verbose "Hourly API failed for location: $lat,$lon (Office: $office, Grid: $gridX,$gridY) - Job in unexpected state: $($hourlyJob.State)"
+            Write-Verbose "Hourly API failed for location: $lat,$lon (Office: $office, Grid: $gridX,$gridY) - URL: $hourlyUrl - Job in unexpected state: $($hourlyJob.State)"
             Remove-Job -Job $hourlyJob -Force
             $hourlyFailed = $true
         } else {
             $hourlyJson = $hourlyJob | Receive-Job
             if ([string]::IsNullOrWhiteSpace($hourlyJson)) { 
-                Write-Verbose "Hourly API failed for location: $lat,$lon (Office: $office, Grid: $gridX,$gridY) - Empty response from hourly API"
+                Write-Verbose "Hourly API failed for location: $lat,$lon (Office: $office, Grid: $gridX,$gridY) - URL: $hourlyUrl - Empty response from hourly API"
                 Remove-Job -Job $hourlyJob -Force
                 $hourlyFailed = $true
             } else {
@@ -494,15 +638,16 @@ function Update-WeatherData {
         }
     }
     catch {
+            $retryCount++
+            
             if (-not $UseRetryLogic) {
                 # For auto-refresh calls, fail fast without retries
                 Write-Verbose "Update-WeatherData failed (no retry): $($_.Exception.Message)"
                 return $false
             }
             
-            $retryCount++
             if ($retryCount -ge $maxRetries) {
-                Clear-Host
+                Clear-HostWithDelay
                 Write-Host "Service Unavailable" -ForegroundColor Red
                 Write-Host "The weather service is currently unavailable. Please try again later." -ForegroundColor Yellow
                 Write-Host "Press any key to exit..." -ForegroundColor Cyan
@@ -538,7 +683,13 @@ $state = $null
 while ($true) { # Loop for location input and geocoding
     try {
         if (-not $Location) {
-            if ($VerbosePreference -ne 'Continue') { Clear-Host }
+            if ($VerbosePreference -ne 'Continue') { 
+                Clear-Host 
+            } else {
+                # In verbose mode, add delay before clearing to capture errors
+                Start-Sleep -Milliseconds 600
+                Clear-Host
+            }
             Write-Host '     \|/    ' -ForegroundColor Yellow -NoNewline; Write-Host "      .-~~~~~~-.    " -ForegroundColor Gray
             Write-Host '   -- O --  ' -ForegroundColor Yellow -NoNewline; Write-Host "     /_)      ( \   " -ForegroundColor Gray
             Write-Host '     /|\    ' -ForegroundColor Yellow -NoNewline; Write-Host "    (   ( )    ( )  " -ForegroundColor Gray
@@ -2389,6 +2540,10 @@ if ($windSpeed -ge $script:WIND_ALERT_THRESHOLD) {
 
 if ($VerbosePreference -ne 'Continue') {
     Clear-Host
+} else {
+    # In verbose mode, add delay before clearing to capture errors
+    Start-Sleep -Milliseconds 600
+    Clear-Host
 }
 
 # Determine which sections to display based on command-line options
@@ -2524,18 +2679,18 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
     
     # If starting in hourly mode, show hourly forecast first
     if ($isHourlyMode) {
-        Clear-Host
+        Clear-HostWithDelay
         Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime -City $city -ShowCityInTitle $true -TimeZone $timeZone
         Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $false
     } elseif ($Rain.IsPresent) {
         # If starting in rain mode, show rain forecast first
-        Clear-Host
+        Clear-HostWithDelay
         $isRainMode = $true
         Show-RainForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
         Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
     } elseif ($Wind.IsPresent) {
         # If starting in wind mode, show wind forecast first
-        Clear-Host
+        Clear-HostWithDelay
         $isWindMode = $true
         Show-WindForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
         Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
@@ -2560,7 +2715,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         $sunsetTime = $sunTimes.Sunset
                         
                         # Re-render current view with fresh data
-                        Clear-Host
+                        Clear-HostWithDelay
                         if ($isHourlyMode) {
                             Show-HourlyForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime -City $city -ShowCityInTitle $true -TimeZone $timeZone
                             Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $false
@@ -2616,7 +2771,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                 # Handle keyboard input for interactive mode
                 switch ($keyInfo.KeyChar) {
                 'h' { # H key - Switch to hourly forecast only
-                    Clear-Host
+                    Clear-HostWithDelay
                     $isHourlyMode = $true
                     $isRainMode = $false
                     $isWindMode = $false
@@ -2627,7 +2782,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $false
                 }
                 'd' { # D key - Switch to 7-day forecast only
-                    Clear-Host
+                    Clear-HostWithDelay
                     $isHourlyMode = $false
                     $isRainMode = $false
                     $isWindMode = $false
@@ -2637,7 +2792,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
                 }
                 't' { # T key - Switch to terse mode (current + today + alerts)
-                    Clear-Host
+                    Clear-HostWithDelay
                     $isHourlyMode = $false
                     $isRainMode = $false
                     $isWindMode = $false
@@ -2649,7 +2804,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
                 }
                 'f' { # F key - Switch to full weather report
-                    Clear-Host
+                    Clear-HostWithDelay
                     $isHourlyMode = $false
                     $isRainMode = $false
                     $isWindMode = $false
@@ -2659,7 +2814,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
                 }
                 'r' { # R key - Switch to rain forecast mode
-                    Clear-Host
+                    Clear-HostWithDelay
                     $isHourlyMode = $false
                     $isRainMode = $true
                     $isWindMode = $false
@@ -2683,7 +2838,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     Start-Sleep -Milliseconds 800
                     
                     # Re-render current view
-                    Clear-Host
+                    Clear-HostWithDelay
                     if ($isHourlyMode) {
                         Show-HourlyForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime -City $city -ShowCityInTitle $true -TimeZone $timeZone
                         Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $false
@@ -2723,7 +2878,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     Start-Sleep -Milliseconds 800
                     
                     # Re-render current view
-                    Clear-Host
+                    Clear-HostWithDelay
                     if ($isHourlyMode) {
                         Show-HourlyForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime -City $city -ShowCityInTitle $true -TimeZone $timeZone
                         Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $false
@@ -2750,7 +2905,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     }
                 }
                 'w' { # W key - Switch to wind forecast mode
-                    Clear-Host
+                    Clear-HostWithDelay
                     $isHourlyMode = $false
                     $isRainMode = $false
                     $isWindMode = $true
@@ -2769,7 +2924,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         $sunsetTime = $sunTimes.Sunset
                         
                         # Re-render current view with fresh data
-                        Clear-Host
+                        Clear-HostWithDelay
                         if ($isHourlyMode) {
                             Show-HourlyForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime -City $city -ShowCityInTitle $true -TimeZone $timeZone
                             Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $false
@@ -2798,7 +2953,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         $newIndex = $hourlyScrollIndex - $script:MAX_HOURLY_FORECAST_HOURS
                         if ($newIndex -ge 0) {
                             $hourlyScrollIndex = $newIndex
-                            Clear-Host
+                            Clear-HostWithDelay
                             Show-HourlyForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime -City $city -ShowCityInTitle $true -TimeZone $timeZone
                             Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $false
                         }
@@ -2809,7 +2964,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         $newIndex = $hourlyScrollIndex + $script:MAX_HOURLY_FORECAST_HOURS
                         if ($newIndex -lt $totalHourlyPeriods) {
                             $hourlyScrollIndex = $newIndex
-                            Clear-Host
+                            Clear-HostWithDelay
                             Show-HourlyForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime -City $city -ShowCityInTitle $true -TimeZone $timeZone
                             Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $false
                         }
