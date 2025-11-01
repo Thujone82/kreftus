@@ -471,8 +471,9 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent) {
     $modeSettings = @{
         'go'     = @{ duration = 900;   interval = 5;  spinner = @('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏') }
         'golong' = @{ duration = 86400; interval = 20; spinner = @('*') }
+        'k'      = @{ duration = 1800;   interval = 5;  spinner = @('🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘') }
     }
-    $currentMode = if ($golong.IsPresent) { 'golong' } else { 'go' }
+    $currentMode = if ($k.IsPresent) { 'k' } elseif ($golong.IsPresent) { 'golong' } else { 'go' }
 
     # --- Initial State Setup ---
     $monitorStartPrice = $currentBtcPrice
@@ -505,12 +506,7 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent) {
         [System.Console]::CursorVisible = $false
         while ($true) {
             # Set mode-specific variables and immediately check for termination.
-            # When -k is used, extend go mode timeout to 30 minutes (1800 seconds)
-            if ($k.IsPresent -and $currentMode -eq 'go') {
-                $monitorDurationSeconds = 1800
-            } else {
-                $monitorDurationSeconds = $modeSettings[$currentMode].duration
-            }
+            $monitorDurationSeconds = $modeSettings[$currentMode].duration
             if (((Get-Date) - $monitorStartTime).TotalSeconds -ge $monitorDurationSeconds) { break }
 
             $waitIntervalSeconds = $modeSettings[$currentMode].interval
@@ -545,7 +541,7 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent) {
                 $sparklineString = if ($sparklineEnabled) { " $(Get-Sparkline -History $priceHistory)" } else { " Bitcoin (USD):" }
                 $restOfLine = "$sparklineString $($currentBtcPrice.ToString("C2"))$changeString"
 
-                if ($currentMode -eq 'go') {
+                if ($currentMode -eq 'go' -or $currentMode -eq 'k') {
                     $spinnerIndex = ($spinnerIndex + 1) % $spinner.Length
                 }
 
@@ -622,7 +618,7 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent) {
             $previousIntervalPrice = $currentBtcPrice
             $previousPriceColor = $priceColor
 
-            if ($currentMode -eq 'go') {
+            if ($currentMode -eq 'go' -or $currentMode -eq 'k') {
                 $spinnerIndex = ($spinnerIndex + 1) % $spinner.Length
             }
             $spinnerChar = $spinner[$spinnerIndex]
