@@ -19,6 +19,7 @@ The script first uses a geocoding service to determine the latitude and longitud
   - Wind speed and direction.
   - Sunrise and sunset times (calculated astronomically).
   - Moon phase information with emoji and next full moon date.
+  - **All times displayed in location's timezone:** Hourly forecasts, sunrise, sunset, and update times are shown in the destination location's local timezone, not your system's timezone.
   - Weather alerts and warnings.
   - Rain likelihood forecast with visual sparklines.
   - Wind outlook forecast with direction glyphs.
@@ -401,7 +402,7 @@ Due to differences in the National Weather Service API, the following features a
 - Rain/Snow precipitation amounts
 
 ## Features Added/Enhanced
-- **Sunrise/Sunset Times:** Calculated using NOAA astronomical algorithms based on location coordinates and time zone
+- **Sunrise/Sunset Times:** Calculated using NOAA astronomical algorithms based on location coordinates and time zone. All displayed times (hourly forecasts, sunrise, sunset, update times) are shown in the destination location's local timezone, not your system's timezone.
 - **Humidity Data:** Available in current conditions display
 
 ## API Information
