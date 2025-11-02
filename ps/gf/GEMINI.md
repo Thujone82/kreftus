@@ -19,7 +19,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
 - **No API Key Required:** Uses the free National Weather Service API which requires no registration or API key.
 - **Flexible Location Input:** Can determine latitude and longitude from either a 5-digit US zip code, a "City, State" formatted string, or the "here" keyword for automatic location detection.
 - **Automatic Location Detection:** Uses ip-api.com to automatically detect the user's current location based on their IP address when "here" is specified.
-- **Comprehensive Data Display:** Shows current temperature, conditions, wind chill and heat index calculations (using NWS formulas), detailed forecasts for today and tomorrow, wind information, sunrise and sunset times (calculated astronomically), moon phase information with emoji and next full moon date, rain likelihood forecasts with visual sparklines, and wind outlook forecasts with direction glyphs. **All times (hourly forecasts, sunrise, sunset, update times) are displayed in the destination location's local timezone, not your system's timezone.**
+- **Comprehensive Data Display:** Shows current temperature, conditions, wind chill and heat index calculations (using NWS formulas), detailed forecasts for today and tomorrow, wind information, sunrise and sunset times (calculated astronomically), moon phase information with emoji and next full moon date, rain likelihood forecasts with visual sparklines, and wind outlook forecasts with direction glyphs. **All times (hourly forecasts, sunrise, sunset, update times) are displayed in the destination location's local timezone, not your system's timezone.** Section titles (Hourly, 7-Day Summary, Rain Outlook, Wind Outlook) use only the first word of the city name to prevent title wrapping and maintain consistent formatting.
 - **Weather Alerts:** Automatically fetches and displays any active weather alerts (e.g., warnings, watches) from official sources.
 - **Color-Coded Metrics:** Key data points (temperature, wind speed) change color (blue for cold, red for hot) to indicate potentially hazardous conditions. Rain likelihood sparklines use color coding (white for very low, cyan for low, green for light, yellow for medium, red for high probability). Wind outlook glyphs use color coding (white for calm, yellow for light breeze, red for moderate wind, magenta for strong wind) with peak wind hours highlighted using inverted colors. **Humidity:** Uses meteorological comfort thresholds based on relative humidity percentage. Low humidity (<30%) can cause dry skin, static electricity, and respiratory discomfort (cyan). Comfortable range (30-60%) is ideal for human comfort (white). Elevated humidity (61-70%) begins to feel muggy and can affect perceived temperature (yellow). High humidity (>70%) is oppressive, significantly increases heat index, and can be dangerous in hot weather (red). **Dew Point:** More reliable than humidity for assessing comfort as it's independent of temperature. Dew point represents the temperature at which air becomes saturated and condensation forms. Values below 40°F indicate very dry air (cyan), 40-54°F is comfortable (white), 55-64°F feels sticky and muggy (yellow), and 65°F+ is oppressive and can be dangerous when combined with high temperatures (red). Dew points above 70°F are rare but extremely uncomfortable.
 - **Multiple Display Modes:**
@@ -58,6 +58,8 @@ The script follows a multi-step process:
 
 **Exponential Backoff Retry Logic:** The script implements robust error handling through exponential backoff retry logic in the Update-WeatherData function. This addresses temporary service unavailability (HTTP 503 errors) by implementing a retry mechanism with increasing delays between attempts. The algorithm uses a base delay of 1 second with exponential growth: 1s, 2s, 4s, 8s, 16s, 32s, 64s, 128s, 256s, 512s (capped at 512 seconds). The implementation includes screen clearing between retry attempts for a clean user experience, progress indication showing current attempt number, and graceful exit after maximum retry attempts (10) with a clear "Service Unavailable" message. This prevents the script from flooding the terminal with error messages during service outages while providing respectful retry behavior that doesn't overwhelm the NWS API servers.
 
+**Update-WeatherData URL Consistency:** The `Update-WeatherData` function now uses URLs directly from the Points API response (`$pointsData.properties.forecast` and `$pointsData.properties.forecastHourly`) instead of manually constructing them, matching the initial load behavior exactly. This ensures consistency between initial load and refresh operations, preventing potential URL format issues that could cause update failures. The function also uses `Wait-Job -Job $jobsToWaitFor | Out-Null` (waiting indefinitely) instead of a 30-second timeout, matching the initial load behavior and relying on the job's internal timeout in `Start-ApiJob`.
+
 ### API Endpoints Used
 
 - **Geocoding:** 
@@ -78,7 +80,7 @@ Due to differences between the OpenWeatherMap and National Weather Service APIs,
 
 - UV Index data
 - Moonrise/Moonset times
-- Temperature trend indicators (rising/falling)
+- ~~Temperature trend indicators (rising/falling)~~ **RE-IMPLEMENTED:** Temperature trend indicators now calculated from hourly forecast data comparing current temperature to next hour's predicted temperature (future-looking trend). API's temperatureTrend field used as fallback for small changes (<0.67°F difference) before defaulting to steady.
 - Detailed weather overview reports
 - Rain/Snow precipitation amounts
 
@@ -495,6 +497,9 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 - **Auto-Update Toggle:** Added 'U' key to toggle automatic updates on/off during interactive mode
 - **Command Line Control:** Added `-u` flag to start with automatic updates disabled
 - **Manual Refresh Control:** Added 'G' key for manual data refresh while preserving current view mode
+- **Temperature Trend Indicators:** Re-implemented temperature trend calculation using future-looking prediction (comparing current temperature to next hour's predicted temperature). For significant changes (≥0.67°F or ≤-0.67°F), uses calculated trend. For small changes, uses API's temperatureTrend field as fallback before defaulting to "steady", providing both future prediction and historical context
+- **Display Title Optimization:** Hourly and 7-Day Summary sections now use only the first word of city names (matching wind/rain outlook displays) to prevent title wrapping and maintain consistent formatting across all display modes
+- **Update Consistency Fix:** Fixed `Update-WeatherData` to use URLs directly from Points API response (same as initial load) and removed timeout-based `Wait-Job` to match initial load behavior, ensuring consistent behavior between initial load and refresh operations
 - **Dynamic Period Names:** Forecast sections now use actual NWS period names instead of hardcoded labels
 - **NWS Resources Links:** Added clickable links to official NWS resources with custom display text
 - **Control Bar Toggle:** Added command line flag and interactive key to hide/show control bar
@@ -773,3 +778,57 @@ Where:
 - No display when calculation not applicable
 
 This implementation provides users with accurate "feels like" temperature information using official NWS standards, enhancing the weather display with scientifically validated comfort metrics.
+
+### Temperature Trend Detection
+
+The script implements intelligent temperature trend detection that combines future predictions with historical context:
+
+**Calculation Method:**
+- **Future-Looking Trend:** Primary method compares current temperature to next hour's predicted temperature
+- **Threshold:** Significant changes (≥0.67°F rise or ≤-0.67°F fall) use calculated future-looking trend
+- **API Fallback:** For small changes (<0.67°F difference), uses API's `temperatureTrend` field if available before defaulting to "steady"
+- **Rationale:** API's `temperatureTrend` represents past trend (how temperature has changed), while calculated trend represents future prediction (how temperature will change)
+
+**Display Icons:**
+- **Rising** (↗️): Temperature increasing (next hour warmer)
+- **Falling** (↘️): Temperature decreasing (next hour cooler)
+- **Steady** (→): Temperature remaining constant or small change with no clear trend
+
+**Technical Implementation:**
+```powershell
+# Calculate trend by comparing current temp to next hour temp
+$tempDiff = [double]$nextHourTemp - [double]$currentTemp
+
+if ($tempDiff -ge 0.67) {
+    $currentTempTrend = "rising"  # Significant increase
+}
+elseif ($tempDiff -le -0.67) {
+    $currentTempTrend = "falling"  # Significant decrease
+}
+else {
+    # Small change - use API's temperatureTrend as fallback
+    $apiTempTrend = $currentPeriod.temperatureTrend
+    if ($apiTempTrend -and ($apiTempTrend -eq "rising" -or $apiTempTrend -eq "falling")) {
+        $currentTempTrend = $apiTempTrend  # Use historical trend
+    } else {
+        $currentTempTrend = "steady"  # Default for no clear trend
+    }
+}
+```
+
+**Function Location:** Around line 1197 in main script
+**Data Sources:**
+- Current temperature: `$currentTemp` (from NWS API hourly data, first period)
+- Next hour temperature: `$hourlyData.properties.periods[1].temperature`
+- API trend: `$currentPeriod.temperatureTrend` (from NWS API, fallback only)
+
+**Benefits:**
+- **Predictive Value:** Shows expected temperature direction (useful for planning)
+- **Historical Context:** API fallback provides context for small movements
+- **User Expectations:** Trend arrow aligns with hourly forecast display
+- **Accurate Representation:** Distinguishes between past trends and future predictions
+
+**Error Handling:**
+- Graceful fallback to "steady" if insufficient hourly data available
+- Handles missing API temperatureTrend field
+- No display when calculation cannot be performed
