@@ -1195,32 +1195,39 @@ $currentPrecipProb = $currentPeriod.probabilityOfPrecipitation.value
 $currentIcon = $currentPeriod.icon
 
 # --- Temperature Trend Detection ---
-$currentTempTrend = $currentPeriod.temperatureTrend
-
-# Fallback: Calculate trend from hourly data if not provided by API
-if (-not $currentTempTrend -or $currentTempTrend -eq "") {
-    $hourlyPeriods = $hourlyData.properties.periods
-    if ($hourlyPeriods.Count -gt 1) {
-        $nextHourPeriod = $hourlyPeriods[1]
-        $nextHourTemp = $nextHourPeriod.temperature
-        
-        $tempDiff = [double]$nextHourTemp - [double]$currentTemp
-        Write-Verbose "Temperature trend calculation: Current=$currentTemp°F, Next=$nextHourTemp°F, Diff=$tempDiff°F"
-        
-        if ($tempDiff -ge 0.67) {
-            $currentTempTrend = "rising"
-        }
-        elseif ($tempDiff -le -0.67) {
-            $currentTempTrend = "falling"
-        }
-        else {
-            $currentTempTrend = "steady"
-        }
-        Write-Verbose "Calculated temperature trend: $currentTempTrend"
-    } else {
-        $currentTempTrend = "steady"
-        Write-Verbose "Insufficient hourly data for trend calculation"
+# Calculate trend by comparing current temp to next hour temp (future-looking trend)
+# Use API's temperatureTrend as fallback for small changes (between -0.67 and 0.67 degrees)
+$currentTempTrend = $null
+$hourlyPeriods = $hourlyData.properties.periods
+if ($hourlyPeriods.Count -gt 1) {
+    $nextHourPeriod = $hourlyPeriods[1]
+    $nextHourTemp = $nextHourPeriod.temperature
+    
+    $tempDiff = [double]$nextHourTemp - [double]$currentTemp
+    Write-Verbose "Temperature trend calculation: Current=$currentTemp°F, Next=$nextHourTemp°F, Diff=$tempDiff°F"
+    
+    if ($tempDiff -ge 0.67) {
+        $currentTempTrend = "rising"
+        Write-Verbose "Calculated temperature trend (future-looking): $currentTempTrend"
     }
+    elseif ($tempDiff -le -0.67) {
+        $currentTempTrend = "falling"
+        Write-Verbose "Calculated temperature trend (future-looking): $currentTempTrend"
+    }
+    else {
+        # Small change - use API's temperatureTrend as fallback before defaulting to steady
+        $apiTempTrend = $currentPeriod.temperatureTrend
+        if ($apiTempTrend -and ($apiTempTrend -eq "rising" -or $apiTempTrend -eq "falling")) {
+            $currentTempTrend = $apiTempTrend
+            Write-Verbose "Small change detected ($tempDiff°F). Using API's temperatureTrend as fallback: $currentTempTrend"
+        } else {
+            $currentTempTrend = "steady"
+            Write-Verbose "Small change detected ($tempDiff°F). No API trend available, defaulting to: $currentTempTrend"
+        }
+    }
+} else {
+    $currentTempTrend = "steady"
+    Write-Verbose "Insufficient hourly data for trend calculation"
 }
 
 # Extract wind gust information from wind speed string
