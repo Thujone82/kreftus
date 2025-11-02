@@ -1651,7 +1651,13 @@ function Show-HourlyForecast {
     )
     
     Write-Host ""
-    $titleText = if ($ShowCityInTitle -and $City) { "*** $City Hourly ***" } else { "*** Hourly ***" }
+    if ($ShowCityInTitle -and $City) {
+        # Extract first word (city name) to keep title short
+        $cityName = ($City -split ' ')[0]
+        $titleText = "*** $cityName Hourly ***"
+    } else {
+        $titleText = "*** Hourly ***"
+    }
     Write-Host $titleText -ForegroundColor $TitleColor
     $hourlyPeriods = $hourlyData.properties.periods
     $totalHours = [Math]::Min($hourlyPeriods.Count, 48)  # Limit to 48 hours
@@ -1790,9 +1796,11 @@ function Show-SevenDayForecast {
     
     Write-Host ""
     if ($ShowCityInTitle -and $City) {
-        $titleText = if ($IsEnhancedMode) { "*** $City 7-Day Forecast ***" } else { "*** $City 7-Day Summary ***" }
+        # Extract first word (city name) to keep title short
+        $cityName = ($City -split ' ')[0]
+        $titleText = if ($IsEnhancedMode) { "*** $cityName 7-Day Forecast ***" } else { "*** $cityName 7-Day Summary ***" }
     } else {
-    $titleText = if ($IsEnhancedMode) { "*** 7-Day Forecast ***" } else { "*** 7-Day Summary ***" }
+        $titleText = if ($IsEnhancedMode) { "*** 7-Day Forecast ***" } else { "*** 7-Day Summary ***" }
     }
     Write-Host $titleText -ForegroundColor $TitleColor
     $forecastPeriods = $forecastData.properties.periods

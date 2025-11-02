@@ -592,6 +592,15 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent) {
                             [System.Console]::Beep(800, 200)
                         }
                     }
+                    if ($keyInfo.KeyChar -eq 'k' -or $keyInfo.KeyChar -eq 'K') {
+                        $currentMode = 'k'
+                        $sparklineEnabled = $true
+                        $monitorStartTime = Get-Date
+                        $monitorStartPrice = $currentBtcPrice
+                        $modeSwitched = $true
+                        $spinnerIndex = 0
+                        break
+                    }
                     if ($keyInfo.KeyChar -eq 'm') {
                         $currentMode = if ($currentMode -eq 'go') { 'golong' } else { 'go' }
                         $monitorStartTime = Get-Date
