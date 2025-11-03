@@ -986,6 +986,39 @@ function Format-TextWrap {
     return ,$lines
 }
 
+function Get-TruncatedCityName {
+    param(
+        [string]$CityName,
+        [int]$MaxLength = 20
+    )
+    
+    if ([string]::IsNullOrWhiteSpace($CityName)) {
+        return ""
+    }
+    
+    $words = $CityName -split ' '
+    $result = $words[0]
+    
+    # If first word alone exceeds limit, return it anyway
+    if ($result.Length -gt $MaxLength) {
+        return $result
+    }
+    
+    # Try to add more words while staying within limit
+    for ($i = 1; $i -lt $words.Count; $i++) {
+        $nextWord = $words[$i]
+        $potentialLength = $result.Length + 1 + $nextWord.Length  # +1 for space
+        
+        if ($potentialLength -le $MaxLength) {
+            $result += " " + $nextWord
+        } else {
+            break
+        }
+    }
+    
+    return $result
+}
+
 # Helper: resolve a TimeZoneInfo from an ID (supports IANA -> Windows mapping for common US zones)
 function Get-ResolvedTimeZoneInfo {
     param([string]$TimeZoneId)
@@ -1659,8 +1692,8 @@ function Show-HourlyForecast {
     
     Write-Host ""
     if ($ShowCityInTitle -and $City) {
-        # Extract first word (city name) to keep title short
-        $cityName = ($City -split ' ')[0]
+        # Extract as many words as fit within 20 characters to keep title short
+        $cityName = Get-TruncatedCityName -CityName $City -MaxLength 20
         $titleText = "*** $cityName Hourly ***"
     } else {
         $titleText = "*** Hourly ***"
@@ -1803,8 +1836,8 @@ function Show-SevenDayForecast {
     
     Write-Host ""
     if ($ShowCityInTitle -and $City) {
-        # Extract first word (city name) to keep title short
-        $cityName = ($City -split ' ')[0]
+        # Extract as many words as fit within 20 characters to keep title short
+        $cityName = Get-TruncatedCityName -CityName $City -MaxLength 20
         $titleText = if ($IsEnhancedMode) { "*** $cityName 7-Day Forecast ***" } else { "*** $cityName 7-Day Summary ***" }
     } else {
         $titleText = if ($IsEnhancedMode) { "*** 7-Day Forecast ***" } else { "*** 7-Day Summary ***" }
@@ -2285,8 +2318,8 @@ function Show-RainForecast {
     )
     
     Write-Host ""
-    # Extract first word (city name) to keep title short
-    $cityName = ($City -split ' ')[0]
+    # Extract as many words as fit within 20 characters to keep title short
+    $cityName = Get-TruncatedCityName -CityName $City -MaxLength 20
     $headerText = "*** $cityName Rain Outlook ***"
     $padding = [Math]::Max(0, (34 - $headerText.Length) / 2)
     $paddedHeader = " " * $padding + $headerText
@@ -2386,8 +2419,8 @@ function Show-WindForecast {
     )
     
     Write-Host ""
-    # Extract first word (city name) to keep title short
-    $cityName = ($City -split ' ')[0]
+    # Extract as many words as fit within 20 characters to keep title short
+    $cityName = Get-TruncatedCityName -CityName $City -MaxLength 20
     $headerText = "*** $cityName Wind Outlook ***"
     $padding = [Math]::Max(0, (34 - $headerText.Length) / 2)
     $paddedHeader = " " * $padding + $headerText
