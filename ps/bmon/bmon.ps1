@@ -471,7 +471,7 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent) {
     $modeSettings = @{
         'go'     = @{ duration = 900;   interval = 5;  spinner = @('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏') }
         'golong' = @{ duration = 86400; interval = 20; spinner = @('*') }
-        'k'      = @{ duration = 1800;   interval = 5;  spinner = @('🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘') }
+        'k'      = @{ duration = 1800;   interval = 4;  spinner = @('▏', '▎', '▍', '▌', '▋', '▊', '▉', '█', '▉', '▊', '▋', '▌', '▍', '▎') }
     }
     $currentMode = if ($k.IsPresent) { 'k' } elseif ($golong.IsPresent) { 'golong' } else { 'go' }
 
