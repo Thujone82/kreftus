@@ -2052,6 +2052,15 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 					os.Exit(1)
 				}
 
+				// Handle Esc key (ASCII 27) as an alias for 'n' (cancel)
+				if b == 27 {
+					// Esc key pressed - treat as cancel
+					fmt.Printf("\n\n%s cancelled.\n", txType)
+					time.Sleep(1 * time.Second)
+					ticker.Stop()
+					return apiData
+				}
+
 				var rawInput string
 				if b == 13 { // 13 is the ASCII code for Carriage Return (Enter key in raw mode)
 					rawInput = "\n"
@@ -2169,6 +2178,9 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 					time.Sleep(1 * time.Second)
 					ticker.Stop()
 					return apiData
+				} else {
+					// Ignore all other keys that aren't 'y', 'r', 'n', Enter, or Esc
+					continue EventLoop
 				}
 			}
 		}

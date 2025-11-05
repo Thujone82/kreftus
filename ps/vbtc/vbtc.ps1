@@ -1220,6 +1220,10 @@ function Invoke-Trade {
                         }
                         # On an active offer, Enter should cancel. We set a non-y/r value to fall through.
                         $tradeinput = "n"
+                    }
+                    # Handle Esc key as an alias for 'n' (cancel)
+                    elseif ($key.Key -eq 'Escape') {
+                        $tradeinput = "n"
                     } else {
                         $tradeinput = $key.KeyChar.ToString()
                     }
@@ -1234,6 +1238,13 @@ function Invoke-Trade {
                     # If the offer is expired on-screen, only 'r' is a valid command.
                     if ($tradeinput.ToLower() -ne 'r') {
                         $tradeinput = $null # Ignore invalid input (like 'y' or 'n')
+                        continue InnerInputLoop # Redraw the screen
+                    }
+                } else {
+                    # On active offer screen, only allow 'y', 'r', 'n', Enter, or Esc
+                    $validInput = $tradeinput.ToLower() -in @('y', 'r', 'n')
+                    if (-not $validInput) {
+                        $tradeinput = $null # Ignore invalid input
                         continue InnerInputLoop # Redraw the screen
                     }
                 }
