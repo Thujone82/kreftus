@@ -1,11 +1,9 @@
 // API integration for NWS, geocoding, and location detection
 
-const USER_AGENT = "GetForecast/1.0 (081625PDX)";
-
 // Headers for NWS API requests
 const NWS_HEADERS = {
     "Accept": "application/geo+json",
-    "User-Agent": USER_AGENT
+    "User-Agent": "GetForecast/1.0 (081625PDX)"
 };
 
 // Exponential backoff retry logic

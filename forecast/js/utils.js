@@ -1,7 +1,5 @@
 // Utility functions for weather calculations and formatting
 
-const USER_AGENT = "GetForecast/1.0 (081625PDX)";
-
 // Convert degrees to radians
 function toRadians(deg) {
     return Math.PI * deg / 180.0;

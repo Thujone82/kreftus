@@ -109,9 +109,31 @@ async function init() {
         }
     }
     
-    // Check for URL query parameter
+    // Set up auto-refresh interval
+    if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+    autoRefreshInterval = setInterval(checkAutoRefresh, 60000); // Check every minute
+    
+    // Set up update time interval
+    if (updateTimeInterval) clearInterval(updateTimeInterval);
+    updateTimeInterval = setInterval(updateLastUpdateTime, 30000); // Update every 30 seconds
+    
+    // Check for URL query parameters
     const urlParams = new URLSearchParams(window.location.search);
     const locationParam = urlParams.get('location');
+    const modeParam = urlParams.get('mode');
+    
+    // Set mode from URL if provided (but don't render yet - wait for data)
+    if (modeParam && ['full', 'terse', 'hourly', 'daily', 'rain', 'wind'].includes(modeParam)) {
+        appState.currentMode = modeParam;
+        // Update active button
+        elements.modeButtons.forEach(btn => {
+            if (btn.dataset.mode === modeParam) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    }
     
     // Load initial weather data (don't block if it fails)
     try {
@@ -210,6 +232,9 @@ function setupEventListeners() {
     
     // Create share button
     createShareButton();
+    
+    // Set up hourly navigation handlers (using event delegation)
+    setupHourlyNavigation();
 }
 
 // Handle search
@@ -223,7 +248,7 @@ async function handleSearch() {
     }
     
     localStorage.setItem('forecastLocation', location);
-    updateURL(location);
+    updateURL(location, appState.currentMode);
     await loadWeatherData(location);
 }
 
@@ -232,7 +257,7 @@ async function handleHere() {
     console.log('handleHere called');
     elements.locationInput.value = 'here';
     localStorage.setItem('forecastLocation', 'here');
-    updateURL('here');
+    updateURL('here', appState.currentMode);
     await loadWeatherData('here');
 }
 
@@ -258,9 +283,9 @@ async function loadWeatherData(location) {
         // Update location display
         elements.locationDisplay.textContent = `${weatherData.location.city}, ${weatherData.location.state}`;
         
-        // Update URL if location changed
+        // Update URL if location changed (preserve mode)
         if (location && location.toLowerCase() !== 'here') {
-            updateURL(location);
+            updateURL(location, appState.currentMode);
         }
         
         // Update last update time
@@ -296,8 +321,15 @@ function switchMode(mode) {
         }
     });
     
+    // Update URL with mode
+    const location = elements.locationInput.value.trim() || 'here';
+    updateURL(location, mode);
+    
     // Render current mode
     renderCurrentMode();
+    
+    // Set up hourly navigation handlers after rendering
+    setupHourlyNavigation();
 }
 
 // Render current mode
@@ -332,6 +364,56 @@ function renderCurrentMode() {
     }
     
     elements.weatherContent.innerHTML = html;
+    
+    // Set up hourly navigation handlers after rendering
+    setupHourlyNavigation();
+}
+
+// Set up hourly navigation handlers (using event delegation)
+let hourlyNavHandler = null;
+
+function setupHourlyNavigation() {
+    // Remove existing handler if any
+    if (hourlyNavHandler) {
+        elements.weatherContent.removeEventListener('click', hourlyNavHandler);
+    }
+    
+    // Create new handler for hourly navigation buttons
+    hourlyNavHandler = (e) => {
+        const button = e.target.closest('.hourly-nav-btn');
+        if (!button) return;
+        
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const action = button.dataset.action;
+        if (!appState.weatherData || !appState.weatherData.hourly) return;
+        
+        const { hourly } = appState.weatherData;
+        const periods = hourly.periods;
+        const totalHours = Math.min(periods.length, 48);
+        const maxHours = 12;
+        
+        if (action === 'scroll-up') {
+            // Scroll up by 12 hours
+            const newIndex = Math.max(0, appState.hourlyScrollIndex - maxHours);
+            appState.hourlyScrollIndex = newIndex;
+            renderCurrentMode();
+        } else if (action === 'scroll-down') {
+            // Scroll down by 12 hours
+            const newIndex = Math.min(
+                totalHours - maxHours,
+                appState.hourlyScrollIndex + maxHours
+            );
+            appState.hourlyScrollIndex = newIndex;
+            renderCurrentMode();
+        }
+    };
+    
+    // Add event listener using event delegation
+    if (elements.weatherContent) {
+        elements.weatherContent.addEventListener('click', hourlyNavHandler);
+    }
 }
 
 // Set loading state
@@ -434,14 +516,23 @@ function hideUpdateNotification() {
     elements.updateNotification.classList.add('hidden');
 }
 
-// Update URL with location parameter
-function updateURL(location) {
+// Update URL with location and mode parameters
+function updateURL(location, mode = null) {
     const url = new URL(window.location);
     if (location && location.toLowerCase() !== 'here') {
         url.searchParams.set('location', location);
     } else {
         url.searchParams.delete('location');
     }
+    
+    // Update mode parameter
+    const currentMode = mode || appState.currentMode;
+    if (currentMode && currentMode !== 'full') {
+        url.searchParams.set('mode', currentMode);
+    } else {
+        url.searchParams.delete('mode');
+    }
+    
     window.history.pushState({}, '', url);
     updateShareButton();
 }
@@ -492,6 +583,13 @@ async function handleShare() {
         url.searchParams.delete('location');
     }
     
+    // Include mode in share URL
+    if (appState.currentMode && appState.currentMode !== 'full') {
+        url.searchParams.set('mode', appState.currentMode);
+    } else {
+        url.searchParams.delete('mode');
+    }
+    
     const shareUrl = url.toString();
     
     try {
@@ -530,6 +628,11 @@ async function handleShare() {
 
 // Initialize app when DOM is ready and scripts are loaded
 function startApp() {
+    console.log('startApp() called');
+    console.log('fetchWeatherData:', typeof fetchWeatherData);
+    console.log('processWeatherData:', typeof processWeatherData);
+    console.log('document.readyState:', document.readyState);
+    
     // Ensure all required functions are available
     if (typeof fetchWeatherData === 'undefined') {
         console.error('fetchWeatherData not found - api.js may not be loaded');
@@ -542,20 +645,35 @@ function startApp() {
         return;
     }
     
+    console.log('All required functions found, initializing app...');
+    
     // All scripts loaded, initialize app
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+        console.log('DOM still loading, waiting for DOMContentLoaded');
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOMContentLoaded fired');
+            init();
+        });
     } else {
+        console.log('DOM already ready, calling init()');
         init();
     }
 }
 
-// Start the app
-startApp();
+// Wait for DOM to be ready before starting
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log('DOMContentLoaded - starting app');
+        startApp();
+    });
+} else {
+    console.log('DOM already ready - starting app');
+    startApp();
+}
 
-// Set up auto-refresh interval
-setInterval(checkAutoRefresh, 60000); // Check every minute
+// Set up auto-refresh interval (only after app is initialized)
+let autoRefreshInterval = null;
+let updateTimeInterval = null;
 
-// Update last update time periodically
-setInterval(updateLastUpdateTime, 30000); // Update every 30 seconds
+// These will be set up in init() after app is ready
 

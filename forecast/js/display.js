@@ -121,10 +121,10 @@ function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12)
     let html = `<div class="section-header">${cityName} Hourly</div>`;
     
     if (startIndex > 0) {
-        html += '<div style="color: yellow; margin-bottom: 0.5rem;">↑ Previous hours available</div>';
+        html += '<button class="hourly-nav-btn" data-action="scroll-up" style="color: yellow; margin-bottom: 0.5rem; background: none; border: none; cursor: pointer; text-decoration: underline; padding: 0;">↑ Previous hours available</button><br>';
     }
     if (endIndex < totalHours) {
-        html += '<div style="color: yellow; margin-bottom: 0.5rem;">↓ More hours available</div>';
+        html += '<button class="hourly-nav-btn" data-action="scroll-down" style="color: yellow; margin-bottom: 0.5rem; background: none; border: none; cursor: pointer; text-decoration: underline; padding: 0;">↓ More hours available</button>';
     }
     html += `<div style="color: cyan; margin-bottom: 1rem;">Showing hours ${startIndex + 1}-${endIndex} of ${totalHours}</div>`;
     
@@ -359,22 +359,22 @@ function displayRainForecast(weather, location) {
                             maxRainPercent <= 80 ? "precip-medium" : "precip-high";
         
         html += '<div class="rain-day">';
-        html += `<div class="rain-day-header">${dayName} <span class="${maxRainColor}">${maxRainPercent < 10 ? ' ' : ''}${maxRainPercent}%</span></div>`;
-        html += '<div class="rain-sparkline">';
+        html += `${dayName} <span class="${maxRainColor}">${maxRainPercent < 10 ? ' ' : ''}${maxRainPercent}%</span> `;
+        html += '<span class="rain-grid">';
         
-        // Build sparkline for 24 hours
+        // Build sparkline for 24 hours (on same line)
         for (let hour = 0; hour < 24; hour++) {
             if (dayData[hour]) {
                 const period = dayData[hour];
                 const rainPercent = period.probabilityOfPrecipitation?.value || 0;
                 const sparklineData = getRainSparkline(rainPercent);
-                html += `<span style="color: ${sparklineData.color};">${sparklineData.char}</span>`;
+                html += `<span class="rain-char" style="color: ${sparklineData.color};">${sparklineData.char}</span>`;
             } else {
-                html += '<span> </span>';
+                html += '<span class="rain-char"> </span>';
             }
         }
         
-        html += '</div></div>';
+        html += '</span></div>';
         dayCount++;
     }
     
@@ -419,10 +419,10 @@ function displayWindForecast(weather, location) {
                             maxWindSpeed <= 14 ? "wind-moderate" : "wind-strong";
         
         html += '<div class="wind-day">';
-        html += `<div class="wind-day-header">${dayName} <span class="${maxWindColor}">${maxWindSpeed < 10 ? ' ' : ''}${maxWindSpeed}mph</span></div>`;
-        html += '<div class="wind-glyphs">';
+        html += `${dayName} <span class="${maxWindColor}">${maxWindSpeed < 10 ? ' ' : ''}${maxWindSpeed}mph</span> `;
+        html += '<span class="wind-grid">';
         
-        // Build wind glyphs for 24 hours
+        // Build wind glyphs for 24 hours (on same line)
         for (let hour = 0; hour < 24; hour++) {
             if (dayData[hour]) {
                 const period = dayData[hour];
@@ -432,16 +432,16 @@ function displayWindForecast(weather, location) {
                 
                 // Check if this hour matches peak wind speed
                 if (windSpeed === maxWindSpeed) {
-                    html += `<span class="wind-glyph-peak" style="background-color: ${windGlyphData.color}; color: black;">${windGlyphData.char}</span>`;
+                    html += `<span class="wind-char wind-glyph-peak" style="background-color: ${windGlyphData.color}; color: black;">${windGlyphData.char}</span>`;
                 } else {
-                    html += `<span style="color: ${windGlyphData.color};">${windGlyphData.char}</span>`;
+                    html += `<span class="wind-char" style="color: ${windGlyphData.color};">${windGlyphData.char}</span>`;
                 }
             } else {
-                html += '<span> </span>';
+                html += '<span class="wind-char"> </span>';
             }
         }
         
-        html += '</div></div>';
+        html += '</span></div>';
         dayCount++;
     }
     
