@@ -1229,7 +1229,7 @@ $currentIcon = $currentPeriod.icon
 
 # --- Temperature Trend Detection ---
 # Calculate trend by comparing current temp to next hour temp (future-looking trend)
-# Use API's temperatureTrend as fallback for small changes (between -0.67 and 0.67 degrees)
+# Always use the actual calculated difference - never trust API's temperatureTrend when it contradicts the data
 $currentTempTrend = $null
 $hourlyPeriods = $hourlyData.properties.periods
 if ($hourlyPeriods.Count -gt 1) {
@@ -1239,24 +1239,21 @@ if ($hourlyPeriods.Count -gt 1) {
     $tempDiff = [double]$nextHourTemp - [double]$currentTemp
     Write-Verbose "Temperature trend calculation: Current=$currentTemp°F, Next=$nextHourTemp°F, Diff=$tempDiff°F"
     
-    if ($tempDiff -ge 0.67) {
+    # Always check the sign of the actual temperature difference first
+    if ($tempDiff -gt 0.1) {
+        # Next hour is warmer - temperature is rising
         $currentTempTrend = "rising"
         Write-Verbose "Calculated temperature trend (future-looking): $currentTempTrend"
     }
-    elseif ($tempDiff -le -0.67) {
+    elseif ($tempDiff -lt -0.1) {
+        # Next hour is cooler - temperature is falling
         $currentTempTrend = "falling"
         Write-Verbose "Calculated temperature trend (future-looking): $currentTempTrend"
     }
     else {
-        # Small change - use API's temperatureTrend as fallback before defaulting to steady
-        $apiTempTrend = $currentPeriod.temperatureTrend
-        if ($apiTempTrend -and ($apiTempTrend -eq "rising" -or $apiTempTrend -eq "falling")) {
-            $currentTempTrend = $apiTempTrend
-            Write-Verbose "Small change detected ($tempDiff°F). Using API's temperatureTrend as fallback: $currentTempTrend"
-        } else {
-            $currentTempTrend = "steady"
-            Write-Verbose "Small change detected ($tempDiff°F). No API trend available, defaulting to: $currentTempTrend"
-        }
+        # Very small change (within 0.1 degrees) - temperature is steady
+        $currentTempTrend = "steady"
+        Write-Verbose "Small change detected ($tempDiff°F). Temperature is steady."
     }
 } else {
     $currentTempTrend = "steady"
