@@ -847,11 +847,12 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, m.spinner.Tick)
 			}
 		case "m":
-			if m.mode == modeGo || m.mode == modeGoLong {
+			if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeK {
 				if m.mode == modeGo {
 					m.mode = modeGoLong
 					m.spinner.Spinner = bspinner.Spinner{Frames: []string{"▚", "▚", "▚", "▚", "▚", "▚", "▞", "▞", "▞", "▞", "▞", "▞"}, FPS: 500 * time.Millisecond}
 				} else {
+					// Switch to go mode from golong or k mode
 					m.mode = modeGo
 					m.spinner.Spinner = bspinner.Spinner{Frames: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}, FPS: 500 * time.Millisecond}
 				}
