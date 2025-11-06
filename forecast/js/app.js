@@ -16,26 +16,45 @@ const appState = {
 const DATA_STALE_THRESHOLD = 600000; // 10 minutes in milliseconds
 const AUTO_UPDATE_INTERVAL = 600000; // 10 minutes
 
-// DOM elements
-const elements = {
-    locationInput: document.getElementById('locationInput'),
-    searchBtn: document.getElementById('searchBtn'),
-    hereBtn: document.getElementById('hereBtn'),
-    locationDisplay: document.getElementById('locationDisplay'),
-    modeButtons: document.querySelectorAll('.mode-btn'),
-    refreshBtn: document.getElementById('refreshBtn'),
-    autoUpdateToggle: document.getElementById('autoUpdateToggle'),
-    lastUpdate: document.getElementById('lastUpdate'),
-    loadingIndicator: document.getElementById('loadingIndicator'),
-    errorMessage: document.getElementById('errorMessage'),
-    weatherContent: document.getElementById('weatherContent'),
-    updateNotification: document.getElementById('updateNotification'),
-    reloadBtn: document.getElementById('reloadBtn'),
-    shareBtn: null // Will be created dynamically
-};
+// DOM elements - will be initialized when DOM is ready
+let elements = {};
+
+// Initialize DOM elements
+function initializeElements() {
+    elements = {
+        locationInput: document.getElementById('locationInput'),
+        searchBtn: document.getElementById('searchBtn'),
+        hereBtn: document.getElementById('hereBtn'),
+        locationDisplay: document.getElementById('locationDisplay'),
+        modeButtons: document.querySelectorAll('.mode-btn'),
+        refreshBtn: document.getElementById('refreshBtn'),
+        autoUpdateToggle: document.getElementById('autoUpdateToggle'),
+        lastUpdate: document.getElementById('lastUpdate'),
+        loadingIndicator: document.getElementById('loadingIndicator'),
+        errorMessage: document.getElementById('errorMessage'),
+        weatherContent: document.getElementById('weatherContent'),
+        updateNotification: document.getElementById('updateNotification'),
+        reloadBtn: document.getElementById('reloadBtn'),
+        shareBtn: null // Will be created dynamically
+    };
+    
+    // Verify critical elements exist
+    if (!elements.locationInput || !elements.searchBtn || !elements.hereBtn) {
+        console.error('Critical DOM elements not found');
+        return false;
+    }
+    
+    return true;
+}
 
 // Initialize app
 async function init() {
+    // Initialize DOM elements
+    if (!initializeElements()) {
+        console.error('Failed to initialize DOM elements');
+        return;
+    }
+    
     // Register service worker
     if ('serviceWorker' in navigator) {
         try {
@@ -93,43 +112,72 @@ async function init() {
     const storedAutoUpdate = localStorage.getItem('forecastAutoUpdate');
     if (storedAutoUpdate !== null) {
         appState.autoUpdateEnabled = storedAutoUpdate === 'true';
-        elements.autoUpdateToggle.checked = appState.autoUpdateEnabled;
+        if (elements.autoUpdateToggle) {
+            elements.autoUpdateToggle.checked = appState.autoUpdateEnabled;
+        }
     }
 }
 
 // Set up event listeners
 function setupEventListeners() {
+    // Verify elements exist
+    if (!elements.searchBtn || !elements.hereBtn || !elements.locationInput) {
+        console.error('Required elements not found. Retrying...');
+        setTimeout(setupEventListeners, 100);
+        return;
+    }
+    
     // Location input
-    elements.searchBtn.addEventListener('click', handleSearch);
-    elements.hereBtn.addEventListener('click', handleHere);
+    elements.searchBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        handleSearch();
+    });
+    elements.hereBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        handleHere();
+    });
     elements.locationInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
+            e.preventDefault();
             handleSearch();
         }
     });
     
     // Mode buttons
-    elements.modeButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const mode = btn.dataset.mode;
-            switchMode(mode);
+    if (elements.modeButtons && elements.modeButtons.length > 0) {
+        elements.modeButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const mode = btn.dataset.mode;
+                switchMode(mode);
+            });
         });
-    });
+    }
     
     // Control buttons
-    elements.refreshBtn.addEventListener('click', handleRefresh);
-    elements.autoUpdateToggle.addEventListener('change', (e) => {
-        appState.autoUpdateEnabled = e.target.checked;
-        localStorage.setItem('forecastAutoUpdate', appState.autoUpdateEnabled.toString());
-        if (appState.autoUpdateEnabled) {
-            appState.lastFetchTime = new Date();
-        }
-    });
+    if (elements.refreshBtn) {
+        elements.refreshBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            handleRefresh();
+        });
+    }
+    if (elements.autoUpdateToggle) {
+        elements.autoUpdateToggle.addEventListener('change', (e) => {
+            appState.autoUpdateEnabled = e.target.checked;
+            localStorage.setItem('forecastAutoUpdate', appState.autoUpdateEnabled.toString());
+            if (appState.autoUpdateEnabled) {
+                appState.lastFetchTime = new Date();
+            }
+        });
+    }
     
     // Update notification
-    elements.reloadBtn.addEventListener('click', () => {
-        window.location.reload();
-    });
+    if (elements.reloadBtn) {
+        elements.reloadBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.location.reload();
+        });
+    }
     
     // Create share button
     createShareButton();
