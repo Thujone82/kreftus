@@ -674,6 +674,7 @@ type tuiModel struct {
 	soundEnabled      bool
 	sparklineEnabled  bool
 	history           []float64
+	fetchError        error // Track fetch errors to display on exit
 }
 
 func newTUIModel(args Args) tuiModel {
@@ -880,10 +881,11 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// end-of-session logic
 		dur := m.sessionDuration()
 		if dur > 0 && time.Since(m.sessionStartTime) >= dur {
-			if m.mode == modeInteractive {
+			switch m.mode {
+			case modeInteractive:
 				// return to landing after 5 minutes
 				m.mode = modeLanding
-			} else if m.mode == modeK || m.mode == modeGo || m.mode == modeGoLong {
+			case modeK, modeGo, modeGoLong:
 				return m, tea.Quit
 			}
 		}
@@ -895,7 +897,15 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, fetchPriceCmd())
 
 	case priceMsg:
-		if msg.err == nil && msg.price > 0 {
+		if msg.err != nil {
+			// After all retries failed, store error and exit
+			m.fetchingNow = false
+			m.fetchError = msg.err
+			clearRetryIndicator()
+			// Exit TUI - error will be displayed after exit
+			return m, tea.Quit
+		}
+		if msg.price > 0 {
 			newPrice := msg.price
 			// sound cues
 			if m.soundEnabled {
@@ -1073,7 +1083,14 @@ func (m tuiModel) View() string {
 func runTUI(args Args) {
 	m := newTUIModel(args)
 	p := tea.NewProgram(m, tea.WithAltScreen())
-	_ = p.Start()
+	finalModelInterface, _ := p.Run()
+	// Type assert to tuiModel to access fetchError field
+	finalModel, ok := finalModelInterface.(tuiModel)
 	// Clear screen on exit
 	clearScreen()
+	// If there was a fetch error, show error message
+	if ok && finalModel.fetchError != nil {
+		color.Red("Failed to fetch price. Check API key or network.")
+		os.Exit(1)
+	}
 }
