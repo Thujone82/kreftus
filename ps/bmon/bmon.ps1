@@ -470,7 +470,7 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent) {
     # --- Mode Configuration ---
     $modeSettings = @{
         'go'     = @{ duration = 900;   interval = 5;  spinner = @('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏') }
-        'golong' = @{ duration = 86400; interval = 20; spinner = @('*') }
+        'golong' = @{ duration = 86400; interval = 20; spinner = @('▚', '▚','▚', '▚', '▚', '▚', '▞', '▞','▞', '▞', '▞', '▞') }
         'k'      = @{ duration = 1800;   interval = 4;  spinner = @('▏', '▎', '▍', '▌', '▋', '▊', '▉', '█', '▉', '▊', '▋', '▌', '▍', '▎') }
     }
     $currentMode = if ($k.IsPresent) { 'k' } elseif ($golong.IsPresent) { 'golong' } else { 'go' }
@@ -541,9 +541,7 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent) {
                 $sparklineString = if ($sparklineEnabled) { " $(Get-Sparkline -History $priceHistory)" } else { " Bitcoin (USD):" }
                 $restOfLine = "$sparklineString $($currentBtcPrice.ToString("C2"))$changeString"
 
-                if ($currentMode -eq 'go' -or $currentMode -eq 'k') {
-                    $spinnerIndex = ($spinnerIndex + 1) % $spinner.Length
-                }
+                $spinnerIndex = ($spinnerIndex + 1) % $spinner.Length
 
                 $fullLine = "$spinnerChar$restOfLine"
                 $paddedLine = $fullLine.PadRight([System.Console]::WindowWidth)
@@ -565,6 +563,12 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent) {
 
                 if ([System.Console]::KeyAvailable) {
                     $keyInfo = [System.Console]::ReadKey($true)
+                    if ($keyInfo.Key -eq 'Escape') {
+                        [System.Console]::CursorVisible = $true
+                        [System.Console]::ResetColor()
+                        try { Write-ClearLine } catch { Write-Host "`n" }
+                        exit
+                    }
                     if ($keyInfo.KeyChar -eq 'r') {
                         $monitorStartPrice = $currentBtcPrice
                         $monitorStartTime = Get-Date
@@ -627,9 +631,7 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent) {
             $previousIntervalPrice = $currentBtcPrice
             $previousPriceColor = $priceColor
 
-            if ($currentMode -eq 'go' -or $currentMode -eq 'k') {
-                $spinnerIndex = ($spinnerIndex + 1) % $spinner.Length
-            }
+            $spinnerIndex = ($spinnerIndex + 1) % $spinner.Length
             $spinnerChar = $spinner[$spinnerIndex]
             $sparklineString = if ($sparklineEnabled) { " $(Get-Sparkline -History $priceHistory)" } else { " Bitcoin (USD):" }
             $restOfLine = "$sparklineString $($currentBtcPrice.ToString("C2"))$changeString"
@@ -682,6 +684,11 @@ else {
         while ($true) {
             if ([System.Console]::KeyAvailable) {
                 $key = [System.Console]::ReadKey($true)
+                if ($key.Key -eq 'Escape') {
+                    [System.Console]::CursorVisible = $true
+                    [System.Console]::ResetColor()
+                    exit
+                }
                 if ($key.Key -eq 'Spacebar') { break }
                 if ($key.KeyChar -eq 'g' -or $key.KeyChar -eq 'G') {
                     $argsList = @()
@@ -763,6 +770,12 @@ else {
             while (((Get-Date) - $waitStart).TotalSeconds -lt 5) {
                 if ([System.Console]::KeyAvailable) {
                     $keyInfo = [System.Console]::ReadKey($true)
+                    if ($keyInfo.Key -eq 'Escape') {
+                        [System.Console]::CursorVisible = $true
+                        [System.Console]::ResetColor()
+                        try { Write-ClearLine } catch { Write-Host "`n" }
+                        exit
+                    }
                     if ($keyInfo.Key -eq 'Spacebar') {
                         $paused = $true
                         break

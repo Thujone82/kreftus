@@ -55,6 +55,7 @@ var (
 type Args struct {
 	goMode         bool
 	golongMode     bool
+	kMode          bool
 	sound          bool
 	sparkline      bool
 	help           bool
@@ -98,7 +99,7 @@ func main() {
 	}
 
 	// Get initial price - show appropriate message based on mode
-	if args.goMode || args.golongMode {
+	if args.goMode || args.golongMode || args.kMode {
 		clearScreen()
 		fmt.Print("\r")
 		color.Cyan("Fetching initial price...")
@@ -126,6 +127,8 @@ func parseArgs() Args {
 			args.goMode = true
 		case "-golong", "-gl":
 			args.golongMode = true
+		case "-k":
+			args.kMode = true
 		case "-s":
 			args.sound = true
 		case "-h":
@@ -646,6 +649,7 @@ const (
 	modeInteractive = "interactive"
 	modeGo          = "go"
 	modeGoLong      = "golong"
+	modeK           = "k"
 )
 
 type tuiModel struct {
@@ -674,26 +678,32 @@ type tuiModel struct {
 
 func newTUIModel(args Args) tuiModel {
 	sp := bspinner.New()
-	// PS-style braille spinner frames, 500ms per frame
-	sp.Spinner = bspinner.Spinner{Frames: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}, FPS: 500 * time.Millisecond}
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("15")) // white by default
 
 	m := tuiModel{
 		args:             args,
 		spinner:          sp,
 		soundEnabled:     args.sound,
-		sparklineEnabled: args.sparkline,
+		sparklineEnabled: args.sparkline || args.kMode, // Enable sparkline when -k is used
 		history:          []float64{},
 		previousColor:    "White",
 	}
-	// choose start mode
-	if args.goMode {
-		m.mode = modeGo
+	// choose start mode (prioritize k, then golong, then go) and set spinner accordingly
+	if args.kMode {
+		m.mode = modeK
+		sp.Spinner = bspinner.Spinner{Frames: []string{"▏", "▎", "▍", "▌", "▋", "▊", "▉", "█", "▉", "▊", "▋", "▌", "▍", "▎"}, FPS: 500 * time.Millisecond}
 	} else if args.golongMode {
 		m.mode = modeGoLong
+		sp.Spinner = bspinner.Spinner{Frames: []string{"▚", "▚", "▚", "▚", "▚", "▚", "▞", "▞", "▞", "▞", "▞", "▞"}, FPS: 500 * time.Millisecond}
+	} else if args.goMode {
+		m.mode = modeGo
+		sp.Spinner = bspinner.Spinner{Frames: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}, FPS: 500 * time.Millisecond}
 	} else {
 		m.mode = modeLanding
+		// Default spinner for landing mode (will be used if user switches to go mode)
+		sp.Spinner = bspinner.Spinner{Frames: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}, FPS: 500 * time.Millisecond}
 	}
+	m.spinner = sp
 	// seed price/history from globals populated earlier
 	if currentBtcPrice > 0 {
 		m.monitorStartPrice = currentBtcPrice
@@ -705,9 +715,20 @@ func newTUIModel(args Args) tuiModel {
 }
 
 func (m tuiModel) Init() tea.Cmd {
+	// Set spinner based on mode
+	switch m.mode {
+	case modeGo:
+		m.spinner.Spinner = bspinner.Spinner{Frames: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}, FPS: 500 * time.Millisecond}
+	case modeGoLong:
+		m.spinner.Spinner = bspinner.Spinner{Frames: []string{"▚", "▚", "▚", "▚", "▚", "▚", "▞", "▞", "▞", "▞", "▞", "▞"}, FPS: 500 * time.Millisecond}
+	case modeK:
+		m.spinner.Spinner = bspinner.Spinner{Frames: []string{"▏", "▎", "▍", "▌", "▋", "▊", "▉", "█", "▉", "▊", "▋", "▌", "▍", "▎"}, FPS: 500 * time.Millisecond}
+	}
+	m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("15")) // white by default
+
 	cmds := []tea.Cmd{m.spinner.Tick, tickEvery(500 * time.Millisecond)}
 	// if monitoring, schedule first price fetch according to mode interval
-	if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeInteractive {
+	if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeK || m.mode == modeInteractive {
 		cmds = append(cmds, fetchPriceCmdAfter(m.currentInterval()))
 	}
 	return tea.Batch(cmds...)
@@ -719,6 +740,8 @@ func (m tuiModel) currentInterval() time.Duration {
 		return 5 * time.Second
 	case modeGoLong:
 		return 20 * time.Second
+	case modeK:
+		return 4 * time.Second
 	case modeInteractive:
 		return 5 * time.Second
 	default:
@@ -732,6 +755,8 @@ func (m tuiModel) sessionDuration() time.Duration {
 		return 15 * time.Minute
 	case modeGoLong:
 		return 24 * time.Hour
+	case modeK:
+		return 30 * time.Minute
 	case modeInteractive:
 		return 5 * time.Minute
 	default:
@@ -769,7 +794,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c":
+		case "ctrl+c", "esc":
 			return m, tea.Quit
 		case " ":
 			switch m.mode {
@@ -785,7 +810,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "e":
 			// Extend session timeout without changing comparison baseline
-			if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeInteractive {
+			if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeK || m.mode == modeInteractive {
 				m.sessionStartTime = time.Now()
 
 				// Visual feedback: flash the screen
@@ -805,19 +830,33 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, fetchPriceCmd())
 			}
 		case "r":
-			if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeInteractive {
+			if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeK || m.mode == modeInteractive {
 				m.monitorStartPrice = currentBtcPrice
 				m.sessionStartTime = time.Now()
+			}
+		case "k":
+			// Switch to k mode from go/golong modes
+			if m.mode == modeGo || m.mode == modeGoLong {
+				m.mode = modeK
+				m.sparklineEnabled = true
+				m.sessionStartTime = time.Now()
+				m.monitorStartPrice = currentBtcPrice
+				// Update spinner for k mode
+				m.spinner.Spinner = bspinner.Spinner{Frames: []string{"▏", "▎", "▍", "▌", "▋", "▊", "▉", "█", "▉", "▊", "▋", "▌", "▍", "▎"}, FPS: 500 * time.Millisecond}
+				cmds = append(cmds, m.spinner.Tick)
 			}
 		case "m":
 			if m.mode == modeGo || m.mode == modeGoLong {
 				if m.mode == modeGo {
 					m.mode = modeGoLong
+					m.spinner.Spinner = bspinner.Spinner{Frames: []string{"▚", "▚", "▚", "▚", "▚", "▚", "▞", "▞", "▞", "▞", "▞", "▞"}, FPS: 500 * time.Millisecond}
 				} else {
 					m.mode = modeGo
+					m.spinner.Spinner = bspinner.Spinner{Frames: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}, FPS: 500 * time.Millisecond}
 				}
 				m.sessionStartTime = time.Now()
 				m.monitorStartPrice = currentBtcPrice
+				cmds = append(cmds, m.spinner.Tick)
 			}
 		case "s":
 			m.soundEnabled = !m.soundEnabled
@@ -829,7 +868,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "h":
 			m.sparklineEnabled = !m.sparklineEnabled
 		case "i":
-			if m.mode == modeGo || m.mode == modeGoLong {
+			if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeK {
 				m.mode = modeInteractive
 				m.sessionStartTime = time.Now()
 				m.monitorStartPrice = currentBtcPrice
@@ -844,7 +883,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.mode == modeInteractive {
 				// return to landing after 5 minutes
 				m.mode = modeLanding
-			} else {
+			} else if m.mode == modeK || m.mode == modeGo || m.mode == modeGoLong {
 				return m, tea.Quit
 			}
 		}
@@ -984,23 +1023,19 @@ func (m tuiModel) View() string {
 
 	// spinner char or retry indicator
 	spinnerChar := ""
-	if m.mode == modeGoLong {
-		spinnerChar = "*"
+	// If a retry is active, show the indicator digit in color; else show spinner
+	active, digit, colorCode := getRetryIndicator()
+	if active && digit != "" {
+		// map retry colors: "11" (yellow) or "1" (red). Only replace the spinner glyph itself.
+		spinnerChar = lipgloss.NewStyle().Foreground(lipgloss.Color(colorCode)).Render(digit)
 	} else {
-		// If a retry is active, show the indicator digit in color; else show spinner
-		active, digit, colorCode := getRetryIndicator()
-		if active && digit != "" {
-			// map retry colors: "11" (yellow) or "1" (red). Only replace the spinner glyph itself.
-			spinnerChar = lipgloss.NewStyle().Foreground(lipgloss.Color(colorCode)).Render(digit)
+		// spinner color: white by default; cyan only on fetch ticks
+		if m.fetchingNow {
+			m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
 		} else {
-			// spinner color: white by default; cyan only on fetch ticks
-			if m.fetchingNow {
-				m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
-			} else {
-				m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
-			}
-			spinnerChar = m.spinner.View()
+			m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
 		}
+		spinnerChar = m.spinner.View()
 	}
 
 	rest := fmt.Sprintf("%s $%s%s", left, formatUSD(currentBtcPrice), changeString)
@@ -1039,4 +1074,6 @@ func runTUI(args Args) {
 	m := newTUIModel(args)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_ = p.Start()
+	// Clear screen on exit
+	clearScreen()
 }
