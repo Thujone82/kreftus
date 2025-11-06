@@ -1,0 +1,616 @@
+/* Forecast Web App Styles */
+
+:root {
+    --color-default: #00ced1; /* DarkCyan */
+    --color-alert: #ff0000; /* Red */
+    --color-title: #00ff00; /* Green */
+    --color-info: #0080ff; /* Blue */
+    --color-forecast: #808080; /* Gray */
+    --color-bg: #1a1a1a; /* Dark background */
+    --color-bg-secondary: #2a2a2a;
+    --color-text: #ffffff;
+    --color-text-secondary: #cccccc;
+    --color-cold: #0080ff; /* Blue */
+    --color-hot: #ff0000; /* Red */
+    --color-warning: #ffff00; /* Yellow */
+    --color-magenta: #ff00ff; /* Magenta */
+    --color-cyan: #00ffff; /* Cyan */
+    --color-green: #00ff00; /* Green */
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Courier New', monospace, sans-serif;
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+header {
+    background-color: var(--color-bg-secondary);
+    padding: 1rem;
+    text-align: center;
+    border-bottom: 2px solid var(--color-title);
+}
+
+header h1 {
+    color: var(--color-title);
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+main {
+    flex: 1;
+    padding: 1rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* Location Section */
+.location-section {
+    margin-bottom: 1.5rem;
+}
+
+.location-input-container {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    flex-wrap: wrap;
+}
+
+#locationInput {
+    flex: 1;
+    min-width: 200px;
+    padding: 0.75rem;
+    background-color: var(--color-bg-secondary);
+    border: 1px solid var(--color-default);
+    color: var(--color-text);
+    font-size: 1rem;
+    border-radius: 4px;
+}
+
+#locationInput:focus {
+    outline: none;
+    border-color: var(--color-title);
+}
+
+.location-display {
+    color: var(--color-title);
+    font-size: 1.1rem;
+    font-weight: bold;
+    margin-top: 0.5rem;
+}
+
+/* Buttons */
+.btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-height: 44px;
+    font-family: inherit;
+}
+
+.btn-primary {
+    background-color: var(--color-title);
+    color: var(--color-bg);
+}
+
+.btn-primary:hover {
+    background-color: #00cc00;
+    transform: translateY(-1px);
+}
+
+.btn-secondary {
+    background-color: var(--color-default);
+    color: var(--color-bg);
+}
+
+.btn-secondary:hover {
+    background-color: #00b8b8;
+    transform: translateY(-1px);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+/* Mode Selector */
+.mode-selector {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.mode-btn {
+    padding: 0.75rem;
+    background-color: var(--color-bg-secondary);
+    border: 2px solid var(--color-default);
+    color: var(--color-default);
+    border-radius: 4px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-height: 44px;
+    font-family: inherit;
+}
+
+.mode-btn:hover {
+    background-color: var(--color-default);
+    color: var(--color-bg);
+    transform: translateY(-1px);
+}
+
+.mode-btn.active {
+    background-color: var(--color-title);
+    color: var(--color-bg);
+    border-color: var(--color-title);
+}
+
+/* Control Bar */
+.control-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+}
+
+.toggle-label input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+
+.last-update {
+    color: var(--color-info);
+    font-size: 0.9rem;
+    margin-left: auto;
+}
+
+/* Loading Indicator */
+.loading-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 2rem;
+    color: var(--color-default);
+}
+
+.loading-indicator.hidden {
+    display: none;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--color-bg-secondary);
+    border-top-color: var(--color-default);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Error Message */
+.error-message {
+    background-color: var(--color-alert);
+    color: var(--color-text);
+    padding: 1rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    font-weight: bold;
+}
+
+.error-message.hidden {
+    display: none;
+}
+
+/* Weather Content */
+.weather-content {
+    margin-top: 1rem;
+}
+
+/* Section Headers */
+.section-header {
+    color: var(--color-title);
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin: 1.5rem 0 1rem 0;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--color-title);
+}
+
+.section-header:first-child {
+    margin-top: 0;
+}
+
+/* Current Conditions */
+.current-conditions {
+    background-color: var(--color-bg-secondary);
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.condition-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.condition-label {
+    font-weight: bold;
+    color: var(--color-text-secondary);
+}
+
+.condition-value {
+    color: var(--color-text);
+}
+
+/* Temperature Colors */
+.temp-cold {
+    color: var(--color-cold);
+}
+
+.temp-hot {
+    color: var(--color-hot);
+}
+
+.temp-normal {
+    color: var(--color-text);
+}
+
+/* Wind Colors */
+.wind-calm {
+    color: var(--color-text);
+}
+
+.wind-light {
+    color: var(--color-warning);
+}
+
+.wind-moderate {
+    color: var(--color-alert);
+}
+
+.wind-strong {
+    color: var(--color-magenta);
+}
+
+/* Precipitation Colors */
+.precip-low {
+    color: var(--color-text);
+}
+
+.precip-medium {
+    color: var(--color-warning);
+}
+
+.precip-high {
+    color: var(--color-alert);
+}
+
+/* Humidity Colors */
+.humidity-low {
+    color: var(--color-cyan);
+}
+
+.humidity-normal {
+    color: var(--color-text);
+}
+
+.humidity-elevated {
+    color: var(--color-warning);
+}
+
+.humidity-high {
+    color: var(--color-alert);
+}
+
+/* Dew Point Colors */
+.dewpoint-low {
+    color: var(--color-cyan);
+}
+
+.dewpoint-normal {
+    color: var(--color-text);
+}
+
+.dewpoint-sticky {
+    color: var(--color-warning);
+}
+
+.dewpoint-oppressive {
+    color: var(--color-alert);
+}
+
+/* Forecast Text */
+.forecast-text {
+    color: var(--color-forecast);
+    line-height: 1.8;
+    margin-bottom: 1rem;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* Hourly Forecast */
+.hourly-forecast {
+    overflow-x: auto;
+    margin-bottom: 1rem;
+}
+
+.hourly-table {
+    width: 100%;
+    min-width: 600px;
+    border-collapse: collapse;
+}
+
+.hourly-table th,
+.hourly-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--color-bg-secondary);
+}
+
+.hourly-table th {
+    color: var(--color-title);
+    font-weight: bold;
+    position: sticky;
+    top: 0;
+    background-color: var(--color-bg);
+}
+
+/* Daily Forecast */
+.daily-forecast {
+    margin-bottom: 1rem;
+}
+
+.daily-item {
+    background-color: var(--color-bg-secondary);
+    padding: 1rem;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+}
+
+.daily-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+}
+
+.daily-details {
+    color: var(--color-forecast);
+    margin-top: 0.5rem;
+    padding-left: 1rem;
+}
+
+/* Rain Forecast */
+.rain-forecast {
+    overflow-x: auto;
+    margin-bottom: 1rem;
+}
+
+.rain-day {
+    margin-bottom: 1rem;
+    font-family: monospace;
+}
+
+.rain-day-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+}
+
+.rain-sparkline {
+    font-size: 1.2rem;
+    line-height: 1.5;
+    font-family: monospace;
+    white-space: nowrap;
+}
+
+/* Wind Forecast */
+.wind-forecast {
+    overflow-x: auto;
+    margin-bottom: 1rem;
+}
+
+.wind-day {
+    margin-bottom: 1rem;
+    font-family: monospace;
+}
+
+.wind-day-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+}
+
+.wind-glyphs {
+    font-size: 1.2rem;
+    line-height: 1.5;
+    font-family: monospace;
+    white-space: nowrap;
+}
+
+.wind-glyph-peak {
+    padding: 2px 4px;
+    border-radius: 2px;
+}
+
+/* Alerts */
+.weather-alerts {
+    margin-bottom: 1rem;
+}
+
+.alert-item {
+    background-color: var(--color-alert);
+    color: var(--color-text);
+    padding: 1rem;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+}
+
+.alert-title {
+    font-weight: bold;
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
+.alert-description {
+    margin-bottom: 0.5rem;
+    white-space: pre-wrap;
+}
+
+.alert-times {
+    font-size: 0.9rem;
+    color: var(--color-text-secondary);
+}
+
+/* Location Info */
+.location-info {
+    background-color: var(--color-bg-secondary);
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.location-info-item {
+    margin-bottom: 0.5rem;
+}
+
+.location-info-link {
+    color: var(--color-info);
+    text-decoration: none;
+    margin-right: 1rem;
+}
+
+.location-info-link:hover {
+    text-decoration: underline;
+}
+
+/* Update Notification */
+.update-notification {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    background-color: var(--color-title);
+    color: var(--color-bg);
+    padding: 1rem;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+}
+
+.update-notification.hidden {
+    display: none;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    header h1 {
+        font-size: 1.5rem;
+    }
+
+    .location-input-container {
+        flex-direction: column;
+    }
+
+    #locationInput {
+        width: 100%;
+    }
+
+    .mode-selector {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .control-bar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .last-update {
+        margin-left: 0;
+    }
+
+    .hourly-table {
+        font-size: 0.9rem;
+    }
+
+    .update-notification {
+        left: 1rem;
+        right: 1rem;
+        bottom: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    main {
+        padding: 0.5rem;
+    }
+
+    .mode-selector {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .current-conditions,
+    .location-info {
+        padding: 1rem;
+    }
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--color-bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--color-default);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--color-title);
+}
+

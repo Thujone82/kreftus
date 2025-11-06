@@ -1,0 +1,103 @@
+# Forecast Web App
+
+A Progressive Web App (PWA) version of the PowerShell GetForecast script, providing detailed weather information using the National Weather Service API.
+
+## Features
+
+- **No API Key Required**: Uses free National Weather Service API
+- **Multiple Display Modes**: Full, Terse, Hourly, Daily, Rain, and Wind modes
+- **PWA Support**: Installable as a web app with offline support
+- **Auto-Update**: Automatically detects app updates via manifest version checking
+- **Responsive Design**: Works on all screen sizes and aspect ratios
+- **Location Detection**: Supports zip codes, "City, State", or automatic "here" detection
+- **Color-Coded Metrics**: Visual indicators for temperature, wind, precipitation, humidity, and dew point
+- **Weather Calculations**: Wind chill, heat index, sunrise/sunset, moon phase calculations
+
+## Setup
+
+1. **Add PWA Icons**: Create the following icon files in the `icons/` directory:
+   - `icon-192.png` (192x192 pixels)
+   - `icon-512.png` (512x512 pixels)
+
+2. **Deploy**: The app is a static web app and can be served from any web server.
+
+3. **HTTPS Required**: PWA features (service worker, installation) require HTTPS in production.
+
+## Usage
+
+1. Open `index.html` in a modern web browser
+2. Enter a location (zip code or "City, State") or click "Here" for automatic detection
+3. Select a display mode using the mode buttons
+4. Use the refresh button to manually update weather data
+5. Toggle auto-update to enable/disable automatic data refreshing (every 10 minutes)
+
+## Display Modes
+
+- **Full**: Complete weather information (current conditions, forecasts, hourly, 7-day, alerts, location info)
+- **Terse**: Current conditions + today's forecast + alerts summary
+- **Hourly**: 12-hour hourly forecast (scrollable to 48 hours)
+- **Daily**: Enhanced 7-day forecast with detailed forecasts
+- **Rain**: 96-hour rain likelihood sparklines (5 days max)
+- **Wind**: 96-hour wind direction glyphs (5 days max)
+
+## Auto-Update Mechanism
+
+The app automatically checks for updates by comparing the version in `manifest.json` with the cached version. When a new version is detected:
+
+1. The service worker detects the version change
+2. A notification appears to the user
+3. User can click "Reload" to get the new version
+
+To trigger an update, simply change the `version` field in `manifest.json` (e.g., from "1.0.0" to "1.0.1").
+
+## Technical Details
+
+- **APIs Used**:
+  - National Weather Service API (weather.gov)
+  - OpenStreetMap Nominatim API (geocoding)
+  - ip-api.com (IP-based geolocation fallback)
+  - Browser Geolocation API (automatic location detection)
+
+- **Technologies**:
+  - Vanilla JavaScript (no frameworks)
+  - HTML5
+  - CSS3 with CSS Variables
+  - Service Workers (PWA)
+  - IndexedDB (localStorage for preferences)
+
+- **Browser Support**:
+  - Modern browsers with Service Worker support
+  - Chrome, Firefox, Edge, Safari (latest versions)
+
+## Color Coding
+
+- **Temperature**: Blue (<33°F), Red (>89°F), White (normal)
+- **Wind Speed**: White (≤5mph), Yellow (6-9mph), Red (10-14mph), Magenta (≥15mph)
+- **Precipitation**: Red (>50%), Yellow (21-50%), White (≤20%)
+- **Humidity**: Cyan (<30%), White (30-60%), Yellow (61-70%), Red (>70%)
+- **Dew Point**: Cyan (<40°F), White (40-54°F), Yellow (55-64°F), Red (≥65°F)
+
+## File Structure
+
+```
+forecast/
+├── index.html          # Main HTML structure
+├── manifest.json       # PWA manifest with version
+├── service-worker.js   # Service worker for offline support
+├── css/
+│   └── style.css       # All styling
+├── js/
+│   ├── app.js          # Main application logic
+│   ├── api.js          # API integration
+│   ├── weather.js      # Weather data processing
+│   ├── display.js      # Display mode rendering
+│   └── utils.js        # Utility functions
+└── icons/
+    ├── icon-192.png    # PWA icon (192x192)
+    └── icon-512.png    # PWA icon (512x512)
+```
+
+## License
+
+Same as the parent project.
+

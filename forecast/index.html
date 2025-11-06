@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Weather forecast app using National Weather Service API">
+    <meta name="theme-color" content="#008B8B">
+    <title>Forecast</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" type="image/png" href="icons/icon-192.png">
+</head>
+<body>
+    <header>
+        <h1>Forecast</h1>
+    </header>
+
+    <main>
+        <!-- Location Input Section -->
+        <section class="location-section">
+            <div class="location-input-container">
+                <input type="text" id="locationInput" placeholder="Zip Code or City, State" autocomplete="off">
+                <button id="searchBtn" class="btn btn-primary">Search</button>
+                <button id="hereBtn" class="btn btn-secondary">Here</button>
+            </div>
+            <div id="locationDisplay" class="location-display"></div>
+        </section>
+
+        <!-- Mode Selector Buttons -->
+        <section class="mode-selector">
+            <button id="fullModeBtn" class="mode-btn active" data-mode="full">Full</button>
+            <button id="terseModeBtn" class="mode-btn" data-mode="terse">Terse</button>
+            <button id="hourlyModeBtn" class="mode-btn" data-mode="hourly">Hourly</button>
+            <button id="dailyModeBtn" class="mode-btn" data-mode="daily">Daily</button>
+            <button id="rainModeBtn" class="mode-btn" data-mode="rain">Rain</button>
+            <button id="windModeBtn" class="mode-btn" data-mode="wind">Wind</button>
+        </section>
+
+        <!-- Control Bar -->
+        <section class="control-bar">
+            <button id="refreshBtn" class="btn btn-secondary">Refresh</button>
+            <label class="toggle-label">
+                <input type="checkbox" id="autoUpdateToggle" checked>
+                <span>Auto-Update</span>
+            </label>
+            <span id="lastUpdate" class="last-update"></span>
+        </section>
+
+        <!-- Loading Indicator -->
+        <div id="loadingIndicator" class="loading-indicator hidden">
+            <div class="spinner"></div>
+            <span>Loading weather data...</span>
+        </div>
+
+        <!-- Error Message -->
+        <div id="errorMessage" class="error-message hidden"></div>
+
+        <!-- Main Content Area -->
+        <div id="weatherContent" class="weather-content"></div>
+
+        <!-- Update Notification -->
+        <div id="updateNotification" class="update-notification hidden">
+            <span>New version available!</span>
+            <button id="reloadBtn" class="btn btn-primary">Reload</button>
+        </div>
+    </main>
+
+    <script src="js/utils.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/weather.js"></script>
+    <script src="js/display.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
+

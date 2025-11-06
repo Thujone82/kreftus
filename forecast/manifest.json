@@ -1,0 +1,26 @@
+{
+  "name": "Forecast",
+  "short_name": "Forecast",
+  "description": "Weather forecast app using National Weather Service API",
+  "version": "1.0.0",
+  "start_url": "/forecast/",
+  "display": "standalone",
+  "background_color": "#1a1a1a",
+  "theme_color": "#008B8B",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
+
