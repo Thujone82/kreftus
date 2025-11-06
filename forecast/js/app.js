@@ -21,6 +21,7 @@ let elements = {};
 
 // Initialize DOM elements
 function initializeElements() {
+    console.log('Initializing DOM elements');
     elements = {
         locationInput: document.getElementById('locationInput'),
         searchBtn: document.getElementById('searchBtn'),
@@ -38,6 +39,12 @@ function initializeElements() {
         shareBtn: null // Will be created dynamically
     };
     
+    console.log('Elements initialized:', {
+        locationInput: !!elements.locationInput,
+        searchBtn: !!elements.searchBtn,
+        hereBtn: !!elements.hereBtn
+    });
+    
     // Verify critical elements exist
     if (!elements.locationInput || !elements.searchBtn || !elements.hereBtn) {
         console.error('Critical DOM elements not found');
@@ -49,13 +56,20 @@ function initializeElements() {
 
 // Initialize app
 async function init() {
+    console.log('init() called');
+    
     // Initialize DOM elements
     if (!initializeElements()) {
         console.error('Failed to initialize DOM elements');
         return;
     }
     
-    // Register service worker
+    // Set up event listeners FIRST - this is critical!
+    console.log('Setting up event listeners...');
+    setupEventListeners();
+    console.log('Event listeners set up');
+    
+    // Register service worker (non-blocking)
     if ('serviceWorker' in navigator) {
         try {
             const registration = await navigator.serviceWorker.register('/forecast/service-worker.js');
@@ -82,29 +96,7 @@ async function init() {
             setInterval(checkForUpdate, 300000); // Check every 5 minutes
         } catch (error) {
             console.error('Service Worker registration failed:', error);
-        }
-    }
-    
-    // Set up event listeners
-    setupEventListeners();
-    
-    // Check for URL query parameter
-    const urlParams = new URLSearchParams(window.location.search);
-    const locationParam = urlParams.get('location');
-    
-    if (locationParam) {
-        // Use location from URL
-        elements.locationInput.value = locationParam;
-        await loadWeatherData(locationParam);
-    } else {
-        // Check for stored location
-        const storedLocation = localStorage.getItem('forecastLocation');
-        if (storedLocation) {
-            elements.locationInput.value = storedLocation;
-        } else {
-            // Default to 'here' if no location specified
-            elements.locationInput.value = 'here';
-            await loadWeatherData('here');
+            // Don't block app initialization if service worker fails
         }
     }
     
@@ -116,6 +108,32 @@ async function init() {
             elements.autoUpdateToggle.checked = appState.autoUpdateEnabled;
         }
     }
+    
+    // Check for URL query parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const locationParam = urlParams.get('location');
+    
+    // Load initial weather data (don't block if it fails)
+    try {
+        if (locationParam) {
+            // Use location from URL
+            elements.locationInput.value = locationParam;
+            await loadWeatherData(locationParam);
+        } else {
+            // Check for stored location
+            const storedLocation = localStorage.getItem('forecastLocation');
+            if (storedLocation) {
+                elements.locationInput.value = storedLocation;
+            } else {
+                // Default to 'here' if no location specified
+                elements.locationInput.value = 'here';
+                await loadWeatherData('here');
+            }
+        }
+    } catch (error) {
+        console.error('Error loading initial weather data:', error);
+        // Don't block app - user can still search manually
+    }
 }
 
 // Set up event listeners
@@ -123,22 +141,33 @@ function setupEventListeners() {
     // Verify elements exist
     if (!elements.searchBtn || !elements.hereBtn || !elements.locationInput) {
         console.error('Required elements not found. Retrying...');
+        console.error('searchBtn:', elements.searchBtn);
+        console.error('hereBtn:', elements.hereBtn);
+        console.error('locationInput:', elements.locationInput);
         setTimeout(setupEventListeners, 100);
         return;
     }
     
+    console.log('Setting up event listeners');
+    
     // Location input
     elements.searchBtn.addEventListener('click', (e) => {
         e.preventDefault();
+        e.stopPropagation();
+        console.log('Search button clicked');
         handleSearch();
     });
     elements.hereBtn.addEventListener('click', (e) => {
         e.preventDefault();
+        e.stopPropagation();
+        console.log('Here button clicked');
         handleHere();
     });
     elements.locationInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
+            e.stopPropagation();
+            console.log('Enter key pressed');
             handleSearch();
         }
     });
@@ -185,7 +214,9 @@ function setupEventListeners() {
 
 // Handle search
 async function handleSearch() {
+    console.log('handleSearch called');
     const location = elements.locationInput.value.trim();
+    console.log('Location:', location);
     if (!location) {
         showError('Please enter a location');
         return;
@@ -198,6 +229,7 @@ async function handleSearch() {
 
 // Handle "here" button
 async function handleHere() {
+    console.log('handleHere called');
     elements.locationInput.value = 'here';
     localStorage.setItem('forecastLocation', 'here');
     updateURL('here');
