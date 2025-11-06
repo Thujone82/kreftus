@@ -403,25 +403,27 @@ main {
 .wind-grid {
     display: inline-block;
     border: 1px solid var(--color-bg-secondary);
-    padding: 2px 4px;
+    padding: 4px 4px;
     font-family: 'Courier New', monospace !important;
     font-size: 1rem;
     line-height: 1.2;
     vertical-align: middle;
     background-color: var(--color-bg);
-    width: 24em;
-    min-width: 24em;
-    max-width: 24em;
+    width: 30.625em;
+    min-width: 30.625em;
+    max-width: 30.625em;
     box-sizing: border-box;
     overflow: hidden;
+    letter-spacing: 0;
+    white-space: nowrap;
 }
 
 .rain-char,
 .wind-char {
     display: inline-block;
-    width: 1em;
-    min-width: 1em;
-    max-width: 1em;
+    width: 1.25em;
+    min-width: 1.25em;
+    max-width: 1.25em;
     text-align: center;
     font-family: 'Courier New', monospace !important;
     font-size: 1rem;
@@ -432,6 +434,9 @@ main {
     overflow: hidden;
     white-space: nowrap;
     flex-shrink: 0;
+    vertical-align: middle;
+    letter-spacing: 0;
+    position: relative;
 }
 
 .rain-sparkline,

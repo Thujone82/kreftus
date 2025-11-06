@@ -111,7 +111,7 @@ function displayForecastText(title, text) {
 }
 
 // Display hourly forecast
-function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12) {
+function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12, showNavigation = true) {
     const { hourly } = weather;
     const periods = hourly.periods;
     const totalHours = Math.min(periods.length, 48);
@@ -120,13 +120,16 @@ function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12)
     const cityName = truncateCityName(location.city, 20);
     let html = `<div class="section-header">${cityName} Hourly</div>`;
     
-    if (startIndex > 0) {
-        html += '<button class="hourly-nav-btn" data-action="scroll-up" style="color: yellow; margin-bottom: 0.5rem; background: none; border: none; cursor: pointer; text-decoration: underline; padding: 0;">↑ Previous hours available</button><br>';
+    // Only show navigation buttons if showNavigation is true (for hourly mode)
+    if (showNavigation) {
+        if (startIndex > 0) {
+            html += '<button class="hourly-nav-btn" data-action="scroll-up" style="color: yellow; margin-bottom: 0.5rem; background: none; border: none; cursor: pointer; text-decoration: underline; padding: 0;">↑ Previous hours available</button><br>';
+        }
+        if (endIndex < totalHours) {
+            html += '<button class="hourly-nav-btn" data-action="scroll-down" style="color: yellow; margin-bottom: 0.5rem; background: none; border: none; cursor: pointer; text-decoration: underline; padding: 0;">↓ More hours available</button>';
+        }
+        html += `<div style="color: cyan; margin-bottom: 1rem;">Showing hours ${startIndex + 1}-${endIndex} of ${totalHours}</div>`;
     }
-    if (endIndex < totalHours) {
-        html += '<button class="hourly-nav-btn" data-action="scroll-down" style="color: yellow; margin-bottom: 0.5rem; background: none; border: none; cursor: pointer; text-decoration: underline; padding: 0;">↓ More hours available</button>';
-    }
-    html += `<div style="color: cyan; margin-bottom: 1rem;">Showing hours ${startIndex + 1}-${endIndex} of ${totalHours}</div>`;
     
     html += '<div class="hourly-forecast">';
     html += '<table class="hourly-table">';
@@ -516,7 +519,7 @@ function displayFullWeatherReport(weather, location) {
     if (weather.forecast.tomorrow.text) {
         html += displayForecastText(weather.forecast.tomorrow.name, weather.forecast.tomorrow.text);
     }
-    html += displayHourlyForecast(weather, location, 0, 12);
+    html += displayHourlyForecast(weather, location, 0, 12, false);
     html += displaySevenDayForecast(weather, location, false);
     html += displayWeatherAlerts(weather.alerts, true);
     html += displayLocationInfo(location);

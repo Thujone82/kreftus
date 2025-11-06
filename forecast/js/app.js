@@ -233,7 +233,7 @@ function setupEventListeners() {
     // Create share button
     createShareButton();
     
-    // Set up hourly navigation handlers (using event delegation)
+    // Set up hourly navigation handlers once (using event delegation)
     setupHourlyNavigation();
 }
 
@@ -327,9 +327,6 @@ function switchMode(mode) {
     
     // Render current mode
     renderCurrentMode();
-    
-    // Set up hourly navigation handlers after rendering
-    setupHourlyNavigation();
 }
 
 // Render current mode
@@ -365,38 +362,50 @@ function renderCurrentMode() {
     
     elements.weatherContent.innerHTML = html;
     
-    // Set up hourly navigation handlers after rendering
-    setupHourlyNavigation();
+    // Set up hourly navigation handlers after rendering (only if in hourly mode)
+    if (appState.currentMode === 'hourly') {
+        setupHourlyNavigation();
+    }
 }
 
 // Set up hourly navigation handlers (using event delegation)
 let hourlyNavHandler = null;
+let hourlyNavHandlerAttached = false;
 
 function setupHourlyNavigation() {
-    // Remove existing handler if any
-    if (hourlyNavHandler) {
-        elements.weatherContent.removeEventListener('click', hourlyNavHandler);
+    // Only attach handler once
+    if (hourlyNavHandlerAttached) {
+        return;
     }
     
-    // Create new handler for hourly navigation buttons
+    // Create handler for hourly navigation buttons
     hourlyNavHandler = (e) => {
+        // Check if clicked element or its parent is a navigation button
         const button = e.target.closest('.hourly-nav-btn');
         if (!button) return;
         
         e.preventDefault();
         e.stopPropagation();
         
+        console.log('Hourly navigation button clicked:', button.dataset.action);
+        
         const action = button.dataset.action;
-        if (!appState.weatherData || !appState.weatherData.hourly) return;
+        if (!appState.weatherData || !appState.weatherData.hourly) {
+            console.error('No weather data available');
+            return;
+        }
         
         const { hourly } = appState.weatherData;
         const periods = hourly.periods;
         const totalHours = Math.min(periods.length, 48);
         const maxHours = 12;
         
+        console.log('Current scroll index:', appState.hourlyScrollIndex, 'Total hours:', totalHours);
+        
         if (action === 'scroll-up') {
             // Scroll up by 12 hours
             const newIndex = Math.max(0, appState.hourlyScrollIndex - maxHours);
+            console.log('Scrolling up to index:', newIndex);
             appState.hourlyScrollIndex = newIndex;
             renderCurrentMode();
         } else if (action === 'scroll-down') {
@@ -405,6 +414,7 @@ function setupHourlyNavigation() {
                 totalHours - maxHours,
                 appState.hourlyScrollIndex + maxHours
             );
+            console.log('Scrolling down to index:', newIndex);
             appState.hourlyScrollIndex = newIndex;
             renderCurrentMode();
         }
@@ -413,6 +423,8 @@ function setupHourlyNavigation() {
     // Add event listener using event delegation
     if (elements.weatherContent) {
         elements.weatherContent.addEventListener('click', hourlyNavHandler);
+        hourlyNavHandlerAttached = true;
+        console.log('Hourly navigation handler attached');
     }
 }
 
