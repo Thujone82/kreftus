@@ -362,7 +362,7 @@ function displayRainForecast(weather, location) {
                             maxRainPercent <= 80 ? "precip-medium" : "precip-high";
         
         html += '<div class="rain-day">';
-        html += `${dayName} <span class="${maxRainColor}">${maxRainPercent < 10 ? ' ' : ''}${maxRainPercent}%</span> `;
+        html += `${dayName} <span class="rain-percent ${maxRainColor}">${maxRainPercent < 10 ? ' ' : ''}${maxRainPercent}%</span> `;
         html += '<span class="rain-grid">';
         
         // Build sparkline for 24 hours (on same line)
@@ -422,7 +422,7 @@ function displayWindForecast(weather, location) {
                             maxWindSpeed <= 14 ? "wind-moderate" : "wind-strong";
         
         html += '<div class="wind-day">';
-        html += `${dayName} <span class="${maxWindColor}">${maxWindSpeed < 10 ? ' ' : ''}${maxWindSpeed}mph</span> `;
+        html += `${dayName} <span class="wind-speed ${maxWindColor}">${maxWindSpeed < 10 ? ' ' : ''}${maxWindSpeed}mph</span> `;
         html += '<span class="wind-grid">';
         
         // Build wind glyphs for 24 hours (on same line)

@@ -28,7 +28,7 @@ body {
     font-family: 'Courier New', monospace, sans-serif;
     background-color: var(--color-bg);
     color: var(--color-text);
-    line-height: 1.6;
+    line-height: 1.4;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -49,7 +49,7 @@ header h1 {
 
 main {
     flex: 1;
-    padding: 1rem;
+    padding: 0.75rem;
     max-width: 1400px;
     margin: 0 auto;
     width: 100%;
@@ -57,7 +57,7 @@ main {
 
 /* Location Section */
 .location-section {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 .location-input-container {
@@ -241,13 +241,14 @@ main {
     color: var(--color-title);
     font-size: 1.5rem;
     font-weight: bold;
-    margin: 1.5rem 0 1rem 0;
-    padding-bottom: 0.5rem;
+    margin: 0.75rem 0 0.5rem 0;
+    padding-bottom: 0.25rem;
     border-bottom: 2px solid var(--color-title);
 }
 
 .section-header:first-child {
     margin-top: 0;
+    margin-bottom: 0.5rem;
 }
 
 /* Current Conditions */
@@ -355,8 +356,8 @@ main {
 /* Forecast Text */
 .forecast-text {
     color: var(--color-forecast);
-    line-height: 1.8;
-    margin-bottom: 1rem;
+    line-height: 1.5;
+    margin-bottom: 0.75rem;
     white-space: pre-wrap;
     word-wrap: break-word;
 }
@@ -390,8 +391,8 @@ main {
 .wind-day {
     font-family: 'Courier New', monospace !important;
     white-space: pre !important;
-    margin-bottom: 0.5rem;
-    line-height: 1.4;
+    margin-bottom: 0.25rem;
+    line-height: 1.2;
 }
 
 .rain-day-header,
@@ -403,7 +404,7 @@ main {
 .wind-grid {
     display: inline-block;
     border: 1px solid var(--color-bg-secondary);
-    padding: 4px 4px;
+    padding: 3px 4px;
     font-family: 'Courier New', monospace !important;
     font-size: 1rem;
     line-height: 1.2;
@@ -453,11 +454,12 @@ main {
     width: 100%;
     min-width: 600px;
     border-collapse: collapse;
+    font-size: 0.9rem;
 }
 
 .hourly-table th,
 .hourly-table td {
-    padding: 0.75rem;
+    padding: 0.5rem 0.4rem;
     text-align: left;
     border-bottom: 1px solid var(--color-bg-secondary);
 }
@@ -634,6 +636,10 @@ main {
         font-size: 1.5rem;
     }
 
+    main {
+        padding: 0.5rem;
+    }
+
     .location-input-container {
         flex-direction: column;
     }
@@ -647,16 +653,52 @@ main {
     }
 
     .control-bar {
-        flex-direction: column;
-        align-items: flex-start;
+        flex-direction: row;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
     }
 
     .last-update {
-        margin-left: 0;
+        margin-left: auto;
+        font-size: 0.8rem;
+    }
+
+    .control-bar .btn {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.9rem;
     }
 
     .hourly-table {
-        font-size: 0.9rem;
+        font-size: 0.8rem;
+        min-width: 100%;
+    }
+
+    .hourly-table th,
+    .hourly-table td {
+        padding: 0.4rem 0.3rem;
+    }
+
+    .section-header {
+        font-size: 1.2rem;
+        margin-bottom: 0.4rem;
+    }
+
+    .rain-grid,
+    .wind-grid {
+        display: block;
+        width: 100%;
+        min-width: unset;
+        max-width: 100%;
+        font-size: 0.85rem;
+    }
+
+    .rain-char,
+    .wind-char {
+        width: calc(100% / 24);
+        min-width: unset;
+        max-width: unset;
+        font-size: 0.85rem;
     }
 
     .update-notification {
@@ -668,17 +710,56 @@ main {
 
 @media (max-width: 480px) {
     main {
-        padding: 0.5rem;
+        padding: 0.4rem;
     }
 
     .mode-selector {
         grid-template-columns: repeat(2, 1fr);
     }
 
+    .control-bar .btn {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.85rem;
+    }
+
+    .last-update {
+        font-size: 0.75rem;
+    }
+
     .current-conditions,
     .location-info {
-        padding: 1rem;
+        padding: 0.75rem;
     }
+
+    .hourly-table {
+        font-size: 0.75rem;
+    }
+
+    .hourly-table th,
+    .hourly-table td {
+        padding: 0.3rem 0.2rem;
+    }
+
+    .section-header {
+        font-size: 1.1rem;
+        margin-bottom: 0.3rem;
+    }
+
+    .rain-day,
+    .wind-day {
+        margin-bottom: 0.2rem;
+    }
+
+    .rain-grid,
+    .wind-grid {
+        padding: 2px 3px;
+        font-size: 0.8rem;
+        display: block;
+        width: 100%;
+        min-width: unset;
+        max-width: 100%;
+    }
+
 }
 
 /* Scrollbar Styling */
