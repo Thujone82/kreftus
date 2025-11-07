@@ -1,5 +1,5 @@
 // Cache names - will be updated based on manifest version
-let CACHE_NAME = 'forecast-v1.0.0';
+let CACHE_NAME = 'forecast-v1.0.0-110625@1710';
 let STATIC_CACHE = 'forecast-static-v1.0.0';
 let DATA_CACHE = 'forecast-data-v1.0.0';
 

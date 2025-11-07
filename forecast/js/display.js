@@ -262,7 +262,7 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
             }
             html += ` <span class="${windColor}">${windDisplay} ${period.windDirection}</span>`;
             if (precipProb > 0) {
-                html += ` <span class="${getPrecipColor(precipProb)}">(${precipProb}%☔️)</span>`;
+                html += ` <span class="${getPrecipColor(precipProb)}">${precipProb}%☔️</span>`;
             }
             html += '</div>';
             
@@ -304,9 +304,9 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
             if (nightTemp) {
                 html += ` <span class="${getTempColor(nightTemp)}">L:${nightTemp}°F</span>`;
             }
-            html += ` - ${shortForecast}`;
+            html += ` ${shortForecast}`;
             if (precipProb > 0) {
-                html += ` <span class="${getPrecipColor(precipProb)}">(${precipProb}%☔️)</span>`;
+                html += ` <span class="${getPrecipColor(precipProb)}">${precipProb}%☔️</span>`;
             }
             html += '</div>';
         }
