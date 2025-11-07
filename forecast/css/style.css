@@ -540,7 +540,7 @@ main {
     flex-direction: row;
     flex-wrap: wrap;
     gap: 0.5rem;
-    align-items: center;
+    align-items: flex-start;
 }
 
 .daily-header {
@@ -553,23 +553,30 @@ main {
 
 .daily-temp-row {
     font-weight: bold;
-    display: inline-block;
+    display: flex;
+    align-items: center;
     margin-right: 0.5rem;
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .daily-info-row {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 0.5rem;
-    flex-wrap: nowrap; /* Only wrap if content doesn't fit */
+    flex-wrap: nowrap; /* Keep on one line if possible */
     font-size: 0.95rem;
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .daily-details {
     color: var(--color-forecast);
+    flex-basis: 100%; /* Force to new line */
     margin-top: 0.25rem;
     padding-left: 0.75rem;
     line-height: 1.4;
+    width: 100%;
 }
 
 /* Rain Forecast */
@@ -768,16 +775,18 @@ main {
     }
 
     .daily-temp-row {
-        display: inline-block;
-        margin-bottom: 0;
-        margin-right: 0.5rem;
+        display: block;
+        margin-bottom: 0.25rem;
+        width: 100%;
     }
 
     .daily-info-row {
-        display: inline-flex;
+        display: flex;
         flex-wrap: wrap; /* Allow wrapping only when needed on narrow screens */
         font-size: 0.9rem;
         line-height: 1.4;
+        width: 100%;
+        margin-bottom: 0.25rem;
     }
 
     .control-bar {
@@ -920,17 +929,19 @@ main {
     }
 
     .daily-temp-row {
-        display: inline-block;
-        margin-bottom: 0;
-        margin-right: 0.4rem;
+        display: block;
+        margin-bottom: 0.25rem;
+        width: 100%;
         font-size: 0.95rem;
     }
 
     .daily-info-row {
-        display: inline-flex;
+        display: flex;
         flex-wrap: wrap; /* Allow wrapping only when needed on very narrow screens */
         font-size: 0.85rem;
         line-height: 1.4;
+        width: 100%;
+        margin-bottom: 0.25rem;
     }
 
     .current-conditions,
