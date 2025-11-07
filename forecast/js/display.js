@@ -256,11 +256,15 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
                 }
             }
             
-            html += `<div class="daily-header">${dayName}: <span class="${getTempColor(temp)}">H:${temp}°F</span>${windChillHeatIndex}`;
+            // Temperature row
+            html += `<div class="daily-temp-row">${dayName}: <span class="${getTempColor(temp)}">H:${temp}°F</span>${windChillHeatIndex}`;
             if (nightTemp) {
                 html += ` <span class="${getTempColor(nightTemp)}">L:${nightTemp}°F</span>`;
             }
-            html += ` <span class="${windColor}">${windDisplay} ${period.windDirection}</span>`;
+            html += '</div>';
+            
+            // Additional info row
+            html += `<div class="daily-info-row"><span class="${windColor}">${windDisplay} ${period.windDirection}</span>`;
             if (precipProb > 0) {
                 html += ` <span class="${getPrecipColor(precipProb)}">${precipProb}%☔️</span>`;
             }
@@ -300,11 +304,15 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
             }
         } else {
             // Standard mode
-            html += `<div class="daily-header">${dayName}: ${periodIcon} <span class="${getTempColor(temp)}">H:${temp}°F</span>`;
+            // Temperature row
+            html += `<div class="daily-temp-row">${dayName}: ${periodIcon} <span class="${getTempColor(temp)}">H:${temp}°F</span>`;
             if (nightTemp) {
                 html += ` <span class="${getTempColor(nightTemp)}">L:${nightTemp}°F</span>`;
             }
-            html += ` ${shortForecast}`;
+            html += '</div>';
+            
+            // Additional info row
+            html += `<div class="daily-info-row">${shortForecast}`;
             if (precipProb > 0) {
                 html += ` <span class="${getPrecipColor(precipProb)}">${precipProb}%☔️</span>`;
             }

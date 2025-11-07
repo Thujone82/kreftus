@@ -507,6 +507,19 @@ main {
     font-weight: bold;
 }
 
+.daily-temp-row {
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+}
+
+.daily-info-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    font-size: 0.95rem;
+}
+
 .daily-details {
     color: var(--color-forecast);
     margin-top: 0.5rem;
@@ -685,6 +698,21 @@ main {
         min-height: 36px;
     }
 
+    .daily-item {
+        padding: 0.75rem;
+    }
+
+    .daily-temp-row {
+        display: block;
+        margin-bottom: 0.4rem;
+    }
+
+    .daily-info-row {
+        display: block;
+        font-size: 0.9rem;
+        line-height: 1.4;
+    }
+
     .control-bar {
         flex-direction: row;
         align-items: center;
@@ -782,6 +810,23 @@ main {
 
     .last-update {
         font-size: 0.75rem;
+    }
+
+    .daily-item {
+        padding: 0.6rem;
+        margin-bottom: 0.4rem;
+    }
+
+    .daily-temp-row {
+        display: block;
+        margin-bottom: 0.3rem;
+        font-size: 0.95rem;
+    }
+
+    .daily-info-row {
+        display: block;
+        font-size: 0.85rem;
+        line-height: 1.4;
     }
 
     .current-conditions,
