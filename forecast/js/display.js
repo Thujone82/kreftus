@@ -371,21 +371,31 @@ function displayRainForecast(weather, location) {
         
         html += '<div class="rain-day">';
         html += `${dayName} <span class="rain-percent ${maxRainColor}">${maxRainPercent < 10 ? ' ' : ''}${maxRainPercent}%</span> `;
-        html += '<span class="rain-grid">';
+        html += '<div class="rain-grid">';
         
-        // Build sparkline for 24 hours (on same line)
+        // Build CSS Grid with colored blocks for 24 hours
         for (let hour = 0; hour < 24; hour++) {
             if (dayData[hour]) {
                 const period = dayData[hour];
                 const rainPercent = period.probabilityOfPrecipitation?.value || 0;
-                const sparklineData = getRainSparkline(rainPercent);
-                html += `<span class="rain-char" style="color: ${sparklineData.color};">${sparklineData.char}</span>`;
+                
+                // Create block with background color based on percentage
+                if (rainPercent === 0) {
+                    // Empty space for 0%
+                    html += '<div class="rain-block rain-block-empty"></div>';
+                } else {
+                    // Colored block with gradient - top 40% background, bottom percentage% filled
+                    const fillPercent = 100 - rainPercent; // Top portion that's transparent
+                    const blockColor = getRainBlockColor(rainPercent);
+                    html += `<div class="rain-block" style="background: linear-gradient(to bottom, transparent ${fillPercent}%, ${blockColor} ${fillPercent}%);"></div>`;
+                }
             } else {
-                html += '<span class="rain-char"> </span>';
+                // Empty space for missing data
+                html += '<div class="rain-block rain-block-empty"></div>';
             }
         }
         
-        html += '</span></div>';
+        html += '</div></div>';
         dayCount++;
     }
     

@@ -296,6 +296,16 @@ function getRainSparkline(rainPercent) {
     return { char: "▇", color: "red" };
 }
 
+// Get background color for rain block based on percentage
+function getRainBlockColor(rainPercent) {
+    if (rainPercent === 0) return "transparent";
+    if (rainPercent <= 10) return "#ffffff"; // white
+    if (rainPercent <= 33) return "#00ffff"; // cyan
+    if (rainPercent <= 44) return "#00ff00"; // green
+    if (rainPercent <= 80) return "#ffff00"; // yellow
+    return "#ff0000"; // red
+}
+
 // Get wind direction glyph and color
 function getWindGlyph(windDirection, windSpeed) {
     const directionMap = {
