@@ -284,8 +284,9 @@ async function loadWeatherData(location) {
         appState.lastFetchTime = new Date();
         appState.hourlyScrollIndex = 0;
         
-        // Update location display
-        elements.locationDisplay.textContent = `${weatherData.location.city}, ${weatherData.location.state}`;
+        // Update location in input field
+        const locationText = `${weatherData.location.city}, ${weatherData.location.state}`;
+        elements.locationInput.value = locationText;
         
         // Update URL if location changed (preserve mode)
         if (location && location.toLowerCase() !== 'here') {
