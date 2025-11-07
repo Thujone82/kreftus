@@ -25,7 +25,6 @@ function initializeElements() {
     elements = {
         locationInput: document.getElementById('locationInput'),
         searchBtn: document.getElementById('searchBtn'),
-        hereBtn: document.getElementById('hereBtn'),
         locationDisplay: document.getElementById('locationDisplay'),
         modeButtons: document.querySelectorAll('.mode-btn'),
         refreshBtn: document.getElementById('refreshBtn'),
@@ -41,12 +40,11 @@ function initializeElements() {
     
     console.log('Elements initialized:', {
         locationInput: !!elements.locationInput,
-        searchBtn: !!elements.searchBtn,
-        hereBtn: !!elements.hereBtn
+        searchBtn: !!elements.searchBtn
     });
     
     // Verify critical elements exist
-    if (!elements.locationInput || !elements.searchBtn || !elements.hereBtn) {
+    if (!elements.locationInput || !elements.searchBtn) {
         console.error('Critical DOM elements not found');
         return false;
     }
@@ -144,8 +142,9 @@ async function init() {
         } else {
             // Check for stored location
             const storedLocation = localStorage.getItem('forecastLocation');
-            if (storedLocation) {
+            if (storedLocation && storedLocation.trim() !== '') {
                 elements.locationInput.value = storedLocation;
+                await loadWeatherData(storedLocation);
             } else {
                 // Default to 'here' if no location specified
                 elements.locationInput.value = 'here';
@@ -161,10 +160,9 @@ async function init() {
 // Set up event listeners
 function setupEventListeners() {
     // Verify elements exist
-    if (!elements.searchBtn || !elements.hereBtn || !elements.locationInput) {
+    if (!elements.searchBtn || !elements.locationInput) {
         console.error('Required elements not found. Retrying...');
         console.error('searchBtn:', elements.searchBtn);
-        console.error('hereBtn:', elements.hereBtn);
         console.error('locationInput:', elements.locationInput);
         setTimeout(setupEventListeners, 100);
         return;
@@ -176,14 +174,8 @@ function setupEventListeners() {
     elements.searchBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        console.log('Search button clicked');
+        console.log('Load button clicked');
         handleSearch();
-    });
-    elements.hereBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        console.log('Here button clicked');
-        handleHere();
     });
     elements.locationInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
@@ -244,8 +236,14 @@ function setupEventListeners() {
 // Handle search
 async function handleSearch() {
     console.log('handleSearch called');
-    const location = elements.locationInput.value.trim();
+    let location = elements.locationInput.value.trim();
     console.log('Location:', location);
+    
+    // Handle "here" text shortcut
+    if (location.toLowerCase() === 'here') {
+        location = 'here';
+    }
+    
     if (!location) {
         showError('Please enter a location');
         return;
@@ -254,15 +252,6 @@ async function handleSearch() {
     localStorage.setItem('forecastLocation', location);
     updateURL(location, appState.currentMode);
     await loadWeatherData(location);
-}
-
-// Handle "here" button
-async function handleHere() {
-    console.log('handleHere called');
-    elements.locationInput.value = 'here';
-    localStorage.setItem('forecastLocation', 'here');
-    updateURL('here', appState.currentMode);
-    await loadWeatherData('here');
 }
 
 // Load weather data

@@ -5,7 +5,7 @@
     --color-alert: #ff0000; /* Red */
     --color-title: #00ff00; /* Green */
     --color-info: #0080ff; /* Blue */
-    --color-forecast: #808080; /* Gray */
+    --color-forecast: #b0b0b0; /* Light Gray - enhanced readability */
     --color-bg: #1a1a1a; /* Dark background */
     --color-bg-secondary: #2a2a2a;
     --color-text: #ffffff;
@@ -36,13 +36,20 @@ body {
 
 header {
     background-color: var(--color-bg-secondary);
-    padding: 0.5rem 1rem; /* Reduced vertical padding to maintain header height */
-    text-align: center;
+    padding: 0.5rem 1rem;
     border-bottom: 2px solid var(--color-title);
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    min-height: 4rem;
+    gap: 1rem;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    flex: 1;
     justify-content: center;
-    min-height: 4rem; /* Ensure consistent height with icon */
 }
 
 header h1 {
@@ -57,10 +64,42 @@ header h1 {
 }
 
 .header-icon {
-    height: 3rem; /* 50% taller than 3rem text */
+    height: 3rem;
     width: auto;
     vertical-align: middle;
     display: inline-block;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 0 0 33%;
+    justify-content: flex-end;
+}
+
+#locationInput {
+    flex: 1;
+    min-width: 0;
+    padding: 0.5rem 0.75rem;
+    background-color: var(--color-bg);
+    border: 1px solid var(--color-default);
+    color: var(--color-text);
+    font-size: 0.9rem;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+#locationInput:focus {
+    outline: none;
+    border-color: var(--color-title);
+}
+
+#searchBtn {
+    flex: 0 0 auto;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    min-height: auto;
 }
 
 main {
@@ -71,43 +110,7 @@ main {
     width: 100%;
 }
 
-/* Location Section */
-.location-section {
-    margin-bottom: 1rem;
-}
-
-.location-input-container {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-    flex-wrap: nowrap;
-    align-items: stretch;
-}
-
-#locationInput {
-    flex: 2 1 50%;
-    min-width: 0;
-    padding: 0.75rem;
-    background-color: var(--color-bg-secondary);
-    border: 1px solid var(--color-default);
-    color: var(--color-text);
-    font-size: 1rem;
-    border-radius: 4px;
-    box-sizing: border-box;
-}
-
-#searchBtn,
-#hereBtn {
-    flex: 1 1 25%;
-    max-width: 25%;
-    box-sizing: border-box;
-}
-
-#locationInput:focus {
-    outline: none;
-    border-color: var(--color-title);
-}
-
+/* Location Section - removed, now in header */
 .location-display {
     display: none; /* Hidden - location now shown in input field */
 }
@@ -269,30 +272,31 @@ main {
     color: var(--color-title);
     font-size: 1.5rem;
     font-weight: bold;
-    margin: 0.75rem 0 0.5rem 0;
-    padding-bottom: 0.25rem;
+    margin: 0.5rem 0 0.25rem 0;
+    padding-bottom: 0.15rem;
     border-bottom: 2px solid var(--color-title);
 }
 
 .section-header:first-child {
     margin-top: 0;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
 }
 
 /* Current Conditions */
 .current-conditions {
     background-color: var(--color-bg-secondary);
-    padding: 1.5rem;
+    padding: 0.75rem 1rem;
     border-radius: 8px;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
 }
 
 .condition-row {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
     flex-wrap: wrap;
+    line-height: 1.3;
 }
 
 .condition-label {
@@ -384,8 +388,8 @@ main {
 /* Forecast Text */
 .forecast-text {
     color: var(--color-forecast);
-    line-height: 1.5;
-    margin-bottom: 0.75rem;
+    line-height: 1.4;
+    margin-bottom: 0.5rem;
     white-space: pre-wrap;
     word-wrap: break-word;
 }
@@ -510,6 +514,11 @@ main {
     padding: 1rem;
     border-radius: 4px;
     margin-bottom: 0.5rem;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
 }
 
 .daily-header {
@@ -522,21 +531,23 @@ main {
 
 .daily-temp-row {
     font-weight: bold;
-    margin-bottom: 0.25rem;
+    display: inline-block;
+    margin-right: 0.5rem;
 }
 
 .daily-info-row {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap; /* Only wrap if content doesn't fit */
     font-size: 0.95rem;
 }
 
 .daily-details {
     color: var(--color-forecast);
-    margin-top: 0.5rem;
-    padding-left: 1rem;
+    margin-top: 0.25rem;
+    padding-left: 0.75rem;
+    line-height: 1.4;
 }
 
 /* Rain Forecast */
@@ -632,13 +643,14 @@ main {
 /* Location Info */
 .location-info {
     background-color: var(--color-bg-secondary);
-    padding: 1.5rem;
+    padding: 0.75rem 1rem;
     border-radius: 8px;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
 }
 
 .location-info-item {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
+    line-height: 1.3;
 }
 
 .location-info-link {
@@ -685,22 +697,30 @@ main {
         padding: 0.5rem;
     }
 
-    .location-input-container {
+    header {
         flex-direction: row;
-        flex-wrap: nowrap;
+        justify-content: space-between;
+        padding-right: 1.5rem; /* Add right padding to prevent Load button from disappearing under scrollbar */
+    }
+
+    .header-left {
+        flex: 0 0 50%;
+        justify-content: flex-start;
+    }
+
+    .header-right {
+        flex: 0 0 50%;
+        justify-content: flex-end;
     }
 
     #locationInput {
-        flex: 2 1 50%;
-        min-width: 0;
+        font-size: 0.85rem;
+        padding: 0.4rem 0.6rem;
     }
 
-    #searchBtn,
-    #hereBtn {
-        flex: 1 1 25%;
-        max-width: 25%;
-        padding: 0.5rem 0.75rem;
-        font-size: 0.9rem;
+    #searchBtn {
+        padding: 0.4rem 0.75rem;
+        font-size: 0.85rem;
     }
 
     .mode-selector {
@@ -717,15 +737,20 @@ main {
 
     .daily-item {
         padding: 0.75rem;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 0.5rem;
     }
 
     .daily-temp-row {
-        display: block;
-        margin-bottom: 0.4rem;
+        display: inline-block;
+        margin-bottom: 0;
+        margin-right: 0.5rem;
     }
 
     .daily-info-row {
-        display: block;
+        display: inline-flex;
+        flex-wrap: wrap; /* Allow wrapping only when needed on narrow screens */
         font-size: 0.9rem;
         line-height: 1.4;
     }
@@ -804,19 +829,38 @@ main {
         min-height: 32px;
     }
 
-    #locationInput {
-        flex: 2 1 50%;
-        min-width: 0;
-        padding: 0.5rem;
-        font-size: 0.9rem;
+    header {
+        flex-direction: row;
+        justify-content: space-between;
+        padding: 0.4rem 1.5rem 0.4rem 0.75rem; /* Add right padding to prevent Load button from disappearing under scrollbar */
     }
 
-    #searchBtn,
-    #hereBtn {
-        flex: 1 1 25%;
-        max-width: 25%;
-        padding: 0.5rem 0.6rem;
-        font-size: 0.85rem;
+    .header-left {
+        flex: 0 0 50%;
+        justify-content: flex-start;
+    }
+
+    header h1 {
+        font-size: 2.25rem;
+    }
+
+    .header-icon {
+        height: 3rem;
+    }
+
+    .header-right {
+        flex: 0 0 50%;
+        justify-content: flex-end;
+    }
+
+    #locationInput {
+        font-size: 0.8rem;
+        padding: 0.35rem 0.5rem;
+    }
+
+    #searchBtn {
+        padding: 0.35rem 0.6rem;
+        font-size: 0.8rem;
     }
 
     .control-bar .btn {
@@ -832,23 +876,33 @@ main {
     .daily-item {
         padding: 0.6rem;
         margin-bottom: 0.4rem;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 0.4rem;
     }
 
     .daily-temp-row {
-        display: block;
-        margin-bottom: 0.3rem;
+        display: inline-block;
+        margin-bottom: 0;
+        margin-right: 0.4rem;
         font-size: 0.95rem;
     }
 
     .daily-info-row {
-        display: block;
+        display: inline-flex;
+        flex-wrap: wrap; /* Allow wrapping only when needed on very narrow screens */
         font-size: 0.85rem;
         line-height: 1.4;
     }
 
     .current-conditions,
     .location-info {
-        padding: 0.75rem;
+        padding: 0.5rem 0.75rem;
+    }
+
+    .condition-row {
+        margin-bottom: 0.2rem;
+        line-height: 1.25;
     }
 
     .hourly-table {

@@ -12,22 +12,19 @@
 </head>
 <body>
     <header>
-        <h1>
-            <img src="icons/icon-192.png" alt="Forecast Icon" class="header-icon">
-            Forecast
-        </h1>
+        <div class="header-left">
+            <h1>
+                <img src="icons/icon-192.png" alt="Forecast Icon" class="header-icon">
+                Forecast
+            </h1>
+        </div>
+        <div class="header-right">
+            <input type="text" id="locationInput" placeholder="Zip Code or City, State" autocomplete="off">
+            <button id="searchBtn" class="btn btn-primary">Load</button>
+        </div>
     </header>
 
     <main>
-        <!-- Location Input Section -->
-        <section class="location-section">
-            <div class="location-input-container">
-                <input type="text" id="locationInput" placeholder="Zip Code or City, State" autocomplete="off">
-                <button id="searchBtn" class="btn btn-primary">Search</button>
-                <button id="hereBtn" class="btn btn-secondary">Here</button>
-            </div>
-            <div id="locationDisplay" class="location-display"></div>
-        </section>
 
         <!-- Mode Selector Buttons -->
         <section class="mode-selector">

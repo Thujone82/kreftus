@@ -1,5 +1,5 @@
 // Cache names - will be updated based on manifest version
-let CACHE_NAME = 'forecast-v1.0.0-110625@1749';
+let CACHE_NAME = 'forecast-v1.0.0-110625@2150';
 let STATIC_CACHE = 'forecast-static-v1.0.0';
 let DATA_CACHE = 'forecast-data-v1.0.0';
 
@@ -98,8 +98,28 @@ self.addEventListener('fetch', (event) => {
                     });
                 })
         );
+    } else if (url.pathname.endsWith('.js') || url.pathname.endsWith('.html') || url.pathname.endsWith('.css')) {
+        // Handle JS, HTML, and CSS files with network-first strategy to ensure updates
+        event.respondWith(
+            fetch(request)
+                .then((response) => {
+                    // Clone the response
+                    const responseClone = response.clone();
+                    // Cache successful responses
+                    if (response.status === 200) {
+                        caches.open(STATIC_CACHE).then((cache) => {
+                            cache.put(request, responseClone);
+                        });
+                    }
+                    return response;
+                })
+                .catch(() => {
+                    // Network failed, try cache
+                    return caches.match(request);
+                })
+        );
     } else {
-        // Handle static assets with cache-first strategy
+        // Handle other static assets with cache-first strategy
         event.respondWith(
             caches.match(request).then((response) => {
                 return response || fetch(request);

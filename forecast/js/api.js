@@ -162,7 +162,7 @@ async function detectCurrentLocation() {
 // Detect location using IP address (fallback)
 async function detectLocationByIP() {
     try {
-        const response = await fetch("http://ip-api.com/json/");
+        const response = await fetch("https://ip-api.com/json/");
         if (!response.ok) {
             throw new Error("IP geolocation failed");
         }
