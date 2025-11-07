@@ -273,34 +273,19 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
             // Day and night detailed forecasts
             if (nightDetailedForecast) {
                 const dayForecastText = period.detailedForecast || "No detailed forecast available";
-                const wrappedDayForecast = wrapText(dayForecastText, 70);
                 
-                html += `<div class="daily-details">${periodIcon} Day: ${wrappedDayForecast[0]}`;
-                for (let i = 1; i < wrappedDayForecast.length; i++) {
-                    html += `<br>          ${wrappedDayForecast[i]}`;
-                }
-                html += '</div>';
+                html += `<div class="daily-details">${periodIcon} Day: ${dayForecastText}</div>`;
                 
                 const moonPhaseInfo = calculateMoonPhase(new Date());
-                const wrappedNightForecast = wrapText(nightDetailedForecast, 70);
                 
-                html += `<div class="daily-details">${moonPhaseInfo.emoji} Night: ${wrappedNightForecast[0]}`;
-                for (let i = 1; i < wrappedNightForecast.length; i++) {
-                    html += `<br>          ${wrappedNightForecast[i]}`;
-                }
-                html += '</div>';
+                html += `<div class="daily-details">${moonPhaseInfo.emoji} Night: ${nightDetailedForecast}</div>`;
             } else {
                 const currentHour = periodTime.getHours();
                 const isCurrentPeriodNight = (currentHour >= 18 || currentHour < 6);
                 const singlePeriodLabel = isCurrentPeriodNight ? `${calculateMoonPhase(new Date()).emoji} Night: ` : `${periodIcon} Day: `;
                 const singlePeriodText = period.detailedForecast || "No detailed forecast available";
-                const wrappedSingleForecast = wrapText(singlePeriodText, 70);
                 
-                html += `<div class="daily-details">${singlePeriodLabel}${wrappedSingleForecast[0]}`;
-                for (let i = 1; i < wrappedSingleForecast.length; i++) {
-                    html += `<br>          ${wrappedSingleForecast[i]}`;
-                }
-                html += '</div>';
+                html += `<div class="daily-details">${singlePeriodLabel}${singlePeriodText}</div>`;
             }
         } else {
             // Standard mode

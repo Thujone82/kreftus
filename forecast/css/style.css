@@ -582,6 +582,8 @@ main {
     padding-left: 0.75rem;
     line-height: 1.4;
     width: 100%;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 /* Rain Forecast */
