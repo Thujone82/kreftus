@@ -286,15 +286,12 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
             }
         } else {
             // Standard mode
-            // Temperature row
+            // Temperature and info row (combined)
             html += `<div class="daily-temp-row">${dayName}: ${periodIcon} <span class="${getTempColor(temp)}">H:${temp}°F</span>`;
             if (nightTemp) {
                 html += ` <span class="${getTempColor(nightTemp)}">L:${nightTemp}°F</span>`;
             }
-            html += '</div>';
-            
-            // Additional info row
-            html += `<div class="daily-info-row">${shortForecast}`;
+            html += ` ${shortForecast}`;
             if (precipProb > 0) {
                 html += ` <span class="${getPrecipColor(precipProb)}">${precipProb}%☔️</span>`;
             }
