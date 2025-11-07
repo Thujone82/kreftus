@@ -257,9 +257,9 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
             }
             
             // Temperature row
-            html += `<div class="daily-temp-row">${dayName}: <span class="${getTempColor(temp)}">H:${temp}°F</span>${windChillHeatIndex}`;
+            html += `<div class="daily-temp-row">${dayName}: <span class="${getTempColor(temp)}">H:${temp}°F</span>${windChillHeatIndex || ' '}`;
             if (nightTemp) {
-                html += ` <span class="${getTempColor(nightTemp)}">L:${nightTemp}°F</span>`;
+                html += `<span class="${getTempColor(nightTemp)}">L:${nightTemp}°F</span>`;
             }
             html += '</div>';
             
