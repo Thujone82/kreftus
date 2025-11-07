@@ -191,6 +191,10 @@ function setupEventListeners() {
             e.stopPropagation();
             console.log('Enter key pressed');
             handleSearch();
+            // Focus the search button after handling search
+            if (elements.searchBtn) {
+                elements.searchBtn.focus();
+            }
         }
     });
     
