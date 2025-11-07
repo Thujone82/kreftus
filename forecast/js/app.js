@@ -218,13 +218,28 @@ function setupEventListeners() {
         });
     }
     
-    // Update notification
-    if (elements.reloadBtn) {
-        elements.reloadBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            window.location.reload();
-        });
-    }
+        // Update notification
+        if (elements.reloadBtn) {
+            elements.reloadBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                // Clear all caches and reload
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    await Promise.all(
+                        cacheNames.map(cacheName => caches.delete(cacheName))
+                    );
+                }
+                // Unregister service worker to force update
+                if ('serviceWorker' in navigator) {
+                    const registration = await navigator.serviceWorker.getRegistration();
+                    if (registration) {
+                        await registration.unregister();
+                    }
+                }
+                // Reload the page
+                window.location.reload(true);
+            });
+        }
     
     // Create share button
     createShareButton();

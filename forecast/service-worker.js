@@ -1,4 +1,4 @@
-let CACHE_NAME = 'forecast-v1.0.0-110725@0743';
+let CACHE_NAME = 'forecast-v1.0.0-110725@0746';
 let STATIC_CACHE = 'forecast-static-v1.0.0';
 let DATA_CACHE = 'forecast-data-v1.0.0';
 
@@ -49,8 +49,11 @@ self.addEventListener('activate', (event) => {
             return caches.keys().then((cacheNames) => {
                 return Promise.all(
                     cacheNames.map((cacheName) => {
-                        if (!cacheName.startsWith('forecast-') || 
-                            (cacheName !== STATIC_CACHE && cacheName !== DATA_CACHE)) {
+                        // Delete all old caches that don't match current version
+                        if (cacheName.startsWith('forecast-') && 
+                            cacheName !== STATIC_CACHE && 
+                            cacheName !== DATA_CACHE) {
+                            console.log('Deleting old cache:', cacheName);
                             return caches.delete(cacheName);
                         }
                     })
@@ -97,10 +100,10 @@ self.addEventListener('fetch', (event) => {
                     });
                 })
         );
-    } else if (url.pathname.endsWith('.js') || url.pathname.endsWith('.html') || url.pathname.endsWith('.css')) {
-        // Handle JS, HTML, and CSS files with network-first strategy to ensure updates
+    } else if (url.pathname.endsWith('.js') || url.pathname.endsWith('.html') || url.pathname.endsWith('.css') || url.pathname.endsWith('.json')) {
+        // Handle JS, HTML, CSS, and JSON files with network-first strategy to ensure updates
         event.respondWith(
-            fetch(request)
+            fetch(request, { cache: 'no-cache' })
                 .then((response) => {
                     // Clone the response
                     const responseClone = response.clone();
