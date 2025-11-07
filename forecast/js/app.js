@@ -306,7 +306,18 @@ async function loadWeatherData(location) {
         setLoading(false);
     } catch (error) {
         setLoading(false);
-        showError(`Error loading weather data: ${error.message}`);
+        let errorMessage = error.message;
+        
+        // Provide more helpful error messages for location detection failures
+        if (errorMessage.includes('Unable to detect location') || errorMessage.includes('IP geolocation')) {
+            errorMessage = 'Unable to detect your location automatically. Please enter a zip code or city name (e.g., "97217" or "Portland, OR") in the search box above.';
+        } else if (errorMessage.includes('Network error') || errorMessage.includes('fetch')) {
+            errorMessage = 'Network error: Unable to connect to weather services. Please check your internet connection and try again.';
+        } else if (errorMessage.includes('Geocoding')) {
+            errorMessage = `Location not found: "${location}". Please try a different location (e.g., zip code or "City, State").`;
+        }
+        
+        showError(`Error loading weather data: ${errorMessage}`);
         console.error('Error loading weather data:', error);
     }
 }

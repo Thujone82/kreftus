@@ -122,14 +122,17 @@ async function detectCurrentLocation() {
     return new Promise((resolve, reject) => {
         if (!navigator.geolocation) {
             // Fallback to IP-based geolocation
+            console.log('Geolocation API not available, using IP-based geolocation');
             detectLocationByIP()
                 .then(resolve)
                 .catch(reject);
             return;
         }
         
+        console.log('Attempting browser geolocation...');
         navigator.geolocation.getCurrentPosition(
             async (position) => {
+                console.log('Geolocation successful:', position.coords);
                 const lat = position.coords.latitude;
                 const lon = position.coords.longitude;
                 
@@ -145,16 +148,25 @@ async function detectCurrentLocation() {
                     resolve({ lat, lon, city, state });
                 } catch (error) {
                     // If reverse geocoding fails, still return coordinates
+                    console.warn('Reverse geocoding failed, using coordinates only:', error);
                     resolve({ lat, lon, city: "Unknown", state: "US" });
                 }
             },
             (error) => {
                 // Geolocation denied or failed - fallback to IP-based
+                console.log('Geolocation failed, falling back to IP-based geolocation:', error.code, error.message);
                 detectLocationByIP()
                     .then(resolve)
-                    .catch(reject);
+                    .catch((ipError) => {
+                        console.error('IP geolocation also failed:', ipError);
+                        reject(ipError);
+                    });
             },
-            { timeout: 10000, maximumAge: 600000 }
+            { 
+                timeout: 10000, 
+                maximumAge: 600000,
+                enableHighAccuracy: false // Don't require high accuracy, faster fallback
+            }
         );
     });
 }
@@ -162,12 +174,22 @@ async function detectCurrentLocation() {
 // Detect location using IP address (fallback)
 async function detectLocationByIP() {
     try {
-        const response = await fetch("https://ip-api.com/json/");
+        console.log('Attempting IP-based geolocation...');
+        const response = await fetch("https://ip-api.com/json/", {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+        
         if (!response.ok) {
-            throw new Error("IP geolocation failed");
+            console.error('IP geolocation API returned error:', response.status, response.statusText);
+            throw new Error(`IP geolocation API error: ${response.status} ${response.statusText}`);
         }
         
         const data = await response.json();
+        console.log('IP geolocation response:', data);
+        
         if (data.status === "success") {
             return {
                 lat: data.lat,
@@ -176,10 +198,19 @@ async function detectLocationByIP() {
                 state: data.regionName
             };
         } else {
+            console.error('IP geolocation failed with status:', data.status, data.message);
             throw new Error(data.message || "IP geolocation failed");
         }
     } catch (error) {
-        throw new Error(`Unable to detect location: ${error.message}`);
+        console.error('IP geolocation error:', error);
+        // Re-throw with more context
+        if (error.message.includes('fetch')) {
+            throw new Error(`Network error: Unable to reach IP geolocation service. Please check your internet connection.`);
+        } else if (error.message.includes('CORS')) {
+            throw new Error(`CORS error: IP geolocation service is not accessible. Please try entering a location manually.`);
+        } else {
+            throw new Error(`Unable to detect location: ${error.message}`);
+        }
     }
 }
 
