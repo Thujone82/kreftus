@@ -66,6 +66,7 @@ The script first uses a geocoding service to determine the latitude and longitud
    - **[T]** - Switch to terse mode (current conditions + today's forecast)
    - **[R]** - Switch to rain forecast mode (sparklines)
    - **[W]** - Switch to wind forecast mode (direction glyphs)
+   - **[O]** - Switch to observations mode (historical weather data)
    - **[G]** - Refresh weather data (auto-refreshes every 10 minutes)
    - **[U]** - Toggle automatic updates on/off
    - **[B]** - Toggle control bar on/off
@@ -164,6 +165,14 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
   - Enters interactive mode after display (use -x to exit immediately).
   - Perfect for wind assessment and outdoor activity planning.
 
+- `-Observations` or `-o` [switch]
+  - Shows historical weather observations for the last 7 days.
+  - Displays daily aggregates including high/low temperatures, average and maximum wind speeds, wind direction, humidity, total precipitation, and general conditions.
+  - Includes moon phase information and windchill/heat index calculations when applicable.
+  - Only shows days that have actual observation data available.
+  - Enters interactive mode after display (use -x to exit immediately).
+  - Perfect for reviewing recent weather patterns and historical conditions.
+
 - `-NoAutoUpdate` or `-u` [switch]
   - Starts with automatic updates disabled.
   - Auto-updates are enabled by default (every 10 minutes).
@@ -241,15 +250,71 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 .\gf.ps1 -wind "Portland, OR"
 ```
 
-### Example 13: View help information
+### Example 13: Get historical observations
+```powershell
+.\gf.ps1 -o 97219
+```
+
+### Example 14: Get observations for city and state
+```powershell
+.\gf.ps1 -observations "Portland, OR"
+```
+
+### Example 15: View help information
 ```powershell
 .\gf.ps1 -Help
 ```
 
-### Example 14: Start with control bar hidden
+### Example 16: Start with control bar hidden
 ```powershell
 .\gf.ps1 -b "Portland, OR"
 ```
+
+## Observations Mode
+
+The observations mode (`-o` or `-observations`) provides historical weather data from the National Weather Service observation stations API. This mode displays daily aggregates of weather conditions for the last 7 days, showing only days that have actual observation data available.
+
+### Observations Mode Features:
+
+- **Historical Data:** Shows weather observations from the last 7 days
+- **Daily Aggregates:** Displays high/low temperatures, average and maximum wind speeds, wind direction, humidity, total precipitation, and general conditions
+- **Moon Phase Information:** Includes moon phase emoji and information for each day
+- **Windchill/Heat Index:** Calculates and displays windchill (≤50°F) and heat index (≥80°F) when applicable
+- **Data Filtering:** Only displays days that have actual observation data (skips days with no data)
+- **Color Coding:** Uses the same color coding rules as other modes (temperature, wind speed, etc.)
+- **Interactive Mode:** Enters interactive mode after display (use -x to exit immediately)
+
+### Observations Mode Usage:
+
+```powershell
+# Basic observations display
+.\gf.ps1 -o 97219
+
+# Observations for city/state
+.\gf.ps1 -observations "Portland, OR"
+
+# Observations with verbose output
+.\gf.ps1 -o 97219 -Verbose
+```
+
+### Observations Mode Display Format:
+
+Each day shows:
+- **Day Name and Date:** Day of week and date (e.g., "Thursday (11/06)")
+- **High/Low Temperatures:** Maximum and minimum temperatures for the day
+- **Wind Information:** Maximum wind speed (and average if different), with cardinal direction
+- **Precipitation:** Total precipitation for the day (if any)
+- **Humidity:** Average relative humidity percentage
+- **Conditions:** Most common weather condition description for the day
+- **Moon Phase:** Moon phase emoji and information
+
+### Observations Mode Use Cases:
+
+- **Weather Review:** Review recent weather patterns and conditions
+- **Historical Analysis:** Analyze weather trends over the past week
+- **Activity Planning:** Understand recent weather conditions for planning future activities
+- **Data Verification:** Verify forecast accuracy by comparing to actual observations
+- **Pattern Recognition:** Identify weather patterns and trends
 
 ## Interactive Mode
 
@@ -265,6 +330,7 @@ When you run the script by double-clicking it or from a non-terminal environment
     - **T** - Switch to terse mode (current conditions + today's forecast)
     - **R** - Switch to rain forecast mode (sparklines)
     - **W** - Switch to wind forecast mode (direction glyphs)
+    - **O** - Switch to observations mode (historical weather data)
     - **G** - Refresh weather data (auto-refreshes every 10 minutes)
     - **U** - Toggle automatic updates on/off
     - **F** - Return to full display (all information)
@@ -391,6 +457,8 @@ This mode is particularly useful for:
   - `/gridpoints/{office}/{gridX},{gridY}/forecast` - Get forecast data
   - `/gridpoints/{office}/{gridX},{gridY}/forecast/hourly` - Get hourly forecast
   - `/alerts/active` - Get active weather alerts
+  - `/points/{lat},{lon}/stations` - Get observation stations for a location
+  - `/stations/{stationId}/observations` - Get historical observations from a station
 
 ## Features Removed from Original OpenWeatherMap Version
 Due to differences in the National Weather Service API, the following features are not available:

@@ -84,7 +84,10 @@ param(
     [switch]$NoAutoUpdate,
 
     [Alias('b')]
-    [switch]$NoBar
+    [switch]$NoBar,
+
+    [Alias('o')]
+    [switch]$Observations
 )
 
 # --- Helper Functions ---
@@ -136,7 +139,7 @@ $script:MAX_DAILY_FORECAST_DAYS = 7
 $userAgent = $script:USER_AGENT
 
 # --- HELP LOGIC ---
-if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or $Rain.IsPresent -or $Wind.IsPresent -or $NoInteractive.IsPresent) -and -not $Location)) {
+if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or $Rain.IsPresent -or $Wind.IsPresent -or $Observations.IsPresent -or $NoInteractive.IsPresent) -and -not $Location)) {
     Write-Host "Usage: .\gf.ps1 [ZipCode | `"City, State`" | here] [Options] [-Verbose]" -ForegroundColor Green
     Write-Host " • Provide a 5-digit zipcode or a City, State (e.g., 'Portland, OR')." -ForegroundColor Cyan
     Write-Host " • Use 'here' to automatically detect your location based on IP address." -ForegroundColor Cyan
@@ -152,6 +155,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host "                • 96-hour directional glyphs with color-coded wind speed" -ForegroundColor Gray
     Write-Host "                • White (≤5mph), Yellow (6-9mph), Red (10-14mph), Magenta (15mph+)" -ForegroundColor Gray
     Write-Host "                • Peak wind hours highlighted with inverted colors" -ForegroundColor Gray
+    Write-Host "  -o, -Observations    Show historical weather observations" -ForegroundColor Cyan
     Write-Host "  -u, -NoAutoUpdate Start with automatic updates disabled" -ForegroundColor Cyan
     Write-Host "  -b, -NoBar    Start with control bar hidden" -ForegroundColor Cyan
     Write-Host "  -x, -NoInteractive Exit immediately (no interactive mode)" -ForegroundColor Cyan
@@ -164,6 +168,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
      Write-Host "    [T] - Switch to terse mode (current + today)" -ForegroundColor Cyan
      Write-Host "    [R] - Switch to rain forecast mode (sparklines)" -ForegroundColor Cyan
      Write-Host "    [W] - Switch to wind forecast mode (direction glyphs)" -ForegroundColor Cyan
+     Write-Host "    [O] - Switch to observations historical data" -ForegroundColor Cyan
     Write-Host "    [G] - Refresh weather data (auto-refreshes every 10 minutes)" -ForegroundColor Cyan
     Write-Host "    [U] - Toggle automatic updates on/off" -ForegroundColor Cyan
     Write-Host "    [B] - Toggle control bar on/off" -ForegroundColor Cyan
@@ -196,6 +201,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host "  .\gf.ps1 97219 -h -x For Hourly Forecast and Exit" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 97219 -r For Rain Outlook" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 97219 -w For Wind Outlook" -ForegroundColor Cyan
+    Write-Host "  .\gf.ps1 97219 -o For Observations" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 -Help" -ForegroundColor Cyan
     return
 }
@@ -238,6 +244,270 @@ function Clear-HostWithDelay {
         Start-Sleep -Milliseconds 600
     }
     Clear-Host
+}
+
+# Function to resolve timezone ID to TimeZoneInfo object
+function Get-ResolvedTimeZoneInfo {
+    param([string]$TimeZoneId)
+
+    if (-not $TimeZoneId -or [string]::IsNullOrWhiteSpace($TimeZoneId)) {
+        return [System.TimeZoneInfo]::Local
+    }
+
+    try { return [System.TimeZoneInfo]::FindSystemTimeZoneById($TimeZoneId) } catch {}
+
+    $ianaToWindows = @{
+        'America/Los_Angeles' = 'Pacific Standard Time'
+        'America/Denver'      = 'Mountain Standard Time'
+        'America/Phoenix'     = 'US Mountain Standard Time'
+        'America/Chicago'     = 'Central Standard Time'
+        'America/New_York'    = 'Eastern Standard Time'
+        'America/Anchorage'   = 'Alaskan Standard Time'
+        'Pacific/Honolulu'    = 'Hawaiian Standard Time'
+        'America/Boise'       = 'Mountain Standard Time'
+        'America/Detroit'     = 'Eastern Standard Time'
+        'America/Indiana/Indianapolis' = 'US Eastern Standard Time'
+    }
+
+    if ($ianaToWindows.ContainsKey($TimeZoneId)) {
+        try { return [System.TimeZoneInfo]::FindSystemTimeZoneById($ianaToWindows[$TimeZoneId]) } catch {}
+    }
+
+    return [System.TimeZoneInfo]::Local
+}
+
+# Function to fetch NWS observations
+function Get-NWSObservations {
+    param(
+        [object]$PointsData,
+        [hashtable]$Headers,
+        [string]$TimeZone
+    )
+    
+    try {
+        # Get observation stations from points data
+        $observationStationsUrl = $PointsData.properties.observationStations
+        if (-not $observationStationsUrl) {
+            Write-Verbose "No observation stations URL found in points data"
+            return $null
+        }
+        
+        Write-Verbose "Fetching observation stations from: $observationStationsUrl"
+        $stationsJob = Start-ApiJob -Url $observationStationsUrl -Headers $Headers -JobName "ObservationStations"
+        Wait-Job -Job $stationsJob | Out-Null
+        
+        if ($stationsJob.State -ne 'Completed') {
+            Write-Verbose "Failed to fetch observation stations: $($stationsJob | Receive-Job)"
+            Remove-Job -Job $stationsJob -Force
+            return $null
+        }
+        
+        $stationsJson = $stationsJob | Receive-Job
+        Remove-Job -Job $stationsJob
+        
+        if ([string]::IsNullOrWhiteSpace($stationsJson)) {
+            Write-Verbose "Empty response from observation stations API"
+            return $null
+        }
+        
+        $stationsData = $stationsJson | ConvertFrom-Json
+        
+        # Get the first station ID
+        if ($stationsData.features.Count -eq 0) {
+            Write-Verbose "No observation stations found"
+            return $null
+        }
+        
+        $stationId = $stationsData.features[0].properties.stationIdentifier
+        Write-Verbose "Using observation station: $stationId"
+        
+        # Calculate time range (last 7 days for observations)
+        $endTime = Get-Date
+        $startTime = $endTime.AddDays(-7)
+        
+        # Format times in ISO 8601 format for API
+        $startTimeStr = $startTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+        $endTimeStr = $endTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+        
+        # Fetch observations
+        $observationsUrl = "https://api.weather.gov/stations/$stationId/observations?start=$startTimeStr&end=$endTimeStr&limit=500"
+        Write-Verbose "GET: $observationsUrl"
+        Write-Verbose "Fetching historical observations from NWS observation stations API"
+        
+        $observationsJob = Start-ApiJob -Url $observationsUrl -Headers $Headers -JobName "Observations"
+        Wait-Job -Job $observationsJob | Out-Null
+        
+        if ($observationsJob.State -ne 'Completed') {
+            Write-Verbose "Failed to fetch observations: $($observationsJob | Receive-Job)"
+            Remove-Job -Job $observationsJob -Force
+            return $null
+        }
+        
+        $observationsJson = $observationsJob | Receive-Job
+        Remove-Job -Job $observationsJob
+        
+        if ([string]::IsNullOrWhiteSpace($observationsJson)) {
+            Write-Verbose "Empty response from observations API"
+            return $null
+        }
+        
+        $observationsData = $observationsJson | ConvertFrom-Json
+        
+        # Process observations and group by day
+        $dailyData = @{}
+        
+        Write-Verbose "Processing $($observationsData.features.Count) observations"
+        
+        foreach ($observation in $observationsData.features) {
+            try {
+                # Parse the observation timestamp (API returns in UTC)
+                $obsTimeOffset = [DateTimeOffset]::Parse($observation.properties.timestamp)
+                
+                # Convert to local timezone if provided
+                if ($TimeZone) {
+                    $localTimeZone = Get-ResolvedTimeZoneInfo -TimeZoneId $TimeZone
+                    if ($localTimeZone) {
+                        $obsTimeLocal = [System.TimeZoneInfo]::ConvertTime($obsTimeOffset, $localTimeZone)
+                        $obsDate = $obsTimeLocal.ToString("yyyy-MM-dd")
+                    } else {
+                        # Fallback to UTC if timezone conversion fails
+                        Write-Verbose "Timezone conversion failed, using UTC for observation"
+                        $obsDate = $obsTimeOffset.UtcDateTime.ToString("yyyy-MM-dd")
+                    }
+                } else {
+                    # Fallback to UTC if no timezone provided
+                    $obsDate = $obsTimeOffset.UtcDateTime.ToString("yyyy-MM-dd")
+                }
+            } catch {
+                Write-Verbose "Error parsing observation timestamp: $($_.Exception.Message)"
+                continue
+            }
+            
+            if (-not $dailyData.ContainsKey($obsDate)) {
+                $dailyData[$obsDate] = @{
+                    Date = $obsDate
+                    Temperatures = @()
+                    WindSpeeds = @()
+                    WindDirections = @()
+                    Humidities = @()
+                    Precipitations = @()
+                    Conditions = @()
+                }
+            }
+            
+            $props = $observation.properties
+            
+            # Extract temperature (convert from Celsius to Fahrenheit if needed)
+            if ($props.temperature -and $props.temperature.value) {
+                $tempC = $props.temperature.value
+                $tempF = ($tempC * 9/5) + 32
+                $dailyData[$obsDate].Temperatures += $tempF
+            }
+            
+            # Extract wind speed (convert from m/s to mph if needed)
+            if ($props.windSpeed -and $props.windSpeed.value) {
+                $windSpeedMs = $props.windSpeed.value
+                $windSpeedMph = $windSpeedMs * 2.237
+                $dailyData[$obsDate].WindSpeeds += $windSpeedMph
+            }
+            
+            # Extract wind direction
+            if ($props.windDirection -and $props.windDirection.value) {
+                $dailyData[$obsDate].WindDirections += $props.windDirection.value
+            }
+            
+            # Extract humidity
+            if ($props.relativeHumidity -and $props.relativeHumidity.value) {
+                $dailyData[$obsDate].Humidities += $props.relativeHumidity.value
+            }
+            
+            # Extract precipitation - try multiple fields for better accuracy
+            # precipitationLastHour is most common, but also check other time periods
+            $precipValue = $null
+            if ($props.precipitationLastHour -and $props.precipitationLastHour.value) {
+                $precipValue = $props.precipitationLastHour.value
+            } elseif ($props.precipitationLast3Hours -and $props.precipitationLast3Hours.value) {
+                # If 3-hour value exists, divide by 3 to get hourly equivalent
+                $precipValue = $props.precipitationLast3Hours.value / 3
+            } elseif ($props.precipitationLast6Hours -and $props.precipitationLast6Hours.value) {
+                # If 6-hour value exists, divide by 6 to get hourly equivalent
+                $precipValue = $props.precipitationLast6Hours.value / 6
+            }
+            if ($null -ne $precipValue) {
+                $dailyData[$obsDate].Precipitations += $precipValue
+            }
+            
+            # Extract conditions
+            if ($props.textDescription) {
+                $dailyData[$obsDate].Conditions += $props.textDescription
+            }
+        }
+        
+        # Calculate daily aggregates
+        $result = @()
+        
+        # Get current date in the target timezone (same as observations)
+        if ($TimeZone) {
+            $localTimeZone = Get-ResolvedTimeZoneInfo -TimeZoneId $TimeZone
+            if ($localTimeZone) {
+                $nowInLocalTz = [System.TimeZoneInfo]::ConvertTime([DateTimeOffset]::Now, $localTimeZone)
+            } else {
+                $nowInLocalTz = [DateTimeOffset]::Now
+            }
+        } else {
+            $nowInLocalTz = [DateTimeOffset]::Now
+        }
+        
+        for ($i = 6; $i -ge 0; $i--) {
+            $targetDate = $nowInLocalTz.AddDays(-$i)
+            $date = $targetDate.ToString("yyyy-MM-dd")
+            Write-Verbose "Checking for date: $date (day offset: -$i)"
+            if ($dailyData.ContainsKey($date)) {
+                Write-Verbose "Found data for date: $date"
+                $dayData = $dailyData[$date]
+                $result += @{
+                    Date = $date
+                    HighTemp = if ($dayData.Temperatures.Count -gt 0) { [Math]::Round(($dayData.Temperatures | Measure-Object -Maximum).Maximum, 1) } else { $null }
+                    LowTemp = if ($dayData.Temperatures.Count -gt 0) { [Math]::Round(($dayData.Temperatures | Measure-Object -Minimum).Minimum, 1) } else { $null }
+                    AvgWindSpeed = if ($dayData.WindSpeeds.Count -gt 0) { [Math]::Round(($dayData.WindSpeeds | Measure-Object -Average).Average, 1) } else { $null }
+                    MaxWindSpeed = if ($dayData.WindSpeeds.Count -gt 0) { [Math]::Round(($dayData.WindSpeeds | Measure-Object -Maximum).Maximum, 1) } else { $null }
+                    WindDirection = if ($dayData.WindDirections.Count -gt 0) { [Math]::Round(($dayData.WindDirections | Measure-Object -Average).Average, 0) } else { $null }
+                    AvgHumidity = if ($dayData.Humidities.Count -gt 0) { [Math]::Round(($dayData.Humidities | Measure-Object -Average).Average, 1) } else { $null }
+                    TotalPrecipitation = if ($dayData.Precipitations.Count -gt 0) { [Math]::Round(($dayData.Precipitations | Measure-Object -Sum).Sum, 2) } else { 0 }
+                    Conditions = if ($dayData.Conditions.Count -gt 0) { ($dayData.Conditions | Group-Object | Sort-Object Count -Descending | Select-Object -First 1).Name } else { "N/A" }
+                }
+            } else {
+                # No data for this day
+                $result += @{
+                    Date = $date
+                    HighTemp = $null
+                    LowTemp = $null
+                    AvgWindSpeed = $null
+                    MaxWindSpeed = $null
+                    WindDirection = $null
+                    AvgHumidity = $null
+                    TotalPrecipitation = 0
+                    Conditions = "N/A"
+                }
+            }
+        }
+        
+        Write-Verbose "Processed $($dailyData.Keys.Count) unique dates from observations"
+        Write-Verbose "Result array contains $($result.Count) days"
+        
+        # Debug: Show what dates we're looking for vs what we found
+        Write-Verbose "Dates in dailyData: $($dailyData.Keys -join ', ')"
+        Write-Verbose "Dates in result: $(($result | ForEach-Object { $_.Date }) -join ', ')"
+        
+        # Return the result array (Show-Observations will filter out days with no data)
+        return $result
+    }
+    catch {
+        Write-Verbose "Error fetching observations: $($_.Exception.Message)"
+        Write-Verbose "Error details: $($_.Exception.GetType().FullName) at line $($_.InvocationInfo.ScriptLineNumber)"
+        Write-Verbose "Stack trace: $($_.ScriptStackTrace)"
+        return $null
+    }
 }
 
 # Function to create and execute API jobs
@@ -926,6 +1196,27 @@ $script:hourlyData = $hourlyData
 
 Remove-Job -Job $jobsToWaitFor
 
+# Preload observations data after initial load (for better UX when switching to Observations mode)
+# Store points data and headers for later use
+$script:observationsData = $null
+$script:observationsDataLoading = $false
+$script:pointsDataForObservations = $pointsData
+$script:headersForObservations = $headers
+$script:timeZoneForObservations = $timeZone
+
+if ($Observations.IsPresent) {
+    # If Observations mode is requested at startup, fetch immediately
+    Write-Verbose "Fetching observations data for Observations mode"
+    Write-Host "Loading Historical Data..." -ForegroundColor Yellow
+    $script:observationsData = Get-NWSObservations -PointsData $pointsData -Headers $headers -TimeZone $timeZone
+    Clear-HostWithDelay
+    if ($null -eq $script:observationsData) {
+        Write-Verbose "Failed to fetch observations data"
+    } else {
+        Write-Verbose "Observations data retrieved successfully: $($script:observationsData.Count) days"
+    }
+}
+
 # --- TIMER TRACKING FOR AUTO-REFRESH ---
 $script:dataFetchTime = Get-Date
 $dataStaleThreshold = 600  # 10 minutes in seconds
@@ -1017,36 +1308,6 @@ function Get-TruncatedCityName {
     }
     
     return $result
-}
-
-# Helper: resolve a TimeZoneInfo from an ID (supports IANA -> Windows mapping for common US zones)
-function Get-ResolvedTimeZoneInfo {
-    param([string]$TimeZoneId)
-
-    if (-not $TimeZoneId -or [string]::IsNullOrWhiteSpace($TimeZoneId)) {
-        return [System.TimeZoneInfo]::Local
-    }
-
-    try { return [System.TimeZoneInfo]::FindSystemTimeZoneById($TimeZoneId) } catch {}
-
-    $ianaToWindows = @{
-        'America/Los_Angeles' = 'Pacific Standard Time'
-        'America/Denver'      = 'Mountain Standard Time'
-        'America/Phoenix'     = 'US Mountain Standard Time'
-        'America/Chicago'     = 'Central Standard Time'
-        'America/New_York'    = 'Eastern Standard Time'
-        'America/Anchorage'   = 'Alaskan Standard Time'
-        'Pacific/Honolulu'    = 'Hawaiian Standard Time'
-        'America/Boise'       = 'Mountain Standard Time'
-        'America/Detroit'     = 'Eastern Standard Time'
-        'America/Indiana/Indianapolis' = 'US Eastern Standard Time'
-    }
-
-    if ($ianaToWindows.ContainsKey($TimeZoneId)) {
-        try { return [System.TimeZoneInfo]::FindSystemTimeZoneById($ianaToWindows[$TimeZoneId]) } catch {}
-    }
-
-    return [System.TimeZoneInfo]::Local
 }
 
 # Function to calculate sunrise and sunset (NOAA-based, returns local times using provided time zone)
@@ -2057,6 +2318,191 @@ function Show-SevenDayForecast {
     }
 }
 
+# Function to convert wind direction degrees to cardinal direction
+function Get-CardinalDirection {
+    param([double]$Degrees)
+    
+    $directions = @("N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW")
+    $index = [Math]::Round($Degrees / 22.5) % 16
+    return $directions[$index]
+}
+
+# Function to display historical weather observations
+function Show-Observations {
+    param(
+        [array]$ObservationsData,
+        [string]$TitleColor,
+        [string]$DefaultColor,
+        [string]$AlertColor,
+        [string]$City = "",
+        [bool]$ShowCityInTitle = $false,
+        [string]$TimeZone = ""
+    )
+    
+    Write-Host ""
+    if ($ShowCityInTitle -and $City) {
+        $cityName = Get-TruncatedCityName -CityName $City -MaxLength 20
+        $titleText = "*** $cityName Observations ***"
+    } else {
+        $titleText = "*** Observations ***"
+    }
+    Write-Host $titleText -ForegroundColor $TitleColor
+    
+    if (-not $ObservationsData -or $ObservationsData.Count -eq 0) {
+        Write-Host "No historical observations available." -ForegroundColor $DefaultColor
+        return
+    }
+    
+    $detailedForecastColor = "Gray"
+    
+    foreach ($dayData in $ObservationsData) {
+        # Skip days with no actual data (all N/A)
+        if ($null -eq $dayData.HighTemp -and $null -eq $dayData.LowTemp -and $null -eq $dayData.AvgWindSpeed) {
+            continue
+        }
+        
+        $date = [DateTime]::Parse($dayData.Date)
+        $dayName = $date.ToString("dddd")
+        $dateStr = $date.ToString("MM/dd")
+        
+        # Calculate moon phase for this day
+        $moonPhaseInfo = Get-MoonPhase -Date $date
+        $moonEmoji = $moonPhaseInfo.Emoji
+        
+        # Get high and low temperatures
+        $highTemp = $dayData.HighTemp
+        $lowTemp = $dayData.LowTemp
+        
+        # Color code temperature (use high temp for color)
+        $tempColor = if ($null -ne $highTemp) {
+            if ([int]$highTemp -lt $script:COLD_TEMP_THRESHOLD) { "Blue" } 
+            elseif ([int]$highTemp -gt $script:HOT_TEMP_THRESHOLD) { $AlertColor } 
+            else { $DefaultColor }
+        } else {
+            $DefaultColor
+        }
+        
+        # Wind information
+        $avgWindSpeed = $dayData.AvgWindSpeed
+        $maxWindSpeed = $dayData.MaxWindSpeed
+        $windDirection = $dayData.WindDirection
+        # Use max wind speed for color coding (more relevant for peak conditions)
+        $windSpeedForColor = if ($null -ne $maxWindSpeed) { $maxWindSpeed } else { $avgWindSpeed }
+        $windColor = if ($null -ne $windSpeedForColor -and $windSpeedForColor -ge $script:WIND_ALERT_THRESHOLD) { $AlertColor } else { $DefaultColor }
+        
+        # Calculate windchill or heat index (use avg wind speed for calculations)
+        $windChillHeatIndex = ""
+        $windChillHeatIndexColor = ""
+        if ($null -ne $highTemp -and $null -ne $avgWindSpeed) {
+            $tempNum = [double]$highTemp
+            $windSpeedNum = [double]$avgWindSpeed
+            if ($tempNum -le 50) {
+                $windChill = Get-WindChill $tempNum $windSpeedNum
+                if ($null -ne $windChill -and ($tempNum - $windChill) -gt 1) {
+                    $windChillHeatIndex = " [$windChill°F]"
+                    $windChillHeatIndexColor = "Blue"
+                }
+            } elseif ($tempNum -ge 80) {
+                $humidityNum = if ($null -ne $dayData.AvgHumidity) { [double]$dayData.AvgHumidity } else { 0 }
+                $heatIndex = Get-HeatIndex $tempNum $humidityNum
+                if ($null -ne $heatIndex -and ($heatIndex - $tempNum) -gt 1) {
+                    $windChillHeatIndex = " [$heatIndex°F]"
+                    $windChillHeatIndexColor = "Red"
+                }
+            }
+        }
+        
+        # Precipitation
+        $totalPrecip = $dayData.TotalPrecipitation
+        $precipDisplay = if ($totalPrecip -gt 0) { " ($totalPrecip`" precip)" } else { "" }
+        
+        # Wind display - show max wind speed (similar to Wind modal), with avg if different
+        $windDisplay = ""
+        if ($null -ne $maxWindSpeed) {
+            $maxWindSpeedStr = [Math]::Round($maxWindSpeed, 0).ToString()
+            $windDirStr = if ($null -ne $windDirection) { Get-CardinalDirection $windDirection } else { "" }
+            if ($null -ne $avgWindSpeed -and [Math]::Abs($maxWindSpeed - $avgWindSpeed) -gt 1) {
+                # Show both max and avg if they differ significantly
+                $avgWindSpeedStr = [Math]::Round($avgWindSpeed, 0).ToString()
+                $windDisplay = " ${maxWindSpeedStr}mph (avg ${avgWindSpeedStr}mph) $windDirStr"
+            } else {
+                # Just show max wind speed
+                $windDisplay = " ${maxWindSpeedStr}mph $windDirStr"
+            }
+        } elseif ($null -ne $avgWindSpeed) {
+            # Fallback to avg if max not available
+            $windSpeedStr = [Math]::Round($avgWindSpeed, 0).ToString()
+            $windDirStr = if ($null -ne $windDirection) { Get-CardinalDirection $windDirection } else { "" }
+            $windDisplay = " ${windSpeedStr}mph $windDirStr"
+        }
+        
+        # Display enhanced format with proper padding
+        $dayNameWithColon = "$dayName ($dateStr):"
+        $targetColumn = 10
+        $currentWidth = Get-StringDisplayWidth $dayNameWithColon
+        $paddingNeeded = $targetColumn - $currentWidth
+        $padding = " " * [Math]::Max(0, $paddingNeeded)
+        
+        Write-Host $dayNameWithColon -ForegroundColor White -NoNewline
+        Write-Host $padding -ForegroundColor White -NoNewline
+        
+        # Temperature display
+        if ($null -ne $highTemp) {
+            Write-Host "H:$highTemp°F" -ForegroundColor $tempColor -NoNewline
+        } else {
+            Write-Host "H:N/A" -ForegroundColor $DefaultColor -NoNewline
+        }
+        
+        if ($windChillHeatIndex) {
+            Write-Host $windChillHeatIndex -ForegroundColor $windChillHeatIndexColor -NoNewline
+        }
+        
+        if ($null -ne $lowTemp) {
+            Write-Host " L:$lowTemp°F" -ForegroundColor $tempColor -NoNewline
+        } else {
+            Write-Host " L:N/A" -ForegroundColor $DefaultColor -NoNewline
+        }
+        
+        # Wind display
+        if ($windDisplay) {
+            Write-Host $windDisplay -ForegroundColor $windColor -NoNewline
+        }
+        
+        # Precipitation display
+        if ($precipDisplay) {
+            Write-Host $precipDisplay -ForegroundColor $DefaultColor -NoNewline
+        }
+        
+        # Humidity display
+        if ($null -ne $dayData.AvgHumidity) {
+            $humidityStr = [Math]::Round($dayData.AvgHumidity, 0).ToString()
+            Write-Host " ($humidityStr% RH)" -ForegroundColor $DefaultColor -NoNewline
+        }
+        
+        Write-Host ""
+        
+        # Conditions display
+        if ($dayData.Conditions -ne "N/A") {
+            $terminalWidth = $Host.UI.RawUI.WindowSize.Width
+            $conditionsLabel = "$moonEmoji Conditions: "
+            $conditionsText = $dayData.Conditions
+            
+            $wrappedConditions = Format-TextWrap -Text $conditionsText -Width ($terminalWidth - (Get-StringDisplayWidth $conditionsLabel))
+            
+            Write-Host $conditionsLabel -ForegroundColor White -NoNewline
+            Write-Host $wrappedConditions[0] -ForegroundColor $detailedForecastColor
+            # Additional wrapped lines with proper indentation
+            for ($i = 1; $i -lt $wrappedConditions.Count; $i++) {
+                Write-Host ("          " + $wrappedConditions[$i]) -ForegroundColor $detailedForecastColor
+            }
+        } else {
+            Write-Host "$moonEmoji Conditions: N/A" -ForegroundColor $detailedForecastColor
+        }
+        
+        Write-Host ""
+    }
+}
+
 # Function to display weather alerts
 function Show-WeatherAlerts {
     param(
@@ -2141,7 +2587,8 @@ function Show-InteractiveControls {
         [bool]$IsWindMode = $false,
         [bool]$IsTerseMode = $false,
         [bool]$IsDailyMode = $false,
-        [bool]$IsFullMode = $false
+        [bool]$IsFullMode = $false,
+        [bool]$IsObservationsMode = $false
     )
     
     # Don't show controls if bar is hidden
@@ -2165,7 +2612,8 @@ function Show-InteractiveControls {
         if (-not $IsDailyMode) { Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "aily " -ForegroundColor White -NoNewline }
         if (-not $IsHourlyMode) { Write-Host "H" -ForegroundColor Cyan -NoNewline; Write-Host "ourly " -ForegroundColor White -NoNewline }
         if (-not $IsRainMode) { Write-Host "R" -ForegroundColor Cyan -NoNewline; Write-Host "ain " -ForegroundColor White -NoNewline }
-        if (-not $IsWindMode) { Write-Host "W" -ForegroundColor Cyan -NoNewline; Write-Host "ind" -ForegroundColor White }
+        if (-not $IsWindMode) { Write-Host "W" -ForegroundColor Cyan -NoNewline; Write-Host "ind " -ForegroundColor White -NoNewline }
+        if (-not $IsObservationsMode) { Write-Host "O" -ForegroundColor Cyan -NoNewline; Write-Host "bservations " -ForegroundColor White -NoNewline }
     }
 }
 
@@ -2648,6 +3096,16 @@ elseif ($Wind.IsPresent) {
     $showAlerts = $false
     $showLocationInfo = $false
 }
+elseif ($Observations.IsPresent) {
+    # Observations mode: Show only historical observations
+    $showCurrentConditions = $false
+    $showTodayForecast = $false
+    $showTomorrowForecast = $false
+    $showHourlyForecast = $false
+    $showSevenDayForecast = $false
+    $showAlerts = $false
+    $showLocationInfo = $false
+}
 
 # Determine if it's currently day or night using NWS API isDaytime property
 $isCurrentlyDaytime = Test-IsDaytime $currentPeriod
@@ -2665,6 +3123,17 @@ if ($Rain.IsPresent) {
 } elseif ($Daily.IsPresent) {
     # Daily mode: Show enhanced 7-day forecast with wind info and detailed forecasts
     Show-SevenDayForecast -ForecastData $forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true
+    # Exit only if -x flag is present, otherwise continue to interactive mode
+    if ($NoInteractive.IsPresent) {
+        exit 0
+    }
+} elseif ($Observations.IsPresent) {
+    # Observations mode: Show historical observations
+    if ($null -ne $script:observationsData) {
+        Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone
+    } else {
+        Write-Host "No historical observations available." -ForegroundColor $defaultColor
+    }
     # Exit only if -x flag is present, otherwise continue to interactive mode
     if ($NoInteractive.IsPresent) {
         exit 0
@@ -2697,6 +3166,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
     $isWindMode = $Wind.IsPresent  # State tracking for wind forecast mode
     $isTerseMode = $Terse.IsPresent  # State tracking for terse mode
     $isDailyMode = $Daily.IsPresent  # State tracking for daily forecast mode
+    $isObservationsMode = $Observations.IsPresent  # State tracking for observations mode
     $autoUpdateEnabled = -not $NoAutoUpdate.IsPresent  # State tracking for auto-updates
     if (-not $autoUpdateEnabled) {
         Write-Verbose "Auto-updates disabled via command line flag"
@@ -2726,26 +3196,92 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
     if ($isHourlyMode) {
         Clear-HostWithDelay
         Show-HourlyForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime -City $city -ShowCityInTitle $true -TimeZone $timeZone
-        Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $false
+        Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $false
     } elseif ($Rain.IsPresent) {
         # If starting in rain mode, show rain forecast first
         Clear-HostWithDelay
         $isRainMode = $true
         Show-RainForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
-        Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+        Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
     } elseif ($Wind.IsPresent) {
         # If starting in wind mode, show wind forecast first
         Clear-HostWithDelay
         $isWindMode = $true
         Show-WindForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
-        Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+        Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
+    } elseif ($Observations.IsPresent) {
+        # If starting in Observations mode, show observations first
+        Clear-HostWithDelay
+        $isObservationsMode = $true
+        if ($null -ne $script:observationsData) {
+            Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone
+        } else {
+            Write-Host "No historical observations available." -ForegroundColor $defaultColor
+        }
+        Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
     } else {
         # Interactive mode: Listen for keyboard input to switch between display modes
-        Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+        Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
     }
     
     while ($true) {
         try {
+            # Preload observations data in background if not already loaded (non-blocking)
+            if ($null -eq $script:observationsData -and -not $script:observationsDataLoading -and -not $Observations.IsPresent -and $null -eq $script:observationsPreloadJob) {
+                Write-Verbose "Preloading observations data in background for Observations mode"
+                $script:observationsDataLoading = $true
+                $script:observationsPreloadJob = Start-Job -ScriptBlock {
+                    param($pointsDataJson, $headersJson)
+                    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+                    try {
+                        $pointsData = $pointsDataJson | ConvertFrom-Json
+                        $headers = $headersJson | ConvertFrom-Json
+                        
+                        # Get observation stations
+                        $observationStationsUrl = $pointsData.properties.observationStations
+                        if (-not $observationStationsUrl) { return $null }
+                        
+                        $stationsResponse = Invoke-RestMethod -Uri $observationStationsUrl -Method Get -Headers $headers -ErrorAction Stop
+                        if ($stationsResponse.features.Count -eq 0) { return $null }
+                        
+                        $stationId = $stationsResponse.features[0].properties.stationIdentifier
+                        $endTime = Get-Date
+                        $startTime = $endTime.AddDays(-7)
+                        $startTimeStr = $startTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+                        $endTimeStr = $endTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+                        
+                        $observationsUrl = "https://api.weather.gov/stations/$stationId/observations?start=$startTimeStr&end=$endTimeStr&limit=500"
+                        $observationsResponse = Invoke-RestMethod -Uri $observationsUrl -Method Get -Headers $headers -ErrorAction Stop
+                        
+                        # Return raw observations data as JSON
+                        return $observationsResponse | ConvertTo-Json -Depth 10
+                    } catch {
+                        return $null
+                    }
+                } -ArgumentList ($script:pointsDataForObservations | ConvertTo-Json -Depth 10), ($script:headersForObservations | ConvertTo-Json)
+            }
+            
+            # Check if preload job completed
+            if ($null -ne $script:observationsPreloadJob) {
+                if ($script:observationsPreloadJob.State -eq 'Completed') {
+                    $preloadResult = $script:observationsPreloadJob | Receive-Job
+                    Remove-Job -Job $script:observationsPreloadJob
+                    $script:observationsPreloadJob = $null
+                    $script:observationsDataLoading = $false
+                    if ($null -ne $preloadResult -and -not [string]::IsNullOrWhiteSpace($preloadResult)) {
+                        # Process the preloaded raw observations data using the main function
+                        # Note: Get-NWSObservations will fetch again, but this preload ensures data is ready faster
+                        # For now, we'll just mark that we attempted preload and fetch on-demand
+                        Write-Verbose "Observations preload job completed, will process on-demand"
+                    }
+                } elseif ($script:observationsPreloadJob.State -eq 'Failed') {
+                    Remove-Job -Job $script:observationsPreloadJob -Force
+                    $script:observationsPreloadJob = $null
+                    $script:observationsDataLoading = $false
+                    Write-Verbose "Observations preload job failed"
+                }
+            }
+            
             # Check if data is stale and refresh if needed (only if auto-update is enabled and interactive mode is supported)
             if ($autoUpdateEnabled -and -not [System.Console]::IsInputRedirected) {
                 $timeSinceLastFetch = (Get-Date) - $script:dataFetchTime
@@ -2763,45 +3299,53 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         Clear-HostWithDelay
                         if ($isHourlyMode) {
                             Show-HourlyForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime -City $city -ShowCityInTitle $true -TimeZone $timeZone
-                            Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $false
+                            Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $false
                         } elseif ($isRainMode) {
                             Show-RainForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
-                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } elseif ($isWindMode) {
                             Show-WindForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
-                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } elseif ($isTerseMode) {
                             # Preserve current mode - show terse mode if in terse mode
                             Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $($sunriseTime.ToString('h:mm tt')) -SunsetTime $($sunsetTime.ToString('h:mm tt')) -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon
                             Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                             Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false
-                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } elseif ($isDailyMode) {
                             # Preserve current mode - show daily mode if in daily mode
                             Show-SevenDayForecast -ForecastData $script:forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true
-                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
+                        } elseif ($isObservationsMode) {
+                            # Preserve current mode - show Observations mode if in Observations mode
+                            if ($null -ne $script:observationsData) {
+                                Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone
+                            } else {
+                                Write-Host "No historical observations available." -ForegroundColor $defaultColor
+                            }
+                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } elseif ($isHourlyMode) {
                             # Preserve current mode - show hourly mode if in hourly mode
                             Show-HourlyForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime -City $city -ShowCityInTitle $true -TimeZone $timeZone
-                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $false
+                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $false
                         } elseif ($isRainMode) {
                             # Preserve current mode - show rain mode if in rain mode
                             Show-RainForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
-                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $false
+                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $false
                         } elseif ($isWindMode) {
                             # Preserve current mode - show wind mode if in wind mode
                             Show-WindForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
-                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $false
+                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $false
                         } elseif ($isTerseMode) {
                             # Preserve current mode - show terse mode if in terse mode
                             Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $($sunriseTime.ToString('h:mm tt')) -SunsetTime $($sunsetTime.ToString('h:mm tt')) -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon
                             Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                             Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false
-                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $false
+                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $false
                         } else {
                             # Default to full weather report if no specific mode is set
                             Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon
-                                Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                                Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                             }
                         }
                     }
@@ -2824,7 +3368,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isDailyMode = $false
                     $hourlyScrollIndex = 0  # Reset to first 12 hours
                     Show-HourlyForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime -City $city -ShowCityInTitle $true -TimeZone $timeZone
-                    Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $false
+                    Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $false
                 }
                 'd' { # D key - Switch to 7-day forecast only
                     Clear-HostWithDelay
@@ -2834,7 +3378,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isTerseMode = $false
                     $isDailyMode = $true
                     Show-SevenDayForecast -ForecastData $script:forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true
-                    Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                    Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                 }
                 't' { # T key - Switch to terse mode (current + today + alerts)
                     Clear-HostWithDelay
@@ -2846,7 +3390,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $($sunriseTime.ToString('h:mm tt')) -SunsetTime $($sunsetTime.ToString('h:mm tt')) -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon
                     Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                     Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false
-                    Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                    Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                 }
                 'f' { # F key - Switch to full weather report
                     Clear-HostWithDelay
@@ -2855,8 +3399,9 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isWindMode = $false
                     $isTerseMode = $false
                     $isDailyMode = $false
+                    $isObservationsMode = $false
                     Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon
-                    Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                    Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                 }
                 'r' { # R key - Switch to rain forecast mode
                     Clear-HostWithDelay
@@ -2866,7 +3411,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isTerseMode = $false
                     $isDailyMode = $false
                     Show-RainForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
-                    Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                    Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                 }
                 'u' { # U key - Toggle automatic updates
                     $autoUpdateEnabled = -not $autoUpdateEnabled
@@ -2886,26 +3431,26 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     Clear-HostWithDelay
                     if ($isHourlyMode) {
                         Show-HourlyForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime -City $city -ShowCityInTitle $true -TimeZone $timeZone
-                        Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $false
+                        Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $false
                     } elseif ($isRainMode) {
                         Show-RainForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
-                        Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                        Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                     } elseif ($isWindMode) {
                         Show-WindForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
-                        Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                        Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                     } elseif ($isDailyMode) {
                         Show-SevenDayForecast -ForecastData $script:forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true
-                        Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                        Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                     } else {
                         # Preserve current mode - show terse mode if in terse mode
                         if ($isTerseMode) {
                             Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $($sunriseTime.ToString('h:mm tt')) -SunsetTime $($sunsetTime.ToString('h:mm tt')) -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon
                             Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                             Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false
-                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } else {
                             Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon
-                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         }
                     }
                 }
@@ -2926,26 +3471,33 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     Clear-HostWithDelay
                     if ($isHourlyMode) {
                         Show-HourlyForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime -City $city -ShowCityInTitle $true -TimeZone $timeZone
-                        Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $false
+                        Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $false
                     } elseif ($isRainMode) {
                         Show-RainForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
-                        Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                        Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                     } elseif ($isWindMode) {
                         Show-WindForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
-                        Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                        Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                     } elseif ($isDailyMode) {
                         Show-SevenDayForecast -ForecastData $script:forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true
-                        Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                        Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
+                    } elseif ($isObservationsMode) {
+                        if ($null -ne $script:observationsData) {
+                            Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone
+                        } else {
+                            Write-Host "No historical observations available." -ForegroundColor $defaultColor
+                        }
+                        Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                     } else {
                         # Preserve current mode - show terse mode if in terse mode
                         if ($isTerseMode) {
                             Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $($sunriseTime.ToString('h:mm tt')) -SunsetTime $($sunsetTime.ToString('h:mm tt')) -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon
                             Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                             Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false
-                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } else {
                             Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon
-                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         }
                     }
                 }
@@ -2956,8 +3508,46 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isWindMode = $true
                     $isTerseMode = $false
                     $isDailyMode = $false
+                    $isObservationsMode = $false
                     Show-WindForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
-                    Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                    Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
+                }
+                'o' { # O key - Switch to observations mode
+                    Clear-HostWithDelay
+                    $isHourlyMode = $false
+                    $isRainMode = $false
+                    $isWindMode = $false
+                    $isTerseMode = $false
+                    $isDailyMode = $false
+                    $isObservationsMode = $true
+                    # Fetch observations if not already fetched
+                    if ($null -eq $script:observationsData) {
+                        if ($script:observationsDataLoading) {
+                            # If loading flag is stuck, reset it
+                            $script:observationsDataLoading = $false
+                        }
+                        Write-Host "Loading Historical Data..." -ForegroundColor Yellow
+                        $script:observationsDataLoading = $true
+                        # Use script-scoped variables if available, otherwise use current scope variables
+                        $pointsDataToUse = if ($null -ne $script:pointsDataForObservations) { $script:pointsDataForObservations } else { $pointsData }
+                        $headersToUse = if ($null -ne $script:headersForObservations) { $script:headersForObservations } else { $headers }
+                        $timeZoneToUse = if ($null -ne $script:timeZoneForObservations) { $script:timeZoneForObservations } else { $timeZone }
+                        try {
+                            $script:observationsData = Get-NWSObservations -PointsData $pointsDataToUse -Headers $headersToUse -TimeZone $timeZoneToUse
+                        } catch {
+                            Write-Verbose "Error fetching observations: $($_.Exception.Message)"
+                            $script:observationsData = $null
+                        } finally {
+                            $script:observationsDataLoading = $false
+                        }
+                        Clear-HostWithDelay
+                    }
+                    if ($null -ne $script:observationsData) {
+                        Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone
+                    } else {
+                        Write-Host "No historical observations available." -ForegroundColor $defaultColor
+                    }
+                    Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                 }
                 'g' { # G key - Refresh weather data
                     $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers -UseRetryLogic $true
@@ -2972,24 +3562,24 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         Clear-HostWithDelay
                         if ($isHourlyMode) {
                             Show-HourlyForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime -City $city -ShowCityInTitle $true -TimeZone $timeZone
-                            Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $false
+                            Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $false
                         } elseif ($isRainMode) {
                             Show-RainForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
-                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } elseif ($isWindMode) {
                             Show-WindForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
-                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } elseif ($isTerseMode) {
                             Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $($sunriseTime.ToString('h:mm tt')) -SunsetTime $($sunsetTime.ToString('h:mm tt')) -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon
                             Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                             Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false
-                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } elseif ($isDailyMode) {
                             Show-SevenDayForecast -ForecastData $script:forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true
-                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } else {
                             Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon
-                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode)
+                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         }
                     }
                 }
@@ -3000,7 +3590,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             $hourlyScrollIndex = $newIndex
                             Clear-HostWithDelay
                             Show-HourlyForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime -City $city -ShowCityInTitle $true -TimeZone $timeZone
-                            Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $false
+                            Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $false
                         }
                     }
                 }
@@ -3011,7 +3601,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             $hourlyScrollIndex = $newIndex
                             Clear-HostWithDelay
                             Show-HourlyForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime -City $city -ShowCityInTitle $true -TimeZone $timeZone
-                            Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsFullMode $false
+                            Show-InteractiveControls -IsHourlyMode $true -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $false
                         }
                     }
                 }

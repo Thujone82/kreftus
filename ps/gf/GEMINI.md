@@ -30,6 +30,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
   - **Enhanced Daily Mode (`-d`):** Shows comprehensive 7-day forecast with detailed wind information, windchill/heat index, and word-wrapped detailed forecasts
   - **Rain Forecast Mode (`-r` or `-rain`):** Shows rain likelihood forecast with visual sparklines for 96 hours
   - **Wind Forecast Mode (`-w` or `-wind`):** Shows wind outlook forecast with direction glyphs for 96 hours
+  - **Observations Mode (`-o` or `-observations`):** Shows historical weather observations for the last 7 days with daily aggregates
   - **No-Interactive Mode (`-x`):** Exits immediately after displaying data (perfect for scripting)
 - **Interactive Mode:** When run from non-terminal environments, provides keyboard shortcuts for dynamic view switching:
   - **[H]** - Switch to hourly forecast only
@@ -37,6 +38,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
   - **[T]** - Switch to terse mode
   - **[R]** - Switch to rain forecast mode (sparklines)
   - **[W]** - Switch to wind forecast mode (direction glyphs)
+  - **[O]** - Switch to observations mode (historical weather data)
   - **[F]** - Return to full display
   - **[Enter]** or **[Esc]** - Exit the script
   - **Ctrl+C** will also exit the script
@@ -69,6 +71,8 @@ The script follows a multi-step process:
 - **Forecast:** `https://api.weather.gov/gridpoints/{office}/{gridX},{gridY}/forecast`
 - **Hourly:** `https://api.weather.gov/gridpoints/{office}/{gridX},{gridY}/forecast/hourly`
 - **Alerts:** `https://api.weather.gov/alerts/active?point={lat},{lon}`
+- **Observation Stations:** `https://api.weather.gov/points/{lat},{lon}/stations`
+- **Observations:** `https://api.weather.gov/stations/{stationId}/observations?start={startTime}&end={endTime}&limit=500`
 
 ### Configuration
 
@@ -143,6 +147,12 @@ Due to differences between the OpenWeatherMap and National Weather Service APIs,
 # Get wind forecast for city and state
 .\gf.ps1 -wind "Portland, OR"
 
+# Get historical observations
+.\gf.ps1 -o 97219
+
+# Get observations for city and state
+.\gf.ps1 -observations "Portland, OR"
+
 # View help
 .\gf.ps1 -Help
 ```
@@ -166,6 +176,7 @@ The script features an advanced **Interactive Mode** that activates when run fro
 - **[T]** - **Terse View:** Switch to streamlined view (current conditions + today's forecast)
 - **[R]** - **Rain View:** Switch to rain forecast mode with sparklines
 - **[W]** - **Wind View:** Switch to wind forecast mode with direction glyphs
+- **[O]** - **Observations View:** Switch to observations mode with historical weather data
 - **[G]** - **Get/Refresh:** Manually refresh weather data (auto-refreshes every 10 minutes)
 - **[U]** - **Update Toggle:** Toggle automatic updates on/off
 - **[F]** - **Full View:** Return to complete weather information display
@@ -488,7 +499,8 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 - **Moon Phase Information:** Added astronomical moon phase calculation with emoji display and next full moon date
 - **Rain Forecast Mode:** Added visual sparkline representation of rain likelihood over 96 hours
 - **Wind Forecast Mode:** Added visual directional glyph representation of wind patterns over 96 hours
-- **Interactive Integration:** Both rain and wind modes now fully integrated into interactive mode
+- **Observations Mode:** Added historical weather observations display for the last 7 days with daily aggregates
+- **Interactive Integration:** Rain, wind, and observations modes now fully integrated into interactive mode
 - **Enhanced Color Coding:** Implemented color-coded sparklines for rain probability and wind speed visualization
 - **Peak Wind Highlighting:** Added visual feedback mechanism that inverts colors for peak wind hours
 - **Extended Forecast Coverage:** Both rain and wind modes use 96-hour data instead of standard 12-hour limit
@@ -679,6 +691,104 @@ function Show-InteractiveControls {
 - **Distraction-Free Viewing:** Focus on weather data without interface clutter
 - **Presentation Mode:** Hide controls when displaying weather information to others
 - **Custom Workflows:** Start with hidden bar and toggle as needed
+
+### Observations Mode (v2.1)
+
+The observations mode (`-o` or `-observations`) provides historical weather data from the National Weather Service observation stations API. This mode displays daily aggregates of weather conditions for the last 7 days, showing only days that have actual observation data available.
+
+#### Observations Mode Features:
+
+- **Historical Data:** Shows weather observations from the last 7 days
+- **Daily Aggregates:** Displays high/low temperatures, average and maximum wind speeds, wind direction, humidity, total precipitation, and general conditions
+- **Moon Phase Information:** Includes moon phase emoji and information for each day
+- **Windchill/Heat Index:** Calculates and displays windchill (≤50°F) and heat index (≥80°F) when applicable
+- **Data Filtering:** Only displays days that have actual observation data (skips days with no data)
+- **Color Coding:** Uses the same color coding rules as other modes (temperature, wind speed, etc.)
+- **Interactive Mode:** Enters interactive mode after display (use -x to exit immediately)
+- **Timezone Conversion:** Observations are converted from UTC to local timezone before grouping by date
+
+#### Observations Mode Use Cases:
+
+- **Weather Review:** Review recent weather patterns and conditions
+- **Historical Analysis:** Analyze weather trends over the past week
+- **Activity Planning:** Understand recent weather conditions for planning future activities
+- **Data Verification:** Verify forecast accuracy by comparing to actual observations
+- **Pattern Recognition:** Identify weather patterns and trends
+
+#### Technical Implementation:
+
+The observations mode uses a multi-step process to fetch and process historical weather data:
+
+**Data Fetching:**
+1. **Observation Stations Lookup:** Uses the NWS points API to get observation stations for the location
+2. **Station Selection:** Selects the first available observation station
+3. **Time Range Calculation:** Calculates time range for last 7 days (from 7 days ago to current time)
+4. **Observations API Call:** Fetches observations from the NWS observation stations API with a limit of 500 observations
+
+**Data Processing:**
+1. **Timezone Conversion:** Converts observation timestamps from UTC to local timezone using `Get-ResolvedTimeZoneInfo`
+2. **Date Grouping:** Groups observations by local date (yyyy-MM-dd format)
+3. **Daily Aggregation:** Calculates daily aggregates for each day:
+   - **High Temperature:** Maximum temperature for the day
+   - **Low Temperature:** Minimum temperature for the day
+   - **Average Wind Speed:** Average wind speed for the day
+   - **Maximum Wind Speed:** Maximum wind speed for the day
+   - **Wind Direction:** Average wind direction for the day (converted to cardinal direction)
+   - **Average Humidity:** Average relative humidity for the day
+   - **Total Precipitation:** Sum of all precipitation values for the day (handles multiple time periods: last hour, last 3 hours, last 6 hours)
+   - **Conditions:** Most common weather condition description for the day
+
+**Display Format:**
+- **Day Name and Date:** Day of week and date (e.g., "Thursday (11/06)")
+- **High/Low Temperatures:** Maximum and minimum temperatures with color coding
+- **Wind Information:** Maximum wind speed (and average if different), with cardinal direction
+- **Precipitation:** Total precipitation for the day (if any)
+- **Humidity:** Average relative humidity percentage
+- **Conditions:** Most common weather condition description with moon phase emoji
+- **Windchill/Heat Index:** Calculated and displayed when applicable
+
+**Function Location:**
+- **Get-NWSObservations:** Lines 279-511 - Fetches and processes observation data
+- **Show-Observations:** Lines 2309-2450 - Displays observation data
+- **Get-CardinalDirection:** Lines 2274-2281 - Converts wind direction degrees to cardinal directions
+
+**Timezone Handling:**
+- **UTC to Local Conversion:** Observation timestamps are parsed as `DateTimeOffset` and converted to local timezone
+- **Date Matching:** Both observation dates and expected dates use the same timezone for accurate matching
+- **Date Range:** Uses local timezone for calculating the 7-day date range
+
+**Data Filtering:**
+- **Empty Data Filtering:** Days with no actual data (all null values) are filtered out before display
+- **Conditional Display:** Only days with at least one data point (temperature, wind speed, or humidity) are shown
+
+**Error Handling:**
+- **Graceful Degradation:** Missing observation data doesn't break the display
+- **Null Safety:** Handles missing or invalid observation timestamps
+- **API Failures:** Returns null if API calls fail, with verbose error logging
+- **Loading States:** Prevents multiple simultaneous API calls with loading flag
+
+**Performance Considerations:**
+- **API Limit:** Uses limit=500 to fetch up to 500 observations per request
+- **Efficient Grouping:** Groups observations by date using hashtable for O(1) lookups
+- **Single Calculation:** Daily aggregates calculated once per day
+- **Memory Efficient:** Minimal memory footprint for observation data
+
+**Integration Points:**
+- **Command Line:** `-o` or `-observations` flag triggers observations mode
+- **Interactive Mode:** 'O' key switches to observations mode
+- **Control Bar:** Shows "Observations" with 'O' highlighted as trigger key
+- **Auto-Refresh:** Observations data can be refreshed manually with 'G' key
+
+**API Endpoints:**
+- **Observation Stations:** `/points/{lat},{lon}/stations` - Get available observation stations
+- **Observations:** `/stations/{stationId}/observations?start={startTime}&end={endTime}&limit=500` - Get historical observations
+
+**Benefits:**
+- **Historical Context:** Provides actual observed weather data, not forecasts
+- **Data Accuracy:** Uses official NWS observation station data
+- **Comprehensive Coverage:** Shows up to 7 days of historical data
+- **User-Friendly:** Only displays days with actual data available
+- **Consistent Format:** Uses same display format as other modes for familiarity
 
 ### Future Enhancements
 
