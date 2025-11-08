@@ -5,6 +5,8 @@ const appState = {
     currentMode: 'full',
     weatherData: null,
     location: null,
+    observationsData: null,
+    observationsAvailable: false,
     autoUpdateEnabled: true,
     lastFetchTime: null,
     hourlyScrollIndex: 0,
@@ -115,13 +117,16 @@ async function init() {
     if (updateTimeInterval) clearInterval(updateTimeInterval);
     updateTimeInterval = setInterval(updateLastUpdateTime, 30000); // Update every 30 seconds
     
+    // Initialize History button state (disabled by default until data is loaded)
+    updateHistoryButtonState();
+    
     // Check for URL query parameters
     const urlParams = new URLSearchParams(window.location.search);
     const locationParam = urlParams.get('location');
     const modeParam = urlParams.get('mode');
     
     // Set mode from URL if provided (but don't render yet - wait for data)
-    if (modeParam && ['full', 'terse', 'hourly', 'daily', 'rain', 'wind'].includes(modeParam)) {
+    if (modeParam && ['full', 'history', 'hourly', 'daily', 'rain', 'wind'].includes(modeParam)) {
         appState.currentMode = modeParam;
         // Update active button
         elements.modeButtons.forEach(btn => {
@@ -138,17 +143,16 @@ async function init() {
         if (locationParam) {
             // Use location from URL
             elements.locationInput.value = locationParam;
-            await loadWeatherData(locationParam);
+            await loadWeatherData(locationParam, false); // false = show errors
         } else {
             // Check for stored location
             const storedLocation = localStorage.getItem('forecastLocation');
             if (storedLocation && storedLocation.trim() !== '') {
                 elements.locationInput.value = storedLocation;
-                await loadWeatherData(storedLocation);
+                await loadWeatherData(storedLocation, false); // false = show errors
             } else {
-                // Default to 'here' if no location specified
-                elements.locationInput.value = 'here';
-                await loadWeatherData('here');
+                // Try to detect location automatically (silently on failure)
+                await loadWeatherData('here', true); // true = silent on location detection failure
             }
         }
     } catch (error) {
@@ -269,8 +273,68 @@ async function handleSearch() {
     await loadWeatherData(location);
 }
 
+// Check observations availability and fetch observations
+async function checkObservationsAvailability(pointsData, timeZone) {
+    try {
+        if (!pointsData || !pointsData.properties || !pointsData.properties.observationStations) {
+            appState.observationsAvailable = false;
+            appState.observationsData = null;
+            return false;
+        }
+        
+        // Try to fetch observation stations
+        const stationId = await fetchNWSObservationStations(pointsData);
+        if (!stationId) {
+            appState.observationsAvailable = false;
+            appState.observationsData = null;
+            return false;
+        }
+        
+        // Try to fetch observations
+        const observationsData = await fetchNWSObservations(stationId, timeZone);
+        if (!observationsData || !observationsData.features || observationsData.features.length === 0) {
+            appState.observationsAvailable = false;
+            appState.observationsData = null;
+            return false;
+        }
+        
+        // Process observations data
+        const processedObservations = processObservationsData(observationsData, timeZone);
+        if (!processedObservations || processedObservations.length === 0) {
+            appState.observationsAvailable = false;
+            appState.observationsData = null;
+            return false;
+        }
+        
+        appState.observationsData = processedObservations;
+        appState.observationsAvailable = true;
+        return true;
+    } catch (error) {
+        console.error('Error checking observations availability:', error);
+        appState.observationsAvailable = false;
+        appState.observationsData = null;
+        return false;
+    }
+}
+
+// Update History button state
+function updateHistoryButtonState() {
+    const historyBtn = document.getElementById('historyModeBtn');
+    if (!historyBtn) {
+        return;
+    }
+    
+    if (appState.observationsAvailable) {
+        historyBtn.disabled = false;
+        historyBtn.classList.remove('disabled');
+    } else {
+        historyBtn.disabled = true;
+        historyBtn.classList.add('disabled');
+    }
+}
+
 // Load weather data
-async function loadWeatherData(location) {
+async function loadWeatherData(location, silentOnLocationFailure = false) {
     try {
         setLoading(true);
         hideError();
@@ -287,6 +351,12 @@ async function loadWeatherData(location) {
         appState.location = weatherData.location;
         appState.lastFetchTime = new Date();
         appState.hourlyScrollIndex = 0;
+        
+        // Check observations availability and fetch observations if available
+        await checkObservationsAvailability(weatherData.points, weatherData.location.timeZone);
+        
+        // Update History button state
+        updateHistoryButtonState();
         
         // Update location in input field
         const locationText = `${weatherData.location.city}, ${weatherData.location.state}`;
@@ -308,6 +378,18 @@ async function loadWeatherData(location) {
         setLoading(false);
         let errorMessage = error.message;
         
+        // Handle location detection failures silently if requested (when trying to auto-detect 'here')
+        if (silentOnLocationFailure && location.toLowerCase() === 'here') {
+            // Log error but don't show to user
+            console.log('Location detection failed silently (geolocation and IP-based both failed):', error);
+            // Clear input and focus it
+            elements.locationInput.value = '';
+            elements.locationInput.focus();
+            // Update History button state
+            updateHistoryButtonState();
+            return;
+        }
+        
         // Provide more helpful error messages for location detection failures
         if (errorMessage.includes('Unable to detect location') || errorMessage.includes('IP geolocation')) {
             errorMessage = 'Unable to detect your location automatically. Please enter a zip code or city name (e.g., "97217" or "Portland, OR") in the search box above.';
@@ -319,6 +401,9 @@ async function loadWeatherData(location) {
         
         showError(`Error loading weather data: ${errorMessage}`);
         console.error('Error loading weather data:', error);
+        
+        // Update History button state even on error
+        updateHistoryButtonState();
     }
 }
 
@@ -361,8 +446,12 @@ function renderCurrentMode() {
         case 'full':
             html = displayFullWeatherReport(appState.weatherData, appState.location);
             break;
-        case 'terse':
-            html = displayTerseMode(appState.weatherData, appState.location);
+        case 'history':
+            if (appState.observationsData && appState.observationsData.length > 0) {
+                html = displayObservations(appState.observationsData, appState.location);
+            } else {
+                html = '<div class="error-message">No historical observations available.</div>';
+            }
             break;
         case 'hourly':
             html = displayHourlyForecast(appState.weatherData, appState.location, appState.hourlyScrollIndex, 12);

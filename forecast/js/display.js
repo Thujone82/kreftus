@@ -523,12 +523,127 @@ function displayFullWeatherReport(weather, location) {
     return html;
 }
 
-// Display terse mode
-function displayTerseMode(weather, location) {
-    let html = '';
-    html += displayCurrentConditions(weather, location);
-    html += displayForecastText(weather.forecast.today.name, weather.forecast.today.text);
-    html += displayWeatherAlerts(weather.alerts, false);
+// Display observations (history) mode
+function displayObservations(observationsData, location) {
+    if (!observationsData || observationsData.length === 0) {
+        return '<div class="error-message">No historical observations available.</div>';
+    }
+    
+    const cityName = truncateCityName(location.city, 20);
+    let html = `<div class="section-header">${cityName} Observations</div>`;
+    
+    // Reverse the array so most recent observations appear first
+    const reversedData = [...observationsData].reverse();
+    
+    reversedData.forEach(dayData => {
+        const [year, month, day] = dayData.date.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
+        const dayName = getDayName(date, false);
+        const dateStr = `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`;
+        
+        // Calculate moon phase for this day
+        const moonPhaseInfo = calculateMoonPhase(date);
+        const moonEmoji = moonPhaseInfo.emoji;
+        
+        html += '<div class="daily-item">';
+        html += `<div class="daily-header">${dayName} (${dateStr})</div>`;
+        
+        // Temp line: H:{high}°F L:{low}°F with windchill/heat index if applicable
+        html += '<div class="condition-row">';
+        html += '<span class="condition-label">Temp:</span>';
+        
+        if (dayData.highTemp !== null) {
+            html += `<span class="condition-value ${getTempColor(dayData.highTemp)}">H:${dayData.highTemp}°F</span>`;
+        } else {
+            html += '<span class="condition-value">H:N/A</span>';
+        }
+        
+        // Calculate windchill or heat index
+        let windChill = null;
+        let heatIndex = null;
+        if (dayData.highTemp !== null && dayData.avgWindSpeed !== null) {
+            const tempNum = dayData.highTemp;
+            const windSpeedNum = dayData.avgWindSpeed;
+            
+            if (tempNum <= 50) {
+                windChill = calculateWindChill(tempNum, windSpeedNum);
+                if (windChill && Math.abs(tempNum - windChill) <= 1) {
+                    windChill = null; // Only show if difference > 1°F
+                }
+            } else if (tempNum >= 80 && dayData.avgHumidity !== null) {
+                heatIndex = calculateHeatIndex(tempNum, dayData.avgHumidity);
+                if (heatIndex && Math.abs(heatIndex - tempNum) <= 1) {
+                    heatIndex = null; // Only show if difference > 1°F
+                }
+            }
+        }
+        
+        if (windChill) {
+            html += ` <span class="condition-value">Windchill[<span class="temp-cold">${windChill}°F</span>]</span>`;
+        } else if (heatIndex) {
+            html += ` <span class="condition-value">HeatIndex[<span class="temp-hot">${heatIndex}°F</span>]</span>`;
+        }
+        
+        if (dayData.lowTemp !== null) {
+            html += ` <span class="condition-value ${getTempColor(dayData.lowTemp)}">L:${dayData.lowTemp}°F</span>`;
+        } else {
+            html += ' <span class="condition-value">L:N/A</span>';
+        }
+        
+        html += '</div>';
+        
+        // Wind line: {max}mph (or "{max}mph (avg {avg}mph)" if different) with direction
+        html += '<div class="condition-row">';
+        html += '<span class="condition-label">Wind:</span>';
+        
+        if (dayData.maxWindSpeed !== null) {
+            const windSpeedNum = Math.round(dayData.maxWindSpeed);
+            const windColor = getWindColor(windSpeedNum);
+            let windDisplay = `${windSpeedNum}mph`;
+            
+            if (dayData.avgWindSpeed !== null && Math.abs(dayData.maxWindSpeed - dayData.avgWindSpeed) > 1) {
+                const avgWindSpeedNum = Math.round(dayData.avgWindSpeed);
+                windDisplay = `${windSpeedNum}mph (avg ${avgWindSpeedNum}mph)`;
+            }
+            
+            const windDir = dayData.windDirection !== null ? getCardinalDirection(dayData.windDirection) : '';
+            html += `<span class="condition-value ${windColor}">${windDisplay} ${windDir}</span>`;
+        } else if (dayData.avgWindSpeed !== null) {
+            const windSpeedNum = Math.round(dayData.avgWindSpeed);
+            const windColor = getWindColor(windSpeedNum);
+            const windDir = dayData.windDirection !== null ? getCardinalDirection(dayData.windDirection) : '';
+            html += `<span class="condition-value ${windColor}">${windSpeedNum}mph ${windDir}</span>`;
+        } else {
+            html += '<span class="condition-value">N/A</span>';
+        }
+        
+        html += '</div>';
+        
+        // Precipitation line: Precip: {total}" if > 0
+        if (dayData.totalPrecipitation > 0) {
+            html += '<div class="condition-row">';
+            html += '<span class="condition-label">Precip:</span>';
+            html += `<span class="condition-value ${getPrecipColor(dayData.totalPrecipitation * 100)}">${dayData.totalPrecipitation}"</span>`;
+            html += '</div>';
+        }
+        
+        // Humidity line: Humidity: {avg}% RH
+        if (dayData.avgHumidity !== null) {
+            html += '<div class="condition-row">';
+            html += '<span class="condition-label">Humidity:</span>';
+            html += `<span class="condition-value ${getHumidityColor(dayData.avgHumidity)}">${Math.round(dayData.avgHumidity)}% RH</span>`;
+            html += '</div>';
+        }
+        
+        // Conditions line: {moonEmoji} Conditions: {description}
+        html += '<div class="condition-row">';
+        html += `<span class="condition-label">${moonEmoji} Conditions:</span>`;
+        html += `<span class="condition-value forecast-text">${dayData.conditions}</span>`;
+        html += '</div>';
+        
+        html += '</div>';
+    });
+    
     return html;
 }
 

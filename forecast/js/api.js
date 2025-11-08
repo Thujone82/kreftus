@@ -248,6 +248,74 @@ async function fetchNWSAlerts(lat, lon) {
     }
 }
 
+// Fetch NWS observation stations
+async function fetchNWSObservationStations(pointsData) {
+    try {
+        const observationStationsUrl = pointsData.properties.observationStations;
+        if (!observationStationsUrl) {
+            console.log('No observation stations URL found in points data');
+            return null;
+        }
+        
+        console.log('Fetching observation stations from:', observationStationsUrl);
+        const response = await fetch(observationStationsUrl, { headers: NWS_HEADERS });
+        
+        if (!response.ok) {
+            console.error('Failed to fetch observation stations:', response.status, response.statusText);
+            return null;
+        }
+        
+        const stationsData = await response.json();
+        
+        if (!stationsData.features || stationsData.features.length === 0) {
+            console.log('No observation stations found');
+            return null;
+        }
+        
+        const stationId = stationsData.features[0].properties.stationIdentifier;
+        console.log('Using observation station:', stationId);
+        return stationId;
+    } catch (error) {
+        console.error('Error fetching observation stations:', error);
+        return null;
+    }
+}
+
+// Fetch NWS observations
+async function fetchNWSObservations(stationId, timeZone) {
+    try {
+        if (!stationId) {
+            return null;
+        }
+        
+        // Calculate time range (last 7 days)
+        const endTime = new Date();
+        const startTime = new Date();
+        startTime.setDate(startTime.getDate() - 7);
+        
+        // Format times in ISO 8601 format (UTC)
+        const startTimeStr = startTime.toISOString();
+        const endTimeStr = endTime.toISOString();
+        
+        const observationsUrl = `https://api.weather.gov/stations/${stationId}/observations?start=${startTimeStr}&end=${endTimeStr}&limit=500`;
+        console.log('Fetching observations from:', observationsUrl);
+        
+        const response = await fetch(observationsUrl, { headers: NWS_HEADERS });
+        
+        if (!response.ok) {
+            console.error('Failed to fetch observations:', response.status, response.statusText);
+            return null;
+        }
+        
+        const observationsData = await response.json();
+        console.log('Fetched observations:', observationsData.features?.length || 0, 'observations');
+        return observationsData;
+    } catch (error) {
+        console.error('Error fetching observations:', error);
+        return null;
+    }
+}
+
 // Fetch all weather data for a location
 async function fetchWeatherData(location) {
     let lat, lon, city, state;

@@ -179,3 +179,227 @@ function getDayName(date, short = false) {
     return days[date.getDay()];
 }
 
+// Convert wind direction degrees to cardinal direction
+function getCardinalDirection(degrees) {
+    if (degrees === null || degrees === undefined) {
+        return '';
+    }
+    
+    const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    const index = Math.round(degrees / 22.5) % 16;
+    return directions[index];
+}
+
+// Process observations data from NWS API
+function processObservationsData(observationsData, timeZoneId) {
+    if (!observationsData || !observationsData.features || observationsData.features.length === 0) {
+        return [];
+    }
+    
+    const dailyData = {};
+    
+    // Process each observation
+    observationsData.features.forEach(observation => {
+        try {
+            // Parse the observation timestamp (API returns in UTC)
+            const obsTime = new Date(observation.properties.timestamp);
+            
+            // Convert to local timezone if provided
+            let localTime = obsTime;
+            if (timeZoneId) {
+                try {
+                    const formatter = new Intl.DateTimeFormat('en-US', {
+                        timeZone: timeZoneId,
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: false
+                    });
+                    
+                    const parts = formatter.formatToParts(obsTime);
+                    const year = parseInt(parts.find(p => p.type === 'year').value);
+                    const month = parseInt(parts.find(p => p.type === 'month').value) - 1;
+                    const day = parseInt(parts.find(p => p.type === 'day').value);
+                    const hour = parseInt(parts.find(p => p.type === 'hour').value);
+                    const minute = parseInt(parts.find(p => p.type === 'minute').value);
+                    
+                    localTime = new Date(year, month, day, hour, minute);
+                } catch (error) {
+                    // Fallback to UTC if timezone conversion fails
+                    localTime = obsTime;
+                }
+            }
+            
+            const obsDate = `${localTime.getFullYear()}-${String(localTime.getMonth() + 1).padStart(2, '0')}-${String(localTime.getDate()).padStart(2, '0')}`;
+            
+            if (!dailyData[obsDate]) {
+                dailyData[obsDate] = {
+                    date: obsDate,
+                    temperatures: [],
+                    windSpeeds: [],
+                    windDirections: [],
+                    humidities: [],
+                    precipitations: [],
+                    conditions: []
+                };
+            }
+            
+            const props = observation.properties;
+            
+            // Extract temperature (convert from Celsius to Fahrenheit if needed)
+            if (props.temperature && props.temperature.value !== null && props.temperature.value !== undefined) {
+                const tempC = props.temperature.value;
+                const tempF = (tempC * 9/5) + 32;
+                dailyData[obsDate].temperatures.push(tempF);
+            }
+            
+            // Extract wind speed (convert from m/s to mph if needed)
+            if (props.windSpeed && props.windSpeed.value !== null && props.windSpeed.value !== undefined) {
+                const windSpeedMs = props.windSpeed.value;
+                const windSpeedMph = windSpeedMs * 2.237;
+                dailyData[obsDate].windSpeeds.push(windSpeedMph);
+            }
+            
+            // Extract wind direction
+            if (props.windDirection && props.windDirection.value !== null && props.windDirection.value !== undefined) {
+                dailyData[obsDate].windDirections.push(props.windDirection.value);
+            }
+            
+            // Extract humidity
+            if (props.relativeHumidity && props.relativeHumidity.value !== null && props.relativeHumidity.value !== undefined) {
+                dailyData[obsDate].humidities.push(props.relativeHumidity.value);
+            }
+            
+            // Extract precipitation - try multiple fields for better accuracy
+            let precipValue = null;
+            if (props.precipitationLastHour && props.precipitationLastHour.value !== null && props.precipitationLastHour.value !== undefined) {
+                precipValue = props.precipitationLastHour.value;
+            } else if (props.precipitationLast3Hours && props.precipitationLast3Hours.value !== null && props.precipitationLast3Hours.value !== undefined) {
+                // If 3-hour value exists, divide by 3 to get hourly equivalent
+                precipValue = props.precipitationLast3Hours.value / 3;
+            } else if (props.precipitationLast6Hours && props.precipitationLast6Hours.value !== null && props.precipitationLast6Hours.value !== undefined) {
+                // If 6-hour value exists, divide by 6 to get hourly equivalent
+                precipValue = props.precipitationLast6Hours.value / 6;
+            }
+            
+            if (precipValue !== null) {
+                dailyData[obsDate].precipitations.push(precipValue);
+            }
+            
+            // Extract conditions
+            if (props.textDescription) {
+                dailyData[obsDate].conditions.push(props.textDescription);
+            }
+        } catch (error) {
+            console.error('Error processing observation:', error);
+            // Continue processing other observations
+        }
+    });
+    
+    // Calculate daily aggregates
+    const result = [];
+    
+    // Get current date in the target timezone (same as observations)
+    let nowInLocalTz = new Date();
+    if (timeZoneId) {
+        try {
+            const formatter = new Intl.DateTimeFormat('en-US', {
+                timeZone: timeZoneId,
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            });
+            
+            const parts = formatter.formatToParts(nowInLocalTz);
+            const year = parseInt(parts.find(p => p.type === 'year').value);
+            const month = parseInt(parts.find(p => p.type === 'month').value) - 1;
+            const day = parseInt(parts.find(p => p.type === 'day').value);
+            const hour = parseInt(parts.find(p => p.type === 'hour').value);
+            const minute = parseInt(parts.find(p => p.type === 'minute').value);
+            
+            nowInLocalTz = new Date(year, month, day, hour, minute);
+        } catch (error) {
+            // Fallback to current time
+            nowInLocalTz = new Date();
+        }
+    }
+    
+    // Process last 7 days
+    for (let i = 6; i >= 0; i--) {
+        const targetDate = new Date(nowInLocalTz);
+        targetDate.setDate(targetDate.getDate() - i);
+        const date = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`;
+        
+        if (dailyData[date]) {
+            const dayData = dailyData[date];
+            
+            // Calculate aggregates
+            const highTemp = dayData.temperatures.length > 0 
+                ? Math.round(Math.max(...dayData.temperatures) * 10) / 10 
+                : null;
+            const lowTemp = dayData.temperatures.length > 0 
+                ? Math.round(Math.min(...dayData.temperatures) * 10) / 10 
+                : null;
+            const avgWindSpeed = dayData.windSpeeds.length > 0 
+                ? Math.round(dayData.windSpeeds.reduce((a, b) => a + b, 0) / dayData.windSpeeds.length * 10) / 10 
+                : null;
+            const maxWindSpeed = dayData.windSpeeds.length > 0 
+                ? Math.round(Math.max(...dayData.windSpeeds) * 10) / 10 
+                : null;
+            const windDirection = dayData.windDirections.length > 0 
+                ? Math.round(dayData.windDirections.reduce((a, b) => a + b, 0) / dayData.windDirections.length) 
+                : null;
+            const avgHumidity = dayData.humidities.length > 0 
+                ? Math.round(dayData.humidities.reduce((a, b) => a + b, 0) / dayData.humidities.length * 10) / 10 
+                : null;
+            const totalPrecipitation = dayData.precipitations.length > 0 
+                ? Math.round(dayData.precipitations.reduce((a, b) => a + b, 0) * 100) / 100 
+                : 0;
+            
+            // Get most common condition
+            let conditions = 'N/A';
+            if (dayData.conditions.length > 0) {
+                const conditionCounts = {};
+                dayData.conditions.forEach(cond => {
+                    conditionCounts[cond] = (conditionCounts[cond] || 0) + 1;
+                });
+                const sortedConditions = Object.entries(conditionCounts).sort((a, b) => b[1] - a[1]);
+                conditions = sortedConditions[0][0];
+            }
+            
+            result.push({
+                date: date,
+                highTemp: highTemp,
+                lowTemp: lowTemp,
+                avgWindSpeed: avgWindSpeed,
+                maxWindSpeed: maxWindSpeed,
+                windDirection: windDirection,
+                avgHumidity: avgHumidity,
+                totalPrecipitation: totalPrecipitation,
+                conditions: conditions
+            });
+        } else {
+            // No data for this day - add empty entry
+            result.push({
+                date: date,
+                highTemp: null,
+                lowTemp: null,
+                avgWindSpeed: null,
+                maxWindSpeed: null,
+                windDirection: null,
+                avgHumidity: null,
+                totalPrecipitation: 0,
+                conditions: 'N/A'
+            });
+        }
+    }
+    
+    // Filter out days with no actual data
+    return result.filter(day => day.highTemp !== null || day.lowTemp !== null || day.avgWindSpeed !== null);
+}
+
