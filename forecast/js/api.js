@@ -348,7 +348,7 @@ async function fetchNWSObservations(stationId, timeZone) {
         const startTimeStr = startTime.toISOString();
         const endTimeStr = endTime.toISOString();
         
-        const observationsUrl = `https://api.weather.gov/stations/${stationId}/observations?start=${startTimeStr}&end=${endTimeStr}&limit=500`;
+        const observationsUrl = `https://api.weather.gov/stations/${stationId}/observations?start=${startTimeStr}&end=${endTimeStr}&limit=1500`;
         console.log('Fetching observations from:', observationsUrl);
         
         const response = await fetch(observationsUrl, { headers: NWS_HEADERS });
