@@ -2502,7 +2502,14 @@ function Show-Observations {
     
     $detailedForecastColor = "Gray"
     
-    foreach ($dayData in $ObservationsData) {
+    # Reverse the order so most recent observations appear first
+    $reversedObservations = if ($ObservationsData -is [Array]) {
+        $ObservationsData | Sort-Object { [DateTime]::Parse($_.Date) } -Descending
+    } else {
+        $ObservationsData
+    }
+    
+    foreach ($dayData in $reversedObservations) {
         # Skip days with no actual data (all N/A)
         if ($null -eq $dayData.HighTemp -and $null -eq $dayData.LowTemp -and $null -eq $dayData.AvgWindSpeed) {
             continue
