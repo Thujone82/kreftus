@@ -336,17 +336,17 @@ function Process-ObservationsData {
                 $dailyData[$obsDate].Temperatures += $tempF
             }
             
-            # Extract wind speed (sustained wind, convert from m/s to mph if needed)
+            # Extract wind speed (sustained wind, convert from km/h to mph)
             if ($props.windSpeed -and $props.windSpeed.value) {
-                $windSpeedMs = $props.windSpeed.value
-                $windSpeedMph = $windSpeedMs * 2.237
+                $windSpeedKmh = $props.windSpeed.value
+                $windSpeedMph = $windSpeedKmh * 0.621371
                 $dailyData[$obsDate].WindSpeeds += $windSpeedMph
             }
             
-            # Extract wind gust (peak wind, convert from m/s to mph if needed)
+            # Extract wind gust (peak wind, convert from km/h to mph)
             if ($props.windGust -and $props.windGust.value) {
-                $windGustMs = $props.windGust.value
-                $windGustMph = $windGustMs * 2.237
+                $windGustKmh = $props.windGust.value
+                $windGustMph = $windGustKmh * 0.621371
                 $dailyData[$obsDate].WindGusts += $windGustMph
             }
             
