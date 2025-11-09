@@ -175,38 +175,89 @@ async function detectCurrentLocation() {
 async function detectLocationByIP() {
     try {
         console.log('Attempting IP-based geolocation...');
-        const response = await fetch("https://ip-api.com/json/", {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json'
+        // Try multiple IP geolocation services for better browser compatibility
+        // ip-api.com free tier has CORS restrictions for browser requests
+        // Try ipapi.co first (better CORS support), then fallback to ip-api.com
+        
+        const services = [
+            {
+                name: 'ipapi.co',
+                url: 'https://ipapi.co/json/',
+                parse: (data) => ({
+                    lat: data.latitude,
+                    lon: data.longitude,
+                    city: data.city,
+                    state: data.region_code || data.region
+                })
+            },
+            {
+                name: 'ip-api.com (HTTPS)',
+                url: 'https://ip-api.com/json/',
+                parse: (data) => {
+                    if (data.status === "success") {
+                        return {
+                            lat: data.lat,
+                            lon: data.lon,
+                            city: data.city,
+                            state: data.regionName
+                        };
+                    }
+                    throw new Error(data.message || "IP geolocation failed");
+                }
+            },
+            {
+                name: 'ip-api.com (HTTP)',
+                url: 'http://ip-api.com/json/',
+                parse: (data) => {
+                    if (data.status === "success") {
+                        return {
+                            lat: data.lat,
+                            lon: data.lon,
+                            city: data.city,
+                            state: data.regionName
+                        };
+                    }
+                    throw new Error(data.message || "IP geolocation failed");
+                }
             }
-        });
+        ];
         
-        if (!response.ok) {
-            console.error('IP geolocation API returned error:', response.status, response.statusText);
-            throw new Error(`IP geolocation API error: ${response.status} ${response.statusText}`);
+        for (const service of services) {
+            try {
+                console.log(`Trying ${service.name}:`, service.url);
+                const response = await fetch(service.url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    console.log(`${service.name} returned error:`, response.status, response.statusText);
+                    continue; // Try next service
+                }
+                
+                const data = await response.json();
+                console.log(`${service.name} response:`, data);
+                
+                const result = service.parse(data);
+                console.log(`Successfully detected location using ${service.name}:`, result);
+                return result;
+            } catch (error) {
+                console.log(`${service.name} failed:`, error.message);
+                // Continue to next service
+                continue;
+            }
         }
         
-        const data = await response.json();
-        console.log('IP geolocation response:', data);
-        
-        if (data.status === "success") {
-            return {
-                lat: data.lat,
-                lon: data.lon,
-                city: data.city,
-                state: data.regionName
-            };
-        } else {
-            console.error('IP geolocation failed with status:', data.status, data.message);
-            throw new Error(data.message || "IP geolocation failed");
-        }
+        // All services failed
+        throw new Error('All IP geolocation services failed');
     } catch (error) {
         console.error('IP geolocation error:', error);
         // Re-throw with more context
-        if (error.message.includes('fetch')) {
+        if (error.message.includes('fetch') || error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
             throw new Error(`Network error: Unable to reach IP geolocation service. Please check your internet connection.`);
-        } else if (error.message.includes('CORS')) {
+        } else if (error.message.includes('CORS') || error.message.includes('Mixed Content') || error.message.includes('blocked')) {
             throw new Error(`CORS error: IP geolocation service is not accessible. Please try entering a location manually.`);
         } else {
             throw new Error(`Unable to detect location: ${error.message}`);
