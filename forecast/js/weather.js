@@ -239,6 +239,7 @@ function processObservationsData(observationsData, timeZoneId) {
                     date: obsDate,
                     temperatures: [],
                     windSpeeds: [],
+                    windGusts: [],
                     windDirections: [],
                     humidities: [],
                     precipitations: [],
@@ -260,6 +261,13 @@ function processObservationsData(observationsData, timeZoneId) {
                 const windSpeedMs = props.windSpeed.value;
                 const windSpeedMph = windSpeedMs * 2.237;
                 dailyData[obsDate].windSpeeds.push(windSpeedMph);
+            }
+            
+            // Extract wind gust (peak wind, convert from m/s to mph if needed)
+            if (props.windGust && props.windGust.value !== null && props.windGust.value !== undefined) {
+                const windGustMs = props.windGust.value;
+                const windGustMph = windGustMs * 2.237;
+                dailyData[obsDate].windGusts.push(windGustMph);
             }
             
             // Extract wind direction
@@ -351,6 +359,13 @@ function processObservationsData(observationsData, timeZoneId) {
             const maxWindSpeed = dayData.windSpeeds.length > 0 
                 ? Math.round(Math.max(...dayData.windSpeeds) * 10) / 10 
                 : null;
+            const maxWindGust = dayData.windGusts.length > 0 
+                ? Math.round(Math.max(...dayData.windGusts) * 10) / 10 
+                : null;
+            // Use the larger of maxWindGust or maxWindSpeed for max wind value
+            const maxWind = (maxWindGust !== null && maxWindSpeed !== null) 
+                ? Math.max(maxWindGust, maxWindSpeed)
+                : (maxWindGust !== null ? maxWindGust : maxWindSpeed);
             const windDirection = dayData.windDirections.length > 0 
                 ? Math.round(dayData.windDirections.reduce((a, b) => a + b, 0) / dayData.windDirections.length) 
                 : null;
@@ -378,6 +393,8 @@ function processObservationsData(observationsData, timeZoneId) {
                 lowTemp: lowTemp,
                 avgWindSpeed: avgWindSpeed,
                 maxWindSpeed: maxWindSpeed,
+                maxWindGust: maxWindGust,
+                maxWind: maxWind, // The larger of maxWindGust or maxWindSpeed
                 windDirection: windDirection,
                 avgHumidity: avgHumidity,
                 totalPrecipitation: totalPrecipitation,
@@ -391,6 +408,8 @@ function processObservationsData(observationsData, timeZoneId) {
                 lowTemp: null,
                 avgWindSpeed: null,
                 maxWindSpeed: null,
+                maxWindGust: null,
+                maxWind: null,
                 windDirection: null,
                 avgHumidity: null,
                 totalPrecipitation: 0,

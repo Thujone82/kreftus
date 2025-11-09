@@ -592,27 +592,53 @@ function displayObservations(observationsData, location) {
         
         html += '</div>';
         
-        // Wind line: {max}mph (or "{max}mph (avg {avg}mph)" if different) with direction
+        // Wind line: Use maxWind (larger of maxWindGust or maxWindSpeed) with proper labeling
         html += '<div class="condition-row">';
         html += '<span class="condition-label">Wind:</span>';
         
-        if (dayData.maxWindSpeed !== null) {
-            const windSpeedNum = Math.round(dayData.maxWindSpeed);
-            const windColor = getWindColor(windSpeedNum);
-            let windDisplay = `${windSpeedNum}mph`;
+        // Use maxWind (the larger of maxWindGust or maxWindSpeed) for color coding
+        const windSpeedForColor = dayData.maxWind !== null ? dayData.maxWind : 
+                                  (dayData.maxWindSpeed !== null ? dayData.maxWindSpeed : dayData.avgWindSpeed);
+        
+        if (dayData.avgWindSpeed !== null) {
+            const avgWindSpeedNum = Math.round(dayData.avgWindSpeed);
+            const windColor = getWindColor(windSpeedForColor !== null ? Math.round(windSpeedForColor) : avgWindSpeedNum);
+            const windDir = dayData.windDirection !== null ? getCardinalDirection(dayData.windDirection) : '';
+            let windDisplay = '';
             
-            if (dayData.avgWindSpeed !== null && Math.abs(dayData.maxWindSpeed - dayData.avgWindSpeed) > 1) {
-                const avgWindSpeedNum = Math.round(dayData.avgWindSpeed);
-                windDisplay = `${windSpeedNum}mph (avg ${avgWindSpeedNum}mph)`;
+            // Build wind display with proper labels
+            if (dayData.maxWindGust !== null) {
+                // Show average with gust (preferred - most accurate)
+                const maxWindGustNum = Math.round(dayData.maxWindGust);
+                windDisplay = `avg ${avgWindSpeedNum}mph gust ${maxWindGustNum}mph ${windDir}`;
+            } else if (dayData.maxWindSpeed !== null) {
+                // Show average with max sustained wind (fallback if no gust data)
+                const maxWindSpeedNum = Math.round(dayData.maxWindSpeed);
+                if (Math.abs(dayData.maxWindSpeed - dayData.avgWindSpeed) > 1) {
+                    // Only show max if it differs significantly from avg
+                    windDisplay = `avg ${avgWindSpeedNum}mph max ${maxWindSpeedNum}mph ${windDir}`;
+                } else {
+                    // If max and avg are similar, just show avg
+                    windDisplay = `avg ${avgWindSpeedNum}mph ${windDir}`;
+                }
+            } else {
+                // Just show average if no max/gust data
+                windDisplay = `avg ${avgWindSpeedNum}mph ${windDir}`;
             }
             
+            html += `<span class="condition-value ${windColor}">${windDisplay}</span>`;
+        } else if (dayData.maxWindSpeed !== null) {
+            // Fallback to max if avg not available
+            const maxWindSpeedNum = Math.round(dayData.maxWindSpeed);
+            const windColor = getWindColor(maxWindSpeedNum);
             const windDir = dayData.windDirection !== null ? getCardinalDirection(dayData.windDirection) : '';
-            html += `<span class="condition-value ${windColor}">${windDisplay} ${windDir}</span>`;
-        } else if (dayData.avgWindSpeed !== null) {
-            const windSpeedNum = Math.round(dayData.avgWindSpeed);
-            const windColor = getWindColor(windSpeedNum);
+            html += `<span class="condition-value ${windColor}">max ${maxWindSpeedNum}mph ${windDir}</span>`;
+        } else if (dayData.maxWindGust !== null) {
+            // Fallback to gust if available
+            const maxWindGustNum = Math.round(dayData.maxWindGust);
+            const windColor = getWindColor(maxWindGustNum);
             const windDir = dayData.windDirection !== null ? getCardinalDirection(dayData.windDirection) : '';
-            html += `<span class="condition-value ${windColor}">${windSpeedNum}mph ${windDir}</span>`;
+            html += `<span class="condition-value ${windColor}">gust ${maxWindGustNum}mph ${windDir}</span>`;
         } else {
             html += '<span class="condition-value">N/A</span>';
         }
