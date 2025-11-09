@@ -256,18 +256,60 @@ function processObservationsData(observationsData, timeZoneId) {
                 dailyData[obsDate].temperatures.push(tempF);
             }
             
-            // Extract wind speed (convert from m/s to mph if needed)
+            // Extract wind speed (convert from km/h to mph - NWS API typically provides wind in km/h)
             if (props.windSpeed && props.windSpeed.value !== null && props.windSpeed.value !== undefined) {
-                const windSpeedMs = props.windSpeed.value;
-                const windSpeedMph = windSpeedMs * 2.237;
-                dailyData[obsDate].windSpeeds.push(windSpeedMph);
+                let windSpeedMph = props.windSpeed.value;
+                // Check unit code - NWS API observations typically use km/h for wind speeds
+                const unitCode = props.windSpeed.unitCode || '';
+                
+                if (unitCode.includes('m_s-1') || unitCode.includes('m/s') || unitCode.includes('wmoUnit:m_s-1')) {
+                    // Convert from m/s to mph
+                    windSpeedMph = windSpeedMph * 2.237;
+                } else if (unitCode.includes('km_h-1') || unitCode.includes('km/h') || unitCode.includes('wmoUnit:km_h-1')) {
+                    // Convert from km/h to mph
+                    windSpeedMph = windSpeedMph * 0.621371;
+                } else if (!unitCode || unitCode === '') {
+                    // If no unit code, default to km/h (NWS API observations typically use km/h)
+                    windSpeedMph = windSpeedMph * 0.621371;
+                }
+                // If unit code indicates mph or other, use value as-is
+                
+                // Filter out unrealistic values (>200 mph is likely bad data)
+                if (windSpeedMph <= 200) {
+                    dailyData[obsDate].windSpeeds.push(windSpeedMph);
+                } else {
+                    console.warn('Filtered unrealistic wind speed:', windSpeedMph, 'mph (raw value:', props.windSpeed.value, ', unitCode:', unitCode, ')');
+                }
             }
             
-            // Extract wind gust (peak wind, convert from m/s to mph if needed)
+            // Extract wind gust (peak wind, convert from km/h to mph - NWS API typically provides wind in km/h)
             if (props.windGust && props.windGust.value !== null && props.windGust.value !== undefined) {
-                const windGustMs = props.windGust.value;
-                const windGustMph = windGustMs * 2.237;
-                dailyData[obsDate].windGusts.push(windGustMph);
+                let windGustMph = props.windGust.value;
+                // Check unit code - NWS API observations typically use km/h for wind gusts
+                const unitCode = props.windGust.unitCode || '';
+                
+                if (unitCode.includes('m_s-1') || unitCode.includes('m/s') || unitCode.includes('wmoUnit:m_s-1')) {
+                    // Convert from m/s to mph
+                    windGustMph = windGustMph * 2.237;
+                } else if (unitCode.includes('km_h-1') || unitCode.includes('km/h') || unitCode.includes('wmoUnit:km_h-1')) {
+                    // Convert from km/h to mph
+                    windGustMph = windGustMph * 0.621371;
+                } else if (!unitCode || unitCode === '') {
+                    // If no unit code, default to km/h (NWS API observations typically use km/h)
+                    windGustMph = windGustMph * 0.621371;
+                }
+                // If unit code indicates mph or other, use value as-is
+                
+                // Filter out unrealistic gust values (>100 mph gusts are extremely rare)
+                // Also ensure gust is reasonable compared to wind speed
+                const currentWindSpeed = dailyData[obsDate].windSpeeds.length > 0 
+                    ? dailyData[obsDate].windSpeeds[dailyData[obsDate].windSpeeds.length - 1]
+                    : null;
+                if (windGustMph <= 150 && (currentWindSpeed === null || windGustMph <= currentWindSpeed * 3)) {
+                    dailyData[obsDate].windGusts.push(windGustMph);
+                } else {
+                    console.warn('Filtered unrealistic wind gust:', windGustMph, 'mph (raw value:', props.windGust.value, ', unitCode:', unitCode, ', windSpeed:', currentWindSpeed, 'mph)');
+                }
             }
             
             // Extract wind direction
