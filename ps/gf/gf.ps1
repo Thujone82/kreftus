@@ -276,89 +276,20 @@ function Get-ResolvedTimeZoneInfo {
     return [System.TimeZoneInfo]::Local
 }
 
-# Function to fetch NWS observations
-function Get-NWSObservations {
+# Function to process observations data into daily aggregates
+function Process-ObservationsData {
     param(
-        [object]$PointsData,
-        [hashtable]$Headers,
+        [object]$ObservationsData,
         [string]$TimeZone
     )
     
     try {
-        # Get observation stations from points data
-        $observationStationsUrl = $PointsData.properties.observationStations
-        if (-not $observationStationsUrl) {
-            Write-Verbose "No observation stations URL found in points data"
-            return $null
-        }
-        
-        Write-Verbose "Fetching observation stations from: $observationStationsUrl"
-        $stationsJob = Start-ApiJob -Url $observationStationsUrl -Headers $Headers -JobName "ObservationStations"
-        Wait-Job -Job $stationsJob | Out-Null
-        
-        if ($stationsJob.State -ne 'Completed') {
-            Write-Verbose "Failed to fetch observation stations: $($stationsJob | Receive-Job)"
-            Remove-Job -Job $stationsJob -Force
-            return $null
-        }
-        
-        $stationsJson = $stationsJob | Receive-Job
-        Remove-Job -Job $stationsJob
-        
-        if ([string]::IsNullOrWhiteSpace($stationsJson)) {
-            Write-Verbose "Empty response from observation stations API"
-            return $null
-        }
-        
-        $stationsData = $stationsJson | ConvertFrom-Json
-        
-        # Get the first station ID
-        if ($stationsData.features.Count -eq 0) {
-            Write-Verbose "No observation stations found"
-            return $null
-        }
-        
-        $stationId = $stationsData.features[0].properties.stationIdentifier
-        Write-Verbose "Using observation station: $stationId"
-        
-        # Calculate time range (last 7 days for observations)
-        $endTime = Get-Date
-        $startTime = $endTime.AddDays(-7)
-        
-        # Format times in ISO 8601 format for API
-        $startTimeStr = $startTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-        $endTimeStr = $endTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-        
-        # Fetch observations
-        $observationsUrl = "https://api.weather.gov/stations/$stationId/observations?start=$startTimeStr&end=$endTimeStr&limit=500"
-        Write-Verbose "GET: $observationsUrl"
-        Write-Verbose "Fetching historical observations from NWS observation stations API"
-        
-        $observationsJob = Start-ApiJob -Url $observationsUrl -Headers $Headers -JobName "Observations"
-        Wait-Job -Job $observationsJob | Out-Null
-        
-        if ($observationsJob.State -ne 'Completed') {
-            Write-Verbose "Failed to fetch observations: $($observationsJob | Receive-Job)"
-            Remove-Job -Job $observationsJob -Force
-            return $null
-        }
-        
-        $observationsJson = $observationsJob | Receive-Job
-        Remove-Job -Job $observationsJob
-        
-        if ([string]::IsNullOrWhiteSpace($observationsJson)) {
-            Write-Verbose "Empty response from observations API"
-            return $null
-        }
-        
-        $observationsData = $observationsJson | ConvertFrom-Json
-        
         # Process observations and group by day
         $dailyData = @{}
         
-        Write-Verbose "Processing $($observationsData.features.Count) observations"
+        Write-Verbose "Processing $($ObservationsData.features.Count) observations"
         
-        foreach ($observation in $observationsData.features) {
+        foreach ($observation in $ObservationsData.features) {
             try {
                 # Parse the observation timestamp (API returns in UTC)
                 $obsTimeOffset = [DateTimeOffset]::Parse($observation.properties.timestamp)
@@ -388,6 +319,7 @@ function Get-NWSObservations {
                     Date = $obsDate
                     Temperatures = @()
                     WindSpeeds = @()
+                    WindGusts = @()
                     WindDirections = @()
                     Humidities = @()
                     Precipitations = @()
@@ -404,11 +336,18 @@ function Get-NWSObservations {
                 $dailyData[$obsDate].Temperatures += $tempF
             }
             
-            # Extract wind speed (convert from m/s to mph if needed)
+            # Extract wind speed (sustained wind, convert from m/s to mph if needed)
             if ($props.windSpeed -and $props.windSpeed.value) {
                 $windSpeedMs = $props.windSpeed.value
                 $windSpeedMph = $windSpeedMs * 2.237
                 $dailyData[$obsDate].WindSpeeds += $windSpeedMph
+            }
+            
+            # Extract wind gust (peak wind, convert from m/s to mph if needed)
+            if ($props.windGust -and $props.windGust.value) {
+                $windGustMs = $props.windGust.value
+                $windGustMph = $windGustMs * 2.237
+                $dailyData[$obsDate].WindGusts += $windGustMph
             }
             
             # Extract wind direction
@@ -471,6 +410,7 @@ function Get-NWSObservations {
                     LowTemp = if ($dayData.Temperatures.Count -gt 0) { [Math]::Round(($dayData.Temperatures | Measure-Object -Minimum).Minimum, 1) } else { $null }
                     AvgWindSpeed = if ($dayData.WindSpeeds.Count -gt 0) { [Math]::Round(($dayData.WindSpeeds | Measure-Object -Average).Average, 1) } else { $null }
                     MaxWindSpeed = if ($dayData.WindSpeeds.Count -gt 0) { [Math]::Round(($dayData.WindSpeeds | Measure-Object -Maximum).Maximum, 1) } else { $null }
+                    MaxWindGust = if ($dayData.WindGusts.Count -gt 0) { [Math]::Round(($dayData.WindGusts | Measure-Object -Maximum).Maximum, 1) } else { $null }
                     WindDirection = if ($dayData.WindDirections.Count -gt 0) { [Math]::Round(($dayData.WindDirections | Measure-Object -Average).Average, 0) } else { $null }
                     AvgHumidity = if ($dayData.Humidities.Count -gt 0) { [Math]::Round(($dayData.Humidities | Measure-Object -Average).Average, 1) } else { $null }
                     TotalPrecipitation = if ($dayData.Precipitations.Count -gt 0) { [Math]::Round(($dayData.Precipitations | Measure-Object -Sum).Sum, 2) } else { 0 }
@@ -484,6 +424,7 @@ function Get-NWSObservations {
                     LowTemp = $null
                     AvgWindSpeed = $null
                     MaxWindSpeed = $null
+                    MaxWindGust = $null
                     WindDirection = $null
                     AvgHumidity = $null
                     TotalPrecipitation = 0
@@ -501,6 +442,94 @@ function Get-NWSObservations {
         
         # Return the result array (Show-Observations will filter out days with no data)
         return $result
+    }
+    catch {
+        Write-Verbose "Error processing observations data: $($_.Exception.Message)"
+        Write-Verbose "Error details: $($_.Exception.GetType().FullName) at line $($_.InvocationInfo.ScriptLineNumber)"
+        Write-Verbose "Stack trace: $($_.ScriptStackTrace)"
+        return $null
+    }
+}
+
+# Function to fetch NWS observations (kept for backward compatibility, but now uses async pattern in Update-WeatherData)
+function Get-NWSObservations {
+    param(
+        [object]$PointsData,
+        [hashtable]$Headers,
+        [string]$TimeZone
+    )
+    
+    try {
+        # Get observation stations from points data
+        $observationStationsUrl = $PointsData.properties.observationStations
+        if (-not $observationStationsUrl) {
+            Write-Verbose "No observation stations URL found in points data"
+            return $null
+        }
+        
+        Write-Verbose "Fetching observation stations from: $observationStationsUrl"
+        $stationsJob = Start-ApiJob -Url $observationStationsUrl -Headers $Headers -JobName "ObservationStations"
+        Wait-Job -Job $stationsJob | Out-Null
+        
+        if ($stationsJob.State -ne 'Completed') {
+            Write-Verbose "Failed to fetch observation stations: $($stationsJob | Receive-Job)"
+            Remove-Job -Job $stationsJob -Force
+            return $null
+        }
+        
+        $stationsJson = $stationsJob | Receive-Job
+        Remove-Job -Job $stationsJob
+        
+        if ([string]::IsNullOrWhiteSpace($stationsJson)) {
+            Write-Verbose "Empty response from observation stations API"
+            return $null
+        }
+        
+        $stationsData = $stationsJson | ConvertFrom-Json
+        
+        # Get the first station ID
+        if ($stationsData.features.Count -eq 0) {
+            Write-Verbose "No observation stations found"
+            return $null
+        }
+        
+        $stationId = $stationsData.features[0].properties.stationIdentifier
+        Write-Verbose "Using observation station: $stationId"
+        
+        # Calculate time range (last 7 days for observations)
+        $endTime = Get-Date
+        $startTime = $endTime.AddDays(-7)
+        
+        # Format times in ISO 8601 format for API
+        $startTimeStr = $startTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+        $endTimeStr = $endTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+        
+        # Fetch observations
+        $observationsUrl = "https://api.weather.gov/stations/$stationId/observations?start=$startTimeStr&end=$endTimeStr"
+        Write-Verbose "GET: $observationsUrl"
+        Write-Verbose "Fetching historical observations from NWS observation stations API"
+        
+        $observationsJob = Start-ApiJob -Url $observationsUrl -Headers $Headers -JobName "Observations"
+        Wait-Job -Job $observationsJob | Out-Null
+        
+        if ($observationsJob.State -ne 'Completed') {
+            Write-Verbose "Failed to fetch observations: $($observationsJob | Receive-Job)"
+            Remove-Job -Job $observationsJob -Force
+            return $null
+        }
+        
+        $observationsJson = $observationsJob | Receive-Job
+        Remove-Job -Job $observationsJob
+        
+        if ([string]::IsNullOrWhiteSpace($observationsJson)) {
+            Write-Verbose "Empty response from observations API"
+            return $null
+        }
+        
+        $observationsData = $observationsJson | ConvertFrom-Json
+        
+        # Use Process-ObservationsData to process the observations
+        return Process-ObservationsData -ObservationsData $observationsData -TimeZone $TimeZone
     }
     catch {
         Write-Verbose "Error fetching observations: $($_.Exception.Message)"
@@ -632,7 +661,23 @@ function Update-WeatherData {
         $forecastJob = Start-ApiJob -Url $forecastUrl -Headers $headers -JobName "ForecastData"
         $hourlyJob = Start-ApiJob -Url $hourlyUrl -Headers $headers -JobName "HourlyData"
         
-        $jobsToWaitFor = @($forecastJob, $hourlyJob)
+        # Start alerts job in parallel
+        $alertsUrl = "https://api.weather.gov/alerts/active?point=$lat,$lon"
+        Write-Verbose "GET: $alertsUrl"
+        $alertsJob = Start-ApiJob -Url $alertsUrl -Headers $headers -JobName "AlertsData"
+        
+        # Start observations stations job in parallel if timezone is provided
+        $stationsJob = $null
+        if ($TimeZone -and $pointsData.properties.observationStations) {
+            $observationStationsUrl = $pointsData.properties.observationStations
+            Write-Verbose "Fetching observation stations from: $observationStationsUrl"
+            $stationsJob = Start-ApiJob -Url $observationStationsUrl -Headers $headers -JobName "ObservationStations"
+        }
+        
+        $jobsToWaitFor = @($forecastJob, $hourlyJob, $alertsJob)
+        if ($stationsJob) {
+            $jobsToWaitFor += $stationsJob
+        }
         
         # Wait for jobs (same as initial load - wait indefinitely, no timeout)
         # Jobs have their own 30-second timeout in Start-ApiJob
@@ -839,33 +884,110 @@ function Update-WeatherData {
             }
         }
         
-        # Re-fetch alerts
+        # Process alerts job - allow partial failure
         $alertsData = $null
-        try {
-            $alertsUrl = "https://api.weather.gov/alerts/active?point=$lat,$lon"
-            Write-Verbose "GET: $alertsUrl"
-            $alertsResponse = Invoke-RestMethod -Uri $alertsUrl -Method Get -Headers $headers -ErrorAction Stop
-            $alertsData = $alertsResponse
-        }
-        catch {
-            # Alerts are optional, continue without them
-        }
-        
-        # Re-fetch observations data if timezone is provided
-        if ($TimeZone -and $pointsData) {
-            try {
-                Write-Verbose "Refreshing observations data..."
-                $script:observationsData = Get-NWSObservations -PointsData $pointsData -Headers $Headers -TimeZone $TimeZone
-                if ($null -ne $script:observationsData) {
-                    Write-Verbose "Observations data refreshed successfully"
-                } else {
-                    Write-Verbose "Observations data refresh returned null"
+        if ($alertsJob.State -eq 'Failed') {
+            Write-Verbose "Alerts API failed - continuing without alerts"
+            Remove-Job -Job $alertsJob -Force
+        } elseif ($alertsJob.State -ne 'Completed') {
+            Write-Verbose "Alerts API job in unexpected state: $($alertsJob.State) - continuing without alerts"
+            Remove-Job -Job $alertsJob -Force
+        } else {
+            $alertsJson = $alertsJob | Receive-Job
+            Remove-Job -Job $alertsJob
+            if (-not [string]::IsNullOrWhiteSpace($alertsJson)) {
+                try {
+                    $alertsData = $alertsJson | ConvertFrom-Json
+                    Write-Verbose "Alerts data retrieved successfully"
+                } catch {
+                    Write-Verbose "Failed to parse alerts data: $($_.Exception.Message)"
                 }
             }
-            catch {
-                Write-Verbose "Failed to refresh observations data: $($_.Exception.Message)"
-                # Observations are optional, continue without them
+        }
+        
+        # Process stations job and start observations data job if timezone is provided
+        $observationsJob = $null
+        $stationId = $null
+        if ($stationsJob) {
+            if ($stationsJob.State -eq 'Failed') {
+                Write-Verbose "Observation stations API failed - continuing without observations"
+                Remove-Job -Job $stationsJob -Force
+            } elseif ($stationsJob.State -ne 'Completed') {
+                Write-Verbose "Observation stations job in unexpected state: $($stationsJob.State) - continuing without observations"
+                Remove-Job -Job $stationsJob -Force
+            } else {
+                $stationsJson = $stationsJob | Receive-Job
+                Remove-Job -Job $stationsJob
+                if (-not [string]::IsNullOrWhiteSpace($stationsJson)) {
+                    try {
+                        $stationsData = $stationsJson | ConvertFrom-Json
+                        if ($stationsData.features.Count -gt 0) {
+                            $stationId = $stationsData.features[0].properties.stationIdentifier
+                            Write-Verbose "Using observation station: $stationId"
+                            
+                            # Calculate time range (last 7 days for observations)
+                            $endTime = Get-Date
+                            $startTime = $endTime.AddDays(-7)
+                            
+                            # Format times in ISO 8601 format for API
+                            $startTimeStr = $startTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+                            $endTimeStr = $endTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+                            
+                            # Start observations data job
+                            $observationsUrl = "https://api.weather.gov/stations/$stationId/observations?start=$startTimeStr&end=$endTimeStr"
+                            Write-Verbose "GET: $observationsUrl"
+                            Write-Verbose "Fetching historical observations from NWS observation stations API"
+                            $observationsJob = Start-ApiJob -Url $observationsUrl -Headers $headers -JobName "Observations"
+                        } else {
+                            Write-Verbose "No observation stations found"
+                        }
+                    } catch {
+                        Write-Verbose "Failed to parse stations data: $($_.Exception.Message)"
+                    }
+                }
             }
+        }
+        
+        # Wait for observations job if it was started
+        if ($observationsJob) {
+            Wait-Job -Job $observationsJob | Out-Null
+        }
+        
+        # Process observations job if it was started
+        if ($observationsJob) {
+            if ($observationsJob.State -eq 'Failed') {
+                Write-Verbose "Observations API failed - continuing without observations"
+                Remove-Job -Job $observationsJob -Force
+                $script:observationsData = $null
+            } elseif ($observationsJob.State -ne 'Completed') {
+                Write-Verbose "Observations job in unexpected state: $($observationsJob.State) - continuing without observations"
+                Remove-Job -Job $observationsJob -Force
+                $script:observationsData = $null
+            } else {
+                $observationsJson = $observationsJob | Receive-Job
+                Remove-Job -Job $observationsJob
+                if (-not [string]::IsNullOrWhiteSpace($observationsJson)) {
+                    try {
+                        $observationsData = $observationsJson | ConvertFrom-Json
+                        Write-Verbose "Processing $($observationsData.features.Count) observations"
+                        $script:observationsData = Process-ObservationsData -ObservationsData $observationsData -TimeZone $TimeZone
+                        if ($null -ne $script:observationsData) {
+                            Write-Verbose "Observations data processed successfully"
+                        } else {
+                            Write-Verbose "Observations data processing returned null"
+                        }
+                    } catch {
+                        Write-Verbose "Failed to process observations data: $($_.Exception.Message)"
+                        $script:observationsData = $null
+                    }
+                } else {
+                    Write-Verbose "Empty response from observations API"
+                    $script:observationsData = $null
+                }
+            }
+        } elseif ($TimeZone -and $pointsData) {
+            # If stations job wasn't started but timezone is provided, set observations to null
+            $script:observationsData = $null
         }
         
         # Update global variables (only if data is available)
@@ -1224,6 +1346,7 @@ Remove-Job -Job $jobsToWaitFor
 # Store points data and headers for later use
 $script:observationsData = $null
 $script:observationsDataLoading = $false
+$script:observationsPreloadAttempted = $false
 $script:pointsDataForObservations = $pointsData
 $script:headersForObservations = $headers
 $script:timeZoneForObservations = $timeZone
@@ -2409,9 +2532,10 @@ function Show-Observations {
         # Wind information
         $avgWindSpeed = $dayData.AvgWindSpeed
         $maxWindSpeed = $dayData.MaxWindSpeed
+        $maxWindGust = $dayData.MaxWindGust
         $windDirection = $dayData.WindDirection
-        # Use max wind speed for color coding (more relevant for peak conditions)
-        $windSpeedForColor = if ($null -ne $maxWindSpeed) { $maxWindSpeed } else { $avgWindSpeed }
+        # Use max wind gust or max wind speed for color coding (more relevant for peak conditions)
+        $windSpeedForColor = if ($null -ne $maxWindGust) { $maxWindGust } elseif ($null -ne $maxWindSpeed) { $maxWindSpeed } else { $avgWindSpeed }
         $windColor = if ($null -ne $windSpeedForColor -and $windSpeedForColor -ge $script:WIND_ALERT_THRESHOLD) { $AlertColor } else { $DefaultColor }
         
         # Calculate windchill or heat index (use avg wind speed for calculations)
@@ -2440,24 +2564,41 @@ function Show-Observations {
         $totalPrecip = $dayData.TotalPrecipitation
         $precipDisplay = if ($totalPrecip -gt 0) { " ($totalPrecip`" precip)" } else { "" }
         
-        # Wind display - show max wind speed (similar to Wind modal), with avg if different
+        # Wind display - show average wind speed as primary, gust (max wind) as secondary
         $windDisplay = ""
-        if ($null -ne $maxWindSpeed) {
+        if ($null -ne $avgWindSpeed) {
+            $avgWindSpeedStr = [Math]::Round($avgWindSpeed, 0).ToString()
+            $windDirStr = if ($null -ne $windDirection) { Get-CardinalDirection $windDirection } else { "" }
+            
+            # Build wind display with proper labels
+            if ($null -ne $maxWindGust) {
+                # Show average with gust (preferred - most accurate)
+                $maxWindGustStr = [Math]::Round($maxWindGust, 0).ToString()
+                $windDisplay = " avg ${avgWindSpeedStr}mph gust ${maxWindGustStr}mph $windDirStr"
+            } elseif ($null -ne $maxWindSpeed) {
+                # Show average with max sustained wind (fallback if no gust data)
+                $maxWindSpeedStr = [Math]::Round($maxWindSpeed, 0).ToString()
+                if ([Math]::Abs($maxWindSpeed - $avgWindSpeed) -gt 1) {
+                    # Only show max if it differs significantly from avg
+                    $windDisplay = " avg ${avgWindSpeedStr}mph max ${maxWindSpeedStr}mph $windDirStr"
+                } else {
+                    # If max and avg are similar, just show avg
+                    $windDisplay = " avg ${avgWindSpeedStr}mph $windDirStr"
+                }
+            } else {
+                # Just show average if no max/gust data
+                $windDisplay = " avg ${avgWindSpeedStr}mph $windDirStr"
+            }
+        } elseif ($null -ne $maxWindSpeed) {
+            # Fallback to max if avg not available
             $maxWindSpeedStr = [Math]::Round($maxWindSpeed, 0).ToString()
             $windDirStr = if ($null -ne $windDirection) { Get-CardinalDirection $windDirection } else { "" }
-            if ($null -ne $avgWindSpeed -and [Math]::Abs($maxWindSpeed - $avgWindSpeed) -gt 1) {
-                # Show both max and avg if they differ significantly
-                $avgWindSpeedStr = [Math]::Round($avgWindSpeed, 0).ToString()
-                $windDisplay = " ${maxWindSpeedStr}mph (avg ${avgWindSpeedStr}mph) $windDirStr"
-            } else {
-                # Just show max wind speed
-                $windDisplay = " ${maxWindSpeedStr}mph $windDirStr"
-            }
-        } elseif ($null -ne $avgWindSpeed) {
-            # Fallback to avg if max not available
-            $windSpeedStr = [Math]::Round($avgWindSpeed, 0).ToString()
+            $windDisplay = " max ${maxWindSpeedStr}mph $windDirStr"
+        } elseif ($null -ne $maxWindGust) {
+            # Fallback to gust if available
+            $maxWindGustStr = [Math]::Round($maxWindGust, 0).ToString()
             $windDirStr = if ($null -ne $windDirection) { Get-CardinalDirection $windDirection } else { "" }
-            $windDisplay = " ${windSpeedStr}mph $windDirStr"
+            $windDisplay = " gust ${maxWindGustStr}mph $windDirStr"
         }
         
         # Display enhanced format with proper padding
@@ -3251,36 +3392,101 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
     while ($true) {
         try {
             # Preload observations data in background if not already loaded (non-blocking)
-            if ($null -eq $script:observationsData -and -not $script:observationsDataLoading -and -not $Observations.IsPresent -and $null -eq $script:observationsPreloadJob) {
+            # Only attempt preload once to avoid infinite loops
+            if ($null -eq $script:observationsData -and -not $script:observationsDataLoading -and -not $Observations.IsPresent -and $null -eq $script:observationsPreloadJob -and -not $script:observationsPreloadAttempted) {
                 Write-Verbose "Preloading observations data in background for Observations mode"
                 $script:observationsDataLoading = $true
+                $script:observationsPreloadAttempted = $true
                 $script:observationsPreloadJob = Start-Job -ScriptBlock {
                     param($pointsDataJson, $headersJson)
                     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+                    $errorInfo = @{}
                     try {
-                        $pointsData = $pointsDataJson | ConvertFrom-Json
-                        $headers = $headersJson | ConvertFrom-Json
+                        # Parse input data
+                        try {
+                            $pointsData = $pointsDataJson | ConvertFrom-Json
+                            $headersObj = $headersJson | ConvertFrom-Json
+                            # Convert headers PSCustomObject back to hashtable (JSON deserialization creates PSCustomObject)
+                            $headers = @{}
+                            $headersObj.PSObject.Properties | ForEach-Object {
+                                $headers[$_.Name] = $_.Value
+                            }
+                            $errorInfo["Step"] = "ParseInput"
+                            $errorInfo["Success"] = $true
+                        } catch {
+                            $errorInfo["Step"] = "ParseInput"
+                            $errorInfo["Error"] = $_.Exception.Message
+                            $errorInfo["Success"] = $false
+                            return (@{ Error = $true; ErrorInfo = $errorInfo } | ConvertTo-Json -Compress)
+                        }
                         
-                        # Get observation stations
+                        # Get observation stations URL
                         $observationStationsUrl = $pointsData.properties.observationStations
-                        if (-not $observationStationsUrl) { return $null }
+                        if (-not $observationStationsUrl) {
+                            $errorInfo["Step"] = "GetStationsUrl"
+                            $errorInfo["Error"] = "No observation stations URL found in points data"
+                            $errorInfo["Success"] = $false
+                            return (@{ Error = $true; ErrorInfo = $errorInfo } | ConvertTo-Json -Compress)
+                        }
+                        $errorInfo["StationsUrl"] = $observationStationsUrl
                         
-                        $stationsResponse = Invoke-RestMethod -Uri $observationStationsUrl -Method Get -Headers $headers -ErrorAction Stop
-                        if ($stationsResponse.features.Count -eq 0) { return $null }
+                        # Fetch observation stations
+                        try {
+                            $stationsResponse = Invoke-RestMethod -Uri $observationStationsUrl -Method Get -Headers $headers -ErrorAction Stop -TimeoutSec 30
+                            $errorInfo["Step"] = "FetchStations"
+                            $errorInfo["Success"] = $true
+                            $errorInfo["StationsCount"] = if ($stationsResponse.features) { $stationsResponse.features.Count } else { 0 }
+                        } catch {
+                            $errorInfo["Step"] = "FetchStations"
+                            $errorInfo["Error"] = $_.Exception.Message
+                            $errorInfo["StatusCode"] = if ($_.Exception.Response) { $_.Exception.Response.StatusCode } else { $null }
+                            $errorInfo["Success"] = $false
+                            return (@{ Error = $true; ErrorInfo = $errorInfo } | ConvertTo-Json -Compress)
+                        }
+                        
+                        if (-not $stationsResponse.features -or $stationsResponse.features.Count -eq 0) {
+                            $errorInfo["Step"] = "ValidateStations"
+                            $errorInfo["Error"] = "No observation stations found in response"
+                            $errorInfo["Success"] = $false
+                            return (@{ Error = $true; ErrorInfo = $errorInfo } | ConvertTo-Json -Compress)
+                        }
                         
                         $stationId = $stationsResponse.features[0].properties.stationIdentifier
+                        $errorInfo["StationId"] = $stationId
+                        
+                        # Calculate time range
                         $endTime = Get-Date
                         $startTime = $endTime.AddDays(-7)
                         $startTimeStr = $startTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
                         $endTimeStr = $endTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+                        $errorInfo["StartTime"] = $startTimeStr
+                        $errorInfo["EndTime"] = $endTimeStr
                         
-                        $observationsUrl = "https://api.weather.gov/stations/$stationId/observations?start=$startTimeStr&end=$endTimeStr&limit=500"
-                        $observationsResponse = Invoke-RestMethod -Uri $observationsUrl -Method Get -Headers $headers -ErrorAction Stop
+                        # Fetch observations
+                        $observationsUrl = "https://api.weather.gov/stations/$stationId/observations?start=$startTimeStr&end=$endTimeStr"
+                        $errorInfo["ObservationsUrl"] = $observationsUrl
                         
-                        # Return raw observations data as JSON
-                        return $observationsResponse | ConvertTo-Json -Depth 10
+                        try {
+                            $observationsResponse = Invoke-RestMethod -Uri $observationsUrl -Method Get -Headers $headers -ErrorAction Stop -TimeoutSec 30
+                            $errorInfo["Step"] = "FetchObservations"
+                            $errorInfo["Success"] = $true
+                            $errorInfo["ObservationsCount"] = if ($observationsResponse.features) { $observationsResponse.features.Count } else { 0 }
+                            
+                            # Return success with data
+                            return (@{ Error = $false; Data = ($observationsResponse | ConvertTo-Json -Depth 10); ErrorInfo = $errorInfo } | ConvertTo-Json -Compress)
+                        } catch {
+                            $errorInfo["Step"] = "FetchObservations"
+                            $errorInfo["Error"] = $_.Exception.Message
+                            $errorInfo["StatusCode"] = if ($_.Exception.Response) { $_.Exception.Response.StatusCode } else { $null }
+                            $errorInfo["Success"] = $false
+                            return (@{ Error = $true; ErrorInfo = $errorInfo } | ConvertTo-Json -Compress)
+                        }
                     } catch {
-                        return $null
+                        $errorInfo["Step"] = "Unexpected"
+                        $errorInfo["Error"] = $_.Exception.Message
+                        $errorInfo["ExceptionType"] = $_.Exception.GetType().FullName
+                        $errorInfo["Success"] = $false
+                        return (@{ Error = $true; ErrorInfo = $errorInfo } | ConvertTo-Json -Compress)
                     }
                 } -ArgumentList ($script:pointsDataForObservations | ConvertTo-Json -Depth 10), ($script:headersForObservations | ConvertTo-Json)
             }
@@ -3292,17 +3498,84 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     Remove-Job -Job $script:observationsPreloadJob
                     $script:observationsPreloadJob = $null
                     $script:observationsDataLoading = $false
+                    
                     if ($null -ne $preloadResult -and -not [string]::IsNullOrWhiteSpace($preloadResult)) {
-                        # Process the preloaded raw observations data using the main function
-                        # Note: Get-NWSObservations will fetch again, but this preload ensures data is ready faster
-                        # For now, we'll just mark that we attempted preload and fetch on-demand
-                        Write-Verbose "Observations preload job completed, will process on-demand"
+                        try {
+                            $preloadJson = $preloadResult | ConvertFrom-Json
+                            
+                            # Check if job returned an error
+                            if ($preloadJson.Error) {
+                                $errorInfo = $preloadJson.ErrorInfo
+                                Write-Verbose "Observations preload job failed at step: $($errorInfo.Step)"
+                                Write-Verbose "Preload error: $($errorInfo.Error)"
+                                if ($errorInfo.StatusCode) {
+                                    Write-Verbose "Preload HTTP status: $($errorInfo.StatusCode)"
+                                }
+                                if ($errorInfo.StationsUrl) {
+                                    Write-Verbose "Preload stations URL: $($errorInfo.StationsUrl)"
+                                }
+                                if ($errorInfo.ObservationsUrl) {
+                                    Write-Verbose "Preload observations URL: $($errorInfo.ObservationsUrl)"
+                                }
+                                if ($errorInfo.StationId) {
+                                    Write-Verbose "Preload station ID: $($errorInfo.StationId)"
+                                }
+                                if ($errorInfo.StationsCount) {
+                                    Write-Verbose "Preload stations found: $($errorInfo.StationsCount)"
+                                }
+                                if ($errorInfo.ExceptionType) {
+                                    Write-Verbose "Preload exception type: $($errorInfo.ExceptionType)"
+                                }
+                                # Set empty array to prevent retry
+                                $script:observationsData = @()
+                            } else {
+                                # Success - process the data
+                                if ($preloadJson.Data) {
+                                    $observationsData = $preloadJson.Data | ConvertFrom-Json
+                                    $script:observationsData = Process-ObservationsData -ObservationsData $observationsData -TimeZone $script:timeZoneForObservations
+                                    if ($null -ne $script:observationsData) {
+                                        Write-Verbose "Observations data preloaded and processed successfully: $($script:observationsData.Count) days"
+                                        if ($preloadJson.ErrorInfo) {
+                                            $errorInfo = $preloadJson.ErrorInfo
+                                            Write-Verbose "Preload used station: $($errorInfo.StationId)"
+                                            Write-Verbose "Preload observations count: $($errorInfo.ObservationsCount)"
+                                        }
+                                    } else {
+                                        Write-Verbose "Observations preload data processing returned null"
+                                    }
+                                } else {
+                                    Write-Verbose "Observations preload job returned success but no data field"
+                                    $script:observationsData = @()
+                                }
+                            }
+                        } catch {
+                            Write-Verbose "Failed to parse preload job result: $($_.Exception.Message)"
+                            Write-Verbose "Preload result was: $($preloadResult.Substring(0, [Math]::Min(200, $preloadResult.Length)))"
+                            $script:observationsData = @()
+                        }
+                    } else {
+                        Write-Verbose "Observations preload job returned null or empty result - will not retry"
+                        $script:observationsData = @()
                     }
                 } elseif ($script:observationsPreloadJob.State -eq 'Failed') {
+                    $jobError = $null
+                    try {
+                        $jobError = $script:observationsPreloadJob | Receive-Job -ErrorVariable jobErrors 2>&1
+                    } catch {
+                        $jobError = $_.Exception.Message
+                    }
+                    Write-Verbose "Observations preload job failed with state: $($script:observationsPreloadJob.State)"
+                    if ($jobError) {
+                        Write-Verbose "Preload job error output: $jobError"
+                    }
                     Remove-Job -Job $script:observationsPreloadJob -Force
                     $script:observationsPreloadJob = $null
                     $script:observationsDataLoading = $false
-                    Write-Verbose "Observations preload job failed"
+                    $script:observationsData = @()
+                } elseif ($script:observationsPreloadJob.State -eq 'Running') {
+                    # Job still running - no action needed (don't spam verbose messages)
+                } else {
+                    Write-Verbose "Observations preload job in unexpected state: $($script:observationsPreloadJob.State)"
                 }
             }
             
@@ -3491,7 +3764,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     Write-Host "`n$statusMessage" -ForegroundColor $(if ($script:showControlBar) { "Green" } else { "Yellow" })
                     Start-Sleep -Milliseconds 800
                     
-                    # Re-render current view
+                    # Re-render current view - use exact same logic as 'u' key handler
                     Clear-HostWithDelay
                     if ($isHourlyMode) {
                         Show-HourlyForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -StartIndex $hourlyScrollIndex -IsInteractive $true -SunriseTime $sunriseTime -SunsetTime $sunsetTime -City $city -ShowCityInTitle $true -TimeZone $timeZone
@@ -3506,7 +3779,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         Show-SevenDayForecast -ForecastData $script:forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true
                         Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                     } elseif ($isObservationsMode) {
-                        if ($null -ne $script:observationsData) {
+                        if ($null -ne $script:observationsData -and ($script:observationsData -isnot [Array] -or $script:observationsData.Count -gt 0)) {
                             Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone
                         } else {
                             Write-Host "No historical observations available." -ForegroundColor $defaultColor
@@ -3520,7 +3793,8 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } else {
-                            Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon
+                            # Full mode - all mode flags are false
+                            Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         }
                     }
@@ -3544,8 +3818,64 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isTerseMode = $false
                     $isDailyMode = $false
                     $isObservationsMode = $true
-                    # Fetch observations if not already fetched
-                    if ($null -eq $script:observationsData) {
+                    # Check if preload job is still running
+                    if ($null -ne $script:observationsPreloadJob) {
+                        if ($script:observationsPreloadJob.State -eq 'Running') {
+                            Write-Host "Waiting for preloaded data..." -ForegroundColor Yellow
+                            Wait-Job -Job $script:observationsPreloadJob | Out-Null
+                        }
+                        if ($script:observationsPreloadJob.State -eq 'Completed') {
+                            $preloadResult = $script:observationsPreloadJob | Receive-Job
+                            Remove-Job -Job $script:observationsPreloadJob
+                            $script:observationsPreloadJob = $null
+                            $script:observationsDataLoading = $false
+                            if ($null -ne $preloadResult -and -not [string]::IsNullOrWhiteSpace($preloadResult)) {
+                                try {
+                                    $preloadJson = $preloadResult | ConvertFrom-Json
+                                    
+                                    # Check if job returned an error
+                                    if ($preloadJson.Error) {
+                                        $errorInfo = $preloadJson.ErrorInfo
+                                        Write-Verbose "Observations preload job failed at step: $($errorInfo.Step)"
+                                        Write-Verbose "Preload error: $($errorInfo.Error)"
+                                        $script:observationsData = @()
+                                    } else {
+                                        # Success - process the data
+                                        if ($preloadJson.Data) {
+                                            $observationsData = $preloadJson.Data | ConvertFrom-Json
+                                            $script:observationsData = Process-ObservationsData -ObservationsData $observationsData -TimeZone $script:timeZoneForObservations
+                                            if ($null -ne $script:observationsData) {
+                                                Write-Verbose "Observations data preloaded and processed successfully: $($script:observationsData.Count) days"
+                                            } else {
+                                                Write-Verbose "Observations preload data processing returned null"
+                                                $script:observationsData = @()
+                                            }
+                                        } else {
+                                            Write-Verbose "Observations preload job returned success but no data field"
+                                            $script:observationsData = @()
+                                        }
+                                    }
+                                } catch {
+                                    Write-Verbose "Failed to parse preload job result: $($_.Exception.Message)"
+                                    Write-Verbose "Preload result was: $($preloadResult.Substring(0, [Math]::Min(200, $preloadResult.Length)))"
+                                    $script:observationsData = @()
+                                }
+                            } else {
+                                Write-Verbose "Observations preload job returned null or empty result"
+                                $script:observationsData = @()
+                            }
+                        } elseif ($script:observationsPreloadJob.State -eq 'Failed') {
+                            Remove-Job -Job $script:observationsPreloadJob -Force
+                            $script:observationsPreloadJob = $null
+                            $script:observationsDataLoading = $false
+                        }
+                    }
+                    # Fetch observations if not already fetched (check for null or empty array)
+                    if ($null -eq $script:observationsData -or ($script:observationsData -is [Array] -and $script:observationsData.Count -eq 0)) {
+                        # Reset the empty array flag if it was set
+                        if ($script:observationsData -is [Array] -and $script:observationsData.Count -eq 0) {
+                            $script:observationsData = $null
+                        }
                         if ($script:observationsDataLoading) {
                             # If loading flag is stuck, reset it
                             $script:observationsDataLoading = $false
@@ -3566,7 +3896,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         }
                         Clear-HostWithDelay
                     }
-                    if ($null -ne $script:observationsData) {
+                    if ($null -ne $script:observationsData -and ($script:observationsData -isnot [Array] -or $script:observationsData.Count -gt 0)) {
                         Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone
                     } else {
                         Write-Host "No historical observations available." -ForegroundColor $defaultColor
