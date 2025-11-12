@@ -277,7 +277,7 @@ function Get-ResolvedTimeZoneInfo {
 }
 
 # Function to process observations data into daily aggregates
-function Process-ObservationsData {
+function Convert-ObservationsData {
     param(
         [object]$ObservationsData,
         [string]$TimeZone
@@ -528,8 +528,8 @@ function Get-NWSObservations {
         
         $observationsData = $observationsJson | ConvertFrom-Json
         
-        # Use Process-ObservationsData to process the observations
-        return Process-ObservationsData -ObservationsData $observationsData -TimeZone $TimeZone
+        # Use Convert-ObservationsData to process the observations
+        return Convert-ObservationsData -ObservationsData $observationsData -TimeZone $TimeZone
     }
     catch {
         Write-Verbose "Error fetching observations: $($_.Exception.Message)"
@@ -970,7 +970,7 @@ function Update-WeatherData {
                     try {
                         $observationsData = $observationsJson | ConvertFrom-Json
                         Write-Verbose "Processing $($observationsData.features.Count) observations"
-                        $script:observationsData = Process-ObservationsData -ObservationsData $observationsData -TimeZone $TimeZone
+                        $script:observationsData = Convert-ObservationsData -ObservationsData $observationsData -TimeZone $TimeZone
                         if ($null -ne $script:observationsData) {
                             Write-Verbose "Observations data processed successfully"
                         } else {
@@ -3535,11 +3535,11 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                                 }
                                 # Set empty array to prevent retry
                                 $script:observationsData = @()
-                            } else {
-                                # Success - process the data
-                                if ($preloadJson.Data) {
-                                    $observationsData = $preloadJson.Data | ConvertFrom-Json
-                                    $script:observationsData = Process-ObservationsData -ObservationsData $observationsData -TimeZone $script:timeZoneForObservations
+                                    } else {
+                                        # Success - process the data
+                                        if ($preloadJson.Data) {
+                                            $observationsData = $preloadJson.Data | ConvertFrom-Json
+                                            $script:observationsData = Convert-ObservationsData -ObservationsData $observationsData -TimeZone $script:timeZoneForObservations
                                     if ($null -ne $script:observationsData) {
                                         Write-Verbose "Observations data preloaded and processed successfully: $($script:observationsData.Count) days"
                                         if ($preloadJson.ErrorInfo) {
@@ -3850,7 +3850,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                                         # Success - process the data
                                         if ($preloadJson.Data) {
                                             $observationsData = $preloadJson.Data | ConvertFrom-Json
-                                            $script:observationsData = Process-ObservationsData -ObservationsData $observationsData -TimeZone $script:timeZoneForObservations
+                                            $script:observationsData = Convert-ObservationsData -ObservationsData $observationsData -TimeZone $script:timeZoneForObservations
                                             if ($null -ne $script:observationsData) {
                                                 Write-Verbose "Observations data preloaded and processed successfully: $($script:observationsData.Count) days"
                                             } else {
