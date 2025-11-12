@@ -24,6 +24,9 @@ This repository represents a unique approach to software development that levera
 - **[SpiroGen v2.6](spiro/)** - Digital spirograph art generator with multi-node support and export capabilities
 - **[Double Pendulum](pendulum/)** - Physics-based chaotic motion simulator with customizable parameters
 
+### Weather & Utility Tools
+- ![Forecast Icon](forecast/icons/icon-192.png) **[Forecast](forecast/index.html)** - Web version of the Terminal app 'GetForecast' - Comprehensive weather utility using National Weather Service API
+
 ## 💻 CLI Applications
 
 ### Bitcoin & Finance Tools
