@@ -1,5 +1,24 @@
 // Display mode rendering functions
 
+// Get time ago string (helper function, also defined in app.js)
+function getTimeAgo(date) {
+    const now = new Date();
+    const diff = now - date;
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    
+    if (seconds < 60) {
+        return 'just now';
+    } else if (minutes < 60) {
+        return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+    } else if (hours < 24) {
+        return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+    } else {
+        return date.toLocaleString();
+    }
+}
+
 // Display current conditions
 function displayCurrentConditions(weather, location) {
     const { current, location: loc } = weather;
@@ -93,7 +112,21 @@ function displayCurrentConditions(weather, location) {
     
     html += '<div class="condition-row">';
     html += `<span class="condition-label">Updated:</span>`;
-    html += `<span class="condition-value">${formatDateTime(current.time, location.timeZone)}</span>`;
+    
+    // Get time ago and check if stale
+    // Access appState from the global scope (it's defined in app.js)
+    let timeAgoHtml = '';
+    if (typeof appState !== 'undefined' && appState.lastFetchTime) {
+        const timeAgo = getTimeAgo(appState.lastFetchTime);
+        // Check if data is stale (>10 minutes)
+        const now = new Date();
+        const diff = now - appState.lastFetchTime;
+        const isStale = diff > 600000; // 10 minutes in milliseconds
+        const staleClass = isStale ? 'stale-data' : '';
+        timeAgoHtml = ` <span class="updated-timestamp ${staleClass}">[${timeAgo}]</span>`;
+    }
+    
+    html += `<span class="condition-value">${formatDateTime(current.time, location.timeZone)}${timeAgoHtml}</span>`;
     html += '</div>';
     
     html += '</div>';

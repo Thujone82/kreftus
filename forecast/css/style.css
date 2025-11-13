@@ -300,12 +300,17 @@ main {
     gap: 0.5rem;
     color: var(--color-text-secondary);
     cursor: pointer;
+    font-size: 0.65rem;
 }
 
 .toggle-label input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
+    width: 14px;
+    height: 14px;
     cursor: pointer;
+}
+
+.last-update {
+    display: none;
 }
 
 .update-indicator {
@@ -425,6 +430,15 @@ main {
 
 .condition-value {
     color: var(--color-text);
+}
+
+/* Updated timestamp - blue by default, red if stale */
+.updated-timestamp {
+    color: var(--color-info); /* Blue */
+}
+
+.updated-timestamp.stale-data {
+    color: var(--color-alert); /* Red for stale data */
 }
 
 /* Temperature Colors */
