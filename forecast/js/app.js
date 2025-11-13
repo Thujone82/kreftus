@@ -415,37 +415,72 @@ function isCacheStale(cacheTimestamp) {
 
 // Load cached weather data and display it
 function loadCachedWeatherData() {
-    const cache = loadWeatherDataFromCache();
-    if (!cache) {
+    try {
+        const cache = loadWeatherDataFromCache();
+        if (!cache || !cache.data) {
+            return false;
+        }
+        
+        // Validate cached data structure
+        if (!cache.data.weatherData) {
+            console.warn('Cached data missing weatherData, ignoring cache');
+            return false;
+        }
+        
+        // Restore app state from cache
+        appState.weatherData = cache.data.weatherData;
+        appState.observationsData = cache.data.observationsData || null;
+        appState.observationsAvailable = cache.data.observationsAvailable || false;
+        appState.lastFetchTime = cache.timestamp;
+        
+        // Restore location if available in cached data
+        if (cache.data.weatherData && cache.data.weatherData.location) {
+            appState.location = cache.data.weatherData.location;
+            const locationText = `${cache.data.weatherData.location.city}, ${cache.data.weatherData.location.state}`;
+            elements.locationInput.value = locationText;
+        } else {
+            // Fallback to cached location string
+            elements.locationInput.value = cache.location;
+            // Try to create a minimal location object from the cached location string
+            // This ensures renderCurrentMode() can still work
+            if (cache.location && cache.location !== 'here') {
+                // Parse location string (e.g., "Portland, OR" or "Portland, Oregon")
+                const parts = cache.location.split(',').map(s => s.trim());
+                if (parts.length >= 2) {
+                    appState.location = {
+                        city: parts[0],
+                        state: parts[1],
+                        // Use default values for other required fields
+                        lat: 0,
+                        lon: 0,
+                        timeZone: 'America/New_York'
+                    };
+                }
+            }
+        }
+        
+        // Update History button state
+        updateHistoryButtonState();
+        
+        // Update last update time
+        updateLastUpdateTime();
+        
+        // Render current mode to display cached data
+        renderCurrentMode();
+        
+        return true;
+    } catch (error) {
+        console.error('Error loading cached weather data:', error);
+        // Clear potentially corrupted cache
+        try {
+            localStorage.removeItem('forecastCachedData');
+            localStorage.removeItem('forecastCachedLocation');
+            localStorage.removeItem('forecastCachedTimestamp');
+        } catch (e) {
+            console.warn('Failed to clear corrupted cache:', e);
+        }
         return false;
     }
-    
-    // Restore app state from cache
-    appState.weatherData = cache.data.weatherData;
-    appState.observationsData = cache.data.observationsData || null;
-    appState.observationsAvailable = cache.data.observationsAvailable || false;
-    appState.lastFetchTime = cache.timestamp;
-    
-    // Restore location if available in cached data
-    if (cache.data.weatherData && cache.data.weatherData.location) {
-        appState.location = cache.data.weatherData.location;
-        const locationText = `${cache.data.weatherData.location.city}, ${cache.data.weatherData.location.state}`;
-        elements.locationInput.value = locationText;
-    } else {
-        // Fallback to cached location string
-        elements.locationInput.value = cache.location;
-    }
-    
-    // Update History button state
-    updateHistoryButtonState();
-    
-    // Update last update time
-    updateLastUpdateTime();
-    
-    // Render current mode to display cached data
-    renderCurrentMode();
-    
-    return true;
 }
 
 // Load weather data
