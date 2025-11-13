@@ -233,6 +233,26 @@ main {
     cursor: pointer;
 }
 
+.update-indicator {
+    display: none;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.update-indicator .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--color-bg-secondary);
+    border-top-color: var(--color-default);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.update-indicator span {
+    color: var(--color-default);
+    font-size: 0.9rem;
+}
+
 .last-update {
     color: var(--color-info);
     font-size: 0.9rem;

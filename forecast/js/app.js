@@ -31,6 +31,7 @@ function initializeElements() {
         modeButtons: document.querySelectorAll('.mode-btn'),
         refreshBtn: document.getElementById('refreshBtn'),
         autoUpdateToggle: document.getElementById('autoUpdateToggle'),
+        autoUpdateToggleLabel: document.querySelector('.toggle-label'),
         lastUpdate: document.getElementById('lastUpdate'),
         loadingIndicator: document.getElementById('loadingIndicator'),
         errorMessage: document.getElementById('errorMessage'),
@@ -334,9 +335,9 @@ function updateHistoryButtonState() {
 }
 
 // Load weather data
-async function loadWeatherData(location, silentOnLocationFailure = false) {
+async function loadWeatherData(location, silentOnLocationFailure = false, background = false) {
     try {
-        setLoading(true);
+        setLoading(true, background);
         hideError();
         
         // Ensure fetchWeatherData is available (from api.js)
@@ -373,9 +374,9 @@ async function loadWeatherData(location, silentOnLocationFailure = false) {
         // Render current mode
         renderCurrentMode();
         
-        setLoading(false);
+        setLoading(false, background);
     } catch (error) {
-        setLoading(false);
+        setLoading(false, background);
         let errorMessage = error.message;
         
         // Handle location detection failures silently if requested (when trying to auto-detect 'here')
@@ -387,6 +388,12 @@ async function loadWeatherData(location, silentOnLocationFailure = false) {
             elements.locationInput.focus();
             // Update History button state
             updateHistoryButtonState();
+            return;
+        }
+        
+        // If background update, don't show errors to user (log only)
+        if (background) {
+            console.error('Error loading weather data (background update):', error);
             return;
         }
         
@@ -410,7 +417,7 @@ async function loadWeatherData(location, silentOnLocationFailure = false) {
 // Handle refresh
 async function handleRefresh() {
     const location = elements.locationInput.value.trim() || 'here';
-    await loadWeatherData(location);
+    await loadWeatherData(location, false, true); // Use background mode to keep content visible
 }
 
 // Switch display mode
@@ -537,13 +544,78 @@ function setupHourlyNavigation() {
     }
 }
 
+// Show control bar update indicator (spinner + "Updating" text)
+function showControlBarUpdateIndicator() {
+    if (!elements.autoUpdateToggleLabel) return;
+    
+    // Hide checkbox and label text
+    if (elements.autoUpdateToggle) {
+        elements.autoUpdateToggle.style.display = 'none';
+    }
+    const labelSpan = elements.autoUpdateToggleLabel.querySelector('span');
+    if (labelSpan) {
+        labelSpan.style.display = 'none';
+    }
+    
+    // Create or show update indicator
+    let updateIndicator = elements.autoUpdateToggleLabel.querySelector('.update-indicator');
+    if (!updateIndicator) {
+        updateIndicator = document.createElement('div');
+        updateIndicator.className = 'update-indicator';
+        const spinner = document.createElement('div');
+        spinner.className = 'spinner';
+        const text = document.createElement('span');
+        text.textContent = 'Updating';
+        updateIndicator.appendChild(spinner);
+        updateIndicator.appendChild(text);
+        elements.autoUpdateToggleLabel.appendChild(updateIndicator);
+    }
+    updateIndicator.style.display = 'flex';
+}
+
+// Hide control bar update indicator (restore checkbox and label text)
+function hideControlBarUpdateIndicator() {
+    if (!elements.autoUpdateToggleLabel) return;
+    
+    // Show checkbox and label text
+    if (elements.autoUpdateToggle) {
+        elements.autoUpdateToggle.style.display = '';
+    }
+    const labelSpan = elements.autoUpdateToggleLabel.querySelector('span');
+    if (labelSpan) {
+        labelSpan.style.display = '';
+    }
+    
+    // Hide update indicator
+    const updateIndicator = elements.autoUpdateToggleLabel.querySelector('.update-indicator');
+    if (updateIndicator) {
+        updateIndicator.style.display = 'none';
+    }
+}
+
 // Set loading state
-function setLoading(loading) {
+function setLoading(loading, background = false) {
     appState.loading = loading;
     if (loading) {
-        elements.loadingIndicator.classList.remove('hidden');
-        elements.weatherContent.innerHTML = '';
+        // Check if weather data already exists
+        const hasExistingData = appState.weatherData !== null;
+        
+        if (hasExistingData) {
+            // Data exists: show only compact spinner in control bar, keep content visible
+            showControlBarUpdateIndicator();
+            // Don't clear weatherContent.innerHTML
+            // Don't show the full loading indicator
+        } else {
+            // No data exists (initial load): show full loading indicator
+            elements.loadingIndicator.classList.remove('hidden');
+            elements.weatherContent.innerHTML = '';
+            // Don't show control bar indicator during initial load
+        }
     } else {
+        // Hide control bar update indicator
+        hideControlBarUpdateIndicator();
+        
+        // Hide full loading indicator if it was shown
         elements.loadingIndicator.classList.add('hidden');
     }
 }
@@ -600,7 +672,7 @@ function isDataStale() {
 function checkAutoRefresh() {
     if (appState.autoUpdateEnabled && isDataStale() && appState.location) {
         const location = elements.locationInput.value.trim() || 'here';
-        loadWeatherData(location);
+        loadWeatherData(location, false, true); // Use background mode to keep content visible
     }
 }
 
