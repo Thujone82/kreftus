@@ -1261,6 +1261,22 @@ function updateLastUpdateTime() {
     if (appState.lastFetchTime) {
         const timeAgo = getTimeAgo(appState.lastFetchTime);
         elements.lastUpdate.textContent = `Last updated: ${timeAgo}`;
+        
+        // Also update the "[X minutes ago]" portion in the display
+        const updatedTimestampElement = document.querySelector('.updated-timestamp');
+        if (updatedTimestampElement) {
+            // Check if data is stale (>10 minutes)
+            const now = new Date();
+            const diff = now - appState.lastFetchTime;
+            const isStale = diff > DATA_STALE_THRESHOLD;
+            
+            updatedTimestampElement.textContent = `[${timeAgo}]`;
+            if (isStale) {
+                updatedTimestampElement.classList.add('stale-data');
+            } else {
+                updatedTimestampElement.classList.remove('stale-data');
+            }
+        }
     }
 }
 
