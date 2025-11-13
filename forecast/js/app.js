@@ -139,26 +139,56 @@ async function init() {
         });
     }
     
-    // Load initial weather data (don't block if it fails)
-    try {
-        if (locationParam) {
-            // Use location from URL
-            elements.locationInput.value = locationParam;
-            await loadWeatherData(locationParam, false); // false = show errors
+    // Try to load cached data first (unless URL specifies a different location)
+    const cache = loadWeatherDataFromCache();
+    let cachedDataLoaded = false;
+    
+    if (cache) {
+        // Check if URL location param matches cached location
+        if (locationParam && locationParam.toLowerCase() !== cache.location.toLowerCase()) {
+            // URL specifies different location - don't use cache, fetch new location
+            cachedDataLoaded = false;
         } else {
-            // Check for stored location
-            const storedLocation = localStorage.getItem('forecastLocation');
-            if (storedLocation && storedLocation.trim() !== '') {
-                elements.locationInput.value = storedLocation;
-                await loadWeatherData(storedLocation, false); // false = show errors
-            } else {
-                // Try to detect location automatically (silently on failure)
-                await loadWeatherData('here', true); // true = silent on location detection failure
-            }
+            // Load cached data
+            cachedDataLoaded = loadCachedWeatherData();
         }
-    } catch (error) {
-        console.error('Error loading initial weather data:', error);
-        // Don't block app - user can still search manually
+    }
+    
+    if (cachedDataLoaded) {
+        // Cached data was loaded and displayed
+        const cacheIsStale = isCacheStale(cache.timestamp);
+        
+        if (cacheIsStale) {
+            // Cache is stale, trigger background refresh
+            const locationToRefresh = locationParam || cache.location || elements.locationInput.value.trim() || 'here';
+            // Trigger background refresh (silent failure, keeps cached data visible)
+            loadWeatherData(locationToRefresh, false, true).catch(error => {
+                console.error('Background refresh failed, keeping cached data:', error);
+            });
+        }
+        // If cache is fresh, no refresh needed - cached data is already displayed
+    } else {
+        // No cached data or different location requested, proceed with normal initial load
+        try {
+            if (locationParam) {
+                // Use location from URL
+                elements.locationInput.value = locationParam;
+                await loadWeatherData(locationParam, false); // false = show errors
+            } else {
+                // Check for stored location
+                const storedLocation = localStorage.getItem('forecastLocation');
+                if (storedLocation && storedLocation.trim() !== '') {
+                    elements.locationInput.value = storedLocation;
+                    await loadWeatherData(storedLocation, false); // false = show errors
+                } else {
+                    // Try to detect location automatically (silently on failure)
+                    await loadWeatherData('here', true); // true = silent on location detection failure
+                }
+            }
+        } catch (error) {
+            console.error('Error loading initial weather data:', error);
+            // Don't block app - user can still search manually
+        }
     }
 }
 
@@ -269,9 +299,16 @@ async function handleSearch() {
         return;
     }
     
+    // Check if this is a different location than what's cached
+    const cache = loadWeatherDataFromCache();
+    if (cache && cache.location.toLowerCase() !== location.toLowerCase()) {
+        // Different location - cache will be updated by loadWeatherData after successful fetch
+        // No need to clear cache explicitly, it will be overwritten
+    }
+    
     localStorage.setItem('forecastLocation', location);
     updateURL(location, appState.currentMode);
-    await loadWeatherData(location);
+    await loadWeatherData(location, false, false); // Don't use background mode for manual search - show loading
 }
 
 // Check observations availability and fetch observations
@@ -334,6 +371,83 @@ function updateHistoryButtonState() {
     }
 }
 
+// Cache storage functions
+function saveWeatherDataToCache(weatherData, location) {
+    try {
+        const cacheData = {
+            weatherData: weatherData,
+            observationsData: appState.observationsData,
+            observationsAvailable: appState.observationsAvailable
+        };
+        localStorage.setItem('forecastCachedData', JSON.stringify(cacheData));
+        localStorage.setItem('forecastCachedLocation', location);
+        localStorage.setItem('forecastCachedTimestamp', new Date().toISOString());
+    } catch (error) {
+        console.warn('Failed to save weather data to cache:', error);
+    }
+}
+
+function loadWeatherDataFromCache() {
+    try {
+        const cachedData = localStorage.getItem('forecastCachedData');
+        const cachedLocation = localStorage.getItem('forecastCachedLocation');
+        const cachedTimestamp = localStorage.getItem('forecastCachedTimestamp');
+        
+        if (cachedData && cachedLocation && cachedTimestamp) {
+            return {
+                data: JSON.parse(cachedData),
+                location: cachedLocation,
+                timestamp: new Date(cachedTimestamp)
+            };
+        }
+    } catch (error) {
+        console.warn('Failed to load weather data from cache:', error);
+    }
+    return null;
+}
+
+function isCacheStale(cacheTimestamp) {
+    if (!cacheTimestamp) return true;
+    const now = new Date();
+    const diff = now - cacheTimestamp;
+    return diff > DATA_STALE_THRESHOLD;
+}
+
+// Load cached weather data and display it
+function loadCachedWeatherData() {
+    const cache = loadWeatherDataFromCache();
+    if (!cache) {
+        return false;
+    }
+    
+    // Restore app state from cache
+    appState.weatherData = cache.data.weatherData;
+    appState.observationsData = cache.data.observationsData || null;
+    appState.observationsAvailable = cache.data.observationsAvailable || false;
+    appState.lastFetchTime = cache.timestamp;
+    
+    // Restore location if available in cached data
+    if (cache.data.weatherData && cache.data.weatherData.location) {
+        appState.location = cache.data.weatherData.location;
+        const locationText = `${cache.data.weatherData.location.city}, ${cache.data.weatherData.location.state}`;
+        elements.locationInput.value = locationText;
+    } else {
+        // Fallback to cached location string
+        elements.locationInput.value = cache.location;
+    }
+    
+    // Update History button state
+    updateHistoryButtonState();
+    
+    // Update last update time
+    updateLastUpdateTime();
+    
+    // Render current mode to display cached data
+    renderCurrentMode();
+    
+    return true;
+}
+
 // Load weather data
 async function loadWeatherData(location, silentOnLocationFailure = false, background = false) {
     try {
@@ -370,6 +484,10 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         
         // Update last update time
         updateLastUpdateTime();
+        
+        // Save to cache after successful fetch
+        const locationForCache = location || (weatherData.location ? `${weatherData.location.city}, ${weatherData.location.state}` : 'here');
+        saveWeatherDataToCache(processedWeather, locationForCache);
         
         // Render current mode
         renderCurrentMode();
