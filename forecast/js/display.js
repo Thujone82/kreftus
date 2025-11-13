@@ -6,7 +6,8 @@ function displayCurrentConditions(weather, location) {
     const { sunrise, sunset, moonPhase } = loc;
     
     let html = '<div class="current-conditions">';
-    html += `<div class="section-header">${location.city}, ${location.state} Current Conditions</div>`;
+    const locationDisplayName = formatLocationDisplayName(location.city, location.state);
+    html += `<div class="section-header">${locationDisplayName} Current Conditions</div>`;
     
     html += '<div class="condition-row">';
     html += `<span class="condition-label">Currently:</span>`;

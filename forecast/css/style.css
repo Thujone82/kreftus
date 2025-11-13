@@ -209,7 +209,7 @@ main {
     display: flex;
     align-items: center;
     gap: 1rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 0.5rem;
     flex-wrap: wrap;
 }
 
@@ -217,6 +217,81 @@ main {
     padding: 0.375rem 0.75rem;
     font-size: 0.7rem;
     min-height: 24px;
+}
+
+/* Favorite button - grayscale when inactive, square with larger emoji */
+.favorite-btn {
+    filter: grayscale(100%);
+    transition: filter 0.2s;
+    padding: 0.375rem;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+.favorite-btn.active {
+    filter: none;
+}
+
+/* Locations button */
+.locations-btn.active {
+    /* Active state styling if needed */
+}
+
+/* Locations drawer */
+.locations-drawer {
+    margin-bottom: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out, margin-bottom 0.3s ease-out;
+}
+
+.locations-drawer:not(.hidden) {
+    max-height: 300px; /* Sufficient height for multiple rows */
+    margin-bottom: 0.5rem;
+}
+
+.locations-drawer.hidden {
+    max-height: 0;
+    margin-bottom: 0;
+}
+
+/* Location buttons container */
+.location-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.125rem 0;
+}
+
+/* Individual location buttons */
+.location-btn {
+    padding: 0.5rem 0.75rem;
+    background-color: var(--color-bg-secondary);
+    border: 2px solid var(--color-default);
+    color: var(--color-default);
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-height: 36px;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.location-btn:hover {
+    background-color: var(--color-default);
+    color: var(--color-bg);
+    transform: translateY(-1px);
+}
+
+.location-btn:active {
+    transform: translateY(0);
 }
 
 .toggle-label {

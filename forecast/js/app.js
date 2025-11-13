@@ -38,7 +38,11 @@ function initializeElements() {
         weatherContent: document.getElementById('weatherContent'),
         updateNotification: document.getElementById('updateNotification'),
         reloadBtn: document.getElementById('reloadBtn'),
-        shareBtn: null // Will be created dynamically
+        shareBtn: null, // Will be created dynamically
+        favoriteBtn: document.getElementById('favoriteBtn'),
+        locationsBtn: document.getElementById('locationsBtn'),
+        locationsDrawer: document.getElementById('locationsDrawer'),
+        locationButtons: document.getElementById('locationButtons')
     };
     
     console.log('Elements initialized:', {
@@ -140,55 +144,145 @@ async function init() {
     }
     
     // Try to load cached data first (unless URL specifies a different location)
-    const cache = loadWeatherDataFromCache();
     let cachedDataLoaded = false;
+    let locationToLoad = null;
     
-    if (cache) {
-        // Check if URL location param matches cached location
-        if (locationParam && locationParam.toLowerCase() !== cache.location.toLowerCase()) {
-            // URL specifies different location - don't use cache, fetch new location
-            cachedDataLoaded = false;
+    if (locationParam) {
+        // URL parameter takes precedence
+        locationToLoad = locationParam;
+    } else {
+        // Check for last viewed location (even if not a favorite)
+        const lastViewed = getLastViewedLocation();
+        if (lastViewed) {
+            // Try to load from cache for last viewed location
+            const locationKey = lastViewed.key;
+            const cache = loadWeatherDataFromCache(locationKey);
+            if (cache) {
+                cachedDataLoaded = loadCachedWeatherData(locationKey);
+                if (cachedDataLoaded) {
+                    const cacheIsStale = isCacheStale(cache.timestamp);
+                    if (cacheIsStale) {
+                        // Cache is stale, trigger background refresh
+                        loadWeatherData(lastViewed.searchQuery, false, true).catch(error => {
+                            console.error('Background refresh failed for last viewed location:', error);
+                        });
+                    }
+                    // Update favorite button state
+                    updateFavoriteButtonState();
+                    // Render location buttons if favorites exist
+                    const favorites = getFavorites();
+                    if (favorites.length > 0) {
+                        renderLocationButtons();
+                    }
+                    return; // Successfully loaded last viewed location
+                }
+            }
+            // Cache load failed, will load fresh below
+            locationToLoad = lastViewed.searchQuery;
         } else {
-            // Load cached data
-            cachedDataLoaded = loadCachedWeatherData();
+            // Check for stored location (backward compatibility)
+            const storedLocation = localStorage.getItem('forecastLocation');
+            if (storedLocation && storedLocation.trim() !== '') {
+                locationToLoad = storedLocation;
+            }
         }
     }
     
-    if (cachedDataLoaded) {
-        // Cached data was loaded and displayed
-        const cacheIsStale = isCacheStale(cache.timestamp);
-        
-        if (cacheIsStale) {
-            // Cache is stale, trigger background refresh
-            const locationToRefresh = locationParam || cache.location || elements.locationInput.value.trim() || 'here';
-            // Trigger background refresh (silent failure, keeps cached data visible)
-            loadWeatherData(locationToRefresh, false, true).catch(error => {
-                console.error('Background refresh failed, keeping cached data:', error);
-            });
-        }
-        // If cache is fresh, no refresh needed - cached data is already displayed
-    } else {
-        // No cached data or different location requested, proceed with normal initial load
-        try {
-            if (locationParam) {
-                // Use location from URL
-                elements.locationInput.value = locationParam;
-                await loadWeatherData(locationParam, false); // false = show errors
-            } else {
-                // Check for stored location
-                const storedLocation = localStorage.getItem('forecastLocation');
-                if (storedLocation && storedLocation.trim() !== '') {
-                    elements.locationInput.value = storedLocation;
-                    await loadWeatherData(storedLocation, false); // false = show errors
-                } else {
-                    // Try to detect location automatically (silently on failure)
-                    await loadWeatherData('here', true); // true = silent on location detection failure
+    // If we have a location to load, try cache first
+    if (locationToLoad) {
+        // Try to find cache for this location
+        let cache = null;
+        if (locationToLoad.toLowerCase() !== 'here') {
+            // Try to find favorite for this location
+            const favorites = getFavorites();
+            const favorite = favorites.find(fav => fav.searchQuery.toLowerCase() === locationToLoad.toLowerCase());
+            if (favorite) {
+                cache = loadWeatherDataFromCache(favorite.key);
+                if (cache) {
+                    cachedDataLoaded = loadCachedWeatherData(favorite.key);
                 }
             }
+        }
+        
+        // Fallback to current location cache
+        if (!cachedDataLoaded) {
+            cache = loadWeatherDataFromCache();
+            if (cache) {
+                // Check if cached location matches
+                if (cache.location && locationToLoad.toLowerCase() === cache.location.toLowerCase()) {
+                    cachedDataLoaded = loadCachedWeatherData();
+                }
+            }
+        }
+        
+        if (cachedDataLoaded && cache) {
+            // Cached data was loaded
+            const cacheIsStale = isCacheStale(cache.timestamp);
+            if (cacheIsStale) {
+                // Cache is stale, trigger background refresh
+                loadWeatherData(locationToLoad, false, true).catch(error => {
+                    console.error('Background refresh failed, keeping cached data:', error);
+                });
+            }
+            // Update favorite button state
+            updateFavoriteButtonState();
+            // Render location buttons if favorites exist
+            const favorites = getFavorites();
+            if (favorites.length > 0) {
+                renderLocationButtons();
+            }
+            return; // Successfully loaded from cache
+        }
+    } else {
+        // No specific location, try current cache
+        const cache = loadWeatherDataFromCache();
+        if (cache) {
+            cachedDataLoaded = loadCachedWeatherData();
+            if (cachedDataLoaded) {
+                const cacheIsStale = isCacheStale(cache.timestamp);
+                if (cacheIsStale) {
+                    const locationToRefresh = cache.location || elements.locationInput.value.trim() || 'here';
+                    loadWeatherData(locationToRefresh, false, true).catch(error => {
+                        console.error('Background refresh failed, keeping cached data:', error);
+                    });
+                }
+                // Update favorite button state
+                updateFavoriteButtonState();
+                // Render location buttons if favorites exist
+                const favorites = getFavorites();
+                if (favorites.length > 0) {
+                    renderLocationButtons();
+                }
+                return; // Successfully loaded from cache
+            }
+        }
+    }
+    
+    // No cached data available, proceed with normal initial load
+    if (locationToLoad) {
+        try {
+            elements.locationInput.value = locationToLoad;
+            await loadWeatherData(locationToLoad, false); // false = show errors
+        } catch (error) {
+            console.error('Error loading weather data:', error);
+        }
+    } else {
+        // Try to detect location automatically (silently on failure)
+        try {
+            await loadWeatherData('here', true); // true = silent on location detection failure
         } catch (error) {
             console.error('Error loading initial weather data:', error);
             // Don't block app - user can still search manually
         }
+    }
+    
+    // Update favorite button state after load
+    updateFavoriteButtonState();
+    
+    // Render location buttons if favorites exist
+    const favorites = getFavorites();
+    if (favorites.length > 0) {
+        renderLocationButtons();
     }
 }
 
@@ -253,6 +347,34 @@ function setupEventListeners() {
         });
     }
     
+    // Favorite button
+    if (elements.favoriteBtn) {
+        elements.favoriteBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            handleFavoriteToggle();
+        });
+    }
+    
+    // Locations button
+    if (elements.locationsBtn) {
+        elements.locationsBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            toggleLocationsDrawer();
+        });
+    }
+    
+    // Location buttons in drawer (delegated event handler)
+    if (elements.locationButtons) {
+        elements.locationButtons.addEventListener('click', (e) => {
+            const locationBtn = e.target.closest('.location-btn');
+            if (locationBtn) {
+                e.preventDefault();
+                const locationKey = locationBtn.dataset.locationKey;
+                handleLocationButtonClick(locationKey);
+            }
+        });
+    }
+    
         // Update notification
         if (elements.reloadBtn) {
             elements.reloadBtn.addEventListener('click', async (e) => {
@@ -281,6 +403,107 @@ function setupEventListeners() {
     
     // Set up hourly navigation handlers once (using event delegation)
     setupHourlyNavigation();
+}
+
+// Handle favorite toggle
+function handleFavoriteToggle() {
+    if (!elements.favoriteBtn) {
+        console.warn('Favorite button not found');
+        return;
+    }
+    
+    if (!appState.location) {
+        console.warn('Cannot toggle favorite: appState.location is not set', appState);
+        return;
+    }
+    
+    if (!appState.location.city || !appState.location.state) {
+        console.warn('Cannot toggle favorite: location object missing city or state', appState.location);
+        return;
+    }
+    
+    const locationKey = generateLocationKey(appState.location);
+    if (!locationKey) {
+        console.warn('Cannot toggle favorite: failed to generate location key', appState.location);
+        return;
+    }
+    
+    const currentlyFavorite = isFavorite(locationKey);
+    console.log('Toggling favorite:', { locationKey, currentlyFavorite, location: appState.location });
+    
+    if (currentlyFavorite) {
+        // Remove favorite
+        removeFavorite(locationKey);
+        updateFavoriteButtonState();
+        
+        // Re-render location buttons if drawer is open
+        if (elements.locationsDrawer && !elements.locationsDrawer.classList.contains('hidden')) {
+            renderLocationButtons();
+        }
+    } else {
+        // Add favorite
+        const locationText = formatLocationDisplayName(appState.location.city, appState.location.state);
+        const searchQuery = elements.locationInput.value.trim() || locationText;
+        const saved = saveFavorite(locationText, appState.location, searchQuery);
+        if (saved) {
+            elements.favoriteBtn.classList.add('active');
+            
+            // Re-render location buttons if drawer is open
+            if (elements.locationsDrawer && !elements.locationsDrawer.classList.contains('hidden')) {
+                renderLocationButtons();
+            }
+        } else {
+            console.error('Failed to save favorite');
+        }
+    }
+}
+
+// Handle location button click from drawer
+async function handleLocationButtonClick(locationKey) {
+    if (!locationKey) return;
+    
+    const favorite = getFavoriteByKey(locationKey);
+    if (!favorite) return;
+    
+    // Load cached data immediately
+    const cacheLoaded = loadCachedWeatherData(locationKey);
+    
+    if (cacheLoaded) {
+        // Update URL
+        updateURL(favorite.searchQuery, appState.currentMode);
+        
+        // Update star button state
+        updateFavoriteButtonState();
+        
+        // Check if cache is stale and refresh in background
+        const cache = loadWeatherDataFromCache(locationKey);
+        if (cache && isCacheStale(cache.timestamp)) {
+            // Trigger background refresh
+            loadWeatherData(favorite.searchQuery, false, true).catch(error => {
+                console.error('Background refresh failed for favorite location:', error);
+            });
+        }
+    } else {
+        // No cache, load fresh data
+        await loadWeatherData(favorite.searchQuery, false, false);
+    }
+}
+
+// Update favorite button state based on current location
+function updateFavoriteButtonState() {
+    if (!elements.favoriteBtn || !appState.location) {
+        if (elements.favoriteBtn) {
+            elements.favoriteBtn.classList.remove('active');
+        }
+        return;
+    }
+    
+    const locationKey = generateLocationKey(appState.location);
+    if (locationKey && isFavorite(locationKey)) {
+        elements.favoriteBtn.classList.add('active');
+    } else {
+        elements.favoriteBtn.classList.remove('active');
+    }
 }
 
 // Handle search
@@ -371,6 +594,123 @@ function updateHistoryButtonState() {
     }
 }
 
+// Location key generation - normalizes city and state to create unique key
+function generateLocationKey(location) {
+    if (!location) return null;
+    const city = (location.city || '').trim().replace(/[^a-zA-Z0-9\s]/g, '');
+    const state = (location.state || '').trim().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    if (!city || !state) return null;
+    return `${city},${state}`;
+}
+
+// Favorites management functions
+function getFavorites() {
+    try {
+        const favorites = localStorage.getItem('forecastFavorites');
+        return favorites ? JSON.parse(favorites) : [];
+    } catch (error) {
+        console.warn('Failed to load favorites:', error);
+        return [];
+    }
+}
+
+function saveFavorite(location, locationObject, searchQuery) {
+    try {
+        if (!locationObject || !locationObject.city || !locationObject.state) {
+            console.warn('Cannot save favorite: invalid location object', locationObject);
+            return false;
+        }
+        
+        const locationKey = generateLocationKey(locationObject);
+        if (!locationKey) {
+            console.warn('Cannot save favorite: invalid location key', locationObject);
+            return false;
+        }
+        
+        const favorites = getFavorites();
+        
+        // Check if already exists
+        if (favorites.some(fav => fav.key === locationKey)) {
+            console.log('Location already favorited:', locationKey);
+            return true; // Already favorited
+        }
+        
+        // Add new favorite
+        const newFavorite = {
+            key: locationKey,
+            name: location,
+            location: locationObject,
+            searchQuery: searchQuery || location
+        };
+        
+        favorites.push(newFavorite);
+        
+        localStorage.setItem('forecastFavorites', JSON.stringify(favorites));
+        console.log('Favorite saved:', newFavorite);
+        return true;
+    } catch (error) {
+        console.error('Failed to save favorite:', error);
+        return false;
+    }
+}
+
+function removeFavorite(locationKey) {
+    try {
+        const favorites = getFavorites();
+        const filtered = favorites.filter(fav => fav.key !== locationKey);
+        localStorage.setItem('forecastFavorites', JSON.stringify(filtered));
+        
+        // Clear cache for removed location
+        clearLocationCache(locationKey);
+        
+        return true;
+    } catch (error) {
+        console.warn('Failed to remove favorite:', error);
+        return false;
+    }
+}
+
+function isFavorite(locationKey) {
+    if (!locationKey) return false;
+    const favorites = getFavorites();
+    return favorites.some(fav => fav.key === locationKey);
+}
+
+function getFavoriteByKey(locationKey) {
+    if (!locationKey) return null;
+    const favorites = getFavorites();
+    return favorites.find(fav => fav.key === locationKey) || null;
+}
+
+// Last viewed location functions
+function saveLastViewedLocation(location, locationObject, searchQuery) {
+    try {
+        const locationKey = generateLocationKey(locationObject);
+        if (!locationKey) return;
+        
+        const lastViewed = {
+            key: locationKey,
+            name: location,
+            location: locationObject,
+            searchQuery: searchQuery || location
+        };
+        
+        localStorage.setItem('forecastLastViewedLocation', JSON.stringify(lastViewed));
+    } catch (error) {
+        console.warn('Failed to save last viewed location:', error);
+    }
+}
+
+function getLastViewedLocation() {
+    try {
+        const lastViewed = localStorage.getItem('forecastLastViewedLocation');
+        return lastViewed ? JSON.parse(lastViewed) : null;
+    } catch (error) {
+        console.warn('Failed to load last viewed location:', error);
+        return null;
+    }
+}
+
 // Cache storage functions
 function saveWeatherDataToCache(weatherData, location) {
     try {
@@ -379,19 +719,60 @@ function saveWeatherDataToCache(weatherData, location) {
             observationsData: appState.observationsData,
             observationsAvailable: appState.observationsAvailable
         };
+        
+        // Generate location key for location-specific cache
+        // location can be either an object or a string (for backward compatibility)
+        let locationKey = null;
+        let locationString = '';
+        
+        if (location) {
+            if (typeof location === 'object' && location.city && location.state) {
+                // Location object
+                locationKey = generateLocationKey(location);
+                // Store formatted location string for display (removes ", US")
+                locationString = formatLocationDisplayName(location.city, location.state);
+            } else if (typeof location === 'string') {
+                // Location string (backward compatibility)
+                locationString = location;
+                // Try to parse location string to get key
+                const parts = location.split(',').map(s => s.trim());
+                if (parts.length >= 2) {
+                    locationKey = generateLocationKey({ city: parts[0], state: parts[1] });
+                }
+            }
+        }
+        
+        if (locationKey) {
+            // Save to location-specific cache
+            localStorage.setItem(`forecastCachedData_${locationKey}`, JSON.stringify(cacheData));
+            localStorage.setItem(`forecastCachedLocation_${locationKey}`, locationString);
+            localStorage.setItem(`forecastCachedTimestamp_${locationKey}`, new Date().toISOString());
+        }
+        
+        // Also maintain current location cache for backward compatibility
         localStorage.setItem('forecastCachedData', JSON.stringify(cacheData));
-        localStorage.setItem('forecastCachedLocation', location);
+        localStorage.setItem('forecastCachedLocation', locationString);
         localStorage.setItem('forecastCachedTimestamp', new Date().toISOString());
     } catch (error) {
         console.warn('Failed to save weather data to cache:', error);
     }
 }
 
-function loadWeatherDataFromCache() {
+function loadWeatherDataFromCache(locationKey = null) {
     try {
-        const cachedData = localStorage.getItem('forecastCachedData');
-        const cachedLocation = localStorage.getItem('forecastCachedLocation');
-        const cachedTimestamp = localStorage.getItem('forecastCachedTimestamp');
+        let cachedData, cachedLocation, cachedTimestamp;
+        
+        if (locationKey) {
+            // Load from location-specific cache
+            cachedData = localStorage.getItem(`forecastCachedData_${locationKey}`);
+            cachedLocation = localStorage.getItem(`forecastCachedLocation_${locationKey}`);
+            cachedTimestamp = localStorage.getItem(`forecastCachedTimestamp_${locationKey}`);
+        } else {
+            // Load from current location cache (backward compatibility)
+            cachedData = localStorage.getItem('forecastCachedData');
+            cachedLocation = localStorage.getItem('forecastCachedLocation');
+            cachedTimestamp = localStorage.getItem('forecastCachedTimestamp');
+        }
         
         if (cachedData && cachedLocation && cachedTimestamp) {
             return {
@@ -406,11 +787,61 @@ function loadWeatherDataFromCache() {
     return null;
 }
 
+function clearLocationCache(locationKey) {
+    try {
+        if (!locationKey) return;
+        localStorage.removeItem(`forecastCachedData_${locationKey}`);
+        localStorage.removeItem(`forecastCachedLocation_${locationKey}`);
+        localStorage.removeItem(`forecastCachedTimestamp_${locationKey}`);
+    } catch (error) {
+        console.warn('Failed to clear location cache:', error);
+    }
+}
+
 function isCacheStale(cacheTimestamp) {
     if (!cacheTimestamp) return true;
     const now = new Date();
     const diff = now - cacheTimestamp;
     return diff > DATA_STALE_THRESHOLD;
+}
+
+// Drawer management functions
+function toggleLocationsDrawer() {
+    if (!elements.locationsDrawer || !elements.locationsBtn) return;
+    
+    const isHidden = elements.locationsDrawer.classList.contains('hidden');
+    
+    if (isHidden) {
+        // Open drawer
+        elements.locationsDrawer.classList.remove('hidden');
+        elements.locationsBtn.textContent = '🌎Locations ▴';
+        elements.locationsBtn.classList.add('active');
+        renderLocationButtons();
+    } else {
+        // Close drawer
+        elements.locationsDrawer.classList.add('hidden');
+        elements.locationsBtn.textContent = '🌎Locations ▾';
+        elements.locationsBtn.classList.remove('active');
+    }
+}
+
+function renderLocationButtons() {
+    if (!elements.locationButtons) return;
+    
+    const favorites = getFavorites();
+    
+    if (favorites.length === 0) {
+        elements.locationButtons.innerHTML = '';
+        return;
+    }
+    
+    let html = '';
+    favorites.forEach(favorite => {
+        const displayName = truncateCityName(favorite.name, 20);
+        html += `<button class="location-btn" data-location-key="${favorite.key}">${displayName}</button>`;
+    });
+    
+    elements.locationButtons.innerHTML = html;
 }
 
 // Restore Date objects from cached data (JSON serialization converts dates to strings)
@@ -436,9 +867,9 @@ function restoreDatesFromCache(weatherData) {
 }
 
 // Load cached weather data and display it
-function loadCachedWeatherData() {
+function loadCachedWeatherData(locationKey = null) {
     try {
-        const cache = loadWeatherDataFromCache();
+        const cache = loadWeatherDataFromCache(locationKey);
         if (!cache || !cache.data) {
             return false;
         }
@@ -461,26 +892,30 @@ function loadCachedWeatherData() {
         // Restore location if available in cached data
         if (restoredWeatherData && restoredWeatherData.location) {
             appState.location = restoredWeatherData.location;
-            const locationText = `${restoredWeatherData.location.city}, ${restoredWeatherData.location.state}`;
+            const locationText = formatLocationDisplayName(restoredWeatherData.location.city, restoredWeatherData.location.state);
             elements.locationInput.value = locationText;
         } else {
             // Fallback to cached location string
-            elements.locationInput.value = cache.location;
-            // Try to create a minimal location object from the cached location string
-            // This ensures renderCurrentMode() can still work
+            // Format the location string for display (remove ", US" if present)
             if (cache.location && cache.location !== 'here') {
-                // Parse location string (e.g., "Portland, OR" or "Portland, Oregon")
                 const parts = cache.location.split(',').map(s => s.trim());
                 if (parts.length >= 2) {
+                    const city = parts[0];
+                    const state = parts[1];
+                    elements.locationInput.value = formatLocationDisplayName(city, state);
                     appState.location = {
-                        city: parts[0],
-                        state: parts[1],
+                        city: city,
+                        state: state,
                         // Use default values for other required fields
                         lat: 0,
                         lon: 0,
                         timeZone: 'America/New_York'
                     };
+                } else {
+                    elements.locationInput.value = cache.location;
                 }
+            } else {
+                elements.locationInput.value = cache.location || '';
             }
         }
         
@@ -498,9 +933,13 @@ function loadCachedWeatherData() {
         console.error('Error loading cached weather data:', error);
         // Clear potentially corrupted cache
         try {
-            localStorage.removeItem('forecastCachedData');
-            localStorage.removeItem('forecastCachedLocation');
-            localStorage.removeItem('forecastCachedTimestamp');
+            if (locationKey) {
+                clearLocationCache(locationKey);
+            } else {
+                localStorage.removeItem('forecastCachedData');
+                localStorage.removeItem('forecastCachedLocation');
+                localStorage.removeItem('forecastCachedTimestamp');
+            }
         } catch (e) {
             console.warn('Failed to clear corrupted cache:', e);
         }
@@ -534,7 +973,7 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         updateHistoryButtonState();
         
         // Update location in input field
-        const locationText = `${weatherData.location.city}, ${weatherData.location.state}`;
+        const locationText = formatLocationDisplayName(weatherData.location.city, weatherData.location.state);
         elements.locationInput.value = locationText;
         
         // Update URL if location changed (preserve mode)
@@ -545,9 +984,15 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         // Update last update time
         updateLastUpdateTime();
         
-        // Save to cache after successful fetch
-        const locationForCache = location || (weatherData.location ? `${weatherData.location.city}, ${weatherData.location.state}` : 'here');
-        saveWeatherDataToCache(processedWeather, locationForCache);
+        // Save to cache after successful fetch (pass location object, not string)
+        saveWeatherDataToCache(processedWeather, weatherData.location);
+        
+        // Save as last viewed location
+        const searchQuery = location && location.toLowerCase() !== 'here' ? location : locationText;
+        saveLastViewedLocation(locationText, weatherData.location, searchQuery);
+        
+        // Update favorite button state
+        updateFavoriteButtonState();
         
         // Render current mode
         renderCurrentMode();

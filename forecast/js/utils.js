@@ -478,3 +478,16 @@ function truncateCityName(cityName, maxLength = 20) {
     return result;
 }
 
+// Format location display name - removes ", US" and formats as "City, ST"
+function formatLocationDisplayName(city, state) {
+    if (!city) return '';
+    
+    // If state is "US" or empty, just return city name
+    if (!state || state.toUpperCase() === 'US') {
+        return city;
+    }
+    
+    // Return "City, ST" format
+    return `${city}, ${state}`;
+}
+
