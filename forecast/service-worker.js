@@ -26,8 +26,8 @@ const STATIC_ASSETS = [
     '/forecast/js/display.js',
     '/forecast/js/utils.js',
     '/forecast/manifest.json',
-    '/forecast/icons/icon-192.png',
-    '/forecast/icons/icon-512.png'
+    '/forecast/icons/light-icon-192.png',
+    '/forecast/icons/light-icon-512.png'
 ];
 
 // Install event - cache static assets
