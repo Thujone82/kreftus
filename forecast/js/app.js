@@ -413,6 +413,28 @@ function isCacheStale(cacheTimestamp) {
     return diff > DATA_STALE_THRESHOLD;
 }
 
+// Restore Date objects from cached data (JSON serialization converts dates to strings)
+function restoreDatesFromCache(weatherData) {
+    if (!weatherData) return weatherData;
+    
+    // Restore current.time (Date object)
+    if (weatherData.current && weatherData.current.time) {
+        weatherData.current.time = new Date(weatherData.current.time);
+    }
+    
+    // Restore location.sunrise and location.sunset (Date objects)
+    if (weatherData.location) {
+        if (weatherData.location.sunrise) {
+            weatherData.location.sunrise = new Date(weatherData.location.sunrise);
+        }
+        if (weatherData.location.sunset) {
+            weatherData.location.sunset = new Date(weatherData.location.sunset);
+        }
+    }
+    
+    return weatherData;
+}
+
 // Load cached weather data and display it
 function loadCachedWeatherData() {
     try {
@@ -427,16 +449,19 @@ function loadCachedWeatherData() {
             return false;
         }
         
+        // Restore Date objects from cached data (JSON serialization converts dates to strings)
+        const restoredWeatherData = restoreDatesFromCache(cache.data.weatherData);
+        
         // Restore app state from cache
-        appState.weatherData = cache.data.weatherData;
+        appState.weatherData = restoredWeatherData;
         appState.observationsData = cache.data.observationsData || null;
         appState.observationsAvailable = cache.data.observationsAvailable || false;
         appState.lastFetchTime = cache.timestamp;
         
         // Restore location if available in cached data
-        if (cache.data.weatherData && cache.data.weatherData.location) {
-            appState.location = cache.data.weatherData.location;
-            const locationText = `${cache.data.weatherData.location.city}, ${cache.data.weatherData.location.state}`;
+        if (restoredWeatherData && restoredWeatherData.location) {
+            appState.location = restoredWeatherData.location;
+            const locationText = `${restoredWeatherData.location.city}, ${restoredWeatherData.location.state}`;
             elements.locationInput.value = locationText;
         } else {
             // Fallback to cached location string
