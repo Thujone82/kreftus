@@ -400,6 +400,10 @@ main {
     margin-bottom: 0.25rem;
 }
 
+.section-header-forecast {
+    white-space: pre;
+}
+
 /* Current Conditions */
 .current-conditions {
     background-color: var(--color-bg-secondary);
@@ -559,10 +563,7 @@ main {
     line-height: 1.2;
 }
 
-.rain-day-header,
-.wind-day-header {
-    display: inline;
-}
+/* Removed duplicate rule - see .rain-day-header and .wind-day-header below */
 
 .rain-grid {
     display: grid;
@@ -589,6 +590,52 @@ main {
     background-color: transparent;
 }
 
+.rain-hour-header {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    color: var(--color-text-secondary);
+    background-color: var(--color-bg-secondary);
+    height: 1.25em !important;
+    min-height: 1.25em !important;
+    max-height: 1.25em !important;
+    border: 1px solid var(--color-bg-secondary);
+    box-sizing: border-box;
+}
+
+.wind-hour-grid {
+    display: grid;
+    grid-template-columns: repeat(24, 1.25em);
+    gap: 1px;
+    border: 1px solid var(--color-bg-secondary);
+    padding: 2px;
+    background-color: var(--color-bg);
+    width: fit-content;
+    box-sizing: border-box;
+    vertical-align: middle;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.wind-hour-cell {
+    width: 100%;
+    height: 1.25em !important;
+    min-height: 1.25em !important;
+    max-height: 1.25em !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    color: var(--color-text-secondary);
+    background-color: var(--color-bg-secondary);
+    box-sizing: border-box;
+    border: 1px solid var(--color-bg-secondary);
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+}
+
 .wind-grid {
     display: inline-block;
     border: 1px solid var(--color-bg-secondary);
@@ -612,10 +659,11 @@ main {
     width: 1.25em;
     min-width: 1.25em;
     max-width: 1.25em;
+    height: 2.5em; /* Match rain-block height for consistency */
     text-align: center;
     font-family: 'Courier New', monospace !important;
     font-size: 1rem;
-    line-height: 1.2;
+    line-height: 2.5em; /* Match height for vertical centering */
     padding: 0;
     margin: 0;
     box-sizing: border-box;
@@ -626,6 +674,8 @@ main {
     letter-spacing: 0;
     position: relative;
 }
+
+/* Wind hour header now uses .wind-hour-cell instead */
 
 .rain-sparkline,
 .wind-glyphs {
@@ -736,11 +786,9 @@ main {
 }
 
 .rain-day-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-    font-weight: bold;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: 5em;
 }
 
 .rain-sparkline {
@@ -759,16 +807,16 @@ main {
 .wind-day {
     margin-bottom: 0.5rem;
     font-family: 'Courier New', monospace !important;
-    white-space: pre !important;
     line-height: 1.2;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
 }
 
 .wind-day-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-    font-weight: bold;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: 5em;
 }
 
 .wind-glyphs {
@@ -970,6 +1018,23 @@ main {
         font-size: 1.2rem;
         margin-bottom: 0.4rem;
     }
+    
+    .section-header-forecast {
+        display: none;
+    }
+    
+    .forecast-text {
+        display: none;
+    }
+    
+    .header-left.forecast-text-hidden {
+        flex: 0 1 auto;
+    }
+    
+    .header-left.forecast-text-hidden ~ .header-right {
+        flex: 1 1 auto;
+        flex-grow: 2;
+    }
 
     .rain-day {
         flex-wrap: wrap;
@@ -994,10 +1059,30 @@ main {
         max-width: 100%;
         font-size: 0.85rem;
     }
+    .wind-day {
+        flex-wrap: wrap;
+    }
+    .wind-hour-grid {
+        display: grid;
+        grid-template-columns: repeat(24, 1fr);
+        width: 100%;
+        min-width: unset;
+        max-width: 100%;
+        gap: 1px;
+        flex-basis: 100%;
+    }
+    
+    .wind-hour-cell {
+        width: 100%;
+        height: 1.25em;
+    }
+    
     .wind-char {
         width: calc(100% / 24);
         min-width: unset;
         max-width: unset;
+        height: 2.5em; /* Match rain-block height for consistency */
+        line-height: 2.5em; /* Match height for vertical centering */
         font-size: 0.85rem;
     }
 
@@ -1125,6 +1210,23 @@ main {
         font-size: 1.1rem;
         margin-bottom: 0.3rem;
     }
+    
+    .section-header-forecast {
+        display: none;
+    }
+    
+    .forecast-text {
+        display: none;
+    }
+    
+    .header-left.forecast-text-hidden {
+        flex: 0 1 auto;
+    }
+    
+    .header-left.forecast-text-hidden ~ .header-right {
+        flex: 1 1 auto;
+        flex-grow: 2;
+    }
 
     .rain-day,
     .wind-day {
@@ -1148,6 +1250,25 @@ main {
         width: 100%;
         height: 2.5em;
     }
+    .wind-day {
+        flex-wrap: wrap;
+    }
+    .wind-hour-grid {
+        display: grid;
+        grid-template-columns: repeat(24, 1fr);
+        gap: 1px;
+        padding: 2px;
+        width: 100%;
+        min-width: unset;
+        max-width: 100%;
+        flex-basis: 100%;
+    }
+    
+    .wind-hour-cell {
+        width: 100%;
+        height: 1.25em;
+    }
+    
     .wind-grid {
         padding: 2px 3px;
         font-size: 0.8rem;

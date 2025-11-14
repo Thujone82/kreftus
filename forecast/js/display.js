@@ -348,7 +348,21 @@ function displayRainForecast(weather, location) {
     const totalHours = Math.min(periods.length, 96);
     const cityName = truncateCityName(location.city, 20);
     
-    let html = `<div class="section-header">${cityName} Rain Outlook</div>`;
+    let html = `<div class="section-header">${cityName} <span class="section-header-forecast">Forecast</span> Rain Outlook</div>`;
+    
+    // Add hour header row
+    html += '<div class="rain-day">';
+    html += '<div class="rain-day-header">Hour:</div>';
+    html += '<div class="rain-grid">';
+    for (let hour = 0; hour < 24; hour++) {
+        // Skip even double-digit numbers (10, 12, 14, 16, 18, 20, 22) to reduce clutter
+        if (hour >= 10 && hour % 2 === 0) {
+            html += '<div class="rain-block rain-hour-header"></div>';
+        } else {
+            html += `<div class="rain-block rain-hour-header">${hour}</div>`;
+        }
+    }
+    html += '</div></div>';
     
     // Group periods by day
     const daysData = groupHourlyByDay(periods.slice(0, totalHours), location.timeZone);
@@ -383,7 +397,7 @@ function displayRainForecast(weather, location) {
                             maxRainPercent <= 80 ? "precip-medium" : "precip-high";
         
         html += '<div class="rain-day">';
-        html += `${dayName} <span class="rain-percent ${maxRainColor}">${maxRainPercent < 10 ? ' ' : ''}${maxRainPercent}%</span> `;
+        html += `<div class="rain-day-header">${dayName} <span class="rain-percent ${maxRainColor}">${maxRainPercent < 10 ? ' ' : ''}${maxRainPercent}%</span></div>`;
         html += '<div class="rain-grid">';
         
         // Build CSS Grid with colored blocks for 24 hours
@@ -422,7 +436,21 @@ function displayWindForecast(weather, location) {
     const totalHours = Math.min(periods.length, 96);
     const cityName = truncateCityName(location.city, 20);
     
-    let html = `<div class="section-header">${cityName} Wind Outlook</div>`;
+    let html = `<div class="section-header">${cityName} <span class="section-header-forecast">Forecast</span> Wind Outlook</div>`;
+    
+    // Add hour header row
+    html += '<div class="wind-day">';
+    html += '<div class="wind-day-header">Hour:</div>';
+    html += '<div class="wind-hour-grid">';
+    for (let hour = 0; hour < 24; hour++) {
+        // Skip even double-digit numbers (10, 12, 14, 16, 18, 20, 22) to reduce clutter
+        if (hour >= 10 && hour % 2 === 0) {
+            html += '<div class="wind-hour-cell"></div>';
+        } else {
+            html += `<div class="wind-hour-cell">${hour}</div>`;
+        }
+    }
+    html += '</div></div>';
     
     // Group periods by day
     const daysData = groupHourlyByDay(periods.slice(0, totalHours), location.timeZone);
@@ -453,7 +481,7 @@ function displayWindForecast(weather, location) {
                             maxWindSpeed <= 14 ? "wind-moderate" : "wind-strong";
         
         html += '<div class="wind-day">';
-        html += `${dayName} <span class="wind-speed ${maxWindColor}">${maxWindSpeed < 10 ? ' ' : ''}${maxWindSpeed}mph</span> `;
+        html += `<div class="wind-day-header">${dayName} <span class="wind-speed ${maxWindColor}">${maxWindSpeed < 10 ? ' ' : ''}${maxWindSpeed}mph</span></div>`;
         html += '<span class="wind-grid">';
         
         // Build wind glyphs for 24 hours (on same line)
