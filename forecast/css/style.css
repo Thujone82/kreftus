@@ -78,9 +78,17 @@ header:has(.header-left.forecast-text-hidden) .header-right {
 }
 
 .header-left.forecast-text-hidden {
-    flex: 0 0 auto;
-    min-width: 0;
-    max-width: fit-content;
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+    max-width: fit-content !important;
+    width: auto !important;
+    flex-shrink: 1 !important;
+}
+
+.header-left.forecast-text-hidden h1 {
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: fit-content !important;
 }
 
 .header-left.forecast-text-hidden ~ .header-right {
@@ -1002,33 +1010,55 @@ main {
     }
     
     .header-left.forecast-text-hidden {
-        flex: 0 0 auto !important;
-        min-width: 0;
-        max-width: fit-content;
+        flex: 0 1 auto !important;
+        min-width: 0 !important;
+        max-width: fit-content !important;
+        width: auto !important;
+        flex-shrink: 1 !important;
+        flex-grow: 0 !important;
+        flex-basis: auto !important;
+    }
+    
+    .header-left.forecast-text-hidden h1 {
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: fit-content !important;
+        flex-shrink: 1 !important;
     }
     
     .header-left.forecast-text-hidden ~ .header-right {
         flex: 1 1 0 !important;
-        flex-grow: 1;
-        flex-shrink: 1;
-        flex-basis: 0;
-        min-width: 0;
-        max-width: none;
+        flex-grow: 1 !important;
+        flex-shrink: 1 !important;
+        flex-basis: 0 !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        width: auto !important;
     }
     
     .header-left.forecast-text-hidden ~ .header-right #locationInput {
         max-width: none !important;
-        min-width: 0;
-        flex: 1 1 0;
-        flex-grow: 1;
-        flex-shrink: 1;
-        flex-basis: 0;
+        min-width: 0 !important;
+        width: auto !important;
+        flex: 1 1 0 !important;
+        flex-grow: 1 !important;
+        flex-shrink: 1 !important;
+        flex-basis: 0 !important;
     }
 
     .header-right {
         flex: 1 1 auto;
         min-width: 0;
         justify-content: flex-end;
+    }
+    
+    header:has(.header-left.forecast-text-hidden) .header-right {
+        flex: 1 1 0 !important;
+        flex-grow: 1;
+        flex-shrink: 1;
+        flex-basis: 0;
+        min-width: 0;
+        max-width: none;
     }
 
     #locationInput {
@@ -1037,6 +1067,26 @@ main {
         max-width: 100%;
         font-size: 0.85rem;
         padding: 0.4rem 0.6rem;
+    }
+    
+    header:has(.header-left.forecast-text-hidden) .header-right {
+        flex: 1 1 0 !important;
+        flex-grow: 1 !important;
+        flex-shrink: 1 !important;
+        flex-basis: 0 !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        width: auto !important;
+    }
+    
+    header:has(.header-left.forecast-text-hidden) .header-right #locationInput {
+        max-width: none !important;
+        min-width: 0 !important;
+        width: auto !important;
+        flex: 1 1 0 !important;
+        flex-grow: 1 !important;
+        flex-shrink: 1 !important;
+        flex-basis: 0 !important;
     }
 
     #searchBtn {
@@ -1132,20 +1182,22 @@ main {
     
     .header-left.forecast-text-hidden ~ .header-right {
         flex: 1 1 0 !important;
-        flex-grow: 1;
-        flex-shrink: 1;
-        flex-basis: 0;
-        min-width: 0;
-        max-width: none;
+        flex-grow: 1 !important;
+        flex-shrink: 1 !important;
+        flex-basis: 0 !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        width: auto !important;
     }
     
     .header-left.forecast-text-hidden ~ .header-right #locationInput {
         max-width: none !important;
-        min-width: 0;
-        flex: 1 1 0;
-        flex-grow: 1;
-        flex-shrink: 1;
-        flex-basis: 0;
+        min-width: 0 !important;
+        width: auto !important;
+        flex: 1 1 0 !important;
+        flex-grow: 1 !important;
+        flex-shrink: 1 !important;
+        flex-basis: 0 !important;
     }
 
     .rain-day {
@@ -1234,27 +1286,40 @@ main {
     }
     
     .header-left.forecast-text-hidden {
-        flex: 0 0 auto !important;
-        min-width: 0;
-        max-width: fit-content;
+        flex: 0 1 auto !important;
+        min-width: 0 !important;
+        max-width: fit-content !important;
+        width: auto !important;
+        flex-shrink: 1 !important;
+        flex-grow: 0 !important;
+        flex-basis: auto !important;
+    }
+    
+    .header-left.forecast-text-hidden h1 {
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: fit-content !important;
+        flex-shrink: 1 !important;
     }
     
     .header-left.forecast-text-hidden ~ .header-right {
         flex: 1 1 0 !important;
-        flex-grow: 1;
-        flex-shrink: 1;
-        flex-basis: 0;
-        min-width: 0;
-        max-width: none;
+        flex-grow: 1 !important;
+        flex-shrink: 1 !important;
+        flex-basis: 0 !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        width: auto !important;
     }
     
     .header-left.forecast-text-hidden ~ .header-right #locationInput {
         max-width: none !important;
-        min-width: 0;
-        flex: 1 1 0;
-        flex-grow: 1;
-        flex-shrink: 1;
-        flex-basis: 0;
+        min-width: 0 !important;
+        width: auto !important;
+        flex: 1 1 0 !important;
+        flex-grow: 1 !important;
+        flex-shrink: 1 !important;
+        flex-basis: 0 !important;
     }
 
     header h1 {
@@ -1270,6 +1335,15 @@ main {
         min-width: 0;
         justify-content: flex-end;
     }
+    
+    header:has(.header-left.forecast-text-hidden) .header-right {
+        flex: 1 1 0 !important;
+        flex-grow: 1;
+        flex-shrink: 1;
+        flex-basis: 0;
+        min-width: 0;
+        max-width: none;
+    }
 
     #locationInput {
         flex: 1 1 auto;
@@ -1277,6 +1351,26 @@ main {
         max-width: 100%;
         font-size: 0.8rem;
         padding: 0.35rem 0.5rem;
+    }
+    
+    header:has(.header-left.forecast-text-hidden) .header-right {
+        flex: 1 1 0 !important;
+        flex-grow: 1 !important;
+        flex-shrink: 1 !important;
+        flex-basis: 0 !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        width: auto !important;
+    }
+    
+    header:has(.header-left.forecast-text-hidden) .header-right #locationInput {
+        max-width: none !important;
+        min-width: 0 !important;
+        width: auto !important;
+        flex: 1 1 0 !important;
+        flex-grow: 1 !important;
+        flex-shrink: 1 !important;
+        flex-basis: 0 !important;
     }
 
     #searchBtn {
@@ -1363,20 +1457,22 @@ main {
     
     .header-left.forecast-text-hidden ~ .header-right {
         flex: 1 1 0 !important;
-        flex-grow: 1;
-        flex-shrink: 1;
-        flex-basis: 0;
-        min-width: 0;
-        max-width: none;
+        flex-grow: 1 !important;
+        flex-shrink: 1 !important;
+        flex-basis: 0 !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        width: auto !important;
     }
     
     .header-left.forecast-text-hidden ~ .header-right #locationInput {
         max-width: none !important;
-        min-width: 0;
-        flex: 1 1 0;
-        flex-grow: 1;
-        flex-shrink: 1;
-        flex-basis: 0;
+        min-width: 0 !important;
+        width: auto !important;
+        flex: 1 1 0 !important;
+        flex-grow: 1 !important;
+        flex-shrink: 1 !important;
+        flex-basis: 0 !important;
     }
 
     .rain-day,
