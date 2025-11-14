@@ -43,10 +43,21 @@ header {
     justify-content: space-between;
     min-height: 4rem;
     gap: 1rem;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 header:has(.header-left.forecast-text-hidden) {
     justify-content: flex-start;
+}
+
+header:has(.header-left.forecast-text-hidden) .header-right {
+    flex: 1 1 0;
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0;
+    min-width: 0;
+    max-width: none;
 }
 
 .header-left {
@@ -73,15 +84,22 @@ header:has(.header-left.forecast-text-hidden) {
 }
 
 .header-left.forecast-text-hidden ~ .header-right {
-    flex: 1 1 auto;
+    flex: 1 1 0;
     flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0;
     min-width: 0;
     max-width: none;
+    width: auto;
 }
 
 .header-left.forecast-text-hidden ~ .header-right #locationInput {
-    max-width: none;
-    flex: 1 1 auto;
+    max-width: none !important;
+    min-width: 0;
+    flex: 1 1 0;
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0;
 }
 
 header h1 {
@@ -108,6 +126,7 @@ header h1 {
     gap: 0.5rem;
     flex: 1 1 auto;
     min-width: 0;
+    flex-grow: 1;
     justify-content: flex-end;
 }
 
@@ -989,15 +1008,21 @@ main {
     }
     
     .header-left.forecast-text-hidden ~ .header-right {
-        flex: 1 1 auto !important;
+        flex: 1 1 0 !important;
         flex-grow: 1;
+        flex-shrink: 1;
+        flex-basis: 0;
         min-width: 0;
         max-width: none;
     }
     
     .header-left.forecast-text-hidden ~ .header-right #locationInput {
         max-width: none !important;
-        flex: 1 1 auto;
+        min-width: 0;
+        flex: 1 1 0;
+        flex-grow: 1;
+        flex-shrink: 1;
+        flex-basis: 0;
     }
 
     .header-right {
@@ -1106,15 +1131,21 @@ main {
     }
     
     .header-left.forecast-text-hidden ~ .header-right {
-        flex: 1 1 auto !important;
+        flex: 1 1 0 !important;
         flex-grow: 1;
+        flex-shrink: 1;
+        flex-basis: 0;
         min-width: 0;
         max-width: none;
     }
     
     .header-left.forecast-text-hidden ~ .header-right #locationInput {
         max-width: none !important;
-        flex: 1 1 auto;
+        min-width: 0;
+        flex: 1 1 0;
+        flex-grow: 1;
+        flex-shrink: 1;
+        flex-basis: 0;
     }
 
     .rain-day {
@@ -1209,15 +1240,21 @@ main {
     }
     
     .header-left.forecast-text-hidden ~ .header-right {
-        flex: 1 1 auto !important;
+        flex: 1 1 0 !important;
         flex-grow: 1;
+        flex-shrink: 1;
+        flex-basis: 0;
         min-width: 0;
         max-width: none;
     }
     
     .header-left.forecast-text-hidden ~ .header-right #locationInput {
         max-width: none !important;
-        flex: 1 1 auto;
+        min-width: 0;
+        flex: 1 1 0;
+        flex-grow: 1;
+        flex-shrink: 1;
+        flex-basis: 0;
     }
 
     header h1 {
@@ -1325,15 +1362,21 @@ main {
     }
     
     .header-left.forecast-text-hidden ~ .header-right {
-        flex: 1 1 auto !important;
+        flex: 1 1 0 !important;
         flex-grow: 1;
+        flex-shrink: 1;
+        flex-basis: 0;
         min-width: 0;
         max-width: none;
     }
     
     .header-left.forecast-text-hidden ~ .header-right #locationInput {
         max-width: none !important;
-        flex: 1 1 auto;
+        min-width: 0;
+        flex: 1 1 0;
+        flex-grow: 1;
+        flex-shrink: 1;
+        flex-basis: 0;
     }
 
     .rain-day,
