@@ -74,6 +74,9 @@ async function init() {
     setupEventListeners();
     console.log('Event listeners set up');
     
+    // Set up forecast text visibility observer
+    setupForecastTextVisibility();
+    
     // Register service worker (non-blocking)
     if ('serviceWorker' in navigator) {
         try {
@@ -287,6 +290,72 @@ async function init() {
 }
 
 // Set up event listeners
+// Set up ResizeObserver to hide/show "Forecast" text based on input width
+function setupForecastTextVisibility() {
+    const locationInput = elements.locationInput;
+    const forecastText = document.querySelector('.forecast-text');
+    const headerLeft = document.querySelector('.header-left');
+    
+    if (!locationInput || !forecastText || !headerLeft) {
+        console.warn('Required elements not found for forecast text visibility setup');
+        return;
+    }
+    
+    // Width thresholds for search input (in pixels) - using hysteresis to prevent oscillation
+    // Hide text when input is narrow, show when it's wider (different thresholds prevent rapid toggling)
+    const HIDE_THRESHOLD = 120;  // Hide text when input is below this width
+    const SHOW_THRESHOLD = 270;  // Show text when input is above this width (much higher to prevent oscillation with large fonts)
+    
+    // Track current state to prevent unnecessary DOM updates
+    let isTextHidden = false;
+    
+    // Function to check and update visibility
+    const updateForecastTextVisibility = () => {
+        const inputWidth = locationInput.offsetWidth;
+        
+        // Use hysteresis: different thresholds for hiding vs showing
+        if (!isTextHidden && inputWidth < HIDE_THRESHOLD) {
+            // Hide the text
+            forecastText.classList.add('hidden');
+            headerLeft.classList.add('forecast-text-hidden');
+            isTextHidden = true;
+        } else if (isTextHidden && inputWidth > SHOW_THRESHOLD) {
+            // Show the text
+            forecastText.classList.remove('hidden');
+            headerLeft.classList.remove('forecast-text-hidden');
+            isTextHidden = false;
+        }
+    };
+    
+    // Check on initial load
+    updateForecastTextVisibility();
+    
+    // Set up ResizeObserver to monitor the search input width
+    if (typeof ResizeObserver !== 'undefined') {
+        const resizeObserver = new ResizeObserver(() => {
+            updateForecastTextVisibility();
+        });
+        
+        resizeObserver.observe(locationInput);
+        
+        // Also observe the header-right container in case it affects the input width
+        const headerRight = document.querySelector('.header-right');
+        if (headerRight) {
+            resizeObserver.observe(headerRight);
+        }
+        
+        // Also observe the header in case overall layout changes
+        const header = document.querySelector('header');
+        if (header) {
+            resizeObserver.observe(header);
+        }
+    } else {
+        // Fallback for browsers that don't support ResizeObserver
+        // Use window resize event as fallback
+        window.addEventListener('resize', updateForecastTextVisibility);
+    }
+}
+
 function setupEventListeners() {
     // Verify elements exist
     if (!elements.searchBtn || !elements.locationInput) {

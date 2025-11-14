@@ -45,11 +45,43 @@ header {
     gap: 1rem;
 }
 
+header:has(.header-left.forecast-text-hidden) {
+    justify-content: flex-start;
+}
+
 .header-left {
     display: flex;
     align-items: center;
     flex: 1;
     justify-content: center;
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.forecast-text {
+    white-space: nowrap;
+}
+
+.forecast-text.hidden {
+    display: none;
+}
+
+.header-left.forecast-text-hidden {
+    flex: 0 0 auto;
+    min-width: 0;
+    max-width: fit-content;
+}
+
+.header-left.forecast-text-hidden ~ .header-right {
+    flex: 1 1 auto;
+    flex-grow: 1;
+    min-width: 0;
+    max-width: none;
+}
+
+.header-left.forecast-text-hidden ~ .header-right #locationInput {
+    max-width: none;
+    flex: 1 1 auto;
 }
 
 header h1 {
@@ -927,6 +959,24 @@ main {
         flex: 0 0 50%;
         justify-content: flex-start;
     }
+    
+    .header-left.forecast-text-hidden {
+        flex: 0 0 auto !important;
+        min-width: 0;
+        max-width: fit-content;
+    }
+    
+    .header-left.forecast-text-hidden ~ .header-right {
+        flex: 1 1 auto !important;
+        flex-grow: 1;
+        min-width: 0;
+        max-width: none;
+    }
+    
+    .header-left.forecast-text-hidden ~ .header-right #locationInput {
+        max-width: none !important;
+        flex: 1 1 auto;
+    }
 
     .header-right {
         flex: 1 1 auto;
@@ -1028,12 +1078,21 @@ main {
     }
     
     .header-left.forecast-text-hidden {
-        flex: 0 1 auto;
+        flex: 0 0 auto !important;
+        min-width: 0;
+        max-width: fit-content;
     }
     
     .header-left.forecast-text-hidden ~ .header-right {
+        flex: 1 1 auto !important;
+        flex-grow: 1;
+        min-width: 0;
+        max-width: none;
+    }
+    
+    .header-left.forecast-text-hidden ~ .header-right #locationInput {
+        max-width: none !important;
         flex: 1 1 auto;
-        flex-grow: 2;
     }
 
     .rain-day {
@@ -1119,6 +1178,24 @@ main {
     .header-left {
         flex: 0 0 50%;
         justify-content: flex-start;
+    }
+    
+    .header-left.forecast-text-hidden {
+        flex: 0 0 auto !important;
+        min-width: 0;
+        max-width: fit-content;
+    }
+    
+    .header-left.forecast-text-hidden ~ .header-right {
+        flex: 1 1 auto !important;
+        flex-grow: 1;
+        min-width: 0;
+        max-width: none;
+    }
+    
+    .header-left.forecast-text-hidden ~ .header-right #locationInput {
+        max-width: none !important;
+        flex: 1 1 auto;
     }
 
     header h1 {
@@ -1220,12 +1297,21 @@ main {
     }
     
     .header-left.forecast-text-hidden {
-        flex: 0 1 auto;
+        flex: 0 0 auto !important;
+        min-width: 0;
+        max-width: fit-content;
     }
     
     .header-left.forecast-text-hidden ~ .header-right {
+        flex: 1 1 auto !important;
+        flex-grow: 1;
+        min-width: 0;
+        max-width: none;
+    }
+    
+    .header-left.forecast-text-hidden ~ .header-right #locationInput {
+        max-width: none !important;
         flex: 1 1 auto;
-        flex-grow: 2;
     }
 
     .rain-day,
