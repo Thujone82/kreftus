@@ -1095,7 +1095,7 @@ main {
         display: none;
     }
     
-    .forecast-text {
+    header .forecast-text {
         display: none;
     }
     
@@ -1314,7 +1314,7 @@ main {
         display: none;
     }
     
-    .forecast-text {
+    header .forecast-text {
         display: none;
     }
     
