@@ -434,13 +434,41 @@ function setupEventListeners() {
     
     // Location buttons in drawer (delegated event handler)
     if (elements.locationButtons) {
+        let clickTimer = null;
+        let isDoubleClick = false;
+        
         elements.locationButtons.addEventListener('click', (e) => {
             const locationBtn = e.target.closest('.location-btn');
-            if (locationBtn) {
-                e.preventDefault();
-                const locationKey = locationBtn.dataset.locationKey;
-                handleLocationButtonClick(locationKey);
+            if (!locationBtn) return;
+            
+            // Ignore clicks on input fields (edit mode)
+            if (e.target.classList.contains('location-btn-edit')) {
+                return;
             }
+            
+            // Handle double-click for edit mode
+            if (clickTimer) {
+                clearTimeout(clickTimer);
+                clickTimer = null;
+                isDoubleClick = true;
+                
+                // Enter edit mode
+                e.preventDefault();
+                e.stopPropagation();
+                handleLocationButtonEdit(locationBtn);
+                return;
+            }
+            
+            // Single click - wait to see if it becomes a double-click
+            isDoubleClick = false;
+            clickTimer = setTimeout(() => {
+                if (!isDoubleClick) {
+                    // Single click confirmed - navigate to location
+                    const locationKey = locationBtn.dataset.locationKey;
+                    handleLocationButtonClick(locationKey);
+                }
+                clickTimer = null;
+            }, 300); // 300ms delay to detect double-click
         });
     }
     
@@ -525,6 +553,76 @@ function handleFavoriteToggle() {
             console.error('Failed to save favorite');
         }
     }
+}
+
+// Handle location button edit mode
+function handleLocationButtonEdit(locationBtn) {
+    if (!locationBtn) return;
+    
+    const locationKey = locationBtn.dataset.locationKey;
+    if (!locationKey) return;
+    
+    const favorite = getFavoriteByKey(locationKey);
+    if (!favorite) return;
+    
+    // Get current display name (customName or name)
+    const currentName = favorite.customName || favorite.name;
+    
+    // Create input field
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'location-btn-edit';
+    input.value = currentName;
+    input.maxLength = 50; // Reasonable limit for button text
+    
+    // Store original button content and replace with input
+    const originalContent = locationBtn.innerHTML;
+    locationBtn.innerHTML = '';
+    locationBtn.appendChild(input);
+    input.focus();
+    input.select();
+    
+    // Save handler
+    const saveEdit = () => {
+        const newName = input.value.trim();
+        const oldName = favorite.customName || favorite.name;
+        
+        // Only update if name changed
+        if (newName !== oldName) {
+            if (updateFavoriteCustomName(locationKey, newName)) {
+                renderLocationButtons();
+            }
+        } else {
+            // Name unchanged, just restore button
+            locationBtn.innerHTML = originalContent;
+        }
+    };
+    
+    // Cancel handler
+    const cancelEdit = () => {
+        locationBtn.innerHTML = originalContent;
+    };
+    
+    // Handle Enter key (save)
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            e.stopPropagation();
+            saveEdit();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            cancelEdit();
+        }
+    });
+    
+    // Handle blur (save on click outside)
+    input.addEventListener('blur', (e) => {
+        // Use setTimeout to allow click events to process first
+        setTimeout(() => {
+            saveEdit();
+        }, 200);
+    });
 }
 
 // Handle location button click from drawer
@@ -683,7 +781,7 @@ function getFavorites() {
     }
 }
 
-function saveFavorite(location, locationObject, searchQuery) {
+function saveFavorite(location, locationObject, searchQuery, customName) {
     try {
         if (!locationObject || !locationObject.city || !locationObject.state) {
             console.warn('Cannot save favorite: invalid location object', locationObject);
@@ -699,8 +797,14 @@ function saveFavorite(location, locationObject, searchQuery) {
         const favorites = getFavorites();
         
         // Check if already exists
-        if (favorites.some(fav => fav.key === locationKey)) {
-            console.log('Location already favorited:', locationKey);
+        const existingIndex = favorites.findIndex(fav => fav.key === locationKey);
+        if (existingIndex !== -1) {
+            // Update existing favorite if customName is provided
+            if (customName !== undefined) {
+                favorites[existingIndex].customName = customName || null;
+                localStorage.setItem('forecastFavorites', JSON.stringify(favorites));
+                console.log('Favorite custom name updated:', locationKey, customName);
+            }
             return true; // Already favorited
         }
         
@@ -711,6 +815,11 @@ function saveFavorite(location, locationObject, searchQuery) {
             location: locationObject,
             searchQuery: searchQuery || location
         };
+        
+        // Add customName if provided
+        if (customName !== undefined) {
+            newFavorite.customName = customName || null;
+        }
         
         favorites.push(newFavorite);
         
@@ -749,6 +858,37 @@ function getFavoriteByKey(locationKey) {
     if (!locationKey) return null;
     const favorites = getFavorites();
     return favorites.find(fav => fav.key === locationKey) || null;
+}
+
+function updateFavoriteCustomName(locationKey, customName) {
+    try {
+        if (!locationKey) {
+            console.warn('Cannot update custom name: locationKey is required');
+            return false;
+        }
+        
+        const favorites = getFavorites();
+        const favoriteIndex = favorites.findIndex(fav => fav.key === locationKey);
+        
+        if (favoriteIndex === -1) {
+            console.warn('Cannot update custom name: favorite not found', locationKey);
+            return false;
+        }
+        
+        // Update customName (null or empty string removes it)
+        if (customName && customName.trim()) {
+            favorites[favoriteIndex].customName = customName.trim();
+        } else {
+            delete favorites[favoriteIndex].customName;
+        }
+        
+        localStorage.setItem('forecastFavorites', JSON.stringify(favorites));
+        console.log('Favorite custom name updated:', locationKey, favorites[favoriteIndex].customName || 'removed');
+        return true;
+    } catch (error) {
+        console.error('Failed to update favorite custom name:', error);
+        return false;
+    }
 }
 
 // Last viewed location functions
@@ -906,8 +1046,10 @@ function renderLocationButtons() {
     
     let html = '';
     favorites.forEach(favorite => {
-        const displayName = truncateCityName(favorite.name, 20);
-        html += `<button class="location-btn" data-location-key="${favorite.key}">${displayName}</button>`;
+        // Use customName if available, otherwise fall back to name
+        const displayName = favorite.customName || favorite.name;
+        const truncatedName = truncateCityName(displayName, 20);
+        html += `<button class="location-btn" data-location-key="${favorite.key}" data-custom-name="${favorite.customName || ''}">${truncatedName}</button>`;
     });
     
     elements.locationButtons.innerHTML = html;

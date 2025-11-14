@@ -326,6 +326,26 @@ main {
     transform: translateY(0);
 }
 
+.location-btn-edit {
+    padding: 0.5rem 0.75rem;
+    background-color: var(--color-bg-secondary);
+    border: 2px solid var(--color-title);
+    color: var(--color-text);
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    min-height: 36px;
+    width: 100%;
+    box-sizing: border-box;
+    outline: none;
+    font-family: inherit;
+}
+
+.location-btn-edit:focus {
+    border-color: var(--color-title);
+    background-color: var(--color-bg);
+}
+
 .toggle-label {
     display: flex;
     align-items: center;
