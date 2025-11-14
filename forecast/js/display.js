@@ -252,6 +252,7 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
         const currentDay = formatDate(periodTime);
         let nightTemp = null;
         let nightDetailedForecast = null;
+        let nightPeriodTime = null;
         
         for (const nightPeriod of periods) {
             const nightTime = new Date(nightPeriod.startTime);
@@ -260,6 +261,7 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
             if (nightDay === currentDay && nightTime > periodTime) {
                 nightTemp = nightPeriod.temperature;
                 nightDetailedForecast = nightPeriod.detailedForecast;
+                nightPeriodTime = nightTime;
                 break;
             }
         }
@@ -307,13 +309,18 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
                 
                 html += `<div class="daily-details">${periodIcon} Day: ${dayForecastText}</div>`;
                 
-                const moonPhaseInfo = calculateMoonPhase(new Date());
+                // Calculate moon phase for the night period's date
+                // Use the night period's date if available, otherwise use the day period's date
+                const nightDate = nightPeriodTime || periodTime;
+                const moonPhaseInfo = calculateMoonPhase(nightDate);
                 
                 html += `<div class="daily-details">${moonPhaseInfo.emoji} Night: ${nightDetailedForecast}</div>`;
             } else {
                 const currentHour = periodTime.getHours();
                 const isCurrentPeriodNight = (currentHour >= 18 || currentHour < 6);
-                const singlePeriodLabel = isCurrentPeriodNight ? `${calculateMoonPhase(new Date()).emoji} Night: ` : `${periodIcon} Day: `;
+                // Calculate moon phase for this period's date
+                const moonPhaseInfo = calculateMoonPhase(periodTime);
+                const singlePeriodLabel = isCurrentPeriodNight ? `${moonPhaseInfo.emoji} Night: ` : `${periodIcon} Day: `;
                 const singlePeriodText = period.detailedForecast || "No detailed forecast available";
                 
                 html += `<div class="daily-details">${singlePeriodLabel}${singlePeriodText}</div>`;
