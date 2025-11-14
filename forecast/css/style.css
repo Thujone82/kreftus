@@ -663,7 +663,9 @@ main {
     border: 1px solid var(--color-bg-secondary);
     padding: 2px;
     background-color: var(--color-bg);
-    width: fit-content;
+    width: 30.625em;
+    min-width: 30.625em;
+    max-width: 30.625em;
     box-sizing: border-box;
     vertical-align: middle;
     flex-shrink: 0;
