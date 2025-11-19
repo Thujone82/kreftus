@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Recamán Sequence Visualizer</title>
     
     <!-- Tailwind CSS -->
@@ -16,10 +16,67 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
     <style>
-        body { margin: 0; overflow: hidden; background-color: #111827; }
-        /* Custom scrollbar for webkit */
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #111827;
+            /* Prevent pull-to-refresh and standard scroll behaviors on mobile */
+            touch-action: none; 
+            overscroll-behavior: none;
+        }
+        
+        /* --- Custom Range Slider Styling --- */
+        /* Reset */
+        input[type=range] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%; 
+            background: transparent; 
+        }
+
+        input[type=range]:focus {
+            outline: none; 
+        }
+
+        /* WebKit/Blink (Chrome, Edge, Safari) */
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none;
+            appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #a855f7; /* purple-500 */
+            cursor: pointer;
+            margin-top: -6px; 
+            box-shadow: 0 0 4px rgba(0,0,0,0.5);
+            border: 2px solid #111827; 
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #374151; /* gray-700 */
+            border-radius: 2px;
+        }
+
+        /* Firefox */
+        input[type=range]::-moz-range-thumb {
+            height: 16px;
+            width: 16px;
+            border: 2px solid #111827;
+            border-radius: 50%;
+            background: #a855f7;
+            cursor: pointer;
+            box-shadow: 0 0 4px rgba(0,0,0,0.5);
+        }
+
+        input[type=range]::-moz-range-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #374151;
+            border-radius: 2px;
         }
     </style>
 </head>
@@ -29,22 +86,9 @@
     <script type="text/babel">
         const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-        // --- Icon Components (Replacements for lucide-react) ---
+        // --- Icon Components ---
         const IconBase = ({ size = 24, children, ...props }) => (
-            <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width={size} 
-                height={size} 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                {...props}
-            >
-                {children}
-            </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>{children}</svg>
         );
 
         const Play = (props) => <IconBase {...props}><polygon points="5 3 19 12 5 21 5 3"></polygon></IconBase>;
@@ -67,12 +111,9 @@
             init() {
                 if (!this.ctx) {
                     this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-                    
-                    // Master Volume
                     this.gainNode = this.ctx.createGain();
                     this.gainNode.gain.value = 0.15; 
                     
-                    // Reverb (Convolver)
                     const sampleRate = this.ctx.sampleRate;
                     const length = sampleRate * 2.5;
                     const impulse = this.ctx.createBuffer(2, length, sampleRate);
@@ -85,7 +126,6 @@
                     }
                     this.reverbNode = this.ctx.createConvolver();
                     this.reverbNode.buffer = impulse;
-                    
                     this.reverbNode.connect(this.gainNode);
                     this.gainNode.connect(this.ctx.destination);
                 }
@@ -97,13 +137,11 @@
             playTone(value, stepIndex) {
                 if (!this.ctx) return;
 
-                // --- Pitch Logic ---
-                // Rise to 10,000, then fall to 100,000
                 let frequency;
                 const PEAK_STEP = 10000;
                 const MAX_STEP = 100000;
-                const MIN_FREQ = 80;  // Low bass
-                const PEAK_FREQ = 1200; // High clear tone
+                const MIN_FREQ = 80;
+                const PEAK_FREQ = 1200;
                 
                 if (stepIndex <= PEAK_STEP) {
                     const t = stepIndex / PEAK_STEP;
@@ -114,12 +152,9 @@
                     frequency = PEAK_FREQ - (PEAK_FREQ - MIN_FREQ) * safeT;
                 }
 
-                // Texture variation
                 const semitoneMod = (value % 12) * 2; 
                 frequency += semitoneMod;
 
-                // --- Pan Logic ---
-                // Map frequency to stereo field (-0.9 Left to 0.9 Right)
                 const panValue = ((frequency - MIN_FREQ) / (PEAK_FREQ - MIN_FREQ)) * 1.8 - 0.9;
 
                 const osc = this.ctx.createOscillator();
@@ -130,7 +165,6 @@
                 osc.frequency.setValueAtTime(frequency, this.ctx.currentTime);
                 notePanner.pan.setValueAtTime(panValue, this.ctx.currentTime);
 
-                // Envelope
                 envelope.gain.setValueAtTime(0, this.ctx.currentTime);
                 envelope.gain.linearRampToValueAtTime(0.2, this.ctx.currentTime + 0.01);
                 envelope.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.5);
@@ -149,29 +183,28 @@
 
         // --- Main Component ---
         function RecamanVisualizer() {
-            const LIMIT_BUFFER = 150000; // Buffer size slightly larger than target
-            const TARGET_VALUE = 100000; // Stop condition based on value
+            const LIMIT_BUFFER = 150000; 
+            const TARGET_VALUE = 100000; 
 
             // --- State ---
             const [currentStep, setCurrentStep] = useState(0);
             const [isPlaying, setIsPlaying] = useState(false);
-            const [speedSlider, setSpeedSlider] = useState(30); // 0-100 slider
+            const [speedSlider, setSpeedSlider] = useState(30);
             const [audioEnabled, setAudioEnabled] = useState(false);
             
-            // Info Popup State
             const [isInfoHovered, setIsInfoHovered] = useState(false);
             const [isInfoLocked, setIsInfoLocked] = useState(false);
             
-            // Viewport State
-            const [zoom, setZoom] = useState(5); // Start with a reasonable visible scale
+            const [zoom, setZoom] = useState(5);
             const [offset, setOffset] = useState({ x: 0, y: 0 });
-            const [isDragging, setIsDragging] = useState(false);
-            const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-
-            // --- Refs ---
+            
+            // Refs for interaction tracking
             const canvasRef = useRef(null);
             const containerRef = useRef(null);
-            
+            const isDraggingRef = useRef(false);
+            const lastPosRef = useRef({ x: 0, y: 0 });
+            const lastTouchDistRef = useRef(null);
+
             // --- Logic: Generate Sequence ---
             const sequence = useMemo(() => {
                 const seq = new Int32Array(LIMIT_BUFFER + 1);
@@ -198,7 +231,6 @@
             const animate = useCallback(() => {
                 if (isPlaying) {
                     setCurrentStep(prev => {
-                        // Stop if we hit the end of buffer OR if the value exceeds our target
                         if (prev >= LIMIT_BUFFER || sequence[prev] >= TARGET_VALUE) {
                             setIsPlaying(false);
                             return prev;
@@ -214,8 +246,6 @@
 
             useEffect(() => {
                 if (isPlaying) {
-                    // Logarithmic Speed Mapping
-                    // Slider (0-100) -> Rate (1 - 140 steps/sec)
                     const minRate = 1;
                     const maxRate = 140;
                     const rate = minRate * Math.pow(maxRate / minRate, speedSlider / 100);
@@ -225,6 +255,29 @@
                     return () => clearInterval(interval);
                 }
             }, [isPlaying, speedSlider, animate]);
+
+            // --- Helper: Clamp Offset ---
+            const clampOffset = (newOffset, containerHeight, containerWidth) => {
+                // 1. Vertical Bounds: Keep the center line within the viewport
+                // centerY = height/2 + offset.y
+                // We want centerY to be within [0, height] roughly
+                const maxY = containerHeight / 2; 
+                const minY = -containerHeight / 2;
+                
+                // 2. Horizontal Bounds:
+                // startX = width * 0.1 + offset.x
+                // We don't want the origin (0) to go TOO far right (off screen)
+                // We don't want the origin to go TOO far left (so we lose everything)
+                // Let's say '0' cannot be more than width away
+                const maxX = containerWidth; 
+                // And let's allow panning left quite a bit, but stop eventually
+                const minX = -200000; // Arbitrary large number for deep sequences, or dynamic based on max value
+
+                return {
+                    x: Math.max(minX, Math.min(maxX, newOffset.x)),
+                    y: Math.max(minY, Math.min(maxY, newOffset.y))
+                };
+            };
 
             // --- Canvas Drawing ---
             useEffect(() => {
@@ -246,10 +299,8 @@
                 const width = rect.width;
                 const height = rect.height;
                 const centerY = height / 2 + offset.y;
-                
-                // Fixed scale logic: 1 unit = 1 pixel * zoom
                 const unit = zoom; 
-                const startX = (width * 0.1) + offset.x; // Start 10% from left + pan offset
+                const startX = (width * 0.1) + offset.x;
 
                 // Clear
                 ctx.fillStyle = '#111827';
@@ -267,10 +318,8 @@
                 const viewLeft = -500; 
                 const viewRight = width + 500;
 
-                // Style config
                 ctx.lineWidth = Math.max(1, 2 * Math.sqrt(zoom / 5)); 
 
-                // We iterate only up to currentStep
                 for (let i = 1; i <= currentStep; i++) {
                     const prev = sequence[i-1];
                     const curr = sequence[i];
@@ -281,12 +330,10 @@
                     const screenCenter = startX + centerVal * unit;
                     const screenRadius = radiusVal * unit;
 
-                    // Culling
                     if ((screenCenter + screenRadius) < viewLeft || (screenCenter - screenRadius) > viewRight) {
                         continue; 
                     }
                     
-                    // Detail Culling
                     if (screenRadius < 0.5) continue;
 
                     ctx.beginPath();
@@ -304,13 +351,11 @@
                     const currentVal = sequence[currentStep];
                     const screenX = startX + currentVal * unit;
                     
-                    // Draw dot
                     ctx.beginPath();
                     ctx.arc(screenX, centerY, Math.max(3, 4 * (zoom/5)), 0, Math.PI * 2); 
                     ctx.fillStyle = '#fff';
                     ctx.fill();
                     
-                    // Draw text label if enough space
                     if (zoom > 2) {
                         ctx.font = '12px sans-serif';
                         ctx.textAlign = 'center';
@@ -322,42 +367,98 @@
             }, [currentStep, sequence, zoom, offset]);
 
 
-            // --- Interaction Handlers ---
-            const handleAudioToggle = () => {
-                if (!audioEnabled) {
-                    audioEngine.init();
-                }
-                setAudioEnabled(!audioEnabled);
-            };
-
-            const reset = () => {
-                setIsPlaying(false);
-                setCurrentStep(0);
-                setOffset({x:0, y:0});
-            };
-
+            // --- Interaction Handlers (Mouse & Touch) ---
+            
             const handleMouseDown = (e) => {
-                setIsDragging(true);
-                setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+                isDraggingRef.current = true;
+                lastPosRef.current = { x: e.clientX, y: e.clientY };
             };
 
             const handleMouseMove = (e) => {
-                if (isDragging) {
-                    setOffset({
-                        x: e.clientX - dragStart.x,
-                        y: e.clientY - dragStart.y
-                    });
+                if (isDraggingRef.current) {
+                    const dx = e.clientX - lastPosRef.current.x;
+                    const dy = e.clientY - lastPosRef.current.y;
+                    lastPosRef.current = { x: e.clientX, y: e.clientY };
+                    
+                    setOffset(prev => clampOffset(
+                        { x: prev.x + dx, y: prev.y + dy },
+                        containerRef.current.getBoundingClientRect().height,
+                        containerRef.current.getBoundingClientRect().width
+                    ));
                 }
             };
 
             const handleMouseUp = () => {
-                setIsDragging(false);
+                isDraggingRef.current = false;
+            };
+
+            // Touch Logic
+            const handleTouchStart = (e) => {
+                if (e.touches.length === 1) {
+                    isDraggingRef.current = true;
+                    lastPosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                } else if (e.touches.length === 2) {
+                    // Pinch Start
+                    isDraggingRef.current = false; // Stop dragging if pinching
+                    const dist = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                    lastTouchDistRef.current = dist;
+                }
+            };
+
+            const handleTouchMove = (e) => {
+                // Prevent browser scrolling/zooming if simpler CSS fails
+                // e.preventDefault(); 
+
+                if (e.touches.length === 1 && isDraggingRef.current) {
+                    const dx = e.touches[0].clientX - lastPosRef.current.x;
+                    const dy = e.touches[0].clientY - lastPosRef.current.y;
+                    lastPosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+
+                    setOffset(prev => clampOffset(
+                        { x: prev.x + dx, y: prev.y + dy },
+                        containerRef.current.getBoundingClientRect().height,
+                        containerRef.current.getBoundingClientRect().width
+                    ));
+                } else if (e.touches.length === 2) {
+                    const dist = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                    
+                    if (lastTouchDistRef.current) {
+                        const delta = dist / lastTouchDistRef.current;
+                        setZoom(prev => Math.max(0.01, Math.min(100, prev * delta)));
+                    }
+                    lastTouchDistRef.current = dist;
+                }
+            };
+
+            const handleTouchEnd = () => {
+                isDraggingRef.current = false;
+                lastTouchDistRef.current = null;
             };
 
             const handleWheel = (e) => {
                 const zoomSensitivity = 0.001;
                 const delta = -e.deltaY * zoomSensitivity;
                 setZoom(z => Math.max(0.01, Math.min(100, z * (1 + delta))));
+            };
+
+            // Reset
+            const reset = () => {
+                setIsPlaying(false);
+                setCurrentStep(0);
+                setOffset({x:0, y:0});
+            };
+            
+            const handleAudioToggle = () => {
+                if (!audioEnabled) {
+                    audioEngine.init();
+                }
+                setAudioEnabled(!audioEnabled);
             };
 
             return (
@@ -445,6 +546,9 @@
                         onMouseUp={handleMouseUp}
                         onMouseLeave={handleMouseUp}
                         onWheel={handleWheel}
+                        onTouchStart={handleTouchStart}
+                        onTouchMove={handleTouchMove}
+                        onTouchEnd={handleTouchEnd}
                     >
                         <canvas 
                             ref={canvasRef} 
@@ -496,7 +600,7 @@
                                     max="100" 
                                     value={speedSlider}
                                     onChange={(e) => setSpeedSlider(Number(e.target.value))}
-                                    className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                                    className="flex-1 h-2 bg-gray-700 rounded-lg cursor-pointer"
                                 />
                                 <span className="text-xs text-gray-400 font-medium uppercase w-12 text-right">Fast</span>
                             </div>
