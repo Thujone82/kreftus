@@ -41,7 +41,6 @@
         /* WebKit/Blink (Chrome, Edge, Safari) */
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none;
-            appearance: none;
             height: 16px;
             width: 16px;
             border-radius: 50%;
@@ -568,10 +567,11 @@
                     </main>
 
                     {/* Controls Footer */}
-                    <footer className="flex-none bg-gray-950 border-t border-gray-800 p-4 sm:p-6 z-10">
-                        <div className="max-w-2xl mx-auto flex flex-col gap-6">
+                    <footer className="flex-none bg-gray-950 border-t border-gray-800 p-4 pb-10 sm:p-6 z-10">
+                        <div className="max-w-3xl mx-auto flex flex-row items-center gap-4">
                             
-                            <div className="flex items-center justify-center gap-8">
+                            {/* Buttons */}
+                            <div className="flex items-center gap-3 flex-none">
                                 <button 
                                     onClick={reset}
                                     className="p-3 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 transition-all"
@@ -585,24 +585,24 @@
                                         if(!isPlaying && audioEnabled) audioEngine.init();
                                         setIsPlaying(!isPlaying);
                                     }}
-                                    className={`w-16 h-16 rounded-full transition-all shadow-lg flex items-center justify-center ${isPlaying ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}
+                                    className={`w-12 h-12 rounded-full transition-all shadow-lg flex items-center justify-center ${isPlaying ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}
                                 >
-                                    {isPlaying ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-1" />}
+                                    {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
                                 </button>
                             </div>
 
                             {/* Speed Control */}
-                            <div className="flex items-center gap-4 bg-gray-900/50 p-3 rounded-xl border border-gray-800">
-                                <span className="text-xs text-gray-400 font-medium uppercase w-12">Slow</span>
+                            <div className="flex items-center gap-3 bg-gray-900/50 p-2 rounded-xl border border-gray-800 flex-1 min-w-0">
+                                <span className="text-xs text-gray-400 font-medium uppercase whitespace-nowrap">Slow</span>
                                 <input 
                                     type="range" 
                                     min="0" 
                                     max="100" 
                                     value={speedSlider}
                                     onChange={(e) => setSpeedSlider(Number(e.target.value))}
-                                    className="flex-1 h-2 bg-gray-700 rounded-lg cursor-pointer"
+                                    className="flex-1 h-2 bg-gray-700 rounded-lg cursor-pointer min-w-0"
                                 />
-                                <span className="text-xs text-gray-400 font-medium uppercase w-12 text-right">Fast</span>
+                                <span className="text-xs text-gray-400 font-medium uppercase whitespace-nowrap">Fast</span>
                             </div>
                         </div>
                     </footer>
