@@ -725,8 +725,118 @@ func showLedgerScreen(reader *bufio.Reader) {
 		writeAlignedLine("Average Sale Price:", fmt.Sprintf("$%s", formatFloat(summary.AvgSalePrice, 2)), color.New(color.FgRed), summaryValueStartColumn)
 	}
 
-	fmt.Println("\nPress Enter to return to Main screen")
-	reader.ReadString('\n')
+	fmt.Println("\nPress Enter to return to Main screen, or R to refresh")
+
+	// --- Raw Terminal Input Setup ---
+	// Get the file descriptor for standard input.
+	fd := int(os.Stdin.Fd())
+
+	// Check if we are in a terminal, which is required for raw mode.
+	if !term.IsTerminal(fd) {
+		// Fallback to simple input if not a terminal
+		reader.ReadString('\n')
+		return
+	}
+
+	// Save the original terminal state so we can restore it later.
+	oldState, err := term.GetState(fd)
+	if err != nil {
+		// Fallback to simple input if we can't get terminal state
+		reader.ReadString('\n')
+		return
+	}
+
+	done := make(chan struct{}) // Channel to signal the goroutine to stop.
+	var wg sync.WaitGroup
+	restoreNeeded := true // Flag to track if we need to restore terminal
+
+	// CRITICAL: Ensure the goroutine is stopped, terminal is restored,
+	// and the input buffer is reset when the function exits.
+	defer func() {
+		if restoreNeeded {
+			close(done) // 1. Signal the input goroutine to stop.
+			wg.Wait()   // 2. Wait for the input goroutine to finish before proceeding.
+			term.Restore(fd, oldState)
+			reader.Reset(os.Stdin)
+		}
+	}()
+
+	// Put the terminal into raw mode using the original descriptor.
+	_, err = term.MakeRaw(fd)
+	if err != nil {
+		// Fallback to simple input if we can't set raw mode
+		reader.ReadString('\n')
+		return
+	}
+
+	// Create a channel to receive input from a non-blocking goroutine.
+	inputChan := make(chan byte)
+	wg.Add(1) // Increment the WaitGroup counter before starting the goroutine.
+	go func() {
+		defer wg.Done()
+		defer close(inputChan)
+		for {
+			// cancellableRead is a platform-aware, non-blocking read.
+			b, err := cancellableRead(done)
+			if err != nil {
+				// This error is expected when 'done' is closed, so we just exit.
+				return
+			}
+			// We got a character, try to send it but don't block.
+			select {
+			case inputChan <- b:
+			case <-done:
+				return
+			}
+		}
+	}()
+
+	// Wait for user input
+	for {
+		b, ok := <-inputChan
+		if !ok {
+			// Channel closed, exit loop.
+			return
+		}
+
+		// Handle Ctrl+C gracefully in raw mode.
+		if b == 3 {
+			term.Restore(fd, oldState) // Restore terminal state BEFORE exiting.
+			os.Exit(1)
+		}
+
+		// Handle Enter key (13 is Carriage Return, 10 is Line Feed)
+		if b == 13 || b == 10 {
+			return // Return to main screen
+		}
+
+		// Handle 'R' or 'r' for refresh
+		if b == 'R' || b == 'r' {
+			// Close the input goroutine and restore terminal before recursive call
+			restoreNeeded = false // Prevent defer from restoring again
+			close(done)
+			wg.Wait()
+			term.Restore(fd, oldState)
+			reader.Reset(os.Stdin)
+
+			// Reload config from disk
+			reloadedCfg, err := ini.Load(iniFilePath)
+			if err != nil {
+				color.Red("Error reloading portfolio from vbtc.ini: %v", err)
+				fmt.Println("Press Enter to continue.")
+				reader.ReadString('\n')
+				return
+			}
+			cfg = reloadedCfg
+
+			// Update API data
+			apiData = updateApiData(false)
+
+			// Recursively call showLedgerScreen to redraw with fresh data
+			showLedgerScreen(reader)
+			return
+		}
+	}
 }
 
 func showExitScreen(reader *bufio.Reader) {

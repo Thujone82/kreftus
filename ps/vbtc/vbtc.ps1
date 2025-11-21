@@ -1521,7 +1521,48 @@ function Show-LedgerScreen {
         }
     }
     
-    Read-Host "Press Enter to return to Main screen"
+    Write-Host ""
+    Write-Host "Press Enter to return to Main screen, or R to refresh"
+    
+    # Wait for user input
+    while ($true) {
+        if ([System.Console]::KeyAvailable) {
+            $key = [System.Console]::ReadKey($true)
+            
+            # Handle Enter key to return to main screen
+            if ($key.Key -eq 'Enter') {
+                return
+            }
+            
+            # Handle 'R' or 'r' for refresh
+            if ($key.KeyChar -eq 'R' -or $key.KeyChar -eq 'r') {
+                # Reload config from disk
+                $script:config = Get-IniConfiguration -FilePath $iniFilePath
+                if (-not $script:config) {
+                    Write-Warning "Error reloading portfolio from vbtc.ini."
+                    Write-Host "Press Enter to continue."
+                    while ($true) {
+                        if ([System.Console]::KeyAvailable) {
+                            $key2 = [System.Console]::ReadKey($true)
+                            if ($key2.Key -eq 'Enter') {
+                                break
+                            }
+                        }
+                        Start-Sleep -Milliseconds 50
+                    }
+                    return
+                }
+                
+                # Update API data
+                $script:apiData = Update-ApiData -Config $script:config -OldApiData $script:apiData
+                
+                # Recursively call Show-LedgerScreen to redraw with fresh data
+                Show-LedgerScreen
+                return
+            }
+        }
+        Start-Sleep -Milliseconds 50
+    }
 }
 
 
