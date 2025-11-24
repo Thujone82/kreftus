@@ -1210,10 +1210,13 @@ main {
         height: 2.5em;
     }
     .wind-grid {
-        display: block;
+        display: grid;
+        grid-template-columns: repeat(24, 1fr);
         width: 100%;
         min-width: unset;
         max-width: 100%;
+        gap: 1px;
+        flex-basis: 100%;
         font-size: 0.85rem;
     }
     .wind-day {
@@ -1235,7 +1238,7 @@ main {
     }
     
     .wind-char {
-        width: calc(100% / 24);
+        width: 100%;
         min-width: unset;
         max-width: unset;
         height: 2.5em; /* Match rain-block height for consistency */
@@ -1512,10 +1515,13 @@ main {
     .wind-grid {
         padding: 2px 3px;
         font-size: 0.8rem;
-        display: block;
+        display: grid;
+        grid-template-columns: repeat(24, 1fr);
         width: 100%;
         min-width: unset;
         max-width: 100%;
+        gap: 1px;
+        flex-basis: 100%;
     }
 
 }
