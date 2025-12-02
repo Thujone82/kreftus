@@ -1235,9 +1235,14 @@ function Invoke-Trade {
             if ($null -ne $tradeinput) {
                 $isExpiredOnScreen = ($displayState -eq "Expired")
                 if ($isExpiredOnScreen) {
-                    # If the offer is expired on-screen, only 'r' is a valid command.
-                    if ($tradeinput.ToLower() -ne 'r') {
-                        $tradeinput = $null # Ignore invalid input (like 'y' or 'n')
+                    # If the offer is expired on-screen, allow 'r' to refresh or Esc/Enter to cancel
+                    if ($tradeinput.ToLower() -eq 'r') {
+                        # Allow refresh - will fall through to handler below
+                    } elseif ($tradeinput -eq "n" -or $tradeinput -eq "") {
+                        # Esc was converted to 'n', or Enter was pressed - cancel and return
+                        return $tradeApiData
+                    } else {
+                        $tradeinput = $null # Ignore invalid input (like 'y')
                         continue InnerInputLoop # Redraw the screen
                     }
                 } else {

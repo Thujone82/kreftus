@@ -2186,7 +2186,7 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 						return apiData
 					}
 					if input != "r" {
-						// On expired screen, ignore any key other than 'r' or Enter.
+						// On expired screen, ignore any key other than 'r', Enter, or Esc (already handled above).
 						continue EventLoop
 					}
 					// If input is 'r', it will fall through to the handler below.
