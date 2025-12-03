@@ -425,19 +425,51 @@ try {
         $bitcoinLineColorNameToUse = $null
         if ($bitcoinPrice -ge ($allTimeHighUSD * (1 - $athProximityPercent))) { $bitcoinLineColorNameToUse = "Magenta" }
 
+        # --- Calculate maximum line width for History alignment ---
+        $maxLineWidth = 0
+        function Get-LineWidth {
+            param([string]$Label, [string]$ValueString, [string]$ChangeString = "", [string]$PercentString = "", [int]$ValueStartColumn = 16)
+            $labelPadding = [Math]::Max(0, ($ValueStartColumn - 1) - $Label.Length)
+            $totalWidth = $Label.Length + $labelPadding + $ValueString.Length
+            if ($ChangeString -and $ChangeString.Length -gt 0) { $totalWidth += $ChangeString.Length } # Change string already includes leading space
+            if ($PercentString -and $PercentString.Length -gt 0) { $totalWidth += $PercentString.Length } # Percent string already includes leading space
+            return $totalWidth
+        }
+
         # --- Display Data (Main output, should not be verbose) ---
         $btcLineChangeIndicator = if ($null -ne $priceDifference24h) { $priceDifference24h } else { $priceChange24hPercent_BTC_API }
+        $btcValueStr = "$" + $bitcoinPrice.ToString("N2")
+        $btcChangeStr = if ($null -ne $priceDifference24h) { 
+            $sign = if ($priceDifference24h -gt 0) { "+" } elseif ($priceDifference24h -lt 0) { "-" } else { "" }
+            " [$sign$($Prefix)$([Math]::Abs($priceDifference24h).ToString("N2"))]"
+        } else { "" }
+        $btcLineWidth = Get-LineWidth -Label "Bitcoin ($($currency)): " -ValueString $btcValueStr -ChangeString $btcChangeStr
+        if ($btcLineWidth -gt $maxLineWidth) { $maxLineWidth = $btcLineWidth }
         Write-ColoredLine -Label "Bitcoin ($($currency)): " -Prefix "$" -Value $bitcoinPrice -FormatString "N2" -ChangeIndicator $btcLineChangeIndicator -PriceChangeAmountToDisplay $priceDifference24h -ExplicitColorName $bitcoinLineColorNameToUse
         $mybtcValue = $null; $mybtcValueDifference24h = $null; $profitLossUSD = $null; $profitLossPercent = $null
         if ($null -ne $mybtc -and $mybtc -gt 0) {
             $mybtcValue = $mybtc * $bitcoinPrice
             if ($null -ne $priceDifference24h) { $mybtcValueDifference24h = $mybtc * $priceDifference24h }
             $myBtcLineChangeIndicator = if ($null -ne $priceDifference24h) { $priceDifference24h } else { $priceChange24hPercent_BTC_API }
+            $myBtcValueStr = "$" + $mybtcValue.ToString("N2")
+            $myBtcChangeStr = if ($null -ne $mybtcValueDifference24h) { 
+                $sign = if ($mybtcValueDifference24h -gt 0) { "+" } elseif ($mybtcValueDifference24h -lt 0) { "-" } else { "" }
+                " [$sign$($Prefix)$([Math]::Abs($mybtcValueDifference24h).ToString("N2"))]"
+            } else { "" }
+            $myBtcLineWidth = Get-LineWidth -Label "My BTC: " -ValueString $myBtcValueStr -ChangeString $myBtcChangeStr
+            if ($myBtcLineWidth -gt $maxLineWidth) { $maxLineWidth = $myBtcLineWidth }
             Write-ColoredLine -Label "My BTC: " -Prefix "$" -Value $mybtcValue -FormatString "N2" -ChangeIndicator $myBtcLineChangeIndicator -PriceChangeAmountToDisplay $mybtcValueDifference24h
             if ($null -ne $myCOST -and $myCOST -gt 0) {
                 $profitLossUSD = $mybtcValue - $myCOST
                 if ($myCOST -ne 0) { $profitLossPercent = ($profitLossUSD / $myCOST) * 100 }
                 $plColorIndicator = if ($profitLossUSD -eq 0) { 0 } elseif ($profitLossUSD -gt 0) { 1 } else { -1 }
+                $plValueStr = "$" + $profitLossUSD.ToString("N2")
+                $plPercentStr = if ($profitLossPercent -ne 0) {
+                    $sign = if ($profitLossPercent -gt 0) { "+" } else { "" }
+                    " ($sign$($profitLossPercent.ToString("N2"))%)"
+                } else { "" }
+                $plLineWidth = Get-LineWidth -Label "Profit/Loss: " -ValueString $plValueStr -PercentString $plPercentStr
+                if ($plLineWidth -gt $maxLineWidth) { $maxLineWidth = $plLineWidth }
                 Write-ColoredLine -Label "Profit/Loss: " -Prefix "$" -Value $profitLossUSD -FormatString "N2" -ChangeIndicator $plColorIndicator -PercentageChangeToDisplay $profitLossPercent -PercentageLabel "%"
             }
         }
@@ -456,10 +488,13 @@ try {
                 } elseif ($bitcoinPrice -lt $historicalStats.Sma1h) {
                     $smaColor = "Red"
                 }
+                $smaValueStr = "{0:C2}" -f $historicalStats.Sma1h
+                $smaLineWidth = Get-LineWidth -Label "1H SMA: " -ValueString $smaValueStr -ValueStartColumn 15
+                if ($smaLineWidth -gt $maxLineWidth) { $maxLineWidth = $smaLineWidth }
                 Write-Host -NoNewline -ForegroundColor White "1H SMA: "
                 $paddingRequired = 15 - "1H SMA: ".Length
                 if ($paddingRequired -gt 0) { Write-Host -NoNewline (" " * $paddingRequired) }
-                Write-Host -ForegroundColor $smaColor ("{0:C2}" -f $historicalStats.Sma1h)
+                Write-Host -ForegroundColor $smaColor $smaValueStr
             }
             
             # 24H Ago
@@ -470,6 +505,8 @@ try {
                 $rounded24hAgo = [math]::Round([decimal]$rate24hAgo, 2)
                 $priceColor24h = if ($roundedCurrent -gt $rounded24hAgo) { "Green" } elseif ($roundedCurrent -lt $rounded24hAgo) { "Red" } else { "White" }
                 $agoDisplay = "{0:C2} [{1}{2}%]" -f $rate24hAgo, $(if($roundedCurrent -gt $rounded24hAgo){"+"}), ("{0:N2}" -f $percentChange24h)
+                $agoLineWidth = Get-LineWidth -Label "24H Ago: " -ValueString $agoDisplay -ValueStartColumn 15
+                if ($agoLineWidth -gt $maxLineWidth) { $maxLineWidth = $agoLineWidth }
                 Write-Host -NoNewline -ForegroundColor White "24H Ago: "
                 $paddingRequired = 15 - "24H Ago: ".Length
                 if ($paddingRequired -gt 0) { Write-Host -NoNewline (" " * $paddingRequired) }
@@ -482,6 +519,8 @@ try {
                 if ($historicalStats.PSObject.Properties.Name -contains 'HighTime' -and $historicalStats.HighTime) {
                     $highDisplay += " (at $($historicalStats.HighTime.ToLocalTime().ToString("HH:mm")))"
                 }
+                $highLineWidth = Get-LineWidth -Label "24H High: " -ValueString $highDisplay -ValueStartColumn 15
+                if ($highLineWidth -gt $maxLineWidth) { $maxLineWidth = $highLineWidth }
                 Write-Host -NoNewline -ForegroundColor White "24H High: "
                 $paddingRequired = 15 - "24H High: ".Length
                 if ($paddingRequired -gt 0) { Write-Host -NoNewline (" " * $paddingRequired) }
@@ -494,6 +533,8 @@ try {
                 if ($historicalStats.PSObject.Properties.Name -contains 'LowTime' -and $historicalStats.LowTime) {
                     $lowDisplay += " (at $($historicalStats.LowTime.ToLocalTime().ToString("HH:mm")))"
                 }
+                $lowLineWidth = Get-LineWidth -Label "24H Low: " -ValueString $lowDisplay -ValueStartColumn 15
+                if ($lowLineWidth -gt $maxLineWidth) { $maxLineWidth = $lowLineWidth }
                 Write-Host -NoNewline -ForegroundColor White "24H Low: "
                 $paddingRequired = 15 - "24H Low: ".Length
                 if ($paddingRequired -gt 0) { Write-Host -NoNewline (" " * $paddingRequired) }
@@ -511,6 +552,8 @@ try {
                     }
                 }
                 $volatilityDisplay = "{0:N2}%" -f $historicalStats.Volatility
+                $volatilityLineWidth = Get-LineWidth -Label "Volatility: " -ValueString $volatilityDisplay -ValueStartColumn 15
+                if ($volatilityLineWidth -gt $maxLineWidth) { $maxLineWidth = $volatilityLineWidth }
                 Write-Host -NoNewline -ForegroundColor White "Volatility: "
                 $paddingRequired = 15 - "Volatility: ".Length
                 if ($paddingRequired -gt 0) { Write-Host -NoNewline (" " * $paddingRequired) }
@@ -520,7 +563,21 @@ try {
         
         $apiVolumeChange24hPercent = $currentResponse.delta.volumeDay
         $apiCapChange24hPercent = $currentResponse.delta.capDay
+        $volumeValueStr = "$" + $volume24h.ToString("N0")
+        $volumePercentStr = if ($null -ne $apiVolumeChange24hPercent) {
+            $sign = if ($apiVolumeChange24hPercent -gt 0) { "+" } else { "" }
+            " ($sign$($apiVolumeChange24hPercent.ToString("N2"))%)"
+        } else { "" }
+        $volumeLineWidth = Get-LineWidth -Label "24H Volume: " -ValueString $volumeValueStr -PercentString $volumePercentStr
+        if ($volumeLineWidth -gt $maxLineWidth) { $maxLineWidth = $volumeLineWidth }
         Write-ColoredLine -Label "24H Volume: " -Prefix "$" -Value $volume24h -FormatString "N0" -ChangeIndicator $priceChange24hPercent_BTC_API -PercentageChangeToDisplay $apiVolumeChange24hPercent
+        $capValueStr = "$" + $marketCap.ToString("N0")
+        $capPercentStr = if ($null -ne $apiCapChange24hPercent) {
+            $sign = if ($apiCapChange24hPercent -gt 0) { "+" } else { "" }
+            " ($sign$($apiCapChange24hPercent.ToString("N2"))%)"
+        } else { "" }
+        $capLineWidth = Get-LineWidth -Label "Cap: " -ValueString $capValueStr -PercentString $capPercentStr
+        if ($capLineWidth -gt $maxLineWidth) { $maxLineWidth = $capLineWidth }
         Write-ColoredLine -Label "Cap: " -Prefix "$" -Value $marketCap -FormatString "N0" -ChangeIndicator $priceChange24hPercent_BTC_API -PercentageChangeToDisplay $apiCapChange24hPercent
         
         # --- History Sparkline ---
@@ -554,8 +611,16 @@ try {
                 
                 if ($hourlySamples.Count -ge 2) {
                     $sparkline = Get-Sparkline -History $hourlySamples
-                    Write-Host -NoNewline -ForegroundColor White "History: "
-                    $paddingRequired = 15 - "History: ".Length
+                    $sparklineLength = 24 # Sparkline is always 24 characters
+                    $historyLabel = "History: "
+                    # Calculate padding to right-align sparkline with widest line
+                    # Total width needed: maxLineWidth
+                    # Current width: historyLabel.Length + padding + sparklineLength
+                    # So: historyLabel.Length + padding + sparklineLength = maxLineWidth
+                    # Therefore: padding = maxLineWidth - historyLabel.Length - sparklineLength
+                    $paddingRequired = $maxLineWidth - $historyLabel.Length - $sparklineLength
+                    if ($paddingRequired -lt 0) { $paddingRequired = 0 } # Ensure non-negative
+                    Write-Host -NoNewline -ForegroundColor White $historyLabel
                     if ($paddingRequired -gt 0) { Write-Host -NoNewline (" " * $paddingRequired) }
                     
                     # Color-code sparkline characters based on comparison with previous character
