@@ -1,5 +1,5 @@
 NAME
-    btc.ps1 - Bitcoin Price Checker & Portfolio Tracker (BTCv2.0)
+    btc.ps1 - Bitcoin Price Checker & Portfolio Tracker (BTCv2.2)
 
 SYNOPSIS
     .\btc.ps1 [-UserBTCAmount <double>] [-UserTotalCost <double>] 
@@ -22,7 +22,14 @@ DESCRIPTION
     - Calculated 24-hour price difference based on actual historical data.
     - Optional display of the user's BTC holdings value and its 24-hour change.
     - Optional profit/loss calculation in USD and percentage.
+    - 1H SMA (Simple Moving Average) - average price over the last hour, 
+      color-coded (Green if current > SMA, Red if current < SMA).
+    - 24H Ago price with percentage change, color-coded based on comparison.
+    - 24H High and Low prices with timestamps.
+    - Volatility percentage showing price swing over 24 hours, color-coded 
+      based on recent vs. older volatility trends.
     - Current 24-hour trading volume and market capitalization for Bitcoin.
+    - History sparkline visualization showing 24-hour price trend.
     - Verbose mode for detailed operational messages.
 
     The script clears the console upon execution for a clean output.
@@ -113,10 +120,21 @@ OUTPUT
     - Profit/Loss: (If MyBTC and MyCOST are configured/provided) Your total 
       unrealized profit or loss in USD, color-coded (Green for profit, Red for 
       loss), and the profit/loss percentage.
+    - 1H SMA: Simple Moving Average over the last hour, color-coded (Green if 
+      current price is above average, Red if below, White if equal).
+    - 24H Ago: Price from 24 hours ago with percentage change in brackets, 
+      color-coded based on comparison with current price.
+    - 24H High: Highest price in the last 24 hours with timestamp (HH:mm format).
+    - 24H Low: Lowest price in the last 24 hours with timestamp (HH:mm format).
+    - Volatility: Percentage showing the price swing (High vs Low) over the last 
+      24 hours, color-coded (Green if recent volatility > older volatility, 
+      Red if less, White if equal).
     - 24H Volume: Bitcoin's 24-hour trading volume in USD, color-coded based 
       on Bitcoin's 24h price performance. May also show % change if API provides it.
     - Cap: Bitcoin's current market capitalization in USD, color-coded based 
       on Bitcoin's 24h price performance. May also show % change if API provides it.
+    - History: Visual sparkline showing 24-hour price trend using Unicode 
+      block characters (▁▂▃▄▅▆▇█).
 
     Verbose Output (-Verbose):
     Includes messages about configuration loading, API call progress, historical 
@@ -160,10 +178,12 @@ NOTES
     - The script requires an active internet connection.
     - An API key from LiveCoinWatch.com is mandatory and should be stored in 
       config.ini or entered during first-run setup.
-    - The 24-hour price difference is calculated by fetching an actual historical 
-      price from approximately 24 hours ago via a second API call. If this call 
-      fails, the script falls back to an estimated difference based on the API's 
-      24-hour percentage delta.
+    - The 24-hour price difference and additional metrics (1H SMA, High/Low, 
+      Volatility) are calculated by fetching full 24-hour historical data via 
+      the API. If this call fails, the script falls back to an estimated 
+      difference based on the API's 24-hour percentage delta.
+    - The History sparkline is generated from hourly samples of the 24-hour 
+      historical data, providing a visual representation of price trends.
     - Color coding for the main Bitcoin price and "My BTC" value reflects the 
       sign of the calculated 24-hour dollar difference, with ATH proximity 
       (purple) taking precedence for the Bitcoin price line.
@@ -174,4 +194,5 @@ AUTHOR
     Kreft&Gemini[Gemini 2.5 Pro (preview)]
 
 VERSION
-    2.0
+    2.2
+

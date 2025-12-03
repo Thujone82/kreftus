@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Retrieves and displays Bitcoin (BTC) data from LiveCoinWatch API. Supports .ini configuration,
     profit/loss calculation, CSV logging, first-run setup, config update, and accurate 24h price
@@ -39,11 +39,12 @@
 .NOTES
     Author: Kreft&Gemini[Gemini 2.5 Pro (preview)]
     Date: 2025-10-31
-    Version: 2.1 
+    Version: 2.2 
     Added [CmdletBinding()] for robust -Verbose handling.
     btc.ini will be created/updated in the same directory as the script.
-    Uses a second API call to /coins/single/history for more accurate 24h price difference.
+    Uses a second API call to /coins/single/history for more accurate 24h price difference and additional metrics.
     Color coding for BTC price and My BTC value now directly reflects the sign of the calculated 24h dollar difference.
+    Added 1H SMA, 24H Ago, 24H High/Low, Volatility metrics, and History sparkline visualization.
 #>
 
 [CmdletBinding()] # Makes this an advanced script, ensuring -Verbose works as expected
@@ -98,7 +99,7 @@ function Write-ColoredLine {
         [AllowNull()][double]$PercentageChangeToDisplay = $null, [string]$PercentageLabel = "%",
         [AllowNull()][string]$ExplicitColorName = $null
     )
-    Write-Host -NoNewline $Label; $paddingRequired = ($ValueStartColumn - 1) - $Label.Length
+    Write-Host -NoNewline -ForegroundColor White $Label; $paddingRequired = ($ValueStartColumn - 1) - $Label.Length
     if ($paddingRequired -lt 0) { $paddingRequired = 0 }; $paddingSpaces = " " * $paddingRequired
     Write-Host -NoNewline $paddingSpaces; $formattedValueString = $Value.ToString($FormatString)
     $displayString = "$($Prefix)$($formattedValueString)"
@@ -119,6 +120,138 @@ function Write-ColoredLine {
         }
     }
     Write-Host ""
+}
+
+# --- Helper Function to Get Historical Data ---
+function Get-HistoricalData {
+    param ([string]$ApiKey, [string]$Currency, [string]$CoinCode)
+    Write-Verbose "Getting historical API data..."
+    if ([string]::IsNullOrEmpty($ApiKey)) {
+        Write-Warning "API Key is not configured."
+        return $null
+    }
+    $headers = @{ "Content-Type" = "application/json"; "x-api-key" = $ApiKey }
+    $endTimestampMs = [int64](([datetime]::UtcNow) - (Get-Date "1970-01-01")).TotalMilliseconds
+    $startTimestampMs = $endTimestampMs - (24 * 60 * 60 * 1000) # Full 24 hours
+
+    try {
+        $historicalBody = @{ currency = $Currency; code = $CoinCode; start = $startTimestampMs; end = $endTimestampMs; meta = $false } | ConvertTo-Json
+        Write-Verbose "Fetching historical price for 24h (start: $startTimestampMs, end: $endTimestampMs)..."
+        $historicalResponse = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single/history" -Method Post -Headers $headers -Body $historicalBody -ErrorAction Stop
+        Write-Verbose "Historical API call completed. Response has history? $($null -ne $historicalResponse.history), Count: $(if($null -ne $historicalResponse.history){$historicalResponse.history.Count}else{'N/A'})"
+        if ($null -ne $historicalResponse.history -and $historicalResponse.history.Count -gt 0) {
+            Write-Verbose "Processing $($historicalResponse.history.Count) historical data points..."
+            # Overall 24h stats
+            $lowPoint24h = $historicalResponse.history | Sort-Object -Property rate | Select-Object -First 1
+            $highPoint24h = $historicalResponse.history | Sort-Object -Property rate -Descending | Select-Object -First 1
+
+            $targetTimestamp24hAgoMs = [int64]((([datetime]::UtcNow).AddHours(-24)) - (Get-Date "1970-01-01")).TotalMilliseconds
+            $closestDataPoint = $historicalResponse.history | Sort-Object { [Math]::Abs($_.date - $targetTimestamp24hAgoMs) } | Select-Object -First 1
+
+            $volatility24h = 0
+            if ($lowPoint24h.rate -gt 0) {
+                $volatility24h = (($highPoint24h.rate - $lowPoint24h.rate) / $lowPoint24h.rate) * 100
+            }
+
+            # 12-hour volatility stats
+            $midpointTimestampMs = [int64]((([datetime]::UtcNow).AddHours(-12)) - (Get-Date "1970-01-01")).TotalMilliseconds
+            $recentHistory = $historicalResponse.history | Where-Object { $_.date -ge $midpointTimestampMs }
+            $oldHistory = $historicalResponse.history | Where-Object { $_.date -lt $midpointTimestampMs }
+
+            $volatility12h = 0
+            if ($recentHistory -and $recentHistory.Count -gt 0) {
+                $recentStats = $recentHistory | Measure-Object -Property rate -Minimum -Maximum
+                if ($recentStats.Minimum -gt 0) { $volatility12h = (($recentStats.Maximum - $recentStats.Minimum) / $recentStats.Minimum) * 100 }
+            }
+            $volatility12h_old = 0
+            if ($oldHistory -and $oldHistory.Count -gt 0) {
+                $oldStats = $oldHistory | Measure-Object -Property rate -Minimum -Maximum
+                if ($oldStats.Minimum -gt 0) { $volatility12h_old = (($oldStats.Maximum - $oldStats.Minimum) / $oldStats.Minimum) * 100 }
+            }
+
+            # 1H SMA Calculation
+            $sma1h = 0
+            $smaPoints = 12 # ~1 hour of data (12 * 5 mins)
+            $sortedHistory = $historicalResponse.history | Sort-Object -Property date
+            if ($sortedHistory.Count -gt 0) {
+                $smaHistory = $sortedHistory | Select-Object -Last $smaPoints
+                if ($smaHistory.Count -gt 0) {
+                    $sma1h = ($smaHistory | Measure-Object -Property rate -Average).Average
+                }
+            }
+
+            $result = [PSCustomObject]@{
+                High              = $highPoint24h.rate
+                Low               = $lowPoint24h.rate
+                Ago               = $closestDataPoint.rate
+                HighTime          = ([datetime]'1970-01-01').AddMilliseconds($highPoint24h.date)
+                LowTime           = ([datetime]'1970-01-01').AddMilliseconds($lowPoint24h.date)
+                Volatility        = $volatility24h
+                Volatility12h     = $volatility12h
+                Volatility12h_old = $volatility12h_old
+                Sma1h             = $sma1h
+                History           = $historicalResponse.history
+            }
+            return $result
+        }
+        else {
+            Write-Warning "No historical data returned."
+            Write-Verbose "historicalResponse.history is null or empty"
+        }
+    }
+    catch {
+        if ($_.Exception -is [System.Net.WebException]) {
+            $errorCode = $null
+            if ($_.Exception.Response) {
+                $errorCode = [int]$_.Exception.Response.StatusCode
+            }
+            return [PSCustomObject]@{ IsNetworkError = $true; ErrorCode = $errorCode }
+        }
+        Write-Warning "Failed to fetch historical price: $($_.Exception.Message)"
+    }
+    return $null
+}
+
+# --- Helper Function to Generate Sparkline (24 characters for 24 hourly samples) ---
+function Get-Sparkline {
+    param ([System.Collections.Generic.List[double]]$History)
+    
+    if ($null -eq $History -or $History.Count -lt 2) { 
+        return (" " * 24)
+    }
+
+    $sparkChars = [char[]]('▁', '▂', '▃', '▄', '▅', '▆', '▇', '█')
+    $minPrice = ($History | Measure-Object -Minimum).Minimum
+    $maxPrice = ($History | Measure-Object -Maximum).Maximum
+    $priceRange = $maxPrice - $minPrice
+
+    if ($priceRange -eq 0 -or $priceRange -lt 0.00000001) { 
+        return ([string]$sparkChars[0] * 24)
+    }
+
+    $sparkline = ""
+    foreach ($price in $History) {
+        $normalized = ($price - $minPrice) / $priceRange
+        $charIndex = [math]::Floor($normalized * ($sparkChars.Length - 1))
+        $sparkline += $sparkChars[$charIndex]
+    }
+    
+    # Truncate to 24 if too long (keep rightmost 24)
+    if ($sparkline.Length -gt 24) {
+        $sparkline = $sparkline.Substring($sparkline.Length - 24)
+    }
+    
+    # Pad to 24 if too short (pad left with spaces)
+    if ($sparkline.Length -lt 24) {
+        $sparkline = $sparkline.PadLeft(24, ' ')
+    }
+    
+    # Final check - must be exactly 24
+    if ($sparkline.Length -ne 24) {
+        $sparkline = $sparkline.Substring(0, [Math]::Min(24, $sparkline.Length)).PadRight(24, ' ')
+    }
+    
+    return $sparkline
 }
 
 # --- Configuration File Path ---
@@ -208,8 +341,7 @@ if ($null -ne $mybtc -and $mybtc -gt 0) {
 }
 
 # --- Other Script Constants ---
-$coinCode = "BTC"; $currency = "USD"; $apiBaseUrl = "https://api.livecoinwatch.com"; $athProximityPercent = 0.05
-$historicalWindowMinutes = 5 
+$coinCode = "BTC"; $currency = "USD"; $apiBaseUrl = "https://api.livecoinwatch.com"; $athProximityPercent = 0.05 
 
 # --- Construct API Request Headers ---
 $headers = @{ "Content-Type" = "application/json"; "x-api-key" = $apiKey }
@@ -232,37 +364,33 @@ try {
         $deltaHourPct = $currentResponse.delta.hour; $deltaWeekPct = $currentResponse.delta.week
         $deltaMonthPct = $currentResponse.delta.month; $deltaYearPct = $currentResponse.delta.year
 
-        # --- Make API Call for Historical Data (24 hours ago) ---
-        $actualBitcoinPrice24hAgo = $null; $priceDifference24h = $null; $historicalLookupSuccess = $false
-        $targetTimestamp24hAgoMs = [int64]((([datetime]::UtcNow).AddHours(-24)) - (Get-Date "1970-01-01")).TotalMilliseconds
-        $startTimestampMs = $targetTimestamp24hAgoMs - ($historicalWindowMinutes * 60 * 1000)
-        $endTimestampMs = $targetTimestamp24hAgoMs + ($historicalWindowMinutes * 60 * 1000)
-
-        try {
-            $historicalBody = @{ currency = $currency; code = $coinCode; start = $startTimestampMs; end = $endTimestampMs; meta = $false } | ConvertTo-Json
-            Write-Verbose "Fetching historical price for 24h ago (window: $startTimestampMs to $endTimestampMs)..."
-            $historicalResponse = Invoke-RestMethod -Uri "$($apiBaseUrl)/coins/single/history" -Method Post -Headers $headers -Body $historicalBody -ErrorAction Stop
-            Write-Verbose "Historical price API call successful."
-            if ($null -ne $historicalResponse.history -and $historicalResponse.history.Count -gt 0) {
-                $closestDataPoint = $null; $smallestTimeDiff = [long]::MaxValue
-                foreach ($point in $historicalResponse.history) {
-                    $timeDiff = [Math]::Abs($point.date - $targetTimestamp24hAgoMs)
-                    if ($timeDiff -lt $smallestTimeDiff) { $smallestTimeDiff = $timeDiff; $closestDataPoint = $point }
-                }
-                if ($null -ne $closestDataPoint) {
-                    $actualBitcoinPrice24hAgo = $closestDataPoint.rate
-                    if ($null -ne $actualBitcoinPrice24hAgo) {
-                        $priceDifference24h = $bitcoinPrice - $actualBitcoinPrice24hAgo; $historicalLookupSuccess = $true
-                        Write-Verbose "Closest historical price found: $($actualBitcoinPrice24hAgo.ToString("C2")) at timestamp $($closestDataPoint.date) (Diff from target: $smallestTimeDiff ms)"
-                    }
-                } else { Write-Warning "Could not determine closest historical data point from API response."}
-            } else { Write-Warning "No historical data returned for the 24h ago window (Start: $startTimestampMs, End: $endTimestampMs)." }
-        } catch { Write-Warning "Failed to fetch historical price. Error: $($_.Exception.Message) (Window: $startTimestampMs to $endTimestampMs)" }
-
-        if (-not $historicalLookupSuccess -and $null -ne $priceChange24hPercent_BTC_API) {
-            Write-Warning "Using estimated 24h difference based on API delta." 
-            $priceChangeDecimal = $priceChange24hPercent_BTC_API / 100
-            if ((1 + $priceChangeDecimal) -ne 0) { $estimatedPrice24hAgo = $bitcoinPrice / (1 + $priceChangeDecimal); $priceDifference24h = $bitcoinPrice - $estimatedPrice24hAgo }
+        # --- Make API Call for Historical Data (Full 24 hours) ---
+        $actualBitcoinPrice24hAgo = $null; $priceDifference24h = $null
+        $historicalStats = Get-HistoricalData -ApiKey $apiKey -Currency $currency -CoinCode $coinCode
+        
+        if ($null -ne $historicalStats -and $historicalStats.PSObject.Properties.Name -contains 'IsNetworkError' -and $historicalStats.IsNetworkError) {
+            Write-Warning "Historical data fetch failed with network error. Using fallback calculation."
+            Write-Verbose "Network error detected, ErrorCode: $($historicalStats.ErrorCode)"
+            if ($null -ne $priceChange24hPercent_BTC_API) {
+                $priceChangeDecimal = $priceChange24hPercent_BTC_API / 100
+                if ((1 + $priceChangeDecimal) -ne 0) { $estimatedPrice24hAgo = $bitcoinPrice / (1 + $priceChangeDecimal); $priceDifference24h = $bitcoinPrice - $estimatedPrice24hAgo }
+            }
+        } elseif ($null -ne $historicalStats) {
+            Write-Verbose "Historical data fetch successful. Extracting 24h ago price..."
+            $actualBitcoinPrice24hAgo = $historicalStats.Ago
+            if ($null -ne $actualBitcoinPrice24hAgo) {
+                $priceDifference24h = $bitcoinPrice - $actualBitcoinPrice24hAgo
+                Write-Verbose "Historical price found: $($actualBitcoinPrice24hAgo.ToString("C2")), difference: $($priceDifference24h.ToString("C2"))"
+            } else {
+                Write-Verbose "HistoricalStats.Ago is null"
+            }
+        } else {
+            Write-Warning "Could not fetch historical data. Using estimated 24h difference based on API delta."
+            Write-Verbose "historicalStats is null, using fallback calculation"
+            if ($null -ne $priceChange24hPercent_BTC_API) {
+                $priceChangeDecimal = $priceChange24hPercent_BTC_API / 100
+                if ((1 + $priceChangeDecimal) -ne 0) { $estimatedPrice24hAgo = $bitcoinPrice / (1 + $priceChangeDecimal); $priceDifference24h = $bitcoinPrice - $estimatedPrice24hAgo }
+            }
         }
         
         $bitcoinLineColorNameToUse = $null
@@ -284,10 +412,149 @@ try {
                 Write-ColoredLine -Label "Profit/Loss: " -Prefix "$" -Value $profitLossUSD -FormatString "N2" -ChangeIndicator $plColorIndicator -PercentageChangeToDisplay $profitLossPercent -PercentageLabel "%"
             }
         }
+        
+        # --- Display Additional Market Metrics ---
+        $hasNetworkError = $false
+        if ($null -ne $historicalStats -and $historicalStats.PSObject.Properties.Name -contains 'IsNetworkError') {
+            $hasNetworkError = $historicalStats.IsNetworkError
+        }
+        if ($null -ne $historicalStats -and -not $hasNetworkError) {
+            # 1H SMA
+            if ($historicalStats.PSObject.Properties.Name -contains 'Sma1h' -and $historicalStats.Sma1h -gt 0) {
+                $smaColor = "White"
+                if ($bitcoinPrice -gt $historicalStats.Sma1h) {
+                    $smaColor = "Green"
+                } elseif ($bitcoinPrice -lt $historicalStats.Sma1h) {
+                    $smaColor = "Red"
+                }
+                Write-Host -NoNewline -ForegroundColor White "1H SMA: "
+                $paddingRequired = 15 - "1H SMA: ".Length
+                if ($paddingRequired -gt 0) { Write-Host -NoNewline (" " * $paddingRequired) }
+                Write-Host -ForegroundColor $smaColor ("{0:C2}" -f $historicalStats.Sma1h)
+            }
+            
+            # 24H Ago
+            if ($historicalStats.PSObject.Properties.Name -contains 'Ago' -and $null -ne $historicalStats.Ago) {
+                $rate24hAgo = $historicalStats.Ago
+                $percentChange24h = if ($rate24hAgo -ne 0) { (($bitcoinPrice - $rate24hAgo) / $rate24hAgo) * 100 } else { 0 }
+                $roundedCurrent = [math]::Round([decimal]$bitcoinPrice, 2)
+                $rounded24hAgo = [math]::Round([decimal]$rate24hAgo, 2)
+                $priceColor24h = if ($roundedCurrent -gt $rounded24hAgo) { "Green" } elseif ($roundedCurrent -lt $rounded24hAgo) { "Red" } else { "White" }
+                $agoDisplay = "{0:C2} [{1}{2}%]" -f $rate24hAgo, $(if($roundedCurrent -gt $rounded24hAgo){"+"}), ("{0:N2}" -f $percentChange24h)
+                Write-Host -NoNewline -ForegroundColor White "24H Ago: "
+                $paddingRequired = 15 - "24H Ago: ".Length
+                if ($paddingRequired -gt 0) { Write-Host -NoNewline (" " * $paddingRequired) }
+                Write-Host -ForegroundColor $priceColor24h $agoDisplay
+            }
+            
+            # 24H High
+            if ($historicalStats.PSObject.Properties.Name -contains 'High' -and $null -ne $historicalStats.High) {
+                $highDisplay = "{0:C2}" -f $historicalStats.High
+                if ($historicalStats.PSObject.Properties.Name -contains 'HighTime' -and $historicalStats.HighTime) {
+                    $highDisplay += " (at $($historicalStats.HighTime.ToLocalTime().ToString("HH:mm")))"
+                }
+                Write-Host -NoNewline -ForegroundColor White "24H High: "
+                $paddingRequired = 15 - "24H High: ".Length
+                if ($paddingRequired -gt 0) { Write-Host -NoNewline (" " * $paddingRequired) }
+                Write-Host $highDisplay
+            }
+            
+            # 24H Low
+            if ($historicalStats.PSObject.Properties.Name -contains 'Low' -and $null -ne $historicalStats.Low) {
+                $lowDisplay = "{0:C2}" -f $historicalStats.Low
+                if ($historicalStats.PSObject.Properties.Name -contains 'LowTime' -and $historicalStats.LowTime) {
+                    $lowDisplay += " (at $($historicalStats.LowTime.ToLocalTime().ToString("HH:mm")))"
+                }
+                Write-Host -NoNewline -ForegroundColor White "24H Low: "
+                $paddingRequired = 15 - "24H Low: ".Length
+                if ($paddingRequired -gt 0) { Write-Host -NoNewline (" " * $paddingRequired) }
+                Write-Host $lowDisplay
+            }
+            
+            # Volatility
+            if ($historicalStats.PSObject.Properties.Name -contains 'Volatility' -and $historicalStats.Volatility -gt 0) {
+                $volatilityColor = "White"
+                if ($historicalStats.PSObject.Properties.Name -contains 'Volatility12h' -and $historicalStats.PSObject.Properties.Name -contains 'Volatility12h_old') {
+                    if ($historicalStats.Volatility12h -gt $historicalStats.Volatility12h_old) {
+                        $volatilityColor = "Green"
+                    } elseif ($historicalStats.Volatility12h -lt $historicalStats.Volatility12h_old) {
+                        $volatilityColor = "Red"
+                    }
+                }
+                $volatilityDisplay = "{0:N2}%" -f $historicalStats.Volatility
+                Write-Host -NoNewline -ForegroundColor White "Volatility: "
+                $paddingRequired = 15 - "Volatility: ".Length
+                if ($paddingRequired -gt 0) { Write-Host -NoNewline (" " * $paddingRequired) }
+                Write-Host -ForegroundColor $volatilityColor $volatilityDisplay
+            }
+        }
+        
         $apiVolumeChange24hPercent = $currentResponse.delta.volumeDay
         $apiCapChange24hPercent = $currentResponse.delta.capDay
         Write-ColoredLine -Label "24H Volume: " -Prefix "$" -Value $volume24h -FormatString "N0" -ChangeIndicator $priceChange24hPercent_BTC_API -PercentageChangeToDisplay $apiVolumeChange24hPercent
         Write-ColoredLine -Label "Cap: " -Prefix "$" -Value $marketCap -FormatString "N0" -ChangeIndicator $priceChange24hPercent_BTC_API -PercentageChangeToDisplay $apiCapChange24hPercent
+        
+        # --- History Sparkline ---
+        $hasNetworkErrorForSparkline = $false
+        if ($null -ne $historicalStats -and $historicalStats.PSObject.Properties.Name -contains 'IsNetworkError') {
+            $hasNetworkErrorForSparkline = $historicalStats.IsNetworkError
+        }
+        if ($null -ne $historicalStats -and -not $hasNetworkErrorForSparkline -and $historicalStats.PSObject.Properties.Name -contains 'History') {
+            $historyData = $historicalStats.History
+            if ($historyData -and $historyData.Count -gt 0) {
+                # Sample hourly data points (24 points for 24h)
+                $hourlySamples = [System.Collections.Generic.List[double]]::new()
+                $sortedHistory = $historyData | Sort-Object -Property date
+                $nowMs = [int64](([datetime]::UtcNow) - (Get-Date "1970-01-01")).TotalMilliseconds
+                
+                # Get 24 hourly samples (one per hour, going back 24 hours)
+                for ($i = 23; $i -ge 0; $i--) {
+                    $targetHourMs = $nowMs - ($i * 60 * 60 * 1000)
+                    $closestPoint = $sortedHistory | Sort-Object { [Math]::Abs($_.date - $targetHourMs) } | Select-Object -First 1
+                    if ($closestPoint) {
+                        $hourlySamples.Add($closestPoint.rate)
+                    }
+                }
+                
+                # If we don't have enough hourly samples, use all available data points
+                if ($hourlySamples.Count -lt 2) {
+                    foreach ($point in $sortedHistory) {
+                        $hourlySamples.Add($point.rate)
+                    }
+                }
+                
+                if ($hourlySamples.Count -ge 2) {
+                    $sparkline = Get-Sparkline -History $hourlySamples
+                    Write-Host -NoNewline -ForegroundColor White "History: "
+                    $paddingRequired = 15 - "History: ".Length
+                    if ($paddingRequired -gt 0) { Write-Host -NoNewline (" " * $paddingRequired) }
+                    
+                    # Color-code sparkline characters based on comparison with previous character
+                    $sparkChars = [char[]]('▁', '▂', '▃', '▄', '▅', '▆', '▇', '█')
+                    $prevIndex = $null
+                    for ($i = 0; $i -lt $sparkline.Length; $i++) {
+                        $char = $sparkline[$i]
+                        if ($char -eq ' ') {
+                            Write-Host -NoNewline $char
+                            continue
+                        }
+                        $currentIndex = [Array]::IndexOf($sparkChars, $char)
+                        if ($null -eq $prevIndex) {
+                            $color = [System.ConsoleColor]::White
+                        } elseif ($prevIndex -gt $currentIndex) {
+                            $color = [System.ConsoleColor]::Red  # Previous was taller (price down)
+                        } elseif ($prevIndex -lt $currentIndex) {
+                            $color = [System.ConsoleColor]::Green  # Previous was shorter (price up)
+                        } else {
+                            $color = [System.ConsoleColor]::White  # Same height
+                        }
+                        Write-Host -NoNewline -ForegroundColor $color $char
+                        $prevIndex = $currentIndex
+                    }
+                    Write-Host ""
+                }
+            }
+        }
 
         # --- Logging ---
         if (-not [string]::IsNullOrEmpty($effectiveLogPath)) {
