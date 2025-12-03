@@ -1541,7 +1541,7 @@ function Show-LedgerScreen {
             
             # Handle 'R' or 'r' for refresh
             if ($key.KeyChar -eq 'R' -or $key.KeyChar -eq 'r') {
-                # Reload config from disk
+                # Reload config from disk (for portfolio values)
                 $script:config = Get-IniConfiguration -FilePath $iniFilePath
                 if (-not $script:config) {
                     Write-Warning "Error reloading portfolio from vbtc.ini."
@@ -1558,10 +1558,11 @@ function Show-LedgerScreen {
                     return
                 }
                 
-                # Update API data
-                $script:apiData = Update-ApiData -Config $script:config -OldApiData $script:apiData
+                # Note: We do NOT call Update-ApiData here to avoid API calls during ledger refresh.
+                # The ledger screen only needs to refresh ledger entries and portfolio config.
+                # Existing apiData is still used for portfolio value calculations if available.
                 
-                # Recursively call Show-LedgerScreen to redraw with fresh data
+                # Recursively call Show-LedgerScreen to redraw with fresh ledger data
                 Show-LedgerScreen
                 return
             }

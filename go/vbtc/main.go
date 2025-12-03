@@ -819,7 +819,7 @@ func showLedgerScreen(reader *bufio.Reader) {
 			term.Restore(fd, oldState)
 			reader.Reset(os.Stdin)
 
-			// Reload config from disk
+			// Reload config from disk (for portfolio values)
 			reloadedCfg, err := ini.Load(iniFilePath)
 			if err != nil {
 				color.Red("Error reloading portfolio from vbtc.ini: %v", err)
@@ -829,10 +829,11 @@ func showLedgerScreen(reader *bufio.Reader) {
 			}
 			cfg = reloadedCfg
 
-			// Update API data
-			apiData = updateApiData(false)
+			// Note: We do NOT call updateApiData here to avoid API calls during ledger refresh.
+			// The ledger screen only needs to refresh ledger entries and portfolio config.
+			// Existing apiData is still used for portfolio value calculations if available.
 
-			// Recursively call showLedgerScreen to redraw with fresh data
+			// Recursively call showLedgerScreen to redraw with fresh ledger data
 			showLedgerScreen(reader)
 			return
 		}
