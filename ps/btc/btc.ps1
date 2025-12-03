@@ -255,7 +255,32 @@ function Get-Sparkline {
 }
 
 # --- Configuration File Path ---
-$scriptPath = $PSScriptRoot
+# Determine script directory - prioritize most reliable methods
+if ($PSCommandPath) {
+    # PowerShell 3.0+ - most reliable, always absolute path
+    $scriptPath = [System.IO.Path]::GetDirectoryName((Resolve-Path $PSCommandPath).Path)
+    Write-Verbose "Using PSCommandPath: $scriptPath (resolved from: $PSCommandPath)"
+} elseif (-not [string]::IsNullOrEmpty($PSScriptRoot)) {
+    # Fallback to PSScriptRoot if available
+    $scriptPath = $PSScriptRoot
+    Write-Verbose "Using PSScriptRoot: $scriptPath"
+} elseif ($MyInvocation.MyCommand.Path) {
+    # Older PowerShell versions
+    $resolvedPath = Resolve-Path $MyInvocation.MyCommand.Path -ErrorAction SilentlyContinue
+    if ($resolvedPath) {
+        $scriptPath = [System.IO.Path]::GetDirectoryName($resolvedPath.Path)
+    } else {
+        $scriptPath = [System.IO.Path]::GetDirectoryName((Resolve-Path (Join-Path $PWD.Path $MyInvocation.MyCommand.Path) -ErrorAction SilentlyContinue).Path)
+        if ([string]::IsNullOrEmpty($scriptPath)) {
+            $scriptPath = Split-Path -Parent -Path $MyInvocation.MyCommand.Path
+        }
+    }
+    Write-Verbose "Using MyInvocation.MyCommand.Path: $scriptPath (resolved from: $($MyInvocation.MyCommand.Path))"
+} else {
+    # Last resort - use current working directory
+    $scriptPath = $PWD.Path
+    Write-Verbose "Using current working directory: $scriptPath"
+}
 $iniFilePath = Join-Path -Path $scriptPath -ChildPath "btc.ini"
 Write-Verbose "INI configuration file path set to: $iniFilePath"
 
@@ -271,8 +296,12 @@ if ($Update.IsPresent) {
     if (-not [string]::IsNullOrEmpty($newMyBtcInput)) { try { $parsedVal = [double]::Parse($newMyBtcInput, [System.Globalization.CultureInfo]::InvariantCulture); if ($parsedVal -ge 0) { $config.Portfolio.MyBTC = $parsedVal.ToString("F8", [System.Globalization.CultureInfo]::InvariantCulture) } else { Write-Warning "BTC Amount must be non-negative." } } catch { Write-Warning "Invalid MyBTC input." } }
     $currentMyCost = $config.Portfolio.MyCOST; $newMyCostInput = Read-Host "Total Cost (USD) for MyBTC (current: $currentMyCost, press Enter to keep)"
     if (-not [string]::IsNullOrEmpty($newMyCostInput)) { try { $parsedVal = [double]::Parse($newMyCostInput, [System.Globalization.CultureInfo]::InvariantCulture); if ($parsedVal -ge 0) { $config.Portfolio.MyCOST = $parsedVal.ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture) } else { Write-Warning "Total Cost must be non-negative." } } catch { Write-Warning "Invalid MyCOST input." } }
-    $currentLogPath = $config.Settings.LogPath; $newLogPathInput = Read-Host "Log File Path (current: '$currentLogPath', press Enter to keep, or leave blank to disable)"
-    if ($PSBoundParameters.ContainsKey('newLogPathInput')) { $config.Settings.LogPath = $newLogPathInput }
+    $currentLogPath = $config.Settings.LogPath; $newLogPathInput = Read-Host "Log File Path (current: '$currentLogPath', press Enter to keep)"
+    if (-not [string]::IsNullOrEmpty($newLogPathInput)) { $config.Settings.LogPath = $newLogPathInput }
+    else {
+        $disableLogging = Read-Host "Disable Logging? [N/y]"
+        if ($disableLogging -match "^[Yy]([Ee][Ss])?$") { $config.Settings.LogPath = "" }
+    }
     Set-IniConfiguration -FilePath $iniFilePath -Configuration $config 
     Write-Host "Configuration updated." -ForegroundColor Green 
 	exit 0
