@@ -429,10 +429,18 @@ try {
         $maxLineWidth = 0
         function Get-LineWidth {
             param([string]$Label, [string]$ValueString, [string]$ChangeString = "", [string]$PercentString = "", [int]$ValueStartColumn = 16)
-            $labelPadding = [Math]::Max(0, ($ValueStartColumn - 1) - $Label.Length)
-            $totalWidth = $Label.Length + $labelPadding + $ValueString.Length
-            if ($ChangeString -and $ChangeString.Length -gt 0) { $totalWidth += $ChangeString.Length } # Change string already includes leading space
-            if ($PercentString -and $PercentString.Length -gt 0) { $totalWidth += $PercentString.Length } # Percent string already includes leading space
+            # Calculate padding exactly as Write-ColoredLine does
+            $paddingRequired = ($ValueStartColumn - 1) - $Label.Length
+            if ($paddingRequired -lt 0) { $paddingRequired = 0 }
+            # Total width = label + padding + value + change + percent
+            # This is the actual character count of the line (0-indexed, so last position = width)
+            $totalWidth = $Label.Length + $paddingRequired + $ValueString.Length
+            if ($ChangeString -and $ChangeString.Length -gt 0) { 
+                $totalWidth += $ChangeString.Length  # Change string format: " [+$123.45]" (includes leading space)
+            }
+            if ($PercentString -and $PercentString.Length -gt 0) { 
+                $totalWidth += $PercentString.Length  # Percent string format: " (+12.34%)" (includes leading space)
+            }
             return $totalWidth
         }
 
@@ -441,7 +449,8 @@ try {
         $btcValueStr = "$" + $bitcoinPrice.ToString("N2")
         $btcChangeStr = if ($null -ne $priceDifference24h) { 
             $sign = if ($priceDifference24h -gt 0) { "+" } elseif ($priceDifference24h -lt 0) { "-" } else { "" }
-            " [$sign$($Prefix)$([Math]::Abs($priceDifference24h).ToString("N2"))]"
+            $formattedChangeAmount = "{0:N2}" -f [Math]::Abs($priceDifference24h)
+            " [$sign$$$formattedChangeAmount]"  # Format: " [+$123.45]" - space + bracket + sign + $ + amount + bracket
         } else { "" }
         $btcLineWidth = Get-LineWidth -Label "Bitcoin ($($currency)): " -ValueString $btcValueStr -ChangeString $btcChangeStr
         if ($btcLineWidth -gt $maxLineWidth) { $maxLineWidth = $btcLineWidth }
@@ -454,7 +463,8 @@ try {
             $myBtcValueStr = "$" + $mybtcValue.ToString("N2")
             $myBtcChangeStr = if ($null -ne $mybtcValueDifference24h) { 
                 $sign = if ($mybtcValueDifference24h -gt 0) { "+" } elseif ($mybtcValueDifference24h -lt 0) { "-" } else { "" }
-                " [$sign$($Prefix)$([Math]::Abs($mybtcValueDifference24h).ToString("N2"))]"
+                $formattedChangeAmount = "{0:N2}" -f [Math]::Abs($mybtcValueDifference24h)
+                " [$sign$$$formattedChangeAmount]"  # Format: " [+$123.45]"
             } else { "" }
             $myBtcLineWidth = Get-LineWidth -Label "My BTC: " -ValueString $myBtcValueStr -ChangeString $myBtcChangeStr
             if ($myBtcLineWidth -gt $maxLineWidth) { $maxLineWidth = $myBtcLineWidth }
@@ -618,7 +628,8 @@ try {
                     # Current width: historyLabel.Length + padding + sparklineLength
                     # So: historyLabel.Length + padding + sparklineLength = maxLineWidth
                     # Therefore: padding = maxLineWidth - historyLabel.Length - sparklineLength
-                    $paddingRequired = $maxLineWidth - $historyLabel.Length - $sparklineLength
+                    # Subtract 1 to account for 0-indexed vs 1-indexed positioning
+                    $paddingRequired = $maxLineWidth - $historyLabel.Length - $sparklineLength - 1
                     if ($paddingRequired -lt 0) { $paddingRequired = 0 } # Ensure non-negative
                     Write-Host -NoNewline -ForegroundColor White $historyLabel
                     if ($paddingRequired -gt 0) { Write-Host -NoNewline (" " * $paddingRequired) }
