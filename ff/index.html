@@ -1,0 +1,426 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forest Fire Model (Drossel–Schwabl)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* Slate 900 */
+            color: #e2e8f0;
+        }
+
+        /* Custom Scrollbar */
+        .custom-scroll::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #1e293b; 
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #475569; 
+            border-radius: 4px;
+        }
+
+        canvas {
+            image-rendering: pixelated; /* Keeps the grid crisp */
+            box-shadow: 0 0 50px rgba(239, 68, 68, 0.15);
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        .slider-thumb::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #38bdf8;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background 0.15s ease-in-out;
+        }
+        .slider-thumb::-webkit-slider-thumb:hover {
+            background: #0ea5e9;
+        }
+        .slider-thumb::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #38bdf8;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+    </style>
+</head>
+<body class="w-screen bg-slate-900 flex flex-col landscape:flex-row md:flex-row h-auto min-h-screen landscape:h-screen md:h-screen landscape:overflow-hidden md:overflow-hidden">
+
+    <!-- Sidebar / Controls -->
+    <aside class="w-full landscape:w-80 md:w-80 bg-slate-900 border-b landscape:border-b-0 landscape:border-r md:border-b-0 md:border-r border-slate-700 p-6 flex flex-col z-10 shadow-2xl shrink-0 custom-scroll overflow-y-auto landscape:h-full md:h-full">
+        <div class="flex justify-between items-center mb-4 md:mb-6">
+            <div>
+                <h1 class="text-2xl font-bold mb-1 text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-600">
+                    Forest Fire
+                </h1>
+                <p class="text-xs text-slate-400 uppercase tracking-wider">High Resolution (768px)</p>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-3 gap-2 mb-6 text-center shrink-0">
+            <div class="bg-slate-800 rounded p-2 border border-slate-700">
+                <div class="text-green-500 font-bold text-lg" id="stat-trees">0%</div>
+                <div class="text-[10px] text-slate-400 uppercase">Trees</div>
+            </div>
+            <div class="bg-slate-800 rounded p-2 border border-slate-700">
+                <div class="text-orange-500 font-bold text-lg" id="stat-fire">0%</div>
+                <div class="text-[10px] text-slate-400 uppercase">Fire</div>
+            </div>
+            <div class="bg-slate-800 rounded p-2 border border-slate-700">
+                <div class="text-slate-500 font-bold text-lg" id="stat-empty">0%</div>
+                <div class="text-[10px] text-slate-400 uppercase">Empty</div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="space-y-6 flex-grow pr-2">
+            
+            <!-- Lightning -->
+            <div>
+                <label class="flex justify-between text-sm font-medium mb-2 text-slate-300">
+                    <span>Lightning</span>
+                    <span id="val-lightning" class="text-orange-400">Rare</span>
+                </label>
+                <!-- Default set to 50% for a balanced start -->
+                <input type="range" id="input-lightning" min="0" max="100" value="50" class="slider-thumb w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                <p class="text-xs text-slate-500 mt-1">Ignition probability.</p>
+            </div>
+
+            <!-- Growth -->
+            <div>
+                <label class="flex justify-between text-sm font-medium mb-2 text-slate-300">
+                    <span>Regrowth</span>
+                    <span id="val-growth" class="text-green-400">Steady</span>
+                </label>
+                <!-- Default set to 60% -->
+                <input type="range" id="input-growth" min="0" max="100" value="60" class="slider-thumb w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                <p class="text-xs text-slate-500 mt-1">Tree growth probability.</p>
+            </div>
+
+            <!-- Speed -->
+            <div>
+                <label class="flex justify-between text-sm font-medium mb-2 text-slate-300">
+                    <span>Speed</span>
+                    <span id="val-speed" class="text-blue-400">60fps</span>
+                </label>
+                <input type="range" id="input-speed" min="1" max="60" value="60" class="slider-thumb w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <!-- Buttons -->
+            <div class="pt-2 flex gap-3">
+                <button id="btn-reset" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 px-4 rounded transition shadow border border-slate-600 font-medium text-sm">
+                    Reset
+                </button>
+                <button id="btn-pause" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 px-4 rounded transition shadow font-medium text-sm">
+                    Pause
+                </button>
+            </div>
+        </div>
+        
+        <div class="mt-8 text-[10px] text-slate-600 border-t border-slate-800 pt-4 hidden md:block landscape:block">
+            Green: Tree &bull; Red: Fire &bull; Black: Empty<br>
+            Time scales significantly slowed for organic growth patterns.
+        </div>
+    </aside>
+
+    <!-- Canvas Container -->
+    <main class="flex-grow bg-black relative flex items-center justify-center p-4 md:p-8 overflow-hidden w-full h-auto landscape:h-full md:h-full">
+        <canvas id="simCanvas"></canvas>
+    </main>
+
+<script>
+/**
+ * Forest Fire Model (Drossel-Schwabl)
+ */
+
+const STATE_EMPTY = 0;
+const STATE_TREE = 1;
+const STATE_BURNING = 2;
+
+// Configuration
+// Doubled resolution
+const GRID_SIZE = 768; 
+
+// Simulation State
+let grid = [];
+let nextGrid = [];
+let isRunning = true;
+let animationId;
+let lastFrameTime = 0;
+
+// Initial Parameters (Will be overwritten by slider init)
+let probLightning = 0.00001;
+let probGrowth = 0.01;
+let fpsTarget = 60;
+let frameInterval = 1000 / 60;
+
+// DOM Elements
+const canvas = document.getElementById('simCanvas');
+const ctx = canvas.getContext('2d', { alpha: false }); 
+const valLightning = document.getElementById('val-lightning');
+const valGrowth = document.getElementById('val-growth');
+const valSpeed = document.getElementById('val-speed');
+const btnReset = document.getElementById('btn-reset');
+const btnPause = document.getElementById('btn-pause');
+const statTrees = document.getElementById('stat-trees');
+const statFire = document.getElementById('stat-fire');
+const statEmpty = document.getElementById('stat-empty');
+const inputLightning = document.getElementById('input-lightning');
+const inputGrowth = document.getElementById('input-growth');
+const inputSpeed = document.getElementById('input-speed');
+
+/**
+ * Initialize the Grid
+ */
+function initGrid() {
+    grid = new Int8Array(GRID_SIZE * GRID_SIZE);
+    nextGrid = new Int8Array(GRID_SIZE * GRID_SIZE);
+    
+    // Start with random trees
+    for (let i = 0; i < grid.length; i++) {
+        // Lower initial density to show off growth
+        grid[i] = Math.random() > 0.7 ? STATE_TREE : STATE_EMPTY;
+    }
+}
+
+/**
+ * Resize canvas dynamically
+ */
+function resizeCanvas() {
+    const parent = canvas.parentElement;
+    const isLandscape = window.matchMedia("(orientation: landscape)").matches;
+    const isWide = window.innerWidth >= 768; 
+
+    let size;
+
+    if (isLandscape || isWide) {
+        const w = parent.clientWidth - 32;
+        const h = parent.clientHeight - 32;
+        size = Math.min(w, h);
+    } else {
+        size = parent.clientWidth - 32;
+    }
+
+    size = Math.max(size, 100);
+    
+    canvas.style.width = `${size}px`;
+    canvas.style.height = `${size}px`;
+    
+    canvas.width = GRID_SIZE;
+    canvas.height = GRID_SIZE;
+    
+    draw();
+}
+
+function getIndex(x, y) {
+    if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) return -1;
+    return y * GRID_SIZE + x;
+}
+
+function hasBurningNeighbor(x, y) {
+    const neighbors = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+    for (let [dx, dy] of neighbors) {
+        const idx = getIndex(x + dx, y + dy);
+        if (idx !== -1 && grid[idx] === STATE_BURNING) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Main Update Loop
+ */
+function update() {
+    let trees = 0;
+    let fires = 0;
+    let empty = 0;
+
+    for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+            const i = y * GRID_SIZE + x;
+            const state = grid[i];
+
+            if (state === STATE_BURNING) {
+                nextGrid[i] = STATE_EMPTY;
+            } 
+            else if (state === STATE_TREE) {
+                if (hasBurningNeighbor(x, y)) {
+                    nextGrid[i] = STATE_BURNING;
+                }
+                else if (Math.random() < probLightning) {
+                    nextGrid[i] = STATE_BURNING;
+                } else {
+                    nextGrid[i] = STATE_TREE;
+                }
+            } 
+            else if (state === STATE_EMPTY) {
+                if (Math.random() < probGrowth) {
+                    nextGrid[i] = STATE_TREE;
+                } else {
+                    nextGrid[i] = STATE_EMPTY;
+                }
+            }
+            
+            // Count stats for the NEXT frame to be accurate
+            if (nextGrid[i] === STATE_BURNING) fires++;
+            else if (nextGrid[i] === STATE_TREE) trees++;
+            else empty++;
+        }
+    }
+
+    const temp = grid;
+    grid = nextGrid;
+    nextGrid = temp;
+
+    if (Math.random() < 0.1) {
+        const total = GRID_SIZE * GRID_SIZE;
+        statTrees.textContent = Math.round((trees / total) * 100) + '%';
+        // Use 2 decimal places for fire as it is often < 1%
+        statFire.textContent = (fires / total * 100).toFixed(2) + '%';
+        statEmpty.textContent = Math.round((empty / total) * 100) + '%';
+    }
+}
+
+/**
+ * Draw
+ */
+function draw() {
+    const imageData = ctx.getImageData(0, 0, GRID_SIZE, GRID_SIZE);
+    const data = imageData.data;
+
+    for (let i = 0; i < grid.length; i++) {
+        const state = grid[i];
+        const offset = i * 4;
+
+        if (state === STATE_BURNING) {
+            const flicker = Math.random() * 50;
+            data[offset] = 255;
+            data[offset + 1] = 50 + flicker;
+            data[offset + 2] = 0;
+            data[offset + 3] = 255;
+        } else if (state === STATE_TREE) {
+            data[offset] = 10;
+            data[offset + 1] = 160 + (Math.random() * 30);
+            data[offset + 2] = 70;
+            data[offset + 3] = 255;
+        } else {
+            data[offset] = 15;
+            data[offset + 1] = 23;
+            data[offset + 2] = 42;
+            data[offset + 3] = 255;
+        }
+    }
+    ctx.putImageData(imageData, 0, 0);
+}
+
+/**
+ * Loop
+ */
+function loop(timestamp) {
+    if (!isRunning) return;
+    const elapsed = timestamp - lastFrameTime;
+    if (elapsed > frameInterval) {
+        lastFrameTime = timestamp - (elapsed % frameInterval);
+        update();
+        draw();
+    }
+    animationId = requestAnimationFrame(loop);
+}
+
+// ---------------------------------------------------------
+// INPUT HANDLERS - UPDATED RANGES
+// ---------------------------------------------------------
+
+// Lightning Logic:
+// Old Max: ~0.005. New Max = Old 30% level.
+// Calculation: (0.3)^4 * 0.005 = 0.0000405
+const LIGHTNING_MAX = 0.0002; 
+// Min: 1 strike every 10s on 768x768 @ 60fps
+// Total cells = 589824. Frames in 10s = 600.
+// Min Prob = 1 / (589824 * 600) ~= 2.8e-9
+const LIGHTNING_MIN = 0.000000003;
+
+inputLightning.addEventListener('input', (e) => {
+    const val = parseInt(e.target.value);
+    
+    // Power 4 curve + Minimum floor
+    probLightning = LIGHTNING_MIN + (Math.pow(val / 100, 4) * (LIGHTNING_MAX - LIGHTNING_MIN));
+    
+    let text = "Ultra Rare";
+    if (val > 25) text = "Rare";
+    if (val > 50) text = "Low";
+    if (val > 75) text = "Frequent"; 
+    valLightning.textContent = text;
+});
+
+// Growth Logic:
+// Old Max: ~0.05. New Max = Old 30% level.
+// Calculation: (0.3)^3 * 0.05 = 0.00135
+const GROWTH_MAX = 0.0025; 
+
+inputGrowth.addEventListener('input', (e) => {
+    const val = parseInt(e.target.value);
+    
+    // Power 3 curve
+    probGrowth = val === 0 ? 0 : Math.pow(val / 100, 3) * GROWTH_MAX;
+
+    let text = "Stagnant";
+    if (val > 25) text = "Years";
+    if (val > 50) text = "Months";
+    if (val > 75) text = "Weeks";
+    valGrowth.textContent = text;
+});
+
+inputSpeed.addEventListener('input', (e) => {
+    const val = parseInt(e.target.value);
+    fpsTarget = val;
+    frameInterval = 1000 / fpsTarget;
+    valSpeed.textContent = val + "fps";
+});
+
+btnReset.addEventListener('click', () => {
+    initGrid();
+    draw();
+    statTrees.textContent = "0%";
+    statFire.textContent = "0%";
+    statEmpty.textContent = "0%";
+});
+
+btnPause.addEventListener('click', () => {
+    isRunning = !isRunning;
+    btnPause.textContent = isRunning ? "Pause" : "Resume";
+    btnPause.classList.toggle('bg-blue-600');
+    btnPause.classList.toggle('bg-green-600');
+    if (isRunning) loop(0);
+});
+
+// Setup
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 100));
+initGrid();
+
+// Initialize scale variables based on slider defaults
+probLightning = LIGHTNING_MIN + (Math.pow(inputLightning.value / 100, 4) * (LIGHTNING_MAX - LIGHTNING_MIN));
+probGrowth = Math.pow(inputGrowth.value / 100, 3) * GROWTH_MAX;
+
+resizeCanvas(); 
+loop(0);
+
+</script>
+</body>
+</html>
