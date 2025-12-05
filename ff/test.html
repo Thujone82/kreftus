@@ -73,10 +73,9 @@
     <aside class="w-full landscape:w-80 md:w-80 bg-slate-900 border-b landscape:border-b-0 landscape:border-r md:border-b-0 md:border-r border-slate-700 p-6 flex flex-col z-10 shadow-2xl shrink-0 custom-scroll overflow-y-auto landscape:h-full md:h-full">
         <div class="flex justify-between items-center mb-4 md:mb-6">
             <div>
-                <h1 class="text-2xl font-bold mb-1 text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-600">
+                <h1 class="text-3xl font-bold mb-1 text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-600">
                     Forest Fire
                 </h1>
-                <p class="text-xs text-slate-400 uppercase tracking-wider">High Resolution (768px)</p>
             </div>
         </div>
 
@@ -105,8 +104,7 @@
                     <span>Lightning</span>
                     <span id="val-lightning" class="text-orange-400">Rare</span>
                 </label>
-                <!-- Default set to 50% for a balanced start -->
-                <input type="range" id="input-lightning" min="0" max="100" value="50" class="slider-thumb w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                <input type="range" id="input-lightning" min="0" max="100" value="23" class="slider-thumb w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
                 <p class="text-xs text-slate-500 mt-1">Ignition probability.</p>
             </div>
 
@@ -116,8 +114,7 @@
                     <span>Regrowth</span>
                     <span id="val-growth" class="text-green-400">Steady</span>
                 </label>
-                <!-- Default set to 60% -->
-                <input type="range" id="input-growth" min="0" max="100" value="60" class="slider-thumb w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                <input type="range" id="input-growth" min="0" max="100" value="48" class="slider-thumb w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
                 <p class="text-xs text-slate-500 mt-1">Tree growth probability.</p>
             </div>
 
@@ -258,7 +255,6 @@ function resizeCanvas() {
 /**
  * Fullscreen Logic
  */
-// Restore the click listener which works robustly for "Tap" on mobile and "Click" on desktop
 canvas.addEventListener('click', toggleFullScreen);
 
 function toggleFullScreen() {

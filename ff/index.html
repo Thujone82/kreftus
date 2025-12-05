@@ -12,6 +12,7 @@
             font-family: 'Inter', sans-serif;
             background-color: #0f172a; /* Slate 900 */
             color: #e2e8f0;
+            touch-action: none; /* Prevent default touch scrolling to handle swipes manually */
         }
 
         /* Custom Scrollbar */
@@ -32,6 +33,15 @@
             box-shadow: 0 0 50px rgba(239, 68, 68, 0.15);
             max-width: 100%;
             max-height: 100%;
+            cursor: pointer; /* Indicate clickable */
+        }
+        
+        /* Ensure canvas covers screen in fullscreen mode */
+        canvas:fullscreen {
+            width: 100vw !important;
+            height: 100vh !important;
+            max-width: none;
+            max-height: none;
         }
 
         .slider-thumb::-webkit-slider-thumb {
@@ -63,10 +73,9 @@
     <aside class="w-full landscape:w-80 md:w-80 bg-slate-900 border-b landscape:border-b-0 landscape:border-r md:border-b-0 md:border-r border-slate-700 p-6 flex flex-col z-10 shadow-2xl shrink-0 custom-scroll overflow-y-auto landscape:h-full md:h-full">
         <div class="flex justify-between items-center mb-4 md:mb-6">
             <div>
-                <h1 class="text-2xl font-bold mb-1 text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-600">
+                <h1 class="text-3xl font-bold mb-1 text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-600">
                     Forest Fire
                 </h1>
-                <p class="text-xs text-slate-400 uppercase tracking-wider">High Resolution (768px)</p>
             </div>
         </div>
 
@@ -78,7 +87,7 @@
             </div>
             <div class="bg-slate-800 rounded p-2 border border-slate-700">
                 <div class="text-orange-500 font-bold text-lg" id="stat-fire">0%</div>
-                <div class="text-[10px] text-slate-400 uppercase">Fire</div>
+                <div class="text-[10px] text-slate-400 uppercase">Fire (Area)</div>
             </div>
             <div class="bg-slate-800 rounded p-2 border border-slate-700">
                 <div class="text-slate-500 font-bold text-lg" id="stat-empty">0%</div>
@@ -95,8 +104,7 @@
                     <span>Lightning</span>
                     <span id="val-lightning" class="text-orange-400">Rare</span>
                 </label>
-                <!-- Default set to 50% for a balanced start -->
-                <input type="range" id="input-lightning" min="0" max="100" value="50" class="slider-thumb w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                <input type="range" id="input-lightning" min="0" max="100" value="23" class="slider-thumb w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
                 <p class="text-xs text-slate-500 mt-1">Ignition probability.</p>
             </div>
 
@@ -106,8 +114,7 @@
                     <span>Regrowth</span>
                     <span id="val-growth" class="text-green-400">Steady</span>
                 </label>
-                <!-- Default set to 60% -->
-                <input type="range" id="input-growth" min="0" max="100" value="60" class="slider-thumb w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                <input type="range" id="input-growth" min="0" max="100" value="48" class="slider-thumb w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
                 <p class="text-xs text-slate-500 mt-1">Tree growth probability.</p>
             </div>
 
@@ -131,9 +138,12 @@
             </div>
         </div>
         
-        <div class="mt-8 text-[10px] text-slate-600 border-t border-slate-800 pt-4 hidden md:block landscape:block">
-            Green: Tree &bull; Red: Fire &bull; Black: Empty<br>
-            Time scales significantly slowed for organic growth patterns.
+        <div class="mt-8 text-[10px] text-slate-500 border-t border-slate-800 pt-4 hidden md:block landscape:block">
+            Green: 🌲 &bull; Red: 🔥 &bull; Black: Empty<br>
+            <strong>Controls:</strong><br>
+            Click Canvas: Toggle Fullscreen<br>
+            ⬆️/⬇️ Arrows or Swipe: Lightning<br>
+            ⬅️/➡️ Arrows or Swipe: Regrowth
         </div>
     </aside>
 
@@ -152,8 +162,9 @@ const STATE_TREE = 1;
 const STATE_BURNING = 2;
 
 // Configuration
-// Doubled resolution
-const GRID_SIZE = 768; 
+const TARGET_CELLS = 768 * 768; // Preserve total cell count ~590k
+let gridWidth = 768;
+let gridHeight = 768;
 
 // Simulation State
 let grid = [];
@@ -187,8 +198,9 @@ const inputSpeed = document.getElementById('input-speed');
  * Initialize the Grid
  */
 function initGrid() {
-    grid = new Int8Array(GRID_SIZE * GRID_SIZE);
-    nextGrid = new Int8Array(GRID_SIZE * GRID_SIZE);
+    const totalSize = gridWidth * gridHeight;
+    grid = new Int8Array(totalSize);
+    nextGrid = new Int8Array(totalSize);
     
     // Start with random trees
     for (let i = 0; i < grid.length; i++) {
@@ -201,6 +213,12 @@ function initGrid() {
  * Resize canvas dynamically
  */
 function resizeCanvas() {
+    // If in fullscreen, the CSS handles the visual size (100vw/100vh)
+    // We only need to handle logic in the fullscreen change listener
+    if (document.fullscreenElement) {
+        return;
+    }
+
     const parent = canvas.parentElement;
     const isLandscape = window.matchMedia("(orientation: landscape)").matches;
     const isWide = window.innerWidth >= 768; 
@@ -217,18 +235,63 @@ function resizeCanvas() {
 
     size = Math.max(size, 100);
     
+    // Set Visual Size
     canvas.style.width = `${size}px`;
     canvas.style.height = `${size}px`;
     
-    canvas.width = GRID_SIZE;
-    canvas.height = GRID_SIZE;
+    // Ensure square grid in normal mode
+    if (gridWidth !== 768 || gridHeight !== 768) {
+        gridWidth = 768;
+        gridHeight = 768;
+        initGrid();
+    }
+    
+    canvas.width = gridWidth;
+    canvas.height = gridHeight;
     
     draw();
 }
 
+/**
+ * Fullscreen Logic
+ */
+canvas.addEventListener('click', toggleFullScreen);
+
+function toggleFullScreen() {
+    if (!document.fullscreenElement) {
+        canvas.requestFullscreen().catch(err => {
+            console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+        });
+    } else {
+        document.exitFullscreen();
+    }
+}
+
+document.addEventListener('fullscreenchange', () => {
+    if (document.fullscreenElement) {
+        // Entered fullscreen: Recalculate grid dimensions
+        const ratio = window.innerWidth / window.innerHeight;
+        
+        // Calculate dimensions to maintain approximately TARGET_CELLS
+        gridHeight = Math.floor(Math.sqrt(TARGET_CELLS / ratio));
+        gridWidth = Math.floor(TARGET_CELLS / gridHeight);
+        
+        // Update canvas internal resolution
+        canvas.width = gridWidth;
+        canvas.height = gridHeight;
+        
+        // Reset grid to fit new aspect ratio
+        initGrid();
+    } else {
+        // Exited fullscreen: Return to square
+        resizeCanvas();
+    }
+    draw();
+});
+
 function getIndex(x, y) {
-    if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) return -1;
-    return y * GRID_SIZE + x;
+    if (x < 0 || x >= gridWidth || y < 0 || y >= gridHeight) return -1;
+    return y * gridWidth + x;
 }
 
 function hasBurningNeighbor(x, y) {
@@ -250,9 +313,9 @@ function update() {
     let fires = 0;
     let empty = 0;
 
-    for (let y = 0; y < GRID_SIZE; y++) {
-        for (let x = 0; x < GRID_SIZE; x++) {
-            const i = y * GRID_SIZE + x;
+    for (let y = 0; y < gridHeight; y++) {
+        for (let x = 0; x < gridWidth; x++) {
+            const i = y * gridWidth + x;
             const state = grid[i];
 
             if (state === STATE_BURNING) {
@@ -277,9 +340,8 @@ function update() {
             }
             
             // Count stats for the NEXT frame to be accurate
-            if (nextGrid[i] === STATE_BURNING) fires++;
-            else if (nextGrid[i] === STATE_TREE) trees++;
-            else empty++;
+            if (nextGrid[i] === STATE_TREE) trees++;
+            else if (nextGrid[i] === STATE_EMPTY) empty++;
         }
     }
 
@@ -287,12 +349,44 @@ function update() {
     grid = nextGrid;
     nextGrid = temp;
 
+    // Update UI occasionally
     if (Math.random() < 0.1) {
-        const total = GRID_SIZE * GRID_SIZE;
+        const total = gridWidth * gridHeight;
         statTrees.textContent = Math.round((trees / total) * 100) + '%';
-        // Use 2 decimal places for fire as it is often < 1%
-        statFire.textContent = (fires / total * 100).toFixed(2) + '%';
         statEmpty.textContent = Math.round((empty / total) * 100) + '%';
+
+        // NEW FIRE CALCULATION: 10x10 Grid Method
+        let fireBlocks = 0;
+        const regionW = gridWidth / 10; 
+        const regionH = gridHeight / 10;
+
+        for (let by = 0; by < 10; by++) {
+            for (let bx = 0; bx < 10; bx++) {
+                let hasFire = false;
+                
+                // Calculate pixel bounds for this block
+                const startX = Math.floor(bx * regionW);
+                const endX = Math.floor((bx + 1) * regionW);
+                const startY = Math.floor(by * regionH);
+                const endY = Math.floor((by + 1) * regionH);
+
+                // Scan the block in the current 'grid'
+                blockLoop:
+                for (let y = startY; y < endY; y++) {
+                    for (let x = startX; x < endX; x++) {
+                        if (grid[y * gridWidth + x] === STATE_BURNING) {
+                            hasFire = true;
+                            break blockLoop; // Found fire, move to next block
+                        }
+                    }
+                }
+                
+                if (hasFire) fireBlocks++;
+            }
+        }
+        
+        // fireBlocks is already out of 100, so it is the percentage
+        statFire.textContent = fireBlocks + '%';
     }
 }
 
@@ -300,7 +394,7 @@ function update() {
  * Draw
  */
 function draw() {
-    const imageData = ctx.getImageData(0, 0, GRID_SIZE, GRID_SIZE);
+    const imageData = ctx.getImageData(0, 0, gridWidth, gridHeight);
     const data = imageData.data;
 
     for (let i = 0; i < grid.length; i++) {
@@ -343,16 +437,11 @@ function loop(timestamp) {
 }
 
 // ---------------------------------------------------------
-// INPUT HANDLERS - UPDATED RANGES
+// INPUT HANDLERS
 // ---------------------------------------------------------
 
 // Lightning Logic:
-// Old Max: ~0.005. New Max = Old 30% level.
-// Calculation: (0.3)^4 * 0.005 = 0.0000405
 const LIGHTNING_MAX = 0.0002; 
-// Min: 1 strike every 10s on 768x768 @ 60fps
-// Total cells = 589824. Frames in 10s = 600.
-// Min Prob = 1 / (589824 * 600) ~= 2.8e-9
 const LIGHTNING_MIN = 0.000000003;
 
 inputLightning.addEventListener('input', (e) => {
@@ -369,8 +458,6 @@ inputLightning.addEventListener('input', (e) => {
 });
 
 // Growth Logic:
-// Old Max: ~0.05. New Max = Old 30% level.
-// Calculation: (0.3)^3 * 0.05 = 0.00135
 const GROWTH_MAX = 0.0025; 
 
 inputGrowth.addEventListener('input', (e) => {
@@ -407,6 +494,95 @@ btnPause.addEventListener('click', () => {
     btnPause.classList.toggle('bg-blue-600');
     btnPause.classList.toggle('bg-green-600');
     if (isRunning) loop(0);
+});
+
+// ---------------------------------------------------------
+// KEYBOARD & TOUCH CONTROLS
+// ---------------------------------------------------------
+
+const STEP_SIZE = 5; // 1/20th of 100
+
+// Keyboard Inputs
+window.addEventListener('keydown', (e) => {
+    // Arrow Up/Down -> Lightning
+    if (e.key === 'ArrowUp') {
+        const newVal = Math.min(100, parseInt(inputLightning.value) + STEP_SIZE);
+        inputLightning.value = newVal;
+        inputLightning.dispatchEvent(new Event('input')); // Trigger logic
+    } 
+    else if (e.key === 'ArrowDown') {
+        const newVal = Math.max(0, parseInt(inputLightning.value) - STEP_SIZE);
+        inputLightning.value = newVal;
+        inputLightning.dispatchEvent(new Event('input'));
+    }
+    // Arrow Left/Right -> Growth
+    else if (e.key === 'ArrowRight') {
+        const newVal = Math.min(100, parseInt(inputGrowth.value) + STEP_SIZE);
+        inputGrowth.value = newVal;
+        inputGrowth.dispatchEvent(new Event('input'));
+    }
+    else if (e.key === 'ArrowLeft') {
+        const newVal = Math.max(0, parseInt(inputGrowth.value) - STEP_SIZE);
+        inputGrowth.value = newVal;
+        inputGrowth.dispatchEvent(new Event('input'));
+    }
+});
+
+// Touch Inputs
+let touchStartX = 0;
+let touchStartY = 0;
+
+document.addEventListener('touchstart', (e) => {
+    // Don't interfere if user is using sliders
+    if (e.target.tagName === 'INPUT') return;
+    
+    touchStartX = e.changedTouches[0].screenX;
+    touchStartY = e.changedTouches[0].screenY;
+}, {passive: false});
+
+document.addEventListener('touchend', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+
+    const touchEndX = e.changedTouches[0].screenX;
+    const touchEndY = e.changedTouches[0].screenY;
+    
+    const dx = touchEndX - touchStartX;
+    const dy = touchEndY - touchStartY;
+    
+    // We removed the manual tap detection here.
+    // We rely on the standard 'click' event (added above) for Taps/Clicks 
+    // to toggle fullscreen. This is safer on mobile as it handles sloppy taps better.
+    
+    // Swipe Logic (> 30px move)
+    if (Math.abs(dx) > Math.abs(dy)) {
+        // Horizontal Swipe (Growth)
+        if (Math.abs(dx) > 30) { 
+            if (dx > 0) {
+                // Right
+                const newVal = Math.min(100, parseInt(inputGrowth.value) + STEP_SIZE);
+                inputGrowth.value = newVal;
+            } else {
+                // Left
+                const newVal = Math.max(0, parseInt(inputGrowth.value) - STEP_SIZE);
+                inputGrowth.value = newVal;
+            }
+            inputGrowth.dispatchEvent(new Event('input'));
+        }
+    } else {
+        // Vertical Swipe (Lightning)
+        if (Math.abs(dy) > 30) {
+            if (dy < 0) {
+                // Up
+                const newVal = Math.min(100, parseInt(inputLightning.value) + STEP_SIZE);
+                inputLightning.value = newVal;
+            } else {
+                // Down
+                const newVal = Math.max(0, parseInt(inputLightning.value) - STEP_SIZE);
+                inputLightning.value = newVal;
+            }
+            inputLightning.dispatchEvent(new Event('input'));
+        }
+    }
 });
 
 // Setup
