@@ -142,7 +142,7 @@
         </div>
         
         <div class="mt-8 text-[10px] text-slate-500 border-t border-slate-800 pt-4 hidden md:block landscape:block">
-		    Green: 🌲 &bull; Red: 🔥 &bull; Black: Empty<br>
+            Green: 🌲 &bull; Red: 🔥 &bull; Black: Empty<br>
             <strong>Controls:</strong><br>
             Click Canvas: Toggle Fullscreen<br>
             ⬆️/⬇️ Arrows or Swipe: Lightning<br>
@@ -258,7 +258,8 @@ function resizeCanvas() {
 /**
  * Fullscreen Logic
  */
-// NOTE: We moved click handler to handleSwipe to distinguish taps from swipes
+// Restore the click listener which works robustly for "Tap" on mobile and "Click" on desktop
+canvas.addEventListener('click', toggleFullScreen);
 
 function toggleFullScreen() {
     if (!document.fullscreenElement) {
@@ -276,10 +277,6 @@ document.addEventListener('fullscreenchange', () => {
         const ratio = window.innerWidth / window.innerHeight;
         
         // Calculate dimensions to maintain approximately TARGET_CELLS
-        // w * h = TARGET
-        // w / h = ratio  -> w = h * ratio
-        // (h * ratio) * h = TARGET -> h^2 = TARGET / ratio
-        
         gridHeight = Math.floor(Math.sqrt(TARGET_CELLS / ratio));
         gridWidth = Math.floor(TARGET_CELLS / gridHeight);
         
@@ -556,19 +553,14 @@ document.addEventListener('touchend', (e) => {
     const dx = touchEndX - touchStartX;
     const dy = touchEndY - touchStartY;
     
-    // Determine if tap or swipe
-    if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
-        // Tap -> Toggle Fullscreen if clicked on canvas
-        if (e.target.id === 'simCanvas') {
-            toggleFullScreen();
-        }
-        return;
-    }
+    // We removed the manual tap detection here.
+    // We rely on the standard 'click' event (added above) for Taps/Clicks 
+    // to toggle fullscreen. This is safer on mobile as it handles sloppy taps better.
     
-    // Determine direction
+    // Swipe Logic (> 30px move)
     if (Math.abs(dx) > Math.abs(dy)) {
         // Horizontal Swipe (Growth)
-        if (Math.abs(dx) > 30) { // Threshold
+        if (Math.abs(dx) > 30) { 
             if (dx > 0) {
                 // Right
                 const newVal = Math.min(100, parseInt(inputGrowth.value) + STEP_SIZE);
@@ -584,7 +576,7 @@ document.addEventListener('touchend', (e) => {
         // Vertical Swipe (Lightning)
         if (Math.abs(dy) > 30) {
             if (dy < 0) {
-                // Up (Swipe moves up, usually means increment in controls context)
+                // Up
                 const newVal = Math.min(100, parseInt(inputLightning.value) + STEP_SIZE);
                 inputLightning.value = newVal;
             } else {
