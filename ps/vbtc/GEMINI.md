@@ -21,9 +21,10 @@ The application provides a comprehensive main screen displaying live market stat
 - **Transaction Ledger:** All buy and sell activities are recorded in `ledger.csv`, providing a complete history of trades with comprehensive statistics including portfolio summary, average prices, and transaction counts across all historical data.
 - **Configuration & Maintenance:** A `config` menu allows users to update their API key, reset their portfolio, archive the main ledger, and merge multiple archives into a master file.
 - **Flexible Trading:** Supports trading by specific amounts, percentages of the user's balance (e.g., `50p`), and selling amounts specified in satoshis (e.g., `50000s`).
-- **User-Friendly Interface:** Employs command shortcuts (e.g., `b` for `buy`), color-coded feedback for market and portfolio changes, and a trade confirmation screen with a timeout to ensure prices are current.
+- **User-Friendly Interface:** Employs command shortcuts (e.g., `b` for `buy`), color-coded feedback for market and portfolio changes, and a trade confirmation screen with a timeout to ensure prices are current. Arrow keys can be used as shortcuts during trade confirmation (Up = Accept, Down/Left = Cancel, Right = Refresh). Esc key can be used to exit from Config, Help, and Ledger screens.
 - **Safe Trading Logic:** Implements a read-before-write mechanism to prevent race conditions, ensuring that the user's balance is always accurate before a trade is finalized.
 - **Onboarding:** A guided first-time setup process helps users configure their required API key.
+- **Session Statistics:** The exit summary includes a "Transactions:" count showing the total number of buy and sell transactions made during the current session, displayed as the first item in the Session Summary section.
 
 ### How to Run
 
@@ -46,7 +47,7 @@ The script is executed from a PowerShell terminal.
 -   `refresh`: Manually force an update of market data.
 -   `config`: Access the configuration menu.
 -   `help`: Display the help screen.
--   `exit`: Close the application and view a comprehensive final summary including portfolio performance, session statistics, and complete trading history with all-time statistics.
+-   `exit`: Close the application and view a comprehensive final summary including portfolio performance, session statistics (including transaction count for the current session), and complete trading history with all-time statistics.
 
 ### Dependencies
 

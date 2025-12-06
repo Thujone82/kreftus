@@ -61,7 +61,20 @@ The application uses a simple command-line interface. The following commands are
     - Archive the main `ledger.csv` to a timestamped file.
     - Merge all archived ledgers into a single `vBTC - Ledger_Merged.csv` file.
 -   `help`: Show the help screen with a list of commands.
--   `exit`: Exit the application and display a comprehensive final summary including portfolio performance, session statistics, and complete trading history with all-time statistics.
+-   `exit`: Exit the application and display a comprehensive final summary including portfolio performance, session statistics (including transaction count for the current session), and complete trading history with all-time statistics.
+
+## Keyboard Controls
+
+### Trade Confirmation Screen
+When confirming a buy or sell transaction, you can use the following keyboard shortcuts:
+- **Y** or **Up Arrow** = Accept the trade
+- **N**, **Esc**, **Down Arrow**, or **Left Arrow** = Cancel the trade
+- **R** or **Right Arrow** = Refresh the price and get a new offer
+- **Enter** = Cancel (on active offer) or Return to main menu (on expired offer)
+
+### Modal Navigation
+- **Esc** = Return to main screen from Config, Help, or Ledger screens
+- **Enter** = Confirm selection or return to previous screen
 
 ## Tips
 - **Command Shortcuts:** You can use shortcuts for commands (e.g. 'b 10' to buy $10 of BTC). As long as the shortcut is a unique match for a command, it will work.

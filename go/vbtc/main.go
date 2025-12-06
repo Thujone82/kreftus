@@ -469,50 +469,178 @@ func showConfigScreen(reader *bufio.Reader) {
 		fmt.Println("3. Archive Ledger")
 		fmt.Println("4. Merge Archived Ledgers")
 		fmt.Println("5. Return to Main Screen")
-		fmt.Print("Enter your choice: ")
-		choice, _ := reader.ReadString('\n')
-		choice = strings.TrimSpace(choice)
+		fmt.Print("Enter your choice (Number 1-5): ")
 
-		switch choice {
-		case "1":
-			fmt.Print("Enter your new LiveCoinWatch API Key: ")
-			newApiKey, _ := reader.ReadString('\n')
-			newApiKey = strings.TrimSpace(newApiKey)
-			if testApiKey(newApiKey) {
-				cfg.Section("Settings").Key("ApiKey").SetValue(newApiKey)
-				cfg.SaveTo(iniFilePath)
-				color.Green("API Key updated successfully.")
-			} else {
-				color.Red("The new API Key is invalid. It has not been saved.")
+		// --- Raw Terminal Input Setup ---
+		fd := int(os.Stdin.Fd())
+		if !term.IsTerminal(fd) {
+			// Fallback to simple input if not a terminal
+			choice, _ := reader.ReadString('\n')
+			choice = strings.TrimSpace(choice)
+			if handleConfigChoice(choice, reader) {
+				return
 			}
-			fmt.Println("Press Enter to continue.")
-			reader.ReadString('\n')
-		case "2":
-			color.New(color.FgRed).Print("Are you sure you want to reset your portfolio? This cannot be undone. Type 'YES' to confirm: ")
-			confirm, _ := reader.ReadString('\n')
-			if strings.TrimSpace(confirm) == "YES" { // This comparison is already case-sensitive
-				cfg.Section("Portfolio").Key("PlayerUSD").SetValue(fmt.Sprintf("%.2f", startingCapital))
-				cfg.Section("Portfolio").Key("PlayerBTC").SetValue("0.0")
-				cfg.Section("Portfolio").Key("PlayerInvested").SetValue("0.0")
-				os.Remove(ledgerFilePath)
-				cfg.SaveTo(iniFilePath)
-				color.Green("Portfolio has been reset.")
-			} else {
-				fmt.Println("Portfolio reset cancelled.")
-			}
-			fmt.Println("Press Enter to continue.")
-			reader.ReadString('\n')
-		case "3":
-			invokeLedgerArchive(reader)
-		case "4":
-			invokeLedgerMerge(reader)
-		case "5", "": // Default to returning if input is empty
-			return
-		default:
-			color.Red("Invalid choice. Please try again.")
-			fmt.Println("Press Enter to continue.")
-			reader.ReadString('\n')
+			continue
 		}
+
+		oldState, err := term.GetState(fd)
+		if err != nil {
+			// Fallback to simple input if we can't get terminal state
+			choice, _ := reader.ReadString('\n')
+			choice = strings.TrimSpace(choice)
+			if handleConfigChoice(choice, reader) {
+				return
+			}
+			continue
+		}
+
+		done := make(chan struct{})
+		var wg sync.WaitGroup
+		restoreNeeded := true
+
+		defer func() {
+			if restoreNeeded {
+				close(done)
+				wg.Wait()
+				term.Restore(fd, oldState)
+				reader.Reset(os.Stdin)
+			}
+		}()
+
+		_, err = term.MakeRaw(fd)
+		if err != nil {
+			// Fallback to simple input if we can't set raw mode
+			choice, _ := reader.ReadString('\n')
+			choice = strings.TrimSpace(choice)
+			if handleConfigChoice(choice, reader) {
+				return
+			}
+			continue
+		}
+
+		inputChan := make(chan byte)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer close(inputChan)
+			for {
+				b, err := cancellableRead(done)
+				if err != nil {
+					return
+				}
+				select {
+				case inputChan <- b:
+				case <-done:
+					return
+				}
+			}
+		}()
+
+		// Wait for user input
+		b, ok := <-inputChan
+		if !ok {
+			return
+		}
+
+		// Handle Ctrl+C gracefully in raw mode
+		if b == 3 {
+			term.Restore(fd, oldState)
+			os.Exit(1)
+		}
+
+		// Handle Esc key (ASCII 27) to return
+		if b == 27 {
+			restoreNeeded = false
+			close(done)
+			wg.Wait()
+			term.Restore(fd, oldState)
+			reader.Reset(os.Stdin)
+			return
+		}
+
+		// Handle Enter key (empty input = return)
+		if b == 13 || b == 10 {
+			restoreNeeded = false
+			close(done)
+			wg.Wait()
+			term.Restore(fd, oldState)
+			reader.Reset(os.Stdin)
+			return
+		}
+
+		// Handle numeric keys 1-5
+		choice := string(b)
+		if choice >= "1" && choice <= "5" {
+			fmt.Println(choice)
+			restoreNeeded = false
+			close(done)
+			wg.Wait()
+			term.Restore(fd, oldState)
+			reader.Reset(os.Stdin)
+			shouldReturn := handleConfigChoice(choice, reader)
+			if shouldReturn {
+				return
+			}
+			continue
+		}
+
+		// Invalid input, restore and continue loop
+		restoreNeeded = false
+		close(done)
+		wg.Wait()
+		term.Restore(fd, oldState)
+		reader.Reset(os.Stdin)
+		color.Red("Invalid choice. Please try again.")
+		fmt.Println("Press Enter to continue.")
+		reader.ReadString('\n')
+	}
+}
+
+func handleConfigChoice(choice string, reader *bufio.Reader) bool {
+	switch choice {
+	case "1":
+		fmt.Print("Enter your new LiveCoinWatch API Key: ")
+		newApiKey, _ := reader.ReadString('\n')
+		newApiKey = strings.TrimSpace(newApiKey)
+		if testApiKey(newApiKey) {
+			cfg.Section("Settings").Key("ApiKey").SetValue(newApiKey)
+			cfg.SaveTo(iniFilePath)
+			color.Green("API Key updated successfully.")
+		} else {
+			color.Red("The new API Key is invalid. It has not been saved.")
+		}
+		fmt.Println("Press Enter to continue.")
+		reader.ReadString('\n')
+		return false
+	case "2":
+		color.New(color.FgRed).Print("Are you sure you want to reset your portfolio? This cannot be undone. Type 'YES' to confirm: ")
+		confirm, _ := reader.ReadString('\n')
+		if strings.TrimSpace(confirm) == "YES" { // This comparison is already case-sensitive
+			cfg.Section("Portfolio").Key("PlayerUSD").SetValue(fmt.Sprintf("%.2f", startingCapital))
+			cfg.Section("Portfolio").Key("PlayerBTC").SetValue("0.0")
+			cfg.Section("Portfolio").Key("PlayerInvested").SetValue("0.0")
+			os.Remove(ledgerFilePath)
+			cfg.SaveTo(iniFilePath)
+			color.Green("Portfolio has been reset.")
+		} else {
+			fmt.Println("Portfolio reset cancelled.")
+		}
+		fmt.Println("Press Enter to continue.")
+		reader.ReadString('\n')
+		return false
+	case "3":
+		invokeLedgerArchive(reader)
+		return false
+	case "4":
+		invokeLedgerMerge(reader)
+		return false
+	case "5", "": // Default to returning if input is empty
+		return true
+	default:
+		color.Red("Invalid choice. Please try again.")
+		fmt.Println("Press Enter to continue.")
+		reader.ReadString('\n')
+		return false
 	}
 }
 
@@ -562,8 +690,81 @@ func showHelpScreen(reader *bufio.Reader) {
 	fmt.Println()
 
 	if reader != nil {
-		fmt.Println("Press Enter to return to the Main Screen.")
-		reader.ReadString('\n')
+		fmt.Println("Press Enter or Esc to return to the Main Screen.")
+
+		// --- Raw Terminal Input Setup ---
+		fd := int(os.Stdin.Fd())
+		if !term.IsTerminal(fd) {
+			// Fallback to simple input if not a terminal
+			reader.ReadString('\n')
+			return
+		}
+
+		oldState, err := term.GetState(fd)
+		if err != nil {
+			// Fallback to simple input if we can't get terminal state
+			reader.ReadString('\n')
+			return
+		}
+
+		done := make(chan struct{})
+		var wg sync.WaitGroup
+
+		defer func() {
+			close(done)
+			wg.Wait()
+			term.Restore(fd, oldState)
+			reader.Reset(os.Stdin)
+		}()
+
+		_, err = term.MakeRaw(fd)
+		if err != nil {
+			// Fallback to simple input if we can't set raw mode
+			reader.ReadString('\n')
+			return
+		}
+
+		inputChan := make(chan byte)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer close(inputChan)
+			for {
+				b, err := cancellableRead(done)
+				if err != nil {
+					return
+				}
+				select {
+				case inputChan <- b:
+				case <-done:
+					return
+				}
+			}
+		}()
+
+		// Wait for user input
+		for {
+			b, ok := <-inputChan
+			if !ok {
+				return
+			}
+
+			// Handle Ctrl+C gracefully in raw mode
+			if b == 3 {
+				term.Restore(fd, oldState)
+				os.Exit(1)
+			}
+
+			// Handle Enter key (13 is Carriage Return, 10 is Line Feed)
+			if b == 13 || b == 10 {
+				return
+			}
+
+			// Handle Esc key (ASCII 27) to return
+			if b == 27 {
+				return
+			}
+		}
 	}
 }
 
@@ -810,6 +1011,11 @@ func showLedgerScreen(reader *bufio.Reader) {
 			return // Return to main screen
 		}
 
+		// Handle Esc key (ASCII 27) to return to main screen
+		if b == 27 {
+			return
+		}
+
 		// Handle 'R' or 'r' for refresh
 		if b == 'R' || b == 'r' {
 			// Close the input goroutine and restore terminal before recursive call
@@ -863,6 +1069,12 @@ func showExitScreen(reader *bufio.Reader) {
 	color.Yellow("*** Session Summary ***")
 	sessionValueStartColumn := 22 // Use a consistent start column for this block
 
+	summary := getSessionSummary()
+	if summary != nil {
+		totalTransactions := summary.BuyTransactions + summary.SellTransactions
+		writeAlignedLine("Transactions:", fmt.Sprintf("%d", totalTransactions), color.New(color.FgWhite), sessionValueStartColumn)
+	}
+
 	finalBtcPrice := initialSessionBtcPrice
 	if apiData != nil {
 		finalBtcPrice = apiData.Rate
@@ -902,7 +1114,6 @@ func showExitScreen(reader *bufio.Reader) {
 		writeAlignedLine("P/L:", sessionDisplay, sessionColor, sessionValueStartColumn)
 	}
 
-	summary := getSessionSummary()
 	if summary != nil {
 		if summary.TotalBuyUSD > 0 {
 			writeAlignedLine("Total Bought (USD):", fmt.Sprintf("$%s", formatFloat(summary.TotalBuyUSD, 2)), color.New(color.FgGreen), sessionValueStartColumn)
@@ -2168,7 +2379,7 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 					// Check if this is an arrow key sequence (ESC [ A/B/C/D)
 					// Try to read the next bytes quickly to detect arrow keys
 					arrowDetected := false
-					
+
 					// Use a very short timeout to check for arrow key sequence
 					select {
 					case nextByte, ok := <-inputChan:
@@ -2199,7 +2410,7 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 					case <-time.After(10 * time.Millisecond):
 						// Timeout - treat as plain Esc
 					}
-					
+
 					if !arrowDetected {
 						// Plain Esc key pressed - treat as cancel
 						fmt.Printf("\n\n%s cancelled.\n", txType)

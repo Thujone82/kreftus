@@ -648,7 +648,35 @@ function Show-ConfigScreen {
         Write-Host "3. Archive Ledger"
         Write-Host "4. Merge Archived Ledgers"
         Write-Host "5. Return to Main Screen"
-        $choice = Read-Host "Enter your choice"
+        Write-Host ""
+        Write-Host "Enter your choice (Number 1-5): " -NoNewline
+        
+        # Wait for user input with Esc key support
+        $choice = $null
+        while ($true) {
+            if ([System.Console]::KeyAvailable) {
+                $key = [System.Console]::ReadKey($true)
+                
+                # Handle Esc key to return
+                if ($key.Key -eq 'Escape') {
+                    return
+                }
+                
+                # Handle Enter key (empty input = return)
+                if ($key.Key -eq 'Enter') {
+                    $choice = ""
+                    break
+                }
+                
+                # Handle numeric keys 1-5
+                if ($key.KeyChar -ge '1' -and $key.KeyChar -le '5') {
+                    $choice = $key.KeyChar.ToString()
+                    Write-Host $choice
+                    break
+                }
+            }
+            Start-Sleep -Milliseconds 50
+        }
 
         switch ($choice) {
             "1" {
@@ -1389,7 +1417,25 @@ function Show-HelpScreen {
     Write-Host ""
     Write-Host "===============================================================" -ForegroundColor DarkGray
     Write-Host ""
-    Read-Host "Press Enter to return to the Main Screen."
+    Write-Host "Press Enter or Esc to return to the Main Screen."
+    
+    # Wait for user input with Esc key support
+    while ($true) {
+        if ([System.Console]::KeyAvailable) {
+            $key = [System.Console]::ReadKey($true)
+            
+            # Handle Enter key to return to main screen
+            if ($key.Key -eq 'Enter') {
+                return
+            }
+            
+            # Handle Esc key to return to main screen
+            if ($key.Key -eq 'Escape') {
+                return
+            }
+        }
+        Start-Sleep -Milliseconds 50
+    }
 }
 
 function Show-LedgerScreen {
@@ -1553,6 +1599,11 @@ function Show-LedgerScreen {
                 return
             }
             
+            # Handle Esc key to return to main screen
+            if ($key.Key -eq 'Escape') {
+                return
+            }
+            
             # Handle 'R' or 'r' for refresh
             if ($key.KeyChar -eq 'R' -or $key.KeyChar -eq 'r') {
                 # Reload config from disk (for portfolio values)
@@ -1668,6 +1719,11 @@ while ($true) {
                 Write-Host "*** Session Summary ***" -ForegroundColor Yellow
                 $sessionValueStartColumn = 22 # Use a consistent start column for this block to align values
 
+                $summary = Get-SessionSummary -SessionStartTime $sessionStartTime
+                if ($summary) {
+                    $totalTransactions = $summary.BuyTransactions + $summary.SellTransactions
+                    Write-AlignedLine -Label "Transactions:" -Value ($totalTransactions.ToString()) -ValueColor "White" -ValueStartColumn $sessionValueStartColumn
+                }
 
                 $finalBtcPrice = if ($apiData -and $apiData.rate) { [decimal]$apiData.rate } else { $initialSessionBtcPrice }
                 $roundedInitial = [math]::Round($initialSessionBtcPrice, 2)
@@ -1689,7 +1745,6 @@ while ($true) {
                     Write-AlignedLine -Label "P/L:" -Value $sessionDisplay -ValueColor $sessionColor -ValueStartColumn $sessionValueStartColumn
                 }
 
-                $summary = Get-SessionSummary -SessionStartTime $sessionStartTime
                 if ($summary) {
                     if ($summary.TotalBuyUSD -gt 0) {
                         Write-AlignedLine -Label "Total Bought (USD):" -Value ("{0:C2}" -f $summary.TotalBuyUSD) -ValueColor "Green" -ValueStartColumn $sessionValueStartColumn
