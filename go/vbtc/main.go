@@ -1011,12 +1011,40 @@ func showLedgerScreen(reader *bufio.Reader) {
 			return // Return to main screen
 		}
 
-		// Handle Esc key (ASCII 27) to return to main screen
+		// Handle Esc key (ASCII 27) - could be Esc or start of arrow key sequence
 		if b == 27 {
-			return
+			// Check if this is an arrow key sequence (ESC [ A/B/C/D)
+			arrowDetected := false
+
+			// Use a very short timeout to check for arrow key sequence
+			select {
+			case nextByte, ok := <-inputChan:
+				if ok && nextByte == '[' {
+					// This looks like an arrow key sequence, read the direction
+					select {
+					case arrowByte, ok := <-inputChan:
+						if ok {
+							switch arrowByte {
+							case 'C': // Right arrow = R (refresh)
+								arrowDetected = true
+								b = 'r'
+							}
+						}
+					case <-time.After(10 * time.Millisecond):
+						// Timeout - not an arrow key, treat as plain Esc
+					}
+				}
+			case <-time.After(10 * time.Millisecond):
+				// Timeout - treat as plain Esc
+			}
+
+			if !arrowDetected {
+				// Plain Esc key pressed - return to main screen
+				return
+			}
 		}
 
-		// Handle 'R' or 'r' for refresh
+		// Handle 'R' or 'r' for refresh (or Right Arrow which was converted to 'r' above)
 		if b == 'R' || b == 'r' {
 			// Close the input goroutine and restore terminal before recursive call
 			restoreNeeded = false // Prevent defer from restoring again

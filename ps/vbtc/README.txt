@@ -75,6 +75,7 @@ When confirming a buy or sell transaction, you can use the following keyboard sh
 ### Modal Navigation
 - **Esc** = Return to main screen from Config, Help, or Ledger screens
 - **Enter** = Confirm selection or return to previous screen
+- **R** or **Right Arrow** = Refresh the ledger screen (reloads transaction data)
 
 ## Tips
 - **Command Shortcuts:** You can use shortcuts for commands (e.g. 'b 10' to buy $10 of BTC). As long as the shortcut is a unique match for a command, it will work.

@@ -1604,8 +1604,8 @@ function Show-LedgerScreen {
                 return
             }
             
-            # Handle 'R' or 'r' for refresh
-            if ($key.KeyChar -eq 'R' -or $key.KeyChar -eq 'r') {
+            # Handle Right Arrow or 'R' or 'r' for refresh
+            if ($key.Key -eq 'RightArrow' -or $key.KeyChar -eq 'R' -or $key.KeyChar -eq 'r') {
                 # Reload config from disk (for portfolio values)
                 $script:config = Get-IniConfiguration -FilePath $iniFilePath
                 if (-not $script:config) {
