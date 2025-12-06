@@ -1224,7 +1224,21 @@ function Invoke-Trade {
                     # Handle Esc key as an alias for 'n' (cancel)
                     elseif ($key.Key -eq 'Escape') {
                         $tradeinput = "n"
-                    } else {
+                    }
+                    # Handle arrow keys as aliases
+                    elseif ($key.Key -eq 'LeftArrow') {
+                        $tradeinput = "n"  # Left arrow = Esc = cancel
+                    }
+                    elseif ($key.Key -eq 'UpArrow') {
+                        $tradeinput = "y"  # Up arrow = Y = accept
+                    }
+                    elseif ($key.Key -eq 'RightArrow') {
+                        $tradeinput = "r"  # Right arrow = R = refresh
+                    }
+                    elseif ($key.Key -eq 'DownArrow') {
+                        $tradeinput = "n"  # Down arrow = N = cancel
+                    }
+                    else {
                         $tradeinput = $key.KeyChar.ToString()
                     }
                     break # Break the inner 250ms loop

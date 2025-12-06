@@ -2163,13 +2163,50 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 					os.Exit(1)
 				}
 
-				// Handle Esc key (ASCII 27) as an alias for 'n' (cancel)
+				// Handle Esc key (ASCII 27) - could be Esc or start of arrow key sequence
 				if b == 27 {
-					// Esc key pressed - treat as cancel
-					fmt.Printf("\n\n%s cancelled.\n", txType)
-					time.Sleep(1 * time.Second)
-					ticker.Stop()
-					return apiData
+					// Check if this is an arrow key sequence (ESC [ A/B/C/D)
+					// Try to read the next bytes quickly to detect arrow keys
+					arrowDetected := false
+					
+					// Use a very short timeout to check for arrow key sequence
+					select {
+					case nextByte, ok := <-inputChan:
+						if ok && nextByte == '[' {
+							// This looks like an arrow key sequence, read the direction
+							select {
+							case arrowByte, ok := <-inputChan:
+								if ok {
+									switch arrowByte {
+									case 'A': // Up arrow = Y (accept)
+										arrowDetected = true
+										b = 'y'
+									case 'B': // Down arrow = N (cancel)
+										arrowDetected = true
+										b = 'n'
+									case 'C': // Right arrow = R (refresh)
+										arrowDetected = true
+										b = 'r'
+									case 'D': // Left arrow = Esc (cancel)
+										arrowDetected = true
+										b = 'n'
+									}
+								}
+							case <-time.After(10 * time.Millisecond):
+								// Timeout - not an arrow key, treat as plain Esc
+							}
+						}
+					case <-time.After(10 * time.Millisecond):
+						// Timeout - treat as plain Esc
+					}
+					
+					if !arrowDetected {
+						// Plain Esc key pressed - treat as cancel
+						fmt.Printf("\n\n%s cancelled.\n", txType)
+						time.Sleep(1 * time.Second)
+						ticker.Stop()
+						return apiData
+					}
 				}
 
 				var rawInput string
