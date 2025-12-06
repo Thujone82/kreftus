@@ -797,6 +797,51 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "esc":
 			return m, tea.Quit
+		case "left":
+			// Left arrow is alias for E (extend session timer)
+			if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeK || m.mode == modeInteractive {
+				m.sessionStartTime = time.Now()
+
+				// Visual feedback: flash the screen
+				m.flashUntil = time.Now().Add(300 * time.Millisecond)
+
+				// Audio feedback: brief beep if sound is enabled
+				if m.soundEnabled {
+					playSound(800, 200)
+				}
+			}
+		case "up":
+			// Up arrow is alias for K
+			if m.mode == modeGo || m.mode == modeGoLong {
+				m.mode = modeK
+				m.sparklineEnabled = true
+				m.sessionStartTime = time.Now()
+				m.monitorStartPrice = currentBtcPrice
+				// Update spinner for k mode
+				m.spinner.Spinner = bspinner.Spinner{Frames: []string{"▏", "▎", "▍", "▌", "▋", "▊", "▉", "█", "▉", "▊", "▋", "▌", "▍", "▎"}, FPS: 500 * time.Millisecond}
+				cmds = append(cmds, m.spinner.Tick)
+			}
+		case "right":
+			// Right arrow is alias for R
+			if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeK || m.mode == modeInteractive {
+				m.monitorStartPrice = currentBtcPrice
+				m.sessionStartTime = time.Now()
+			}
+		case "down":
+			// Down arrow is alias for M
+			if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeK {
+				if m.mode == modeGo {
+					m.mode = modeGoLong
+					m.spinner.Spinner = bspinner.Spinner{Frames: []string{"▚", "▚", "▚", "▚", "▚", "▚", "▞", "▞", "▞", "▞", "▞", "▞"}, FPS: 500 * time.Millisecond}
+				} else {
+					// Switch to go mode from golong or k mode
+					m.mode = modeGo
+					m.spinner.Spinner = bspinner.Spinner{Frames: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}, FPS: 500 * time.Millisecond}
+				}
+				m.sessionStartTime = time.Now()
+				m.monitorStartPrice = currentBtcPrice
+				cmds = append(cmds, m.spinner.Tick)
+			}
 		case " ":
 			switch m.mode {
 			case modeLanding:

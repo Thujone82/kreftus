@@ -563,6 +563,55 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent) {
 
                 if ([System.Console]::KeyAvailable) {
                     $keyInfo = [System.Console]::ReadKey($true)
+                    # Arrow key aliases
+                    if ($keyInfo.Key -eq 'LeftArrow') {
+                        # Left arrow is alias for E (extend session timer)
+                        # Extend session timer without changing comparison baseline
+                        $monitorStartTime = Get-Date
+                        # do not mark refreshed; keep baseline
+                        
+                        # Visual feedback: flash the screen using existing mechanism
+                        $spinnerChar = $spinner[$spinnerIndex]
+                        $sparklineString = if ($sparklineEnabled) { " $(Get-Sparkline -History $priceHistory)" } else { " Bitcoin (USD):" }
+                        $restOfLine = "$sparklineString $($currentBtcPrice.ToString("C2"))$changeString"
+                        $fullLine = "$spinnerChar$restOfLine"
+                        $paddedLine = $fullLine.PadRight([System.Console]::WindowWidth)
+                        
+                        # Flash with inverted colors
+                        Write-Host -NoNewline -BackgroundColor $priceColor -ForegroundColor Black "$paddedLine`r"
+                        Start-Sleep -Milliseconds 300
+                        
+                        # Audio feedback: brief beep if sound is enabled
+                        if ($soundEnabled) {
+                            [System.Console]::Beep(800, 200)
+                        }
+                    }
+                    if ($keyInfo.Key -eq 'UpArrow') {
+                        # Up arrow is alias for K
+                        $currentMode = 'k'
+                        $sparklineEnabled = $true
+                        $monitorStartTime = Get-Date
+                        $monitorStartPrice = $currentBtcPrice
+                        $modeSwitched = $true
+                        $spinnerIndex = 0
+                        break
+                    }
+                    if ($keyInfo.Key -eq 'RightArrow') {
+                        # Right arrow is alias for R
+                        $monitorStartPrice = $currentBtcPrice
+                        $monitorStartTime = Get-Date
+                        $refreshed = $true
+                        break
+                    }
+                    if ($keyInfo.Key -eq 'DownArrow') {
+                        # Down arrow is alias for M
+                        $currentMode = if ($currentMode -eq 'go') { 'golong' } else { 'go' }
+                        $monitorStartTime = Get-Date
+                        $monitorStartPrice = $currentBtcPrice
+                        $modeSwitched = $true
+                        $spinnerIndex = 0
+                        break
+                    }
                     if ($keyInfo.Key -eq 'Escape') {
                         [System.Console]::CursorVisible = $true
                         [System.Console]::ResetColor()
@@ -770,6 +819,27 @@ else {
             while (((Get-Date) - $waitStart).TotalSeconds -lt 5) {
                 if ([System.Console]::KeyAvailable) {
                     $keyInfo = [System.Console]::ReadKey($true)
+                    # Arrow key aliases
+                    if ($keyInfo.Key -eq 'LeftArrow') {
+                        # Left arrow is alias for E (extend session timer)
+                        # Extend interactive session timer without changing baseline
+                        $monitorStartTime = Get-Date
+                        
+                        # Visual feedback: flash the screen
+                        & $drawScreen -InvertColors $true -ChangeString $changeString -PriceColor $priceColor
+                        Start-Sleep -Milliseconds 300
+                        & $drawScreen -InvertColors $false -ChangeString $changeString -PriceColor $priceColor
+                        
+                        # Audio feedback: brief beep if sound is enabled
+                        if ($soundEnabled) {
+                            [System.Console]::Beep(800, 200)
+                        }
+                    }
+                    if ($keyInfo.Key -eq 'RightArrow') {
+                        # Right arrow is alias for R
+                        $refreshed = $true
+                        break
+                    }
                     if ($keyInfo.Key -eq 'Escape') {
                         [System.Console]::CursorVisible = $true
                         [System.Console]::ResetColor()
