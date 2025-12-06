@@ -89,8 +89,8 @@ The `ledger` command now provides comprehensive trading statistics across all yo
 ### Statistics Displayed
 - **Transaction Count**: Total number of buy and sell transactions
 - **Total Bought/Sold (USD & BTC)**: Complete trading volume
-- **Average Purchase Price**: Weighted average BTC price for all buy transactions
-- **Average Sale Price**: Weighted average BTC price for all sell transactions  
+- **Average Purchase**: Weighted average BTC price for all buy transactions
+- **Average Sale**: Weighted average BTC price for all sell transactions  
 - **Net BTC Position**: Current Bitcoin holdings (Total Bought - Total Sold)
 - **Net Trading P/L (USD)**: Overall trading profit/loss
 

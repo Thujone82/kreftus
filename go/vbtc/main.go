@@ -919,11 +919,11 @@ func showLedgerScreen(reader *bufio.Reader) {
 	}
 
 	if summary.AvgBuyPrice > 0 {
-		writeAlignedLine("Average Purchase Price:", fmt.Sprintf("$%s", formatFloat(summary.AvgBuyPrice, 2)), color.New(color.FgGreen), summaryValueStartColumn)
+		writeAlignedLine("Average Purchase:", fmt.Sprintf("$%s", formatFloat(summary.AvgBuyPrice, 2)), color.New(color.FgGreen), summaryValueStartColumn)
 	}
 
 	if summary.AvgSalePrice > 0 {
-		writeAlignedLine("Average Sale Price:", fmt.Sprintf("$%s", formatFloat(summary.AvgSalePrice, 2)), color.New(color.FgRed), summaryValueStartColumn)
+		writeAlignedLine("Average Sale:", fmt.Sprintf("$%s", formatFloat(summary.AvgSalePrice, 2)), color.New(color.FgRed), summaryValueStartColumn)
 	}
 
 	fmt.Println("\nPress Enter to return to Main screen, or R to refresh")
@@ -1179,10 +1179,10 @@ func showExitScreen(reader *bufio.Reader) {
 
 		// Display average prices
 		if allTimeSummary.AvgBuyPrice > 0 {
-			writeAlignedLine("Average Purchase Price:", fmt.Sprintf("$%s", formatFloat(allTimeSummary.AvgBuyPrice, 2)), color.New(color.FgGreen), ledgerValueStartColumn)
+			writeAlignedLine("Average Purchase:", fmt.Sprintf("$%s", formatFloat(allTimeSummary.AvgBuyPrice, 2)), color.New(color.FgGreen), ledgerValueStartColumn)
 		}
 		if allTimeSummary.AvgSalePrice > 0 {
-			writeAlignedLine("Average Sale Price:", fmt.Sprintf("$%s", formatFloat(allTimeSummary.AvgSalePrice, 2)), color.New(color.FgRed), ledgerValueStartColumn)
+			writeAlignedLine("Average Sale:", fmt.Sprintf("$%s", formatFloat(allTimeSummary.AvgSalePrice, 2)), color.New(color.FgRed), ledgerValueStartColumn)
 		}
 
 		// Net BTC Position

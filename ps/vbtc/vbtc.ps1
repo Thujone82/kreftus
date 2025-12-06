@@ -1576,11 +1576,11 @@ function Show-LedgerScreen {
                 }
 
                 if ($summary.AvgBuyPrice -gt 0) {
-                    Write-AlignedLine -Label "Average Purchase Price:" -Value ("{0:C2}" -f $summary.AvgBuyPrice) -ValueColor "Green"
+                    Write-AlignedLine -Label "Average Purchase:" -Value ("{0:C2}" -f $summary.AvgBuyPrice) -ValueColor "Green"
                 }
 
                 if ($summary.AvgSalePrice -gt 0) {
-                    Write-AlignedLine -Label "Average Sale Price:" -Value ("{0:C2}" -f $summary.AvgSalePrice) -ValueColor "Red"
+                    Write-AlignedLine -Label "Average Sale:" -Value ("{0:C2}" -f $summary.AvgSalePrice) -ValueColor "Red"
                 }
             }
         }
@@ -1782,10 +1782,10 @@ while ($true) {
 
                     # Display average prices
                     if ($allTimeSummary.AvgBuyPrice -gt 0) {
-                        Write-AlignedLine -Label "Average Purchase Price:" -Value ("{0:C2}" -f $allTimeSummary.AvgBuyPrice) -ValueColor "Green" -ValueStartColumn $ledgerValueStartColumn
+                        Write-AlignedLine -Label "Average Purchase:" -Value ("{0:C2}" -f $allTimeSummary.AvgBuyPrice) -ValueColor "Green" -ValueStartColumn $ledgerValueStartColumn
                     }
                     if ($allTimeSummary.AvgSalePrice -gt 0) {
-                        Write-AlignedLine -Label "Average Sale Price:" -Value ("{0:C2}" -f $allTimeSummary.AvgSalePrice) -ValueColor "Red" -ValueStartColumn $ledgerValueStartColumn
+                        Write-AlignedLine -Label "Average Sale:" -Value ("{0:C2}" -f $allTimeSummary.AvgSalePrice) -ValueColor "Red" -ValueStartColumn $ledgerValueStartColumn
                     }
 
                     # Net BTC Position

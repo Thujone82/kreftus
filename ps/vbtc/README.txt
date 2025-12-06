@@ -91,8 +91,8 @@ The `ledger` command now provides comprehensive trading statistics across all yo
 - **Portfolio Summary**: Current portfolio value, total profit/loss, Bitcoin holdings, invested amount, and cash
 - **Transaction Count**: Total number of buy and sell transactions
 - **Total Bought (USD & BTC)**: Complete buy trading volume
-- **Average Purchase Price**: Weighted average BTC price for all buy transactions
-- **Average Sale Price**: Weighted average BTC price for all sell transactions
+- **Average Purchase**: Weighted average BTC price for all buy transactions
+- **Average Sale**: Weighted average BTC price for all sell transactions
 
 ### Archive Support
 - **Current Ledger**: Reads from `ledger.csv`
