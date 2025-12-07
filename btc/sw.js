@@ -1,4 +1,4 @@
-const CACHE_NAME = 'btc-track-cache-v1-072825@1558'; // Ensure this is updated with current MMDD@HHMM
+const CACHE_NAME = 'btc-track-cache-v1-120725@0719'; // Ensure this is updated with current MMDD@HHMM
 // API_DATA_CACHE_NAME and IndexedDB related constants are removed as SW no longer handles API data.
 
 const urlsToCache = [
