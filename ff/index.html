@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -65,6 +65,16 @@
             cursor: pointer;
             border: none;
         }
+
+        /* Portrait mode: move canvas to top */
+        @media (orientation: portrait) and (max-width: 767px) {
+            main {
+                order: -1;
+            }
+            aside {
+                order: 0;
+            }
+        }
     </style>
 </head>
 <body class="w-screen bg-slate-900 flex flex-col landscape:flex-row md:flex-row h-auto min-h-screen landscape:h-screen md:h-screen landscape:overflow-hidden md:overflow-hidden">
@@ -92,6 +102,27 @@
             <div class="bg-slate-800 rounded p-2 border border-slate-700">
                 <div class="text-slate-500 font-bold text-lg" id="stat-empty">0%</div>
                 <div class="text-[10px] text-slate-400 uppercase">Empty</div>
+            </div>
+        </div>
+
+        <!-- Top 10 Fires -->
+        <div class="mb-6 shrink-0">
+            <h2 class="text-sm font-semibold mb-2 text-slate-300">Top 10 Fires</h2>
+            <div class="bg-slate-800 rounded border border-slate-700 p-3 h-24 overflow-y-auto custom-scroll">
+                <div id="top10-fires" class="text-xs space-y-1">
+                    <div class="text-slate-500 text-center py-2">No fires yet</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fire Size Distribution -->
+        <div class="mb-6 shrink-0">
+            <h2 class="text-sm font-semibold mb-2 text-slate-300">Fire Size Distribution</h2>
+            <div class="bg-slate-800 rounded border border-slate-700 p-3">
+                <div id="fire-distribution" class="flex items-end justify-between gap-1 h-32">
+                    <!-- Bars will be inserted here -->
+                    <div class="text-slate-500 text-center text-xs w-full">No data yet</div>
+                </div>
             </div>
         </div>
 
@@ -173,6 +204,12 @@ let isRunning = true;
 let animationId;
 let lastFrameTime = 0;
 
+// Lightning Strike Tracking
+let strikeIdGrid = [];
+let nextStrikeIdGrid = [];
+let nextStrikeId = 1;
+let strikeCounts = new Map(); // Map<strikeId, count>
+
 // Initial Parameters (Will be overwritten by slider init)
 let probLightning = 0.00001;
 let probGrowth = 0.01;
@@ -193,6 +230,8 @@ const statEmpty = document.getElementById('stat-empty');
 const inputLightning = document.getElementById('input-lightning');
 const inputGrowth = document.getElementById('input-growth');
 const inputSpeed = document.getElementById('input-speed');
+const top10Fires = document.getElementById('top10-fires');
+const fireDistribution = document.getElementById('fire-distribution');
 
 /**
  * Initialize the Grid
@@ -201,11 +240,16 @@ function initGrid() {
     const totalSize = gridWidth * gridHeight;
     grid = new Int8Array(totalSize);
     nextGrid = new Int8Array(totalSize);
+    strikeIdGrid = new Int16Array(totalSize);
+    nextStrikeIdGrid = new Int16Array(totalSize);
+    nextStrikeId = 1;
+    strikeCounts.clear();
     
     // Start with random trees
     for (let i = 0; i < grid.length; i++) {
         // Lower initial density to show off growth
         grid[i] = Math.random() > 0.7 ? STATE_TREE : STATE_EMPTY;
+        strikeIdGrid[i] = 0; // No strike ID initially
     }
 }
 
@@ -305,6 +349,17 @@ function hasBurningNeighbor(x, y) {
     return false;
 }
 
+function getBurningNeighborStrikeId(x, y) {
+    const neighbors = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+    for (let [dx, dy] of neighbors) {
+        const idx = getIndex(x + dx, y + dy);
+        if (idx !== -1 && grid[idx] === STATE_BURNING) {
+            return strikeIdGrid[idx];
+        }
+    }
+    return 0;
+}
+
 /**
  * Main Update Loop
  */
@@ -317,18 +372,32 @@ function update() {
         for (let x = 0; x < gridWidth; x++) {
             const i = y * gridWidth + x;
             const state = grid[i];
+            const currentStrikeId = strikeIdGrid[i];
 
             if (state === STATE_BURNING) {
                 nextGrid[i] = STATE_EMPTY;
+                nextStrikeIdGrid[i] = 0;
+                
+                // Increment count for this strike when fire extinguishes
+                if (currentStrikeId > 0) {
+                    strikeCounts.set(currentStrikeId, (strikeCounts.get(currentStrikeId) || 0) + 1);
+                }
             } 
             else if (state === STATE_TREE) {
-                if (hasBurningNeighbor(x, y)) {
+                const neighborStrikeId = getBurningNeighborStrikeId(x, y);
+                if (neighborStrikeId > 0) {
+                    // Fire spreads from neighbor - inherit strike ID
                     nextGrid[i] = STATE_BURNING;
+                    nextStrikeIdGrid[i] = neighborStrikeId;
                 }
                 else if (Math.random() < probLightning) {
+                    // Lightning strike - assign new strike ID
                     nextGrid[i] = STATE_BURNING;
+                    nextStrikeIdGrid[i] = nextStrikeId++;
+                    strikeCounts.set(nextStrikeIdGrid[i], 0); // Initialize count
                 } else {
                     nextGrid[i] = STATE_TREE;
+                    nextStrikeIdGrid[i] = 0;
                 }
             } 
             else if (state === STATE_EMPTY) {
@@ -337,6 +406,7 @@ function update() {
                 } else {
                     nextGrid[i] = STATE_EMPTY;
                 }
+                nextStrikeIdGrid[i] = 0;
             }
             
             // Count stats for the NEXT frame to be accurate
@@ -348,6 +418,10 @@ function update() {
     const temp = grid;
     grid = nextGrid;
     nextGrid = temp;
+    
+    const tempStrike = strikeIdGrid;
+    strikeIdGrid = nextStrikeIdGrid;
+    nextStrikeIdGrid = tempStrike;
 
     // Update UI occasionally
     if (Math.random() < 0.1) {
@@ -486,6 +560,8 @@ btnReset.addEventListener('click', () => {
     statTrees.textContent = "0%";
     statFire.textContent = "0%";
     statEmpty.textContent = "0%";
+    updateTop10Fires();
+    updateFireDistribution();
 });
 
 btnPause.addEventListener('click', () => {
@@ -585,6 +661,123 @@ document.addEventListener('touchend', (e) => {
     }
 });
 
+/**
+ * Update Top 10 Fires Display
+ */
+function updateTop10Fires() {
+    if (strikeCounts.size === 0) {
+        top10Fires.innerHTML = '<div class="text-slate-500 text-center py-2">No fires yet</div>';
+        return;
+    }
+    
+    // Convert map to array and sort by count (descending)
+    const sorted = Array.from(strikeCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+    
+    if (sorted.length === 0) {
+        top10Fires.innerHTML = '<div class="text-slate-500 text-center py-2">No fires yet</div>';
+        return;
+    }
+    
+    let html = '';
+    sorted.forEach(([strikeId, count], index) => {
+        const rank = index + 1;
+        html += `<div class="flex justify-between items-center py-1 px-2 rounded ${index < 3 ? 'bg-slate-700' : ''}">
+            <span class="text-slate-400">#${rank}</span>
+            <span class="text-orange-400 font-medium">#${strikeId}</span>
+            <span class="text-slate-300">${count.toLocaleString()} trees</span>
+        </div>`;
+    });
+    top10Fires.innerHTML = html;
+}
+
+/**
+ * Update Fire Size Distribution Display
+ */
+function updateFireDistribution() {
+    if (strikeCounts.size === 0) {
+        fireDistribution.innerHTML = '<div class="text-slate-500 text-center text-xs w-full">No data yet</div>';
+        return;
+    }
+    
+    // Get all strike counts, excluding 0 and 1 tree fires
+    const allCounts = Array.from(strikeCounts.values()).filter(count => count > 1);
+    
+    if (allCounts.length === 0) {
+        fireDistribution.innerHTML = '<div class="text-slate-500 text-center text-xs w-full">No significant fires yet</div>';
+        return;
+    }
+    
+    // Find max value
+    const maxCount = Math.max(...allCounts);
+    
+    if (maxCount <= 1) {
+        // All remaining strikes are 1 or less (shouldn't happen after filter, but safety check)
+        fireDistribution.innerHTML = '<div class="text-slate-500 text-center text-xs w-full">No significant fires yet</div>';
+        return;
+    }
+    
+    // Create 10 bins for 10th percentiles (0-10%, 10-20%, ..., 90-100%)
+    const bins = new Array(10).fill(0);
+    const binSize = maxCount / 10;
+    
+    // Bin the counts (all counts are > 1 at this point)
+    allCounts.forEach(count => {
+        if (count >= maxCount) {
+            bins[9]++; // Max value goes in the last bin
+        } else {
+            // Find which bin this count belongs to (0-9)
+            // Use Math.min to ensure we don't exceed bin 9
+            const binIndex = Math.min(Math.floor(count / binSize), 9);
+            bins[binIndex]++;
+        }
+    });
+    
+    // Find max bin count for scaling
+    const maxBinCount = Math.max(...bins);
+    
+    // Generate bars with logarithmic scaling
+    let html = '';
+    bins.forEach((count, index) => {
+        // Use logarithmic scale for better visibility of smaller counts
+        // Add 1 to avoid log(0) and ensure proper scaling
+        const logCount = Math.log10(count + 1);
+        const logMax = Math.log10(maxBinCount + 1);
+        const heightPercent = maxBinCount > 0 && count > 0 ? (logCount / logMax) * 100 : 0;
+        const barHeight = Math.max(heightPercent, 2); // Minimum 2% height for visibility
+        
+        // Dynamic color based on height (green to yellow to red)
+        let color;
+        if (heightPercent < 33) {
+            // Green to yellow
+            const ratio = heightPercent / 33;
+            color = `rgb(${Math.floor(34 + ratio * 221)}, ${Math.floor(197 + ratio * 58)}, ${Math.floor(34 - ratio * 34)})`;
+        } else if (heightPercent < 66) {
+            // Yellow to orange
+            const ratio = (heightPercent - 33) / 33;
+            color = `rgb(${Math.floor(255 - ratio * 45)}, ${Math.floor(255 - ratio * 100)}, ${Math.floor(0)})`;
+        } else {
+            // Orange to red
+            const ratio = (heightPercent - 66) / 34;
+            color = `rgb(${Math.floor(255 - ratio * 0)}, ${Math.floor(140 - ratio * 140)}, ${Math.floor(0)})`;
+        }
+        
+        const percentileLabel = index === 0 ? '0-10%' : `${index * 10}-${(index + 1) * 10}%`;
+        html += `<div class="flex flex-col items-center flex-1" style="height: 100%;">
+            <div class="flex-1 flex items-end w-full">
+                <div class="w-full rounded-t transition-all duration-300" 
+                     style="height: ${barHeight}%; background-color: ${color}; min-height: 2px;"
+                     title="${percentileLabel}: ${count} fires">
+                </div>
+            </div>
+            <div class="text-[9px] text-slate-500 mt-1 text-center">${index * 10}%</div>
+        </div>`;
+    });
+    
+    fireDistribution.innerHTML = html;
+}
+
 // Setup
 window.addEventListener('resize', resizeCanvas);
 window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 100));
@@ -596,6 +789,12 @@ probGrowth = Math.pow(inputGrowth.value / 100, 3) * GROWTH_MAX;
 
 resizeCanvas(); 
 loop(0);
+
+// Update Top 10 Fires list and Fire Size Distribution every 3 seconds
+setInterval(() => {
+    updateTop10Fires();
+    updateFireDistribution();
+}, 3000);
 
 </script>
 </body>
