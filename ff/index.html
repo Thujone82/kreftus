@@ -415,7 +415,7 @@ function update() {
                     nextStrikeIdGrid[i] = neighborStrikeId;
                     nextTreeGreenGrid[i] = 255; // Clear tree color when burning
                 }
-                else if (Math.random() < probLightning) {
+                else if (probLightning > 0 && !isNaN(probLightning) && Math.random() < probLightning) {
                     // Lightning strike - assign new strike ID
                     nextGrid[i] = STATE_BURNING;
                     nextStrikeIdGrid[i] = nextStrikeId++;
@@ -566,10 +566,15 @@ const LIGHTNING_MAX = 0.0002;
 const LIGHTNING_MIN = 0.000000003;
 
 inputLightning.addEventListener('input', (e) => {
-    const val = parseInt(e.target.value);
+    const val = parseInt(e.target.value) || 0; // Default to 0 if NaN
     
     // Power 4 curve + Minimum floor
     probLightning = LIGHTNING_MIN + (Math.pow(val / 100, 4) * (LIGHTNING_MAX - LIGHTNING_MIN));
+    
+    // Ensure probability is valid
+    if (isNaN(probLightning) || probLightning < 0) {
+        probLightning = LIGHTNING_MIN;
+    }
     
     let text = "Ultra Rare";
     if (val > 25) text = "Rare";
@@ -579,13 +584,29 @@ inputLightning.addEventListener('input', (e) => {
 });
 
 // Growth Logic:
-const GROWTH_MAX = 0.0025; 
+const GROWTH_MAX = 0.0025;
+const GROWTH_MIN = Math.pow(5 / 100, 3) * GROWTH_MAX; // Value that was at 5% is now the minimum
 
 inputGrowth.addEventListener('input', (e) => {
-    const val = parseInt(e.target.value);
+    const val = parseInt(e.target.value) || 0; // Default to 0 if NaN
     
-    // Power 3 curve
-    probGrowth = val === 0 ? 0 : Math.pow(val / 100, 3) * GROWTH_MAX;
+    // Map slider value (0-100) to probability range (GROWTH_MIN to GROWTH_MAX)
+    // When slider is 0, use GROWTH_MIN (old 5% value)
+    // When slider is 100, use GROWTH_MAX (old 100% value)
+    if (val === 0) {
+        probGrowth = GROWTH_MIN;
+    } else {
+        // Linear interpolation from GROWTH_MIN to GROWTH_MAX
+        // Using power 3 curve but shifted so 0 maps to GROWTH_MIN
+        const normalizedVal = val / 100; // 0 to 1
+        const powerCurve = Math.pow(normalizedVal, 3);
+        probGrowth = GROWTH_MIN + (powerCurve * (GROWTH_MAX - GROWTH_MIN));
+    }
+    
+    // Ensure probability is valid
+    if (isNaN(probGrowth) || probGrowth < 0) {
+        probGrowth = GROWTH_MIN;
+    }
 
     let text = "Stagnant";
     if (val > 25) text = "Years";
@@ -889,8 +910,23 @@ window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 100)
 initGrid();
 
 // Initialize scale variables based on slider defaults
-probLightning = LIGHTNING_MIN + (Math.pow(inputLightning.value / 100, 4) * (LIGHTNING_MAX - LIGHTNING_MIN));
-probGrowth = Math.pow(inputGrowth.value / 100, 3) * GROWTH_MAX;
+const initialLightningVal = parseInt(inputLightning.value) || 23; // Default to 23 if invalid
+probLightning = LIGHTNING_MIN + (Math.pow(initialLightningVal / 100, 4) * (LIGHTNING_MAX - LIGHTNING_MIN));
+if (isNaN(probLightning) || probLightning < 0) {
+    probLightning = LIGHTNING_MIN;
+}
+
+const initialGrowthVal = parseInt(inputGrowth.value) || 48; // Default to 48 if invalid
+if (initialGrowthVal === 0) {
+    probGrowth = GROWTH_MIN;
+} else {
+    const normalizedVal = initialGrowthVal / 100;
+    const powerCurve = Math.pow(normalizedVal, 3);
+    probGrowth = GROWTH_MIN + (powerCurve * (GROWTH_MAX - GROWTH_MIN));
+}
+if (isNaN(probGrowth) || probGrowth < 0) {
+    probGrowth = GROWTH_MIN;
+}
 
 resizeCanvas(); 
 loop(0);
