@@ -672,38 +672,75 @@ document.addEventListener('touchend', (e) => {
     const dx = touchEndX - touchStartX;
     const dy = touchEndY - touchStartY;
     
-    // We removed the manual tap detection here.
-    // We rely on the standard 'click' event (added above) for Taps/Clicks 
-    // to toggle fullscreen. This is safer on mobile as it handles sloppy taps better.
+    // Check if we're in fullscreen mode
+    const isFullscreen = !!document.fullscreenElement;
     
     // Swipe Logic (> 30px move)
-    if (Math.abs(dx) > Math.abs(dy)) {
-        // Horizontal Swipe (Growth)
-        if (Math.abs(dx) > 30) { 
-            if (dx > 0) {
-                // Right
-                const newVal = Math.min(100, parseInt(inputGrowth.value) + STEP_SIZE);
-                inputGrowth.value = newVal;
+    if (isFullscreen) {
+        // Fullscreen mode: Use horizontal swipes based on screen position
+        // Top half = Lightning, Bottom half = Regrowth
+        if (Math.abs(dx) > 30 && Math.abs(dx) > Math.abs(dy)) {
+            // Horizontal swipe detected
+            const screenHeight = window.innerHeight;
+            const touchY = touchStartY; // Use start position to determine which half
+            
+            if (touchY < screenHeight / 2) {
+                // Top half: Control Lightning
+                if (dx > 0) {
+                    // Right = Increase
+                    const newVal = Math.min(100, parseInt(inputLightning.value) + STEP_SIZE);
+                    inputLightning.value = newVal;
+                } else {
+                    // Left = Decrease
+                    const newVal = Math.max(0, parseInt(inputLightning.value) - STEP_SIZE);
+                    inputLightning.value = newVal;
+                }
+                inputLightning.dispatchEvent(new Event('input'));
             } else {
-                // Left
-                const newVal = Math.max(0, parseInt(inputGrowth.value) - STEP_SIZE);
-                inputGrowth.value = newVal;
+                // Bottom half: Control Regrowth
+                if (dx > 0) {
+                    // Right = Increase
+                    const newVal = Math.min(100, parseInt(inputGrowth.value) + STEP_SIZE);
+                    inputGrowth.value = newVal;
+                } else {
+                    // Left = Decrease
+                    const newVal = Math.max(0, parseInt(inputGrowth.value) - STEP_SIZE);
+                    inputGrowth.value = newVal;
+                }
+                inputGrowth.dispatchEvent(new Event('input'));
             }
-            inputGrowth.dispatchEvent(new Event('input'));
         }
+        // Ignore vertical swipes in fullscreen to avoid closing fullscreen
     } else {
-        // Vertical Swipe (Lightning)
-        if (Math.abs(dy) > 30) {
-            if (dy < 0) {
-                // Up
-                const newVal = Math.min(100, parseInt(inputLightning.value) + STEP_SIZE);
-                inputLightning.value = newVal;
-            } else {
-                // Down
-                const newVal = Math.max(0, parseInt(inputLightning.value) - STEP_SIZE);
-                inputLightning.value = newVal;
+        // Normal mode: Keep original behavior
+        if (Math.abs(dx) > Math.abs(dy)) {
+            // Horizontal Swipe (Growth)
+            if (Math.abs(dx) > 30) { 
+                if (dx > 0) {
+                    // Right
+                    const newVal = Math.min(100, parseInt(inputGrowth.value) + STEP_SIZE);
+                    inputGrowth.value = newVal;
+                } else {
+                    // Left
+                    const newVal = Math.max(0, parseInt(inputGrowth.value) - STEP_SIZE);
+                    inputGrowth.value = newVal;
+                }
+                inputGrowth.dispatchEvent(new Event('input'));
             }
-            inputLightning.dispatchEvent(new Event('input'));
+        } else {
+            // Vertical Swipe (Lightning)
+            if (Math.abs(dy) > 30) {
+                if (dy < 0) {
+                    // Up
+                    const newVal = Math.min(100, parseInt(inputLightning.value) + STEP_SIZE);
+                    inputLightning.value = newVal;
+                } else {
+                    // Down
+                    const newVal = Math.max(0, parseInt(inputLightning.value) - STEP_SIZE);
+                    inputLightning.value = newVal;
+                }
+                inputLightning.dispatchEvent(new Event('input'));
+            }
         }
     }
 });
