@@ -223,7 +223,7 @@ const TREE_COLORS = [
 
 let treeGreenGrid = []; // Store tree color index for each tree (0-7, 255 = no tree)
 let nextTreeGreenGrid = []; // Double-buffering for tree green shades
-let currentTreeColorIndex = 0; // Current active color index (rotates every 15 seconds)
+let currentTreeColorIndex = 0; // Current active color index (rotates every 30 seconds)
 
 // Initial Parameters (Will be overwritten by slider init)
 let probLightning = 0.00001;
@@ -847,12 +847,33 @@ function updateFireDistribution() {
             color = `rgb(${Math.floor(255 - ratio * 0)}, ${Math.floor(140 - ratio * 140)}, ${Math.floor(0)})`;
         }
         
+        // Calculate the fire size range for this bin
+        let minSize, maxSize;
+        if (index === 0) {
+            // First bin: 2 to binSize (since we filter out 0 and 1)
+            minSize = 2;
+            maxSize = Math.ceil(binSize);
+        } else if (index === 9) {
+            // Last bin: from previous bin's max to maxCount
+            minSize = Math.ceil(binSize * 9) + 1;
+            maxSize = maxCount;
+        } else {
+            // Middle bins
+            minSize = Math.ceil(binSize * index) + 1;
+            maxSize = Math.ceil(binSize * (index + 1));
+        }
+        
+        const sizeRangeLabel = minSize === maxSize 
+            ? `${minSize.toLocaleString()} trees` 
+            : `${minSize.toLocaleString()}-${maxSize.toLocaleString()} trees`;
         const percentileLabel = index === 0 ? '0-10%' : `${index * 10}-${(index + 1) * 10}%`;
+        const tooltipText = `${sizeRangeLabel} (${percentileLabel}): ${count} fires`;
+        
         html += `<div class="flex flex-col items-center flex-1" style="height: 100%;">
             <div class="flex-1 flex items-end w-full">
                 <div class="w-full rounded-t transition-all duration-300" 
                      style="height: ${barHeight}%; background-color: ${color}; min-height: 2px;"
-                     title="${percentileLabel}: ${count} fires">
+                     title="${tooltipText}">
                 </div>
             </div>
             <div class="text-[9px] text-slate-500 mt-1 text-center">${index * 10}%</div>
@@ -890,8 +911,8 @@ function rotateTreeColor() {
     console.log(`Tree color rotated: ${oldIndex} -> ${currentTreeColorIndex} (${TREE_COLORS[currentTreeColorIndex].g} green)`);
 }
 
-// Rotate tree color every 15 seconds
-setInterval(rotateTreeColor, 15000);
+// Rotate tree color every 30 seconds
+setInterval(rotateTreeColor, 30000);
 
 </script>
 </body>
