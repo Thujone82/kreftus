@@ -210,6 +210,21 @@ let nextStrikeIdGrid = [];
 let nextStrikeId = 1;
 let strikeCounts = new Map(); // Map<strikeId, count>
 
+// Tree Colors - 8 distinct tree color shades (more visually distinct)
+const TREE_COLORS = [
+    { r: 122, g: 215, b: 82 },   // Lime green
+    { r: 10, g: 160, b: 70 },   // Standard green
+    { r: 15, g: 180, b: 80 },   // Bright green
+    { r: 20, g: 200, b: 90 },   // Light green
+    { r: 185, g: 205, b: 0 },  // Golden yellow
+    { r: 5, g: 130, b: 75 },    // Cooler green (more blue)
+    { r: 18, g: 170, b: 65 }    // Balanced green
+];
+
+let treeGreenGrid = []; // Store tree color index for each tree (0-7, 255 = no tree)
+let nextTreeGreenGrid = []; // Double-buffering for tree green shades
+let currentTreeColorIndex = 0; // Current active color index (rotates every 15 seconds)
+
 // Initial Parameters (Will be overwritten by slider init)
 let probLightning = 0.00001;
 let probGrowth = 0.01;
@@ -242,6 +257,8 @@ function initGrid() {
     nextGrid = new Int8Array(totalSize);
     strikeIdGrid = new Int16Array(totalSize);
     nextStrikeIdGrid = new Int16Array(totalSize);
+    treeGreenGrid = new Uint8Array(totalSize);
+    nextTreeGreenGrid = new Uint8Array(totalSize);
     nextStrikeId = 1;
     strikeCounts.clear();
     
@@ -250,6 +267,12 @@ function initGrid() {
         // Lower initial density to show off growth
         grid[i] = Math.random() > 0.7 ? STATE_TREE : STATE_EMPTY;
         strikeIdGrid[i] = 0; // No strike ID initially
+        // Initialize tree color for existing trees
+        if (grid[i] === STATE_TREE) {
+            treeGreenGrid[i] = Math.floor(Math.random() * TREE_COLORS.length); // Random color index
+        } else {
+            treeGreenGrid[i] = 255; // Use 255 as "no tree" marker (valid indices are 0-7)
+        }
     }
 }
 
@@ -377,6 +400,7 @@ function update() {
             if (state === STATE_BURNING) {
                 nextGrid[i] = STATE_EMPTY;
                 nextStrikeIdGrid[i] = 0;
+                nextTreeGreenGrid[i] = 255; // Clear tree color (no tree marker)
                 
                 // Increment count for this strike when fire extinguishes
                 if (currentStrikeId > 0) {
@@ -389,22 +413,29 @@ function update() {
                     // Fire spreads from neighbor - inherit strike ID
                     nextGrid[i] = STATE_BURNING;
                     nextStrikeIdGrid[i] = neighborStrikeId;
+                    nextTreeGreenGrid[i] = 255; // Clear tree color when burning
                 }
                 else if (Math.random() < probLightning) {
                     // Lightning strike - assign new strike ID
                     nextGrid[i] = STATE_BURNING;
                     nextStrikeIdGrid[i] = nextStrikeId++;
                     strikeCounts.set(nextStrikeIdGrid[i], 0); // Initialize count
+                    nextTreeGreenGrid[i] = 255; // Clear tree color when burning
                 } else {
+                    // Tree stays a tree - preserve its color
                     nextGrid[i] = STATE_TREE;
                     nextStrikeIdGrid[i] = 0;
+                    nextTreeGreenGrid[i] = treeGreenGrid[i]; // Preserve existing color
                 }
             } 
             else if (state === STATE_EMPTY) {
                 if (Math.random() < probGrowth) {
+                    // New tree grows - assign current active color
                     nextGrid[i] = STATE_TREE;
+                    nextTreeGreenGrid[i] = currentTreeColorIndex; // Use current active color
                 } else {
                     nextGrid[i] = STATE_EMPTY;
+                    nextTreeGreenGrid[i] = 255; // No tree marker
                 }
                 nextStrikeIdGrid[i] = 0;
             }
@@ -422,6 +453,10 @@ function update() {
     const tempStrike = strikeIdGrid;
     strikeIdGrid = nextStrikeIdGrid;
     nextStrikeIdGrid = tempStrike;
+    
+    const tempGreen = treeGreenGrid;
+    treeGreenGrid = nextTreeGreenGrid;
+    nextTreeGreenGrid = tempGreen;
 
     // Update UI occasionally
     if (Math.random() < 0.1) {
@@ -482,10 +517,22 @@ function draw() {
             data[offset + 2] = 0;
             data[offset + 3] = 255;
         } else if (state === STATE_TREE) {
-            data[offset] = 10;
-            data[offset + 1] = 160 + (Math.random() * 30);
-            data[offset + 2] = 70;
-            data[offset + 3] = 255;
+            // Get tree color from stored index
+            const colorIndex = treeGreenGrid[i];
+            if (colorIndex < TREE_COLORS.length) {
+                const treeColor = TREE_COLORS[colorIndex];
+                // Add slight random variation for texture
+                data[offset] = Math.min(255, Math.max(0, treeColor.r + (Math.random() * 3 - 1.5)));
+                data[offset + 1] = Math.min(255, Math.max(0, treeColor.g + (Math.random() * 5 - 2.5)));
+                data[offset + 2] = Math.min(255, Math.max(0, treeColor.b + (Math.random() * 3 - 1.5)));
+                data[offset + 3] = 255;
+            } else {
+                // Fallback (shouldn't happen)
+                data[offset] = 10;
+                data[offset + 1] = 160;
+                data[offset + 2] = 70;
+                data[offset + 3] = 255;
+            }
         } else {
             data[offset] = 15;
             data[offset + 1] = 23;
@@ -795,6 +842,19 @@ setInterval(() => {
     updateTop10Fires();
     updateFireDistribution();
 }, 3000);
+
+/**
+ * Rotate active tree color every minute
+ */
+function rotateTreeColor() {
+    // Cycle through all tree colors
+    const oldIndex = currentTreeColorIndex;
+    currentTreeColorIndex = (currentTreeColorIndex + 1) % TREE_COLORS.length;
+    console.log(`Tree color rotated: ${oldIndex} -> ${currentTreeColorIndex} (${TREE_COLORS[currentTreeColorIndex].g} green)`);
+}
+
+// Rotate tree color every 15 seconds
+setInterval(rotateTreeColor, 15000);
 
 </script>
 </body>
