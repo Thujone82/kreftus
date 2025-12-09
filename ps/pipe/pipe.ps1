@@ -7,6 +7,8 @@ param(
     [Alias("b")]
     [switch]$banner,
     [switch]$sma,
+    [Alias("cap")]
+    [switch]$capacity,
     [switch]$hl12,
     [switch]$hl24,
     [switch]$hl72,
@@ -16,7 +18,7 @@ param(
 )
 
 # Clear screen only if no specific output is requested
-if (-not ($level -or $banner -or $sma -or $hl12 -or $hl24 -or $hl72 -or $s12 -or $s24 -or $s72)) {
+if (-not ($level -or $banner -or $sma -or $capacity -or $hl12 -or $hl24 -or $hl72 -or $s12 -or $s24 -or $s72)) {
     Clear-Host
 }
 
@@ -155,6 +157,39 @@ function Get-Sparkline {
     }
 }
 
+# --- Helper Function to Format Duration ---
+function Format-Duration {
+    param ([TimeSpan]$Duration)
+    
+    if ($Duration.TotalDays -ge 1) {
+        $days = [math]::Floor($Duration.TotalDays)
+        $hours = $Duration.Hours
+        if ($hours -gt 0) {
+            return "${days}d ${hours}h"
+        } else {
+            return "${days}d"
+        }
+    } elseif ($Duration.TotalHours -ge 1) {
+        $hours = [math]::Floor($Duration.TotalHours)
+        $minutes = $Duration.Minutes
+        if ($minutes -gt 0) {
+            return "${hours}h ${minutes}m"
+        } else {
+            return "${hours}h"
+        }
+    } elseif ($Duration.TotalMinutes -ge 1) {
+        $minutes = [math]::Floor($Duration.TotalMinutes)
+        $seconds = $Duration.Seconds
+        if ($seconds -gt 0) {
+            return "${minutes}m ${seconds}s"
+        } else {
+            return "${minutes}m"
+        }
+    } else {
+        return "$($Duration.Seconds)s"
+    }
+}
+
 # --- Helper Function to Display Colored Sparkline ---
 function Write-ColoredSparkline {
     param (
@@ -213,6 +248,26 @@ try {
     # Calculate statistics
     $currentLevel = $allData[-1].Percentage
     $currentTime = $allData[-1].DateTime
+    
+    # Calculate 100% duration if current level is 100%
+    $duration100Percent = $null
+    if ($currentLevel -eq 100) {
+        # Find the first reading that's not 100% by going backwards
+        $first100PercentTime = $currentTime
+        for ($i = $allData.Count - 1; $i -ge 0; $i--) {
+            if ($allData[$i].Percentage -lt 100) {
+                # Found the first non-100% reading, duration is from the next reading (first 100%) to now
+                if ($i -lt $allData.Count - 1) {
+                    $first100PercentTime = $allData[$i + 1].DateTime
+                }
+                break
+            } else {
+                # Still at 100%, update the first 100% time
+                $first100PercentTime = $allData[$i].DateTime
+            }
+        }
+        $duration100Percent = $currentTime - $first100PercentTime
+    }
     
     # 12H SMA: Simple moving average of last 12 hours
     $twelveHoursAgo = $currentTime.AddHours(-12)
@@ -306,7 +361,7 @@ try {
     $sparkline72HData = Get-Sparkline -Values $last288Samples -SamplesPerGlyph 12
     
     # Determine if we should show full output or specific lines
-    $showFullOutput = -not ($level -or $banner -or $sma -or $hl12 -or $hl24 -or $hl72 -or $s12 -or $s24 -or $s72)
+    $showFullOutput = -not ($level -or $banner -or $sma -or $capacity -or $hl12 -or $hl24 -or $hl72 -or $s12 -or $s24 -or $s72)
     
     # Display output
     if ($banner -or $showFullOutput) {
@@ -328,6 +383,17 @@ try {
         Write-Host -NoNewline -ForegroundColor White $labelCurrent
         Write-Host -NoNewline $paddingCurrent
         Write-Host -ForegroundColor $currentLevelColor $currentLevelFormatted
+        
+        # 100% Duration (only shown when current level is 100%)
+        if (($capacity -or $showFullOutput) -and $currentLevel -eq 100 -and $null -ne $duration100Percent) {
+            $durationFormatted = Format-Duration -Duration $duration100Percent
+            $durationColor = [System.ConsoleColor]::Magenta
+            $labelDuration = "100% Duration:"
+            $paddingDuration = " " * ($targetColumn - $labelDuration.Length)
+            Write-Host -NoNewline -ForegroundColor White $labelDuration
+            Write-Host -NoNewline $paddingDuration
+            Write-Host -ForegroundColor $durationColor $durationFormatted
+        }
     }
     
     # 12/24/72H SMA

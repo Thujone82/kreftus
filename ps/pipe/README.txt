@@ -40,6 +40,8 @@ The script supports command-line arguments to display specific output lines:
     .\pipe.ps1 -b               # Alias for -banner
     .\pipe.ps1 -level           # Show current level line only
     .\pipe.ps1 -l               # Alias for -level
+    .\pipe.ps1 -capacity        # Show 100% Duration line only (when at 100%)
+    .\pipe.ps1 -cap             # Alias for -capacity
     .\pipe.ps1 -sma             # Show 12/24/72H SMA line only
     .\pipe.ps1 -hl12            # Show 12H High/Low line only
     .\pipe.ps1 -hl24            # Show 24H High/Low line only
@@ -70,6 +72,8 @@ The script displays:
 
 2. Statistics (all values aligned at column 16):
    - Current Level: Most recent percentage value (single color-coded value)
+   - 100% Duration: Amount of time the pipe has been at 100% capacity (only shown
+     when current level is 100%, displayed in magenta)
    - 12/24/72H SMA: Three simple moving averages displayed as "$x/$y/$z"
      (each value color-coded separately)
    - 12H High/Low: Maximum and minimum of the last 12 hours as "$x/$y"
@@ -139,7 +143,7 @@ NOTES
 
 VERSION
 -------
-v2.1 - Enhanced Statistics Display with Command-Line Arguments
+v2.2 - Enhanced Statistics Display with Command-Line Arguments
 
 Current version includes:
 - HTML table parsing
@@ -156,9 +160,11 @@ Current version includes:
   * 12H High/Low (max/min of last 12 hours)
   * 24H High/Low (max/min of last 24 hours)
   * 72H High/Low (max/min of last 72 hours, updated from entire dataset)
+  * 100% Duration tracking (calculates consecutive time at full capacity)
 - Command-line arguments for selective output:
   * -banner / -b: Display banner line
   * -level / -l: Display current level line
+  * -capacity / -cap: Display 100% Duration line (when at 100%)
   * -sma: Display 12/24/72H SMA line
   * -hl12, -hl24, -hl72: Display individual High/Low lines
   * -s12, -s24, -s72: Display individual sparklines
