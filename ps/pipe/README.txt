@@ -39,10 +39,15 @@ The script displays:
 1. Header: "*** Portland Big Pipe Report ***" (in green)
 
 2. Statistics (all values aligned at column 16):
-   - Current Level: Most recent percentage value
-   - 12H SMA: Simple moving average of the last 12 hours
-   - 72H High: Maximum percentage in the last 72 hours
-   - 72H Low: Minimum percentage in the last 72 hours
+   - Current Level: Most recent percentage value (single color-coded value)
+   - 12/24/72H SMA: Three simple moving averages displayed as "$x/$y/$z"
+     (each value color-coded separately)
+   - 12H High/Low: Maximum and minimum of the last 12 hours as "$x/$y"
+     (each value color-coded separately)
+   - 24H High/Low: Maximum and minimum of the last 24 hours as "$x/$y"
+     (each value color-coded separately)
+   - 72H High/Low: Maximum and minimum of the last 72 hours as "$x/$y"
+     (each value color-coded separately)
 
 3. Sparklines: Three visual graphs showing historical trends:
    - 12H: Last 12 hours (30-minute bins, 24 glyphs)
@@ -102,11 +107,23 @@ NOTES
 
 VERSION
 -------
+v2.0 - Enhanced Statistics Display
+
 Current version includes:
 - HTML table parsing
 - Color-coded statistics and sparklines
 - Aligned output formatting
 - Multiple time range views (12H, 24H, 72H)
+- Combined statistics display format:
+  * 12/24/72H SMA on single line with three color-coded values
+  * High/Low statistics for 12H, 24H, and 72H time ranges
+  * Each percentage value individually color-coded
+- Enhanced statistics calculations:
+  * 24H SMA (Simple Moving Average)
+  * 72H SMA (Simple Moving Average)
+  * 12H High/Low (max/min of last 12 hours)
+  * 24H High/Low (max/min of last 24 hours)
+  * 72H High/Low (max/min of last 72 hours, updated from entire dataset)
 
 AUTHOR
 ------

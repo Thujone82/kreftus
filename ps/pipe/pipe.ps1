@@ -207,9 +207,59 @@ try {
         $currentLevel
     }
     
-    # 72H High and Low: Maximum and minimum in entire dataset
-    $high72H = ($allData | Measure-Object -Property Percentage -Maximum).Maximum
-    $low72H = ($allData | Measure-Object -Property Percentage -Minimum).Minimum
+    # 24H SMA: Simple moving average of last 24 hours
+    $twentyFourHoursAgo = $currentTime.AddHours(-24)
+    $last24Hours = $allData | Where-Object { $_.DateTime -ge $twentyFourHoursAgo }
+    $sma24H = if ($last24Hours.Count -gt 0) {
+        ($last24Hours | Measure-Object -Property Percentage -Average).Average
+    } else {
+        $currentLevel
+    }
+    
+    # 72H SMA: Simple moving average of last 72 hours
+    $seventyTwoHoursAgo = $currentTime.AddHours(-72)
+    $last72Hours = $allData | Where-Object { $_.DateTime -ge $seventyTwoHoursAgo }
+    $sma72H = if ($last72Hours.Count -gt 0) {
+        ($last72Hours | Measure-Object -Property Percentage -Average).Average
+    } else {
+        $currentLevel
+    }
+    
+    # 12H High and Low: Maximum and minimum of last 12 hours
+    $high12H = if ($last12Hours.Count -gt 0) {
+        ($last12Hours | Measure-Object -Property Percentage -Maximum).Maximum
+    } else {
+        $currentLevel
+    }
+    $low12H = if ($last12Hours.Count -gt 0) {
+        ($last12Hours | Measure-Object -Property Percentage -Minimum).Minimum
+    } else {
+        $currentLevel
+    }
+    
+    # 24H High and Low: Maximum and minimum of last 24 hours
+    $high24H = if ($last24Hours.Count -gt 0) {
+        ($last24Hours | Measure-Object -Property Percentage -Maximum).Maximum
+    } else {
+        $currentLevel
+    }
+    $low24H = if ($last24Hours.Count -gt 0) {
+        ($last24Hours | Measure-Object -Property Percentage -Minimum).Minimum
+    } else {
+        $currentLevel
+    }
+    
+    # 72H High and Low: Maximum and minimum of last 72 hours
+    $high72H = if ($last72Hours.Count -gt 0) {
+        ($last72Hours | Measure-Object -Property Percentage -Maximum).Maximum
+    } else {
+        $currentLevel
+    }
+    $low72H = if ($last72Hours.Count -gt 0) {
+        ($last72Hours | Measure-Object -Property Percentage -Minimum).Minimum
+    } else {
+        $currentLevel
+    }
     
     # Prepare data for sparklines (get percentage values in chronological order)
     $percentageValues = $allData | ForEach-Object { $_.Percentage }
@@ -255,31 +305,60 @@ try {
     Write-Host -NoNewline $paddingCurrent
     Write-Host -ForegroundColor $currentLevelColor $currentLevelFormatted
     
-    # 12H SMA
+    # 12/24/72H SMA
     $sma12HFormatted = "$([math]::Round($sma12H, 1))%"
+    $sma24HFormatted = "$([math]::Round($sma24H, 1))%"
+    $sma72HFormatted = "$([math]::Round($sma72H, 1))%"
     $sma12HColor = Get-PercentageColor -Percentage $sma12H
-    $label12H = "12H SMA:"
+    $sma24HColor = Get-PercentageColor -Percentage $sma24H
+    $sma72HColor = Get-PercentageColor -Percentage $sma72H
+    $labelSMA = "12/24/72H SMA:"
+    $paddingSMA = " " * ($targetColumn - $labelSMA.Length)
+    Write-Host -NoNewline -ForegroundColor White $labelSMA
+    Write-Host -NoNewline $paddingSMA
+    Write-Host -NoNewline -ForegroundColor $sma12HColor $sma12HFormatted
+    Write-Host -NoNewline -ForegroundColor White "/"
+    Write-Host -NoNewline -ForegroundColor $sma24HColor $sma24HFormatted
+    Write-Host -NoNewline -ForegroundColor White "/"
+    Write-Host -ForegroundColor $sma72HColor $sma72HFormatted
+    
+    # 12H High/Low
+    $high12HFormatted = "$([math]::Round($high12H, 1))%"
+    $low12HFormatted = "$([math]::Round($low12H, 1))%"
+    $high12HColor = Get-PercentageColor -Percentage $high12H
+    $low12HColor = Get-PercentageColor -Percentage $low12H
+    $label12H = "12H High/Low:"
     $padding12H = " " * ($targetColumn - $label12H.Length)
     Write-Host -NoNewline -ForegroundColor White $label12H
     Write-Host -NoNewline $padding12H
-    Write-Host -ForegroundColor $sma12HColor $sma12HFormatted
+    Write-Host -NoNewline -ForegroundColor $high12HColor $high12HFormatted
+    Write-Host -NoNewline -ForegroundColor White "/"
+    Write-Host -ForegroundColor $low12HColor $low12HFormatted
     
-    # 72H High
+    # 24H High/Low
+    $high24HFormatted = "$([math]::Round($high24H, 1))%"
+    $low24HFormatted = "$([math]::Round($low24H, 1))%"
+    $high24HColor = Get-PercentageColor -Percentage $high24H
+    $low24HColor = Get-PercentageColor -Percentage $low24H
+    $label24H = "24H High/Low:"
+    $padding24H = " " * ($targetColumn - $label24H.Length)
+    Write-Host -NoNewline -ForegroundColor White $label24H
+    Write-Host -NoNewline $padding24H
+    Write-Host -NoNewline -ForegroundColor $high24HColor $high24HFormatted
+    Write-Host -NoNewline -ForegroundColor White "/"
+    Write-Host -ForegroundColor $low24HColor $low24HFormatted
+    
+    # 72H High/Low
     $high72HFormatted = "$([math]::Round($high72H, 1))%"
-    $high72HColor = Get-PercentageColor -Percentage $high72H
-    $labelHigh = "72H High:"
-    $paddingHigh = " " * ($targetColumn - $labelHigh.Length)
-    Write-Host -NoNewline -ForegroundColor White $labelHigh
-    Write-Host -NoNewline $paddingHigh
-    Write-Host -ForegroundColor $high72HColor $high72HFormatted
-    
-    # 72H Low
     $low72HFormatted = "$([math]::Round($low72H, 1))%"
+    $high72HColor = Get-PercentageColor -Percentage $high72H
     $low72HColor = Get-PercentageColor -Percentage $low72H
-    $labelLow = "72H Low:"
-    $paddingLow = " " * ($targetColumn - $labelLow.Length)
-    Write-Host -NoNewline -ForegroundColor White $labelLow
-    Write-Host -NoNewline $paddingLow
+    $label72H = "72H High/Low:"
+    $padding72H = " " * ($targetColumn - $label72H.Length)
+    Write-Host -NoNewline -ForegroundColor White $label72H
+    Write-Host -NoNewline $padding72H
+    Write-Host -NoNewline -ForegroundColor $high72HColor $high72HFormatted
+    Write-Host -NoNewline -ForegroundColor White "/"
     Write-Host -ForegroundColor $low72HColor $low72HFormatted
     
     Write-Host ""
