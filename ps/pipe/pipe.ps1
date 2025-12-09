@@ -250,23 +250,24 @@ try {
     $currentTime = $allData[-1].DateTime
     
     # Calculate 100% duration if current level is 100%
+    # Find the first 100% reading timestamp and calculate duration to current actual time
     $duration100Percent = $null
     if ($currentLevel -eq 100) {
-        # Find the first reading that's not 100% by going backwards
-        $first100PercentTime = $currentTime
+        # Find the first 100% reading by going backwards from the most recent
+        $first100PercentTime = $null
         for ($i = $allData.Count - 1; $i -ge 0; $i--) {
-            if ($allData[$i].Percentage -lt 100) {
-                # Found the first non-100% reading, duration is from the next reading (first 100%) to now
-                if ($i -lt $allData.Count - 1) {
-                    $first100PercentTime = $allData[$i + 1].DateTime
-                }
-                break
-            } else {
-                # Still at 100%, update the first 100% time
+            if ($allData[$i].Percentage -eq 100) {
                 $first100PercentTime = $allData[$i].DateTime
+            } else {
+                # Found first non-100% reading, stop
+                break
             }
         }
-        $duration100Percent = $currentTime - $first100PercentTime
+        # Calculate duration from first 100% reading to current actual time (not data timestamp)
+        if ($null -ne $first100PercentTime) {
+            $actualCurrentTime = Get-Date
+            $duration100Percent = $actualCurrentTime - $first100PercentTime
+        }
     }
     
     # 12H SMA: Simple moving average of last 12 hours
