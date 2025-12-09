@@ -7,13 +7,16 @@ param(
     [Alias("b")]
     [switch]$banner,
     [switch]$sma,
+    [switch]$hl12,
+    [switch]$hl24,
+    [switch]$hl72,
     [switch]$s12,
     [switch]$s24,
     [switch]$s72
 )
 
 # Clear screen only if no specific output is requested
-if (-not ($level -or $banner -or $sma -or $s12 -or $s24 -or $s72)) {
+if (-not ($level -or $banner -or $sma -or $hl12 -or $hl24 -or $hl72 -or $s12 -or $s24 -or $s72)) {
     Clear-Host
 }
 
@@ -303,7 +306,7 @@ try {
     $sparkline72HData = Get-Sparkline -Values $last288Samples -SamplesPerGlyph 12
     
     # Determine if we should show full output or specific lines
-    $showFullOutput = -not ($level -or $banner -or $sma -or $s12 -or $s24 -or $s72)
+    $showFullOutput = -not ($level -or $banner -or $sma -or $hl12 -or $hl24 -or $hl72 -or $s12 -or $s24 -or $s72)
     
     # Display output
     if ($banner -or $showFullOutput) {
@@ -347,7 +350,7 @@ try {
     }
     
     # 12H High/Low
-    if ($showFullOutput) {
+    if ($hl12 -or $showFullOutput) {
         $high12HFormatted = "$([math]::Round($high12H, 1))%"
         $low12HFormatted = "$([math]::Round($low12H, 1))%"
         $high12HColor = Get-PercentageColor -Percentage $high12H
@@ -359,8 +362,10 @@ try {
         Write-Host -NoNewline -ForegroundColor $high12HColor $high12HFormatted
         Write-Host -NoNewline -ForegroundColor White "/"
         Write-Host -ForegroundColor $low12HColor $low12HFormatted
-        
-        # 24H High/Low
+    }
+    
+    # 24H High/Low
+    if ($hl24 -or $showFullOutput) {
         $high24HFormatted = "$([math]::Round($high24H, 1))%"
         $low24HFormatted = "$([math]::Round($low24H, 1))%"
         $high24HColor = Get-PercentageColor -Percentage $high24H
@@ -372,8 +377,10 @@ try {
         Write-Host -NoNewline -ForegroundColor $high24HColor $high24HFormatted
         Write-Host -NoNewline -ForegroundColor White "/"
         Write-Host -ForegroundColor $low24HColor $low24HFormatted
-        
-        # 72H High/Low
+    }
+    
+    # 72H High/Low
+    if ($hl72 -or $showFullOutput) {
         $high72HFormatted = "$([math]::Round($high72H, 1))%"
         $low72HFormatted = "$([math]::Round($low72H, 1))%"
         $high72HColor = Get-PercentageColor -Percentage $high72H
@@ -385,7 +392,9 @@ try {
         Write-Host -NoNewline -ForegroundColor $high72HColor $high72HFormatted
         Write-Host -NoNewline -ForegroundColor White "/"
         Write-Host -ForegroundColor $low72HColor $low72HFormatted
-        
+    }
+    
+    if ($showFullOutput) {
         Write-Host ""
     }
     

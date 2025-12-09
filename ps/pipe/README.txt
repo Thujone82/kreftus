@@ -41,6 +41,9 @@ The script supports command-line arguments to display specific output lines:
     .\pipe.ps1 -level           # Show current level line only
     .\pipe.ps1 -l               # Alias for -level
     .\pipe.ps1 -sma             # Show 12/24/72H SMA line only
+    .\pipe.ps1 -hl12            # Show 12H High/Low line only
+    .\pipe.ps1 -hl24            # Show 24H High/Low line only
+    .\pipe.ps1 -hl72            # Show 72H High/Low line only
     .\pipe.ps1 -s12             # Show 12H sparkline only
     .\pipe.ps1 -s24             # Show 24H sparkline only
     .\pipe.ps1 -s72             # Show 72H sparkline only
@@ -49,6 +52,7 @@ Multiple arguments can be combined to display multiple lines:
 
     .\pipe.ps1 -l -sma          # Show level and SMA lines
     .\pipe.ps1 -b -l -s12       # Show banner, level, and 12H sparkline
+    .\pipe.ps1 -hl12 -hl24 -hl72 # Show all three High/Low lines
     .\pipe.ps1 -s12 -s24 -s72   # Show all three sparklines
 
 When command-line arguments are used:
@@ -156,6 +160,7 @@ Current version includes:
   * -banner / -b: Display banner line
   * -level / -l: Display current level line
   * -sma: Display 12/24/72H SMA line
+  * -hl12, -hl24, -hl72: Display individual High/Low lines
   * -s12, -s24, -s72: Display individual sparklines
   * Multiple arguments can be combined for custom output
 
