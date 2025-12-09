@@ -86,34 +86,85 @@ function Get-PercentageColor {
     }
 }
 
-# --- Helper Function to Generate Sparkline from Binned Data ---
+# --- Helper Function to Generate Sparkline from Time-Binned Data ---
 function Get-Sparkline {
     param (
-        [double[]]$Values,
-        [int]$SamplesPerGlyph
+        [array]$DataPoints,  # Array of objects with DateTime and Percentage properties
+        [TimeSpan]$BinSize,  # Size of each time bin (e.g., 30 minutes, 1 hour, 3 hours)
+        [DateTime]$EndTime   # End time for binning (typically current time or most recent data point)
     )
     
-    if ($null -eq $Values -or $Values.Count -lt $SamplesPerGlyph) {
+    if ($null -eq $DataPoints -or $DataPoints.Count -eq 0) {
         return @{
             Sparkline = (" " * 24)
             BinnedValues = @()
         }
     }
     
-    # Bin the data: average every N consecutive samples
+    # Create 24 time bins going backwards from end time
     $binnedValues = @()
-    for ($i = 0; $i -lt $Values.Count; $i += $SamplesPerGlyph) {
-        $bin = $Values[$i..([Math]::Min($i + $SamplesPerGlyph - 1, $Values.Count - 1))]
-        $avg = ($bin | Measure-Object -Average).Average
-        $binnedValues += $avg
+    $binStart = $EndTime
+    
+    for ($binIndex = 23; $binIndex -ge 0; $binIndex--) {
+        $binEnd = $binStart
+        $binStart = $binEnd.Subtract($BinSize)
+        
+        # Find all data points that fall within this time bin
+        $pointsInBin = $DataPoints | Where-Object {
+            $_.DateTime -ge $binStart -and $_.DateTime -lt $binEnd
+        }
+        
+        if ($pointsInBin.Count -gt 0) {
+            # Average the percentage values in this bin
+            $avg = ($pointsInBin | Measure-Object -Property Percentage -Average).Average
+            $binnedValues = @($avg) + $binnedValues
+        } else {
+            # No data in this bin (missing samples) - use null to indicate gap
+            $binnedValues = @($null) + $binnedValues
+        }
     }
     
-    # Take the last 24 bins (most recent)
-    if ($binnedValues.Count -gt 24) {
-        $binnedValues = $binnedValues[-24..-1]
+    # Interpolate missing data (null values) to fill gaps
+    for ($i = 0; $i -lt $binnedValues.Count; $i++) {
+        if ($null -eq $binnedValues[$i]) {
+            # Find previous non-null value
+            $prevValue = $null
+            $prevIndex = $i - 1
+            while ($prevIndex -ge 0 -and $null -eq $prevValue) {
+                $prevValue = $binnedValues[$prevIndex]
+                $prevIndex--
+            }
+            
+            # Find next non-null value
+            $nextValue = $null
+            $nextIndex = $i + 1
+            while ($nextIndex -lt $binnedValues.Count -and $null -eq $nextValue) {
+                $nextValue = $binnedValues[$nextIndex]
+                $nextIndex++
+            }
+            
+            # Interpolate based on available values
+            if ($null -ne $prevValue -and $null -ne $nextValue) {
+                # Linear interpolation between previous and next
+                $distance = $nextIndex - $prevIndex - 1
+                $position = $i - $prevIndex - 1
+                $weight = if ($distance -gt 0) { $position / $distance } else { 0.5 }
+                $binnedValues[$i] = $prevValue + ($nextValue - $prevValue) * $weight
+            } elseif ($null -ne $prevValue) {
+                # Only previous value available - use it (extend forward)
+                $binnedValues[$i] = $prevValue
+            } elseif ($null -ne $nextValue) {
+                # Only next value available - use it (extend backward)
+                $binnedValues[$i] = $nextValue
+            }
+            # If both are null, leave as null (will be handled below)
+        }
     }
     
-    if ($binnedValues.Count -eq 0) {
+    # Filter out null values for min/max calculation
+    $validValues = $binnedValues | Where-Object { $null -ne $_ }
+    
+    if ($validValues.Count -eq 0) {
         return @{
             Sparkline = (" " * 24)
             BinnedValues = @()
@@ -121,39 +172,64 @@ function Get-Sparkline {
     }
     
     $sparkChars = [char[]]([char]0x2581, [char]0x2582, [char]0x2583, [char]0x2584, [char]0x2585, [char]0x2586, [char]0x2587, [char]0x2588)
-    $minValue = ($binnedValues | Measure-Object -Minimum).Minimum
-    $maxValue = ($binnedValues | Measure-Object -Maximum).Maximum
+    $minValue = ($validValues | Measure-Object -Minimum).Minimum
+    $maxValue = ($validValues | Measure-Object -Maximum).Maximum
     $valueRange = $maxValue - $minValue
     
     if ($valueRange -eq 0 -or $valueRange -lt 0.00000001) {
+        # All values are the same - use lowest character for all bins
+        $sparkline = ""
+        foreach ($value in $binnedValues) {
+            if ($null -eq $value) {
+                $sparkline += " "
+            } else {
+                $sparkline += $sparkChars[0]
+            }
+        }
         return @{
-            Sparkline = ([string]$sparkChars[0] * 24)
+            Sparkline = $sparkline
             BinnedValues = $binnedValues
         }
     }
     
     $sparkline = ""
     foreach ($value in $binnedValues) {
-        $normalized = ($value - $minValue) / $valueRange
-        $charIndex = [math]::Floor($normalized * ($sparkChars.Length - 1))
-        $sparkline += $sparkChars[$charIndex]
-    }
-    
-    # Pad to 24 if too short (pad left with spaces)
-    # Note: binnedValues array stays as-is, only sparkline gets padded
-    if ($sparkline.Length -lt 24) {
-        $sparkline = $sparkline.PadLeft(24, ' ')
-    }
-    
-    # Truncate to 24 if too long (keep rightmost 24)
-    if ($sparkline.Length -gt 24) {
-        $sparkline = $sparkline.Substring($sparkline.Length - 24)
-        $binnedValues = $binnedValues[-24..-1]
+        if ($null -eq $value) {
+            # Still null after interpolation attempt - use space (shouldn't happen, but safe fallback)
+            $sparkline += " "
+        } else {
+            $normalized = ($value - $minValue) / $valueRange
+            $charIndex = [math]::Floor($normalized * ($sparkChars.Length - 1))
+            $sparkline += $sparkChars[$charIndex]
+        }
     }
     
     return @{
         Sparkline = $sparkline
         BinnedValues = $binnedValues
+    }
+}
+
+# --- Helper Function to Get Current Time in Pacific Timezone ---
+function Get-PacificTime {
+    try {
+        $pacificTimeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById("Pacific Standard Time")
+        $utcNow = [System.DateTime]::UtcNow
+        $pacificTime = [System.TimeZoneInfo]::ConvertTimeFromUtc($utcNow, $pacificTimeZone)
+        return $pacificTime
+    }
+    catch {
+        # Fallback: try alternative timezone IDs for different systems
+        try {
+            $pacificTimeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById("America/Los_Angeles")
+            $utcNow = [System.DateTime]::UtcNow
+            $pacificTime = [System.TimeZoneInfo]::ConvertTimeFromUtc($utcNow, $pacificTimeZone)
+            return $pacificTime
+        }
+        catch {
+            # Last resort: assume system time is Pacific (not ideal but better than failing)
+            return Get-Date
+        }
     }
 }
 
@@ -195,7 +271,7 @@ function Write-ColoredSparkline {
     param (
         [string]$Label,
         [string]$Sparkline,
-        [double[]]$BinnedValues
+        [array]$BinnedValues  # Array that may contain null values for missing data
     )
     
     Write-Host -NoNewline -ForegroundColor White "$Label "
@@ -221,7 +297,12 @@ function Write-ColoredSparkline {
         $valueIndex = $i - $dataStartIndex
         if ($valueIndex -ge 0 -and $valueIndex -lt $BinnedValues.Count) {
             $percentage = $BinnedValues[$valueIndex]
-            $color = Get-PercentageColor -Percentage $percentage
+            # Handle null values (missing data) - use white color
+            if ($null -ne $percentage) {
+                $color = Get-PercentageColor -Percentage $percentage
+            } else {
+                $color = [System.ConsoleColor]::White
+            }
         } else {
             # Fallback for edge cases
             $color = [System.ConsoleColor]::White
@@ -251,22 +332,26 @@ try {
     
     # Calculate 100% duration if current level is 100%
     # Find the first 100% reading timestamp and calculate duration to current actual time
+    # Note: This handles missing samples correctly by using actual timestamps rather than
+    # counting samples, so gaps in the 15-minute interval data don't affect the calculation
     $duration100Percent = $null
     if ($currentLevel -eq 100) {
         # Find the first 100% reading by going backwards from the most recent
+        # This finds the earliest consecutive 100% reading in the data
         $first100PercentTime = $null
         for ($i = $allData.Count - 1; $i -ge 0; $i--) {
             if ($allData[$i].Percentage -eq 100) {
                 $first100PercentTime = $allData[$i].DateTime
             } else {
-                # Found first non-100% reading, stop
+                # Found first non-100% reading, stop searching backwards
                 break
             }
         }
-        # Calculate duration from first 100% reading to current actual time (not data timestamp)
+        # Calculate duration from first 100% reading to current actual time in Pacific timezone
+        # This accounts for missing samples by using real timestamps, not sample counts
         if ($null -ne $first100PercentTime) {
-            $actualCurrentTime = Get-Date
-            $duration100Percent = $actualCurrentTime - $first100PercentTime
+            $actualCurrentTimePacific = Get-PacificTime
+            $duration100Percent = $actualCurrentTimePacific - $first100PercentTime
         }
     }
     
@@ -333,33 +418,25 @@ try {
         $currentLevel
     }
     
-    # Prepare data for sparklines (get percentage values in chronological order)
-    $percentageValues = $allData | ForEach-Object { $_.Percentage }
+    # Prepare data for sparklines using time-based binning (handles missing samples correctly)
+    # Use current Pacific time as the end time for accurate binning
+    $endTimePacific = Get-PacificTime
     
-    # Generate sparklines
-    # 12H: 2 samples per glyph (30 min bins) - need last 48 samples (24 glyphs * 2)
-    $last48Samples = if ($percentageValues.Count -ge 48) {
-        $percentageValues[-48..-1]
-    } else {
-        $percentageValues
-    }
-    $sparkline12HData = Get-Sparkline -Values $last48Samples -SamplesPerGlyph 2
+    # Filter data to relevant time ranges and generate sparklines
+    # 12H: 30-minute bins (24 bins * 30 min = 12 hours)
+    $twelveHoursAgoPacific = $endTimePacific.AddHours(-12)
+    $data12H = $allData | Where-Object { $_.DateTime -ge $twelveHoursAgoPacific }
+    $sparkline12HData = Get-Sparkline -DataPoints $data12H -BinSize (New-TimeSpan -Minutes 30) -EndTime $endTimePacific
     
-    # 24H: 4 samples per glyph (1 hour bins) - need last 96 samples (24 glyphs * 4)
-    $last96Samples = if ($percentageValues.Count -ge 96) {
-        $percentageValues[-96..-1]
-    } else {
-        $percentageValues
-    }
-    $sparkline24HData = Get-Sparkline -Values $last96Samples -SamplesPerGlyph 4
+    # 24H: 1-hour bins (24 bins * 1 hour = 24 hours)
+    $twentyFourHoursAgoPacific = $endTimePacific.AddHours(-24)
+    $data24H = $allData | Where-Object { $_.DateTime -ge $twentyFourHoursAgoPacific }
+    $sparkline24HData = Get-Sparkline -DataPoints $data24H -BinSize (New-TimeSpan -Hours 1) -EndTime $endTimePacific
     
-    # 72H: 12 samples per glyph (3 hour bins) - need last 288 samples (24 glyphs * 12)
-    $last288Samples = if ($percentageValues.Count -ge 288) {
-        $percentageValues[-288..-1]
-    } else {
-        $percentageValues
-    }
-    $sparkline72HData = Get-Sparkline -Values $last288Samples -SamplesPerGlyph 12
+    # 72H: 3-hour bins (24 bins * 3 hours = 72 hours)
+    $seventyTwoHoursAgoPacific = $endTimePacific.AddHours(-72)
+    $data72H = $allData | Where-Object { $_.DateTime -ge $seventyTwoHoursAgoPacific }
+    $sparkline72HData = Get-Sparkline -DataPoints $data72H -BinSize (New-TimeSpan -Hours 3) -EndTime $endTimePacific
     
     # Determine if we should show full output or specific lines
     $showFullOutput = -not ($level -or $banner -or $sma -or $capacity -or $hl12 -or $hl24 -or $hl72 -or $s12 -or $s24 -or $s72)

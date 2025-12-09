@@ -233,13 +233,14 @@
                                     <li>Aligned output formatting for easy reading</li>
                                     <li>Automatic data parsing from HTML tables</li>
                                     <li>Enhanced statistics: Current level, 12H/24H/72H SMA, and 12H/24H/72H High/Low</li>
-                                    <li>100% Duration tracking: Displays how long the pipe has been at full capacity (only shown when at 100%)</li>
+                                    <li>100% Duration tracking: Displays how long the pipe has been at full capacity (only shown when at 100%), calculated using Pacific timezone from first 100% reading to current time</li>
+                                    <li>Time-based sparkline generation: Uses fixed time intervals with automatic interpolation of missing samples for continuous visualizations</li>
                                     <li>Command-line arguments for selective output (banner, level, capacity, SMA, High/Low lines, sparklines)</li>
                                     <li>Each percentage value individually color-coded for intuitive visual representation</li>
                                 </ul>
                             </p>
                             <p>
-                                The script displays comprehensive statistics including current level, 12H/24H/72H simple moving averages (SMA), and 12H/24H/72H high/low values. When the pipe reaches 100% capacity, it also displays the duration it has been at full capacity. Each percentage value is individually color-coded, and sparkline glyphs change color based on their fill level, providing an intuitive visual representation of the Big Pipe system status. Use command-line arguments to display specific output lines for scripting and automation.
+                                The script displays comprehensive statistics including current level, 12H/24H/72H simple moving averages (SMA), and 12H/24H/72H high/low values. When the pipe reaches 100% capacity, it also displays the duration it has been at full capacity, calculated using Pacific timezone to account for data lag. Sparklines use time-based binning with automatic interpolation of missing samples, ensuring continuous visualizations even when data points are missing. Each percentage value is individually color-coded, and sparkline glyphs change color based on their fill level, providing an intuitive visual representation of the Big Pipe system status. Use command-line arguments to display specific output lines for scripting and automation.
                             </p>
                             <p>
                                 <b>Official Website:</b> <a href="https://www.portland.gov/bes/big-pipe-tracker" target="_blank" rel="noopener noreferrer">Portland Big Pipe Tracker</a>

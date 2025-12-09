@@ -73,7 +73,8 @@ The script displays:
 2. Statistics (all values aligned at column 16):
    - Current Level: Most recent percentage value (single color-coded value)
    - 100% Duration: Amount of time the pipe has been at 100% capacity (only shown
-     when current level is 100%, displayed in magenta)
+     when current level is 100%, displayed in magenta). Calculated from first 100%
+     reading timestamp to current Pacific time, accounting for data lag and missing samples
    - 12/24/72H SMA: Three simple moving averages displayed as "$x/$y/$z"
      (each value color-coded separately)
    - 12H High/Low: Maximum and minimum of the last 12 hours as "$x/$y"
@@ -87,6 +88,7 @@ The script displays:
    - 12H: Last 12 hours (30-minute bins, 24 glyphs)
    - 24H: Last 24 hours (1-hour bins, 24 glyphs)
    - 72H: Last 72 hours (3-hour bins, 24 glyphs)
+   - Missing samples are automatically interpolated to create continuous sparklines
 
 COLOR CODING
 ------------
@@ -113,12 +115,18 @@ TECHNICAL DETAILS
 -----------------
 - Data Parsing: Uses regex to extract data from HTML table structure
 - Time Range: Processes up to 72 hours of historical data
+- Timezone Handling: All time calculations use Pacific timezone, automatically
+  converting from system timezone if needed
 - Sparklines: Uses Unicode block characters (U+2581 through U+2588) to create
   visual bar charts
-- Binning: Data is averaged into bins for sparkline display:
-  * 12H view: 2 samples per glyph (30-minute intervals)
-  * 24H view: 4 samples per glyph (1-hour intervals)
-  * 72H view: 12 samples per glyph (3-hour intervals)
+- Time-Based Binning: Data is grouped into fixed time intervals for sparkline display:
+  * 12H view: 30-minute time bins (24 bins covering 12 hours)
+  * 24H view: 1-hour time bins (24 bins covering 24 hours)
+  * 72H view: 3-hour time bins (24 bins covering 72 hours)
+- Missing Data Handling: Missing samples are automatically interpolated using linear
+  interpolation between adjacent known values, ensuring continuous sparklines without gaps
+- 100% Duration Calculation: Uses first 100% reading timestamp to current Pacific time,
+  correctly handling missing samples and data lag
 
 ERROR HANDLING
 --------------
@@ -143,7 +151,7 @@ NOTES
 
 VERSION
 -------
-v2.2 - Enhanced Statistics Display with Command-Line Arguments
+v2.3 - Enhanced Statistics Display with Command-Line Arguments
 
 Current version includes:
 - HTML table parsing
@@ -160,7 +168,13 @@ Current version includes:
   * 12H High/Low (max/min of last 12 hours)
   * 24H High/Low (max/min of last 24 hours)
   * 72H High/Low (max/min of last 72 hours, updated from entire dataset)
-  * 100% Duration tracking (calculates consecutive time at full capacity)
+  * 100% Duration tracking (calculates time at full capacity using Pacific timezone,
+    based on first 100% reading timestamp to current Pacific time, handles missing samples)
+- Time-based sparkline generation:
+  * Uses fixed time intervals (30 min for 12H, 1 hour for 24H, 3 hours for 72H)
+  * Handles missing samples correctly by binning based on timestamps
+  * Interpolates missing data to create continuous sparklines without gaps
+  * All time calculations use Pacific timezone for accuracy
 - Command-line arguments for selective output:
   * -banner / -b: Display banner line
   * -level / -l: Display current level line
