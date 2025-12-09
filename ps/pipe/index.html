@@ -222,7 +222,7 @@
                         <div>
                             <h2>Portland Big Pipe Report</h2>
                             <p>
-                                <b>Portland Big Pipe Report</b> is a PowerShell script that fetches and displays real-time statistics about the Portland Big Pipe system, which is a combined sewer overflow (CSO) control system. The script retrieves 15-minute interval data from the City of Portland's website and presents it in an easy-to-read format with color-coded statistics and visual sparkline graphs.
+                                <b>Portland Big Pipe Report</b> is a PowerShell script that fetches and displays real-time statistics about the Portland Big Pipe system, which is a combined sewer overflow (CSO) control system. The script retrieves 15-minute interval data from the City of Portland's website and presents it in an easy-to-read format with color-coded statistics and visual sparkline graphs. The script supports command-line arguments for selective output, making it ideal for scripting and integration with other tools.
                             </p>
                             <p>
                                 Key features include:
@@ -232,11 +232,13 @@
                                     <li>Visual sparkline graphs for 12H, 24H, and 72H views</li>
                                     <li>Aligned output formatting for easy reading</li>
                                     <li>Automatic data parsing from HTML tables</li>
-                                    <li>Calculates current level, 12H SMA, and 72H high/low</li>
+                                    <li>Enhanced statistics: Current level, 12H/24H/72H SMA, and 12H/24H/72H High/Low</li>
+                                    <li>Command-line arguments for selective output (banner, level, SMA, High/Low lines, sparklines)</li>
+                                    <li>Each percentage value individually color-coded for intuitive visual representation</li>
                                 </ul>
                             </p>
                             <p>
-                                The script displays statistics, with color-coded percentage values and sparkline glyphs that change color based on their fill level, providing an intuitive visual representation of the Big Pipe system status.
+                                The script displays comprehensive statistics including current level, 12H/24H/72H simple moving averages (SMA), and 12H/24H/72H high/low values. Each percentage value is individually color-coded, and sparkline glyphs change color based on their fill level, providing an intuitive visual representation of the Big Pipe system status. Use command-line arguments to display specific output lines for scripting and automation.
                             </p>
                             <p>
                                 <b>Official Website:</b> <a href="https://www.portland.gov/bes/big-pipe-tracker" target="_blank" rel="noopener noreferrer">Portland Big Pipe Tracker</a>
