@@ -1,8 +1,21 @@
 ﻿# Portland Big Pipe Report Script
 # Parses 15-minute interval data and displays statistics with sparklines
 
-# Clear screen
-Clear-Host
+param(
+    [Alias("l")]
+    [switch]$level,
+    [Alias("b")]
+    [switch]$banner,
+    [switch]$sma,
+    [switch]$s12,
+    [switch]$s24,
+    [switch]$s72
+)
+
+# Clear screen only if no specific output is requested
+if (-not ($level -or $banner -or $sma -or $s12 -or $s24 -or $s72)) {
+    Clear-Host
+}
 
 # URL for the raw data table
 $url = "https://www.portlandoregon.gov/bes/bigpipe/data.cfm"
@@ -289,82 +302,103 @@ try {
     }
     $sparkline72HData = Get-Sparkline -Values $last288Samples -SamplesPerGlyph 12
     
+    # Determine if we should show full output or specific lines
+    $showFullOutput = -not ($level -or $banner -or $sma -or $s12 -or $s24 -or $s72)
+    
     # Display output
-    Write-Host "*** Portland Big Pipe Report ***" -ForegroundColor Green
-    Write-Host ""
+    if ($banner -or $showFullOutput) {
+        Write-Host "*** Portland Big Pipe Report ***" -ForegroundColor Green
+        if ($showFullOutput) {
+            Write-Host ""
+        }
+    }
     
     # Calculate padding to align values at column 16 (1-indexed)
     $targetColumn = 16
     
     # Current Level
-    $currentLevelFormatted = "$([math]::Round($currentLevel, 1))%"
-    $currentLevelColor = Get-PercentageColor -Percentage $currentLevel
-    $labelCurrent = "Current Level:"
-    $paddingCurrent = " " * ($targetColumn - $labelCurrent.Length)
-    Write-Host -NoNewline -ForegroundColor White $labelCurrent
-    Write-Host -NoNewline $paddingCurrent
-    Write-Host -ForegroundColor $currentLevelColor $currentLevelFormatted
+    if ($level -or $showFullOutput) {
+        $currentLevelFormatted = "$([math]::Round($currentLevel, 1))%"
+        $currentLevelColor = Get-PercentageColor -Percentage $currentLevel
+        $labelCurrent = "Current Level:"
+        $paddingCurrent = " " * ($targetColumn - $labelCurrent.Length)
+        Write-Host -NoNewline -ForegroundColor White $labelCurrent
+        Write-Host -NoNewline $paddingCurrent
+        Write-Host -ForegroundColor $currentLevelColor $currentLevelFormatted
+    }
     
     # 12/24/72H SMA
-    $sma12HFormatted = "$([math]::Round($sma12H, 1))%"
-    $sma24HFormatted = "$([math]::Round($sma24H, 1))%"
-    $sma72HFormatted = "$([math]::Round($sma72H, 1))%"
-    $sma12HColor = Get-PercentageColor -Percentage $sma12H
-    $sma24HColor = Get-PercentageColor -Percentage $sma24H
-    $sma72HColor = Get-PercentageColor -Percentage $sma72H
-    $labelSMA = "12/24/72H SMA:"
-    $paddingSMA = " " * ($targetColumn - $labelSMA.Length)
-    Write-Host -NoNewline -ForegroundColor White $labelSMA
-    Write-Host -NoNewline $paddingSMA
-    Write-Host -NoNewline -ForegroundColor $sma12HColor $sma12HFormatted
-    Write-Host -NoNewline -ForegroundColor White "/"
-    Write-Host -NoNewline -ForegroundColor $sma24HColor $sma24HFormatted
-    Write-Host -NoNewline -ForegroundColor White "/"
-    Write-Host -ForegroundColor $sma72HColor $sma72HFormatted
+    if ($sma -or $showFullOutput) {
+        $sma12HFormatted = "$([math]::Round($sma12H, 1))%"
+        $sma24HFormatted = "$([math]::Round($sma24H, 1))%"
+        $sma72HFormatted = "$([math]::Round($sma72H, 1))%"
+        $sma12HColor = Get-PercentageColor -Percentage $sma12H
+        $sma24HColor = Get-PercentageColor -Percentage $sma24H
+        $sma72HColor = Get-PercentageColor -Percentage $sma72H
+        $labelSMA = "12/24/72H SMA:"
+        $paddingSMA = " " * ($targetColumn - $labelSMA.Length)
+        Write-Host -NoNewline -ForegroundColor White $labelSMA
+        Write-Host -NoNewline $paddingSMA
+        Write-Host -NoNewline -ForegroundColor $sma12HColor $sma12HFormatted
+        Write-Host -NoNewline -ForegroundColor White "/"
+        Write-Host -NoNewline -ForegroundColor $sma24HColor $sma24HFormatted
+        Write-Host -NoNewline -ForegroundColor White "/"
+        Write-Host -ForegroundColor $sma72HColor $sma72HFormatted
+    }
     
     # 12H High/Low
-    $high12HFormatted = "$([math]::Round($high12H, 1))%"
-    $low12HFormatted = "$([math]::Round($low12H, 1))%"
-    $high12HColor = Get-PercentageColor -Percentage $high12H
-    $low12HColor = Get-PercentageColor -Percentage $low12H
-    $label12H = "12H High/Low:"
-    $padding12H = " " * ($targetColumn - $label12H.Length)
-    Write-Host -NoNewline -ForegroundColor White $label12H
-    Write-Host -NoNewline $padding12H
-    Write-Host -NoNewline -ForegroundColor $high12HColor $high12HFormatted
-    Write-Host -NoNewline -ForegroundColor White "/"
-    Write-Host -ForegroundColor $low12HColor $low12HFormatted
+    if ($showFullOutput) {
+        $high12HFormatted = "$([math]::Round($high12H, 1))%"
+        $low12HFormatted = "$([math]::Round($low12H, 1))%"
+        $high12HColor = Get-PercentageColor -Percentage $high12H
+        $low12HColor = Get-PercentageColor -Percentage $low12H
+        $label12H = "12H High/Low:"
+        $padding12H = " " * ($targetColumn - $label12H.Length)
+        Write-Host -NoNewline -ForegroundColor White $label12H
+        Write-Host -NoNewline $padding12H
+        Write-Host -NoNewline -ForegroundColor $high12HColor $high12HFormatted
+        Write-Host -NoNewline -ForegroundColor White "/"
+        Write-Host -ForegroundColor $low12HColor $low12HFormatted
+        
+        # 24H High/Low
+        $high24HFormatted = "$([math]::Round($high24H, 1))%"
+        $low24HFormatted = "$([math]::Round($low24H, 1))%"
+        $high24HColor = Get-PercentageColor -Percentage $high24H
+        $low24HColor = Get-PercentageColor -Percentage $low24H
+        $label24H = "24H High/Low:"
+        $padding24H = " " * ($targetColumn - $label24H.Length)
+        Write-Host -NoNewline -ForegroundColor White $label24H
+        Write-Host -NoNewline $padding24H
+        Write-Host -NoNewline -ForegroundColor $high24HColor $high24HFormatted
+        Write-Host -NoNewline -ForegroundColor White "/"
+        Write-Host -ForegroundColor $low24HColor $low24HFormatted
+        
+        # 72H High/Low
+        $high72HFormatted = "$([math]::Round($high72H, 1))%"
+        $low72HFormatted = "$([math]::Round($low72H, 1))%"
+        $high72HColor = Get-PercentageColor -Percentage $high72H
+        $low72HColor = Get-PercentageColor -Percentage $low72H
+        $label72H = "72H High/Low:"
+        $padding72H = " " * ($targetColumn - $label72H.Length)
+        Write-Host -NoNewline -ForegroundColor White $label72H
+        Write-Host -NoNewline $padding72H
+        Write-Host -NoNewline -ForegroundColor $high72HColor $high72HFormatted
+        Write-Host -NoNewline -ForegroundColor White "/"
+        Write-Host -ForegroundColor $low72HColor $low72HFormatted
+        
+        Write-Host ""
+    }
     
-    # 24H High/Low
-    $high24HFormatted = "$([math]::Round($high24H, 1))%"
-    $low24HFormatted = "$([math]::Round($low24H, 1))%"
-    $high24HColor = Get-PercentageColor -Percentage $high24H
-    $low24HColor = Get-PercentageColor -Percentage $low24H
-    $label24H = "24H High/Low:"
-    $padding24H = " " * ($targetColumn - $label24H.Length)
-    Write-Host -NoNewline -ForegroundColor White $label24H
-    Write-Host -NoNewline $padding24H
-    Write-Host -NoNewline -ForegroundColor $high24HColor $high24HFormatted
-    Write-Host -NoNewline -ForegroundColor White "/"
-    Write-Host -ForegroundColor $low24HColor $low24HFormatted
-    
-    # 72H High/Low
-    $high72HFormatted = "$([math]::Round($high72H, 1))%"
-    $low72HFormatted = "$([math]::Round($low72H, 1))%"
-    $high72HColor = Get-PercentageColor -Percentage $high72H
-    $low72HColor = Get-PercentageColor -Percentage $low72H
-    $label72H = "72H High/Low:"
-    $padding72H = " " * ($targetColumn - $label72H.Length)
-    Write-Host -NoNewline -ForegroundColor White $label72H
-    Write-Host -NoNewline $padding72H
-    Write-Host -NoNewline -ForegroundColor $high72HColor $high72HFormatted
-    Write-Host -NoNewline -ForegroundColor White "/"
-    Write-Host -ForegroundColor $low72HColor $low72HFormatted
-    
-    Write-Host ""
-    Write-ColoredSparkline -Label "12H:" -Sparkline $sparkline12HData.Sparkline -BinnedValues $sparkline12HData.BinnedValues
-    Write-ColoredSparkline -Label "24H:" -Sparkline $sparkline24HData.Sparkline -BinnedValues $sparkline24HData.BinnedValues
-    Write-ColoredSparkline -Label "72H:" -Sparkline $sparkline72HData.Sparkline -BinnedValues $sparkline72HData.BinnedValues
+    # Sparklines
+    if ($s12 -or $showFullOutput) {
+        Write-ColoredSparkline -Label "12H:" -Sparkline $sparkline12HData.Sparkline -BinnedValues $sparkline12HData.BinnedValues
+    }
+    if ($s24 -or $showFullOutput) {
+        Write-ColoredSparkline -Label "24H:" -Sparkline $sparkline24HData.Sparkline -BinnedValues $sparkline24HData.BinnedValues
+    }
+    if ($s72 -or $showFullOutput) {
+        Write-ColoredSparkline -Label "72H:" -Sparkline $sparkline72HData.Sparkline -BinnedValues $sparkline72HData.BinnedValues
+    }
 }
 catch {
     Write-Error "Failed to reach the Big Pipe data source. Error: $_"

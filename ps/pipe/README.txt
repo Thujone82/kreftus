@@ -26,11 +26,37 @@ Or from any directory:
     powershell -ExecutionPolicy Bypass -File .\pipe.ps1
 
 The script will:
-1. Clear the screen
+1. Clear the screen (unless specific output is requested)
 2. Fetch the latest data from the Portland Big Pipe website
 3. Parse all available data points (up to 72 hours)
 4. Calculate statistics
 5. Display the formatted report
+
+COMMAND-LINE ARGUMENTS
+----------------------
+The script supports command-line arguments to display specific output lines:
+
+    .\pipe.ps1 -banner          # Show banner line only
+    .\pipe.ps1 -b               # Alias for -banner
+    .\pipe.ps1 -level           # Show current level line only
+    .\pipe.ps1 -l               # Alias for -level
+    .\pipe.ps1 -sma             # Show 12/24/72H SMA line only
+    .\pipe.ps1 -s12             # Show 12H sparkline only
+    .\pipe.ps1 -s24             # Show 24H sparkline only
+    .\pipe.ps1 -s72             # Show 72H sparkline only
+
+Multiple arguments can be combined to display multiple lines:
+
+    .\pipe.ps1 -l -sma          # Show level and SMA lines
+    .\pipe.ps1 -b -l -s12       # Show banner, level, and 12H sparkline
+    .\pipe.ps1 -s12 -s24 -s72   # Show all three sparklines
+
+When command-line arguments are used:
+- The screen is NOT cleared (useful for scripts and pipelines)
+- Only the requested output lines are displayed
+- The script exits after displaying the requested output
+
+When no arguments are provided, the full report is displayed (default behavior).
 
 OUTPUT FORMAT
 -------------
@@ -103,11 +129,13 @@ NOTES
 - Data availability depends on the City of Portland's website
 - Sparklines are displayed using Unicode characters that may not render correctly
   in all terminals or fonts
-- The script clears the screen before displaying results
+- The script clears the screen before displaying results (only when no command-line
+  arguments are provided)
+- Command-line arguments are useful for scripting and integration with other tools
 
 VERSION
 -------
-v2.0 - Enhanced Statistics Display
+v2.1 - Enhanced Statistics Display with Command-Line Arguments
 
 Current version includes:
 - HTML table parsing
@@ -124,6 +152,12 @@ Current version includes:
   * 12H High/Low (max/min of last 12 hours)
   * 24H High/Low (max/min of last 24 hours)
   * 72H High/Low (max/min of last 72 hours, updated from entire dataset)
+- Command-line arguments for selective output:
+  * -banner / -b: Display banner line
+  * -level / -l: Display current level line
+  * -sma: Display 12/24/72H SMA line
+  * -s12, -s24, -s72: Display individual sparklines
+  * Multiple arguments can be combined for custom output
 
 AUTHOR
 ------
