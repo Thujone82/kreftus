@@ -9,6 +9,8 @@ param(
     [switch]$sma,
     [Alias("cap")]
     [switch]$capacity,
+    [Alias("lf")]
+    [switch]$lastfull,
     [switch]$hl12,
     [switch]$hl24,
     [switch]$hl72,
@@ -18,7 +20,7 @@ param(
 )
 
 # Clear screen only if no specific output is requested
-if (-not ($level -or $banner -or $sma -or $capacity -or $hl12 -or $hl24 -or $hl72 -or $s12 -or $s24 -or $s72)) {
+if (-not ($level -or $banner -or $sma -or $capacity -or $lastfull -or $hl12 -or $hl24 -or $hl72 -or $s12 -or $s24 -or $s72)) {
     Clear-Host
 }
 
@@ -355,6 +357,23 @@ try {
         }
     }
     
+    # Calculate last 100% reading if current level is not 100%
+    # Find the most recent 100% reading and calculate time since then
+    $lastFullTime = $null
+    $timeSinceLastFull = $null
+    if ($currentLevel -lt 100) {
+        # Find the most recent 100% reading by going backwards from the most recent
+        for ($i = $allData.Count - 1; $i -ge 0; $i--) {
+            if ($allData[$i].Percentage -eq 100) {
+                $lastFullTime = $allData[$i].DateTime
+                # Calculate time since last full in Pacific timezone
+                $actualCurrentTimePacific = Get-PacificTime
+                $timeSinceLastFull = $actualCurrentTimePacific - $lastFullTime
+                break
+            }
+        }
+    }
+    
     # 12H SMA: Simple moving average of last 12 hours
     $twelveHoursAgo = $currentTime.AddHours(-12)
     $last12Hours = $allData | Where-Object { $_.DateTime -ge $twelveHoursAgo }
@@ -439,7 +458,7 @@ try {
     $sparkline72HData = Get-Sparkline -DataPoints $data72H -BinSize (New-TimeSpan -Hours 3) -EndTime $endTimePacific
     
     # Determine if we should show full output or specific lines
-    $showFullOutput = -not ($level -or $banner -or $sma -or $capacity -or $hl12 -or $hl24 -or $hl72 -or $s12 -or $s24 -or $s72)
+    $showFullOutput = -not ($level -or $banner -or $sma -or $capacity -or $lastfull -or $hl12 -or $hl24 -or $hl72 -or $s12 -or $s24 -or $s72)
     
     # Display output
     if ($banner -or $showFullOutput) {
@@ -471,6 +490,17 @@ try {
             Write-Host -NoNewline -ForegroundColor White $labelDuration
             Write-Host -NoNewline $paddingDuration
             Write-Host -ForegroundColor $durationColor $durationFormatted
+        }
+        
+        # Last Full (only shown when current level is not 100% but there was a 100% reading)
+        if (($lastfull -or $showFullOutput) -and $currentLevel -lt 100 -and $null -ne $timeSinceLastFull) {
+            $lastFullFormatted = Format-Duration -Duration $timeSinceLastFull
+            $lastFullColor = [System.ConsoleColor]::Magenta
+            $labelLastFull = "Last Full:"
+            $paddingLastFull = " " * ($targetColumn - $labelLastFull.Length)
+            Write-Host -NoNewline -ForegroundColor White $labelLastFull
+            Write-Host -NoNewline $paddingLastFull
+            Write-Host -ForegroundColor $lastFullColor $lastFullFormatted
         }
     }
     

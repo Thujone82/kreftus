@@ -42,6 +42,8 @@ The script supports command-line arguments to display specific output lines:
     .\pipe.ps1 -l               # Alias for -level
     .\pipe.ps1 -capacity        # Show 100% Duration line only (when at 100%)
     .\pipe.ps1 -cap             # Alias for -capacity
+    .\pipe.ps1 -lastfull        # Show Last Full line only (when not at 100%)
+    .\pipe.ps1 -lf              # Alias for -lastfull
     .\pipe.ps1 -sma             # Show 12/24/72H SMA line only
     .\pipe.ps1 -hl12            # Show 12H High/Low line only
     .\pipe.ps1 -hl24            # Show 24H High/Low line only
@@ -75,6 +77,10 @@ The script displays:
    - 100% Duration: Amount of time the pipe has been at 100% capacity (only shown
      when current level is 100%, displayed in magenta). Calculated from first 100%
      reading timestamp to current Pacific time, accounting for data lag and missing samples
+   - Last Full: Amount of time since the pipe was last at 100% capacity (only shown
+     when current level is less than 100% but there was a previous 100% reading,
+     displayed in magenta). Calculated from last 100% reading timestamp to current
+     Pacific time
    - 12/24/72H SMA: Three simple moving averages displayed as "$x/$y/$z"
      (each value color-coded separately)
    - 12H High/Low: Maximum and minimum of the last 12 hours as "$x/$y"
@@ -170,6 +176,8 @@ Current version includes:
   * 72H High/Low (max/min of last 72 hours, updated from entire dataset)
   * 100% Duration tracking (calculates time at full capacity using Pacific timezone,
     based on first 100% reading timestamp to current Pacific time, handles missing samples)
+  * Last Full tracking (calculates time since last 100% reading when pipe is not at
+    full capacity, using Pacific timezone)
 - Time-based sparkline generation:
   * Uses fixed time intervals (30 min for 12H, 1 hour for 24H, 3 hours for 72H)
   * Handles missing samples correctly by binning based on timestamps
@@ -179,6 +187,7 @@ Current version includes:
   * -banner / -b: Display banner line
   * -level / -l: Display current level line
   * -capacity / -cap: Display 100% Duration line (when at 100%)
+  * -lastfull / -lf: Display Last Full line (when not at 100% but was previously)
   * -sma: Display 12/24/72H SMA line
   * -hl12, -hl24, -hl72: Display individual High/Low lines
   * -s12, -s24, -s72: Display individual sparklines
