@@ -1,4 +1,4 @@
-const CACHE_NAME = 'info2go-v2-071825@0700-cache'; // Updated cache name for v.2
+const CACHE_NAME = 'info2go-v2-121725@1112-cache'; // Updated cache name for v.2
 const SW_CONSTANTS = { // Defined here as sw.js doesn't import app.js
     SW_MESSAGES: {
         SKIP_WAITING: 'SKIP_WAITING'
