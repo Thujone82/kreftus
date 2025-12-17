@@ -21,7 +21,7 @@ param(
 
 # Clear screen only if no specific output is requested
 if (-not ($level -or $banner -or $sma -or $capacity -or $lastfull -or $hl12 -or $hl24 -or $hl72 -or $s12 -or $s24 -or $s72)) {
-    Clear-Host
+Clear-Host
 }
 
 # URL for the raw data table
@@ -200,10 +200,10 @@ function Get-Sparkline {
             # Still null after interpolation attempt - use space (shouldn't happen, but safe fallback)
             $sparkline += " "
         } else {
-            $normalized = ($value - $minValue) / $valueRange
-            $charIndex = [math]::Floor($normalized * ($sparkChars.Length - 1))
-            $sparkline += $sparkChars[$charIndex]
-        }
+        $normalized = ($value - $minValue) / $valueRange
+        $charIndex = [math]::Floor($normalized * ($sparkChars.Length - 1))
+        $sparkline += $sparkChars[$charIndex]
+    }
     }
     
     return @{
@@ -233,8 +233,8 @@ function Get-PacificTime {
             return Get-Date
         }
     }
-}
-
+    }
+    
 # --- Helper Function to Format Duration ---
 function Format-Duration {
     param ([TimeSpan]$Duration)
@@ -464,7 +464,7 @@ try {
     if ($banner -or $showFullOutput) {
         Write-Host "*** Portland Big Pipe Report ***" -ForegroundColor Green
         if ($showFullOutput) {
-            Write-Host ""
+    Write-Host ""
         }
     }
     
@@ -569,7 +569,7 @@ try {
     }
     
     if ($showFullOutput) {
-        Write-Host ""
+    Write-Host ""
     }
     
     # Sparklines
