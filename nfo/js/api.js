@@ -26,12 +26,7 @@ const api = {
                         {
                             "googleSearch": {}
                         }
-                    ],
-                    "generationConfig": {
-                        "thinkingConfig": {
-                            "thinkingLevel": "low"
-                        }
-                    }
+                    ]
                 })
             });
 
