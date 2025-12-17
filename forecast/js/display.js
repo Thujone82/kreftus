@@ -530,16 +530,19 @@ function displayWeatherAlerts(alerts, showDetails = true, timeZoneId = null) {
         const event = props.event;
         const headline = props.headline;
         const description = props.description;
-        const effective = new Date(props.effective);
-        const expires = new Date(props.expires);
         
-        // Format times in location's timezone if provided, otherwise use browser's local timezone
-        const effectiveFormatted = timeZoneId 
-            ? formatDateTime24(effective, timeZoneId)
-            : formatDateTime24(effective, Intl.DateTimeFormat().resolvedOptions().timeZone);
-        const expiresFormatted = timeZoneId
-            ? formatDateTime24(expires, timeZoneId)
-            : formatDateTime24(expires, Intl.DateTimeFormat().resolvedOptions().timeZone);
+        // Parse dates - NWS API returns ISO 8601 format, typically UTC (with 'Z' suffix)
+        // We need to ensure they're treated as UTC and then converted to location's timezone
+        // Note: 'expires' is when the alert message expires, 'ends' is when the event actually ends
+        // We use 'ends' if available to match the description text, otherwise fall back to 'expires'
+        const effective = new Date(props.effective);
+        const eventEnd = props.ends ? new Date(props.ends) : new Date(props.expires);
+        
+        // Format times in location's timezone to match the alert description text
+        // The description text already contains times in local time, so we must match that
+        const targetTimeZone = timeZoneId || Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const effectiveFormatted = formatDateTime24(effective, targetTimeZone);
+        const expiresFormatted = formatDateTime24(eventEnd, targetTimeZone);
         
         html += '<div class="alert-item">';
         html += `<div class="alert-title">${event}</div>`;

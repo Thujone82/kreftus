@@ -2751,14 +2751,24 @@ function Show-WeatherAlerts {
             $alertHeadline = $alertProps.headline
             $alertDesc = $alertProps.description
             
-            # Parse alert times - API returns ISO 8601 format (likely UTC)
+            # Parse alert times - API returns ISO 8601 format (typically UTC with 'Z' suffix)
+            # The alert description text already contains times in local time, so we must
+            # convert the effective/expires times to the location's timezone to match
+            # Note: 'expires' is when the alert message expires, 'ends' is when the event actually ends
+            # We use 'ends' if available to match the description text, otherwise fall back to 'expires'
             $alertStartOffset = [DateTimeOffset]::Parse($alertProps.effective)
-            $alertEndOffset = [DateTimeOffset]::Parse($alertProps.expires)
+            if ($alertProps.ends) {
+                $alertEndOffset = [DateTimeOffset]::Parse($alertProps.ends)
+            } else {
+                $alertEndOffset = [DateTimeOffset]::Parse($alertProps.expires)
+            }
             
-            # Convert to location's timezone if provided, otherwise use local timezone
+            # Always convert to location's timezone to match the alert description text
+            # The description text uses local time, so effective/expires must also be local
             if ($TimeZone) {
                 $locationTimeZone = Get-ResolvedTimeZoneInfo -TimeZoneId $TimeZone
                 if ($locationTimeZone) {
+                    # Convert DateTimeOffset to location's timezone
                     $alertStart = [System.TimeZoneInfo]::ConvertTime($alertStartOffset, $locationTimeZone)
                     $alertEnd = [System.TimeZoneInfo]::ConvertTime($alertEndOffset, $locationTimeZone)
                 } else {
@@ -3807,7 +3817,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isDailyMode = $false
                     Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $($sunriseTime.ToString('h:mm tt')) -SunsetTime $($sunsetTime.ToString('h:mm tt')) -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon
                     Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
-                    Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false
+                    Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false -TimeZone $timeZone
                     Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                 }
                 'f' { # F key - Switch to full weather report

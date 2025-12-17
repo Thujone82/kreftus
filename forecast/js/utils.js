@@ -403,6 +403,11 @@ function formatDateTime24(date, timeZoneId) {
     if (!date) return "";
     
     try {
+        if (!timeZoneId) {
+            // If no timezone specified, use browser's local timezone
+            timeZoneId = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        }
+        
         const formatter = new Intl.DateTimeFormat('en-US', {
             timeZone: timeZoneId,
             month: '2-digit',
@@ -423,7 +428,21 @@ function formatDateTime24(date, timeZoneId) {
         
         return `${month}/${day}/${year} ${hour}:${minute}`;
     } catch (error) {
-        // Fallback: format manually
+        // Fallback: convert to timezone manually if possible, otherwise use local time
+        try {
+            if (timeZoneId) {
+                const converted = convertToTimeZone(date, timeZoneId);
+                const month = String(converted.getMonth() + 1).padStart(2, '0');
+                const day = String(converted.getDate()).padStart(2, '0');
+                const year = converted.getFullYear();
+                const hour = String(converted.getHours()).padStart(2, '0');
+                const min = String(converted.getMinutes()).padStart(2, '0');
+                return `${month}/${day}/${year} ${hour}:${min}`;
+            }
+        } catch (e) {
+            // If conversion fails, fall through to local time
+        }
+        // Final fallback: format manually using local time
         const d = new Date(date);
         const month = String(d.getMonth() + 1).padStart(2, '0');
         const day = String(d.getDate()).padStart(2, '0');
