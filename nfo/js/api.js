@@ -4,7 +4,7 @@ const OWM_API_BASE_URL = 'https://api.openweathermap.org/data/3.0/onecall';
 
 const api = {
     fetchAiData: async (apiKey, locationName, topicQuery) => {
-        const modelName = "gemini-3-flash-preview"; 
+        const modelName = "gemini-flash-latest"; 
         const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
         
         const promptText = `${locationName}: ${topicQuery}`;
@@ -104,7 +104,7 @@ const api = {
         if (!apiKey) return false;
         // Use a lightweight call, like listing models, to validate the key.
         // Using a specific model known to exist to ensure the endpoint is valid for a key check.
-        const modelName = "gemini-3-flash-preview";
+        const modelName = "gemini-flash-latest";
         const VALIDATE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}?key=${apiKey}`;
         try {
             const response = await fetch(VALIDATE_URL);
