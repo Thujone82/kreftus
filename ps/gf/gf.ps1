@@ -1165,6 +1165,8 @@ while ($true) { # Loop for location input and geocoding
         # Check if user wants automatic location detection
         if ($Location -ieq "here") {
             Write-Verbose "Detecting location automatically..."
+            Clear-Host
+            Write-Host "Detecting location..." -ForegroundColor Yellow
             $locationData = Get-CurrentLocation
             $lat = $locationData.Lat
             $lon = $locationData.Lon
@@ -1176,6 +1178,10 @@ while ($true) { # Loop for location input and geocoding
             # Use OpenStreetMap Nominatim API for all geocoding (free, no API key required)
             # This consolidates our API providers and reduces dependencies
             Write-Verbose "Using OpenStreetMap Nominatim API for geocoding."
+            
+            # Display geocoding message
+            Clear-Host
+            Write-Host "Geocoding ($Location)..." -ForegroundColor Yellow
             
             # Prepare location for API query
             $locationForApi = if ($Location -match ",") { $Location } else { "$Location,US" }
@@ -1331,7 +1337,16 @@ Write-Verbose "Starting API calls for forecast data."
 Write-Verbose "GET: $forecastUrl"
 Write-Verbose "GET: $hourlyUrl"
 
+# Display loading messages for forecast and hourly data
+$locationDisplay = if ($state) { "$city, $state" } else { $city }
+Clear-Host
+Write-Host "Loading $locationDisplay Forecast..." -ForegroundColor Yellow
+
 $forecastJob = Start-ApiJob -Url $forecastUrl -Headers $headers -JobName "ForecastData"
+
+Clear-Host
+Write-Host "Loading $locationDisplay Hourly..." -ForegroundColor Yellow
+
 $hourlyJob = Start-ApiJob -Url $hourlyUrl -Headers $headers -JobName "HourlyData"
 
 $jobsToWaitFor = @($forecastJob, $hourlyJob)
@@ -2527,7 +2542,6 @@ function Show-Observations {
         [string]$TimeZone = ""
     )
     
-    Write-Host ""
     if ($ShowCityInTitle -and $City) {
         $cityName = Get-TruncatedCityName -CityName $City -MaxLength 20
         $titleText = "*** $cityName Observations ***"
@@ -3346,6 +3360,9 @@ $isCurrentlyDaytime = Test-IsDaytime $currentPeriod
 # Output the results.
 $weatherIcon = Get-WeatherIcon $currentIcon $isCurrentlyDaytime $currentPrecipProb
 
+# Clear loading message before displaying data
+Clear-HostWithDelay
+
 # Display the weather report using the refactored function
 if ($Rain.IsPresent) {
     # Rain mode: Show only rain likelihood forecast with sparklines
@@ -3530,18 +3547,54 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         $errorInfo["StartTime"] = $startTimeStr
                         $errorInfo["EndTime"] = $endTimeStr
                         
-                        # Fetch observations
+                        # Fetch observations with pagination support
                         $observationsUrl = "https://api.weather.gov/stations/$stationId/observations?start=$startTimeStr&end=$endTimeStr"
                         $errorInfo["ObservationsUrl"] = $observationsUrl
                         
                         try {
-                            $observationsResponse = Invoke-RestMethod -Uri $observationsUrl -Method Get -Headers $headers -ErrorAction Stop -TimeoutSec 30
+                            # Collect all observations from all pages
+                            $allFeatures = @()
+                            $currentUrl = $observationsUrl
+                            $pageCount = 0
+                            $maxPages = 50  # Safety limit to prevent infinite loops
+                            
+                            while ($currentUrl -and $pageCount -lt $maxPages) {
+                                $pageCount++
+                                
+                                $observationsResponse = Invoke-RestMethod -Uri $currentUrl -Method Get -Headers $headers -ErrorAction Stop -TimeoutSec 30
+                                
+                                # Add features from this page to our collection
+                                if ($observationsResponse.features) {
+                                    $allFeatures += $observationsResponse.features
+                                }
+                                
+                                # Check for next page
+                                $currentUrl = $null
+                                if ($observationsResponse.pagination -and $observationsResponse.pagination.next) {
+                                    $currentUrl = $observationsResponse.pagination.next
+                                }
+                            }
+                            
+                            if ($allFeatures.Count -eq 0) {
+                                $errorInfo["Step"] = "FetchObservations"
+                                $errorInfo["Error"] = "No observations collected from any page"
+                                $errorInfo["Success"] = $false
+                                return (@{ Error = $true; ErrorInfo = $errorInfo } | ConvertTo-Json -Compress)
+                            }
+                            
+                            # Create a combined observations data object
+                            $combinedObservationsData = @{
+                                type = "FeatureCollection"
+                                features = $allFeatures
+                            }
+                            
                             $errorInfo["Step"] = "FetchObservations"
                             $errorInfo["Success"] = $true
-                            $errorInfo["ObservationsCount"] = if ($observationsResponse.features) { $observationsResponse.features.Count } else { 0 }
+                            $errorInfo["ObservationsCount"] = $allFeatures.Count
+                            $errorInfo["PagesFetched"] = $pageCount
                             
                             # Return success with data
-                            return (@{ Error = $false; Data = ($observationsResponse | ConvertTo-Json -Depth 10); ErrorInfo = $errorInfo } | ConvertTo-Json -Compress)
+                            return (@{ Error = $false; Data = ($combinedObservationsData | ConvertTo-Json -Depth 10); ErrorInfo = $errorInfo } | ConvertTo-Json -Compress)
                         } catch {
                             $errorInfo["Step"] = "FetchObservations"
                             $errorInfo["Error"] = $_.Exception.Message
@@ -3937,6 +3990,8 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             $script:observationsPreloadJob = $null
                             $script:observationsDataLoading = $false
                         }
+                        # Clear screen after preload completes to remove "Waiting for preloaded data..." message
+                        Clear-HostWithDelay
                     }
                     # Fetch observations if not already fetched (check for null or empty array)
                     if ($null -eq $script:observationsData -or ($script:observationsData -is [Array] -and $script:observationsData.Count -eq 0)) {
