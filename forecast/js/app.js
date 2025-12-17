@@ -1077,6 +1077,45 @@ function restoreDatesFromCache(weatherData) {
     return weatherData;
 }
 
+// Check if observations data covers a full week (7 days)
+function observationsCoverFullWeek(observationsData) {
+    if (!observationsData || !Array.isArray(observationsData) || observationsData.length === 0) {
+        return false;
+    }
+    
+    // Get unique dates from observations
+    const uniqueDates = new Set(observationsData.map(obs => obs.date));
+    
+    // Check if we have at least 7 unique dates
+    if (uniqueDates.size < 7) {
+        return false;
+    }
+    
+    // Check if the dates cover the last 7 days
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const datesArray = Array.from(uniqueDates).map(dateStr => {
+        const [year, month, day] = dateStr.split('-').map(Number);
+        return new Date(year, month - 1, day);
+    }).sort((a, b) => a - b);
+    
+    // Check if we have data for the last 7 days
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // 6 days ago + today = 7 days
+    
+    // Check if the oldest date in observations is within the last 7 days
+    const oldestDate = datesArray[0];
+    if (oldestDate > today) {
+        // Future dates shouldn't happen, but handle gracefully
+        return false;
+    }
+    
+    // Check if we have at least 7 days of data within the last 7 days
+    const recentDates = datesArray.filter(date => date >= sevenDaysAgo);
+    return recentDates.length >= 7;
+}
+
 // Load cached weather data and display it
 function loadCachedWeatherData(locationKey = null) {
     try {
@@ -1127,6 +1166,28 @@ function loadCachedWeatherData(locationKey = null) {
                 }
             } else {
                 elements.locationInput.value = cache.location || '';
+            }
+        }
+        
+        // Check if observations are incomplete and need refresh
+        // Only refresh if cache is not stale (stale cache will be refreshed by init function anyway)
+        const cacheIsStale = isCacheStale(cache.timestamp);
+        if (!cacheIsStale && appState.observationsAvailable && appState.observationsData && restoredWeatherData && restoredWeatherData.location) {
+            const observationsComplete = observationsCoverFullWeek(appState.observationsData);
+            if (!observationsComplete) {
+                console.log('Cached observations are incomplete (less than 7 days), refreshing in background...');
+                // Refresh observations in the background
+                // We need pointsData to refresh observations, so we'll need to fetch it
+                // For now, trigger a full refresh which will update observations
+                const locationToRefresh = restoredWeatherData.location.city && restoredWeatherData.location.state
+                    ? `${restoredWeatherData.location.city}, ${restoredWeatherData.location.state}`
+                    : (cache.location || 'here');
+                // Use a small delay to allow the UI to render first
+                setTimeout(() => {
+                    loadWeatherData(locationToRefresh, false, true).catch(error => {
+                        console.error('Background observations refresh failed:', error);
+                    });
+                }, 100);
             }
         }
         
