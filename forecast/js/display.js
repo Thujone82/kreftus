@@ -518,7 +518,7 @@ function displayWindForecast(weather, location) {
 }
 
 // Display weather alerts
-function displayWeatherAlerts(alerts, showDetails = true) {
+function displayWeatherAlerts(alerts, showDetails = true, timeZoneId = null) {
     if (!alerts || alerts.length === 0) {
         return '';
     }
@@ -533,6 +533,14 @@ function displayWeatherAlerts(alerts, showDetails = true) {
         const effective = new Date(props.effective);
         const expires = new Date(props.expires);
         
+        // Format times in location's timezone if provided, otherwise use browser's local timezone
+        const effectiveFormatted = timeZoneId 
+            ? formatDateTime24(effective, timeZoneId)
+            : formatDateTime24(effective, Intl.DateTimeFormat().resolvedOptions().timeZone);
+        const expiresFormatted = timeZoneId
+            ? formatDateTime24(expires, timeZoneId)
+            : formatDateTime24(expires, Intl.DateTimeFormat().resolvedOptions().timeZone);
+        
         html += '<div class="alert-item">';
         html += `<div class="alert-title">${event}</div>`;
         html += `<div class="alert-description">${headline}</div>`;
@@ -545,8 +553,8 @@ function displayWeatherAlerts(alerts, showDetails = true) {
         }
         
         html += '<div class="alert-times">';
-        html += `Effective: ${effective.toLocaleString()}<br>`;
-        html += `Expires: ${expires.toLocaleString()}`;
+        html += `Effective: ${effectiveFormatted}<br>`;
+        html += `Expires: ${expiresFormatted}`;
         html += '</div>';
         html += '</div>';
     });
@@ -587,7 +595,7 @@ function displayFullWeatherReport(weather, location) {
     }
     html += displayHourlyForecast(weather, location, 0, 12, false);
     html += displaySevenDayForecast(weather, location, false);
-    html += displayWeatherAlerts(weather.alerts, true);
+    html += displayWeatherAlerts(weather.alerts, true, location.timeZone);
     html += displayLocationInfo(location);
     return html;
 }

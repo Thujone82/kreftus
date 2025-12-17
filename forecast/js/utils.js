@@ -398,6 +398,42 @@ function formatDateTime(date, timeZoneId) {
     }
 }
 
+// Format date/time in location timezone (24-hour format: MM/dd/yyyy HH:mm)
+function formatDateTime24(date, timeZoneId) {
+    if (!date) return "";
+    
+    try {
+        const formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: timeZoneId,
+            month: '2-digit',
+            day: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
+        
+        // Format to match PowerShell format: MM/dd/yyyy HH:mm
+        const parts = formatter.formatToParts(date);
+        const month = parts.find(p => p.type === 'month').value;
+        const day = parts.find(p => p.type === 'day').value;
+        const year = parts.find(p => p.type === 'year').value;
+        const hour = parts.find(p => p.type === 'hour').value;
+        const minute = parts.find(p => p.type === 'minute').value;
+        
+        return `${month}/${day}/${year} ${hour}:${minute}`;
+    } catch (error) {
+        // Fallback: format manually
+        const d = new Date(date);
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const year = d.getFullYear();
+        const hour = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        return `${month}/${day}/${year} ${hour}:${min}`;
+    }
+}
+
 // Get temperature color class
 function getTempColor(temp) {
     if (temp < 33) return "temp-cold";
