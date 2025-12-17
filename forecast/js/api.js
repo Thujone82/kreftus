@@ -351,16 +351,53 @@ async function fetchNWSObservations(stationId, timeZone) {
         const observationsUrl = `https://api.weather.gov/stations/${stationId}/observations?start=${startTimeStr}&end=${endTimeStr}`;
         console.log('Fetching observations from:', observationsUrl);
         
-        const response = await fetch(observationsUrl, { headers: NWS_HEADERS });
+        // Collect all observations from all pages
+        const allFeatures = [];
+        let currentUrl = observationsUrl;
+        let pageCount = 0;
+        const maxPages = 50;  // Safety limit to prevent infinite loops
         
-        if (!response.ok) {
-            console.error('Failed to fetch observations:', response.status, response.statusText);
+        while (currentUrl && pageCount < maxPages) {
+            pageCount++;
+            console.log(`Fetching observations page ${pageCount}:`, currentUrl);
+            
+            const response = await fetch(currentUrl, { headers: NWS_HEADERS });
+            
+            if (!response.ok) {
+                console.error(`Failed to fetch observations page ${pageCount}:`, response.status, response.statusText);
+                break;
+            }
+            
+            const observationsData = await response.json();
+            
+            // Add features from this page to our collection
+            if (observationsData.features && Array.isArray(observationsData.features)) {
+                allFeatures.push(...observationsData.features);
+                console.log(`Collected ${observationsData.features.length} observations from page ${pageCount} (total: ${allFeatures.length})`);
+            }
+            
+            // Check for next page
+            currentUrl = null;
+            if (observationsData.pagination && observationsData.pagination.next) {
+                currentUrl = observationsData.pagination.next;
+                console.log('Found pagination link for next page');
+            }
+        }
+        
+        if (allFeatures.length === 0) {
+            console.log('No observations collected from any page');
             return null;
         }
         
-        const observationsData = await response.json();
-        console.log('Fetched observations:', observationsData.features?.length || 0, 'observations');
-        return observationsData;
+        console.log(`Collected total of ${allFeatures.length} observations from ${pageCount} page(s)`);
+        
+        // Create a combined observations data object
+        const combinedObservationsData = {
+            type: 'FeatureCollection',
+            features: allFeatures
+        };
+        
+        return combinedObservationsData;
     } catch (error) {
         console.error('Error fetching observations:', error);
         return null;

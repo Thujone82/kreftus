@@ -451,6 +451,78 @@ function Convert-ObservationsData {
     }
 }
 
+# Helper function to fetch all observations with pagination support
+function Get-AllObservationsWithPagination {
+    param(
+        [string]$ObservationsUrl,
+        [hashtable]$Headers
+    )
+    
+    try {
+        # Collect all observations from all pages
+        $allFeatures = @()
+        $currentUrl = $ObservationsUrl
+        $pageCount = 0
+        $maxPages = 50  # Safety limit to prevent infinite loops
+        
+        while ($currentUrl -and $pageCount -lt $maxPages) {
+            $pageCount++
+            Write-Verbose "Fetching observations page ${pageCount}: $currentUrl"
+            
+            $observationsJob = Start-ApiJob -Url $currentUrl -Headers $Headers -JobName "Observations"
+            Wait-Job -Job $observationsJob | Out-Null
+            
+            if ($observationsJob.State -ne 'Completed') {
+                Write-Verbose "Failed to fetch observations page ${pageCount}: $($observationsJob | Receive-Job)"
+                Remove-Job -Job $observationsJob -Force
+                break
+            }
+            
+            $observationsJson = $observationsJob | Receive-Job
+            Remove-Job -Job $observationsJob
+            
+            if ([string]::IsNullOrWhiteSpace($observationsJson)) {
+                Write-Verbose "Empty response from observations API page $pageCount"
+                break
+            }
+            
+            $observationsData = $observationsJson | ConvertFrom-Json
+            
+            # Add features from this page to our collection
+            if ($observationsData.features) {
+                $allFeatures += $observationsData.features
+                Write-Verbose "Collected $($observationsData.features.Count) observations from page $pageCount (total: $($allFeatures.Count))"
+            }
+            
+            # Check for next page
+            $currentUrl = $null
+            if ($observationsData.pagination -and $observationsData.pagination.next) {
+                $currentUrl = $observationsData.pagination.next
+                Write-Verbose "Found pagination link for next page"
+            }
+        }
+        
+        if ($allFeatures.Count -eq 0) {
+            Write-Verbose "No observations collected from any page"
+            return $null
+        }
+        
+        Write-Verbose "Collected total of $($allFeatures.Count) observations from $pageCount page(s)"
+        
+        # Create a combined observations data object
+        $combinedObservationsData = @{
+            type = "FeatureCollection"
+            features = $allFeatures
+        }
+        
+        return $combinedObservationsData
+    }
+    catch {
+        Write-Verbose "Error in Get-AllObservationsWithPagination: $($_.Exception.Message)"
+        return $null
+    }
+}
+
 # Function to fetch NWS observations (kept for backward compatibility, but now uses async pattern in Update-WeatherData)
 function Get-NWSObservations {
     param(
@@ -504,29 +576,17 @@ function Get-NWSObservations {
         $startTimeStr = $startTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
         $endTimeStr = $endTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
         
-        # Fetch observations
+        # Fetch observations with pagination support
         $observationsUrl = "https://api.weather.gov/stations/$stationId/observations?start=$startTimeStr&end=$endTimeStr"
         Write-Verbose "GET: $observationsUrl"
         Write-Verbose "Fetching historical observations from NWS observation stations API"
         
-        $observationsJob = Start-ApiJob -Url $observationsUrl -Headers $Headers -JobName "Observations"
-        Wait-Job -Job $observationsJob | Out-Null
+        # Use helper function to fetch all observations with pagination
+        $observationsData = Get-AllObservationsWithPagination -ObservationsUrl $observationsUrl -Headers $Headers
         
-        if ($observationsJob.State -ne 'Completed') {
-            Write-Verbose "Failed to fetch observations: $($observationsJob | Receive-Job)"
-            Remove-Job -Job $observationsJob -Force
+        if ($null -eq $observationsData) {
             return $null
         }
-        
-        $observationsJson = $observationsJob | Receive-Job
-        Remove-Job -Job $observationsJob
-        
-        if ([string]::IsNullOrWhiteSpace($observationsJson)) {
-            Write-Verbose "Empty response from observations API"
-            return $null
-        }
-        
-        $observationsData = $observationsJson | ConvertFrom-Json
         
         # Use Convert-ObservationsData to process the observations
         return Convert-ObservationsData -ObservationsData $observationsData -TimeZone $TimeZone
@@ -905,8 +965,7 @@ function Update-WeatherData {
             }
         }
         
-        # Process stations job and start observations data job if timezone is provided
-        $observationsJob = $null
+        # Process stations job and fetch observations data if timezone is provided
         $stationId = $null
         if ($stationsJob) {
             if ($stationsJob.State -eq 'Failed') {
@@ -933,11 +992,28 @@ function Update-WeatherData {
                             $startTimeStr = $startTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
                             $endTimeStr = $endTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
                             
-                            # Start observations data job
+                            # Fetch observations with pagination support
                             $observationsUrl = "https://api.weather.gov/stations/$stationId/observations?start=$startTimeStr&end=$endTimeStr"
                             Write-Verbose "GET: $observationsUrl"
                             Write-Verbose "Fetching historical observations from NWS observation stations API"
-                            $observationsJob = Start-ApiJob -Url $observationsUrl -Headers $headers -JobName "Observations"
+                            
+                            # Use helper function to fetch all observations with pagination
+                            $observationsData = Get-AllObservationsWithPagination -ObservationsUrl $observationsUrl -Headers $headers
+                            
+                            if ($null -ne $observationsData) {
+                                Write-Verbose "Processing $($observationsData.features.Count) observations"
+                                $script:observationsData = Convert-ObservationsData -ObservationsData $observationsData -TimeZone $TimeZone
+                                if ($null -ne $script:observationsData) {
+                                    Write-Verbose "Observations data processed successfully"
+                                } else {
+                                    Write-Verbose "Observations data processing returned null"
+                                }
+                            } else {
+                                Write-Verbose "No observations data collected"
+                                $script:observationsData = $null
+                            }
+                            
+                            # Observations processed inline with pagination support
                         } else {
                             Write-Verbose "No observation stations found"
                         }
@@ -948,44 +1024,9 @@ function Update-WeatherData {
             }
         }
         
-        # Wait for observations job if it was started
-        if ($observationsJob) {
-            Wait-Job -Job $observationsJob | Out-Null
-        }
-        
-        # Process observations job if it was started
-        if ($observationsJob) {
-            if ($observationsJob.State -eq 'Failed') {
-                Write-Verbose "Observations API failed - continuing without observations"
-                Remove-Job -Job $observationsJob -Force
-                $script:observationsData = $null
-            } elseif ($observationsJob.State -ne 'Completed') {
-                Write-Verbose "Observations job in unexpected state: $($observationsJob.State) - continuing without observations"
-                Remove-Job -Job $observationsJob -Force
-                $script:observationsData = $null
-            } else {
-                $observationsJson = $observationsJob | Receive-Job
-                Remove-Job -Job $observationsJob
-                if (-not [string]::IsNullOrWhiteSpace($observationsJson)) {
-                    try {
-                        $observationsData = $observationsJson | ConvertFrom-Json
-                        Write-Verbose "Processing $($observationsData.features.Count) observations"
-                        $script:observationsData = Convert-ObservationsData -ObservationsData $observationsData -TimeZone $TimeZone
-                        if ($null -ne $script:observationsData) {
-                            Write-Verbose "Observations data processed successfully"
-                        } else {
-                            Write-Verbose "Observations data processing returned null"
-                        }
-                    } catch {
-                        Write-Verbose "Failed to process observations data: $($_.Exception.Message)"
-                        $script:observationsData = $null
-                    }
-                } else {
-                    Write-Verbose "Empty response from observations API"
-                    $script:observationsData = $null
-                }
-            }
-        } elseif ($TimeZone -and $pointsData) {
+        # Observations are now processed inline above with pagination support
+        # No need to wait for or process a job here
+        if ($TimeZone -and $pointsData -and $null -eq $script:observationsData) {
             # If stations job wasn't started but timezone is provided, set observations to null
             $script:observationsData = $null
         }
