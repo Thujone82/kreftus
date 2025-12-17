@@ -2596,9 +2596,6 @@ function Show-Observations {
         $maxWindSpeed = $dayData.MaxWindSpeed
         $maxWindGust = $dayData.MaxWindGust
         $windDirection = $dayData.WindDirection
-        # Use max wind gust or max wind speed for color coding (more relevant for peak conditions)
-        $windSpeedForColor = if ($null -ne $maxWindGust) { $maxWindGust } elseif ($null -ne $maxWindSpeed) { $maxWindSpeed } else { $avgWindSpeed }
-        $windColor = if ($null -ne $windSpeedForColor -and $windSpeedForColor -ge $script:WIND_ALERT_THRESHOLD) { $AlertColor } else { $DefaultColor }
         
         # Calculate windchill or heat index (use avg wind speed for calculations)
         $windChillHeatIndex = ""
@@ -2626,41 +2623,29 @@ function Show-Observations {
         $totalPrecip = $dayData.TotalPrecipitation
         $precipDisplay = if ($totalPrecip -gt 0) { " ($totalPrecip`" precip)" } else { "" }
         
-        # Wind display - show average wind speed as primary, gust (max wind) as secondary
-        $windDisplay = ""
+        # Wind display - color code avg and gust separately
+        # Calculate colors separately for avg and gust
+        $avgWindColor = $DefaultColor
+        $gustWindColor = $DefaultColor
         if ($null -ne $avgWindSpeed) {
-            $avgWindSpeedStr = [Math]::Round($avgWindSpeed, 0).ToString()
-            $windDirStr = if ($null -ne $windDirection) { Get-CardinalDirection $windDirection } else { "" }
-            
-            # Build wind display with proper labels
-            if ($null -ne $maxWindGust) {
-                # Show average with gust (preferred - most accurate)
-                $maxWindGustStr = [Math]::Round($maxWindGust, 0).ToString()
-                $windDisplay = " avg ${avgWindSpeedStr}mph gust ${maxWindGustStr}mph $windDirStr"
-            } elseif ($null -ne $maxWindSpeed) {
-                # Show average with max sustained wind (fallback if no gust data)
-                $maxWindSpeedStr = [Math]::Round($maxWindSpeed, 0).ToString()
-                if ([Math]::Abs($maxWindSpeed - $avgWindSpeed) -gt 1) {
-                    # Only show max if it differs significantly from avg
-                    $windDisplay = " avg ${avgWindSpeedStr}mph max ${maxWindSpeedStr}mph $windDirStr"
-                } else {
-                    # If max and avg are similar, just show avg
-                    $windDisplay = " avg ${avgWindSpeedStr}mph $windDirStr"
-                }
-            } else {
-                # Just show average if no max/gust data
-                $windDisplay = " avg ${avgWindSpeedStr}mph $windDirStr"
-            }
+            $avgWindSpeedNum = [Math]::Round($avgWindSpeed, 0)
+            $avgWindColor = if ($avgWindSpeedNum -le 5) { "White" }
+                           elseif ($avgWindSpeedNum -le 9) { "Yellow" }
+                           elseif ($avgWindSpeedNum -le 14) { "Red" }
+                           else { "Magenta" }
+        }
+        if ($null -ne $maxWindGust) {
+            $maxWindGustNum = [Math]::Round($maxWindGust, 0)
+            $gustWindColor = if ($maxWindGustNum -le 5) { "White" }
+                            elseif ($maxWindGustNum -le 9) { "Yellow" }
+                            elseif ($maxWindGustNum -le 14) { "Red" }
+                            else { "Magenta" }
         } elseif ($null -ne $maxWindSpeed) {
-            # Fallback to max if avg not available
-            $maxWindSpeedStr = [Math]::Round($maxWindSpeed, 0).ToString()
-            $windDirStr = if ($null -ne $windDirection) { Get-CardinalDirection $windDirection } else { "" }
-            $windDisplay = " max ${maxWindSpeedStr}mph $windDirStr"
-        } elseif ($null -ne $maxWindGust) {
-            # Fallback to gust if available
-            $maxWindGustStr = [Math]::Round($maxWindGust, 0).ToString()
-            $windDirStr = if ($null -ne $windDirection) { Get-CardinalDirection $windDirection } else { "" }
-            $windDisplay = " gust ${maxWindGustStr}mph $windDirStr"
+            $maxWindSpeedNum = [Math]::Round($maxWindSpeed, 0)
+            $gustWindColor = if ($maxWindSpeedNum -le 5) { "White" }
+                            elseif ($maxWindSpeedNum -le 9) { "Yellow" }
+                            elseif ($maxWindSpeedNum -le 14) { "Red" }
+                            else { "Magenta" }
         }
         
         # Display enhanced format with proper padding
@@ -2690,9 +2675,44 @@ function Show-Observations {
             Write-Host " L:N/A" -ForegroundColor $DefaultColor -NoNewline
         }
         
-        # Wind display
-        if ($windDisplay) {
-            Write-Host $windDisplay -ForegroundColor $windColor -NoNewline
+        # Wind display - color code avg and gust separately
+        $windDirStr = if ($null -ne $windDirection) { Get-CardinalDirection $windDirection } else { "" }
+        if ($null -ne $avgWindSpeed) {
+            $avgWindSpeedStr = [Math]::Round($avgWindSpeed, 0).ToString()
+            
+            # Show average with separate color
+            Write-Host " avg ${avgWindSpeedStr}mph" -ForegroundColor $avgWindColor -NoNewline
+            
+            # Show gust with separate color if available
+            if ($null -ne $maxWindGust) {
+                $maxWindGustStr = [Math]::Round($maxWindGust, 0).ToString()
+                Write-Host " gust ${maxWindGustStr}mph" -ForegroundColor $gustWindColor -NoNewline
+            } elseif ($null -ne $maxWindSpeed) {
+                # Show max with separate color if it differs significantly
+                if ([Math]::Abs($maxWindSpeed - $avgWindSpeed) -gt 1) {
+                    $maxWindSpeedStr = [Math]::Round($maxWindSpeed, 0).ToString()
+                    Write-Host " max ${maxWindSpeedStr}mph" -ForegroundColor $gustWindColor -NoNewline
+                }
+            }
+            
+            # Wind direction
+            if ($windDirStr) {
+                Write-Host " $windDirStr" -ForegroundColor $DefaultColor -NoNewline
+            }
+        } elseif ($null -ne $maxWindSpeed) {
+            # Fallback to max if avg not available
+            $maxWindSpeedStr = [Math]::Round($maxWindSpeed, 0).ToString()
+            Write-Host " max ${maxWindSpeedStr}mph" -ForegroundColor $gustWindColor -NoNewline
+            if ($windDirStr) {
+                Write-Host " $windDirStr" -ForegroundColor $DefaultColor -NoNewline
+            }
+        } elseif ($null -ne $maxWindGust) {
+            # Fallback to gust if available
+            $maxWindGustStr = [Math]::Round($maxWindGust, 0).ToString()
+            Write-Host " gust ${maxWindGustStr}mph" -ForegroundColor $gustWindColor -NoNewline
+            if ($windDirStr) {
+                Write-Host " $windDirStr" -ForegroundColor $DefaultColor -NoNewline
+            }
         }
         
         # Precipitation display
