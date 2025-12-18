@@ -362,15 +362,17 @@ function Convert-ObservationsData {
             
             # Extract precipitation - try multiple fields for better accuracy
             # precipitationLastHour is most common, but also check other time periods
+            # NWS API returns these values in millimeters, so we convert to inches
             $precipValue = $null
             if ($props.precipitationLastHour -and $props.precipitationLastHour.value) {
-                $precipValue = $props.precipitationLastHour.value
+                # Convert from millimeters to inches (1 mm = 0.0393701 inches)
+                $precipValue = $props.precipitationLastHour.value * 0.0393701
             } elseif ($props.precipitationLast3Hours -and $props.precipitationLast3Hours.value) {
-                # If 3-hour value exists, divide by 3 to get hourly equivalent
-                $precipValue = $props.precipitationLast3Hours.value / 3
+                # Convert from millimeters to inches and divide by 3 to get hourly equivalent
+                $precipValue = ($props.precipitationLast3Hours.value * 0.0393701) / 3
             } elseif ($props.precipitationLast6Hours -and $props.precipitationLast6Hours.value) {
-                # If 6-hour value exists, divide by 6 to get hourly equivalent
-                $precipValue = $props.precipitationLast6Hours.value / 6
+                # Convert from millimeters to inches and divide by 6 to get hourly equivalent
+                $precipValue = ($props.precipitationLast6Hours.value * 0.0393701) / 6
             }
             if ($null -ne $precipValue) {
                 $dailyData[$obsDate].Precipitations += $precipValue

@@ -283,6 +283,8 @@ The observations mode (`-o` or `-observations`) provides historical weather data
 - **Data Filtering:** Only displays days that have actual observation data (skips days with no data)
 - **Color Coding:** Uses the same color coding rules as other modes (temperature, wind speed, etc.)
 - **Interactive Mode:** Enters interactive mode after display (use -x to exit immediately)
+- **Pagination Support:** Automatically fetches all pages of observation data when preloading in full mode
+- **Precipitation Accuracy:** Precipitation values correctly converted from millimeters to inches for accurate display
 
 ### Observations Mode Usage:
 
@@ -303,7 +305,7 @@ Each day shows:
 - **Day Name and Date:** Day of week and date (e.g., "Thursday (11/06)")
 - **High/Low Temperatures:** Maximum and minimum temperatures for the day
 - **Wind Information:** Maximum wind speed (and average if different), with cardinal direction
-- **Precipitation:** Total precipitation for the day (if any)
+- **Precipitation:** Total precipitation for the day in inches (if any), accurately converted from millimeters
 - **Humidity:** Average relative humidity percentage
 - **Conditions:** Most common weather condition description for the day
 - **Moon Phase:** Moon phase emoji and information
@@ -449,9 +451,21 @@ This mode is particularly useful for:
 - Quick visual assessment of wind conditions
 - Planning wind-dependent activities (sailing, flying, etc.)
 
+## Loading Messages
+
+The script provides dynamic loading messages that update during the data fetching process:
+
+- **Geocoding:** Displays "Geocoding ($Location)..." when geocoding starts
+- **Forecast Loading:** Updates to "Loading $location Forecast..." when fetching forecast data
+- **Hourly Loading:** Updates to "Loading $location Hourly..." when fetching hourly data
+- **Screen Clearing:** All loading messages are cleared before displaying weather data for a clean presentation
+
+These messages provide clear feedback about the script's progress and help users understand what data is being loaded.
+
 ## Notes
 - The National Weather Service API is free and requires no API key.
 - The API is limited to locations within the United States.
+- Precipitation values are automatically converted from millimeters (NWS API standard) to inches for display.
 - This script uses the National Weather Service API endpoints:
   - `/points/{lat},{lon}` - Get metadata for a location
   - `/gridpoints/{office}/{gridX},{gridY}/forecast` - Get forecast data

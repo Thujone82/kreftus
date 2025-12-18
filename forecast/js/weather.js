@@ -299,15 +299,18 @@ function processObservationsData(observationsData, timeZoneId) {
             }
             
             // Extract precipitation - try multiple fields for better accuracy
+            // precipitationLastHour is most common, but also check other time periods
+            // NWS API returns these values in millimeters, so we convert to inches
             let precipValue = null;
             if (props.precipitationLastHour && props.precipitationLastHour.value !== null && props.precipitationLastHour.value !== undefined) {
-                precipValue = props.precipitationLastHour.value;
+                // Convert from millimeters to inches (1 mm = 0.0393701 inches)
+                precipValue = props.precipitationLastHour.value * 0.0393701;
             } else if (props.precipitationLast3Hours && props.precipitationLast3Hours.value !== null && props.precipitationLast3Hours.value !== undefined) {
-                // If 3-hour value exists, divide by 3 to get hourly equivalent
-                precipValue = props.precipitationLast3Hours.value / 3;
+                // Convert from millimeters to inches and divide by 3 to get hourly equivalent
+                precipValue = (props.precipitationLast3Hours.value * 0.0393701) / 3;
             } else if (props.precipitationLast6Hours && props.precipitationLast6Hours.value !== null && props.precipitationLast6Hours.value !== undefined) {
-                // If 6-hour value exists, divide by 6 to get hourly equivalent
-                precipValue = props.precipitationLast6Hours.value / 6;
+                // Convert from millimeters to inches and divide by 6 to get hourly equivalent
+                precipValue = (props.precipitationLast6Hours.value * 0.0393701) / 6;
             }
             
             if (precipValue !== null) {

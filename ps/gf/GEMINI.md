@@ -515,6 +515,11 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 - **Dynamic Period Names:** Forecast sections now use actual NWS period names instead of hardcoded labels
 - **NWS Resources Links:** Added clickable links to official NWS resources with custom display text
 - **Control Bar Toggle:** Added command line flag and interactive key to hide/show control bar
+- **Observations Pagination:** Added automatic pagination support for observations data prefetch in full mode, ensuring all observation pages are fetched (up to 50 pages maximum for safety)
+- **Dynamic Loading Messages:** Implemented progressive loading messages that update during data fetching: "Geocoding ($Location)...", "Loading $location Forecast...", and "Loading $location Hourly..." with automatic screen clearing
+- **Precipitation Conversion Fix:** Corrected precipitation conversion from millimeters to inches (using factor 0.0393701) for accurate display in both PowerShell and web editions
+- **Screen Clearing Improvements:** Enhanced screen clearing to remove loading messages before displaying data, and fixed "Waiting for preloaded data..." message persistence issue
+- **Observations Display Polish:** Removed empty line above Observations modal title for consistent formatting with other modals
 - **Comprehensive Documentation:** Updated README and project documentation
 
 ### Auto-Refresh Technical Implementation
@@ -724,6 +729,7 @@ The observations mode uses a multi-step process to fetch and process historical 
 2. **Station Selection:** Selects the first available observation station
 3. **Time Range Calculation:** Calculates time range for last 7 days (from 7 days ago to current time)
 4. **Observations API Call:** Fetches observations from the NWS observation stations API with a limit of 500 observations
+5. **Pagination Support:** Automatically handles pagination to fetch all available observation pages (up to 50 pages maximum for safety)
 
 **Data Processing:**
 1. **Timezone Conversion:** Converts observation timestamps from UTC to local timezone using `Get-ResolvedTimeZoneInfo`
@@ -735,7 +741,7 @@ The observations mode uses a multi-step process to fetch and process historical 
    - **Maximum Wind Speed:** Maximum wind speed for the day
    - **Wind Direction:** Average wind direction for the day (converted to cardinal direction)
    - **Average Humidity:** Average relative humidity for the day
-   - **Total Precipitation:** Sum of all precipitation values for the day (handles multiple time periods: last hour, last 3 hours, last 6 hours)
+   - **Total Precipitation:** Sum of all precipitation values for the day, converted from millimeters to inches (handles multiple time periods: last hour, last 3 hours, last 6 hours)
    - **Conditions:** Most common weather condition description for the day
 
 **Display Format:**
@@ -769,9 +775,11 @@ The observations mode uses a multi-step process to fetch and process historical 
 
 **Performance Considerations:**
 - **API Limit:** Uses limit=500 to fetch up to 500 observations per request
+- **Pagination Handling:** Automatically fetches all pages of observation data (up to 50 pages maximum) to ensure complete data collection
 - **Efficient Grouping:** Groups observations by date using hashtable for O(1) lookups
 - **Single Calculation:** Daily aggregates calculated once per day
 - **Memory Efficient:** Minimal memory footprint for observation data
+- **Precipitation Conversion:** Accurately converts precipitation from millimeters (NWS API standard) to inches using conversion factor 0.0393701 (1 mm = 0.0393701 inches)
 
 **Integration Points:**
 - **Command Line:** `-o` or `-observations` flag triggers observations mode
@@ -781,7 +789,7 @@ The observations mode uses a multi-step process to fetch and process historical 
 
 **API Endpoints:**
 - **Observation Stations:** `/points/{lat},{lon}/stations` - Get available observation stations
-- **Observations:** `/stations/{stationId}/observations?start={startTime}&end={endTime}&limit=500` - Get historical observations
+- **Observations:** `/stations/{stationId}/observations?start={startTime}&end={endTime}&limit=500` - Get historical observations (with automatic pagination support)
 
 **Benefits:**
 - **Historical Context:** Provides actual observed weather data, not forecasts
