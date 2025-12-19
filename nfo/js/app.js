@@ -549,9 +549,19 @@ const app = {
         else { alert("Please define an Info Structure before viewing location information."); ui.openModal(APP_CONSTANTS.MODAL_IDS.INFO_COLLECTION_CONFIG); }
     },
     handleOpenLocationInfo: async (locationId) => {
-        if (!app.config.apiKey) {
-            if(ui.appConfigError) ui.appConfigError.textContent = "API Key is not configured. Please configure it first.";
+        const activeConfig = app.getActiveProviderConfig();
+        if (!activeConfig || !activeConfig.apiKey) {
+            const providerName = app.config.activeProvider === 'openrouter' ? 'OpenRouter' : 'Gemini';
+            if(ui.appConfigError) ui.appConfigError.textContent = `${providerName} API Key is not configured. Please configure it first.`;
             ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG); return;
+        }
+        
+        // Validate OpenRouter model if using OpenRouter
+        if (app.config.activeProvider === 'openrouter') {
+            if (!activeConfig.model || activeConfig.model === '') {
+                if(ui.appConfigError) ui.appConfigError.textContent = "OpenRouter model is not selected. Please select a model in settings.";
+                ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG); return;
+            }
         }
         app.currentLocationIdForInfoModal = locationId;
         const location = app.locations.find(l => l.id === locationId);
