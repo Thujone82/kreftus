@@ -507,6 +507,12 @@ input[type="color"] {
     /* margin-right: auto; Pushes collapse hint to the right if needed, but space-between should handle it */
 }
 
+/* Styling for free model options in OpenRouter model dropdown */
+.model-option-free {
+    background-color: rgba(40, 167, 69, 0.15) !important; /* Light green background */
+    color: var(--text-color);
+}
+
 /* Responsive adjustments for Topic Config buttons on small portrait screens */
 @media screen and (max-width: 600px) and (orientation: portrait) {
     #infoCollectionConfigModal .sortable-list li .config-item-buttons {

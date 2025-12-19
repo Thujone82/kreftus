@@ -18,9 +18,13 @@ const APP_CONSTANTS = {
 
 const app = {
     config: { // Initialize config as an object
-        apiKey: null, // For Gemini
+        activeProvider: 'google',
+        googleApiKey: null, // For Gemini
+        googleRpmLimit: 10,  // Default RPM limit for Gemini
+        openRouterApiKey: null, // For OpenRouter
+        openRouterModel: '', // OpenRouter model (empty until user selects)
+        openRouterRpmLimit: 10, // Default RPM limit for OpenRouter
         owmApiKey: null, // For OpenWeatherMap
-        rpmLimit: 10,  // Default RPM limit for Gemini
         primaryColor: '#029ec5',
         backgroundColor: '#1E1E1E'
     },
@@ -49,13 +53,20 @@ const app = {
         
         app.checkOnlineStatus(); // Perform initial, robust online status check
         
-        // Check for Gemini API Key for core functionality
-        if (app.config && app.config.apiKey) {
+        // Validate OpenRouter model if OpenRouter is active
+        if (app.config.activeProvider === 'openrouter') {
+            app.validateOpenRouterModelOnInit();
+        }
+        
+        // Check for API Key for core functionality (provider-specific)
+        const activeConfig = app.getActiveProviderConfig();
+        if (activeConfig && activeConfig.apiKey) {
             ui.toggleConfigButtons(true); // Enable location/topic config
         } else {
             ui.toggleConfigButtons(false);
             ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
-            if (ui.appConfigError) ui.appConfigError.textContent = "Gemini API Key is required for core functionality.";
+            const providerName = app.config.activeProvider === 'openrouter' ? 'OpenRouter' : 'Gemini';
+            if (ui.appConfigError) ui.appConfigError.textContent = `${providerName} API Key is required for core functionality.`;
         }
 
         // Check for OpenWeatherMap API Key for weather features (logging for now)
@@ -151,9 +162,13 @@ const app = {
     loadAndApplyAppSettings: () => {
         const storedSettings = store.getAppSettings(); // getAppSettings provides defaults
         app.config = { // Ensure all expected keys are present
-            apiKey: storedSettings.apiKey || null,
+            activeProvider: storedSettings.activeProvider || 'google',
+            googleApiKey: storedSettings.googleApiKey || null,
+            googleRpmLimit: storedSettings.googleRpmLimit || 10,
+            openRouterApiKey: storedSettings.openRouterApiKey || null,
+            openRouterModel: storedSettings.openRouterModel || '',
+            openRouterRpmLimit: storedSettings.openRouterRpmLimit || 10,
             owmApiKey: storedSettings.owmApiKey || null,
-            rpmLimit: storedSettings.rpmLimit || 10,
             primaryColor: storedSettings.primaryColor || '#029ec5',
             backgroundColor: storedSettings.backgroundColor || '#1E1E1E'
         };
@@ -161,6 +176,44 @@ const app = {
         ui.applyTheme(app.config.primaryColor, app.config.backgroundColor);
         ui.loadAppConfigForm(app.config); // Pass the fully populated app.config
         console.log("App settings loaded and applied:", app.config);
+    },
+
+    getActiveProviderConfig: () => {
+        if (app.config.activeProvider === 'openrouter') {
+            return {
+                apiKey: app.config.openRouterApiKey,
+                rpmLimit: app.config.openRouterRpmLimit,
+                model: app.config.openRouterModel
+            };
+        } else {
+            return {
+                apiKey: app.config.googleApiKey,
+                rpmLimit: app.config.googleRpmLimit,
+                model: null
+            };
+        }
+    },
+
+    validateOpenRouterModelOnInit: async () => {
+        if (app.config.activeProvider !== 'openrouter') return;
+        
+        const selectedModel = app.config.openRouterModel;
+        if (!selectedModel || selectedModel === '') {
+            if (ui.appConfigError) ui.appConfigError.textContent = "Selected OpenRouter model is not configured. Please select a model.";
+            ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
+            return;
+        }
+
+        try {
+            const validation = await api.validateOpenRouterModel(selectedModel);
+            if (!validation.isValid) {
+                if (ui.appConfigError) ui.appConfigError.textContent = "Selected OpenRouter model is no longer available. Please select a new model.";
+                ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
+            }
+        } catch (error) {
+            console.error('Error validating OpenRouter model on init:', error);
+            // Don't block app startup on validation error, but log it
+        }
     },
 
     loadLocations: () => {
@@ -180,10 +233,18 @@ const app = {
             ui.loadAppConfigForm(app.config);
             if (ui.appConfigError) ui.appConfigError.textContent = '';
             // Validate keys when modal is opened if they exist
-            if (app.config.apiKey) {
-                app.validateAndDisplayGeminiKeyStatus(app.config.apiKey, true);
-            } else {
-                ui.setApiKeyStatus('gemini', 'checking', 'Key Test');
+            if (app.config.activeProvider === 'google') {
+                if (app.config.googleApiKey) {
+                    app.validateAndDisplayGeminiKeyStatus(app.config.googleApiKey, true);
+                } else {
+                    ui.setApiKeyStatus('gemini', 'checking', 'Key Test');
+                }
+            } else if (app.config.activeProvider === 'openrouter') {
+                if (app.config.openRouterApiKey) {
+                    app.validateAndDisplayOpenRouterKeyStatus(app.config.openRouterApiKey, true);
+                } else {
+                    ui.setApiKeyStatus('openrouter', 'checking', 'Key Test');
+                }
             }
             if (app.config.owmApiKey) {
                 app.validateAndDisplayOwmKeyStatus(app.config.owmApiKey, true);
@@ -268,31 +329,55 @@ const app = {
     },
 
     handleSaveAppSettings: () => {
-        const newGeminiApiKey = ui.apiKeyInput.value.trim(); // Gemini Key
-        const newOwmApiKey = ui.owmApiKeyInput.value.trim(); // OpenWeatherMap Key
-        const newRpmLimit = parseInt(ui.rpmLimitInput.value, 10) || 10; // RPM Limit
+        const activeProvider = ui.activeProviderSelect ? ui.activeProviderSelect.value : 'google';
+        const newGeminiApiKey = ui.apiKeyInput ? ui.apiKeyInput.value.trim() : '';
+        const newGoogleRpmLimit = ui.rpmLimitInput ? parseInt(ui.rpmLimitInput.value, 10) || 10 : 10;
+        const newOpenRouterApiKey = ui.openRouterApiKeyInput ? ui.openRouterApiKeyInput.value.trim() : '';
+        const newOpenRouterModel = ui.openRouterModelSelect ? ui.openRouterModelSelect.value : '';
+        const newOpenRouterRpmLimit = ui.openRouterRpmLimitInput ? parseInt(ui.openRouterRpmLimitInput.value, 10) || 10 : 10;
+        const newOwmApiKey = ui.owmApiKeyInput ? ui.owmApiKeyInput.value.trim() : '';
         const newPrimaryColor = ui.primaryColorInput.value;
         const newBackgroundColor = ui.backgroundColorInput.value;
 
-        if (!newGeminiApiKey) {
-            if(ui.appConfigError) ui.appConfigError.textContent = "Gemini API Key is required.";
-            if (ui.getApiKeyLinkContainer) ui.getApiKeyLinkContainer.classList.remove('hidden');
-            return;
+        // Validate active provider's required fields
+        if (activeProvider === 'google') {
+            if (!newGeminiApiKey) {
+                if(ui.appConfigError) ui.appConfigError.textContent = "Gemini API Key is required.";
+                if (ui.getApiKeyLinkContainer) ui.getApiKeyLinkContainer.classList.remove('hidden');
+                return;
+            }
+        } else if (activeProvider === 'openrouter') {
+            if (!newOpenRouterApiKey) {
+                if(ui.appConfigError) ui.appConfigError.textContent = "OpenRouter API Key is required.";
+                if (ui.getOpenRouterApiKeyLinkContainer) ui.getOpenRouterApiKeyLinkContainer.classList.remove('hidden');
+                return;
+            }
+            if (!newOpenRouterModel || newOpenRouterModel === '') {
+                if(ui.appConfigError) ui.appConfigError.textContent = "Please select an OpenRouter model before saving.";
+                return;
+            }
         }
+
         if(ui.appConfigError) ui.appConfigError.textContent = "";
         if (ui.getApiKeyLinkContainer) ui.getApiKeyLinkContainer.classList.add('hidden');
+        if (ui.getOpenRouterApiKeyLinkContainer) ui.getOpenRouterApiKeyLinkContainer.classList.add('hidden');
 
-        app.config.apiKey = newGeminiApiKey;
-        app.config.owmApiKey = newOwmApiKey; // Save OWM key to app.config
-        app.config.rpmLimit = newRpmLimit;   // Save RPM limit
+        // Save all settings
+        app.config.activeProvider = activeProvider;
+        app.config.googleApiKey = newGeminiApiKey;
+        app.config.googleRpmLimit = newGoogleRpmLimit;
+        app.config.openRouterApiKey = newOpenRouterApiKey;
+        app.config.openRouterModel = newOpenRouterModel;
+        app.config.openRouterRpmLimit = newOpenRouterRpmLimit;
+        app.config.owmApiKey = newOwmApiKey;
         app.config.primaryColor = newPrimaryColor;
         app.config.backgroundColor = newBackgroundColor;
 
-        store.saveAppSettings(app.config); // saveAppSettings in stor.js needs to handle all these
+        store.saveAppSettings(app.config);
         ui.applyTheme(app.config.primaryColor, app.config.backgroundColor);
-        ui.toggleConfigButtons(true); // For Gemini key dependent buttons
+        ui.toggleConfigButtons(true); // Enable location/topic config buttons
 
-        // Update visibility for OWM API key link
+        // Update visibility for API key links
         if (ui.getOwmApiKeyLinkContainer) {
             ui.getOwmApiKeyLinkContainer.classList.toggle('hidden', !!newOwmApiKey);
         }
@@ -533,11 +618,23 @@ const app = {
             return false; // Indicate that no fetch was attempted.
         }
 
-        if (!app.config.apiKey) {
+        const activeConfig = app.getActiveProviderConfig();
+        if (!activeConfig || !activeConfig.apiKey) {
             if (document.getElementById(APP_CONSTANTS.MODAL_IDS.APP_CONFIG).style.display !== 'block') {
-                 if(ui.appConfigError) ui.appConfigError.textContent = "API Key is required to fetch data.";
-                 ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
+                const providerName = app.config.activeProvider === 'openrouter' ? 'OpenRouter' : 'Gemini';
+                if(ui.appConfigError) ui.appConfigError.textContent = `${providerName} API Key is required to fetch data.`;
+                ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
             } return false;
+        }
+        
+        // Validate OpenRouter model if using OpenRouter
+        if (app.config.activeProvider === 'openrouter') {
+            if (!activeConfig.model || activeConfig.model === '') {
+                if (document.getElementById(APP_CONSTANTS.MODAL_IDS.APP_CONFIG).style.display !== 'block') {
+                    if(ui.appConfigError) ui.appConfigError.textContent = "OpenRouter model is not selected. Please select a model in settings.";
+                    ui.openModal(APP_CONSTANTS.MODAL_IDS.APP_CONFIG);
+                } return false;
+            }
         }
         const location = app.locations.find(l => l.id === locationId);
         if (!location) return false;
@@ -592,7 +689,13 @@ const app = {
         for (const topic of topicsToFetch) {
             console.log(`Preparing to fetch for topic: ${topic.description}`);
             const modifiedAiQuery = `${topic.aiQuery} Ensure the output is in markdown format.`;
-            const promise = api.fetchAiData(app.config.apiKey, location.location, modifiedAiQuery)
+            const promise = api.fetchAiData(
+                app.config.activeProvider,
+                activeConfig.apiKey,
+                location.location,
+                modifiedAiQuery,
+                activeConfig.model
+            )
                 .then(aiData => {
                     store.saveAiCache(locationId, topic.id, aiData);
                     console.log(`Successfully fetched and cached data for ${location.description} - ${topic.description}`);
@@ -601,7 +704,7 @@ const app = {
                 .catch(error => {
                     console.error(`Failed to fetch AI data for ${location.description} - ${topic.description}:`, error.message);
                     store.saveAiCache(locationId, topic.id, `Error: ${error.message}`);
-                    if (error.message.toLowerCase().includes("invalid api key")) {
+                    if (error.message.toLowerCase().includes("invalid api key") || error.message.toLowerCase().includes("invalid openrouter api key")) {
                         anInvalidKeyErrorOccurred = true;
                     }
                     return { status: 'rejected', topicId: topic.id, reason: error };
@@ -679,7 +782,8 @@ const app = {
             console.log("Global refresh already in progress. Skipping new request.");
             return;
         }
-        if (!app.config.apiKey) return;
+        const activeConfig = app.getActiveProviderConfig();
+        if (!activeConfig || !activeConfig.apiKey) return;
 
         const outdatedItemsToFetch = [];
         const sixtyMinutesAgo = Date.now() - APP_CONSTANTS.CACHE_EXPIRY_MS;
@@ -721,7 +825,7 @@ const app = {
         }
 
         let completedFetchCount = 0;
-        const rpm = app.config.rpmLimit || 10;
+        const rpm = activeConfig.rpmLimit || 10;
 
         // Define the cleanup function
         function finishGlobalRefresh() {
@@ -756,7 +860,13 @@ const app = {
 
             const batchPromises = batch.map(item => {
                 const modifiedAiQuery = `${item.aiQuery} Ensure the output is in markdown format.`;
-                return api.fetchAiData(app.config.apiKey, item.locationName, modifiedAiQuery)
+                return api.fetchAiData(
+                    app.config.activeProvider,
+                    activeConfig.apiKey,
+                    item.locationName,
+                    modifiedAiQuery,
+                    activeConfig.model
+                )
                     .then(aiData => {
                         store.saveAiCache(item.locationId, item.topicId, aiData);
                         console.log(`Global Refresh: Successfully fetched for ${item.locationName} - ${item.topicDescription}`);
@@ -865,6 +975,24 @@ const app = {
                 ui.setApiKeyStatus('owm', 'rate_limit', 'Rate Limit');
             } else { // Covers 'invalid', 'network_error', or any other reason
                 ui.setApiKeyStatus('owm', 'invalid', 'Invalid');
+            }
+        }
+    },
+
+    validateAndDisplayOpenRouterKeyStatus: async (apiKeyToValidate, onOpen = false) => {
+        if (!apiKeyToValidate) {
+            ui.setApiKeyStatus('openrouter', 'checking', 'Enter Key');
+            return;
+        }
+        if (!onOpen) ui.setApiKeyStatus('openrouter', 'checking', 'Checking...');
+        const validationResult = await api.validateOpenRouterApiKey(apiKeyToValidate);
+        if (validationResult.isValid) {
+            ui.setApiKeyStatus('openrouter', 'valid', 'Valid');
+        } else {
+            if (validationResult.reason === 'rate_limit') {
+                ui.setApiKeyStatus('openrouter', 'rate_limit', 'Rate Limit');
+            } else { // Covers 'invalid', 'network_error', or any other reason
+                ui.setApiKeyStatus('openrouter', 'invalid', 'Invalid');
             }
         }
     },
@@ -993,10 +1121,16 @@ const app = {
             return;
         }
 
-        // If a Gemini key exists, use it for a "heartbeat" check to confirm real internet access.
+        // If an API key exists, use it for a "heartbeat" check to confirm real internet access.
         // This detects "WiFi connected but no internet" scenarios.
-        if (app.config && app.config.apiKey) {
-            const heartbeat = await api.validateGeminiApiKey(app.config.apiKey);
+        const activeConfig = app.getActiveProviderConfig();
+        if (activeConfig && activeConfig.apiKey) {
+            let heartbeat;
+            if (app.config.activeProvider === 'openrouter') {
+                heartbeat = await api.validateOpenRouterApiKey(activeConfig.apiKey);
+            } else {
+                heartbeat = await api.validateGeminiApiKey(activeConfig.apiKey);
+            }
             if (heartbeat.reason === 'network_error') {
                 // We are connected to a network but can't reach the API.
                 app.handleOfflineStatus();

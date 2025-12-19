@@ -14,10 +14,18 @@ const ui = {
     // App Config Modal
     appConfigModal: document.getElementById('appConfigModal'),
     appConfigError: document.getElementById('appConfigError'),
+    activeProviderSelect: document.getElementById('activeProvider'),
     apiKeyInput: document.getElementById('apiKey'),
     rpmLimitInput: document.getElementById('rpmLimit'), // Added
     geminiApiKeyStatusUI: document.getElementById('geminiApiKeyStatus'), // Added
     getApiKeyLinkContainer: document.getElementById('getApiKeyLinkContainer'),
+    openRouterApiKeyInput: document.getElementById('openRouterApiKey'),
+    openRouterModelSelect: document.getElementById('openRouterModel'),
+    openRouterRpmLimitInput: document.getElementById('openRouterRpmLimit'),
+    openRouterApiKeyStatusUI: document.getElementById('openRouterApiKeyStatus'),
+    getOpenRouterApiKeyLinkContainer: document.getElementById('getOpenRouterApiKeyLinkContainer'),
+    googleProviderSettings: document.getElementById('googleProviderSettings'),
+    openRouterProviderSettings: document.getElementById('openRouterProviderSettings'),
     primaryColorInput: document.getElementById('primaryColor'),
     owmApiKeyInput: document.getElementById('owmApiKey'), // Added
     owmApiKeyStatusUI: document.getElementById('owmApiKeyStatus'), // Added
@@ -174,22 +182,103 @@ const ui = {
         console.log(`Theme applied: Primary=${primaryColor}, ContentBG=${contentBackgroundColor}, PageBG=${pageBackgroundColor}, Text=${textColor}`);
     },
 
-    loadAppConfigForm: (settings) => {
-        if(ui.apiKeyInput) ui.apiKeyInput.value = settings.apiKey || '';
-        if(ui.rpmLimitInput) ui.rpmLimitInput.value = settings.rpmLimit || 10; // Added
-        if(ui.owmApiKeyInput) ui.owmApiKeyInput.value = settings.owmApiKey || ''; // Added
+    loadAppConfigForm: async (settings) => {
+        // Set provider dropdown
+        if(ui.activeProviderSelect) ui.activeProviderSelect.value = settings.activeProvider || 'google';
+        
+        // Load Google provider settings
+        if(ui.apiKeyInput) ui.apiKeyInput.value = settings.googleApiKey || '';
+        if(ui.rpmLimitInput) ui.rpmLimitInput.value = settings.googleRpmLimit || 10;
+        
+        // Load OpenRouter provider settings
+        if(ui.openRouterApiKeyInput) ui.openRouterApiKeyInput.value = settings.openRouterApiKey || '';
+        if(ui.openRouterRpmLimitInput) ui.openRouterRpmLimitInput.value = settings.openRouterRpmLimit || 10;
+        
+        // Load common settings
+        if(ui.owmApiKeyInput) ui.owmApiKeyInput.value = settings.owmApiKey || '';
         if(ui.primaryColorInput) ui.primaryColorInput.value = settings.primaryColor;
         if(ui.backgroundColorInput) ui.backgroundColorInput.value = settings.backgroundColor; 
         if(ui.appConfigError) ui.appConfigError.textContent = ''; 
 
+        // Toggle visibility of provider-specific sections
+        ui.onProviderChange();
+
+        // If OpenRouter is selected, populate model dropdown (always refresh)
+        if (settings.activeProvider === 'openrouter') {
+            await ui.populateOpenRouterModelDropdown(settings.openRouterModel || '');
+        } else {
+            // Clear model dropdown if not OpenRouter
+            if (ui.openRouterModelSelect) {
+                ui.openRouterModelSelect.innerHTML = '<option value="">Select Model...</option>';
+            }
+        }
+
         // Toggle visibility of "Get API Key" links
         if (ui.getApiKeyLinkContainer) {
-            ui.getApiKeyLinkContainer.classList.toggle('hidden', !!settings.apiKey);
+            ui.getApiKeyLinkContainer.classList.toggle('hidden', !!settings.googleApiKey);
         }
-        if (ui.getOwmApiKeyLinkContainer) { // Added
-            ui.getOwmApiKeyLinkContainer.classList.toggle('hidden', !!settings.owmApiKey); // Added
+        if (ui.getOpenRouterApiKeyLinkContainer) {
+            ui.getOpenRouterApiKeyLinkContainer.classList.toggle('hidden', !!settings.openRouterApiKey);
+        }
+        if (ui.getOwmApiKeyLinkContainer) {
+            ui.getOwmApiKeyLinkContainer.classList.toggle('hidden', !!settings.owmApiKey);
         }
         console.log("App config form loaded with settings:", settings);
+    },
+
+    onProviderChange: () => {
+        if (!ui.activeProviderSelect) return;
+        const selectedProvider = ui.activeProviderSelect.value;
+        
+        // Show/hide provider-specific sections
+        if (ui.googleProviderSettings) {
+            ui.googleProviderSettings.style.display = selectedProvider === 'google' ? 'block' : 'none';
+        }
+        if (ui.openRouterProviderSettings) {
+            ui.openRouterProviderSettings.style.display = selectedProvider === 'openrouter' ? 'block' : 'none';
+            if (selectedProvider === 'openrouter') {
+                // Populate model dropdown when OpenRouter is selected
+                ui.populateOpenRouterModelDropdown(app.config.openRouterModel || '');
+            } else {
+                // Clear model dropdown when switching away
+                if (ui.openRouterModelSelect) {
+                    ui.openRouterModelSelect.innerHTML = '<option value="">Select Model...</option>';
+                }
+            }
+        }
+    },
+
+    populateOpenRouterModelDropdown: async (selectedModelId = '') => {
+        if (!ui.openRouterModelSelect) return;
+        
+        // Clear existing options except placeholder
+        ui.openRouterModelSelect.innerHTML = '<option value="">Select Model...</option>';
+        
+        try {
+            const models = await api.fetchOpenRouterModels();
+            
+            models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.id;
+                option.textContent = model.name;
+                if (model.isFree) {
+                    option.classList.add('model-option-free');
+                }
+                if (model.id === selectedModelId) {
+                    option.selected = true;
+                }
+                ui.openRouterModelSelect.appendChild(option);
+            });
+            
+            // If selected model not found, keep placeholder selected
+            if (selectedModelId && !models.some(m => m.id === selectedModelId)) {
+                ui.openRouterModelSelect.value = '';
+                console.warn(`Selected model ${selectedModelId} not found in available models`);
+            }
+        } catch (error) {
+            console.error('Error populating OpenRouter model dropdown:', error);
+            // Keep placeholder option on error
+        }
     },
 
     toggleConfigButtons: (enabled) => {
@@ -229,6 +318,8 @@ const ui = {
             statusElement = ui.geminiApiKeyStatusUI;
         } else if (apiKeyType === 'owm') {
             statusElement = ui.owmApiKeyStatusUI;
+        } else if (apiKeyType === 'openrouter') {
+            statusElement = ui.openRouterApiKeyStatusUI;
         }
 
         if (statusElement) {
@@ -683,11 +774,30 @@ const ui = {
 
         ui.initModalCloseButtons();
 
+        // Provider change handler
+        if (ui.activeProviderSelect) {
+            ui.activeProviderSelect.addEventListener('change', ui.onProviderChange);
+        }
+
         // Debounced API Key Validation for Gemini
         if (ui.apiKeyInput) {
             ui.apiKeyInput.addEventListener('input', utils.debounce((event) => {
                 const key = event.target.value.trim();
-                app.validateAndDisplayGeminiKeyStatus(key, false); // false for onOpen to show "Checking..."
+                // Only validate if Google provider is selected
+                if (ui.activeProviderSelect && ui.activeProviderSelect.value === 'google') {
+                    app.validateAndDisplayGeminiKeyStatus(key, false); // false for onOpen to show "Checking..."
+                }
+            }, DEBOUNCE_DELAY_MS));
+        }
+
+        // Debounced API Key Validation for OpenRouter
+        if (ui.openRouterApiKeyInput) {
+            ui.openRouterApiKeyInput.addEventListener('input', utils.debounce((event) => {
+                const key = event.target.value.trim();
+                // Only validate if OpenRouter provider is selected
+                if (ui.activeProviderSelect && ui.activeProviderSelect.value === 'openrouter') {
+                    app.validateAndDisplayOpenRouterKeyStatus(key, false); // false for onOpen to show "Checking..."
+                }
             }, DEBOUNCE_DELAY_MS));
         }
 
@@ -697,6 +807,12 @@ const ui = {
                 const key = event.target.value.trim();
                 app.validateAndDisplayOwmKeyStatus(key, false); // false for onOpen to show "Checking..."
             }, DEBOUNCE_DELAY_MS));
+        }
+
+        // Show/hide API keys on focus/blur for easier editing (OpenRouter)
+        if (ui.openRouterApiKeyInput) {
+            ui.openRouterApiKeyInput.addEventListener('focus', (e) => { e.target.type = 'text'; });
+            ui.openRouterApiKeyInput.addEventListener('blur', (e) => { e.target.type = 'password'; });
         }
 
         console.log("UI initialized");

@@ -14,13 +14,29 @@ const store = {
     // Application Settings (API Key, Colors)
     getAppSettings: () => {
         const settings = localStorage.getItem(APP_SETTINGS_KEY);
+        let parsedSettings = settings ? JSON.parse(settings) : {};
+        
+        // Migration: Convert old settings to new structure
+        if (parsedSettings.apiKey !== undefined && parsedSettings.googleApiKey === undefined) {
+            parsedSettings.googleApiKey = parsedSettings.apiKey;
+            delete parsedSettings.apiKey;
+        }
+        if (parsedSettings.rpmLimit !== undefined && parsedSettings.googleRpmLimit === undefined) {
+            parsedSettings.googleRpmLimit = parsedSettings.rpmLimit;
+            delete parsedSettings.rpmLimit;
+        }
+        
         // Default to a dark theme content background
-        return settings ? JSON.parse(settings) : { 
-            apiKey: '',
-            owmApiKey: '', // Ensure owmApiKey is part of default settings
-            rpmLimit: 10,  // Default RPM limit
-            primaryColor: '#029ec5',
-            backgroundColor: '#1E1E1E' // Default content area background
+        return {
+            activeProvider: parsedSettings.activeProvider || 'google',
+            googleApiKey: parsedSettings.googleApiKey || '',
+            googleRpmLimit: parsedSettings.googleRpmLimit || 10,
+            openRouterApiKey: parsedSettings.openRouterApiKey || '',
+            openRouterModel: parsedSettings.openRouterModel || '',
+            openRouterRpmLimit: parsedSettings.openRouterRpmLimit || 10,
+            owmApiKey: parsedSettings.owmApiKey || '',
+            primaryColor: parsedSettings.primaryColor || '#029ec5',
+            backgroundColor: parsedSettings.backgroundColor || '#1E1E1E'
         };
     },
     saveAppSettings: (settings) => {

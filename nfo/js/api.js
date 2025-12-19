@@ -3,7 +3,15 @@ console.log("api.js loaded");
 const OWM_API_BASE_URL = 'https://api.openweathermap.org/data/3.0/onecall';
 
 const api = {
-    fetchAiData: async (apiKey, locationName, topicQuery) => {
+    fetchAiData: async (provider, apiKey, locationName, topicQuery, model = null) => {
+        if (provider === 'openrouter') {
+            return api.fetchAiDataOpenRouter(apiKey, locationName, topicQuery, model);
+        } else {
+            return api.fetchAiDataGoogle(apiKey, locationName, topicQuery);
+        }
+    },
+
+    fetchAiDataGoogle: async (apiKey, locationName, topicQuery) => {
         const modelName = "gemini-2.5-flash"; 
         const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
         
@@ -61,6 +69,117 @@ const api = {
         } catch (error) {
             console.error('Error fetching AI data:', error);
             throw error;
+        }
+    },
+
+    fetchAiDataOpenRouter: async (apiKey, locationName, topicQuery, model) => {
+        if (!model || model === '') {
+            throw new Error("OpenRouter model is not selected. Please select a model in settings.");
+        }
+        
+        const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+        const promptText = `${locationName}: ${topicQuery}`;
+        console.log(`Fetching AI data for: ${promptText} using OpenRouter model ${model}`);
+
+        try {
+            const response = await fetch(OPENROUTER_API_URL, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: [
+                        {
+                            role: 'user',
+                            content: promptText
+                        }
+                    ]
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }));
+                console.error("OpenRouter API Error Response:", errorData);
+                let errorMessage = `OpenRouter API request failed with status ${response.status}`;
+                if (errorData.error && errorData.error.message) {
+                    errorMessage += `: ${errorData.error.message}`;
+                }
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error("Invalid OpenRouter API Key. Please check your configuration.");
+                }
+                throw new Error(errorMessage);
+            }
+
+            const data = await response.json();
+            console.log("OpenRouter API Response Data:", data);
+
+            if (data.choices && data.choices.length > 0 &&
+                data.choices[0].message && data.choices[0].message.content) {
+                return data.choices[0].message.content;
+            } else {
+                console.warn("OpenRouter API response did not contain expected text data structure:", data);
+                throw new Error("OpenRouter API response did not contain usable text content.");
+            }
+        } catch (error) {
+            console.error('Error fetching AI data from OpenRouter:', error);
+            throw error;
+        }
+    },
+
+    fetchOpenRouterModels: async () => {
+        const OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models';
+        console.log('Fetching OpenRouter models from API...');
+
+        try {
+            const response = await fetch(OPENROUTER_MODELS_URL);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch models: ${response.status}`);
+            }
+
+            const data = await response.json();
+            if (!data.data || !Array.isArray(data.data)) {
+                throw new Error('Invalid response format from OpenRouter models API');
+            }
+
+            // Process and sort models
+            const models = data.data.map(model => {
+                const isFree = model.id.endsWith(':free') || model.pricing?.prompt === '0';
+                return {
+                    id: model.id,
+                    name: model.name || model.id,
+                    isFree: isFree
+                };
+            });
+
+            // Sort: free models first, then alphabetically
+            models.sort((a, b) => {
+                if (a.isFree && !b.isFree) return -1;
+                if (!a.isFree && b.isFree) return 1;
+                return a.name.localeCompare(b.name);
+            });
+
+            console.log(`Fetched ${models.length} OpenRouter models (${models.filter(m => m.isFree).length} free)`);
+            return models;
+        } catch (error) {
+            console.error('Error fetching OpenRouter models:', error);
+            throw error;
+        }
+    },
+
+    validateOpenRouterModel: async (selectedModel) => {
+        if (!selectedModel || selectedModel === '') {
+            return { isValid: false, availableModels: [] };
+        }
+
+        try {
+            const models = await api.fetchOpenRouterModels();
+            const modelExists = models.some(model => model.id === selectedModel);
+            return { isValid: modelExists, availableModels: models };
+        } catch (error) {
+            console.error('Error validating OpenRouter model:', error);
+            return { isValid: false, availableModels: [] };
         }
     },
 
@@ -145,6 +264,33 @@ const api = {
             return { isValid: false, reason: 'invalid' };
         } catch (error) {
             console.error('Error validating OpenWeatherMap API key:', error);
+            return { isValid: false, reason: 'network_error' };
+        }
+    },
+
+    validateOpenRouterApiKey: async (apiKey) => {
+        if (!apiKey) return { isValid: false, reason: 'missing' };
+        // Use a lightweight call to validate the key - fetch models endpoint
+        const VALIDATE_URL = 'https://openrouter.ai/api/v1/models';
+        try {
+            const response = await fetch(VALIDATE_URL, {
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`
+                }
+            });
+            if (response.ok) {
+                return { isValid: true };
+            } else if (response.status === 429) {
+                console.warn('OpenRouter API key validation: Rate limit hit (429).');
+                return { isValid: false, reason: 'rate_limit' };
+            } else if (response.status === 401 || response.status === 403) {
+                console.warn('OpenRouter API key validation: Invalid key.');
+                return { isValid: false, reason: 'invalid' };
+            }
+            console.warn(`OpenRouter API key validation failed with status: ${response.status}`);
+            return { isValid: false, reason: 'invalid' };
+        } catch (error) {
+            console.error('Error validating OpenRouter API key:', error);
             return { isValid: false, reason: 'network_error' };
         }
     }
