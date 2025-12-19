@@ -205,11 +205,23 @@ const ui = {
         if(ui.activeProviderSelect) {
             ui.activeProviderSelect.value = settings.activeProvider || 'google';
         }
-        ui.onProviderChange();
-
-        // If OpenRouter is selected, populate model dropdown (always refresh with fresh data)
-        if ((settings.activeProvider || 'google') === 'openrouter') {
+        
+        // Call onProviderChange to set visibility and populate models
+        // onProviderChange will populate models for OpenRouter, but we want to use settings value
+        const wasOpenRouter = (settings.activeProvider || 'google') === 'openrouter';
+        if (wasOpenRouter) {
+            // Set visibility manually first
+            if (ui.openRouterProviderSettings) {
+                ui.openRouterProviderSettings.classList.remove('hidden');
+            }
+            if (ui.googleProviderSettings) {
+                ui.googleProviderSettings.classList.add('hidden');
+            }
+            // Populate with settings value (fresh fetch)
             await ui.populateOpenRouterModelDropdown(settings.openRouterModel || '');
+        } else {
+            // For Google, just set visibility
+            ui.onProviderChange();
         }
 
         // Toggle visibility of "Get API Key" links
@@ -225,7 +237,7 @@ const ui = {
         console.log("App config form loaded with settings:", settings);
     },
 
-    onProviderChange: () => {
+    onProviderChange: async () => {
         if (!ui.activeProviderSelect) return;
         const selectedProvider = ui.activeProviderSelect.value;
         
@@ -240,8 +252,8 @@ const ui = {
         if (ui.openRouterProviderSettings) {
             if (selectedProvider === 'openrouter') {
                 ui.openRouterProviderSettings.classList.remove('hidden');
-                // Populate model dropdown when OpenRouter is selected
-                ui.populateOpenRouterModelDropdown(app.config.openRouterModel || '');
+                // Populate model dropdown when OpenRouter is selected (always refresh)
+                await ui.populateOpenRouterModelDropdown(app.config.openRouterModel || '');
             } else {
                 ui.openRouterProviderSettings.classList.add('hidden');
                 // Clear model dropdown when switching away
