@@ -1,4 +1,4 @@
-const CACHE_NAME = 'info2go-v3-121925@1428-cache'; // Updated cache name for v.3
+const CACHE_NAME = 'info2go-v3-121925@1455-cache'; // Updated cache name for v.3
 const SW_CONSTANTS = { // Defined here as sw.js doesn't import app.js
     SW_MESSAGES: {
         SKIP_WAITING: 'SKIP_WAITING'
@@ -34,11 +34,85 @@ self.addEventListener('install', event => {
     );
 });
 
+// Helper function to check if we have real internet access (not just WiFi)
+// Uses the same API endpoints that the app uses for validation
+async function hasRealInternetAccess() {
+    // Try lightweight API endpoints to verify real internet connectivity
+    // These are the same endpoints used by the app for online validation
+    const testEndpoints = [
+        {
+            url: 'https://openrouter.ai/api/v1/models',
+            method: 'GET' // OpenRouter models endpoint (no auth required)
+        },
+        {
+            url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash',
+            method: 'GET' // Google Gemini model endpoint (will fail without key, but confirms internet)
+        }
+    ];
+    
+    for (const endpoint of testEndpoints) {
+        try {
+            // Create an AbortController for timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+            
+            const response = await fetch(endpoint.url, {
+                method: endpoint.method,
+                cache: 'no-store',
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            // If we get any response (even 401/403/404), we have internet
+            // Status 0 typically means network error (no internet)
+            if (response.status !== 0) {
+                return true;
+            }
+        } catch (error) {
+            // Network error, timeout, or abort - no real internet
+            // Continue to next endpoint
+            continue;
+        }
+    }
+    return false;
+}
+
 self.addEventListener('fetch', event => {
-    event.respondWith(
-        caches.match(event.request)
-            .then(response => response || fetch(event.request))
-    );
+    // Use network-first strategy for HTML files to ensure updates are picked up
+    if (event.request.url.includes('index.html') || event.request.url.endsWith('/')) {
+        event.respondWith(
+            fetch(event.request, { cache: 'no-store' })
+                .then(response => {
+                    // Update cache with fresh response
+                    const responseClone = response.clone();
+                    caches.open(CACHE_NAME).then(cache => {
+                        cache.put(event.request, responseClone);
+                    });
+                    return response;
+                })
+                .catch(async () => {
+                    // Network fetch failed - check if we have real internet access
+                    const hasInternet = await hasRealInternetAccess();
+                    if (hasInternet) {
+                        // We have internet but the HTML fetch failed - might be temporary
+                        // Try cache as fallback, but log the issue
+                        console.warn('HTML fetch failed but internet is available, serving from cache');
+                        return caches.match(event.request);
+                    } else {
+                        // No real internet (WiFi but no internet scenario) - serve from cache
+                        console.log('No internet access detected, serving HTML from cache');
+                        return caches.match(event.request);
+                    }
+                })
+        );
+    } else {
+        // Use cache-first for other resources
+        event.respondWith(
+            caches.match(event.request)
+                .then(response => response || fetch(event.request))
+        );
+    }
 });
 
 self.addEventListener('message', event => {
