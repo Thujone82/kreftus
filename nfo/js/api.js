@@ -79,7 +79,7 @@ const api = {
         
         const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
         const promptText = `${locationName}: ${topicQuery}`;
-        console.log(`Fetching AI data for: ${promptText} using OpenRouter model ${model}`);
+        console.log(`Fetching AI data for: ${promptText} using OpenRouter model ${model} with web search grounding`);
 
         try {
             const response = await fetch(OPENROUTER_API_URL, {
@@ -94,6 +94,11 @@ const api = {
                         {
                             role: 'user',
                             content: promptText
+                        }
+                    ],
+                    plugins: [
+                        {
+                            id: 'web'
                         }
                     ]
                 })
