@@ -1,4 +1,4 @@
-const CACHE_NAME = 'info2go-v3-121925@1455-cache'; // Updated cache name for v.3
+const CACHE_NAME = 'info2go-v3-121925@1746-cache'; // Updated cache name for v.3
 const SW_CONSTANTS = { // Defined here as sw.js doesn't import app.js
     SW_MESSAGES: {
         SKIP_WAITING: 'SKIP_WAITING'
@@ -35,47 +35,31 @@ self.addEventListener('install', event => {
 });
 
 // Helper function to check if we have real internet access (not just WiFi)
-// Uses the same API endpoints that the app uses for validation
+// Uses a public API endpoint that doesn't require authentication
 async function hasRealInternetAccess() {
-    // Try lightweight API endpoints to verify real internet connectivity
-    // These are the same endpoints used by the app for online validation
-    const testEndpoints = [
-        {
-            url: 'https://openrouter.ai/api/v1/models',
-            method: 'GET' // OpenRouter models endpoint (no auth required)
-        },
-        {
-            url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash',
-            method: 'GET' // Google Gemini model endpoint (will fail without key, but confirms internet)
-        }
-    ];
+    // Use OpenRouter models endpoint - it's public and doesn't require auth
+    // This works regardless of which API keys the user has configured
+    const testEndpoint = 'https://openrouter.ai/api/v1/models';
     
-    for (const endpoint of testEndpoints) {
-        try {
-            // Create an AbortController for timeout
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
-            
-            const response = await fetch(endpoint.url, {
-                method: endpoint.method,
-                cache: 'no-store',
-                signal: controller.signal
-            });
-            
-            clearTimeout(timeoutId);
-            
-            // If we get any response (even 401/403/404), we have internet
-            // Status 0 typically means network error (no internet)
-            if (response.status !== 0) {
-                return true;
-            }
-        } catch (error) {
-            // Network error, timeout, or abort - no real internet
-            // Continue to next endpoint
-            continue;
-        }
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+        
+        const response = await fetch(testEndpoint, {
+            method: 'GET',
+            cache: 'no-store',
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        // If we get any response (even errors), we have internet
+        // Status 0 typically means network error (no internet)
+        return response.status !== 0;
+    } catch (error) {
+        // Network error, timeout, or abort - no real internet
+        return false;
     }
-    return false;
 }
 
 self.addEventListener('fetch', event => {
