@@ -51,6 +51,7 @@ The script first uses a geocoding service to determine the latitude and longitud
   - **Tide Prediction:** Direct link to NOAA tide predictions for the station
   - **Datums:** Direct link to station datums information
   - **Water Levels:** Direct link to water level data (only if station supports it)
+  - **API-Based Discovery:** Uses official NOAA CO-OPS Metadata API to search all available stations dynamically
 - **Enhanced Daily Mode:** Comprehensive 7-day forecast with detailed information:
   - Wind speed and direction with color coding (red for high wind)
   - Windchill and Heat Index calculations when applicable

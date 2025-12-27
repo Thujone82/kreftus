@@ -50,6 +50,12 @@ When a NOAA tide station is found within 100 miles of the location, the app disp
 
 The station ID is a clickable link that opens the NOAA station homepage for detailed information.
 
+**Technical Implementation:**
+- Uses the official NOAA CO-OPS Metadata API (`https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json`)
+- Fetches all available tide stations and calculates distance using the Haversine formula
+- Returns the closest station within 100 miles
+- No hardcoded station list - searches all available NOAA stations dynamically
+
 ## Auto-Update Mechanism
 
 The app automatically checks for updates by comparing the version in `manifest.json` with the cached version. When a new version is detected:
@@ -64,6 +70,7 @@ To trigger an update, simply change the `version` field in `manifest.json` (e.g.
 
 - **APIs Used**:
   - National Weather Service API (weather.gov)
+  - NOAA CO-OPS Metadata API (tide station discovery)
   - OpenStreetMap Nominatim API (geocoding)
   - ip-api.com (IP-based geolocation fallback)
   - Browser Geolocation API (automatic location detection)

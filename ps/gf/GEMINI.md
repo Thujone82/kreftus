@@ -649,16 +649,18 @@ The NOAA Resources feature provides conditional access to NOAA tide station info
 - **Conditional Display:** Only appears when a NOAA tide station is found within 100 miles
 - **Station Information:** Displays station name, clickable station ID link, and coordinates
 - **Resource Links:** Provides direct access to Tide Prediction, Datums, and Water Levels (if supported)
-- **Efficient Lookup:** Uses known stations list for fast proximity checking
+- **API-Based Lookup:** Uses official NOAA CO-OPS Metadata API for comprehensive station coverage
 - **Distance Calculation:** Uses Haversine formula for accurate great-circle distance calculation
 
 #### Technical Implementation:
 
 **Station Discovery:**
-- **Known Stations List:** Pre-configured list of major tide stations with coordinates
-- **Distance Calculation:** Haversine formula calculates great-circle distance between location and stations
+- **NOAA CO-OPS Metadata API:** Uses official NOAA API to fetch all available tide stations
+- **API Endpoint:** `https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json`
+- **Distance Calculation:** Haversine formula calculates great-circle distance between location and all stations
 - **Proximity Threshold:** 100-mile radius for station inclusion
 - **Station Selection:** Returns closest station within threshold
+- **Dynamic Lookup:** No hardcoded station list - searches all available NOAA stations in real-time
 
 **Display Format:**
 - **NOAA Station Line:** "NOAA Station: {Name} ({StationID}) {Lat}, {Lon}"
@@ -670,16 +672,17 @@ The NOAA Resources feature provides conditional access to NOAA tide station info
   - Water Levels: `https://tidesandcurrents.noaa.gov/waterlevels.html?id={stationId}` (only if supported)
 
 **Functions:**
-- **Get-NoaaTideStation:** Searches known stations and returns closest within 100 miles
+- **Get-NoaaTideStation:** Fetches all stations from NOAA API, calculates distances, and returns closest within 100 miles
 - **Get-DistanceMiles:** Calculates Haversine distance between two coordinates
 - **Test-NoaaWaterLevelsSupport:** Checks if station supports water level data
 - **Show-LocationInfo:** Conditionally displays NOAA Station and Resources lines
 
-**Known Stations:**
-- Vancouver, WA (9440083)
-- Seattle, WA (9447130)
-- Newport, OR (9432780)
-- Portland, OR (9435380)
+**API Integration:**
+- **Endpoint:** `https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json`
+- **Method:** GET request to fetch all available tide stations
+- **Response Format:** JSON with stations array containing id, name, lat, lng fields
+- **Coverage:** All NOAA tide stations (typically 300+ stations)
+- **No Authentication Required:** Public API endpoint
 
 #### Benefits:
 
