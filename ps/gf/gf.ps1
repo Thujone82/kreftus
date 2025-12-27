@@ -2865,27 +2865,301 @@ function Get-NoaaTideStation {
     try {
         Write-Verbose "Searching NOAA tide stations for coordinates: $Lat,$Lon"
         
-        # Check known stations for quick lookup
-        $knownStations = @(
-            @{id="9440083"; name="Vancouver, WA"; lat=45.63117; lon=-122.69577},
-            @{id="9447130"; name="Seattle, WA"; lat=47.6062; lon=-122.3394},
-            @{id="9432780"; name="Newport, OR"; lat=44.6368; lon=-124.0535},
-            @{id="9435380"; name="Portland, OR"; lat=45.5628; lon=-122.6664}
-        )
+        # Use NOAA CO-OPS Metadata API to get all stations and filter by distance
+        Write-Verbose "Fetching stations from NOAA CO-OPS Metadata API..."
         
-        # Check known stations
-        foreach ($knownStation in $knownStations) {
-            $distance = Get-DistanceMiles -Lat1 $Lat -Lon1 $Lon -Lat2 $knownStation.lat -Lon2 $knownStation.lon
-            if ($distance -le 100) {
-                Write-Verbose "Found nearby NOAA station: $($knownStation.name) ($($knownStation.id)) at $([Math]::Round($distance, 2)) miles"
-                return @{
-                    stationId = $knownStation.id
-                    name = $knownStation.name
-                    lat = $knownStation.lat
-                    lon = $knownStation.lon
-                    distance = $distance
+        try {
+            $apiUrl = "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json"
+            Write-Verbose "API URL: $apiUrl"
+            $apiResponse = Invoke-RestMethod -Uri $apiUrl -Method Get -ErrorAction Stop -TimeoutSec 30
+            
+            if ($apiResponse -and $apiResponse.stations) {
+                Write-Verbose "Found $($apiResponse.stations.Count) stations from API"
+                $closestStation = $null
+                $minDistance = 1000000
+                $maxDistanceMiles = 100
+                
+                foreach ($station in $apiResponse.stations) {
+                    # API uses 'lng' for longitude, not 'lon'
+                    if ($station.lat -and $station.lng) {
+                        $stationLat = [double]$station.lat
+                        $stationLon = [double]$station.lng
+                        
+                        $distance = Get-DistanceMiles -Lat1 $Lat -Lon1 $Lon -Lat2 $stationLat -Lon2 $stationLon
+                        
+                        if ($distance -le $maxDistanceMiles -and $distance -lt $minDistance) {
+                            $minDistance = $distance
+                            $closestStation = @{
+                                stationId = $station.id.ToString()
+                                name = $station.name
+                                lat = $stationLat
+                                lon = $stationLon
+                                distance = $distance
+                            }
+                            Write-Verbose "Found closer station: $($station.name) ($($station.id)) at $([Math]::Round($distance, 2)) miles"
+                        }
+                    }
+                }
+                
+                if ($closestStation) {
+                    Write-Verbose "Found closest NOAA station via API: $($closestStation.name) ($($closestStation.stationId)) at $([Math]::Round($closestStation.distance, 2)) miles"
+                    return $closestStation
+                } else {
+                    Write-Verbose "No stations found within 100 miles via API"
+                    return $null
+                }
+            } else {
+                Write-Verbose "API response does not contain stations data"
+                return $null
+            }
+        } catch {
+            Write-Verbose "API approach failed: $($_.Exception.Message)"
+            return $null
+        }
+        
+        # Note: Removed web scraping fallback as it doesn't work reliably with JavaScript-rendered content
+        $coordString = "$Lat,$Lon"
+        $searchUrl = "https://tidesandcurrents.noaa.gov/tide_predictions.html?search=$([uri]::EscapeDataString($coordString))"
+        Write-Verbose "GET: $searchUrl"
+        
+        try {
+            # The NOAA page loads search results via JavaScript, so we need to wait for it to render
+            # Use a headless browser approach or try to find the API endpoint
+            # For now, try using the WebBrowser control to get rendered content
+            $htmlContent = $null
+            
+            # Try Selenium WebDriver first (if available)
+            $htmlContent = $null
+            $seleniumAvailable = $false
+            
+            try {
+                # Check if Selenium is available
+                $seleniumModule = Get-Module -ListAvailable -Name Selenium
+                if ($seleniumModule) {
+                    Import-Module Selenium -ErrorAction SilentlyContinue
+                    $seleniumAvailable = $true
+                    Write-Verbose "Selenium WebDriver detected, using it for JavaScript rendering"
+                }
+            } catch {
+                Write-Verbose "Selenium not available, using WebBrowser control"
+            }
+            
+            if ($seleniumAvailable) {
+                try {
+                    $driver = Start-SeChrome -Headless
+                    $driver.Navigate().GoToUrl($searchUrl)
+                    Start-Sleep -Seconds 3
+                    $htmlContent = $driver.PageSource
+                    $driver.Quit()
+                    Write-Verbose "Retrieved HTML via Selenium, length: $($htmlContent.Length) characters"
+                } catch {
+                    Write-Verbose "Selenium approach failed: $($_.Exception.Message)"
+                    $seleniumAvailable = $false
                 }
             }
+            
+            # Fallback to WebBrowser control if Selenium not available or failed
+            if (-not $seleniumAvailable -and [string]::IsNullOrEmpty($htmlContent)) {
+                try {
+                    Add-Type -AssemblyName System.Windows.Forms
+                    $browser = New-Object System.Windows.Forms.WebBrowser
+                    $browser.ScriptErrorsSuppressed = $true
+                    $browser.Navigate($searchUrl)
+                    
+                    # Wait for page to load
+                    $timeout = 15
+                    $elapsed = 0
+                    while ($browser.ReadyState -ne 'Complete' -and $elapsed -lt $timeout) {
+                        Start-Sleep -Milliseconds 100
+                        [System.Windows.Forms.Application]::DoEvents()
+                        $elapsed += 0.1
+                    }
+                    
+                    # Wait longer for JavaScript to execute and render search results
+                    Start-Sleep -Seconds 8
+                    [System.Windows.Forms.Application]::DoEvents()
+                    
+                    # Try to get the full document HTML, not just body
+                    $htmlContent = $browser.Document.DocumentElement.OuterHtml
+                    
+                    # If that's empty or too short, try body
+                    if ([string]::IsNullOrEmpty($htmlContent) -or $htmlContent.Length -lt 1000) {
+                        $htmlContent = $browser.Document.Body.InnerHtml
+                    }
+                    
+                    Write-Verbose "HTML content retrieved via WebBrowser, length: $($htmlContent.Length)"
+                    
+                    # Debug: Check if we can see any station-related content
+                    # Note: "station" or "tide" in the HTML doesn't mean we have the data
+                    # We need actual station IDs (7-digit numbers) or coordinate pairs
+                    if ($htmlContent -match '\b\d{7}\b|9436101|TAFT|SILETZ') {
+                        Write-Verbose "Found station data in HTML"
+                    } elseif ($htmlContent -match 'station|tide') {
+                        Write-Verbose "Found station-related keywords but no actual station data - JavaScript may not have executed"
+                        Write-Verbose "Note: WebBrowser control may not execute JavaScript properly. Consider installing Selenium WebDriver."
+                    } else {
+                        Write-Verbose "No station-related content found - JavaScript may not have executed"
+                    }
+                    $browser.Dispose()
+                } catch {
+                    Write-Verbose "WebBrowser approach failed: $($_.Exception.Message)"
+                    # Fallback: The page uses JavaScript, so we can't easily scrape it
+                    # Instead, we'll need to use an alternative approach
+                    # For now, return null and let the user know we need a different method
+                    Write-Verbose "Unable to retrieve rendered page content - JavaScript execution required"
+                    $htmlContent = $null
+                }
+            }
+            
+            # If WebBrowser didn't work, try basic request as last resort
+            # (though it won't have the JavaScript-rendered content)
+            if ([string]::IsNullOrEmpty($htmlContent) -or $htmlContent.Length -lt 100) {
+                Write-Verbose "Trying basic HTTP request (may not contain JavaScript-rendered data)"
+                try {
+                    $response = Invoke-WebRequest -Uri $searchUrl -Method Get -ErrorAction Stop -UseBasicParsing -TimeoutSec 10 -Headers @{
+                        'User-Agent' = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    }
+                    $htmlContent = $response.Content
+                    Write-Verbose "Received HTML content length: $($htmlContent.Length) characters"
+                } catch {
+                    Write-Verbose "Basic request also failed: $($_.Exception.Message)"
+                    return $null
+                }
+            }
+            
+            if ([string]::IsNullOrEmpty($htmlContent)) {
+                Write-Verbose "No HTML content received"
+                return $null
+            }
+            
+            # Parse HTML to find station results
+            $closestStation = $null
+            $minDistance = 1000000
+            $maxDistanceMiles = 100
+            
+            # Search for coordinate patterns and station IDs directly in HTML
+            Write-Verbose "Searching for station data in HTML content..."
+            
+            # First check if we can find table rows with station data
+            $tableRowPattern = '<tr[^>]*>.*?</tr>'
+            $tableRows = [regex]::Matches($htmlContent, $tableRowPattern, [System.Text.RegularExpressions.RegexOptions]::Singleline -bor [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+            Write-Verbose "Found $($tableRows.Count) table rows in rendered HTML"
+            
+            # Look for station IDs first (7-digit numbers)
+            $stationIdPattern = '\b(\d{7})\b'
+            $stationIdMatches = [regex]::Matches($htmlContent, $stationIdPattern)
+            Write-Verbose "Found $($stationIdMatches.Count) potential 7-digit station IDs in HTML"
+            
+            # Process station IDs first, then find coordinates nearby
+            # This avoids matching the search coordinates themselves
+            foreach ($idMatch in $stationIdMatches) {
+                $stationId = $idMatch.Groups[1].Value
+                Write-Verbose "Processing station ID: $stationId"
+                
+                # Look for context around this station ID
+                $searchStart = [Math]::Max(0, $idMatch.Index - 2000)
+                $searchEnd = [Math]::Min($htmlContent.Length, $idMatch.Index + $idMatch.Length + 2000)
+                $context = $htmlContent.Substring($searchStart, $searchEnd - $searchStart)
+                
+                # Look for coordinates in this context
+                $coordPattern = '([+-]?\d+\.\d+)[,\s]+([+-]?\d+\.\d+)'
+                $coordMatches = [regex]::Matches($context, $coordPattern)
+                
+                if ($coordMatches.Count -eq 0) {
+                    Write-Verbose "No coordinates found near station ID $stationId"
+                    continue
+                }
+                
+                # Process each coordinate pair found near this station
+                foreach ($coordMatch in $coordMatches) {
+                    $potentialLat = [double]$coordMatch.Groups[1].Value
+                    $potentialLon = [double]$coordMatch.Groups[2].Value
+                    
+                    # Validate coordinates
+                    if ($potentialLat -lt -90 -or $potentialLat -gt 90 -or 
+                        $potentialLon -lt -180 -or $potentialLon -gt 180) {
+                        continue
+                    }
+                    
+                    # Skip if these coordinates match our search coordinates (they're in the page)
+                    if ([Math]::Abs($potentialLat - $Lat) -lt 0.0001 -and [Math]::Abs($potentialLon - $Lon) -lt 0.0001) {
+                        Write-Verbose "Skipping coordinates that match search location"
+                        continue
+                    }
+                    
+                    # Make longitude negative if it's positive but we're in western hemisphere
+                    if ($potentialLon -gt 0 -and $Lon -lt 0) {
+                        $potentialLon = -$potentialLon
+                    }
+                    
+                    Write-Verbose "Found coordinate pair $potentialLat, $potentialLon for station ID: $stationId"
+                    
+                    # Try to find station name in the context (look for links or text before/after)
+                    $stationName = $null
+                    
+                    # Look for link text near the station ID
+                    $linkPattern = '<a[^>]*href[^>]*>' + [regex]::Escape($stationId) + '.*?</a>|<a[^>]*>([^<]{3,50})</a>'
+                    $linkMatch = [regex]::Match($context, $linkPattern, [System.Text.RegularExpressions.RegexOptions]::Singleline -bor [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+                    if ($linkMatch.Success -and $linkMatch.Groups.Count -gt 1 -and $linkMatch.Groups[1].Value) {
+                        $stationName = $linkMatch.Groups[1].Value.Trim()
+                        Write-Verbose "Found station name in link: $stationName"
+                    }
+                    
+                    # If no name found, look for text patterns that might be station names
+                    if (-not $stationName) {
+                        # Look for text that appears before the station ID (might be station name)
+                        $relativeIdIndex = $idMatch.Index - $searchStart
+                        $beforeId = $context.Substring(0, [Math]::Min($relativeIdIndex, $context.Length))
+                        $namePattern = '>([A-Z][^<]{5,50})<'
+                        $nameMatch = [regex]::Match($beforeId, $namePattern)
+                        if ($nameMatch.Success) {
+                            $stationName = $nameMatch.Groups[1].Value.Trim()
+                            Write-Verbose "Found potential station name before ID: $stationName"
+                        }
+                    }
+                    
+                    if (-not $stationName) {
+                        $stationName = "Station $stationId"
+                    }
+                    
+                    Write-Verbose "Processing station: $stationName ($stationId) at $potentialLat, $potentialLon"
+                    
+                    # Use coordinates we already found
+                    $stationLat = $potentialLat
+                    $stationLon = $potentialLon
+                    
+                    # Calculate distance
+                    $distance = Get-DistanceMiles -Lat1 $Lat -Lon1 $Lon -Lat2 $stationLat -Lon2 $stationLon
+                    Write-Verbose "Station $stationId ($stationName) at $stationLat, $stationLon - distance: $([Math]::Round($distance, 2)) miles"
+                    
+                    # Check if within 100 miles and closer than previous best
+                    if ($distance -le $maxDistanceMiles -and $distance -lt $minDistance) {
+                        $minDistance = $distance
+                        $closestStation = @{
+                            stationId = $stationId
+                            name = $stationName
+                            lat = $stationLat
+                            lon = $stationLon
+                            distance = $distance
+                        }
+                        Write-Verbose "New closest station: $stationName ($stationId) at $([Math]::Round($distance, 2)) miles"
+                    } else {
+                        if ($distance -gt $maxDistanceMiles) {
+                            Write-Verbose "Station $stationId is beyond 100 miles ($([Math]::Round($distance, 2)) miles), skipping"
+                        } elseif ($distance -ge $minDistance) {
+                            Write-Verbose "Station $stationId is not closer than current best ($([Math]::Round($distance, 2)) vs $([Math]::Round($minDistance, 2)) miles)"
+                        }
+                    }
+                }  # End foreach coordMatch
+            }  # End foreach idMatch
+            
+            if ($closestStation) {
+                Write-Verbose "Found closest NOAA station: $($closestStation.name) ($($closestStation.stationId)) at $([Math]::Round($closestStation.distance, 2)) miles"
+                return $closestStation
+            }
+        }
+        catch {
+            Write-Verbose "Error searching NOAA website: $($_.Exception.Message)"
         }
         
         Write-Verbose "No NOAA stations found within 100 miles"
@@ -2924,8 +3198,7 @@ function Test-NoaaWaterLevelsSupport {
         return $true
     }
     catch {
-        Write-Verbose "Error checking water levels support: $($_.Exception.Message)"
-        # On error, assume not supported to be safe
+        Write-Verbose "Water levels not supported for station ${StationId}: $($_.Exception.Message)"
         return $false
     }
 }
