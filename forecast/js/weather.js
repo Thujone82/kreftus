@@ -118,7 +118,8 @@ function processWeatherData(weatherData) {
             sunrise: sunTimes.sunrise,
             sunset: sunTimes.sunset,
             moonPhase: moonPhaseInfo
-        }
+        },
+        noaaStation: weatherData.noaaStation || null
     };
 }
 

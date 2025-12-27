@@ -46,6 +46,11 @@ The script first uses a geocoding service to determine the latitude and longitud
   - **Forecast:** Direct link to weather.gov forecast map for the location
   - **Graph:** Direct link to NWS graphical forecast with detailed charts
   - **Radar:** Direct link to NWS radar imagery for the local radar station
+- **NOAA Resources:** Conditionally displays NOAA tide station information when a station is found within 100 miles:
+  - **NOAA Station:** Shows station name, clickable station ID link, and coordinates
+  - **Tide Prediction:** Direct link to NOAA tide predictions for the station
+  - **Datums:** Direct link to station datums information
+  - **Water Levels:** Direct link to water level data (only if station supports it)
 - **Enhanced Daily Mode:** Comprehensive 7-day forecast with detailed information:
   - Wind speed and direction with color coding (red for high wind)
   - Windchill and Heat Index calculations when applicable

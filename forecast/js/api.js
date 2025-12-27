@@ -404,6 +404,106 @@ async function fetchNWSObservations(stationId, timeZone) {
     }
 }
 
+// Calculate distance between two coordinates using Haversine formula
+function calculateDistanceMiles(lat1, lon1, lat2, lon2) {
+    // Earth radius in miles
+    const R = 3959;
+    
+    // Convert degrees to radians
+    const lat1Rad = lat1 * Math.PI / 180;
+    const lon1Rad = lon1 * Math.PI / 180;
+    const lat2Rad = lat2 * Math.PI / 180;
+    const lon2Rad = lon2 * Math.PI / 180;
+    
+    // Calculate differences
+    const dLat = lat2Rad - lat1Rad;
+    const dLon = lon2Rad - lon1Rad;
+    
+    // Haversine formula
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1Rad) * Math.cos(lat2Rad) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+    
+    return distance;
+}
+
+// Search NOAA tide stations by coordinates
+async function fetchNoaaTideStation(lat, lon) {
+    try {
+        console.log('Searching NOAA tide stations for coordinates:', lat, lon);
+        
+        // Check known stations for quick lookup
+        const knownStations = [
+            {id: "9440083", name: "Vancouver, WA", lat: 45.63117, lon: -122.69577},
+            {id: "9447130", name: "Seattle, WA", lat: 47.6062, lon: -122.3394},
+            {id: "9432780", name: "Newport, OR", lat: 44.6368, lon: -124.0535},
+            {id: "9435380", name: "Portland, OR", lat: 45.5628, lon: -122.6664}
+        ];
+        
+        // Check known stations
+        for (const knownStation of knownStations) {
+            const distance = calculateDistanceMiles(lat, lon, knownStation.lat, knownStation.lon);
+            if (distance <= 100) {
+                console.log(`Found nearby NOAA station: ${knownStation.name} (${knownStation.id}) at ${distance.toFixed(2)} miles`);
+                const supportsWaterLevels = await testNoaaWaterLevelsSupport(knownStation.id);
+                return {
+                    stationId: knownStation.id,
+                    name: knownStation.name,
+                    lat: knownStation.lat,
+                    lon: knownStation.lon,
+                    distance: distance,
+                    supportsWaterLevels: supportsWaterLevels
+                };
+            }
+        }
+        
+        console.log('No NOAA stations found within 100 miles');
+        return null;
+    } catch (error) {
+        console.error('Error searching NOAA tide stations:', error);
+        return null;
+    }
+}
+
+// Test if NOAA station supports water levels
+async function testNoaaWaterLevelsSupport(stationId) {
+    try {
+        const waterLevelsUrl = `https://tidesandcurrents.noaa.gov/waterlevels.html?id=${stationId}`;
+        console.log('Checking water levels support:', waterLevelsUrl);
+        
+        const response = await fetch(waterLevelsUrl, {
+            method: 'GET',
+            headers: {
+                'Accept': 'text/html'
+            }
+        });
+        
+        if (!response.ok) {
+            console.log('Water levels not supported for station', stationId);
+            return false;
+        }
+        
+        const htmlContent = await response.text();
+        
+        // Check for common error indicators
+        if (htmlContent.match(/not available|error|not found|no data/i) && 
+            !htmlContent.match(/Water Level|water level/i)) {
+            console.log('Water levels not supported for station', stationId);
+            return false;
+        }
+        
+        // If we get here and status is 200, assume water levels are supported
+        console.log('Water levels appear to be supported for station', stationId);
+        return true;
+    } catch (error) {
+        console.error('Error checking water levels support:', error);
+        // On error, assume not supported to be safe
+        return false;
+    }
+}
+
 // Fetch all weather data for a location
 async function fetchWeatherData(location) {
     let lat, lon, city, state;
@@ -446,12 +546,22 @@ async function fetchWeatherData(location) {
     const elevationMeters = forecastData.properties.elevation?.value || 0;
     const elevationFeet = Math.round(elevationMeters * 3.28084);
     
+    // Fetch NOAA tide station data (non-blocking, don't fail if it errors)
+    let noaaStation = null;
+    try {
+        noaaStation = await fetchNoaaTideStation(lat, lon);
+    } catch (error) {
+        console.error('Error fetching NOAA station data:', error);
+        // Continue without NOAA data
+    }
+    
     return {
         location: { lat, lon, city, state, timeZone, radarStation, elevationFeet },
         points: pointsData,
         forecast: forecastData,
         hourly: hourlyData,
         alerts: alertsData,
+        noaaStation: noaaStation,
         fetchTime: new Date()
     };
 }

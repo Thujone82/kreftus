@@ -566,7 +566,7 @@ function displayWeatherAlerts(alerts, showDetails = true, timeZoneId = null) {
 }
 
 // Display location information
-function displayLocationInfo(location) {
+function displayLocationInfo(location, noaaStation = null) {
     let html = '<div class="location-info">';
     html += '<div class="section-header">Location Information</div>';
     html += `<div class="location-info-item">Time Zone: ${location.timeZone}</div>`;
@@ -582,6 +582,27 @@ function displayLocationInfo(location) {
     html += `<a href="${graphUrl}" target="_blank" class="location-info-link">Graph</a>`;
     html += `<a href="${radarUrl}" target="_blank" class="location-info-link">Radar</a>`;
     html += '</div>';
+    
+    // Display NOAA Station and Resources if a tide station is found within 100 miles
+    if (noaaStation) {
+        // Display NOAA Station information first with clickable station ID
+        const stationHomeUrl = `https://tidesandcurrents.noaa.gov/stationhome.html?id=${noaaStation.stationId}`;
+        html += `<div class="location-info-item">NOAA Station: ${noaaStation.name} (<a href="${stationHomeUrl}" target="_blank" class="location-info-link">${noaaStation.stationId}</a>) ${noaaStation.lat}, ${noaaStation.lon}</div>`;
+        
+        // Display NOAA Resources
+        html += '<div class="location-info-item">NOAA Resources: ';
+        const tideUrl = `https://tidesandcurrents.noaa.gov/noaatidepredictions.html?id=${noaaStation.stationId}`;
+        const datumsUrl = `https://tidesandcurrents.noaa.gov/datums.html?id=${noaaStation.stationId}`;
+        
+        html += `<a href="${tideUrl}" target="_blank" class="location-info-link">Tide Prediction</a>`;
+        html += `<a href="${datumsUrl}" target="_blank" class="location-info-link">Datums</a>`;
+        
+        if (noaaStation.supportsWaterLevels) {
+            const waterLevelsUrl = `https://tidesandcurrents.noaa.gov/waterlevels.html?id=${noaaStation.stationId}`;
+            html += `<a href="${waterLevelsUrl}" target="_blank" class="location-info-link">Water Levels</a>`;
+        }
+        html += '</div>';
+    }
     
     html += '</div>';
     
@@ -599,7 +620,7 @@ function displayFullWeatherReport(weather, location) {
     html += displayHourlyForecast(weather, location, 0, 12, false);
     html += displaySevenDayForecast(weather, location, false);
     html += displayWeatherAlerts(weather.alerts, true, location.timeZone);
-    html += displayLocationInfo(location);
+    html += displayLocationInfo(location, weather.noaaStation);
     return html;
 }
 

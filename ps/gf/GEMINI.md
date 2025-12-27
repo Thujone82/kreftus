@@ -520,6 +520,7 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 - **Precipitation Conversion Fix:** Corrected precipitation conversion from millimeters to inches (using factor 0.0393701) for accurate display in both PowerShell and web editions
 - **Screen Clearing Improvements:** Enhanced screen clearing to remove loading messages before displaying data, and fixed "Waiting for preloaded data..." message persistence issue
 - **Observations Display Polish:** Removed empty line above Observations modal title for consistent formatting with other modals
+- **NOAA Resources Integration:** Added conditional NOAA tide station resources display when a station is found within 100 miles of the location. Displays NOAA Station information (name, clickable station ID link, coordinates) and NOAA Resources links (Tide Prediction, Datums, Water Levels if supported). Uses known stations list for efficient lookup and Haversine distance calculation for proximity verification
 - **Comprehensive Documentation:** Updated README and project documentation
 
 ### Auto-Refresh Technical Implementation
@@ -638,6 +639,62 @@ Write-Host "`e]8;;$radarUrl`e\Radar`e]8;;`e\" -ForegroundColor Cyan
 - **Radar Analysis:** Click "Radar" to view current radar imagery for the area
 - **Weather Planning:** Access official NWS resources for detailed weather analysis
 - **Professional Use:** Direct access to authoritative weather information sources
+
+### NOAA Resources Feature (v2.1)
+
+The NOAA Resources feature provides conditional access to NOAA tide station information and resources when a tide station is found within 100 miles of the location.
+
+#### Key Features:
+
+- **Conditional Display:** Only appears when a NOAA tide station is found within 100 miles
+- **Station Information:** Displays station name, clickable station ID link, and coordinates
+- **Resource Links:** Provides direct access to Tide Prediction, Datums, and Water Levels (if supported)
+- **Efficient Lookup:** Uses known stations list for fast proximity checking
+- **Distance Calculation:** Uses Haversine formula for accurate great-circle distance calculation
+
+#### Technical Implementation:
+
+**Station Discovery:**
+- **Known Stations List:** Pre-configured list of major tide stations with coordinates
+- **Distance Calculation:** Haversine formula calculates great-circle distance between location and stations
+- **Proximity Threshold:** 100-mile radius for station inclusion
+- **Station Selection:** Returns closest station within threshold
+
+**Display Format:**
+- **NOAA Station Line:** "NOAA Station: {Name} ({StationID}) {Lat}, {Lon}"
+  - Station ID is clickable link to station homepage
+  - Format: `https://tidesandcurrents.noaa.gov/stationhome.html?id={stationId}`
+- **NOAA Resources Line:** "NOAA Resources: Tide Prediction | Datums | Water Levels"
+  - Tide Prediction: `https://tidesandcurrents.noaa.gov/noaatidepredictions.html?id={stationId}`
+  - Datums: `https://tidesandcurrents.noaa.gov/datums.html?id={stationId}`
+  - Water Levels: `https://tidesandcurrents.noaa.gov/waterlevels.html?id={stationId}` (only if supported)
+
+**Functions:**
+- **Get-NoaaTideStation:** Searches known stations and returns closest within 100 miles
+- **Get-DistanceMiles:** Calculates Haversine distance between two coordinates
+- **Test-NoaaWaterLevelsSupport:** Checks if station supports water level data
+- **Show-LocationInfo:** Conditionally displays NOAA Station and Resources lines
+
+**Known Stations:**
+- Vancouver, WA (9440083)
+- Seattle, WA (9447130)
+- Newport, OR (9432780)
+- Portland, OR (9435380)
+
+#### Benefits:
+
+- **Tide Information:** Direct access to NOAA tide predictions for coastal locations
+- **Station Details:** Quick access to station metadata and datums information
+- **Water Level Data:** Access to historical and real-time water level data when available
+- **Automatic Detection:** No manual station lookup required
+- **Official Sources:** Links directly to authoritative NOAA resources
+
+#### Use Cases:
+
+- **Coastal Planning:** Access tide predictions for beach activities and boating
+- **Water Level Monitoring:** Check water levels for flood planning and navigation
+- **Station Information:** View station coordinates and metadata for reference
+- **Marine Activities:** Plan activities based on tide and water level conditions
 
 ### Control Bar Toggle Feature (v2.1)
 

@@ -2823,6 +2823,113 @@ function Show-WeatherAlerts {
     }
 }
 
+# Function to calculate distance between two coordinates using Haversine formula
+function Get-DistanceMiles {
+    param(
+        [double]$Lat1,
+        [double]$Lon1,
+        [double]$Lat2,
+        [double]$Lon2
+    )
+    
+    # Earth radius in miles
+    $R = 3959
+    
+    # Convert degrees to radians
+    $lat1Rad = [Math]::PI * $Lat1 / 180.0
+    $lon1Rad = [Math]::PI * $Lon1 / 180.0
+    $lat2Rad = [Math]::PI * $Lat2 / 180.0
+    $lon2Rad = [Math]::PI * $Lon2 / 180.0
+    
+    # Calculate differences
+    $dLat = $lat2Rad - $lat1Rad
+    $dLon = $lon2Rad - $lon1Rad
+    
+    # Haversine formula
+    $a = [Math]::Sin($dLat / 2) * [Math]::Sin($dLat / 2) + 
+         [Math]::Cos($lat1Rad) * [Math]::Cos($lat2Rad) * 
+         [Math]::Sin($dLon / 2) * [Math]::Sin($dLon / 2)
+    $c = 2 * [Math]::Atan2([Math]::Sqrt($a), [Math]::Sqrt(1 - $a))
+    $distance = $R * $c
+    
+    return $distance
+}
+
+# Function to search NOAA tide stations by coordinates
+function Get-NoaaTideStation {
+    param(
+        [double]$Lat,
+        [double]$Lon
+    )
+    
+    try {
+        Write-Verbose "Searching NOAA tide stations for coordinates: $Lat,$Lon"
+        
+        # Check known stations for quick lookup
+        $knownStations = @(
+            @{id="9440083"; name="Vancouver, WA"; lat=45.63117; lon=-122.69577},
+            @{id="9447130"; name="Seattle, WA"; lat=47.6062; lon=-122.3394},
+            @{id="9432780"; name="Newport, OR"; lat=44.6368; lon=-124.0535},
+            @{id="9435380"; name="Portland, OR"; lat=45.5628; lon=-122.6664}
+        )
+        
+        # Check known stations
+        foreach ($knownStation in $knownStations) {
+            $distance = Get-DistanceMiles -Lat1 $Lat -Lon1 $Lon -Lat2 $knownStation.lat -Lon2 $knownStation.lon
+            if ($distance -le 100) {
+                Write-Verbose "Found nearby NOAA station: $($knownStation.name) ($($knownStation.id)) at $([Math]::Round($distance, 2)) miles"
+                return @{
+                    stationId = $knownStation.id
+                    name = $knownStation.name
+                    lat = $knownStation.lat
+                    lon = $knownStation.lon
+                    distance = $distance
+                }
+            }
+        }
+        
+        Write-Verbose "No NOAA stations found within 100 miles"
+        return $null
+    }
+    catch {
+        Write-Verbose "Error searching NOAA tide stations: $($_.Exception.Message)"
+        return $null
+    }
+}
+
+# Function to test if NOAA station supports water levels
+function Test-NoaaWaterLevelsSupport {
+    param(
+        [string]$StationId
+    )
+    
+    try {
+        $waterLevelsUrl = "https://tidesandcurrents.noaa.gov/waterlevels.html?id=$StationId"
+        Write-Verbose "Checking water levels support: $waterLevelsUrl"
+        
+        $response = Invoke-WebRequest -Uri $waterLevelsUrl -Method Get -ErrorAction Stop -UseBasicParsing
+        
+        # Check if the page contains actual water level data (not an error page)
+        # Look for indicators of valid water level data
+        $htmlContent = $response.Content
+        
+        # Check for common error indicators
+        if ($htmlContent -match "not available|error|not found|no data" -and $htmlContent -notmatch "Water Level|water level") {
+            Write-Verbose "Water levels not supported for station $StationId"
+            return $false
+        }
+        
+        # If we get here and status is 200, assume water levels are supported
+        Write-Verbose "Water levels appear to be supported for station $StationId"
+        return $true
+    }
+    catch {
+        Write-Verbose "Error checking water levels support: $($_.Exception.Message)"
+        # On error, assume not supported to be safe
+        return $false
+    }
+}
+
 # Function to display location information
 function Show-LocationInfo {
     param(
@@ -2855,7 +2962,45 @@ function Show-LocationInfo {
     
     # Radar link
     $radarUrl = "https://radar.weather.gov/ridge/standard/${radarStation}_loop.gif"
-    Write-Host "$([char]27)]8;;$radarUrl$([char]27)\Radar$([char]27)]8;;$([char]27)\" -ForegroundColor Blue    
+    Write-Host "$([char]27)]8;;$radarUrl$([char]27)\Radar$([char]27)]8;;$([char]27)\" -ForegroundColor Blue
+    
+    # Display NOAA Station and Resources if a tide station is found within 100 miles
+    try {
+        $noaaStation = Get-NoaaTideStation -Lat $lat -Lon $lon
+        if ($noaaStation) {
+            # Display NOAA Station information first
+            # Display NOAA Station information with clickable station ID
+            Write-Host "NOAA Station: $($noaaStation.name) (" -ForegroundColor $DefaultColor -NoNewline
+            $stationHomeUrl = "https://tidesandcurrents.noaa.gov/stationhome.html?id=$($noaaStation.stationId)"
+            Write-Host "$([char]27)]8;;$stationHomeUrl$([char]27)\$($noaaStation.stationId)$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
+            Write-Host ") $($noaaStation.lat), $($noaaStation.lon)" -ForegroundColor $DefaultColor
+            
+            # Display NOAA Resources
+            Write-Host "NOAA Resources: " -ForegroundColor $DefaultColor -NoNewline
+            # Tide Prediction link
+            $tideUrl = "https://tidesandcurrents.noaa.gov/noaatidepredictions.html?id=$($noaaStation.stationId)"
+            Write-Host "$([char]27)]8;;$tideUrl$([char]27)\Tide Prediction$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
+            Write-Host " | " -ForegroundColor $DefaultColor -NoNewline
+            
+            # Datums link
+            $datumsUrl = "https://tidesandcurrents.noaa.gov/datums.html?id=$($noaaStation.stationId)"
+            Write-Host "$([char]27)]8;;$datumsUrl$([char]27)\Datums$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
+            
+            # Check if water levels are supported
+            $supportsWaterLevels = Test-NoaaWaterLevelsSupport -StationId $noaaStation.stationId
+            if ($supportsWaterLevels) {
+                Write-Host " | " -ForegroundColor $DefaultColor -NoNewline
+                $waterLevelsUrl = "https://tidesandcurrents.noaa.gov/waterlevels.html?id=$($noaaStation.stationId)"
+                Write-Host "$([char]27)]8;;$waterLevelsUrl$([char]27)\Water Levels$([char]27)]8;;$([char]27)\" -ForegroundColor Blue
+            } else {
+                Write-Host ""
+            }
+        }
+    }
+    catch {
+        Write-Verbose "Error fetching NOAA station data: $($_.Exception.Message)"
+        # Silently fail - don't display NOAA Resources if there's an error
+    }
 }
 
 # Function to display interactive mode controls

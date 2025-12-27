@@ -12,6 +12,7 @@ A Progressive Web App (PWA) version of the PowerShell GetForecast script, provid
 - **Location Detection**: Supports zip codes, "City, State", or automatic "here" detection
 - **Color-Coded Metrics**: Visual indicators for temperature, wind, precipitation, humidity, and dew point
 - **Weather Calculations**: Wind chill, heat index, sunrise/sunset, moon phase calculations
+- **NOAA Resources**: Conditionally displays NOAA tide station information and links when a station is found within 100 miles
 
 ## Setup
 
@@ -39,6 +40,15 @@ A Progressive Web App (PWA) version of the PowerShell GetForecast script, provid
 - **Daily**: Enhanced 7-day forecast with detailed forecasts
 - **Rain**: 96-hour rain likelihood sparklines (5 days max)
 - **Wind**: 96-hour wind direction glyphs (5 days max)
+
+## NOAA Resources
+
+When a NOAA tide station is found within 100 miles of the location, the app displays:
+
+- **NOAA Station**: Station name, clickable station ID link, and coordinates
+- **NOAA Resources**: Links to Tide Prediction, Datums, and Water Levels (if supported)
+
+The station ID is a clickable link that opens the NOAA station homepage for detailed information.
 
 ## Auto-Update Mechanism
 
