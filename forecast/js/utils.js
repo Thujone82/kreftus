@@ -546,3 +546,20 @@ function formatLocationDisplayName(city, state) {
     return `${city}, ${state}`;
 }
 
+// Calculate bearing (direction) from point 1 to point 2 in degrees (0-360)
+function calculateBearing(lat1, lon1, lat2, lon2) {
+    const lat1Rad = toRadians(lat1);
+    const lat2Rad = toRadians(lat2);
+    const dLon = toRadians(lon2 - lon1);
+    
+    const y = Math.sin(dLon) * Math.cos(lat2Rad);
+    const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - 
+              Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+    
+    let bearing = Math.atan2(y, x);
+    bearing = toDegrees(bearing);
+    bearing = (bearing + 360) % 360; // Normalize to 0-360
+    
+    return bearing;
+}
+

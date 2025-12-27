@@ -585,12 +585,16 @@ function displayLocationInfo(location, noaaStation = null) {
     
     // Display NOAA Station and Resources if a tide station is found within 100 miles
     if (noaaStation) {
-        // Add spacing before NOAA section
-        html += '<div class="location-info-item noaa-section">';
-        
         // Display NOAA Station information first with clickable station ID
+        html += '<div class="location-info-item">';
         const stationHomeUrl = `https://tidesandcurrents.noaa.gov/stationhome.html?id=${noaaStation.stationId}`;
-        html += `NOAA Station: ${noaaStation.name} (<a href="${stationHomeUrl}" target="_blank" class="location-info-link no-margin">${noaaStation.stationId}</a>) ${noaaStation.lat}, ${noaaStation.lon}`;
+        
+        // Calculate bearing and cardinal direction from location to station
+        const bearing = calculateBearing(location.lat, location.lon, noaaStation.lat, noaaStation.lon);
+        const cardinalDir = getCardinalDirection(bearing);
+        const distanceStr = `${noaaStation.distance.toFixed(2)}mi`;
+        
+        html += `NOAA Station: <span class="noaa-station-name">${noaaStation.name} (<a href="${stationHomeUrl}" target="_blank" class="location-info-link no-margin">${noaaStation.stationId}</a>)</span> ${distanceStr} ${cardinalDir}`;
         html += '</div>';
         
         // Display NOAA Resources

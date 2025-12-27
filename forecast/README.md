@@ -45,7 +45,7 @@ A Progressive Web App (PWA) version of the PowerShell GetForecast script, provid
 
 When a NOAA tide station is found within 100 miles of the location, the app displays:
 
-- **NOAA Station**: Station name, clickable station ID link, and coordinates
+- **NOAA Station**: Station name, clickable station ID link, distance in miles, and cardinal direction from weather location
 - **NOAA Resources**: Links to Tide Prediction, Datums, and Water Levels (if supported)
 
 The station ID is a clickable link that opens the NOAA station homepage for detailed information.

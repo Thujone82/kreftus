@@ -2855,6 +2855,31 @@ function Get-DistanceMiles {
     return $distance
 }
 
+# Function to calculate bearing (direction) from point 1 to point 2 in degrees (0-360)
+function Get-Bearing {
+    param(
+        [double]$Lat1,
+        [double]$Lon1,
+        [double]$Lat2,
+        [double]$Lon2
+    )
+    
+    # Convert degrees to radians
+    $lat1Rad = [Math]::PI * $Lat1 / 180.0
+    $lat2Rad = [Math]::PI * $Lat2 / 180.0
+    $dLon = [Math]::PI * ($Lon2 - $Lon1) / 180.0
+    
+    $y = [Math]::Sin($dLon) * [Math]::Cos($lat2Rad)
+    $x = [Math]::Cos($lat1Rad) * [Math]::Sin($lat2Rad) - 
+         [Math]::Sin($lat1Rad) * [Math]::Cos($lat2Rad) * [Math]::Cos($dLon)
+    
+    $bearing = [Math]::Atan2($y, $x)
+    $bearing = $bearing * 180.0 / [Math]::PI
+    $bearing = ($bearing + 360) % 360  # Normalize to 0-360
+    
+    return $bearing
+}
+
 # Function to search NOAA tide stations by coordinates
 function Get-NoaaTideStation {
     param(
@@ -3241,15 +3266,20 @@ function Show-LocationInfo {
     try {
         $noaaStation = Get-NoaaTideStation -Lat $lat -Lon $lon
         if ($noaaStation) {
-            # Add spacing before NOAA section
-            Write-Host ""
-            
             # Display NOAA Station information first
             # Display NOAA Station information with clickable station ID
-            Write-Host "NOAA Station: $($noaaStation.name) (" -ForegroundColor $DefaultColor -NoNewline
+            Write-Host "NOAA Station: " -ForegroundColor $DefaultColor -NoNewline
+            Write-Host "$($noaaStation.name) (" -ForegroundColor Gray -NoNewline
             $stationHomeUrl = "https://tidesandcurrents.noaa.gov/stationhome.html?id=$($noaaStation.stationId)"
             Write-Host "$([char]27)]8;;$stationHomeUrl$([char]27)\$($noaaStation.stationId)$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
-            Write-Host ") $($noaaStation.lat), $($noaaStation.lon)" -ForegroundColor $DefaultColor
+            
+            # Calculate bearing and cardinal direction from location to station
+            $bearing = Get-Bearing -Lat1 $lat -Lon1 $lon -Lat2 $noaaStation.lat -Lon2 $noaaStation.lon
+            $cardinalDir = Get-CardinalDirection -Degrees $bearing
+            $distanceStr = "$([Math]::Round($noaaStation.distance, 2))mi"
+            
+            Write-Host ") " -ForegroundColor Gray -NoNewline
+            Write-Host "$distanceStr $cardinalDir" -ForegroundColor $DefaultColor
             
             # Display NOAA Resources
             Write-Host "NOAA Resources: " -ForegroundColor $DefaultColor -NoNewline

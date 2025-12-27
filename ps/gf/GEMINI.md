@@ -663,9 +663,11 @@ The NOAA Resources feature provides conditional access to NOAA tide station info
 - **Dynamic Lookup:** No hardcoded station list - searches all available NOAA stations in real-time
 
 **Display Format:**
-- **NOAA Station Line:** "NOAA Station: {Name} ({StationID}) {Lat}, {Lon}"
+- **NOAA Station Line:** "NOAA Station: {Name} ({StationID}) {Distance}mi {Direction}"
   - Station ID is clickable link to station homepage
   - Format: `https://tidesandcurrents.noaa.gov/stationhome.html?id={stationId}`
+  - Distance is displayed in miles (e.g., "5.63mi")
+  - Direction is cardinal direction from weather location to station (e.g., "N", "NE", "SW")
 - **NOAA Resources Line:** "NOAA Resources: Tide Prediction | Datums | Water Levels"
   - Tide Prediction: `https://tidesandcurrents.noaa.gov/noaatidepredictions.html?id={stationId}`
   - Datums: `https://tidesandcurrents.noaa.gov/datums.html?id={stationId}`
@@ -674,6 +676,8 @@ The NOAA Resources feature provides conditional access to NOAA tide station info
 **Functions:**
 - **Get-NoaaTideStation:** Fetches all stations from NOAA API, calculates distances, and returns closest within 100 miles
 - **Get-DistanceMiles:** Calculates Haversine distance between two coordinates
+- **Get-Bearing:** Calculates bearing (direction) from location to station in degrees (0-360)
+- **Get-CardinalDirection:** Converts bearing degrees to cardinal direction (N, NE, E, etc.)
 - **Test-NoaaWaterLevelsSupport:** Checks if station supports water level data
 - **Show-LocationInfo:** Conditionally displays NOAA Station and Resources lines
 
