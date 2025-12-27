@@ -957,6 +957,10 @@ main {
     margin-right: 1rem;
 }
 
+.location-info-link.no-margin {
+    margin-right: 0;
+}
+
 .location-info-link:hover {
     text-decoration: underline;
 }

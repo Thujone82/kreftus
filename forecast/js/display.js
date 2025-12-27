@@ -590,7 +590,7 @@ function displayLocationInfo(location, noaaStation = null) {
         
         // Display NOAA Station information first with clickable station ID
         const stationHomeUrl = `https://tidesandcurrents.noaa.gov/stationhome.html?id=${noaaStation.stationId}`;
-        html += `NOAA Station: ${noaaStation.name} (<a href="${stationHomeUrl}" target="_blank" class="location-info-link">${noaaStation.stationId}</a>) ${noaaStation.lat}, ${noaaStation.lon}`;
+        html += `NOAA Station: ${noaaStation.name} (<a href="${stationHomeUrl}" target="_blank" class="location-info-link no-margin">${noaaStation.stationId}</a>) ${noaaStation.lat}, ${noaaStation.lon}`;
         html += '</div>';
         
         // Display NOAA Resources
