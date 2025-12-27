@@ -1,4 +1,4 @@
-let CACHE_NAME = 'forecast-v1.0.0-122725@1126';
+let CACHE_NAME = 'forecast-v1.0.0-122725@1133';
 let STATIC_CACHE = 'forecast-static-v1.0.0';
 let DATA_CACHE = 'forecast-data-v1.0.0';
 
@@ -58,6 +58,17 @@ self.addEventListener('activate', (event) => {
                         }
                     })
                 );
+            });
+        }).then(() => {
+            // Clear localStorage cache when service worker updates
+            // This ensures users get fresh data with new features (like NOAA station data)
+            return self.clients.matchAll().then((clients) => {
+                clients.forEach((client) => {
+                    client.postMessage({
+                        type: 'CLEAR_CACHE',
+                        reason: 'Service worker updated'
+                    });
+                });
             });
         }).then(() => {
             return self.clients.claim();

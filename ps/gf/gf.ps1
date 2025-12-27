@@ -3241,6 +3241,9 @@ function Show-LocationInfo {
     try {
         $noaaStation = Get-NoaaTideStation -Lat $lat -Lon $lon
         if ($noaaStation) {
+            # Add spacing before NOAA section
+            Write-Host ""
+            
             # Display NOAA Station information first
             # Display NOAA Station information with clickable station ID
             Write-Host "NOAA Station: $($noaaStation.name) (" -ForegroundColor $DefaultColor -NoNewline

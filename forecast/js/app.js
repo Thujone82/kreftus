@@ -97,6 +97,19 @@ async function init() {
             navigator.serviceWorker.addEventListener('message', (event) => {
                 if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
                     showUpdateNotification();
+                } else if (event.data && event.data.type === 'CLEAR_CACHE') {
+                    // Service worker updated - clear localStorage cache to get fresh data with new features
+                    console.log('Service worker updated, clearing cache:', event.data.reason);
+                    clearAllCachedData();
+                    // If we have a current location, refresh the data to get new features (like NOAA station)
+                    if (appState.location || elements.locationInput.value) {
+                        const locationToRefresh = elements.locationInput.value || 'here';
+                        setTimeout(() => {
+                            loadWeatherData(locationToRefresh, false, false).catch(error => {
+                                console.error('Error refreshing data after cache clear:', error);
+                            });
+                        }, 500);
+                    }
                 }
             });
             
@@ -996,6 +1009,30 @@ function loadWeatherDataFromCache(locationKey = null) {
     return null;
 }
 
+// Clear all cached weather data (used when service worker updates)
+function clearAllCachedData() {
+    try {
+        // Clear all location-specific caches
+        const keys = Object.keys(localStorage);
+        keys.forEach(key => {
+            if (key.startsWith('forecastCachedData_') || 
+                key.startsWith('forecastCachedLocation_') || 
+                key.startsWith('forecastCachedTimestamp_')) {
+                localStorage.removeItem(key);
+            }
+        });
+        
+        // Clear current location cache
+        localStorage.removeItem('forecastCachedData');
+        localStorage.removeItem('forecastCachedLocation');
+        localStorage.removeItem('forecastCachedTimestamp');
+        
+        console.log('All cached weather data cleared');
+    } catch (error) {
+        console.warn('Failed to clear all cached data:', error);
+    }
+}
+
 function clearLocationCache(locationKey) {
     try {
         if (!locationKey) return;
@@ -1138,6 +1175,35 @@ function loadCachedWeatherData(locationKey = null) {
         appState.observationsData = cache.data.observationsData || null;
         appState.observationsAvailable = cache.data.observationsAvailable || false;
         appState.lastFetchTime = cache.timestamp;
+        
+        // If cached data doesn't have NOAA station but we have coordinates, fetch it in background
+        // This handles old cached data from before NOAA feature was added
+        if (restoredWeatherData && restoredWeatherData.location && !restoredWeatherData.noaaStation) {
+            console.log('Cached data missing NOAA station, fetching in background...');
+            // Fetch NOAA station in background (non-blocking)
+            // fetchNoaaTideStation is available globally from api.js
+            setTimeout(async () => {
+                try {
+                    if (typeof fetchNoaaTideStation === 'function') {
+                        const noaaStation = await fetchNoaaTideStation(
+                            restoredWeatherData.location.lat, 
+                            restoredWeatherData.location.lon
+                        );
+                        if (noaaStation) {
+                            // Update weather data with NOAA station
+                            restoredWeatherData.noaaStation = noaaStation;
+                            appState.weatherData = restoredWeatherData;
+                            // Re-render to show NOAA station
+                            renderCurrentMode();
+                            // Update cache with new data
+                            saveWeatherDataToCache(restoredWeatherData, restoredWeatherData.location);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error fetching NOAA station for cached location:', error);
+                }
+            }, 500);
+        }
         
         // Restore location if available in cached data
         if (restoredWeatherData && restoredWeatherData.location) {

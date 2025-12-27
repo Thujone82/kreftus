@@ -947,6 +947,10 @@ main {
     line-height: 1.3;
 }
 
+.location-info-item.noaa-section {
+    margin-top: 0.5rem;
+}
+
 .location-info-link {
     color: var(--color-info);
     text-decoration: none;
