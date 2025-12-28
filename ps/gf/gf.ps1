@@ -3354,11 +3354,147 @@ function Show-LocationInfo {
             } else {
                 Write-Host ""
             }
+            
+            # Fetch and display tide predictions
+            try {
+                $tideData = Get-NoaaTidePredictions -StationId $noaaStation.stationId -TimeZone $timeZone
+                if ($tideData) {
+                    # Format last tide
+                    $lastHeight = "$([Math]::Round($tideData.LastTide.Height, 2))ft"
+                    $lastTime = $tideData.LastTide.Time.ToString("HHmm")
+                    $lastArrow = if ($tideData.LastTide.Type -eq "L") { "↓" } else { "↑" }
+                    
+                    # Format next tide
+                    $nextHeight = "$([Math]::Round($tideData.NextTide.Height, 2))ft"
+                    $nextTime = $tideData.NextTide.Time.ToString("HHmm")
+                    $nextArrow = if ($tideData.NextTide.Type -eq "H") { "↑" } else { "↓" }
+                    
+                    Write-Host "Tides: " -ForegroundColor $DefaultColor -NoNewline
+                    Write-Host "Last${lastArrow}: ${lastHeight}@${lastTime} " -ForegroundColor Gray -NoNewline
+                    Write-Host "Next${nextArrow}: ${nextHeight}@${nextTime}" -ForegroundColor Gray
+                }
+            } catch {
+                Write-Verbose "Error fetching tide predictions: $($_.Exception.Message)"
+                # Silently fail - don't display tide info if there's an error
+            }
         }
     }
     catch {
         Write-Verbose "Error fetching NOAA station data: $($_.Exception.Message)"
         # Silently fail - don't display NOAA Resources if there's an error
+    }
+}
+
+# Function to fetch NOAA tide predictions
+function Get-NoaaTidePredictions {
+    param(
+        [string]$StationId,
+        [string]$TimeZone
+    )
+    
+    try {
+        # Build API URL for tide predictions
+        $apiUrl = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&datum=mllw&station=$StationId&date=today&interval=hilo&format=json&units=english&time_zone=lst_ldt"
+        Write-Verbose "Fetching tide predictions: $apiUrl"
+        
+        $response = Invoke-RestMethod -Uri $apiUrl -Method Get -ErrorAction Stop -TimeoutSec 10
+        
+        if (-not $response.predictions -or $response.predictions.Count -eq 0) {
+            Write-Verbose "No tide predictions returned from API"
+            return $null
+        }
+        
+        Write-Verbose "Tide predictions API returned $($response.predictions.Count) tide events for today"
+        
+        # Get current time in station timezone (approximate - using local time)
+        $now = Get-Date
+        Write-Verbose "Current time (reference): $($now.ToString('yyyy-MM-dd HH:mm'))"
+        
+        # Parse predictions and find last and next tide
+        $lastTide = $null
+        $nextTide = $null
+        $highTides = @()
+        $lowTides = @()
+        $allTides = @()
+        
+        Write-Verbose "Parsing tide predictions:"
+        foreach ($prediction in $response.predictions) {
+            # Parse time string (format: "2025-12-27 11:24")
+            $timeStr = $prediction.t
+            if ($timeStr -match "\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}") {
+                # Create DateTime object (using local timezone approximation)
+                $tideTime = [DateTime]::ParseExact($timeStr, "yyyy-MM-dd HH:mm", $null)
+                
+                $height = [double]$prediction.v
+                $type = $prediction.type  # 'H' for high, 'L' for low
+                $typeName = if ($type -eq "H") { "High" } else { "Low" }
+                
+                $tideInfo = @{
+                    Time = $tideTime
+                    Height = $height
+                    Type = $type
+                }
+                $allTides += $tideInfo
+                
+                if ($type -eq "H") {
+                    $highTides += $tideInfo
+                } else {
+                    $lowTides += $tideInfo
+                }
+                
+                $relativeTime = if ($tideTime -le $now) { "past" } else { "future" }
+                Write-Verbose "  $($tideTime.ToString('HH:mm')) - $typeName tide: $([Math]::Round($height, 2)) ft ($relativeTime)"
+                
+                if ($tideTime -le $now) {
+                    # This is a past or current tide
+                    if ($null -eq $lastTide -or $tideTime -gt $lastTide.Time) {
+                        $lastTide = $tideInfo
+                    }
+                } else {
+                    # This is a future tide
+                    if ($null -eq $nextTide -or $tideTime -lt $nextTide.Time) {
+                        $nextTide = $tideInfo
+                    }
+                }
+            }
+        }
+        
+        # Log summary statistics
+        if ($highTides.Count -gt 0) {
+            $highHeights = $highTides | ForEach-Object { $_.Height }
+            $maxHigh = ($highHeights | Measure-Object -Maximum).Maximum
+            $minHigh = ($highHeights | Measure-Object -Minimum).Minimum
+            Write-Verbose "High tides: $($highTides.Count) events, range: $([Math]::Round($minHigh, 2)) - $([Math]::Round($maxHigh, 2)) ft"
+        }
+        
+        if ($lowTides.Count -gt 0) {
+            $lowHeights = $lowTides | ForEach-Object { $_.Height }
+            $maxLow = ($lowHeights | Measure-Object -Maximum).Maximum
+            $minLow = ($lowHeights | Measure-Object -Minimum).Minimum
+            Write-Verbose "Low tides: $($lowTides.Count) events, range: $([Math]::Round($minLow, 2)) - $([Math]::Round($maxLow, 2)) ft"
+        }
+        
+        if ($lastTide -and $nextTide) {
+            $lastTypeName = if ($lastTide.Type -eq "H") { "High" } else { "Low" }
+            $nextTypeName = if ($nextTide.Type -eq "H") { "High" } else { "Low" }
+            $timeSinceLast = $now - $lastTide.Time
+            $timeUntilNext = $nextTide.Time - $now
+            
+            Write-Verbose "Selected last tide: $($lastTide.Time.ToString('HH:mm')) $lastTypeName at $([Math]::Round($lastTide.Height, 2)) ft ($([Math]::Round($timeSinceLast.TotalHours, 1)) hours ago)"
+            Write-Verbose "Selected next tide: $($nextTide.Time.ToString('HH:mm')) $nextTypeName at $([Math]::Round($nextTide.Height, 2)) ft (in $([Math]::Round($timeUntilNext.TotalHours, 1)) hours)"
+            
+            return @{
+                LastTide = $lastTide
+                NextTide = $nextTide
+            }
+        }
+        
+        Write-Verbose "Could not determine last and next tide from predictions"
+        return $null
+    }
+    catch {
+        Write-Verbose "Error fetching tide predictions: $($_.Exception.Message)"
+        return $null
     }
 }
 

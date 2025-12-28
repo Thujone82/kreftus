@@ -961,6 +961,14 @@ main {
     color: var(--color-text-secondary);
 }
 
+.location-info-label {
+    color: var(--color-text);
+}
+
+.noaa-tide-info {
+    color: var(--color-text-secondary);
+}
+
 .location-info-link:hover {
     text-decoration: underline;
 }

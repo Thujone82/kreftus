@@ -585,6 +585,84 @@ async function fetchNoaaTideStation(lat, lon) {
     }
 }
 
+// Fetch NOAA tide predictions
+async function fetchNoaaTidePredictions(stationId, timeZone) {
+    try {
+        // Build API URL for tide predictions
+        const apiUrl = `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&datum=mllw&station=${stationId}&date=today&interval=hilo&format=json&units=english&time_zone=lst_ldt`;
+        console.log('Fetching tide predictions:', apiUrl);
+        
+        const response = await fetch(apiUrl, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' }
+        });
+        
+        if (!response.ok) {
+            console.log('Tide predictions API returned status:', response.status);
+            return null;
+        }
+        
+        const data = await response.json();
+        
+        if (!data.predictions || data.predictions.length === 0) {
+            console.log('No tide predictions returned from API');
+            return null;
+        }
+        
+        // Get current time
+        const now = new Date();
+        
+        // Parse predictions and find last and next tide
+        let lastTide = null;
+        let nextTide = null;
+        
+        for (const prediction of data.predictions) {
+            // Parse time string (format: "2025-12-27 11:24")
+            const timeStr = prediction.t;
+            const tideTime = new Date(timeStr);
+            
+            if (isNaN(tideTime.getTime())) {
+                continue;
+            }
+            
+            const height = parseFloat(prediction.v);
+            const type = prediction.type; // 'H' for high, 'L' for low
+            
+            if (tideTime <= now) {
+                // This is a past or current tide
+                if (!lastTide || tideTime > lastTide.time) {
+                    lastTide = {
+                        time: tideTime,
+                        height: height,
+                        type: type
+                    };
+                }
+            } else {
+                // This is a future tide
+                if (!nextTide || tideTime < nextTide.time) {
+                    nextTide = {
+                        time: tideTime,
+                        height: height,
+                        type: type
+                    };
+                }
+            }
+        }
+        
+        if (lastTide && nextTide) {
+            return {
+                lastTide: lastTide,
+                nextTide: nextTide
+            };
+        }
+        
+        console.log('Could not determine last and next tide from predictions');
+        return null;
+    } catch (error) {
+        console.error('Error fetching tide predictions:', error);
+        return null;
+    }
+}
 
 // Fetch all weather data for a location
 async function fetchWeatherData(location) {
@@ -632,6 +710,16 @@ async function fetchWeatherData(location) {
     let noaaStation = null;
     try {
         noaaStation = await fetchNoaaTideStation(lat, lon);
+        
+        // If we have a station, fetch tide predictions
+        if (noaaStation) {
+            try {
+                noaaStation.tideData = await fetchNoaaTidePredictions(noaaStation.stationId, timeZone);
+            } catch (error) {
+                console.error('Error fetching tide predictions:', error);
+                // Continue without tide data
+            }
+        }
     } catch (error) {
         console.error('Error fetching NOAA station data:', error);
         // Continue without NOAA data
