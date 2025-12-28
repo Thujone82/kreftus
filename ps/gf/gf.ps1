@@ -1258,15 +1258,74 @@ while ($true) { # Loop for location input and geocoding
                 # For city/state queries, use the name field for city
                 $city = $geoData[0].name
                 
-                # Parse state from display_name or original input
-                $displayName = $geoData[0].display_name
-                Write-Verbose "Parsing state from display_name: $displayName"
-                if ($displayName -match ", ([A-Z]{2}),") {
-                    $state = $matches[1]
-                } elseif ($displayName -match ", ([A-Z]{2})$") {
-                    $state = $matches[1]
-                } else {
-                    # Fallback: extract state from original input if it contains a comma
+                # Try to extract state from address object first (most reliable)
+                $state = $null
+                if ($geoData[0].address) {
+                    # Check for state_code (2-letter abbreviation) first
+                    if ($geoData[0].address.state_code -and $geoData[0].address.state_code.Length -eq 2) {
+                        $state = $geoData[0].address.state_code.ToUpper()
+                        Write-Verbose "Found state from address.state_code: $state"
+                    }
+                    # If no state_code, try to map full state name to abbreviation
+                    elseif ($geoData[0].address.state) {
+                        $stateName = $geoData[0].address.state
+                        Write-Verbose "Found state name from address.state: $stateName"
+                        # Map full state names to abbreviations
+                        $stateMap = @{
+                            "Alabama" = "AL"; "Alaska" = "AK"; "Arizona" = "AZ"; "Arkansas" = "AR"; "California" = "CA"
+                            "Colorado" = "CO"; "Connecticut" = "CT"; "Delaware" = "DE"; "Florida" = "FL"; "Georgia" = "GA"
+                            "Hawaii" = "HI"; "Idaho" = "ID"; "Illinois" = "IL"; "Indiana" = "IN"; "Iowa" = "IA"
+                            "Kansas" = "KS"; "Kentucky" = "KY"; "Louisiana" = "LA"; "Maine" = "ME"; "Maryland" = "MD"
+                            "Massachusetts" = "MA"; "Michigan" = "MI"; "Minnesota" = "MN"; "Mississippi" = "MS"; "Missouri" = "MO"
+                            "Montana" = "MT"; "Nebraska" = "NE"; "Nevada" = "NV"; "New Hampshire" = "NH"; "New Jersey" = "NJ"
+                            "New Mexico" = "NM"; "New York" = "NY"; "North Carolina" = "NC"; "North Dakota" = "ND"; "Ohio" = "OH"
+                            "Oklahoma" = "OK"; "Oregon" = "OR"; "Pennsylvania" = "PA"; "Rhode Island" = "RI"; "South Carolina" = "SC"
+                            "South Dakota" = "SD"; "Tennessee" = "TN"; "Texas" = "TX"; "Utah" = "UT"; "Vermont" = "VT"
+                            "Virginia" = "VA"; "Washington" = "WA"; "West Virginia" = "WV"; "Wisconsin" = "WI"; "Wyoming" = "WY"
+                            "District of Columbia" = "DC"
+                        }
+                        if ($stateMap.ContainsKey($stateName)) {
+                            $state = $stateMap[$stateName]
+                            Write-Verbose "Mapped state name '$stateName' to abbreviation: $state"
+                        }
+                    }
+                }
+                
+                # Fallback: Parse state from display_name if address object didn't work
+                if (-not $state -or $state -eq "US") {
+                    $displayName = $geoData[0].display_name
+                    Write-Verbose "Parsing state from display_name: $displayName"
+                    if ($displayName -match ", ([A-Z]{2}),") {
+                        $state = $matches[1]
+                    } elseif ($displayName -match ", ([A-Z]{2})$") {
+                        $state = $matches[1]
+                    } else {
+                        # Try to extract full state name from display_name and map it
+                        $stateMap = @{
+                            "Alabama" = "AL"; "Alaska" = "AK"; "Arizona" = "AZ"; "Arkansas" = "AR"; "California" = "CA"
+                            "Colorado" = "CO"; "Connecticut" = "CT"; "Delaware" = "DE"; "Florida" = "FL"; "Georgia" = "GA"
+                            "Hawaii" = "HI"; "Idaho" = "ID"; "Illinois" = "IL"; "Indiana" = "IN"; "Iowa" = "IA"
+                            "Kansas" = "KS"; "Kentucky" = "KY"; "Louisiana" = "LA"; "Maine" = "ME"; "Maryland" = "MD"
+                            "Massachusetts" = "MA"; "Michigan" = "MI"; "Minnesota" = "MN"; "Mississippi" = "MS"; "Missouri" = "MO"
+                            "Montana" = "MT"; "Nebraska" = "NE"; "Nevada" = "NV"; "New Hampshire" = "NH"; "New Jersey" = "NJ"
+                            "New Mexico" = "NM"; "New York" = "NY"; "North Carolina" = "NC"; "North Dakota" = "ND"; "Ohio" = "OH"
+                            "Oklahoma" = "OK"; "Oregon" = "OR"; "Pennsylvania" = "PA"; "Rhode Island" = "RI"; "South Carolina" = "SC"
+                            "South Dakota" = "SD"; "Tennessee" = "TN"; "Texas" = "TX"; "Utah" = "UT"; "Vermont" = "VT"
+                            "Virginia" = "VA"; "Washington" = "WA"; "West Virginia" = "WV"; "Wisconsin" = "WI"; "Wyoming" = "WY"
+                            "District of Columbia" = "DC"
+                        }
+                        foreach ($stateName in $stateMap.Keys) {
+                            if ($displayName -match ", $([regex]::Escape($stateName)),") {
+                                $state = $stateMap[$stateName]
+                                Write-Verbose "Mapped state name '$stateName' from display_name to abbreviation: $state"
+                                break
+                            }
+                        }
+                    }
+                }
+                
+                # Final fallback: extract state from original input if it contains a comma
+                if (-not $state -or $state -eq "US") {
                     if ($Location -match ", ([A-Z]{2})") {
                         $state = $matches[1]
                     } else {
@@ -1342,14 +1401,17 @@ Write-Verbose "GET: $hourlyUrl"
 # Display loading messages for forecast and hourly data
 $locationDisplay = if ($state) { "$city, $state" } else { $city }
 Clear-Host
-Write-Host "Loading $locationDisplay Forecast..." -ForegroundColor Yellow
+Write-Host "Calling API for $locationDisplay Forecast..." -ForegroundColor Cyan
 
 $forecastJob = Start-ApiJob -Url $forecastUrl -Headers $headers -JobName "ForecastData"
 
 Clear-Host
-Write-Host "Loading $locationDisplay Hourly..." -ForegroundColor Yellow
+Write-Host "Calling API for $locationDisplay Hourly..." -ForegroundColor Cyan
 
 $hourlyJob = Start-ApiJob -Url $hourlyUrl -Headers $headers -JobName "HourlyData"
+Clear-Host
+Write-Host "Loading $locationDisplay Data..." -ForegroundColor Yellow
+
 
 $jobsToWaitFor = @($forecastJob, $hourlyJob)
 Wait-Job -Job $jobsToWaitFor | Out-Null
