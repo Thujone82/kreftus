@@ -479,104 +479,144 @@ function calculateDistanceMiles(lat1, lon1, lat2, lon2) {
     return distance;
 }
 
+// Fetch NOAA stations.json (can be called in parallel)
+async function fetchNoaaStationsJson() {
+    try {
+        const apiUrl = 'https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json';
+        console.log('Fetching NOAA stations.json:', apiUrl);
+        
+        const response = await fetch(apiUrl, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            console.log('NOAA stations API returned status:', response.status);
+            return null;
+        }
+        
+        const apiResponse = await response.json();
+        
+        if (apiResponse && apiResponse.stations) {
+            console.log('Fetched', apiResponse.stations.length, 'stations from NOAA API');
+            return apiResponse.stations;
+        }
+        
+        return null;
+    } catch (error) {
+        console.error('Error fetching NOAA stations.json:', error);
+        return null;
+    }
+}
+
 // Search NOAA tide stations by coordinates using CO-OPS Metadata API
-async function fetchNoaaTideStation(lat, lon) {
+// Can accept pre-fetched stations data for optimization
+async function fetchNoaaTideStation(lat, lon, preFetchedStations = null) {
     try {
         console.log('Searching NOAA tide stations for coordinates:', lat, lon);
         
-        // Use NOAA CO-OPS Metadata API to get all stations and filter by distance
-        const apiUrl = 'https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json';
-        console.log('Fetching stations from NOAA API:', apiUrl);
+        let stations = preFetchedStations;
+        
+        // Use pre-fetched stations if provided, otherwise fetch from API
+        if (!stations) {
+            // Use NOAA CO-OPS Metadata API to get all stations and filter by distance
+            const apiUrl = 'https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json';
+            console.log('Fetching stations from NOAA API:', apiUrl);
+            
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    console.log('NOAA API returned status:', response.status);
+                    return null;
+                }
+                
+                const apiResponse = await response.json();
+                if (apiResponse && apiResponse.stations) {
+                    stations = apiResponse.stations;
+                    console.log('Found', stations.length, 'stations from API');
+                } else {
+                    console.log('API response does not contain stations data');
+                    return null;
+                }
+            } catch (error) {
+                console.error('Error fetching from NOAA API:', error);
+                return null;
+            }
+        } else {
+            console.log('Using pre-fetched stations data (' + stations.length + ' stations)');
+        }
         
         let closestStation = null;
         let minDistance = 1000000;
         const maxDistanceMiles = 100;
         
-        try {
-            const response = await fetch(apiUrl, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json'
+        for (const station of stations) {
+            // API uses 'lng' for longitude, not 'lon'
+            if (station.lat && station.lng) {
+                const stationLat = parseFloat(station.lat);
+                const stationLon = parseFloat(station.lng);
+                
+                const distance = calculateDistanceMiles(lat, lon, stationLat, stationLon);
+                
+                if (distance <= maxDistanceMiles && distance < minDistance) {
+                    minDistance = distance;
+                    closestStation = {
+                        stationId: station.id.toString(),
+                        name: station.name,
+                        lat: stationLat,
+                        lon: stationLon,
+                        distance: distance
+                    };
+                    console.log('Found closer station:', station.name, `(${station.id}) at ${distance.toFixed(2)} miles`);
                 }
-            });
-            
-            if (!response.ok) {
-                console.log('NOAA API returned status:', response.status);
-                return null;
             }
+        }
+        
+        if (closestStation) {
+            console.log('Found closest NOAA station via API:', closestStation.name, `(${closestStation.stationId}) at ${closestStation.distance.toFixed(2)} miles`);
             
-            const apiResponse = await response.json();
-            
-            if (apiResponse && apiResponse.stations) {
-                console.log('Found', apiResponse.stations.length, 'stations from API');
+            // Check for water level support via products endpoint (most reliable method)
+            try {
+                const productsUrl = `https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/${closestStation.stationId}/products.json`;
+                console.log('Checking water levels support via products endpoint:', productsUrl);
+                const productsResponse = await fetch(productsUrl, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
                 
-                for (const station of apiResponse.stations) {
-                    // API uses 'lng' for longitude, not 'lon'
-                    if (station.lat && station.lng) {
-                        const stationLat = parseFloat(station.lat);
-                        const stationLon = parseFloat(station.lng);
-                        
-                        const distance = calculateDistanceMiles(lat, lon, stationLat, stationLon);
-                        
-                        if (distance <= maxDistanceMiles && distance < minDistance) {
-                            minDistance = distance;
-                            closestStation = {
-                                stationId: station.id.toString(),
-                                name: station.name,
-                                lat: stationLat,
-                                lon: stationLon,
-                                distance: distance
-                            };
-                            console.log('Found closer station:', station.name, `(${station.id}) at ${distance.toFixed(2)} miles`);
-                        }
-                    }
-                }
-                
-                if (closestStation) {
-                    console.log('Found closest NOAA station via API:', closestStation.name, `(${closestStation.stationId}) at ${closestStation.distance.toFixed(2)} miles`);
-                    
-                    // Check for water level support via products endpoint (most reliable method)
-                    try {
-                        const productsUrl = `https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/${closestStation.stationId}/products.json`;
-                        console.log('Checking water levels support via products endpoint:', productsUrl);
-                        const productsResponse = await fetch(productsUrl, {
-                            method: 'GET',
-                            headers: { 'Accept': 'application/json' }
-                        });
-                        
-                        if (productsResponse.ok) {
-                            const products = await productsResponse.json();
-                            if (products.products && Array.isArray(products.products)) {
-                                // Check if any product name contains "Water Level" or "Water Levels"
-                                const waterLevelProducts = products.products.filter(product => 
-                                    product.name && product.name.match(/Water Level/i)
-                                );
-                                closestStation.supportsWaterLevels = waterLevelProducts.length > 0;
-                                console.log('Water levels support from products endpoint:', closestStation.supportsWaterLevels);
-                            } else {
-                                closestStation.supportsWaterLevels = false;
-                                console.log('No products found, assuming no water levels support');
-                            }
-                        } else {
-                            closestStation.supportsWaterLevels = false;
-                            console.log('Products endpoint returned error status:', productsResponse.status);
-                        }
-                    } catch (error) {
-                        console.error('Could not fetch products endpoint, assuming no water levels support:', error);
+                if (productsResponse.ok) {
+                    const products = await productsResponse.json();
+                    if (products.products && Array.isArray(products.products)) {
+                        // Check if any product name contains "Water Level" or "Water Levels"
+                        const waterLevelProducts = products.products.filter(product => 
+                            product.name && product.name.match(/Water Level/i)
+                        );
+                        closestStation.supportsWaterLevels = waterLevelProducts.length > 0;
+                        console.log('Water levels support from products endpoint:', closestStation.supportsWaterLevels);
+                    } else {
                         closestStation.supportsWaterLevels = false;
+                        console.log('No products found, assuming no water levels support');
                     }
-                    
-                    return closestStation;
                 } else {
-                    console.log('No stations found within 100 miles via API');
-                    return null;
+                    closestStation.supportsWaterLevels = false;
+                    console.log('Products endpoint returned error status:', productsResponse.status);
                 }
-            } else {
-                console.log('API response does not contain stations data');
-                return null;
+            } catch (error) {
+                console.error('Could not fetch products endpoint, assuming no water levels support:', error);
+                closestStation.supportsWaterLevels = false;
             }
-        } catch (error) {
-            console.error('Error fetching from NOAA API:', error);
+            
+            return closestStation;
+        } else {
+            console.log('No stations found within 100 miles via API');
             return null;
         }
     } catch (error) {
@@ -683,6 +723,9 @@ async function fetchWeatherData(location) {
         state = locationData.state;
     }
     
+    // Start fetching NOAA stations.json in parallel (doesn't depend on NWS data)
+    const noaaStationsPromise = fetchNoaaStationsJson();
+    
     // Fetch NWS points data
     const pointsData = await fetchNWSPoints(lat, lon);
     
@@ -696,22 +739,23 @@ async function fetchWeatherData(location) {
     const radarStation = pointsData.properties.radarStation;
     
     // Fetch forecast and hourly data concurrently
-    const [forecastData, hourlyData, alertsData] = await Promise.all([
+    const [forecastData, hourlyData, alertsData, preFetchedStations] = await Promise.all([
         fetchNWSForecast(forecastUrl),
         fetchNWSHourly(hourlyUrl),
-        fetchNWSAlerts(lat, lon)
+        fetchNWSAlerts(lat, lon),
+        noaaStationsPromise  // NOAA stations fetch in parallel
     ]);
     
     // Extract elevation from forecast data
     const elevationMeters = forecastData.properties.elevation?.value || 0;
     const elevationFeet = Math.round(elevationMeters * 3.28084);
     
-    // Fetch NOAA tide station data (non-blocking, don't fail if it errors)
+    // Fetch NOAA tide station data using pre-fetched stations (non-blocking, don't fail if it errors)
     let noaaStation = null;
     try {
-        noaaStation = await fetchNoaaTideStation(lat, lon);
+        noaaStation = await fetchNoaaTideStation(lat, lon, preFetchedStations);
         
-        // If we have a station, fetch tide predictions
+        // If we have a station, fetch tide predictions (products already fetched in fetchNoaaTideStation)
         if (noaaStation) {
             try {
                 noaaStation.tideData = await fetchNoaaTidePredictions(noaaStation.stationId, timeZone);

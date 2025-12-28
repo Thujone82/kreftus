@@ -1070,6 +1070,59 @@ function Update-WeatherData {
         # Update fetch time
         $script:dataFetchTime = Get-Date
         
+        # Refresh NOAA station data in parallel (non-blocking, don't fail if it errors)
+        try {
+            # Start fetching NOAA stations.json in parallel
+            $noaaStationsJob = Start-Job -ScriptBlock {
+                param($lat, $lon)
+                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+                try {
+                    $apiUrl = "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json"
+                    $apiResponse = Invoke-RestMethod -Uri $apiUrl -Method Get -ErrorAction Stop -TimeoutSec 30
+                    return @{
+                        Success = $true
+                        Stations = $apiResponse.stations
+                        Lat = $lat
+                        Lon = $lon
+                    }
+                } catch {
+                    return @{
+                        Success = $false
+                        Error = $_.Exception.Message
+                        Lat = $lat
+                        Lon = $lon
+                    }
+                }
+            } -ArgumentList $lat, $lon
+            
+            # Wait briefly for NOAA stations (non-blocking - don't delay refresh)
+            $jobResult = Wait-Job -Job $noaaStationsJob -Timeout 2
+            if ($jobResult) {
+                $script:noaaStationsData = $noaaStationsJob | Receive-Job
+                Remove-Job -Job $noaaStationsJob
+                if ($script:noaaStationsData -and $script:noaaStationsData.Success) {
+                    Write-Verbose "NOAA stations data refreshed successfully"
+                    # Process and store NOAA station
+                    $script:noaaStation = Get-NoaaTideStation -Lat $lat -Lon $lon -PreFetchedStations $script:noaaStationsData.Stations
+                    if ($script:noaaStation) {
+                        # Fetch tide predictions for the station
+                        try {
+                            $script:noaaStation.tideData = Get-NoaaTidePredictions -StationId $script:noaaStation.stationId -TimeZone $TimeZone
+                        } catch {
+                            Write-Verbose "Error refreshing tide predictions: $($_.Exception.Message)"
+                        }
+                    }
+                }
+            } else {
+                # Job still running - store job reference for later use
+                $script:noaaStationsJob = $noaaStationsJob
+                Write-Verbose "NOAA stations refresh still in progress (non-blocking)"
+            }
+        } catch {
+            Write-Verbose "Error refreshing NOAA station data: $($_.Exception.Message)"
+            # Continue without NOAA data - don't fail the refresh
+        }
+        
         # Determine if refresh was successful
         # Success if we got points data (critical) and at least one of forecast or hourly data
         $hasPointsData = $true  # We already validated points data above
@@ -3103,29 +3156,36 @@ function Show-LocationInfo {
     
     # Display NOAA Station and Resources if a tide station is found within 100 miles
     try {
-        # Check if we have pre-fetched NOAA stations data
-        $preFetchedStations = $null
-        if ($script:noaaStationsData -and $script:noaaStationsData.Success) {
-            $preFetchedStations = $script:noaaStationsData.Stations
-            Write-Verbose "Using pre-fetched NOAA stations data"
+        # First check if we have a refreshed NOAA station from Update-WeatherData
+        $noaaStation = $null
+        if ($script:noaaStation) {
+            $noaaStation = $script:noaaStation
+            Write-Verbose "Using refreshed NOAA station data"
         } else {
-            # If job is still running, wait briefly for it
-            if ($script:noaaStationsJob -and $script:noaaStationsJob.State -ne 'Completed' -and $script:noaaStationsJob.State -ne 'Failed') {
-                Write-Verbose "Waiting for NOAA stations job to complete..."
-                $jobResult = Wait-Job -Job $script:noaaStationsJob -Timeout 5
-                if ($jobResult) {
-                    $script:noaaStationsData = $script:noaaStationsJob | Receive-Job
-                    Remove-Job -Job $script:noaaStationsJob
-                    $script:noaaStationsJob = $null
-                    if ($script:noaaStationsData -and $script:noaaStationsData.Success) {
-                        $preFetchedStations = $script:noaaStationsData.Stations
-                        Write-Verbose "NOAA stations data fetched after brief wait"
+            # Check if we have pre-fetched NOAA stations data
+            $preFetchedStations = $null
+            if ($script:noaaStationsData -and $script:noaaStationsData.Success) {
+                $preFetchedStations = $script:noaaStationsData.Stations
+                Write-Verbose "Using pre-fetched NOAA stations data"
+            } else {
+                # If job is still running, wait briefly for it
+                if ($script:noaaStationsJob -and $script:noaaStationsJob.State -ne 'Completed' -and $script:noaaStationsJob.State -ne 'Failed') {
+                    Write-Verbose "Waiting for NOAA stations job to complete..."
+                    $jobResult = Wait-Job -Job $script:noaaStationsJob -Timeout 5
+                    if ($jobResult) {
+                        $script:noaaStationsData = $script:noaaStationsJob | Receive-Job
+                        Remove-Job -Job $script:noaaStationsJob
+                        $script:noaaStationsJob = $null
+                        if ($script:noaaStationsData -and $script:noaaStationsData.Success) {
+                            $preFetchedStations = $script:noaaStationsData.Stations
+                            Write-Verbose "NOAA stations data fetched after brief wait"
+                        }
                     }
                 }
             }
+            
+            $noaaStation = Get-NoaaTideStation -Lat $lat -Lon $lon -PreFetchedStations $preFetchedStations
         }
-        
-        $noaaStation = Get-NoaaTideStation -Lat $lat -Lon $lon -PreFetchedStations $preFetchedStations
         if ($noaaStation) {
             # Display NOAA Station information first
             # Display NOAA Station information with clickable station ID
@@ -3191,7 +3251,7 @@ function Show-LocationInfo {
                     Remove-Job -Job $tidePredictionsJob
                     if ($tideJobData.Success -and $tideJobData.Response.predictions) {
                         # Process the response using existing logic
-                        $tideData = Process-NoaaTidePredictions -Predictions $tideJobData.Response.predictions
+                        $tideData = Convert-NoaaTidePredictions -Predictions $tideJobData.Response.predictions
                     }
                 } else {
                     # Job still running, process synchronously as fallback
@@ -3227,8 +3287,8 @@ function Show-LocationInfo {
     }
 }
 
-# Function to process NOAA tide predictions from API response
-function Process-NoaaTidePredictions {
+# Function to convert NOAA tide predictions from API response to processed format
+function Convert-NoaaTidePredictions {
     param(
         [array]$Predictions
     )
@@ -3352,7 +3412,7 @@ function Get-NoaaTidePredictions {
             return $null
         }
         
-        return Process-NoaaTidePredictions -Predictions $response.predictions
+        return Convert-NoaaTidePredictions -Predictions $response.predictions
     }
     catch {
         Write-Verbose "Error fetching tide predictions: $($_.Exception.Message)"
