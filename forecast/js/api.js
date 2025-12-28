@@ -534,8 +534,38 @@ async function fetchNoaaTideStation(lat, lon) {
                 
                 if (closestStation) {
                     console.log('Found closest NOAA station via API:', closestStation.name, `(${closestStation.stationId}) at ${closestStation.distance.toFixed(2)} miles`);
-                    // Check if water levels are supported
-                    closestStation.supportsWaterLevels = await testNoaaWaterLevelsSupport(closestStation.stationId);
+                    
+                    // Check for water level support via products endpoint (most reliable method)
+                    try {
+                        const productsUrl = `https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/${closestStation.stationId}/products.json`;
+                        console.log('Checking water levels support via products endpoint:', productsUrl);
+                        const productsResponse = await fetch(productsUrl, {
+                            method: 'GET',
+                            headers: { 'Accept': 'application/json' }
+                        });
+                        
+                        if (productsResponse.ok) {
+                            const products = await productsResponse.json();
+                            if (products.products && Array.isArray(products.products)) {
+                                // Check if any product name contains "Water Level" or "Water Levels"
+                                const waterLevelProducts = products.products.filter(product => 
+                                    product.name && product.name.match(/Water Level/i)
+                                );
+                                closestStation.supportsWaterLevels = waterLevelProducts.length > 0;
+                                console.log('Water levels support from products endpoint:', closestStation.supportsWaterLevels);
+                            } else {
+                                closestStation.supportsWaterLevels = false;
+                                console.log('No products found, assuming no water levels support');
+                            }
+                        } else {
+                            closestStation.supportsWaterLevels = false;
+                            console.log('Products endpoint returned error status:', productsResponse.status);
+                        }
+                    } catch (error) {
+                        console.error('Could not fetch products endpoint, assuming no water levels support:', error);
+                        closestStation.supportsWaterLevels = false;
+                    }
+                    
                     return closestStation;
                 } else {
                     console.log('No stations found within 100 miles via API');
@@ -555,42 +585,6 @@ async function fetchNoaaTideStation(lat, lon) {
     }
 }
 
-// Test if NOAA station supports water levels
-async function testNoaaWaterLevelsSupport(stationId) {
-    try {
-        const waterLevelsUrl = `https://tidesandcurrents.noaa.gov/waterlevels.html?id=${stationId}`;
-        console.log('Checking water levels support:', waterLevelsUrl);
-        
-        const response = await fetch(waterLevelsUrl, {
-            method: 'GET',
-            headers: {
-                'Accept': 'text/html'
-            }
-        });
-        
-        if (!response.ok) {
-            console.log('Water levels not supported for station', stationId);
-            return false;
-        }
-        
-        const htmlContent = await response.text();
-        
-        // Check for common error indicators
-        if (htmlContent.match(/not available|error|not found|no data/i) && 
-            !htmlContent.match(/Water Level|water level/i)) {
-            console.log('Water levels not supported for station', stationId);
-            return false;
-        }
-        
-        // If we get here and status is 200, assume water levels are supported
-        console.log('Water levels appear to be supported for station', stationId);
-        return true;
-    } catch (error) {
-        console.error('Error checking water levels support:', error);
-        // On error, assume not supported to be safe
-        return false;
-    }
-}
 
 // Fetch all weather data for a location
 async function fetchWeatherData(location) {

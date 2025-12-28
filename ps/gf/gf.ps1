@@ -2983,13 +2983,36 @@ function Get-NoaaTideStation {
                                 lon = $stationLon
                                 distance = $distance
                             }
-                            Write-Verbose "Found closer station: $($station.name) ($($station.id)) at $([Math]::Round($distance, 2)) miles"
+                            Write-Verbose "Found nearby station: $($station.name) ($($station.id)) at $([Math]::Round($distance, 2)) miles"
                         }
                     }
                 }
                 
                 if ($closestStation) {
                     Write-Verbose "Found closest NOAA station via API: $($closestStation.name) ($($closestStation.stationId)) at $([Math]::Round($closestStation.distance, 2)) miles"
+                    
+                    # Check for water level support via products endpoint (most reliable method)
+                    try {
+                        $productsUrl = "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/$($closestStation.stationId)/products.json"
+                        Write-Verbose "Checking water levels support via products endpoint: $productsUrl"
+                        $products = Invoke-RestMethod -Uri $productsUrl -Method Get -ErrorAction Stop -TimeoutSec 10
+                        if ($products.products) {
+                            # Check if any product name contains "Water Level" or "Water Levels"
+                            $waterLevelProducts = $products.products | Where-Object { 
+                                $_.name -match "Water Level"
+                            }
+                            # Force to array to get accurate count (Where-Object may return single object)
+                            $closestStation.supportsWaterLevels = (@($waterLevelProducts).Count -gt 0)
+                            Write-Verbose "Water levels support from products endpoint: $($closestStation.supportsWaterLevels)"
+                        } else {
+                            $closestStation.supportsWaterLevels = $false
+                            Write-Verbose "No products found, assuming no water levels support"
+                        }
+                    } catch {
+                        Write-Verbose "Could not fetch products endpoint, assuming no water levels support: $($_.Exception.Message)"
+                        $closestStation.supportsWaterLevels = $false
+                    }
+                    
                     return $closestStation
                 } else {
                     Write-Verbose "No stations found within 100 miles via API"
@@ -3258,37 +3281,6 @@ function Get-NoaaTideStation {
     }
 }
 
-# Function to test if NOAA station supports water levels
-function Test-NoaaWaterLevelsSupport {
-    param(
-        [string]$StationId
-    )
-    
-    try {
-        $waterLevelsUrl = "https://tidesandcurrents.noaa.gov/waterlevels.html?id=$StationId"
-        Write-Verbose "Checking water levels support: $waterLevelsUrl"
-        
-        $response = Invoke-WebRequest -Uri $waterLevelsUrl -Method Get -ErrorAction Stop -UseBasicParsing
-        
-        # Check if the page contains actual water level data (not an error page)
-        # Look for indicators of valid water level data
-        $htmlContent = $response.Content
-        
-        # Check for common error indicators
-        if ($htmlContent -match "not available|error|not found|no data" -and $htmlContent -notmatch "Water Level|water level") {
-            Write-Verbose "Water levels not supported for station $StationId"
-            return $false
-        }
-        
-        # If we get here and status is 200, assume water levels are supported
-        Write-Verbose "Water levels appear to be supported for station $StationId"
-        return $true
-    }
-    catch {
-        Write-Verbose "Water levels not supported for station ${StationId}: $($_.Exception.Message)"
-        return $false
-    }
-}
 
 # Function to display location information
 function Show-LocationInfo {
@@ -3354,9 +3346,8 @@ function Show-LocationInfo {
             $datumsUrl = "https://tidesandcurrents.noaa.gov/datums.html?id=$($noaaStation.stationId)"
             Write-Host "$([char]27)]8;;$datumsUrl$([char]27)\Datums$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
             
-            # Check if water levels are supported
-            $supportsWaterLevels = Test-NoaaWaterLevelsSupport -StationId $noaaStation.stationId
-            if ($supportsWaterLevels) {
+            # Check if water levels are supported (already set in Get-NoaaTideStation via API)
+            if ($noaaStation.supportsWaterLevels) {
                 Write-Host " | " -ForegroundColor $DefaultColor -NoNewline
                 $waterLevelsUrl = "https://tidesandcurrents.noaa.gov/waterlevels.html?id=$($noaaStation.stationId)"
                 Write-Host "$([char]27)]8;;$waterLevelsUrl$([char]27)\Water Levels$([char]27)]8;;$([char]27)\" -ForegroundColor Blue
