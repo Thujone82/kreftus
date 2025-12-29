@@ -521,6 +521,7 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 - **Screen Clearing Improvements:** Enhanced screen clearing to remove loading messages before displaying data, and fixed "Waiting for preloaded data..." message persistence issue
 - **Observations Display Polish:** Removed empty line above Observations modal title for consistent formatting with other modals
 - **NOAA Resources Integration:** Added conditional NOAA tide station resources display when a station is found within 100 miles of the location. Displays NOAA Station information (name, clickable station ID link, coordinates) and NOAA Resources links (Tide Prediction, Datums, Water Levels if supported). Uses known stations list for efficient lookup and Haversine distance calculation for proximity verification
+- **NOAA Tide Predictions Enhancement:** Improved tide prediction fetching to automatically retrieve adjacent days (yesterday and tomorrow) when today's predictions don't include a "last" or "next" tide, ensuring complete tide information is always available regardless of time of day
 - **Comprehensive Documentation:** Updated README and project documentation
 
 ### Auto-Refresh Technical Implementation
@@ -672,36 +673,58 @@ The NOAA Resources feature provides conditional access to NOAA tide station info
   - Tide Prediction: `https://tidesandcurrents.noaa.gov/noaatidepredictions.html?id={stationId}`
   - Datums: `https://tidesandcurrents.noaa.gov/datums.html?id={stationId}`
   - Water Levels: `https://tidesandcurrents.noaa.gov/waterlevels.html?id={stationId}` (only if supported)
+- **Tides Line:** "Tides: Last[↑/↓]: {Height}ft@{Time} Next[↑/↓]: {Height}ft@{Time}"
+  - Displays last and next high/low tide predictions
+  - Format: Height in feet (2 decimal places), time in HHmm format (24-hour)
+  - Arrows indicate tide type: ↑ for high tide, ↓ for low tide
+  - "Tides:" label in default color, rest of line in gray
+  - Shows only available tides (last only, next only, or both if available)
+  - **Adjacent Day Fetching:** Automatically fetches tomorrow's predictions if no "next" tide found for today, and yesterday's predictions if no "last" tide found for today, ensuring complete tide information is always available
 
 **Functions:**
 - **Get-NoaaTideStation:** Fetches all stations from NOAA API, calculates distances, and returns closest within 100 miles
 - **Get-DistanceMiles:** Calculates Haversine distance between two coordinates
 - **Get-Bearing:** Calculates bearing (direction) from location to station in degrees (0-360)
 - **Get-CardinalDirection:** Converts bearing degrees to cardinal direction (N, NE, E, etc.)
-- **Test-NoaaWaterLevelsSupport:** Checks if station supports water level data
-- **Show-LocationInfo:** Conditionally displays NOAA Station and Resources lines
+- **Get-NoaaTidePredictionsForDate:** Fetches tide predictions for a specific date (today, YYYYMMDD format)
+- **Get-NoaaTidePredictions:** Fetches today's tide predictions and automatically fetches adjacent days when needed:
+  - If no "next" tide found for today, fetches tomorrow's predictions and selects earliest future tide
+  - If no "last" tide found for today, fetches yesterday's predictions and selects latest past tide
+- **Convert-NoaaTidePredictions:** Processes tide prediction data to find last and next high/low tides
+- **Show-LocationInfo:** Conditionally displays NOAA Station, Resources, and Tides lines
 
 **API Integration:**
-- **Endpoint:** `https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json`
-- **Method:** GET request to fetch all available tide stations
-- **Response Format:** JSON with stations array containing id, name, lat, lng fields
-- **Coverage:** All NOAA tide stations (typically 300+ stations)
-- **No Authentication Required:** Public API endpoint
+- **Stations Endpoint:** `https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json`
+  - Method: GET request to fetch all available tide stations
+  - Response Format: JSON with stations array containing id, name, lat, lng fields
+  - Coverage: All NOAA tide stations (typically 300+ stations)
+- **Tide Predictions Endpoint:** `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter`
+  - Parameters: `product=predictions&datum=mllw&station={stationId}&date={date}&interval=hilo&format=json&units=english&time_zone=lst_ldt`
+  - Date Format: "today" or "YYYYMMDD" (e.g., "20250127")
+  - Response Format: JSON with predictions array containing t (time), v (value/height), type (H/L) fields
+  - **Adjacent Day Support:** Automatically fetches tomorrow's predictions when no "next" tide available, and yesterday's predictions when no "last" tide available
+- **Products Endpoint:** `https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/{stationId}/products.json`
+  - Used to check if station supports water level data
+- **No Authentication Required:** All endpoints are public API endpoints
 
 #### Benefits:
 
 - **Tide Information:** Direct access to NOAA tide predictions for coastal locations
+- **Complete Tide Data:** Always shows last and next tide predictions by automatically fetching adjacent days when needed
 - **Station Details:** Quick access to station metadata and datums information
 - **Water Level Data:** Access to historical and real-time water level data when available
 - **Automatic Detection:** No manual station lookup required
 - **Official Sources:** Links directly to authoritative NOAA resources
+- **Reliable Display:** No missing tide information at day boundaries (end of day or beginning of day)
 
 #### Use Cases:
 
 - **Coastal Planning:** Access tide predictions for beach activities and boating
+- **Tide Timing:** Always know the last and next high/low tides, even at day boundaries
 - **Water Level Monitoring:** Check water levels for flood planning and navigation
 - **Station Information:** View station coordinates and metadata for reference
 - **Marine Activities:** Plan activities based on tide and water level conditions
+- **24/7 Availability:** Complete tide information available at any time of day
 
 ### Control Bar Toggle Feature (v2.1)
 

@@ -607,7 +607,7 @@ function displayLocationInfo(location, noaaStation = null) {
         
         if (noaaStation.supportsWaterLevels) {
             const waterLevelsUrl = `https://tidesandcurrents.noaa.gov/waterlevels.html?id=${noaaStation.stationId}`;
-            html += `<a href="${waterLevelsUrl}" target="_blank" class="location-info-link">Water Levels</a>`;
+            html += `<a href="${waterLevelsUrl}" target="_blank" class="location-info-link">Levels</a>`;
         }
         html += '</div>';
         

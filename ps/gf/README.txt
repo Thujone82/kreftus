@@ -52,6 +52,8 @@ The script first uses a geocoding service to determine the latitude and longitud
   - **Datums:** Direct link to station datums information
   - **Water Levels:** Direct link to water level data (only if station supports it)
   - **API-Based Discovery:** Uses official NOAA CO-OPS Metadata API to search all available stations dynamically
+  - **Tide Predictions Display:** Shows "Tides: Last[↑/↓]: {Height}ft@{Time} Next[↑/↓]: {Height}ft@{Time}" with last and next high/low tide predictions
+  - **Adjacent Day Fetching:** Automatically fetches tomorrow's predictions if no "next" tide found for today, and yesterday's predictions if no "last" tide found for today, ensuring complete tide information is always available
 - **Enhanced Daily Mode:** Comprehensive 7-day forecast with detailed information:
   - Wind speed and direction with color coding (red for high wind)
   - Windchill and Heat Index calculations when applicable

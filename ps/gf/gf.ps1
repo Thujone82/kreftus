@@ -3250,7 +3250,7 @@ function Show-LocationInfo {
             if ($noaaStation.supportsWaterLevels) {
                 Write-Host " | " -ForegroundColor $DefaultColor -NoNewline
                 $waterLevelsUrl = "https://tidesandcurrents.noaa.gov/waterlevels.html?id=$($noaaStation.stationId)"
-                Write-Host "$([char]27)]8;;$waterLevelsUrl$([char]27)\Water Levels$([char]27)]8;;$([char]27)\" -ForegroundColor Blue
+                Write-Host "$([char]27)]8;;$waterLevelsUrl$([char]27)\Levels$([char]27)]8;;$([char]27)\" -ForegroundColor Blue
             } else {
                 Write-Host ""
             }
@@ -3261,30 +3261,102 @@ function Show-LocationInfo {
                 $tidePredictionsJob = Start-Job -ScriptBlock {
                     param($stationId, $timeZone)
                     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+                    
+                    function Get-NoaaTidePredictionsForDate {
+                        param([string]$StationId, [string]$Date)
+                        try {
+                            $apiUrl = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&datum=mllw&station=$StationId&date=$Date&interval=hilo&format=json&units=english&time_zone=lst_ldt"
+                            $response = Invoke-RestMethod -Uri $apiUrl -Method Get -ErrorAction Stop -TimeoutSec 10
+                            if ($response.predictions) { return $response.predictions }
+                            return $null
+                        } catch { return $null }
+                    }
+                    
+                    function Convert-NoaaTidePredictions {
+                        param([array]$Predictions)
+                        $now = Get-Date
+                        $lastTide = $null
+                        $nextTide = $null
+                        foreach ($prediction in $Predictions) {
+                            $timeStr = $prediction.t
+                            if ($timeStr -match "\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}") {
+                                $tideTime = [DateTime]::ParseExact($timeStr, "yyyy-MM-dd HH:mm", $null)
+                                $height = [double]$prediction.v
+                                $type = $prediction.type
+                                $tideInfo = @{ Time = $tideTime; Height = $height; Type = $type }
+                                if ($tideTime -le $now) {
+                                    if ($null -eq $lastTide -or $tideTime -gt $lastTide.Time) { $lastTide = $tideInfo }
+                                } else {
+                                    if ($null -eq $nextTide -or $tideTime -lt $nextTide.Time) { $nextTide = $tideInfo }
+                                }
+                            }
+                        }
+                        return @{ LastTide = $lastTide; NextTide = $nextTide }
+                    }
+                    
                     try {
-                        $apiUrl = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&datum=mllw&station=$stationId&date=today&interval=hilo&format=json&units=english&time_zone=lst_ldt"
-                        $response = Invoke-RestMethod -Uri $apiUrl -Method Get -ErrorAction Stop -TimeoutSec 10
-                        return @{
-                            Success = $true
-                            Response = $response
+                        $now = Get-Date
+                        $todayPredictions = Get-NoaaTidePredictionsForDate -StationId $stationId -Date "today"
+                        if (-not $todayPredictions) { return @{ Success = $false; Error = "No predictions for today" } }
+                        
+                        $tideData = Convert-NoaaTidePredictions -Predictions $todayPredictions
+                        
+                        # Fetch tomorrow if no next tide
+                        if (-not $tideData.NextTide) {
+                            $tomorrow = $now.AddDays(1).ToString("yyyyMMdd")
+                            $tomorrowPredictions = Get-NoaaTidePredictionsForDate -StationId $stationId -Date $tomorrow
+                            if ($tomorrowPredictions) {
+                                $firstTomorrowTide = $null
+                                foreach ($prediction in $tomorrowPredictions) {
+                                    $timeStr = $prediction.t
+                                    if ($timeStr -match "\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}") {
+                                        $tideTime = [DateTime]::ParseExact($timeStr, "yyyy-MM-dd HH:mm", $null)
+                                        if ($tideTime -gt $now) {
+                                            if ($null -eq $firstTomorrowTide -or $tideTime -lt $firstTomorrowTide.Time) {
+                                                $firstTomorrowTide = @{ Time = $tideTime; Height = [double]$prediction.v; Type = $prediction.type }
+                                            }
+                                        }
+                                    }
+                                }
+                                if ($firstTomorrowTide) { $tideData.NextTide = $firstTomorrowTide }
+                            }
                         }
+                        
+                        # Fetch yesterday if no last tide
+                        if (-not $tideData.LastTide) {
+                            $yesterday = $now.AddDays(-1).ToString("yyyyMMdd")
+                            $yesterdayPredictions = Get-NoaaTidePredictionsForDate -StationId $stationId -Date $yesterday
+                            if ($yesterdayPredictions) {
+                                $lastYesterdayTide = $null
+                                foreach ($prediction in $yesterdayPredictions) {
+                                    $timeStr = $prediction.t
+                                    if ($timeStr -match "\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}") {
+                                        $tideTime = [DateTime]::ParseExact($timeStr, "yyyy-MM-dd HH:mm", $null)
+                                        if ($tideTime -le $now) {
+                                            if ($null -eq $lastYesterdayTide -or $tideTime -gt $lastYesterdayTide.Time) {
+                                                $lastYesterdayTide = @{ Time = $tideTime; Height = [double]$prediction.v; Type = $prediction.type }
+                                            }
+                                        }
+                                    }
+                                }
+                                if ($lastYesterdayTide) { $tideData.LastTide = $lastYesterdayTide }
+                            }
+                        }
+                        
+                        return @{ Success = $true; TideData = $tideData }
                     } catch {
-                        return @{
-                            Success = $false
-                            Error = $_.Exception.Message
-                        }
+                        return @{ Success = $false; Error = $_.Exception.Message }
                     }
                 } -ArgumentList $noaaStation.stationId, $timeZone
                 
                 # Process tide predictions (wait briefly if needed)
                 $tideData = $null
-                $jobResult = Wait-Job -Job $tidePredictionsJob -Timeout 3
+                $jobResult = Wait-Job -Job $tidePredictionsJob -Timeout 5
                 if ($jobResult) {
                     $tideJobData = $tidePredictionsJob | Receive-Job
                     Remove-Job -Job $tidePredictionsJob
-                    if ($tideJobData.Success -and $tideJobData.Response.predictions) {
-                        # Process the response using existing logic
-                        $tideData = Convert-NoaaTidePredictions -Predictions $tideJobData.Response.predictions
+                    if ($tideJobData.Success -and $tideJobData.TideData) {
+                        $tideData = $tideJobData.TideData
                     }
                 } else {
                     # Job still running, process synchronously as fallback
@@ -3446,6 +3518,32 @@ function Convert-NoaaTidePredictions {
     }
 }
 
+# Function to fetch NOAA tide predictions for a specific date
+function Get-NoaaTidePredictionsForDate {
+    param(
+        [string]$StationId,
+        [string]$Date  # Format: "today", "YYYYMMDD", or date string
+    )
+    
+    try {
+        $apiUrl = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&datum=mllw&station=$StationId&date=$Date&interval=hilo&format=json&units=english&time_zone=lst_ldt"
+        Write-Verbose "Fetching tide predictions for date '$Date': $apiUrl"
+        
+        $response = Invoke-RestMethod -Uri $apiUrl -Method Get -ErrorAction Stop -TimeoutSec 10
+        
+        if (-not $response.predictions -or $response.predictions.Count -eq 0) {
+            Write-Verbose "No tide predictions returned for date '$Date'"
+            return $null
+        }
+        
+        return $response.predictions
+    }
+    catch {
+        Write-Verbose "Error fetching tide predictions for date '$Date': $($_.Exception.Message)"
+        return $null
+    }
+}
+
 # Function to fetch NOAA tide predictions (synchronous version for fallback)
 function Get-NoaaTidePredictions {
     param(
@@ -3454,18 +3552,84 @@ function Get-NoaaTidePredictions {
     )
     
     try {
-        # Build API URL for tide predictions
-        $apiUrl = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&datum=mllw&station=$StationId&date=today&interval=hilo&format=json&units=english&time_zone=lst_ldt"
-        Write-Verbose "Fetching tide predictions: $apiUrl"
+        $now = Get-Date
         
-        $response = Invoke-RestMethod -Uri $apiUrl -Method Get -ErrorAction Stop -TimeoutSec 10
+        # First, fetch today's predictions
+        $todayPredictions = Get-NoaaTidePredictionsForDate -StationId $StationId -Date "today"
         
-        if (-not $response.predictions -or $response.predictions.Count -eq 0) {
-            Write-Verbose "No tide predictions returned from API"
+        if (-not $todayPredictions) {
+            Write-Verbose "No tide predictions returned from API for today"
             return $null
         }
         
-        return Convert-NoaaTidePredictions -Predictions $response.predictions
+        # Process today's predictions
+        $tideData = Convert-NoaaTidePredictions -Predictions $todayPredictions
+        
+        # If no next tide found, fetch tomorrow's predictions
+        if (-not $tideData.NextTide) {
+            Write-Verbose "No next tide found for today, fetching tomorrow's predictions"
+            $tomorrow = $now.AddDays(1).ToString("yyyyMMdd")
+            $tomorrowPredictions = Get-NoaaTidePredictionsForDate -StationId $StationId -Date $tomorrow
+            
+            if ($tomorrowPredictions -and $tomorrowPredictions.Count -gt 0) {
+                # Get the first tide from tomorrow (earliest future tide)
+                $firstTomorrowTide = $null
+                foreach ($prediction in $tomorrowPredictions) {
+                    $timeStr = $prediction.t
+                    if ($timeStr -match "\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}") {
+                        $tideTime = [DateTime]::ParseExact($timeStr, "yyyy-MM-dd HH:mm", $null)
+                        if ($tideTime -gt $now) {
+                            if ($null -eq $firstTomorrowTide -or $tideTime -lt $firstTomorrowTide.Time) {
+                                $firstTomorrowTide = @{
+                                    Time = $tideTime
+                                    Height = [double]$prediction.v
+                                    Type = $prediction.type
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if ($firstTomorrowTide) {
+                    $tideData.NextTide = $firstTomorrowTide
+                    Write-Verbose "Found next tide from tomorrow: $($firstTomorrowTide.Time.ToString('HH:mm')) $($firstTomorrowTide.Type)"
+                }
+            }
+        }
+        
+        # If no last tide found, fetch yesterday's predictions
+        if (-not $tideData.LastTide) {
+            Write-Verbose "No last tide found for today, fetching yesterday's predictions"
+            $yesterday = $now.AddDays(-1).ToString("yyyyMMdd")
+            $yesterdayPredictions = Get-NoaaTidePredictionsForDate -StationId $StationId -Date $yesterday
+            
+            if ($yesterdayPredictions -and $yesterdayPredictions.Count -gt 0) {
+                # Get the last tide from yesterday (latest past tide)
+                $lastYesterdayTide = $null
+                foreach ($prediction in $yesterdayPredictions) {
+                    $timeStr = $prediction.t
+                    if ($timeStr -match "\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}") {
+                        $tideTime = [DateTime]::ParseExact($timeStr, "yyyy-MM-dd HH:mm", $null)
+                        if ($tideTime -le $now) {
+                            if ($null -eq $lastYesterdayTide -or $tideTime -gt $lastYesterdayTide.Time) {
+                                $lastYesterdayTide = @{
+                                    Time = $tideTime
+                                    Height = [double]$prediction.v
+                                    Type = $prediction.type
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if ($lastYesterdayTide) {
+                    $tideData.LastTide = $lastYesterdayTide
+                    Write-Verbose "Found last tide from yesterday: $($lastYesterdayTide.Time.ToString('HH:mm')) $($lastYesterdayTide.Type)"
+                }
+            }
+        }
+        
+        return $tideData
     }
     catch {
         Write-Verbose "Error fetching tide predictions: $($_.Exception.Message)"
