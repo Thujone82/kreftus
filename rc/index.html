@@ -211,10 +211,19 @@
                     </td>
                     <td class="project-text-cell">
                         <div>
-                            <h2>rc</h2>
+                            <h2>rc v1.4</h2>
                             <p>
-                                <b>rc (Run Continuously)</b> is a command-line utility that executes a given command string in a loop. After each execution, it waits for a specified number of minutes before running the command again. It features an optional precision mode to account for the command's execution time, preventing timing drift and ensuring runs start at a consistent interval.
+                                <b>rc (Run Continuously)</b> is a command-line utility that executes a given command string in a loop. After each execution, it waits for a specified number of minutes before running the command again.
                             </p>
+                            <p>
+                                <b>Features:</b>
+                            </p>
+                            <ul>
+                                <li><b>Precision Mode (-p):</b> Accounts for the command's execution time, preventing timing drift and ensuring runs start at a consistent interval.</li>
+                                <li><b>Skip Mode (-skip):</b> Skip a specified number of initial executions before starting command execution. If -skip 0 is specified, it defaults to 1.</li>
+                                <li><b>Silent Mode (-s):</b> Suppresses status output messages while still displaying command output and errors.</li>
+                                <li><b>Clear Mode (-c):</b> Clears the screen before executing the command in each iteration for clean output display.</li>
+                            </ul>
                             <p>
                                 Available in a native Go version for cross-platform performance and a PowerShell version for Windows environments.
                             </p>

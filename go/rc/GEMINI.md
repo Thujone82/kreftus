@@ -36,6 +36,13 @@ A cross-platform command-line utility written in Go that executes a given comman
 - Uses platform-specific methods: `cls` command on Windows, ANSI escape sequences on Unix-like systems
 - Useful for monitoring scenarios where you want to see only the current command output
 
+#### Skip Mode (`-skip`)
+- Allows you to skip a specified number of initial executions before starting to run the command
+- If `-skip 0` is specified, it defaults to 1 (skips the first execution)
+- If `-skip` is not specified at all, no executions are skipped (default is 0)
+- Timing schedule is maintained during skipped executions
+- User feedback is provided during skipped executions (unless Silent mode is enabled)
+
 ## Technical Details
 
 ### Parameters
@@ -59,6 +66,12 @@ A cross-platform command-line utility written in Go that executes a given comman
 - **-c** or **-clear** [switch]
   - Enables "Clear Mode"
   - Clears the screen before executing the command in each iteration
+
+- **-skip** <number>
+  - The number of initial executions to skip before starting to run the command
+  - If `-skip 0` is specified, it defaults to 1 (skips the first execution)
+  - If `-skip` is not specified at all, no executions are skipped (default is 0)
+  - For example, `-skip 2` will skip the first and second executions, then start executing from the third iteration onwards
 
 ### Platform Support
 - **Windows**: Uses `cmd.exe` for command execution and `cls` command for screen clearing
@@ -109,6 +122,18 @@ Runs 'date' every minute with the screen cleared before each execution, providin
 ```
 Runs './my-monitor.sh' every 5 minutes with both precision timing and silent output, ideal for background monitoring tasks.
 
+### Skip Mode
+```sh
+./rc -skip 2 -period 5 "Get-Process"
+```
+Runs 'Get-Process' every 5 minutes, but skips the first 2 executions. Execution will begin on the 3rd iteration. The timing schedule is maintained during skipped executions.
+
+### Skip with Default (Skip 1)
+```sh
+./rc -skip 0 -period 1 "date"
+```
+Runs 'date' every minute, but skips the first execution. Since `-skip 0` was specified, it defaults to 1. Execution will begin on the 2nd iteration.
+
 ### Interactive Mode
 ```sh
 ./rc
@@ -118,6 +143,7 @@ When run without parameters, the application will prompt for:
 - Period in minutes (default: 5)
 - Precision Mode (y/n, default: n)
 - Clear Mode (y/n, default: n)
+- Skip initial executions (enter number, or 0 for default skip 1, default: 0)
 
 ## Technical Implementation
 
@@ -133,6 +159,14 @@ When run without parameters, the application will prompt for:
 - Executed conditionally when `-c` or `-clear` flag is present
 - Provides clean output for each iteration
 
+### Skip Mode Implementation
+- Tracks execution count using an incrementing counter
+- Compares execution count against skip threshold before command execution
+- Provides user feedback during skipped executions (unless Silent mode is enabled)
+- Maintains timing schedule during skipped executions to ensure consistent intervals
+- If `-skip 0` is specified, automatically defaults to 1
+- In precision mode, accounts for skipped executions in timing calculations
+
 ### Error Handling
 - Commands are executed with error handling
 - Errors are displayed as warnings without stopping the loop
@@ -142,7 +176,7 @@ When run without parameters, the application will prompt for:
 
 | Color | Usage | Example |
 |-------|-------|---------|
-| `Yellow` | Titles and warnings | "*** Run Continuously v1 ***", error messages |
+| `Yellow` | Titles, warnings, skip messages | "*** Run Continuously v1 ***", error messages, "Skipping execution X of Y..." |
 | `Cyan` | Precision mode messages | Precision mode status messages |
 | `White` | Status messages | Execution timing, wait periods |
 
@@ -179,10 +213,13 @@ This will create executables in the `bin/` directory for:
 - Precision mode ensures accurate scheduling but may run immediately if a command exceeds its interval
 - Clear mode provides a clean display but may not be suitable for logging scenarios where you need to see history
 - Silent mode suppresses all status messages but still shows command output and errors
+- Skip mode maintains the timing schedule during skipped executions, so the first actual execution will occur at the correct interval
+- If `-skip 0` is specified, it automatically defaults to 1 to skip the first execution
 - The compiled executable is platform-specific - use the appropriate binary for your operating system
 
 ## Version History
 
+- **v1.4**: Added Skip Mode (`-skip` parameter) to allow skipping initial executions before starting command execution
 - **v1.3**: Added Clear Mode (`-c` and `-clear` flags) for screen clearing functionality before each command execution
 - **v1.0**: Initial release with continuous execution, precision mode, and silent mode
 

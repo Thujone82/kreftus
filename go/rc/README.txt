@@ -1,6 +1,6 @@
 # rc - RunContinuously v1 (RC v1)
 
-## Version 1.3
+## Version 1.4
 
 ## Author
 Kreft&Gemini
@@ -18,6 +18,7 @@ The application can run in two modes: a standard mode that waits for a fixed dur
   - **Precision Mode (`-p`):** Accounts for the command's execution time to ensure each new run starts on a fixed, predictable schedule. Ideal for tasks requiring consistent timing.
 - **Silent Mode (`-s`):** Suppresses status output messages such as execution timing and wait periods, while still displaying the actual command output and any errors. Perfect for logging scenarios.
 - **Clear Mode (`-c`):** Clears the screen before executing the command in each iteration, providing a clean output display for each run. Useful for monitoring scenarios where you want to see only the current command output.
+- **Skip Mode (`-skip`):** Allows you to skip a specified number of initial executions before starting to run the command. If `-skip 0` is specified, it defaults to 1 (skips the first execution). Useful for delaying the start of command execution while maintaining the timing schedule.
 - **Interactive Mode:** If run without any arguments, `rc` will interactively prompt you for the command, period, and timing mode.
 - **Cross-Platform:** The included `build.ps1` script compiles native executables for both Windows and Linux.
 - **Color-coded Output:** Provides clear, colorized feedback for execution status and timing information.
@@ -49,6 +50,12 @@ The application can run in two modes: a standard mode that waits for a fixed dur
 - `-c`, `-clear`
   - A switch to enable "Clear Mode".
   - When enabled, clears the screen before executing the command in each iteration.
+
+- `-skip <number>`
+  - The number of initial executions to skip before starting to run the command.
+  - If `-skip 0` is specified, it defaults to 1 (skips the first execution).
+  - If `-skip` is not specified at all, no executions are skipped (default is 0).
+  - For example, `-skip 2` will skip the first and second executions, then start executing from the third iteration onwards.
 
 ## Examples
 
@@ -82,3 +89,15 @@ Runs 'date' every minute with the screen cleared before each execution, providin
 ```sh
 ./rc
 ```
+
+### Example 7: Skip Mode
+```sh
+./rc -skip 2 -period 5 "Get-Process"
+```
+Runs 'Get-Process' every 5 minutes, but skips the first 2 executions. Execution will begin on the 3rd iteration. The timing schedule is maintained during skipped executions.
+
+### Example 8: Skip with Default (Skip 1)
+```sh
+./rc -skip 0 -period 1 "date"
+```
+Runs 'date' every minute, but skips the first execution. Since `-skip 0` was specified, it defaults to 1. Execution will begin on the 2nd iteration.

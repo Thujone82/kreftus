@@ -62,7 +62,7 @@ func printUsage() {
 	fmt.Println()
 
 	color.Yellow("USAGE")
-	fmt.Println("    rc \"<command>\" [period] [-p] [-s] [-c]")
+	fmt.Println("    rc \"<command>\" [period] [-p] [-s] [-c] [-skip <number>]")
 	fmt.Println()
 
 	color.Yellow("PARAMETERS")
@@ -81,6 +81,11 @@ func printUsage() {
 	color.Cyan("  -c, -clear")
 	fmt.Println("    Optional. Clears the screen before executing the command in each iteration.")
 	fmt.Println()
+	color.Cyan("  -skip <number>")
+	fmt.Println("    Optional. The number of initial executions to skip before starting to run the command.")
+	fmt.Println("    If -skip 0 is specified, it defaults to 1 (skips the first execution).")
+	fmt.Println("    If -skip is not specified at all, no executions are skipped (default is 0).")
+	fmt.Println()
 
 	color.Yellow("EXAMPLES")
 	color.Green("    rc \"go run main.go\" 1")
@@ -98,6 +103,14 @@ func printUsage() {
 	color.Green("    rc \"date\" 1 -c")
 	fmt.Println("    Runs 'date' every minute with the screen cleared before each execution.")
 	fmt.Println()
+	color.Green("    rc \"Get-Process\" 5 -skip 2")
+	fmt.Println("    Runs 'Get-Process' every 5 minutes, but skips the first 2 executions.")
+	fmt.Println("    Execution will begin on the 3rd iteration.")
+	fmt.Println()
+	color.Green("    rc \"date\" 1 -skip 0")
+	fmt.Println("    Runs 'date' every minute, but skips the first execution.")
+	fmt.Println("    Since -skip 0 was specified, it defaults to 1.")
+	fmt.Println()
 }
 
 func main() {
@@ -108,9 +121,13 @@ func main() {
 	var precision bool
 	var silent bool
 	var clear bool
+	skip := 0 // Default skip count
 	var nonFlagArgs []string
+	skipFlagFound := false
 
-	for _, arg := range os.Args[1:] {
+	args := os.Args[1:]
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
 		switch arg {
 		case "-p", "-precision":
 			precision = true
@@ -118,12 +135,26 @@ func main() {
 			silent = true
 		case "-c", "-clear":
 			clear = true
+		case "-skip", "-Skip":
+			skipFlagFound = true
+			// Check if there's a next argument and it's a number
+			if i+1 < len(args) {
+				if s, err := strconv.Atoi(args[i+1]); err == nil {
+					skip = s
+					i++ // Skip the next argument since we consumed it
+				}
+			}
 		case "-h", "-help":
 			printUsage()
 			os.Exit(0)
 		default:
 			nonFlagArgs = append(nonFlagArgs, arg)
 		}
+	}
+
+	// If -skip was used but value is 0, default to 1
+	if skipFlagFound && skip == 0 {
+		skip = 1
 	}
 
 	// Process the remaining non-flag arguments for the command and period.
@@ -170,6 +201,19 @@ func main() {
 		if strings.ToLower(strings.TrimSpace(clearInput)) == "y" {
 			clear = true
 		}
+
+		fmt.Print("Skip initial executions? (enter number, or 0 for default skip 1) [default: 0]: ")
+		skipInput, _ := reader.ReadString('\n')
+		skipInput = strings.TrimSpace(skipInput)
+		if skipInput != "" {
+			if s, err := strconv.Atoi(skipInput); err == nil && s >= 0 {
+				skip = s
+				if skip == 0 {
+					skip = 1 // Default to 1 if 0 is explicitly entered in interactive mode
+				}
+			}
+		}
+		// If empty, skip remains 0 (no skipping)
 	}
 
 	// Exit if no command was provided either by argument or interactively.
@@ -184,6 +228,9 @@ func main() {
 	}
 	if !silent {
 		fmt.Printf("Running \"%s\" every %d minute(s). Press Ctrl+C to stop.\n\n", commandStr, period)
+		if skip > 0 {
+			color.Yellow("Skipping the first %d execution(s).", skip)
+		}
 	}
 	var scriptStartTime time.Time
 	if precision {
@@ -195,18 +242,30 @@ func main() {
 
 	// --- Main Execution Loop ---
 	periodDuration := time.Duration(period) * time.Minute
+	executionCount := 0
 	for {
+		executionCount++
 		loopStartTime := time.Now()
-		if clear {
-			clearScreen()
+
+		// Skip execution if we haven't reached the skip threshold yet
+		if executionCount <= skip {
+			if !silent {
+				color.Yellow("(%s) Skipping execution %d of %d...", loopStartTime.Format("15:04:05"), executionCount, skip)
+			}
+		} else {
+			// Execute the command once we've passed the skip threshold
+			if clear {
+				clearScreen()
+			}
+			if !silent {
+				color.White("(%s) Executing command...", loopStartTime.Format("15:04:05"))
+			}
+			executeCommand(commandStr)
 		}
-		if !silent {
-			color.White("(%s) Executing command...", loopStartTime.Format("15:04:05"))
-		}
-		executeCommand(commandStr)
 
 		if !precision {
 			// Standard mode: Wait for the full period after the command finishes.
+			// Note: This wait period also applies during skipped executions to maintain timing
 			if !silent {
 				color.White("Waiting %d minute(s). Press Ctrl+C to stop.\n", period)
 				fmt.Println() // Extra newline to match PS script's `n
@@ -215,7 +274,13 @@ func main() {
 		} else {
 			// Precision mode: Account for execution time to maintain a fixed grid.
 			currentTime := time.Now()
-			commandDuration := currentTime.Sub(loopStartTime)
+			var commandDuration time.Duration
+			if executionCount > skip {
+				commandDuration = currentTime.Sub(loopStartTime)
+			} else {
+				// During skipped executions, commandDuration is effectively 0
+				commandDuration = 0
+			}
 
 			totalElapsed := currentTime.Sub(scriptStartTime)
 			intervalsCompleted := math.Floor(totalElapsed.Minutes() / float64(period))

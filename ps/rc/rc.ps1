@@ -39,6 +39,13 @@
     each run.
     Alias: -c
 
+.PARAMETER Skip
+    The number of initial executions to skip before starting to run the command.
+    For example, -Skip 2 will skip the first and second executions, then start
+    executing from the third iteration onwards. If -Skip 0 is specified, it
+    defaults to 1 (skips the first execution). If -Skip is not specified at all,
+    no executions are skipped (default is 0).
+
 .EXAMPLE
     .\rc.ps1 "Get-Process -Name 'chrome' | Stop-Process -Force" 1
     
@@ -66,6 +73,17 @@
 
     Runs 'Get-Date' every minute with the screen cleared before each execution, providing a clean output display.
 
+.EXAMPLE
+    .\rc.ps1 "Get-Process" 5 -Skip 2
+
+    Runs 'Get-Process' every 5 minutes, but skips the first 2 executions. Execution will begin on the 3rd iteration.
+
+.EXAMPLE
+    .\rc.ps1 "Get-Date" 1 -Skip 0
+
+    Runs 'Get-Date' every minute, but skips the first execution. Since -Skip 0 was specified, it defaults to 1.
+    Execution will begin on the 2nd iteration. To skip more executions, use -Skip 2, -Skip 3, etc.
+
 .NOTES
     To stop the script, press Ctrl+C in the terminal window where it is running.
 #>
@@ -86,8 +104,17 @@ param(
 
     [Parameter(Mandatory=$false, HelpMessage="Clears the screen before executing the command in each iteration.")]
     [Alias('cl', 'c')]
-    [switch]$Clear
+    [switch]$Clear,
+
+    [Parameter(Mandatory=$false, HelpMessage="Number of initial executions to skip before starting to run the command. If -Skip is used without a value (or with value 0), it defaults to 1.")]
+    [int]$Skip = 0
 )
+
+# If -Skip parameter was explicitly provided but value is 0, default to 1
+# This allows -Skip to default to skipping 1 execution when used without a value
+if ($PSBoundParameters.ContainsKey('Skip') -and $Skip -eq 0) {
+    $Skip = 1
+}
 
 if (-not $Command) {
     Write-Host "*** Run Continuously v1 ***" -ForegroundColor Yellow
@@ -115,25 +142,41 @@ if ($Clear.IsPresent) {
 
 if (-not $Silent.IsPresent) {
     Write-Host "Running `"$Command`" every $Period minute(s). Press Ctrl+C to stop.`n"
+    if ($Skip -gt 0) {
+        Write-Host "Skipping the first $Skip execution(s)." -ForegroundColor Yellow
+    }
 }
 $scriptStartTime = Get-Date
 if ($Precision.IsPresent -and -not $Silent.IsPresent) {
     Write-Host "Precision mode is enabled. Aligning to grid starting at $($scriptStartTime.ToString('HH:mm:ss'))." -ForegroundColor Cyan
 }
 
+# Initialize execution counter to track loop iterations
+$executionCount = 0
 while ($true) {
+    $executionCount++
     $loopStartTime = Get-Date
-    try {
-        if ($Clear.IsPresent) {
-            Clear-Host
-        }
+    
+    # Skip execution if we haven't reached the skip threshold yet
+    # User feedback is provided unless Silent mode is enabled
+    if ($executionCount -le $Skip) {
         if (-not $Silent.IsPresent) {
-            Write-Host "($(Get-Date -Format 'HH:mm:ss')) Executing command..."
+            Write-Host "($(Get-Date -Format 'HH:mm:ss')) Skipping execution $executionCount of $Skip..." -ForegroundColor Yellow
         }
-        Invoke-Expression $Command
-    }
-    catch {
-        Write-Warning "Command failed: $_"
+    } else {
+        # Execute the command once we've passed the skip threshold
+        try {
+            if ($Clear.IsPresent) {
+                Clear-Host
+            }
+            if (-not $Silent.IsPresent) {
+                Write-Host "($(Get-Date -Format 'HH:mm:ss')) Executing command..."
+            }
+            Invoke-Expression $Command
+        }
+        catch {
+            Write-Warning "Command failed: $_"
+        }
     }
 
     if ($Precision.IsPresent) {
@@ -158,7 +201,8 @@ while ($true) {
             }
         }
     } else {
-        # Original behavior
+        # Standard mode: wait for the specified period after command execution
+        # Note: This wait period also applies during skipped executions to maintain timing
         if (-not $Silent.IsPresent) {
             Write-Host "Waiting $Period minute(s). Press Ctrl+C to stop.`n"
         }

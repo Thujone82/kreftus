@@ -1,12 +1,12 @@
 '# rc - Run Continuously (RC v1)
 
-## Version 1.3
+## Version 1.4
 
 ## Author
 Kreft&Gemini
 
 ## Date
-2025-07-26
+2025-01-XX
 
 ## Description
 `rc.ps1` (Run Continuously) is a flexible PowerShell utility designed to execute a given command repeatedly at a specified interval. It is ideal for simple, recurring tasks, monitoring, or any scenario where a command needs to be run in a loop without the complexity of setting up a formal scheduled task.
@@ -21,6 +21,7 @@ The script offers two modes for scheduling: a simple delay mode and a high-preci
 - **Precision Mode (`-p`):** This mode establishes a fixed-interval "grid" based on the script's start time. It accounts for the command's execution time to ensure each new run starts at a predictable, precise moment (e.g., exactly every 10 minutes at :00, :10, :20, etc.). If a command runs longer than its interval, the script will immediately start the next iteration to get back on schedule.
 - **Silent Mode (`-s`):** Suppresses status output messages such as execution timing and wait periods, while still displaying the actual command output and any errors. Ideal for logging or when you only want to see the command results.
 - **Clear Mode (`-c`):** Clears the screen before executing the command in each iteration, providing a clean output display for each run. Useful for monitoring scenarios where you want to see only the current command output.
+- **Skip Mode (`-Skip`):** Allows you to skip a specified number of initial executions before starting to run the command. If `-Skip 0` is specified, it defaults to 1 (skips the first execution). Useful for delaying the start of command execution while maintaining the timing schedule.
 
 ## Requirements
 - PowerShell
@@ -53,6 +54,12 @@ The script offers two modes for scheduling: a simple delay mode and a high-preci
 - `-Clear` or `-c` [switch]
   - A switch to enable "Clear Mode".
   - When enabled, clears the screen before executing the command in each iteration.
+
+- `-Skip` [int]
+  - The number of initial executions to skip before starting to run the command.
+  - If `-Skip 0` is specified, it defaults to 1 (skips the first execution).
+  - If `-Skip` is not specified at all, no executions are skipped (default is 0).
+  - For example, `-Skip 2` will skip the first and second executions, then start executing from the third iteration onwards.
 
 ## Examples
 
@@ -91,6 +98,18 @@ Runs 'my-monitor.ps1' every 5 minutes with both precision timing and silent outp
 .\rc.ps1 "Get-Date" 1 -Clear
 ```
 Runs 'Get-Date' every minute with the screen cleared before each execution, providing a clean output display for monitoring.
+
+### Example 7: Skip Mode
+```powershell
+.\rc.ps1 "Get-Process" 5 -Skip 2
+```
+Runs 'Get-Process' every 5 minutes, but skips the first 2 executions. Execution will begin on the 3rd iteration. The timing schedule is maintained during skipped executions.
+
+### Example 8: Skip with Default (Skip 1)
+```powershell
+.\rc.ps1 "Get-Date" 1 -Skip 0
+```
+Runs 'Get-Date' every minute, but skips the first execution. Since `-Skip 0` was specified, it defaults to 1. Execution will begin on the 2nd iteration.
 
 ## Notes
 - To stop the script at any time, press `Ctrl+C` in the terminal window where it is running.

@@ -34,6 +34,13 @@ A flexible PowerShell utility designed to execute a given command repeatedly at 
 - Provides a clean output display for each run
 - Useful for monitoring scenarios where you want to see only the current command output
 
+#### Skip Mode (`-Skip`)
+- Allows you to skip a specified number of initial executions before starting to run the command
+- If `-Skip 0` is specified, it defaults to 1 (skips the first execution)
+- If `-Skip` is not specified at all, no executions are skipped (default is 0)
+- Timing schedule is maintained during skipped executions
+- User feedback is provided during skipped executions (unless Silent mode is enabled)
+
 ## Technical Details
 
 ### Parameters
@@ -57,6 +64,12 @@ A flexible PowerShell utility designed to execute a given command repeatedly at 
 - **-Clear** or **-c** [switch]
   - Enables "Clear Mode"
   - Clears the screen before executing the command in each iteration
+
+- **-Skip** [int]
+  - The number of initial executions to skip before starting to run the command
+  - If `-Skip 0` is specified, it defaults to 1 (skips the first execution)
+  - If `-Skip` is not specified at all, no executions are skipped (default is 0)
+  - For example, `-Skip 2` will skip the first and second executions, then start executing from the third iteration onwards
 
 ### PowerShell Features
 - **Version**: PowerShell 5.1+ compatible
@@ -103,6 +116,18 @@ Runs 'Get-Date' every minute with the screen cleared before each execution, prov
 ```
 Runs 'my-monitor.ps1' every 5 minutes with both precision timing and silent output, ideal for background monitoring tasks.
 
+### Skip Mode
+```powershell
+.\rc.ps1 "Get-Process" 5 -Skip 2
+```
+Runs 'Get-Process' every 5 minutes, but skips the first 2 executions. Execution will begin on the 3rd iteration. The timing schedule is maintained during skipped executions.
+
+### Skip with Default (Skip 1)
+```powershell
+.\rc.ps1 "Get-Date" 1 -Skip 0
+```
+Runs 'Get-Date' every minute, but skips the first execution. Since `-Skip 0` was specified, it defaults to 1. Execution will begin on the 2nd iteration.
+
 ### Interactive Mode
 ```powershell
 .\rc.ps1
@@ -125,6 +150,13 @@ When run without parameters, the script will prompt for:
 - Executed conditionally when `-Clear` switch is present
 - Provides clean output for each iteration
 
+### Skip Mode Implementation
+- Tracks execution count using an incrementing counter
+- Compares execution count against skip threshold before command execution
+- Provides user feedback during skipped executions (unless Silent mode is enabled)
+- Maintains timing schedule during skipped executions to ensure consistent intervals
+- If `-Skip 0` is specified, automatically defaults to 1
+
 ### Error Handling
 - Commands are executed in try-catch blocks
 - Errors are displayed as warnings without stopping the loop
@@ -134,7 +166,7 @@ When run without parameters, the script will prompt for:
 
 | Color | Usage | Example |
 |-------|-------|---------|
-| `Yellow` | Script title | "*** Run Continuously v1 ***" |
+| `Yellow` | Script title, skip messages | "*** Run Continuously v1 ***", "Skipping execution X of Y..." |
 | `Cyan` | Precision mode messages | Precision mode status messages |
 | Default | Status messages | Execution timing, wait periods |
 
@@ -160,9 +192,12 @@ When run without parameters, the script will prompt for:
 - Precision mode ensures accurate scheduling but may run immediately if a command exceeds its interval
 - Clear mode provides a clean display but may not be suitable for logging scenarios where you need to see history
 - Silent mode suppresses all status messages but still shows command output and errors
+- Skip mode maintains the timing schedule during skipped executions, so the first actual execution will occur at the correct interval
+- If `-Skip 0` is specified, it automatically defaults to 1 to skip the first execution
 
 ## Version History
 
+- **v1.4**: Added Skip Mode (`-Skip` parameter) to allow skipping initial executions before starting command execution
 - **v1.3**: Added Clear Mode (`-c` switch) for screen clearing functionality before each command execution
 - **v1.0**: Initial release with continuous execution, precision mode, and silent mode
 
