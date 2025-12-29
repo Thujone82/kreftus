@@ -3053,6 +3053,7 @@ function Get-NoaaTideStation {
             $closestStation = $null
             $minDistance = 1000000
             $maxDistanceMiles = 100
+            $allNearbyStations = @()  # Track all stations within 100 miles for verbose logging
             
             foreach ($station in $apiResponse.stations) {
                 # API uses 'lng' for longitude, not 'lon'
@@ -3062,17 +3063,49 @@ function Get-NoaaTideStation {
                     
                     $distance = Get-DistanceMiles -Lat1 $Lat -Lon1 $Lon -Lat2 $stationLat -Lon2 $stationLon
                     
-                    if ($distance -le $maxDistanceMiles -and $distance -lt $minDistance) {
-                        $minDistance = $distance
-                        $closestStation = @{
+                    if ($distance -le $maxDistanceMiles) {
+                        # Track all stations within 100 miles
+                        $allNearbyStations += @{
                             stationId = $station.id.ToString()
                             name = $station.name
                             lat = $stationLat
                             lon = $stationLon
                             distance = $distance
                         }
-                        Write-Verbose "Found nearby station: $($station.name) ($($station.id)) at $([Math]::Round($distance, 2)) miles"
+                        
+                        # Update closest station if this one is closer
+                        if ($distance -lt $minDistance) {
+                            $minDistance = $distance
+                            $closestStation = @{
+                                stationId = $station.id.ToString()
+                                name = $station.name
+                                lat = $stationLat
+                                lon = $stationLon
+                                distance = $distance
+                            }
+                        }
                     }
+                }
+            }
+            
+            # Log the closest stations (sorted by distance)
+            if ($allNearbyStations.Count -gt 0) {
+                # Sort by distance (ascending - shortest first) - explicitly numeric sort
+                $sortedStations = $allNearbyStations | Sort-Object -Property @{Expression={[double]$_.distance}; Ascending=$true}
+                $topStations = $sortedStations | Select-Object -First 5
+                $stationCount = $topStations.Count
+                
+                $headerText = if ($stationCount -eq 1) {
+                    "Top 1 closest NOAA station within 100 miles:"
+                } else {
+                    "Top $stationCount closest NOAA stations within 100 miles:"
+                }
+                Write-Verbose $headerText
+                
+                foreach ($station in $topStations) {
+                    $isSelected = ($closestStation -and $station.stationId -eq $closestStation.stationId)
+                    $marker = if ($isSelected) { " [SELECTED]" } else { "" }
+                    Write-Verbose "  $($station.name) ($($station.stationId)) at $([Math]::Round($station.distance, 2)) miles$marker"
                 }
             }
             
@@ -3261,19 +3294,30 @@ function Show-LocationInfo {
                 }
                 
                 if ($tideData) {
-                    # Format last tide
-                    $lastHeight = "$([Math]::Round($tideData.LastTide.Height, 2))ft"
-                    $lastTime = $tideData.LastTide.Time.ToString("HHmm")
-                    $lastArrow = if ($tideData.LastTide.Type -eq "L") { "↓" } else { "↑" }
-                    
-                    # Format next tide
-                    $nextHeight = "$([Math]::Round($tideData.NextTide.Height, 2))ft"
-                    $nextTime = $tideData.NextTide.Time.ToString("HHmm")
-                    $nextArrow = if ($tideData.NextTide.Type -eq "H") { "↑" } else { "↓" }
-                    
                     Write-Host "Tides: " -ForegroundColor $DefaultColor -NoNewline
-                    Write-Host "Last${lastArrow}: ${lastHeight}@${lastTime} " -ForegroundColor Gray -NoNewline
-                    Write-Host "Next${nextArrow}: ${nextHeight}@${nextTime}" -ForegroundColor Gray
+                    
+                    # Display last tide if available
+                    if ($tideData.LastTide) {
+                        $lastHeight = "$([Math]::Round($tideData.LastTide.Height, 2))ft"
+                        $lastTime = $tideData.LastTide.Time.ToString("HHmm")
+                        $lastArrow = if ($tideData.LastTide.Type -eq "L") { "↓" } else { "↑" }
+                        Write-Host "Last${lastArrow}: ${lastHeight}@${lastTime}" -ForegroundColor Gray -NoNewline
+                    }
+                    
+                    # Add space between last and next if both are present
+                    if ($tideData.LastTide -and $tideData.NextTide) {
+                        Write-Host " " -ForegroundColor Gray -NoNewline
+                    }
+                    
+                    # Display next tide if available
+                    if ($tideData.NextTide) {
+                        $nextHeight = "$([Math]::Round($tideData.NextTide.Height, 2))ft"
+                        $nextTime = $tideData.NextTide.Time.ToString("HHmm")
+                        $nextArrow = if ($tideData.NextTide.Type -eq "H") { "↑" } else { "↓" }
+                        Write-Host "Next${nextArrow}: ${nextHeight}@${nextTime}" -ForegroundColor Gray -NoNewline
+                    }
+                    
+                    Write-Host ""  # New line
                 }
             } catch {
                 Write-Verbose "Error fetching tide predictions: $($_.Exception.Message)"
@@ -3369,14 +3413,23 @@ function Convert-NoaaTidePredictions {
             Write-Verbose "Low tides: $($lowTides.Count) events, range: $([Math]::Round($minLow, 2)) - $([Math]::Round($maxLow, 2)) ft"
         }
         
-        if ($lastTide -and $nextTide) {
-            $lastTypeName = if ($lastTide.Type -eq "H") { "High" } else { "Low" }
-            $nextTypeName = if ($nextTide.Type -eq "H") { "High" } else { "Low" }
-            $timeSinceLast = $now - $lastTide.Time
-            $timeUntilNext = $nextTide.Time - $now
+        # Return data if we have at least one tide (last or next)
+        if ($lastTide -or $nextTide) {
+            if ($lastTide) {
+                $lastTypeName = if ($lastTide.Type -eq "H") { "High" } else { "Low" }
+                $timeSinceLast = $now - $lastTide.Time
+                Write-Verbose "Selected last tide: $($lastTide.Time.ToString('HH:mm')) $lastTypeName at $([Math]::Round($lastTide.Height, 2)) ft ($([Math]::Round($timeSinceLast.TotalHours, 1)) hours ago)"
+            } else {
+                Write-Verbose "No last tide found (all tides are in the future)"
+            }
             
-            Write-Verbose "Selected last tide: $($lastTide.Time.ToString('HH:mm')) $lastTypeName at $([Math]::Round($lastTide.Height, 2)) ft ($([Math]::Round($timeSinceLast.TotalHours, 1)) hours ago)"
-            Write-Verbose "Selected next tide: $($nextTide.Time.ToString('HH:mm')) $nextTypeName at $([Math]::Round($nextTide.Height, 2)) ft (in $([Math]::Round($timeUntilNext.TotalHours, 1)) hours)"
+            if ($nextTide) {
+                $nextTypeName = if ($nextTide.Type -eq "H") { "High" } else { "Low" }
+                $timeUntilNext = $nextTide.Time - $now
+                Write-Verbose "Selected next tide: $($nextTide.Time.ToString('HH:mm')) $nextTypeName at $([Math]::Round($nextTide.Height, 2)) ft (in $([Math]::Round($timeUntilNext.TotalHours, 1)) hours)"
+            } else {
+                Write-Verbose "No next tide found (all tides are in the past)"
+            }
             
             return @{
                 LastTide = $lastTide
@@ -3384,7 +3437,7 @@ function Convert-NoaaTidePredictions {
             }
         }
         
-        Write-Verbose "Could not determine last and next tide from predictions"
+        Write-Verbose "Could not determine any tide from predictions"
         return $null
     }
     catch {

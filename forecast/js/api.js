@@ -557,6 +557,7 @@ async function fetchNoaaTideStation(lat, lon, preFetchedStations = null) {
         let closestStation = null;
         let minDistance = 1000000;
         const maxDistanceMiles = 100;
+        const allNearbyStations = [];  // Track all stations within 100 miles for logging
         
         for (const station of stations) {
             // API uses 'lng' for longitude, not 'lon'
@@ -566,18 +567,48 @@ async function fetchNoaaTideStation(lat, lon, preFetchedStations = null) {
                 
                 const distance = calculateDistanceMiles(lat, lon, stationLat, stationLon);
                 
-                if (distance <= maxDistanceMiles && distance < minDistance) {
-                    minDistance = distance;
-                    closestStation = {
+                if (distance <= maxDistanceMiles) {
+                    // Track all stations within 100 miles
+                    allNearbyStations.push({
                         stationId: station.id.toString(),
                         name: station.name,
                         lat: stationLat,
                         lon: stationLon,
                         distance: distance
-                    };
-                    console.log('Found closer station:', station.name, `(${station.id}) at ${distance.toFixed(2)} miles`);
+                    });
+                    
+                    // Update closest station if this one is closer
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        closestStation = {
+                            stationId: station.id.toString(),
+                            name: station.name,
+                            lat: stationLat,
+                            lon: stationLon,
+                            distance: distance
+                        };
+                    }
                 }
             }
+        }
+        
+        // Log the closest stations (sorted by distance)
+        if (allNearbyStations.length > 0) {
+            // Sort by distance (ascending - shortest first)
+            const sortedStations = allNearbyStations.sort((a, b) => a.distance - b.distance);
+            const topStations = sortedStations.slice(0, 5);
+            const stationCount = topStations.length;
+            
+            const headerText = stationCount === 1 
+                ? 'Top 1 closest NOAA station within 100 miles:'
+                : `Top ${stationCount} closest NOAA stations within 100 miles:`;
+            console.log(headerText);
+            
+            topStations.forEach(station => {
+                const isSelected = (closestStation && station.stationId === closestStation.stationId);
+                const marker = isSelected ? ' [SELECTED]' : '';
+                console.log(`  ${station.name} (${station.stationId}) at ${station.distance.toFixed(2)} miles${marker}`);
+            });
         }
         
         if (closestStation) {
@@ -689,14 +720,27 @@ async function fetchNoaaTidePredictions(stationId, timeZone) {
             }
         }
         
-        if (lastTide && nextTide) {
+        // Return data if we have at least one tide (last or next)
+        if (lastTide || nextTide) {
+            if (lastTide) {
+                console.log('Found last tide:', lastTide.time, lastTide.type === 'H' ? 'High' : 'Low', lastTide.height + 'ft');
+            } else {
+                console.log('No last tide found (all tides are in the future)');
+            }
+            
+            if (nextTide) {
+                console.log('Found next tide:', nextTide.time, nextTide.type === 'H' ? 'High' : 'Low', nextTide.height + 'ft');
+            } else {
+                console.log('No next tide found (all tides are in the past)');
+            }
+            
             return {
                 lastTide: lastTide,
                 nextTide: nextTide
             };
         }
         
-        console.log('Could not determine last and next tide from predictions');
+        console.log('Could not determine any tide from predictions');
         return null;
     } catch (error) {
         console.error('Error fetching tide predictions:', error);

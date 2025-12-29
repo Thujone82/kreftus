@@ -616,23 +616,36 @@ function displayLocationInfo(location, noaaStation = null) {
             const lastTide = noaaStation.tideData.lastTide;
             const nextTide = noaaStation.tideData.nextTide;
             
-            // Format last tide - time in HHmm format (24-hour, no colon)
-            const lastHeight = `${lastTide.height.toFixed(2)}ft`;
-            const lastHour = String(lastTide.time.getHours()).padStart(2, '0');
-            const lastMin = String(lastTide.time.getMinutes()).padStart(2, '0');
-            const lastTime = `${lastHour}${lastMin}`;
-            const lastArrow = lastTide.type === 'L' ? '↓' : '↑';
-            
-            // Format next tide - time in HHmm format (24-hour, no colon)
-            const nextHeight = `${nextTide.height.toFixed(2)}ft`;
-            const nextHour = String(nextTide.time.getHours()).padStart(2, '0');
-            const nextMin = String(nextTide.time.getMinutes()).padStart(2, '0');
-            const nextTime = `${nextHour}${nextMin}`;
-            const nextArrow = nextTide.type === 'H' ? '↑' : '↓';
-            
             html += '<div class="location-info-item">';
             html += '<span class="location-info-label">Tides: </span>';
-            html += `<span class="noaa-tide-info">Last${lastArrow}: ${lastHeight}@${lastTime} Next${nextArrow}: ${nextHeight}@${nextTime}</span>`;
+            html += '<span class="noaa-tide-info">';
+            
+            // Display last tide if available
+            if (lastTide) {
+                const lastHeight = `${lastTide.height.toFixed(2)}ft`;
+                const lastHour = String(lastTide.time.getHours()).padStart(2, '0');
+                const lastMin = String(lastTide.time.getMinutes()).padStart(2, '0');
+                const lastTime = `${lastHour}${lastMin}`;
+                const lastArrow = lastTide.type === 'L' ? '↓' : '↑';
+                html += `Last${lastArrow}: ${lastHeight}@${lastTime}`;
+            }
+            
+            // Add space between last and next if both are present
+            if (lastTide && nextTide) {
+                html += ' ';
+            }
+            
+            // Display next tide if available
+            if (nextTide) {
+                const nextHeight = `${nextTide.height.toFixed(2)}ft`;
+                const nextHour = String(nextTide.time.getHours()).padStart(2, '0');
+                const nextMin = String(nextTide.time.getMinutes()).padStart(2, '0');
+                const nextTime = `${nextHour}${nextMin}`;
+                const nextArrow = nextTide.type === 'H' ? '↑' : '↓';
+                html += `Next${nextArrow}: ${nextHeight}@${nextTime}`;
+            }
+            
+            html += '</span>';
             html += '</div>';
         }
     }
