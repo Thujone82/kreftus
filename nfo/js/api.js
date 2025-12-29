@@ -7,16 +7,39 @@ const api = {
         if (provider === 'openrouter') {
             return api.fetchAiDataOpenRouter(apiKey, locationName, topicQuery, model);
         } else {
-            return api.fetchAiDataGoogle(apiKey, locationName, topicQuery);
+            return api.fetchAiDataGoogle(apiKey, locationName, topicQuery, model);
         }
     },
 
-    fetchAiDataGoogle: async (apiKey, locationName, topicQuery) => {
-        const modelName = "gemini-2.5-flash"; 
+    fetchAiDataGoogle: async (apiKey, locationName, topicQuery, model = "gemini-2.5-flash") => {
+        const modelName = model || "gemini-2.5-flash"; 
         const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
         
         const promptText = `${locationName}: ${topicQuery}`;
         console.log(`Fetching AI data for: ${promptText} using model ${modelName}`);
+
+        // Build request body
+        const requestBody = {
+            contents: [{
+                parts: [{
+                    text: promptText
+                }]
+            }],
+            "tools": [
+                {
+                    "googleSearch": {}
+                }
+            ]
+        };
+
+        // Add thinkingConfig for Gemini 3 models
+        if (modelName.startsWith("gemini-3")) {
+            requestBody.generationConfig = {
+                thinkingConfig: {
+                    thinkingLevel: "low"
+                }
+            };
+        }
 
         try {
             const response = await fetch(GEMINI_API_URL, {
@@ -24,18 +47,7 @@ const api = {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [{
-                            text: promptText
-                        }]
-                    }],
-                    "tools": [
-                        {
-                            "googleSearch": {}
-                        }
-                    ]
-                })
+                body: JSON.stringify(requestBody)
             });
 
             if (!response.ok) {
