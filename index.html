@@ -573,21 +573,6 @@
                         </a>
                     </td>
                 </tr>
-                <tr class="project-row" onclick="window.location.href='./gw/';">
-                    <td class="project-image-cell">
-                        <a href="./gw/" tabindex="-1">
-                            <img src="./images/gw.png" alt="GetWeather CLI terminal application showing weather forecast data" loading="lazy">
-                        </a>
-                    </td>
-                    <td class="project-text-cell">
-                        <a href="./gw/" tabindex="-1">
-                            <div>
-                                <h2>GetWeather CLI</h2>
-                                <p><b>GetWeather CLI</b> is a command-line utility for retrieving detailed weather information for any specified location. It accepts US zip codes or "City, State" strings and uses the OpenWeatherMap API to provide current conditions, forecasts, and alerts directly in your terminal. It is available as both a PowerShell script and a native Go application.</p>
-                            </div>
-                        </a>
-                    </td>
-                </tr>
                 <tr class="project-row" onclick="window.location.href='./upd/';">
                     <td class="project-image-cell">
                         <a href="./upd/" tabindex="-1">
@@ -614,6 +599,21 @@
                             <div>
                                 <h2>rc (Run Continuously)</h2>
                                 <p><b>rc v1.4</b> is a command-line utility that executes a given command string in a loop. After each execution, it waits for a specified period before running the command again. <b>Features:</b> Optional precision mode to account for the command's execution time, preventing timing drift and ensuring runs start at a consistent interval. <b>Period Suffixes:</b> Support for time units: 's' (seconds), 'm' (minutes, optional), 'h' (hours). Integers default to minutes. <b>Skip Mode:</b> Skip initial executions before starting command execution (e.g., -skip 2 skips first 2 runs). <b>Limit Mode:</b> Limit total executions (skipped executions don't count). <b>Silent Mode:</b> Suppress status messages while preserving command output. <b>Clear Mode:</b> Clear screen before each execution for clean output display.<br><br>Available in a native Go version for cross-platform performance and a PowerShell version for Windows environments. </p>
+                            </div>
+                        </a>
+                    </td>
+                </tr>
+                <tr class="project-row" onclick="window.location.href='./gw/';">
+                    <td class="project-image-cell">
+                        <a href="./gw/" tabindex="-1">
+                            <img src="./images/gw.png" alt="GetWeather CLI terminal application showing weather forecast data" loading="lazy">
+                        </a>
+                    </td>
+                    <td class="project-text-cell">
+                        <a href="./gw/" tabindex="-1">
+                            <div>
+                                <h2>GetWeather CLI</h2>
+                                <p><b>GetWeather CLI</b> is a command-line utility for retrieving detailed weather information for any specified location. It accepts US zip codes or "City, State" strings and uses the OpenWeatherMap API to provide current conditions, forecasts, and alerts directly in your terminal. It is available as both a PowerShell script and a native Go application. <b>Note:</b> This tool has been superseded by GetForecast, which uses the National Weather Service API and requires no API key registration.</p>
                             </div>
                         </a>
                     </td>
