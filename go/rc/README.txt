@@ -12,13 +12,15 @@ The application can run in two modes: a standard mode that waits for a fixed dur
 
 ## Features
 - **Command Execution:** Runs any command string that can be executed by the system's shell (`cmd.exe` on Windows, `sh` on Linux/macOS).
-- **Configurable Interval:** Set the wait period between executions in minutes using the `-period` flag.
+- **Configurable Interval:** Set the wait period between executions with support for suffixes: 's' for seconds, 'm' for minutes (optional), 'h' for hours. Integers without suffix default to minutes.
 - **Two Timing Modes:**
   - **Standard Mode (Default):** Waits for the full period *after* the command has finished executing. Simple and straightforward.
   - **Precision Mode (`-p`):** Accounts for the command's execution time to ensure each new run starts on a fixed, predictable schedule. Ideal for tasks requiring consistent timing.
 - **Silent Mode (`-s`):** Suppresses status output messages such as execution timing and wait periods, while still displaying the actual command output and any errors. Perfect for logging scenarios.
 - **Clear Mode (`-c`):** Clears the screen before executing the command in each iteration, providing a clean output display for each run. Useful for monitoring scenarios where you want to see only the current command output.
 - **Skip Mode (`-skip`):** Allows you to skip a specified number of initial executions before starting to run the command. If `-skip 0` is specified, it defaults to 1 (skips the first execution). Useful for delaying the start of command execution while maintaining the timing schedule.
+- **Limit Mode (`-limit`):** Limits the total number of executions to perform. Skipped executions do not count toward this limit. Useful for running a command a specific number of times and then exiting.
+- **Period Suffixes:** Support for time unit suffixes on period input: 's' for seconds, 'm' for minutes (optional), 'h' for hours. Integers without suffix default to minutes.
 - **Interactive Mode:** If run without any arguments, `rc` will interactively prompt you for the command, period, and timing mode.
 - **Cross-Platform:** The included `build.ps1` script compiles native executables for both Windows and Linux.
 - **Color-coded Output:** Provides clear, colorized feedback for execution status and timing information.
@@ -38,8 +40,10 @@ The application can run in two modes: a standard mode that waits for a fixed dur
   - The command string to execute. This should be the last argument provided to the application.
   - If the command contains spaces, it must be enclosed in quotes.
 
-- `-period [minutes]`
-  - The time to wait between command executions, in minutes. (Default: 5)
+- `[period]` or `-period [value]`
+  - The time to wait between command executions. Accepts suffixes: 's' for seconds, 'm' for minutes (optional), 'h' for hours.
+  - Integers without suffix default to minutes. Examples: 5, 15s, 5m, 1h.
+  - Default: 5 (5 minutes)
 
 - `-p`, `-precision`
   - A switch to enable "Precision Mode".
@@ -56,6 +60,11 @@ The application can run in two modes: a standard mode that waits for a fixed dur
   - If `-skip 0` is specified, it defaults to 1 (skips the first execution).
   - If `-skip` is not specified at all, no executions are skipped (default is 0).
   - For example, `-skip 2` will skip the first and second executions, then start executing from the third iteration onwards.
+
+- `-limit <number>`
+  - The maximum number of executions to perform. Skipped executions do not count toward this limit.
+  - If `-limit` is not specified or set to 0, there is no limit (default is 0).
+  - For example, `-limit 5` will execute the command 5 times, then exit.
 
 ## Examples
 
@@ -101,3 +110,27 @@ Runs 'Get-Process' every 5 minutes, but skips the first 2 executions. Execution 
 ./rc -skip 0 -period 1 "date"
 ```
 Runs 'date' every minute, but skips the first execution. Since `-skip 0` was specified, it defaults to 1. Execution will begin on the 2nd iteration.
+
+### Example 9: Period with Suffixes
+```sh
+./rc "Get-Process" 15s
+```
+Runs 'Get-Process' every 15 seconds.
+
+### Example 10: Period with Hours
+```sh
+./rc ".\backup.sh" 1h
+```
+Runs 'backup.sh' every 1 hour.
+
+### Example 11: Limit Mode
+```sh
+./rc "Get-Process" 5 -limit 3
+```
+Runs 'Get-Process' every 5 minutes, but only executes 3 times total, then exits.
+
+### Example 12: Combined Skip and Limit
+```sh
+./rc "date" 30s -skip 2 -limit 5
+```
+Runs 'date' every 30 seconds, skips the first 2 executions, then executes 5 times before exiting.

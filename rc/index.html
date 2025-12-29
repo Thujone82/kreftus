@@ -220,7 +220,9 @@
                             </p>
                             <ul>
                                 <li><b>Precision Mode (-p):</b> Accounts for the command's execution time, preventing timing drift and ensuring runs start at a consistent interval.</li>
+                                <li><b>Period Suffixes:</b> Support for time units: 's' (seconds), 'm' (minutes, optional), 'h' (hours). Integers without suffix default to minutes. Examples: 5, 15s, 5m, 1h.</li>
                                 <li><b>Skip Mode (-skip):</b> Skip a specified number of initial executions before starting command execution. If -skip 0 is specified, it defaults to 1.</li>
+                                <li><b>Limit Mode (-limit):</b> Limit the total number of executions to perform. Skipped executions do not count toward this limit.</li>
                                 <li><b>Silent Mode (-s):</b> Suppresses status output messages while still displaying command output and errors.</li>
                                 <li><b>Clear Mode (-c):</b> Clears the screen before executing the command in each iteration for clean output display.</li>
                             </ul>

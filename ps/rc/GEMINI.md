@@ -7,7 +7,7 @@ A flexible PowerShell utility designed to execute a given command repeatedly at 
 
 ### 🔄 Continuous Execution
 - **Infinite Loop**: Runs any valid PowerShell command string in an infinite loop until manually stopped
-- **Configurable Interval**: The time between executions can be easily set in minutes
+- **Configurable Interval**: The time between executions can be easily set with support for suffixes: 's' for seconds, 'm' for minutes (optional), 'h' for hours. Integers without suffix default to minutes
 - **Interactive Mode**: If run without parameters, the script will prompt for the command and interval
 - **Manual Stop**: Press Ctrl+C to stop the script at any time
 
@@ -41,6 +41,18 @@ A flexible PowerShell utility designed to execute a given command repeatedly at 
 - Timing schedule is maintained during skipped executions
 - User feedback is provided during skipped executions (unless Silent mode is enabled)
 
+#### Limit Mode (`-Limit`)
+- Limits the total number of executions to perform
+- Skipped executions do not count toward this limit
+- If `-Limit` is not specified or set to 0, there is no limit (default is 0)
+- Useful for running a command a specific number of times and then exiting
+- Displays a message when the limit is reached
+
+#### Period Suffixes
+- Support for time unit suffixes on period input: 's' for seconds, 'm' for minutes (optional), 'h' for hours
+- Integers without suffix default to minutes
+- Examples: `5` = 5 minutes, `15s` = 15 seconds, `5m` = 5 minutes, `1h` = 1 hour
+
 ## Technical Details
 
 ### Parameters
@@ -49,9 +61,10 @@ A flexible PowerShell utility designed to execute a given command repeatedly at 
   - If the command contains spaces, it must be enclosed in quotes
   - Required (will be prompted for if not provided)
 
-- **Period** [int] (Positional: 1)
-  - The time to wait between command executions, in minutes
-  - Default value is 5
+- **Period** [string] (Positional: 1)
+  - The time to wait between command executions. Accepts suffixes: 's' for seconds, 'm' for minutes (optional), 'h' for hours
+  - Integers without suffix default to minutes. Examples: 5, 15s, 5m, 1h
+  - Default value is 5 (5 minutes)
 
 - **-Precision** or **-p** [switch]
   - Enables "Precision Mode"
@@ -70,6 +83,11 @@ A flexible PowerShell utility designed to execute a given command repeatedly at 
   - If `-Skip 0` is specified, it defaults to 1 (skips the first execution)
   - If `-Skip` is not specified at all, no executions are skipped (default is 0)
   - For example, `-Skip 2` will skip the first and second executions, then start executing from the third iteration onwards
+
+- **-Limit** [int]
+  - The maximum number of executions to perform. Skipped executions do not count toward this limit
+  - If `-Limit` is not specified or set to 0, there is no limit (default is 0)
+  - For example, `-Limit 5` will execute the command 5 times, then exit
 
 ### PowerShell Features
 - **Version**: PowerShell 5.1+ compatible
@@ -128,14 +146,41 @@ Runs 'Get-Process' every 5 minutes, but skips the first 2 executions. Execution 
 ```
 Runs 'Get-Date' every minute, but skips the first execution. Since `-Skip 0` was specified, it defaults to 1. Execution will begin on the 2nd iteration.
 
+### Period with Suffixes
+```powershell
+.\rc.ps1 "Get-Process" 15s
+```
+Runs 'Get-Process' every 15 seconds.
+
+### Period with Hours
+```powershell
+.\rc.ps1 ".\backup.ps1" 1h
+```
+Runs 'backup.ps1' every 1 hour.
+
+### Limit Mode
+```powershell
+.\rc.ps1 "Get-Process" 5 -Limit 3
+```
+Runs 'Get-Process' every 5 minutes, but only executes 3 times total, then exits.
+
+### Combined Skip and Limit
+```powershell
+.\rc.ps1 "Get-Date" 30s -Skip 2 -Limit 5
+```
+Runs 'Get-Date' every 30 seconds, skips the first 2 executions, then executes 5 times before exiting.
+
 ### Interactive Mode
 ```powershell
 .\rc.ps1
 ```
 When run without parameters, the script will prompt for:
 - Command to execute
-- Period in minutes (default: 5)
+- Period (e.g., 5, 15s, 5m, 1h) (default: 5)
 - Precision Mode (y/n, default: n)
+- Clear Mode (y/n, default: n)
+- Skip initial executions (enter number, or 0 for default skip 1, default: 0)
+- Limit executions (enter number, or 0 for no limit, default: 0)
 
 ## Technical Implementation
 
@@ -157,6 +202,18 @@ When run without parameters, the script will prompt for:
 - Maintains timing schedule during skipped executions to ensure consistent intervals
 - If `-Skip 0` is specified, automatically defaults to 1
 
+### Limit Mode Implementation
+- Tracks actual execution count (excluding skipped executions)
+- Checks limit after each actual execution
+- Displays message when limit is reached and exits gracefully
+- Only counts executions that actually run (skipped executions don't count)
+
+### Period Suffix Parsing
+- Parses period string to detect suffixes: 's' (seconds), 'm' (minutes, optional), 'h' (hours)
+- Converts to minutes for internal calculations (PowerShell) or time.Duration (Go)
+- Generates human-readable display strings (e.g., "15 seconds", "1 hour", "5 minutes")
+- Integers without suffix default to minutes for backward compatibility
+
 ### Error Handling
 - Commands are executed in try-catch blocks
 - Errors are displayed as warnings without stopping the loop
@@ -167,7 +224,8 @@ When run without parameters, the script will prompt for:
 | Color | Usage | Example |
 |-------|-------|---------|
 | `Yellow` | Script title, skip messages | "*** Run Continuously v1 ***", "Skipping execution X of Y..." |
-| `Cyan` | Precision mode messages | Precision mode status messages |
+| `Cyan` | Precision mode messages, limit messages | Precision mode status messages, "Limited to X execution(s)" |
+| `Green` | Limit reached message | "Reached execution limit of X. Exiting." |
 | Default | Status messages | Execution timing, wait periods |
 
 ## Requirements
@@ -194,10 +252,12 @@ When run without parameters, the script will prompt for:
 - Silent mode suppresses all status messages but still shows command output and errors
 - Skip mode maintains the timing schedule during skipped executions, so the first actual execution will occur at the correct interval
 - If `-Skip 0` is specified, it automatically defaults to 1 to skip the first execution
+- Limit mode only counts actual executions (skipped executions don't count toward the limit)
+- Period suffixes allow flexible time unit specification: 's' for seconds, 'm' for minutes (optional), 'h' for hours
 
 ## Version History
 
-- **v1.4**: Added Skip Mode (`-Skip` parameter) to allow skipping initial executions before starting command execution
+- **v1.4**: Added Limit Mode (`-Limit` parameter) and Period Suffixes (s, m, h) support. Added Skip Mode (`-Skip` parameter) to allow skipping initial executions before starting command execution
 - **v1.3**: Added Clear Mode (`-c` switch) for screen clearing functionality before each command execution
 - **v1.0**: Initial release with continuous execution, precision mode, and silent mode
 

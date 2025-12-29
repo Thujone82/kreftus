@@ -352,7 +352,7 @@
                 {
                     "@type": "SoftwareApplication",
                     "name": "rc (Run Continuously)",
-                    "description": "Command-line utility v1.4 that executes commands in a loop with precision timing, skip mode, silent mode, and clear mode. Available in native Go and PowerShell versions.",
+                    "description": "Command-line utility v1.4 that executes commands in a loop with precision timing, period suffixes (s/m/h), skip mode, limit mode, silent mode, and clear mode. Available in native Go and PowerShell versions.",
                     "url": "https://kreft.us/rc/",
                     "applicationCategory": "UtilityApplication"
                 }
@@ -613,7 +613,7 @@
                         <a href="./rc/" tabindex="-1">
                             <div>
                                 <h2>rc (Run Continuously)</h2>
-                                <p><b>rc v1.4</b> is a command-line utility that executes a given command string in a loop. After each execution, it waits for a specified number of minutes before running the command again. <b>Features:</b> Optional precision mode to account for the command's execution time, preventing timing drift and ensuring runs start at a consistent interval. <b>Skip Mode:</b> Skip initial executions before starting command execution (e.g., -skip 2 skips first 2 runs). <b>Silent Mode:</b> Suppress status messages while preserving command output. <b>Clear Mode:</b> Clear screen before each execution for clean output display.<br><br>Available in a native Go version for cross-platform performance and a PowerShell version for Windows environments. </p>
+                                <p><b>rc v1.4</b> is a command-line utility that executes a given command string in a loop. After each execution, it waits for a specified period before running the command again. <b>Features:</b> Optional precision mode to account for the command's execution time, preventing timing drift and ensuring runs start at a consistent interval. <b>Period Suffixes:</b> Support for time units: 's' (seconds), 'm' (minutes, optional), 'h' (hours). Integers default to minutes. <b>Skip Mode:</b> Skip initial executions before starting command execution (e.g., -skip 2 skips first 2 runs). <b>Limit Mode:</b> Limit total executions (skipped executions don't count). <b>Silent Mode:</b> Suppress status messages while preserving command output. <b>Clear Mode:</b> Clear screen before each execution for clean output display.<br><br>Available in a native Go version for cross-platform performance and a PowerShell version for Windows environments. </p>
                             </div>
                         </a>
                     </td>

@@ -15,13 +15,15 @@ The script offers two modes for scheduling: a simple delay mode and a high-preci
 
 ## Features
 - **Continuous Execution:** Runs any valid PowerShell command string in an infinite loop until manually stopped.
-- **Configurable Interval:** The time between executions can be easily set in minutes.
+- **Configurable Interval:** The time between executions can be easily set with support for suffixes: 's' for seconds, 'm' for minutes (optional), 'h' for hours. Integers without suffix default to minutes.
 - **Interactive Mode:** If run without parameters, the script will prompt for the command and interval.
 - **Standard Mode (Default):** After a command finishes, the script waits for the specified interval before the next run. This is simple but can lead to timing "drift" if the command's execution time varies.
 - **Precision Mode (`-p`):** This mode establishes a fixed-interval "grid" based on the script's start time. It accounts for the command's execution time to ensure each new run starts at a predictable, precise moment (e.g., exactly every 10 minutes at :00, :10, :20, etc.). If a command runs longer than its interval, the script will immediately start the next iteration to get back on schedule.
 - **Silent Mode (`-s`):** Suppresses status output messages such as execution timing and wait periods, while still displaying the actual command output and any errors. Ideal for logging or when you only want to see the command results.
 - **Clear Mode (`-c`):** Clears the screen before executing the command in each iteration, providing a clean output display for each run. Useful for monitoring scenarios where you want to see only the current command output.
 - **Skip Mode (`-Skip`):** Allows you to skip a specified number of initial executions before starting to run the command. If `-Skip 0` is specified, it defaults to 1 (skips the first execution). Useful for delaying the start of command execution while maintaining the timing schedule.
+- **Limit Mode (`-Limit`):** Limits the total number of executions to perform. Skipped executions do not count toward this limit. Useful for running a command a specific number of times and then exiting.
+- **Period Suffixes:** Support for time unit suffixes on period input: 's' for seconds, 'm' for minutes (optional), 'h' for hours. Integers without suffix default to minutes.
 
 ## Requirements
 - PowerShell
@@ -39,9 +41,10 @@ The script offers two modes for scheduling: a simple delay mode and a high-preci
   - If the command contains spaces, it must be enclosed in quotes.
   - This parameter is required (will be prompted for if not provided).
 
-- `Period` [int] (Positional: 1)
-  - The time to wait between command executions, in minutes.
-  - The default value is 5.
+- `Period` [string] (Positional: 1)
+  - The time to wait between command executions. Accepts suffixes: 's' for seconds, 'm' for minutes (optional), 'h' for hours.
+  - Integers without suffix default to minutes. Examples: 5, 15s, 5m, 1h.
+  - The default value is 5 (5 minutes).
 
 - `-Precision` or `-p` [switch]
   - A switch to enable "Precision Mode".
@@ -60,6 +63,11 @@ The script offers two modes for scheduling: a simple delay mode and a high-preci
   - If `-Skip 0` is specified, it defaults to 1 (skips the first execution).
   - If `-Skip` is not specified at all, no executions are skipped (default is 0).
   - For example, `-Skip 2` will skip the first and second executions, then start executing from the third iteration onwards.
+
+- `-Limit` [int]
+  - The maximum number of executions to perform. Skipped executions do not count toward this limit.
+  - If `-Limit` is not specified or set to 0, there is no limit (default is 0).
+  - For example, `-Limit 5` will execute the command 5 times, then exit.
 
 ## Examples
 
@@ -110,6 +118,30 @@ Runs 'Get-Process' every 5 minutes, but skips the first 2 executions. Execution 
 .\rc.ps1 "Get-Date" 1 -Skip 0
 ```
 Runs 'Get-Date' every minute, but skips the first execution. Since `-Skip 0` was specified, it defaults to 1. Execution will begin on the 2nd iteration.
+
+### Example 9: Period with Suffixes
+```powershell
+.\rc.ps1 "Get-Process" 15s
+```
+Runs 'Get-Process' every 15 seconds.
+
+### Example 10: Period with Hours
+```powershell
+.\rc.ps1 ".\backup.ps1" 1h
+```
+Runs 'backup.ps1' every 1 hour.
+
+### Example 11: Limit Mode
+```powershell
+.\rc.ps1 "Get-Process" 5 -Limit 3
+```
+Runs 'Get-Process' every 5 minutes, but only executes 3 times total, then exits.
+
+### Example 12: Combined Skip and Limit
+```powershell
+.\rc.ps1 "Get-Date" 30s -Skip 2 -Limit 5
+```
+Runs 'Get-Date' every 30 seconds, skips the first 2 executions, then executes 5 times before exiting.
 
 ## Notes
 - To stop the script at any time, press `Ctrl+C` in the terminal window where it is running.
