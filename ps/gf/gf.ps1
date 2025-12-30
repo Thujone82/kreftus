@@ -1252,17 +1252,61 @@ while ($true) { # Loop for location input and geocoding
             
             # Extract city and state based on the type of location returned
             if ($geoData[0].type -eq "postcode") {
-                # For zipcodes, parse city and state from display_name
-                # Format: "97219, Multnomah, Portland, Multnomah County, Oregon, United States"
+                # For zipcodes, try address object first (most reliable)
                 $displayName = $geoData[0].display_name
                 Write-Verbose "Parsing zipcode location from display_name: $displayName"
                 
-                # Extract city (usually the third element after zipcode)
-                if ($displayName -match "^\d{5}, [^,]+,\s*([^,]+),") {
-                    $city = $matches[1].Trim()
-                } else {
-                    # Fallback: use the name field (which contains the zipcode)
-                    $city = $geoData[0].name
+                # Try to get city from address object first (most reliable)
+                $city = $null
+                if ($geoData[0].address) {
+                    # Check various city fields in order of preference
+                    if ($geoData[0].address.city) {
+                        $city = $geoData[0].address.city
+                        Write-Verbose "Found city from address.city: $city"
+                    } elseif ($geoData[0].address.town) {
+                        $city = $geoData[0].address.town
+                        Write-Verbose "Found city from address.town: $city"
+                    } elseif ($geoData[0].address.village) {
+                        $city = $geoData[0].address.village
+                        Write-Verbose "Found city from address.village: $city"
+                    } elseif ($geoData[0].address.municipality) {
+                        $city = $geoData[0].address.municipality
+                        Write-Verbose "Found city from address.municipality: $city"
+                    }
+                }
+                
+                # If address object didn't work, parse from display_name
+                if (-not $city) {
+                    # Extract city from display_name
+                    # Format varies: "99502, Anchorage, Alaska, United States" or "97219, Multnomah, Portland, Multnomah County, Oregon, United States"
+                    # Strategy: Find the element that comes before the state name
+                    if ($displayName -match "^\d{5}, ([^,]+),") {
+                        $firstElement = $matches[1].Trim()
+                        # Check if first element is likely a city (not a state name)
+                        $stateNames = @("Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", 
+                                       "Delaware", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa",
+                                       "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", 
+                                       "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", 
+                                       "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio",
+                                       "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", 
+                                       "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia", 
+                                       "Wisconsin", "Wyoming")
+                        
+                        if ($stateNames -contains $firstElement) {
+                            # First element is a state, try second element
+                            if ($displayName -match "^\d{5}, [^,]+,\s*([^,]+),") {
+                                $city = $matches[1].Trim()
+                            }
+                        } else {
+                            # First element is likely the city
+                            $city = $firstElement
+                        }
+                    }
+                    
+                    # Final fallback: use the name field (which contains the zipcode)
+                    if (-not $city) {
+                        $city = $geoData[0].name
+                    }
                 }
                 
                 # Extract state from display_name

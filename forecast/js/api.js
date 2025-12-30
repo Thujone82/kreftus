@@ -68,12 +68,52 @@ async function geocodeLocation(location) {
         let state = "US";
         
         if (result.type === "postcode") {
-            // For zipcodes, parse from display_name
+            // For zipcodes, try address object first (most reliable)
             const displayName = result.display_name;
-            // Format: "97219, Multnomah, Portland, Multnomah County, Oregon, United States"
-            const cityMatch = displayName.match(/^\d{5}, [^,]+,\s*([^,]+),/);
-            if (cityMatch) {
-                city = cityMatch[1].trim();
+            
+            // Try to get city from address object first (most reliable)
+            if (result.address) {
+                // Check various city fields in order of preference
+                if (result.address.city) {
+                    city = result.address.city;
+                } else if (result.address.town) {
+                    city = result.address.town;
+                } else if (result.address.village) {
+                    city = result.address.village;
+                } else if (result.address.municipality) {
+                    city = result.address.municipality;
+                }
+            }
+            
+            // If address object didn't work (city is still the zipcode), parse from display_name
+            if (city === result.name) {
+                // Extract city from display_name
+                // Format varies: "99502, Anchorage, Alaska, United States" or "97219, Multnomah, Portland, Multnomah County, Oregon, United States"
+                // Strategy: Find the element that comes before the state name
+                const firstElementMatch = displayName.match(/^\d{5}, ([^,]+),/);
+                if (firstElementMatch) {
+                    const firstElement = firstElementMatch[1].trim();
+                    // Check if first element is likely a city (not a state name)
+                    const stateNames = ["Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", 
+                                       "Delaware", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa",
+                                       "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", 
+                                       "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", 
+                                       "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio",
+                                       "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", 
+                                       "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia", 
+                                       "Wisconsin", "Wyoming"];
+                    
+                    if (stateNames.includes(firstElement)) {
+                        // First element is a state, try second element
+                        const cityMatch = displayName.match(/^\d{5}, [^,]+,\s*([^,]+),/);
+                        if (cityMatch) {
+                            city = cityMatch[1].trim();
+                        }
+                    } else {
+                        // First element is likely the city
+                        city = firstElement;
+                    }
+                }
             }
             
             // Extract state abbreviation
