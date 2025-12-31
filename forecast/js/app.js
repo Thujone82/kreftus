@@ -1626,17 +1626,21 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
         // Restore Date objects from cached data (JSON serialization converts dates to strings)
         const restoredWeatherData = restoreDatesFromCache(cache.data.weatherData);
         
+        // CRITICAL: Use the cache timestamp (when data was actually fetched), not current time
+        // This must be set BEFORE any other operations to ensure it's preserved
+        const cacheTimestamp = cache.timestamp instanceof Date ? cache.timestamp : new Date(cache.timestamp);
+        appState.lastFetchTime = cacheTimestamp;
+        
         // Ensure current.time matches the cache timestamp (the actual fetch time)
         // This ensures the "Updated:" field shows the correct time, not the current time
         if (restoredWeatherData && restoredWeatherData.current) {
-            restoredWeatherData.current.time = cache.timestamp;
+            restoredWeatherData.current.time = cacheTimestamp;
         }
         
         // Restore app state from cache
         appState.weatherData = restoredWeatherData;
         appState.observationsData = cache.data.observationsData || null;
         appState.observationsAvailable = cache.data.observationsAvailable || false;
-        appState.lastFetchTime = cache.timestamp;
         
         // Check if cache is stale - if so, trigger background refresh immediately
         // Declare at function scope so it can be used later for observations check
@@ -1803,7 +1807,16 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
         
         // Batch UI state updates using requestAnimationFrame for better performance
         // This allows browser to batch all DOM updates together
+        // IMPORTANT: Capture cacheTimestamp here to ensure it's not modified by any async operations
+        const preservedCacheTimestamp = appState.lastFetchTime;
         requestAnimationFrame(() => {
+            // Ensure lastFetchTime is still set to cache timestamp (defensive check)
+            // This prevents any accidental overwrites during async operations
+            if (preservedCacheTimestamp && appState.lastFetchTime !== preservedCacheTimestamp) {
+                console.warn('lastFetchTime was modified, restoring cache timestamp');
+                appState.lastFetchTime = preservedCacheTimestamp;
+            }
+            
             // Update History button state
             updateHistoryButtonState();
             
