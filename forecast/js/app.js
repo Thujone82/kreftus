@@ -1299,7 +1299,9 @@ function getLastViewedLocation() {
 }
 
 // Cache storage functions
-function saveWeatherDataToCache(weatherData, location) {
+// timestamp: Optional. If provided, updates the cache timestamp (only when fetching from NWS API).
+//           If not provided, preserves the existing cache timestamp (when updating cache with other data).
+function saveWeatherDataToCache(weatherData, location, timestamp = null) {
     try {
         const cacheData = {
             weatherData: weatherData,
@@ -1329,17 +1331,46 @@ function saveWeatherDataToCache(weatherData, location) {
             }
         }
         
+        // Determine timestamp to use
+        // If timestamp is provided (NWS API fetch), use it
+        // Otherwise, preserve existing cache timestamp (don't update it)
+        let timestampToUse = null;
+        if (timestamp) {
+            // New timestamp provided (from NWS API fetch)
+            timestampToUse = timestamp instanceof Date ? timestamp.toISOString() : timestamp;
+        } else {
+            // No timestamp provided - preserve existing cache timestamp
+            // Load existing timestamp from cache
+            if (locationKey) {
+                const existingTimestamp = localStorage.getItem(`forecastCachedTimestamp_${locationKey}`);
+                if (existingTimestamp) {
+                    timestampToUse = existingTimestamp;
+                }
+            }
+            // Fallback to current location cache timestamp
+            if (!timestampToUse) {
+                const existingTimestamp = localStorage.getItem('forecastCachedTimestamp');
+                if (existingTimestamp) {
+                    timestampToUse = existingTimestamp;
+                }
+            }
+            // If no existing timestamp found, use current time (shouldn't happen, but fallback)
+            if (!timestampToUse) {
+                timestampToUse = new Date().toISOString();
+            }
+        }
+        
         if (locationKey) {
             // Save to location-specific cache
             localStorage.setItem(`forecastCachedData_${locationKey}`, JSON.stringify(cacheData));
             localStorage.setItem(`forecastCachedLocation_${locationKey}`, locationString);
-            localStorage.setItem(`forecastCachedTimestamp_${locationKey}`, new Date().toISOString());
+            localStorage.setItem(`forecastCachedTimestamp_${locationKey}`, timestampToUse);
         }
         
         // Also maintain current location cache for backward compatibility
         localStorage.setItem('forecastCachedData', JSON.stringify(cacheData));
         localStorage.setItem('forecastCachedLocation', locationString);
-        localStorage.setItem('forecastCachedTimestamp', new Date().toISOString());
+        localStorage.setItem('forecastCachedTimestamp', timestampToUse);
     } catch (error) {
         console.warn('Failed to save weather data to cache:', error);
     }
@@ -1827,7 +1858,10 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             }
         }
         
-        appState.lastFetchTime = new Date();
+        // Use the actual NWS API fetch time (from weatherData.fetchTime) as the cache timestamp
+        // This ensures the "Updated:" field reflects when the NWS data was actually fetched
+        const nwsFetchTime = weatherData.fetchTime || new Date();
+        appState.lastFetchTime = nwsFetchTime;
         appState.hourlyScrollIndex = 0;
         
         // Update location in input field
@@ -1842,8 +1876,9 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         // Update last update time
         updateLastUpdateTime();
         
-        // Save to cache after successful fetch (pass location object, not string)
-        saveWeatherDataToCache(processedWeather, weatherData.location);
+        // Save to cache after successful fetch (pass location object and NWS fetch time)
+        // The timestamp parameter ensures the cache timestamp reflects when NWS data was fetched
+        saveWeatherDataToCache(processedWeather, weatherData.location, nwsFetchTime);
         
         // Save as last viewed location
         const searchQuery = location && location.toLowerCase() !== 'here' ? location : locationText;
