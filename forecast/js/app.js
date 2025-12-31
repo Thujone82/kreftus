@@ -933,7 +933,7 @@ function migrateFavorites() {
                 
                 // Generate UID (primary identifier) and location key (for cache)
                 const uid = generateLocationUID(correctLocation);
-                const correctKey = generateLocationKey(correctLocation);
+                correctKey = generateLocationKey(correctLocation);
                 
                 if (!uid) {
                     console.warn('Cannot generate UID for favorite at index', i, favorite);
