@@ -653,9 +653,10 @@ async function handleLocationButtonClick(uid) {
         return;
     }
     
-    // Use the favorite's key for cache lookups (cache is still keyed by location)
-    const cacheKey = favorite.key;
-    console.log('handleLocationButtonClick: Loading favorite', favorite.name || favorite.searchQuery, 'key:', cacheKey, 'searchQuery:', favorite.searchQuery);
+    // Use UID-based cache key for favorites (more stable than location keys)
+    // Fallback to location key for backward compatibility
+    const cacheKey = favorite.uid ? `uid_${favorite.uid}` : favorite.key;
+    console.log('handleLocationButtonClick: Loading favorite', favorite.name || favorite.searchQuery, 'UID:', favorite.uid, 'cacheKey:', cacheKey, 'searchQuery:', favorite.searchQuery);
     
     // Load cached data immediately (this will update UI state including favorite button and location buttons)
     // Pass searchQuery so loadCachedWeatherData can refresh if stale
@@ -1317,39 +1318,71 @@ function saveWeatherDataToCache(weatherData, location, timestamp = null) {
             observationsAvailable: appState.observationsAvailable
         };
         
-        // Generate location key for location-specific cache
-        // location can be either an object or a string (for backward compatibility)
-        // CRITICAL: Use appState.currentLocationKey if available (from favorite's key)
-        // This ensures we save to the same cache location that favorites use
-        let locationKey = appState.currentLocationKey || null;
+        // Generate cache key for location-specific cache
+        // CRITICAL: Prefer UID-based cache keys for favorites (more stable than location keys)
+        // This avoids issues with location name formatting (e.g., US vs AK)
+        let cacheKey = null;
         let locationString = '';
         
-        if (location) {
-            if (typeof location === 'object' && location.city && location.state) {
-                // Location object
-                // Only generate key if we don't already have one from appState.currentLocationKey
-                if (!locationKey) {
-                    locationKey = generateLocationKey(location);
+        // First, check if appState.currentLocationKey is already a UID-based key
+        // (This is set after fetching when a matching favorite is found)
+        if (appState.currentLocationKey && appState.currentLocationKey.startsWith('uid_')) {
+            // Use the UID-based key that was already set (from the favorite's stored UID)
+            cacheKey = appState.currentLocationKey;
+            console.log('saveWeatherDataToCache: Using existing UID-based cache key from appState.currentLocationKey:', cacheKey);
+        } else {
+            // Try to get the favorite's stored UID directly (don't generate a new one)
+            let favorite = null;
+            if (appState.location) {
+                // Try to find favorite by location UID (but use the favorite's stored UID, not the generated one)
+                const locationUID = generateLocationUID(appState.location);
+                if (locationUID) {
+                    favorite = getFavoriteByUID(locationUID);
                 }
-                // Store formatted location string for display (removes ", US")
-                locationString = formatLocationDisplayName(location.city, location.state);
-            } else if (typeof location === 'string') {
-                // Location string (backward compatibility)
-                locationString = location;
-                // Try to parse location string to get key (only if we don't have one from appState)
-                if (!locationKey) {
-                    const parts = location.split(',').map(s => s.trim());
-                    if (parts.length >= 2) {
-                        locationKey = generateLocationKey({ city: parts[0], state: parts[1] });
-                    }
-                }
+            }
+            
+            // If we found a favorite, use its stored UID (not the generated one)
+            if (favorite && favorite.uid) {
+                cacheKey = `uid_${favorite.uid}`;
+                console.log('saveWeatherDataToCache: Using favorite\'s stored UID for cache key:', cacheKey, 'for favorite:', favorite.name || favorite.searchQuery);
             }
         }
         
-        // Log which key we're using for cache
-        if (locationKey) {
-            console.log('saveWeatherDataToCache: Using location key:', locationKey, 'from appState.currentLocationKey:', !!appState.currentLocationKey);
+        // Fallback to location key if no UID-based key found
+        if (!cacheKey) {
+            // Use appState.currentLocationKey if available (from favorite's key)
+            cacheKey = appState.currentLocationKey || null;
+            
+            if (location) {
+                if (typeof location === 'object' && location.city && location.state) {
+                    // Location object
+                    // Only generate key if we don't already have one from appState.currentLocationKey
+                    if (!cacheKey) {
+                        cacheKey = generateLocationKey(location);
+                    }
+                    // Store formatted location string for display (removes ", US")
+                    locationString = formatLocationDisplayName(location.city, location.state);
+                } else if (typeof location === 'string') {
+                    // Location string (backward compatibility)
+                    locationString = location;
+                    // Try to parse location string to get key (only if we don't have one from appState)
+                    if (!cacheKey) {
+                        const parts = location.split(',').map(s => s.trim());
+                        if (parts.length >= 2) {
+                            cacheKey = generateLocationKey({ city: parts[0], state: parts[1] });
+                        }
+                    }
+                }
+            }
+            
+            // Log which key we're using for cache
+            if (cacheKey) {
+                console.log('saveWeatherDataToCache: Using location key:', cacheKey, 'from appState.currentLocationKey:', !!appState.currentLocationKey);
+            }
         }
+        
+        // Use cacheKey as locationKey for the rest of the function (for backward compatibility)
+        const locationKey = cacheKey;
         
         // Determine timestamp to use
         // If timestamp is provided (NWS API fetch), use it
@@ -1956,9 +1989,10 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         });
         
         if (matchingFavorite && matchingFavorite.key) {
-            // Found a matching favorite - use its key to check cache
-            cacheKeyToUse = matchingFavorite.key;
-            console.log('Found matching favorite for location:', location, 'key:', cacheKeyToUse);
+            // Found a matching favorite - use UID-based cache key (more stable)
+            // Fallback to location key for backward compatibility
+            cacheKeyToUse = matchingFavorite.uid ? `uid_${matchingFavorite.uid}` : matchingFavorite.key;
+            console.log('Found matching favorite for location:', location, 'UID:', matchingFavorite.uid, 'cacheKey:', cacheKeyToUse);
             cacheToUse = loadWeatherDataFromCache(cacheKeyToUse);
             console.log('Cache lookup result for key', cacheKeyToUse, ':', cacheToUse ? 'FOUND' : 'NOT FOUND');
             if (!cacheToUse) {
@@ -2109,12 +2143,16 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             });
         }
         
-        // Use the favorite's key if found, otherwise use generated key
-        if (matchingFavoriteAfterFetch && matchingFavoriteAfterFetch.key) {
-            // Use the favorite's stored key instead of the generated one
-            // This ensures cache is saved to the same location as the favorite uses
+        // Use the favorite's UID for cache key if found (more stable than location key)
+        // Otherwise use generated key
+        if (matchingFavoriteAfterFetch && matchingFavoriteAfterFetch.uid) {
+            // Use UID-based cache key for favorites (more stable, avoids US vs AK issues)
+            appState.currentLocationKey = `uid_${matchingFavoriteAfterFetch.uid}`;
+            console.log('Found matching favorite after fetch, using UID-based cache key:', appState.currentLocationKey, 'instead of generated key:', generatedKey);
+        } else if (matchingFavoriteAfterFetch && matchingFavoriteAfterFetch.key) {
+            // Fallback to location key if no UID
             appState.currentLocationKey = matchingFavoriteAfterFetch.key;
-            console.log('Found matching favorite after fetch, using key:', matchingFavoriteAfterFetch.key, 'instead of generated key:', generatedKey);
+            console.log('Found matching favorite after fetch, using location key:', matchingFavoriteAfterFetch.key, 'instead of generated key:', generatedKey);
         } else {
             appState.currentLocationKey = generatedKey;
         }
