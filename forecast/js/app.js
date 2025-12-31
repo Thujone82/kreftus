@@ -5,6 +5,7 @@ const appState = {
     currentMode: 'full',
     weatherData: null,
     location: null,
+    currentLocationKey: null, // Store the current location key to ensure accurate favorite matching
     observationsData: null,
     observationsAvailable: false,
     autoUpdateEnabled: true,
@@ -522,19 +523,19 @@ function handleFavoriteToggle() {
         return;
     }
     
-    if (!appState.location) {
-        console.warn('Cannot toggle favorite: appState.location is not set', appState);
-        return;
+    // Use stored locationKey if available, otherwise try to generate from appState.location
+    let locationKey = appState.currentLocationKey;
+    
+    if (!locationKey && appState.location) {
+        if (!appState.location.city || !appState.location.state) {
+            console.warn('Cannot toggle favorite: location object missing city or state', appState.location);
+            return;
+        }
+        locationKey = generateLocationKey(appState.location);
     }
     
-    if (!appState.location.city || !appState.location.state) {
-        console.warn('Cannot toggle favorite: location object missing city or state', appState.location);
-        return;
-    }
-    
-    const locationKey = generateLocationKey(appState.location);
     if (!locationKey) {
-        console.warn('Cannot toggle favorite: failed to generate location key', appState.location);
+        console.warn('Cannot toggle favorite: location key not available', appState);
         return;
     }
     
@@ -544,6 +545,7 @@ function handleFavoriteToggle() {
     if (currentlyFavorite) {
         // Remove favorite
         removeFavorite(locationKey);
+        appState.currentLocationKey = null;
         updateFavoriteButtonState();
         
         // Re-render location buttons if drawer is open
@@ -551,11 +553,18 @@ function handleFavoriteToggle() {
             renderLocationButtons();
         }
     } else {
-        // Add favorite
+        // Add favorite - need location object
+        if (!appState.location || !appState.location.city || !appState.location.state) {
+            console.warn('Cannot add favorite: location object missing city or state', appState.location);
+            return;
+        }
+        
         const locationText = formatLocationDisplayName(appState.location.city, appState.location.state);
         const searchQuery = elements.locationInput.value.trim() || locationText;
         const saved = saveFavorite(locationText, appState.location, searchQuery);
         if (saved) {
+            // Update the stored locationKey to match the newly saved favorite
+            appState.currentLocationKey = locationKey;
             elements.favoriteBtn.classList.add('active');
             
             // Re-render location buttons if drawer is open
@@ -685,7 +694,13 @@ function updateFavoriteButtonState(locationKey = null) {
         keyToCheck = generateLocationKey(appState.location);
     }
     
+    // Store the locationKey in appState for use by handleFavoriteToggle
+    if (keyToCheck) {
+        appState.currentLocationKey = keyToCheck;
+    }
+    
     if (!keyToCheck) {
+        appState.currentLocationKey = null;
         elements.favoriteBtn.classList.remove('active');
         return;
     }
@@ -1229,6 +1244,10 @@ function loadCachedWeatherData(locationKey = null) {
         // Restore location if available in cached data
         if (restoredWeatherData && restoredWeatherData.location) {
             appState.location = restoredWeatherData.location;
+            // Update currentLocationKey if locationKey parameter was provided
+            if (locationKey) {
+                appState.currentLocationKey = locationKey;
+            }
             const locationText = formatLocationDisplayName(restoredWeatherData.location.city, restoredWeatherData.location.state);
             elements.locationInput.value = locationText;
         } else {
@@ -1329,6 +1348,8 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         
         appState.weatherData = processedWeather;
         appState.location = weatherData.location;
+        // Update currentLocationKey from the loaded location
+        appState.currentLocationKey = generateLocationKey(weatherData.location);
         appState.lastFetchTime = new Date();
         appState.hourlyScrollIndex = 0;
         
