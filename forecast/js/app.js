@@ -764,8 +764,19 @@ async function handleSearch() {
 }
 
 // Check observations availability and fetch observations
+// Only fetches if not already cached and fresh (10 minutes)
 async function checkObservationsAvailability(pointsData, timeZone) {
     try {
+        // Check if we already have fresh observations in appState
+        if (appState.observationsData && appState.observationsAvailable && appState.lastFetchTime) {
+            if (!isCacheStale(appState.lastFetchTime)) {
+                console.log('Using existing fresh observations data (age:', Math.round((Date.now() - appState.lastFetchTime) / 1000), 'seconds)');
+                return true;
+            } else {
+                console.log('Existing observations are stale, will refresh');
+            }
+        }
+        
         if (!pointsData || !pointsData.properties || !pointsData.properties.observationStations) {
             appState.observationsAvailable = false;
             appState.observationsData = null;

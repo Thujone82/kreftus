@@ -767,9 +767,75 @@ async function fetchNoaaTidePredictionsForDate(stationId, date) {
     }
 }
 
+// Cache duration for tide predictions: 10 minutes (same as weather data)
+const TIDE_CACHE_DURATION_MS = 10 * 60 * 1000; // 10 minutes in milliseconds
+
+// Load cached tide predictions if available and fresh
+function loadCachedTidePredictions(stationId) {
+    try {
+        const cacheKey = `forecastTidePredictions_${stationId}`;
+        const timestampKey = `forecastTidePredictionsTimestamp_${stationId}`;
+        
+        const cachedData = localStorage.getItem(cacheKey);
+        const cachedTimestamp = localStorage.getItem(timestampKey);
+        
+        if (!cachedData || !cachedTimestamp) {
+            return null;
+        }
+        
+        const timestamp = parseInt(cachedTimestamp, 10);
+        const age = Date.now() - timestamp;
+        
+        if (age < TIDE_CACHE_DURATION_MS) {
+            const tideData = JSON.parse(cachedData);
+            // Restore Date objects from strings
+            if (tideData.lastTide && tideData.lastTide.time) {
+                tideData.lastTide.time = new Date(tideData.lastTide.time);
+            }
+            if (tideData.nextTide && tideData.nextTide.time) {
+                tideData.nextTide.time = new Date(tideData.nextTide.time);
+            }
+            console.log('Using cached tide predictions for station', stationId, '(age:', Math.round(age / 1000), 'seconds)');
+            return tideData;
+        } else {
+            console.log('Cached tide predictions are stale (age:', Math.round(age / 60000), 'minutes), will refresh');
+            // Clear stale cache
+            localStorage.removeItem(cacheKey);
+            localStorage.removeItem(timestampKey);
+            return null;
+        }
+    } catch (error) {
+        console.error('Error loading cached tide predictions:', error);
+        return null;
+    }
+}
+
+// Save tide predictions to cache
+function saveTidePredictionsToCache(stationId, tideData) {
+    try {
+        if (tideData && stationId) {
+            const cacheKey = `forecastTidePredictions_${stationId}`;
+            const timestampKey = `forecastTidePredictionsTimestamp_${stationId}`;
+            localStorage.setItem(cacheKey, JSON.stringify(tideData));
+            localStorage.setItem(timestampKey, Date.now().toString());
+            console.log('Saved tide predictions to cache for station', stationId);
+        }
+    } catch (error) {
+        console.error('Error saving tide predictions to cache:', error);
+    }
+}
+
 // Fetch NOAA tide predictions
+// Uses cache if available and fresh (10 minutes), otherwise fetches from API
 async function fetchNoaaTidePredictions(stationId, timeZone) {
     try {
+        // Check cache first
+        const cachedTideData = loadCachedTidePredictions(stationId);
+        if (cachedTideData) {
+            return cachedTideData;
+        }
+        
+        // Cache miss or stale - fetch from API
         const now = new Date();
         
         // First, fetch today's predictions
@@ -902,10 +968,15 @@ async function fetchNoaaTidePredictions(stationId, timeZone) {
                 console.log('No next tide found (all tides are in the past)');
             }
             
-            return {
+            const tideData = {
                 lastTide: lastTide,
                 nextTide: nextTide
             };
+            
+            // Save to cache
+            saveTidePredictionsToCache(stationId, tideData);
+            
+            return tideData;
         }
         
         console.log('Could not determine any tide from predictions');
