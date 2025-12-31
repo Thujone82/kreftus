@@ -692,6 +692,31 @@ function updateFavoriteButtonState(locationKey = null) {
     let keyToCheck = locationKey;
     if (!keyToCheck && appState.location) {
         keyToCheck = generateLocationKey(appState.location);
+        
+        // If generated key doesn't match any favorite, try to find a matching favorite by comparing location objects
+        // This handles cases where old favorites might have slightly different key formats
+        if (keyToCheck && !isFavorite(keyToCheck)) {
+            const favorites = getFavorites();
+            const matchingFavorite = favorites.find(fav => {
+                // Try to match by comparing the location objects directly
+                if (fav.location && appState.location) {
+                    const favCity = (fav.location.city || '').trim().toLowerCase();
+                    const favState = (fav.location.state || '').trim().toUpperCase();
+                    const currentCity = (appState.location.city || '').trim().toLowerCase();
+                    const currentState = (appState.location.state || '').trim().toUpperCase();
+                    
+                    if (favCity === currentCity && favState === currentState) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+            
+            if (matchingFavorite) {
+                // Use the favorite's stored key instead of the generated one
+                keyToCheck = matchingFavorite.key;
+            }
+        }
     }
     
     // Store the locationKey in appState for use by handleFavoriteToggle
@@ -1244,10 +1269,36 @@ function loadCachedWeatherData(locationKey = null) {
         // Restore location if available in cached data
         if (restoredWeatherData && restoredWeatherData.location) {
             appState.location = restoredWeatherData.location;
-            // Update currentLocationKey if locationKey parameter was provided
+            
+            // Update currentLocationKey - use provided locationKey, or try to find matching favorite
             if (locationKey) {
                 appState.currentLocationKey = locationKey;
+            } else {
+                // Try to find a matching favorite by comparing location objects
+                // This handles old favorites that might have different key formats
+                const favorites = getFavorites();
+                const matchingFavorite = favorites.find(fav => {
+                    if (fav.location && restoredWeatherData.location) {
+                        const favCity = (fav.location.city || '').trim().toLowerCase();
+                        const favState = (fav.location.state || '').trim().toUpperCase();
+                        const currentCity = (restoredWeatherData.location.city || '').trim().toLowerCase();
+                        const currentState = (restoredWeatherData.location.state || '').trim().toUpperCase();
+                        
+                        if (favCity === currentCity && favState === currentState) {
+                            return true;
+                        }
+                    }
+                    return false;
+                });
+                
+                if (matchingFavorite) {
+                    appState.currentLocationKey = matchingFavorite.key;
+                } else {
+                    // Fallback to generating key from location
+                    appState.currentLocationKey = generateLocationKey(restoredWeatherData.location);
+                }
             }
+            
             const locationText = formatLocationDisplayName(restoredWeatherData.location.city, restoredWeatherData.location.state);
             elements.locationInput.value = locationText;
         } else {
@@ -1348,8 +1399,39 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         
         appState.weatherData = processedWeather;
         appState.location = weatherData.location;
+        
         // Update currentLocationKey from the loaded location
-        appState.currentLocationKey = generateLocationKey(weatherData.location);
+        // First try to generate the key, then check if it matches a favorite
+        // If not, try to find a matching favorite by comparing location objects
+        // This handles old favorites that might have different key formats
+        let generatedKey = generateLocationKey(weatherData.location);
+        if (generatedKey && isFavorite(generatedKey)) {
+            appState.currentLocationKey = generatedKey;
+        } else {
+            // Try to find a matching favorite by comparing location objects
+            const favorites = getFavorites();
+            const matchingFavorite = favorites.find(fav => {
+                if (fav.location && weatherData.location) {
+                    const favCity = (fav.location.city || '').trim().toLowerCase();
+                    const favState = (fav.location.state || '').trim().toUpperCase();
+                    const currentCity = (weatherData.location.city || '').trim().toLowerCase();
+                    const currentState = (weatherData.location.state || '').trim().toUpperCase();
+                    
+                    if (favCity === currentCity && favState === currentState) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+            
+            if (matchingFavorite) {
+                // Use the favorite's stored key instead of the generated one
+                appState.currentLocationKey = matchingFavorite.key;
+            } else {
+                appState.currentLocationKey = generatedKey;
+            }
+        }
+        
         appState.lastFetchTime = new Date();
         appState.hourlyScrollIndex = 0;
         
