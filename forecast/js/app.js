@@ -1349,14 +1349,21 @@ function saveWeatherDataToCache(weatherData, location, timestamp = null) {
         }
         
         // Set locationString from location object (needed for both UID-based and location-based keys)
-        if (location) {
-            if (typeof location === 'object' && location.city && location.state) {
+        // Prefer appState.location if available (more reliable than the location parameter)
+        const locationToUse = appState.location || location;
+        if (locationToUse) {
+            if (typeof locationToUse === 'object' && locationToUse.city && locationToUse.state) {
                 // Store formatted location string for display (removes ", US")
-                locationString = formatLocationDisplayName(location.city, location.state);
-            } else if (typeof location === 'string') {
+                locationString = formatLocationDisplayName(locationToUse.city, locationToUse.state);
+            } else if (typeof locationToUse === 'string') {
                 // Location string (backward compatibility)
-                locationString = location;
+                locationString = locationToUse;
             }
+        }
+        
+        // Ensure locationString is set (fallback to empty string if not available)
+        if (!locationString && appState.location) {
+            locationString = formatLocationDisplayName(appState.location.city, appState.location.state) || '';
         }
         
         // Fallback to location key if no UID-based key found
@@ -1432,7 +1439,9 @@ function saveWeatherDataToCache(weatherData, location, timestamp = null) {
         if (locationKey) {
             // Save to location-specific cache
             localStorage.setItem(`forecastCachedData_${locationKey}`, JSON.stringify(cacheData));
-            localStorage.setItem(`forecastCachedLocation_${locationKey}`, locationString);
+            // Ensure locationString is not empty (use a placeholder if needed)
+            const locationStringToSave = locationString || (appState.location ? formatLocationDisplayName(appState.location.city, appState.location.state) : 'Unknown Location');
+            localStorage.setItem(`forecastCachedLocation_${locationKey}`, locationStringToSave);
             localStorage.setItem(`forecastCachedTimestamp_${locationKey}`, timestampToUse);
             
             // Update in-memory cache
@@ -1480,7 +1489,9 @@ function loadWeatherDataFromCache(locationKey = null) {
             console.log('loadWeatherDataFromCache - checking default cache:', { hasData: !!cachedData, hasLocation: !!cachedLocation, hasTimestamp: !!cachedTimestamp });
         }
         
-        if (cachedData && cachedLocation && cachedTimestamp) {
+        // Check if cache exists - allow empty location string (it's optional for display purposes)
+        // The important checks are cachedData and cachedTimestamp
+        if (cachedData && cachedTimestamp) {
             // Check in-memory cache first to avoid JSON.parse
             const cacheKey = locationKey || 'default';
             const memoryCacheKey = `${cacheKey}_${cachedTimestamp}`;
