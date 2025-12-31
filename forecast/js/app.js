@@ -417,9 +417,8 @@ function setupEventListeners() {
         elements.autoUpdateToggle.addEventListener('change', (e) => {
             appState.autoUpdateEnabled = e.target.checked;
             localStorage.setItem('forecastAutoUpdate', appState.autoUpdateEnabled.toString());
-            if (appState.autoUpdateEnabled) {
-                appState.lastFetchTime = new Date();
-            }
+            // DO NOT overwrite lastFetchTime here - it should only be set when data is actually fetched
+            // The lastFetchTime represents when NWS data was fetched, not when auto-update is enabled
         });
     }
     
@@ -1357,9 +1356,19 @@ function saveWeatherDataToCache(weatherData, location, timestamp = null) {
                     timestampToUse = existingTimestamp;
                 }
             }
-            // If no existing timestamp found, use current time (shouldn't happen, but fallback)
+            // If no existing timestamp found, try to use appState.lastFetchTime (should be set from cache)
+            // This is a safety fallback to preserve the timestamp even if localStorage lookup fails
             if (!timestampToUse) {
-                timestampToUse = new Date().toISOString();
+                if (appState.lastFetchTime) {
+                    timestampToUse = appState.lastFetchTime instanceof Date 
+                        ? appState.lastFetchTime.toISOString() 
+                        : appState.lastFetchTime;
+                    console.warn('No cache timestamp found in localStorage, using appState.lastFetchTime:', timestampToUse);
+                } else {
+                    // Last resort: use current time but log error
+                    timestampToUse = new Date().toISOString();
+                    console.error('CRITICAL: No cache timestamp found and appState.lastFetchTime not set. Using current time (cache age will be incorrect):', timestampToUse);
+                }
             }
         }
         
@@ -1628,8 +1637,10 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
         
         // CRITICAL: Use the cache timestamp (when data was actually fetched), not current time
         // This must be set BEFORE any other operations to ensure it's preserved
+        // The cache timestamp represents when the NWS API was called, which is what we display
         const cacheTimestamp = cache.timestamp instanceof Date ? cache.timestamp : new Date(cache.timestamp);
         appState.lastFetchTime = cacheTimestamp;
+        console.log('Loaded cache timestamp (NWS fetch time):', cacheTimestamp.toISOString(), 'Age:', Math.round((Date.now() - cacheTimestamp.getTime()) / 1000), 'seconds');
         
         // Ensure current.time matches the cache timestamp (the actual fetch time)
         // This ensures the "Updated:" field shows the correct time, not the current time
@@ -1673,6 +1684,8 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
             console.log('Cached data missing NOAA station, fetching in background...');
             // Fetch NOAA station in background (non-blocking)
             // fetchNoaaTideStation is available globally from api.js
+            // CRITICAL: Preserve the cache timestamp when updating cache with NOAA station data
+            const preservedTimestamp = appState.lastFetchTime;
             setTimeout(async () => {
                 try {
                     if (typeof fetchNoaaTideStation === 'function') {
@@ -1686,8 +1699,9 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
                             appState.weatherData = restoredWeatherData;
                             // Re-render to show NOAA station
                             renderCurrentMode();
-                            // Update cache with new data
-                            saveWeatherDataToCache(restoredWeatherData, restoredWeatherData.location);
+                            // Update cache with new data, but PRESERVE the original cache timestamp
+                            // Pass the preserved timestamp to ensure it's not updated
+                            saveWeatherDataToCache(restoredWeatherData, restoredWeatherData.location, preservedTimestamp);
                         }
                     }
                 } catch (error) {
@@ -1952,8 +1966,10 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         
         // Use the actual NWS API fetch time (from weatherData.fetchTime) as the cache timestamp
         // This ensures the "Updated:" field reflects when the NWS data was actually fetched
+        // weatherData.fetchTime is set at the START of NWS API calls in fetchWeatherData()
         const nwsFetchTime = weatherData.fetchTime || new Date();
         appState.lastFetchTime = nwsFetchTime;
+        console.log('Set lastFetchTime from NWS API fetch:', nwsFetchTime.toISOString());
         appState.hourlyScrollIndex = 0;
         
         // Update location in input field

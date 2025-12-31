@@ -1070,10 +1070,15 @@ async function fetchWeatherData(location) {
         state = locationData.state;
     }
     
+    // CRITICAL: Set fetchTime at the START of NWS API calls
+    // This timestamp represents when we began fetching NWS weather data
+    // It will be used as the cache timestamp and displayed in the "Updated:" field
+    const nwsFetchStartTime = new Date();
+    
     // Start fetching NOAA stations.json in parallel (doesn't depend on NWS data)
     const noaaStationsPromise = fetchNoaaStationsJson();
     
-    // Fetch NWS points data
+    // Fetch NWS points data (first NWS API call)
     const pointsData = await fetchNWSPoints(lat, lon);
     
     // Extract forecast URLs and metadata
@@ -1085,7 +1090,7 @@ async function fetchWeatherData(location) {
     const timeZone = pointsData.properties.timeZone;
     const radarStation = pointsData.properties.radarStation;
     
-    // Fetch forecast and hourly data concurrently
+    // Fetch forecast and hourly data concurrently (main NWS API calls)
     const [forecastData, hourlyData, alertsData, preFetchedStations] = await Promise.all([
         fetchNWSForecast(forecastUrl),
         fetchNWSHourly(hourlyUrl),
@@ -1123,7 +1128,7 @@ async function fetchWeatherData(location) {
         hourly: hourlyData,
         alerts: alertsData,
         noaaStation: noaaStation,
-        fetchTime: new Date()
+        fetchTime: nwsFetchStartTime  // Use the timestamp from when NWS API calls started
     };
 }
 
