@@ -70,6 +70,9 @@ async function init() {
         return;
     }
     
+    // Migrate old favorites to new format (do this early, before favorites are used)
+    migrateFavorites();
+    
     // Set up event listeners FIRST - this is critical!
     console.log('Setting up event listeners...');
     setupEventListeners();
@@ -832,6 +835,74 @@ function generateLocationKey(location) {
     const state = (location.state || '').trim().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     if (!city || !state) return null;
     return `${city},${state}`;
+}
+
+// Migrate old favorites to new key format
+function migrateFavorites() {
+    try {
+        const favorites = getFavorites();
+        if (favorites.length === 0) {
+            return false; // No favorites to migrate
+        }
+        
+        let needsMigration = false;
+        const migratedFavorites = favorites.map(favorite => {
+            // Check if favorite has a location object
+            if (!favorite.location || !favorite.location.city || !favorite.location.state) {
+                // Old favorite might not have location object, skip it
+                return favorite;
+            }
+            
+            // Generate the correct key using the new method
+            const correctKey = generateLocationKey(favorite.location);
+            
+            // Check if the key needs to be updated
+            if (correctKey && favorite.key !== correctKey) {
+                console.log('Migrating favorite:', {
+                    oldKey: favorite.key,
+                    newKey: correctKey,
+                    location: favorite.location
+                });
+                needsMigration = true;
+                
+                // Update the key
+                const migratedFavorite = {
+                    ...favorite,
+                    key: correctKey
+                };
+                
+                // Also need to migrate cache if it exists with old key
+                const oldCache = loadWeatherDataFromCache(favorite.key);
+                if (oldCache) {
+                    // Copy cache to new key location
+                    try {
+                        localStorage.setItem(`forecastCachedData_${correctKey}`, JSON.stringify(oldCache.data));
+                        localStorage.setItem(`forecastCachedLocation_${correctKey}`, oldCache.location);
+                        localStorage.setItem(`forecastCachedTimestamp_${correctKey}`, oldCache.timestamp.toISOString());
+                        console.log('Migrated cache from', favorite.key, 'to', correctKey);
+                    } catch (error) {
+                        console.warn('Failed to migrate cache for favorite:', favorite.key, error);
+                    }
+                }
+                
+                return migratedFavorite;
+            }
+            
+            return favorite;
+        });
+        
+        // Save migrated favorites if any changes were made
+        if (needsMigration) {
+            localStorage.setItem('forecastFavorites', JSON.stringify(migratedFavorites));
+            console.log('Favorites migration completed. Updated', migratedFavorites.length, 'favorites');
+            return true;
+        }
+        
+        return false;
+    } catch (error) {
+        console.error('Failed to migrate favorites:', error);
+        return false;
+    }
 }
 
 // Favorites management functions
