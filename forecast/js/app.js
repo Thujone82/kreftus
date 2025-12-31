@@ -1741,6 +1741,9 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
         appState.observationsData = cache.data.observationsData || null;
         appState.observationsAvailable = cache.data.observationsAvailable || false;
         
+        // Find matching favorite UID (declare at function scope so it's accessible in requestAnimationFrame)
+        let matchingFavoriteUID = null;
+        
         // Check if cache is stale - if so, trigger background refresh immediately
         // Declare at function scope so it can be used later for observations check
         const cacheIsStale = isCacheStale(cache.timestamp);
@@ -1802,48 +1805,77 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
         if (restoredWeatherData && restoredWeatherData.location) {
             appState.location = restoredWeatherData.location;
             
-            // Update currentLocationKey - use provided locationKey (fast path), or defer expensive lookup
+            // Update currentLocationKey and find matching favorite UID
+            
             if (locationKey) {
                 // Fast path: locationKey provided (most common case when loading from favorite)
                 appState.currentLocationKey = locationKey;
+                
+                // If locationKey is UID-based, extract the UID to find the matching favorite
+                if (locationKey.startsWith('uid_')) {
+                    const uidFromKey = locationKey.replace('uid_', '');
+                    const favorite = getFavoriteByUID(uidFromKey);
+                    if (favorite && favorite.uid) {
+                        matchingFavoriteUID = favorite.uid;
+                    }
+                } else {
+                    // Location key - find matching favorite by key
+                    const favorite = getFavoriteByKey(locationKey);
+                    if (favorite && favorite.uid) {
+                        matchingFavoriteUID = favorite.uid;
+                    }
+                }
             } else {
                 // Slow path: need to find matching favorite (defer to avoid blocking UI)
                 // Generate key first as fallback, then try to find matching favorite in background
                 appState.currentLocationKey = generateLocationKey(restoredWeatherData.location);
                 
-                // Defer expensive favorite matching to background
-                const deferMatching = (callback) => {
-                    if (typeof requestIdleCallback !== 'undefined') {
-                        requestIdleCallback(callback, { timeout: 500 });
-                    } else {
-                        setTimeout(callback, 0);
+                // Try to find matching favorite immediately (for UI update)
+                const locationUID = generateLocationUID(restoredWeatherData.location);
+                if (locationUID) {
+                    const favorite = getFavoriteByUID(locationUID);
+                    if (favorite && favorite.uid) {
+                        matchingFavoriteUID = favorite.uid;
+                        appState.currentLocationKey = `uid_${favorite.uid}`;
                     }
-                };
+                }
                 
-                deferMatching(() => {
-                    // Try to find a matching favorite by comparing location objects
-                    // This handles old favorites that might have different key formats
-                    const favorites = getFavorites();
-                    const matchingFavorite = favorites.find(fav => {
-                        if (fav.location && restoredWeatherData.location) {
-                            const favCity = (fav.location.city || '').trim().toLowerCase();
-                            const favState = (fav.location.state || '').trim().toUpperCase();
-                            const currentCity = (restoredWeatherData.location.city || '').trim().toLowerCase();
-                            const currentState = (restoredWeatherData.location.state || '').trim().toUpperCase();
-                            
-                            if (favCity === currentCity && favState === currentState) {
-                                return true;
-                            }
+                // If not found by UID, defer expensive favorite matching to background
+                if (!matchingFavoriteUID) {
+                    const deferMatching = (callback) => {
+                        if (typeof requestIdleCallback !== 'undefined') {
+                            requestIdleCallback(callback, { timeout: 500 });
+                        } else {
+                            setTimeout(callback, 0);
                         }
-                        return false;
-                    });
+                    };
                     
-                    if (matchingFavorite) {
-                        appState.currentLocationKey = matchingFavorite.key;
-                        // Update UI if needed (but don't re-render everything)
-                        updateFavoriteButtonState();
-                    }
-                });
+                    deferMatching(() => {
+                        // Try to find a matching favorite by comparing location objects
+                        // This handles old favorites that might have different key formats
+                        const favorites = getFavorites();
+                        const matchingFavorite = favorites.find(fav => {
+                            if (fav.location && restoredWeatherData.location) {
+                                const favCity = (fav.location.city || '').trim().toLowerCase();
+                                const favState = (fav.location.state || '').trim().toUpperCase();
+                                const currentCity = (restoredWeatherData.location.city || '').trim().toLowerCase();
+                                const currentState = (restoredWeatherData.location.state || '').trim().toUpperCase();
+                                
+                                if (favCity === currentCity && favState === currentState) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        });
+                        
+                        if (matchingFavorite) {
+                            appState.currentLocationKey = matchingFavorite.key;
+                            // Update UI if needed (but don't re-render everything)
+                            updateFavoriteButtonState();
+                            renderLocationButtons(matchingFavorite.uid || matchingFavorite.key);
+                        }
+                    });
+                }
             }
             
             const locationText = formatLocationDisplayName(restoredWeatherData.location.city, restoredWeatherData.location.state);
@@ -1932,12 +1964,46 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
             // Update last update time (this uses appState.lastFetchTime, so it should be correct now)
             updateLastUpdateTime();
             
-            // Update favorite button state (use locationKey if provided)
-            const cachedLocationKey = locationKey || (appState.location ? generateLocationKey(appState.location) : null);
-            updateFavoriteButtonState(cachedLocationKey);
+            // Update favorite button state and location buttons
+            // Extract UID from cache key if it's UID-based, or find matching favorite
+            let activeIdentifier = matchingFavoriteUID;
+            if (!activeIdentifier) {
+                if (locationKey && locationKey.startsWith('uid_')) {
+                    // Extract UID from UID-based cache key
+                    const uidFromKey = locationKey.replace('uid_', '');
+                    const favorite = getFavoriteByUID(uidFromKey);
+                    if (favorite && favorite.uid) {
+                        activeIdentifier = favorite.uid;
+                    }
+                } else if (locationKey) {
+                    // Location key - find matching favorite by key
+                    const favorite = getFavoriteByKey(locationKey);
+                    if (favorite && favorite.uid) {
+                        activeIdentifier = favorite.uid;
+                    } else {
+                        activeIdentifier = locationKey;
+                    }
+                } else if (appState.location) {
+                    // Try to find favorite by UID first
+                    const locationUID = generateLocationUID(appState.location);
+                    if (locationUID) {
+                        const favorite = getFavoriteByUID(locationUID);
+                        if (favorite && favorite.uid) {
+                            activeIdentifier = favorite.uid;
+                        } else {
+                            activeIdentifier = locationUID;
+                        }
+                    } else {
+                        // Fallback to key if no UID match
+                        activeIdentifier = generateLocationKey(appState.location);
+                    }
+                }
+            }
             
-            // Update location buttons to highlight the active one
-            renderLocationButtons(cachedLocationKey);
+            updateFavoriteButtonState(activeIdentifier);
+            
+            // Update location buttons to highlight the active one (use UID if available)
+            renderLocationButtons(activeIdentifier);
             
             // Render current mode to display cached data (already uses requestAnimationFrame internally)
             // This will call displayCurrentConditions which uses appState.lastFetchTime
