@@ -12,7 +12,10 @@ const appState = {
     lastFetchTime: null,
     hourlyScrollIndex: 0,
     loading: false,
-    error: null
+    error: null,
+    // In-memory cache for parsed weather data (keyed by locationKey + timestamp)
+    // This avoids repeated JSON.parse operations when switching between favorites
+    cachedWeatherDataByKey: new Map()
 };
 
 // Constants
@@ -1365,12 +1368,26 @@ function saveWeatherDataToCache(weatherData, location, timestamp = null) {
             localStorage.setItem(`forecastCachedData_${locationKey}`, JSON.stringify(cacheData));
             localStorage.setItem(`forecastCachedLocation_${locationKey}`, locationString);
             localStorage.setItem(`forecastCachedTimestamp_${locationKey}`, timestampToUse);
+            
+            // Update in-memory cache
+            const memoryCacheKey = `${locationKey}_${timestampToUse}`;
+            appState.cachedWeatherDataByKey.set(memoryCacheKey, cacheData);
         }
         
         // Also maintain current location cache for backward compatibility
         localStorage.setItem('forecastCachedData', JSON.stringify(cacheData));
         localStorage.setItem('forecastCachedLocation', locationString);
         localStorage.setItem('forecastCachedTimestamp', timestampToUse);
+        
+        // Update in-memory cache for default location
+        const defaultMemoryCacheKey = `default_${timestampToUse}`;
+        appState.cachedWeatherDataByKey.set(defaultMemoryCacheKey, cacheData);
+        
+        // Limit memory cache size to prevent memory leaks (keep last 10 entries)
+        if (appState.cachedWeatherDataByKey.size > 10) {
+            const firstKey = appState.cachedWeatherDataByKey.keys().next().value;
+            appState.cachedWeatherDataByKey.delete(firstKey);
+        }
     } catch (error) {
         console.warn('Failed to save weather data to cache:', error);
     }
@@ -1393,8 +1410,32 @@ function loadWeatherDataFromCache(locationKey = null) {
         }
         
         if (cachedData && cachedLocation && cachedTimestamp) {
+            // Check in-memory cache first to avoid JSON.parse
+            const cacheKey = locationKey || 'default';
+            const memoryCacheKey = `${cacheKey}_${cachedTimestamp}`;
+            const cachedParsed = appState.cachedWeatherDataByKey.get(memoryCacheKey);
+            
+            if (cachedParsed) {
+                // Use cached parsed data (much faster than JSON.parse)
+                return {
+                    data: cachedParsed,
+                    location: cachedLocation,
+                    timestamp: new Date(cachedTimestamp)
+                };
+            }
+            
+            // Parse and cache in memory
+            const parsedData = JSON.parse(cachedData);
+            appState.cachedWeatherDataByKey.set(memoryCacheKey, parsedData);
+            
+            // Limit memory cache size to prevent memory leaks (keep last 10 entries)
+            if (appState.cachedWeatherDataByKey.size > 10) {
+                const firstKey = appState.cachedWeatherDataByKey.keys().next().value;
+                appState.cachedWeatherDataByKey.delete(firstKey);
+            }
+            
             return {
-                data: JSON.parse(cachedData),
+                data: parsedData,
                 location: cachedLocation,
                 timestamp: new Date(cachedTimestamp)
             };
@@ -1435,6 +1476,13 @@ function clearLocationCache(locationKey) {
         localStorage.removeItem(`forecastCachedData_${locationKey}`);
         localStorage.removeItem(`forecastCachedLocation_${locationKey}`);
         localStorage.removeItem(`forecastCachedTimestamp_${locationKey}`);
+        
+        // Clear in-memory cache entries for this location
+        for (const [key, value] of appState.cachedWeatherDataByKey.entries()) {
+            if (key.startsWith(`${locationKey}_`)) {
+                appState.cachedWeatherDataByKey.delete(key);
+            }
+        }
     } catch (error) {
         console.warn('Failed to clear location cache:', error);
     }
@@ -1648,33 +1696,48 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
         if (restoredWeatherData && restoredWeatherData.location) {
             appState.location = restoredWeatherData.location;
             
-            // Update currentLocationKey - use provided locationKey, or try to find matching favorite
+            // Update currentLocationKey - use provided locationKey (fast path), or defer expensive lookup
             if (locationKey) {
+                // Fast path: locationKey provided (most common case when loading from favorite)
                 appState.currentLocationKey = locationKey;
             } else {
-                // Try to find a matching favorite by comparing location objects
-                // This handles old favorites that might have different key formats
-                const favorites = getFavorites();
-                const matchingFavorite = favorites.find(fav => {
-                    if (fav.location && restoredWeatherData.location) {
-                        const favCity = (fav.location.city || '').trim().toLowerCase();
-                        const favState = (fav.location.state || '').trim().toUpperCase();
-                        const currentCity = (restoredWeatherData.location.city || '').trim().toLowerCase();
-                        const currentState = (restoredWeatherData.location.state || '').trim().toUpperCase();
-                        
-                        if (favCity === currentCity && favState === currentState) {
-                            return true;
-                        }
-                    }
-                    return false;
-                });
+                // Slow path: need to find matching favorite (defer to avoid blocking UI)
+                // Generate key first as fallback, then try to find matching favorite in background
+                appState.currentLocationKey = generateLocationKey(restoredWeatherData.location);
                 
-                if (matchingFavorite) {
-                    appState.currentLocationKey = matchingFavorite.key;
-                } else {
-                    // Fallback to generating key from location
-                    appState.currentLocationKey = generateLocationKey(restoredWeatherData.location);
-                }
+                // Defer expensive favorite matching to background
+                const deferMatching = (callback) => {
+                    if (typeof requestIdleCallback !== 'undefined') {
+                        requestIdleCallback(callback, { timeout: 500 });
+                    } else {
+                        setTimeout(callback, 0);
+                    }
+                };
+                
+                deferMatching(() => {
+                    // Try to find a matching favorite by comparing location objects
+                    // This handles old favorites that might have different key formats
+                    const favorites = getFavorites();
+                    const matchingFavorite = favorites.find(fav => {
+                        if (fav.location && restoredWeatherData.location) {
+                            const favCity = (fav.location.city || '').trim().toLowerCase();
+                            const favState = (fav.location.state || '').trim().toUpperCase();
+                            const currentCity = (restoredWeatherData.location.city || '').trim().toLowerCase();
+                            const currentState = (restoredWeatherData.location.state || '').trim().toUpperCase();
+                            
+                            if (favCity === currentCity && favState === currentState) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    });
+                    
+                    if (matchingFavorite) {
+                        appState.currentLocationKey = matchingFavorite.key;
+                        // Update UI if needed (but don't re-render everything)
+                        updateFavoriteButtonState();
+                    }
+                });
             }
             
             const locationText = formatLocationDisplayName(restoredWeatherData.location.city, restoredWeatherData.location.state);
@@ -1704,43 +1767,59 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
             }
         }
         
-        // Check if observations are incomplete and need refresh
+        // Check if observations are incomplete and need refresh (deferred to background for performance)
         // Only refresh if cache is not stale (stale cache is already being refreshed above)
         // Note: cacheIsStale was checked above, reuse that value
+        // Defer this expensive check to avoid blocking UI during favorite switching
         if (!cacheIsStale && appState.observationsAvailable && appState.observationsData && restoredWeatherData && restoredWeatherData.location) {
-            const observationsComplete = observationsCoverFullWeek(appState.observationsData);
-            if (!observationsComplete) {
-                console.log('Cached observations are incomplete (less than 7 days), refreshing in background...');
-                // Refresh observations in the background
-                // We need pointsData to refresh observations, so we'll need to fetch it
-                // For now, trigger a full refresh which will update observations
-                const locationToRefresh = restoredWeatherData.location.city && restoredWeatherData.location.state
-                    ? `${restoredWeatherData.location.city}, ${restoredWeatherData.location.state}`
-                    : (cache.location || 'here');
-                // Use a small delay to allow the UI to render first
-                setTimeout(() => {
-                    loadWeatherData(locationToRefresh, false, true).catch(error => {
-                        console.error('Background observations refresh failed:', error);
-                    });
-                }, 100);
-            }
+            // Use requestIdleCallback if available, otherwise setTimeout
+            const deferCheck = (callback) => {
+                if (typeof requestIdleCallback !== 'undefined') {
+                    requestIdleCallback(callback, { timeout: 1000 });
+                } else {
+                    setTimeout(callback, 0);
+                }
+            };
+            
+            deferCheck(() => {
+                const observationsComplete = observationsCoverFullWeek(appState.observationsData);
+                if (!observationsComplete) {
+                    console.log('Cached observations are incomplete (less than 7 days), refreshing in background...');
+                    // Refresh observations in the background
+                    // We need pointsData to refresh observations, so we'll need to fetch it
+                    // For now, trigger a full refresh which will update observations
+                    const locationToRefresh = restoredWeatherData.location.city && restoredWeatherData.location.state
+                        ? `${restoredWeatherData.location.city}, ${restoredWeatherData.location.state}`
+                        : (cache.location || 'here');
+                    // Use a small delay to allow the UI to render first
+                    setTimeout(() => {
+                        loadWeatherData(locationToRefresh, false, true).catch(error => {
+                            console.error('Background observations refresh failed:', error);
+                        });
+                    }, 100);
+                }
+            });
         }
         
-        // Update History button state
-        updateHistoryButtonState();
-        
-        // Update last update time
-        updateLastUpdateTime();
-        
-        // Update favorite button state (use locationKey if provided)
-        const cachedLocationKey = locationKey || (appState.location ? generateLocationKey(appState.location) : null);
-        updateFavoriteButtonState(cachedLocationKey);
-        
-        // Update location buttons to highlight the active one
-        renderLocationButtons(cachedLocationKey);
-        
-        // Render current mode to display cached data
-        renderCurrentMode();
+        // Batch UI state updates using requestAnimationFrame for better performance
+        // This allows browser to batch all DOM updates together
+        requestAnimationFrame(() => {
+            // Update History button state
+            updateHistoryButtonState();
+            
+            // Update last update time
+            updateLastUpdateTime();
+            
+            // Update favorite button state (use locationKey if provided)
+            const cachedLocationKey = locationKey || (appState.location ? generateLocationKey(appState.location) : null);
+            updateFavoriteButtonState(cachedLocationKey);
+            
+            // Update location buttons to highlight the active one
+            renderLocationButtons(cachedLocationKey);
+            
+            // Render current mode to display cached data (already uses requestAnimationFrame internally)
+            renderCurrentMode();
+        });
         
         return true;
     } catch (error) {
@@ -1977,8 +2056,41 @@ function switchMode(mode) {
     renderCurrentMode();
 }
 
-// Render current mode
+// Render current mode (with requestAnimationFrame batching for performance)
+let renderCurrentModeScheduled = false;
+let renderCurrentModePending = false;
+
 function renderCurrentMode() {
+    if (!appState.weatherData || !appState.location) {
+        return;
+    }
+    
+    // If already scheduled, mark as pending and return (prevents multiple renders)
+    if (renderCurrentModeScheduled) {
+        renderCurrentModePending = true;
+        return;
+    }
+    
+    // Schedule render in next animation frame for batching
+    renderCurrentModeScheduled = true;
+    requestAnimationFrame(() => {
+        renderCurrentModeScheduled = false;
+        const wasPending = renderCurrentModePending;
+        renderCurrentModePending = false;
+        
+        // If another render was requested while we were waiting, skip this one
+        if (wasPending) {
+            renderCurrentMode();
+            return;
+        }
+        
+        // Perform the actual render
+        _renderCurrentModeImpl();
+    });
+}
+
+// Internal implementation of render (called from requestAnimationFrame)
+function _renderCurrentModeImpl() {
     if (!appState.weatherData || !appState.location) {
         return;
     }
@@ -2015,8 +2127,18 @@ function renderCurrentMode() {
     elements.weatherContent.innerHTML = html;
     
     // Set up hourly navigation handlers after rendering (only if in hourly mode)
+    // Deferred to requestIdleCallback for better performance - not critical for initial render
     if (appState.currentMode === 'hourly') {
-        setupHourlyNavigation();
+        if (typeof requestIdleCallback !== 'undefined') {
+            requestIdleCallback(() => {
+                setupHourlyNavigation();
+            }, { timeout: 500 });
+        } else {
+            // Fallback for browsers without requestIdleCallback
+            setTimeout(() => {
+                setupHourlyNavigation();
+            }, 0);
+        }
     }
 }
 
