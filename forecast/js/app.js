@@ -485,8 +485,9 @@ function setupEventListeners() {
             clickTimer = setTimeout(() => {
                 if (!isDoubleClick) {
                     // Single click confirmed - navigate to location
-                    const locationKey = locationBtn.dataset.locationKey;
-                    handleLocationButtonClick(locationKey);
+                    // Prefer UID, fallback to key for backward compatibility
+                    const uid = locationBtn.dataset.locationUid || locationBtn.dataset.locationKey;
+                    handleLocationButtonClick(uid);
                 }
                 clickTimer = null;
             }, 300); // 300ms delay to detect double-click
@@ -588,10 +589,11 @@ function handleFavoriteToggle() {
 function handleLocationButtonEdit(locationBtn) {
     if (!locationBtn) return;
     
-    const locationKey = locationBtn.dataset.locationKey;
-    if (!locationKey) return;
+    // Prefer UID, fallback to key for backward compatibility
+    const uid = locationBtn.dataset.locationUid || locationBtn.dataset.locationKey;
+    if (!uid) return;
     
-    const favorite = getFavoriteByKey(locationKey);
+    const favorite = getFavoriteByUID(uid) || getFavoriteByKey(uid);
     if (!favorite) return;
     
     // Get current display name (customName or name)
@@ -618,7 +620,8 @@ function handleLocationButtonEdit(locationBtn) {
         
         // Only update if name changed
         if (newName !== oldName) {
-            if (updateFavoriteCustomName(locationKey, newName)) {
+            const favoriteUID = favorite.uid || favorite.key;
+            if (updateFavoriteCustomName(favoriteUID, newName)) {
                 renderLocationButtons();
             }
         } else {
@@ -655,26 +658,31 @@ function handleLocationButtonEdit(locationBtn) {
 }
 
 // Handle location button click from drawer
-async function handleLocationButtonClick(locationKey) {
-    if (!locationKey) return;
+async function handleLocationButtonClick(uid) {
+    if (!uid) return;
     
-    const favorite = getFavoriteByKey(locationKey);
+    // Support both UID and key for backward compatibility
+    const favorite = getFavoriteByUID(uid) || getFavoriteByKey(uid);
     if (!favorite) return;
     
+    // Use the favorite's key for cache lookups (cache is still keyed by location)
+    const cacheKey = favorite.key;
+    
     // Load cached data immediately (this will update UI state including favorite button and location buttons)
-    const cacheLoaded = loadCachedWeatherData(locationKey);
+    const cacheLoaded = loadCachedWeatherData(cacheKey);
     
     if (cacheLoaded) {
         // Update URL
         updateURL(favorite.searchQuery, appState.currentMode);
         
-        // Ensure star button and location buttons are updated with the correct key
-        // (loadCachedWeatherData may have called these without the key)
-        updateFavoriteButtonState(locationKey);
-        renderLocationButtons(locationKey);
+        // Ensure star button and location buttons are updated with the correct UID
+        // (loadCachedWeatherData may have called these without the UID)
+        const favoriteUID = favorite.uid || favorite.key;
+        updateFavoriteButtonState(favoriteUID);
+        renderLocationButtons(favoriteUID);
         
         // Check if cache is stale and refresh in background
-        const cache = loadWeatherDataFromCache(locationKey);
+        const cache = loadWeatherDataFromCache(cacheKey);
         if (cache && isCacheStale(cache.timestamp)) {
             // Trigger background refresh
             loadWeatherData(favorite.searchQuery, false, true).catch(error => {
@@ -684,60 +692,66 @@ async function handleLocationButtonClick(locationKey) {
     } else {
         // No cache, load fresh data
         await loadWeatherData(favorite.searchQuery, false, false);
-        // Update location buttons to highlight the active one (pass the locationKey directly)
-        renderLocationButtons(locationKey);
+        // Update location buttons to highlight the active one (pass the UID directly)
+        const favoriteUID = favorite.uid || favorite.key;
+        renderLocationButtons(favoriteUID);
     }
 }
 
 // Update favorite button state based on current location
-function updateFavoriteButtonState(locationKey = null) {
+function updateFavoriteButtonState(identifier = null) {
     if (!elements.favoriteBtn) {
         return;
     }
     
-    // Use provided locationKey if available, otherwise try to generate from appState.location
-    let keyToCheck = locationKey;
-    if (!keyToCheck && appState.location) {
-        keyToCheck = generateLocationKey(appState.location);
+    // Use provided identifier (UID or key) if available, otherwise try to generate from appState.location
+    let identifierToCheck = identifier;
+    if (!identifierToCheck && appState.location) {
+        // Prefer UID (more stable)
+        identifierToCheck = generateLocationUID(appState.location);
         
-        // If generated key doesn't match any favorite, try to find a matching favorite by comparing location objects
-        // This handles cases where old favorites might have slightly different key formats
-        if (keyToCheck && !isFavorite(keyToCheck)) {
-            const favorites = getFavorites();
-            const matchingFavorite = favorites.find(fav => {
-                // Try to match by comparing the location objects directly
-                if (fav.location && appState.location) {
-                    const favCity = (fav.location.city || '').trim().toLowerCase();
-                    const favState = (fav.location.state || '').trim().toUpperCase();
-                    const currentCity = (appState.location.city || '').trim().toLowerCase();
-                    const currentState = (appState.location.state || '').trim().toUpperCase();
-                    
-                    if (favCity === currentCity && favState === currentState) {
-                        return true;
+        // If UID doesn't match, try key as fallback
+        if (identifierToCheck && !isFavorite(identifierToCheck)) {
+            const keyToCheck = generateLocationKey(appState.location);
+            if (keyToCheck && isFavorite(keyToCheck)) {
+                identifierToCheck = keyToCheck;
+            } else {
+                // Try to find a matching favorite by comparing location objects
+                const favorites = getFavorites();
+                const matchingFavorite = favorites.find(fav => {
+                    if (fav.location && appState.location) {
+                        const favCity = (fav.location.city || '').trim().toLowerCase();
+                        const favState = (fav.location.state || '').trim().toUpperCase();
+                        const currentCity = (appState.location.city || '').trim().toLowerCase();
+                        const currentState = (appState.location.state || '').trim().toUpperCase();
+                        
+                        if (favCity === currentCity && favState === currentState) {
+                            return true;
+                        }
                     }
+                    return false;
+                });
+                
+                if (matchingFavorite) {
+                    // Use the favorite's UID (preferred) or key as fallback
+                    identifierToCheck = matchingFavorite.uid || matchingFavorite.key;
                 }
-                return false;
-            });
-            
-            if (matchingFavorite) {
-                // Use the favorite's stored key instead of the generated one
-                keyToCheck = matchingFavorite.key;
             }
         }
     }
     
-    // Store the locationKey in appState for use by handleFavoriteToggle
-    if (keyToCheck) {
-        appState.currentLocationKey = keyToCheck;
+    // Store the identifier in appState for use by handleFavoriteToggle
+    if (identifierToCheck) {
+        appState.currentLocationKey = identifierToCheck; // Keep same property name for compatibility
     }
     
-    if (!keyToCheck) {
+    if (!identifierToCheck) {
         appState.currentLocationKey = null;
         elements.favoriteBtn.classList.remove('active');
         return;
     }
     
-    if (isFavorite(keyToCheck)) {
+    if (isFavorite(identifierToCheck)) {
         elements.favoriteBtn.classList.add('active');
     } else {
         elements.favoriteBtn.classList.remove('active');
@@ -832,7 +846,29 @@ function updateHistoryButtonState() {
     }
 }
 
-// Location key generation - normalizes city and state to create unique key
+// Generate a stable UID for a location based on coordinates or location data
+function generateLocationUID(location) {
+    if (!location) return null;
+    
+    // Prefer coordinates for stable UID (most reliable)
+    if (location.lat !== undefined && location.lon !== undefined) {
+        // Round to 4 decimal places (~11 meters precision) to handle slight variations
+        const lat = Math.round(location.lat * 10000) / 10000;
+        const lon = Math.round(location.lon * 10000) / 10000;
+        return `loc_${lat}_${lon}`;
+    }
+    
+    // Fallback to city+state hash if coordinates not available
+    const city = (location.city || '').trim().toLowerCase().replace(/[^a-zA-Z0-9\s]/g, '');
+    const state = (location.state || '').trim().toUpperCase().replace(/[^a-zA-Z0-9]/g, '');
+    if (!city || !state) return null;
+    
+    // Create a simple hash for stability
+    const hash = `${city}_${state}`;
+    return `loc_${hash}`;
+}
+
+// Location key generation - normalizes city and state to create unique key (used for cache lookups)
 function generateLocationKey(location) {
     if (!location) return null;
     const city = (location.city || '').trim().replace(/[^a-zA-Z0-9\s]/g, '');
@@ -841,7 +877,7 @@ function generateLocationKey(location) {
     return `${city},${state}`;
 }
 
-// Migrate old favorites to new key format
+// Migrate old favorites to use UID system
 function migrateFavorites() {
     try {
         const favorites = getFavorites();
@@ -895,8 +931,15 @@ function migrateFavorites() {
                     }
                 }
                 
-                // Generate the correct key using the corrected location
-                correctKey = generateLocationKey(correctLocation);
+                // Generate UID (primary identifier) and location key (for cache)
+                const uid = generateLocationUID(correctLocation);
+                const correctKey = generateLocationKey(correctLocation);
+                
+                if (!uid) {
+                    console.warn('Cannot generate UID for favorite at index', i, favorite);
+                    failedFavorites.push({ index: i, reason: 'Cannot generate UID' });
+                    continue;
+                }
                 
                 if (!correctKey) {
                     console.warn('Cannot generate key for favorite at index', i, favorite);
@@ -904,9 +947,10 @@ function migrateFavorites() {
                     continue;
                 }
                 
-                // Create fixed favorite with correct key and location
+                // Create fixed favorite with UID, correct key, and location
                 fixedFavorite = {
-                    key: correctKey,
+                    uid: uid, // Primary identifier - stable and not dependent on location name format
+                    key: correctKey, // Used for cache lookups
                     name: favorite.name || '',
                     location: correctLocation, // Use the corrected location object
                     searchQuery: favorite.searchQuery || favorite.name || ''
@@ -915,6 +959,15 @@ function migrateFavorites() {
                 // Preserve customName if it exists
                 if (favorite.customName !== undefined) {
                     fixedFavorite.customName = favorite.customName;
+                }
+                
+                // If old favorite had a UID, preserve it (for consistency)
+                if (favorite.uid) {
+                    // Only update if the UID would be different (location changed significantly)
+                    if (favorite.uid !== uid) {
+                        console.log('UID changed for favorite:', { oldUID: favorite.uid, newUID: uid });
+                    }
+                    // Use new UID to ensure it matches current location
                 }
                 
                 // Verify the fixed favorite is valid
@@ -968,6 +1021,7 @@ function migrateFavorites() {
                 console.log('Successfully migrated favorite:', {
                     oldKey: favorite.key,
                     newKey: fixedFavorite.key,
+                    uid: fixedFavorite.uid,
                     name: fixedFavorite.name
                 });
             }
@@ -1073,7 +1127,14 @@ function saveFavorite(location, locationObject, searchQuery, customName) {
             return false;
         }
         
+        const uid = generateLocationUID(locationObject);
         const locationKey = generateLocationKey(locationObject);
+        
+        if (!uid) {
+            console.warn('Cannot save favorite: invalid UID', locationObject);
+            return false;
+        }
+        
         if (!locationKey) {
             console.warn('Cannot save favorite: invalid location key', locationObject);
             return false;
@@ -1081,21 +1142,22 @@ function saveFavorite(location, locationObject, searchQuery, customName) {
         
         const favorites = getFavorites();
         
-        // Check if already exists
-        const existingIndex = favorites.findIndex(fav => fav.key === locationKey);
+        // Check if already exists by UID (primary identifier)
+        const existingIndex = favorites.findIndex(fav => fav.uid === uid);
         if (existingIndex !== -1) {
             // Update existing favorite if customName is provided
             if (customName !== undefined) {
                 favorites[existingIndex].customName = customName || null;
                 localStorage.setItem('forecastFavorites', JSON.stringify(favorites));
-                console.log('Favorite custom name updated:', locationKey, customName);
+                console.log('Favorite custom name updated:', uid, customName);
             }
             return true; // Already favorited
         }
         
-        // Add new favorite
+        // Add new favorite with UID
         const newFavorite = {
-            key: locationKey,
+            uid: uid, // Primary identifier
+            key: locationKey, // Used for cache lookups
             name: location,
             location: locationObject,
             searchQuery: searchQuery || location
@@ -1117,14 +1179,18 @@ function saveFavorite(location, locationObject, searchQuery, customName) {
     }
 }
 
-function removeFavorite(locationKey) {
+function removeFavorite(identifier) {
     try {
         const favorites = getFavorites();
-        const filtered = favorites.filter(fav => fav.key !== locationKey);
+        // Support both UID and key for backward compatibility
+        const filtered = favorites.filter(fav => fav.uid !== identifier && fav.key !== identifier);
         localStorage.setItem('forecastFavorites', JSON.stringify(filtered));
         
-        // Clear cache for removed location
-        clearLocationCache(locationKey);
+        // Find the favorite to get its key for cache clearing
+        const removedFavorite = favorites.find(fav => fav.uid === identifier || fav.key === identifier);
+        if (removedFavorite && removedFavorite.key) {
+            clearLocationCache(removedFavorite.key);
+        }
         
         return true;
     } catch (error) {
@@ -1133,30 +1199,50 @@ function removeFavorite(locationKey) {
     }
 }
 
-function isFavorite(locationKey) {
-    if (!locationKey) return false;
+function isFavorite(identifier) {
+    if (!identifier) return false;
     const favorites = getFavorites();
-    return favorites.some(fav => fav.key === locationKey);
+    // Check by UID first (preferred), then by key (backward compatibility)
+    return favorites.some(fav => fav.uid === identifier || fav.key === identifier);
+}
+
+function getFavoriteByUID(uid) {
+    if (!uid) return null;
+    const favorites = getFavorites();
+    return favorites.find(fav => fav.uid === uid) || null;
 }
 
 function getFavoriteByKey(locationKey) {
     if (!locationKey) return null;
     const favorites = getFavorites();
-    return favorites.find(fav => fav.key === locationKey) || null;
+    // Prefer UID-based lookup, but support key for backward compatibility
+    const byKey = favorites.find(fav => fav.key === locationKey);
+    if (byKey) return byKey;
+    
+    // If not found by key, try to find by matching location
+    if (appState.location) {
+        const uid = generateLocationUID(appState.location);
+        if (uid) {
+            return favorites.find(fav => fav.uid === uid) || null;
+        }
+    }
+    
+    return null;
 }
 
-function updateFavoriteCustomName(locationKey, customName) {
+function updateFavoriteCustomName(identifier, customName) {
     try {
-        if (!locationKey) {
-            console.warn('Cannot update custom name: locationKey is required');
+        if (!identifier) {
+            console.warn('Cannot update custom name: identifier (UID or key) is required');
             return false;
         }
         
         const favorites = getFavorites();
-        const favoriteIndex = favorites.findIndex(fav => fav.key === locationKey);
+        // Support both UID and key for backward compatibility
+        const favoriteIndex = favorites.findIndex(fav => fav.uid === identifier || fav.key === identifier);
         
         if (favoriteIndex === -1) {
-            console.warn('Cannot update custom name: favorite not found', locationKey);
+            console.warn('Cannot update custom name: favorite not found', identifier);
             return false;
         }
         
@@ -1168,7 +1254,7 @@ function updateFavoriteCustomName(locationKey, customName) {
         }
         
         localStorage.setItem('forecastFavorites', JSON.stringify(favorites));
-        console.log('Favorite custom name updated:', locationKey, favorites[favoriteIndex].customName || 'removed');
+        console.log('Favorite custom name updated:', identifier, favorites[favoriteIndex].customName || 'removed');
         return true;
     } catch (error) {
         console.error('Failed to update favorite custom name:', error);
@@ -1343,7 +1429,7 @@ function toggleLocationsDrawer() {
     }
 }
 
-function renderLocationButtons(activeLocationKey = null) {
+function renderLocationButtons(activeUID = null) {
     if (!elements.locationButtons) return;
     
     const favorites = getFavorites();
@@ -1353,11 +1439,11 @@ function renderLocationButtons(activeLocationKey = null) {
         return;
     }
     
-    // Get current location key to determine which button should be active
-    // Use provided activeLocationKey if available, otherwise try to generate from appState.location
-    let currentLocationKey = activeLocationKey;
-    if (!currentLocationKey && appState.location) {
-        currentLocationKey = generateLocationKey(appState.location);
+    // Get current location UID to determine which button should be active
+    // Use provided activeUID if available, otherwise try to generate from appState.location
+    let currentUID = activeUID;
+    if (!currentUID && appState.location) {
+        currentUID = generateLocationUID(appState.location);
     }
     
     let html = '';
@@ -1365,10 +1451,12 @@ function renderLocationButtons(activeLocationKey = null) {
         // Use customName if available, otherwise fall back to name
         const displayName = favorite.customName || favorite.name;
         const truncatedName = truncateCityName(displayName, 20);
-        // Add 'active' class if this favorite matches the current location
-        const isActive = currentLocationKey && favorite.key === currentLocationKey;
+        // Add 'active' class if this favorite matches the current location (check by UID)
+        const isActive = currentUID && favorite.uid === currentUID;
         const activeClass = isActive ? ' active' : '';
-        html += `<button class="location-btn${activeClass}" data-location-key="${favorite.key}" data-custom-name="${favorite.customName || ''}">${truncatedName}</button>`;
+        // Use UID as the primary identifier in data attribute
+        const uid = favorite.uid || favorite.key; // Fallback to key for old favorites without UID
+        html += `<button class="location-btn${activeClass}" data-location-uid="${uid}" data-location-key="${favorite.key || ''}" data-custom-name="${favorite.customName || ''}">${truncatedName}</button>`;
     });
     
     elements.locationButtons.innerHTML = html;
