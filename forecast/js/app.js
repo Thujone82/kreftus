@@ -71,7 +71,11 @@ async function init() {
     }
     
     // Migrate old favorites to new format (do this early, before favorites are used)
-    migrateFavorites();
+    // Run after elements are initialized so error messages can be displayed
+    const migrationSuccess = migrateFavorites();
+    if (!migrationSuccess) {
+        console.warn('Favorites migration failed - favorites have been cleared');
+    }
     
     // Set up event listeners FIRST - this is critical!
     console.log('Setting up event listeners...');
@@ -842,65 +846,175 @@ function migrateFavorites() {
     try {
         const favorites = getFavorites();
         if (favorites.length === 0) {
-            return false; // No favorites to migrate
+            return true; // No favorites to migrate, success
         }
         
-        let needsMigration = false;
-        const migratedFavorites = favorites.map(favorite => {
-            // Check if favorite has a location object
-            if (!favorite.location || !favorite.location.city || !favorite.location.state) {
-                // Old favorite might not have location object, skip it
-                return favorite;
-            }
+        const migratedFavorites = [];
+        const failedFavorites = [];
+        
+        // Verify and fix each favorite
+        for (let i = 0; i < favorites.length; i++) {
+            const favorite = favorites[i];
+            let canFix = false;
+            let fixedFavorite = null;
             
-            // Generate the correct key using the new method
-            const correctKey = generateLocationKey(favorite.location);
-            
-            // Check if the key needs to be updated
-            if (correctKey && favorite.key !== correctKey) {
-                console.log('Migrating favorite:', {
-                    oldKey: favorite.key,
-                    newKey: correctKey,
-                    location: favorite.location
-                });
-                needsMigration = true;
+            try {
+                // Check if favorite has required structure
+                if (!favorite || typeof favorite !== 'object') {
+                    console.warn('Invalid favorite structure at index', i, favorite);
+                    failedFavorites.push({ index: i, reason: 'Invalid structure' });
+                    continue;
+                }
                 
-                // Update the key
-                const migratedFavorite = {
-                    ...favorite,
-                    key: correctKey
+                // Check if favorite has a location object with city and state
+                if (!favorite.location || !favorite.location.city || !favorite.location.state) {
+                    console.warn('Favorite missing location data at index', i, favorite);
+                    failedFavorites.push({ index: i, reason: 'Missing location data' });
+                    continue;
+                }
+                
+                // Generate the correct key using the new method
+                const correctKey = generateLocationKey(favorite.location);
+                
+                if (!correctKey) {
+                    console.warn('Cannot generate key for favorite at index', i, favorite);
+                    failedFavorites.push({ index: i, reason: 'Cannot generate key' });
+                    continue;
+                }
+                
+                // Create fixed favorite with correct key
+                fixedFavorite = {
+                    key: correctKey,
+                    name: favorite.name || '',
+                    location: favorite.location,
+                    searchQuery: favorite.searchQuery || favorite.name || ''
                 };
                 
-                // Also need to migrate cache if it exists with old key
-                const oldCache = loadWeatherDataFromCache(favorite.key);
-                if (oldCache) {
-                    // Copy cache to new key location
+                // Preserve customName if it exists
+                if (favorite.customName !== undefined) {
+                    fixedFavorite.customName = favorite.customName;
+                }
+                
+                // Verify the fixed favorite is valid
+                if (!fixedFavorite.key || !fixedFavorite.location || !fixedFavorite.location.city || !fixedFavorite.location.state) {
+                    console.warn('Fixed favorite is still invalid at index', i, fixedFavorite);
+                    failedFavorites.push({ index: i, reason: 'Fixed favorite invalid' });
+                    continue;
+                }
+                
+                canFix = true;
+                
+                // Migrate cache if it exists with old key
+                if (favorite.key && favorite.key !== correctKey) {
                     try {
-                        localStorage.setItem(`forecastCachedData_${correctKey}`, JSON.stringify(oldCache.data));
-                        localStorage.setItem(`forecastCachedLocation_${correctKey}`, oldCache.location);
-                        localStorage.setItem(`forecastCachedTimestamp_${correctKey}`, oldCache.timestamp.toISOString());
-                        console.log('Migrated cache from', favorite.key, 'to', correctKey);
-                    } catch (error) {
-                        console.warn('Failed to migrate cache for favorite:', favorite.key, error);
+                        const oldCache = loadWeatherDataFromCache(favorite.key);
+                        if (oldCache) {
+                            // Copy cache to new key location
+                            localStorage.setItem(`forecastCachedData_${correctKey}`, JSON.stringify(oldCache.data));
+                            localStorage.setItem(`forecastCachedLocation_${correctKey}`, oldCache.location);
+                            localStorage.setItem(`forecastCachedTimestamp_${correctKey}`, oldCache.timestamp.toISOString());
+                            console.log('Migrated cache from', favorite.key, 'to', correctKey);
+                        }
+                    } catch (cacheError) {
+                        console.warn('Failed to migrate cache for favorite:', favorite.key, cacheError);
+                        // Don't fail the migration if cache migration fails
                     }
                 }
                 
-                return migratedFavorite;
+            } catch (error) {
+                console.error('Error processing favorite at index', i, error);
+                failedFavorites.push({ index: i, reason: 'Processing error: ' + error.message });
+                continue;
             }
             
-            return favorite;
-        });
-        
-        // Save migrated favorites if any changes were made
-        if (needsMigration) {
-            localStorage.setItem('forecastFavorites', JSON.stringify(migratedFavorites));
-            console.log('Favorites migration completed. Updated', migratedFavorites.length, 'favorites');
-            return true;
+            if (canFix && fixedFavorite) {
+                migratedFavorites.push(fixedFavorite);
+                console.log('Successfully migrated favorite:', {
+                    oldKey: favorite.key,
+                    newKey: fixedFavorite.key,
+                    name: fixedFavorite.name
+                });
+            }
         }
         
-        return false;
+        // If any favorites failed to migrate, flush all and show error
+        if (failedFavorites.length > 0) {
+            console.error('Failed to migrate', failedFavorites.length, 'favorites:', failedFavorites);
+            
+            // Clear all favorites
+            try {
+                localStorage.removeItem('forecastFavorites');
+                console.log('Cleared all favorites due to migration failure');
+            } catch (error) {
+                console.error('Failed to clear favorites:', error);
+            }
+            
+            // Show error message to user
+            if (elements.errorMessage) {
+                showError('Failed to migrate Favorites. All favorites have been cleared. Please re-add your favorite locations.');
+            } else {
+                // If errorMessage element isn't ready yet, show alert
+                setTimeout(() => {
+                    if (elements.errorMessage) {
+                        showError('Failed to migrate Favorites. All favorites have been cleared. Please re-add your favorite locations.');
+                    } else {
+                        alert('Failed to migrate Favorites. All favorites have been cleared. Please re-add your favorite locations.');
+                    }
+                }, 1000);
+            }
+            
+            return false;
+        }
+        
+        // All favorites were successfully migrated, save them
+        if (migratedFavorites.length > 0) {
+            try {
+                localStorage.setItem('forecastFavorites', JSON.stringify(migratedFavorites));
+                console.log('Favorites migration completed successfully. Migrated', migratedFavorites.length, 'favorites');
+                return true;
+            } catch (error) {
+                console.error('Failed to save migrated favorites:', error);
+                
+                // Clear favorites and show error
+                try {
+                    localStorage.removeItem('forecastFavorites');
+                } catch (clearError) {
+                    console.error('Failed to clear favorites:', clearError);
+                }
+                
+                if (elements.errorMessage) {
+                    showError('Failed to migrate Favorites. All favorites have been cleared. Please re-add your favorite locations.');
+                }
+                
+                return false;
+            }
+        }
+        
+        // No favorites to migrate (all were invalid and removed)
+        return true;
+        
     } catch (error) {
-        console.error('Failed to migrate favorites:', error);
+        console.error('Critical error during favorites migration:', error);
+        
+        // Clear favorites and show error
+        try {
+            localStorage.removeItem('forecastFavorites');
+        } catch (clearError) {
+            console.error('Failed to clear favorites:', clearError);
+        }
+        
+        if (elements.errorMessage) {
+            showError('Failed to migrate Favorites. All favorites have been cleared. Please re-add your favorite locations.');
+        } else {
+            setTimeout(() => {
+                if (elements.errorMessage) {
+                    showError('Failed to migrate Favorites. All favorites have been cleared. Please re-add your favorite locations.');
+                } else {
+                    alert('Failed to migrate Favorites. All favorites have been cleared. Please re-add your favorite locations.');
+                }
+            }, 1000);
+        }
+        
         return false;
     }
 }
