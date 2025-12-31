@@ -1632,6 +1632,17 @@ function restoreDatesFromCache(weatherData) {
         }
     }
     
+    // Restore tide data dates (lastTide.time and nextTide.time)
+    if (weatherData.noaaStation && weatherData.noaaStation.tideData) {
+        const tideData = weatherData.noaaStation.tideData;
+        if (tideData.lastTide && tideData.lastTide.time) {
+            tideData.lastTide.time = new Date(tideData.lastTide.time);
+        }
+        if (tideData.nextTide && tideData.nextTide.time) {
+            tideData.nextTide.time = new Date(tideData.nextTide.time);
+        }
+    }
+    
     return weatherData;
 }
 
