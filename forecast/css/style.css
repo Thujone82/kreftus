@@ -353,6 +353,12 @@ main {
     transform: translateY(0);
 }
 
+.location-btn.active {
+    background-color: var(--color-title);
+    color: var(--color-bg);
+    border-color: var(--color-title);
+}
+
 .location-btn-edit {
     padding: 0.5rem 0.75rem;
     background-color: var(--color-bg-secondary);

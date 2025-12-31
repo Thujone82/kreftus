@@ -655,6 +655,9 @@ async function handleLocationButtonClick(locationKey) {
         // Update star button state
         updateFavoriteButtonState();
         
+        // Update location buttons to highlight the active one
+        renderLocationButtons();
+        
         // Check if cache is stale and refresh in background
         const cache = loadWeatherDataFromCache(locationKey);
         if (cache && isCacheStale(cache.timestamp)) {
@@ -666,6 +669,8 @@ async function handleLocationButtonClick(locationKey) {
     } else {
         // No cache, load fresh data
         await loadWeatherData(favorite.searchQuery, false, false);
+        // Update location buttons to highlight the active one
+        renderLocationButtons();
     }
 }
 
@@ -1081,12 +1086,18 @@ function renderLocationButtons() {
         return;
     }
     
+    // Get current location key to determine which button should be active
+    const currentLocationKey = appState.location ? generateLocationKey(appState.location) : null;
+    
     let html = '';
     favorites.forEach(favorite => {
         // Use customName if available, otherwise fall back to name
         const displayName = favorite.customName || favorite.name;
         const truncatedName = truncateCityName(displayName, 20);
-        html += `<button class="location-btn" data-location-key="${favorite.key}" data-custom-name="${favorite.customName || ''}">${truncatedName}</button>`;
+        // Add 'active' class if this favorite matches the current location
+        const isActive = currentLocationKey && favorite.key === currentLocationKey;
+        const activeClass = isActive ? ' active' : '';
+        html += `<button class="location-btn${activeClass}" data-location-key="${favorite.key}" data-custom-name="${favorite.customName || ''}">${truncatedName}</button>`;
     });
     
     elements.locationButtons.innerHTML = html;
@@ -1263,6 +1274,12 @@ function loadCachedWeatherData(locationKey = null) {
         // Update last update time
         updateLastUpdateTime();
         
+        // Update favorite button state
+        updateFavoriteButtonState();
+        
+        // Update location buttons to highlight the active one
+        renderLocationButtons();
+        
         // Render current mode to display cached data
         renderCurrentMode();
         
@@ -1331,6 +1348,9 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         
         // Update favorite button state
         updateFavoriteButtonState();
+        
+        // Update location buttons to highlight the active one
+        renderLocationButtons();
         
         // Render current mode
         renderCurrentMode();
