@@ -1018,11 +1018,14 @@ function migrateFavorites() {
             
             if (canFix && fixedFavorite) {
                 migratedFavorites.push(fixedFavorite);
+                const displayName = fixedFavorite.customName || fixedFavorite.name;
                 console.log('Successfully migrated favorite:', {
                     oldKey: favorite.key,
                     newKey: fixedFavorite.key,
                     uid: fixedFavorite.uid,
-                    name: fixedFavorite.name
+                    name: fixedFavorite.name,
+                    displayName: displayName,
+                    hasCustomName: !!fixedFavorite.customName
                 });
             }
         }
