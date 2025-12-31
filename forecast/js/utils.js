@@ -378,20 +378,26 @@ function formatTime(date, timeZoneId) {
     }
 }
 
-// Format date/time in location timezone
+// Format date/time in specified timezone (or viewer's local timezone if timeZoneId is null/undefined)
 function formatDateTime(date, timeZoneId) {
     if (!date) return "";
     
     try {
-        const formatter = new Intl.DateTimeFormat('en-US', {
-            timeZone: timeZoneId,
+        const options = {
             month: '2-digit',
             day: '2-digit',
             year: 'numeric',
             hour: '2-digit',
             minute: '2-digit',
             hour12: true
-        });
+        };
+        
+        // Only set timeZone if provided (null/undefined means use viewer's local timezone)
+        if (timeZoneId) {
+            options.timeZone = timeZoneId;
+        }
+        
+        const formatter = new Intl.DateTimeFormat('en-US', options);
         return formatter.format(date);
     } catch (error) {
         return date.toLocaleString();
