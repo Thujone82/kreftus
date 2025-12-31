@@ -277,16 +277,8 @@ function processObservationsData(observationsData, timeZoneId) {
                 const windGustKmh = props.windGust.value;
                 const windGustMph = windGustKmh * 0.621371;
                 
-                // Filter out unrealistic gust values (>100 mph gusts are extremely rare)
-                // Also ensure gust is reasonable compared to wind speed
-                const currentWindSpeed = dailyData[obsDate].windSpeeds.length > 0 
-                    ? dailyData[obsDate].windSpeeds[dailyData[obsDate].windSpeeds.length - 1]
-                    : null;
-                if (windGustMph <= 150 && (currentWindSpeed === null || windGustMph <= currentWindSpeed * 3)) {
-                    dailyData[obsDate].windGusts.push(windGustMph);
-                } else {
-                    console.warn('Filtered unrealistic wind gust:', windGustMph, 'mph (raw value:', windGustKmh, 'km/h, windSpeed:', currentWindSpeed, 'mph)');
-                }
+                // Trust all gust values from the API - no filtering
+                dailyData[obsDate].windGusts.push(windGustMph);
             }
             
             // Extract wind direction

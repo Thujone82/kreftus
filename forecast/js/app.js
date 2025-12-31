@@ -862,8 +862,16 @@ function migrateFavorites() {
             return true; // No favorites to migrate, success
         }
         
+        // Check if all favorites already have UIDs (already migrated)
+        const allHaveUIDs = favorites.every(fav => fav.uid);
+        if (allHaveUIDs) {
+            console.log('All favorites already have UIDs, skipping migration');
+            return true; // Already migrated, no work needed
+        }
+        
         const migratedFavorites = [];
         const failedFavorites = [];
+        let newlyMigratedCount = 0;
         
         // Verify and fix each favorite
         for (let i = 0; i < favorites.length; i++) {
@@ -877,6 +885,12 @@ function migrateFavorites() {
                     console.warn('Invalid favorite structure at index', i, favorite);
                     failedFavorites.push({ index: i, reason: 'Invalid structure' });
                     continue;
+                }
+                
+                // Skip favorites that already have UIDs (already migrated)
+                if (favorite.uid) {
+                    migratedFavorites.push(favorite);
+                    continue; // Already migrated, no work needed
                 }
                 
                 // Check if favorite has a location object with city and state
@@ -995,6 +1009,7 @@ function migrateFavorites() {
             
             if (canFix && fixedFavorite) {
                 migratedFavorites.push(fixedFavorite);
+                newlyMigratedCount++;
                 const displayName = fixedFavorite.customName || fixedFavorite.name;
                 console.log('Successfully migrated favorite:', {
                     oldKey: favorite.key,
@@ -1036,11 +1051,12 @@ function migrateFavorites() {
             return false;
         }
         
-        // All favorites were successfully migrated, save them
-        if (migratedFavorites.length > 0) {
+        // All favorites were successfully processed
+        // Only save if we actually made changes (migrated some favorites)
+        if (newlyMigratedCount > 0 && migratedFavorites.length > 0) {
             try {
                 localStorage.setItem('forecastFavorites', JSON.stringify(migratedFavorites));
-                console.log('Favorites migration completed successfully. Migrated', migratedFavorites.length, 'favorites');
+                console.log('Favorites migration completed successfully. Migrated', newlyMigratedCount, 'favorites');
                 return true;
             } catch (error) {
                 console.error('Failed to save migrated favorites:', error);
@@ -1060,7 +1076,7 @@ function migrateFavorites() {
             }
         }
         
-        // No favorites to migrate (all were invalid and removed)
+        // No changes needed (all favorites already migrated or no favorites)
         return true;
         
     } catch (error) {
