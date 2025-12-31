@@ -873,8 +873,30 @@ function migrateFavorites() {
                     continue;
                 }
                 
-                // Generate the correct key using the new method
-                const correctKey = generateLocationKey(favorite.location);
+                // Try to get the correct location object from cache (if available)
+                // Old favorites might have state as "US" instead of the actual state code
+                let correctLocation = favorite.location;
+                let correctKey = null;
+                
+                // First, try to load cache with the old key to get the correct location
+                if (favorite.key) {
+                    try {
+                        const oldCache = loadWeatherDataFromCache(favorite.key);
+                        if (oldCache && oldCache.data && oldCache.data.weatherData && oldCache.data.weatherData.location) {
+                            // Use the location from cached weather data (this has the correct state)
+                            correctLocation = oldCache.data.weatherData.location;
+                            console.log('Found correct location in cache for favorite:', {
+                                oldLocation: favorite.location,
+                                correctLocation: correctLocation
+                            });
+                        }
+                    } catch (cacheError) {
+                        console.warn('Could not load cache to fix location for favorite:', favorite.key, cacheError);
+                    }
+                }
+                
+                // Generate the correct key using the corrected location
+                correctKey = generateLocationKey(correctLocation);
                 
                 if (!correctKey) {
                     console.warn('Cannot generate key for favorite at index', i, favorite);
@@ -882,11 +904,11 @@ function migrateFavorites() {
                     continue;
                 }
                 
-                // Create fixed favorite with correct key
+                // Create fixed favorite with correct key and location
                 fixedFavorite = {
                     key: correctKey,
                     name: favorite.name || '',
-                    location: favorite.location,
+                    location: correctLocation, // Use the corrected location object
                     searchQuery: favorite.searchQuery || favorite.name || ''
                 };
                 
@@ -904,7 +926,7 @@ function migrateFavorites() {
                 
                 canFix = true;
                 
-                // Migrate cache if it exists with old key
+                // Migrate cache if it exists with old key (or update key if location was corrected)
                 if (favorite.key && favorite.key !== correctKey) {
                     try {
                         const oldCache = loadWeatherDataFromCache(favorite.key);
@@ -918,6 +940,20 @@ function migrateFavorites() {
                     } catch (cacheError) {
                         console.warn('Failed to migrate cache for favorite:', favorite.key, cacheError);
                         // Don't fail the migration if cache migration fails
+                    }
+                } else if (favorite.key === correctKey && correctLocation !== favorite.location) {
+                    // Key is the same but location object was corrected - update cache if it exists
+                    try {
+                        const existingCache = loadWeatherDataFromCache(favorite.key);
+                        if (existingCache && existingCache.data && existingCache.data.weatherData) {
+                            // Update the location in the cached weather data
+                            existingCache.data.weatherData.location = correctLocation;
+                            localStorage.setItem(`forecastCachedData_${correctKey}`, JSON.stringify(existingCache.data));
+                            console.log('Updated location object in cache for favorite:', correctKey);
+                        }
+                    } catch (cacheError) {
+                        console.warn('Failed to update cache location for favorite:', favorite.key, cacheError);
+                        // Don't fail the migration if cache update fails
                     }
                 }
                 
