@@ -2059,9 +2059,55 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
 }
 
 // Handle refresh
+// Marks all 10-minute cache items (weather data, observations) as stale and forces reload
+// Preserves 1-week cache items (stations.json, water level support, tide predictions)
 async function handleRefresh() {
-    const location = elements.locationInput.value.trim() || 'here';
-    await loadWeatherData(location, false, true); // Use background mode to keep content visible
+    console.log('Refresh button clicked - marking 10-minute cache items as stale');
+    
+    // Mark all weather data cache timestamps as stale (10 minutes ago)
+    // This forces a reload of weather data, observations, etc.
+    const staleTimestamp = new Date(Date.now() - DATA_STALE_THRESHOLD - 1000); // 1 second past stale threshold
+    
+    try {
+        // Get all localStorage keys
+        const keys = Object.keys(localStorage);
+        
+        // Mark weather data cache timestamps as stale
+        keys.forEach(key => {
+            // Mark location-specific weather cache timestamps
+            if (key.startsWith('forecastCachedTimestamp_')) {
+                localStorage.setItem(key, staleTimestamp.toISOString());
+                console.log('Marked cache as stale:', key);
+            }
+        });
+        
+        // Mark default weather cache timestamp
+        if (localStorage.getItem('forecastCachedTimestamp')) {
+            localStorage.setItem('forecastCachedTimestamp', staleTimestamp.toISOString());
+            console.log('Marked default cache as stale');
+        }
+        
+        // Clear in-memory cache to force reload from localStorage (which now has stale timestamps)
+        appState.cachedWeatherDataByKey.clear();
+        
+        // Mark appState.lastFetchTime as stale so loadWeatherData will fetch fresh data
+        if (appState.lastFetchTime) {
+            appState.lastFetchTime = staleTimestamp;
+        }
+        
+        // Get current location and force reload
+        const location = elements.locationInput.value.trim() || 'here';
+        console.log('Forcing reload for location:', location);
+        
+        // Force reload by passing a flag or by ensuring cache is considered stale
+        // Since we've marked timestamps as stale, loadWeatherData should fetch fresh data
+        await loadWeatherData(location, false, false); // Don't use background mode for manual refresh - show loading
+    } catch (error) {
+        console.error('Error during refresh:', error);
+        // Fallback: just try to reload
+        const location = elements.locationInput.value.trim() || 'here';
+        await loadWeatherData(location, false, false);
+    }
 }
 
 // Switch display mode
