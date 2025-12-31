@@ -1348,6 +1348,17 @@ function saveWeatherDataToCache(weatherData, location, timestamp = null) {
             }
         }
         
+        // Set locationString from location object (needed for both UID-based and location-based keys)
+        if (location) {
+            if (typeof location === 'object' && location.city && location.state) {
+                // Store formatted location string for display (removes ", US")
+                locationString = formatLocationDisplayName(location.city, location.state);
+            } else if (typeof location === 'string') {
+                // Location string (backward compatibility)
+                locationString = location;
+            }
+        }
+        
         // Fallback to location key if no UID-based key found
         if (!cacheKey) {
             // Use appState.currentLocationKey if available (from favorite's key)
@@ -1355,16 +1366,11 @@ function saveWeatherDataToCache(weatherData, location, timestamp = null) {
             
             if (location) {
                 if (typeof location === 'object' && location.city && location.state) {
-                    // Location object
                     // Only generate key if we don't already have one from appState.currentLocationKey
                     if (!cacheKey) {
                         cacheKey = generateLocationKey(location);
                     }
-                    // Store formatted location string for display (removes ", US")
-                    locationString = formatLocationDisplayName(location.city, location.state);
                 } else if (typeof location === 'string') {
-                    // Location string (backward compatibility)
-                    locationString = location;
                     // Try to parse location string to get key (only if we don't have one from appState)
                     if (!cacheKey) {
                         const parts = location.split(',').map(s => s.trim());
