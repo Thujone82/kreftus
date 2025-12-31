@@ -1639,6 +1639,10 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
         // This must be set BEFORE any other operations to ensure it's preserved
         // The cache timestamp represents when the NWS API was called, which is what we display
         const cacheTimestamp = cache.timestamp instanceof Date ? cache.timestamp : new Date(cache.timestamp);
+        // DEFENSIVE: Log if lastFetchTime is being overwritten
+        if (appState.lastFetchTime && appState.lastFetchTime !== cacheTimestamp) {
+            console.warn('Overwriting lastFetchTime:', appState.lastFetchTime.toISOString(), 'with cache timestamp:', cacheTimestamp.toISOString());
+        }
         appState.lastFetchTime = cacheTimestamp;
         console.log('Loaded cache timestamp (NWS fetch time):', cacheTimestamp.toISOString(), 'Age:', Math.round((Date.now() - cacheTimestamp.getTime()) / 1000), 'seconds');
         
@@ -1823,18 +1827,25 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
         // This allows browser to batch all DOM updates together
         // IMPORTANT: Capture cacheTimestamp here to ensure it's not modified by any async operations
         const preservedCacheTimestamp = appState.lastFetchTime;
+        console.log('Preserving cache timestamp for UI updates:', preservedCacheTimestamp.toISOString());
         requestAnimationFrame(() => {
-            // Ensure lastFetchTime is still set to cache timestamp (defensive check)
+            // CRITICAL: Ensure lastFetchTime is still set to cache timestamp (defensive check)
             // This prevents any accidental overwrites during async operations
-            if (preservedCacheTimestamp && appState.lastFetchTime !== preservedCacheTimestamp) {
-                console.warn('lastFetchTime was modified, restoring cache timestamp');
-                appState.lastFetchTime = preservedCacheTimestamp;
+            if (preservedCacheTimestamp) {
+                if (appState.lastFetchTime !== preservedCacheTimestamp) {
+                    console.warn('lastFetchTime was modified during async operations, restoring cache timestamp');
+                    console.warn('  Was:', appState.lastFetchTime instanceof Date ? appState.lastFetchTime.toISOString() : appState.lastFetchTime);
+                    console.warn('  Restoring to:', preservedCacheTimestamp.toISOString());
+                    appState.lastFetchTime = preservedCacheTimestamp;
+                } else {
+                    console.log('lastFetchTime correctly preserved:', appState.lastFetchTime.toISOString());
+                }
             }
             
             // Update History button state
             updateHistoryButtonState();
             
-            // Update last update time
+            // Update last update time (this uses appState.lastFetchTime, so it should be correct now)
             updateLastUpdateTime();
             
             // Update favorite button state (use locationKey if provided)
@@ -1845,7 +1856,16 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
             renderLocationButtons(cachedLocationKey);
             
             // Render current mode to display cached data (already uses requestAnimationFrame internally)
+            // This will call displayCurrentConditions which uses appState.lastFetchTime
             renderCurrentMode();
+            
+            // Final defensive check after rendering
+            if (preservedCacheTimestamp && appState.lastFetchTime !== preservedCacheTimestamp) {
+                console.error('CRITICAL: lastFetchTime was modified during rendering, restoring cache timestamp');
+                appState.lastFetchTime = preservedCacheTimestamp;
+                // Re-render to show correct timestamp
+                updateLastUpdateTime();
+            }
         });
         
         return true;
@@ -1902,17 +1922,38 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             if (cache && cache.data && !isCacheStale(cache.timestamp)) {
                 // Cache is fresh - use it instead of fetching
                 console.log('Using fresh cached data for location:', location);
+                // CRITICAL: Preserve the cache timestamp BEFORE loading cached data
+                // This ensures appState.lastFetchTime reflects the actual NWS fetch time
+                const preservedCacheTimestamp = cache.timestamp instanceof Date ? cache.timestamp : new Date(cache.timestamp);
                 const cacheLoaded = loadCachedWeatherData(null, location);
                 if (cacheLoaded) {
+                    // DEFENSIVE: Ensure lastFetchTime is set to the cache timestamp
+                    // This prevents any accidental overwrites during async operations
+                    if (appState.lastFetchTime !== preservedCacheTimestamp) {
+                        console.warn('lastFetchTime was modified during loadCachedWeatherData, restoring cache timestamp');
+                        appState.lastFetchTime = preservedCacheTimestamp;
+                    }
+                    console.log('Cache loaded, lastFetchTime set to:', appState.lastFetchTime.toISOString(), 'Age:', Math.round((Date.now() - appState.lastFetchTime.getTime()) / 1000), 'seconds');
                     setLoading(false, background);
                     // Still trigger background refresh if cache is getting close to stale
-                    const cacheAge = Date.now() - cache.timestamp;
+                    const cacheAge = Date.now() - preservedCacheTimestamp.getTime();
                     const refreshThreshold = DATA_STALE_THRESHOLD * 0.8; // Refresh at 80% of stale threshold
                     if (cacheAge > refreshThreshold) {
                         console.log('Cache is getting close to stale, refreshing in background...');
+                        // CRITICAL: Preserve timestamp before background refresh
+                        // The background refresh should NOT overwrite the displayed timestamp until it completes
+                        const timestampBeforeRefresh = appState.lastFetchTime;
                         setTimeout(() => {
-                            loadWeatherData(location, false, true).catch(error => {
+                            loadWeatherData(location, false, true).then(() => {
+                                // Background refresh completed - timestamp will be updated with new fetch time
+                                console.log('Background refresh completed, timestamp updated to:', appState.lastFetchTime.toISOString());
+                            }).catch(error => {
+                                // On error, restore the original timestamp
                                 console.error('Background refresh failed:', error);
+                                if (appState.lastFetchTime !== timestampBeforeRefresh) {
+                                    appState.lastFetchTime = timestampBeforeRefresh;
+                                    updateLastUpdateTime();
+                                }
                             });
                         }, 100);
                     }
@@ -1968,6 +2009,11 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         // This ensures the "Updated:" field reflects when the NWS data was actually fetched
         // weatherData.fetchTime is set at the START of NWS API calls in fetchWeatherData()
         const nwsFetchTime = weatherData.fetchTime || new Date();
+        // DEFENSIVE: Log if lastFetchTime is being overwritten (only if it was set from cache)
+        if (appState.lastFetchTime && appState.lastFetchTime !== nwsFetchTime) {
+            const previousTime = appState.lastFetchTime instanceof Date ? appState.lastFetchTime.toISOString() : appState.lastFetchTime;
+            console.log('Updating lastFetchTime from cache:', previousTime, 'to NWS fetch time:', nwsFetchTime.toISOString());
+        }
         appState.lastFetchTime = nwsFetchTime;
         console.log('Set lastFetchTime from NWS API fetch:', nwsFetchTime.toISOString());
         appState.hourlyScrollIndex = 0;
