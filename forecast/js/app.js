@@ -1916,50 +1916,65 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         // If location is a search query, we'll need to geocode first to get the key
         // But we can check if we have cached data for the same location string
         const cachedLocation = localStorage.getItem('forecastCachedLocation');
+        console.log('Cache check - location:', location, 'cachedLocation:', cachedLocation);
         if (cachedLocation && cachedLocation.toLowerCase() === location.toLowerCase()) {
             // Same location as cached - check if cache is fresh
             const cache = loadWeatherDataFromCache();
-            if (cache && cache.data && !isCacheStale(cache.timestamp)) {
-                // Cache is fresh - use it instead of fetching
-                console.log('Using fresh cached data for location:', location);
-                // CRITICAL: Preserve the cache timestamp BEFORE loading cached data
-                // This ensures appState.lastFetchTime reflects the actual NWS fetch time
-                const preservedCacheTimestamp = cache.timestamp instanceof Date ? cache.timestamp : new Date(cache.timestamp);
-                const cacheLoaded = loadCachedWeatherData(null, location);
-                if (cacheLoaded) {
-                    // DEFENSIVE: Ensure lastFetchTime is set to the cache timestamp
-                    // This prevents any accidental overwrites during async operations
-                    if (appState.lastFetchTime !== preservedCacheTimestamp) {
-                        console.warn('lastFetchTime was modified during loadCachedWeatherData, restoring cache timestamp');
-                        appState.lastFetchTime = preservedCacheTimestamp;
+            console.log('Cache found for location:', location, 'timestamp:', cache?.timestamp, 'hasData:', !!cache?.data);
+            if (cache && cache.data) {
+                const cacheTimestamp = cache.timestamp instanceof Date ? cache.timestamp : new Date(cache.timestamp);
+                const cacheAge = Date.now() - cacheTimestamp.getTime();
+                const isStale = isCacheStale(cache.timestamp);
+                console.log('Cache age:', Math.round(cacheAge / 1000), 'seconds, isStale:', isStale);
+                if (!isStale) {
+                    // Cache is fresh - use it instead of fetching
+                    console.log('Using fresh cached data for location:', location, 'cache timestamp:', cacheTimestamp.toISOString());
+                    // CRITICAL: Preserve the cache timestamp BEFORE loading cached data
+                    // This ensures appState.lastFetchTime reflects the actual NWS fetch time
+                    const preservedCacheTimestamp = cacheTimestamp;
+                    const cacheLoaded = loadCachedWeatherData(null, location);
+                    if (cacheLoaded) {
+                        // DEFENSIVE: Ensure lastFetchTime is set to the cache timestamp
+                        // This prevents any accidental overwrites during async operations
+                        if (appState.lastFetchTime !== preservedCacheTimestamp) {
+                            console.warn('lastFetchTime was modified during loadCachedWeatherData, restoring cache timestamp');
+                            appState.lastFetchTime = preservedCacheTimestamp;
+                        }
+                        console.log('Cache loaded successfully, lastFetchTime set to:', appState.lastFetchTime.toISOString(), 'Age:', Math.round((Date.now() - appState.lastFetchTime.getTime()) / 1000), 'seconds');
+                        setLoading(false, background);
+                        // Still trigger background refresh if cache is getting close to stale
+                        const refreshThreshold = DATA_STALE_THRESHOLD * 0.8; // Refresh at 80% of stale threshold
+                        if (cacheAge > refreshThreshold) {
+                            console.log('Cache is getting close to stale, refreshing in background...');
+                            // CRITICAL: Preserve timestamp before background refresh
+                            // The background refresh should NOT overwrite the displayed timestamp until it completes
+                            const timestampBeforeRefresh = appState.lastFetchTime;
+                            setTimeout(() => {
+                                loadWeatherData(location, false, true).then(() => {
+                                    // Background refresh completed - timestamp will be updated with new fetch time
+                                    console.log('Background refresh completed, timestamp updated to:', appState.lastFetchTime.toISOString());
+                                }).catch(error => {
+                                    // On error, restore the original timestamp
+                                    console.error('Background refresh failed:', error);
+                                    if (appState.lastFetchTime !== timestampBeforeRefresh) {
+                                        appState.lastFetchTime = timestampBeforeRefresh;
+                                        updateLastUpdateTime();
+                                    }
+                                });
+                            }, 100);
+                        }
+                        return;
+                    } else {
+                        console.warn('loadCachedWeatherData returned false, will fetch fresh data');
                     }
-                    console.log('Cache loaded, lastFetchTime set to:', appState.lastFetchTime.toISOString(), 'Age:', Math.round((Date.now() - appState.lastFetchTime.getTime()) / 1000), 'seconds');
-                    setLoading(false, background);
-                    // Still trigger background refresh if cache is getting close to stale
-                    const cacheAge = Date.now() - preservedCacheTimestamp.getTime();
-                    const refreshThreshold = DATA_STALE_THRESHOLD * 0.8; // Refresh at 80% of stale threshold
-                    if (cacheAge > refreshThreshold) {
-                        console.log('Cache is getting close to stale, refreshing in background...');
-                        // CRITICAL: Preserve timestamp before background refresh
-                        // The background refresh should NOT overwrite the displayed timestamp until it completes
-                        const timestampBeforeRefresh = appState.lastFetchTime;
-                        setTimeout(() => {
-                            loadWeatherData(location, false, true).then(() => {
-                                // Background refresh completed - timestamp will be updated with new fetch time
-                                console.log('Background refresh completed, timestamp updated to:', appState.lastFetchTime.toISOString());
-                            }).catch(error => {
-                                // On error, restore the original timestamp
-                                console.error('Background refresh failed:', error);
-                                if (appState.lastFetchTime !== timestampBeforeRefresh) {
-                                    appState.lastFetchTime = timestampBeforeRefresh;
-                                    updateLastUpdateTime();
-                                }
-                            });
-                        }, 100);
-                    }
-                    return;
+                } else {
+                    console.log('Cache is stale, will fetch fresh data');
                 }
+            } else {
+                console.log('Cache missing or invalid, will fetch fresh data');
             }
+        } else {
+            console.log('Location mismatch or no cached location, will fetch fresh data. Location:', location, 'Cached:', cachedLocation);
         }
         
         // Ensure fetchWeatherData is available (from api.js)
