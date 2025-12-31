@@ -519,11 +519,67 @@ function calculateDistanceMiles(lat1, lon1, lat2, lon2) {
     return distance;
 }
 
+// Cache duration for stations.json: 1 week (7 days)
+const STATIONS_CACHE_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+const STATIONS_CACHE_KEY = 'forecastNoaaStations';
+const STATIONS_CACHE_TIMESTAMP_KEY = 'forecastNoaaStationsTimestamp';
+
+// Load cached stations.json if available and fresh
+function loadCachedStations() {
+    try {
+        const cachedData = localStorage.getItem(STATIONS_CACHE_KEY);
+        const cachedTimestamp = localStorage.getItem(STATIONS_CACHE_TIMESTAMP_KEY);
+        
+        if (!cachedData || !cachedTimestamp) {
+            return null;
+        }
+        
+        const timestamp = parseInt(cachedTimestamp, 10);
+        const age = Date.now() - timestamp;
+        
+        if (age < STATIONS_CACHE_DURATION_MS) {
+            const stations = JSON.parse(cachedData);
+            console.log('Using cached stations.json (age:', Math.round(age / (60 * 60 * 1000)), 'hours,', stations.length, 'stations)');
+            return stations;
+        } else {
+            console.log('Cached stations.json is stale (age:', Math.round(age / (24 * 60 * 60 * 1000)), 'days), will refresh');
+            // Clear stale cache
+            localStorage.removeItem(STATIONS_CACHE_KEY);
+            localStorage.removeItem(STATIONS_CACHE_TIMESTAMP_KEY);
+            return null;
+        }
+    } catch (error) {
+        console.error('Error loading cached stations.json:', error);
+        return null;
+    }
+}
+
+// Save stations.json to cache
+function saveStationsToCache(stations) {
+    try {
+        if (stations && Array.isArray(stations)) {
+            localStorage.setItem(STATIONS_CACHE_KEY, JSON.stringify(stations));
+            localStorage.setItem(STATIONS_CACHE_TIMESTAMP_KEY, Date.now().toString());
+            console.log('Saved stations.json to cache (', stations.length, 'stations)');
+        }
+    } catch (error) {
+        console.error('Error saving stations.json to cache:', error);
+    }
+}
+
 // Fetch NOAA stations.json (can be called in parallel)
+// Uses cache if available and fresh (1 week), otherwise fetches from API
 async function fetchNoaaStationsJson() {
     try {
+        // Check cache first
+        const cachedStations = loadCachedStations();
+        if (cachedStations) {
+            return cachedStations;
+        }
+        
+        // Cache miss or stale - fetch from API
         const apiUrl = 'https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json';
-        console.log('Fetching NOAA stations.json:', apiUrl);
+        console.log('Fetching NOAA stations.json from API:', apiUrl);
         
         const response = await fetch(apiUrl, {
             method: 'GET',
@@ -540,8 +596,13 @@ async function fetchNoaaStationsJson() {
         const apiResponse = await response.json();
         
         if (apiResponse && apiResponse.stations) {
-            console.log('Fetched', apiResponse.stations.length, 'stations from NOAA API');
-            return apiResponse.stations;
+            const stations = apiResponse.stations;
+            console.log('Fetched', stations.length, 'stations from NOAA API');
+            
+            // Save to cache
+            saveStationsToCache(stations);
+            
+            return stations;
         }
         
         return null;
@@ -559,35 +620,15 @@ async function fetchNoaaTideStation(lat, lon, preFetchedStations = null) {
         
         let stations = preFetchedStations;
         
-        // Use pre-fetched stations if provided, otherwise fetch from API
+        // Use pre-fetched stations if provided, otherwise try cache, then fetch from API
         if (!stations) {
-            // Use NOAA CO-OPS Metadata API to get all stations and filter by distance
-            const apiUrl = 'https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json';
-            console.log('Fetching stations from NOAA API:', apiUrl);
+            // Try to use cached stations first (will check freshness internally)
+            stations = await fetchNoaaStationsJson();
             
-            try {
-                const response = await fetch(apiUrl, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json'
-                    }
-                });
-                
-                if (!response.ok) {
-                    console.log('NOAA API returned status:', response.status);
-                    return null;
-                }
-                
-                const apiResponse = await response.json();
-                if (apiResponse && apiResponse.stations) {
-                    stations = apiResponse.stations;
-                    console.log('Found', stations.length, 'stations from API');
-                } else {
-                    console.log('API response does not contain stations data');
-                    return null;
-                }
-            } catch (error) {
-                console.error('Error fetching from NOAA API:', error);
+            // If cache returned null (stale or missing), fetchNoaaStationsJson will have fetched fresh data
+            // So stations should now be populated if available
+            if (!stations) {
+                console.log('No stations available from cache or API');
                 return null;
             }
         } else {

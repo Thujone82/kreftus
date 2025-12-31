@@ -1719,6 +1719,54 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         setLoading(true, background);
         hideError();
         
+        // Check if we already have fresh data for this location in appState
+        // This prevents unnecessary API calls when switching tabs or re-rendering
+        if (appState.weatherData && appState.location && appState.lastFetchTime) {
+            const locationText = formatLocationDisplayName(appState.location.city, appState.location.state);
+            const locationMatch = location.toLowerCase() === locationText.toLowerCase() || 
+                                 location.toLowerCase() === 'here' && locationText.toLowerCase() !== '';
+            
+            if (locationMatch && !isCacheStale(appState.lastFetchTime)) {
+                // We already have fresh data for this location - just render it
+                console.log('Using existing fresh data for location:', location);
+                setLoading(false, background);
+                renderCurrentMode();
+                updateFavoriteButtonState();
+                renderLocationButtons();
+                return;
+            }
+        }
+        
+        // Check cache first (unless this is a forced refresh)
+        // Try to determine location key from location string
+        // If location is a search query, we'll need to geocode first to get the key
+        // But we can check if we have cached data for the same location string
+        const cachedLocation = localStorage.getItem('forecastCachedLocation');
+        if (cachedLocation && cachedLocation.toLowerCase() === location.toLowerCase()) {
+            // Same location as cached - check if cache is fresh
+            const cache = loadWeatherDataFromCache();
+            if (cache && cache.data && !isCacheStale(cache.timestamp)) {
+                // Cache is fresh - use it instead of fetching
+                console.log('Using fresh cached data for location:', location);
+                const cacheLoaded = loadCachedWeatherData(null, location);
+                if (cacheLoaded) {
+                    setLoading(false, background);
+                    // Still trigger background refresh if cache is getting close to stale
+                    const cacheAge = Date.now() - cache.timestamp;
+                    const refreshThreshold = DATA_STALE_THRESHOLD * 0.8; // Refresh at 80% of stale threshold
+                    if (cacheAge > refreshThreshold) {
+                        console.log('Cache is getting close to stale, refreshing in background...');
+                        setTimeout(() => {
+                            loadWeatherData(location, false, true).catch(error => {
+                                console.error('Background refresh failed:', error);
+                            });
+                        }, 100);
+                    }
+                    return;
+                }
+            }
+        }
+        
         // Ensure fetchWeatherData is available (from api.js)
         if (typeof fetchWeatherData === 'undefined') {
             throw new Error('fetchWeatherData function not found. Please ensure api.js is loaded.');
