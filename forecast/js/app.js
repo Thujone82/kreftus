@@ -182,15 +182,9 @@ async function init() {
             const locationKey = lastViewed.key;
             const cache = loadWeatherDataFromCache(locationKey);
             if (cache) {
-                cachedDataLoaded = loadCachedWeatherData(locationKey);
+                // Pass searchQuery so loadCachedWeatherData can refresh if stale
+                cachedDataLoaded = loadCachedWeatherData(locationKey, lastViewed.searchQuery);
                 if (cachedDataLoaded) {
-                    const cacheIsStale = isCacheStale(cache.timestamp);
-                    if (cacheIsStale) {
-                        // Cache is stale, trigger background refresh
-                        loadWeatherData(lastViewed.searchQuery, false, true).catch(error => {
-                            console.error('Background refresh failed for last viewed location:', error);
-                        });
-                    }
                     // Update favorite button state
                     updateFavoriteButtonState();
                     // Render location buttons if favorites exist
@@ -223,7 +217,8 @@ async function init() {
             if (favorite) {
                 cache = loadWeatherDataFromCache(favorite.key);
                 if (cache) {
-                    cachedDataLoaded = loadCachedWeatherData(favorite.key);
+                    // Pass searchQuery so loadCachedWeatherData can refresh if stale
+                    cachedDataLoaded = loadCachedWeatherData(favorite.key, favorite.searchQuery);
                 }
             }
         }
@@ -240,14 +235,7 @@ async function init() {
         }
         
         if (cachedDataLoaded && cache) {
-            // Cached data was loaded
-            const cacheIsStale = isCacheStale(cache.timestamp);
-            if (cacheIsStale) {
-                // Cache is stale, trigger background refresh
-                loadWeatherData(locationToLoad, false, true).catch(error => {
-                    console.error('Background refresh failed, keeping cached data:', error);
-                });
-            }
+            // Cached data was loaded (stale check and refresh handled by loadCachedWeatherData)
             // Update favorite button state
             updateFavoriteButtonState();
             // Render location buttons if favorites exist
@@ -261,15 +249,10 @@ async function init() {
         // No specific location, try current cache
         const cache = loadWeatherDataFromCache();
         if (cache) {
-            cachedDataLoaded = loadCachedWeatherData();
+            // Determine search query from cache location
+            const searchQuery = cache.location || elements.locationInput.value.trim() || 'here';
+            cachedDataLoaded = loadCachedWeatherData(null, searchQuery);
             if (cachedDataLoaded) {
-                const cacheIsStale = isCacheStale(cache.timestamp);
-                if (cacheIsStale) {
-                    const locationToRefresh = cache.location || elements.locationInput.value.trim() || 'here';
-                    loadWeatherData(locationToRefresh, false, true).catch(error => {
-                        console.error('Background refresh failed, keeping cached data:', error);
-                    });
-                }
                 // Update favorite button state
                 updateFavoriteButtonState();
                 // Render location buttons if favorites exist
@@ -669,7 +652,8 @@ async function handleLocationButtonClick(uid) {
     const cacheKey = favorite.key;
     
     // Load cached data immediately (this will update UI state including favorite button and location buttons)
-    const cacheLoaded = loadCachedWeatherData(cacheKey);
+    // Pass searchQuery so loadCachedWeatherData can refresh if stale
+    const cacheLoaded = loadCachedWeatherData(cacheKey, favorite.searchQuery);
     
     if (cacheLoaded) {
         // Update URL
@@ -681,14 +665,7 @@ async function handleLocationButtonClick(uid) {
         updateFavoriteButtonState(favoriteUID);
         renderLocationButtons(favoriteUID);
         
-        // Check if cache is stale and refresh in background
-        const cache = loadWeatherDataFromCache(cacheKey);
-        if (cache && isCacheStale(cache.timestamp)) {
-            // Trigger background refresh
-            loadWeatherData(favorite.searchQuery, false, true).catch(error => {
-                console.error('Background refresh failed for favorite location:', error);
-            });
-        }
+        // Stale cache check and background refresh is now handled by loadCachedWeatherData
     } else {
         // No cache, load fresh data
         await loadWeatherData(favorite.searchQuery, false, false);
@@ -1527,7 +1504,7 @@ function observationsCoverFullWeek(observationsData) {
 }
 
 // Load cached weather data and display it
-function loadCachedWeatherData(locationKey = null) {
+function loadCachedWeatherData(locationKey = null, searchQuery = null) {
     try {
         const cache = loadWeatherDataFromCache(locationKey);
         if (!cache || !cache.data) {
@@ -1548,6 +1525,31 @@ function loadCachedWeatherData(locationKey = null) {
         appState.observationsData = cache.data.observationsData || null;
         appState.observationsAvailable = cache.data.observationsAvailable || false;
         appState.lastFetchTime = cache.timestamp;
+        
+        // Check if cache is stale - if so, trigger background refresh immediately
+        // Declare at function scope so it can be used later for observations check
+        const cacheIsStale = isCacheStale(cache.timestamp);
+        if (cacheIsStale) {
+            // Determine the location to refresh
+            let locationToRefresh = searchQuery;
+            if (!locationToRefresh && restoredWeatherData && restoredWeatherData.location) {
+                // Build search query from location object
+                if (restoredWeatherData.location.city && restoredWeatherData.location.state) {
+                    locationToRefresh = `${restoredWeatherData.location.city}, ${restoredWeatherData.location.state}`;
+                }
+            }
+            if (!locationToRefresh) {
+                locationToRefresh = cache.location || 'here';
+            }
+            
+            // Trigger background refresh (non-blocking, won't show loading indicator)
+            console.log('Cache is stale, refreshing in background...');
+            setTimeout(() => {
+                loadWeatherData(locationToRefresh, false, true).catch(error => {
+                    console.error('Background refresh failed for cached location:', error);
+                });
+            }, 100); // Small delay to ensure UI renders first
+        }
         
         // If cached data doesn't have NOAA station but we have coordinates, fetch it in background
         // This handles old cached data from before NOAA feature was added
@@ -1639,8 +1641,8 @@ function loadCachedWeatherData(locationKey = null) {
         }
         
         // Check if observations are incomplete and need refresh
-        // Only refresh if cache is not stale (stale cache will be refreshed by init function anyway)
-        const cacheIsStale = isCacheStale(cache.timestamp);
+        // Only refresh if cache is not stale (stale cache is already being refreshed above)
+        // Note: cacheIsStale was checked above, reuse that value
         if (!cacheIsStale && appState.observationsAvailable && appState.observationsData && restoredWeatherData && restoredWeatherData.location) {
             const observationsComplete = observationsCoverFullWeek(appState.observationsData);
             if (!observationsComplete) {
