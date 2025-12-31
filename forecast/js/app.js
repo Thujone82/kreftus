@@ -645,18 +645,17 @@ async function handleLocationButtonClick(locationKey) {
     const favorite = getFavoriteByKey(locationKey);
     if (!favorite) return;
     
-    // Load cached data immediately
+    // Load cached data immediately (this will update UI state including favorite button and location buttons)
     const cacheLoaded = loadCachedWeatherData(locationKey);
     
     if (cacheLoaded) {
         // Update URL
         updateURL(favorite.searchQuery, appState.currentMode);
         
-        // Update star button state
-        updateFavoriteButtonState();
-        
-        // Update location buttons to highlight the active one
-        renderLocationButtons();
+        // Ensure star button and location buttons are updated with the correct key
+        // (loadCachedWeatherData may have called these without the key)
+        updateFavoriteButtonState(locationKey);
+        renderLocationButtons(locationKey);
         
         // Check if cache is stale and refresh in background
         const cache = loadWeatherDataFromCache(locationKey);
@@ -669,22 +668,29 @@ async function handleLocationButtonClick(locationKey) {
     } else {
         // No cache, load fresh data
         await loadWeatherData(favorite.searchQuery, false, false);
-        // Update location buttons to highlight the active one
-        renderLocationButtons();
+        // Update location buttons to highlight the active one (pass the locationKey directly)
+        renderLocationButtons(locationKey);
     }
 }
 
 // Update favorite button state based on current location
-function updateFavoriteButtonState() {
-    if (!elements.favoriteBtn || !appState.location) {
-        if (elements.favoriteBtn) {
-            elements.favoriteBtn.classList.remove('active');
-        }
+function updateFavoriteButtonState(locationKey = null) {
+    if (!elements.favoriteBtn) {
         return;
     }
     
-    const locationKey = generateLocationKey(appState.location);
-    if (locationKey && isFavorite(locationKey)) {
+    // Use provided locationKey if available, otherwise try to generate from appState.location
+    let keyToCheck = locationKey;
+    if (!keyToCheck && appState.location) {
+        keyToCheck = generateLocationKey(appState.location);
+    }
+    
+    if (!keyToCheck) {
+        elements.favoriteBtn.classList.remove('active');
+        return;
+    }
+    
+    if (isFavorite(keyToCheck)) {
         elements.favoriteBtn.classList.add('active');
     } else {
         elements.favoriteBtn.classList.remove('active');
@@ -1076,7 +1082,7 @@ function toggleLocationsDrawer() {
     }
 }
 
-function renderLocationButtons() {
+function renderLocationButtons(activeLocationKey = null) {
     if (!elements.locationButtons) return;
     
     const favorites = getFavorites();
@@ -1087,7 +1093,11 @@ function renderLocationButtons() {
     }
     
     // Get current location key to determine which button should be active
-    const currentLocationKey = appState.location ? generateLocationKey(appState.location) : null;
+    // Use provided activeLocationKey if available, otherwise try to generate from appState.location
+    let currentLocationKey = activeLocationKey;
+    if (!currentLocationKey && appState.location) {
+        currentLocationKey = generateLocationKey(appState.location);
+    }
     
     let html = '';
     favorites.forEach(favorite => {
@@ -1274,11 +1284,12 @@ function loadCachedWeatherData(locationKey = null) {
         // Update last update time
         updateLastUpdateTime();
         
-        // Update favorite button state
-        updateFavoriteButtonState();
+        // Update favorite button state (use locationKey if provided)
+        const cachedLocationKey = locationKey || (appState.location ? generateLocationKey(appState.location) : null);
+        updateFavoriteButtonState(cachedLocationKey);
         
         // Update location buttons to highlight the active one
-        renderLocationButtons();
+        renderLocationButtons(cachedLocationKey);
         
         // Render current mode to display cached data
         renderCurrentMode();
@@ -1350,7 +1361,9 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         updateFavoriteButtonState();
         
         // Update location buttons to highlight the active one
-        renderLocationButtons();
+        // Generate location key from the loaded location to ensure proper highlighting
+        const loadedLocationKey = appState.location ? generateLocationKey(appState.location) : null;
+        renderLocationButtons(loadedLocationKey);
         
         // Render current mode
         renderCurrentMode();
