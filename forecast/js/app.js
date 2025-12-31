@@ -648,16 +648,21 @@ async function handleLocationButtonClick(uid) {
     
     // Support both UID and key for backward compatibility
     const favorite = getFavoriteByUID(uid) || getFavoriteByKey(uid);
-    if (!favorite) return;
+    if (!favorite) {
+        console.warn('handleLocationButtonClick: Favorite not found for UID:', uid);
+        return;
+    }
     
     // Use the favorite's key for cache lookups (cache is still keyed by location)
     const cacheKey = favorite.key;
+    console.log('handleLocationButtonClick: Loading favorite', favorite.name || favorite.searchQuery, 'key:', cacheKey, 'searchQuery:', favorite.searchQuery);
     
     // Load cached data immediately (this will update UI state including favorite button and location buttons)
     // Pass searchQuery so loadCachedWeatherData can refresh if stale
     const cacheLoaded = loadCachedWeatherData(cacheKey, favorite.searchQuery);
     
     if (cacheLoaded) {
+        console.log('handleLocationButtonClick: Successfully loaded cached data for favorite:', favorite.name || favorite.searchQuery);
         // Update URL
         updateURL(favorite.searchQuery, appState.currentMode);
         
@@ -669,6 +674,7 @@ async function handleLocationButtonClick(uid) {
         
         // Stale cache check and background refresh is now handled by loadCachedWeatherData
     } else {
+        console.log('handleLocationButtonClick: No cache found for favorite:', favorite.name || favorite.searchQuery, 'key:', cacheKey, 'will fetch fresh data');
         // No cache, load fresh data
         await loadWeatherData(favorite.searchQuery, false, false);
         // Update location buttons to highlight the active one (pass the UID directly)
@@ -1408,14 +1414,19 @@ function loadWeatherDataFromCache(locationKey = null) {
         
         if (locationKey) {
             // Load from location-specific cache
-            cachedData = localStorage.getItem(`forecastCachedData_${locationKey}`);
-            cachedLocation = localStorage.getItem(`forecastCachedLocation_${locationKey}`);
-            cachedTimestamp = localStorage.getItem(`forecastCachedTimestamp_${locationKey}`);
+            const dataKey = `forecastCachedData_${locationKey}`;
+            const locationKeyStr = `forecastCachedLocation_${locationKey}`;
+            const timestampKey = `forecastCachedTimestamp_${locationKey}`;
+            cachedData = localStorage.getItem(dataKey);
+            cachedLocation = localStorage.getItem(locationKeyStr);
+            cachedTimestamp = localStorage.getItem(timestampKey);
+            console.log('loadWeatherDataFromCache - checking keys:', { locationKey, dataKey, locationKeyStr, timestampKey, hasData: !!cachedData, hasLocation: !!cachedLocation, hasTimestamp: !!cachedTimestamp });
         } else {
             // Load from current location cache (backward compatibility)
             cachedData = localStorage.getItem('forecastCachedData');
             cachedLocation = localStorage.getItem('forecastCachedLocation');
             cachedTimestamp = localStorage.getItem('forecastCachedTimestamp');
+            console.log('loadWeatherDataFromCache - checking default cache:', { hasData: !!cachedData, hasLocation: !!cachedLocation, hasTimestamp: !!cachedTimestamp });
         }
         
         if (cachedData && cachedLocation && cachedTimestamp) {
@@ -1935,8 +1946,19 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         if (matchingFavorite && matchingFavorite.key) {
             // Found a matching favorite - use its key to check cache
             cacheKeyToUse = matchingFavorite.key;
-            cacheToUse = loadWeatherDataFromCache(cacheKeyToUse);
             console.log('Found matching favorite for location:', location, 'key:', cacheKeyToUse);
+            cacheToUse = loadWeatherDataFromCache(cacheKeyToUse);
+            console.log('Cache lookup result for key', cacheKeyToUse, ':', cacheToUse ? 'FOUND' : 'NOT FOUND');
+            if (!cacheToUse) {
+                // Cache might not exist for this key - check if cache exists in localStorage
+                const cacheDataKey = `forecastCachedData_${cacheKeyToUse}`;
+                const cacheLocationKey = `forecastCachedLocation_${cacheKeyToUse}`;
+                const cacheTimestampKey = `forecastCachedTimestamp_${cacheKeyToUse}`;
+                const hasData = localStorage.getItem(cacheDataKey) !== null;
+                const hasLocation = localStorage.getItem(cacheLocationKey) !== null;
+                const hasTimestamp = localStorage.getItem(cacheTimestampKey) !== null;
+                console.log('Cache keys check:', { hasData, hasLocation, hasTimestamp, cacheDataKey, cacheLocationKey, cacheTimestampKey });
+            }
         } else {
             // No matching favorite - check default cache
             const cachedLocation = localStorage.getItem('forecastCachedLocation');
