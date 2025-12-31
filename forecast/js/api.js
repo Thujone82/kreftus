@@ -696,34 +696,47 @@ async function fetchNoaaTideStation(lat, lon, preFetchedStations = null) {
             console.log('Found closest NOAA station via API:', closestStation.name, `(${closestStation.stationId}) at ${closestStation.distance.toFixed(2)} miles`);
             
             // Check for water level support via products endpoint (most reliable method)
-            try {
-                const productsUrl = `https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/${closestStation.stationId}/products.json`;
-                console.log('Checking water levels support via products endpoint:', productsUrl);
-                const productsResponse = await fetch(productsUrl, {
-                    method: 'GET',
-                    headers: { 'Accept': 'application/json' }
-                });
-                
-                if (productsResponse.ok) {
-                    const products = await productsResponse.json();
-                    if (products.products && Array.isArray(products.products)) {
-                        // Check if any product name contains "Water Level" or "Water Levels"
-                        const waterLevelProducts = products.products.filter(product => 
-                            product.name && product.name.match(/Water Level/i)
-                        );
-                        closestStation.supportsWaterLevels = waterLevelProducts.length > 0;
-                        console.log('Water levels support from products endpoint:', closestStation.supportsWaterLevels);
+            // Use cache if available and fresh
+            const cachedWaterLevelSupport = loadCachedWaterLevelSupport(closestStation.stationId);
+            if (cachedWaterLevelSupport !== null) {
+                closestStation.supportsWaterLevels = cachedWaterLevelSupport;
+                console.log('Using cached water level support for station', closestStation.stationId + ':', cachedWaterLevelSupport);
+            } else {
+                // Cache miss or stale - fetch from API
+                try {
+                    const productsUrl = `https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/${closestStation.stationId}/products.json`;
+                    console.log('Checking water levels support via products endpoint:', productsUrl);
+                    const productsResponse = await fetch(productsUrl, {
+                        method: 'GET',
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    
+                    if (productsResponse.ok) {
+                        const products = await productsResponse.json();
+                        if (products.products && Array.isArray(products.products)) {
+                            // Check if any product name contains "Water Level" or "Water Levels"
+                            const waterLevelProducts = products.products.filter(product => 
+                                product.name && product.name.match(/Water Level/i)
+                            );
+                            closestStation.supportsWaterLevels = waterLevelProducts.length > 0;
+                            console.log('Water levels support from products endpoint:', closestStation.supportsWaterLevels);
+                        } else {
+                            closestStation.supportsWaterLevels = false;
+                            console.log('No products found, assuming no water levels support');
+                        }
                     } else {
                         closestStation.supportsWaterLevels = false;
-                        console.log('No products found, assuming no water levels support');
+                        console.log('Products endpoint returned error status:', productsResponse.status);
                     }
-                } else {
+                    
+                    // Save to cache
+                    saveWaterLevelSupportToCache(closestStation.stationId, closestStation.supportsWaterLevels);
+                } catch (error) {
+                    console.error('Could not fetch products endpoint, assuming no water levels support:', error);
                     closestStation.supportsWaterLevels = false;
-                    console.log('Products endpoint returned error status:', productsResponse.status);
+                    // Save false to cache to avoid repeated failed attempts
+                    saveWaterLevelSupportToCache(closestStation.stationId, false);
                 }
-            } catch (error) {
-                console.error('Could not fetch products endpoint, assuming no water levels support:', error);
-                closestStation.supportsWaterLevels = false;
             }
             
             return closestStation;
@@ -769,6 +782,9 @@ async function fetchNoaaTidePredictionsForDate(stationId, date) {
 
 // Cache duration for tide predictions: 10 minutes (same as weather data)
 const TIDE_CACHE_DURATION_MS = 10 * 60 * 1000; // 10 minutes in milliseconds
+
+// Cache duration for water level support: 1 week (static property, rarely changes)
+const WATER_LEVEL_SUPPORT_CACHE_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
 // Load cached tide predictions if available and fresh
 function loadCachedTidePredictions(stationId) {
@@ -822,6 +838,54 @@ function saveTidePredictionsToCache(stationId, tideData) {
         }
     } catch (error) {
         console.error('Error saving tide predictions to cache:', error);
+    }
+}
+
+// Load cached water level support if available and fresh
+function loadCachedWaterLevelSupport(stationId) {
+    try {
+        const cacheKey = `forecastWaterLevelSupport_${stationId}`;
+        const timestampKey = `forecastWaterLevelSupportTimestamp_${stationId}`;
+        
+        const cachedValue = localStorage.getItem(cacheKey);
+        const cachedTimestamp = localStorage.getItem(timestampKey);
+        
+        if (cachedValue === null || !cachedTimestamp) {
+            return null;
+        }
+        
+        const timestamp = parseInt(cachedTimestamp, 10);
+        const age = Date.now() - timestamp;
+        
+        if (age < WATER_LEVEL_SUPPORT_CACHE_DURATION_MS) {
+            const supportsWaterLevels = cachedValue === 'true';
+            console.log('Using cached water level support for station', stationId, '(age:', Math.round(age / (60 * 60 * 1000)), 'hours):', supportsWaterLevels);
+            return supportsWaterLevels;
+        } else {
+            console.log('Cached water level support is stale (age:', Math.round(age / (24 * 60 * 60 * 1000)), 'days), will refresh');
+            // Clear stale cache
+            localStorage.removeItem(cacheKey);
+            localStorage.removeItem(timestampKey);
+            return null;
+        }
+    } catch (error) {
+        console.error('Error loading cached water level support:', error);
+        return null;
+    }
+}
+
+// Save water level support to cache
+function saveWaterLevelSupportToCache(stationId, supportsWaterLevels) {
+    try {
+        if (stationId !== null && stationId !== undefined) {
+            const cacheKey = `forecastWaterLevelSupport_${stationId}`;
+            const timestampKey = `forecastWaterLevelSupportTimestamp_${stationId}`;
+            localStorage.setItem(cacheKey, supportsWaterLevels ? 'true' : 'false');
+            localStorage.setItem(timestampKey, Date.now().toString());
+            console.log('Saved water level support to cache for station', stationId + ':', supportsWaterLevels);
+        }
+    } catch (error) {
+        console.error('Error saving water level support to cache:', error);
     }
 }
 
