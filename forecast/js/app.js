@@ -1547,6 +1547,12 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
         // Restore Date objects from cached data (JSON serialization converts dates to strings)
         const restoredWeatherData = restoreDatesFromCache(cache.data.weatherData);
         
+        // Ensure current.time matches the cache timestamp (the actual fetch time)
+        // This ensures the "Updated:" field shows the correct time, not the current time
+        if (restoredWeatherData && restoredWeatherData.current) {
+            restoredWeatherData.current.time = cache.timestamp;
+        }
+        
         // Restore app state from cache
         appState.weatherData = restoredWeatherData;
         appState.observationsData = cache.data.observationsData || null;
