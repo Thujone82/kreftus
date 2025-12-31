@@ -1319,24 +1319,36 @@ function saveWeatherDataToCache(weatherData, location, timestamp = null) {
         
         // Generate location key for location-specific cache
         // location can be either an object or a string (for backward compatibility)
-        let locationKey = null;
+        // CRITICAL: Use appState.currentLocationKey if available (from favorite's key)
+        // This ensures we save to the same cache location that favorites use
+        let locationKey = appState.currentLocationKey || null;
         let locationString = '';
         
         if (location) {
             if (typeof location === 'object' && location.city && location.state) {
                 // Location object
-                locationKey = generateLocationKey(location);
+                // Only generate key if we don't already have one from appState.currentLocationKey
+                if (!locationKey) {
+                    locationKey = generateLocationKey(location);
+                }
                 // Store formatted location string for display (removes ", US")
                 locationString = formatLocationDisplayName(location.city, location.state);
             } else if (typeof location === 'string') {
                 // Location string (backward compatibility)
                 locationString = location;
-                // Try to parse location string to get key
-                const parts = location.split(',').map(s => s.trim());
-                if (parts.length >= 2) {
-                    locationKey = generateLocationKey({ city: parts[0], state: parts[1] });
+                // Try to parse location string to get key (only if we don't have one from appState)
+                if (!locationKey) {
+                    const parts = location.split(',').map(s => s.trim());
+                    if (parts.length >= 2) {
+                        locationKey = generateLocationKey({ city: parts[0], state: parts[1] });
+                    }
                 }
             }
+        }
+        
+        // Log which key we're using for cache
+        if (locationKey) {
+            console.log('saveWeatherDataToCache: Using location key:', locationKey, 'from appState.currentLocationKey:', !!appState.currentLocationKey);
         }
         
         // Determine timestamp to use
