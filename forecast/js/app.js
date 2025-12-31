@@ -2284,13 +2284,44 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         const searchQuery = location && location.toLowerCase() !== 'here' ? location : locationText;
         saveLastViewedLocation(locationText, weatherData.location, searchQuery);
         
-        // Update favorite button state
-        updateFavoriteButtonState();
+        // Update favorite button state and location buttons
+        // Use the favorite's UID if we found a matching favorite (stored in appState.currentLocationKey)
+        let activeIdentifier = null;
+        if (appState.currentLocationKey && appState.currentLocationKey.startsWith('uid_')) {
+            // Extract UID from UID-based cache key
+            const uidFromKey = appState.currentLocationKey.replace('uid_', '');
+            const favorite = getFavoriteByUID(uidFromKey);
+            if (favorite && favorite.uid) {
+                activeIdentifier = favorite.uid;
+            }
+        } else if (appState.currentLocationKey) {
+            // Location key - find matching favorite by key
+            const favorite = getFavoriteByKey(appState.currentLocationKey);
+            if (favorite && favorite.uid) {
+                activeIdentifier = favorite.uid;
+            } else {
+                activeIdentifier = appState.currentLocationKey;
+            }
+        } else if (appState.location) {
+            // Try to find favorite by UID first
+            const locationUID = generateLocationUID(appState.location);
+            if (locationUID) {
+                const favorite = getFavoriteByUID(locationUID);
+                if (favorite && favorite.uid) {
+                    activeIdentifier = favorite.uid;
+                } else {
+                    activeIdentifier = locationUID;
+                }
+            } else {
+                // Fallback to key if no UID match
+                activeIdentifier = generateLocationKey(appState.location);
+            }
+        }
         
-        // Update location buttons to highlight the active one
-        // Generate location key from the loaded location to ensure proper highlighting
-        const loadedLocationKey = appState.location ? generateLocationKey(appState.location) : null;
-        renderLocationButtons(loadedLocationKey);
+        updateFavoriteButtonState(activeIdentifier);
+        
+        // Update location buttons to highlight the active one (use UID if available)
+        renderLocationButtons(activeIdentifier);
         
         // Render current mode immediately (don't wait for observations)
         renderCurrentMode();
