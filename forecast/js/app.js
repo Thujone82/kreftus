@@ -1749,12 +1749,6 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         appState.lastFetchTime = new Date();
         appState.hourlyScrollIndex = 0;
         
-        // Check observations availability and fetch observations if available
-        await checkObservationsAvailability(weatherData.points, weatherData.location.timeZone);
-        
-        // Update History button state
-        updateHistoryButtonState();
-        
         // Update location in input field
         const locationText = formatLocationDisplayName(weatherData.location.city, weatherData.location.state);
         elements.locationInput.value = locationText;
@@ -1782,10 +1776,25 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         const loadedLocationKey = appState.location ? generateLocationKey(appState.location) : null;
         renderLocationButtons(loadedLocationKey);
         
-        // Render current mode
+        // Render current mode immediately (don't wait for observations)
         renderCurrentMode();
         
         setLoading(false, background);
+        
+        // Check observations availability and fetch observations in background (non-blocking)
+        // This allows the UI to display immediately while observations load
+        checkObservationsAvailability(weatherData.points, weatherData.location.timeZone).then(() => {
+            // Observations completed - update History button state
+            updateHistoryButtonState();
+            // If we're currently viewing history mode, re-render to show the observations
+            if (appState.currentMode === 'history') {
+                renderCurrentMode();
+            }
+        }).catch(error => {
+            console.error('Error fetching observations in background:', error);
+            // Still update button state even on error
+            updateHistoryButtonState();
+        });
     } catch (error) {
         setLoading(false, background);
         let errorMessage = error.message;
