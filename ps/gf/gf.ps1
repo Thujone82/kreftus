@@ -240,10 +240,9 @@ function Get-CurrentLocation {
 
 # Helper function to clear screen with optional delay in verbose mode
 function Clear-HostWithDelay {
-    if ($VerbosePreference -eq 'Continue') {
-        Start-Sleep -Milliseconds 600
+    if ($VerbosePreference -ne 'Continue') {
+        Clear-Host
     }
-    Clear-Host
 }
 
 # Function to resolve timezone ID to TimeZoneInfo object
@@ -1078,7 +1077,10 @@ function Update-WeatherData {
                 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
                 try {
                     $apiUrl = "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json"
+                    Write-Verbose "NOAA Tide API call: GET $apiUrl"
                     $apiResponse = Invoke-RestMethod -Uri $apiUrl -Method Get -ErrorAction Stop -TimeoutSec 30
+                    $stationsCount = if ($apiResponse.stations) { $apiResponse.stations.Count } else { 0 }
+                    Write-Verbose "NOAA Tide Stations API response received successfully: $stationsCount stations"
                     return @{
                         Success = $true
                         Stations = $apiResponse.stations
@@ -1086,6 +1088,7 @@ function Update-WeatherData {
                         Lon = $lon
                     }
                 } catch {
+                    Write-Verbose "NOAA Tide Stations API call failed: $($_.Exception.Message)"
                     return @{
                         Success = $false
                         Error = $_.Exception.Message
@@ -1197,10 +1200,6 @@ while ($true) { # Loop for location input and geocoding
         if (-not $Location) {
             if ($VerbosePreference -ne 'Continue') { 
                 Clear-Host 
-            } else {
-                # In verbose mode, add delay before clearing to capture errors
-                Start-Sleep -Milliseconds 600
-                Clear-Host
             }
             Write-Host '     \|/    ' -ForegroundColor Yellow -NoNewline; Write-Host "      .-~~~~~~-.    " -ForegroundColor Gray
             Write-Host '   -- O --  ' -ForegroundColor Yellow -NoNewline; Write-Host "     /_)      ( \   " -ForegroundColor Gray
@@ -1220,7 +1219,9 @@ while ($true) { # Loop for location input and geocoding
         # Check if user wants automatic location detection
         if ($Location -ieq "here") {
             Write-Verbose "Detecting location automatically..."
-            Clear-Host
+            if ($VerbosePreference -ne 'Continue') {
+                Clear-Host
+            }
             Write-Host "Detecting location..." -ForegroundColor Yellow
             $locationData = Get-CurrentLocation
             $lat = $locationData.Lat
@@ -1235,7 +1236,9 @@ while ($true) { # Loop for location input and geocoding
             Write-Verbose "Using OpenStreetMap Nominatim API for geocoding."
             
             # Display geocoding message
-            Clear-Host
+            if ($VerbosePreference -ne 'Continue') {
+                Clear-Host
+            }
             Write-Host "Geocoding ($Location)..." -ForegroundColor Yellow
             
             # Prepare location for API query
@@ -1452,7 +1455,10 @@ $noaaStationsJob = Start-Job -ScriptBlock {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     try {
         $apiUrl = "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json"
+        Write-Verbose "NOAA Tide API call: GET $apiUrl"
         $apiResponse = Invoke-RestMethod -Uri $apiUrl -Method Get -ErrorAction Stop -TimeoutSec 30
+        $stationsCount = if ($apiResponse.stations) { $apiResponse.stations.Count } else { 0 }
+        Write-Verbose "NOAA Tide Stations API response received successfully: $stationsCount stations"
         return @{
             Success = $true
             Stations = $apiResponse.stations
@@ -1460,6 +1466,7 @@ $noaaStationsJob = Start-Job -ScriptBlock {
             Lon = $lon
         }
     } catch {
+        Write-Verbose "NOAA Tide Stations API call failed: $($_.Exception.Message)"
         return @{
             Success = $false
             Error = $_.Exception.Message
@@ -1521,16 +1528,22 @@ Write-Verbose "GET: $hourlyUrl"
 
 # Display loading messages for forecast and hourly data
 $locationDisplay = if ($state) { "$city, $state" } else { $city }
-Clear-Host
+if ($VerbosePreference -ne 'Continue') {
+    Clear-Host
+}
 Write-Host "Calling API for $locationDisplay Forecast..." -ForegroundColor Cyan
 
 $forecastJob = Start-ApiJob -Url $forecastUrl -Headers $headers -JobName "ForecastData"
 
-Clear-Host
+if ($VerbosePreference -ne 'Continue') {
+    Clear-Host
+}
 Write-Host "Calling API for $locationDisplay Hourly..." -ForegroundColor Cyan
 
 $hourlyJob = Start-ApiJob -Url $hourlyUrl -Headers $headers -JobName "HourlyData"
-Clear-Host
+if ($VerbosePreference -ne 'Continue') {
+    Clear-Host
+}
 Write-Host "Loading $locationDisplay Data..." -ForegroundColor Yellow
 
 
@@ -3084,8 +3097,10 @@ function Get-NoaaTideStation {
             Write-Verbose "Fetching stations from NOAA CO-OPS Metadata API..."
             try {
                 $apiUrl = "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json"
-                Write-Verbose "API URL: $apiUrl"
+                Write-Verbose "NOAA Tide API call: GET $apiUrl"
                 $apiResponse = Invoke-RestMethod -Uri $apiUrl -Method Get -ErrorAction Stop -TimeoutSec 30
+                $stationsCount = if ($apiResponse.stations) { $apiResponse.stations.Count } else { 0 }
+                Write-Verbose "NOAA Tide Stations API response received successfully: $stationsCount stations"
             } catch {
                 Write-Verbose "Error fetching stations from API: $($_.Exception.Message)"
                 return $null
@@ -3159,8 +3174,10 @@ function Get-NoaaTideStation {
                 # Check for water level support via products endpoint (most reliable method)
                 try {
                     $productsUrl = "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/$($closestStation.stationId)/products.json"
-                    Write-Verbose "Checking water levels support via products endpoint: $productsUrl"
+                    Write-Verbose "NOAA Tide API call: GET $productsUrl"
                     $products = Invoke-RestMethod -Uri $productsUrl -Method Get -ErrorAction Stop -TimeoutSec 10
+                    $productsCount = if ($products.products) { $products.products.Count } else { 0 }
+                    Write-Verbose "NOAA Tide Products API response received successfully: $productsCount products"
                     if ($products.products) {
                         # Check if any product name contains "Water Level" or "Water Levels"
                         $waterLevelProducts = $products.products | Where-Object { 
@@ -3301,6 +3318,11 @@ function Show-LocationInfo {
             
             # Fetch and display tide predictions (can be done in parallel with other operations)
             try {
+                # Log the API calls that will be made (before starting the job, since job verbose output isn't captured)
+                $todayApiUrl = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&datum=mllw&station=$($noaaStation.stationId)&date=today&interval=hilo&format=json&units=english&time_zone=lst_ldt"
+                Write-Verbose "NOAA Tide API call: GET $todayApiUrl"
+                Write-Verbose "NOAA Tide API: Additional calls may be made for tomorrow or yesterday if needed to find next/last tide"
+                
                 # Start tide predictions fetch asynchronously if we have time
                 $tidePredictionsJob = Start-Job -ScriptBlock {
                     param($stationId, $timeZone)
@@ -3310,10 +3332,19 @@ function Show-LocationInfo {
                         param([string]$StationId, [string]$Date)
                         try {
                             $apiUrl = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&datum=mllw&station=$StationId&date=$Date&interval=hilo&format=json&units=english&time_zone=lst_ldt"
+                            Write-Verbose "NOAA Tide API call: GET $apiUrl"
                             $response = Invoke-RestMethod -Uri $apiUrl -Method Get -ErrorAction Stop -TimeoutSec 10
-                            if ($response.predictions) { return $response.predictions }
+                            if ($response.predictions) {
+                                $predictionsCount = $response.predictions.Count
+                                Write-Verbose "NOAA Tide Predictions API response received successfully: $predictionsCount predictions for date '$Date'"
+                                return $response.predictions
+                            }
+                            Write-Verbose "NOAA Tide Predictions API response received: 0 predictions for date '$Date'"
                             return $null
-                        } catch { return $null }
+                        } catch {
+                            Write-Verbose "NOAA Tide Predictions API call failed for date '$Date': $($_.Exception.Message)"
+                            return $null
+                        }
                     }
                     
                     function Convert-NoaaTidePredictions {
@@ -3344,11 +3375,17 @@ function Show-LocationInfo {
                         if (-not $todayPredictions) { return @{ Success = $false; Error = "No predictions for today" } }
                         
                         $tideData = Convert-NoaaTidePredictions -Predictions $todayPredictions
+                        $totalPredictions = $todayPredictions.Count
+                        $apiCalls = @("today")
                         
                         # Fetch tomorrow if no next tide
                         if (-not $tideData.NextTide) {
                             $tomorrow = $now.AddDays(1).ToString("yyyyMMdd")
                             $tomorrowPredictions = Get-NoaaTidePredictionsForDate -StationId $stationId -Date $tomorrow
+                            if ($tomorrowPredictions) {
+                                $totalPredictions += $tomorrowPredictions.Count
+                                $apiCalls += "tomorrow"
+                            }
                             if ($tomorrowPredictions) {
                                 $firstTomorrowTide = $null
                                 foreach ($prediction in $tomorrowPredictions) {
@@ -3371,6 +3408,10 @@ function Show-LocationInfo {
                             $yesterday = $now.AddDays(-1).ToString("yyyyMMdd")
                             $yesterdayPredictions = Get-NoaaTidePredictionsForDate -StationId $stationId -Date $yesterday
                             if ($yesterdayPredictions) {
+                                $totalPredictions += $yesterdayPredictions.Count
+                                $apiCalls += "yesterday"
+                            }
+                            if ($yesterdayPredictions) {
                                 $lastYesterdayTide = $null
                                 foreach ($prediction in $yesterdayPredictions) {
                                     $timeStr = $prediction.t
@@ -3387,7 +3428,7 @@ function Show-LocationInfo {
                             }
                         }
                         
-                        return @{ Success = $true; TideData = $tideData }
+                        return @{ Success = $true; TideData = $tideData; TotalPredictions = $totalPredictions; ApiCalls = $apiCalls }
                     } catch {
                         return @{ Success = $false; Error = $_.Exception.Message }
                     }
@@ -3400,6 +3441,10 @@ function Show-LocationInfo {
                     $tideJobData = $tidePredictionsJob | Receive-Job
                     Remove-Job -Job $tidePredictionsJob
                     if ($tideJobData.Success -and $tideJobData.TideData) {
+                        # Log successful response with details from job
+                        $predictionCount = if ($tideJobData.TotalPredictions) { $tideJobData.TotalPredictions } else { "unknown" }
+                        $datesCalled = if ($tideJobData.ApiCalls) { ($tideJobData.ApiCalls -join ", ") } else { "today" }
+                        Write-Verbose "NOAA Tide Predictions API response received successfully: $predictionCount predictions retrieved (dates: $datesCalled) for station $($noaaStation.stationId)"
                         $tideData = $tideJobData.TideData
                     }
                 } else {
@@ -3571,15 +3616,17 @@ function Get-NoaaTidePredictionsForDate {
     
     try {
         $apiUrl = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&datum=mllw&station=$StationId&date=$Date&interval=hilo&format=json&units=english&time_zone=lst_ldt"
-        Write-Verbose "Fetching tide predictions for date '$Date': $apiUrl"
+        Write-Verbose "NOAA Tide API call: GET $apiUrl"
         
         $response = Invoke-RestMethod -Uri $apiUrl -Method Get -ErrorAction Stop -TimeoutSec 10
         
         if (-not $response.predictions -or $response.predictions.Count -eq 0) {
-            Write-Verbose "No tide predictions returned for date '$Date'"
+            Write-Verbose "NOAA Tide Predictions API response received: 0 predictions for date '$Date'"
             return $null
         }
         
+        $predictionsCount = $response.predictions.Count
+        Write-Verbose "NOAA Tide Predictions API response received successfully: $predictionsCount predictions for date '$Date'"
         return $response.predictions
     }
     catch {
@@ -4134,10 +4181,6 @@ if ($windSpeed -ge $script:WIND_ALERT_THRESHOLD) {
 }
 
 if ($VerbosePreference -ne 'Continue') {
-    Clear-Host
-} else {
-    # In verbose mode, add delay before clearing to capture errors
-    Start-Sleep -Milliseconds 600
     Clear-Host
 }
 
