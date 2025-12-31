@@ -2063,16 +2063,23 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         appState.location = weatherData.location;
         
         // Update currentLocationKey from the loaded location
-        // First try to generate the key, then check if it matches a favorite
-        // If not, try to find a matching favorite by comparing location objects
-        // This handles old favorites that might have different key formats
+        // CRITICAL: We need to find the matching favorite using multiple methods:
+        // 1. Check if generated key matches a favorite's key
+        // 2. Check if location matches a favorite's location object (city + state)
+        // 3. Check if the search query (location parameter) matches a favorite's searchQuery
+        // This ensures we use the favorite's key even if the state differs (e.g., US vs AK)
         let generatedKey = generateLocationKey(weatherData.location);
+        let matchingFavoriteAfterFetch = null;
+        
+        // First, check if generated key matches a favorite's key
         if (generatedKey && isFavorite(generatedKey)) {
-            appState.currentLocationKey = generatedKey;
-        } else {
-            // Try to find a matching favorite by comparing location objects
+            matchingFavoriteAfterFetch = getFavoriteByKey(generatedKey);
+        }
+        
+        // If not found, try to find by location object (city + state match)
+        if (!matchingFavoriteAfterFetch) {
             const favorites = getFavorites();
-            const matchingFavorite = favorites.find(fav => {
+            matchingFavoriteAfterFetch = favorites.find(fav => {
                 if (fav.location && weatherData.location) {
                     const favCity = (fav.location.city || '').trim().toLowerCase();
                     const favState = (fav.location.state || '').trim().toUpperCase();
@@ -2085,13 +2092,31 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
                 }
                 return false;
             });
-            
-            if (matchingFavorite) {
-                // Use the favorite's stored key instead of the generated one
-                appState.currentLocationKey = matchingFavorite.key;
-            } else {
-                appState.currentLocationKey = generatedKey;
-            }
+        }
+        
+        // If still not found, try to find by searchQuery (the location parameter we passed)
+        // This handles cases where the favorite was created with a different state (US vs AK)
+        if (!matchingFavoriteAfterFetch && location) {
+            const favorites = getFavorites();
+            const locationLower = location.toLowerCase().trim();
+            matchingFavoriteAfterFetch = favorites.find(fav => {
+                if (!fav.searchQuery) return false;
+                const favSearchQuery = fav.searchQuery.toLowerCase().trim();
+                const favDisplayName = fav.name ? fav.name.toLowerCase().trim() : '';
+                return locationLower === favSearchQuery || 
+                       locationLower === favDisplayName ||
+                       (fav.location && formatLocationDisplayName(fav.location.city, fav.location.state).toLowerCase().trim() === locationLower);
+            });
+        }
+        
+        // Use the favorite's key if found, otherwise use generated key
+        if (matchingFavoriteAfterFetch && matchingFavoriteAfterFetch.key) {
+            // Use the favorite's stored key instead of the generated one
+            // This ensures cache is saved to the same location as the favorite uses
+            appState.currentLocationKey = matchingFavoriteAfterFetch.key;
+            console.log('Found matching favorite after fetch, using key:', matchingFavoriteAfterFetch.key, 'instead of generated key:', generatedKey);
+        } else {
+            appState.currentLocationKey = generatedKey;
         }
         
         // Use the actual NWS API fetch time (from weatherData.fetchTime) as the cache timestamp
