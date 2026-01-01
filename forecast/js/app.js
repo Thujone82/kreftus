@@ -157,12 +157,25 @@ async function init() {
     const locationParam = urlParams.get('location');
     const modeParam = urlParams.get('mode');
     
-    // Set mode from URL if provided (but don't render yet - wait for data)
+    // Set mode from URL if provided, otherwise restore from localStorage
     if (modeParam && ['full', 'history', 'hourly', 'daily', 'rain', 'wind'].includes(modeParam)) {
         appState.currentMode = modeParam;
-        // Update active button
+    } else {
+        // Restore mode from localStorage for PWA state persistence
+        try {
+            const savedMode = localStorage.getItem('forecastCurrentMode');
+            if (savedMode && ['full', 'history', 'hourly', 'daily', 'rain', 'wind'].includes(savedMode)) {
+                appState.currentMode = savedMode;
+            }
+        } catch (error) {
+            console.warn('Failed to restore current mode:', error);
+        }
+    }
+    
+    // Update active button for the mode
+    if (elements.modeButtons) {
         elements.modeButtons.forEach(btn => {
-            if (btn.dataset.mode === modeParam) {
+            if (btn.dataset.mode === appState.currentMode) {
                 btn.classList.add('active');
             } else {
                 btn.classList.remove('active');
@@ -181,19 +194,44 @@ async function init() {
         // Check for last viewed location (even if not a favorite)
         const lastViewed = getLastViewedLocation();
         if (lastViewed) {
+            // Use the cache key from lastViewed (could be UID-based or location key)
+            const cacheKey = lastViewed.key;
+            console.log('Restoring last viewed location:', lastViewed.name, 'cacheKey:', cacheKey, 'uid:', lastViewed.uid);
+            
             // Try to load from cache for last viewed location
-            const locationKey = lastViewed.key;
-            const cache = loadWeatherDataFromCache(locationKey);
+            const cache = loadWeatherDataFromCache(cacheKey);
             if (cache) {
                 // Pass searchQuery so loadCachedWeatherData can refresh if stale
-                cachedDataLoaded = loadCachedWeatherData(locationKey, lastViewed.searchQuery);
+                cachedDataLoaded = loadCachedWeatherData(cacheKey, lastViewed.searchQuery);
                 if (cachedDataLoaded) {
-                    // Update favorite button state
-                    updateFavoriteButtonState();
+                    // Update location input field with the saved location name
+                    if (lastViewed.name && elements.locationInput) {
+                        elements.locationInput.value = lastViewed.name;
+                    }
+                    
+                    // Find matching favorite UID for button highlighting (only if it's a favorite)
+                    let activeUID = lastViewed.uid;
+                    if (!activeUID && cacheKey.startsWith('uid_')) {
+                        // Extract UID from UID-based cache key
+                        activeUID = cacheKey.replace('uid_', '');
+                    } else if (!activeUID && lastViewed.location) {
+                        // Generate UID from location to check if it's a favorite
+                        activeUID = generateLocationUID(lastViewed.location);
+                        // Check if this UID matches a favorite
+                        const favorite = getFavoriteByUID(activeUID);
+                        if (!favorite) {
+                            // Not a favorite, so don't use UID for button highlighting
+                            activeUID = null;
+                        }
+                    }
+                    
+                    // Update favorite button state and location buttons
+                    // For non-favorites, activeUID will be null, which is correct
+                    updateFavoriteButtonState(activeUID);
                     // Render location buttons if favorites exist
                     const favorites = getFavorites();
                     if (favorites.length > 0) {
-                        renderLocationButtons();
+                        renderLocationButtons(activeUID);
                     }
                     return; // Successfully loaded last viewed location
                 }
@@ -218,10 +256,22 @@ async function init() {
             const favorites = getFavorites();
             const favorite = favorites.find(fav => fav.searchQuery.toLowerCase() === locationToLoad.toLowerCase());
             if (favorite) {
-                cache = loadWeatherDataFromCache(favorite.key);
+                // Use UID-based cache key if available
+                const favoriteCacheKey = favorite.uid ? `uid_${favorite.uid}` : favorite.key;
+                cache = loadWeatherDataFromCache(favoriteCacheKey);
                 if (cache) {
                     // Pass searchQuery so loadCachedWeatherData can refresh if stale
-                    cachedDataLoaded = loadCachedWeatherData(favorite.key, favorite.searchQuery);
+                    cachedDataLoaded = loadCachedWeatherData(favoriteCacheKey, favorite.searchQuery);
+                }
+            } else {
+                // Not a favorite - try to load using the location key from lastViewed if available
+                const lastViewed = getLastViewedLocation();
+                if (lastViewed && lastViewed.key && !lastViewed.key.startsWith('uid_')) {
+                    // Non-favorite location - use the location key (not UID-based)
+                    cache = loadWeatherDataFromCache(lastViewed.key);
+                    if (cache) {
+                        cachedDataLoaded = loadCachedWeatherData(lastViewed.key, lastViewed.searchQuery);
+                    }
                 }
             }
         }
@@ -271,7 +321,13 @@ async function init() {
     // No cached data available, proceed with normal initial load
     if (locationToLoad) {
         try {
-            elements.locationInput.value = locationToLoad;
+            // Set location input to the saved name if available, otherwise use searchQuery
+            const lastViewed = getLastViewedLocation();
+            if (lastViewed && lastViewed.name && elements.locationInput) {
+                elements.locationInput.value = lastViewed.name;
+            } else if (elements.locationInput) {
+                elements.locationInput.value = locationToLoad;
+            }
             await loadWeatherData(locationToLoad, false); // false = show errors
         } catch (error) {
             console.error('Error loading weather data:', error);
@@ -1281,17 +1337,50 @@ function updateFavoriteCustomName(identifier, customName) {
 // Last viewed location functions
 function saveLastViewedLocation(location, locationObject, searchQuery) {
     try {
-        const locationKey = generateLocationKey(locationObject);
-        if (!locationKey) return;
+        // Use appState.currentLocationKey if available (this is the actual cache key being used)
+        // This ensures we save the same key that was used for caching (UID-based if favorite)
+        let cacheKey = appState.currentLocationKey;
+        let locationUID = null;
+        
+        // Extract UID from cache key if it's UID-based
+        if (cacheKey && cacheKey.startsWith('uid_')) {
+            locationUID = cacheKey.replace('uid_', '');
+        } else if (locationObject) {
+            // Try to find matching favorite to get UID
+            locationUID = generateLocationUID(locationObject);
+            if (locationUID) {
+                const favorite = getFavoriteByUID(locationUID);
+                if (favorite) {
+                    // Use UID-based cache key if favorite found
+                    cacheKey = favorite.uid ? `uid_${favorite.uid}` : favorite.key;
+                }
+            }
+        }
+        
+        // Fallback to location key if no cache key set
+        if (!cacheKey && locationObject) {
+            cacheKey = generateLocationKey(locationObject);
+        }
+        
+        if (!cacheKey) return;
+        
+        // If we don't have UID yet, try to get it from the cache key or location
+        if (!locationUID && cacheKey.startsWith('uid_')) {
+            locationUID = cacheKey.replace('uid_', '');
+        } else if (!locationUID && locationObject) {
+            locationUID = generateLocationUID(locationObject);
+        }
         
         const lastViewed = {
-            key: locationKey,
+            key: cacheKey, // Use cache key (UID-based if favorite, otherwise location key)
+            uid: locationUID, // Store UID for matching
             name: location,
             location: locationObject,
             searchQuery: searchQuery || location
         };
         
         localStorage.setItem('forecastLastViewedLocation', JSON.stringify(lastViewed));
+        console.log('Saved last viewed location:', { name: location, cacheKey, uid: locationUID });
     } catch (error) {
         console.warn('Failed to save last viewed location:', error);
     }
@@ -2436,6 +2525,13 @@ async function handleRefresh() {
 // Switch display mode
 function switchMode(mode) {
     appState.currentMode = mode;
+    
+    // Save mode to localStorage for PWA state persistence
+    try {
+        localStorage.setItem('forecastCurrentMode', mode);
+    } catch (error) {
+        console.warn('Failed to save current mode:', error);
+    }
     
     // Update active button
     elements.modeButtons.forEach(btn => {
