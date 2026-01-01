@@ -63,9 +63,92 @@ function initializeElements() {
     return true;
 }
 
+// Reset all favorites and cached data (triggered by ?reset=true URL parameter)
+function performFullReset() {
+    try {
+        console.log('Performing full reset: clearing all favorites and cached data...');
+        
+        // Clear all favorites
+        localStorage.removeItem('forecastFavorites');
+        console.log('Cleared all favorites');
+        
+        // Clear all weather data cache (location-specific and default)
+        const keys = Object.keys(localStorage);
+        keys.forEach(key => {
+            if (key.startsWith('forecastCachedData_') || 
+                key.startsWith('forecastCachedLocation_') || 
+                key.startsWith('forecastCachedTimestamp_') ||
+                key.startsWith('forecastTidePredictions_') ||
+                key.startsWith('forecastTidePredictionsTimestamp_') ||
+                key.startsWith('forecastWaterLevelSupport_') ||
+                key.startsWith('forecastWaterLevelSupportTimestamp_')) {
+                localStorage.removeItem(key);
+            }
+        });
+        
+        // Clear default weather cache
+        localStorage.removeItem('forecastCachedData');
+        localStorage.removeItem('forecastCachedLocation');
+        localStorage.removeItem('forecastCachedTimestamp');
+        
+        // Clear NOAA stations cache
+        localStorage.removeItem('forecastNoaaStations');
+        localStorage.removeItem('forecastNoaaStationsTimestamp');
+        
+        // Clear last viewed location and stored location
+        localStorage.removeItem('forecastLastViewedLocation');
+        localStorage.removeItem('forecastLocation');
+        
+        // Clear current mode (will reset to default)
+        localStorage.removeItem('forecastCurrentMode');
+        
+        // Clear in-memory cache
+        if (appState && appState.cachedWeatherDataByKey) {
+            appState.cachedWeatherDataByKey.clear();
+        }
+        
+        // Clear app state
+        if (appState) {
+            appState.weatherData = null;
+            appState.location = null;
+            appState.currentLocationKey = null;
+            appState.observationsData = null;
+            appState.lastFetchTime = null;
+        }
+        
+        console.log('Full reset completed: all favorites and cached data cleared');
+        
+        // Show alert to user
+        alert('Reset complete! All favorites and cached data have been cleared. The page will now reload.');
+        
+        return true;
+    } catch (error) {
+        console.error('Error during full reset:', error);
+        alert('Error during reset: ' + error.message);
+        return false;
+    }
+}
+
 // Initialize app
 async function init() {
     console.log('init() called');
+    
+    // Check for reset parameter in URL (check early, before DOM initialization)
+    const resetUrlParams = new URLSearchParams(window.location.search);
+    const resetParam = resetUrlParams.get('reset');
+    if (resetParam === 'true') {
+        console.log('Reset parameter detected, performing full reset...');
+        performFullReset();
+        
+        // Remove reset parameter from URL and reload
+        resetUrlParams.delete('reset');
+        const newUrl = window.location.pathname + (resetUrlParams.toString() ? '?' + resetUrlParams.toString() : '');
+        window.history.replaceState({}, '', newUrl);
+        
+        // Reload the page to start fresh
+        window.location.reload();
+        return; // Exit early, page will reload
+    }
     
     // Initialize DOM elements
     if (!initializeElements()) {
