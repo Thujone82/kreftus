@@ -5,16 +5,22 @@
 .DESCRIPTION
     This script uses Invoke-RestMethod to query a third-party web service 
     (ip-api.com) for the geographical location based on the machine's public IP address.
+    Optionally accepts an IP address as a command line argument to query a specific IP.
+
+.PARAMETER IPAddress
+    Optional IP address to query. If not provided, queries the machine's own public IP.
 
 .NOTES
     - Requires an active internet connection.
     - Location accuracy is based on the IP address, not GPS, so it may be less precise.
+    - Usage: .\here.ps1 [IPAddress]
+    - Example: .\here.ps1 1.1.1.1
 #>
 
+param([string]$IPAddress)
+
 function Write-ModernHeader ($Text) {
-    Write-Host ("=" * ($Text.Length + 8)) -ForegroundColor Cyan
     Write-Host ("    $Text    ") -ForegroundColor Black -BackgroundColor Cyan
-    Write-Host ("=" * ($Text.Length + 8)) -ForegroundColor Cyan
 }
 
 function Write-ModernRow ($Key, $Value) {
@@ -170,9 +176,18 @@ function Get-MoonPhase {
 }
 
 function Get-MachineIPGeoLocation {
-    $IPGeolocationAPI = "http://ip-api.com/json/"
-    try {
+    param([string]$IPAddress)
+    
+    # Build API URL - append IP if provided, otherwise query own IP
+    if ($IPAddress) {
+        $IPGeolocationAPI = "http://ip-api.com/json/$IPAddress"
+        Write-Host "Querying geolocation for IP: $IPAddress..." -ForegroundColor Gray
+    } else {
+        $IPGeolocationAPI = "http://ip-api.com/json/"
         Write-Host "Querying public IP geolocation service..." -ForegroundColor Gray
+    }
+    
+    try {
         $Response = Invoke-RestMethod -Uri $IPGeolocationAPI -Method Get -TimeoutSec 5
         if ($Response.status -eq "success") {
             [PSCustomObject]@{
@@ -201,7 +216,7 @@ function Get-MachineIPGeoLocation {
 }
 
 # Script Execution
-$GeoLocation = Get-MachineIPGeoLocation
+$GeoLocation = Get-MachineIPGeoLocation -IPAddress $IPAddress
 
 if ($GeoLocation) {
     Write-ModernHeader "IP Location Found (Approximate)"
