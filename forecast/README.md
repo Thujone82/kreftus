@@ -32,6 +32,21 @@ A Progressive Web App (PWA) version of the PowerShell GetForecast script, provid
 4. Use the refresh button to manually update weather data
 5. Toggle auto-update to enable/disable automatic data refreshing (every 10 minutes)
 
+## Reset Feature
+
+If you experience issues with corrupted favorites that cannot be removed, you can perform a complete reset:
+
+1. Add `?reset=true` to the URL (e.g., `https://kreft.us/forecast/?reset=true`)
+2. The app will automatically:
+   - Clear all favorites
+   - Clear all cached weather data
+   - Clear all NOAA station cache
+   - Clear last viewed location
+   - Reset to default mode
+   - Reload the page with a clean state
+
+**Note**: This action cannot be undone. All saved favorites and cached data will be permanently deleted.
+
 ## Display Modes
 
 - **Full**: Complete weather information (current conditions, forecasts, hourly, 7-day, alerts, location info)
