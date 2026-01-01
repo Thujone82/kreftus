@@ -1,7 +1,7 @@
 # HERE.PS1 - IP Geolocation Script
 
 ## Overview
-A clean and modern PowerShell script that retrieves and displays machine geographical location information using IP-based geolocation services. Features modern colorized output, real-time status feedback, and organized information presentation with professional formatting.
+A clean and modern PowerShell script that retrieves and displays machine geographical location information using IP-based geolocation services. Features modern colorized output, real-time status feedback, organized information presentation with professional formatting, and astronomical calculations including sunrise, sunset, moon phase, and solar information.
 
 ## Features
 
@@ -20,12 +20,29 @@ A clean and modern PowerShell script that retrieves and displays machine geograp
 - **Public IP**: Your public IP address
 - **Provider**: Internet Service Provider name
 
+### 🌅 Astronomical Information
+- **Timezone**: IANA timezone identifier from geolocation API
+- **Local Time**: Current local time at the location
+- **Sunrise**: Calculated sunrise time (NOAA algorithm)
+- **Sunset**: Calculated sunset time (NOAA algorithm)
+- **Day Length**: Duration between sunrise and sunset (hours and minutes)
+- **Solar Noon**: Time when sun reaches highest point in sky
+- **Moon Phase**: Current moon phase (text description, e.g., "New Moon", "Waxing Crescent")
+
 ### 🛡️ Error Handling
 - Connection timeout detection (5 seconds)
 - API failure message handling
 - Network connectivity validation
 - Clear error messages with appropriate color coding
 - Specific timeout warning messages
+- Polar day/night handling for extreme latitudes
+
+### 🌙 Astronomical Calculations
+- **Sunrise/Sunset**: NOAA-based astronomical calculations using coordinates
+- **Moon Phase**: Astronomical method using reference new moon date and lunar cycle
+- **Timezone Resolution**: Automatic IANA to Windows timezone conversion
+- **Local Calculations**: All calculations performed locally (no additional API calls)
+- **Edge Cases**: Handles polar day/night scenarios where sunrise/sunset don't occur
 
 ## Technical Details
 
@@ -70,6 +87,17 @@ Latitude  : 45.4805
 Longitude : -122.6363
 Public IP : 71.34.69.157
 Provider  : CenturyLink
+
+================================================
+    Astronomical Information        
+================================================
+Timezone  : America/Los_Angeles
+Local Time: 12:27 PM, January 01, 2026
+Sunrise   : 7:50 AM
+Sunset    : 4:36 PM
+Day Length: 8 hours 46 minutes
+Solar Noon: 12:13 PM
+Moon Phase: Waxing Gibbous
 
 Accuracy is based on your ISP's IP address assignment, not GPS.
 ```
@@ -136,9 +164,11 @@ Accuracy is based on your ISP's IP address assignment, not GPS.
 ### Code Structure
 - Function-based design with `Get-MachineIPGeoLocation`
 - Helper functions: `Write-ModernHeader` and `Write-ModernRow`
+- Astronomical functions: `Get-SunriseSunset`, `Get-MoonPhase`, `Get-ResolvedTimeZoneInfo`
 - Error handling with try-catch blocks
 - Colorized output using `Write-Host` with `-ForegroundColor`
 - Structured data return using `PSCustomObject`
+- Local astronomical calculations (no external API dependencies)
 
 ### Performance
 - **API Response Time**: ~1-3 seconds typical
@@ -151,3 +181,4 @@ Part of the kreftus project. See main project LICENSE file for details.
 
 ## Version History
 - **v1.0**: Initial release with modern formatting and clean colorized output
+- **v1.1**: Added astronomical information including sunrise, sunset, moon phase, day length, solar noon, timezone, and local time calculations

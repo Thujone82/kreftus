@@ -6,8 +6,9 @@
 DESCRIPTION:
     This PowerShell script retrieves the machine's approximate geographical 
     location using a public IP Geolocation API. It provides a clean, modern
-    colorized output showing location details, coordinates, and network 
-    information with professional formatting.
+    colorized output showing location details, coordinates, network information,
+    and astronomical data (sunrise, sunset, moon phase, solar information) with
+    professional formatting.
 
 FEATURES:
     - Modern colorized output with clean formatting
@@ -15,6 +16,10 @@ FEATURES:
     - Organized information display with modern headers
     - Comprehensive error handling with timeout detection
     - Clean ASCII-based formatting for universal compatibility
+    - Astronomical calculations (sunrise, sunset, moon phase)
+    - Day length and solar noon calculations
+    - Timezone-aware local time display
+    - Polar day/night handling for extreme latitudes
 
 REQUIREMENTS:
     - PowerShell 5.1 or later
@@ -35,6 +40,7 @@ OUTPUT FORMAT:
     - Gray informational notes
 
 INFORMATION DISPLAYED:
+    Location Information:
     Country   - Country name
     Region    - State/Province/Region
     City      - City name
@@ -42,6 +48,15 @@ INFORMATION DISPLAYED:
     Longitude - Geographic longitude coordinate
     Public IP - Your public IP address
     Provider  - Internet Service Provider name
+    
+    Astronomical Information:
+    Timezone  - IANA timezone identifier
+    Local Time - Current local time at location
+    Sunrise   - Calculated sunrise time (NOAA algorithm)
+    Sunset    - Calculated sunset time (NOAA algorithm)
+    Day Length - Duration between sunrise and sunset
+    Solar Noon - Time when sun reaches highest point
+    Moon Phase - Current moon phase (text description)
 
 ACCURACY NOTE:
     Location accuracy is based on your ISP's IP address assignment, not GPS.
@@ -86,6 +101,17 @@ EXAMPLE OUTPUT:
     Public IP : 71.34.69.157
     Provider  : CenturyLink
     
+    ================================================
+        Astronomical Information        
+    ================================================
+    Timezone  : America/Los_Angeles
+    Local Time: 12:27 PM, January 01, 2026
+    Sunrise   : 7:50 AM
+    Sunset    : 4:36 PM
+    Day Length: 8 hours 46 minutes
+    Solar Noon: 12:13 PM
+    Moon Phase: Waxing Gibbous
+    
     Accuracy is based on your ISP's IP address assignment, not GPS.
 
 TROUBLESHOOTING:
@@ -94,7 +120,19 @@ TROUBLESHOOTING:
     - Verify PowerShell execution policy
     - Try running as administrator if blocked
 
-VERSION: 1.0
+ASTRONOMICAL CALCULATIONS:
+    - Sunrise and sunset times calculated using NOAA algorithms
+    - Moon phase calculated using astronomical method (reference date: Jan 6, 2000)
+    - All calculations performed locally using coordinates (no additional APIs)
+    - Automatic timezone resolution (IANA to Windows timezone conversion)
+    - Handles edge cases: polar day/night scenarios
+
+VERSION: 1.1
 AUTHOR:  Generated for kreftus project
 DATE:    Current
 LICENSE: See project LICENSE file
+
+CHANGELOG:
+    v1.1 - Added astronomical information (sunrise, sunset, moon phase, 
+           day length, solar noon, timezone, local time)
+    v1.0 - Initial release with modern formatting and clean colorized output
