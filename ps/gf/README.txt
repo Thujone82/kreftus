@@ -191,6 +191,13 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
   - Perfect for scripting and automation scenarios.
   - Can be combined with other display flags (e.g., `-h -x` for hourly view then exit).
 
+- `-Noaa` [string]
+  - Overrides automatic NOAA station selection with a specific station ID.
+  - When specified, uses the given station ID regardless of distance (ignores 100-mile limit).
+  - Still calculates and displays distance from location to the specified station.
+  - Useful for accessing specific tide stations or stations beyond the normal 100-mile radius.
+  - Example: `-Noaa 9440357` for TEMCO Kalama Terminal station.
+
 ## Examples
 
 ### Example 1: Get weather by zip code
@@ -276,6 +283,11 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 ### Example 16: Start with control bar hidden
 ```powershell
 .\gf.ps1 -b "Portland, OR"
+```
+
+### Example 17: Use specific NOAA station by ID
+```powershell
+.\gf.ps1 "Portland, OR" -Noaa 9440357
 ```
 
 ## Observations Mode

@@ -750,11 +750,12 @@ async function fetchNoaaTideStation(lat, lon, preFetchedStations = null) {
     }
 }
 
-// Fetch NOAA tide predictions for a specific date
-async function fetchNoaaTidePredictionsForDate(stationId, date) {
+// Fetch NOAA tide predictions for a date range
+async function fetchNoaaTidePredictionsForDateRange(stationId, beginDate, endDate) {
     try {
-        const apiUrl = `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&datum=mllw&station=${stationId}&date=${date}&interval=hilo&format=json&units=english&time_zone=lst_ldt`;
-        console.log(`Fetching tide predictions for date '${date}':`, apiUrl);
+        // Use begin_date and end_date to get a date range (yesterday through tomorrow)
+        const apiUrl = `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&datum=mllw&station=${stationId}&begin_date=${beginDate}&end_date=${endDate}&interval=hilo&format=json&units=english&time_zone=lst_ldt`;
+        console.log(`Fetching tide predictions for date range '${beginDate}' to '${endDate}':`, apiUrl);
         
         const response = await fetch(apiUrl, {
             method: 'GET',
@@ -762,20 +763,20 @@ async function fetchNoaaTidePredictionsForDate(stationId, date) {
         });
         
         if (!response.ok) {
-            console.log(`Tide predictions API returned status ${response.status} for date '${date}'`);
+            console.log(`Tide predictions API returned status ${response.status} for date range '${beginDate}' to '${endDate}'`);
             return null;
         }
         
         const data = await response.json();
         
         if (!data.predictions || data.predictions.length === 0) {
-            console.log(`No tide predictions returned for date '${date}'`);
+            console.log(`No tide predictions returned for date range '${beginDate}' to '${endDate}'`);
             return null;
         }
         
         return data.predictions;
     } catch (error) {
-        console.error(`Error fetching tide predictions for date '${date}':`, error);
+        console.error(`Error fetching tide predictions for date range '${beginDate}' to '${endDate}':`, error);
         return null;
     }
 }
@@ -902,19 +903,36 @@ async function fetchNoaaTidePredictions(stationId, timeZone) {
         // Cache miss or stale - fetch from API
         const now = new Date();
         
-        // First, fetch today's predictions
-        const todayPredictions = await fetchNoaaTidePredictionsForDate(stationId, 'today');
+        // Make a single API call for yesterday through tomorrow (3-day range)
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const tomorrow = new Date(now);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const beginDate = yesterday.toISOString().slice(0, 10).replace(/-/g, '');
+        const endDate = tomorrow.toISOString().slice(0, 10).replace(/-/g, '');
         
-        if (!todayPredictions || todayPredictions.length === 0) {
-            console.log('No tide predictions returned from API for today');
+        console.log(`Current time (reference): ${now.toISOString()}`);
+        console.log(`Fetching tide predictions for date range: ${beginDate} to ${endDate} (yesterday through tomorrow)`);
+        const allPredictions = await fetchNoaaTidePredictionsForDateRange(stationId, beginDate, endDate);
+        
+        if (!allPredictions || allPredictions.length === 0) {
+            console.log('No tide predictions returned from API');
             return null;
         }
         
-        // Parse today's predictions and find last and next tide
+        console.log(`All predictions (${allPredictions.length} tides) from date range:`);
+        for (const pred of allPredictions) {
+            const predTime = new Date(pred.t);
+            const isFuture = !isNaN(predTime.getTime()) && predTime > now;
+            const futureStr = isFuture ? ' [FUTURE]' : ' [PAST]';
+            console.log(`  ${pred.t} : ${pred.type} ${pred.v}ft${futureStr}`);
+        }
+        
+        // Process all predictions to find last and next tide
         let lastTide = null;
         let nextTide = null;
         
-        for (const prediction of todayPredictions) {
+        for (const prediction of allPredictions) {
             const timeStr = prediction.t;
             const tideTime = new Date(timeStr);
             
@@ -925,6 +943,7 @@ async function fetchNoaaTidePredictions(stationId, timeZone) {
             const height = parseFloat(prediction.v);
             const type = prediction.type;
             
+            // Find last tide (most recent past tide)
             if (tideTime <= now) {
                 if (!lastTide || tideTime > lastTide.time) {
                     lastTide = {
@@ -933,7 +952,10 @@ async function fetchNoaaTidePredictions(stationId, timeZone) {
                         type: type
                     };
                 }
-            } else {
+            }
+            
+            // Find next tide (earliest future tide)
+            if (tideTime > now) {
                 if (!nextTide || tideTime < nextTide.time) {
                     nextTide = {
                         time: tideTime,
@@ -944,104 +966,16 @@ async function fetchNoaaTidePredictions(stationId, timeZone) {
             }
         }
         
-        // If no next tide found, fetch tomorrow's predictions
-        if (!nextTide) {
-            console.log('No next tide found for today, fetching tomorrow\'s predictions');
-            const tomorrow = new Date(now);
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            const tomorrowDateStr = tomorrow.toISOString().slice(0, 10).replace(/-/g, '');
-            const tomorrowPredictions = await fetchNoaaTidePredictionsForDate(stationId, tomorrowDateStr);
-            
-            if (tomorrowPredictions && tomorrowPredictions.length > 0) {
-                // Get the first tide from tomorrow (earliest future tide)
-                let firstTomorrowTide = null;
-                const allTomorrowTides = [];
-                
-                for (const prediction of tomorrowPredictions) {
-                    const timeStr = prediction.t;
-                    const tideTime = new Date(timeStr);
-                    
-                    if (isNaN(tideTime.getTime())) {
-                        continue;
-                    }
-                    
-                    const tideInfo = {
-                        time: tideTime,
-                        height: parseFloat(prediction.v),
-                        type: prediction.type
-                    };
-                    allTomorrowTides.push(tideInfo);
-                    
-                    // Prefer tides that are clearly in the future
-                    if (tideTime > now) {
-                        if (!firstTomorrowTide || tideTime < firstTomorrowTide.time) {
-                            firstTomorrowTide = tideInfo;
-                        }
-                    }
-                }
-                
-                // If no tide found with time > now (timezone issue?), use the earliest tide from tomorrow
-                if (!firstTomorrowTide && allTomorrowTides.length > 0) {
-                    allTomorrowTides.sort((a, b) => a.time - b.time);
-                    firstTomorrowTide = allTomorrowTides[0];
-                    console.log('Using earliest tide from tomorrow as fallback:', firstTomorrowTide.time);
-                }
-                
-                if (firstTomorrowTide) {
-                    nextTide = firstTomorrowTide;
-                    console.log(`Found next tide from tomorrow: ${firstTomorrowTide.time} ${firstTomorrowTide.type}`);
-                }
-            }
+        if (lastTide) {
+            console.log(`Found last tide: ${lastTide.time} ${lastTide.type} ${lastTide.height}ft`);
+        } else {
+            console.log('No last tide found');
         }
         
-        // If no last tide found, fetch yesterday's predictions
-        if (!lastTide) {
-            console.log('No last tide found for today, fetching yesterday\'s predictions');
-            const yesterday = new Date(now);
-            yesterday.setDate(yesterday.getDate() - 1);
-            const yesterdayDateStr = yesterday.toISOString().slice(0, 10).replace(/-/g, '');
-            const yesterdayPredictions = await fetchNoaaTidePredictionsForDate(stationId, yesterdayDateStr);
-            
-            if (yesterdayPredictions && yesterdayPredictions.length > 0) {
-                // Get the last tide from yesterday (latest past tide)
-                let lastYesterdayTide = null;
-                const allYesterdayTides = [];
-                
-                for (const prediction of yesterdayPredictions) {
-                    const timeStr = prediction.t;
-                    const tideTime = new Date(timeStr);
-                    
-                    if (isNaN(tideTime.getTime())) {
-                        continue;
-                    }
-                    
-                    const tideInfo = {
-                        time: tideTime,
-                        height: parseFloat(prediction.v),
-                        type: prediction.type
-                    };
-                    allYesterdayTides.push(tideInfo);
-                    
-                    // Prefer tides that are clearly in the past
-                    if (tideTime <= now) {
-                        if (!lastYesterdayTide || tideTime > lastYesterdayTide.time) {
-                            lastYesterdayTide = tideInfo;
-                        }
-                    }
-                }
-                
-                // If no tide found with time <= now (timezone issue?), use the latest tide from yesterday
-                if (!lastYesterdayTide && allYesterdayTides.length > 0) {
-                    allYesterdayTides.sort((a, b) => a.time - b.time);
-                    lastYesterdayTide = allYesterdayTides[allYesterdayTides.length - 1];
-                    console.log('Using latest tide from yesterday as fallback:', lastYesterdayTide.time);
-                }
-                
-                if (lastYesterdayTide) {
-                    lastTide = lastYesterdayTide;
-                    console.log(`Found last tide from yesterday: ${lastYesterdayTide.time} ${lastYesterdayTide.type}`);
-                }
-            }
+        if (nextTide) {
+            console.log(`Found next tide: ${nextTide.time} ${nextTide.type} ${nextTide.height}ft`);
+        } else {
+            console.log('No next tide found');
         }
         
         // Return data if we have at least one tide (last or next)

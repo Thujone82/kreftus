@@ -153,6 +153,9 @@ Due to differences between the OpenWeatherMap and National Weather Service APIs,
 # Get observations for city and state
 .\gf.ps1 -observations "Portland, OR"
 
+# Use specific NOAA station by ID (overrides automatic selection)
+.\gf.ps1 "Portland, OR" -Noaa 9440357
+
 # View help
 .\gf.ps1 -Help
 ```
@@ -647,11 +650,12 @@ The NOAA Resources feature provides conditional access to NOAA tide station info
 
 #### Key Features:
 
-- **Conditional Display:** Only appears when a NOAA tide station is found within 100 miles
-- **Station Information:** Displays station name, clickable station ID link, and coordinates
+- **Conditional Display:** Only appears when a NOAA tide station is found within 100 miles (or when `-Noaa` parameter is used)
+- **Station Information:** Displays station name, clickable station ID link, distance, and cardinal direction
 - **Resource Links:** Provides direct access to Tide Prediction, Datums, and Water Levels (if supported)
 - **API-Based Lookup:** Uses official NOAA CO-OPS Metadata API for comprehensive station coverage
 - **Distance Calculation:** Uses Haversine formula for accurate great-circle distance calculation
+- **Station Override:** `-Noaa` parameter allows specifying a station ID directly, bypassing distance limits
 
 #### Technical Implementation:
 
@@ -659,9 +663,10 @@ The NOAA Resources feature provides conditional access to NOAA tide station info
 - **NOAA CO-OPS Metadata API:** Uses official NOAA API to fetch all available tide stations
 - **API Endpoint:** `https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json`
 - **Distance Calculation:** Haversine formula calculates great-circle distance between location and all stations
-- **Proximity Threshold:** 100-mile radius for station inclusion
-- **Station Selection:** Returns closest station within threshold
+- **Proximity Threshold:** 100-mile radius for station inclusion (when using automatic selection)
+- **Station Selection:** Returns closest station within threshold (or specified station when using `-Noaa` parameter)
 - **Dynamic Lookup:** No hardcoded station list - searches all available NOAA stations in real-time
+- **Station Override:** `-Noaa` parameter allows direct station ID specification, bypassing distance limits and automatic selection
 
 **Display Format:**
 - **NOAA Station Line:** "NOAA Station: {Name} ({StationID}) {Distance}mi {Direction}"
@@ -683,6 +688,7 @@ The NOAA Resources feature provides conditional access to NOAA tide station info
 
 **Functions:**
 - **Get-NoaaTideStation:** Fetches all stations from NOAA API, calculates distances, and returns closest within 100 miles
+- **Get-NoaaTideStationById:** Fetches a specific station by ID, calculates distance from location, and returns station information (used when `-Noaa` parameter is specified)
 - **Get-DistanceMiles:** Calculates Haversine distance between two coordinates
 - **Get-Bearing:** Calculates bearing (direction) from location to station in degrees (0-360)
 - **Get-CardinalDirection:** Converts bearing degrees to cardinal direction (N, NE, E, etc.)
@@ -691,7 +697,7 @@ The NOAA Resources feature provides conditional access to NOAA tide station info
   - If no "next" tide found for today, fetches tomorrow's predictions and selects earliest future tide
   - If no "last" tide found for today, fetches yesterday's predictions and selects latest past tide
 - **Convert-NoaaTidePredictions:** Processes tide prediction data to find last and next high/low tides
-- **Show-LocationInfo:** Conditionally displays NOAA Station, Resources, and Tides lines
+- **Show-LocationInfo:** Conditionally displays NOAA Station, Resources, and Tides lines (checks for `-Noaa` parameter to override station selection)
 
 **API Integration:**
 - **Stations Endpoint:** `https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json`
@@ -725,6 +731,8 @@ The NOAA Resources feature provides conditional access to NOAA tide station info
 - **Station Information:** View station coordinates and metadata for reference
 - **Marine Activities:** Plan activities based on tide and water level conditions
 - **24/7 Availability:** Complete tide information available at any time of day
+- **Specific Station Access:** Use `-Noaa` parameter to access stations beyond 100 miles or specific stations of interest
+- **Station Override:** Override automatic station selection when you know the exact station ID you want to use
 
 ### Control Bar Toggle Feature (v2.1)
 
