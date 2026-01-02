@@ -20,7 +20,21 @@
 param([string]$IPAddress)
 
 function Write-ModernHeader ($Text) {
+    $border = "=" * ($Text.Length + 8)
+    # Write border, then fill rest of line with black background
+    Write-Host $border -NoNewline -ForegroundColor Cyan
+    $consoleWidth = $host.UI.RawUI.BufferSize.Width
+    $remainingWidth = $consoleWidth - $border.Length
+    if ($remainingWidth -gt 0) {
+        Write-Host (" " * $remainingWidth) -NoNewline -BackgroundColor Black
+    }
+    Write-Host ""
     Write-Host ("    $Text    ") -ForegroundColor Black -BackgroundColor Cyan
+    Write-Host $border -NoNewline -ForegroundColor Cyan
+    if ($remainingWidth -gt 0) {
+        Write-Host (" " * $remainingWidth) -NoNewline -BackgroundColor Black
+    }
+    Write-Host ""
 }
 
 function Write-ModernRow ($Key, $Value) {
