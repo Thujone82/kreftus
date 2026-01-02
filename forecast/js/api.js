@@ -955,6 +955,8 @@ async function fetchNoaaTidePredictions(stationId, timeZone) {
             if (tomorrowPredictions && tomorrowPredictions.length > 0) {
                 // Get the first tide from tomorrow (earliest future tide)
                 let firstTomorrowTide = null;
+                const allTomorrowTides = [];
+                
                 for (const prediction of tomorrowPredictions) {
                     const timeStr = prediction.t;
                     const tideTime = new Date(timeStr);
@@ -963,15 +965,26 @@ async function fetchNoaaTidePredictions(stationId, timeZone) {
                         continue;
                     }
                     
+                    const tideInfo = {
+                        time: tideTime,
+                        height: parseFloat(prediction.v),
+                        type: prediction.type
+                    };
+                    allTomorrowTides.push(tideInfo);
+                    
+                    // Prefer tides that are clearly in the future
                     if (tideTime > now) {
                         if (!firstTomorrowTide || tideTime < firstTomorrowTide.time) {
-                            firstTomorrowTide = {
-                                time: tideTime,
-                                height: parseFloat(prediction.v),
-                                type: prediction.type
-                            };
+                            firstTomorrowTide = tideInfo;
                         }
                     }
+                }
+                
+                // If no tide found with time > now (timezone issue?), use the earliest tide from tomorrow
+                if (!firstTomorrowTide && allTomorrowTides.length > 0) {
+                    allTomorrowTides.sort((a, b) => a.time - b.time);
+                    firstTomorrowTide = allTomorrowTides[0];
+                    console.log('Using earliest tide from tomorrow as fallback:', firstTomorrowTide.time);
                 }
                 
                 if (firstTomorrowTide) {
@@ -992,6 +1005,8 @@ async function fetchNoaaTidePredictions(stationId, timeZone) {
             if (yesterdayPredictions && yesterdayPredictions.length > 0) {
                 // Get the last tide from yesterday (latest past tide)
                 let lastYesterdayTide = null;
+                const allYesterdayTides = [];
+                
                 for (const prediction of yesterdayPredictions) {
                     const timeStr = prediction.t;
                     const tideTime = new Date(timeStr);
@@ -1000,15 +1015,26 @@ async function fetchNoaaTidePredictions(stationId, timeZone) {
                         continue;
                     }
                     
+                    const tideInfo = {
+                        time: tideTime,
+                        height: parseFloat(prediction.v),
+                        type: prediction.type
+                    };
+                    allYesterdayTides.push(tideInfo);
+                    
+                    // Prefer tides that are clearly in the past
                     if (tideTime <= now) {
                         if (!lastYesterdayTide || tideTime > lastYesterdayTide.time) {
-                            lastYesterdayTide = {
-                                time: tideTime,
-                                height: parseFloat(prediction.v),
-                                type: prediction.type
-                            };
+                            lastYesterdayTide = tideInfo;
                         }
                     }
+                }
+                
+                // If no tide found with time <= now (timezone issue?), use the latest tide from yesterday
+                if (!lastYesterdayTide && allYesterdayTides.length > 0) {
+                    allYesterdayTides.sort((a, b) => a.time - b.time);
+                    lastYesterdayTide = allYesterdayTides[allYesterdayTides.length - 1];
+                    console.log('Using latest tide from yesterday as fallback:', lastYesterdayTide.time);
                 }
                 
                 if (lastYesterdayTide) {

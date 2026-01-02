@@ -3388,18 +3388,30 @@ function Show-LocationInfo {
                             }
                             if ($tomorrowPredictions) {
                                 $firstTomorrowTide = $null
+                                $allTomorrowTides = @()
                                 foreach ($prediction in $tomorrowPredictions) {
                                     $timeStr = $prediction.t
                                     if ($timeStr -match "\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}") {
                                         $tideTime = [DateTime]::ParseExact($timeStr, "yyyy-MM-dd HH:mm", $null)
+                                        $tideInfo = @{ Time = $tideTime; Height = [double]$prediction.v; Type = $prediction.type }
+                                        $allTomorrowTides += $tideInfo
+                                        # Prefer tides that are clearly in the future
                                         if ($tideTime -gt $now) {
                                             if ($null -eq $firstTomorrowTide -or $tideTime -lt $firstTomorrowTide.Time) {
-                                                $firstTomorrowTide = @{ Time = $tideTime; Height = [double]$prediction.v; Type = $prediction.type }
+                                                $firstTomorrowTide = $tideInfo
                                             }
                                         }
                                     }
                                 }
-                                if ($firstTomorrowTide) { $tideData.NextTide = $firstTomorrowTide }
+                                # If no tide found with time > now (timezone issue?), use the earliest tide from tomorrow
+                                if (-not $firstTomorrowTide -and $allTomorrowTides.Count -gt 0) {
+                                    $firstTomorrowTide = $allTomorrowTides | Sort-Object -Property Time | Select-Object -First 1
+                                    Write-Verbose "Using earliest tide from tomorrow as fallback: $($firstTomorrowTide.Time)"
+                                }
+                                if ($firstTomorrowTide) { 
+                                    $tideData.NextTide = $firstTomorrowTide
+                                    Write-Verbose "Found next tide from tomorrow: $($firstTomorrowTide.Time.ToString('HH:mm')) $($firstTomorrowTide.Type)"
+                                }
                             }
                         }
                         
@@ -3413,18 +3425,30 @@ function Show-LocationInfo {
                             }
                             if ($yesterdayPredictions) {
                                 $lastYesterdayTide = $null
+                                $allYesterdayTides = @()
                                 foreach ($prediction in $yesterdayPredictions) {
                                     $timeStr = $prediction.t
                                     if ($timeStr -match "\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}") {
                                         $tideTime = [DateTime]::ParseExact($timeStr, "yyyy-MM-dd HH:mm", $null)
+                                        $tideInfo = @{ Time = $tideTime; Height = [double]$prediction.v; Type = $prediction.type }
+                                        $allYesterdayTides += $tideInfo
+                                        # Prefer tides that are clearly in the past
                                         if ($tideTime -le $now) {
                                             if ($null -eq $lastYesterdayTide -or $tideTime -gt $lastYesterdayTide.Time) {
-                                                $lastYesterdayTide = @{ Time = $tideTime; Height = [double]$prediction.v; Type = $prediction.type }
+                                                $lastYesterdayTide = $tideInfo
                                             }
                                         }
                                     }
                                 }
-                                if ($lastYesterdayTide) { $tideData.LastTide = $lastYesterdayTide }
+                                # If no tide found with time <= now (timezone issue?), use the latest tide from yesterday
+                                if (-not $lastYesterdayTide -and $allYesterdayTides.Count -gt 0) {
+                                    $lastYesterdayTide = $allYesterdayTides | Sort-Object -Property Time | Select-Object -Last 1
+                                    Write-Verbose "Using latest tide from yesterday as fallback: $($lastYesterdayTide.Time)"
+                                }
+                                if ($lastYesterdayTide) { 
+                                    $tideData.LastTide = $lastYesterdayTide
+                                    Write-Verbose "Found last tide from yesterday: $($lastYesterdayTide.Time.ToString('HH:mm')) $($lastYesterdayTide.Type)"
+                                }
                             }
                         }
                         
