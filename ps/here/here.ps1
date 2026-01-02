@@ -149,7 +149,7 @@ function Get-SunriseSunset {
 
 # Function to calculate moon phase using simple astronomical method
 # Uses reference new moon date (January 6, 2000 18:14 UTC) and lunar cycle of 29.53058867 days
-# Returns moon phase name (text only, no emoji)
+# Returns moon phase name (text only, no emoji) and next full/new moon information
 function Get-MoonPhase {
     param([DateTime]$Date)
     
@@ -186,7 +186,32 @@ function Get-MoonPhase {
         $phaseName = "Waning Crescent"
     }
     
-    return $phaseName
+    # Calculate next full moon and new moon dates
+    $isFullMoon = ($phase -ge 0.48 -and $phase -lt 0.52)
+    $isNewMoon = ($phase -lt 0.125)
+    $showNextFullMoon = ($phase -lt 0.48)  # Before Full Moon
+    $showNextNewMoon = ($phase -ge 0.52)   # At/After Full Moon
+    
+    # Calculate next full moon
+    $daysUntilNextFullMoon = (14.77 - $currentCycle) % $lunarCycle
+    if ($daysUntilNextFullMoon -le 0) {
+        $daysUntilNextFullMoon += $lunarCycle
+    }
+    $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
+    
+    # Calculate next new moon
+    $daysUntilNextNewMoon = $lunarCycle - $currentCycle
+    $nextNewMoonDate = $Date.AddDays($daysUntilNextNewMoon).ToString("MM/dd/yyyy")
+    
+    return @{
+        Name = $phaseName
+        IsFullMoon = $isFullMoon
+        IsNewMoon = $isNewMoon
+        ShowNextFullMoon = $showNextFullMoon
+        ShowNextNewMoon = $showNextNewMoon
+        NextFullMoon = $nextFullMoonDate
+        NextNewMoon = $nextNewMoonDate
+    }
 }
 
 function Get-MachineIPGeoLocation {
@@ -252,7 +277,8 @@ if ($GeoLocation) {
     $sunsetTime = $sunTimes.Sunset
     
     # Calculate moon phase
-    $moonPhase = Get-MoonPhase -Date $currentDate
+    $moonPhaseInfo = Get-MoonPhase -Date $currentDate
+    $moonPhase = $moonPhaseInfo.Name
     
     # Get timezone info for current local time
     $tzInfo = Get-ResolvedTimeZoneInfo -TimeZoneId $timeZoneId
@@ -305,6 +331,14 @@ if ($GeoLocation) {
     
     # Display moon phase
     Write-ModernRow "Moon Phase" $moonPhase
+    
+    # Display next full moon or new moon based on cycle
+    if ($moonPhaseInfo.ShowNextFullMoon -and $moonPhaseInfo.NextFullMoon) {
+        Write-ModernRow "Next Full" $moonPhaseInfo.NextFullMoon
+    }
+    if ($moonPhaseInfo.ShowNextNewMoon -and $moonPhaseInfo.NextNewMoon) {
+        Write-ModernRow "Next New" $moonPhaseInfo.NextNewMoon
+    }
     
     Write-Host ""
     Write-Host "Accuracy is based on your ISP's IP address assignment, not GPS." -ForegroundColor DarkGray
