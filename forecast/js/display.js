@@ -579,11 +579,60 @@ function displayWeatherAlerts(alerts, showDetails = true, timeZoneId = null) {
     return html;
 }
 
+// Get UTC offset string for a timezone (e.g., "UTC-8" or "UTC+5")
+function getUtcOffsetString(timeZoneId) {
+    if (!timeZoneId) {
+        return '';
+    }
+    
+    try {
+        const now = new Date();
+        
+        // Get UTC time components
+        const utcHour = now.getUTCHours();
+        const utcMinute = now.getUTCMinutes();
+        const utcTime = utcHour * 60 + utcMinute; // minutes since midnight UTC
+        
+        // Get timezone time components for the same moment
+        const tzFormatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: timeZoneId,
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
+        
+        const tzParts = tzFormatter.formatToParts(now);
+        const tzHour = parseInt(tzParts.find(p => p.type === 'hour').value, 10);
+        const tzMinute = parseInt(tzParts.find(p => p.type === 'minute').value, 10);
+        const tzTime = tzHour * 60 + tzMinute; // minutes since midnight in timezone
+        
+        // Calculate offset in minutes, then convert to hours
+        let offsetMinutes = tzTime - utcTime;
+        
+        // Handle day rollover (if timezone is ahead/behind by more than 12 hours)
+        if (offsetMinutes > 12 * 60) {
+            offsetMinutes -= 24 * 60; // Subtract a full day
+        } else if (offsetMinutes < -12 * 60) {
+            offsetMinutes += 24 * 60; // Add a full day
+        }
+        
+        const offsetHours = offsetMinutes / 60;
+        const sign = offsetHours >= 0 ? '+' : '';
+        
+        return ` (UTC${sign}${Math.round(offsetHours)})`;
+    } catch (error) {
+        console.error('Error calculating UTC offset:', error);
+        return '';
+    }
+}
+
 // Display location information
 function displayLocationInfo(location, noaaStation = null) {
     let html = '<div class="location-info">';
     html += '<div class="section-header">Location Information</div>';
-    html += `<div class="location-info-item">Time Zone: ${location.timeZone}</div>`;
+    
+    const utcOffsetStr = getUtcOffsetString(location.timeZone);
+    html += `<div class="location-info-item">Time Zone: ${location.timeZone}${utcOffsetStr}</div>`;
     html += `<div class="location-info-item">Coordinates: ${location.lat}, ${location.lon}</div>`;
     html += `<div class="location-info-item">Elevation: ${location.elevationFeet}ft</div>`;
     

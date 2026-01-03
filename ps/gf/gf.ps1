@@ -3319,7 +3319,24 @@ function Show-LocationInfo {
     
     Write-Host ""
     Write-Host "*** Location Information ***" -ForegroundColor $TitleColor
-    Write-Host "Time Zone: $timeZone" -ForegroundColor $DefaultColor
+    
+    # Calculate UTC offset for display
+    $utcOffsetStr = ""
+    if ($TimeZone) {
+        try {
+            $tzInfo = Get-ResolvedTimeZoneInfo -TimeZoneId $TimeZone
+            if ($tzInfo) {
+                $utcOffset = $tzInfo.GetUtcOffset([DateTime]::Now)
+                $offsetHours = $utcOffset.TotalHours
+                $offsetSign = if ($offsetHours -ge 0) { "+" } else { "" }
+                $utcOffsetStr = " (UTC$offsetSign$([Math]::Round($offsetHours, 0)))"
+            }
+        } catch {
+            Write-Verbose "Could not calculate UTC offset for timezone: $($_.Exception.Message)"
+        }
+    }
+    
+    Write-Host "Time Zone: $timeZone$utcOffsetStr" -ForegroundColor $DefaultColor
     Write-Host "Coordinates: $lat, $lon" -ForegroundColor $DefaultColor
     Write-Host "Elevation: ${elevationFeet}ft" -ForegroundColor $DefaultColor
     
