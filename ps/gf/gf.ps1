@@ -1253,147 +1253,60 @@ while ($true) { # Loop for location input and geocoding
             # Prepare location for API query
             $locationForApi = if ($Location -match ",") { $Location } else { "$Location,US" }
             $encodedLocation = [uri]::EscapeDataString($locationForApi)
-            $geoUrl = "https://nominatim.openstreetmap.org/search?q=$encodedLocation&format=json&limit=1&countrycodes=us"
+            $geoUrl = "https://nominatim.openstreetmap.org/search?q=$encodedLocation&format=json&limit=1&countrycodes=us&addressdetails=1"
             Write-Verbose "Geocoding URL: $geoUrl"
             
-            $geoData = Invoke-RestMethod "$geoUrl" -ErrorAction Stop
+            $nominatimHeaders = @{
+                "User-Agent" = "GetForecast/1.0 (Weather Script)"
+            }
+            $geoData = Invoke-RestMethod -Uri "$geoUrl" -Headers $nominatimHeaders -ErrorAction Stop
             if ($geoData.Count -eq 0) { throw "No geocoding results found for '$Location'." }
+            
+            # Log Nominatim response for debugging
+            Write-Verbose "Nominatim API response received successfully"
+            Write-Verbose "Response type: $($geoData[0].type)"
+            Write-Verbose "Response name: $($geoData[0].name)"
+            Write-Verbose "Response display_name: $($geoData[0].display_name)"
+            if ($geoData[0].address) {
+                Write-Verbose "Address object present with fields:"
+                $geoData[0].address.PSObject.Properties | ForEach-Object {
+                    Write-Verbose "  address.$($_.Name) = $($_.Value)"
+                }
+            } else {
+                Write-Verbose "No address object in response"
+            }
             
             $lat = [double]$geoData[0].lat
             $lon = [double]$geoData[0].lon
             
-            # Extract city and state based on the type of location returned
-            if ($geoData[0].type -eq "postcode") {
-                # For zipcodes, try address object first (most reliable)
-                $displayName = $geoData[0].display_name
-                Write-Verbose "Parsing zipcode location from display_name: $displayName"
-                
-                # Try to get city from address object first (most reliable)
-                # Prioritize city over neighborhood/suburb
-                $city = $null
-                $hasNeighborhood = $false
-                if ($geoData[0].address) {
-                    # Check if there's a suburb/neighborhood field - this helps us identify neighborhoods
-                    $hasNeighborhood = ($geoData[0].address.suburb -or $geoData[0].address.neighbourhood)
-                    
-                    # Check various city fields in order of preference
-                    # Note: address.city should be the actual city, not a neighborhood
-                    if ($geoData[0].address.city) {
-                        $city = $geoData[0].address.city
-                        Write-Verbose "Found city from address.city: $city"
-                        
-                        # Verify the city is correct - check if it matches the first element in display_name
-                        # Format: "97217, Arbor Lodge, Portland, ..." - if city matches first element, it's likely a neighborhood
-                        if ($displayName -match "^\d{5}, ([^,]+),") {
-                            $firstElement = $matches[1].Trim()
-                            if ($firstElement -eq $city) {
-                                # The city field might actually be a neighborhood - check for pattern with County
-                                # Format: "97217, Arbor Lodge, Portland, Multnomah County, ..." - Portland is the real city
-                                if ($displayName -match "^\d{5}, [^,]+, ([^,]+), [^,]*County,") {
-                                    $potentialCity = $matches[1].Trim()
-                                    $stateNames = @("Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", 
-                                                   "Delaware", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa",
-                                                   "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", 
-                                                   "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", 
-                                                   "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio",
-                                                   "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", 
-                                                   "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia", 
-                                                   "Wisconsin", "Wyoming")
-                                    if (-not ($stateNames -contains $potentialCity) -and -not ($potentialCity -match "County$")) {
-                                        $city = $potentialCity
-                                        Write-Verbose "Corrected city from display_name (address.city was actually neighborhood): $city"
-                                    }
-                                }
-                            }
-                        }
-                    } elseif ($geoData[0].address.town) {
-                        $city = $geoData[0].address.town
-                        Write-Verbose "Found city from address.town: $city"
-                    } elseif ($geoData[0].address.village) {
-                        $city = $geoData[0].address.village
-                        Write-Verbose "Found city from address.village: $city"
-                    } elseif ($geoData[0].address.municipality) {
-                        $city = $geoData[0].address.municipality
-                        Write-Verbose "Found city from address.municipality: $city"
-                    }
+            # Extract city and state from address object (now that we have addressdetails=1)
+            $city = $null
+            $state = $null
+            
+            if ($geoData[0].address) {
+                # Extract city from address object (prioritize city over neighborhood/suburb)
+                if ($geoData[0].address.city) {
+                    $city = $geoData[0].address.city
+                    Write-Verbose "Found city from address.city: $city"
+                } elseif ($geoData[0].address.town) {
+                    $city = $geoData[0].address.town
+                    Write-Verbose "Found city from address.town: $city"
+                } elseif ($geoData[0].address.village) {
+                    $city = $geoData[0].address.village
+                    Write-Verbose "Found city from address.village: $city"
+                } elseif ($geoData[0].address.municipality) {
+                    $city = $geoData[0].address.municipality
+                    Write-Verbose "Found city from address.municipality: $city"
                 }
                 
-                # If address object didn't work, parse from display_name
-                if (-not $city) {
-                    # Extract city from display_name
-                    # Format varies: 
-                    #   "99502, Anchorage, Alaska, United States" (ZIP, city, state)
-                    #   "97217, Arbor Lodge, Portland, Multnomah County, Oregon, United States" (ZIP, neighborhood, city, county, state)
-                    #   "97219, Multnomah, Portland, Multnomah County, Oregon, United States" (ZIP, county, city, county, state)
-                    # Strategy: 
-                    #   1. If pattern is "ZIP, X, Y, ... County, ..." and Y doesn't end with "County", Y is likely the city
-                    #   2. Check if first element is a state, if so, use second element
-                    #   3. Check if there's a suburb/neighborhood field, if so, prefer second element
-                    #   4. Otherwise, first element is likely the city
-                    
-                    $stateNames = @("Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", 
-                                   "Delaware", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa",
-                                   "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", 
-                                   "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", 
-                                   "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio",
-                                   "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", 
-                                   "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia", 
-                                   "Wisconsin", "Wyoming")
-                    
-                    # Check for pattern: "ZIP, X, Y, ... County, ..." - Y is likely the city
-                    if ($displayName -match "^\d{5}, [^,]+, ([^,]+), [^,]*County,") {
-                        $potentialCity = $matches[1].Trim()
-                        # Verify it's not a state or county name
-                        if (-not ($stateNames -contains $potentialCity) -and -not ($potentialCity -match "County$")) {
-                            $city = $potentialCity
-                            Write-Verbose "Found city from display_name (second element before County): $city"
-                        }
-                    }
-                    
-                    # If we still don't have a city, try other patterns
-                    if (-not $city -and $displayName -match "^\d{5}, ([^,]+),") {
-                        $firstElement = $matches[1].Trim()
-                        
-                        # Check if there's a suburb/neighborhood field - if so, first element is likely neighborhood
-                        # (We already set $hasNeighborhood above if address object exists)
-                        if (-not $hasNeighborhood -and $geoData[0].address) {
-                            $hasNeighborhood = ($geoData[0].address.suburb -or $geoData[0].address.neighbourhood)
-                        }
-                        
-                        if ($hasNeighborhood -or $stateNames -contains $firstElement) {
-                            # First element is a neighborhood or state, try second element (which should be the city)
-                            if ($displayName -match "^\d{5}, [^,]+,\s*([^,]+),") {
-                                $secondElement = $matches[1].Trim()
-                                # Verify second element is not a state or county
-                                if (-not ($stateNames -contains $secondElement) -and -not ($secondElement -match "County$")) {
-                                    $city = $secondElement
-                                    Write-Verbose "Found city from display_name (second element after neighborhood/state): $city"
-                                }
-                            }
-                        } else {
-                            # First element is likely the city (no neighborhood detected)
-                            $city = $firstElement
-                            Write-Verbose "Found city from display_name (first element): $city"
-                        }
-                    }
-                    
-                    # Final fallback: use the name field (which contains the zipcode)
-                    if (-not $city) {
-                        $city = $geoData[0].name
-                        Write-Verbose "Using zipcode name as fallback: $city"
-                    }
-                }
-                
-                # Extract state from display_name
-                # Format: "97219, Multnomah, Portland, Multnomah County, Oregon, United States"
-                # Look for state abbreviation in the display_name
-                if ($displayName -match ", ([A-Z]{2}), United States$") {
-                    $state = $matches[1]
-                } elseif ($displayName -match ", ([A-Z]{2})$") {
-                    $state = $matches[1]
-                } else {
-                    # Try to extract state from the full state name in display_name
-                    # Look for patterns like "Oregon, United States" and map to abbreviation
+                # Extract state from address object
+                if ($geoData[0].address.state_code -and $geoData[0].address.state_code.Length -eq 2) {
+                    $state = $geoData[0].address.state_code.ToUpper()
+                    Write-Verbose "Found state from address.state_code: $state"
+                } elseif ($geoData[0].address.state) {
+                    $stateName = $geoData[0].address.state
+                    Write-Verbose "Found state name from address.state: $stateName"
+                    # Map full state names to abbreviations
                     $stateMap = @{
                         "Alabama" = "AL"; "Alaska" = "AK"; "Arizona" = "AZ"; "Arkansas" = "AR"; "California" = "CA"
                         "Colorado" = "CO"; "Connecticut" = "CT"; "Delaware" = "DE"; "Florida" = "FL"; "Georgia" = "GA"
@@ -1405,188 +1318,77 @@ while ($true) { # Loop for location input and geocoding
                         "Oklahoma" = "OK"; "Oregon" = "OR"; "Pennsylvania" = "PA"; "Rhode Island" = "RI"; "South Carolina" = "SC"
                         "South Dakota" = "SD"; "Tennessee" = "TN"; "Texas" = "TX"; "Utah" = "UT"; "Vermont" = "VT"
                         "Virginia" = "VA"; "Washington" = "WA"; "West Virginia" = "WV"; "Wisconsin" = "WI"; "Wyoming" = "WY"
+                        "District of Columbia" = "DC"
                     }
-                    
-                    foreach ($stateName in $stateMap.Keys) {
-                        if ($displayName -match ", $stateName, United States$") {
-                            $state = $stateMap[$stateName]
+                    if ($stateMap.ContainsKey($stateName)) {
+                        $state = $stateMap[$stateName]
+                        Write-Verbose "Mapped state name '$stateName' to abbreviation: $state"
+                    }
+                }
+            }
+            
+            # Fallback: Parse from display_name if address object didn't provide needed fields
+            if (-not $city) {
+                $displayName = $geoData[0].display_name
+                Write-Verbose "Parsing city from display_name (fallback): $displayName"
+                
+                # Simple fallback: try to extract from display_name before state
+                $stateNames = @("Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", 
+                               "Delaware", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa",
+                               "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", 
+                               "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", 
+                               "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio",
+                               "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", 
+                               "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia", 
+                               "Wisconsin", "Wyoming")
+                
+                foreach ($stateName in $stateNames) {
+                    if ($displayName -match ", ([^,]+), $stateName,") {
+                        $potentialCity = $matches[1].Trim()
+                        if (-not ($potentialCity -match "County$") -and -not ($stateNames -contains $potentialCity)) {
+                            $city = $potentialCity
+                            Write-Verbose "Found city from display_name (before state '$stateName'): $city"
                             break
                         }
                     }
-                    
-                    # If still no match, try fallback methods
-                    if (-not $state -or $state -eq "US") {
-                        # Fallback: extract state from original input if it contains a comma
-                        if ($Location -match ", ([A-Z]{2})") {
-                            $state = $matches[1]
-                        } else {
-                            # For zipcodes without state info, we'll need to use a fallback
-                            # This is a limitation of the consolidated approach
-                            $state = "US"
-                        }
-                    }
-                }
-            } else {
-                # For non-postcode queries (cities, airports, etc.), extract city from address object first
-                # The name field may contain a full place name (e.g., "Ted Stevens Anchorage International Airport")
-                # but we want just the city name (e.g., "Anchorage")
-                $city = $null
-                if ($geoData[0].address) {
-                    # Check various city fields in order of preference
-                    if ($geoData[0].address.city) {
-                        $city = $geoData[0].address.city
-                        Write-Verbose "Found city from address.city: $city"
-                    } elseif ($geoData[0].address.town) {
-                        $city = $geoData[0].address.town
-                        Write-Verbose "Found city from address.town: $city"
-                    } elseif ($geoData[0].address.village) {
-                        $city = $geoData[0].address.village
-                        Write-Verbose "Found city from address.village: $city"
-                    } elseif ($geoData[0].address.municipality) {
-                        $city = $geoData[0].address.municipality
-                        Write-Verbose "Found city from address.municipality: $city"
-                    }
                 }
                 
-                # If address object didn't provide a city, try parsing from display_name
-                if (-not $city) {
-                    $displayName = $geoData[0].display_name
-                    Write-Verbose "Parsing city from display_name: $displayName"
-                    
-                    # Try to find the city in display_name - it's usually before the state or county
-                    # Format examples:
-                    #   "Ted Stevens Anchorage International Airport, ..., Anchorage, Alaska, ..."
-                    #   "Portland, Oregon, United States"
-                    #   "Portland International Airport, 7000, Northeast Airport Way, Portland, Multnomah County, Oregon, ..."
-                    #   "Seattle, King County, Washington, United States"
-                    
-                    $stateNames = @("Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", 
-                                   "Delaware", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa",
-                                   "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", 
-                                   "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", 
-                                   "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio",
-                                   "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", 
-                                   "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia", 
-                                   "Wisconsin", "Wyoming")
-                    
-                    # First, try to find city before a county (if county exists)
-                    # Pattern: "... City, County Name County, State, ..."
-                    if ($displayName -match ", ([^,]+), [^,]*County,") {
-                        $potentialCity = $matches[1].Trim()
-                        # Verify it's not a number, street name, or state
-                        if (-not ($potentialCity -match "^\d+$") -and 
-                            -not ($potentialCity -match "(Way|Road|Street|Avenue|Drive|Lane|Boulevard|Highway)$") -and
-                            -not ($potentialCity -match "County$") -and 
-                            -not ($stateNames -contains $potentialCity)) {
-                            $city = $potentialCity
-                            Write-Verbose "Found city from display_name (before county): $city"
-                        }
-                    }
-                    
-                    # If no city found yet, look for pattern before state name
-                    # But skip over counties and address elements
-                    if (-not $city) {
-                        foreach ($stateName in $stateNames) {
-                            # Look for pattern: "... City, State, ..." (skip county if present)
-                            # Try to find element before state, but verify it's not a county
-                            if ($displayName -match ", ([^,]+), $stateName,") {
-                                $potentialCity = $matches[1].Trim()
-                                # Verify it's not a county, number, street name, or another state
-                                if (-not ($potentialCity -match "County$") -and 
-                                    -not ($potentialCity -match "^\d+$") -and
-                                    -not ($potentialCity -match "(Way|Road|Street|Avenue|Drive|Lane|Boulevard|Highway)$") -and
-                                    -not ($stateNames -contains $potentialCity)) {
-                                    $city = $potentialCity
-                                    Write-Verbose "Found city from display_name (before state '$stateName'): $city"
-                                    break
-                                }
-                            }
-                        }
-                    }
-                    
-                    # If still no city, try looking for pattern before state abbreviation
-                    if (-not $city) {
-                        if ($displayName -match ", ([^,]+), ([A-Z]{2})(?:,|$)") {
-                            $potentialCity = $matches[1].Trim()
-                            if (-not ($potentialCity -match "County$") -and 
-                                -not ($potentialCity -match "^\d+$") -and
-                                -not ($potentialCity -match "(Way|Road|Street|Avenue|Drive|Lane|Boulevard|Highway)$") -and
-                                -not ($stateNames -contains $potentialCity)) {
-                                $city = $potentialCity
-                                Write-Verbose "Found city from display_name (before state abbreviation): $city"
-                            }
-                        }
-                    }
-                }
-                
-                # Final fallback: use the name field (may contain full place name)
+                # Final fallback: use name field
                 if (-not $city) {
                     $city = $geoData[0].name
                     Write-Verbose "Using name field as fallback: $city"
                 }
+            }
+            
+            # Fallback: Parse state from display_name if address object didn't provide it
+            if (-not $state -or $state -eq "US") {
+                $displayName = $geoData[0].display_name
+                Write-Verbose "Parsing state from display_name (fallback): $displayName"
                 
-                # Try to extract state from address object first (most reliable)
-                $state = $null
-                if ($geoData[0].address) {
-                    # Check for state_code (2-letter abbreviation) first
-                    if ($geoData[0].address.state_code -and $geoData[0].address.state_code.Length -eq 2) {
-                        $state = $geoData[0].address.state_code.ToUpper()
-                        Write-Verbose "Found state from address.state_code: $state"
+                if ($displayName -match ", ([A-Z]{2}), United States$") {
+                    $state = $matches[1]
+                } elseif ($displayName -match ", ([A-Z]{2})$") {
+                    $state = $matches[1]
+                } else {
+                    # Try to extract full state name from display_name and map it
+                    $stateMap = @{
+                        "Alabama" = "AL"; "Alaska" = "AK"; "Arizona" = "AZ"; "Arkansas" = "AR"; "California" = "CA"
+                        "Colorado" = "CO"; "Connecticut" = "CT"; "Delaware" = "DE"; "Florida" = "FL"; "Georgia" = "GA"
+                        "Hawaii" = "HI"; "Idaho" = "ID"; "Illinois" = "IL"; "Indiana" = "IN"; "Iowa" = "IA"
+                        "Kansas" = "KS"; "Kentucky" = "KY"; "Louisiana" = "LA"; "Maine" = "ME"; "Maryland" = "MD"
+                        "Massachusetts" = "MA"; "Michigan" = "MI"; "Minnesota" = "MN"; "Mississippi" = "MS"; "Missouri" = "MO"
+                        "Montana" = "MT"; "Nebraska" = "NE"; "Nevada" = "NV"; "New Hampshire" = "NH"; "New Jersey" = "NJ"
+                        "New Mexico" = "NM"; "New York" = "NY"; "North Carolina" = "NC"; "North Dakota" = "ND"; "Ohio" = "OH"
+                        "Oklahoma" = "OK"; "Oregon" = "OR"; "Pennsylvania" = "PA"; "Rhode Island" = "RI"; "South Carolina" = "SC"
+                        "South Dakota" = "SD"; "Tennessee" = "TN"; "Texas" = "TX"; "Utah" = "UT"; "Vermont" = "VT"
+                        "Virginia" = "VA"; "Washington" = "WA"; "West Virginia" = "WV"; "Wisconsin" = "WI"; "Wyoming" = "WY"
+                        "District of Columbia" = "DC"
                     }
-                    # If no state_code, try to map full state name to abbreviation
-                    elseif ($geoData[0].address.state) {
-                        $stateName = $geoData[0].address.state
-                        Write-Verbose "Found state name from address.state: $stateName"
-                        # Map full state names to abbreviations
-                        $stateMap = @{
-                            "Alabama" = "AL"; "Alaska" = "AK"; "Arizona" = "AZ"; "Arkansas" = "AR"; "California" = "CA"
-                            "Colorado" = "CO"; "Connecticut" = "CT"; "Delaware" = "DE"; "Florida" = "FL"; "Georgia" = "GA"
-                            "Hawaii" = "HI"; "Idaho" = "ID"; "Illinois" = "IL"; "Indiana" = "IN"; "Iowa" = "IA"
-                            "Kansas" = "KS"; "Kentucky" = "KY"; "Louisiana" = "LA"; "Maine" = "ME"; "Maryland" = "MD"
-                            "Massachusetts" = "MA"; "Michigan" = "MI"; "Minnesota" = "MN"; "Mississippi" = "MS"; "Missouri" = "MO"
-                            "Montana" = "MT"; "Nebraska" = "NE"; "Nevada" = "NV"; "New Hampshire" = "NH"; "New Jersey" = "NJ"
-                            "New Mexico" = "NM"; "New York" = "NY"; "North Carolina" = "NC"; "North Dakota" = "ND"; "Ohio" = "OH"
-                            "Oklahoma" = "OK"; "Oregon" = "OR"; "Pennsylvania" = "PA"; "Rhode Island" = "RI"; "South Carolina" = "SC"
-                            "South Dakota" = "SD"; "Tennessee" = "TN"; "Texas" = "TX"; "Utah" = "UT"; "Vermont" = "VT"
-                            "Virginia" = "VA"; "Washington" = "WA"; "West Virginia" = "WV"; "Wisconsin" = "WI"; "Wyoming" = "WY"
-                            "District of Columbia" = "DC"
-                        }
-                        if ($stateMap.ContainsKey($stateName)) {
+                    foreach ($stateName in $stateMap.Keys) {
+                        if ($displayName -match ", $([regex]::Escape($stateName)),") {
                             $state = $stateMap[$stateName]
-                            Write-Verbose "Mapped state name '$stateName' to abbreviation: $state"
-                        }
-                    }
-                }
-                
-                # Fallback: Parse state from display_name if address object didn't work
-                if (-not $state -or $state -eq "US") {
-                    $displayName = $geoData[0].display_name
-                    Write-Verbose "Parsing state from display_name: $displayName"
-                    if ($displayName -match ", ([A-Z]{2}),") {
-                        $state = $matches[1]
-                    } elseif ($displayName -match ", ([A-Z]{2})$") {
-                        $state = $matches[1]
-                    } else {
-                        # Try to extract full state name from display_name and map it
-                        $stateMap = @{
-                            "Alabama" = "AL"; "Alaska" = "AK"; "Arizona" = "AZ"; "Arkansas" = "AR"; "California" = "CA"
-                            "Colorado" = "CO"; "Connecticut" = "CT"; "Delaware" = "DE"; "Florida" = "FL"; "Georgia" = "GA"
-                            "Hawaii" = "HI"; "Idaho" = "ID"; "Illinois" = "IL"; "Indiana" = "IN"; "Iowa" = "IA"
-                            "Kansas" = "KS"; "Kentucky" = "KY"; "Louisiana" = "LA"; "Maine" = "ME"; "Maryland" = "MD"
-                            "Massachusetts" = "MA"; "Michigan" = "MI"; "Minnesota" = "MN"; "Mississippi" = "MS"; "Missouri" = "MO"
-                            "Montana" = "MT"; "Nebraska" = "NE"; "Nevada" = "NV"; "New Hampshire" = "NH"; "New Jersey" = "NJ"
-                            "New Mexico" = "NM"; "New York" = "NY"; "North Carolina" = "NC"; "North Dakota" = "ND"; "Ohio" = "OH"
-                            "Oklahoma" = "OK"; "Oregon" = "OR"; "Pennsylvania" = "PA"; "Rhode Island" = "RI"; "South Carolina" = "SC"
-                            "South Dakota" = "SD"; "Tennessee" = "TN"; "Texas" = "TX"; "Utah" = "UT"; "Vermont" = "VT"
-                            "Virginia" = "VA"; "Washington" = "WA"; "West Virginia" = "WV"; "Wisconsin" = "WI"; "Wyoming" = "WY"
-                            "District of Columbia" = "DC"
-                        }
-                        foreach ($stateName in $stateMap.Keys) {
-                            if ($displayName -match ", $([regex]::Escape($stateName)),") {
-                                $state = $stateMap[$stateName]
-                                Write-Verbose "Mapped state name '$stateName' from display_name to abbreviation: $state"
-                                break
-                            }
+                            Write-Verbose "Mapped state name '$stateName' from display_name to abbreviation: $state"
+                            break
                         }
                     }
                 }
