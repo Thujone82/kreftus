@@ -72,10 +72,39 @@ async function geocodeLocation(location) {
             const displayName = result.display_name;
             
             // Try to get city from address object first (most reliable)
+            // Prioritize city over neighborhood/suburb
+            let hasNeighborhood = false;
             if (result.address) {
+                // Check if there's a suburb/neighborhood field - this helps us identify neighborhoods
+                hasNeighborhood = !!(result.address.suburb || result.address.neighbourhood);
+                
                 // Check various city fields in order of preference
+                // Note: address.city should be the actual city, not a neighborhood
                 if (result.address.city) {
                     city = result.address.city;
+                    
+                    // Verify the city is correct - check if it matches the first element in display_name
+                    // Format: "97217, Arbor Lodge, Portland, ..." - if city matches first element, it's likely a neighborhood
+                    const firstElementMatch = displayName.match(/^\d{5}, ([^,]+),/);
+                    if (firstElementMatch && firstElementMatch[1].trim() === city) {
+                        // The city field might actually be a neighborhood - check for pattern with County
+                        // Format: "97217, Arbor Lodge, Portland, Multnomah County, ..." - Portland is the real city
+                        const countyPatternMatch = displayName.match(/^\d{5}, [^,]+, ([^,]+), [^,]*County,/);
+                        if (countyPatternMatch) {
+                            const potentialCity = countyPatternMatch[1].trim();
+                            const stateNames = ["Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", 
+                                               "Delaware", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa",
+                                               "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", 
+                                               "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", 
+                                               "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio",
+                                               "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", 
+                                               "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia", 
+                                               "Wisconsin", "Wyoming"];
+                            if (!stateNames.includes(potentialCity) && !potentialCity.match(/County$/)) {
+                                city = potentialCity;
+                            }
+                        }
+                    }
                 } else if (result.address.town) {
                     city = result.address.town;
                 } else if (result.address.village) {
@@ -88,30 +117,61 @@ async function geocodeLocation(location) {
             // If address object didn't work (city is still the zipcode), parse from display_name
             if (city === result.name) {
                 // Extract city from display_name
-                // Format varies: "99502, Anchorage, Alaska, United States" or "97219, Multnomah, Portland, Multnomah County, Oregon, United States"
-                // Strategy: Find the element that comes before the state name
-                const firstElementMatch = displayName.match(/^\d{5}, ([^,]+),/);
-                if (firstElementMatch) {
-                    const firstElement = firstElementMatch[1].trim();
-                    // Check if first element is likely a city (not a state name)
-                    const stateNames = ["Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", 
-                                       "Delaware", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa",
-                                       "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", 
-                                       "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", 
-                                       "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio",
-                                       "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", 
-                                       "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia", 
-                                       "Wisconsin", "Wyoming"];
-                    
-                    if (stateNames.includes(firstElement)) {
-                        // First element is a state, try second element
-                        const cityMatch = displayName.match(/^\d{5}, [^,]+,\s*([^,]+),/);
-                        if (cityMatch) {
-                            city = cityMatch[1].trim();
+                // Format varies: 
+                //   "99502, Anchorage, Alaska, United States" (ZIP, city, state)
+                //   "97217, Arbor Lodge, Portland, Multnomah County, Oregon, United States" (ZIP, neighborhood, city, county, state)
+                //   "97219, Multnomah, Portland, Multnomah County, Oregon, United States" (ZIP, county, city, county, state)
+                // Strategy: 
+                //   1. If pattern is "ZIP, X, Y, ... County, ..." and Y doesn't end with "County", Y is likely the city
+                //   2. Check if first element is a state, if so, use second element
+                //   3. Check if there's a suburb/neighborhood field, if so, prefer second element
+                //   4. Otherwise, first element is likely the city
+                
+                const stateNames = ["Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", 
+                                   "Delaware", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa",
+                                   "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", 
+                                   "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", 
+                                   "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio",
+                                   "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", 
+                                   "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia", 
+                                   "Wisconsin", "Wyoming"];
+                
+                // Check for pattern: "ZIP, X, Y, ... County, ..." - Y is likely the city
+                const countyPatternMatch = displayName.match(/^\d{5}, [^,]+, ([^,]+), [^,]*County,/);
+                if (countyPatternMatch) {
+                    const potentialCity = countyPatternMatch[1].trim();
+                    // Verify it's not a state or county name
+                    if (!stateNames.includes(potentialCity) && !potentialCity.match(/County$/)) {
+                        city = potentialCity;
+                    }
+                }
+                
+                // If we still don't have a city, try other patterns
+                if (city === result.name) {
+                    const firstElementMatch = displayName.match(/^\d{5}, ([^,]+),/);
+                    if (firstElementMatch) {
+                        const firstElement = firstElementMatch[1].trim();
+                        
+                        // Check if there's a suburb/neighborhood field - if so, first element is likely neighborhood
+                        // (We already set hasNeighborhood above if address object exists)
+                        if (!hasNeighborhood && result.address) {
+                            hasNeighborhood = !!(result.address.suburb || result.address.neighbourhood);
                         }
-                    } else {
-                        // First element is likely the city
-                        city = firstElement;
+                        
+                        if (hasNeighborhood || stateNames.includes(firstElement)) {
+                            // First element is a neighborhood or state, try second element (which should be the city)
+                            const cityMatch = displayName.match(/^\d{5}, [^,]+,\s*([^,]+),/);
+                            if (cityMatch) {
+                                const secondElement = cityMatch[1].trim();
+                                // Verify second element is not a state or county
+                                if (!stateNames.includes(secondElement) && !secondElement.match(/County$/)) {
+                                    city = secondElement;
+                                }
+                            }
+                        } else {
+                            // First element is likely the city (no neighborhood detected)
+                            city = firstElement;
+                        }
                     }
                 }
             }
@@ -143,7 +203,98 @@ async function geocodeLocation(location) {
                 }
             }
         } else {
-            // For city/state queries, try to extract state from address object first (most reliable)
+            // For non-postcode queries (cities, airports, etc.), extract city from address object first
+            // The name field may contain a full place name (e.g., "Ted Stevens Anchorage International Airport")
+            // but we want just the city name (e.g., "Anchorage")
+            if (result.address) {
+                // Check various city fields in order of preference
+                if (result.address.city) {
+                    city = result.address.city;
+                } else if (result.address.town) {
+                    city = result.address.town;
+                } else if (result.address.village) {
+                    city = result.address.village;
+                } else if (result.address.municipality) {
+                    city = result.address.municipality;
+                }
+            }
+            
+            // If address object didn't provide a city, try parsing from display_name
+            if (!city || city === result.name) {
+                const displayName = result.display_name;
+                
+                // Try to find the city in display_name - it's usually before the state or county
+                // Format examples:
+                //   "Ted Stevens Anchorage International Airport, ..., Anchorage, Alaska, ..."
+                //   "Portland, Oregon, United States"
+                //   "Portland International Airport, 7000, Northeast Airport Way, Portland, Multnomah County, Oregon, ..."
+                //   "Seattle, King County, Washington, United States"
+                
+                const stateNames = ["Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", 
+                                   "Delaware", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa",
+                                   "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", 
+                                   "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", 
+                                   "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio",
+                                   "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", 
+                                   "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia", 
+                                   "Wisconsin", "Wyoming"];
+                
+                // First, try to find city before a county (if county exists)
+                // Pattern: "... City, County Name County, State, ..."
+                const countyPatternMatch = displayName.match(/, ([^,]+), [^,]*County,/);
+                if (countyPatternMatch) {
+                    const potentialCity = countyPatternMatch[1].trim();
+                    // Verify it's not a number, street name, or state
+                    if (!potentialCity.match(/^\d+$/) && 
+                        !potentialCity.match(/(Way|Road|Street|Avenue|Drive|Lane|Boulevard|Highway)$/) &&
+                        !potentialCity.match(/County$/) && 
+                        !stateNames.includes(potentialCity)) {
+                        city = potentialCity;
+                    }
+                }
+                
+                // If no city found yet, look for pattern before state name
+                // But skip over counties and address elements
+                if (!city || city === result.name) {
+                    for (const stateName of stateNames) {
+                        // Look for pattern: "... City, State, ..." (skip county if present)
+                        // Try to find element before state, but verify it's not a county
+                        const cityMatch = displayName.match(new RegExp(`, ([^,]+), ${stateName},`));
+                        if (cityMatch) {
+                            const potentialCity = cityMatch[1].trim();
+                            // Verify it's not a county, number, street name, or another state
+                            if (!potentialCity.match(/County$/) && 
+                                !potentialCity.match(/^\d+$/) &&
+                                !potentialCity.match(/(Way|Road|Street|Avenue|Drive|Lane|Boulevard|Highway)$/) &&
+                                !stateNames.includes(potentialCity)) {
+                                city = potentialCity;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                // If still no city, try looking for pattern before state abbreviation
+                if (!city || city === result.name) {
+                    const stateAbbrMatch = displayName.match(/, ([^,]+), ([A-Z]{2})(?:,|$)/);
+                    if (stateAbbrMatch) {
+                        const potentialCity = stateAbbrMatch[1].trim();
+                        if (!potentialCity.match(/County$/) && 
+                            !potentialCity.match(/^\d+$/) &&
+                            !potentialCity.match(/(Way|Road|Street|Avenue|Drive|Lane|Boulevard|Highway)$/) &&
+                            !stateNames.includes(potentialCity)) {
+                            city = potentialCity;
+                        }
+                    }
+                }
+            }
+            
+            // Final fallback: use the name field (may contain full place name)
+            if (!city) {
+                city = result.name;
+            }
+            
+            // Try to extract state from address object first (most reliable)
             if (result.address) {
                 // Check for state_code (2-letter abbreviation) first
                 if (result.address.state_code && result.address.state_code.length === 2) {
