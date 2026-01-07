@@ -254,6 +254,12 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
         const periodTime = new Date(period.startTime);
         const dayName = enhanced ? getDayName(periodTime, false) : getDayName(periodTime, true);
         
+        // Format date as MM/DD for day label
+        const month = String(periodTime.getMonth() + 1).padStart(2, '0');
+        const day = String(periodTime.getDate()).padStart(2, '0');
+        const dateStr = `${month}/${day}`;
+        const dayNameWithDate = `${dayName} (${dateStr})`;
+        
         // Skip if we've already processed this day
         if (processedDays[dayName]) continue;
         
@@ -331,8 +337,8 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
             // Display sunrise/sunset/day length if available (on its own line, before temperature)
             // Day name goes on the sunrise line
             if (sunriseStr && sunsetStr && dayLengthStr) {
-                html += `<div class="condition-row">${dayName}: Sunrise: <span class="forecast-text">${sunriseStr}</span> Sunset: <span class="forecast-text">${sunsetStr}</span> Day Length: <span class="forecast-text">${dayLengthStr}</span></div>`;
-                html += '<div></div>'; // Line feed after day length
+                html += `<div class="condition-row">${dayNameWithDate}: Sunrise: <span class="forecast-text">${sunriseStr}</span> Sunset: <span class="forecast-text">${sunsetStr}</span> Day Length: <span class="forecast-text">${dayLengthStr}</span></div>`;
+                html += '<div></div>'; // Line feed after day label for narrow mode break
             }
             
             // Temperature and info row (combined) - day name only if no sunrise/sunset
@@ -341,7 +347,8 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
                 html += `<div class="daily-temp-row"> <span class="${getTempColor(temp)}">H:${temp}°F</span>${windChillHeatIndex || ' '}`;
             } else {
                 // If no sunrise/sunset, show day name on temperature line
-                html += `<div class="daily-temp-row">${dayName}: <span class="${getTempColor(temp)}">H:${temp}°F</span>${windChillHeatIndex || ' '}`;
+                html += `<div class="daily-temp-row">${dayNameWithDate}:<span class="${getTempColor(temp)}">H:${temp}°F</span>${windChillHeatIndex || ' '}`;
+                html += '<div></div>'; // Line feed after day label for narrow mode
             }
             if (nightTemp) {
                 html += `<span class="${getTempColor(nightTemp)}">L:${nightTemp}°F</span>`;
