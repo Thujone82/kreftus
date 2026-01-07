@@ -814,6 +814,12 @@ main {
     font-weight: bold;
 }
 
+.daily-day-label {
+    font-size: 1.1em;
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+}
+
 .daily-temp-row {
     font-weight: bold;
     display: flex;

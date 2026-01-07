@@ -334,11 +334,12 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
                 }
             }
             
-            // Display sunrise/sunset/day length if available (on its own line, before temperature)
-            // Day name goes on the sunrise line
+            // Display day label on its own line (slightly larger)
+            // Then sunrise/sunset/day length on the next line
             if (sunriseStr && sunsetStr && dayLengthStr) {
-                html += `<div class="condition-row">${dayNameWithDate}: Sunrise: <span class="forecast-text">${sunriseStr}</span> Sunset: <span class="forecast-text">${sunsetStr}</span> Day Length: <span class="forecast-text">${dayLengthStr}</span></div>`;
-                html += '<div></div>'; // Line feed after day label for narrow mode break
+                html += `<div class="daily-day-label">${dayNameWithDate}:</div>`;
+                html += `<div class="condition-row">Sunrise: <span class="forecast-text">${sunriseStr}</span> Sunset: <span class="forecast-text">${sunsetStr}</span> Day Length: <span class="forecast-text">${dayLengthStr}</span></div>`;
+                html += '<div></div>'; // Line feed after day length
             }
             
             // Temperature and info row (combined) - day name only if no sunrise/sunset
