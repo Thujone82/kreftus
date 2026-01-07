@@ -202,12 +202,10 @@ const utils = {
         
         try {
             console.log(`Geocoding "${locationString}" via Nominatim`);
-            // Nominatim requires a custom User-Agent.
-            // Replace 'nfo2go/2.0 (YourAppNameOrContactInfo)' with your actual app name/contact.
+            // Nominatim requires a custom User-Agent header
             const response = await fetch(nominatimUrl, {
-                method: 'GET',
                 headers: {
-                    'User-Agent': 'nfo2go/2.0 (github.com/kurtisgr/nfo2go)' 
+                    'User-Agent': 'nfo2go/3.0 (kreft.us/nfo)'
                 }
             });
 
