@@ -1754,6 +1754,25 @@ function Get-SunriseSunset {
     }
 }
 
+# Helper function to format day length as "Xh Ym"
+function Format-DayLength {
+    param(
+        [DateTime]$Sunrise,
+        [DateTime]$Sunset
+    )
+    
+    if ($null -eq $Sunrise -or $null -eq $Sunset) {
+        return "N/A"
+    }
+    
+    $duration = $Sunset - $Sunrise
+    $totalMinutes = [Math]::Round($duration.TotalMinutes)
+    $hours = [Math]::Floor($totalMinutes / 60)
+    $minutes = $totalMinutes % 60
+    
+    return "${hours}h ${minutes}m"
+}
+
 # Function to calculate moon phase using simple astronomical method
 # Uses reference new moon date (January 6, 2000 18:14 UTC) and lunar cycle of 29.53058867 days
 # Returns moon phase name, emoji, and next full moon date for display in current conditions
@@ -2459,7 +2478,10 @@ function Show-SevenDayForecast {
         [DateTime]$SunsetTime = $null,
         [bool]$IsEnhancedMode = $false,
         [string]$City = "",
-        [bool]$ShowCityInTitle = $false
+        [bool]$ShowCityInTitle = $false,
+        [double]$Latitude = 0,
+        [double]$Longitude = 0,
+        [string]$TimeZone = ""
     )
     
     Write-Host ""
@@ -2551,6 +2573,31 @@ function Show-SevenDayForecast {
             # Color code precipitation probability
             $precipColor = if ($precipProb -gt $script:HIGH_PRECIP_THRESHOLD) { $AlertColor } elseif ($precipProb -gt $script:MEDIUM_PRECIP_THRESHOLD) { "Yellow" } else { $DefaultColor }
             
+            # Calculate sunrise/sunset for this specific day (use date only, not time)
+            $daySunTimes = $null
+            $sunriseStr = ""
+            $sunsetStr = ""
+            $dayLengthStr = ""
+            if ($Latitude -ne 0 -and $Longitude -ne 0 -and $TimeZone) {
+                # Use just the date portion (midnight) for accurate sunrise/sunset calculation
+                $dayDate = $currentPeriodTime.Date
+                $daySunTimes = Get-SunriseSunset -Latitude $Latitude -Longitude $Longitude -Date $dayDate -TimeZoneId $TimeZone
+                if ($daySunTimes.Sunrise -and $daySunTimes.Sunset) {
+                    # Ensure sunrise comes before sunset (swap if needed)
+                    $sunrise = $daySunTimes.Sunrise
+                    $sunset = $daySunTimes.Sunset
+                    if ($sunrise -gt $sunset) {
+                        # Times are swapped, correct them
+                        $tempTime = $sunrise
+                        $sunrise = $sunset
+                        $sunset = $tempTime
+                    }
+                    $sunriseStr = $sunrise.ToString('HH:mm')
+                    $sunsetStr = $sunset.ToString('HH:mm')
+                    $dayLengthStr = Format-DayLength -Sunrise $sunrise -Sunset $sunset
+                }
+            }
+            
             # Display enhanced format with proper padding to align to column 10
             $dayNameWithColon = "$dayName`:"
             $targetColumn = 10
@@ -2560,7 +2607,18 @@ function Show-SevenDayForecast {
             
             Write-Host $dayNameWithColon -ForegroundColor White -NoNewline
             Write-Host $padding -ForegroundColor White -NoNewline
-            Write-Host "H:$temp°F" -ForegroundColor $tempColor -NoNewline
+            
+            # Display sunrise/sunset/day length if available (on same line, no blank line after)
+            if ($sunriseStr -and $sunsetStr -and $dayLengthStr) {
+                Write-Host " Sunrise: " -ForegroundColor $DefaultColor -NoNewline
+                Write-Host "$sunriseStr" -ForegroundColor Gray -NoNewline
+                Write-Host " Sunset: " -ForegroundColor $DefaultColor -NoNewline
+                Write-Host "$sunsetStr" -ForegroundColor Gray -NoNewline
+                Write-Host " Day Length: " -ForegroundColor $DefaultColor -NoNewline
+                Write-Host "$dayLengthStr" -ForegroundColor Gray
+            }
+            
+            Write-Host " H:$temp°F" -ForegroundColor $tempColor -NoNewline
             if ($windChillHeatIndex) {
                 Write-Host $windChillHeatIndex -ForegroundColor $windChillHeatIndexColor -NoNewline
             }
@@ -2706,7 +2764,9 @@ function Show-Observations {
         [string]$AlertColor,
         [string]$City = "",
         [bool]$ShowCityInTitle = $false,
-        [string]$TimeZone = ""
+        [string]$TimeZone = "",
+        [double]$Latitude = 0,
+        [double]$Longitude = 0
     )
     
     if ($ShowCityInTitle -and $City) {
@@ -2815,6 +2875,34 @@ function Show-Observations {
                             else { "Magenta" }
         }
         
+        # Calculate sunrise/sunset for this specific observation date
+        # Extract date components and create a date object for accurate calculation
+        $daySunTimes = $null
+        $sunriseStr = ""
+        $sunsetStr = ""
+        $dayLengthStr = ""
+        if ($TimeZone -and $Latitude -ne 0 -and $Longitude -ne 0) {
+            # Parse the date string (format: "YYYY-MM-DD") and extract components
+            $parsedDate = [DateTime]::Parse($dayData.Date)
+            # Create a new date using just the year, month, day (timezone doesn't matter for date-only calculation)
+            $dayDate = [DateTime]::new($parsedDate.Year, $parsedDate.Month, $parsedDate.Day)
+            $daySunTimes = Get-SunriseSunset -Latitude $Latitude -Longitude $Longitude -Date $dayDate -TimeZoneId $TimeZone
+            if ($daySunTimes.Sunrise -and $daySunTimes.Sunset) {
+                # Ensure sunrise comes before sunset (swap if needed)
+                $sunrise = $daySunTimes.Sunrise
+                $sunset = $daySunTimes.Sunset
+                if ($sunrise -gt $sunset) {
+                    # Times are swapped, correct them
+                    $tempTime = $sunrise
+                    $sunrise = $sunset
+                    $sunset = $tempTime
+                }
+                $sunriseStr = $sunrise.ToString('HH:mm')
+                $sunsetStr = $sunset.ToString('HH:mm')
+                $dayLengthStr = Format-DayLength -Sunrise $sunrise -Sunset $sunset
+            }
+        }
+        
         # Display enhanced format with proper padding
         $dayNameWithColon = "$dayName ($dateStr):"
         $targetColumn = 10
@@ -2825,9 +2913,19 @@ function Show-Observations {
         Write-Host $dayNameWithColon -ForegroundColor White -NoNewline
         Write-Host $padding -ForegroundColor White -NoNewline
         
+        # Display sunrise/sunset/day length if available (on same line, no blank line after)
+        if ($sunriseStr -and $sunsetStr -and $dayLengthStr) {
+            Write-Host " Sunrise: " -ForegroundColor $DefaultColor -NoNewline
+            Write-Host "$sunriseStr" -ForegroundColor Gray -NoNewline
+            Write-Host " Sunset: " -ForegroundColor $DefaultColor -NoNewline
+            Write-Host "$sunsetStr" -ForegroundColor Gray -NoNewline
+            Write-Host " Day Length: " -ForegroundColor $DefaultColor -NoNewline
+            Write-Host "$dayLengthStr" -ForegroundColor Gray
+        }
+        
         # Temperature display
         if ($null -ne $highTemp) {
-            Write-Host "H:$highTemp°F" -ForegroundColor $tempColor -NoNewline
+            Write-Host " H:$highTemp°F" -ForegroundColor $tempColor -NoNewline
         } else {
             Write-Host "H:N/A" -ForegroundColor $DefaultColor -NoNewline
         }
@@ -3799,7 +3897,7 @@ function Show-FullWeatherReport {
     }
 
     if ($ShowSevenDayForecast) {
-        Show-SevenDayForecast -ForecastData $ForecastData -TitleColor $TitleColor -DefaultColor $DefaultColor -AlertColor $AlertColor -SunriseTime $SunriseTime -SunsetTime $SunsetTime -City $City -ShowCityInTitle $true
+        Show-SevenDayForecast -ForecastData $ForecastData -TitleColor $TitleColor -DefaultColor $DefaultColor -AlertColor $AlertColor -SunriseTime $SunriseTime -SunsetTime $SunsetTime -City $City -ShowCityInTitle $true -Latitude $Lat -Longitude $Lon -TimeZone $TimeZone
     }
 
     if ($ShowAlerts) {
@@ -4234,7 +4332,7 @@ if ($Rain.IsPresent) {
     Show-WindForecast -HourlyData $hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
 } elseif ($Daily.IsPresent) {
     # Daily mode: Show enhanced 7-day forecast with wind info and detailed forecasts
-    Show-SevenDayForecast -ForecastData $forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true
+    Show-SevenDayForecast -ForecastData $forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true -Latitude $lat -Longitude $lon -TimeZone $timeZone
     # Exit only if -x flag is present, otherwise continue to interactive mode
     if ($NoInteractive.IsPresent) {
         exit 0
@@ -4242,7 +4340,7 @@ if ($Rain.IsPresent) {
 } elseif ($Observations.IsPresent) {
     # Observations mode: Show historical observations
     if ($null -ne $script:observationsData) {
-        Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone
+        Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone -Latitude $lat -Longitude $lon
     } else {
         Write-Host "No historical observations available." -ForegroundColor $defaultColor
     }
@@ -4326,7 +4424,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
         Clear-HostWithDelay
         $isObservationsMode = $true
         if ($null -ne $script:observationsData) {
-            Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone
+            Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone -Latitude $lat -Longitude $lon
         } else {
             Write-Host "No historical observations available." -ForegroundColor $defaultColor
         }
@@ -4594,12 +4692,12 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } elseif ($isDailyMode) {
                             # Preserve current mode - show daily mode if in daily mode
-                            Show-SevenDayForecast -ForecastData $script:forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true
+                            Show-SevenDayForecast -ForecastData $script:forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true -Latitude $lat -Longitude $lon -TimeZone $timeZone
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } elseif ($isObservationsMode) {
                             # Preserve current mode - show Observations mode if in Observations mode
                             if ($null -ne $script:observationsData) {
-                                Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone
+                                Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone -Latitude $lat -Longitude $lon
                             } else {
                                 Write-Host "No historical observations available." -ForegroundColor $defaultColor
                             }
@@ -4657,7 +4755,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isWindMode = $false
                     $isTerseMode = $false
                     $isDailyMode = $true
-                    Show-SevenDayForecast -ForecastData $script:forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true
+                    Show-SevenDayForecast -ForecastData $script:forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true -Latitude $lat -Longitude $lon -TimeZone $timeZone
                     Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                 }
                 't' { # T key - Switch to terse mode (current + today + alerts)
@@ -4719,7 +4817,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         Show-WindForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
                         Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                     } elseif ($isDailyMode) {
-                        Show-SevenDayForecast -ForecastData $script:forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true
+                        Show-SevenDayForecast -ForecastData $script:forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true -Latitude $lat -Longitude $lon -TimeZone $timeZone
                         Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                     } else {
                         # Preserve current mode - show terse mode if in terse mode
@@ -4759,11 +4857,11 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         Show-WindForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
                         Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                     } elseif ($isDailyMode) {
-                        Show-SevenDayForecast -ForecastData $script:forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true
+                        Show-SevenDayForecast -ForecastData $script:forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true -Latitude $lat -Longitude $lon -TimeZone $timeZone
                         Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                     } elseif ($isObservationsMode) {
                         if ($null -ne $script:observationsData -and ($script:observationsData -isnot [Array] -or $script:observationsData.Count -gt 0)) {
-                            Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone
+                            Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone -Latitude $lat -Longitude $lon
                         } else {
                             Write-Host "No historical observations available." -ForegroundColor $defaultColor
                         }
@@ -4882,7 +4980,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         Clear-HostWithDelay
                     }
                     if ($null -ne $script:observationsData -and ($script:observationsData -isnot [Array] -or $script:observationsData.Count -gt 0)) {
-                        Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone
+                        Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone -Latitude $lat -Longitude $lon
                     } else {
                         Write-Host "No historical observations available." -ForegroundColor $defaultColor
                     }
@@ -4914,12 +5012,12 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false -TimeZone $timeZone
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } elseif ($isDailyMode) {
-                            Show-SevenDayForecast -ForecastData $script:forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true
+                            Show-SevenDayForecast -ForecastData $script:forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true -Latitude $lat -Longitude $lon -TimeZone $timeZone
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } elseif ($isObservationsMode) {
                             # Preserve current mode - show Observations mode if in Observations mode
                             if ($null -ne $script:observationsData) {
-                                Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone
+                                Show-Observations -ObservationsData $script:observationsData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -City $city -ShowCityInTitle $true -TimeZone $timeZone -Latitude $lat -Longitude $lon
                             } else {
                                 Write-Host "No historical observations available." -ForegroundColor $defaultColor
                             }

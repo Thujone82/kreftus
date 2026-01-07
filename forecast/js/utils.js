@@ -362,6 +362,20 @@ function wrapText(text, width) {
 }
 
 // Format time in location timezone
+// Helper function to format day length as "Xh Ym"
+function formatDayLength(sunrise, sunset) {
+    if (!sunrise || !sunset) {
+        return "N/A";
+    }
+    
+    const durationMs = sunset.getTime() - sunrise.getTime();
+    const totalMinutes = Math.round(durationMs / (1000 * 60));
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    
+    return `${hours}h ${minutes}m`;
+}
+
 function formatTime(date, timeZoneId) {
     if (!date) return "";
     
@@ -375,6 +389,26 @@ function formatTime(date, timeZoneId) {
         return formatter.format(date);
     } catch (error) {
         return date.toLocaleTimeString();
+    }
+}
+
+// Format time in 24-hour format (HH:mm)
+function formatTime24(date, timeZoneId) {
+    if (!date) return "";
+    
+    try {
+        const formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: timeZoneId,
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
+        return formatter.format(date);
+    } catch (error) {
+        // Fallback: format manually
+        const hours = date.getHours().toString().padStart(2, '0');
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+        return `${hours}:${minutes}`;
     }
 }
 

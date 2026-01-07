@@ -12,6 +12,7 @@ A Progressive Web App (PWA) version of the PowerShell GetForecast script, provid
 - **Location Detection**: Supports zip codes, "City, State", or automatic "here" detection
 - **Color-Coded Metrics**: Visual indicators for temperature, wind, precipitation, humidity, and dew point
 - **Weather Calculations**: Wind chill, heat index, sunrise/sunset, moon phase calculations
+- **Sunrise/Sunset/Day Length**: Displays sunrise, sunset, and day length for each day in Daily and History modes (calculated astronomically)
 - **NOAA Resources**: Conditionally displays NOAA tide station information and links when a station is found within 100 miles
 
 ## Setup
@@ -52,9 +53,10 @@ If you experience issues with corrupted favorites that cannot be removed, you ca
 - **Full**: Complete weather information (current conditions, forecasts, hourly, 7-day, alerts, location info)
 - **Terse**: Current conditions + today's forecast + alerts summary
 - **Hourly**: 12-hour hourly forecast (scrollable to 48 hours)
-- **Daily**: Enhanced 7-day forecast with detailed forecasts
+- **Daily**: Enhanced 7-day forecast with sunrise/sunset/day length for each day and detailed forecasts
 - **Rain**: 96-hour rain likelihood sparklines (5 days max)
 - **Wind**: 96-hour wind direction glyphs (5 days max)
+- **History**: Historical observations with sunrise/sunset/day length for each day
 
 ## NOAA Resources
 

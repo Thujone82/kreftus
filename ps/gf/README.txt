@@ -55,6 +55,7 @@ The script first uses a geocoding service to determine the latitude and longitud
   - **Tide Predictions Display:** Shows "Tides: Last[↑/↓]: {Height}ft@{Time} Next[↑/↓]: {Height}ft@{Time}" with last and next high/low tide predictions
   - **Adjacent Day Fetching:** Automatically fetches tomorrow's predictions if no "next" tide found for today, and yesterday's predictions if no "last" tide found for today, ensuring complete tide information is always available
 - **Enhanced Daily Mode:** Comprehensive 7-day forecast with detailed information:
+  - Sunrise, sunset, and day length for each day (calculated astronomically)
   - Wind speed and direction with color coding (red for high wind)
   - Windchill and Heat Index calculations when applicable
   - Precipitation probability with "Precip" label for clarity
@@ -297,6 +298,7 @@ The observations mode (`-o` or `-observations`) provides historical weather data
 ### Observations Mode Features:
 
 - **Historical Data:** Shows weather observations from the last 7 days
+- **Sunrise/Sunset/Day Length:** Displays sunrise time, sunset time, and day length for each observation day (calculated astronomically)
 - **Daily Aggregates:** Displays high/low temperatures, average and maximum wind speeds, wind direction, humidity, total precipitation, and general conditions
 - **Moon Phase Information:** Includes moon phase emoji and information for each day
 - **Windchill/Heat Index:** Calculates and displays windchill (≤50°F) and heat index (≥80°F) when applicable
