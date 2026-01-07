@@ -1712,11 +1712,12 @@ function Get-SunriseSunset {
     $cosH = ([Math]::Cos((ToRadians $zenithDegrees)) - [Math]::Sin($latRad) * [Math]::Sin($declination)) / ([Math]::Cos($latRad) * [Math]::Cos($declination))
 
     if ($cosH -gt 1) {
-        # Polar night - no sunrise today, find next sunrise
+        # Polar night - no sunrise today, find next sunrise and last sunset
         $nextSunrise = $null
-        $checkDate = $Date.AddDays(1)
-        $maxDaysToCheck = 180  # Check up to 6 months ahead
+        $lastSunset = $null
+        $maxDaysToCheck = 180  # Check up to 6 months ahead/back
         
+        # Find next sunrise (forward)
         for ($dayOffset = 1; $dayOffset -le $maxDaysToCheck; $dayOffset++) {
             $checkDate = $Date.AddDays($dayOffset)
             $checkDayOfYear = $checkDate.DayOfYear
@@ -1743,11 +1744,96 @@ function Get-SunriseSunset {
             }
         }
         
-        return @{ Sunrise = $nextSunrise; Sunset = $null; IsPolarNight = $true; IsPolarDay = $false }
+        # Find last sunset (backward)
+        for ($dayOffset = -1; $dayOffset -ge -$maxDaysToCheck; $dayOffset--) {
+            $checkDate = $Date.AddDays($dayOffset)
+            $checkDayOfYear = $checkDate.DayOfYear
+            $checkGamma = 2.0 * [Math]::PI * ($checkDayOfYear - 1) / 365.0
+            $checkDeclination = 0.006918 - 0.399912 * [Math]::Cos($checkGamma) + 0.070257 * [Math]::Sin($checkGamma) - 0.006758 * [Math]::Cos(2*$checkGamma) + 0.000907 * [Math]::Sin(2*$checkGamma) - 0.002697 * [Math]::Cos(3*$checkGamma) + 0.00148 * [Math]::Sin(3*$checkGamma)
+            $checkCosH = ([Math]::Cos((ToRadians $zenithDegrees)) - [Math]::Sin($latRad) * [Math]::Sin($checkDeclination)) / ([Math]::Cos($latRad) * [Math]::Cos($checkDeclination))
+            
+            if ($checkCosH -le 1) {
+                # Found a day with sunset
+                $checkH = [Math]::Acos([Math]::Min(1.0, [Math]::Max(-1.0, $checkCosH)))
+                $checkHdeg = ToDegrees $checkH
+                $checkEquationOfTime = 229.18 * (0.000075 + 0.001868 * [Math]::Cos($checkGamma) - 0.032077 * [Math]::Sin($checkGamma) - 0.014615 * [Math]::Cos(2*$checkGamma) - 0.040849 * [Math]::Sin(2*$checkGamma))
+                $checkSolarNoonUtcMin = 720.0 - 4.0 * $Longitude - $checkEquationOfTime
+                $checkSunsetUtcMin = $checkSolarNoonUtcMin + 4.0 * $checkHdeg
+                
+                while ($checkSunsetUtcMin -lt 0) { $checkSunsetUtcMin += 1440 }
+                while ($checkSunsetUtcMin -ge 1440) { $checkSunsetUtcMin -= 1440 }
+                
+                $checkUtcMidnight = [DateTime]::new($checkDate.Year, $checkDate.Month, $checkDate.Day, 0, 0, 0, [System.DateTimeKind]::Utc)
+                $checkSunsetUtc = $checkUtcMidnight.AddMinutes($checkSunsetUtcMin)
+                $tzInfo = Get-ResolvedTimeZoneInfo -TimeZoneId $TimeZoneId
+                $lastSunset = [System.TimeZoneInfo]::ConvertTimeFromUtc($checkSunsetUtc, $tzInfo)
+                break
+            }
+        }
+        
+        return @{ Sunrise = $nextSunrise; Sunset = $lastSunset; IsPolarNight = $true; IsPolarDay = $false }
     }
     if ($cosH -lt -1) {
-        # Polar day - no sunset
-        return @{ Sunrise = $null; Sunset = $null; IsPolarNight = $false; IsPolarDay = $true }
+        # Polar day - no sunset today, find next sunset and last sunrise
+        $nextSunset = $null
+        $lastSunrise = $null
+        $maxDaysToCheck = 180  # Check up to 6 months ahead/back
+        
+        # Find next sunset (forward)
+        for ($dayOffset = 1; $dayOffset -le $maxDaysToCheck; $dayOffset++) {
+            $checkDate = $Date.AddDays($dayOffset)
+            $checkDayOfYear = $checkDate.DayOfYear
+            $checkGamma = 2.0 * [Math]::PI * ($checkDayOfYear - 1) / 365.0
+            $checkDeclination = 0.006918 - 0.399912 * [Math]::Cos($checkGamma) + 0.070257 * [Math]::Sin($checkGamma) - 0.006758 * [Math]::Cos(2*$checkGamma) + 0.000907 * [Math]::Sin(2*$checkGamma) - 0.002697 * [Math]::Cos(3*$checkGamma) + 0.00148 * [Math]::Sin(3*$checkGamma)
+            $checkCosH = ([Math]::Cos((ToRadians $zenithDegrees)) - [Math]::Sin($latRad) * [Math]::Sin($checkDeclination)) / ([Math]::Cos($latRad) * [Math]::Cos($checkDeclination))
+            
+            if ($checkCosH -le 1) {
+                # Found a day with sunset
+                $checkH = [Math]::Acos([Math]::Min(1.0, [Math]::Max(-1.0, $checkCosH)))
+                $checkHdeg = ToDegrees $checkH
+                $checkEquationOfTime = 229.18 * (0.000075 + 0.001868 * [Math]::Cos($checkGamma) - 0.032077 * [Math]::Sin($checkGamma) - 0.014615 * [Math]::Cos(2*$checkGamma) - 0.040849 * [Math]::Sin(2*$checkGamma))
+                $checkSolarNoonUtcMin = 720.0 - 4.0 * $Longitude - $checkEquationOfTime
+                $checkSunsetUtcMin = $checkSolarNoonUtcMin + 4.0 * $checkHdeg
+                
+                while ($checkSunsetUtcMin -lt 0) { $checkSunsetUtcMin += 1440 }
+                while ($checkSunsetUtcMin -ge 1440) { $checkSunsetUtcMin -= 1440 }
+                
+                $checkUtcMidnight = [DateTime]::new($checkDate.Year, $checkDate.Month, $checkDate.Day, 0, 0, 0, [System.DateTimeKind]::Utc)
+                $checkSunsetUtc = $checkUtcMidnight.AddMinutes($checkSunsetUtcMin)
+                $tzInfo = Get-ResolvedTimeZoneInfo -TimeZoneId $TimeZoneId
+                $nextSunset = [System.TimeZoneInfo]::ConvertTimeFromUtc($checkSunsetUtc, $tzInfo)
+                break
+            }
+        }
+        
+        # Find last sunrise (backward)
+        for ($dayOffset = -1; $dayOffset -ge -$maxDaysToCheck; $dayOffset--) {
+            $checkDate = $Date.AddDays($dayOffset)
+            $checkDayOfYear = $checkDate.DayOfYear
+            $checkGamma = 2.0 * [Math]::PI * ($checkDayOfYear - 1) / 365.0
+            $checkDeclination = 0.006918 - 0.399912 * [Math]::Cos($checkGamma) + 0.070257 * [Math]::Sin($checkGamma) - 0.006758 * [Math]::Cos(2*$checkGamma) + 0.000907 * [Math]::Sin(2*$checkGamma) - 0.002697 * [Math]::Cos(3*$checkGamma) + 0.00148 * [Math]::Sin(3*$checkGamma)
+            $checkCosH = ([Math]::Cos((ToRadians $zenithDegrees)) - [Math]::Sin($latRad) * [Math]::Sin($checkDeclination)) / ([Math]::Cos($latRad) * [Math]::Cos($checkDeclination))
+            
+            if ($checkCosH -le 1) {
+                # Found a day with sunrise
+                $checkH = [Math]::Acos([Math]::Min(1.0, [Math]::Max(-1.0, $checkCosH)))
+                $checkHdeg = ToDegrees $checkH
+                $checkEquationOfTime = 229.18 * (0.000075 + 0.001868 * [Math]::Cos($checkGamma) - 0.032077 * [Math]::Sin($checkGamma) - 0.014615 * [Math]::Cos(2*$checkGamma) - 0.040849 * [Math]::Sin(2*$checkGamma))
+                $checkSolarNoonUtcMin = 720.0 - 4.0 * $Longitude - $checkEquationOfTime
+                $checkSunriseUtcMin = $checkSolarNoonUtcMin - 4.0 * $checkHdeg
+                
+                while ($checkSunriseUtcMin -lt 0) { $checkSunriseUtcMin += 1440 }
+                while ($checkSunriseUtcMin -ge 1440) { $checkSunriseUtcMin -= 1440 }
+                
+                $checkUtcMidnight = [DateTime]::new($checkDate.Year, $checkDate.Month, $checkDate.Day, 0, 0, 0, [System.DateTimeKind]::Utc)
+                $checkSunriseUtc = $checkUtcMidnight.AddMinutes($checkSunriseUtcMin)
+                $tzInfo = Get-ResolvedTimeZoneInfo -TimeZoneId $TimeZoneId
+                $lastSunrise = [System.TimeZoneInfo]::ConvertTimeFromUtc($checkSunriseUtc, $tzInfo)
+                break
+            }
+        }
+        
+        return @{ Sunrise = $lastSunrise; Sunset = $nextSunset; IsPolarNight = $false; IsPolarDay = $true }
     }
 
     $H = [Math]::Acos([Math]::Min(1.0, [Math]::Max(-1.0, $cosH))) # Clamp for safety
@@ -2650,12 +2736,26 @@ function Show-SevenDayForecast {
                 # Use just the date portion (midnight) for accurate sunrise/sunset calculation
                 $dayDate = $currentPeriodTime.Date
                 $daySunTimes = Get-SunriseSunset -Latitude $Latitude -Longitude $Longitude -Date $dayDate -TimeZoneId $TimeZone
-                if ($daySunTimes.Sunrise -and $daySunTimes.Sunset) {
-                    # Get-SunriseSunset should always return sunrise before sunset
-                    # Use them directly as calculated
-                    $sunriseStr = $daySunTimes.Sunrise.ToString('HH:mm')
-                    $sunsetStr = $daySunTimes.Sunset.ToString('HH:mm')
-                    $dayLengthStr = Format-DayLength -Sunrise $daySunTimes.Sunrise -Sunset $daySunTimes.Sunset
+                if ($daySunTimes.Sunrise) {
+                    # Format sunrise: date/time (MM/dd HH:mm) if polar night/day, otherwise time (24-hour format)
+                    # During polar night: shows next sunrise; during polar day: shows last sunrise
+                    if ($daySunTimes.IsPolarNight -or $daySunTimes.IsPolarDay) {
+                        $sunriseStr = $daySunTimes.Sunrise.ToString('MM/dd HH:mm')
+                    } else {
+                        $sunriseStr = $daySunTimes.Sunrise.ToString('HH:mm')
+                    }
+                    # Show sunset if available (during polar night: last sunset; during polar day: next sunset)
+                    if ($daySunTimes.Sunset) {
+                        if ($daySunTimes.IsPolarNight -or $daySunTimes.IsPolarDay) {
+                            $sunsetStr = $daySunTimes.Sunset.ToString('MM/dd HH:mm')
+                        } else {
+                            $sunsetStr = $daySunTimes.Sunset.ToString('HH:mm')
+                        }
+                        # Only show day length if not polar night/day (normal day)
+                        if (-not $daySunTimes.IsPolarNight -and -not $daySunTimes.IsPolarDay) {
+                            $dayLengthStr = Format-DayLength -Sunrise $daySunTimes.Sunrise -Sunset $daySunTimes.Sunset
+                        }
+                    }
                 }
             }
             
@@ -2670,13 +2770,21 @@ function Show-SevenDayForecast {
             Write-Host $padding -ForegroundColor White -NoNewline
             
             # Display sunrise/sunset/day length if available (on same line, no blank line after)
-            if ($sunriseStr -and $sunsetStr -and $dayLengthStr) {
+            if ($sunriseStr) {
                 Write-Host "Sunrise: " -ForegroundColor $DefaultColor -NoNewline
                 Write-Host "$sunriseStr" -ForegroundColor Gray -NoNewline
-                Write-Host " Sunset: " -ForegroundColor $DefaultColor -NoNewline
-                Write-Host "$sunsetStr" -ForegroundColor Gray -NoNewline
-                Write-Host " Day Length: " -ForegroundColor $DefaultColor -NoNewline
-                Write-Host "$dayLengthStr" -ForegroundColor Gray
+                if ($sunsetStr) {
+                    Write-Host " Sunset: " -ForegroundColor $DefaultColor -NoNewline
+                    Write-Host "$sunsetStr" -ForegroundColor Gray -NoNewline
+                    if ($dayLengthStr) {
+                        Write-Host " Day Length: " -ForegroundColor $DefaultColor -NoNewline
+                        Write-Host "$dayLengthStr" -ForegroundColor Gray
+                    } else {
+                        Write-Host ""  # Newline if no day length (polar night/day)
+                    }
+                } else {
+                    Write-Host ""  # Newline if no sunset
+                }
             }
             
             Write-Host "          H:$temp°F" -ForegroundColor $tempColor -NoNewline
@@ -2948,12 +3056,26 @@ function Show-Observations {
             # Create a new date using just the year, month, day (timezone doesn't matter for date-only calculation)
             $dayDate = [DateTime]::new($parsedDate.Year, $parsedDate.Month, $parsedDate.Day)
             $daySunTimes = Get-SunriseSunset -Latitude $Latitude -Longitude $Longitude -Date $dayDate -TimeZoneId $TimeZone
-            if ($daySunTimes.Sunrise -and $daySunTimes.Sunset) {
-                # Get-SunriseSunset should always return sunrise before sunset
-                # Use them directly as calculated
-                $sunriseStr = $daySunTimes.Sunrise.ToString('HH:mm')
-                $sunsetStr = $daySunTimes.Sunset.ToString('HH:mm')
-                $dayLengthStr = Format-DayLength -Sunrise $daySunTimes.Sunrise -Sunset $daySunTimes.Sunset
+            if ($daySunTimes.Sunrise) {
+                # Format sunrise: date/time (MM/dd HH:mm) if polar night/day, otherwise time (24-hour format)
+                # During polar night: shows next sunrise; during polar day: shows last sunrise
+                if ($daySunTimes.IsPolarNight -or $daySunTimes.IsPolarDay) {
+                    $sunriseStr = $daySunTimes.Sunrise.ToString('MM/dd HH:mm')
+                } else {
+                    $sunriseStr = $daySunTimes.Sunrise.ToString('HH:mm')
+                }
+                # Show sunset if available (during polar night: last sunset; during polar day: next sunset)
+                if ($daySunTimes.Sunset) {
+                    if ($daySunTimes.IsPolarNight -or $daySunTimes.IsPolarDay) {
+                        $sunsetStr = $daySunTimes.Sunset.ToString('MM/dd HH:mm')
+                    } else {
+                        $sunsetStr = $daySunTimes.Sunset.ToString('HH:mm')
+                    }
+                    # Only show day length if not polar night/day (normal day)
+                    if (-not $daySunTimes.IsPolarNight -and -not $daySunTimes.IsPolarDay) {
+                        $dayLengthStr = Format-DayLength -Sunrise $daySunTimes.Sunrise -Sunset $daySunTimes.Sunset
+                    }
+                }
             }
         }
         
@@ -2968,13 +3090,21 @@ function Show-Observations {
         Write-Host $padding -ForegroundColor White -NoNewline
         
         # Display sunrise/sunset/day length if available (on same line, no blank line after)
-        if ($sunriseStr -and $sunsetStr -and $dayLengthStr) {
+        if ($sunriseStr) {
             Write-Host " Sunrise: " -ForegroundColor $DefaultColor -NoNewline
             Write-Host "$sunriseStr" -ForegroundColor Gray -NoNewline
-            Write-Host " Sunset: " -ForegroundColor $DefaultColor -NoNewline
-            Write-Host "$sunsetStr" -ForegroundColor Gray -NoNewline
-            Write-Host " Day Length: " -ForegroundColor $DefaultColor -NoNewline
-            Write-Host "$dayLengthStr" -ForegroundColor Gray
+            if ($sunsetStr) {
+                Write-Host " Sunset: " -ForegroundColor $DefaultColor -NoNewline
+                Write-Host "$sunsetStr" -ForegroundColor Gray -NoNewline
+                if ($dayLengthStr) {
+                    Write-Host " Day Length: " -ForegroundColor $DefaultColor -NoNewline
+                    Write-Host "$dayLengthStr" -ForegroundColor Gray
+                } else {
+                    Write-Host ""  # Newline if no day length (polar night/day)
+                }
+            } else {
+                Write-Host ""  # Newline if no sunset
+            }
         }
         
         # Temperature display
@@ -3934,13 +4064,15 @@ function Show-FullWeatherReport {
         [string]$NextNewMoonDate,
         [object]$SunriseTime = $null,
         [object]$SunsetTime = $null,
-        [bool]$IsPolarNight = $false
+        [bool]$IsPolarNight = $false,
+        [bool]$IsPolarDay = $false
     )
     
     if ($ShowCurrentConditions) {
-        # Format sunrise: date/time in 24-hour format if polar night, otherwise time in 12-hour format
+        # Format sunrise: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+        # During polar night: shows next sunrise; during polar day: shows last sunrise
         $sunriseTimeStr = if ($null -ne $SunriseTime) { 
-            if ($IsPolarNight) { 
+            if ($IsPolarNight -or $IsPolarDay) { 
                 $SunriseTime.ToString('MM/dd HH:mm') 
             } else { 
                 $SunriseTime.ToString('h:mm tt') 
@@ -3948,11 +4080,14 @@ function Show-FullWeatherReport {
         } else { 
             "N/A" 
         }
-        # Hide sunset if polar night
-        $sunsetTimeStr = if ($IsPolarNight) { 
-            $null 
-        } elseif ($null -ne $SunsetTime) { 
-            $SunsetTime.ToString('h:mm tt') 
+        # Format sunset: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+        # During polar night: shows last sunset; during polar day: shows next sunset
+        $sunsetTimeStr = if ($null -ne $SunsetTime) { 
+            if ($IsPolarNight -or $IsPolarDay) { 
+                $SunsetTime.ToString('MM/dd HH:mm') 
+            } else { 
+                $SunsetTime.ToString('h:mm tt') 
+            }
         } else { 
             "N/A" 
         }
@@ -4290,11 +4425,13 @@ $sunTimes = Get-SunriseSunset -Latitude $lat -Longitude $lon -Date (Get-Date) -T
 $sunriseTime = $sunTimes.Sunrise
 $sunsetTime = $sunTimes.Sunset
 $isPolarNight = $sunTimes.IsPolarNight
+$isPolarDay = $sunTimes.IsPolarDay
 
 # Store in script scope for interactive mode
 $script:sunriseTime = $sunriseTime
 $script:sunsetTime = $sunsetTime
 $script:isPolarNight = $isPolarNight
+$script:isPolarDay = $isPolarDay
 
 # Ensure sunrise/sunset are properly typed (can be null for polar regions)
 if ($null -ne $sunriseTime -and $sunriseTime -isnot [DateTime]) {
@@ -4438,7 +4575,7 @@ if ($Rain.IsPresent) {
         exit 0
     }
 } else {
-    Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsPolarNight $isPolarNight
+    Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsPolarNight $isPolarNight -IsPolarDay $isPolarDay
 }
 
 # Detect if we're in an interactive environment that supports ReadKey
@@ -4775,9 +4912,10 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } elseif ($isTerseMode) {
                             # Preserve current mode - show terse mode if in terse mode
-                            # Format sunrise: date/time in 24-hour format if polar night, otherwise time in 12-hour format
+                            # Format sunrise: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+                            # During polar night: shows next sunrise; during polar day: shows last sunrise
                             $sunriseTimeStr = if ($null -ne $script:sunriseTime) { 
-                                if ($script:isPolarNight) { 
+                                if ($script:isPolarNight -or $script:isPolarDay) { 
                                     $script:sunriseTime.ToString('MM/dd HH:mm') 
                                 } else { 
                                     $script:sunriseTime.ToString('h:mm tt') 
@@ -4785,11 +4923,14 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             } else { 
                                 "N/A" 
                             }
-                            # Hide sunset if polar night
-                            $sunsetTimeStr = if ($script:isPolarNight) { 
-                                $null 
-                            } elseif ($null -ne $script:sunsetTime) { 
-                                $script:sunsetTime.ToString('h:mm tt') 
+                            # Format sunset: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+                            # During polar night: shows last sunset; during polar day: shows next sunset
+                            $sunsetTimeStr = if ($null -ne $script:sunsetTime) { 
+                                if ($script:isPolarNight -or $script:isPolarDay) { 
+                                    $script:sunsetTime.ToString('MM/dd HH:mm') 
+                                } else { 
+                                    $script:sunsetTime.ToString('h:mm tt') 
+                                }
                             } else { 
                                 "N/A" 
                             }
@@ -4823,9 +4964,10 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $false
                         } elseif ($isTerseMode) {
                             # Preserve current mode - show terse mode if in terse mode
-                            # Format sunrise: date/time in 24-hour format if polar night, otherwise time in 12-hour format
+                            # Format sunrise: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+                            # During polar night: shows next sunrise; during polar day: shows last sunrise
                             $sunriseTimeStr = if ($null -ne $script:sunriseTime) { 
-                                if ($script:isPolarNight) { 
+                                if ($script:isPolarNight -or $script:isPolarDay) { 
                                     $script:sunriseTime.ToString('MM/dd HH:mm') 
                                 } else { 
                                     $script:sunriseTime.ToString('h:mm tt') 
@@ -4833,11 +4975,14 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             } else { 
                                 "N/A" 
                             }
-                            # Hide sunset if polar night
-                            $sunsetTimeStr = if ($script:isPolarNight) { 
-                                $null 
-                            } elseif ($null -ne $script:sunsetTime) { 
-                                $script:sunsetTime.ToString('h:mm tt') 
+                            # Format sunset: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+                            # During polar night: shows last sunset; during polar day: shows next sunset
+                            $sunsetTimeStr = if ($null -ne $script:sunsetTime) { 
+                                if ($script:isPolarNight -or $script:isPolarDay) { 
+                                    $script:sunsetTime.ToString('MM/dd HH:mm') 
+                                } else { 
+                                    $script:sunsetTime.ToString('h:mm tt') 
+                                }
                             } else { 
                                 "N/A" 
                             }
@@ -4847,7 +4992,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $false
                         } else {
                             # Default to full weather report if no specific mode is set
-                            Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $sunriseTime -SunsetTime $sunsetTime -SunriseTime $sunriseTime -SunsetTime $sunsetTime
+                            Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $script:sunriseTime -SunsetTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay
                                 Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                             }
                         }
@@ -4890,7 +5035,26 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isWindMode = $false
                     $isTerseMode = $true
                     $isDailyMode = $false
-                    Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $($sunriseTime.ToString('h:mm tt')) -SunsetTime $($sunsetTime.ToString('h:mm tt')) -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon
+                    # Format sunrise/sunset: date/time if polar night/day, otherwise time
+                    $sunriseTimeStr = if ($null -ne $script:sunriseTime) { 
+                        if ($script:isPolarNight -or $script:isPolarDay) { 
+                            $script:sunriseTime.ToString('MM/dd HH:mm') 
+                        } else { 
+                            $script:sunriseTime.ToString('h:mm tt') 
+                        }
+                    } else { 
+                        "N/A" 
+                    }
+                    $sunsetTimeStr = if ($null -ne $script:sunsetTime) { 
+                        if ($script:isPolarNight -or $script:isPolarDay) { 
+                            $script:sunsetTime.ToString('MM/dd HH:mm') 
+                        } else { 
+                            $script:sunsetTime.ToString('h:mm tt') 
+                        }
+                    } else { 
+                        "N/A" 
+                    }
+                    Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon
                     Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                     Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false -TimeZone $timeZone
                     Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
@@ -4903,7 +5067,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isTerseMode = $false
                     $isDailyMode = $false
                     $isObservationsMode = $false
-                    Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $sunriseTime -SunsetTime $sunsetTime
+                    Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $script:sunriseTime -SunsetTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay
                     Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                 }
                 'r' { # R key - Switch to rain forecast mode
@@ -4947,9 +5111,10 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     } else {
                         # Preserve current mode - show terse mode if in terse mode
                         if ($isTerseMode) {
-                            # Format sunrise: date/time in 24-hour format if polar night, otherwise time in 12-hour format
+                            # Format sunrise: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+                            # During polar night: shows next sunrise; during polar day: shows last sunrise
                             $sunriseTimeStr = if ($null -ne $script:sunriseTime) { 
-                                if ($script:isPolarNight) { 
+                                if ($script:isPolarNight -or $script:isPolarDay) { 
                                     $script:sunriseTime.ToString('MM/dd HH:mm') 
                                 } else { 
                                     $script:sunriseTime.ToString('h:mm tt') 
@@ -4957,11 +5122,14 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             } else { 
                                 "N/A" 
                             }
-                            # Hide sunset if polar night
-                            $sunsetTimeStr = if ($script:isPolarNight) { 
-                                $null 
-                            } elseif ($null -ne $script:sunsetTime) { 
-                                $script:sunsetTime.ToString('h:mm tt') 
+                            # Format sunset: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+                            # During polar night: shows last sunset; during polar day: shows next sunset
+                            $sunsetTimeStr = if ($null -ne $script:sunsetTime) { 
+                                if ($script:isPolarNight -or $script:isPolarDay) { 
+                                    $script:sunsetTime.ToString('MM/dd HH:mm') 
+                                } else { 
+                                    $script:sunsetTime.ToString('h:mm tt') 
+                                }
                             } else { 
                                 "N/A" 
                             }
@@ -5012,9 +5180,10 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     } else {
                         # Preserve current mode - show terse mode if in terse mode
                         if ($isTerseMode) {
-                            # Format sunrise: date/time in 24-hour format if polar night, otherwise time in 12-hour format
+                            # Format sunrise: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+                            # During polar night: shows next sunrise; during polar day: shows last sunrise
                             $sunriseTimeStr = if ($null -ne $script:sunriseTime) { 
-                                if ($script:isPolarNight) { 
+                                if ($script:isPolarNight -or $script:isPolarDay) { 
                                     $script:sunriseTime.ToString('MM/dd HH:mm') 
                                 } else { 
                                     $script:sunriseTime.ToString('h:mm tt') 
@@ -5022,11 +5191,14 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             } else { 
                                 "N/A" 
                             }
-                            # Hide sunset if polar night
-                            $sunsetTimeStr = if ($script:isPolarNight) { 
-                                $null 
-                            } elseif ($null -ne $script:sunsetTime) { 
-                                $script:sunsetTime.ToString('h:mm tt') 
+                            # Format sunset: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+                            # During polar night: shows last sunset; during polar day: shows next sunset
+                            $sunsetTimeStr = if ($null -ne $script:sunsetTime) { 
+                                if ($script:isPolarNight -or $script:isPolarDay) { 
+                                    $script:sunsetTime.ToString('MM/dd HH:mm') 
+                                } else { 
+                                    $script:sunsetTime.ToString('h:mm tt') 
+                                }
                             } else { 
                                 "N/A" 
                             }
@@ -5168,9 +5340,10 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             Show-WindForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } elseif ($isTerseMode) {
-                            # Format sunrise: date/time in 24-hour format if polar night, otherwise time in 12-hour format
+                            # Format sunrise: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+                            # During polar night: shows next sunrise; during polar day: shows last sunrise
                             $sunriseTimeStr = if ($null -ne $script:sunriseTime) { 
-                                if ($script:isPolarNight) { 
+                                if ($script:isPolarNight -or $script:isPolarDay) { 
                                     $script:sunriseTime.ToString('MM/dd HH:mm') 
                                 } else { 
                                     $script:sunriseTime.ToString('h:mm tt') 
@@ -5178,11 +5351,14 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             } else { 
                                 "N/A" 
                             }
-                            # Hide sunset if polar night
-                            $sunsetTimeStr = if ($script:isPolarNight) { 
-                                $null 
-                            } elseif ($null -ne $script:sunsetTime) { 
-                                $script:sunsetTime.ToString('h:mm tt') 
+                            # Format sunset: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+                            # During polar night: shows last sunset; during polar day: shows next sunset
+                            $sunsetTimeStr = if ($null -ne $script:sunsetTime) { 
+                                if ($script:isPolarNight -or $script:isPolarDay) { 
+                                    $script:sunsetTime.ToString('MM/dd HH:mm') 
+                                } else { 
+                                    $script:sunsetTime.ToString('h:mm tt') 
+                                }
                             } else { 
                                 "N/A" 
                             }

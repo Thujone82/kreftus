@@ -43,10 +43,12 @@ function calculateSunriseSunset(latitude, longitude, date, timeZoneId) {
                  (Math.cos(latRad) * Math.cos(declination));
     
     if (cosH > 1) {
-        // Polar night - no sunrise today, find next sunrise
+        // Polar night - no sunrise today, find next sunrise and last sunset
         let nextSunrise = null;
-        const maxDaysToCheck = 180; // Check up to 6 months ahead
+        let lastSunset = null;
+        const maxDaysToCheck = 180; // Check up to 6 months ahead/back
         
+        // Find next sunrise (forward)
         for (let dayOffset = 1; dayOffset <= maxDaysToCheck; dayOffset++) {
             const checkDate = new Date(date);
             checkDate.setDate(checkDate.getDate() + dayOffset);
@@ -86,11 +88,135 @@ function calculateSunriseSunset(latitude, longitude, date, timeZoneId) {
             }
         }
         
-        return { sunrise: nextSunrise, sunset: null, isPolarNight: true, isPolarDay: false };
+        // Find last sunset (backward)
+        for (let dayOffset = -1; dayOffset >= -maxDaysToCheck; dayOffset--) {
+            const checkDate = new Date(date);
+            checkDate.setDate(checkDate.getDate() + dayOffset);
+            const checkDayOfYear = getDayOfYear(checkDate);
+            const checkGamma = 2.0 * Math.PI * (checkDayOfYear - 1) / 365.0;
+            const checkDeclination = 0.006918 - 
+                0.399912 * Math.cos(checkGamma) + 
+                0.070257 * Math.sin(checkGamma) - 
+                0.006758 * Math.cos(2 * checkGamma) + 
+                0.000907 * Math.sin(2 * checkGamma) - 
+                0.002697 * Math.cos(3 * checkGamma) + 
+                0.00148 * Math.sin(3 * checkGamma);
+            const checkCosH = (Math.cos(toRadians(zenithDegrees)) - Math.sin(latRad) * Math.sin(checkDeclination)) / 
+                             (Math.cos(latRad) * Math.cos(checkDeclination));
+            
+            if (checkCosH <= 1) {
+                // Found a day with sunset
+                const checkH = Math.acos(Math.min(1.0, Math.max(-1.0, checkCosH)));
+                const checkHdeg = toDegrees(checkH);
+                const checkEquationOfTime = 229.18 * (
+                    0.000075 + 
+                    0.001868 * Math.cos(checkGamma) - 
+                    0.032077 * Math.sin(checkGamma) - 
+                    0.014615 * Math.cos(2 * checkGamma) - 
+                    0.040849 * Math.sin(2 * checkGamma)
+                );
+                const checkSolarNoonUtcMin = 720.0 - 4.0 * longitude - checkEquationOfTime;
+                let checkSunsetUtcMin = checkSolarNoonUtcMin + 4.0 * checkHdeg;
+                
+                while (checkSunsetUtcMin < 0) checkSunsetUtcMin += 1440;
+                while (checkSunsetUtcMin >= 1440) checkSunsetUtcMin -= 1440;
+                
+                const checkUtcMidnight = new Date(Date.UTC(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate(), 0, 0, 0));
+                const checkSunsetUtc = new Date(checkUtcMidnight.getTime() + checkSunsetUtcMin * 60000);
+                lastSunset = convertToTimeZone(checkSunsetUtc, timeZoneId);
+                break;
+            }
+        }
+        
+        return { sunrise: nextSunrise, sunset: lastSunset, isPolarNight: true, isPolarDay: false };
     }
     if (cosH < -1) {
-        // Polar day - no sunset
-        return { sunrise: null, sunset: null, isPolarNight: false, isPolarDay: true };
+        // Polar day - no sunset today, find next sunset and last sunrise
+        let nextSunset = null;
+        let lastSunrise = null;
+        const maxDaysToCheck = 180; // Check up to 6 months ahead/back
+        
+        // Find next sunset (forward)
+        for (let dayOffset = 1; dayOffset <= maxDaysToCheck; dayOffset++) {
+            const checkDate = new Date(date);
+            checkDate.setDate(checkDate.getDate() + dayOffset);
+            const checkDayOfYear = getDayOfYear(checkDate);
+            const checkGamma = 2.0 * Math.PI * (checkDayOfYear - 1) / 365.0;
+            const checkDeclination = 0.006918 - 
+                0.399912 * Math.cos(checkGamma) + 
+                0.070257 * Math.sin(checkGamma) - 
+                0.006758 * Math.cos(2 * checkGamma) + 
+                0.000907 * Math.sin(2 * checkGamma) - 
+                0.002697 * Math.cos(3 * checkGamma) + 
+                0.00148 * Math.sin(3 * checkGamma);
+            const checkCosH = (Math.cos(toRadians(zenithDegrees)) - Math.sin(latRad) * Math.sin(checkDeclination)) / 
+                             (Math.cos(latRad) * Math.cos(checkDeclination));
+            
+            if (checkCosH <= 1) {
+                // Found a day with sunset
+                const checkH = Math.acos(Math.min(1.0, Math.max(-1.0, checkCosH)));
+                const checkHdeg = toDegrees(checkH);
+                const checkEquationOfTime = 229.18 * (
+                    0.000075 + 
+                    0.001868 * Math.cos(checkGamma) - 
+                    0.032077 * Math.sin(checkGamma) - 
+                    0.014615 * Math.cos(2 * checkGamma) - 
+                    0.040849 * Math.sin(2 * checkGamma)
+                );
+                const checkSolarNoonUtcMin = 720.0 - 4.0 * longitude - checkEquationOfTime;
+                let checkSunsetUtcMin = checkSolarNoonUtcMin + 4.0 * checkHdeg;
+                
+                while (checkSunsetUtcMin < 0) checkSunsetUtcMin += 1440;
+                while (checkSunsetUtcMin >= 1440) checkSunsetUtcMin -= 1440;
+                
+                const checkUtcMidnight = new Date(Date.UTC(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate(), 0, 0, 0));
+                const checkSunsetUtc = new Date(checkUtcMidnight.getTime() + checkSunsetUtcMin * 60000);
+                nextSunset = convertToTimeZone(checkSunsetUtc, timeZoneId);
+                break;
+            }
+        }
+        
+        // Find last sunrise (backward)
+        for (let dayOffset = -1; dayOffset >= -maxDaysToCheck; dayOffset--) {
+            const checkDate = new Date(date);
+            checkDate.setDate(checkDate.getDate() + dayOffset);
+            const checkDayOfYear = getDayOfYear(checkDate);
+            const checkGamma = 2.0 * Math.PI * (checkDayOfYear - 1) / 365.0;
+            const checkDeclination = 0.006918 - 
+                0.399912 * Math.cos(checkGamma) + 
+                0.070257 * Math.sin(checkGamma) - 
+                0.006758 * Math.cos(2 * checkGamma) + 
+                0.000907 * Math.sin(2 * checkGamma) - 
+                0.002697 * Math.cos(3 * checkGamma) + 
+                0.00148 * Math.sin(3 * checkGamma);
+            const checkCosH = (Math.cos(toRadians(zenithDegrees)) - Math.sin(latRad) * Math.sin(checkDeclination)) / 
+                             (Math.cos(latRad) * Math.cos(checkDeclination));
+            
+            if (checkCosH <= 1) {
+                // Found a day with sunrise
+                const checkH = Math.acos(Math.min(1.0, Math.max(-1.0, checkCosH)));
+                const checkHdeg = toDegrees(checkH);
+                const checkEquationOfTime = 229.18 * (
+                    0.000075 + 
+                    0.001868 * Math.cos(checkGamma) - 
+                    0.032077 * Math.sin(checkGamma) - 
+                    0.014615 * Math.cos(2 * checkGamma) - 
+                    0.040849 * Math.sin(2 * checkGamma)
+                );
+                const checkSolarNoonUtcMin = 720.0 - 4.0 * longitude - checkEquationOfTime;
+                let checkSunriseUtcMin = checkSolarNoonUtcMin - 4.0 * checkHdeg;
+                
+                while (checkSunriseUtcMin < 0) checkSunriseUtcMin += 1440;
+                while (checkSunriseUtcMin >= 1440) checkSunriseUtcMin -= 1440;
+                
+                const checkUtcMidnight = new Date(Date.UTC(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate(), 0, 0, 0));
+                const checkSunriseUtc = new Date(checkUtcMidnight.getTime() + checkSunriseUtcMin * 60000);
+                lastSunrise = convertToTimeZone(checkSunriseUtc, timeZoneId);
+                break;
+            }
+        }
+        
+        return { sunrise: lastSunrise, sunset: nextSunset, isPolarNight: false, isPolarDay: true };
     }
     
     const H = Math.acos(Math.min(1.0, Math.max(-1.0, cosH)));
