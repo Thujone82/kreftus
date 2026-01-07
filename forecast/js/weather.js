@@ -117,6 +117,8 @@ function processWeatherData(weatherData) {
             ...location,
             sunrise: sunTimes.sunrise,
             sunset: sunTimes.sunset,
+            isPolarNight: sunTimes.isPolarNight,
+            isPolarDay: sunTimes.isPolarDay,
             moonPhase: moonPhaseInfo
         },
         noaaStation: weatherData.noaaStation || null

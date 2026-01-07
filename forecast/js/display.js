@@ -78,11 +78,14 @@ function displayCurrentConditions(weather, location) {
     if (sunrise) {
         html += '<div class="condition-row">';
         html += `<span class="condition-label">Sunrise:</span>`;
-        html += `<span class="condition-value">${formatTime(sunrise, location.timeZone)}</span>`;
+        // Format as date/time (MM/dd HH:mm) if polar night, otherwise time (12-hour format)
+        const sunriseDisplay = loc.isPolarNight ? formatSunriseDate(sunrise, location.timeZone) : formatTime(sunrise, location.timeZone);
+        html += `<span class="condition-value">${sunriseDisplay}</span>`;
         html += '</div>';
     }
     
-    if (sunset) {
+    // Hide sunset if polar night
+    if (sunset && !loc.isPolarNight) {
         html += '<div class="condition-row">';
         html += `<span class="condition-label">Sunset:</span>`;
         html += `<span class="condition-value">${formatTime(sunset, location.timeZone)}</span>`;
@@ -325,21 +328,29 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
                     dayDate,
                     location.timeZone
                 );
-                if (daySunTimes.sunrise && daySunTimes.sunset) {
-                    // calculateSunriseSunset should always return sunrise before sunset
-                    // Use them directly as calculated
-                    sunriseStr = formatTime24(daySunTimes.sunrise, location.timeZone);
-                    sunsetStr = formatTime24(daySunTimes.sunset, location.timeZone);
-                    dayLengthStr = formatDayLength(daySunTimes.sunrise, daySunTimes.sunset);
+                if (daySunTimes.sunrise) {
+                    // Format sunrise: date/time (MM/dd HH:mm) if polar night, otherwise time (24-hour format)
+                    sunriseStr = daySunTimes.isPolarNight ? formatSunriseDate(daySunTimes.sunrise, location.timeZone) : formatTime24(daySunTimes.sunrise, location.timeZone);
+                    // Only show sunset if not polar night
+                    if (daySunTimes.sunset && !daySunTimes.isPolarNight) {
+                        sunsetStr = formatTime24(daySunTimes.sunset, location.timeZone);
+                        dayLengthStr = formatDayLength(daySunTimes.sunrise, daySunTimes.sunset);
+                    }
                 }
             }
             
             // Display day label on its own line (slightly larger)
-            // Then sunrise/sunset/day length on the next line
-            if (sunriseStr && sunsetStr && dayLengthStr) {
+            // Then sunrise/sunset/day length on the next line (hide sunset if polar night)
+            if (sunriseStr) {
                 html += `<div class="daily-day-label">${dayNameWithDate}:</div>`;
-                html += `<div class="condition-row">Sunrise: <span class="forecast-text">${sunriseStr}</span> Sunset: <span class="forecast-text">${sunsetStr}</span> Day Length: <span class="forecast-text">${dayLengthStr}</span></div>`;
-                html += '<div></div>'; // Line feed after day length
+                if (sunsetStr && dayLengthStr) {
+                    // Normal case: show sunrise, sunset, and day length
+                    html += `<div class="condition-row">Sunrise: <span class="forecast-text">${sunriseStr}</span> Sunset: <span class="forecast-text">${sunsetStr}</span> Day Length: <span class="forecast-text">${dayLengthStr}</span></div>`;
+                } else {
+                    // Polar night: show only sunrise (with date/time)
+                    html += `<div class="condition-row">Sunrise: <span class="forecast-text">${sunriseStr}</span></div>`;
+                }
+                html += '<div></div>'; // Line feed after day length (or sunrise)
             }
             
             // Temperature and info row (combined) - day name only if no sunrise/sunset
@@ -814,19 +825,27 @@ function displayObservations(observationsData, location) {
                 dayDate,
                 location.timeZone
             );
-            if (daySunTimes.sunrise && daySunTimes.sunset) {
-                // calculateSunriseSunset should always return sunrise before sunset
-                // Use them directly as calculated
-                sunriseStr = formatTime24(daySunTimes.sunrise, location.timeZone);
-                sunsetStr = formatTime24(daySunTimes.sunset, location.timeZone);
-                dayLengthStr = formatDayLength(daySunTimes.sunrise, daySunTimes.sunset);
+            if (daySunTimes.sunrise) {
+                // Format sunrise: date/time (MM/dd HH:mm) if polar night, otherwise time (24-hour format)
+                sunriseStr = daySunTimes.isPolarNight ? formatSunriseDate(daySunTimes.sunrise, location.timeZone) : formatTime24(daySunTimes.sunrise, location.timeZone);
+                // Only show sunset if not polar night
+                if (daySunTimes.sunset && !daySunTimes.isPolarNight) {
+                    sunsetStr = formatTime24(daySunTimes.sunset, location.timeZone);
+                    dayLengthStr = formatDayLength(daySunTimes.sunrise, daySunTimes.sunset);
+                }
             }
         }
         
-        // Display sunrise/sunset/day length if available (on same line as day name, no blank line after)
-        if (sunriseStr && sunsetStr && dayLengthStr) {
-            html += `<div class="condition-row"> Sunrise: <span class="forecast-text">${sunriseStr}</span> Sunset: <span class="forecast-text">${sunsetStr}</span> Day Length: <span class="forecast-text">${dayLengthStr}</span></div>`;
-            html += '<div></div>'; // Line feed after day length
+        // Display sunrise/sunset/day length if available (hide sunset if polar night)
+        if (sunriseStr) {
+            if (sunsetStr && dayLengthStr) {
+                // Normal case: show sunrise, sunset, and day length
+                html += `<div class="condition-row"> Sunrise: <span class="forecast-text">${sunriseStr}</span> Sunset: <span class="forecast-text">${sunsetStr}</span> Day Length: <span class="forecast-text">${dayLengthStr}</span></div>`;
+            } else {
+                // Polar night: show only sunrise (with date/time)
+                html += `<div class="condition-row"> Sunrise: <span class="forecast-text">${sunriseStr}</span></div>`;
+            }
+            html += '<div></div>'; // Line feed after day length (or sunrise)
         }
         
         // Temp line: H:{high}°F L:{low}°F with windchill/heat index if applicable

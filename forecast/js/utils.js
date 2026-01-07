@@ -43,8 +43,50 @@ function calculateSunriseSunset(latitude, longitude, date, timeZoneId) {
                  (Math.cos(latRad) * Math.cos(declination));
     
     if (cosH > 1) {
-        // Polar night - no sunrise
-        return { sunrise: null, sunset: null, isPolarNight: true, isPolarDay: false };
+        // Polar night - no sunrise today, find next sunrise
+        let nextSunrise = null;
+        const maxDaysToCheck = 180; // Check up to 6 months ahead
+        
+        for (let dayOffset = 1; dayOffset <= maxDaysToCheck; dayOffset++) {
+            const checkDate = new Date(date);
+            checkDate.setDate(checkDate.getDate() + dayOffset);
+            const checkDayOfYear = getDayOfYear(checkDate);
+            const checkGamma = 2.0 * Math.PI * (checkDayOfYear - 1) / 365.0;
+            const checkDeclination = 0.006918 - 
+                0.399912 * Math.cos(checkGamma) + 
+                0.070257 * Math.sin(checkGamma) - 
+                0.006758 * Math.cos(2 * checkGamma) + 
+                0.000907 * Math.sin(2 * checkGamma) - 
+                0.002697 * Math.cos(3 * checkGamma) + 
+                0.00148 * Math.sin(3 * checkGamma);
+            const checkCosH = (Math.cos(toRadians(zenithDegrees)) - Math.sin(latRad) * Math.sin(checkDeclination)) / 
+                             (Math.cos(latRad) * Math.cos(checkDeclination));
+            
+            if (checkCosH <= 1) {
+                // Found a day with sunrise
+                const checkH = Math.acos(Math.min(1.0, Math.max(-1.0, checkCosH)));
+                const checkHdeg = toDegrees(checkH);
+                const checkEquationOfTime = 229.18 * (
+                    0.000075 + 
+                    0.001868 * Math.cos(checkGamma) - 
+                    0.032077 * Math.sin(checkGamma) - 
+                    0.014615 * Math.cos(2 * checkGamma) - 
+                    0.040849 * Math.sin(2 * checkGamma)
+                );
+                const checkSolarNoonUtcMin = 720.0 - 4.0 * longitude - checkEquationOfTime;
+                let checkSunriseUtcMin = checkSolarNoonUtcMin - 4.0 * checkHdeg;
+                
+                while (checkSunriseUtcMin < 0) checkSunriseUtcMin += 1440;
+                while (checkSunriseUtcMin >= 1440) checkSunriseUtcMin -= 1440;
+                
+                const checkUtcMidnight = new Date(Date.UTC(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate(), 0, 0, 0));
+                const checkSunriseUtc = new Date(checkUtcMidnight.getTime() + checkSunriseUtcMin * 60000);
+                nextSunrise = convertToTimeZone(checkSunriseUtc, timeZoneId);
+                break;
+            }
+        }
+        
+        return { sunrise: nextSunrise, sunset: null, isPolarNight: true, isPolarDay: false };
     }
     if (cosH < -1) {
         // Polar day - no sunset
@@ -497,6 +539,55 @@ function formatDateTime24(date, timeZoneId) {
         const hour = String(d.getHours()).padStart(2, '0');
         const min = String(d.getMinutes()).padStart(2, '0');
         return `${month}/${day}/${year} ${hour}:${min}`;
+    }
+}
+
+// Format sunrise date/time for polar night (MM/dd HH:mm format)
+function formatSunriseDate(date, timeZoneId) {
+    if (!date) return "";
+    
+    try {
+        if (!timeZoneId) {
+            timeZoneId = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        }
+        
+        const formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: timeZoneId,
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
+        
+        const parts = formatter.formatToParts(date);
+        const month = parts.find(p => p.type === 'month').value;
+        const day = parts.find(p => p.type === 'day').value;
+        const hour = parts.find(p => p.type === 'hour').value;
+        const minute = parts.find(p => p.type === 'minute').value;
+        
+        return `${month}/${day} ${hour}:${minute}`;
+    } catch (error) {
+        // Fallback: convert to timezone manually if possible, otherwise use local time
+        try {
+            if (timeZoneId) {
+                const converted = convertToTimeZone(date, timeZoneId);
+                const month = String(converted.getMonth() + 1).padStart(2, '0');
+                const day = String(converted.getDate()).padStart(2, '0');
+                const hour = String(converted.getHours()).padStart(2, '0');
+                const min = String(converted.getMinutes()).padStart(2, '0');
+                return `${month}/${day} ${hour}:${min}`;
+            }
+        } catch (e) {
+            // If conversion fails, fall through to local time
+        }
+        // Final fallback: format manually using local time
+        const d = new Date(date);
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hour = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        return `${month}/${day} ${hour}:${min}`;
     }
 }
 
