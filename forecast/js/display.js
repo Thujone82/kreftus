@@ -338,6 +338,7 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
             // Display sunrise/sunset/day length if available (on same line as day name, no blank line after)
             if (sunriseStr && sunsetStr && dayLengthStr) {
                 html += `<div class="condition-row"> Sunrise: <span class="forecast-text">${sunriseStr}</span> Sunset: <span class="forecast-text">${sunsetStr}</span> Day Length: <span class="forecast-text">${dayLengthStr}</span></div>`;
+                html += '<div></div>'; // Line feed after day length
             }
             
             // Temperature and info row (combined)
@@ -824,6 +825,7 @@ function displayObservations(observationsData, location) {
         // Display sunrise/sunset/day length if available (on same line as day name, no blank line after)
         if (sunriseStr && sunsetStr && dayLengthStr) {
             html += `<div class="condition-row"> Sunrise: <span class="forecast-text">${sunriseStr}</span> Sunset: <span class="forecast-text">${sunsetStr}</span> Day Length: <span class="forecast-text">${dayLengthStr}</span></div>`;
+            html += '<div></div>'; // Line feed after day length
         }
         
         // Temp line: H:{high}°F L:{low}°F with windchill/heat index if applicable
@@ -954,6 +956,7 @@ function displayObservations(observationsData, location) {
         }
         
         // Conditions line: {moonEmoji} Conditions: {description}
+        html += '<div></div>'; // Line feed before moon phase icon
         html += '<div class="condition-row">';
         html += `<span class="condition-label">${moonEmoji} Conditions:</span>`;
         html += `<span class="condition-value forecast-text">${dayData.conditions}</span>`;
