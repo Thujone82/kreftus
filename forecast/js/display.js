@@ -320,18 +320,11 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
                     location.timeZone
                 );
                 if (daySunTimes.sunrise && daySunTimes.sunset) {
-                    // Ensure sunrise comes before sunset (swap if needed)
-                    let sunrise = daySunTimes.sunrise;
-                    let sunset = daySunTimes.sunset;
-                    if (sunrise > sunset) {
-                        // Times are swapped, correct them
-                        const tempTime = sunrise;
-                        sunrise = sunset;
-                        sunset = tempTime;
-                    }
-                    sunriseStr = formatTime24(sunrise, location.timeZone);
-                    sunsetStr = formatTime24(sunset, location.timeZone);
-                    dayLengthStr = formatDayLength(sunrise, sunset);
+                    // calculateSunriseSunset should always return sunrise before sunset
+                    // Use them directly as calculated
+                    sunriseStr = formatTime24(daySunTimes.sunrise, location.timeZone);
+                    sunsetStr = formatTime24(daySunTimes.sunset, location.timeZone);
+                    dayLengthStr = formatDayLength(daySunTimes.sunrise, daySunTimes.sunset);
                 }
             }
             
@@ -342,7 +335,7 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
             }
             
             // Temperature and info row (combined) - day name always shown here
-            html += `<div class="daily-temp-row"> ${dayName}: <span class="${getTempColor(temp)}">H:${temp}°F</span>${windChillHeatIndex || ' '}`;
+            html += `<div class="daily-temp-row">${dayName}: <span class="${getTempColor(temp)}">H:${temp}°F</span>${windChillHeatIndex || ' '}`;
             if (nightTemp) {
                 html += `<span class="${getTempColor(nightTemp)}">L:${nightTemp}°F</span>`;
             }
@@ -791,7 +784,7 @@ function displayObservations(observationsData, location) {
         const moonEmoji = moonPhaseInfo.emoji;
         
         html += '<div class="daily-item">';
-        html += `<div class="daily-header">${dayName} (${dateStr})</div>`;
+        html += `<div class="daily-header">${dayName} (${dateStr}):</div>`;
         
         // Calculate sunrise/sunset for this specific observation date (use date only, not time)
         let sunriseStr = "";
@@ -807,18 +800,11 @@ function displayObservations(observationsData, location) {
                 location.timeZone
             );
             if (daySunTimes.sunrise && daySunTimes.sunset) {
-                // Ensure sunrise comes before sunset (swap if needed)
-                let sunrise = daySunTimes.sunrise;
-                let sunset = daySunTimes.sunset;
-                if (sunrise > sunset) {
-                    // Times are swapped, correct them
-                    const tempTime = sunrise;
-                    sunrise = sunset;
-                    sunset = tempTime;
-                }
-                sunriseStr = formatTime24(sunrise, location.timeZone);
-                sunsetStr = formatTime24(sunset, location.timeZone);
-                dayLengthStr = formatDayLength(sunrise, sunset);
+                // calculateSunriseSunset should always return sunrise before sunset
+                // Use them directly as calculated
+                sunriseStr = formatTime24(daySunTimes.sunrise, location.timeZone);
+                sunsetStr = formatTime24(daySunTimes.sunset, location.timeZone);
+                dayLengthStr = formatDayLength(daySunTimes.sunrise, daySunTimes.sunset);
             }
         }
         

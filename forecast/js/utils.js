@@ -368,7 +368,14 @@ function formatDayLength(sunrise, sunset) {
         return "N/A";
     }
     
-    const durationMs = sunset.getTime() - sunrise.getTime();
+    // Calculate day length: simply subtract sunrise from sunset
+    // If sunset is earlier than sunrise, add 24 hours (sunset is next day)
+    let durationMs = sunset.getTime() - sunrise.getTime();
+    if (durationMs < 0) {
+        // Sunset is next day, add 24 hours
+        durationMs += 24 * 60 * 60 * 1000;
+    }
+    
     const totalMinutes = Math.round(durationMs / (1000 * 60));
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;

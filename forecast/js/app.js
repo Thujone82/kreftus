@@ -2586,7 +2586,49 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
 // Marks all 10-minute cache items (weather data, observations) as stale and forces reload
 // Preserves 1-week cache items (stations.json, water level support, tide predictions)
 async function handleRefresh() {
-    console.log('Refresh button clicked - marking 10-minute cache items as stale');
+    console.log('Refresh button clicked - loading cached data first, then refreshing');
+    
+    // Get current location
+    const location = elements.locationInput.value.trim() || 'here';
+    
+    // First, try to load cached data (even if stale) to display immediately
+    // This ensures observations data is shown while fresh data is being fetched
+    // Use the same cache lookup logic as loadWeatherData
+    let cacheKeyToUse = null;
+    let cacheToUse = null;
+    
+    const favorites = getFavorites();
+    const matchingFavorite = favorites.find(fav => {
+        if (!fav.searchQuery) return false;
+        const favSearchQuery = fav.searchQuery.toLowerCase().trim();
+        const favDisplayName = fav.name ? fav.name.toLowerCase().trim() : '';
+        const locationLower = location.toLowerCase().trim();
+        return locationLower === favSearchQuery || 
+               locationLower === favDisplayName ||
+               (fav.location && formatLocationDisplayName && formatLocationDisplayName(fav.location.city, fav.location.state).toLowerCase().trim() === locationLower);
+    });
+    
+    if (matchingFavorite && matchingFavorite.key) {
+        cacheKeyToUse = matchingFavorite.uid ? `uid_${matchingFavorite.uid}` : matchingFavorite.key;
+        cacheToUse = loadWeatherDataFromCache(cacheKeyToUse);
+    } else {
+        // Check default cache
+        const cachedLocation = localStorage.getItem('forecastCachedLocation');
+        if (cachedLocation && cachedLocation.toLowerCase() === location.toLowerCase()) {
+            cacheToUse = loadWeatherDataFromCache();
+        }
+    }
+    
+    // Try to load cached data first (preserves observations data)
+    if (cacheToUse && cacheToUse.data && cacheToUse.data.weatherData) {
+        console.log('Loading cached data first to preserve observations during refresh');
+        const cachedLoaded = loadCachedWeatherData(cacheKeyToUse, location);
+        if (cachedLoaded) {
+            // Render immediately with cached data (including observations)
+            renderCurrentMode();
+            setLoading(false, false);
+        }
+    }
     
     // Mark all weather data cache timestamps as stale (10 minutes ago)
     // This forces a reload of weather data, observations, etc.
@@ -2619,18 +2661,15 @@ async function handleRefresh() {
             appState.lastFetchTime = staleTimestamp;
         }
         
-        // Get current location and force reload
-        const location = elements.locationInput.value.trim() || 'here';
-        console.log('Forcing reload for location:', location);
+        console.log('Fetching fresh data for location:', location);
         
-        // Force reload by passing a flag or by ensuring cache is considered stale
-        // Since we've marked timestamps as stale, loadWeatherData should fetch fresh data
+        // Now fetch fresh data (this will update the display when it completes)
         await loadWeatherData(location, false, false); // Don't use background mode for manual refresh - show loading
     } catch (error) {
         console.error('Error during refresh:', error);
-        // Fallback: just try to reload
-        const location = elements.locationInput.value.trim() || 'here';
-        await loadWeatherData(location, false, false);
+        // If refresh fails, cached data should still be displayed (loaded above)
+        // Just update the UI to show we're not loading anymore
+        setLoading(false, false);
     }
 }
 

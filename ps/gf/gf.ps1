@@ -1765,8 +1765,16 @@ function Format-DayLength {
         return "N/A"
     }
     
+    # Calculate day length: simply subtract sunrise from sunset
+    # If sunset is earlier than sunrise, add 24 hours (sunset is next day)
     $duration = $Sunset - $Sunrise
-    $totalMinutes = [Math]::Round($duration.TotalMinutes)
+    if ($duration.TotalMinutes -lt 0) {
+        # Sunset is next day, add 24 hours (1440 minutes)
+        $totalMinutes = [Math]::Round($duration.TotalMinutes) + (24 * 60)
+    } else {
+        $totalMinutes = [Math]::Round($duration.TotalMinutes)
+    }
+    
     $hours = [Math]::Floor($totalMinutes / 60)
     $minutes = $totalMinutes % 60
     
@@ -2583,18 +2591,11 @@ function Show-SevenDayForecast {
                 $dayDate = $currentPeriodTime.Date
                 $daySunTimes = Get-SunriseSunset -Latitude $Latitude -Longitude $Longitude -Date $dayDate -TimeZoneId $TimeZone
                 if ($daySunTimes.Sunrise -and $daySunTimes.Sunset) {
-                    # Ensure sunrise comes before sunset (swap if needed)
-                    $sunrise = $daySunTimes.Sunrise
-                    $sunset = $daySunTimes.Sunset
-                    if ($sunrise -gt $sunset) {
-                        # Times are swapped, correct them
-                        $tempTime = $sunrise
-                        $sunrise = $sunset
-                        $sunset = $tempTime
-                    }
-                    $sunriseStr = $sunrise.ToString('HH:mm')
-                    $sunsetStr = $sunset.ToString('HH:mm')
-                    $dayLengthStr = Format-DayLength -Sunrise $sunrise -Sunset $sunset
+                    # Get-SunriseSunset should always return sunrise before sunset
+                    # Use them directly as calculated
+                    $sunriseStr = $daySunTimes.Sunrise.ToString('HH:mm')
+                    $sunsetStr = $daySunTimes.Sunset.ToString('HH:mm')
+                    $dayLengthStr = Format-DayLength -Sunrise $daySunTimes.Sunrise -Sunset $daySunTimes.Sunset
                 }
             }
             
@@ -2610,7 +2611,7 @@ function Show-SevenDayForecast {
             
             # Display sunrise/sunset/day length if available (on same line, no blank line after)
             if ($sunriseStr -and $sunsetStr -and $dayLengthStr) {
-                Write-Host " Sunrise: " -ForegroundColor $DefaultColor -NoNewline
+                Write-Host "Sunrise: " -ForegroundColor $DefaultColor -NoNewline
                 Write-Host "$sunriseStr" -ForegroundColor Gray -NoNewline
                 Write-Host " Sunset: " -ForegroundColor $DefaultColor -NoNewline
                 Write-Host "$sunsetStr" -ForegroundColor Gray -NoNewline
@@ -2618,7 +2619,7 @@ function Show-SevenDayForecast {
                 Write-Host "$dayLengthStr" -ForegroundColor Gray
             }
             
-            Write-Host " H:$temp°F" -ForegroundColor $tempColor -NoNewline
+            Write-Host "          H:$temp°F" -ForegroundColor $tempColor -NoNewline
             if ($windChillHeatIndex) {
                 Write-Host $windChillHeatIndex -ForegroundColor $windChillHeatIndexColor -NoNewline
             }
@@ -2888,18 +2889,11 @@ function Show-Observations {
             $dayDate = [DateTime]::new($parsedDate.Year, $parsedDate.Month, $parsedDate.Day)
             $daySunTimes = Get-SunriseSunset -Latitude $Latitude -Longitude $Longitude -Date $dayDate -TimeZoneId $TimeZone
             if ($daySunTimes.Sunrise -and $daySunTimes.Sunset) {
-                # Ensure sunrise comes before sunset (swap if needed)
-                $sunrise = $daySunTimes.Sunrise
-                $sunset = $daySunTimes.Sunset
-                if ($sunrise -gt $sunset) {
-                    # Times are swapped, correct them
-                    $tempTime = $sunrise
-                    $sunrise = $sunset
-                    $sunset = $tempTime
-                }
-                $sunriseStr = $sunrise.ToString('HH:mm')
-                $sunsetStr = $sunset.ToString('HH:mm')
-                $dayLengthStr = Format-DayLength -Sunrise $sunrise -Sunset $sunset
+                # Get-SunriseSunset should always return sunrise before sunset
+                # Use them directly as calculated
+                $sunriseStr = $daySunTimes.Sunrise.ToString('HH:mm')
+                $sunsetStr = $daySunTimes.Sunset.ToString('HH:mm')
+                $dayLengthStr = Format-DayLength -Sunrise $daySunTimes.Sunrise -Sunset $daySunTimes.Sunset
             }
         }
         
