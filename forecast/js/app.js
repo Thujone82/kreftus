@@ -914,6 +914,10 @@ async function handleSearch() {
 // Check observations availability and fetch observations
 // Only fetches if not already cached and fresh (10 minutes)
 async function checkObservationsAvailability(pointsData, timeZone) {
+    // Preserve existing observations data in case refresh fails (especially important in history mode)
+    const existingObservationsData = appState.observationsData;
+    const existingObservationsAvailable = appState.observationsAvailable;
+    
     try {
         // Check if we already have fresh observations in appState
         if (appState.observationsData && appState.observationsAvailable && appState.lastFetchTime) {
@@ -926,32 +930,52 @@ async function checkObservationsAvailability(pointsData, timeZone) {
         }
         
         if (!pointsData || !pointsData.properties || !pointsData.properties.observationStations) {
-            appState.observationsAvailable = false;
-            appState.observationsData = null;
+            // Only clear observations if we don't have existing cached data to preserve
+            if (!existingObservationsData) {
+                appState.observationsAvailable = false;
+                appState.observationsData = null;
+            } else {
+                console.log('No observation stations available, preserving existing cached observations data');
+            }
             return false;
         }
         
         // Try to fetch observation stations
         const stationId = await fetchNWSObservationStations(pointsData);
         if (!stationId) {
-            appState.observationsAvailable = false;
-            appState.observationsData = null;
+            // Only clear observations if we don't have existing cached data to preserve
+            if (!existingObservationsData) {
+                appState.observationsAvailable = false;
+                appState.observationsData = null;
+            } else {
+                console.log('No observation station found, preserving existing cached observations data');
+            }
             return false;
         }
         
         // Try to fetch observations
         const observationsData = await fetchNWSObservations(stationId, timeZone);
         if (!observationsData || !observationsData.features || observationsData.features.length === 0) {
-            appState.observationsAvailable = false;
-            appState.observationsData = null;
+            // Only clear observations if we don't have existing cached data to preserve
+            if (!existingObservationsData) {
+                appState.observationsAvailable = false;
+                appState.observationsData = null;
+            } else {
+                console.log('No observations data returned, preserving existing cached observations data');
+            }
             return false;
         }
         
         // Process observations data
         const processedObservations = processObservationsData(observationsData, timeZone);
         if (!processedObservations || processedObservations.length === 0) {
-            appState.observationsAvailable = false;
-            appState.observationsData = null;
+            // Only clear observations if we don't have existing cached data to preserve
+            if (!existingObservationsData) {
+                appState.observationsAvailable = false;
+                appState.observationsData = null;
+            } else {
+                console.log('Processed observations empty, preserving existing cached observations data');
+            }
             return false;
         }
         
@@ -960,8 +984,13 @@ async function checkObservationsAvailability(pointsData, timeZone) {
         return true;
     } catch (error) {
         console.error('Error checking observations availability:', error);
-        appState.observationsAvailable = false;
-        appState.observationsData = null;
+        // Preserve existing observations data on error (especially important in history mode)
+        if (!existingObservationsData) {
+            appState.observationsAvailable = false;
+            appState.observationsData = null;
+        } else {
+            console.log('Error fetching observations, preserving existing cached observations data');
+        }
         return false;
     }
 }
