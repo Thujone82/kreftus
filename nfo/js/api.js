@@ -24,12 +24,7 @@ const api = {
                 parts: [{
                     text: promptText
                 }]
-            }],
-            "tools": [
-                {
-                    "googleSearch": {}
-                }
-            ]
+            }]
         };
 
         // Add thinkingConfig for Gemini 3 models
@@ -39,6 +34,13 @@ const api = {
                     thinkingLevel: "low"
                 }
             };
+        } else {
+            // Only include googleSearch tool for non-Gemini 3 models to avoid 429 errors
+            requestBody.tools = [
+                {
+                    "googleSearch": {}
+                }
+            ];
         }
 
         try {
