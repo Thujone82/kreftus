@@ -772,10 +772,18 @@ function isHourMidpointDaytime(periodTime, sunrise, sunset, timeZone) {
     const hourMidpoint = new Date(periodTime);
     hourMidpoint.setMinutes(30, 0, 0);
     
+    // Normalize sunrise/sunset to the same date as the period for accurate comparison
+    // This ensures we're comparing times on the same day
+    const periodDate = new Date(periodTime.getFullYear(), periodTime.getMonth(), periodTime.getDate());
+    const normalizedSunrise = new Date(periodDate);
+    normalizedSunrise.setHours(sunriseDate.getHours(), sunriseDate.getMinutes(), sunriseDate.getSeconds(), sunriseDate.getMilliseconds());
+    const normalizedSunset = new Date(periodDate);
+    normalizedSunset.setHours(sunsetDate.getHours(), sunsetDate.getMinutes(), sunsetDate.getSeconds(), sunsetDate.getMilliseconds());
+    
     // Extract time-of-day portions for comparison (minutes since midnight)
     const hourMidpointTime = hourMidpoint.getHours() * 60 + hourMidpoint.getMinutes();
-    const sunriseTime = sunriseDate.getHours() * 60 + sunriseDate.getMinutes();
-    const sunsetTime = sunsetDate.getHours() * 60 + sunsetDate.getMinutes();
+    const sunriseTime = normalizedSunrise.getHours() * 60 + normalizedSunrise.getMinutes();
+    const sunsetTime = normalizedSunset.getHours() * 60 + normalizedSunset.getMinutes();
     
     // Handle cases where sunset is the next day (after midnight)
     if (sunsetTime < sunriseTime) {
@@ -783,6 +791,7 @@ function isHourMidpointDaytime(periodTime, sunrise, sunset, timeZone) {
         return (hourMidpointTime >= sunriseTime) || (hourMidpointTime < sunsetTime);
     } else {
         // Normal case: sunset is same day as sunrise
+        // Check if hour midpoint is between sunrise and sunset (exclusive of sunset)
         return hourMidpointTime >= sunriseTime && hourMidpointTime < sunsetTime;
     }
 }
