@@ -967,11 +967,17 @@ async function handleCurrentLocationClick() {
     }
     
     try {
+        // Clear current location key to ensure we're not matching a favorite
+        appState.currentLocationKey = null;
+        
         // Set current location as active
         appState.isCurrentLocationActive = true;
         updateCurrentLocationButtonState(true);
         
-        // Load current location
+        // Clear favorite button state since we're switching to current location
+        updateFavoriteButtonState(null);
+        
+        // Load current location - force reload even if cached
         await loadWeatherData('here', false);
     } catch (error) {
         console.error('Error loading current location:', error);
@@ -2436,8 +2442,20 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         // This prevents unnecessary API calls when switching tabs or re-rendering
         if (appState.weatherData && appState.location && appState.lastFetchTime) {
             const locationText = formatLocationDisplayName(appState.location.city, appState.location.state);
-            const locationMatch = location.toLowerCase() === locationText.toLowerCase() || 
-                                 location.toLowerCase() === 'here' && locationText.toLowerCase() !== '';
+            let locationMatch = false;
+            
+            if (location.toLowerCase() === 'here') {
+                // For 'here', only match if current location is actually 'here' (not a favorite)
+                // Check if current location is a favorite
+                const favorites = getFavorites();
+                const currentUID = generateLocationUID(appState.location);
+                const isCurrentLocationFavorite = favorites.some(fav => fav.uid === currentUID);
+                // Only match 'here' if current location is NOT a favorite and isCurrentLocationActive is true
+                locationMatch = !isCurrentLocationFavorite && appState.isCurrentLocationActive && locationText.toLowerCase() !== '';
+            } else {
+                // For specific locations, require exact match
+                locationMatch = location.toLowerCase() === locationText.toLowerCase();
+            }
             
             if (locationMatch && !isCacheStale(appState.lastFetchTime)) {
                 // We already have fresh data for this location - just render it
@@ -2446,6 +2464,12 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
                 renderCurrentMode();
                 updateFavoriteButtonState();
                 renderLocationButtons();
+                // Update current location button state
+                if (location.toLowerCase() === 'here') {
+                    updateCurrentLocationButtonState(true);
+                } else {
+                    updateCurrentLocationButtonState(false);
+                }
                 return;
             }
         }
