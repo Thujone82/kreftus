@@ -2519,14 +2519,11 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             }
         } else {
             // No matching favorite - check default cache
-            // For 'here', always check default cache first
+            // For 'here', skip cache and always fetch fresh (location is dynamic)
             if (location.toLowerCase() === 'here') {
-                cacheToUse = loadWeatherDataFromCache();
-                const cachedLocation = localStorage.getItem('forecastCachedLocation');
-                if (cacheToUse && cacheToUse.data) {
-                    console.log('Found default cache for "here" location, cachedLocation:', cachedLocation);
-                    cacheKeyToUse = null; // Use default cache (null key)
-                }
+                console.log('Location is "here" - skipping cache and fetching fresh data for current location');
+                cacheToUse = null; // Don't use cache for 'here'
+                cacheKeyToUse = null;
             } else {
                 const cachedLocation = localStorage.getItem('forecastCachedLocation');
                 if (cachedLocation && cachedLocation.toLowerCase() === location.toLowerCase()) {
