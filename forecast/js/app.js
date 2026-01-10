@@ -970,14 +970,19 @@ async function handleCurrentLocationClick() {
         // Clear current location key to ensure we're not matching a favorite
         appState.currentLocationKey = null;
         
-        // Set current location as active
+        // Set current location as active BEFORE loading to ensure cache check works correctly
         appState.isCurrentLocationActive = true;
         updateCurrentLocationButtonState(true);
         
         // Clear favorite button state since we're switching to current location
         updateFavoriteButtonState(null);
         
-        // Load current location - force reload even if cached
+        // Clear any existing weather data to force a fresh load
+        // This ensures we don't use stale data from a favorite location
+        appState.weatherData = null;
+        appState.location = null;
+        
+        // Load current location - this will now properly detect that we want 'here'
         await loadWeatherData('here', false);
     } catch (error) {
         console.error('Error loading current location:', error);
@@ -2514,23 +2519,33 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             }
         } else {
             // No matching favorite - check default cache
-            const cachedLocation = localStorage.getItem('forecastCachedLocation');
-            if (cachedLocation && cachedLocation.toLowerCase() === location.toLowerCase()) {
+            // For 'here', always check default cache first
+            if (location.toLowerCase() === 'here') {
                 cacheToUse = loadWeatherDataFromCache();
-                console.log('Location matches default cached location:', cachedLocation);
+                const cachedLocation = localStorage.getItem('forecastCachedLocation');
+                if (cacheToUse && cacheToUse.data) {
+                    console.log('Found default cache for "here" location, cachedLocation:', cachedLocation);
+                    cacheKeyToUse = null; // Use default cache (null key)
+                }
             } else {
-                // Check all location-specific caches to see if any match
-                // This handles cases where location string doesn't match exactly
-                const keys = Object.keys(localStorage);
-                for (const key of keys) {
-                    if (key.startsWith('forecastCachedLocation_')) {
-                        const locationKey = key.replace('forecastCachedLocation_', '');
-                        const cachedLoc = localStorage.getItem(key);
-                        if (cachedLoc && cachedLoc.toLowerCase() === location.toLowerCase()) {
-                            cacheKeyToUse = locationKey;
-                            cacheToUse = loadWeatherDataFromCache(locationKey);
-                            console.log('Found matching location-specific cache for location:', location, 'key:', locationKey);
-                            break;
+                const cachedLocation = localStorage.getItem('forecastCachedLocation');
+                if (cachedLocation && cachedLocation.toLowerCase() === location.toLowerCase()) {
+                    cacheToUse = loadWeatherDataFromCache();
+                    console.log('Location matches default cached location:', cachedLocation);
+                } else {
+                    // Check all location-specific caches to see if any match
+                    // This handles cases where location string doesn't match exactly
+                    const keys = Object.keys(localStorage);
+                    for (const key of keys) {
+                        if (key.startsWith('forecastCachedLocation_')) {
+                            const locationKey = key.replace('forecastCachedLocation_', '');
+                            const cachedLoc = localStorage.getItem(key);
+                            if (cachedLoc && cachedLoc.toLowerCase() === location.toLowerCase()) {
+                                cacheKeyToUse = locationKey;
+                                cacheToUse = loadWeatherDataFromCache(locationKey);
+                                console.log('Found matching location-specific cache for location:', location, 'key:', locationKey);
+                                break;
+                            }
                         }
                     }
                 }
@@ -2559,7 +2574,35 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
                         appState.lastFetchTime = preservedCacheTimestamp;
                     }
                     console.log('Cache loaded successfully, lastFetchTime set to:', appState.lastFetchTime.toISOString(), 'Age:', Math.round((Date.now() - appState.lastFetchTime.getTime()) / 1000), 'seconds');
+                    
+                    // Update current location button state based on location parameter
+                    if (location.toLowerCase() === 'here') {
+                        appState.isCurrentLocationActive = true;
+                        updateCurrentLocationButtonState(true);
+                    } else {
+                        // Check if this is a favorite - if so, current location is not active
+                        const favorites = getFavorites();
+                        const isFavorite = favorites.some(fav => {
+                            if (fav.location && appState.location) {
+                                const favCity = (fav.location.city || '').trim().toLowerCase();
+                                const favState = (fav.location.state || '').trim().toUpperCase();
+                                const currentCity = (appState.location.city || '').trim().toLowerCase();
+                                const currentState = (appState.location.state || '').trim().toUpperCase();
+                                return favCity === currentCity && favState === currentState;
+                            }
+                            return false;
+                        });
+                        appState.isCurrentLocationActive = false;
+                        updateCurrentLocationButtonState(false);
+                    }
+                    
                     setLoading(false, background);
+                    
+                    // Ensure the display is updated (loadCachedWeatherData renders in requestAnimationFrame,
+                    // but we also call it here to ensure immediate update)
+                    renderCurrentMode();
+                    updateFavoriteButtonState();
+                    renderLocationButtons();
                     // Still trigger background refresh if cache is getting close to stale
                     const refreshThreshold = DATA_STALE_THRESHOLD * 0.8; // Refresh at 80% of stale threshold
                     if (cacheAge > refreshThreshold) {
