@@ -2521,6 +2521,46 @@ function Show-HourlyForecast {
             $hourDisplay = $periodTimeOffset.ToString("HH:mm")
         }
         
+        # Determine the time to use for hour midpoint calculation
+        # Use timezone-converted time if available, otherwise use the period offset time
+        $timeForMidpoint = if ($TimeZone -and $destTimeZone -and $periodTimeLocal) {
+            $periodTimeLocal
+        } else {
+            $periodTimeOffset.DateTime
+        }
+        
+        # Calculate hour midpoint (HH:30) to determine if majority of hour is during daytime
+        $hourMidpoint = $timeForMidpoint.Date.AddHours($timeForMidpoint.Hour).AddMinutes(30)
+        $hourMidpointTimeOnly = $hourMidpoint.TimeOfDay
+        
+        # Determine if hour midpoint is during daytime
+        $isHourMidpointDaytime = $false
+        if ($SunriseTime -and $SunsetTime) {
+            # Extract time-of-day portions for comparison
+            $sunriseTimeOnly = $SunriseTime.TimeOfDay
+            $sunsetTimeOnly = $SunsetTime.TimeOfDay
+            
+            # Handle cases where sunset is the next day (after midnight)
+            if ($sunsetTimeOnly -lt $sunriseTimeOnly) {
+                # Sunset is the next day, so daytime is from sunrise to midnight OR midnight to sunset
+                $isHourMidpointDaytime = ($hourMidpointTimeOnly -ge $sunriseTimeOnly) -or ($hourMidpointTimeOnly -lt $sunsetTimeOnly)
+            } else {
+                # Normal case: sunset is same day as sunrise
+                $isHourMidpointDaytime = $hourMidpointTimeOnly -ge $sunriseTimeOnly -and $hourMidpointTimeOnly -lt $sunsetTimeOnly
+            }
+        } else {
+            # For polar regions or when sunrise/sunset unavailable, use period daytime property as fallback
+            if ($period.PSObject.Properties['isDaytime']) {
+                $isHourMidpointDaytime = $period.isDaytime
+            } else {
+                # Fallback to simple time-based heuristic (6 AM to 6 PM)
+                $isHourMidpointDaytime = $hourMidpoint.Hour -ge 6 -and $hourMidpoint.Hour -lt 18
+            }
+        }
+        
+        # Set hour label color: Yellow if majority of hour is during daytime, otherwise White
+        $hourLabelColor = if ($isHourMidpointDaytime) { "Yellow" } else { "White" }
+        
         $temp = $period.temperature
         $shortForecast = $period.shortForecast
         $wind = $period.windSpeed
@@ -2586,7 +2626,7 @@ function Show-HourlyForecast {
         $spacesNeeded = $targetTempColumn - $currentDisplayWidth
         $padding = " " * [Math]::Max(0, $spacesNeeded)
 
-        Write-Host $timePart -ForegroundColor White -NoNewline
+        Write-Host $timePart -ForegroundColor $hourLabelColor -NoNewline
         Write-Host $iconPart -ForegroundColor $DefaultColor -NoNewline
         Write-Host $padding -ForegroundColor $DefaultColor -NoNewline
         Write-Host $tempPart -ForegroundColor $tempColor -NoNewline

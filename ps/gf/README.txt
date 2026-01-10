@@ -28,6 +28,7 @@ The script first uses a geocoding service to determine the latitude and longitud
   - **Wind Chill:** Displayed in blue when temperature <= 50°F and difference > 1°F.
   - **Heat Index:** Displayed in red when temperature >= 80°F and difference > 1°F.
   - **Wind:** Turns red if wind speed is 16 mph or greater.
+  - **Hour Labels:** Hour labels in the hourly forecast (e.g., "08:00", "09:00") are colored yellow when the majority of that hour is during daytime, otherwise displayed in white. This helps quickly identify daytime vs nighttime hours at a glance.
   - **Rain Likelihood:** Color-coded sparklines show rain probability at a glance (white for very low, cyan for low, green for light, yellow for medium, red for high).
   - **Wind Outlook:** Color-coded directional glyphs show wind patterns and intensity, with peak wind hours highlighted using inverted colors.
   - **Humidity:** Color-coded based on comfort levels:
