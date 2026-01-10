@@ -190,6 +190,10 @@ function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12,
     html += '<thead><tr><th>Time</th><th>Temp</th><th>Wind</th><th>Precip</th><th>Forecast</th></tr></thead>';
     html += '<tbody>';
     
+    // Get sunrise/sunset from location for hour label color coding
+    const sunrise = location.sunrise ? new Date(location.sunrise) : null;
+    const sunset = location.sunset ? new Date(location.sunset) : null;
+    
     for (let i = startIndex; i < endIndex; i++) {
         const period = periods[i];
         const periodTime = new Date(period.startTime);
@@ -228,8 +232,11 @@ function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12,
             }
         }
         
+        // Get hour label color class (yellow for daytime, white for nighttime)
+        const hourLabelColorClass = getHourLabelColor(periodTime, sunrise, sunset, location.timeZone);
+        
         html += '<tr>';
-        html += `<td>${hourDisplay}</td>`;
+        html += `<td class="${hourLabelColorClass}">${hourDisplay}</td>`;
         html += `<td>${periodIcon} <span class="${getTempColor(temp)}">${temp}°F</span>${windchillHeatIndex ? `<span class="${windchillHeatIndexClass}">${windchillHeatIndex}</span>` : ''}</td>`;
         html += `<td class="${getWindColor(windSpeedNum)}">${wind} ${windDir}</td>`;
         html += `<td class="${getPrecipColor(precipProb)}">${precipProb > 0 ? `${precipProb}%` : ''}</td>`;

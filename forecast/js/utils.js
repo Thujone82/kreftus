@@ -755,6 +755,46 @@ function getDewPointColor(dewPointF) {
     return "dewpoint-normal";
 }
 
+// Check if hour midpoint is during daytime
+// Returns true if the majority of the hour (HH:30) falls between sunrise and sunset
+function isHourMidpointDaytime(periodTime, sunrise, sunset, timeZone) {
+    if (!sunrise || !sunset) {
+        // Fallback to simple time-based heuristic if sunrise/sunset unavailable
+        const hour = periodTime.getHours();
+        return hour >= 6 && hour < 18;
+    }
+    
+    // Ensure sunrise and sunset are Date objects
+    const sunriseDate = sunrise instanceof Date ? sunrise : new Date(sunrise);
+    const sunsetDate = sunset instanceof Date ? sunset : new Date(sunset);
+    
+    // Calculate hour midpoint (HH:30) - use the period's date but set to HH:30
+    const hourMidpoint = new Date(periodTime);
+    hourMidpoint.setMinutes(30, 0, 0);
+    
+    // Extract time-of-day portions for comparison (minutes since midnight)
+    const hourMidpointTime = hourMidpoint.getHours() * 60 + hourMidpoint.getMinutes();
+    const sunriseTime = sunriseDate.getHours() * 60 + sunriseDate.getMinutes();
+    const sunsetTime = sunsetDate.getHours() * 60 + sunsetDate.getMinutes();
+    
+    // Handle cases where sunset is the next day (after midnight)
+    if (sunsetTime < sunriseTime) {
+        // Sunset is the next day, so daytime is from sunrise to midnight OR midnight to sunset
+        return (hourMidpointTime >= sunriseTime) || (hourMidpointTime < sunsetTime);
+    } else {
+        // Normal case: sunset is same day as sunrise
+        return hourMidpointTime >= sunriseTime && hourMidpointTime < sunsetTime;
+    }
+}
+
+// Get hour label color class
+function getHourLabelColor(periodTime, sunrise, sunset, timeZone) {
+    if (isHourMidpointDaytime(periodTime, sunrise, sunset, timeZone)) {
+        return "hour-label-daytime";
+    }
+    return "hour-label-nighttime";
+}
+
 // Calculate temperature trend
 function calculateTemperatureTrend(currentTemp, nextHourTemp) {
     const tempDiff = nextHourTemp - currentTemp;

@@ -543,6 +543,14 @@ main {
     color: var(--color-text);
 }
 
+.hour-label-daytime {
+    color: var(--color-warning); /* Yellow */
+}
+
+.hour-label-nighttime {
+    color: var(--color-text); /* White/default */
+}
+
 /* Wind Colors */
 .wind-calm {
     color: var(--color-text);

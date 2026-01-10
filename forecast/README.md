@@ -110,6 +110,7 @@ To trigger an update, simply change the `version` field in `manifest.json` (e.g.
 - **Precipitation**: Red (>50%), Yellow (21-50%), White (≤20%)
 - **Humidity**: Cyan (<30%), White (30-60%), Yellow (61-70%), Red (>70%)
 - **Dew Point**: Cyan (<40°F), White (40-54°F), Yellow (55-64°F), Red (≥65°F)
+- **Hour Labels**: Yellow when the majority of that hour is during daytime (determined by checking if the hour midpoint falls between sunrise and sunset), White otherwise. This helps quickly distinguish daytime vs nighttime hours at a glance in the hourly forecast.
 
 ## File Structure
 
