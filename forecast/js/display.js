@@ -191,8 +191,40 @@ function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12,
     html += '<tbody>';
     
     // Get sunrise/sunset from location for hour label color coding
-    const sunrise = location.sunrise ? new Date(location.sunrise) : null;
-    const sunset = location.sunset ? new Date(location.sunset) : null;
+    // Ensure they are Date objects (they may be Date objects, ISO strings, or null/undefined)
+    let sunrise = null;
+    let sunset = null;
+    if (location.sunrise) {
+        sunrise = location.sunrise instanceof Date ? location.sunrise : new Date(location.sunrise);
+        // Validate the date is not invalid
+        if (isNaN(sunrise.getTime())) {
+            sunrise = null;
+        }
+    }
+    if (location.sunset) {
+        sunset = location.sunset instanceof Date ? location.sunset : new Date(location.sunset);
+        // Validate the date is not invalid
+        if (isNaN(sunset.getTime())) {
+            sunset = null;
+        }
+    }
+    
+    // If sunrise/sunset are not available, calculate them now
+    // This ensures hour label coloring always works, even if location data is incomplete
+    if ((!sunrise || !sunset) && location.lat && location.lon && location.timeZone) {
+        const sunTimes = calculateSunriseSunset(
+            location.lat,
+            location.lon,
+            new Date(),
+            location.timeZone
+        );
+        if (sunTimes.sunrise && !sunrise) {
+            sunrise = sunTimes.sunrise instanceof Date ? sunTimes.sunrise : new Date(sunTimes.sunrise);
+        }
+        if (sunTimes.sunset && !sunset) {
+            sunset = sunTimes.sunset instanceof Date ? sunTimes.sunset : new Date(sunTimes.sunset);
+        }
+    }
     
     for (let i = startIndex; i < endIndex; i++) {
         const period = periods[i];
