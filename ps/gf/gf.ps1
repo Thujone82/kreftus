@@ -2642,6 +2642,31 @@ function Show-HourlyForecast {
     }
 }
 
+# Function to format date with ordinal suffix (e.g., "Jan 11th:")
+function Format-DateWithOrdinal {
+    param(
+        [DateTime]$Date
+    )
+    
+    $month = $Date.ToString("MMM")
+    $day = $Date.Day
+    
+    # Determine ordinal suffix
+    $suffix = if ($day -ge 11 -and $day -le 13) {
+        "th"  # 11th, 12th, 13th
+    } elseif ($day % 10 -eq 1) {
+        "st"  # 1st, 21st, 31st
+    } elseif ($day % 10 -eq 2) {
+        "nd"  # 2nd, 22nd
+    } elseif ($day % 10 -eq 3) {
+        "rd"  # 3rd, 23rd
+    } else {
+        "th"  # 4th, 5th, 6th, etc.
+    }
+    
+    return "$month $day$suffix`:"
+}
+
 # Function to display 7-day forecast
 function Show-SevenDayForecast {
     param(
@@ -2806,8 +2831,8 @@ function Show-SevenDayForecast {
             $paddingNeeded = $targetColumn - $currentWidth
             $padding = " " * [Math]::Max(0, $paddingNeeded)
             
-            Write-Host $dayNameWithColon -ForegroundColor White -NoNewline
-            Write-Host $padding -ForegroundColor White -NoNewline
+            Write-Host $dayNameWithColon -ForegroundColor Yellow -NoNewline
+            Write-Host $padding -ForegroundColor Yellow -NoNewline
             
             # Display sunrise/sunset/day length if available (on same line, no blank line after)
             if ($sunriseStr) {
@@ -2827,7 +2852,17 @@ function Show-SevenDayForecast {
                 }
             }
             
-            Write-Host "          H:$temp°F" -ForegroundColor $tempColor -NoNewline
+            # Format date with ordinal suffix (e.g., "Jan 11th:")
+            $dateStr = Format-DateWithOrdinal -Date $periodTime
+            $dateWidth = Get-StringDisplayWidth $dateStr
+            $targetColumn = 10
+            $paddingNeeded = $targetColumn - $dateWidth
+            $datePadding = " " * [Math]::Max(0, $paddingNeeded)
+            
+            # Display date in white, then padding, then temperature
+            Write-Host $dateStr -ForegroundColor White -NoNewline
+            Write-Host $datePadding -ForegroundColor White -NoNewline
+            Write-Host "H:$temp°F" -ForegroundColor $tempColor -NoNewline
             if ($windChillHeatIndex) {
                 Write-Host $windChillHeatIndex -ForegroundColor $windChillHeatIndexColor -NoNewline
             }
@@ -2899,10 +2934,10 @@ function Show-SevenDayForecast {
         }
         
         if ($tempStart -ge 0) {
-            # Write day name in white, then the rest in default color
+            # Write day name in yellow, then the rest in default color
             $dayNameEnd = $formattedLine.IndexOf(": ")
             if ($dayNameEnd -ge 0) {
-                Write-Host $formattedLine.Substring(0, $dayNameEnd + 2) -ForegroundColor White -NoNewline
+                Write-Host $formattedLine.Substring(0, $dayNameEnd + 2) -ForegroundColor Yellow -NoNewline
                 Write-Host $formattedLine.Substring($dayNameEnd + 2, $tempStart - $dayNameEnd - 2) -ForegroundColor $DefaultColor -NoNewline
             } else {
                 Write-Host $formattedLine.Substring(0, $tempStart) -ForegroundColor $DefaultColor -NoNewline
