@@ -914,10 +914,31 @@ async function handleLocationButtonClick(uid) {
     if (!uid) return;
     
     // Support both UID and key for backward compatibility
-    const favorite = getFavoriteByUID(uid) || getFavoriteByKey(uid);
+    let favorite = getFavoriteByUID(uid) || getFavoriteByKey(uid);
     if (!favorite) {
         console.warn('handleLocationButtonClick: Favorite not found for UID:', uid);
         return;
+    }
+    
+    // CRITICAL: Ensure favorite has a UID - generate one if missing
+    if (!favorite.uid && favorite.location) {
+        const generatedUID = generateLocationUID(favorite.location);
+        if (generatedUID) {
+            // Update favorite with UID
+            favorite.uid = generatedUID;
+            const favorites = getFavorites();
+            const favoriteIndex = favorites.findIndex(fav => 
+                (fav.uid === uid || fav.key === uid) || 
+                (fav.key === favorite.key && !fav.uid)
+            );
+            if (favoriteIndex !== -1) {
+                favorites[favoriteIndex].uid = generatedUID;
+                localStorage.setItem('forecastFavorites', JSON.stringify(favorites));
+                console.log('Generated and saved UID for favorite:', generatedUID, favorite.name || favorite.searchQuery);
+            }
+            // Update local favorite reference
+            favorite = getFavoriteByUID(generatedUID) || favorite;
+        }
     }
     
     // Use UID-based cache key for favorites (more stable than location keys)
@@ -934,10 +955,17 @@ async function handleLocationButtonClick(uid) {
         // Update URL
         updateURL(favorite.searchQuery, appState.currentMode);
         
-        // Ensure star button and location buttons are updated with the correct UID
-        // (loadCachedWeatherData may have called these without the UID)
+        // CRITICAL: Ensure star button is enabled when a favorite is selected
+        // Use UID (preferred) or key as fallback - this MUST match what isFavorite expects
         const favoriteUID = favorite.uid || favorite.key;
+        // Explicitly enable star button since we know this is a favorite
         updateFavoriteButtonState(favoriteUID);
+        // Double-check: if star button is not active, force it active
+        if (elements.favoriteBtn && !elements.favoriteBtn.classList.contains('active')) {
+            console.warn('Star button not active after updateFavoriteButtonState, forcing active for favorite:', favoriteUID);
+            elements.favoriteBtn.classList.add('active');
+            appState.currentLocationKey = favoriteUID;
+        }
         renderLocationButtons(favoriteUID);
         
         // Update current location button state (not active since we're using a favorite)
@@ -949,8 +977,16 @@ async function handleLocationButtonClick(uid) {
         console.log('handleLocationButtonClick: No cache found for favorite:', favorite.name || favorite.searchQuery, 'key:', cacheKey, 'will fetch fresh data');
         // No cache, load fresh data
         await loadWeatherData(favorite.searchQuery, false, false);
-        // Update location buttons to highlight the active one (pass the UID directly)
+        // CRITICAL: Ensure star button is enabled after loading fresh data
+        // Use UID (preferred) or key as fallback
         const favoriteUID = favorite.uid || favorite.key;
+        updateFavoriteButtonState(favoriteUID);
+        // Double-check: if star button is not active, force it active
+        if (elements.favoriteBtn && !elements.favoriteBtn.classList.contains('active')) {
+            console.warn('Star button not active after loadWeatherData, forcing active for favorite:', favoriteUID);
+            elements.favoriteBtn.classList.add('active');
+            appState.currentLocationKey = favoriteUID;
+        }
         renderLocationButtons(favoriteUID);
         
         // Update current location button state (not active since we're using a favorite)
@@ -1060,10 +1096,32 @@ function updateFavoriteButtonState(identifier = null) {
         return;
     }
     
-    if (isFavorite(identifierToCheck)) {
+    // CRITICAL: Check if identifier is a favorite - try both UID and key
+    // This ensures favorites are correctly identified even if identifier format varies
+    const isFav = isFavorite(identifierToCheck);
+    
+    if (isFav) {
         elements.favoriteBtn.classList.add('active');
+        // Ensure appState.currentLocationKey is set to the correct identifier
+        // Prefer UID if available, otherwise use the identifier passed
+        if (identifierToCheck && !identifierToCheck.startsWith('uid_')) {
+            // Try to find the favorite and use its UID if available
+            const favorite = getFavoriteByUID(identifierToCheck) || getFavoriteByKey(identifierToCheck);
+            if (favorite && favorite.uid) {
+                appState.currentLocationKey = favorite.uid;
+            }
+        }
     } else {
-        elements.favoriteBtn.classList.remove('active');
+        // Not a favorite - check if any favorite button is active
+        // If no favorite button is active, star button should be disabled
+        const hasActiveFavoriteButton = elements.locationButtons && 
+            elements.locationButtons.querySelector('.location-btn.active');
+        
+        if (!hasActiveFavoriteButton) {
+            // No favorite button is active, so star button should be disabled
+            elements.favoriteBtn.classList.remove('active');
+            appState.currentLocationKey = null;
+        }
     }
 }
 
@@ -1992,6 +2050,24 @@ function renderLocationButtons(activeUID = null) {
         return;
     }
     
+    // CRITICAL: Ensure all favorites have UIDs - generate missing ones
+    let favoritesUpdated = false;
+    favorites.forEach(favorite => {
+        if (!favorite.uid && favorite.location) {
+            const generatedUID = generateLocationUID(favorite.location);
+            if (generatedUID) {
+                favorite.uid = generatedUID;
+                favoritesUpdated = true;
+                console.log('Generated UID for favorite in renderLocationButtons:', generatedUID, favorite.name || favorite.searchQuery);
+            }
+        }
+    });
+    
+    // Save updated favorites if any were modified
+    if (favoritesUpdated) {
+        localStorage.setItem('forecastFavorites', JSON.stringify(favorites));
+    }
+    
     // Get current location UID to determine which button should be active
     // Use provided activeUID if available, otherwise try to generate from appState.location
     let currentUID = activeUID;
@@ -2005,14 +2081,30 @@ function renderLocationButtons(activeUID = null) {
         const displayName = favorite.customName || favorite.name;
         const truncatedName = truncateCityName(displayName, 20);
         // Add 'active' class if this favorite matches the current location (check by UID)
-        const isActive = currentUID && favorite.uid === currentUID;
+        // Also check by key for backward compatibility
+        const isActive = currentUID && (favorite.uid === currentUID || favorite.key === currentUID);
         const activeClass = isActive ? ' active' : '';
-        // Use UID as the primary identifier in data attribute
+        // Use UID as the primary identifier in data attribute (should always exist now)
         const uid = favorite.uid || favorite.key; // Fallback to key for old favorites without UID
         html += `<button class="location-btn${activeClass}" data-location-uid="${uid}" data-location-key="${favorite.key || ''}" data-custom-name="${favorite.customName || ''}">${truncatedName}</button>`;
     });
     
     elements.locationButtons.innerHTML = html;
+    
+    // CRITICAL: If no favorite button is active, ensure star button is disabled
+    // This ensures the converse: no favorite selected = star button disabled (can add favorite)
+    // Check DOM after insertion to see if any button has the 'active' class
+    const hasActiveFavoriteButton = elements.locationButtons.querySelector('.location-btn.active');
+    if (!hasActiveFavoriteButton && elements.favoriteBtn) {
+        // No favorite button is active, so star button should be disabled
+        // Only disable if the current location is not a favorite (double-check)
+        const currentIsFavorite = appState.currentLocationKey && isFavorite(appState.currentLocationKey);
+        if (!currentIsFavorite) {
+            elements.favoriteBtn.classList.remove('active');
+            // Clear currentLocationKey since no favorite is selected
+            appState.currentLocationKey = null;
+        }
+    }
 }
 
 // Restore Date objects from cached data (JSON serialization converts dates to strings)
