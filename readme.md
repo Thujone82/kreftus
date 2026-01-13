@@ -9,46 +9,44 @@ This repository represents a unique approach to software development that levera
 ## 🚀 Web Applications
 
 ### Interactive Games & Simulations
-- **[Snake VS v1.4](snake/)** - Multiplayer snake game with AI opponents, battle royale mode, and multiple AI personalities
-- **[GENE](gene/)** - Evolving digital life simulation with genetic algorithms and interactive controls
-- **[Conway's Game of Life](gol/)** - Classic cellular automaton with modern features like pattern selection and grid manipulation
-- **[Larry v1.1](larry/)** - Terminal-based Frogger-like game with persistent scoring
-- **[vBTC v1.5](vbtc/)** - Virtual Bitcoin trading simulator (It's a game!) with real-time market data and portfolio tracking
-
+- **[Snake VS v1.4](snake/)** - Multiplayer snake game with AI opponents, battle royale mode, and multiple AI personalities. Features VS AI mode, 2 Player mode (keyboard or split-screen touch), and Battle Royale with 5 unique AI opponents
+- **[GENE](gene/)** - Evolving digital life simulation with genetic algorithms and interactive controls. Tweak world balance to nudge evolution and view genomic history
+- **[Conway's Game of Life](gol/)** - Classic cellular automaton with modern features like pattern selection, wrapped/infinite modes, speed control, pan & zoom, and colorful cell aging
+- **[Double Pendulum](pendulum/)** - Physics-based chaotic motion simulator with customizable parameters, real-time trace visualization, and image export capabilities
 
 ### AI-Powered Applications
-- **[nfo2Go v2](nfo/)** - Personal AI information hub with customizable location-based briefings using Google Gemini API
-
+- **[nfo2Go v.3](nfo/)** - Personal AI information hub with customizable location-based briefings. Supports both Google Gemini and OpenRouter APIs with dynamic model selection, weather support, and offline data retention
 
 ### Creative Tools
-- **[SpiroGen v2.6](spiro/)** - Digital spirograph art generator with multi-node support and export capabilities
-- **[Double Pendulum](pendulum/)** - Physics-based chaotic motion simulator with customizable parameters
+- **[SpiroGen v2.6](spiro/)** - Digital spirograph art generator with multi-node support (up to 4 nodes), pan/zoom, persistent traces, and export capabilities for GIF or PNG images
 
-### Weather & Utility Tools
-- ![Forecast Icon](forecast/icons/icon-192.png) **[Forecast](forecast/index.html)** - Web version of the Terminal app 'GetForecast' - Comprehensive weather utility using National Weather Service API
+### Weather & Finance Tools
+- **[Forecast](forecast/)** - Web version of the Terminal app 'GetForecast'. Comprehensive weather utility using National Weather Service API with current conditions, hourly and daily forecasts, weather alerts, favorites saving, custom location names, locations drawer, auto-update, and PWA support with offline capabilities
+- **[BTC Track v1.5](btc/)** - Simple PWA-enabled app to track Bitcoin USD value, includes portfolio monitoring, charts, and AI current market insights using LiveCoinWatch and Google Gemini APIs
 
 ## 💻 CLI Applications
 
+### Games
+- **[Larry v1.1](larry/)** - Terminal-based Frogger-like game written in Go with tcell. Features persistent Top-10 scoreboard, multiple levels with color themes, and increasing difficulty
+
 ### Bitcoin & Finance Tools
-- **[vBTC v1.5](vbtc/)** - Virtual Bitcoin trading simulator (It's a game!) with real-time market data and portfolio tracking
-- **[Bmon v1.5](bmon/)** - Lightweight Bitcoin price monitor with multiple display modes and alerts
-- **[BTC Track v1.5](btc/)** - Bitcoin portfolio tracker with AI market insights and real-time price monitoring
+- **[vBTC v1.5](vbtc/)** - Command-line Bitcoin trading simulator with real-time market data, virtual portfolio management, transaction ledger, and 1-Hour SMA analysis
+- **[Bmon v1.5](bmon/)** - Lightweight real-time Bitcoin price monitor with multiple modes, visual sparkline charts, audible alerts, and currency conversion. Available in Go and PowerShell
+- **[BTC v2.2](psbtc/)** - CLI version of BTC Track, a PowerShell script for Bitcoin price tracking and portfolio monitoring with real-time data, historical metrics, profit/loss calculation, and CSV logging
 
 ### Weather & Utility Tools
-- **[GetForecast](gf/)** - Comprehensive weather utility using National Weather Service API
-- **[GetWeather CLI](gw/)** - Cross-platform weather tool with OpenWeatherMap integration
-- **[rc (Run Continuously)](rc/)** - Command execution scheduler with precision timing
-- **[Convert](convert/)** - Utility conversion tool
-- **[Habit Tracker](habit/)** - PWA for building positive habits with drag-and-drop interface and streak tracking
+- **[GetForecast](gf/)** - PowerShell script for detailed weather information using National Weather Service API. Features geocoding, temperature trends, wind gusts, interactive display modes, and NOAA tide station integration. No API registration required
+- **[GetWeather CLI](gw/)** - Command-line utility for retrieving weather information using OpenWeatherMap API. Available as PowerShell script and native Go application. Note: Superseded by GetForecast
+- **[rc (Run Continuously) v1.4](rc/)** - Command execution scheduler with precision timing, period suffixes (s/m/h), skip mode, limit mode, silent mode, and clear mode. Available in native Go and PowerShell versions
+- **[UPDate Tool v1.1](upd/)** - Interactive PowerShell command-line tool for managing and executing file update jobs with color-coded output and multiple job selection capabilities
 
 ## 🤖 AI Integration Highlights
 
 This project collection demonstrates sophisticated AI integration patterns:
 
-### **Google Gemini API Integration**
-- **nfo2Go**: Uses Gemini 2.5 Flash for location-based information briefings
-- **BTC Track**: Leverages Gemini for real-time Bitcoin market analysis and insights
-- **Weather Tools**: AI-enhanced weather forecasting and analysis
+### **AI API Integration**
+- **nfo2Go**: Supports both Google Gemini and OpenRouter APIs with dynamic model selection for location-based information briefings
+- **BTC Track**: Leverages Google Gemini for real-time Bitcoin market analysis and insights
 
 ### **AI-Assisted Development**
 - All projects include comprehensive `GEMINI.md` files documenting AI collaboration
@@ -133,10 +131,10 @@ This project collection demonstrates sophisticated AI integration patterns:
 
 ## 📊 Project Statistics
 
-- **Total Projects**: 15+ applications
+- **Total Projects**: 16 applications
 - **Web Applications**: 8 PWA-enabled apps
-- **CLI Tools**: 7 command-line utilities
-- **AI Integration**: 5 projects with Gemini API
+- **CLI Tools**: 8 command-line utilities
+- **AI Integration**: 2 projects with AI API integration (nfo2Go, BTC Track)
 - **Cross-Platform**: 6 Go applications
 - **Languages**: JavaScript, Go, PowerShell, HTML, CSS
 
