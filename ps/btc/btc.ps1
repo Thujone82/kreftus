@@ -89,6 +89,85 @@ function Set-IniConfiguration {
     catch { Write-Error "Failed to save configuration to $FilePath. Error: $($_.Exception.Message)" }
 }
 
+# --- Helper Function to Invoke REST Method with Exponential Backoff Retry ---
+function Invoke-RestMethodWithRetry {
+    param (
+        [string]$Uri,
+        [string]$Method = "Post",
+        [hashtable]$Headers,
+        [object]$Body,
+        [int]$MaxRetries = 5,
+        [double]$BaseDelaySeconds = 1.0
+    )
+    
+    $attempt = 0
+    $lastException = $null
+    
+    while ($attempt -lt $MaxRetries) {
+        try {
+            Write-Verbose "API call attempt $($attempt + 1) of $MaxRetries to $Uri"
+            $response = Invoke-RestMethod -Uri $Uri -Method $Method -Headers $Headers -Body $Body -ErrorAction Stop
+            Write-Verbose "API call successful on attempt $($attempt + 1)"
+            return $response
+        }
+        catch {
+            $lastException = $_.Exception
+            $errorCode = $null
+            $isNetworkError = $false
+            
+            # Check if this is a network error (retryable)
+            if ($_.Exception -is [System.Net.WebException]) {
+                if ($_.Exception.Response) {
+                    $errorCode = [int]$_.Exception.Response.StatusCode
+                    # Retry on 5xx server errors and timeouts
+                    if ($errorCode -ge 500 -or $errorCode -eq 408 -or $errorCode -eq 504) {
+                        $isNetworkError = $true
+                    }
+                }
+                else {
+                    # No response means connection failure (timeout, network issue)
+                    $isNetworkError = $true
+                }
+            }
+            elseif ($_.Exception -is [System.Net.Http.HttpRequestException]) {
+                # HTTP request exceptions are typically network-related
+                $isNetworkError = $true
+            }
+            
+            # If it's a network error and we have retries left, retry with exponential backoff
+            if ($isNetworkError -and $attempt -lt ($MaxRetries - 1)) {
+                $delaySeconds = $BaseDelaySeconds * [Math]::Pow(2, $attempt)
+                Write-Verbose "Network error on attempt $($attempt + 1) (ErrorCode: $errorCode). Retrying in $delaySeconds seconds..."
+                Start-Sleep -Seconds $delaySeconds
+                $attempt++
+                continue
+            }
+            elseif ($isNetworkError) {
+                # Network error but no retries left - return error object
+                Write-Verbose "Network error on final attempt $($attempt + 1) (ErrorCode: $errorCode). No more retries."
+                return [PSCustomObject]@{ IsNetworkError = $true; ErrorCode = $errorCode }
+            }
+            else {
+                # Non-network error (4xx client error, etc.) - don't retry, throw
+                Write-Verbose "Non-retryable error on attempt $($attempt + 1) (ErrorCode: $errorCode). Throwing exception."
+                throw
+            }
+        }
+    }
+    
+    # If we exhausted all retries and didn't return, return network error object
+    if ($lastException -and $lastException -is [System.Net.WebException]) {
+        $errorCode = $null
+        if ($lastException.Response) {
+            $errorCode = [int]$lastException.Response.StatusCode
+        }
+        return [PSCustomObject]@{ IsNetworkError = $true; ErrorCode = $errorCode }
+    }
+    
+    # Fallback: rethrow the last exception
+    throw $lastException
+}
+
 # --- Helper Function to Write Colored and Aligned Output ---
 function Write-ColoredLine {
     param (
@@ -137,7 +216,10 @@ function Get-HistoricalData {
     try {
         $historicalBody = @{ currency = $Currency; code = $CoinCode; start = $startTimestampMs; end = $endTimestampMs; meta = $false } | ConvertTo-Json
         Write-Verbose "Fetching historical price for 24h (start: $startTimestampMs, end: $endTimestampMs)..."
-        $historicalResponse = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single/history" -Method Post -Headers $headers -Body $historicalBody -ErrorAction Stop
+        $historicalResponse = Invoke-RestMethodWithRetry -Uri "https://api.livecoinwatch.com/coins/single/history" -Method Post -Headers $headers -Body $historicalBody
+        if ($historicalResponse -and $historicalResponse.PSObject.Properties.Name -contains 'IsNetworkError' -and $historicalResponse.IsNetworkError) {
+            return $historicalResponse
+        }
         Write-Verbose "Historical API call completed. Response has history? $($null -ne $historicalResponse.history), Count: $(if($null -ne $historicalResponse.history){$historicalResponse.history.Count}else{'N/A'})"
         if ($null -ne $historicalResponse.history -and $historicalResponse.history.Count -gt 0) {
             Write-Verbose "Processing $($historicalResponse.history.Count) historical data points..."
@@ -379,7 +461,20 @@ $headers = @{ "Content-Type" = "application/json"; "x-api-key" = $apiKey }
 Write-Verbose "Fetching current Bitcoin data from LiveCoinWatch..."
 try {
     $currentDataBody = @{ currency = $currency; code = $coinCode; meta = $true } | ConvertTo-Json
-    $currentResponse = Invoke-RestMethod -Uri "$($apiBaseUrl)/coins/single" -Method Post -Headers $headers -Body $currentDataBody -ErrorAction Stop
+    $currentResponse = Invoke-RestMethodWithRetry -Uri "$($apiBaseUrl)/coins/single" -Method Post -Headers $headers -Body $currentDataBody
+    if ($currentResponse -and $currentResponse.PSObject.Properties.Name -contains 'IsNetworkError' -and $currentResponse.IsNetworkError) {
+        $errorMessage = "An error occurred: Response status code does not indicate success: $($currentResponse.ErrorCode)"
+        if ($currentResponse.ErrorCode -eq 504) {
+            $errorMessage += " (Gateway Time-out)"
+        }
+        Write-Error $errorMessage
+        if ($currentResponse.ErrorCode) {
+            try { $errorDetail = "API Error Code: $($currentResponse.ErrorCode)"; Write-Error $errorDetail } catch { Write-Warning "Could not read API error." }
+        } else {
+            Write-Warning "Could not read API error."
+        }
+        exit 1
+    }
     Write-Verbose "Current Bitcoin data API call successful."
 
     if ($null -ne $currentResponse -and $currentResponse.PSObject.Properties.Name -contains "rate" -and $currentResponse.PSObject.Properties.Name -contains "allTimeHighUSD") {
