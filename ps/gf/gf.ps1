@@ -2608,7 +2608,10 @@ function Show-HourlyForecast {
         $timePart = "$hourDisplay "
         $iconPart = "$periodIcon"
         $tempPart = " $temp°F"
-        $windPart = "$wind $($windDir.PadRight(3))"
+        # Normalize spacing around dashes in wind speed: ensure exactly one space on each side
+        $windNormalized = $wind -replace '\s*-\s*', ' - '
+        # Pad wind direction for alignment, but we'll trim trailing spaces before the dash
+        $windPart = "$windNormalized $($windDir.PadRight(3))"
         $precipPart = if ($precipProb -gt 0) { " ($precipProb%)" } else { "" }
         $forecastPart = " - $shortForecast"
         
@@ -2634,8 +2637,13 @@ function Show-HourlyForecast {
             Write-Host $windchillHeatIndex -ForegroundColor $windchillHeatIndexColor -NoNewline
         }
         Write-Host " " -ForegroundColor $DefaultColor -NoNewline
-        Write-Host $windPart -ForegroundColor $windDisplayColor -NoNewline
-        if ($precipPart) { Write-Host $precipPart -ForegroundColor $precipColor -NoNewline }
+        # Trim trailing spaces from windPart to ensure exactly one space before the dash
+        $windPartTrimmed = $windPart.TrimEnd()
+        Write-Host $windPartTrimmed -ForegroundColor $windDisplayColor -NoNewline
+        if ($precipPart) { 
+            Write-Host $precipPart -ForegroundColor $precipColor -NoNewline 
+        }
+        # Ensure exactly one space before the dash in forecastPart
         Write-Host $forecastPart -ForegroundColor $DefaultColor
         
         $hourCount++
