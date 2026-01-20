@@ -4503,8 +4503,13 @@ $windSpeed = Get-WindSpeed $currentWind
 $currentTimeLocal = $dataFetchTime
 Write-Verbose "Using API call time: $currentTimeLocal"
 
-# Calculate sunrise and sunset times
-$sunTimes = Get-SunriseSunset -Latitude $lat -Longitude $lon -Date (Get-Date) -TimeZoneId $timeZone
+$tzInfo = $null
+if ($timeZone) {
+    $tzInfo = Get-ResolvedTimeZoneInfo -TimeZoneId $timeZone
+}
+# Calculate sunrise and sunset times using the location's timezone date (not the user's local date)
+$locationToday = if ($tzInfo) { [System.TimeZoneInfo]::ConvertTime((Get-Date), $tzInfo).Date } else { (Get-Date).Date }
+$sunTimes = Get-SunriseSunset -Latitude $lat -Longitude $lon -Date $locationToday -TimeZoneId $timeZone
 $sunriseTime = $sunTimes.Sunrise
 $sunsetTime = $sunTimes.Sunset
 $isPolarNight = $sunTimes.IsPolarNight
@@ -4978,7 +4983,14 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     if ($refreshSuccess) {
                         # Recalculate moon phase and sunrise/sunset for current time
                         $moonPhaseInfo = Get-MoonPhase -Date (Get-Date)
-                        $sunTimes = Get-SunriseSunset -Latitude $lat -Longitude $lon -Date (Get-Date) -TimeZoneId $timeZone
+                        # Use location's current date (not user's local date) for sunrise/sunset
+                        $locationToday = if ($timeZone) { 
+                            $tzInfo = Get-ResolvedTimeZoneInfo -TimeZoneId $timeZone
+                            [System.TimeZoneInfo]::ConvertTime((Get-Date), $tzInfo).Date 
+                        } else { 
+                            (Get-Date).Date 
+                        }
+                        $sunTimes = Get-SunriseSunset -Latitude $lat -Longitude $lon -Date $locationToday -TimeZoneId $timeZone
                         $sunriseTime = $sunTimes.Sunrise
                         $sunsetTime = $sunTimes.Sunset
                         
@@ -5405,9 +5417,15 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                 'g' { # G key - Refresh weather data
                     $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers -TimeZone $timeZone -UseRetryLogic $true
                     if ($refreshSuccess) {
-                        # Recalculate moon phase and sunrise/sunset for current time
+                        # Recalculate moon phase and sunrise/sunset for current time (using location's date)
                         $moonPhaseInfo = Get-MoonPhase -Date (Get-Date)
-                        $sunTimes = Get-SunriseSunset -Latitude $lat -Longitude $lon -Date (Get-Date) -TimeZoneId $timeZone
+                        $locationToday = if ($timeZone) { 
+                            $tzInfo = Get-ResolvedTimeZoneInfo -TimeZoneId $timeZone
+                            [System.TimeZoneInfo]::ConvertTime((Get-Date), $tzInfo).Date 
+                        } else { 
+                            (Get-Date).Date 
+                        }
+                        $sunTimes = Get-SunriseSunset -Latitude $lat -Longitude $lon -Date $locationToday -TimeZoneId $timeZone
                         $sunriseTime = $sunTimes.Sunrise
                         $sunsetTime = $sunTimes.Sunset
                         

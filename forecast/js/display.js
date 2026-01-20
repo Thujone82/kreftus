@@ -212,10 +212,13 @@ function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12,
     // If sunrise/sunset are not available, calculate them now
     // This ensures hour label coloring always works, even if location data is incomplete
     if ((!sunrise || !sunset) && location.lat && location.lon && location.timeZone) {
+        // Use the location's current date (not the viewer's local date) for accuracy
+        const locationToday = convertToTimeZone(new Date(), location.timeZone);
+        const locationDate = new Date(locationToday.getFullYear(), locationToday.getMonth(), locationToday.getDate());
         const sunTimes = calculateSunriseSunset(
             location.lat,
             location.lon,
-            new Date(),
+            locationDate,
             location.timeZone
         );
         if (sunTimes.sunrise && !sunrise) {
@@ -362,8 +365,9 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
             let sunsetStr = "";
             let dayLengthStr = "";
             if (location.lat && location.lon && location.timeZone) {
-                // Use just the date portion (midnight) for accurate sunrise/sunset calculation
-                const dayDate = new Date(periodTime.getFullYear(), periodTime.getMonth(), periodTime.getDate());
+            // Use the location's date (not viewer local) for accurate sunrise/sunset calculation
+            const periodLocal = location.timeZone ? convertToTimeZone(periodTime, location.timeZone) : periodTime;
+            const dayDate = new Date(periodLocal.getFullYear(), periodLocal.getMonth(), periodLocal.getDate());
                 const daySunTimes = calculateSunriseSunset(
                     location.lat,
                     location.lon,
@@ -868,8 +872,9 @@ function displayObservations(observationsData, location) {
         let sunsetStr = "";
         let dayLengthStr = "";
         if (location.lat && location.lon && location.timeZone) {
-            // Use just the date portion (midnight) for accurate sunrise/sunset calculation
-            const dayDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        // Use the location's date (not viewer local) for accurate sunrise/sunset calculation
+        const dateLocal = location.timeZone ? convertToTimeZone(date, location.timeZone) : date;
+        const dayDate = new Date(dateLocal.getFullYear(), dateLocal.getMonth(), dateLocal.getDate());
             const daySunTimes = calculateSunriseSunset(
                 location.lat,
                 location.lon,
