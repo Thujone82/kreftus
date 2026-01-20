@@ -81,9 +81,10 @@ function calculateSunriseSunset(latitude, longitude, date, timeZoneId) {
                 while (checkSunriseUtcMin < 0) checkSunriseUtcMin += 1440;
                 while (checkSunriseUtcMin >= 1440) checkSunriseUtcMin -= 1440;
                 
-                const checkUtcMidnight = new Date(Date.UTC(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate(), 0, 0, 0));
+                const checkUtcMidnight = new Date(Date.UTC(checkDate.getUTCFullYear(), checkDate.getUTCMonth(), checkDate.getUTCDate(), 0, 0, 0));
                 const checkSunriseUtc = new Date(checkUtcMidnight.getTime() + checkSunriseUtcMin * 60000);
-                nextSunrise = convertToTimeZone(checkSunriseUtc, timeZoneId);
+                // Keep as UTC; display helpers format with the target timeZone
+                nextSunrise = checkSunriseUtc;
                 break;
             }
         }
@@ -121,9 +122,10 @@ function calculateSunriseSunset(latitude, longitude, date, timeZoneId) {
                 while (checkSunsetUtcMin < 0) checkSunsetUtcMin += 1440;
                 while (checkSunsetUtcMin >= 1440) checkSunsetUtcMin -= 1440;
                 
-                const checkUtcMidnight = new Date(Date.UTC(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate(), 0, 0, 0));
+                const checkUtcMidnight = new Date(Date.UTC(checkDate.getUTCFullYear(), checkDate.getUTCMonth(), checkDate.getUTCDate(), 0, 0, 0));
                 const checkSunsetUtc = new Date(checkUtcMidnight.getTime() + checkSunsetUtcMin * 60000);
-                lastSunset = convertToTimeZone(checkSunsetUtc, timeZoneId);
+                // Keep as UTC; display helpers format with the target timeZone
+                lastSunset = checkSunsetUtc;
                 break;
             }
         }
@@ -169,9 +171,10 @@ function calculateSunriseSunset(latitude, longitude, date, timeZoneId) {
                 while (checkSunsetUtcMin < 0) checkSunsetUtcMin += 1440;
                 while (checkSunsetUtcMin >= 1440) checkSunsetUtcMin -= 1440;
                 
-                const checkUtcMidnight = new Date(Date.UTC(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate(), 0, 0, 0));
+                const checkUtcMidnight = new Date(Date.UTC(checkDate.getUTCFullYear(), checkDate.getUTCMonth(), checkDate.getUTCDate(), 0, 0, 0));
                 const checkSunsetUtc = new Date(checkUtcMidnight.getTime() + checkSunsetUtcMin * 60000);
-                nextSunset = convertToTimeZone(checkSunsetUtc, timeZoneId);
+                // Keep as UTC; display helpers format with the target timeZone
+                nextSunset = checkSunsetUtc;
                 break;
             }
         }
@@ -209,9 +212,10 @@ function calculateSunriseSunset(latitude, longitude, date, timeZoneId) {
                 while (checkSunriseUtcMin < 0) checkSunriseUtcMin += 1440;
                 while (checkSunriseUtcMin >= 1440) checkSunriseUtcMin -= 1440;
                 
-                const checkUtcMidnight = new Date(Date.UTC(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate(), 0, 0, 0));
+                const checkUtcMidnight = new Date(Date.UTC(checkDate.getUTCFullYear(), checkDate.getUTCMonth(), checkDate.getUTCDate(), 0, 0, 0));
                 const checkSunriseUtc = new Date(checkUtcMidnight.getTime() + checkSunriseUtcMin * 60000);
-                lastSunrise = convertToTimeZone(checkSunriseUtc, timeZoneId);
+                // Keep as UTC; display helpers format with the target timeZone
+                lastSunrise = checkSunriseUtc;
                 break;
             }
         }
@@ -243,13 +247,10 @@ function calculateSunriseSunset(latitude, longitude, date, timeZoneId) {
     const sunriseUtc = new Date(utcMidnight.getTime() + sunriseMin * 60000);
     const sunsetUtc = new Date(utcMidnight.getTime() + sunsetMin * 60000);
     
-    // Convert to target timezone
-    const sunriseLocal = convertToTimeZone(sunriseUtc, timeZoneId);
-    const sunsetLocal = convertToTimeZone(sunsetUtc, timeZoneId);
-    
     return {
-        sunrise: sunriseLocal,
-        sunset: sunsetLocal,
+        // Keep as UTC; downstream formatters apply the correct timeZone for display
+        sunrise: sunriseUtc,
+        sunset: sunsetUtc,
         isPolarDay: false,
         isPolarNight: false
     };
@@ -567,6 +568,16 @@ function formatTime(date, timeZoneId) {
         });
         return formatter.format(date);
     } catch (error) {
+        // Fallback: format manually using timezone conversion
+        if (timeZoneId) {
+            try {
+                const converted = convertToTimeZone(date, timeZoneId);
+                return converted.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            } catch (e) {
+                // If conversion fails, fall through to local time
+            }
+        }
+        // Final fallback: use local time (not ideal, but better than error)
         return date.toLocaleTimeString();
     }
 }
@@ -584,7 +595,18 @@ function formatTime24(date, timeZoneId) {
         });
         return formatter.format(date);
     } catch (error) {
-        // Fallback: format manually
+        // Fallback: format manually using timezone conversion
+        if (timeZoneId) {
+            try {
+                const converted = convertToTimeZone(date, timeZoneId);
+                const hours = converted.getHours().toString().padStart(2, '0');
+                const minutes = converted.getMinutes().toString().padStart(2, '0');
+                return `${hours}:${minutes}`;
+            } catch (e) {
+                // If conversion fails, fall through to local time
+            }
+        }
+        // Final fallback: use local time (not ideal, but better than error)
         const hours = date.getHours().toString().padStart(2, '0');
         const minutes = date.getMinutes().toString().padStart(2, '0');
         return `${hours}:${minutes}`;
