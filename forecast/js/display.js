@@ -214,7 +214,12 @@ function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12,
     if ((!sunrise || !sunset) && location.lat && location.lon && location.timeZone) {
         // Use the location's current date (not the viewer's local date) for accuracy
         const locationToday = convertToTimeZone(new Date(), location.timeZone);
-        const locationDate = new Date(locationToday.getFullYear(), locationToday.getMonth(), locationToday.getDate());
+        // Create date in UTC to avoid timezone issues when extracting year/month/day
+        const locationDate = new Date(Date.UTC(
+            locationToday.getFullYear(),
+            locationToday.getMonth(),
+            locationToday.getDate()
+        ));
         const sunTimes = calculateSunriseSunset(
             location.lat,
             location.lon,

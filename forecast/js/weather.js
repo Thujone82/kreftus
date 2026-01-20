@@ -45,10 +45,18 @@ function processWeatherData(weatherData) {
     const weatherIcon = getWeatherIcon(currentIcon, isCurrentlyDaytime, currentPrecipProb);
     
     // Calculate sunrise and sunset
+    // Use the location's current date (not the viewer's local date) for accuracy
+    const locationToday = convertToTimeZone(new Date(), location.timeZone);
+    // Create date in UTC to avoid timezone issues when extracting year/month/day
+    const locationDate = new Date(Date.UTC(
+        locationToday.getFullYear(),
+        locationToday.getMonth(),
+        locationToday.getDate()
+    ));
     const sunTimes = calculateSunriseSunset(
         location.lat,
         location.lon,
-        new Date(),
+        locationDate,
         location.timeZone
     );
     

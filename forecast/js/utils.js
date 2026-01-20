@@ -238,7 +238,8 @@ function calculateSunriseSunset(latitude, longitude, date, timeZoneId) {
     while (sunsetMin >= 1440) sunsetMin -= 1440;
     
     // Build UTC DateTimes
-    const utcMidnight = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0));
+    // Use UTC methods to ensure consistent calculation regardless of input date timezone
+    const utcMidnight = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0));
     const sunriseUtc = new Date(utcMidnight.getTime() + sunriseMin * 60000);
     const sunsetUtc = new Date(utcMidnight.getTime() + sunsetMin * 60000);
     
@@ -255,8 +256,11 @@ function calculateSunriseSunset(latitude, longitude, date, timeZoneId) {
 }
 
 // Get day of year (1-365/366)
+// Works correctly with both UTC and local dates
 function getDayOfYear(date) {
-    const start = new Date(date.getFullYear(), 0, 0);
+    // Use UTC methods to ensure consistent calculation regardless of timezone
+    const year = date.getUTCFullYear();
+    const start = new Date(Date.UTC(year, 0, 0));
     const diff = date - start;
     return Math.floor(diff / (1000 * 60 * 60 * 24));
 }
