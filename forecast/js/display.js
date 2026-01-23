@@ -860,10 +860,60 @@ function displayObservations(observationsData, location) {
     const reversedData = [...observationsData].reverse();
     
     reversedData.forEach(dayData => {
+        // Parse the date string (format: "yyyy-MM-dd") which represents a date in the location's timezone
         const [year, month, day] = dayData.date.split('-').map(Number);
-        const date = new Date(year, month - 1, day);
-        const dayName = getDayName(date, false);
         const dateStr = `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`;
+        
+        // Get day name in the location's timezone (not the user's timezone)
+        // The date string "yyyy-MM-dd" represents a date in the location's timezone
+        let dayName;
+        let date; // Date object for moon phase and sunrise/sunset calculations
+        if (location.timeZone) {
+            // Find the UTC time that represents noon on the target date in the location's timezone
+            // Start with a UTC date at noon on the target date
+            const utcNoon = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+            
+            // Use Intl.DateTimeFormat to check what date this represents in the location's timezone
+            const dateFormatter = new Intl.DateTimeFormat('en-US', {
+                timeZone: location.timeZone,
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            });
+            
+            // Search around noon UTC (±12 hours) to find the UTC time that represents
+            // the target date in the location's timezone
+            let foundDate = null;
+            for (let offsetHours = -12; offsetHours <= 12; offsetHours++) {
+                const testDate = new Date(utcNoon.getTime() + offsetHours * 60 * 60 * 1000);
+                const parts = dateFormatter.formatToParts(testDate);
+                const testYear = parseInt(parts.find(p => p.type === 'year').value);
+                const testMonth = parseInt(parts.find(p => p.type === 'month').value) - 1;
+                const testDay = parseInt(parts.find(p => p.type === 'day').value);
+                
+                if (testYear === year && testMonth === month - 1 && testDay === day) {
+                    foundDate = testDate;
+                    break;
+                }
+            }
+            
+            // Use the found date, or fall back to UTC noon
+            date = foundDate || utcNoon;
+            
+            // Get day name in the location's timezone
+            const dayFormatter = new Intl.DateTimeFormat('en-US', {
+                timeZone: location.timeZone,
+                weekday: 'long'
+            });
+            dayName = dayFormatter.format(date);
+        } else {
+            // No timezone, use local date
+            date = new Date(year, month - 1, day);
+            dayName = getDayName(date, false);
+        }
         
         // Calculate moon phase for this day
         const moonPhaseInfo = calculateMoonPhase(date);
