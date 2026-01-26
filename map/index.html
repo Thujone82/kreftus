@@ -81,6 +81,27 @@
             border-color: var(--color-primary);
         }
 
+        /* Style for PlaceAutocompleteElement web component */
+        gmp-place-autocomplete {
+            display: block;
+            width: 100%;
+        }
+
+        gmp-place-autocomplete input {
+            width: 100%;
+            padding: 0.5rem;
+            background-color: var(--color-bg);
+            border: 1px solid var(--color-text-secondary);
+            color: var(--color-text);
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        gmp-place-autocomplete input:focus {
+            outline: 2px solid var(--color-primary);
+            border-color: var(--color-primary);
+        }
+
         .btn {
             padding: 0.5rem 1rem;
             background-color: var(--color-primary);
@@ -305,7 +326,10 @@
     <div class="control-panel">
         <div class="control-group">
             <label for="searchInput">Search:</label>
-            <input type="text" id="searchInput" placeholder="Enter location...">
+            <!-- Using PlaceAutocompleteElement (modern, non-deprecated) instead of Autocomplete -->
+            <gmp-place-autocomplete id="placeAutocomplete">
+                <input type="text" id="searchInput" placeholder="Enter location...">
+            </gmp-place-autocomplete>
             <button class="btn" id="searchBtn">Search</button>
         </div>
         <div class="control-group">
@@ -415,9 +439,11 @@
                 return;
             }
 
-            // Load Google Maps JavaScript API
+            // Load Google Maps JavaScript API with async loading pattern
+            // Using loading=async parameter in URL for best practice (addresses console warning)
+            // Note: CORS warning for mapsjs/gen_204 is expected - it's Google's internal CSP test
             const script = document.createElement('script');
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,drawing&callback=initMap`;
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,drawing&callback=initMap&loading=async`;
             script.async = true;
             script.defer = true;
             script.onerror = () => {
@@ -435,22 +461,52 @@
                     mapTypeId: 'roadmap'
                 });
 
-                // Initialize Places Autocomplete
-                autocomplete = new google.maps.places.Autocomplete(
-                    document.getElementById('searchInput'),
-                    { types: ['geocode'] }
-                );
+                // Initialize Places Autocomplete using PlaceAutocompleteElement (modern, non-deprecated)
+                // This replaces the deprecated Autocomplete class to eliminate deprecation warnings
+                const placeAutocompleteEl = document.getElementById('placeAutocomplete');
+                const searchInput = document.getElementById('searchInput');
+                
+                // Wait a moment for the web component to be fully registered
+                setTimeout(() => {
+                    if (placeAutocompleteEl && placeAutocompleteEl.addEventListener) {
+                        // Use PlaceAutocompleteElement web component (no deprecation warning)
+                        placeAutocompleteEl.addEventListener('gmp-placeselect', (event) => {
+                            const place = event.detail.place;
+                            if (place.geometry && place.geometry.location) {
+                                const location = place.geometry.location;
+                                map.setCenter({ lat: location.lat(), lng: location.lng() });
+                                map.setZoom(15);
+                                const address = place.formattedAddress || place.name || 'Location selected';
+                                updateLocationInfo(location, address);
+                                searchInput.value = address;
+                            }
+                        });
+                    } else {
+                        // Fallback to deprecated Autocomplete if web component not available
+                        // This will show a deprecation warning but ensures functionality
+                        console.warn('PlaceAutocompleteElement not available, falling back to deprecated Autocomplete');
+                        autocomplete = new google.maps.places.Autocomplete(
+                            searchInput,
+                            { types: ['geocode'] }
+                        );
 
-                autocomplete.addListener('place_changed', () => {
-                    const place = autocomplete.getPlace();
-                    if (place.geometry) {
-                        map.setCenter(place.geometry.location);
-                        map.setZoom(15);
-                        updateLocationInfo(place.geometry.location, place.formatted_address);
+                        autocomplete.addListener('place_changed', () => {
+                            const place = autocomplete.getPlace();
+                            if (place.geometry) {
+                                map.setCenter(place.geometry.location);
+                                map.setZoom(15);
+                                updateLocationInfo(place.geometry.location, place.formatted_address);
+                            }
+                        });
                     }
-                });
+                }, 100);
 
                 // Initialize Drawing Manager
+                // WARNING: Drawing Library is deprecated (August 2025) and will be unavailable in May 2026
+                // This will cause a console warning that cannot be suppressed
+                // Future versions will need custom drawing implementation
+                // See: https://developers.google.com/maps/deprecations
+                // Note: The warning is from Google's library code, not our code
                 drawingManager = new google.maps.drawing.DrawingManager({
                     drawingMode: null,
                     drawingControl: false,
@@ -662,6 +718,27 @@
             const sw = bounds.getSouthWest();
             document.getElementById('bboxInfo').textContent = 
                 `N: ${ne.lat().toFixed(4)}, S: ${sw.lat().toFixed(4)}, E: ${ne.lng().toFixed(4)}, W: ${sw.lng().toFixed(4)}`;
+            
+            // Calculate and display map size in pixels
+            if (map) {
+                const zoom = map.getZoom();
+                const worldSize = Math.pow(2, zoom) * 256;
+                
+                // Convert bounds to pixel coordinates using Mercator projection
+                const swX = (sw.lng() + 180) / 360 * worldSize;
+                const swY = (180 - latToY(sw.lat())) / 360 * worldSize;
+                const neX = (ne.lng() + 180) / 360 * worldSize;
+                const neY = (180 - latToY(ne.lat())) / 360 * worldSize;
+                
+                // Calculate dimensions
+                const widthPixels = Math.ceil(neX - swX);
+                const heightPixels = Math.ceil(swY - neY);
+                
+                // Display map size
+                document.getElementById('mapSizeInfo').textContent = `${widthPixels} x ${heightPixels} px`;
+            } else {
+                document.getElementById('mapSizeInfo').textContent = '-';
+            }
         }
 
         async function downloadMap() {
