@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Map download tool for searching locations, drawing bounding boxes, and downloading map images">
+    <meta name="theme-color" content="#1a1a1a">
+    <title>Map Download Tool</title>
+    <style>
+        :root {
+            --color-bg: #1a1a1a;
+            --color-bg-secondary: #2a2a2a;
+            --color-text: #ffffff;
+            --color-text-secondary: #cccccc;
+            --color-primary: #00ced1;
+            --color-secondary: #0080ff;
+            --color-success: #00ff00;
+            --color-warning: #ffff00;
+            --color-error: #ff0000;
+            --color-border: #00ff00;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            line-height: 1.4;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background-color: var(--color-bg-secondary);
+            padding: 0.75rem 1rem;
+            border-bottom: 2px solid var(--color-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        h1 {
+            margin: 0;
+            color: var(--color-border);
+            font-size: 1.5rem;
+        }
+
+        .api-key-section {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .api-key-section input {
+            padding: 0.5rem;
+            background-color: var(--color-bg);
+            border: 1px solid var(--color-text-secondary);
+            color: var(--color-text);
+            border-radius: 4px;
+            min-width: 200px;
+            font-size: 0.9rem;
+        }
+
+        .api-key-section input:focus {
+            outline: 2px solid var(--color-primary);
+            border-color: var(--color-primary);
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            background-color: var(--color-primary);
+            color: var(--color-bg);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background-color: var(--color-secondary);
+            transform: translateY(-1px);
+        }
+
+        .btn:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .btn-secondary {
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            border: 1px solid var(--color-text-secondary);
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--color-bg-secondary);
+            border-color: var(--color-primary);
+        }
+
+        .btn-success {
+            background-color: var(--color-success);
+            color: var(--color-bg);
+        }
+
+        .btn-success:hover {
+            background-color: #00cc00;
+        }
+
+        .link {
+            color: var(--color-primary);
+            text-decoration: none;
+            font-size: 0.85rem;
+        }
+
+        .link:hover {
+            text-decoration: underline;
+        }
+
+        .control-panel {
+            background-color: var(--color-bg-secondary);
+            padding: 1rem;
+            border-bottom: 1px solid var(--color-text-secondary);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .control-group label {
+            font-size: 0.9rem;
+            color: var(--color-text-secondary);
+            white-space: nowrap;
+        }
+
+        .control-group input[type="text"],
+        .control-group select {
+            padding: 0.5rem;
+            background-color: var(--color-bg);
+            border: 1px solid var(--color-text-secondary);
+            color: var(--color-text);
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .control-group input[type="text"]:focus,
+        .control-group select:focus {
+            outline: 2px solid var(--color-primary);
+            border-color: var(--color-primary);
+        }
+
+        .control-group input[type="range"] {
+            width: 150px;
+        }
+
+        .zoom-display {
+            min-width: 40px;
+            text-align: center;
+            font-weight: 600;
+            color: var(--color-primary);
+        }
+
+        .info-panel {
+            background-color: var(--color-bg-secondary);
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--color-text-secondary);
+            font-size: 0.85rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            color: var(--color-text-secondary);
+        }
+
+        .info-item {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .info-item strong {
+            color: var(--color-text);
+        }
+
+        #map {
+            flex: 1;
+            width: 100%;
+            min-height: 400px;
+            position: relative;
+        }
+
+        .drawing-mode {
+            cursor: crosshair;
+        }
+
+        .error-message {
+            background-color: var(--color-error);
+            color: white;
+            padding: 1rem;
+            margin: 1rem;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            color: var(--color-text);
+            font-size: 1.2rem;
+        }
+
+        .loading-overlay.show {
+            display: flex;
+        }
+
+        .spinner {
+            border: 4px solid var(--color-text-secondary);
+            border-top: 4px solid var(--color-primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-right: 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .control-panel {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .control-group {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .api-key-section {
+                width: 100%;
+            }
+
+            .api-key-section input {
+                flex: 1;
+                min-width: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <h1>Map Download Tool</h1>
+        </div>
+        <div class="api-key-section">
+            <input type="text" id="apiKeyInput" placeholder="Google Maps API Key">
+            <button class="btn btn-secondary" id="saveApiKeyBtn">Save Key</button>
+            <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank" class="link">Get Free API Key</a>
+        </div>
+    </header>
+
+    <div class="error-message" id="errorMessage"></div>
+
+    <div class="control-panel">
+        <div class="control-group">
+            <label for="searchInput">Search:</label>
+            <input type="text" id="searchInput" placeholder="Enter location...">
+            <button class="btn" id="searchBtn">Search</button>
+        </div>
+        <div class="control-group">
+            <label for="mapTypeSelect">Map Type:</label>
+            <select id="mapTypeSelect">
+                <option value="roadmap" selected>Roadmap</option>
+                <option value="satellite">Satellite</option>
+                <option value="hybrid">Hybrid</option>
+                <option value="terrain">Terrain</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label for="zoomSlider">Zoom:</label>
+            <input type="range" id="zoomSlider" min="1" max="20" value="10">
+            <span class="zoom-display" id="zoomDisplay">10</span>
+        </div>
+        <button class="btn btn-secondary" id="drawModeBtn">Enable Drawing</button>
+        <button class="btn btn-secondary" id="clearBtn" disabled>Clear Selection</button>
+        <button class="btn btn-success" id="downloadBtn" disabled>Download Map</button>
+    </div>
+
+    <div class="info-panel">
+        <div class="info-item">
+            <strong>Location:</strong>
+            <span id="locationInfo">Not set</span>
+        </div>
+        <div class="info-item">
+            <strong>Bounding Box:</strong>
+            <span id="bboxInfo">Not drawn</span>
+        </div>
+        <div class="info-item">
+            <strong>Map Size:</strong>
+            <span id="mapSizeInfo">-</span>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <span>Downloading map tiles...</span>
+    </div>
+
+    <script>
+        // Global variables
+        let map;
+        let drawingManager;
+        let rectangle;
+        let isDrawingMode = false;
+        let currentBounds = null;
+        let autocomplete;
+        let apiKey = '';
+
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            // Load saved API key
+            apiKey = localStorage.getItem('googleMapsApiKey') || '';
+            if (apiKey) {
+                document.getElementById('apiKeyInput').value = apiKey;
+            }
+
+            // Setup event listeners
+            document.getElementById('saveApiKeyBtn').addEventListener('click', saveApiKey);
+            document.getElementById('searchBtn').addEventListener('click', performSearch);
+            document.getElementById('searchInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') performSearch();
+            });
+            document.getElementById('mapTypeSelect').addEventListener('change', changeMapType);
+            document.getElementById('zoomSlider').addEventListener('input', updateZoom);
+            document.getElementById('drawModeBtn').addEventListener('click', toggleDrawingMode);
+            document.getElementById('clearBtn').addEventListener('click', clearSelection);
+            document.getElementById('downloadBtn').addEventListener('click', downloadMap);
+
+            // Load Google Maps API
+            if (apiKey) {
+                loadGoogleMaps();
+            } else {
+                showError('Please enter your Google Maps API key to begin.');
+            }
+        });
+
+        function saveApiKey() {
+            const key = document.getElementById('apiKeyInput').value.trim();
+            if (key) {
+                apiKey = key;
+                localStorage.setItem('googleMapsApiKey', key);
+                showError('');
+                if (!map) {
+                    loadGoogleMaps();
+                }
+            } else {
+                showError('Please enter a valid API key.');
+            }
+        }
+
+        function loadGoogleMaps() {
+            if (!apiKey) {
+                showError('API key is required. Please enter your Google Maps API key.');
+                return;
+            }
+
+            // Check if script is already loaded
+            if (window.google && window.google.maps) {
+                initMap();
+                return;
+            }
+
+            // Load Google Maps JavaScript API
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,drawing&callback=initMap`;
+            script.async = true;
+            script.defer = true;
+            script.onerror = () => {
+                showError('Failed to load Google Maps API. Please check your API key.');
+            };
+            document.head.appendChild(script);
+        }
+
+        function initMap() {
+            try {
+                // Initialize map
+                map = new google.maps.Map(document.getElementById('map'), {
+                    center: { lat: 0, lng: 0 },
+                    zoom: 10,
+                    mapTypeId: 'roadmap'
+                });
+
+                // Initialize Places Autocomplete
+                autocomplete = new google.maps.places.Autocomplete(
+                    document.getElementById('searchInput'),
+                    { types: ['geocode'] }
+                );
+
+                autocomplete.addListener('place_changed', () => {
+                    const place = autocomplete.getPlace();
+                    if (place.geometry) {
+                        map.setCenter(place.geometry.location);
+                        map.setZoom(15);
+                        updateLocationInfo(place.geometry.location, place.formatted_address);
+                    }
+                });
+
+                // Initialize Drawing Manager
+                drawingManager = new google.maps.drawing.DrawingManager({
+                    drawingMode: null,
+                    drawingControl: false,
+                    rectangleOptions: {
+                        fillColor: '#00ff00',
+                        fillOpacity: 0.2,
+                        strokeColor: '#00ff00',
+                        strokeWeight: 2,
+                        clickable: false,
+                        editable: false,
+                        zIndex: 1
+                    }
+                });
+
+                drawingManager.setMap(map);
+
+                // Listen for rectangle completion
+                google.maps.event.addListener(drawingManager, 'overlaycomplete', (event) => {
+                    if (event.type === google.maps.drawing.OverlayType.RECTANGLE) {
+                        rectangle = event.overlay;
+                        currentBounds = rectangle.getBounds();
+                        updateBboxInfo(currentBounds);
+                        document.getElementById('clearBtn').disabled = false;
+                        document.getElementById('downloadBtn').disabled = false;
+                        toggleDrawingMode(); // Disable drawing mode after selection
+                    }
+                });
+
+                // Update zoom display
+                google.maps.event.addListener(map, 'zoom_changed', () => {
+                    const newZoom = map.getZoom();
+                    document.getElementById('zoomSlider').value = newZoom;
+                    document.getElementById('zoomDisplay').textContent = newZoom;
+                    // Update bounding box info if one exists
+                    if (currentBounds) {
+                        updateBboxInfo(currentBounds);
+                    }
+                });
+
+                // Update bounding box info when map type changes
+                google.maps.event.addListener(map, 'maptypeid_changed', () => {
+                    if (currentBounds) {
+                        updateBboxInfo(currentBounds);
+                    }
+                });
+
+                showError('');
+            } catch (error) {
+                showError('Error initializing map: ' + error.message);
+            }
+        }
+
+        function performSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) return;
+
+            if (!map) {
+                showError('Map not initialized. Please check your API key.');
+                return;
+            }
+
+            const geocoder = new google.maps.Geocoder();
+            geocoder.geocode({ address: query }, (results, status) => {
+                if (status === 'OK' && results[0]) {
+                    const location = results[0].geometry.location;
+                    map.setCenter(location);
+                    map.setZoom(15);
+                    updateLocationInfo(location, results[0].formatted_address);
+                    showError('');
+                } else {
+                    showError('Location not found. Please try a different search term.');
+                }
+            });
+        }
+
+        function changeMapType() {
+            if (!map) return;
+            const mapType = document.getElementById('mapTypeSelect').value;
+            map.setMapTypeId(mapType);
+        }
+
+        function updateZoom() {
+            if (!map) return;
+            const zoom = parseInt(document.getElementById('zoomSlider').value);
+            map.setZoom(zoom);
+            document.getElementById('zoomDisplay').textContent = zoom;
+        }
+
+        function toggleDrawingMode() {
+            if (!drawingManager) return;
+
+            isDrawingMode = !isDrawingMode;
+            const btn = document.getElementById('drawModeBtn');
+            
+            if (isDrawingMode) {
+                drawingManager.setDrawingMode(google.maps.drawing.OverlayType.RECTANGLE);
+                btn.textContent = 'Disable Drawing';
+                btn.classList.add('btn-success');
+                btn.classList.remove('btn-secondary');
+                document.getElementById('map').classList.add('drawing-mode');
+            } else {
+                drawingManager.setDrawingMode(null);
+                btn.textContent = 'Enable Drawing';
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-secondary');
+                document.getElementById('map').classList.remove('drawing-mode');
+            }
+        }
+
+        function clearSelection() {
+            if (rectangle) {
+                rectangle.setMap(null);
+                rectangle = null;
+                currentBounds = null;
+            }
+            document.getElementById('clearBtn').disabled = true;
+            document.getElementById('downloadBtn').disabled = true;
+            updateBboxInfo(null);
+        }
+
+        function updateLocationInfo(location, address) {
+            const lat = location.lat().toFixed(6);
+            const lng = location.lng().toFixed(6);
+            document.getElementById('locationInfo').textContent = 
+                `${address || `${lat}, ${lng}`}`;
+        }
+
+        function updateBboxInfo(bounds) {
+            if (!bounds) {
+                document.getElementById('bboxInfo').textContent = 'Not drawn';
+                document.getElementById('mapSizeInfo').textContent = '-';
+                return;
+            }
+
+            const ne = bounds.getNorthEast();
+            const sw = bounds.getSouthWest();
+            document.getElementById('bboxInfo').textContent = 
+                `N: ${ne.lat().toFixed(4)}, S: ${sw.lat().toFixed(4)}, E: ${ne.lng().toFixed(4)}, W: ${sw.lng().toFixed(4)}`;
+        }
+
+        async function downloadMap() {
+            if (!currentBounds || !map) {
+                showError('Please draw a bounding box first.');
+                return;
+            }
+
+            if (!apiKey) {
+                showError('API key is required for downloading maps.');
+                return;
+            }
+
+            const zoom = map.getZoom();
+            const mapType = map.getMapTypeId();
+            const ne = currentBounds.getNorthEast();
+            const sw = currentBounds.getSouthWest();
+
+            // Show loading overlay
+            document.getElementById('loadingOverlay').classList.add('show');
+
+            try {
+                // Use Mercator projection to calculate exact pixel dimensions
+                const worldSize = Math.pow(2, zoom) * 256;
+                
+                // Convert bounds to pixel coordinates using Mercator
+                const swX = (sw.lng() + 180) / 360 * worldSize;
+                const swY = (180 - latToY(sw.lat())) / 360 * worldSize;
+                const neX = (ne.lng() + 180) / 360 * worldSize;
+                const neY = (180 - latToY(ne.lat())) / 360 * worldSize;
+                
+                const widthPixels = Math.ceil(neX - swX);
+                const heightPixels = Math.ceil(neY - swY);
+                
+                // Static Maps API max size is 640x640, but with scale=2 we get 1280x1280
+                const maxTileSize = 1280; // Using scale=2
+                const tilesX = Math.ceil(widthPixels / maxTileSize);
+                const tilesY = Math.ceil(heightPixels / maxTileSize);
+                
+                let canvas;
+                
+                if (tilesX === 1 && tilesY === 1 && widthPixels <= maxTileSize && heightPixels <= maxTileSize) {
+                    // Single tile - simple case
+                    canvas = await downloadSingleTile(sw, ne, zoom, mapType, widthPixels, heightPixels);
+                } else {
+                    // Multiple tiles needed - use improved tiling
+                    canvas = await downloadTiledMap(sw, ne, zoom, mapType, tilesX, tilesY, widthPixels, heightPixels);
+                }
+
+                // Download
+                const dataURL = canvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.href = dataURL;
+                link.download = `map_${Date.now()}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                // Update map size info
+                document.getElementById('mapSizeInfo').textContent = 
+                    `${canvas.width} x ${canvas.height} px`;
+
+                showError('');
+            } catch (error) {
+                showError('Error downloading map: ' + error.message + '. Try a smaller area or check your API key permissions.');
+                console.error('Download error:', error);
+            } finally {
+                document.getElementById('loadingOverlay').classList.remove('show');
+            }
+        }
+
+        // Helper functions for Mercator projection (used by Google Maps)
+        function latToY(lat) {
+            return Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / (Math.PI / 180);
+        }
+
+        function yToLat(y) {
+            return 2 * Math.atan(Math.exp(y * Math.PI / 180)) - Math.PI / 2;
+        }
+
+        async function downloadSingleTile(sw, ne, zoom, mapType, widthPx, heightPx) {
+            const centerLat = (ne.lat() + sw.lat()) / 2;
+            const centerLng = (ne.lng() + sw.lng()) / 2;
+            
+            const staticMapType = mapType === 'satellite' ? 'satellite' : 
+                                 mapType === 'hybrid' ? 'hybrid' : 
+                                 mapType === 'terrain' ? 'terrain' : 'roadmap';
+            
+            // Request image large enough to cover the bounding box with some margin
+            // Use scale=2 for higher resolution (1280x1280 max)
+            const scale = 2;
+            const maxSize = 640; // Static Maps API max size
+            // Request size that's at least 20% larger than needed to ensure we capture the full area
+            const size = Math.min(maxSize, Math.ceil(Math.max(widthPx, heightPx) / scale * 1.2));
+            
+            // Build path for bounding box outline (optional, for visual reference)
+            const path = `path=color:0x00ff00ff|weight:2|${sw.lat()},${sw.lng()}|${ne.lat()},${sw.lng()}|${ne.lat()},${ne.lng()}|${sw.lat()},${ne.lng()}|${sw.lat()},${sw.lng()}`;
+            
+            const url = `https://maps.googleapis.com/maps/api/staticmap?center=${centerLat},${centerLng}&zoom=${zoom}&size=${size}x${size}&scale=${scale}&maptype=${staticMapType}&${path}&key=${apiKey}`;
+            
+            const img = await loadImage(url);
+            
+            // Validate image loaded correctly
+            if (!img || img.width === 0 || img.height === 0) {
+                throw new Error('Failed to load map image from Static Maps API');
+            }
+            
+            console.log('Image loaded successfully:', img.width, 'x', img.height);
+            
+            const imgPixelSize = size * scale; // Actual pixel size: 1280x1280 if size=640, scale=2
+            
+            // Calculate what geographic area the image covers
+            // At zoom z, the world is divided into 2^z tiles, each 256 pixels
+            // So each pixel represents: 360 / (2^z * 256) degrees longitude at equator
+            const worldSize = Math.pow(2, zoom) * 256;
+            const degreesPerPixelLng = 360 / worldSize;
+            
+            // For latitude, account for Mercator projection
+            const centerLatRad = centerLat * Math.PI / 180;
+            const degreesPerPixelLat = degreesPerPixelLng / Math.cos(centerLatRad);
+            
+            // Image covers this many degrees (centered on centerLat, centerLng)
+            const imgDegreesLng = imgPixelSize * degreesPerPixelLng;
+            const imgDegreesLat = imgPixelSize * degreesPerPixelLat;
+            
+            // Image geographic bounds
+            const imgWest = centerLng - imgDegreesLng / 2;
+            const imgEast = centerLng + imgDegreesLng / 2;
+            const imgSouth = centerLat - imgDegreesLat / 2;
+            const imgNorth = centerLat + imgDegreesLat / 2;
+            
+            console.log('Image covers:', {
+                west: imgWest.toFixed(6), east: imgEast.toFixed(6),
+                south: imgSouth.toFixed(6), north: imgNorth.toFixed(6)
+            });
+            console.log('Bounding box:', {
+                west: sw.lng().toFixed(6), east: ne.lng().toFixed(6),
+                south: sw.lat().toFixed(6), north: ne.lat().toFixed(6)
+            });
+            
+            // Calculate source rectangle in the image (in pixels)
+            // How far from the left edge of the image is our west bound?
+            const srcX = ((sw.lng() - imgWest) / imgDegreesLng) * imgPixelSize;
+            // How far from the top edge of the image is our north bound? (Y increases downward)
+            const srcY = ((imgNorth - ne.lat()) / imgDegreesLat) * imgPixelSize;
+            // Width and height in pixels
+            const srcWidth = ((ne.lng() - sw.lng()) / imgDegreesLng) * imgPixelSize;
+            const srcHeight = ((ne.lat() - sw.lat()) / imgDegreesLat) * imgPixelSize;
+            
+            console.log('Source rectangle:', {
+                x: srcX.toFixed(2), y: srcY.toFixed(2),
+                width: srcWidth.toFixed(2), height: srcHeight.toFixed(2),
+                imgSize: imgPixelSize
+            });
+            
+            // Create canvas with exact dimensions needed
+            const canvas = document.createElement('canvas');
+            canvas.width = widthPx;
+            canvas.height = heightPx;
+            const ctx = canvas.getContext('2d');
+            
+            // Fill with white background first
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, widthPx, heightPx);
+            
+            // Clamp source rectangle to image bounds
+            const clampedSrcX = Math.max(0, Math.min(imgPixelSize - 1, Math.floor(srcX)));
+            const clampedSrcY = Math.max(0, Math.min(imgPixelSize - 1, Math.floor(srcY)));
+            const clampedSrcWidth = Math.max(1, Math.min(imgPixelSize - clampedSrcX, Math.ceil(srcWidth)));
+            const clampedSrcHeight = Math.max(1, Math.min(imgPixelSize - clampedSrcY, Math.ceil(srcHeight)));
+            
+            console.log('Clamped source rectangle:', {
+                x: clampedSrcX, y: clampedSrcY,
+                width: clampedSrcWidth, height: clampedSrcHeight
+            });
+            
+            // Draw the cropped portion, scaling to exact output size
+            if (clampedSrcWidth > 0 && clampedSrcHeight > 0) {
+                ctx.drawImage(
+                    img,
+                    clampedSrcX, clampedSrcY, clampedSrcWidth, clampedSrcHeight,
+                    0, 0, widthPx, heightPx
+                );
+                console.log('Image drawn to canvas successfully');
+            } else {
+                // Fallback: draw full image scaled
+                console.error('Invalid crop values, using fallback. Drawing full image.');
+                ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, widthPx, heightPx);
+            }
+            
+            return canvas;
+        }
+
+        async function downloadTiledMap(sw, ne, zoom, mapType, tilesX, tilesY, outputWidth, outputHeight) {
+            const staticMapType = mapType === 'satellite' ? 'satellite' : 
+                                 mapType === 'hybrid' ? 'hybrid' : 
+                                 mapType === 'terrain' ? 'terrain' : 'roadmap';
+            
+            const baseTileSize = 640;
+            const scale = 2; // Use scale=2 for 1280x1280 effective resolution
+            const tilePixelSize = baseTileSize * scale; // 1280 pixels
+            
+            // Calculate world coordinates at this zoom level
+            const worldSize = Math.pow(2, zoom) * 256;
+            
+            // Convert bounds to pixel coordinates
+            const swPixelX = (sw.lng() + 180) / 360 * worldSize;
+            const swPixelY = (180 - latToY(sw.lat())) / 360 * worldSize;
+            const nePixelX = (ne.lng() + 180) / 360 * worldSize;
+            const nePixelY = (180 - latToY(ne.lat())) / 360 * worldSize;
+            
+            // Calculate tile dimensions in pixels
+            const tileWidthPx = Math.ceil(outputWidth / tilesX);
+            const tileHeightPx = Math.ceil(outputHeight / tilesY);
+            
+            // Create output canvas
+            const canvas = document.createElement('canvas');
+            canvas.width = outputWidth;
+            canvas.height = outputHeight;
+            const ctx = canvas.getContext('2d');
+            
+            // Fetch and stitch tiles
+            for (let y = 0; y < tilesY; y++) {
+                for (let x = 0; x < tilesX; x++) {
+                    // Calculate this tile's pixel boundaries in output canvas
+                    const tileStartX = x * tileWidthPx;
+                    const tileStartY = y * tileHeightPx;
+                    const tileEndX = Math.min((x + 1) * tileWidthPx, outputWidth);
+                    const tileEndY = Math.min((y + 1) * tileHeightPx, outputHeight);
+                    const tileWidth = tileEndX - tileStartX;
+                    const tileHeight = tileEndY - tileStartY;
+                    
+                    // Convert tile boundaries to world coordinates
+                    const tileWorldX = swPixelX + tileStartX;
+                    const tileWorldY = swPixelY + tileStartY;
+                    const tileWorldX2 = swPixelX + tileEndX;
+                    const tileWorldY2 = swPixelY + tileEndY;
+                    
+                    // Convert to lat/lng for tile center
+                    const tileCenterX = (tileWorldX + tileWorldX2) / 2;
+                    const tileCenterY = (tileWorldY + tileWorldY2) / 2;
+                    const tileCenterLng = (tileCenterX / worldSize) * 360 - 180;
+                    const tileCenterLat = yToLat(180 - (tileCenterY / worldSize) * 360);
+                    
+                    // Request Static Maps image
+                    const url = `https://maps.googleapis.com/maps/api/staticmap?center=${tileCenterLat},${tileCenterLng}&zoom=${zoom}&size=${baseTileSize}x${baseTileSize}&scale=${scale}&maptype=${staticMapType}&key=${apiKey}`;
+                    
+                    try {
+                        const img = await loadImage(url);
+                        
+                        // The image covers tilePixelSize pixels in world coordinates
+                        // Image bounds in world coordinates (centered on tileCenterX, tileCenterY)
+                        const imgWorldLeft = tileCenterX - tilePixelSize / 2;
+                        const imgWorldTop = tileCenterY - tilePixelSize / 2;
+                        const imgWorldRight = tileCenterX + tilePixelSize / 2;
+                        const imgWorldBottom = tileCenterY + tilePixelSize / 2;
+                        
+                        // Calculate intersection of tile area with image area
+                        const intersectLeft = Math.max(imgWorldLeft, tileWorldX);
+                        const intersectTop = Math.max(imgWorldTop, tileWorldY);
+                        const intersectRight = Math.min(imgWorldRight, tileWorldX2);
+                        const intersectBottom = Math.min(imgWorldBottom, tileWorldY2);
+                        
+                        // Calculate source rectangle in the image (in pixels)
+                        const srcX = Math.max(0, ((intersectLeft - imgWorldLeft) / tilePixelSize) * tilePixelSize);
+                        const srcY = Math.max(0, ((intersectTop - imgWorldTop) / tilePixelSize) * tilePixelSize);
+                        const srcRight = Math.min(tilePixelSize, ((intersectRight - imgWorldLeft) / tilePixelSize) * tilePixelSize);
+                        const srcBottom = Math.min(tilePixelSize, ((intersectBottom - imgWorldTop) / tilePixelSize) * tilePixelSize);
+                        const srcWidth = srcRight - srcX;
+                        const srcHeight = srcBottom - srcY;
+                        
+                        // Draw to exact position in output canvas
+                        if (srcWidth > 0 && srcHeight > 0 && tileWidth > 0 && tileHeight > 0) {
+                            ctx.drawImage(
+                                img,
+                                srcX, srcY, srcWidth, srcHeight,
+                                tileStartX, tileStartY, tileWidth, tileHeight
+                            );
+                        }
+                    } catch (error) {
+                        console.warn(`Failed to load tile ${x},${y}:`, error);
+                        // Draw placeholder
+                        ctx.fillStyle = '#cccccc';
+                        ctx.fillRect(tileStartX, tileStartY, tileWidth, tileHeight);
+                    }
+                }
+            }
+            
+            return canvas;
+        }
+
+        function loadImage(url) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                
+                img.onload = () => resolve(img);
+                img.onerror = () => reject(new Error('Failed to load image from Static Maps API. Check your API key and ensure Static Maps API is enabled.'));
+                
+                img.src = url;
+            });
+        }
+
+
+        function showError(message) {
+            const errorEl = document.getElementById('errorMessage');
+            if (message) {
+                errorEl.textContent = message;
+                errorEl.classList.add('show');
+            } else {
+                errorEl.classList.remove('show');
+            }
+        }
+
+        // Make initMap available globally for Google Maps callback
+        window.initMap = initMap;
+    </script>
+</body>
+</html>
