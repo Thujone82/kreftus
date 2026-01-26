@@ -322,6 +322,7 @@
             <input type="range" id="zoomSlider" min="1" max="20" value="10">
             <span class="zoom-display" id="zoomDisplay">10</span>
         </div>
+        <button class="btn btn-secondary" id="currentLocationBtn" title="Center on Current Location">📍</button>
         <button class="btn btn-secondary" id="drawModeBtn">Enable Drawing</button>
         <button class="btn btn-secondary" id="clearBtn" disabled>Clear Selection</button>
         <button class="btn btn-success" id="downloadBtn" disabled>Download Map</button>
@@ -375,6 +376,7 @@
             });
             document.getElementById('mapTypeSelect').addEventListener('change', changeMapType);
             document.getElementById('zoomSlider').addEventListener('input', updateZoom);
+            document.getElementById('currentLocationBtn').addEventListener('click', centerOnCurrentLocation);
             document.getElementById('drawModeBtn').addEventListener('click', toggleDrawingMode);
             document.getElementById('clearBtn').addEventListener('click', clearSelection);
             document.getElementById('downloadBtn').addEventListener('click', downloadMap);
@@ -426,10 +428,10 @@
 
         function initMap() {
             try {
-                // Initialize map
+                // Initialize map - center on USA at zoom 5
                 map = new google.maps.Map(document.getElementById('map'), {
-                    center: { lat: 0, lng: 0 },
-                    zoom: 10,
+                    center: { lat: 39.8283, lng: -98.5795 }, // Geographic center of USA
+                    zoom: 5,
                     mapTypeId: 'roadmap'
                 });
 
@@ -468,6 +470,10 @@
                 // Listen for rectangle completion
                 google.maps.event.addListener(drawingManager, 'overlaycomplete', (event) => {
                     if (event.type === google.maps.drawing.OverlayType.RECTANGLE) {
+                        // Clear any existing rectangle first
+                        if (rectangle) {
+                            rectangle.setMap(null);
+                        }
                         rectangle = event.overlay;
                         currentBounds = rectangle.getBounds();
                         updateBboxInfo(currentBounds);
@@ -537,6 +543,66 @@
             document.getElementById('zoomDisplay').textContent = zoom;
         }
 
+        function centerOnCurrentLocation() {
+            if (!map) {
+                showError('Map not initialized. Please check your API key.');
+                return;
+            }
+
+            if (!navigator.geolocation) {
+                showError('Geolocation is not supported by your browser.');
+                return;
+            }
+
+            const btn = document.getElementById('currentLocationBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳';
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    
+                    map.setCenter({ lat: lat, lng: lng });
+                    map.setZoom(14);
+                    document.getElementById('zoomSlider').value = 14;
+                    document.getElementById('zoomDisplay').textContent = 14;
+                    
+                    // Update location info
+                    updateLocationInfo({ lat: () => lat, lng: () => lng }, `Current Location (${lat.toFixed(6)}, ${lng.toFixed(6)})`);
+                    
+                    btn.disabled = false;
+                    btn.textContent = '📍';
+                    showError('');
+                },
+                (error) => {
+                    btn.disabled = false;
+                    btn.textContent = '📍';
+                    let errorMsg = 'Unable to get your location. ';
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            errorMsg += 'Please allow location access.';
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            errorMsg += 'Location information is unavailable.';
+                            break;
+                        case error.TIMEOUT:
+                            errorMsg += 'Location request timed out.';
+                            break;
+                        default:
+                            errorMsg += 'An unknown error occurred.';
+                            break;
+                    }
+                    showError(errorMsg);
+                },
+                {
+                    timeout: 10000,
+                    maximumAge: 600000,
+                    enableHighAccuracy: false
+                }
+            );
+        }
+
         function toggleDrawingMode() {
             if (!drawingManager) return;
 
@@ -544,6 +610,15 @@
             const btn = document.getElementById('drawModeBtn');
             
             if (isDrawingMode) {
+                // Clear any existing rectangle before enabling drawing
+                if (rectangle) {
+                    rectangle.setMap(null);
+                    rectangle = null;
+                    currentBounds = null;
+                    document.getElementById('clearBtn').disabled = true;
+                    document.getElementById('downloadBtn').disabled = true;
+                    updateBboxInfo(null);
+                }
                 drawingManager.setDrawingMode(google.maps.drawing.OverlayType.RECTANGLE);
                 btn.textContent = 'Disable Drawing';
                 btn.classList.add('btn-success');
@@ -626,32 +701,73 @@
                 const worldSize = Math.pow(2, zoom) * 256;
                 
                 // Convert bounds to pixel coordinates using Mercator
+                // Note: In screen coordinates, Y increases downward, so north (higher lat) has smaller Y
                 const swX = (sw.lng() + 180) / 360 * worldSize;
                 const swY = (180 - latToY(sw.lat())) / 360 * worldSize;
                 const neX = (ne.lng() + 180) / 360 * worldSize;
                 const neY = (180 - latToY(ne.lat())) / 360 * worldSize;
                 
+                // Width: east - west (positive)
                 const widthPixels = Math.ceil(neX - swX);
-                const heightPixels = Math.ceil(neY - swY);
+                // Height: south - north (swY > neY because south is lower on screen)
+                const heightPixels = Math.ceil(swY - neY);
                 
                 console.log('Calculated dimensions:', widthPixels, 'x', heightPixels, 'pixels');
                 
                 // Static Maps API max size is 640x640, but with scale=2 we get 1280x1280
                 const maxTileSize = 1280; // Using scale=2
-                const tilesX = Math.ceil(widthPixels / maxTileSize);
-                const tilesY = Math.ceil(heightPixels / maxTileSize);
                 
-                console.log('Tiling:', tilesX, 'x', tilesY, 'tiles needed');
+                // Calculate the required input image size (with margin) to cover the bounding box
+                // We need to check if a single tile can cover the bbox with sufficient margin
+                // Reuse worldSize, swX, swY, neX, neY already calculated above
+                const centerLat = (sw.lat() + ne.lat()) / 2;
+                const centerLng = (sw.lng() + ne.lng()) / 2;
+                const centerX = (centerLng + 180) / 360 * worldSize;
+                const centerY = (180 - latToY(centerLat)) / 360 * worldSize;
+                
+                const distWest = centerX - swX;
+                const distEast = neX - centerX;
+                const distNorth = centerY - neY;
+                const distSouth = swY - centerY;
+                const requiredWidth = Math.max(distWest, distEast) * 2;
+                const requiredHeight = Math.max(distNorth, distSouth) * 2;
+                const maxDist = Math.max(requiredWidth, requiredHeight);
+                
+                // Add 2.5x margin to ensure full coverage
+                const requiredInputSize = Math.ceil(maxDist * 2.5);
+                
+                console.log('Input size check:', {
+                    outputSize: `${widthPixels} x ${heightPixels}`,
+                    requiredInputSize: requiredInputSize,
+                    maxTileSize: maxTileSize,
+                    canUseSingleTile: requiredInputSize <= maxTileSize
+                });
+                
+                // Determine if we need tiling based on required input size, not just output size
+                const needsTiling = requiredInputSize > maxTileSize;
+                
+                // Calculate tiles needed - use the larger of: required input size or output size
+                // This ensures we have enough tiles to cover both the geographic area and the output dimensions
+                const tilesX = needsTiling ? Math.max(
+                    Math.ceil(requiredWidth * 2.5 / maxTileSize),
+                    Math.ceil(widthPixels / maxTileSize)
+                ) : 1;
+                const tilesY = needsTiling ? Math.max(
+                    Math.ceil(requiredHeight * 2.5 / maxTileSize),
+                    Math.ceil(heightPixels / maxTileSize)
+                ) : 1;
+                
+                console.log('Tiling:', tilesX, 'x', tilesY, 'tiles needed', needsTiling ? '(required input size exceeds max tile)' : '(single tile sufficient)');
                 
                 let canvas;
                 
-                if (tilesX === 1 && tilesY === 1 && widthPixels <= maxTileSize && heightPixels <= maxTileSize) {
-                    // Single tile - simple case
+                if (!needsTiling && tilesX === 1 && tilesY === 1) {
+                    // Single tile - simple case (and we've verified it's sufficient)
                     console.log('Using single tile download');
                     canvas = await downloadSingleTile(sw, ne, zoom, mapType, widthPixels, heightPixels);
                 } else {
                     // Multiple tiles needed - use improved tiling
-                    console.log('Using tiled download');
+                    console.log('Using tiled download (required input size:', requiredInputSize, 'exceeds max tile size:', maxTileSize, ')');
                     canvas = await downloadTiledMap(sw, ne, zoom, mapType, tilesX, tilesY, widthPixels, heightPixels);
                 }
                 
@@ -702,12 +818,17 @@
         }
 
         // Helper functions for Mercator projection (used by Google Maps)
+        // These convert between latitude and Mercator Y coordinate
         function latToY(lat) {
-            return Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / (Math.PI / 180);
+            const latRad = lat * Math.PI / 180;
+            return Math.log(Math.tan(Math.PI / 4 + latRad / 2)) * 180 / Math.PI;
         }
 
         function yToLat(y) {
-            return 2 * Math.atan(Math.exp(y * Math.PI / 180)) - Math.PI / 2;
+            // Convert Mercator Y coordinate back to latitude
+            // This is the inverse of latToY
+            const yRad = y * Math.PI / 180;
+            return (2 * Math.atan(Math.exp(yRad)) - Math.PI / 2) * 180 / Math.PI;
         }
 
         async function downloadSingleTile(sw, ne, zoom, mapType, widthPx, heightPx) {
@@ -718,17 +839,109 @@
                                  mapType === 'hybrid' ? 'hybrid' : 
                                  mapType === 'terrain' ? 'terrain' : 'roadmap';
             
-            // Request image large enough to cover the bounding box with some margin
+            // Calculate required image size based on geographic extent
+            // Static Maps API centers on a point, so we need to ensure the image covers
+            // the entire bounding box from the center point
+            const worldSize = Math.pow(2, zoom) * 256;
+            
+            // Calculate distances from center to bounding box edges in world coordinates
+            const centerX = (centerLng + 180) / 360 * worldSize;
+            const centerY = (180 - latToY(centerLat)) / 360 * worldSize;
+            const swX = (sw.lng() + 180) / 360 * worldSize;
+            const swY = (180 - latToY(sw.lat())) / 360 * worldSize;
+            const neX = (ne.lng() + 180) / 360 * worldSize;
+            const neY = (180 - latToY(ne.lat())) / 360 * worldSize;
+            
+            // Calculate maximum distance from center to any edge of bounding box
+            const distWest = centerX - swX;
+            const distEast = neX - centerX;
+            const distNorth = centerY - neY;
+            const distSouth = swY - centerY;
+            
+            // Calculate the full width and height needed to cover the bounding box
+            // The image is centered, so we need 2x the maximum distance in each direction
+            const requiredWidth = Math.max(distWest, distEast) * 2;
+            const requiredHeight = Math.max(distNorth, distSouth) * 2;
+            const maxDist = Math.max(requiredWidth, requiredHeight);
+            
+            // Calculate required size with very generous margin
+            // We need to ensure the image covers the entire bounding box from the center
+            // Static Maps API centers on a point, so we need significant margin
+            // Use 2.5x margin to be very safe
+            const requiredSize = Math.ceil(maxDist * 2.5);
+            
             // Use scale=2 for higher resolution (1280x1280 max)
             const scale = 2;
-            const maxSize = 640; // Static Maps API max size
-            // Request size that's at least 20% larger than needed to ensure we capture the full area
-            const size = Math.min(maxSize, Math.ceil(Math.max(widthPx, heightPx) / scale * 1.2));
+            const maxSize = 640; // Static Maps API max size (1280x1280 with scale=2)
+            
+            // Calculate size needed - ensure we cover both width and height with margin
+            const sizeForWidth = Math.ceil(requiredWidth * 2.5 / scale);
+            const sizeForHeight = Math.ceil(requiredHeight * 2.5 / scale);
+            const sizeNeeded = Math.max(sizeForWidth, sizeForHeight);
+            
+            // Use the larger of: calculated size based on maxDist, or size needed for dimensions
+            const baseSize = Math.ceil(requiredSize / scale);
+            let size = Math.max(baseSize, sizeNeeded);
+            
+            // Always use maximum size if the bounding box requires significant coverage
+            // This ensures we get the largest possible image (1280x1280 effective)
+            const minRequiredEffectiveSize = Math.max(requiredWidth, requiredHeight) * 2.0;
+            if (minRequiredEffectiveSize > maxSize * scale * 0.5) {
+                console.log(`Bounding box is large - using maximum image size ${maxSize} (effective: ${maxSize * scale}x${maxSize * scale})`);
+                size = maxSize;
+            } else if (size > maxSize) {
+                console.warn(`Required size ${size} exceeds maximum ${maxSize}. Using maximum size.`);
+                size = maxSize;
+            }
+            
+            // Final verification: check if the effective size will cover the bounding box
+            const effectiveSize = size * scale;
+            const minRequiredSize = maxDist * 2.0;
+            if (effectiveSize < minRequiredSize) {
+                console.error('CRITICAL WARNING: Image size may be insufficient!', {
+                    effectiveSize: effectiveSize,
+                    requiredWithMargin: minRequiredSize,
+                    shortfall: minRequiredSize - effectiveSize,
+                    bboxWidth: requiredWidth.toFixed(2),
+                    bboxHeight: requiredHeight.toFixed(2),
+                    usingMaxSize: size === maxSize
+                });
+                // Force maxSize if we're not already using it and the shortfall is significant
+                if (size < maxSize && (minRequiredSize - effectiveSize) > maxSize * scale * 0.1) {
+                    console.warn(`Forcing maximum size ${maxSize} due to insufficient coverage`);
+                    size = maxSize;
+                }
+            }
+            
+            console.log('Image size calculation:', {
+                distWest: distWest.toFixed(2),
+                distEast: distEast.toFixed(2),
+                distNorth: distNorth.toFixed(2),
+                distSouth: distSouth.toFixed(2),
+                requiredWidth: requiredWidth.toFixed(2),
+                requiredHeight: requiredHeight.toFixed(2),
+                requiredSize: requiredSize.toFixed(2),
+                sizeForWidth: sizeForWidth,
+                sizeForHeight: sizeForHeight,
+                sizeNeeded: sizeNeeded,
+                baseSize: baseSize,
+                requestedSize: size,
+                scale: scale,
+                effectiveSize: size * scale
+            });
             
             // Build path for bounding box outline (optional, for visual reference)
             const path = `path=color:0x00ff00ff|weight:2|${sw.lat()},${sw.lng()}|${ne.lat()},${sw.lng()}|${ne.lat()},${ne.lng()}|${sw.lat()},${ne.lng()}|${sw.lat()},${sw.lng()}`;
             
             const url = `https://maps.googleapis.com/maps/api/staticmap?center=${centerLat},${centerLng}&zoom=${zoom}&size=${size}x${size}&scale=${scale}&maptype=${staticMapType}&${path}&key=${apiKey}`;
+            
+            console.log('Requesting Static Maps image:', {
+                size: size,
+                scale: scale,
+                expectedSize: size * scale,
+                center: `${centerLat.toFixed(6)}, ${centerLng.toFixed(6)}`,
+                zoom: zoom
+            });
             
             const img = await loadImage(url);
             
@@ -737,52 +950,120 @@
                 throw new Error('Failed to load map image from Static Maps API');
             }
             
-            console.log('Image loaded successfully:', img.width, 'x', img.height);
+            console.log('Image loaded successfully:', img.width, 'x', img.height, '(expected:', size * scale, 'x', size * scale, ')');
             
-            const imgPixelSize = size * scale; // Actual pixel size: 1280x1280 if size=640, scale=2
+            // Warn if image is smaller than expected
+            if (img.width < size * scale * 0.9 || img.height < size * scale * 0.9) {
+                console.warn('Warning: Image size is smaller than expected!', {
+                    expected: size * scale,
+                    actual: `${img.width} x ${img.height}`
+                });
+            }
             
-            // Calculate what geographic area the image covers
-            // At zoom z, the world is divided into 2^z tiles, each 256 pixels
-            // So each pixel represents: 360 / (2^z * 256) degrees longitude at equator
-            const worldSize = Math.pow(2, zoom) * 256;
-            const degreesPerPixelLng = 360 / worldSize;
+            // Use actual image dimensions, not theoretical size
+            const imgWidth = img.width;
+            const imgHeight = img.height;
             
-            // For latitude, account for Mercator projection
-            const centerLatRad = centerLat * Math.PI / 180;
-            const degreesPerPixelLat = degreesPerPixelLng / Math.cos(centerLatRad);
+            // Calculate what geographic area the image covers using world coordinates
+            // This is the most accurate method - use the same world coordinate system
+            // that Google Maps uses internally
             
-            // Image covers this many degrees (centered on centerLat, centerLng)
-            const imgDegreesLng = imgPixelSize * degreesPerPixelLng;
-            const imgDegreesLat = imgPixelSize * degreesPerPixelLat;
+            // Important: world coordinates are in "tile pixels" at the zoom level
+            // The image pixel dimensions (imgWidth, imgHeight) are actual pixels
+            // With scale=2, the image has 2x the pixels but covers the same geographic area
+            // So we need to convert image pixels to world coordinates (tile pixels)
+            // At zoom z, 1 tile pixel = 1 pixel in a 256x256 tile
+            // The image covers (imgWidth/scale) tile pixels horizontally
             
-            // Image geographic bounds
-            const imgWest = centerLng - imgDegreesLng / 2;
-            const imgEast = centerLng + imgDegreesLng / 2;
-            const imgSouth = centerLat - imgDegreesLat / 2;
-            const imgNorth = centerLat + imgDegreesLat / 2;
+            // The image is centered at (centerX, centerY) in world coordinates
+            // Calculate the world coordinate bounds of the image
+            // Convert image pixels to world coordinate pixels (accounting for scale)
+            const imgWorldWidth = imgWidth / scale;  // Geographic width in world coordinates
+            const imgWorldHeight = imgHeight / scale; // Geographic height in world coordinates
+            const imgWorldLeft = centerX - imgWorldWidth / 2;
+            const imgWorldRight = centerX + imgWorldWidth / 2;
+            const imgWorldTop = centerY - imgWorldHeight / 2;
+            const imgWorldBottom = centerY + imgWorldHeight / 2;
             
-            console.log('Image covers:', {
-                west: imgWest.toFixed(6), east: imgEast.toFixed(6),
-                south: imgSouth.toFixed(6), north: imgNorth.toFixed(6)
+            // Convert image world bounds to lat/lng for verification
+            const imgWest = (imgWorldLeft / worldSize) * 360 - 180;
+            const imgEast = (imgWorldRight / worldSize) * 360 - 180;
+            
+            // Convert world Y to Mercator Y, then to latitude
+            const imgTopMercatorY = 180 - (imgWorldTop / worldSize) * 360;
+            const imgBottomMercatorY = 180 - (imgWorldBottom / worldSize) * 360;
+            const imgNorth = yToLat(imgTopMercatorY);
+            const imgSouth = yToLat(imgBottomMercatorY);
+            
+            console.log('Image geographic bounds:', {
+                west: imgWest.toFixed(6),
+                east: imgEast.toFixed(6),
+                south: imgSouth.toFixed(6),
+                north: imgNorth.toFixed(6),
+                centerLat: centerLat.toFixed(6),
+                centerLng: centerLng.toFixed(6),
+                imgWorldLeft: imgWorldLeft.toFixed(2),
+                imgWorldRight: imgWorldRight.toFixed(2),
+                imgWorldTop: imgWorldTop.toFixed(2),
+                imgWorldBottom: imgWorldBottom.toFixed(2)
             });
+            
+            // Calculate source rectangle in image pixel coordinates
+            // Convert bounding box world coordinates to pixel positions within the image
+            // The bounding box world coordinates are already calculated: swX, swY, neX, neY
+            
+            // Calculate pixel X positions (longitude is linear in world coordinates)
+            // First convert world coordinate positions to image pixel positions
+            // Image pixel X=0 corresponds to imgWorldLeft, X=imgWidth corresponds to imgWorldRight
+            // Convert world coordinate offset to image pixel offset (multiply by scale)
+            const srcXWorld = swX - imgWorldLeft;  // Offset in world coordinates
+            const srcWidthWorld = neX - swX;        // Width in world coordinates
+            const srcX = srcXWorld * scale;          // Convert to image pixels
+            const srcWidth = srcWidthWorld * scale;  // Convert to image pixels
+            
+            // Calculate pixel Y positions (latitude uses Mercator projection)
+            // Image pixel Y=0 corresponds to imgWorldTop (north), Y=imgHeight corresponds to imgWorldBottom (south)
+            // Note: neY is smaller (north/higher), swY is larger (south/lower)
+            // In image coordinates, Y increases downward, so:
+            // - Top of image (Y=0) is at imgWorldTop (smaller Y value = north)
+            // - Bottom of image (Y=imgHeight) is at imgWorldBottom (larger Y value = south)
+            const srcYWorld = neY - imgWorldTop;    // Distance from top in world coordinates
+            const srcHeightWorld = swY - neY;        // Height in world coordinates
+            const srcY = srcYWorld * scale;          // Convert to image pixels
+            const srcHeight = srcHeightWorld * scale; // Convert to image pixels
+            
+            console.log('Source rectangle calculation (world coordinates):', {
+                swX: swX.toFixed(2), swY: swY.toFixed(2),
+                neX: neX.toFixed(2), neY: neY.toFixed(2),
+                centerX: centerX.toFixed(2), centerY: centerY.toFixed(2),
+                imgWorldLeft: imgWorldLeft.toFixed(2), imgWorldRight: imgWorldRight.toFixed(2),
+                imgWorldTop: imgWorldTop.toFixed(2), imgWorldBottom: imgWorldBottom.toFixed(2),
+                srcX: srcX.toFixed(2), srcY: srcY.toFixed(2),
+                srcWidth: srcWidth.toFixed(2), srcHeight: srcHeight.toFixed(2),
+                imgWidth: imgWidth, imgHeight: imgHeight,
+                bboxWest: sw.lng().toFixed(6), bboxEast: ne.lng().toFixed(6),
+                bboxSouth: sw.lat().toFixed(6), bboxNorth: ne.lat().toFixed(6)
+            });
+            
+            // Verify the source rectangle makes sense
+            if (srcX < 0 || srcY < 0 || srcX + srcWidth > imgWidth || srcY + srcHeight > imgHeight) {
+                console.warn('Source rectangle extends outside image bounds!', {
+                    srcX: srcX.toFixed(2),
+                    srcY: srcY.toFixed(2),
+                    srcWidth: srcWidth.toFixed(2),
+                    srcHeight: srcHeight.toFixed(2),
+                    imgWidth: imgWidth,
+                    imgHeight: imgHeight,
+                    extendsLeft: srcX < 0,
+                    extendsTop: srcY < 0,
+                    extendsRight: (srcX + srcWidth) > imgWidth,
+                    extendsBottom: (srcY + srcHeight) > imgHeight
+                });
+            }
+            
             console.log('Bounding box:', {
                 west: sw.lng().toFixed(6), east: ne.lng().toFixed(6),
                 south: sw.lat().toFixed(6), north: ne.lat().toFixed(6)
-            });
-            
-            // Calculate source rectangle in the image (in pixels)
-            // How far from the left edge of the image is our west bound?
-            const srcX = ((sw.lng() - imgWest) / imgDegreesLng) * imgPixelSize;
-            // How far from the top edge of the image is our north bound? (Y increases downward)
-            const srcY = ((imgNorth - ne.lat()) / imgDegreesLat) * imgPixelSize;
-            // Width and height in pixels
-            const srcWidth = ((ne.lng() - sw.lng()) / imgDegreesLng) * imgPixelSize;
-            const srcHeight = ((ne.lat() - sw.lat()) / imgDegreesLat) * imgPixelSize;
-            
-            console.log('Source rectangle:', {
-                x: srcX.toFixed(2), y: srcY.toFixed(2),
-                width: srcWidth.toFixed(2), height: srcHeight.toFixed(2),
-                imgSize: imgPixelSize
             });
             
             // Create canvas with exact dimensions needed
@@ -795,29 +1076,57 @@
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, widthPx, heightPx);
             
-            // Check if bounding box is within image bounds
+            // Check if bounding box is within image bounds (in lat/lng)
             const bboxInImage = sw.lng() >= imgWest && ne.lng() <= imgEast && 
                                sw.lat() >= imgSouth && ne.lat() <= imgNorth;
             
             console.log('Bounding box within image bounds:', bboxInImage);
+            if (!bboxInImage) {
+                console.warn('Warning: Bounding box extends outside image bounds. Some content may be missing.');
+                console.warn('Image bounds:', {
+                    west: imgWest.toFixed(6), east: imgEast.toFixed(6),
+                    south: imgSouth.toFixed(6), north: imgNorth.toFixed(6)
+                });
+                console.warn('Bbox bounds:', {
+                    west: sw.lng().toFixed(6), east: ne.lng().toFixed(6),
+                    south: sw.lat().toFixed(6), north: ne.lat().toFixed(6)
+                });
+            }
             
-            // Clamp source rectangle to image bounds
-            const clampedSrcX = Math.max(0, Math.min(imgPixelSize - 1, Math.floor(srcX)));
-            const clampedSrcY = Math.max(0, Math.min(imgPixelSize - 1, Math.floor(srcY)));
-            const clampedSrcWidth = Math.max(1, Math.min(imgPixelSize - clampedSrcX, Math.ceil(srcWidth)));
-            const clampedSrcHeight = Math.max(1, Math.min(imgPixelSize - clampedSrcY, Math.ceil(srcHeight)));
+            // Clamp source rectangle to image bounds, but preserve aspect ratio
+            let clampedSrcX = Math.max(0, Math.min(imgWidth - 1, Math.floor(srcX)));
+            let clampedSrcY = Math.max(0, Math.min(imgHeight - 1, Math.floor(srcY)));
+            let clampedSrcWidth = Math.max(1, Math.min(imgWidth - clampedSrcX, Math.ceil(srcWidth)));
+            let clampedSrcHeight = Math.max(1, Math.min(imgHeight - clampedSrcY, Math.ceil(srcHeight)));
+            
+            // Ensure we don't exceed image bounds
+            if (clampedSrcX + clampedSrcWidth > imgWidth) {
+                clampedSrcWidth = imgWidth - clampedSrcX;
+            }
+            if (clampedSrcY + clampedSrcHeight > imgHeight) {
+                clampedSrcHeight = imgHeight - clampedSrcY;
+            }
+            
+            // Verify aspect ratio matches expected output
+            const expectedAspect = widthPx / heightPx;
+            const sourceAspect = clampedSrcWidth / clampedSrcHeight;
+            const aspectDiff = Math.abs(expectedAspect - sourceAspect);
             
             console.log('Clamped source rectangle:', {
                 x: clampedSrcX, y: clampedSrcY,
                 width: clampedSrcWidth, height: clampedSrcHeight,
-                imgWidth: img.width, imgHeight: img.height
+                imgWidth: imgWidth, imgHeight: imgHeight,
+                expectedAspect: expectedAspect.toFixed(4),
+                sourceAspect: sourceAspect.toFixed(4),
+                aspectDiff: aspectDiff.toFixed(4)
             });
             
             // Draw the cropped portion, scaling to exact output size
             if (clampedSrcWidth > 0 && clampedSrcHeight > 0 && 
-                clampedSrcX < img.width && clampedSrcY < img.height &&
-                clampedSrcX + clampedSrcWidth <= img.width && 
-                clampedSrcY + clampedSrcHeight <= img.height) {
+                clampedSrcX >= 0 && clampedSrcY >= 0 &&
+                clampedSrcX < imgWidth && clampedSrcY < imgHeight &&
+                clampedSrcX + clampedSrcWidth <= imgWidth && 
+                clampedSrcY + clampedSrcHeight <= imgHeight) {
                 try {
                     ctx.drawImage(
                         img,
@@ -833,10 +1142,12 @@
                 }
             } else {
                 // Fallback: draw full image scaled
-                console.warn('Invalid crop values or bounds, using fallback. Drawing full image.');
-                console.warn('Values:', {
+                console.error('Invalid crop values or bounds, using fallback. Drawing full image.');
+                console.error('Values:', {
                     clampedSrcX, clampedSrcY, clampedSrcWidth, clampedSrcHeight,
-                    imgWidth: img.width, imgHeight: img.height
+                    imgWidth: imgWidth, imgHeight: imgHeight,
+                    srcX: srcX.toFixed(2), srcY: srcY.toFixed(2),
+                    srcWidth: srcWidth.toFixed(2), srcHeight: srcHeight.toFixed(2)
                 });
                 ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, widthPx, heightPx);
             }
@@ -851,90 +1162,227 @@
             
             const baseTileSize = 640;
             const scale = 2; // Use scale=2 for 1280x1280 effective resolution
-            const tilePixelSize = baseTileSize * scale; // 1280 pixels
+            const imgPixelSize = baseTileSize * scale; // 1280 pixels
             
             // Calculate world coordinates at this zoom level
             const worldSize = Math.pow(2, zoom) * 256;
             
-            // Convert bounds to pixel coordinates
-            const swPixelX = (sw.lng() + 180) / 360 * worldSize;
-            const swPixelY = (180 - latToY(sw.lat())) / 360 * worldSize;
-            const nePixelX = (ne.lng() + 180) / 360 * worldSize;
-            const nePixelY = (180 - latToY(ne.lat())) / 360 * worldSize;
+            // Convert bounding box to world coordinates
+            const swWorldX = (sw.lng() + 180) / 360 * worldSize;
+            const swWorldY = (180 - latToY(sw.lat())) / 360 * worldSize;
+            const neWorldX = (ne.lng() + 180) / 360 * worldSize;
+            const neWorldY = (180 - latToY(ne.lat())) / 360 * worldSize;
             
-            // Calculate tile dimensions in pixels
-            const tileWidthPx = Math.ceil(outputWidth / tilesX);
-            const tileHeightPx = Math.ceil(outputHeight / tilesY);
+            // Calculate bounding box dimensions in world coordinates
+            const bboxWorldWidth = neWorldX - swWorldX;
+            const bboxWorldHeight = swWorldY - neWorldY; // swWorldY > neWorldY (south is lower)
             
-            // Create output canvas
+            // Calculate each tile's world coordinate size
+            const tileWorldWidth = bboxWorldWidth / tilesX;
+            const tileWorldHeight = bboxWorldHeight / tilesY;
+            
+            // Calculate the actual pixel size each tile should be in the output
+            // Each tile represents tileWorldWidth x tileWorldHeight world coordinate units
+            // At zoom level z, 1 world coordinate unit = 1 pixel
+            // So each tile should be tileWorldWidth x tileWorldHeight pixels
+            const tileOutputWidth = Math.ceil(tileWorldWidth);
+            const tileOutputHeight = Math.ceil(tileWorldHeight);
+            
+            // Recalculate output canvas size to match the actual tile sizes
+            // This ensures we use the full resolution of the extracted portions
+            const actualOutputWidth = tileOutputWidth * tilesX;
+            const actualOutputHeight = tileOutputHeight * tilesY;
+            
+            // Create output canvas at the correct resolution
             const canvas = document.createElement('canvas');
-            canvas.width = outputWidth;
-            canvas.height = outputHeight;
+            canvas.width = actualOutputWidth;
+            canvas.height = actualOutputHeight;
             const ctx = canvas.getContext('2d');
+            
+            // Fill with white background
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, actualOutputWidth, actualOutputHeight);
+            
+            console.log('Starting tiled download:', {
+                tilesX, tilesY,
+                bboxWorldWidth: bboxWorldWidth.toFixed(2),
+                bboxWorldHeight: bboxWorldHeight.toFixed(2),
+                tileWorldWidth: tileWorldWidth.toFixed(2),
+                tileWorldHeight: tileWorldHeight.toFixed(2),
+                tileOutputWidth, tileOutputHeight,
+                originalOutputSize: `${outputWidth} x ${outputHeight}`,
+                actualOutputSize: `${actualOutputWidth} x ${actualOutputHeight}`
+            });
             
             // Fetch and stitch tiles
             for (let y = 0; y < tilesY; y++) {
                 for (let x = 0; x < tilesX; x++) {
-                    // Calculate this tile's pixel boundaries in output canvas
-                    const tileStartX = x * tileWidthPx;
-                    const tileStartY = y * tileHeightPx;
-                    const tileEndX = Math.min((x + 1) * tileWidthPx, outputWidth);
-                    const tileEndY = Math.min((y + 1) * tileHeightPx, outputHeight);
-                    const tileWidth = tileEndX - tileStartX;
-                    const tileHeight = tileEndY - tileStartY;
+                    // Calculate this tile's geographic bounds in world coordinates
+                    const tileWorldX = swWorldX + x * tileWorldWidth;
+                    const tileWorldY = neWorldY + y * tileWorldHeight; // Start from north
+                    const tileWorldX2 = swWorldX + (x + 1) * tileWorldWidth;
+                    const tileWorldY2 = neWorldY + (y + 1) * tileWorldHeight;
                     
-                    // Convert tile boundaries to world coordinates
-                    const tileWorldX = swPixelX + tileStartX;
-                    const tileWorldY = swPixelY + tileStartY;
-                    const tileWorldX2 = swPixelX + tileEndX;
-                    const tileWorldY2 = swPixelY + tileEndY;
+                    // Calculate tile center in world coordinates first (for consistency)
+                    const tileCenterWorldX = (tileWorldX + tileWorldX2) / 2;
+                    const tileCenterWorldY = (tileWorldY + tileWorldY2) / 2;
                     
-                    // Convert to lat/lng for tile center
-                    const tileCenterX = (tileWorldX + tileWorldX2) / 2;
-                    const tileCenterY = (tileWorldY + tileWorldY2) / 2;
-                    const tileCenterLng = (tileCenterX / worldSize) * 360 - 180;
-                    const tileCenterLat = yToLat(180 - (tileCenterY / worldSize) * 360);
+                    // Convert tile center to lat/lng for Static Maps API request
+                    const tileCenterLng = (tileCenterWorldX / worldSize) * 360 - 180;
+                    const tileCenterLat = yToLat(180 - (tileCenterWorldY / worldSize) * 360);
                     
-                    // Request Static Maps image
+                    // Calculate this tile's position in output canvas
+                    // Use the calculated tile sizes for perfect alignment
+                    const tileOutputX = x * tileOutputWidth;
+                    const tileOutputY = y * tileOutputHeight;
+                    // For the last tile in each direction, use the remaining space to avoid gaps
+                    const finalTileOutputWidth = (x === tilesX - 1) ? (actualOutputWidth - tileOutputX) : tileOutputWidth;
+                    const finalTileOutputHeight = (y === tilesY - 1) ? (actualOutputHeight - tileOutputY) : tileOutputHeight;
+                    
+                    // Verify tile boundaries align (for debugging)
+                    if (x === 0 && y === 0) {
+                        console.log(`First tile (0,0):`, {
+                            tileWorldBounds: `(${tileWorldX.toFixed(2)}, ${tileWorldY.toFixed(2)}) to (${tileWorldX2.toFixed(2)}, ${tileWorldY2.toFixed(2)})`,
+                            tileWorldSize: `${tileWorldWidth.toFixed(2)} x ${tileWorldHeight.toFixed(2)}`,
+                            outputBounds: `(${tileOutputX}, ${tileOutputY}) to (${tileOutputX + finalTileOutputWidth}, ${tileOutputY + finalTileOutputHeight})`,
+                            outputSize: `${finalTileOutputWidth} x ${finalTileOutputHeight}`,
+                            canvasSize: `${actualOutputWidth} x ${actualOutputHeight}`
+                        });
+                    }
+                    
+                    // Request Static Maps image centered on this tile
                     const url = `https://maps.googleapis.com/maps/api/staticmap?center=${tileCenterLat},${tileCenterLng}&zoom=${zoom}&size=${baseTileSize}x${baseTileSize}&scale=${scale}&maptype=${staticMapType}&key=${apiKey}`;
                     
                     try {
                         const img = await loadImage(url);
                         
-                        // The image covers tilePixelSize pixels in world coordinates
-                        // Image bounds in world coordinates (centered on tileCenterX, tileCenterY)
-                        const imgWorldLeft = tileCenterX - tilePixelSize / 2;
-                        const imgWorldTop = tileCenterY - tilePixelSize / 2;
-                        const imgWorldRight = tileCenterX + tilePixelSize / 2;
-                        const imgWorldBottom = tileCenterY + tilePixelSize / 2;
+                        // Use the FULL 1280x1280 image and scale it to cover the tile's geographic area
+                        // This preserves all available detail from the high-resolution source
+                        const imgPixelWidth = img.width;   // 1280
+                        const imgPixelHeight = img.height; // 1280
+                        const imgWorldSize = imgPixelSize; // 1280 world coordinate units
                         
-                        // Calculate intersection of tile area with image area
-                        const intersectLeft = Math.max(imgWorldLeft, tileWorldX);
-                        const intersectTop = Math.max(imgWorldTop, tileWorldY);
-                        const intersectRight = Math.min(imgWorldRight, tileWorldX2);
-                        const intersectBottom = Math.min(imgWorldBottom, tileWorldY2);
+                        // Image bounds in world coordinates (centered on tile center)
+                        const imgWorldLeft = tileCenterWorldX - imgWorldSize / 2;
+                        const imgWorldRight = tileCenterWorldX + imgWorldSize / 2;
+                        const imgWorldTop = tileCenterWorldY - imgWorldSize / 2;
+                        const imgWorldBottom = tileCenterWorldY + imgWorldSize / 2;
+                        const imgWorldWidth = imgWorldRight - imgWorldLeft;
+                        const imgWorldHeight = imgWorldBottom - imgWorldTop;
                         
-                        // Calculate source rectangle in the image (in pixels)
-                        const srcX = Math.max(0, ((intersectLeft - imgWorldLeft) / tilePixelSize) * tilePixelSize);
-                        const srcY = Math.max(0, ((intersectTop - imgWorldTop) / tilePixelSize) * tilePixelSize);
-                        const srcRight = Math.min(tilePixelSize, ((intersectRight - imgWorldLeft) / tilePixelSize) * tilePixelSize);
-                        const srcBottom = Math.min(tilePixelSize, ((intersectBottom - imgWorldTop) / tilePixelSize) * tilePixelSize);
-                        const srcWidth = srcRight - srcX;
-                        const srcHeight = srcBottom - srcY;
+                        // Calculate what portion of the image corresponds to our tile's geographic area
+                        // Map tile world bounds to image pixel coordinates
+                        const srcX = ((tileWorldX - imgWorldLeft) / imgWorldWidth) * imgPixelWidth;
+                        const srcY = ((tileWorldY - imgWorldTop) / imgWorldHeight) * imgPixelHeight;
+                        const srcX2 = ((tileWorldX2 - imgWorldLeft) / imgWorldWidth) * imgPixelWidth;
+                        const srcY2 = ((tileWorldY2 - imgWorldTop) / imgWorldHeight) * imgPixelHeight;
                         
-                        // Draw to exact position in output canvas
-                        if (srcWidth > 0 && srcHeight > 0 && tileWidth > 0 && tileHeight > 0) {
+                        // Calculate tile world dimensions
+                        const tileWorldWidth = tileWorldX2 - tileWorldX;
+                        const tileWorldHeight = tileWorldY2 - tileWorldY;
+                        
+                        // Extract a larger portion with margin to get more pixels
+                        // Use 50% margin (1.5x the tile size) to maximize resolution
+                        const margin = 0.5; // 50% margin on each side = 2x total size
+                        const srcWidth = srcX2 - srcX;
+                        const srcHeight = srcY2 - srcY;
+                        const srcXWithMargin = Math.max(0, srcX - srcWidth * margin);
+                        const srcYWithMargin = Math.max(0, srcY - srcHeight * margin);
+                        const srcX2WithMargin = Math.min(imgPixelWidth, srcX2 + srcWidth * margin);
+                        const srcY2WithMargin = Math.min(imgPixelHeight, srcY2 + srcHeight * margin);
+                        
+                        const finalSrcX = Math.floor(srcXWithMargin);
+                        const finalSrcY = Math.floor(srcYWithMargin);
+                        const finalSrcX2 = Math.ceil(srcX2WithMargin);
+                        const finalSrcY2 = Math.ceil(srcY2WithMargin);
+                        const finalSrcWidth = finalSrcX2 - finalSrcX;
+                        const finalSrcHeight = finalSrcY2 - finalSrcY;
+                        
+                        // Use the larger source rectangle with margin - this gives us more pixels
+                        const finalClampedSrcX = finalSrcX;
+                        const finalClampedSrcY = finalSrcY;
+                        const finalClampedSrcWidth = finalSrcWidth;
+                        const finalClampedSrcHeight = finalSrcHeight;
+                        
+                        // Use the FULL extracted resolution - don't scale down
+                        // This preserves all available detail
+                        // Calculate where the tile's geographic area is within the extracted portion
+                        const tileOffsetInSrcX = srcX - finalSrcX;
+                        const tileOffsetInSrcY = srcY - finalSrcY;
+                        const tileSizeInSrcX = srcX2 - srcX;
+                        const tileSizeInSrcY = srcY2 - srcY;
+                        
+                        // The extracted portion covers more area, so we need to scale it
+                        // But we want to use the full resolution, so scale the destination to match
+                        const extractedWorldWidth = (finalSrcWidth / imgPixelWidth) * imgWorldWidth;
+                        const extractedWorldHeight = (finalSrcHeight / imgPixelHeight) * imgWorldHeight;
+                        const scaleToTile = Math.min(tileWorldWidth / extractedWorldWidth, tileWorldHeight / extractedWorldHeight);
+                        
+                        // Destination: use full extracted resolution scaled to fit tile
+                        const destWidthFromExtraction = finalSrcWidth * scaleToTile;
+                        const destHeightFromExtraction = finalSrcHeight * scaleToTile;
+                        
+                        // Use the tile output size for destination
+                        const destX = tileOutputX;
+                        const destY = tileOutputY;
+                        const destWidth = finalTileOutputWidth;
+                        const destHeight = finalTileOutputHeight;
+                        
+                        // Verify aspect ratios match (critical for alignment)
+                        const finalSrcAspect = finalClampedSrcWidth / finalClampedSrcHeight;
+                        const finalDestAspect = destWidth / destHeight;
+                        const aspectDiff = Math.abs(finalSrcAspect - finalDestAspect);
+                        
+                        // Debug logging for first few tiles - show raw calculations
+                        if ((x < 2 && y < 2)) {
+                            // Verify the calculation step by step
+                            const tileOffsetX = tileWorldX - imgWorldLeft;
+                            const tileOffsetY = tileWorldY - imgWorldTop;
+                            const tileOffsetX2 = tileWorldX2 - imgWorldLeft;
+                            const tileOffsetY2 = tileWorldY2 - imgWorldTop;
+                            
+                            console.log(`Tile ${x},${y} DETAILED:`, {
+                                tileWorldBounds: `X:${tileWorldX.toFixed(2)}-${tileWorldX2.toFixed(2)} (width:${(tileWorldX2-tileWorldX).toFixed(2)}), Y:${tileWorldY.toFixed(2)}-${tileWorldY2.toFixed(2)} (height:${(tileWorldY2-tileWorldY).toFixed(2)})`,
+                                tileCenter: `(${tileCenterWorldX.toFixed(2)}, ${tileCenterWorldY.toFixed(2)})`,
+                                imgWorldBounds: `X:${imgWorldLeft.toFixed(2)}-${imgWorldRight.toFixed(2)} (width:${imgWorldWidth.toFixed(2)}), Y:${imgWorldTop.toFixed(2)}-${imgWorldBottom.toFixed(2)} (height:${imgWorldHeight.toFixed(2)})`,
+                                tileOffset: `X:${tileOffsetX.toFixed(2)}-${tileOffsetX2.toFixed(2)}, Y:${tileOffsetY.toFixed(2)}-${tileOffsetY2.toFixed(2)}`,
+                                rawSrc: `X:${srcX.toFixed(2)}-${srcX2.toFixed(2)} (${(srcX2-srcX).toFixed(2)}), Y:${srcY.toFixed(2)}-${srcY2.toFixed(2)} (${(srcY2-srcY).toFixed(2)})`,
+                                srcWithMargin: `${finalSrcX},${finalSrcY} ${finalSrcWidth}x${finalSrcHeight}`,
+                                fullImage: `${imgPixelWidth}x${imgPixelHeight}`,
+                                clampedSrc: `${finalClampedSrcX.toFixed(1)},${finalClampedSrcY.toFixed(1)} ${finalClampedSrcWidth.toFixed(1)}x${finalClampedSrcHeight.toFixed(1)} (aspect: ${finalSrcAspect.toFixed(4)})`,
+                                dest: `${destX},${destY} ${destWidth}x${destHeight} (aspect: ${finalDestAspect.toFixed(4)})`,
+                                aspectDiff: aspectDiff.toFixed(6),
+                                // Check if tile is centered in image
+                                tileCenterOffsetX: (tileCenterWorldX - imgWorldLeft).toFixed(2),
+                                tileCenterOffsetY: (tileCenterWorldY - imgWorldTop).toFixed(2),
+                                expectedCenterX: (imgWorldWidth / 2).toFixed(2),
+                                expectedCenterY: (imgWorldHeight / 2).toFixed(2)
+                            });
+                            
+                            if (aspectDiff > 0.001) {
+                                console.warn(`⚠️ Tile ${x},${y}: Aspect ratio mismatch! src=${finalSrcAspect.toFixed(4)}, dest=${finalDestAspect.toFixed(4)}, diff=${aspectDiff.toFixed(4)}`);
+                            }
+                        }
+                        
+                        if (finalClampedSrcWidth > 0 && finalClampedSrcHeight > 0 && destWidth > 0 && destHeight > 0) {
+                            // Draw the cropped portion of the full-resolution image
+                            // This preserves all available detail from the 1280x1280 source
                             ctx.drawImage(
                                 img,
-                                srcX, srcY, srcWidth, srcHeight,
-                                tileStartX, tileStartY, tileWidth, tileHeight
+                                finalClampedSrcX, finalClampedSrcY, finalClampedSrcWidth, finalClampedSrcHeight,
+                                destX, destY, destWidth, destHeight
                             );
+                        } else {
+                            console.warn(`Tile ${x},${y}: Invalid dimensions`, {
+                                src: `${finalClampedSrcX.toFixed(2)},${finalClampedSrcY.toFixed(2)} ${finalClampedSrcWidth.toFixed(2)}x${finalClampedSrcHeight.toFixed(2)}`,
+                                dest: `${destX.toFixed(2)},${destY.toFixed(2)} ${destWidth.toFixed(2)}x${destHeight.toFixed(2)}`
+                            });
                         }
                     } catch (error) {
                         console.warn(`Failed to load tile ${x},${y}:`, error);
                         // Draw placeholder
                         ctx.fillStyle = '#cccccc';
-                        ctx.fillRect(tileStartX, tileStartY, tileWidth, tileHeight);
+                        ctx.fillRect(tileOutputX, tileOutputY, finalTileOutputWidth, finalTileOutputHeight);
                     }
                 }
             }
