@@ -590,6 +590,8 @@
         }
 
         async function downloadMap() {
+            console.log('downloadMap called');
+            
             if (!currentBounds || !map) {
                 showError('Please draw a bounding box first.');
                 return;
@@ -604,6 +606,17 @@
             const mapType = map.getMapTypeId();
             const ne = currentBounds.getNorthEast();
             const sw = currentBounds.getSouthWest();
+
+            console.log('Starting download:', {
+                zoom: zoom,
+                mapType: mapType,
+                bounds: {
+                    north: ne.lat(),
+                    south: sw.lat(),
+                    east: ne.lng(),
+                    west: sw.lng()
+                }
+            });
 
             // Show loading overlay
             document.getElementById('loadingOverlay').classList.add('show');
@@ -621,21 +634,49 @@
                 const widthPixels = Math.ceil(neX - swX);
                 const heightPixels = Math.ceil(neY - swY);
                 
+                console.log('Calculated dimensions:', widthPixels, 'x', heightPixels, 'pixels');
+                
                 // Static Maps API max size is 640x640, but with scale=2 we get 1280x1280
                 const maxTileSize = 1280; // Using scale=2
                 const tilesX = Math.ceil(widthPixels / maxTileSize);
                 const tilesY = Math.ceil(heightPixels / maxTileSize);
                 
+                console.log('Tiling:', tilesX, 'x', tilesY, 'tiles needed');
+                
                 let canvas;
                 
                 if (tilesX === 1 && tilesY === 1 && widthPixels <= maxTileSize && heightPixels <= maxTileSize) {
                     // Single tile - simple case
+                    console.log('Using single tile download');
                     canvas = await downloadSingleTile(sw, ne, zoom, mapType, widthPixels, heightPixels);
                 } else {
                     // Multiple tiles needed - use improved tiling
+                    console.log('Using tiled download');
                     canvas = await downloadTiledMap(sw, ne, zoom, mapType, tilesX, tilesY, widthPixels, heightPixels);
                 }
-
+                
+                console.log('Canvas created:', canvas.width, 'x', canvas.height);
+                
+                // Verify canvas has content (not all white/black)
+                const ctx = canvas.getContext('2d');
+                const imageData = ctx.getImageData(0, 0, Math.min(100, canvas.width), Math.min(100, canvas.height));
+                const pixels = imageData.data;
+                let hasContent = false;
+                for (let i = 0; i < pixels.length; i += 4) {
+                    // Check if pixel is not pure white or pure black
+                    if (!(pixels[i] === 255 && pixels[i+1] === 255 && pixels[i+2] === 255) &&
+                        !(pixels[i] === 0 && pixels[i+1] === 0 && pixels[i+2] === 0)) {
+                        hasContent = true;
+                        break;
+                    }
+                }
+                
+                if (!hasContent) {
+                    console.warn('Canvas appears to be empty (all white/black), this might indicate a problem');
+                }
+                
+                console.log('Downloading canvas as PNG...');
+                
                 // Download
                 const dataURL = canvas.toDataURL('image/png');
                 const link = document.createElement('a');
@@ -644,6 +685,8 @@
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+
+                console.log('Download complete');
 
                 // Update map size info
                 document.getElementById('mapSizeInfo').textContent = 
@@ -752,6 +795,12 @@
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, widthPx, heightPx);
             
+            // Check if bounding box is within image bounds
+            const bboxInImage = sw.lng() >= imgWest && ne.lng() <= imgEast && 
+                               sw.lat() >= imgSouth && ne.lat() <= imgNorth;
+            
+            console.log('Bounding box within image bounds:', bboxInImage);
+            
             // Clamp source rectangle to image bounds
             const clampedSrcX = Math.max(0, Math.min(imgPixelSize - 1, Math.floor(srcX)));
             const clampedSrcY = Math.max(0, Math.min(imgPixelSize - 1, Math.floor(srcY)));
@@ -760,20 +809,35 @@
             
             console.log('Clamped source rectangle:', {
                 x: clampedSrcX, y: clampedSrcY,
-                width: clampedSrcWidth, height: clampedSrcHeight
+                width: clampedSrcWidth, height: clampedSrcHeight,
+                imgWidth: img.width, imgHeight: img.height
             });
             
             // Draw the cropped portion, scaling to exact output size
-            if (clampedSrcWidth > 0 && clampedSrcHeight > 0) {
-                ctx.drawImage(
-                    img,
-                    clampedSrcX, clampedSrcY, clampedSrcWidth, clampedSrcHeight,
-                    0, 0, widthPx, heightPx
-                );
-                console.log('Image drawn to canvas successfully');
+            if (clampedSrcWidth > 0 && clampedSrcHeight > 0 && 
+                clampedSrcX < img.width && clampedSrcY < img.height &&
+                clampedSrcX + clampedSrcWidth <= img.width && 
+                clampedSrcY + clampedSrcHeight <= img.height) {
+                try {
+                    ctx.drawImage(
+                        img,
+                        clampedSrcX, clampedSrcY, clampedSrcWidth, clampedSrcHeight,
+                        0, 0, widthPx, heightPx
+                    );
+                    console.log('Image drawn to canvas successfully');
+                } catch (drawError) {
+                    console.error('Error drawing image:', drawError);
+                    // Fallback: draw full image scaled
+                    console.log('Using fallback: drawing full image');
+                    ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, widthPx, heightPx);
+                }
             } else {
                 // Fallback: draw full image scaled
-                console.error('Invalid crop values, using fallback. Drawing full image.');
+                console.warn('Invalid crop values or bounds, using fallback. Drawing full image.');
+                console.warn('Values:', {
+                    clampedSrcX, clampedSrcY, clampedSrcWidth, clampedSrcHeight,
+                    imgWidth: img.width, imgHeight: img.height
+                });
                 ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, widthPx, heightPx);
             }
             
@@ -880,11 +944,20 @@
 
         function loadImage(url) {
             return new Promise((resolve, reject) => {
+                console.log('Loading image from URL:', url.substring(0, 150) + '...');
                 const img = new Image();
                 img.crossOrigin = 'anonymous';
                 
-                img.onload = () => resolve(img);
-                img.onerror = () => reject(new Error('Failed to load image from Static Maps API. Check your API key and ensure Static Maps API is enabled.'));
+                img.onload = () => {
+                    console.log('Image loaded successfully:', img.width, 'x', img.height);
+                    resolve(img);
+                };
+                
+                img.onerror = (error) => {
+                    console.error('Image load failed:', error);
+                    console.error('Failed URL:', url);
+                    reject(new Error('Failed to load image from Static Maps API. Check your API key and ensure Static Maps API is enabled.'));
+                };
                 
                 img.src = url;
             });
