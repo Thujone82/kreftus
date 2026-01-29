@@ -1680,12 +1680,18 @@ while ($true) {
                 $apiData = Get-BestApiData -Preferred $returned
                 # After returning from trade, always reload config to ensure the main screen is perfectly in sync.
                 $config = Get-IniConfiguration -FilePath $iniFilePath
+                # Stale check: refresh API data before showing main screen if >15 minutes old.
+                $isStale = -not $apiData -or (-not $apiData.PSObject.Properties['HistoricalDataFetchTime']) -or (((Get-Date).ToUniversalTime() - $apiData.HistoricalDataFetchTime).TotalMinutes -gt 15)
+                if ($isStale) { $apiData = Update-ApiData -Config $config -OldApiData $apiData }
             }
             "sell" {
                 $returned = Invoke-Trade -Config ([ref]$config) -Type "Sell" -AmountString $amount -CurrentApiData $apiData
                 $apiData = Get-BestApiData -Preferred $returned
                 # After returning from trade, always reload config to ensure the main screen is perfectly in sync.
                 $config = Get-IniConfiguration -FilePath $iniFilePath
+                # Stale check: refresh API data before showing main screen if >15 minutes old.
+                $isStale = -not $apiData -or (-not $apiData.PSObject.Properties['HistoricalDataFetchTime']) -or (((Get-Date).ToUniversalTime() - $apiData.HistoricalDataFetchTime).TotalMinutes -gt 15)
+                if ($isStale) { $apiData = Update-ApiData -Config $config -OldApiData $apiData }
             }
             "ledger" { Show-LedgerScreen }
             "refresh" {

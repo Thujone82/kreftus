@@ -220,6 +220,10 @@ func mainLoop(reader *bufio.Reader) {
 				} else {
 					cfg = reloadedCfg
 				}
+				// Stale check: refresh API data before showing main screen if >15 minutes old.
+				if isApiDataStale() {
+					apiData = updateApiData(false)
+				}
 			case "sell":
 				returnedApiData := invokeTrade(reader, "Sell", amount)
 				if returnedApiData != nil {
@@ -233,6 +237,10 @@ func mainLoop(reader *bufio.Reader) {
 					reader.ReadString('\n')
 				} else {
 					cfg = reloadedCfg
+				}
+				// Stale check: refresh API data before showing main screen if >15 minutes old.
+				if isApiDataStale() {
+					apiData = updateApiData(false)
 				}
 			case "ledger":
 				showLedgerScreen(reader)
@@ -1349,6 +1357,14 @@ func getHistoricalData(apiKey string, start, end int64) (*HistoryResponse, error
 		return nil, fmt.Errorf("failed to unmarshal response for historical price: %w", err)
 	}
 	return &history, nil
+}
+
+// isApiDataStale returns true if apiData is nil or older than 15 minutes (so we should refresh before showing main screen).
+func isApiDataStale() bool {
+	if apiData == nil {
+		return true
+	}
+	return time.Since(apiData.HistoricalDataFetchTime).Minutes() > 15
 }
 
 func updateApiData(skipHistorical bool) *ApiDataResponse {
