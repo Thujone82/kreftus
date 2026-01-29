@@ -1,4 +1,4 @@
-﻿let CACHE_NAME = 'forecast-v1.0.0-012226@1956';
+﻿let CACHE_NAME = 'forecast-v1.0.0-012926@0812';
 let STATIC_CACHE = 'forecast-static-v1.0.0';
 let DATA_CACHE = 'forecast-data-v1.0.0';
 
