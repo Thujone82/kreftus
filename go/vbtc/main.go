@@ -372,7 +372,12 @@ func showMainScreen() {
 			writeAlignedLine("Volatility:", fmt.Sprintf("%.2f%%", apiData.Volatility24h), volatilityColor)
 		}
 		writeAlignedLine("24H Volume:", fmt.Sprintf("$%s", formatFloat(apiData.Volume, 0)), color.New(color.FgWhite))
-		writeAlignedLine("Time:", apiData.FetchTime.Local().Format("010206@150405"), color.New(color.FgCyan))
+		// Time: shows when the (historical) API data was fetched, not when the main modal was loaded.
+		dataTime := apiData.FetchTime
+		if !apiData.HistoricalDataFetchTime.IsZero() {
+			dataTime = apiData.HistoricalDataFetchTime
+		}
+		writeAlignedLine("Time:", dataTime.Local().Format("010206@150405"), color.New(color.FgCyan))
 	}
 
 	// Portfolio

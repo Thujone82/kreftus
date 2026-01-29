@@ -490,7 +490,12 @@ function Show-MainScreen {
         }
 
         $volDisplay = "$($ApiData.volume.ToString("C0"))"
-        $timeDisplay = $ApiData.fetchTime.ToLocalTime().ToString("MMddyy@HHmmss")
+        # Time: shows when the (historical) API data was fetched, not when the main modal was loaded.
+        $timeDisplay = if ($ApiData.PSObject.Properties['HistoricalDataFetchTime'] -and $ApiData.HistoricalDataFetchTime) {
+            $ApiData.HistoricalDataFetchTime.ToLocalTime().ToString("MMddyy@HHmmss")
+        } else {
+            $ApiData.fetchTime.ToLocalTime().ToString("MMddyy@HHmmss")
+        }
 
     } else {
         # Default/Warning Values
