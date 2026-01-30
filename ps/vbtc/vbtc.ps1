@@ -751,22 +751,32 @@ function Get-LedgerTotals {
     $sellTransactions = 0
     $totalWeightedBuyPrice = 0.0
     $totalWeightedSellPrice = 0.0
+    $minUSD = [double]::MaxValue
+    $maxUSD = [double]::MinValue
 
     if ($null -ne $LedgerData) {
         foreach ($row in $LedgerData) {
+            $rowUSD = [double]$row.USD
+            # Tx Range = min/max Bitcoin price (USD per BTC) at time of any transaction, not total tx value
+            $rowBtcPrice = [double]$row.'BTC(USD)'
+            if ($rowBtcPrice -gt 0) {
+                if ($rowBtcPrice -lt $minUSD) { $minUSD = $rowBtcPrice }
+                if ($rowBtcPrice -gt $maxUSD) { $maxUSD = $rowBtcPrice }
+            }
             if ($row.TX -eq "Buy") {
-                $totalBuyUSD += [double]$row.USD
+                $totalBuyUSD += $rowUSD
                 $totalBuyBTC += [double]$row.BTC
                 $buyTransactions++
                 $totalWeightedBuyPrice += [double]$row.'BTC(USD)' * [double]$row.BTC
             } elseif ($row.TX -eq "Sell") {
-                $totalSellUSD += [double]$row.USD
+                $totalSellUSD += $rowUSD
                 $totalSellBTC += [double]$row.BTC
                 $sellTransactions++
                 $totalWeightedSellPrice += [double]$row.'BTC(USD)' * [double]$row.BTC
             }
         }
     }
+    if ($minUSD -gt $maxUSD) { $minUSD = 0; $maxUSD = 0 }
 
     # Calculate average prices (weighted by BTC amount)
     $avgBuyPrice = 0.0
@@ -787,6 +797,8 @@ function Get-LedgerTotals {
         AvgSalePrice     = $avgSalePrice
         BuyTransactions  = $buyTransactions
         SellTransactions = $sellTransactions
+        MinUSD           = $minUSD
+        MaxUSD           = $maxUSD
     }
 }
 
@@ -1562,12 +1574,6 @@ function Show-LedgerScreen {
 
                 Write-AlignedLine -Label "Portfolio Value:" -Value ("{0:C2}" -f $portfolioValue) -ValueColor $portfolioColor
 
-                $profit = $portfolioValue - $startingCapital
-                $profitColor = "White"
-                if ($profit -gt 0) { $profitColor = "Green" }
-                elseif ($profit -lt 0) { $profitColor = "Red" }
-                Write-AlignedLine -Label "Total Profit/Loss:" -Value ("{0:C2}" -f $profit) -ValueColor $profitColor
-
                 # Trading Statistics Section
                 if ($summary.TotalBuyUSD -gt 0) {
                     Write-AlignedLine -Label "Total Bought (USD):" -Value ("{0:C2}" -f $summary.TotalBuyUSD) -ValueColor "Green"
@@ -1586,6 +1592,9 @@ function Show-LedgerScreen {
 
                 if ($summary.AvgSalePrice -gt 0) {
                     Write-AlignedLine -Label "Average Sale:" -Value ("{0:C2}" -f $summary.AvgSalePrice) -ValueColor "Red"
+                }
+                if ($totalTransactions -gt 0 -and $summary.MaxUSD -ge $summary.MinUSD) {
+                    Write-AlignedLine -Label "Tx Range:" -Value ("{0:C2} - {1:C2}" -f $summary.MinUSD, $summary.MaxUSD) -ValueColor "White"
                 }
             }
         }
@@ -1723,7 +1732,6 @@ while ($true) {
                 else { "White" }
             
                 Write-AlignedLine -Label "Portfolio Value:" -Value ("{0:C2}" -f $finalValue) -ValueColor $profitColor
-                Write-AlignedLine -Label "Total Profit/Loss:" -Value ("{0:C2}" -f $profit) -ValueColor $profitColor
 
                 # --- Session Summary ---
                 Write-Host ""
@@ -1797,6 +1805,10 @@ while ($true) {
                     }
                     if ($allTimeSummary.AvgSalePrice -gt 0) {
                         Write-AlignedLine -Label "Average Sale:" -Value ("{0:C2}" -f $allTimeSummary.AvgSalePrice) -ValueColor "Red" -ValueStartColumn $ledgerValueStartColumn
+                    }
+                    $exitTxCount = $allTimeSummary.BuyTransactions + $allTimeSummary.SellTransactions
+                    if ($exitTxCount -gt 0 -and $allTimeSummary.MaxUSD -ge $allTimeSummary.MinUSD) {
+                        Write-AlignedLine -Label "Tx Range:" -Value ("{0:C2} - {1:C2}" -f $allTimeSummary.MinUSD, $allTimeSummary.MaxUSD) -ValueColor "White" -ValueStartColumn $ledgerValueStartColumn
                     }
 
                     # Net BTC Position

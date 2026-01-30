@@ -93,6 +93,8 @@ type LedgerSummary struct {
 	AvgSalePrice     float64
 	BuyTransactions  int
 	SellTransactions int
+	MinUSD           float64
+	MaxUSD           float64
 }
 
 // ApiKeyError is a custom error for invalid API key responses (401, 403).
@@ -910,15 +912,6 @@ func showLedgerScreen(reader *bufio.Reader) {
 
 	writeAlignedLine("Portfolio Value:", fmt.Sprintf("$%s", formatFloat(portfolioValue, 2)), portfolioColor, summaryValueStartColumn)
 
-	profit := portfolioValue - startingCapital
-	profitColor := color.New(color.FgWhite)
-	if profit > 0 {
-		profitColor = color.New(color.FgGreen)
-	} else if profit < 0 {
-		profitColor = color.New(color.FgRed)
-	}
-	writeAlignedLine("Total Profit/Loss:", fmt.Sprintf("%s%s", plusSign(profit), formatFloat(profit, 2)), profitColor, summaryValueStartColumn)
-
 	// Trading Statistics Section
 	if summary.TotalBuyUSD > 0 {
 		writeAlignedLine("Total Bought (USD):", fmt.Sprintf("$%s", formatFloat(summary.TotalBuyUSD, 2)), color.New(color.FgGreen), summaryValueStartColumn)
@@ -937,6 +930,9 @@ func showLedgerScreen(reader *bufio.Reader) {
 
 	if summary.AvgSalePrice > 0 {
 		writeAlignedLine("Average Sale:", fmt.Sprintf("$%s", formatFloat(summary.AvgSalePrice, 2)), color.New(color.FgRed), summaryValueStartColumn)
+	}
+	if totalTransactions > 0 && summary.MaxUSD >= summary.MinUSD {
+		writeAlignedLine("Tx Range:", fmt.Sprintf("$%s - $%s", formatFloat(summary.MinUSD, 2), formatFloat(summary.MaxUSD, 2)), color.New(color.FgWhite), summaryValueStartColumn)
 	}
 
 	fmt.Println("\nPress Enter to return to Main screen, or R to refresh")
@@ -1103,7 +1099,6 @@ func showExitScreen(reader *bufio.Reader) {
 	}
 
 	writeAlignedLine("Portfolio Value:", fmt.Sprintf("$%s", formatFloat(finalValue, 2)), profitColor)
-	writeAlignedLine("Total Profit/Loss:", fmt.Sprintf("%s%s", plusSign(profit), formatFloat(profit, 2)), profitColor)
 
 	// --- Session Summary ---
 	fmt.Println()
@@ -1196,6 +1191,10 @@ func showExitScreen(reader *bufio.Reader) {
 		}
 		if allTimeSummary.AvgSalePrice > 0 {
 			writeAlignedLine("Average Sale:", fmt.Sprintf("$%s", formatFloat(allTimeSummary.AvgSalePrice, 2)), color.New(color.FgRed), ledgerValueStartColumn)
+		}
+		exitTxCount := allTimeSummary.BuyTransactions + allTimeSummary.SellTransactions
+		if exitTxCount > 0 && allTimeSummary.MaxUSD >= allTimeSummary.MinUSD {
+			writeAlignedLine("Tx Range:", fmt.Sprintf("$%s - $%s", formatFloat(allTimeSummary.MinUSD, 2), formatFloat(allTimeSummary.MaxUSD, 2)), color.New(color.FgWhite), ledgerValueStartColumn)
 		}
 
 		// Net BTC Position
@@ -1794,9 +1793,20 @@ func writeLedgerRaw(header []string, dataRecords [][]string) error {
 
 func getLedgerTotals(entries []LedgerEntry) *LedgerSummary {
 	summary := &LedgerSummary{}
+	summary.MinUSD = math.MaxFloat64
+	summary.MaxUSD = -math.MaxFloat64
 	var totalWeightedBuyPrice, totalWeightedSellPrice float64
 
 	for _, entry := range entries {
+		// Tx Range = min/max Bitcoin price (USD per BTC) at time of any transaction, not total tx value
+		if entry.BTCPrice > 0 {
+			if entry.BTCPrice < summary.MinUSD {
+				summary.MinUSD = entry.BTCPrice
+			}
+			if entry.BTCPrice > summary.MaxUSD {
+				summary.MaxUSD = entry.BTCPrice
+			}
+		}
 		switch entry.TX {
 		case "Buy":
 			summary.TotalBuyUSD += entry.USD
@@ -1809,6 +1819,10 @@ func getLedgerTotals(entries []LedgerEntry) *LedgerSummary {
 			summary.SellTransactions++
 			totalWeightedSellPrice += entry.BTCPrice * entry.BTC
 		}
+	}
+	if summary.MinUSD > summary.MaxUSD {
+		summary.MinUSD = 0
+		summary.MaxUSD = 0
 	}
 
 	// Calculate average prices (weighted by BTC amount)
@@ -2768,13 +2782,6 @@ func formatFloat(num float64, decimals int) string {
 		return "-" + string(result) + decimalPart
 	}
 	return string(result) + decimalPart
-}
-
-func plusSign(num float64) string {
-	if num > 0 {
-		return "+"
-	}
-	return ""
 }
 
 func formatProfitLoss(value float64, formatSuffix string) string {
