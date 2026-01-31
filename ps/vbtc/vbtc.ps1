@@ -1553,6 +1553,7 @@ function Show-LedgerScreen {
             # Calculate summary from all historical data (including archives)
             $allLedgerData = Get-AllLedgerData
             $summary = Get-LedgerTotals -LedgerData $allLedgerData
+            $sessionSummary = Get-SessionSummary -SessionStartTime $sessionStartTime
             if ($summary) {
                 Write-Host ""
                 Write-Host "*** Ledger Summary ***" -ForegroundColor Yellow
@@ -1574,27 +1575,49 @@ function Show-LedgerScreen {
 
                 Write-AlignedLine -Label "Portfolio Value:" -Value ("{0:C2}" -f $portfolioValue) -ValueColor $portfolioColor
 
-                # Trading Statistics Section
+                # Trading Statistics Section (all-time with session in [])
                 if ($summary.TotalBuyUSD -gt 0) {
-                    Write-AlignedLine -Label "Total Bought (USD):" -Value ("{0:C2}" -f $summary.TotalBuyUSD) -ValueColor "Green"
-                    Write-AlignedLine -Label "Total Bought (BTC):" -Value $summary.TotalBuyBTC.ToString("F8") -ValueColor "Green"
+                    $usdVal = "{0:C2}" -f $summary.TotalBuyUSD
+                    if ($sessionSummary) { $usdVal += " [{0:C2}]" -f $sessionSummary.TotalBuyUSD }
+                    Write-AlignedLine -Label "Total Bought (USD):" -Value $usdVal -ValueColor "Green"
+                    $btcVal = $summary.TotalBuyBTC.ToString("F8")
+                    if ($sessionSummary) { $btcVal += " [{0}]" -f $sessionSummary.TotalBuyBTC.ToString("F8") }
+                    Write-AlignedLine -Label "Total Bought (BTC):" -Value $btcVal -ValueColor "Green"
                 }
 
                 # Display additional statistics
                 $totalTransactions = $summary.BuyTransactions + $summary.SellTransactions
                 if ($totalTransactions -gt 0) {
-                    Write-AlignedLine -Label "Transaction Count:" -Value $totalTransactions.ToString() -ValueColor "White"
+                    $txVal = $totalTransactions.ToString()
+                    if ($sessionSummary) {
+                        $sessionTx = $sessionSummary.BuyTransactions + $sessionSummary.SellTransactions
+                        $txVal += " [$sessionTx]"
+                    }
+                    Write-AlignedLine -Label "Transaction Count:" -Value $txVal -ValueColor "White"
                 }
 
                 if ($summary.AvgBuyPrice -gt 0) {
-                    Write-AlignedLine -Label "Average Purchase:" -Value ("{0:C2}" -f $summary.AvgBuyPrice) -ValueColor "Green"
+                    $avgVal = "{0:C2}" -f $summary.AvgBuyPrice
+                    if ($sessionSummary) {
+                        if ($sessionSummary.AvgBuyPrice -gt 0) { $avgVal += " [{0:C2}]" -f $sessionSummary.AvgBuyPrice }
+                        else { $avgVal += " [$0.00]" }
+                    }
+                    Write-AlignedLine -Label "Average Purchase:" -Value $avgVal -ValueColor "Green"
                 }
 
                 if ($summary.AvgSalePrice -gt 0) {
-                    Write-AlignedLine -Label "Average Sale:" -Value ("{0:C2}" -f $summary.AvgSalePrice) -ValueColor "Red"
+                    $saleVal = "{0:C2}" -f $summary.AvgSalePrice
+                    if ($sessionSummary) {
+                        if ($sessionSummary.AvgSalePrice -gt 0) { $saleVal += " [{0:C2}]" -f $sessionSummary.AvgSalePrice }
+                        else { $saleVal += " [$0.00]" }
+                    }
+                    Write-AlignedLine -Label "Average Sale:" -Value $saleVal -ValueColor "Red"
                 }
                 if ($totalTransactions -gt 0 -and $summary.MaxUSD -ge $summary.MinUSD) {
                     Write-AlignedLine -Label "Tx Range:" -Value ("{0:C2} - {1:C2}" -f $summary.MinUSD, $summary.MaxUSD) -ValueColor "White"
+                    if ($sessionSummary -and $sessionSummary.MaxUSD -ge $sessionSummary.MinUSD) {
+                        Write-AlignedLine -Label "Session Tx Range:" -Value ("{0:C2} - {1:C2}" -f $sessionSummary.MinUSD, $sessionSummary.MaxUSD) -ValueColor "White"
+                    }
                 }
             }
         }

@@ -894,6 +894,7 @@ func showLedgerScreen(reader *bufio.Reader) {
 	}
 
 	summary := getLedgerTotals(allEntries)
+	sessionSummary := getSessionSummary()
 	fmt.Println()
 	color.Yellow("*** Ledger Summary ***")
 	summaryValueStartColumn := 22 // Align with portfolio summary
@@ -912,27 +913,55 @@ func showLedgerScreen(reader *bufio.Reader) {
 
 	writeAlignedLine("Portfolio Value:", fmt.Sprintf("$%s", formatFloat(portfolioValue, 2)), portfolioColor, summaryValueStartColumn)
 
-	// Trading Statistics Section
+	// Trading Statistics Section (all-time with session in [])
 	if summary.TotalBuyUSD > 0 {
-		writeAlignedLine("Total Bought (USD):", fmt.Sprintf("$%s", formatFloat(summary.TotalBuyUSD, 2)), color.New(color.FgGreen), summaryValueStartColumn)
-		writeAlignedLine("Total Bought (BTC):", fmt.Sprintf("%.8f", summary.TotalBuyBTC), color.New(color.FgGreen), summaryValueStartColumn)
+		v := fmt.Sprintf("$%s", formatFloat(summary.TotalBuyUSD, 2))
+		if sessionSummary != nil {
+			v += fmt.Sprintf(" [$%s]", formatFloat(sessionSummary.TotalBuyUSD, 2))
+		}
+		writeAlignedLine("Total Bought (USD):", v, color.New(color.FgGreen), summaryValueStartColumn)
+		btcVal := fmt.Sprintf("%.8f", summary.TotalBuyBTC)
+		if sessionSummary != nil {
+			btcVal += fmt.Sprintf(" [%.8f]", sessionSummary.TotalBuyBTC)
+		}
+		writeAlignedLine("Total Bought (BTC):", btcVal, color.New(color.FgGreen), summaryValueStartColumn)
 	}
 
 	// Display additional statistics
 	totalTransactions := summary.BuyTransactions + summary.SellTransactions
 	if totalTransactions > 0 {
-		writeAlignedLine("Transaction Count:", fmt.Sprintf("%d", totalTransactions), color.New(color.FgWhite), summaryValueStartColumn)
+		txVal := fmt.Sprintf("%d", totalTransactions)
+		if sessionSummary != nil {
+			sessionTx := sessionSummary.BuyTransactions + sessionSummary.SellTransactions
+			txVal += fmt.Sprintf(" [%d]", sessionTx)
+		}
+		writeAlignedLine("Transaction Count:", txVal, color.New(color.FgWhite), summaryValueStartColumn)
 	}
 
 	if summary.AvgBuyPrice > 0 {
-		writeAlignedLine("Average Purchase:", fmt.Sprintf("$%s", formatFloat(summary.AvgBuyPrice, 2)), color.New(color.FgGreen), summaryValueStartColumn)
+		v := fmt.Sprintf("$%s", formatFloat(summary.AvgBuyPrice, 2))
+		if sessionSummary != nil && sessionSummary.AvgBuyPrice > 0 {
+			v += fmt.Sprintf(" [$%s]", formatFloat(sessionSummary.AvgBuyPrice, 2))
+		} else if sessionSummary != nil {
+			v += " [$0.00]"
+		}
+		writeAlignedLine("Average Purchase:", v, color.New(color.FgGreen), summaryValueStartColumn)
 	}
 
 	if summary.AvgSalePrice > 0 {
-		writeAlignedLine("Average Sale:", fmt.Sprintf("$%s", formatFloat(summary.AvgSalePrice, 2)), color.New(color.FgRed), summaryValueStartColumn)
+		v := fmt.Sprintf("$%s", formatFloat(summary.AvgSalePrice, 2))
+		if sessionSummary != nil && sessionSummary.AvgSalePrice > 0 {
+			v += fmt.Sprintf(" [$%s]", formatFloat(sessionSummary.AvgSalePrice, 2))
+		} else if sessionSummary != nil {
+			v += " [$0.00]"
+		}
+		writeAlignedLine("Average Sale:", v, color.New(color.FgRed), summaryValueStartColumn)
 	}
 	if totalTransactions > 0 && summary.MaxUSD >= summary.MinUSD {
 		writeAlignedLine("Tx Range:", fmt.Sprintf("$%s - $%s", formatFloat(summary.MinUSD, 2), formatFloat(summary.MaxUSD, 2)), color.New(color.FgWhite), summaryValueStartColumn)
+		if sessionSummary != nil && sessionSummary.MaxUSD >= sessionSummary.MinUSD {
+			writeAlignedLine("Session Tx Range:", fmt.Sprintf("$%s - $%s", formatFloat(sessionSummary.MinUSD, 2), formatFloat(sessionSummary.MaxUSD, 2)), color.New(color.FgWhite), summaryValueStartColumn)
+		}
 	}
 
 	fmt.Println("\nPress Enter to return to Main screen, or R to refresh")
