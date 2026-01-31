@@ -3,7 +3,7 @@
     Virtual Bitcoin Trader (vBTC) - Interactive Bitcoin trading simulation
 
 .DESCRIPTION
-    Use -help or -? to display the help screen with commands and usage information.
+    Use -help or -? to display the help screen; use -config to open configuration (e.g. to fix API key) and exit.
 
 .NOTES
     Author: Kreft&Gemini[Gemini 2.5 Pro (preview)]
@@ -13,7 +13,9 @@
 
 [CmdletBinding()]
 param (
-    [switch]$Help
+    [switch]$Help,
+    [Alias("Config")]
+    [switch]$OpenConfig   # -OpenConfig / -Config: open config menu and exit (avoids colliding with $config hashtable)
 )
 
 # --- Script Setup and Configuration ---
@@ -62,6 +64,10 @@ if ($Help.IsPresent) {
         Write-Host "    * " -NoNewline -ForegroundColor Yellow; Write-Host "PowerShell" -ForegroundColor Gray
         Write-Host "    * " -NoNewline -ForegroundColor Yellow; Write-Host "An internet connection" -ForegroundColor Gray
         Write-Host "    * " -NoNewline -ForegroundColor Yellow; Write-Host "A free API key from https://www.livecoinwatch.com/tools/api" -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "COMMAND LINE:" -ForegroundColor Cyan
+        Write-Host "    -help, -?     " -NoNewline -ForegroundColor White; Write-Host "Show this help and exit" -ForegroundColor Gray
+        Write-Host "    -config      " -NoNewline -ForegroundColor White; Write-Host "Open configuration (e.g. to fix API key) and exit" -ForegroundColor Gray
         Write-Host ""
         Write-Host "===============================================================" -ForegroundColor DarkGray
         Write-Host ""
@@ -244,6 +250,16 @@ function Update-ApiData {
     param ([hashtable]$Config, [PSCustomObject]$OldApiData, [switch]$SkipHistorical)
     Show-LoadingScreen
     $newData = Get-ApiData -Config $Config
+    $is403 = $newData -and (($newData.PSObject.Properties['IsForbidden'] -and $newData.IsForbidden) -or ($newData.PSObject.Properties['ErrorCode'] -and $newData.ErrorCode -eq 403))
+    if ($is403 -and -not $OldApiData) {
+        Write-Host "403 Encountered: Ensure API Key Configured and Enabled" -ForegroundColor Red
+        Write-Host "Execute 'vbtc -config' to configure" -ForegroundColor Yellow
+        exit 1
+    }
+    if ($is403 -and $OldApiData) {
+        Write-Warning "403 on API request. Continuing with cached data."
+        return $OldApiData
+    }
     if ($newData -and $newData.PSObject.Properties['IsNetworkError']) {
         return $newData # Propagate the network error object up
     }
@@ -351,21 +367,46 @@ function Get-ApiData {
         return $currentResponse
     }
     catch {
+        $errorCode = $null
         if ($_.Exception -is [System.Net.WebException]) {
-            # This is a network error, return the specific object
-            $errorCode = $null
             if ($_.Exception.Response) {
                 $errorCode = [int]$_.Exception.Response.StatusCode
             }
+            # 403 on launch: exit gracefully with user message (handled in Update-ApiData)
+            if ($errorCode -eq 403) {
+                return [PSCustomObject]@{ IsForbidden = $true; ErrorCode = 403 }
+            }
             return [PSCustomObject]@{ IsNetworkError = $true; ErrorCode = $errorCode }
         }
-        # For other errors (like bad API key), keep the existing behavior
+        # PowerShell 7 / HttpClient: Response may be HttpResponseMessage (no GetResponseStream)
+        if ($_.Exception.Response) {
+            try {
+                $errorCode = [int]$_.Exception.Response.StatusCode
+            } catch {
+                $errorCode = $null
+            }
+            if ($errorCode -eq 403) {
+                return [PSCustomObject]@{ IsForbidden = $true; ErrorCode = 403 }
+            }
+        }
+        # For other errors (e.g. bad API key), log and optionally read body
         Write-Error "API call failed: $($_.Exception.Message)"
         if ($_.Exception.Response) {
-            $errorResponse = $_.Exception.Response.GetResponseStream()
-            $reader = New-Object System.IO.StreamReader($errorResponse)
-            $errorText = $reader.ReadToEnd()
-            Write-Error "API Response: $errorText"
+            $response = $_.Exception.Response
+            try {
+                if (Get-Member -InputObject $response -Name 'GetResponseStream' -MemberType Method -ErrorAction SilentlyContinue) {
+                    $errorStream = $response.GetResponseStream()
+                    $reader = New-Object System.IO.StreamReader($errorStream)
+                    $errorText = $reader.ReadToEnd()
+                    $reader.Close()
+                    Write-Error "API Response: $errorText"
+                } elseif (Get-Member -InputObject $response -Name 'Content' -MemberType Property -ErrorAction SilentlyContinue) {
+                    $errorText = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+                    if ($errorText) { Write-Error "API Response: $errorText" }
+                }
+            } catch {
+                # Ignore errors reading response body
+            }
         }
         return $null
     }
@@ -515,29 +556,29 @@ function Show-MainScreen {
         Write-Warning "Could not retrieve market data. Please check your API key in the Config menu."
     }
     Write-AlignedLine -Label "Bitcoin (USD):" -Value $btcDisplay -ValueColor $priceColorSession
-    if ($apiData.PSObject.Properties['sma1h'] -and $apiData.sma1h -gt 0) {
+    if ($ApiData -and $ApiData.PSObject.Properties['sma1h'] -and $ApiData.sma1h -gt 0) {
         $smaColor = "White"
-        if ($apiData.rate -gt $apiData.sma1h) {
+        if ($ApiData.rate -gt $ApiData.sma1h) {
             $smaColor = "Green"
-        } elseif ($apiData.rate -lt $apiData.sma1h) {
+        } elseif ($ApiData.rate -lt $ApiData.sma1h) {
             $smaColor = "Red"
         }
-        $smaDisplay = "{0:C2}" -f $apiData.sma1h
+        $smaDisplay = "{0:C2}" -f $ApiData.sma1h
         Write-AlignedLine -Label "1H SMA:" -Value $smaDisplay -ValueColor $smaColor
     }
     Write-AlignedLine -Label "24H Ago:" -Value $agoDisplay -ValueColor $priceColor24h
     Write-AlignedLine -Label "24H High:" -Value $highDisplay
     Write-AlignedLine -Label "24H Low:" -Value $lowDisplay
-    if ($apiData.PSObject.Properties['volatility24h'] -and $apiData.volatility24h -gt 0) {
+    if ($ApiData -and $ApiData.PSObject.Properties['volatility24h'] -and $ApiData.volatility24h -gt 0) {
         $volatilityColor = "White"
-        if ($apiData.PSObject.Properties['volatility12h'] -and $apiData.PSObject.Properties['volatility12h_old']) {
-            if ($apiData.volatility12h -gt $apiData.volatility12h_old) {
+        if ($ApiData.PSObject.Properties['volatility12h'] -and $ApiData.PSObject.Properties['volatility12h_old']) {
+            if ($ApiData.volatility12h -gt $ApiData.volatility12h_old) {
                 $volatilityColor = "Green"
-            } elseif ($apiData.volatility12h -lt $apiData.volatility12h_old) {
+            } elseif ($ApiData.volatility12h -lt $ApiData.volatility12h_old) {
                 $volatilityColor = "Red"
             }
         }
-        $volatilityDisplay = "{0:N2}%" -f $apiData.volatility24h
+        $volatilityDisplay = "{0:N2}%" -f $ApiData.volatility24h
         Write-AlignedLine -Label "Volatility:" -Value $volatilityDisplay -ValueColor $volatilityColor
     }
     Write-AlignedLine -Label "24H Volume:" -Value $volDisplay
@@ -685,6 +726,11 @@ function Show-ConfigScreen {
 
         switch ($choice) {
             "1" {
+                # Read current key from file so we show what's actually in vbtc.ini (avoids stale in-memory config)
+                $fileConfig = Get-IniConfiguration -FilePath $iniFilePath
+                $currentKey = $fileConfig.Settings.ApiKey
+                if ([string]::IsNullOrEmpty($currentKey)) { $currentKey = "(not set)" }
+                Write-Host "Current API Key: $currentKey" -ForegroundColor Cyan
                 $newApiKey = Read-Host "Enter your new LiveCoinWatch API Key"
                 if (Test-ApiKey -ApiKey $newApiKey) {
                     $Config.Value.Settings.ApiKey = $newApiKey
@@ -753,9 +799,18 @@ function Get-LedgerTotals {
     $totalWeightedSellPrice = 0.0
     $minUSD = [double]::MaxValue
     $maxUSD = [double]::MinValue
+    $firstDt = $null
+    $lastDt = $null
 
     if ($null -ne $LedgerData) {
         foreach ($row in $LedgerData) {
+            try {
+                $rowDt = [datetime]::ParseExact($row.Time, "MMddyy@HHmmss", $null)
+                if ($null -eq $firstDt -or $rowDt -lt $firstDt) { $firstDt = $rowDt }
+                if ($null -eq $lastDt -or $rowDt -gt $lastDt) { $lastDt = $rowDt }
+            } catch {
+                # Skip rows with unparseable timestamp
+            }
             $rowUSD = [double]$row.USD
             # Tx Range = min/max Bitcoin price (USD per BTC) at time of any transaction, not total tx value
             $rowBtcPrice = [double]$row.'BTC(USD)'
@@ -799,7 +854,24 @@ function Get-LedgerTotals {
         SellTransactions = $sellTransactions
         MinUSD           = $minUSD
         MaxUSD           = $maxUSD
+        FirstDateTime    = $firstDt
+        LastDateTime     = $lastDt
     }
+}
+
+function Format-Duration {
+    param($Start, $End)
+    if ($null -eq $Start -or $null -eq $End -or $End -lt $Start) {
+        return ""
+    }
+    $duration = $End - $Start
+    if ($duration.TotalMinutes -lt 60) {
+        return "{0}M" -f [int][math]::Round($duration.TotalMinutes)
+    }
+    if ($duration.TotalHours -lt 24) {
+        return "{0}H" -f [int][math]::Round($duration.TotalHours)
+    }
+    return "{0}D" -f [int][math]::Round($duration.TotalDays)
 }
 
 function Get-AllLedgerData {
@@ -1432,6 +1504,10 @@ function Show-HelpScreen {
     Write-Host "    * " -NoNewline -ForegroundColor Yellow; Write-Host "An internet connection" -ForegroundColor Gray
     Write-Host "    * " -NoNewline -ForegroundColor Yellow; Write-Host "A free API key from https://www.livecoinwatch.com/tools/api" -ForegroundColor Gray
     Write-Host ""
+    Write-Host "COMMAND LINE:" -ForegroundColor Cyan
+    Write-Host "    -help, -?     " -NoNewline -ForegroundColor White; Write-Host "Show help and exit" -ForegroundColor Gray
+    Write-Host "    -config      " -NoNewline -ForegroundColor White; Write-Host "Open configuration (e.g. to fix API key) and exit" -ForegroundColor Gray
+    Write-Host ""
     Write-Host "===============================================================" -ForegroundColor DarkGray
     Write-Host ""
     Write-Host "Press Enter or Esc to return to the Main Screen."
@@ -1619,6 +1695,15 @@ function Show-LedgerScreen {
                         Write-AlignedLine -Label "Session Tx Range:" -Value ("{0:C2} - {1:C2}" -f $sessionSummary.MinUSD, $sessionSummary.MaxUSD) -ValueColor "White"
                     }
                 }
+                $totalLen = Format-Duration -Start $summary.FirstDateTime -End $summary.LastDateTime
+                if ($totalLen -ne "") {
+                    $timeVal = $totalLen
+                    if ($sessionSummary -and $null -ne $sessionSummary.FirstDateTime -and $null -ne $sessionSummary.LastDateTime) {
+                        $sessionLen = Format-Duration -Start $sessionSummary.FirstDateTime -End $sessionSummary.LastDateTime
+                        if ($sessionLen -ne "") { $timeVal += " [$sessionLen]" }
+                    }
+                    Write-AlignedLine -Label "Time:" -Value $timeVal -ValueColor "White"
+                }
             }
         }
     }
@@ -1677,12 +1762,23 @@ function Show-LedgerScreen {
 # --- Main Game Loop ---
 
 $config = Get-IniConfiguration -FilePath $iniFilePath
-if ([string]::IsNullOrEmpty($config.Settings.ApiKey)) {
+if ($OpenConfig.IsPresent) {
+    if (-not $config) {
+        $config = @{
+            Settings   = @{ ApiKey = "" }
+            Portfolio  = @{ PlayerUSD = $startingCapital.ToString("F2"); PlayerBTC = "0.0"; PlayerInvested = "0.0" }
+        }
+    }
+    Show-ConfigScreen -Config ([ref]$config)
+    exit 0
+}
+# Try API first; on 403 with no cache we show message and exit (no first-time setup)
+$apiData = Update-ApiData -Config $config -OldApiData $apiData
+if ($null -eq $apiData -and [string]::IsNullOrEmpty($config.Settings.ApiKey)) {
     Show-FirstRunSetup -Config ([ref]$config)
     $config = Get-IniConfiguration -FilePath $iniFilePath
+    $apiData = Update-ApiData -Config $config -OldApiData $apiData
 }
-
-$apiData = Update-ApiData -Config $config -OldApiData $apiData
 
 # Only after the data is fully fetched, set the session-start values.
 # This prevents the race condition and ensures the initial price is correct.
@@ -1832,6 +1928,10 @@ while ($true) {
                     $exitTxCount = $allTimeSummary.BuyTransactions + $allTimeSummary.SellTransactions
                     if ($exitTxCount -gt 0 -and $allTimeSummary.MaxUSD -ge $allTimeSummary.MinUSD) {
                         Write-AlignedLine -Label "Tx Range:" -Value ("{0:C2} - {1:C2}" -f $allTimeSummary.MinUSD, $allTimeSummary.MaxUSD) -ValueColor "White" -ValueStartColumn $ledgerValueStartColumn
+                    }
+                    $exitTimeLen = Format-Duration -Start $allTimeSummary.FirstDateTime -End $allTimeSummary.LastDateTime
+                    if ($exitTimeLen -ne "") {
+                        Write-AlignedLine -Label "Time:" -Value $exitTimeLen -ValueColor "White" -ValueStartColumn $ledgerValueStartColumn
                     }
 
                     # Net BTC Position

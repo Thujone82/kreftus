@@ -45,7 +45,10 @@ The application uses colors to provide quick visual feedback:
 
 ## Help Options
 - Run with `-help`, `-h`, or `--help` to display the help screen and exit
+- Run with `-config` or `--config` to open the configuration menu and exit (e.g. to fix or set your API key when it is broken or missing)
 - Use the `help` command within the application to view available commands
+
+If the application exits with a 403 API error (e.g. "403 Encountered: Ensure API Key Configured and Enabled"), run `vbtc -config` to configure your API key.
 
 ## Commands
 - `buy [amount]`: Purchase a specific USD amount of Bitcoin. If no amount is provided, you will be prompted.

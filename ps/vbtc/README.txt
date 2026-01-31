@@ -45,8 +45,11 @@ The application uses colors to provide quick visual feedback:
 4.  On the first run, you will be prompted to enter your LiveCoinWatch API key.
 
 ## Help Options
-- Run with `.\vbtc.ps1 -help` to display the help screen and exit
+- Run with `.\vbtc.ps1 -help` (or `-?`) to display the help screen and exit
+- Run with `.\vbtc.ps1 -config` to open the configuration menu and exit (e.g. to fix or set your API key when it is broken or missing)
 - Use the `help` command within the application to view available commands
+
+If the application exits with "403 Encountered: Ensure API Key Configured and Enabled", run `vbtc -config` (or `.\vbtc.ps1 -config`) to configure your API key.
 
 ## Commands
 The application uses a simple command-line interface. The following commands are available:

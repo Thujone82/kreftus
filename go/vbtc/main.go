@@ -95,6 +95,8 @@ type LedgerSummary struct {
 	SellTransactions int
 	MinUSD           float64
 	MaxUSD           float64
+	FirstTime        time.Time
+	LastTime         time.Time
 }
 
 // ApiKeyError is a custom error for invalid API key responses (401, 403).
@@ -122,6 +124,13 @@ func main() {
 	// Check for help flag
 	if len(os.Args) > 1 && (os.Args[1] == "-help" || os.Args[1] == "-h" || os.Args[1] == "--help") {
 		showHelpScreen(nil)
+		return
+	}
+	// Check for config flag (open config and exit, e.g. to fix API key)
+	if len(os.Args) > 1 && (os.Args[1] == "-config" || os.Args[1] == "--config") {
+		reader := bufio.NewReader(os.Stdin)
+		setup(reader)
+		showConfigScreen(reader)
 		return
 	}
 
@@ -614,6 +623,11 @@ func showConfigScreen(reader *bufio.Reader) {
 func handleConfigChoice(choice string, reader *bufio.Reader) bool {
 	switch choice {
 	case "1":
+		currentKey := cfg.Section("Settings").Key("ApiKey").String()
+		if currentKey == "" {
+			currentKey = "(not set)"
+		}
+		color.New(color.FgCyan).Printf("Current API Key: %s\n", currentKey)
 		fmt.Print("Enter your new LiveCoinWatch API Key: ")
 		newApiKey, _ := reader.ReadString('\n')
 		newApiKey = strings.TrimSpace(newApiKey)
@@ -700,6 +714,12 @@ func showHelpScreen(reader *bufio.Reader) {
 	color.New(color.FgHiBlack).Println("An internet connection")
 	color.New(color.FgYellow).Print("    • ")
 	color.New(color.FgHiBlack).Println("A free API key from https://www.livecoinwatch.com/tools/api")
+	fmt.Println()
+	color.New(color.FgCyan).Println("COMMAND LINE:")
+	color.New(color.FgWhite).Print("    -help, -h, --help  ")
+	color.New(color.FgHiBlack).Println("Show this help and exit")
+	color.New(color.FgWhite).Print("    -config, --config  ")
+	color.New(color.FgHiBlack).Println("Open configuration (e.g. to fix API key) and exit")
 	fmt.Println()
 	color.New(color.FgHiBlack).Println("═══════════════════════════════════════════════════════════════")
 	fmt.Println()
@@ -963,6 +983,17 @@ func showLedgerScreen(reader *bufio.Reader) {
 			writeAlignedLine("Session Tx Range:", fmt.Sprintf("$%s - $%s", formatFloat(sessionSummary.MinUSD, 2), formatFloat(sessionSummary.MaxUSD, 2)), color.New(color.FgWhite), summaryValueStartColumn)
 		}
 	}
+	totalLen := formatDuration(summary.FirstTime, summary.LastTime)
+	if totalLen != "" {
+		timeVal := totalLen
+		if sessionSummary != nil && !sessionSummary.FirstTime.IsZero() && !sessionSummary.LastTime.IsZero() {
+			sessionLen := formatDuration(sessionSummary.FirstTime, sessionSummary.LastTime)
+			if sessionLen != "" {
+				timeVal += " [" + sessionLen + "]"
+			}
+		}
+		writeAlignedLine("Time:", timeVal, color.New(color.FgWhite), summaryValueStartColumn)
+	}
 
 	fmt.Println("\nPress Enter to return to Main screen, or R to refresh")
 
@@ -1224,6 +1255,10 @@ func showExitScreen(reader *bufio.Reader) {
 		exitTxCount := allTimeSummary.BuyTransactions + allTimeSummary.SellTransactions
 		if exitTxCount > 0 && allTimeSummary.MaxUSD >= allTimeSummary.MinUSD {
 			writeAlignedLine("Tx Range:", fmt.Sprintf("$%s - $%s", formatFloat(allTimeSummary.MinUSD, 2), formatFloat(allTimeSummary.MaxUSD, 2)), color.New(color.FgWhite), ledgerValueStartColumn)
+		}
+		exitTimeLen := formatDuration(allTimeSummary.FirstTime, allTimeSummary.LastTime)
+		if exitTimeLen != "" {
+			writeAlignedLine("Time:", exitTimeLen, color.New(color.FgWhite), ledgerValueStartColumn)
 		}
 
 		// Net BTC Position
@@ -1827,6 +1862,14 @@ func getLedgerTotals(entries []LedgerEntry) *LedgerSummary {
 	var totalWeightedBuyPrice, totalWeightedSellPrice float64
 
 	for _, entry := range entries {
+		if !entry.DateTime.IsZero() {
+			if summary.FirstTime.IsZero() || entry.DateTime.Before(summary.FirstTime) {
+				summary.FirstTime = entry.DateTime
+			}
+			if entry.DateTime.After(summary.LastTime) {
+				summary.LastTime = entry.DateTime
+			}
+		}
 		// Tx Range = min/max Bitcoin price (USD per BTC) at time of any transaction, not total tx value
 		if entry.BTCPrice > 0 {
 			if entry.BTCPrice < summary.MinUSD {
@@ -2818,4 +2861,18 @@ func formatProfitLoss(value float64, formatSuffix string) string {
 		return fmt.Sprintf("(%.2f%s)", math.Abs(value), formatSuffix)
 	}
 	return fmt.Sprintf("+%.2f%s", value, formatSuffix)
+}
+
+func formatDuration(first, last time.Time) string {
+	if first.IsZero() || last.IsZero() || last.Before(first) {
+		return ""
+	}
+	d := last.Sub(first)
+	if d < 60*time.Minute {
+		return fmt.Sprintf("%dM", int(d.Round(time.Minute).Minutes()))
+	}
+	if d < 24*time.Hour {
+		return fmt.Sprintf("%dH", int(d.Round(time.Hour).Hours()))
+	}
+	return fmt.Sprintf("%dD", int(d.Round(time.Hour).Hours()/24))
 }

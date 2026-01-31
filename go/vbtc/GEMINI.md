@@ -3,8 +3,8 @@
 ## Project: vBTC (Virtual Bitcoin Trading Simulator) - Go Version
 
 **Author:** Kreft&Gemini[Gemini 2.5 Pro (preview)]
-**Date:** 2025-08-02
-**Version:** 1.5
+**Date:** 2026-01-29
+**Version:** 1.6
 
 ---
 
@@ -43,7 +43,10 @@ As a Go application, it is designed to be a compiled, cross-platform executable,
 ### Help Options
 
 - Run with `-help`, `-h`, or `--help` to display the help screen and exit
+- Run with `-config` or `--config` to open the configuration menu and exit (e.g. to fix or set your API key when it is broken or missing)
 - Use the `help` command within the application to view available commands
+
+If the application exits with a 403 API error (e.g. "403 Encountered: Ensure API Key Configured and Enabled"), run `vbtc -config` to configure your API key.
 
 ### Commands
 
@@ -77,14 +80,17 @@ As a Go application, it is designed to be a compiled, cross-platform executable,
 
 ### Ledger Summary Features
 
-The application now provides comprehensive trading statistics across all historical data:
+The application provides comprehensive trading statistics across all historical data. In the **Ledger** screen (Ledger modal), all-time values are shown with current-session values in brackets where applicable (e.g. `Average Purchase: $92,262.37 [$80,234.10]`). The **Exit** screen shows a Trading History Summary with all-time statistics only (no session brackets).
 
 #### Statistics Displayed
 - **Portfolio Summary**: Current portfolio value, total profit/loss, Bitcoin holdings, invested amount, and cash
-- **Transaction Count**: Total number of buy and sell transactions
-- **Total Bought (USD & BTC)**: Complete buy trading volume
-- **Average Purchase**: Weighted average BTC price for all buy transactions
-- **Average Sale**: Weighted average BTC price for all sell transactions
+- **Transaction Count**: Total number of buy and sell transactions (Ledger modal: session count in brackets)
+- **Total Bought (USD & BTC)**: Complete buy trading volume (Ledger modal: session volume in brackets)
+- **Average Purchase**: Weighted average BTC price for all buy transactions (Ledger modal: session average in brackets)
+- **Average Sale**: Weighted average BTC price for all sell transactions (Ledger modal: session average in brackets)
+- **Tx Range**: Minimum and maximum Bitcoin price (USD per BTC) at the time of any transaction—not total transaction value (Ledger modal only)
+- **Session Tx Range**: Same as Tx Range but for the current session; shown on a separate line in the Ledger modal when session has transactions
+- **Time**: Span from first ledger entry to latest. Format: minutes (`M`) under 1 hour, hours (`H`) under 24h, integer days (`D`) for 24h+. Ledger modal shows total with session span in brackets (e.g. `Time: 204D [3H]`); Exit modal shows total only
 
 #### Archive Support
 - **Current Ledger**: Reads from `ledger.csv`
