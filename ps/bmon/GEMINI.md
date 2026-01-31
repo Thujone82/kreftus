@@ -3,8 +3,8 @@
 ## Project: bmon
 
 **Author:** Kreft&Gemini[Gemini 2.5 Pro (preview)]
-**Date:** 2025-08-02
-**Version:** 1.4
+**Date:** 2025-08-07
+**Version:** 1.5
 
 ---
 
@@ -20,7 +20,7 @@ The tool operates in several modes:
 
 ### Key Functionality
 
-- **API Key Management:** Automatically prompts for a LiveCoinWatch API key on first run and saves it to `bmon.ini`. It can also read the key from `vbtc.ini` if present.
+- **API Key Management:** Automatically prompts for a LiveCoinWatch API key on first run and saves it to `bmon.ini`. It can also read the key from `vbtc.ini` if present. Use `-config` to open the configuration menu: if settings exist, the current config file and a masked API key are shown; you can enter a new key to save or press Enter to exit without changes.
 - **Multiple Monitoring Modes:** Supports interactive, short-term (`-go`), and long-term (`-golong`) monitoring.
 - **Dynamic Controls:** In all modes, users can reset the price baseline (`r`), toggle sound alerts (`s`), and toggle a price history sparkline (`h`). In `-go`/`-golong` modes, users can also switch between them (`m`).
 - **Visual & Audible Alerts:** Uses color-coding (green for price up, red for down) and optional beeps to indicate price changes. Sound (`-s`) and the history sparkline (`-h`) can be enabled from launch.
@@ -30,6 +30,9 @@ The tool operates in several modes:
 ### How to Run
 
 The script is executed from a PowerShell terminal.
+
+**Configuration:**
+- **Config Menu:** `.\bmon.ps1 -config` — Opens the configuration menu. If an API key is already set, the current config file and a masked API key are displayed. Enter a new API key to save to `bmon.ini`, or press Enter to exit without changes.
 
 **Monitoring:**
 - **Interactive:** `.\bmon.ps1`

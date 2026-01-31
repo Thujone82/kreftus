@@ -59,6 +59,7 @@ type Args struct {
 	sound          bool
 	sparkline      bool
 	help           bool
+	config         bool
 	conversionMode string
 	conversionVal  float64
 }
@@ -80,16 +81,22 @@ func main() {
 	// Parse command line arguments
 	args := parseArgs()
 
+	// Handle help (no config needed)
+	if args.help {
+		printHelp()
+		return
+	}
+
+	// Handle config menu (loads/edits config itself, then exit)
+	if args.config {
+		runConfigMenu()
+		return
+	}
+
 	// Initialize configuration
 	if err := initConfig(); err != nil {
 		color.Red("Failed to initialize configuration: %v", err)
 		os.Exit(1)
-	}
-
-	// Handle help
-	if args.help {
-		printHelp()
-		return
 	}
 
 	// Handle conversion modes
@@ -135,6 +142,8 @@ func parseArgs() Args {
 			args.sparkline = true
 		case "-help":
 			args.help = true
+		case "-config":
+			args.config = true
 		case "-bu":
 			if i+1 < len(os.Args) {
 				if val, err := strconv.ParseFloat(os.Args[i+1], 64); err == nil {
@@ -252,6 +261,66 @@ func runOnboarding(configPath string) error {
 		} else {
 			color.Yellow("Invalid API Key. Please try again.")
 		}
+	}
+}
+
+func runConfigMenu() {
+	exePath, err := os.Executable()
+	if err != nil {
+		color.Red("Failed to get executable path: %v", err)
+		os.Exit(1)
+	}
+	exeDir := filepath.Dir(exePath)
+	bmonPath := filepath.Join(exeDir, "bmon.ini")
+	vbtcPath := filepath.Join(exeDir, "vbtc.ini")
+
+	var currentKey, configPath string
+	if cfg, err := loadConfig(bmonPath); err == nil && cfg.Settings.ApiKey != "" {
+		currentKey = cfg.Settings.ApiKey
+		configPath = bmonPath
+	} else if cfg, err := loadConfig(vbtcPath); err == nil && cfg.Settings.ApiKey != "" {
+		currentKey = cfg.Settings.ApiKey
+		configPath = vbtcPath
+	}
+
+	clearScreen()
+	color.Yellow("*** bmon Configuration ***")
+	fmt.Println()
+	if currentKey != "" {
+		masked := "****"
+		if len(currentKey) > 8 {
+			masked = currentKey[:4] + "***" + currentKey[len(currentKey)-4:]
+		}
+		fmt.Print("Config file: ")
+		color.Cyan("%s\n", configPath)
+		fmt.Print("ApiKey: ")
+		color.White("%s\n", masked)
+		fmt.Println()
+	}
+	color.Green("Get a free API key from: https://www.livecoinwatch.com/tools/api")
+	fmt.Println()
+	fmt.Print("Enter new LiveCoinWatch API Key (or press Enter to keep current and exit): ")
+
+	reader := bufio.NewReader(os.Stdin)
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+
+	if input == "" {
+		if currentKey != "" {
+			color.White("No changes made.")
+		}
+		return
+	}
+
+	if testAPIKey(input) {
+		if err := saveConfig(bmonPath, input); err != nil {
+			color.Red("API Key was valid, but failed to save to bmon.ini.")
+			os.Exit(1)
+		}
+		color.Green("API Key saved to bmon.ini.")
+	} else {
+		color.Red("Invalid API Key. No changes saved.")
+		os.Exit(1)
 	}
 }
 
@@ -568,6 +637,8 @@ func printHelp() {
 	gray.Println("# Enable sound alerts")
 	white.Print("    ./bmon -h           ")
 	gray.Println("# Enable history sparkline")
+	white.Print("    ./bmon -config      ")
+	gray.Println("# Open configuration menu")
 	white.Print("    ./bmon -bu 0.5      ")
 	gray.Println("# 0.5 BTC to USD")
 	white.Print("    ./bmon -ub 50000    ")

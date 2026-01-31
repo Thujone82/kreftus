@@ -28,6 +28,7 @@ The script has two primary modes of operation: real-time monitoring and on-deman
 - **Audible Alerts:** Optionally enable sound with the 's' key to get high/low tones for every price change of at least $0.01.
 - **Sparkline History:** Toggle a mini-chart with the 'h' key to visualize the last 8 price ticks.
 - **Command-line Toggles:** Start with sound (`-s`) or the sparkline history (`-h`) enabled from the command line.
+- **Configuration Menu:** Use the `-config` switch to open the configuration menu. If settings already exist, the current config file path and a masked API key are displayed. You can enter a new LiveCoinWatch API key (validated and saved to `bmon.ini`) or press Enter to keep the current setting and exit.
 - **vBTC Integration:** Can seamlessly use the API key configured in `vbtc.ini` if `bmon.ini` is not present, requiring no extra setup for existing vBTC users.
 - **Compact Retry Indicator:** In `-go` and `-golong` modes, temporary API/network failures no longer print long warnings. Instead, the spinner position shows a single digit for each retry: yellow `1`, `2`, `3`, `4`, and a red `5` on the final attempt. On a successful fetch, the spinner returns to normal immediately, keeping the display clean.
 
@@ -49,6 +50,12 @@ The application uses colors to provide quick visual feedback during a monitoring
 2.  Navigate to the directory where `bmon.ps1` is located.
 3.  Run the script in one of two ways:
     
+### Configuration
+---
+-   **Configuration Menu:**
+    `.\bmon.ps1 -config` or `bmon.exe -config`
+    Opens the configuration menu. If an API key is already configured, the current config file and a masked API key are shown. Enter a new API key to save to `bmon.ini`, or press Enter to exit without changes.
+
 ### Monitoring Modes
 ---
 -   **Interactive Mode:**

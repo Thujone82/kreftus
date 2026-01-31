@@ -25,6 +25,7 @@ The application can run in several modes: interactive monitoring with keyboard c
 - **Historical Sparkline:** Visual price trend display using Unicode characters
 - **Conversion Tools:** BTC to USD, USD to BTC, USD to satoshis, satoshis to USD
 - **API Key Management:** Automatic setup and configuration file handling
+- **Configuration Menu:** Use the `-config` flag to open the configuration menu. If settings already exist, the current config file path and a masked API key are displayed. You can enter a new API key (validated and saved to `bmon.ini`) or press Enter to keep the current setting and exit.
 - **Cross-Platform:** Native executables for Windows and Linux
 - **Color-coded Output:** Clear, colorized feedback for all operations
 - **Compact Retry Indicator:** During temporary network/API hiccups in `-go`/`-golong` modes, the spinner is briefly replaced with a single digit to indicate retries: yellow `1`, `2`, `3`, `4`, and a red `5` on the final attempt. On the next successful fetch the indicator disappears and the normal spinner resumes. This keeps the line clean with no wrapping or warning text.
@@ -46,6 +47,9 @@ The application can run in several modes: interactive monitoring with keyboard c
 - `-golong` or `-gl` - Monitor for 24 hours with 20-second updates
 - `-s` - Enable sound alerts
 - `-h` - Enable history sparkline
+
+### Configuration
+- `-config` - Open the configuration menu. If an API key is already configured, the current config file and a masked API key are shown. Enter a new API key to save to `bmon.ini`, or press Enter to exit without changes.
 
 ### Conversion Tools
 - `-bu <amount>` - Convert Bitcoin amount to USD
@@ -102,4 +106,4 @@ The application automatically creates and manages configuration files:
 - `bmon.ini` - Primary configuration file (created in executable directory)
 - `vbtc.ini` - Fallback configuration file (if bmon.ini not found)
 
-On first run, the application will guide you through API key setup.
+On first run, the application will guide you through API key setup. Use `-config` at any time to open the configuration menu, view the current config file and masked API key (if set), and optionally enter a new API key to save.

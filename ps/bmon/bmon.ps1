@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     A lightweight, real-time Bitcoin price monitor.
 
@@ -45,6 +45,9 @@ param (
     [Parameter(ParameterSetName='Monitor')]
     [switch]$Help,
 
+    [Parameter(ParameterSetName='Monitor')]
+    [switch]$config,
+
     [Parameter(ParameterSetName='BitcoinToUsd')]
     [Alias('bu')]
     [ValidateRange(0, [double]::MaxValue)]
@@ -84,6 +87,7 @@ if ($Help.IsPresent) {
     Write-Host "    .\bmon.ps1 -gl          " -NoNewline -ForegroundColor White; Write-Host "# Monitor for 24 hours (alias)" -ForegroundColor Gray
     Write-Host "    .\bmon.ps1 -s           " -NoNewline -ForegroundColor White; Write-Host "# Enable sound alerts" -ForegroundColor Gray
     Write-Host "    .\bmon.ps1 -h           " -NoNewline -ForegroundColor White; Write-Host "# Enable history sparkline" -ForegroundColor Gray
+    Write-Host "    .\bmon.ps1 -config      " -NoNewline -ForegroundColor White; Write-Host "# Open configuration menu" -ForegroundColor Gray
     Write-Host "    .\bmon.ps1 -bu 0.5      " -NoNewline -ForegroundColor White; Write-Host "# 0.5 BTC to USD" -ForegroundColor Gray
     Write-Host "    .\bmon.ps1 -ub 50000    " -NoNewline -ForegroundColor White; Write-Host "# `$50,000 to BTC" -ForegroundColor Gray
     Write-Host "    .\bmon.ps1 -us 100      " -NoNewline -ForegroundColor White; Write-Host "# `$100 to satoshis" -ForegroundColor Gray
@@ -395,6 +399,51 @@ function Write-ClearScreen {
 }
 
 # --- Main Script ---
+
+# -config: show current settings (if any) and open configuration menu, then exit
+if ($config.IsPresent) {
+    $bmonCfg = Get-IniConfiguration -FilePath $bmonIniFilePath
+    $vbtcCfg = Get-IniConfiguration -FilePath $vbtcIniFilePath
+    $currentKey = $bmonCfg.Settings.ApiKey
+    $configPath = $bmonIniFilePath
+    if ([string]::IsNullOrEmpty($currentKey)) {
+        $currentKey = $vbtcCfg.Settings.ApiKey
+        $configPath = $vbtcIniFilePath
+    }
+    Clear-Host
+    Write-Host "*** bmon Configuration ***" -ForegroundColor Yellow
+    Write-Host ""
+    if (-not [string]::IsNullOrEmpty($currentKey)) {
+        $masked = if ($currentKey.Length -le 8) { "****" } else { $currentKey.Substring(0, 4) + "***" + $currentKey.Substring($currentKey.Length - 4) }
+        Write-Host "Config file: " -NoNewline -ForegroundColor White
+        Write-Host $configPath -ForegroundColor Cyan
+        Write-Host "ApiKey: " -NoNewline -ForegroundColor White
+        Write-Host $masked -ForegroundColor Gray
+        Write-Host ""
+    }
+    Write-Host "Get a free API key from: https://www.livecoinwatch.com/tools/api" -ForegroundColor Green
+    Write-Host ""
+    $userInput = Read-Host "Enter new LiveCoinWatch API Key (or press Enter to keep current and exit)"
+    if ([string]::IsNullOrEmpty($userInput)) {
+        if (-not [string]::IsNullOrEmpty($currentKey)) {
+            Write-Host "No changes made." -ForegroundColor Gray
+        }
+        exit 0
+    }
+    if (Test-ApiKey -ApiKey $userInput) {
+        $configToSave = @{ "Settings" = @{ "ApiKey" = $userInput } }
+        if (Set-IniConfiguration -FilePath $bmonIniFilePath -Configuration $configToSave) {
+            Write-Host "API Key saved to bmon.ini." -ForegroundColor Green
+        } else {
+            Write-Error "API Key was valid, but failed to save to bmon.ini."
+            exit 1
+        }
+    } else {
+        Write-Host "Invalid API Key. No changes saved." -ForegroundColor Red
+        exit 1
+    }
+    exit 0
+}
 
 # Try to get API key from bmon.ini first
 $bmonConfig = Get-IniConfiguration -FilePath $bmonIniFilePath
