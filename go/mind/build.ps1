@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Builds the 'mind' Go terminal game for Windows and Linux.
+    Builds the 'Mastermind' Go terminal game for Windows and Linux.
 
 .DESCRIPTION
     Mirrors the structure used in your other Go projects.
