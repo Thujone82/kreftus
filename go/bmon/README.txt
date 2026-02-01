@@ -16,9 +16,10 @@ The application can run in several modes: interactive monitoring with keyboard c
 ## Features
 - **Real-time Price Monitoring:** Fetches live Bitcoin prices from LiveCoinWatch API
 - **Multiple Monitoring Modes:**
-  - **Interactive Mode:** Press Space to start/pause, R to reset, Ctrl+C to exit. Press G on the landing screen to jump directly into Go mode.
+  - **Interactive Mode:** Press Space to start/pause, R to reset, Ctrl+C or Esc to exit. Press G on the landing screen to jump directly into Go mode.
   - **Go Mode:** 15-minute monitoring with 5-second updates
   - **Long Go Mode:** 24-hour monitoring with 20-second updates
+  - **K Mode (`-k`):** 30-minute monitoring with 4-second updates and sparkline enabled
 - **Visual Indicators:** Color-coded price changes (green for gains, red for losses)
 - **Price Flash Alerts:** Visual flashing when significant price movements occur
 - **Sound Alerts:** Optional audio notifications for price movements
@@ -45,11 +46,15 @@ The application can run in several modes: interactive monitoring with keyboard c
 ### Monitoring Modes
 - `-go` or `-g` - Monitor for 15 minutes with 5-second updates
 - `-golong` or `-gl` - Monitor for 24 hours with 20-second updates
+- `-k` - K mode: 30-minute monitoring with 4-second updates and sparkline enabled
 - `-s` - Enable sound alerts
 - `-h` - Enable history sparkline
 
 ### Configuration
 - `-config` - Open the configuration menu. If an API key is already configured, the current config file and a masked API key are shown. Enter a new API key to save to `bmon.ini`, or press Enter to exit without changes.
+
+### Other
+- `-help` - Show usage and exit
 
 ### Conversion Tools
 - `-bu <amount>` - Convert Bitcoin amount to USD
@@ -58,12 +63,15 @@ The application can run in several modes: interactive monitoring with keyboard c
 - `-su <amount>` - Convert satoshi amount to USD
 
 ### Controls (during monitoring)
-- `R` - Reset baseline price and timer
-- `E` - Extend the current session timeout without changing the comparison baseline
-- `M` - Switch between go/golong modes
+Letter keys and arrow-key aliases:
+- `R` or **Right arrow** - Reset baseline price and timer
+- `E` or **Left arrow** - Extend the current session timeout without changing the comparison baseline
+- `M` or **Down arrow** - Switch between go/golong modes
+- `K` or **Up arrow** - Switch to K mode (30 min, sparkline enabled)
+- `I` - Switch back to interactive mode (from go/golong)
 - `S` - Toggle sound alerts
 - `H` - Toggle history sparkline
- - `I` - Switch back to interactive mode (from go/golong)
+- `Esc` or `Ctrl+C` - Quit
 
 ## Examples
 
