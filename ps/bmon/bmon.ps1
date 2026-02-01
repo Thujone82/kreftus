@@ -337,7 +337,8 @@ function Get-Sparkline {
     param ([System.Collections.Generic.List[double]]$History)
     if ($null -eq $History -or $History.Count -lt 2) { return "              ".PadRight(14) }
 
-    $sparkChars = [char[]]('▁', '▂', '▃', '▄', '▅', '▆', '▇', '█')
+    # Use Unicode code points for compatibility with older PowerShell and encoding
+    $sparkChars = [char[]]([char]0x2581, [char]0x2582, [char]0x2583, [char]0x2584, [char]0x2585, [char]0x2586, [char]0x2587, [char]0x2588)
     $minPrice = ($History | Measure-Object -Minimum).Minimum
     $maxPrice = ($History | Measure-Object -Maximum).Maximum
     $priceRange = $maxPrice - $minPrice
@@ -517,10 +518,11 @@ if ($null -eq $currentBtcPrice) {
 
 if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent) {
     # --- Mode Configuration ---
+    # Spinner chars via Unicode code points for older PowerShell/encoding compatibility
     $modeSettings = @{
-        'go'     = @{ duration = 900;   interval = 5;  spinner = @('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏') }
-        'golong' = @{ duration = 86400; interval = 20; spinner = @('▚', '▚','▚', '▚', '▚', '▚', '▞', '▞','▞', '▞', '▞', '▞') }
-        'k'      = @{ duration = 1800;   interval = 4;  spinner = @('▏', '▎', '▍', '▌', '▋', '▊', '▉', '█', '▉', '▊', '▋', '▌', '▍', '▎') }
+        'go'     = @{ duration = 900;   interval = 5;  spinner = @([char]0x280B, [char]0x2819, [char]0x2839, [char]0x2838, [char]0x283C, [char]0x2834, [char]0x2826, [char]0x2827, [char]0x2807, [char]0x280F) }
+        'golong' = @{ duration = 86400; interval = 20; spinner = @([char]0x259A, [char]0x259A, [char]0x259A, [char]0x259A, [char]0x259A, [char]0x259A, [char]0x259E, [char]0x259E, [char]0x259E, [char]0x259E, [char]0x259E, [char]0x259E) }
+        'k'      = @{ duration = 1800;   interval = 4;  spinner = @([char]0x258F, [char]0x258E, [char]0x258D, [char]0x258C, [char]0x258B, [char]0x258A, [char]0x2589, [char]0x2588, [char]0x2589, [char]0x258A, [char]0x258B, [char]0x258C, [char]0x258D, [char]0x258E) }
     }
     $currentMode = if ($k.IsPresent) { 'k' } elseif ($golong.IsPresent) { 'golong' } else { 'go' }
 
