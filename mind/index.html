@@ -26,6 +26,12 @@
         .project-text-cell a { color:#007bff; text-decoration:none; }
         .project-text-cell a:hover { text-decoration:underline; }
         .readme-link { padding-left:1em; margin-top:-0.5em; font-size:0.9em; margin-bottom:1rem; }
+        .project-text-cell .peg-r { color: #c00 !important; }
+        .project-text-cell .peg-g { color: #080 !important; }
+        .project-text-cell .peg-b { color: #06c !important; }
+        .project-text-cell .peg-c { color: #09c !important; }
+        .project-text-cell .peg-m { color: #c0c !important; }
+        .project-text-cell .peg-y { color: #c90 !important; }
         @media (max-width:900px){ .project-image-cell, .project-text-cell{ display:block; width:100%; box-sizing:border-box; } .project-image-cell{ max-width:none; padding-right:0; padding-bottom:1rem; } .project-image-cell img{ width:auto; max-width:100%; margin:0; } }
     </style>
     <meta name="description" content="Mastermind is a terminal code-breaking game in Go. Guess the 4-peg secret in 12 turns with colored pegs and green/yellow feedback.">
@@ -53,10 +59,10 @@
                         <div>
                             <h2>M A S T E R M I N D</h2>
                             <p>
-                                <b>Mastermind</b> is a terminal code-breaking game written in Go. Guess the secret code of 4 pegs in up to 12 turns. Each peg is one of six colors (R G B C M Y or 1–6). You type key-by-key and see colored pegs as you go; green pegs mean right color in the right slot, yellow pegs mean right color in the wrong slot. Use <code>-set r22m</code> to set a code for another player to guess. Playtime is shown when you win or run out of turns.
+                                <b>Mastermind</b> is a terminal code-breaking game written in Go. Guess the secret code of 4 pegs in up to 12 turns. Each peg is one of six colors (<span class="peg-r">R⬤</span> <span class="peg-g">G⬤</span> <span class="peg-b">B⬤</span> <span class="peg-c">C⬤</span> <span class="peg-m">M⬤</span> <span class="peg-y">Y⬤</span> or 1–6). You type key-by-key and see colored pegs as you go; green pegs mean right color in the right slot, yellow pegs mean right color in the wrong slot. Use <code>-set rggm</code> or <code>-set 1225</code> to set a code for another player to guess. Playtime is shown when you win or run out of turns.
                             </p>
                             <h3>Controls</h3>
-                            <p>R G B C M Y or 1–6 for pegs, Backspace to remove last peg, Enter to submit (after 4 pegs), Esc or Ctrl+C to quit.</p>
+                            <p><span class="peg-r">R⬤</span> <span class="peg-g">G⬤</span> <span class="peg-b">B⬤</span> <span class="peg-c">C⬤</span> <span class="peg-m">M⬤</span> <span class="peg-y">Y⬤</span> or 1–6 for pegs, Backspace to remove last peg, Enter to submit (after 4 pegs), Esc or Ctrl+C to quit.</p>
                             <h3>Updates</h3>
                             <div id="updates-container">
                                 <p>Loading updates...</p>
@@ -68,7 +74,7 @@
                             <h3>Features</h3>
                             <ul>
                                 <li>Key-by-key input with colored pegs (⬤), Backspace and full-line redraw</li>
-                                <li>Six colors: R G B C M Y (or 1–6); green/yellow feedback pegs</li>
+                                <li>Six colors: <span class="peg-r">R⬤</span> <span class="peg-g">G⬤</span> <span class="peg-b">B⬤</span> <span class="peg-c">C⬤</span> <span class="peg-m">M⬤</span> <span class="peg-y">Y⬤</span> (or 1–6); green/yellow feedback pegs</li>
                                 <li>Start screen with clear rules; Ctrl+C and Esc exit cleanly</li>
                                 <li><code>-set &lt;code&gt;</code> for two-player (one sets, one guesses)</li>
                                 <li>Playtime shown on win or loss; Windows builds with optional icon</li>
