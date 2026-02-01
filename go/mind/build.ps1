@@ -39,13 +39,33 @@ New-Item -Path "./bin/linux/amd64" -ItemType Directory -Force | Out-Null
 
 $ldflags = "-s -w"
 
-try {
-    # 4) Windows builds (console app)
-    Write-Host "Building for Windows (x86)..." -ForegroundColor Cyan
-    $env:GOOS = "windows"; $env:GOARCH = "386"; Write-Host "  -> go build (windows/386) with -v" -ForegroundColor DarkGray; go build -v -ldflags "$ldflags" -o "./bin/win/x86/mind.exe" .
+# 4) Windows builds (console app) — with icon if windres and mind.rc/mind_icon.ico are present
+$rcFile = Join-Path $PSScriptRoot 'mind.rc'
+$icoFile = Join-Path $PSScriptRoot 'mind_icon.ico'
+$hasIcon = (Test-Path $rcFile) -and (Test-Path $icoFile) -and (Get-Command windres -ErrorAction SilentlyContinue)
 
-    Write-Host "Building for Windows (x64)..." -ForegroundColor Cyan
-    $env:GOOS = "windows"; $env:GOARCH = "amd64"; Write-Host "  -> go build (windows/amd64) with -v" -ForegroundColor DarkGray; go build -v -ldflags "$ldflags" -o "./bin/win/x64/mind.exe" .
+try {
+    if ($hasIcon) {
+        Write-Host "Building for Windows (x86) with icon..." -ForegroundColor Cyan
+        $env:GOOS = "windows"; $env:GOARCH = "386"
+        windres -F pe-i386 -I $PSScriptRoot -i $rcFile -o mind.syso
+        Write-Host "  -> go build (windows/386) with -v" -ForegroundColor DarkGray
+        go build -v -ldflags "$ldflags" -o "./bin/win/x86/mind.exe" .
+
+        Write-Host "Building for Windows (x64) with icon..." -ForegroundColor Cyan
+        $env:GOOS = "windows"; $env:GOARCH = "amd64"
+        windres -F pe-x86-64 -I $PSScriptRoot -i $rcFile -o mind.syso
+        Write-Host "  -> go build (windows/amd64) with -v" -ForegroundColor DarkGray
+        go build -v -ldflags "$ldflags" -o "./bin/win/x64/mind.exe" .
+
+        if (Test-Path "mind.syso") { Remove-Item "mind.syso" -Force }
+    } else {
+        Write-Host "Building for Windows (x86)..." -ForegroundColor Cyan
+        $env:GOOS = "windows"; $env:GOARCH = "386"; Write-Host "  -> go build (windows/386) with -v" -ForegroundColor DarkGray; go build -v -ldflags "$ldflags" -o "./bin/win/x86/mind.exe" .
+
+        Write-Host "Building for Windows (x64)..." -ForegroundColor Cyan
+        $env:GOOS = "windows"; $env:GOARCH = "amd64"; Write-Host "  -> go build (windows/amd64) with -v" -ForegroundColor DarkGray; go build -v -ldflags "$ldflags" -o "./bin/win/x64/mind.exe" .
+    }
 
     # 5) Linux builds
     Write-Host "Building for Linux (x86)..." -ForegroundColor Cyan
@@ -55,7 +75,7 @@ try {
     $env:GOOS = "linux"; $env:GOARCH = "amd64"; Write-Host "  -> go build (linux/amd64) with -v" -ForegroundColor DarkGray; go build -v -ldflags "$ldflags" -o "./bin/linux/amd64/mind" .
 }
 finally {
-    # Clean env overrides
+    if (Test-Path "mind.syso") { Remove-Item "mind.syso" -Force }
     Remove-Item Env:\GOOS -ErrorAction SilentlyContinue
     Remove-Item Env:\GOARCH -ErrorAction SilentlyContinue
 }

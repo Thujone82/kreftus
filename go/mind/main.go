@@ -2,12 +2,14 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"math/rand"
 	"os"
 	"os/signal"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/term"
 )
@@ -61,11 +63,26 @@ func main() {
 		os.Exit(0)
 	}()
 
+	setCode := flag.String("set", "", "4-peg code for another player to guess (e.g. r22m)")
+	flag.Parse()
+
 	reader := bufio.NewReader(os.Stdin)
 	showStartScreen(reader)
 
-	secret := generateSecret()
+	var secret []byte
+	if *setCode != "" {
+		var err error
+		secret, err = parseSetCode(*setCode)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	} else {
+		secret = generateSecret()
+	}
 	printGameInstructions()
+
+	startTime := time.Now()
 
 	for turn := 1; turn <= maxTurns; turn++ {
 		guess, err := readGuess(reader, turn)
@@ -81,20 +98,21 @@ func main() {
 		fmt.Println()
 
 		if rightPlace == codeLength {
-			fmt.Println("\nYou win! You cracked the code.")
+			fmt.Printf("\nYou win! You cracked the code in %s.\n", formatPlaytime(time.Since(startTime)))
 			return
 		}
 
 		if turn == maxTurns {
 			fmt.Print("\nOut of turns. The secret was: ")
 			printColoredPegs(secret)
-			fmt.Println()
+			fmt.Printf(" (%s)\n", formatPlaytime(time.Since(startTime)))
 			return
 		}
 	}
 }
 
 func showStartScreen(reader *bufio.Reader) {
+	fmt.Print("\033[H\033[2J") // clear screen and move cursor to home
 	fmt.Println()
 	fmt.Println("  ╔═══════════════════════════════╗")
 	fmt.Println("  ║      M A S T E R M I N D      ║")
@@ -108,7 +126,7 @@ func showStartScreen(reader *bufio.Reader) {
 	fmt.Println("  Feedback: " + ansiGreen + peg + ansiReset + " = right color, right slot")
 	fmt.Println("            " + ansiYellow + peg + ansiReset + " = right color, wrong slot")
 	fmt.Println()
-	fmt.Print("  Press ENTER to START ")
+	fmt.Print("        Press " + ansiGreen + "ENTER" + ansiReset + " to START ")
 	_, _ = reader.ReadString('\n')
 	fmt.Println()
 }
@@ -149,8 +167,6 @@ func printColoredNumbers() {
 	}
 }
 
-
-
 func printColoredPegs(code []byte) {
 	fmt.Print(coloredPegsString(code))
 }
@@ -183,6 +199,38 @@ func generateSecret() []byte {
 		secret[i] = colors[rand.Intn(numColors)]
 	}
 	return secret
+}
+
+// formatPlaytime returns a short human-readable duration (e.g. "45s", "1m 23s").
+func formatPlaytime(d time.Duration) string {
+	d = d.Round(time.Second)
+	if d < time.Minute {
+		return fmt.Sprintf("%ds", d/time.Second)
+	}
+	m := d / time.Minute
+	s := (d % time.Minute) / time.Second
+	if s == 0 {
+		return fmt.Sprintf("%dm", m)
+	}
+	return fmt.Sprintf("%dm %ds", m, s)
+}
+
+// parseSetCode parses a 4-character string (R G B C M Y or 1–6, case-insensitive) into the secret code.
+// Used with -set for one person to set the code for another to guess.
+func parseSetCode(s string) ([]byte, error) {
+	s = strings.TrimSpace(s)
+	if len(s) != codeLength {
+		return nil, fmt.Errorf("mind: -set requires exactly %d characters (e.g. -set r22m), got %d", codeLength, len(s))
+	}
+	secret := make([]byte, codeLength)
+	for i, r := range s {
+		c, ok := keyToColor(r)
+		if !ok {
+			return nil, fmt.Errorf("mind: invalid character %q in -set (use R G B C M Y or 1–6)", r)
+		}
+		secret[i] = c
+	}
+	return secret, nil
 }
 
 // keyToColor maps input runes to color bytes: r,g,b,c,m,y (case-insensitive) and 1–6 (1=R, 2=G, 3=B, 4=C, 5=M, 6=Y).

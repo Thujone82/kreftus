@@ -8,7 +8,7 @@ Terminal-based **Mastermind** code-breaking game written in Go. Guess the secret
 
 ## Game rules
 
-- **Secret**: The program picks a code of 4 pegs. Each peg is one of 6 colors: **R**ed, **G**reen, **B**lue, **C**yan, **M**agenta, **Y**ellow (order RGBCMY). Colors may repeat.
+- **Secret**: The program picks a random code of 4 pegs, or you can set it with `-set` (e.g. `mind -set r22m`) for another player to guess. Each peg is one of 6 colors: **R**ed, **G**reen, **B**lue, **C**yan, **M**agenta, **Y**ellow (order RGBCMY). Colors may repeat.
 - **Turns**: You have up to **12** turns to guess the code.
 - **Feedback** (after each guess, shown as colored pegs):
   - **Green ⬤**: Correct color in the correct position.
@@ -40,6 +40,8 @@ go build -o mind .
 ./mind        # Linux/macOS
 mind.exe      # Windows
 ```
+
+**Set the code for another player:** Use `-set` with a 4-character code (letters R G B C M Y or digits 1–6, case-insensitive). The game will use that code instead of a random one. Example: `mind -set r22m` uses Red, Green, Green, Magenta so a second person can guess it.
 
 ## Input format
 
