@@ -1649,7 +1649,19 @@ function Show-LedgerScreen {
                     elseif ($portfolioValue -lt $startingCapital) { $portfolioColor = "Red" }
                 }
 
-                Write-AlignedLine -Label "Portfolio Value:" -Value ("{0:C2}" -f $portfolioValue) -ValueColor $portfolioColor
+                # Portfolio Value with session delta in [] (green if up, red if down)
+                Write-Host -NoNewline "Portfolio Value:"
+                $pvPadding = 22 - "Portfolio Value:".Length
+                if ($pvPadding -gt 0) { Write-Host (" " * $pvPadding) -NoNewline }
+                Write-Host -NoNewline ("{0:C2}" -f $portfolioValue) -ForegroundColor $portfolioColor
+                if ($script:sessionStartPortfolioValue -gt 0 -and $portfolioValue -is [double]) {
+                    $sessionPortfolioDelta = $portfolioValue - $script:sessionStartPortfolioValue
+                    $deltaStr = " [{0:+#0.00;-#0.00;0.00}]" -f $sessionPortfolioDelta
+                    $deltaColor = if ($sessionPortfolioDelta -gt 0) { "Green" } elseif ($sessionPortfolioDelta -lt 0) { "Red" } else { "White" }
+                    Write-Host $deltaStr -ForegroundColor $deltaColor
+                } else {
+                    Write-Host ""
+                }
 
                 # Trading Statistics Section (all-time with session in [])
                 if ($summary.TotalBuyUSD -gt 0) {
@@ -1745,9 +1757,9 @@ function Show-LedgerScreen {
                     return
                 }
                 
-                # Note: We do NOT call Update-ApiData here to avoid API calls during ledger refresh.
-                # The ledger screen only needs to refresh ledger entries and portfolio config.
-                # Existing apiData is still used for portfolio value calculations if available.
+                # Stale check: refresh API data if >15 minutes old so Portfolio Value on summary is current.
+                $isStale = -not $script:apiData -or (-not $script:apiData.PSObject.Properties['HistoricalDataFetchTime']) -or (((Get-Date).ToUniversalTime() - $script:apiData.HistoricalDataFetchTime).TotalMinutes -gt 15)
+                if ($isStale) { $script:apiData = Update-ApiData -Config $script:config -OldApiData $script:apiData }
                 
                 # Recursively call Show-LedgerScreen to redraw with fresh ledger data
                 Show-LedgerScreen

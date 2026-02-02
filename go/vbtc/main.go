@@ -931,7 +931,23 @@ func showLedgerScreen(reader *bufio.Reader) {
 		portfolioColor = color.New(color.FgRed)
 	}
 
-	writeAlignedLine("Portfolio Value:", fmt.Sprintf("$%s", formatFloat(portfolioValue, 2)), portfolioColor, summaryValueStartColumn)
+	// Portfolio Value with session delta in [] (green if up, red if down)
+	fmt.Print("Portfolio Value:")
+	fmt.Print(strings.Repeat(" ", summaryValueStartColumn-len("Portfolio Value:")))
+	portfolioColor.Print(fmt.Sprintf("$%s", formatFloat(portfolioValue, 2)))
+	if sessionStartPortfolioValue > 0 {
+		sessionPortfolioDelta := portfolioValue - sessionStartPortfolioValue
+		deltaStr := fmt.Sprintf(" [%+.2f]", sessionPortfolioDelta)
+		deltaColor := color.New(color.FgWhite)
+		if sessionPortfolioDelta > 0 {
+			deltaColor = color.New(color.FgGreen)
+		} else if sessionPortfolioDelta < 0 {
+			deltaColor = color.New(color.FgRed)
+		}
+		deltaColor.Println(deltaStr)
+	} else {
+		fmt.Println()
+	}
 
 	// Trading Statistics Section (all-time with session in [])
 	if summary.TotalBuyUSD > 0 {
@@ -1132,9 +1148,10 @@ func showLedgerScreen(reader *bufio.Reader) {
 			}
 			cfg = reloadedCfg
 
-			// Note: We do NOT call updateApiData here to avoid API calls during ledger refresh.
-			// The ledger screen only needs to refresh ledger entries and portfolio config.
-			// Existing apiData is still used for portfolio value calculations if available.
+			// Stale check: refresh API data if >15 minutes old so Portfolio Value on summary is current.
+			if isApiDataStale() {
+				apiData = updateApiData(false)
+			}
 
 			// Recursively call showLedgerScreen to redraw with fresh ledger data
 			showLedgerScreen(reader)
