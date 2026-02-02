@@ -212,6 +212,54 @@ function Write-RetryIndicator {
     }
 }
 
+function Get-TimeUntilMidnightUTC {
+    $now = [DateTime]::UtcNow
+    $midnight = $now.Date.AddDays(1)
+    $span = $midnight - $now
+    if ($span.TotalHours -ge 1) {
+        return "{0}h {1}m" -f [int]$span.TotalHours, $span.Minutes
+    }
+    return "{0}m" -f [int]$span.TotalMinutes
+}
+
+# Get response body from web exception (works with both HttpWebResponse and HttpResponseMessage)
+function Get-WebExceptionResponseBody {
+    param([System.Management.Automation.ErrorRecord]$ErrorRecord)
+    if (-not $ErrorRecord -or -not $ErrorRecord.Exception) { return $null }
+    $resp = $ErrorRecord.Exception.Response
+    if (-not $resp) { return $null }
+    try {
+        # PowerShell often puts response body in ErrorDetails.Message
+        if ($ErrorRecord.ErrorDetails.Message) {
+            return $ErrorRecord.ErrorDetails.Message
+        }
+        # HttpResponseMessage (PowerShell Core / .NET Core) - use Content
+        if ($resp.GetType().FullName -eq 'System.Net.Http.HttpResponseMessage') {
+            $content = $resp.Content
+            if ($content) {
+                $task = $content.ReadAsStringAsync()
+                return $task.GetAwaiter().GetResult()
+            }
+            return $null
+        }
+        # HttpWebResponse (Windows PowerShell / .NET Framework) - use GetResponseStream
+        $stream = $resp.GetResponseStream()
+        if (-not $stream) { return $null }
+        try {
+            $reader = New-Object System.IO.StreamReader($stream)
+            $body = $reader.ReadToEnd()
+            $reader.Close()
+            return $body
+        }
+        finally {
+            $stream.Close()
+        }
+    }
+    catch {
+        return $null
+    }
+}
+
 function Test-ApiKey {
     param ([string]$ApiKey)
     if ([string]::IsNullOrEmpty($ApiKey)) { return $false }
@@ -222,6 +270,14 @@ function Test-ApiKey {
         return $true
     }
     catch {
+        if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 403) {
+            $respBody = Get-WebExceptionResponseBody -ErrorRecord $_
+            if ($respBody -and ($respBody -match 'No more daily credits remaining\. Renewal is at midnight UTC\.')) {
+                $resetWait = Get-TimeUntilMidnightUTC
+                Write-Host "API Credits reset in: $resetWait" -ForegroundColor Red
+                exit 1
+            }
+        }
         return $false
     }
 }
@@ -291,6 +347,15 @@ function Get-BtcPrice {
             return $price
         }
         catch {
+            # Check for 403 API credits exhausted (do not retry)
+            if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 403) {
+                $respBody = Get-WebExceptionResponseBody -ErrorRecord $_
+                if ($respBody -and ($respBody -match 'No more daily credits remaining\. Renewal is at midnight UTC\.')) {
+                    $resetWait = Get-TimeUntilMidnightUTC
+                    Write-Host "API Credits reset in: $resetWait" -ForegroundColor Red
+                    exit 1
+                }
+            }
             $retried = $true
             if ($attempt -ge $maxAttempts) {
                 # Final failure indicator: red '5'

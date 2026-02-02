@@ -353,7 +353,27 @@ func testAPIKey(key string) bool {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == 403 {
+		body, _ := io.ReadAll(resp.Body)
+		if strings.Contains(string(body), "No more daily credits remaining. Renewal is at midnight UTC.") {
+			resetWait := timeUntilMidnightUTC()
+			color.Red("API Credits reset in: %s", resetWait)
+			os.Exit(1)
+		}
+	}
 	return resp.StatusCode == 200
+}
+
+func timeUntilMidnightUTC() string {
+	now := time.Now().UTC()
+	midnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, time.UTC)
+	d := midnight.Sub(now)
+	h := int(d.Hours())
+	m := int(d.Minutes()) % 60
+	if h >= 1 {
+		return fmt.Sprintf("%dh %dm", h, m)
+	}
+	return fmt.Sprintf("%dm", m)
 }
 
 func fetchInitialPrice() error {
@@ -433,6 +453,25 @@ func getBtcPriceWithContext(isInitialFetch bool) (float64, error) {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return 0, err
+		}
+
+		if resp.StatusCode == 403 && strings.Contains(string(body), "No more daily credits remaining. Renewal is at midnight UTC.") {
+			clearRetryIndicator()
+			resetWait := timeUntilMidnightUTC()
+			color.Red("API Credits reset in: %s", resetWait)
+			os.Exit(1)
+		}
+
+		if resp.StatusCode != 200 {
+			if attempt >= maxAttempts {
+				setRetryIndicator("5", "1", true)
+				return 0, fmt.Errorf("API returned status %d", resp.StatusCode)
+			}
+			backoff := time.Duration(math.Pow(2, float64(attempt-1))) * baseDelay
+			jitter := time.Duration(time.Now().UnixNano()%1000) * time.Millisecond
+			time.Sleep(backoff + jitter)
+			setRetryIndicator(strconv.Itoa(attempt), "6", true)
+			continue
 		}
 
 		var apiResp APIResponse
