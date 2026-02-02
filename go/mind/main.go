@@ -66,6 +66,9 @@ func main() {
 	setCode := flag.String("set", "", "4-peg code for another player to guess (e.g. r22m)")
 	flag.Parse()
 
+	// Set terminal window title (ANSI OSC 0 ; title BEL)
+	fmt.Print("\033]0;Mastermind - Crack the code!\007")
+
 	reader := bufio.NewReader(os.Stdin)
 	showStartScreen(reader)
 
@@ -99,6 +102,7 @@ func main() {
 
 		if rightPlace == codeLength {
 			fmt.Printf("\nYou win! You cracked the code in %s.\n", formatPlaytime(time.Since(startTime)))
+			waitForAnyKey(reader)
 			return
 		}
 
@@ -106,8 +110,26 @@ func main() {
 			fmt.Print("\nOut of turns. The secret was: ")
 			printColoredPegs(secret)
 			fmt.Printf(" (%s)\n", formatPlaytime(time.Since(startTime)))
+			waitForAnyKey(reader)
 			return
 		}
+	}
+}
+
+// waitForAnyKey waits for a keypress (or Enter if not a TTY) before the program exits after win/lose.
+func waitForAnyKey(reader *bufio.Reader) {
+	fmt.Print("\nPress any key to exit.")
+	fd := int(os.Stdin.Fd())
+	if term.IsTerminal(fd) {
+		oldState, err := term.MakeRaw(fd)
+		if err == nil {
+			defer func() { _ = term.Restore(fd, oldState) }()
+			_, _, _ = reader.ReadRune()
+		} else {
+			_, _ = reader.ReadString('\n')
+		}
+	} else {
+		_, _ = reader.ReadString('\n')
 	}
 }
 
