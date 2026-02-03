@@ -1769,7 +1769,7 @@ func readAllLedgerEntries() ([]LedgerEntry, error) {
 		}
 	}
 
-	// 2. Check for merged ledger first (preferred over individual archives)
+	// 2. Add merged ledger if present (historical bulk)
 	mergedLedgerPath := filepath.Join(ledgerDir, "vBTC - Ledger_Merged.csv")
 	if _, err := os.Stat(mergedLedgerPath); err == nil {
 		mergedEntries, err := readLedgerFromFile(mergedLedgerPath)
@@ -1781,33 +1781,33 @@ func readAllLedgerEntries() ([]LedgerEntry, error) {
 				}
 			}
 		}
-	} else {
-		// 3. If no merged ledger, read individual archives
-		archivePattern := filepath.Join(ledgerDir, "vBTC - Ledger_??????.csv")
-		archiveFiles, err := filepath.Glob(archivePattern)
-		if err == nil {
-			// Sort archives by date
-			re := regexp.MustCompile(`_(\d{6})\.csv$`)
-			sort.Slice(archiveFiles, func(i, j int) bool {
-				matchI := re.FindStringSubmatch(archiveFiles[i])
-				matchJ := re.FindStringSubmatch(archiveFiles[j])
-				const layout = "010206" // MMddyy
-				if len(matchI) < 2 || len(matchJ) < 2 {
-					return false
-				}
-				dateI, _ := time.Parse(layout, matchI[1])
-				dateJ, _ := time.Parse(layout, matchJ[1])
-				return dateI.Before(dateJ)
-			})
+	}
 
-			for _, archivePath := range archiveFiles {
-				archiveEntries, err := readLedgerFromFile(archivePath)
-				if err == nil {
-					for _, entry := range archiveEntries {
-						if _, exists := processedTimestamps[entry.Time]; !exists {
-							processedTimestamps[entry.Time] = struct{}{}
-							allEntries = append(allEntries, entry)
-						}
+	// 3. Always add all unmerged archives (more recent; may be multiple) — dedup by Time
+	archivePattern := filepath.Join(ledgerDir, "vBTC - Ledger_??????.csv")
+	archiveFiles, err := filepath.Glob(archivePattern)
+	if err == nil {
+		// Sort archives by date (MMddyy in filename)
+		re := regexp.MustCompile(`_(\d{6})\.csv$`)
+		sort.Slice(archiveFiles, func(i, j int) bool {
+			matchI := re.FindStringSubmatch(archiveFiles[i])
+			matchJ := re.FindStringSubmatch(archiveFiles[j])
+			const layout = "010206" // MMddyy
+			if len(matchI) < 2 || len(matchJ) < 2 {
+				return false
+			}
+			dateI, _ := time.Parse(layout, matchI[1])
+			dateJ, _ := time.Parse(layout, matchJ[1])
+			return dateI.Before(dateJ)
+		})
+
+		for _, archivePath := range archiveFiles {
+			archiveEntries, err := readLedgerFromFile(archivePath)
+			if err == nil {
+				for _, entry := range archiveEntries {
+					if _, exists := processedTimestamps[entry.Time]; !exists {
+						processedTimestamps[entry.Time] = struct{}{}
+						allEntries = append(allEntries, entry)
 					}
 				}
 			}
@@ -1957,9 +1957,11 @@ func getSessionSummary() *LedgerSummary {
 	if err != nil || allEntries == nil {
 		return nil
 	}
+	// Ledger timestamps are whole seconds; truncate session start so trades in the same second are included.
+	sessionStartTruncated := sessionStartTime.Truncate(time.Second)
 	var sessionEntries []LedgerEntry
 	for _, entry := range allEntries {
-		if !entry.DateTime.IsZero() && !entry.DateTime.Before(sessionStartTime) {
+		if !entry.DateTime.IsZero() && !entry.DateTime.Before(sessionStartTruncated) {
 			sessionEntries = append(sessionEntries, entry)
 		}
 	}

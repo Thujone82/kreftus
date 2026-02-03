@@ -31,7 +31,6 @@ else {
 $iniFilePath = Join-Path -Path $scriptPath -ChildPath "vbtc.ini"
 $ledgerFilePath = Join-Path -Path $scriptPath -ChildPath "ledger.csv"
 $startingCapital = 1000.00
-$sessionStartTime = (Get-Date).ToUniversalTime()
 $script:LastGoodApiData = $null
 
 # Check for help parameters (before any other processing)
@@ -908,7 +907,7 @@ function Get-AllLedgerData {
         }
     }
 
-    # 2. Check for merged ledger first (preferred over individual archives)
+    # 2. Add merged ledger if present (historical bulk)
     $mergedLedgerPath = Join-Path -Path $scriptPath -ChildPath "vBTC - Ledger_Merged.csv"
     if (Test-Path $mergedLedgerPath) {
         $mergedData = Import-Csv -Path $mergedLedgerPath -ErrorAction SilentlyContinue
@@ -920,21 +919,21 @@ function Get-AllLedgerData {
                 }
             }
         }
-    } else {
-        # 3. If no merged ledger, read individual archives
-        $archivePattern = "vBTC - Ledger_??????.csv"
-        $archiveFiles = Get-ChildItem -Path $scriptPath -Filter $archivePattern -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -match "vBTC - Ledger_(\d{6})\.csv" } |
-            Sort-Object { [datetime]::ParseExact($_.BaseName.Split('_')[1], 'MMddyy', $null) }
+    }
 
-        foreach ($archiveFile in $archiveFiles) {
-            $archiveData = Import-Csv -Path $archiveFile.FullName -ErrorAction SilentlyContinue
-            if ($archiveData) {
-                foreach ($entry in $archiveData) {
-                    if (-not $processedTimestamps.ContainsKey($entry.Time)) {
-                        $processedTimestamps[$entry.Time] = $true
-                        $allEntries += $entry
-                    }
+    # 3. Always add all unmerged archives (more recent; may be multiple) — dedup by Time
+    $archivePattern = "vBTC - Ledger_??????.csv"
+    $archiveFiles = Get-ChildItem -Path $scriptPath -Filter $archivePattern -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match "vBTC - Ledger_(\d{6})\.csv" } |
+        Sort-Object { [datetime]::ParseExact($_.BaseName.Split('_')[1], 'MMddyy', $null) }
+
+    foreach ($archiveFile in $archiveFiles) {
+        $archiveData = Import-Csv -Path $archiveFile.FullName -ErrorAction SilentlyContinue
+        if ($archiveData) {
+            foreach ($entry in $archiveData) {
+                if (-not $processedTimestamps.ContainsKey($entry.Time)) {
+                    $processedTimestamps[$entry.Time] = $true
+                    $allEntries += $entry
                 }
             }
         }
@@ -958,12 +957,13 @@ function Get-SessionSummary {
     if ($null -eq $allEntries -or $allEntries.Count -eq 0) {
         return $null
     }
-    # Ledger timestamps are written in UTC; parse as UTC so comparison with $SessionStartTime (UTC) is correct.
+    # Ledger timestamps are written in UTC (whole seconds only); truncate session start to seconds so trades in the same second are included.
+    $sessionStartTruncated = [DateTime]::new($SessionStartTime.Year, $SessionStartTime.Month, $SessionStartTime.Day, $SessionStartTime.Hour, $SessionStartTime.Minute, $SessionStartTime.Second, $SessionStartTime.Kind)
     $sessionTransactions = @($allEntries) | Where-Object {
         try {
             $parsed = [datetime]::ParseExact($_.Time, "MMddyy@HHmmss", [System.Globalization.CultureInfo]::InvariantCulture)
             $parsedUtc = [DateTime]::SpecifyKind($parsed, [DateTimeKind]::Utc)
-            return ($parsedUtc -ge $SessionStartTime)
+            return ($parsedUtc -ge $sessionStartTruncated)
         } catch {
             Write-Warning "Could not parse timestamp '$($_.Time)' in ledger."
             return $false
@@ -1869,6 +1869,8 @@ $null = [double]::TryParse($config.Portfolio.PlayerUSD, [System.Globalization.Nu
 $null = [double]::TryParse($config.Portfolio.PlayerBTC, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$initialPlayerBTC)
 $sessionStartPortfolioValue = Get-PortfolioValue -PlayerUSD $initialPlayerUSD -PlayerBTC $initialPlayerBTC -ApiData $apiData
 
+# Session = from when the main screen is first shown (after setup); used for Ledger session stats.
+$sessionStartTime = (Get-Date).ToUniversalTime()
 
 $commands = @("buy", "sell", "ledger", "refresh", "config", "help", "exit")
 
