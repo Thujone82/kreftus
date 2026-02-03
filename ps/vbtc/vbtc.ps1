@@ -874,6 +874,23 @@ function Format-Duration {
     return "{0}D" -f [int][math]::Round($duration.TotalDays)
 }
 
+function Format-Cadence {
+    param([TimeSpan]$Duration)
+    if ($null -eq $Duration -or $Duration.TotalSeconds -le 0) { return "" }
+    if ($Duration.TotalHours -lt 1) {
+        $m = [int][math]::Floor($Duration.TotalMinutes)
+        $s = [int][math]::Floor($Duration.TotalSeconds) % 60
+        return "{0}M{1}S" -f $m, $s
+    }
+    if ($Duration.TotalHours -lt 48) {
+        $h = [int][math]::Floor($Duration.TotalHours)
+        $m = [int][math]::Floor($Duration.TotalMinutes) % 60
+        return "{0}H{1}M" -f $h, $m
+    }
+    $d = [int][math]::Floor($Duration.TotalDays)
+    return "{0}D" -f $d
+}
+
 function Get-AllLedgerData {
     $allEntries = @()
     $processedTimestamps = @{}
@@ -1715,6 +1732,44 @@ function Show-LedgerScreen {
                         if ($sessionLen -ne "") { $timeVal += " [$sessionLen]" }
                     }
                     Write-AlignedLine -Label "Time:" -Value $timeVal -ValueColor "White"
+                }
+                # Cadence: time per trade (ledger and session); slower = red, quicker = green
+                if ($totalTransactions -gt 0 -and $null -ne $summary.FirstDateTime -and $null -ne $summary.LastDateTime -and $summary.LastDateTime -gt $summary.FirstDateTime) {
+                    $ledgerSpan = $summary.LastDateTime - $summary.FirstDateTime
+                    $ledgerCadenceDur = [TimeSpan]::FromSeconds($ledgerSpan.TotalSeconds / $totalTransactions)
+                    $ledgerCadenceStr = Format-Cadence -Duration $ledgerCadenceDur
+                    if ($ledgerCadenceStr -ne "") {
+                        $sessionCadenceStr = ""
+                        $sessionCadenceDur = [TimeSpan]::Zero
+                        if ($sessionSummary -and $null -ne $sessionSummary.FirstDateTime -and $null -ne $sessionSummary.LastDateTime) {
+                            $sessionTx = $sessionSummary.BuyTransactions + $sessionSummary.SellTransactions
+                            if ($sessionTx -gt 0 -and $sessionSummary.LastDateTime -gt $sessionSummary.FirstDateTime) {
+                                $sessionSpan = $sessionSummary.LastDateTime - $sessionSummary.FirstDateTime
+                                $sessionCadenceDur = [TimeSpan]::FromSeconds($sessionSpan.TotalSeconds / $sessionTx)
+                                $sessionCadenceStr = Format-Cadence -Duration $sessionCadenceDur
+                            }
+                        }
+                        $label = "Cadence:"
+                        $paddingLen = [math]::Max(0, 22 - $label.Length)
+                        Write-Host $label -NoNewline
+                        Write-Host (" " * $paddingLen) -NoNewline
+                        if ($sessionCadenceStr -eq "") {
+                            Write-Host $ledgerCadenceStr -ForegroundColor White
+                        } else {
+                            $ledgerIsSlower = $ledgerCadenceDur -ge $sessionCadenceDur
+                            if ($ledgerIsSlower) {
+                                Write-Host $ledgerCadenceStr -NoNewline -ForegroundColor Red
+                                Write-Host " [" -NoNewline -ForegroundColor White
+                                Write-Host $sessionCadenceStr -NoNewline -ForegroundColor Green
+                                Write-Host "]" -ForegroundColor White
+                            } else {
+                                Write-Host $ledgerCadenceStr -NoNewline -ForegroundColor Green
+                                Write-Host " [" -NoNewline -ForegroundColor White
+                                Write-Host $sessionCadenceStr -NoNewline -ForegroundColor Red
+                                Write-Host "]" -ForegroundColor White
+                            }
+                        }
+                    }
                 }
             }
         }

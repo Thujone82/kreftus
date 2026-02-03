@@ -1010,6 +1010,27 @@ func showLedgerScreen(reader *bufio.Reader) {
 		}
 		writeAlignedLine("Time:", timeVal, color.New(color.FgWhite), summaryValueStartColumn)
 	}
+	// Cadence: time per trade (ledger and session); slower = red, quicker = green
+	if totalTransactions > 0 && !summary.FirstTime.IsZero() && summary.LastTime.After(summary.FirstTime) {
+		ledgerDuration := summary.LastTime.Sub(summary.FirstTime)
+		ledgerCadenceDur := ledgerDuration / time.Duration(totalTransactions)
+		ledgerCadenceStr := formatCadence(ledgerCadenceDur)
+		sessionCadenceStr := ""
+		var sessionCadenceDur time.Duration
+		sessionTx := 0
+		if sessionSummary != nil {
+			sessionTx = sessionSummary.BuyTransactions + sessionSummary.SellTransactions
+			if sessionTx > 0 && !sessionSummary.FirstTime.IsZero() && sessionSummary.LastTime.After(sessionSummary.FirstTime) {
+				sessionDuration := sessionSummary.LastTime.Sub(sessionSummary.FirstTime)
+				sessionCadenceDur = sessionDuration / time.Duration(sessionTx)
+				sessionCadenceStr = formatCadence(sessionCadenceDur)
+			}
+		}
+		if ledgerCadenceStr != "" {
+			ledgerIsSlower := sessionCadenceStr == "" || ledgerCadenceDur >= sessionCadenceDur
+			writeAlignedLineCadence("Cadence:", ledgerCadenceStr, sessionCadenceStr, ledgerIsSlower, summaryValueStartColumn)
+		}
+	}
 
 	fmt.Println("\nPress Enter to return to Main screen, or R to refresh")
 
@@ -2892,4 +2913,51 @@ func formatDuration(first, last time.Time) string {
 		return fmt.Sprintf("%dH", int(d.Round(time.Hour).Hours()))
 	}
 	return fmt.Sprintf("%dD", int(d.Round(time.Hour).Hours()/24))
+}
+
+// formatCadence formats a cadence duration for display: M+S under 1h, H+M under 48h, D above.
+func formatCadence(d time.Duration) string {
+	if d <= 0 {
+		return ""
+	}
+	if d < time.Hour {
+		m := int(d.Truncate(time.Minute).Minutes())
+		s := int((d - time.Duration(m)*time.Minute).Truncate(time.Second).Seconds())
+		return fmt.Sprintf("%dM%dS", m, s)
+	}
+	if d < 48*time.Hour {
+		h := int(d.Truncate(time.Hour).Hours())
+		m := int((d - time.Duration(h)*time.Hour).Truncate(time.Minute).Minutes())
+		return fmt.Sprintf("%dH%dM", h, m)
+	}
+	days := int(d.Truncate(24*time.Hour).Hours() / 24)
+	return fmt.Sprintf("%dD", days)
+}
+
+func writeAlignedLineCadence(label string, ledgerCadence, sessionCadence string, ledgerIsSlower bool, startColumn int) {
+	valueStartColumn := 22
+	if startColumn > 0 {
+		valueStartColumn = startColumn
+	}
+	padding := valueStartColumn - len(label)
+	if padding < 0 {
+		padding = 0
+	}
+	fmt.Print(label)
+	fmt.Print(strings.Repeat(" ", padding))
+	if sessionCadence == "" {
+		color.New(color.FgWhite).Println(ledgerCadence)
+		return
+	}
+	if ledgerIsSlower {
+		color.New(color.FgRed).Print(ledgerCadence)
+		color.New(color.FgWhite).Print(" [")
+		color.New(color.FgGreen).Print(sessionCadence)
+		color.New(color.FgWhite).Println("]")
+	} else {
+		color.New(color.FgGreen).Print(ledgerCadence)
+		color.New(color.FgWhite).Print(" [")
+		color.New(color.FgRed).Print(sessionCadence)
+		color.New(color.FgWhite).Println("]")
+	}
 }
