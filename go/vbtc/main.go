@@ -1020,8 +1020,9 @@ func showLedgerScreen(reader *bufio.Reader) {
 		sessionTx := 0
 		if sessionSummary != nil {
 			sessionTx = sessionSummary.BuyTransactions + sessionSummary.SellTransactions
-			if sessionTx > 0 && !sessionSummary.FirstTime.IsZero() && sessionSummary.LastTime.After(sessionSummary.FirstTime) {
-				sessionDuration := sessionSummary.LastTime.Sub(sessionSummary.FirstTime)
+			if sessionTx > 0 {
+				// Session cadence: session start to now (not first trade to last trade)
+				sessionDuration := time.Now().UTC().Sub(sessionStartTime)
 				sessionCadenceDur = sessionDuration / time.Duration(sessionTx)
 				sessionCadenceStr = formatCadence(sessionCadenceDur)
 			}

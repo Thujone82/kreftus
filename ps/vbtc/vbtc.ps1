@@ -1741,10 +1741,11 @@ function Show-LedgerScreen {
                     if ($ledgerCadenceStr -ne "") {
                         $sessionCadenceStr = ""
                         $sessionCadenceDur = [TimeSpan]::Zero
-                        if ($sessionSummary -and $null -ne $sessionSummary.FirstDateTime -and $null -ne $sessionSummary.LastDateTime) {
+                        if ($sessionSummary) {
                             $sessionTx = $sessionSummary.BuyTransactions + $sessionSummary.SellTransactions
-                            if ($sessionTx -gt 0 -and $sessionSummary.LastDateTime -gt $sessionSummary.FirstDateTime) {
-                                $sessionSpan = $sessionSummary.LastDateTime - $sessionSummary.FirstDateTime
+                            if ($sessionTx -gt 0) {
+                                # Session cadence: session start to now (not first trade to last trade)
+                                $sessionSpan = (Get-Date).ToUniversalTime() - $sessionStartTime
                                 $sessionCadenceDur = [TimeSpan]::FromSeconds($sessionSpan.TotalSeconds / $sessionTx)
                                 $sessionCadenceStr = Format-Cadence -Duration $sessionCadenceDur
                             }
