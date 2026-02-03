@@ -807,104 +807,7 @@ func showLedgerScreen(reader *bufio.Reader) {
 	clearScreen()
 	color.Yellow("*** Ledger ***")
 
-	// Read only current ledger for display
-	ledgerEntries, err := readAndParseLedger()
-	if err != nil {
-		color.Red("Error reading ledger file: %v", err)
-		fmt.Println("\nPress Enter to return to Main screen")
-		reader.ReadString('\n')
-		return
-	}
-	if len(ledgerEntries) == 0 {
-		fmt.Println("You have not made any transactions yet.")
-		fmt.Println("\nPress Enter to return to Main screen")
-		reader.ReadString('\n')
-		return
-	}
-
-	// Sort entries by date and time to ensure chronological order for display.
-	sort.Slice(ledgerEntries, func(i, j int) bool {
-		return ledgerEntries[i].DateTime.Before(ledgerEntries[j].DateTime)
-	})
-
-	// 2. Dynamically calculate column widths for proper alignment.
-	columnOrder := []string{"TX", "USD", "BTC", "BTC(USD)", "User BTC", "Time"}
-	widths := map[string]int{
-		"TX": len("TX"), "USD": len("USD"), "BTC": len("BTC"),
-		"BTC(USD)": len("BTC(USD)"), "User BTC": len("User BTC"), "Time": len("Time"),
-	}
-
-	for _, entry := range ledgerEntries {
-		if len(entry.TX) > widths["TX"] {
-			widths["TX"] = len(entry.TX)
-		}
-		if len(formatFloat(entry.USD, 2)) > widths["USD"] {
-			widths["USD"] = len(formatFloat(entry.USD, 2))
-		}
-		if len(fmt.Sprintf("%.8f", entry.BTC)) > widths["BTC"] {
-			widths["BTC"] = len(fmt.Sprintf("%.8f", entry.BTC))
-		}
-		if len(formatFloat(entry.BTCPrice, 2)) > widths["BTC(USD)"] {
-			widths["BTC(USD)"] = len(formatFloat(entry.BTCPrice, 2))
-		}
-		if len(fmt.Sprintf("%.8f", entry.UserBTC)) > widths["User BTC"] {
-			widths["User BTC"] = len(fmt.Sprintf("%.8f", entry.UserBTC))
-		}
-		if len(entry.Time) > widths["Time"] {
-			widths["Time"] = len(entry.Time)
-		}
-	}
-
-	// 3. Create header and separator strings based on dynamic widths.
-	var headerParts []string
-	for _, colName := range columnOrder {
-		width := widths[colName]
-		headerParts = append(headerParts, fmt.Sprintf("%-*s", width, colName))
-	}
-	header := strings.Join(headerParts, "  ")
-	separator := strings.Repeat("-", len(header))
-	fmt.Println(header)
-	fmt.Println(separator)
-
-	// 4. Print data rows
-	sessionStarted := false
-	// Truncate the session start time to the second. This is crucial for a correct comparison,
-	// as the timestamps stored in the ledger only have second-level precision.
-	sessionStartTruncated := sessionStartTime.Truncate(time.Second)
-	for _, entry := range ledgerEntries {
-		// Compare the entry's time (which has second-level precision) with the truncated session start time.
-		// This prevents issues where a trade in the same second as launch would be considered "before".
-		if !sessionStarted && !entry.DateTime.IsZero() && !entry.DateTime.Before(sessionStartTruncated) {
-			totalWidth := len(separator)
-			sessionText := "*** Current Session Start ***"
-			paddingLength := 0
-			if totalWidth > len(sessionText) {
-				paddingLength = (totalWidth - len(sessionText)) / 2
-			}
-			centeredText := strings.Repeat(" ", paddingLength) + sessionText
-			color.White(centeredText)
-			sessionStarted = true
-		}
-
-		rowColor := color.New(color.FgGreen)
-		if entry.TX == "Sell" {
-			rowColor = color.New(color.FgRed)
-		}
-
-		// Build the row dynamically with correct alignment.
-		rowParts := []string{
-			fmt.Sprintf("%-*s", widths["TX"], entry.TX),                  // Left-align TX
-			fmt.Sprintf("%*s", widths["USD"], formatFloat(entry.USD, 2)), // Right-align numbers
-			fmt.Sprintf("%*s", widths["BTC"], fmt.Sprintf("%.8f", entry.BTC)),
-			fmt.Sprintf("%*s", widths["BTC(USD)"], formatFloat(entry.BTCPrice, 2)),
-			fmt.Sprintf("%*s", widths["User BTC"], fmt.Sprintf("%.8f", entry.UserBTC)),
-			fmt.Sprintf("%*s", widths["Time"], entry.Time),
-		}
-		row := strings.Join(rowParts, "  ")
-		rowColor.Println(row)
-	}
-
-	// Calculate summary from all historical data (including archives)
+	// All data (current + archives) for summary; current log only for table
 	allEntries, err := readAllLedgerEntries()
 	if err != nil {
 		color.Red("Error reading historical ledger data: %v", err)
@@ -912,7 +815,104 @@ func showLedgerScreen(reader *bufio.Reader) {
 		reader.ReadString('\n')
 		return
 	}
+	hasAnyData := len(allEntries) > 0
+	ledgerEntries, _ := readAndParseLedger() // current log only (for table)
+	currentHasRows := len(ledgerEntries) > 0
 
+	if !hasAnyData {
+		fmt.Println("You have not made any transactions yet.")
+		fmt.Println("\nPress Enter to return to Main screen")
+		reader.ReadString('\n')
+		return
+	}
+
+	if currentHasRows {
+		// Sort entries by date and time to ensure chronological order for display.
+		sort.Slice(ledgerEntries, func(i, j int) bool {
+			return ledgerEntries[i].DateTime.Before(ledgerEntries[j].DateTime)
+		})
+
+		// 2. Dynamically calculate column widths for proper alignment.
+		columnOrder := []string{"TX", "USD", "BTC", "BTC(USD)", "User BTC", "Time"}
+		widths := map[string]int{
+			"TX": len("TX"), "USD": len("USD"), "BTC": len("BTC"),
+			"BTC(USD)": len("BTC(USD)"), "User BTC": len("User BTC"), "Time": len("Time"),
+		}
+
+		for _, entry := range ledgerEntries {
+			if len(entry.TX) > widths["TX"] {
+				widths["TX"] = len(entry.TX)
+			}
+			if len(formatFloat(entry.USD, 2)) > widths["USD"] {
+				widths["USD"] = len(formatFloat(entry.USD, 2))
+			}
+			if len(fmt.Sprintf("%.8f", entry.BTC)) > widths["BTC"] {
+				widths["BTC"] = len(fmt.Sprintf("%.8f", entry.BTC))
+			}
+			if len(formatFloat(entry.BTCPrice, 2)) > widths["BTC(USD)"] {
+				widths["BTC(USD)"] = len(formatFloat(entry.BTCPrice, 2))
+			}
+			if len(fmt.Sprintf("%.8f", entry.UserBTC)) > widths["User BTC"] {
+				widths["User BTC"] = len(fmt.Sprintf("%.8f", entry.UserBTC))
+			}
+			if len(entry.Time) > widths["Time"] {
+				widths["Time"] = len(entry.Time)
+			}
+		}
+
+		// 3. Create header and separator strings based on dynamic widths.
+		var headerParts []string
+		for _, colName := range columnOrder {
+			width := widths[colName]
+			headerParts = append(headerParts, fmt.Sprintf("%-*s", width, colName))
+		}
+		header := strings.Join(headerParts, "  ")
+		separator := strings.Repeat("-", len(header))
+		fmt.Println(header)
+		fmt.Println(separator)
+
+		// 4. Print data rows
+		sessionStarted := false
+		// Truncate the session start time to the second. This is crucial for a correct comparison,
+		// as the timestamps stored in the ledger only have second-level precision.
+		sessionStartTruncated := sessionStartTime.Truncate(time.Second)
+		for _, entry := range ledgerEntries {
+			// Compare the entry's time (which has second-level precision) with the truncated session start time.
+			// This prevents issues where a trade in the same second as launch would be considered "before".
+			if !sessionStarted && !entry.DateTime.IsZero() && !entry.DateTime.Before(sessionStartTruncated) {
+				totalWidth := len(separator)
+				sessionText := "*** Current Session Start ***"
+				paddingLength := 0
+				if totalWidth > len(sessionText) {
+					paddingLength = (totalWidth - len(sessionText)) / 2
+				}
+				centeredText := strings.Repeat(" ", paddingLength) + sessionText
+				color.White(centeredText)
+				sessionStarted = true
+			}
+
+			rowColor := color.New(color.FgGreen)
+			if entry.TX == "Sell" {
+				rowColor = color.New(color.FgRed)
+			}
+
+			// Build the row dynamically with correct alignment.
+			rowParts := []string{
+				fmt.Sprintf("%-*s", widths["TX"], entry.TX),                  // Left-align TX
+				fmt.Sprintf("%*s", widths["USD"], formatFloat(entry.USD, 2)), // Right-align numbers
+				fmt.Sprintf("%*s", widths["BTC"], fmt.Sprintf("%.8f", entry.BTC)),
+				fmt.Sprintf("%*s", widths["BTC(USD)"], formatFloat(entry.BTCPrice, 2)),
+				fmt.Sprintf("%*s", widths["User BTC"], fmt.Sprintf("%.8f", entry.UserBTC)),
+				fmt.Sprintf("%*s", widths["Time"], entry.Time),
+			}
+			row := strings.Join(rowParts, "  ")
+			rowColor.Println(row)
+		}
+	} else {
+		fmt.Println("Log Empty")
+	}
+
+	// Ledger Summary from all data (current + archives)
 	summary := getLedgerTotals(allEntries)
 	sessionSummary := getSessionSummary()
 	fmt.Println()
@@ -1753,6 +1753,10 @@ func readAllLedgerEntries() ([]LedgerEntry, error) {
 	var allEntries []LedgerEntry
 	processedTimestamps := make(map[string]struct{})
 
+	// Resolve ledger directory so we find archives regardless of CWD
+	ledgerAbs, _ := filepath.Abs(ledgerFilePath)
+	ledgerDir := filepath.Dir(ledgerAbs)
+
 	// 1. Read current ledger
 	currentEntries, err := readAndParseLedger()
 	if err != nil {
@@ -1766,7 +1770,7 @@ func readAllLedgerEntries() ([]LedgerEntry, error) {
 	}
 
 	// 2. Check for merged ledger first (preferred over individual archives)
-	mergedLedgerPath := "vBTC - Ledger_Merged.csv"
+	mergedLedgerPath := filepath.Join(ledgerDir, "vBTC - Ledger_Merged.csv")
 	if _, err := os.Stat(mergedLedgerPath); err == nil {
 		mergedEntries, err := readLedgerFromFile(mergedLedgerPath)
 		if err == nil {
@@ -1779,7 +1783,7 @@ func readAllLedgerEntries() ([]LedgerEntry, error) {
 		}
 	} else {
 		// 3. If no merged ledger, read individual archives
-		archivePattern := "vBTC - Ledger_??????.csv"
+		archivePattern := filepath.Join(ledgerDir, "vBTC - Ledger_??????.csv")
 		archiveFiles, err := filepath.Glob(archivePattern)
 		if err == nil {
 			// Sort archives by date
@@ -1948,7 +1952,8 @@ func getLedgerTotals(entries []LedgerEntry) *LedgerSummary {
 }
 
 func getSessionSummary() *LedgerSummary {
-	allEntries, err := readAndParseLedger()
+	// Use all ledger data (current + archives) so session stats stay correct if user archived during session.
+	allEntries, err := readAllLedgerEntries()
 	if err != nil || allEntries == nil {
 		return nil
 	}
@@ -1991,8 +1996,10 @@ func invokeLedgerArchive(reader *bufio.Reader) {
 		color.Red("Invalid input. Please enter a non-negative integer.")
 	}
 
-	// Archive the file
+	// Archive the file (same directory as ledger so readAllLedgerEntries finds it)
 	archiveFileName := fmt.Sprintf("vBTC - Ledger_%s.csv", time.Now().Format("010206"))
+	ledgerAbs, _ := filepath.Abs(ledgerFilePath)
+	archivePath := filepath.Join(filepath.Dir(ledgerAbs), archiveFileName)
 	sourceFile, err := os.Open(ledgerFilePath)
 	if err != nil {
 		color.Red("Error opening ledger file: %v", err)
@@ -2002,7 +2009,7 @@ func invokeLedgerArchive(reader *bufio.Reader) {
 	}
 	defer sourceFile.Close()
 
-	destFile, err := os.Create(archiveFileName)
+	destFile, err := os.Create(archivePath)
 	if err != nil {
 		color.Red("Error creating archive file: %v", err)
 		fmt.Println("Press Enter to continue.")

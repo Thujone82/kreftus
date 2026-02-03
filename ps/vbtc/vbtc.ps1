@@ -953,15 +953,19 @@ function Get-LedgerSummary {
 
 function Get-SessionSummary {
     param ([datetime]$SessionStartTime)
-    if (-not (Test-Path $ledgerFilePath)) {
+    # Use all ledger data (current + archives) so session stats stay correct if user archived during session.
+    $allEntries = Get-AllLedgerData
+    if ($null -eq $allEntries -or $allEntries.Count -eq 0) {
         return $null
     }
-    $sessionTransactions = @(Import-Csv -Path $ledgerFilePath) | Where-Object {
+    # Ledger timestamps are written in UTC; parse as UTC so comparison with $SessionStartTime (UTC) is correct.
+    $sessionTransactions = @($allEntries) | Where-Object {
         try {
-            return ([datetime]::ParseExact($_.Time, "MMddyy@HHmmss", $null) -ge $SessionStartTime)
+            $parsed = [datetime]::ParseExact($_.Time, "MMddyy@HHmmss", [System.Globalization.CultureInfo]::InvariantCulture)
+            $parsedUtc = [DateTime]::SpecifyKind($parsed, [DateTimeKind]::Utc)
+            return ($parsedUtc -ge $SessionStartTime)
         } catch {
-            # This will prevent a crash if a line in the ledger is corrupted
-            Write-Warning "Could not parse timestamp '$($_.Time)' in ledger.csv"
+            Write-Warning "Could not parse timestamp '$($_.Time)' in ledger."
             return $false
         }
     }
@@ -998,8 +1002,9 @@ function Invoke-LedgerArchive {
     }
 
     $archiveFileName = "vBTC - Ledger_$(Get-Date -Format 'MMddyy').csv"
+    $archivePath = Join-Path -Path $scriptPath -ChildPath $archiveFileName
     try {
-        Copy-Item -Path $LedgerFilePath -Destination $archiveFileName -Force -ErrorAction Stop
+        Copy-Item -Path $LedgerFilePath -Destination $archivePath -Force -ErrorAction Stop
         Write-Host "Ledger successfully backed up to '$archiveFileName'." -ForegroundColor Green
     } catch {
         Write-Error "Failed to create ledger archive. Error: $($_.Exception.Message)"
@@ -1551,15 +1556,20 @@ function Show-HelpScreen {
 function Show-LedgerScreen {
     Clear-Host
     Write-Host "*** Ledger ***" -ForegroundColor Yellow
-    
-    # Read only current ledger for display
-    if (-not (Test-Path $ledgerFilePath)) {
+
+    # All data (current + archives) for summary; current log only for table
+    $allLedgerData = Get-AllLedgerData
+    $hasAnyData = $allLedgerData -and $allLedgerData.Count -gt 0
+    $currentLedgerData = $null
+    if (Test-Path $ledgerFilePath) {
+        $currentLedgerData = Import-Csv -Path $ledgerFilePath -ErrorAction SilentlyContinue
+    }
+    $currentHasRows = $currentLedgerData -and $currentLedgerData.Count -gt 0
+
+    if (-not $hasAnyData) {
         Write-Host "You have not made any transactions yet."
     } else {
-        $currentLedgerData = Import-Csv -Path $ledgerFilePath -ErrorAction SilentlyContinue
-        if ($null -eq $currentLedgerData -or $currentLedgerData.Count -eq 0) {
-            Write-Host "You have not made any transactions yet."
-        } else {
+        if ($currentHasRows) {
             # 1. Parse and create display objects
             $displayData = $currentLedgerData | ForEach-Object {
                 [PSCustomObject]@{
@@ -1642,12 +1652,14 @@ function Show-LedgerScreen {
                 }
                 Write-Host ($formatString -f $values) -ForegroundColor $rowColor
             }
+        } else {
+            Write-Host "Log Empty"
+        }
 
-            # Calculate summary from all historical data (including archives)
-            $allLedgerData = Get-AllLedgerData
-            $summary = Get-LedgerTotals -LedgerData $allLedgerData
-            $sessionSummary = Get-SessionSummary -SessionStartTime $sessionStartTime
-            if ($summary) {
+        # Ledger Summary from all data (current + archives) when any data exists
+        $summary = Get-LedgerTotals -LedgerData $allLedgerData
+        $sessionSummary = Get-SessionSummary -SessionStartTime $sessionStartTime
+        if ($summary) {
                 Write-Host ""
                 Write-Host "*** Ledger Summary ***" -ForegroundColor Yellow
                 
@@ -1774,8 +1786,7 @@ function Show-LedgerScreen {
                 }
             }
         }
-    }
-    
+
     Write-Host ""
     Write-Host "Press Enter to return to Main screen, or R to refresh"
     
