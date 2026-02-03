@@ -3292,10 +3292,16 @@ function Show-WeatherAlerts {
         [bool]$ShowDetails = $true,
         [string]$TimeZone = $null
     )
+    # Use local copy from PSBoundParameters to avoid unbound parameter reference (can crash in some hosts)
+    $showDetails = if ($PSBoundParameters.ContainsKey('ShowDetails')) { $ShowDetails } else { $true }
     
     if ($alertsData -and $alertsData.features.Count -gt 0) {
-        Write-Host ""
-        Write-Host "*** Active Weather Alerts ***" -ForegroundColor $AlertColor
+        if ($showDetails) {
+            Write-Host ""
+            Write-Host "*** Active Weather Alerts ***" -ForegroundColor $AlertColor
+        } else {
+            Write-Host ""
+        }
         for ($i = 0; $i -lt $alertsData.features.Count; $i++) {
             $alert = $alertsData.features[$i]
             $alertProps = $alert.properties
@@ -3334,16 +3340,19 @@ function Show-WeatherAlerts {
                 $alertEnd = $alertEndOffset.LocalDateTime
             }
             
-            Write-Host "*** $alertEvent ***" -ForegroundColor $AlertColor
-            Write-Host "$alertHeadline" -ForegroundColor $DefaultColor
-            if ($ShowDetails) {
+            if ($showDetails) {
+                # Full mode: label on own line, headline, details, Effective, Expires on separate lines
+                Write-Host "*** $alertEvent ***" -ForegroundColor $AlertColor
+                Write-Host "$alertHeadline" -ForegroundColor $DefaultColor
                 $wrappedAlert = Format-TextWrap -Text $alertDesc -Width $Host.UI.RawUI.WindowSize.Width
                 $wrappedAlert | ForEach-Object { Write-Host $_ -ForegroundColor $DefaultColor }
-            }
-            if ($ShowDetails) {
                 Write-Host "Effective: $($alertStart.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $InfoColor
+                Write-Host "Expires: $($alertEnd.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $InfoColor
+            } else {
+                # Terse mode: label + Expires on same line only (red then blue)
+                Write-Host -NoNewline "*** $alertEvent *** " -ForegroundColor $AlertColor
+                Write-Host "Expires: $($alertEnd.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $InfoColor
             }
-            Write-Host "Expires: $($alertEnd.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $InfoColor
             
             # Only add blank line if this is not the last alert
             if ($i -lt $alertsData.features.Count - 1) {
