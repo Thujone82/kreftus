@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -1258,6 +1257,30 @@ func showExitScreen(reader *bufio.Reader) {
 			writeAlignedLine("Total Sold (USD):", fmt.Sprintf("$%s", formatFloat(summary.TotalSellUSD, 2)), color.New(color.FgRed), sessionValueStartColumn)
 			writeAlignedLine("Total Sold (BTC):", fmt.Sprintf("%.8f", summary.TotalSellBTC), color.New(color.FgRed), sessionValueStartColumn)
 		}
+		if summary.AvgBuyPrice > 0 {
+			writeAlignedLine("Average Purchase:", fmt.Sprintf("$%s", formatFloat(summary.AvgBuyPrice, 2)), color.New(color.FgGreen), sessionValueStartColumn)
+		}
+		if summary.AvgSalePrice > 0 {
+			writeAlignedLine("Average Sale:", fmt.Sprintf("$%s", formatFloat(summary.AvgSalePrice, 2)), color.New(color.FgRed), sessionValueStartColumn)
+		}
+		if summary.MaxUSD >= summary.MinUSD {
+			writeAlignedLine("Session Tx Range:", fmt.Sprintf("$%s - $%s", formatFloat(summary.MinUSD, 2), formatFloat(summary.MaxUSD, 2)), color.New(color.FgWhite), sessionValueStartColumn)
+		}
+		if !summary.FirstTime.IsZero() && !summary.LastTime.IsZero() {
+			sessionLen := formatDuration(summary.FirstTime, summary.LastTime)
+			if sessionLen != "" {
+				writeAlignedLine("Time:", sessionLen, color.New(color.FgWhite), sessionValueStartColumn)
+			}
+		}
+		sessionTx := summary.BuyTransactions + summary.SellTransactions
+		if sessionTx > 0 {
+			sessionDuration := time.Now().UTC().Sub(sessionStartTime)
+			sessionCadenceDur := sessionDuration / time.Duration(sessionTx)
+			sessionCadenceStr := formatCadence(sessionCadenceDur)
+			if sessionCadenceStr != "" {
+				writeAlignedLine("Cadence:", sessionCadenceStr, color.New(color.FgWhite), sessionValueStartColumn)
+			}
+		}
 	}
 
 	// --- Comprehensive Ledger Summary ---
@@ -1784,24 +1807,22 @@ func readAllLedgerEntries() ([]LedgerEntry, error) {
 	}
 
 	// 3. Always add all unmerged archives (more recent; may be multiple) — dedup by Time
-	archivePattern := filepath.Join(ledgerDir, "vBTC - Ledger_??????.csv")
+	// Match both legacy (MMddyy.csv) and new (MMddyy@HHmmss.csv) so multiple archives per day are included
+	archivePattern := filepath.Join(ledgerDir, "vBTC - Ledger_*.csv")
 	archiveFiles, err := filepath.Glob(archivePattern)
 	if err == nil {
-		// Sort archives by date (MMddyy in filename)
-		re := regexp.MustCompile(`_(\d{6})\.csv$`)
-		sort.Slice(archiveFiles, func(i, j int) bool {
-			matchI := re.FindStringSubmatch(archiveFiles[i])
-			matchJ := re.FindStringSubmatch(archiveFiles[j])
-			const layout = "010206" // MMddyy
-			if len(matchI) < 2 || len(matchJ) < 2 {
-				return false
+		// Exclude merged ledger from archive list
+		var unmergedArchives []string
+		for _, p := range archiveFiles {
+			base := filepath.Base(p)
+			if base != "vBTC - Ledger_Merged.csv" {
+				unmergedArchives = append(unmergedArchives, p)
 			}
-			dateI, _ := time.Parse(layout, matchI[1])
-			dateJ, _ := time.Parse(layout, matchJ[1])
-			return dateI.Before(dateJ)
-		})
+		}
+		// Sort by date then time (legacy: MMddyy; new: MMddyy@HHmmss)
+		sortArchiveFilesByDateAndTime(unmergedArchives)
 
-		for _, archivePath := range archiveFiles {
+		for _, archivePath := range unmergedArchives {
 			archiveEntries, err := readLedgerFromFile(archivePath)
 			if err == nil {
 				for _, entry := range archiveEntries {
@@ -1820,6 +1841,37 @@ func readAllLedgerEntries() ([]LedgerEntry, error) {
 	})
 
 	return allEntries, nil
+}
+
+// sortArchiveFilesByDateAndTime sorts archive paths by date then time (legacy: MMddyy; new: MMddyy@HHmmss).
+func sortArchiveFilesByDateAndTime(paths []string) {
+	const dateLayout = "010206"
+	const dateTimeLayout = "010206@150405"
+	sort.Slice(paths, func(i, j int) bool {
+		suffixI := extractArchiveSuffix(paths[i])
+		suffixJ := extractArchiveSuffix(paths[j])
+		var tI, tJ time.Time
+		if strings.Contains(suffixI, "@") {
+			tI, _ = time.Parse(dateTimeLayout, suffixI)
+		} else {
+			tI, _ = time.Parse(dateLayout, suffixI)
+		}
+		if strings.Contains(suffixJ, "@") {
+			tJ, _ = time.Parse(dateTimeLayout, suffixJ)
+		} else {
+			tJ, _ = time.Parse(dateLayout, suffixJ)
+		}
+		return tI.Before(tJ)
+	})
+}
+
+func extractArchiveSuffix(path string) string {
+	base := filepath.Base(path)
+	// vBTC - Ledger_012926.csv or vBTC - Ledger_012926@143022.csv
+	if strings.HasPrefix(base, "vBTC - Ledger_") && strings.HasSuffix(base, ".csv") {
+		return base[len("vBTC - Ledger_") : len(base)-len(".csv")]
+	}
+	return ""
 }
 
 func readLedgerFromFile(filePath string) ([]LedgerEntry, error) {
@@ -1998,8 +2050,8 @@ func invokeLedgerArchive(reader *bufio.Reader) {
 		color.Red("Invalid input. Please enter a non-negative integer.")
 	}
 
-	// Archive the file (same directory as ledger so readAllLedgerEntries finds it)
-	archiveFileName := fmt.Sprintf("vBTC - Ledger_%s.csv", time.Now().Format("010206"))
+	// Archive the file (same directory as ledger); include time so multiple archives per day don't overwrite
+	archiveFileName := fmt.Sprintf("vBTC - Ledger_%s.csv", time.Now().Format("010206@150405"))
 	ledgerAbs, _ := filepath.Abs(ledgerFilePath)
 	archivePath := filepath.Join(filepath.Dir(ledgerAbs), archiveFileName)
 	sourceFile, err := os.Open(ledgerFilePath)
@@ -2089,9 +2141,12 @@ func invokeLedgerMerge(reader *bufio.Reader) {
 	clearScreen()
 	color.Yellow("*** Merge Archived Ledgers ***")
 
-	archivePattern := "vBTC - Ledger_??????.csv"
+	// Resolve ledger directory so we find archives regardless of CWD
+	ledgerAbs, _ := filepath.Abs(ledgerFilePath)
+	ledgerDir := filepath.Dir(ledgerAbs)
+	archivePattern := filepath.Join(ledgerDir, "vBTC - Ledger_*.csv")
 
-	// 1. Find archives
+	// 1. Find archives (legacy MMddyy.csv and new MMddyy@HHmmss.csv)
 	fmt.Println("\nSearching for archives...")
 	archiveFiles, err := filepath.Glob(archivePattern)
 	if err != nil {
@@ -2101,10 +2156,10 @@ func invokeLedgerMerge(reader *bufio.Reader) {
 		return
 	}
 
-	// Filter out the merged ledger itself from the glob results, just in case
+	// Filter out the merged ledger itself
 	var filteredArchives []string
 	for _, file := range archiveFiles {
-		if !strings.HasSuffix(file, "_Merged.csv") {
+		if filepath.Base(file) != "vBTC - Ledger_Merged.csv" {
 			filteredArchives = append(filteredArchives, file)
 		}
 	}
@@ -2116,24 +2171,13 @@ func invokeLedgerMerge(reader *bufio.Reader) {
 		return
 	}
 
-	// 2. Sort files
-	re := regexp.MustCompile(`_(\d{6})\.csv$`)
-	sort.Slice(filteredArchives, func(i, j int) bool {
-		matchI := re.FindStringSubmatch(filteredArchives[i])
-		matchJ := re.FindStringSubmatch(filteredArchives[j])
-		const layout = "010206" // MMddyy
-		if len(matchI) < 2 || len(matchJ) < 2 {
-			return false
-		}
-		dateI, _ := time.Parse(layout, matchI[1])
-		dateJ, _ := time.Parse(layout, matchJ[1])
-		return dateI.Before(dateJ)
-	})
+	// 2. Sort by date then time
+	sortArchiveFilesByDateAndTime(filteredArchives)
 
 	color.Green("Found %d archive(s) to process.", len(filteredArchives))
 
 	// 3. Load existing data for deduplication
-	mergedLedgerPath := "vBTC - Ledger_Merged.csv"
+	mergedLedgerPath := filepath.Join(ledgerDir, "vBTC - Ledger_Merged.csv")
 	processedTimestamps := make(map[string]struct{})
 	var existingRecords [][]string
 	if _, err := os.Stat(mergedLedgerPath); err == nil {

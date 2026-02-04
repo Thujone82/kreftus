@@ -922,10 +922,19 @@ function Get-AllLedgerData {
     }
 
     # 3. Always add all unmerged archives (more recent; may be multiple) — dedup by Time
-    $archivePattern = "vBTC - Ledger_??????.csv"
+    # Match both legacy (MMddyy.csv) and new (MMddyy@HHmmss.csv) so multiple archives per day are included
+    $archivePattern = "vBTC - Ledger_*.csv"
     $archiveFiles = Get-ChildItem -Path $scriptPath -Filter $archivePattern -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -match "vBTC - Ledger_(\d{6})\.csv" } |
-        Sort-Object { [datetime]::ParseExact($_.BaseName.Split('_')[1], 'MMddyy', $null) }
+        Where-Object { $_.Name -match "^vBTC - Ledger_(\d{6})(@(\d{6}))?\.csv$" } |
+        Sort-Object {
+            $base = $_.BaseName
+            $suffix = $base -replace '^vBTC - Ledger_', ''
+            if ($suffix -match '^(\d{6})@(\d{6})$') {
+                [datetime]::ParseExact($suffix, 'MMddyy@HHmmss', $null)
+            } else {
+                [datetime]::ParseExact($suffix, 'MMddyy', $null)
+            }
+        }
 
     foreach ($archiveFile in $archiveFiles) {
         $archiveData = Import-Csv -Path $archiveFile.FullName -ErrorAction SilentlyContinue
@@ -1001,7 +1010,7 @@ function Invoke-LedgerArchive {
         }
     }
 
-    $archiveFileName = "vBTC - Ledger_$(Get-Date -Format 'MMddyy').csv"
+    $archiveFileName = "vBTC - Ledger_$(Get-Date -Format 'MMddyy@HHmmss').csv"
     $archivePath = Join-Path -Path $scriptPath -ChildPath $archiveFileName
     try {
         Copy-Item -Path $LedgerFilePath -Destination $archivePath -Force -ErrorAction Stop
@@ -1033,13 +1042,21 @@ function Invoke-LedgerMerge {
     Write-Host "*** Merge Archived Ledgers ***" -ForegroundColor Yellow
 
     $mergedLedgerPath = Join-Path -Path $ScriptPath -ChildPath "vBTC - Ledger_Merged.csv"
-    $archivePattern = "vBTC - Ledger_??????.csv"
+    $archivePattern = "vBTC - Ledger_*.csv"
 
-    # 1. Find and sort archives
+    # 1. Find and sort archives (legacy MMddyy.csv and new MMddyy@HHmmss.csv)
     Write-Host "Searching for archives..."
     $archiveFiles = Get-ChildItem -Path $ScriptPath -Filter $archivePattern |
-        Where-Object { $_.Name -match "vBTC - Ledger_(\d{6})\.csv" } |
-        Sort-Object { [datetime]::ParseExact($_.BaseName.Split('_')[1], 'MMddyy', $null) }
+        Where-Object { $_.Name -match "^vBTC - Ledger_(\d{6})(@(\d{6}))?\.csv$" } |
+        Sort-Object {
+            $base = $_.BaseName
+            $suffix = $base -replace '^vBTC - Ledger_', ''
+            if ($suffix -match '^(\d{6})@(\d{6})$') {
+                [datetime]::ParseExact($suffix, 'MMddyy@HHmmss', $null)
+            } else {
+                [datetime]::ParseExact($suffix, 'MMddyy', $null)
+            }
+        }
 
     if ($archiveFiles.Count -eq 0) {
         Write-Warning "No ledger archives found to merge."
@@ -1972,6 +1989,30 @@ while ($true) {
                     if ($summary.TotalSellUSD -gt 0) {
                         Write-AlignedLine -Label "Total Sold (USD):" -Value ("{0:C2}" -f $summary.TotalSellUSD) -ValueColor "Red" -ValueStartColumn $sessionValueStartColumn
                         Write-AlignedLine -Label "Total Sold (BTC):" -Value $summary.TotalSellBTC.ToString("F8") -ValueColor "Red" -ValueStartColumn $sessionValueStartColumn
+                    }
+                    if ($summary.AvgBuyPrice -gt 0) {
+                        Write-AlignedLine -Label "Average Purchase:" -Value ("{0:C2}" -f $summary.AvgBuyPrice) -ValueColor "Green" -ValueStartColumn $sessionValueStartColumn
+                    }
+                    if ($summary.AvgSalePrice -gt 0) {
+                        Write-AlignedLine -Label "Average Sale:" -Value ("{0:C2}" -f $summary.AvgSalePrice) -ValueColor "Red" -ValueStartColumn $sessionValueStartColumn
+                    }
+                    if ($summary.MaxUSD -ge $summary.MinUSD) {
+                        Write-AlignedLine -Label "Session Tx Range:" -Value ("{0:C2} - {1:C2}" -f $summary.MinUSD, $summary.MaxUSD) -ValueColor "White" -ValueStartColumn $sessionValueStartColumn
+                    }
+                    if ($null -ne $summary.FirstDateTime -and $null -ne $summary.LastDateTime) {
+                        $sessionLen = Format-Duration -Start $summary.FirstDateTime -End $summary.LastDateTime
+                        if ($sessionLen -ne "") {
+                            Write-AlignedLine -Label "Time:" -Value $sessionLen -ValueColor "White" -ValueStartColumn $sessionValueStartColumn
+                        }
+                    }
+                    $sessionTx = $summary.BuyTransactions + $summary.SellTransactions
+                    if ($sessionTx -gt 0) {
+                        $sessionSpan = (Get-Date).ToUniversalTime() - $sessionStartTime
+                        $sessionCadenceDur = [TimeSpan]::FromSeconds($sessionSpan.TotalSeconds / $sessionTx)
+                        $sessionCadenceStr = Format-Cadence -Duration $sessionCadenceDur
+                        if ($sessionCadenceStr -ne "") {
+                            Write-AlignedLine -Label "Cadence:" -Value $sessionCadenceStr -ValueColor "White" -ValueStartColumn $sessionValueStartColumn
+                        }
                     }
                 }
 
