@@ -1056,6 +1056,19 @@ function Update-WeatherData {
             $script:currentHumidity = $currentPeriod.relativeHumidity.value
             $script:currentPrecipProb = $currentPeriod.probabilityOfPrecipitation.value
             $script:currentIcon = $currentPeriod.icon
+            # Recalculate rising/falling trend from current vs next hour
+            $script:currentTempTrend = $null
+            $hourlyPeriods = $hourlyData.properties.periods
+            if ($hourlyPeriods.Count -gt 1) {
+                $nextHourPeriod = $hourlyPeriods[1]
+                $nextHourTemp = $nextHourPeriod.temperature
+                $tempDiff = [double]$nextHourTemp - [double]$script:currentTemp
+                if ($tempDiff -gt 0.1) { $script:currentTempTrend = "rising" }
+                elseif ($tempDiff -lt -0.1) { $script:currentTempTrend = "falling" }
+                else { $script:currentTempTrend = "steady" }
+            } else {
+                $script:currentTempTrend = "steady"
+            }
         }
         
         # Update forecast data (only if forecast data is available)
@@ -5002,6 +5015,18 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         $sunTimes = Get-SunriseSunset -Latitude $lat -Longitude $lon -Date $locationToday -TimeZoneId $timeZone
                         $sunriseTime = $sunTimes.Sunrise
                         $sunsetTime = $sunTimes.Sunset
+                        # Sync script-scoped display vars to local so re-render uses fresh data (including currentTempTrend)
+                        $currentTemp = $script:currentTemp
+                        $currentConditions = $script:currentConditions
+                        $currentTempTrend = $script:currentTempTrend
+                        $currentWind = $script:currentWind
+                        $currentWindDir = $script:currentWindDir
+                        $currentHumidity = $script:currentHumidity
+                        $currentPrecipProb = $script:currentPrecipProb
+                        $todayForecast = $script:todayForecast
+                        $todayPeriodName = $script:todayPeriodName
+                        $tomorrowForecast = $script:tomorrowForecast
+                        $tomorrowPeriodName = $script:tomorrowPeriodName
                         
                         # Re-render current view with fresh data
                         Clear-HostWithDelay
@@ -5437,6 +5462,18 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         $sunTimes = Get-SunriseSunset -Latitude $lat -Longitude $lon -Date $locationToday -TimeZoneId $timeZone
                         $sunriseTime = $sunTimes.Sunrise
                         $sunsetTime = $sunTimes.Sunset
+                        # Sync script-scoped display vars to local so re-render uses fresh data (including currentTempTrend)
+                        $currentTemp = $script:currentTemp
+                        $currentConditions = $script:currentConditions
+                        $currentTempTrend = $script:currentTempTrend
+                        $currentWind = $script:currentWind
+                        $currentWindDir = $script:currentWindDir
+                        $currentHumidity = $script:currentHumidity
+                        $currentPrecipProb = $script:currentPrecipProb
+                        $todayForecast = $script:todayForecast
+                        $todayPeriodName = $script:todayPeriodName
+                        $tomorrowForecast = $script:tomorrowForecast
+                        $tomorrowPeriodName = $script:tomorrowPeriodName
                         
                         # Re-render current view with fresh data
                         Clear-HostWithDelay
