@@ -1756,8 +1756,8 @@ function Show-LedgerScreen {
                 $totalLen = Format-Duration -Start $summary.FirstDateTime -End $summary.LastDateTime
                 if ($totalLen -ne "") {
                     $timeVal = $totalLen
-                    if ($sessionSummary -and $null -ne $sessionSummary.FirstDateTime -and $null -ne $sessionSummary.LastDateTime) {
-                        $sessionLen = Format-Duration -Start $sessionSummary.FirstDateTime -End $sessionSummary.LastDateTime
+                    if ($sessionSummary) {
+                        $sessionLen = Format-Duration -Start $sessionStartTime -End (Get-Date).ToUniversalTime()
                         if ($sessionLen -ne "") { $timeVal += " [$sessionLen]" }
                     }
                     Write-AlignedLine -Label "Time:" -Value $timeVal -ValueColor "White"
@@ -1773,7 +1773,7 @@ function Show-LedgerScreen {
                         if ($sessionSummary) {
                             $sessionTx = $sessionSummary.BuyTransactions + $sessionSummary.SellTransactions
                             if ($sessionTx -gt 0) {
-                                # Session cadence: session start to now (not first trade to last trade)
+                                # Session cadence: session time (app start to now) / session trades
                                 $sessionSpan = (Get-Date).ToUniversalTime() - $sessionStartTime
                                 $sessionCadenceDur = [TimeSpan]::FromSeconds($sessionSpan.TotalSeconds / $sessionTx)
                                 $sessionCadenceStr = Format-Cadence -Duration $sessionCadenceDur
@@ -1999,11 +1999,9 @@ while ($true) {
                     if ($summary.MaxUSD -ge $summary.MinUSD) {
                         Write-AlignedLine -Label "Session Tx Range:" -Value ("{0:C2} - {1:C2}" -f $summary.MinUSD, $summary.MaxUSD) -ValueColor "White" -ValueStartColumn $sessionValueStartColumn
                     }
-                    if ($null -ne $summary.FirstDateTime -and $null -ne $summary.LastDateTime) {
-                        $sessionLen = Format-Duration -Start $summary.FirstDateTime -End $summary.LastDateTime
-                        if ($sessionLen -ne "") {
-                            Write-AlignedLine -Label "Time:" -Value $sessionLen -ValueColor "White" -ValueStartColumn $sessionValueStartColumn
-                        }
+                    $sessionLen = Format-Duration -Start $sessionStartTime -End (Get-Date).ToUniversalTime()
+                    if ($sessionLen -ne "") {
+                        Write-AlignedLine -Label "Time:" -Value $sessionLen -ValueColor "White" -ValueStartColumn $sessionValueStartColumn
                     }
                     $sessionTx = $summary.BuyTransactions + $summary.SellTransactions
                     if ($sessionTx -gt 0) {

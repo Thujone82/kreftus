@@ -1001,8 +1001,8 @@ func showLedgerScreen(reader *bufio.Reader) {
 	totalLen := formatDuration(summary.FirstTime, summary.LastTime)
 	if totalLen != "" {
 		timeVal := totalLen
-		if sessionSummary != nil && !sessionSummary.FirstTime.IsZero() && !sessionSummary.LastTime.IsZero() {
-			sessionLen := formatDuration(sessionSummary.FirstTime, sessionSummary.LastTime)
+		if sessionSummary != nil {
+			sessionLen := formatDuration(sessionStartTime, time.Now().UTC())
 			if sessionLen != "" {
 				timeVal += " [" + sessionLen + "]"
 			}
@@ -1020,7 +1020,7 @@ func showLedgerScreen(reader *bufio.Reader) {
 		if sessionSummary != nil {
 			sessionTx = sessionSummary.BuyTransactions + sessionSummary.SellTransactions
 			if sessionTx > 0 {
-				// Session cadence: session start to now (not first trade to last trade)
+				// Session cadence: session time (app start to now) / session trades
 				sessionDuration := time.Now().UTC().Sub(sessionStartTime)
 				sessionCadenceDur = sessionDuration / time.Duration(sessionTx)
 				sessionCadenceStr = formatCadence(sessionCadenceDur)
@@ -1266,11 +1266,9 @@ func showExitScreen(reader *bufio.Reader) {
 		if summary.MaxUSD >= summary.MinUSD {
 			writeAlignedLine("Session Tx Range:", fmt.Sprintf("$%s - $%s", formatFloat(summary.MinUSD, 2), formatFloat(summary.MaxUSD, 2)), color.New(color.FgWhite), sessionValueStartColumn)
 		}
-		if !summary.FirstTime.IsZero() && !summary.LastTime.IsZero() {
-			sessionLen := formatDuration(summary.FirstTime, summary.LastTime)
-			if sessionLen != "" {
-				writeAlignedLine("Time:", sessionLen, color.New(color.FgWhite), sessionValueStartColumn)
-			}
+		sessionLen := formatDuration(sessionStartTime, time.Now().UTC())
+		if sessionLen != "" {
+			writeAlignedLine("Time:", sessionLen, color.New(color.FgWhite), sessionValueStartColumn)
 		}
 		sessionTx := summary.BuyTransactions + summary.SellTransactions
 		if sessionTx > 0 {
