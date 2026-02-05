@@ -1,5 +1,5 @@
 ================================================================================
-                              UPDate Tool v1.0
+                              UPDate Tool v1.3
                     PowerShell File Update Utility
 ================================================================================
 
@@ -39,14 +39,18 @@ USAGE:
 INTERACTIVE COMMANDS:
 
     Main Update Screen:
-        [1-N]       Toggle job selection (numbers correspond to listed jobs)
+        [1-9]       Toggle job selection for jobs 1-9
+        [0]         Toggle job 10
+        [Shift+1] to [Shift+0]   Toggle jobs 11-20
         A           Select all jobs
         J           Open Jobs management screen
         E/Enter     Execute selected jobs (with confirmation)
         Esc         Exit application
         
     Jobs Management Screen:
-        [1-N]       Edit existing job
+        [1-9]       Edit job 1-9
+        [0]         Edit job 10
+        [Shift+1] to [Shift+0]   Edit jobs 11-20
         N           Create new job
         D/Esc/Enter Return to main update screen
         
@@ -161,7 +165,7 @@ TROUBLESHOOTING:
     A: Check your internet connection and firewall settings
     
     Q: Can't select multiple jobs
-    A: Use number keys (1-9) to toggle each job individually
+    A: Use number keys 1-9 for jobs 1-9, 0 for job 10, and Shift+1 through Shift+0 for jobs 11-20
     
     Q: Command line arguments not working
     A: Ensure job names match exactly (case-insensitive)
@@ -185,6 +189,11 @@ NOTES:
     - Multiple jobs can be selected and executed together
 
 VERSION HISTORY:
+    v1.3 - Extended job selection keys
+        - Key 0 selects job 10 (in addition to 1-9 for jobs 1-9)
+        - Shift+1 through Shift+0 select jobs 11-20
+        - Same shortcuts work on main screen (toggle) and Jobs screen (edit)
+        
     v1.2 - Improved transfer size display
         - Smart transfer size formatting (KB/MB/GB based on file size)
         - Better visibility for small file transfers

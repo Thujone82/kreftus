@@ -128,7 +128,8 @@ Write-Host "]ll" -ForegroundColor White
    - `Show-UpdateScreen`: Main interactive screen (loop-based)
    - `Show-JobsScreen`: Jobs management screen
    - `Show-Header`: Display colored headers
-   - `Read-SingleKey`: Capture single key input
+   - `Read-SingleKey`: Capture single key input (character only)
+   - `Read-KeyWithModifiers`: Capture key plus modifier state (returns `Char`, `Shift`) for job 1–20 selection
 
 5. **Job Editing**
    - `New-Job`: Create new update job
@@ -391,6 +392,31 @@ The function includes implicit error handling through .NET's `DateTime.ToString(
 6. **Logging:** Track which placeholders were expanded and their values
 
 ## Recent Updates
+
+### v1.3 - Job Selection Key Mapping (1–20)
+
+#### Requirement
+Extend the main modal and Jobs screen so that keys 1–9 remain jobs 1–9, key 0 selects job 10, and Shift+1 through Shift+0 select jobs 11–20.
+
+#### Technical Implementation
+
+**New function: `Read-KeyWithModifiers`**
+- Uses `$Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")` and returns a hashtable: `Char` (lowercase character) and `Shift` (boolean).
+- Shift detection: `($key.ControlKeyState -band [System.Management.Automation.Host.ControlKeyStates]::ShiftPressed) -ne 0`.
+- Replaces `Read-SingleKey` only in `Show-UpdateScreen` and `Show-JobsScreen` where job-index mapping depends on modifier state.
+
+**Key-to-index mapping**
+- Digit parsing: key `'0'` → digit value 10; keys `'1'`–`'9'` → digit values 1–9.
+- Without Shift: job index = digit − 1 (so 1→0, …, 9→8, 0→9 for job 10).
+- With Shift: job index = digit + 9 (so Shift+1→10, …, Shift+9→18, Shift+0→19 for jobs 11–20).
+- Bounds check: `$index -ge 0 -and $index -lt $script:Jobs.Count` before calling `Set-JobSelection` or `Edit-Job`.
+
+**Command bar**
+- When `$script:Jobs.Count -gt 10`, the hint shows `1-10, Shift+1-0→11-20` instead of a single `1-N` range so users know how to reach jobs 11–20.
+
+**Affected call sites**
+- `Show-UpdateScreen`: input handled with `Read-KeyWithModifiers`; digit branch computes `$digit` and `$index` from `$keyInfo.Char` and `$keyInfo.Shift`.
+- `Show-JobsScreen`: same pattern for the Edit-by-number branch.
 
 ### v1.2 - Transfer Size Formatting Enhancement
 

@@ -155,6 +155,13 @@ function Read-SingleKey {
     return $key.Character.ToString().ToLower()
 }
 
+# Returns @{ Char = character; Shift = $true if Shift held }. Use for main/Jobs modal when job 1-20 keys matter.
+function Read-KeyWithModifiers {
+    $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    $shift = ($key.ControlKeyState -band [System.Management.Automation.Host.ControlKeyStates]::ShiftPressed) -ne 0
+    return @{ Char = $key.Character.ToString().ToLower(); Shift = $shift }
+}
+
 function Show-Header {
     param([string]$Title)
     Write-Cyan $Title
@@ -538,7 +545,7 @@ function Show-UpdateScreen {
         Write-Host ""
         
         # Command bar with proper highlighting
-        $jobRange = if ($script:Jobs.Count -eq 1) { "1" } else { "1-$($script:Jobs.Count)" }
+        $jobRange = if ($script:Jobs.Count -eq 1) { "1" } elseif ($script:Jobs.Count -lt 10) { "1-$($script:Jobs.Count)" } elseif ($script:Jobs.Count -eq 10) { "1-0" } else { $extra = $script:Jobs.Count - 10; $shiftPart = if ($extra -eq 1) { "SHIFT+1" } elseif ($extra -eq 10) { "SHIFT+1-0" } else { "SHIFT+1-$extra" }; "1-0 | $shiftPart" }
         Write-Host "Enable[" -ForegroundColor White -NoNewline
         Write-Host $jobRange -ForegroundColor Cyan -NoNewline
         Write-Host "] [" -ForegroundColor White -NoNewline
@@ -549,14 +556,16 @@ function Show-UpdateScreen {
         Write-Host "E" -ForegroundColor Cyan -NoNewline
         Write-Host "]xecute" -ForegroundColor White
         
-        # Handle input
-        $key = Read-SingleKey
+        # Handle input (support 1-9, 0→10, Shift+1..0→11-20)
+        $keyInfo = Read-KeyWithModifiers
+        $key = $keyInfo.Char
         
         switch ($key) {
         { $_ -match '^[0-9]$' } {
-            $num = [int]$_
-            if ($num -ge 1 -and $num -le $script:Jobs.Count) {
-                Set-JobSelection ($num - 1)
+            $digit = if ($_ -eq '0') { 10 } else { [int]$_ }
+            $index = if ($keyInfo.Shift) { $digit + 9 } else { $digit - 1 }
+            if ($index -ge 0 -and $index -lt $script:Jobs.Count) {
+                Set-JobSelection $index
                 continue
             }
         }
@@ -627,7 +636,7 @@ function Show-JobsScreen {
     Write-Host ""
     
     # Command bar with proper highlighting
-    $jobRange = if ($script:Jobs.Count -eq 0) { "" } elseif ($script:Jobs.Count -eq 1) { "1" } else { "1-$($script:Jobs.Count)" }
+    $jobRange = if ($script:Jobs.Count -eq 0) { "" } elseif ($script:Jobs.Count -eq 1) { "1" } elseif ($script:Jobs.Count -lt 10) { "1-$($script:Jobs.Count)" } elseif ($script:Jobs.Count -eq 10) { "1-0" } else { $extra = $script:Jobs.Count - 10; $shiftPart = if ($extra -eq 1) { "SHIFT+1" } elseif ($extra -eq 10) { "SHIFT+1-0" } else { "SHIFT+1-$extra" }; "1-0 | $shiftPart" }
     if ($script:Jobs.Count -gt 0) {
         Write-Host "Edit[" -ForegroundColor White -NoNewline
         Write-Host $jobRange -ForegroundColor Cyan -NoNewline
@@ -645,14 +654,16 @@ function Show-JobsScreen {
         Write-Host "]one" -ForegroundColor White
     }
     
-    # Handle input
-    $key = Read-SingleKey
+    # Handle input (support 1-9, 0→10, Shift+1..0→11-20)
+    $keyInfo = Read-KeyWithModifiers
+    $key = $keyInfo.Char
     
     switch ($key) {
         { $_ -match '^[0-9]$' } {
-            $num = [int]$_
-            if ($num -ge 1 -and $num -le $script:Jobs.Count) {
-                Edit-Job ($num - 1)
+            $digit = if ($_ -eq '0') { 10 } else { [int]$_ }
+            $index = if ($keyInfo.Shift) { $digit + 9 } else { $digit - 1 }
+            if ($index -ge 0 -and $index -lt $script:Jobs.Count) {
+                Edit-Job $index
                 Write-Host "Press any key to continue..."
                 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
                 Show-JobsScreen
