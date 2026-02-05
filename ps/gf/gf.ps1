@@ -2368,14 +2368,11 @@ function Show-CurrentConditions {
     }
     Write-Host ""
 
-    # Apply wind mode color scheme to current wind display
+    # Wind line and direction glyph use same color rules as wind modal (from Get-WindGlyph)
     $currentWindSpeed = Get-WindSpeed $currentWind
-    $windDisplayColor = if ($currentWindSpeed -le 5) { "White" }
-                       elseif ($currentWindSpeed -le 9) { "Yellow" }
-                       elseif ($currentWindSpeed -le 14) { "Red" }
-                       else { "Magenta" }
-    
-    Write-Host "Wind: $currentWind $currentWindDir" -ForegroundColor $windDisplayColor -NoNewline
+    $windGlyphData = Get-WindGlyph -WindDirection $currentWindDir -WindSpeed $currentWindSpeed
+    Write-Host "Wind: $currentWind $currentWindDir " -ForegroundColor $windGlyphData.Color -NoNewline
+    Write-Host $windGlyphData.Char -ForegroundColor $windGlyphData.Color -NoNewline
     if ($windGust) {
         Write-Host " (gusts to $windGust mph)" -ForegroundColor $AlertColor -NoNewline
     }

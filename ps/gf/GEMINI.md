@@ -78,6 +78,10 @@ The script follows a multi-step process:
 
 The script uses a hardcoded user agent string "GetForecast/1.0 (081625PDX)" for API requests. No configuration file is required.
 
+### File Encoding
+
+**The script MUST be saved as UTF-8 with BOM.** Using UTF-8 without BOM (or another encoding) can cause script errors when PowerShell parses characters such as directional glyphs, emoji, or other non-ASCII symbols. When editing `gf.ps1`, always preserve or re-save as **UTF-8 with BOM** and never change the encoding.
+
 ### Features Removed from Original Version
 
 Due to differences between the OpenWeatherMap and National Weather Service APIs, the following features are not available in this version:
