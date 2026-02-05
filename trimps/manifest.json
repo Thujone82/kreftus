@@ -1,0 +1,14 @@
+{
+  "name": "Trimps",
+  "short_name": "Trimps",
+  "start_url": "./",
+  "display": "standalone",
+  "scope": "./",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "type": "image/x-icon",
+      "sizes": "any"
+    }
+  ]
+}
