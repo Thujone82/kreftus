@@ -870,15 +870,13 @@ func showLedgerScreen(reader *bufio.Reader) {
 		fmt.Println(header)
 		fmt.Println(separator)
 
-		// 4. Print data rows
+		// 4. Print data rows (only show session start line if session start is within displayed range, not in archive)
 		sessionStarted := false
-		// Truncate the session start time to the second. This is crucial for a correct comparison,
-		// as the timestamps stored in the ledger only have second-level precision.
 		sessionStartTruncated := sessionStartTime.Truncate(time.Second)
+		minDisplayTime := ledgerEntries[0].DateTime
+		sessionStartInDisplayRange := !minDisplayTime.IsZero() && !sessionStartTruncated.Before(minDisplayTime)
 		for _, entry := range ledgerEntries {
-			// Compare the entry's time (which has second-level precision) with the truncated session start time.
-			// This prevents issues where a trade in the same second as launch would be considered "before".
-			if !sessionStarted && !entry.DateTime.IsZero() && !entry.DateTime.Before(sessionStartTruncated) {
+			if sessionStartInDisplayRange && !sessionStarted && !entry.DateTime.IsZero() && !entry.DateTime.Before(sessionStartTruncated) {
 				totalWidth := len(separator)
 				sessionText := "*** Current Session Start ***"
 				paddingLength := 0

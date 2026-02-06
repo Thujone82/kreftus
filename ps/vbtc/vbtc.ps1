@@ -1642,10 +1642,13 @@ function Show-LedgerScreen {
             Write-Host $headerString
             Write-Host $separator
 
-            # 5. Print data rows
+            # 5. Print data rows (only show session start line if session start is within displayed range, not in archive)
             $sessionStarted = $false
-            foreach ($row in $displayData | Sort-Object DateTime) {
-                if (-not $sessionStarted -and $row.DateTime -ge $sessionStartTime) {
+            $displayDataSorted = $displayData | Sort-Object DateTime
+            $minDisplayDateTime = ($displayDataSorted | Select-Object -First 1).DateTime
+            $sessionStartInDisplayRange = $sessionStartTime -ge $minDisplayDateTime
+            foreach ($row in $displayDataSorted) {
+                if ($sessionStartInDisplayRange -and -not $sessionStarted -and $row.DateTime -ge $sessionStartTime) {
                     $totalWidth = $separator.Length
                     $sessionText = "*** Current Session Start ***"
                     $paddingLength = [math]::Max(0, [math]::Floor(($totalWidth - $sessionText.Length) / 2))
