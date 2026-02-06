@@ -50,7 +50,9 @@ function displayCurrentConditions(weather, location) {
     
     html += '<div class="condition-row">';
     html += `<span class="condition-label">Wind:</span>`;
-    html += `<span class="condition-value ${getWindColor(getWindSpeed(current.wind))}">${current.wind} ${current.windDir}</span>`;
+    const windSpeedNum = getWindSpeed(current.wind);
+    const windGlyphData = getWindGlyph(current.windDir, windSpeedNum);
+    html += `<span class="condition-value" style="color:${windGlyphData.color}">${current.wind} ${current.windDir} ${windGlyphData.char}</span>`;
     if (current.windGust) {
         html += ` <span class="wind-strong">(gusts to ${current.windGust} mph)</span>`;
     }
