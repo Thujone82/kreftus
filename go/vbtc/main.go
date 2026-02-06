@@ -934,7 +934,12 @@ func showLedgerScreen(reader *bufio.Reader) {
 	portfolioColor.Print(fmt.Sprintf("$%s", formatFloat(portfolioValue, 2)))
 	if sessionStartPortfolioValue > 0 {
 		sessionPortfolioDelta := portfolioValue - sessionStartPortfolioValue
-		deltaStr := fmt.Sprintf(" [%+.2f]", sessionPortfolioDelta)
+		sign := "+"
+		if sessionPortfolioDelta < 0 {
+			sign = "-"
+		}
+		absDelta := math.Abs(sessionPortfolioDelta)
+		deltaStr := fmt.Sprintf(" [%s$%s]", sign, formatFloat(absDelta, 2))
 		deltaColor := color.New(color.FgWhite)
 		if sessionPortfolioDelta > 0 {
 			deltaColor = color.New(color.FgGreen)

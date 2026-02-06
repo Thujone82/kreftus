@@ -1705,7 +1705,10 @@ function Show-LedgerScreen {
                 Write-Host -NoNewline ("{0:C2}" -f $portfolioValue) -ForegroundColor $portfolioColor
                 if ($script:sessionStartPortfolioValue -gt 0 -and $portfolioValue -is [double]) {
                     $sessionPortfolioDelta = $portfolioValue - $script:sessionStartPortfolioValue
-                    $deltaStr = " [{0:+#0.00;-#0.00;0.00}]" -f $sessionPortfolioDelta
+                    $absDelta = [Math]::Abs($sessionPortfolioDelta)
+                    $formattedDelta = $absDelta.ToString("C2")
+                    $sign = if ($sessionPortfolioDelta -gt 0) { "+" } elseif ($sessionPortfolioDelta -lt 0) { "-" } else { "" }
+                    $deltaStr = " [$sign$formattedDelta]"
                     $deltaColor = if ($sessionPortfolioDelta -gt 0) { "Green" } elseif ($sessionPortfolioDelta -lt 0) { "Red" } else { "White" }
                     Write-Host $deltaStr -ForegroundColor $deltaColor
                 } else {
