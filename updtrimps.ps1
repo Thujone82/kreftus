@@ -10,9 +10,13 @@
 $ErrorActionPreference = 'Stop'
 $trimpsPath = Join-Path $PSScriptRoot 'trimps'
 
+Write-Host "*** Trimps Update Tool ***" -ForegroundColor Yellow
+
 # --- Require git ---
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     Write-Error "git is required but not found. Install Git and ensure it is on PATH."
+    Write-Host "Error: git is required but not found. Install Git and ensure it is on PATH." -ForegroundColor Red
+    exit 1
 }
 
 # --- Capture "before" state (relative path -> hash), exclude .git and .vscode ---
@@ -31,6 +35,7 @@ function Get-TrimpsFileHashes {
 $before = Get-TrimpsFileHashes -BasePath $trimpsPath
 
 # --- Clone into temp ---
+Write-Host "Fetching upstream data from Trimps.github.io..." -ForegroundColor Cyan
 $cloneDir = Join-Path $env:TEMP "trimps_clone_$(Get-Date -Format 'yyyyMMddHHmmss')"
 try {
     & git clone --depth 1 'https://github.com/Trimps/Trimps.github.io.git' $cloneDir
@@ -40,6 +45,7 @@ try {
     throw "Clone failed: $_"
 }
 
+Write-Host "Updating local files and restoring PWA components..." -ForegroundColor Cyan
 try {
     # --- Ensure trimps exists ---
     if (-not (Test-Path -LiteralPath $trimpsPath)) {
@@ -154,17 +160,24 @@ $updated = [string[]]($before.Keys | Where-Object { $after.ContainsKey($_) -and 
 
 if ($added.Count -eq 0 -and $removed.Count -eq 0 -and $updated.Count -eq 0) {
     Write-Output 'No changes.'
+    Write-Host "No changes detected. trimps/ is up to date." -ForegroundColor Gray
 } else {
     if ($added.Count -gt 0) {
         Write-Output 'Added:'
         $added | ForEach-Object { Write-Output "  $_" }
+        Write-Host "Added:" -ForegroundColor Green
+        $added | ForEach-Object { Write-Host "  $_" -ForegroundColor Green }
     }
     if ($removed.Count -gt 0) {
         Write-Output 'Removed:'
         $removed | ForEach-Object { Write-Output "  $_" }
+        Write-Host "Removed:" -ForegroundColor Red
+        $removed | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
     }
     if ($updated.Count -gt 0) {
         Write-Output 'Updated:'
         $updated | ForEach-Object { Write-Output "  $_" }
+        Write-Host "Updated:" -ForegroundColor Yellow
+        $updated | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
     }
 }
