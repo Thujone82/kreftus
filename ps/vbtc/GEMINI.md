@@ -16,7 +16,7 @@ The application provides a comprehensive main screen displaying live market stat
 
 ### Key Functionality
 
-- **Real-time Data Simulation:** Fetches live Bitcoin market data, including a 1-Hour Simple Moving Average (SMA) and 24-hour volatility metrics. Historical data is cached for 15 minutes to optimize API usage.
+- **Real-time Data Simulation:** Fetches live Bitcoin market data, including a 1-Hour Simple Moving Average (SMA), 24-hour volatility metrics, and a velocity telemetry (displayed in brackets after Volatility). Historical data is cached for 15 minutes to optimize API usage.
 - **Portfolio Management:** Initializes users with a starting capital of $1000 and tracks their cash (USD), Bitcoin (BTC) holdings, and total portfolio value.
 - **Transaction Ledger:** All buy and sell activities are recorded in `ledger.csv`, providing a complete history of trades with comprehensive statistics including portfolio summary, average prices, and transaction counts across all historical data.
 - **Configuration & Maintenance:** A `config` menu allows users to update their API key, reset their portfolio, archive the main ledger, and merge multiple archives into a master file.
@@ -95,3 +95,24 @@ The application provides comprehensive trading statistics across all historical 
 - **Red**: Negative values, sell-related statistics, net losses
 - **White**: Neutral values (zero or informational counts)
 - **Yellow**: Section headers
+
+### Velocity telemetry (technical)
+
+The main screen shows **Volatility** with an optional bracketed integer (e.g. `Volatility: 3.99% [15]`). The bracketed value is **velocity**.
+
+#### Formula
+- **Velocity** = `(TotalChange / (24H High - 24H Low)) * Volatility`
+- **TotalChange**: Sum of absolute deltas between consecutive historical price points over the 24h window. For API history points sorted by time, `TotalChange = |rate[1]-rate[0]| + |rate[2]-rate[1]| + ...` (total price path length in USD).
+- **24H High / 24H Low**: Min and max BTC rate from the same 24h history (same as the values shown on the main screen).
+- **Volatility**: The displayed 24h volatility percentage used as a **whole number** (e.g. 3.99% → multiply by 3.99, not 0.0399).
+- Result is **rounded to the nearest integer** for display.
+
+#### Data flow
+- **Get-HistoricalData**: Fetches 24h history from LiveCoinWatch `coins/single/history`. After sorting history by date, computes `TotalChange` by summing `Abs(rate[i] - rate[i-1])` for consecutive points. Returns `TotalChange` along with High, Low, Volatility, etc.
+- **Update-ApiData**: When historical stats are applied, adds `rate24hTotalChange` to the apiData object. `Copy-HistoricalData` copies this property when reusing or skipping historical fetch. Fallback (no history): `rate24hTotalChange` set to 0.
+- **Show-MainScreen**: When displaying the Volatility line, if `rate24hTotalChange` is present and `(rate24hHigh - rate24hLow) > 0`, velocity is computed and appended as `[N]`. Otherwise only `X.XX%` is shown.
+
+#### Verbose output
+- Run with `-Verbose` to see:
+  - In **Get-HistoricalData**: `TotalChange (sum of absolute deltas over 24h history): <value> from <count> points`
+  - On main screen when velocity is shown: `Velocity calculation: TotalChange=..., 24H High=..., 24H Low=..., range=..., Volatility=...% (as whole number), velocity=...`

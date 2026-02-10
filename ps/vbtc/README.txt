@@ -14,11 +14,11 @@ vBTC is an interactive PowerShell-based Bitcoin trading application. Users can b
 This script provides a command-line interface for a simulated Bitcoin trading experience. On first run, it guides the user through setting up their LiveCoinWatch API key and initializes their portfolio with a starting capital of $1000.00.
 
 The main screen displays:
-- Real-time Bitcoin market data (Price, 1H SMA, 24h Change, High, Low, Volatility, Volume).
+- Real-time Bitcoin market data (Price, 1H SMA, 24h Change, High, Low, Volatility [velocity], Volume).
 - The user's personal portfolio (Cash, BTC holdings, and total value).
 
 ## Features
-- **Real-time Market Data:** Fetches and displays live Bitcoin prices from LiveCoinWatch, including 24h high, low, volatility, and a 1-Hour Simple Moving Average (SMA), with a 15-minute cache for historical data to optimize API calls.
+- **Real-time Market Data:** Fetches and displays live Bitcoin prices from LiveCoinWatch, including 24h high, low, volatility (with velocity metric in brackets), and a 1-Hour Simple Moving Average (SMA), with a 15-minute cache for historical data to optimize API calls.
 - **Portfolio:** Tracks your cash (USD) and Bitcoin holdings.
 - **Transaction Ledger:** Records all buy and sell transactions in a `ledger.csv` file, with comprehensive statistics including portfolio summary, average prices, and transaction counts across all historical data.
 - **Configuration Options:** Allows you to update your API key, reset your portfolio, archive the main ledger, and merge old archives into a single master file.
@@ -30,6 +30,7 @@ The application uses colors to provide quick visual feedback:
 
 - **Green:** Indicates a positive change (price up, profit) or a "Buy" transaction. The Volatility metric is green if the market is more volatile in the last 12 hours than the previous 12.
 - **Red:** Indicates a negative change (price down, loss) or a "Sell" transaction. The Volatility metric is red if the market is less volatile.
+- **Volatility line:** Displays as "Volatility: X.XX% [N]" where the bracketed value is the velocity (see below).
 - **White:** Indicates a neutral or unchanged value.
 - **Yellow / Cyan / Blue / DarkYellow:** Used for UI elements like titles and command prompts for better readability.
 
@@ -47,6 +48,7 @@ The application uses colors to provide quick visual feedback:
 ## Help Options
 - Run with `.\vbtc.ps1 -help` (or `-?`) to display the help screen and exit
 - Run with `.\vbtc.ps1 -config` to open the configuration menu and exit (e.g. to fix or set your API key when it is broken or missing)
+- Run with `.\vbtc.ps1 -Verbose` to see verbose output including velocity calculation details (TotalChange, 24H High/Low, range, Volatility, and resulting velocity)
 - Use the `help` command within the application to view available commands
 
 If the application exits with "403 Encountered: Ensure API Key Configured and Enabled", run `vbtc -config` (or `.\vbtc.ps1 -config`) to configure your API key.
@@ -85,6 +87,7 @@ When confirming a buy or sell transaction, you can use the following keyboard sh
 - **Percentage Trading:** Use the 'p' suffix to trade a percentage of your balance (e.g., '50p' for 50%). Math expressions are also supported (e.g., '100/3p' for 33.3%).
 - **Satoshi Trading:** When selling, use the 's' suffix to specify an amount in satoshis (e.g., '100000s').
 - **1H SMA:** The 1-Hour Simple Moving Average shows the average price over the last hour. It's green if the current price is above the average (bullish) and red if below (bearish).
+- **Velocity:** Shown in brackets after Volatility (e.g. "Volatility: 3.99% [15]"). Velocity = (TotalChange / (24H High - 24H Low)) * Volatility. TotalChange is the sum of absolute price deltas between consecutive 24h historical data points. Volatility is used as a whole number (e.g. 3.99% means multiply by 3.99). The result is rounded to the nearest integer. If the 24h range is zero or data is missing, the bracket is omitted.
 
 ## Ledger Summary Features
 

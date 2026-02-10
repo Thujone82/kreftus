@@ -40,6 +40,7 @@ var (
 	initialSessionBtcPrice     float64
 	cfg                        *ini.File
 	apiData                    *ApiDataResponse
+	verbose                    bool
 )
 
 // Structs for API responses
@@ -59,6 +60,7 @@ type ApiDataResponse struct {
 	Volatility12h           float64
 	Volatility12h_old       float64
 	Sma1h                   float64
+	Rate24hTotalChange      float64
 	HistoricalDataFetchTime time.Time
 	ApiError                string `json:"-"`
 	ApiErrorCode            int    `json:"-"`
@@ -120,6 +122,13 @@ func (e *ProviderDownError) Error() string {
 
 // --- Main Application ---
 func main() {
+	// Check for verbose flag (before other args)
+	for _, arg := range os.Args[1:] {
+		if arg == "-verbose" || arg == "-v" {
+			verbose = true
+			break
+		}
+	}
 	// Check for help flag
 	if len(os.Args) > 1 && (os.Args[1] == "-help" || os.Args[1] == "-h" || os.Args[1] == "--help") {
 		showHelpScreen(nil)
@@ -379,7 +388,17 @@ func showMainScreen() {
 			} else if apiData.Volatility12h < apiData.Volatility12h_old {
 				volatilityColor = color.New(color.FgRed)
 			}
-			writeAlignedLine("Volatility:", fmt.Sprintf("%.2f%%", apiData.Volatility24h), volatilityColor)
+			volStr := fmt.Sprintf("%.2f%%", apiData.Volatility24h)
+			range24h := apiData.Rate24hHigh - apiData.Rate24hLow
+			if apiData.Rate24hTotalChange > 0 && range24h > 0 {
+				velocity := int(math.Round((apiData.Rate24hTotalChange / range24h) * apiData.Volatility24h))
+				volStr = fmt.Sprintf("%.2f%% [%d]", apiData.Volatility24h, velocity)
+				if verbose {
+					fmt.Fprintf(os.Stderr, "Velocity calculation: TotalChange=%.2f, 24H High=%.2f, 24H Low=%.2f, range=%.2f, Volatility=%.2f%% (as whole number), velocity=%d\n",
+						apiData.Rate24hTotalChange, apiData.Rate24hHigh, apiData.Rate24hLow, range24h, apiData.Volatility24h, velocity)
+				}
+			}
+			writeAlignedLine("Volatility:", volStr, volatilityColor)
 		}
 		writeAlignedLine("24H Volume:", fmt.Sprintf("$%s", formatFloat(apiData.Volume, 0)), color.New(color.FgWhite))
 		// Time: shows when the (historical) API data was fetched, not when the main modal was loaded.
@@ -719,6 +738,8 @@ func showHelpScreen(reader *bufio.Reader) {
 	color.New(color.FgHiBlack).Println("Show this help and exit")
 	color.New(color.FgWhite).Print("    -config, --config  ")
 	color.New(color.FgHiBlack).Println("Open configuration (e.g. to fix API key) and exit")
+	color.New(color.FgWhite).Print("    -verbose, -v       ")
+	color.New(color.FgHiBlack).Println("Print velocity calculation details to stderr")
 	fmt.Println()
 	color.New(color.FgHiBlack).Println("═══════════════════════════════════════════════════════════════")
 	fmt.Println()
@@ -1649,6 +1670,15 @@ func updateApiData(skipHistorical bool) *ApiDataResponse {
 					newData.Rate24hLowTime = time.UnixMilli(lowTime)
 				}
 				newData.Rate24hAgo = closestRate
+				// TotalChange: sum of absolute deltas between consecutive historical points (for velocity)
+				var totalChange float64
+				for i := 1; i < len(history.History); i++ {
+					totalChange += math.Abs(history.History[i].Rate - history.History[i-1].Rate)
+				}
+				newData.Rate24hTotalChange = totalChange
+				if verbose {
+					fmt.Fprintf(os.Stderr, "TotalChange (sum of absolute deltas over 24h history): %.2f from %d points\n", totalChange, len(history.History))
+				}
 				newData.HistoricalDataFetchTime = time.Now().UTC()
 			} else {
 				// Historical fetch failed, use fallback.
@@ -1682,6 +1712,7 @@ func updateApiData(skipHistorical bool) *ApiDataResponse {
 					newData.Volatility12h = 0
 					newData.Volatility12h_old = 0
 					newData.Sma1h = 0
+					newData.Rate24hTotalChange = 0
 					if newData.Delta.Day != 0 {
 						newData.Rate24hAgo = newData.Rate / (1 + (newData.Delta.Day / 100))
 					} else {
@@ -1733,6 +1764,7 @@ func copyHistoricalData(source, dest *ApiDataResponse) {
 	dest.Volatility12h = source.Volatility12h
 	dest.Volatility12h_old = source.Volatility12h_old
 	dest.Sma1h = source.Sma1h
+	dest.Rate24hTotalChange = source.Rate24hTotalChange
 	dest.HistoricalDataFetchTime = source.HistoricalDataFetchTime
 }
 

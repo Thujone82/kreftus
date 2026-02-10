@@ -17,7 +17,7 @@ As a Go application, it is designed to be a compiled, cross-platform executable,
 ### Key Functionality
 
 - **Cross-Platform:** Written in Go, it can be compiled and run on Windows, macOS, and Linux.
-- **Real-time Data Simulation:** Fetches live Bitcoin market data, including a 1-Hour Simple Moving Average (SMA) and 24-hour volatility metrics. Historical data is cached for 15 minutes to optimize API usage.
+- **Real-time Data Simulation:** Fetches live Bitcoin market data, including a 1-Hour Simple Moving Average (SMA), 24-hour volatility metrics, and a velocity telemetry (displayed in brackets after Volatility). Historical data is cached for 15 minutes to optimize API usage.
 - **Portfolio Management:** Initializes users with a starting capital of $1000 and tracks their cash (USD), Bitcoin (BTC) holdings, and total portfolio value in `vbtc.ini`.
 - **Transaction Ledger:** All buy and sell activities are recorded in `ledger.csv`, providing a complete history of trades with comprehensive statistics including portfolio summary, average prices, and transaction counts across all historical data.
 - **Configuration & Maintenance:** A `config` menu allows users to update their API key, reset their portfolio, archive the main ledger, and merge multiple archives into a master file.
@@ -104,3 +104,23 @@ The application provides comprehensive trading statistics across all historical 
 - **Red**: Negative values, sell-related statistics, net losses
 - **White**: Neutral values (zero or informational counts)
 - **Yellow**: Section headers
+
+### Velocity telemetry (technical)
+
+The main screen shows **Volatility** with an optional bracketed integer (e.g. `Volatility: 3.99% [15]`). The bracketed value is **velocity**.
+
+#### Formula
+- **Velocity** = `(TotalChange / (24H High - 24H Low)) * Volatility`
+- **TotalChange**: Sum of absolute deltas between consecutive historical price points over the 24h window. For API history points sorted by date, `TotalChange = |rate[1]-rate[0]| + |rate[2]-rate[1]| + ...` (total price path length in USD).
+- **24H High / 24H Low**: Min and max BTC rate from the same 24h history (same as the values shown on the main screen).
+- **Volatility**: The displayed 24h volatility percentage used as a **whole number** (e.g. 3.99% → multiply by 3.99, not 0.0399).
+- Result is **rounded to the nearest integer** for display.
+
+#### Data flow
+- **Historical fetch** (in `updateApiData`): After sorting `history.History` by date, computes `totalChange` by summing `math.Abs(history.History[i].Rate - history.History[i-1].Rate)` for `i = 1 .. len(history.History)-1`. Sets `newData.Rate24hTotalChange = totalChange`. On fallback (no history or no old data), `Rate24hTotalChange` is set to 0. `copyHistoricalData` copies `Rate24hTotalChange` from source to dest.
+- **showMainScreen**: When displaying the Volatility line, if `Rate24hTotalChange > 0` and `(Rate24hHigh - Rate24hLow) > 0`, velocity is computed as `Round((Rate24hTotalChange / range24h) * Volatility24h)` and appended as `[N]`. Otherwise only `X.XX%` is shown.
+
+#### Verbose output
+- Run with `-verbose` or `-v` (checked at startup; can appear anywhere in `os.Args[1:]`). When set, writes to **stderr**:
+  - After computing TotalChange in historical block: `TotalChange (sum of absolute deltas over 24h history): <value> from <count> points`
+  - When velocity is displayed on main screen: `Velocity calculation: TotalChange=..., 24H High=..., 24H Low=..., range=..., Volatility=...% (as whole number), velocity=...`

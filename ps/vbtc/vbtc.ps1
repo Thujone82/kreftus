@@ -192,6 +192,15 @@ function Get-HistoricalData {
                 }
             }
 
+            # TotalChange: sum of absolute deltas between consecutive historical points (for velocity)
+            $totalChange = 0
+            if ($sortedHistory.Count -gt 1) {
+                for ($i = 1; $i -lt $sortedHistory.Count; $i++) {
+                    $totalChange += [Math]::Abs($sortedHistory[$i].rate - $sortedHistory[$i - 1].rate)
+                }
+            }
+            Write-Verbose "TotalChange (sum of absolute deltas over 24h history): $totalChange from $($sortedHistory.Count) points"
+
             return [PSCustomObject]@{
                 High              = $highPoint24h.rate
                 Low               = $lowPoint24h.rate
@@ -202,6 +211,7 @@ function Get-HistoricalData {
                 Volatility12h     = $volatility12h
                 Volatility12h_old = $volatility12h_old
                 Sma1h             = $sma1h
+                TotalChange       = $totalChange
             }
         }
         else {
@@ -235,6 +245,7 @@ function Copy-HistoricalData {
         "volatility12h",
         "volatility12h_old",
         "sma1h",
+        "rate24hTotalChange",
         "HistoricalDataFetchTime"
     )
 
@@ -308,6 +319,7 @@ function Update-ApiData {
                 $newData | Add-Member -MemberType NoteProperty -Name "volatility12h" -Value $historicalStats.Volatility12h -Force
                 $newData | Add-Member -MemberType NoteProperty -Name "volatility12h_old" -Value $historicalStats.Volatility12h_old -Force
                 $newData | Add-Member -MemberType NoteProperty -Name "sma1h" -Value $historicalStats.Sma1h -Force
+                $newData | Add-Member -MemberType NoteProperty -Name "rate24hTotalChange" -Value $historicalStats.TotalChange -Force
                 $newData | Add-Member -MemberType NoteProperty -Name "HistoricalDataFetchTime" -Value (Get-Date).ToUniversalTime() -Force
             } else {
                 Write-Warning "Could not fetch historical data. Using fallbacks."
@@ -323,6 +335,7 @@ function Update-ApiData {
                     $newData | Add-Member -MemberType NoteProperty -Name "volatility12h" -Value 0 -Force
                     $newData | Add-Member -MemberType NoteProperty -Name "volatility12h_old" -Value 0 -Force
                     $newData | Add-Member -MemberType NoteProperty -Name "sma1h" -Value 0 -Force
+                    $newData | Add-Member -MemberType NoteProperty -Name "rate24hTotalChange" -Value 0 -Force
                     $fallbackRate = if ($newData.PSObject.Properties['delta'] -and $newData.delta.PSObject.Properties['day'] -and $newData.delta.day -ne 0) {
                         $newData.rate / (1 + ($newData.delta.day / 100))
                     } else {
@@ -578,6 +591,12 @@ function Show-MainScreen {
             }
         }
         $volatilityDisplay = "{0:N2}%" -f $ApiData.volatility24h
+        $range = $ApiData.rate24hHigh - $ApiData.rate24hLow
+        if ($ApiData.PSObject.Properties['rate24hTotalChange'] -and $null -ne $ApiData.rate24hTotalChange -and $range -gt 0) {
+            $velocity = [math]::Round( ($ApiData.rate24hTotalChange / $range) * $ApiData.volatility24h )
+            $volatilityDisplay = "{0:N2}% [{1}]" -f $ApiData.volatility24h, $velocity
+            Write-Verbose "Velocity calculation: TotalChange=$($ApiData.rate24hTotalChange), 24H High=$($ApiData.rate24hHigh), 24H Low=$($ApiData.rate24hLow), range=$range, Volatility=$($ApiData.volatility24h)% (as whole number), velocity=$velocity"
+        }
         Write-AlignedLine -Label "Volatility:" -Value $volatilityDisplay -ValueColor $volatilityColor
     }
     Write-AlignedLine -Label "24H Volume:" -Value $volDisplay
