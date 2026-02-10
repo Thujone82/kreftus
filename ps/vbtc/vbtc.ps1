@@ -870,7 +870,9 @@ function Format-Duration {
     if ($duration.TotalHours -lt 24) {
         return "{0}H" -f [int][math]::Round($duration.TotalHours)
     }
-    return "{0}D" -f [int][math]::Round($duration.TotalDays)
+    $days = [int][math]::Floor($duration.TotalDays)
+    $hours = [int][math]::Floor(($duration.TotalDays - $days) * 24)
+    return "{0}D{1}H" -f $days, $hours
 }
 
 function Format-Cadence {

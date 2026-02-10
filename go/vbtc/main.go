@@ -2967,7 +2967,10 @@ func formatDuration(first, last time.Time) string {
 	if d < 24*time.Hour {
 		return fmt.Sprintf("%dH", int(d.Round(time.Hour).Hours()))
 	}
-	return fmt.Sprintf("%dD", int(d.Round(time.Hour).Hours()/24))
+	days := int(d / (24 * time.Hour))
+	remaining := d % (24 * time.Hour)
+	hours := int(remaining / time.Hour)
+	return fmt.Sprintf("%dD%dH", days, hours)
 }
 
 // formatCadence formats a cadence duration for display: M+S under 1h, H+M under 48h, D above.
