@@ -117,6 +117,12 @@ The main screen shows **Volatility** with an optional bracketed integer (e.g. `V
 - **Volatility**: The displayed 24h volatility percentage used as a **whole number** (e.g. 3.99% → multiply by 3.99, not 0.0399).
 - Result is **rounded to the nearest integer** for display. Edge cases: if `24DeltaTotal/24` is 0, use `multiplier = 1`; if `1HourDeltaTotal` is 0, velocity becomes 0.
 
+#### Velocity color
+- The **velocity bracket** (e.g. `[15]`) is colored separately from the volatility percentage:
+  - **Green:** `1HourDeltaTotal > (24DeltaTotal/24)` — last hour above average
+  - **Red:** otherwise (last hour at or below average)
+  - **White:** when multiplier data is missing (no `1HourDeltaTotal` or `hourlyAvg`)
+
 #### Data flow
 - **Historical fetch** (in `updateApiData`): After sorting `history.History` by date, computes `totalChange` and `totalChange1h` (sum of deltas in last hour). Sets `newData.Rate24hTotalChange` and `newData.Rate24hTotalChange1h`. On fallback (no history or no old data), both set to 0. `copyHistoricalData` copies both from source to dest.
 - **showMainScreen**: When displaying the Volatility line, if `Rate24hTotalChange > 0` and `(Rate24hHigh - Rate24hLow) > 0`, velocity is computed (raw * multiplier) and appended as `[N]`. Otherwise only `X.XX%` is shown.

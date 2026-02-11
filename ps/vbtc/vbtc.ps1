@@ -607,19 +607,29 @@ function Show-MainScreen {
         }
         $volatilityDisplay = "{0:N2}%" -f $ApiData.volatility24h
         $range = $ApiData.rate24hHigh - $ApiData.rate24hLow
+        $velocityColor = "White"
         if ($ApiData.PSObject.Properties['rate24hTotalChange'] -and $null -ne $ApiData.rate24hTotalChange -and $range -gt 0) {
             $velocity = [math]::Round( ($ApiData.rate24hTotalChange / $range) * $ApiData.volatility24h )
             $hourlyAvg = $ApiData.rate24hTotalChange / 24
             if ($hourlyAvg -gt 0 -and $ApiData.PSObject.Properties['rate24hTotalChange1h'] -and $null -ne $ApiData.rate24hTotalChange1h) {
                 $multiplier = $ApiData.rate24hTotalChange1h / $hourlyAvg
                 $velocity = [math]::Round($velocity * $multiplier)
+                $velocityColor = if ($ApiData.rate24hTotalChange1h -gt $hourlyAvg) { "Green" } else { "Red" }
                 Write-Verbose "Velocity calculation: TotalChange=$($ApiData.rate24hTotalChange), 1HourDeltaTotal=$($ApiData.rate24hTotalChange1h), 24H High=$($ApiData.rate24hHigh), 24H Low=$($ApiData.rate24hLow), range=$range, Volatility=$($ApiData.volatility24h)% (as whole number), hourlyAvg=$hourlyAvg, multiplier=$multiplier, velocity=$velocity"
             } else {
                 Write-Verbose "Velocity calculation: TotalChange=$($ApiData.rate24hTotalChange), 24H High=$($ApiData.rate24hHigh), 24H Low=$($ApiData.rate24hLow), range=$range, Volatility=$($ApiData.volatility24h)% (as whole number), velocity=$velocity"
             }
             $volatilityDisplay = "{0:N2}% [{1}]" -f $ApiData.volatility24h, $velocity
         }
-        Write-AlignedLine -Label "Volatility:" -Value $volatilityDisplay -ValueColor $volatilityColor
+        Write-Host -NoNewline "Volatility:"
+        $paddingRequired = 22 - "Volatility:".Length
+        if ($paddingRequired -gt 0) { Write-Host (" " * $paddingRequired) -NoNewline }
+        if ($volatilityDisplay -match "^([0-9.]+%)\s*\[(\d+)\]$") {
+            Write-Host -NoNewline $Matches[1] -ForegroundColor $volatilityColor
+            Write-Host " [$($Matches[2])]" -ForegroundColor $velocityColor
+        } else {
+            Write-Host $volatilityDisplay -ForegroundColor $volatilityColor
+        }
     }
     Write-AlignedLine -Label "24H Volume:" -Value $volDisplay
     Write-AlignedLine -Label "Time:" -Value $timeDisplay -ValueColor "Cyan"

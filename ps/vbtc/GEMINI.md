@@ -108,6 +108,12 @@ The main screen shows **Volatility** with an optional bracketed integer (e.g. `V
 - **Volatility**: The displayed 24h volatility percentage used as a **whole number** (e.g. 3.99% → multiply by 3.99, not 0.0399).
 - Result is **rounded to the nearest integer** for display. Edge cases: if `24DeltaTotal/24` is 0, use `multiplier = 1`; if `1HourDeltaTotal` is 0, velocity becomes 0.
 
+#### Velocity color
+- The **velocity bracket** (e.g. `[15]`) is colored separately from the volatility percentage:
+  - **Green:** `1HourDeltaTotal > (24DeltaTotal/24)` — last hour above average
+  - **Red:** otherwise (last hour at or below average)
+  - **White:** when multiplier data is missing (no `1HourDeltaTotal` or `hourlyAvg`)
+
 #### Data flow
 - **Get-HistoricalData**: Fetches 24h history from LiveCoinWatch `coins/single/history`. After sorting history by date, computes `TotalChange` and `TotalChange1h` (sum of deltas in last hour). Returns both along with High, Low, Volatility, etc.
 - **Update-ApiData**: When historical stats are applied, adds `rate24hTotalChange` and `rate24hTotalChange1h` to the apiData object. `Copy-HistoricalData` copies both when reusing or skipping historical fetch. Fallback (no history): both set to 0.

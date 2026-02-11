@@ -692,12 +692,14 @@ try {
                 }
                 $volatilityDisplay = "{0:N2}%" -f $historicalStats.Volatility
                 $range = $historicalStats.High - $historicalStats.Low
+                $velocityColor = "White"
                 if ($historicalStats.PSObject.Properties.Name -contains 'TotalChange' -and $null -ne $historicalStats.TotalChange -and $range -gt 0) {
                     $velocity = [math]::Round( ($historicalStats.TotalChange / $range) * $historicalStats.Volatility )
                     $hourlyAvg = $historicalStats.TotalChange / 24
                     if ($hourlyAvg -gt 0 -and $historicalStats.PSObject.Properties.Name -contains 'TotalChange1h' -and $null -ne $historicalStats.TotalChange1h) {
                         $multiplier = $historicalStats.TotalChange1h / $hourlyAvg
                         $velocity = [math]::Round($velocity * $multiplier)
+                        $velocityColor = if ($historicalStats.TotalChange1h -gt $hourlyAvg) { "Green" } else { "Red" }
                         Write-Verbose "Velocity calculation: TotalChange=$($historicalStats.TotalChange), 1HourDeltaTotal=$($historicalStats.TotalChange1h), 24H High=$($historicalStats.High), 24H Low=$($historicalStats.Low), range=$range, Volatility=$($historicalStats.Volatility)% (as whole number), hourlyAvg=$hourlyAvg, multiplier=$multiplier, velocity=$velocity"
                     } else {
                         Write-Verbose "Velocity calculation: TotalChange=$($historicalStats.TotalChange), 24H High=$($historicalStats.High), 24H Low=$($historicalStats.Low), range=$range, Volatility=$($historicalStats.Volatility)% (as whole number), velocity=$velocity"
@@ -710,7 +712,12 @@ try {
                 Write-Host -NoNewline -ForegroundColor White "Volatility: "
                 $paddingRequired = 15 - "Volatility: ".Length
                 if ($paddingRequired -gt 0) { Write-Host -NoNewline (" " * $paddingRequired) }
-                Write-Host -ForegroundColor $volatilityColor $volatilityDisplay
+                if ($volatilityDisplay -match "^([0-9.]+%)\s*\[(\d+)\]$") {
+                    Write-Host -NoNewline $Matches[1] -ForegroundColor $volatilityColor
+                    Write-Host " [$($Matches[2])]" -ForegroundColor $velocityColor
+                } else {
+                    Write-Host -ForegroundColor $volatilityColor $volatilityDisplay
+                }
             }
         }
         

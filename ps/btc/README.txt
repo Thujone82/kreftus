@@ -128,8 +128,11 @@ OUTPUT
     - 24H High: Highest price in the last 24 hours with timestamp (HH:mm format).
     - 24H Low: Lowest price in the last 24 hours with timestamp (HH:mm format).
     - Volatility: Percentage showing the price swing (High vs Low) over the last 
-      24 hours, plus velocity in brackets (e.g. "3.99% [15]"), color-coded 
-      (Green if recent volatility > older volatility, Red if less, White if equal).
+      24 hours, plus velocity in brackets (e.g. "3.99% [15]"). The percentage 
+      is color-coded (Green if recent volatility > older volatility, Red if less, 
+      White if equal). The velocity bracket is colored separately: Green when 
+      last hour average delta > 24h average hourly delta, Red otherwise; 
+      White when multiplier data is missing.
     - 24H Volume: Bitcoin's 24-hour trading volume in USD, color-coded based 
       on Bitcoin's 24h price performance. May also show % change if API provides it.
     - Cap: Bitcoin's current market capitalization in USD, color-coded based 
@@ -153,7 +156,9 @@ OUTPUT
     activity increases velocity, below-average decreases it. Volatility is used 
     as a whole number (e.g. 3.99% means multiply by 3.99). The result is rounded 
     to the nearest integer. If the 24h range is zero or data is missing, the 
-    bracket is omitted. Use -Verbose to see the calculation details.
+    bracket is omitted. Velocity color: Green when 1HourDeltaTotal > (24DeltaTotal/24) 
+    (last hour above average), Red otherwise; White when multiplier data is missing. 
+    Use -Verbose to see the calculation details.
 
 LOGGING
     If a valid log path is determined (via -LogToFile parameter or config.ini), 

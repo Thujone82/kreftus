@@ -391,12 +391,21 @@ func showMainScreen() {
 			}
 			volStr := fmt.Sprintf("%.2f%%", apiData.Volatility24h)
 			range24h := apiData.Rate24hHigh - apiData.Rate24hLow
+			velocityColor := color.New(color.FgWhite)
+			hasVelocity := false
+			var velocity int
 			if apiData.Rate24hTotalChange > 0 && range24h > 0 {
-				velocity := int(math.Round((apiData.Rate24hTotalChange / range24h) * apiData.Volatility24h))
+				velocity = int(math.Round((apiData.Rate24hTotalChange / range24h) * apiData.Volatility24h))
 				hourlyAvg := apiData.Rate24hTotalChange / 24
 				if hourlyAvg > 0 && apiData.Rate24hTotalChange1h >= 0 {
 					multiplier := apiData.Rate24hTotalChange1h / hourlyAvg
 					velocity = int(math.Round(float64(velocity) * multiplier))
+					if apiData.Rate24hTotalChange1h > hourlyAvg {
+						velocityColor = color.New(color.FgGreen)
+					} else {
+						velocityColor = color.New(color.FgRed)
+					}
+					hasVelocity = true
 					if verbose {
 						fmt.Fprintf(os.Stderr, "Velocity calculation: TotalChange=%.2f, 1HourDeltaTotal=%.2f, 24H High=%.2f, 24H Low=%.2f, range=%.2f, Volatility=%.2f%% (as whole number), hourlyAvg=%.2f, multiplier=%.2f, velocity=%d\n",
 							apiData.Rate24hTotalChange, apiData.Rate24hTotalChange1h, apiData.Rate24hHigh, apiData.Rate24hLow, range24h, apiData.Volatility24h, hourlyAvg, multiplier, velocity)
@@ -407,7 +416,19 @@ func showMainScreen() {
 				}
 				volStr = fmt.Sprintf("%.2f%% [%d]", apiData.Volatility24h, velocity)
 			}
-			writeAlignedLine("Volatility:", volStr, volatilityColor)
+			valueStartColumn := 22
+			padding := valueStartColumn - len("Volatility:")
+			if padding < 0 {
+				padding = 0
+			}
+			fmt.Print("Volatility:")
+			fmt.Print(strings.Repeat(" ", padding))
+			if hasVelocity {
+				volatilityColor.Print(fmt.Sprintf("%.2f%%", apiData.Volatility24h))
+				velocityColor.Printf(" [%d]\n", velocity)
+			} else {
+				volatilityColor.Println(volStr)
+			}
 		}
 		writeAlignedLine("24H Volume:", fmt.Sprintf("$%s", formatFloat(apiData.Volume, 0)), color.New(color.FgWhite))
 		// Time: shows when the (historical) API data was fetched, not when the main modal was loaded.
