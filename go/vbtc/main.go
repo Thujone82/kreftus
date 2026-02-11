@@ -61,6 +61,7 @@ type ApiDataResponse struct {
 	Volatility12h_old       float64
 	Sma1h                   float64
 	Rate24hTotalChange      float64
+	Rate24hTotalChange1h     float64
 	HistoricalDataFetchTime time.Time
 	ApiError                string `json:"-"`
 	ApiErrorCode            int    `json:"-"`
@@ -392,11 +393,19 @@ func showMainScreen() {
 			range24h := apiData.Rate24hHigh - apiData.Rate24hLow
 			if apiData.Rate24hTotalChange > 0 && range24h > 0 {
 				velocity := int(math.Round((apiData.Rate24hTotalChange / range24h) * apiData.Volatility24h))
-				volStr = fmt.Sprintf("%.2f%% [%d]", apiData.Volatility24h, velocity)
-				if verbose {
+				hourlyAvg := apiData.Rate24hTotalChange / 24
+				if hourlyAvg > 0 && apiData.Rate24hTotalChange1h >= 0 {
+					multiplier := apiData.Rate24hTotalChange1h / hourlyAvg
+					velocity = int(math.Round(float64(velocity) * multiplier))
+					if verbose {
+						fmt.Fprintf(os.Stderr, "Velocity calculation: TotalChange=%.2f, 1HourDeltaTotal=%.2f, 24H High=%.2f, 24H Low=%.2f, range=%.2f, Volatility=%.2f%% (as whole number), hourlyAvg=%.2f, multiplier=%.2f, velocity=%d\n",
+							apiData.Rate24hTotalChange, apiData.Rate24hTotalChange1h, apiData.Rate24hHigh, apiData.Rate24hLow, range24h, apiData.Volatility24h, hourlyAvg, multiplier, velocity)
+					}
+				} else if verbose {
 					fmt.Fprintf(os.Stderr, "Velocity calculation: TotalChange=%.2f, 24H High=%.2f, 24H Low=%.2f, range=%.2f, Volatility=%.2f%% (as whole number), velocity=%d\n",
 						apiData.Rate24hTotalChange, apiData.Rate24hHigh, apiData.Rate24hLow, range24h, apiData.Volatility24h, velocity)
 				}
+				volStr = fmt.Sprintf("%.2f%% [%d]", apiData.Volatility24h, velocity)
 			}
 			writeAlignedLine("Volatility:", volStr, volatilityColor)
 		}
@@ -1676,8 +1685,17 @@ func updateApiData(skipHistorical bool) *ApiDataResponse {
 					totalChange += math.Abs(history.History[i].Rate - history.History[i-1].Rate)
 				}
 				newData.Rate24hTotalChange = totalChange
+				// TotalChange1h: sum of absolute deltas in the last hour only (for velocity multiplier)
+				cutoffMs := end.UnixMilli() - 3600000
+				var totalChange1h float64
+				for i := 1; i < len(history.History); i++ {
+					if history.History[i].Date >= cutoffMs {
+						totalChange1h += math.Abs(history.History[i].Rate - history.History[i-1].Rate)
+					}
+				}
+				newData.Rate24hTotalChange1h = totalChange1h
 				if verbose {
-					fmt.Fprintf(os.Stderr, "TotalChange (sum of absolute deltas over 24h history): %.2f from %d points\n", totalChange, len(history.History))
+					fmt.Fprintf(os.Stderr, "TotalChange (sum of absolute deltas over 24h history): %.2f from %d points; 1HourDeltaTotal: %.2f\n", totalChange, len(history.History), totalChange1h)
 				}
 				newData.HistoricalDataFetchTime = time.Now().UTC()
 			} else {
@@ -1713,6 +1731,7 @@ func updateApiData(skipHistorical bool) *ApiDataResponse {
 					newData.Volatility12h_old = 0
 					newData.Sma1h = 0
 					newData.Rate24hTotalChange = 0
+					newData.Rate24hTotalChange1h = 0
 					if newData.Delta.Day != 0 {
 						newData.Rate24hAgo = newData.Rate / (1 + (newData.Delta.Day / 100))
 					} else {
@@ -1765,6 +1784,7 @@ func copyHistoricalData(source, dest *ApiDataResponse) {
 	dest.Volatility12h_old = source.Volatility12h_old
 	dest.Sma1h = source.Sma1h
 	dest.Rate24hTotalChange = source.Rate24hTotalChange
+	dest.Rate24hTotalChange1h = source.Rate24hTotalChange1h
 	dest.HistoricalDataFetchTime = source.HistoricalDataFetchTime
 }
 

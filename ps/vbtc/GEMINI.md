@@ -101,18 +101,19 @@ The application provides comprehensive trading statistics across all historical 
 The main screen shows **Volatility** with an optional bracketed integer (e.g. `Volatility: 3.99% [15]`). The bracketed value is **velocity**.
 
 #### Formula
-- **Velocity** = `(TotalChange / (24H High - 24H Low)) * Volatility`
-- **TotalChange**: Sum of absolute deltas between consecutive historical price points over the 24h window. For API history points sorted by time, `TotalChange = |rate[1]-rate[0]| + |rate[2]-rate[1]| + ...` (total price path length in USD).
+- **Velocity** = `(TotalChange / (24H High - 24H Low)) * Volatility * (1HourDeltaTotal / (24DeltaTotal/24))`
+- **TotalChange** (24DeltaTotal): Sum of absolute deltas between consecutive historical price points over the 24h window. For API history points sorted by time, `TotalChange = |rate[1]-rate[0]| + |rate[2]-rate[1]| + ...` (total price path length in USD).
+- **1HourDeltaTotal**: Same sum for the **last hour only**—include segment `|rate[i]-rate[i-1]|` when `point[i].date >= cutoffMs` (cutoff = end of 24h window minus 1 hour). The multiplier `(1HourDeltaTotal / (24DeltaTotal/24))` compares last-hour activity to the 24h average: above-average increases velocity, below-average decreases it.
 - **24H High / 24H Low**: Min and max BTC rate from the same 24h history (same as the values shown on the main screen).
 - **Volatility**: The displayed 24h volatility percentage used as a **whole number** (e.g. 3.99% → multiply by 3.99, not 0.0399).
-- Result is **rounded to the nearest integer** for display.
+- Result is **rounded to the nearest integer** for display. Edge cases: if `24DeltaTotal/24` is 0, use `multiplier = 1`; if `1HourDeltaTotal` is 0, velocity becomes 0.
 
 #### Data flow
-- **Get-HistoricalData**: Fetches 24h history from LiveCoinWatch `coins/single/history`. After sorting history by date, computes `TotalChange` by summing `Abs(rate[i] - rate[i-1])` for consecutive points. Returns `TotalChange` along with High, Low, Volatility, etc.
-- **Update-ApiData**: When historical stats are applied, adds `rate24hTotalChange` to the apiData object. `Copy-HistoricalData` copies this property when reusing or skipping historical fetch. Fallback (no history): `rate24hTotalChange` set to 0.
-- **Show-MainScreen**: When displaying the Volatility line, if `rate24hTotalChange` is present and `(rate24hHigh - rate24hLow) > 0`, velocity is computed and appended as `[N]`. Otherwise only `X.XX%` is shown.
+- **Get-HistoricalData**: Fetches 24h history from LiveCoinWatch `coins/single/history`. After sorting history by date, computes `TotalChange` and `TotalChange1h` (sum of deltas in last hour). Returns both along with High, Low, Volatility, etc.
+- **Update-ApiData**: When historical stats are applied, adds `rate24hTotalChange` and `rate24hTotalChange1h` to the apiData object. `Copy-HistoricalData` copies both when reusing or skipping historical fetch. Fallback (no history): both set to 0.
+- **Show-MainScreen**: When displaying the Volatility line, if `rate24hTotalChange` is present and `(rate24hHigh - rate24hLow) > 0`, velocity is computed (raw * multiplier) and appended as `[N]`. Otherwise only `X.XX%` is shown.
 
 #### Verbose output
 - Run with `-Verbose` to see:
   - In **Get-HistoricalData**: `TotalChange (sum of absolute deltas over 24h history): <value> from <count> points`
-  - On main screen when velocity is shown: `Velocity calculation: TotalChange=..., 24H High=..., 24H Low=..., range=..., Volatility=...% (as whole number), velocity=...`
+  - On main screen when velocity is shown: `Velocity calculation: TotalChange=..., 1HourDeltaTotal=..., 24H High=..., 24H Low=..., range=..., Volatility=...% (as whole number), hourlyAvg=..., multiplier=..., velocity=...`

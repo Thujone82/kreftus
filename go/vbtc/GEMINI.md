@@ -110,17 +110,18 @@ The application provides comprehensive trading statistics across all historical 
 The main screen shows **Volatility** with an optional bracketed integer (e.g. `Volatility: 3.99% [15]`). The bracketed value is **velocity**.
 
 #### Formula
-- **Velocity** = `(TotalChange / (24H High - 24H Low)) * Volatility`
-- **TotalChange**: Sum of absolute deltas between consecutive historical price points over the 24h window. For API history points sorted by date, `TotalChange = |rate[1]-rate[0]| + |rate[2]-rate[1]| + ...` (total price path length in USD).
+- **Velocity** = `(TotalChange / (24H High - 24H Low)) * Volatility * (1HourDeltaTotal / (24DeltaTotal/24))`
+- **TotalChange** (24DeltaTotal): Sum of absolute deltas between consecutive historical price points over the 24h window. For API history points sorted by date, `TotalChange = |rate[1]-rate[0]| + |rate[2]-rate[1]| + ...` (total price path length in USD).
+- **1HourDeltaTotal**: Same sum for the **last hour only**—include segment `|rate[i]-rate[i-1]|` when `point[i].date >= cutoffMs` (cutoff = end of 24h window minus 1 hour). The multiplier compares last-hour activity to the 24h average: above-average increases velocity, below-average decreases it.
 - **24H High / 24H Low**: Min and max BTC rate from the same 24h history (same as the values shown on the main screen).
 - **Volatility**: The displayed 24h volatility percentage used as a **whole number** (e.g. 3.99% → multiply by 3.99, not 0.0399).
-- Result is **rounded to the nearest integer** for display.
+- Result is **rounded to the nearest integer** for display. Edge cases: if `24DeltaTotal/24` is 0, use `multiplier = 1`; if `1HourDeltaTotal` is 0, velocity becomes 0.
 
 #### Data flow
-- **Historical fetch** (in `updateApiData`): After sorting `history.History` by date, computes `totalChange` by summing `math.Abs(history.History[i].Rate - history.History[i-1].Rate)` for `i = 1 .. len(history.History)-1`. Sets `newData.Rate24hTotalChange = totalChange`. On fallback (no history or no old data), `Rate24hTotalChange` is set to 0. `copyHistoricalData` copies `Rate24hTotalChange` from source to dest.
-- **showMainScreen**: When displaying the Volatility line, if `Rate24hTotalChange > 0` and `(Rate24hHigh - Rate24hLow) > 0`, velocity is computed as `Round((Rate24hTotalChange / range24h) * Volatility24h)` and appended as `[N]`. Otherwise only `X.XX%` is shown.
+- **Historical fetch** (in `updateApiData`): After sorting `history.History` by date, computes `totalChange` and `totalChange1h` (sum of deltas in last hour). Sets `newData.Rate24hTotalChange` and `newData.Rate24hTotalChange1h`. On fallback (no history or no old data), both set to 0. `copyHistoricalData` copies both from source to dest.
+- **showMainScreen**: When displaying the Volatility line, if `Rate24hTotalChange > 0` and `(Rate24hHigh - Rate24hLow) > 0`, velocity is computed (raw * multiplier) and appended as `[N]`. Otherwise only `X.XX%` is shown.
 
 #### Verbose output
 - Run with `-verbose` or `-v` (checked at startup; can appear anywhere in `os.Args[1:]`). When set, writes to **stderr**:
-  - After computing TotalChange in historical block: `TotalChange (sum of absolute deltas over 24h history): <value> from <count> points`
-  - When velocity is displayed on main screen: `Velocity calculation: TotalChange=..., 24H High=..., 24H Low=..., range=..., Volatility=...% (as whole number), velocity=...`
+  - After computing TotalChange in historical block: `TotalChange (sum of absolute deltas over 24h history): <value> from <count> points; 1HourDeltaTotal: <value>`
+  - When velocity is displayed on main screen: `Velocity calculation: TotalChange=..., 1HourDeltaTotal=..., 24H High=..., 24H Low=..., range=..., Volatility=...% (as whole number), hourlyAvg=..., multiplier=..., velocity=...`

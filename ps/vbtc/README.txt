@@ -48,7 +48,7 @@ The application uses colors to provide quick visual feedback:
 ## Help Options
 - Run with `.\vbtc.ps1 -help` (or `-?`) to display the help screen and exit
 - Run with `.\vbtc.ps1 -config` to open the configuration menu and exit (e.g. to fix or set your API key when it is broken or missing)
-- Run with `.\vbtc.ps1 -Verbose` to see verbose output including velocity calculation details (TotalChange, 24H High/Low, range, Volatility, and resulting velocity)
+- Run with `.\vbtc.ps1 -Verbose` to see verbose output including velocity calculation details (TotalChange, 1HourDeltaTotal, 24H High/Low, range, Volatility, hourlyAvg, multiplier, and resulting velocity)
 - Use the `help` command within the application to view available commands
 
 If the application exits with "403 Encountered: Ensure API Key Configured and Enabled", run `vbtc -config` (or `.\vbtc.ps1 -config`) to configure your API key.
@@ -87,7 +87,7 @@ When confirming a buy or sell transaction, you can use the following keyboard sh
 - **Percentage Trading:** Use the 'p' suffix to trade a percentage of your balance (e.g., '50p' for 50%). Math expressions are also supported (e.g., '100/3p' for 33.3%).
 - **Satoshi Trading:** When selling, use the 's' suffix to specify an amount in satoshis (e.g., '100000s').
 - **1H SMA:** The 1-Hour Simple Moving Average shows the average price over the last hour. It's green if the current price is above the average (bullish) and red if below (bearish).
-- **Velocity:** Shown in brackets after Volatility (e.g. "Volatility: 3.99% [15]"). Velocity = (TotalChange / (24H High - 24H Low)) * Volatility. TotalChange is the sum of absolute price deltas between consecutive 24h historical data points. Volatility is used as a whole number (e.g. 3.99% means multiply by 3.99). The result is rounded to the nearest integer. If the 24h range is zero or data is missing, the bracket is omitted.
+- **Velocity:** Shown in brackets after Volatility (e.g. "Volatility: 3.99% [15]"). Velocity = (TotalChange / (24H High - 24H Low)) * Volatility * (1HourDeltaTotal / (24DeltaTotal/24)). TotalChange (24DeltaTotal) is the sum of absolute price deltas between consecutive 24h historical data points. 1HourDeltaTotal is the same sum for the last hour only. The multiplier compares last-hour activity to the 24h average: above-average hourly activity increases velocity, below-average decreases it. Volatility is used as a whole number (e.g. 3.99% means multiply by 3.99). The result is rounded to the nearest integer. If the 24h range is zero or data is missing, the bracket is omitted.
 
 ## Ledger Summary Features
 

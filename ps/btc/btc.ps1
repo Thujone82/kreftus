@@ -271,6 +271,17 @@ function Get-HistoricalData {
             }
             Write-Verbose "TotalChange (sum of absolute deltas over 24h history): $totalChange from $($sortedHistory.Count) points"
 
+            # TotalChange1h: sum of absolute deltas in the last hour only (for velocity multiplier)
+            $cutoffMs = $endTimestampMs - (60 * 60 * 1000)
+            $totalChange1h = 0
+            if ($sortedHistory.Count -gt 1) {
+                for ($i = 1; $i -lt $sortedHistory.Count; $i++) {
+                    if ($sortedHistory[$i].date -ge $cutoffMs) {
+                        $totalChange1h += [Math]::Abs($sortedHistory[$i].rate - $sortedHistory[$i - 1].rate)
+                    }
+                }
+            }
+
             $result = [PSCustomObject]@{
                 High              = $highPoint24h.rate
                 Low               = $lowPoint24h.rate
@@ -282,6 +293,7 @@ function Get-HistoricalData {
                 Volatility12h_old = $volatility12h_old
                 Sma1h             = $sma1h
                 TotalChange       = $totalChange
+                TotalChange1h     = $totalChange1h
                 History           = $historicalResponse.history
             }
             return $result
@@ -682,8 +694,15 @@ try {
                 $range = $historicalStats.High - $historicalStats.Low
                 if ($historicalStats.PSObject.Properties.Name -contains 'TotalChange' -and $null -ne $historicalStats.TotalChange -and $range -gt 0) {
                     $velocity = [math]::Round( ($historicalStats.TotalChange / $range) * $historicalStats.Volatility )
+                    $hourlyAvg = $historicalStats.TotalChange / 24
+                    if ($hourlyAvg -gt 0 -and $historicalStats.PSObject.Properties.Name -contains 'TotalChange1h' -and $null -ne $historicalStats.TotalChange1h) {
+                        $multiplier = $historicalStats.TotalChange1h / $hourlyAvg
+                        $velocity = [math]::Round($velocity * $multiplier)
+                        Write-Verbose "Velocity calculation: TotalChange=$($historicalStats.TotalChange), 1HourDeltaTotal=$($historicalStats.TotalChange1h), 24H High=$($historicalStats.High), 24H Low=$($historicalStats.Low), range=$range, Volatility=$($historicalStats.Volatility)% (as whole number), hourlyAvg=$hourlyAvg, multiplier=$multiplier, velocity=$velocity"
+                    } else {
+                        Write-Verbose "Velocity calculation: TotalChange=$($historicalStats.TotalChange), 24H High=$($historicalStats.High), 24H Low=$($historicalStats.Low), range=$range, Volatility=$($historicalStats.Volatility)% (as whole number), velocity=$velocity"
+                    }
                     $volatilityDisplay = "{0:N2}% [{1}]" -f $historicalStats.Volatility, $velocity
-                    Write-Verbose "Velocity calculation: TotalChange=$($historicalStats.TotalChange), 24H High=$($historicalStats.High), 24H Low=$($historicalStats.Low), range=$range, Volatility=$($historicalStats.Volatility)% (as whole number), velocity=$velocity"
                 }
                 $volatilityLineWidth = Get-LineWidth -Label "Volatility: " -ValueString $volatilityDisplay -ValueStartColumn 16
                 Write-Verbose "Volatility line width: $volatilityLineWidth, current maxLineWidth: $maxLineWidth"

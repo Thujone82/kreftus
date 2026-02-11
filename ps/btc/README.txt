@@ -140,17 +140,20 @@ OUTPUT
     Verbose Output (-Verbose):
     Includes messages about configuration loading, API call progress, historical 
     price fetching details (including TotalChange for velocity), velocity 
-    calculation details (TotalChange, 24H High/Low, range, Volatility, result), 
+    calculation details (TotalChange, 1HourDeltaTotal, 24H High/Low, range, Volatility, hourlyAvg, multiplier, result), 
     logging status, and portfolio value tracking.
 
     Velocity (in Volatility bracket):
     The bracketed integer after Volatility (e.g. "3.99% [15]") is the velocity. 
-    Formula: Velocity = (TotalChange / (24H High - 24H Low)) * Volatility. 
-    TotalChange is the sum of absolute price deltas between consecutive 24h 
-    historical data points. Volatility is used as a whole number (e.g. 3.99% 
-    means multiply by 3.99). The result is rounded to the nearest integer. 
-    If the 24h range is zero or data is missing, the bracket is omitted. 
-    Use -Verbose to see the calculation details.
+    Formula: Velocity = (TotalChange / (24H High - 24H Low)) * Volatility * 
+    (1HourDeltaTotal / (24DeltaTotal/24)). TotalChange (24DeltaTotal) is the 
+    sum of absolute price deltas between consecutive 24h historical data points. 
+    1HourDeltaTotal is the same sum for the last hour only. The multiplier 
+    compares last-hour activity to the 24h average: above-average hourly 
+    activity increases velocity, below-average decreases it. Volatility is used 
+    as a whole number (e.g. 3.99% means multiply by 3.99). The result is rounded 
+    to the nearest integer. If the 24h range is zero or data is missing, the 
+    bracket is omitted. Use -Verbose to see the calculation details.
 
 LOGGING
     If a valid log path is determined (via -LogToFile parameter or config.ini), 
