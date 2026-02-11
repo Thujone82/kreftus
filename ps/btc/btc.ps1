@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Retrieves and displays Bitcoin (BTC) data from LiveCoinWatch API. Supports .ini configuration,
     profit/loss calculation, CSV logging, first-run setup, config update, and accurate 24h price
@@ -262,6 +262,15 @@ function Get-HistoricalData {
                 }
             }
 
+            # TotalChange: sum of absolute deltas between consecutive historical points (for velocity)
+            $totalChange = 0
+            if ($sortedHistory.Count -gt 1) {
+                for ($i = 1; $i -lt $sortedHistory.Count; $i++) {
+                    $totalChange += [Math]::Abs($sortedHistory[$i].rate - $sortedHistory[$i - 1].rate)
+                }
+            }
+            Write-Verbose "TotalChange (sum of absolute deltas over 24h history): $totalChange from $($sortedHistory.Count) points"
+
             $result = [PSCustomObject]@{
                 High              = $highPoint24h.rate
                 Low               = $lowPoint24h.rate
@@ -272,6 +281,7 @@ function Get-HistoricalData {
                 Volatility12h     = $volatility12h
                 Volatility12h_old = $volatility12h_old
                 Sma1h             = $sma1h
+                TotalChange       = $totalChange
                 History           = $historicalResponse.history
             }
             return $result
@@ -669,6 +679,12 @@ try {
                     }
                 }
                 $volatilityDisplay = "{0:N2}%" -f $historicalStats.Volatility
+                $range = $historicalStats.High - $historicalStats.Low
+                if ($historicalStats.PSObject.Properties.Name -contains 'TotalChange' -and $null -ne $historicalStats.TotalChange -and $range -gt 0) {
+                    $velocity = [math]::Round( ($historicalStats.TotalChange / $range) * $historicalStats.Volatility )
+                    $volatilityDisplay = "{0:N2}% [{1}]" -f $historicalStats.Volatility, $velocity
+                    Write-Verbose "Velocity calculation: TotalChange=$($historicalStats.TotalChange), 24H High=$($historicalStats.High), 24H Low=$($historicalStats.Low), range=$range, Volatility=$($historicalStats.Volatility)% (as whole number), velocity=$velocity"
+                }
                 $volatilityLineWidth = Get-LineWidth -Label "Volatility: " -ValueString $volatilityDisplay -ValueStartColumn 16
                 Write-Verbose "Volatility line width: $volatilityLineWidth, current maxLineWidth: $maxLineWidth"
                 if ($volatilityLineWidth -gt $maxLineWidth) { $maxLineWidth = $volatilityLineWidth; Write-Verbose "Updated maxLineWidth to: $maxLineWidth" }

@@ -26,8 +26,9 @@ DESCRIPTION
       color-coded (Green if current > SMA, Red if current < SMA).
     - 24H Ago price with percentage change, color-coded based on comparison.
     - 24H High and Low prices with timestamps.
-    - Volatility percentage showing price swing over 24 hours, color-coded 
-      based on recent vs. older volatility trends.
+    - Volatility percentage showing price swing over 24 hours, with velocity 
+      metric in brackets (e.g. "3.99% [15]"), color-coded based on recent vs. 
+      older volatility trends.
     - Current 24-hour trading volume and market capitalization for Bitcoin.
     - History sparkline visualization showing 24-hour price trend.
     - Verbose mode for detailed operational messages.
@@ -127,8 +128,8 @@ OUTPUT
     - 24H High: Highest price in the last 24 hours with timestamp (HH:mm format).
     - 24H Low: Lowest price in the last 24 hours with timestamp (HH:mm format).
     - Volatility: Percentage showing the price swing (High vs Low) over the last 
-      24 hours, color-coded (Green if recent volatility > older volatility, 
-      Red if less, White if equal).
+      24 hours, plus velocity in brackets (e.g. "3.99% [15]"), color-coded 
+      (Green if recent volatility > older volatility, Red if less, White if equal).
     - 24H Volume: Bitcoin's 24-hour trading volume in USD, color-coded based 
       on Bitcoin's 24h price performance. May also show % change if API provides it.
     - Cap: Bitcoin's current market capitalization in USD, color-coded based 
@@ -138,7 +139,18 @@ OUTPUT
 
     Verbose Output (-Verbose):
     Includes messages about configuration loading, API call progress, historical 
-    price fetching details, logging status, and portfolio value tracking.
+    price fetching details (including TotalChange for velocity), velocity 
+    calculation details (TotalChange, 24H High/Low, range, Volatility, result), 
+    logging status, and portfolio value tracking.
+
+    Velocity (in Volatility bracket):
+    The bracketed integer after Volatility (e.g. "3.99% [15]") is the velocity. 
+    Formula: Velocity = (TotalChange / (24H High - 24H Low)) * Volatility. 
+    TotalChange is the sum of absolute price deltas between consecutive 24h 
+    historical data points. Volatility is used as a whole number (e.g. 3.99% 
+    means multiply by 3.99). The result is rounded to the nearest integer. 
+    If the 24h range is zero or data is missing, the bracket is omitted. 
+    Use -Verbose to see the calculation details.
 
 LOGGING
     If a valid log path is determined (via -LogToFile parameter or config.ini), 
