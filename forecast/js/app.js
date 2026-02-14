@@ -2297,6 +2297,19 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
                     console.error('Background refresh failed for cached location:', error);
                 });
             }, 100); // Small delay to ensure UI renders first
+        } else if (restoredWeatherData?.location && rawObservations == null) {
+            // This location has no observations yet; fetch in background so History becomes available
+            const locationToFetch = searchQuery || (restoredWeatherData.location.city != null && restoredWeatherData.location.state != null
+                ? `${restoredWeatherData.location.city}, ${restoredWeatherData.location.state}`
+                : null) || cache.location || 'here';
+            if (locationToFetch) {
+                console.log('Location has no observations, fetching in background:', locationToFetch);
+                setTimeout(() => {
+                    loadWeatherData(locationToFetch, false, true).catch(error => {
+                        console.error('Background observations fetch failed:', error);
+                    });
+                }, 200);
+            }
         }
         
         // If cached data doesn't have NOAA station but we have coordinates, fetch it in background
@@ -3040,43 +3053,41 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
 async function handleRefresh() {
     console.log('Refresh button clicked - loading cached data first, then refreshing');
     
-    // Get current location
-    const location = elements.locationInput.value.trim() || 'here';
+    // Use current location from state when available so we refresh the displayed location, not a different one
+    const locationFromInput = elements.locationInput.value.trim() || 'here';
+    const locationToRefresh = (appState.location && appState.location.city != null && appState.location.state != null)
+        ? `${appState.location.city}, ${appState.location.state}`
+        : locationFromInput;
     
-    // First, try to load cached data (even if stale) to display immediately
-    // This ensures observations data is shown while fresh data is being fetched
-    // Use the same cache lookup logic as loadWeatherData
-    let cacheKeyToUse = null;
-    let cacheToUse = null;
+    let cacheKeyToUse = appState.currentLocationKey || null;
+    let cacheToUse = cacheKeyToUse ? loadWeatherDataFromCache(cacheKeyToUse) : null;
     
-    const favorites = getFavorites();
-    const matchingFavorite = favorites.find(fav => {
-        if (!fav.searchQuery) return false;
-        const favSearchQuery = fav.searchQuery.toLowerCase().trim();
-        const favDisplayName = fav.name ? fav.name.toLowerCase().trim() : '';
-        const locationLower = location.toLowerCase().trim();
-        return locationLower === favSearchQuery || 
-               locationLower === favDisplayName ||
-               (fav.location && formatLocationDisplayName && formatLocationDisplayName(fav.location.city, fav.location.state).toLowerCase().trim() === locationLower);
-    });
-    
-    if (matchingFavorite && matchingFavorite.key) {
-        cacheKeyToUse = matchingFavorite.uid ? `uid_${matchingFavorite.uid}` : matchingFavorite.key;
-        cacheToUse = loadWeatherDataFromCache(cacheKeyToUse);
-    } else {
-        // Check default cache
-        const cachedLocation = localStorage.getItem('forecastCachedLocation');
-        if (cachedLocation && cachedLocation.toLowerCase() === location.toLowerCase()) {
-            cacheToUse = loadWeatherDataFromCache();
+    if (!cacheToUse || !cacheToUse.data) {
+        const favorites = getFavorites();
+        const matchingFavorite = favorites.find(fav => {
+            if (!fav.searchQuery) return false;
+            const favSearchQuery = fav.searchQuery.toLowerCase().trim();
+            const favDisplayName = (fav.name || '').toLowerCase().trim();
+            const locationLower = locationToRefresh.toLowerCase().trim();
+            return locationLower === favSearchQuery || locationLower === favDisplayName ||
+                (fav.location && formatLocationDisplayName(fav.location.city, fav.location.state).toLowerCase().trim() === locationLower);
+        });
+        if (matchingFavorite) {
+            cacheKeyToUse = matchingFavorite.uid ? `uid_${matchingFavorite.uid}` : matchingFavorite.key;
+            cacheToUse = loadWeatherDataFromCache(cacheKeyToUse);
+        } else {
+            const cachedLocation = localStorage.getItem('forecastCachedLocation');
+            if (cachedLocation && cachedLocation.toLowerCase() === locationToRefresh.toLowerCase()) {
+                cacheToUse = loadWeatherDataFromCache();
+            }
         }
     }
     
-    // Try to load cached data first (preserves observations data)
+    // Load cached data for THIS location only (so we don't show another favorite's data)
     if (cacheToUse && cacheToUse.data && cacheToUse.data.weatherData) {
-        console.log('Loading cached data first to preserve observations during refresh');
-        const cachedLoaded = loadCachedWeatherData(cacheKeyToUse, location);
+        console.log('Loading cached data first for current location before refresh');
+        const cachedLoaded = loadCachedWeatherData(cacheKeyToUse, locationToRefresh);
         if (cachedLoaded) {
-            // Render immediately with cached data (including observations)
             renderCurrentMode();
             setLoading(false, false);
         }
@@ -3113,10 +3124,10 @@ async function handleRefresh() {
             appState.lastFetchTime = staleTimestamp;
         }
         
-        console.log('Fetching fresh data for location:', location);
+        console.log('Fetching fresh data for location:', locationToRefresh);
         
-        // Now fetch fresh data (this will update the display when it completes)
-        await loadWeatherData(location, false, false); // Don't use background mode for manual refresh - show loading
+        // Now fetch fresh data for the current location (this will update the display and save to the correct cache key)
+        await loadWeatherData(locationToRefresh, false, false); // Don't use background mode for manual refresh - show loading
     } catch (error) {
         console.error('Error during refresh:', error);
         // If refresh fails, cached data should still be displayed (loaded above)
