@@ -1208,10 +1208,13 @@ async function checkObservationsAvailability(pointsData, timeZone) {
             return false;
         }
         
-        // Process observations data
+        // Process observations data (returns { dailyByDate, timeZoneId, displayList })
         const processedObservations = processObservationsData(observationsData, timeZone);
-        if (!processedObservations || processedObservations.length === 0) {
-            // Only clear observations if we don't have existing cached data to preserve
+        const hasData = processedObservations && (
+            (processedObservations.displayList && processedObservations.displayList.length > 0) ||
+            (processedObservations.dailyByDate && Object.keys(processedObservations.dailyByDate).length > 0)
+        );
+        if (!hasData) {
             if (!existingObservationsData) {
                 appState.observationsAvailable = false;
                 appState.observationsData = null;
@@ -2215,7 +2218,13 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
         
         // Restore app state from cache
         appState.weatherData = restoredWeatherData;
-        appState.observationsData = cache.data.observationsData || null;
+        let rawObservations = cache.data.observationsData || null;
+        if (Array.isArray(rawObservations)) {
+            const tz = restoredWeatherData && restoredWeatherData.location ? restoredWeatherData.location.timeZone : null;
+            appState.observationsData = migrateLegacyObservationsCache(rawObservations, tz);
+        } else {
+            appState.observationsData = rawObservations;
+        }
         appState.observationsAvailable = cache.data.observationsAvailable || false;
         
         // Find matching favorite UID (declare at function scope so it's accessible in requestAnimationFrame)
@@ -2397,7 +2406,7 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
             };
             
             deferCheck(() => {
-                const observationsComplete = observationsCoverFullWeek(appState.observationsData);
+                const observationsComplete = observationsCoverFullWeek(getObservationsDisplayList(appState.observationsData));
                 if (!observationsComplete) {
                     console.log('Cached observations are incomplete (less than 7 days), refreshing in background...');
                     // Refresh observations in the background
@@ -2930,6 +2939,10 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             if (appState.currentMode === 'history') {
                 renderCurrentMode();
             }
+            // Update cache with observationsData so switching favorites and returning shows History (last 7 days from current)
+            if (appState.weatherData && appState.location && appState.observationsData != null) {
+                saveWeatherDataToCache(appState.weatherData, appState.location, appState.lastFetchTime);
+            }
         }).catch(error => {
             console.error('Error fetching observations in background:', error);
             // Still update button state even on error
@@ -3138,13 +3151,15 @@ function _renderCurrentModeImpl() {
         case 'full':
             html = displayFullWeatherReport(appState.weatherData, appState.location);
             break;
-        case 'history':
-            if (appState.observationsData && appState.observationsData.length > 0) {
-                html = displayObservations(appState.observationsData, appState.location);
+        case 'history': {
+            const observationsList = getObservationsDisplayList(appState.observationsData);
+            if (observationsList && observationsList.length > 0) {
+                html = displayObservations(observationsList, appState.location);
             } else {
                 html = '<div class="error-message">No historical observations available.</div>';
             }
             break;
+        }
         case 'hourly':
             html = displayHourlyForecast(appState.weatherData, appState.location, appState.hourlyScrollIndex, 12);
             break;

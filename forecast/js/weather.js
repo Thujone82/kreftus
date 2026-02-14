@@ -202,9 +202,10 @@ function getCardinalDirection(degrees) {
 }
 
 // Process observations data from NWS API
+// Returns { dailyByDate, timeZoneId, displayList } so the UI can always show "last 7 days from current date" at display time, not from cache time
 function processObservationsData(observationsData, timeZoneId) {
     if (!observationsData || !observationsData.features || observationsData.features.length === 0) {
-        return [];
+        return { dailyByDate: {}, timeZoneId: timeZoneId || null, displayList: [] };
     }
     
     const dailyData = {};
@@ -330,42 +331,36 @@ function processObservationsData(observationsData, timeZoneId) {
         }
     });
     
-    // Calculate daily aggregates
-    const result = [];
-    
-    // Get current date in the target timezone (same as observations)
-    let nowInLocalTz = new Date();
-    if (timeZoneId) {
+    // Helper: get date string (yyyy-MM-dd) in the location's timezone for a given instant
+    const getDateStringInTz = (instant, tzId) => {
+        if (!tzId) {
+            const d = new Date(instant);
+            return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+        }
         try {
             const formatter = new Intl.DateTimeFormat('en-US', {
-                timeZone: timeZoneId,
+                timeZone: tzId,
                 year: 'numeric',
                 month: '2-digit',
                 day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
                 hour12: false
             });
-            
-            const parts = formatter.formatToParts(nowInLocalTz);
+            const parts = formatter.formatToParts(new Date(instant));
             const year = parseInt(parts.find(p => p.type === 'year').value);
-            const month = parseInt(parts.find(p => p.type === 'month').value) - 1;
+            const month = parseInt(parts.find(p => p.type === 'month').value);
             const day = parseInt(parts.find(p => p.type === 'day').value);
-            const hour = parseInt(parts.find(p => p.type === 'hour').value);
-            const minute = parseInt(parts.find(p => p.type === 'minute').value);
-            
-            nowInLocalTz = new Date(year, month, day, hour, minute);
-        } catch (error) {
-            // Fallback to current time
-            nowInLocalTz = new Date();
+            return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        } catch (e) {
+            const d = new Date(instant);
+            return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
         }
-    }
-    
-    // Process last 7 days
+    };
+
+    // Build last 7 days from current time in location TZ (so display can rebuild from "today" at render time)
+    const result = [];
     for (let i = 6; i >= 0; i--) {
-        const targetDate = new Date(nowInLocalTz);
-        targetDate.setDate(targetDate.getDate() - i);
-        const date = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`;
+        const instant = Date.now() - i * 24 * 60 * 60 * 1000;
+        const date = getDateStringInTz(instant, timeZoneId);
         
         if (dailyData[date]) {
             const dayData = dailyData[date];
@@ -442,7 +437,83 @@ function processObservationsData(observationsData, timeZoneId) {
         }
     }
     
-    // Filter out days with no actual data
-    return result.filter(day => day.highTemp !== null || day.lowTemp !== null || day.avgWindSpeed !== null);
+    // Filter out days with no actual data for displayList
+    const filtered = result.filter(day => day.highTemp !== null || day.lowTemp !== null || day.avgWindSpeed !== null);
+    return { dailyByDate: dailyData, timeZoneId: timeZoneId || null, displayList: filtered };
+}
+
+// Convert legacy cached observations (array of day objects) into { dailyByDate, timeZoneId } so the UI can build "last 7 days" from current date when restoring old cache
+function migrateLegacyObservationsCache(observationsArray, timeZoneId) {
+    if (!Array.isArray(observationsArray) || observationsArray.length === 0) return null;
+    const dailyByDate = {};
+    observationsArray.forEach(day => {
+        if (!day || !day.date) return;
+        const d = day;
+        dailyByDate[d.date] = {
+            temperatures: [d.highTemp, d.lowTemp].filter(x => x != null),
+            windSpeeds: [d.avgWindSpeed, d.maxWindSpeed].filter(x => x != null),
+            windGusts: d.maxWindGust != null ? [d.maxWindGust] : [],
+            windDirections: d.windDirection != null ? [d.windDirection] : [],
+            humidities: d.avgHumidity != null ? [d.avgHumidity] : [],
+            precipitations: (d.totalPrecipitation != null && d.totalPrecipitation > 0) ? [d.totalPrecipitation] : [],
+            conditions: (d.conditions && d.conditions !== 'N/A') ? [d.conditions] : []
+        };
+    });
+    return { dailyByDate, timeZoneId: timeZoneId || null, displayList: observationsArray };
+}
+
+// Build the "last 7 days" display list from current time and cached daily aggregates (used at render time so History always shows last 7 days from today, not cache time)
+function getObservationsDisplayList(observationsData) {
+    if (!observationsData) return [];
+    if (Array.isArray(observationsData)) return observationsData;
+    const { dailyByDate, timeZoneId, displayList } = observationsData;
+    if (!dailyByDate || typeof dailyByDate !== 'object') return displayList || [];
+    const tzId = timeZoneId || null;
+    const getDateStringInTz = (instant, tzId) => {
+        if (!tzId) {
+            const d = new Date(instant);
+            return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+        }
+        try {
+            const formatter = new Intl.DateTimeFormat('en-US', { timeZone: tzId, year: 'numeric', month: '2-digit', day: '2-digit', hour12: false });
+            const parts = formatter.formatToParts(new Date(instant));
+            const year = parseInt(parts.find(p => p.type === 'year').value);
+            const month = parseInt(parts.find(p => p.type === 'month').value);
+            const day = parseInt(parts.find(p => p.type === 'day').value);
+            return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        } catch (e) {
+            const d = new Date(instant);
+            return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+        }
+    };
+    const result = [];
+    for (let i = 6; i >= 0; i--) {
+        const instant = Date.now() - i * 24 * 60 * 60 * 1000;
+        const date = getDateStringInTz(instant, tzId);
+        const dayData = dailyByDate[date];
+        if (dayData) {
+            const highTemp = dayData.temperatures.length > 0 ? Math.round(Math.max(...dayData.temperatures) * 10) / 10 : null;
+            const lowTemp = dayData.temperatures.length > 0 ? Math.round(Math.min(...dayData.temperatures) * 10) / 10 : null;
+            const avgWindSpeed = dayData.windSpeeds.length > 0 ? Math.round(dayData.windSpeeds.reduce((a, b) => a + b, 0) / dayData.windSpeeds.length * 10) / 10 : null;
+            const maxWindSpeed = dayData.windSpeeds.length > 0 ? Math.round(Math.max(...dayData.windSpeeds) * 10) / 10 : null;
+            const maxWindGust = dayData.windGusts.length > 0 ? Math.round(Math.max(...dayData.windGusts) * 10) / 10 : null;
+            const maxWind = (maxWindGust != null && maxWindSpeed != null) ? Math.max(maxWindGust, maxWindSpeed) : (maxWindGust != null ? maxWindGust : maxWindSpeed);
+            const windDirection = dayData.windDirections.length > 0 ? Math.round(dayData.windDirections.reduce((a, b) => a + b, 0) / dayData.windDirections.length) : null;
+            const avgHumidity = dayData.humidities.length > 0 ? Math.round(dayData.humidities.reduce((a, b) => a + b, 0) / dayData.humidities.length * 10) / 10 : null;
+            const totalPrecipitation = dayData.precipitations.length > 0 ? Math.round(dayData.precipitations.reduce((a, b) => a + b, 0) * 100) / 100 : 0;
+            let conditions = 'N/A';
+            if (dayData.conditions.length > 0) {
+                const conditionCounts = {};
+                dayData.conditions.forEach(cond => { conditionCounts[cond] = (conditionCounts[cond] || 0) + 1; });
+                conditions = Object.entries(conditionCounts).sort((a, b) => b[1] - a[1])[0][0];
+            }
+            result.push({ date, highTemp, lowTemp, avgWindSpeed, maxWindSpeed, maxWindGust, maxWind, windDirection, avgHumidity, totalPrecipitation, conditions });
+        } else {
+            result.push({ date, highTemp: null, lowTemp: null, avgWindSpeed: null, maxWindSpeed: null, maxWindGust: null, maxWind: null, windDirection: null, avgHumidity: null, totalPrecipitation: 0, conditions: 'N/A' });
+        }
+    }
+    const filtered = result.filter(day => day.highTemp !== null || day.lowTemp !== null || day.avgWindSpeed !== null);
+    if (filtered.length === 0 && displayList && displayList.length > 0) return displayList;
+    return filtered;
 }
 
