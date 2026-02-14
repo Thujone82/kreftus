@@ -8,6 +8,7 @@ const appState = {
     currentLocationKey: null, // Store the current location key to ensure accurate favorite matching
     isCurrentLocationActive: false, // Track if current location (here) is selected
     observationsData: null,
+    observationsLocationKey: null, // which location the observations belong to (avoids showing wrong favorite's history)
     observationsAvailable: false,
     autoUpdateEnabled: true,
     lastFetchTime: null,
@@ -115,6 +116,7 @@ function performFullReset() {
             appState.location = null;
             appState.currentLocationKey = null;
             appState.observationsData = null;
+            appState.observationsLocationKey = null;
             appState.lastFetchTime = null;
         }
         
@@ -1176,6 +1178,7 @@ async function checkObservationsAvailability(pointsData, timeZone) {
             if (!existingObservationsData) {
                 appState.observationsAvailable = false;
                 appState.observationsData = null;
+                appState.observationsLocationKey = null;
             } else {
                 console.log('No observation stations available, preserving existing cached observations data');
             }
@@ -1189,6 +1192,7 @@ async function checkObservationsAvailability(pointsData, timeZone) {
             if (!existingObservationsData) {
                 appState.observationsAvailable = false;
                 appState.observationsData = null;
+                appState.observationsLocationKey = null;
             } else {
                 console.log('No observation station found, preserving existing cached observations data');
             }
@@ -1202,6 +1206,7 @@ async function checkObservationsAvailability(pointsData, timeZone) {
             if (!existingObservationsData) {
                 appState.observationsAvailable = false;
                 appState.observationsData = null;
+                appState.observationsLocationKey = null;
             } else {
                 console.log('No observations data returned, preserving existing cached observations data');
             }
@@ -1218,6 +1223,7 @@ async function checkObservationsAvailability(pointsData, timeZone) {
             if (!existingObservationsData) {
                 appState.observationsAvailable = false;
                 appState.observationsData = null;
+                appState.observationsLocationKey = null;
             } else {
                 console.log('Processed observations empty, preserving existing cached observations data');
             }
@@ -1225,6 +1231,7 @@ async function checkObservationsAvailability(pointsData, timeZone) {
         }
         
         appState.observationsData = processedObservations;
+        appState.observationsLocationKey = appState.currentLocationKey;
         appState.observationsAvailable = true;
         return true;
     } catch (error) {
@@ -1233,6 +1240,7 @@ async function checkObservationsAvailability(pointsData, timeZone) {
         if (!existingObservationsData) {
             appState.observationsAvailable = false;
             appState.observationsData = null;
+            appState.observationsLocationKey = null;
         } else {
             console.log('Error fetching observations, preserving existing cached observations data');
         }
@@ -2216,15 +2224,16 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
             restoredWeatherData.current.time = cacheTimestamp;
         }
         
-        // Restore app state from cache
+        // Restore app state from cache (always set observations from THIS cache so each favorite shows its own history)
         appState.weatherData = restoredWeatherData;
-        let rawObservations = cache.data.observationsData || null;
+        let rawObservations = cache.data.observationsData ?? null;
         if (Array.isArray(rawObservations)) {
-            const tz = restoredWeatherData && restoredWeatherData.location ? restoredWeatherData.location.timeZone : null;
+            const tz = restoredWeatherData?.location?.timeZone ?? null;
             appState.observationsData = migrateLegacyObservationsCache(rawObservations, tz);
         } else {
             appState.observationsData = rawObservations;
         }
+        appState.observationsLocationKey = locationKey ?? null;
         appState.observationsAvailable = cache.data.observationsAvailable || false;
         
         // Find matching favorite UID (declare at function scope so it's accessible in requestAnimationFrame)
@@ -2389,6 +2398,9 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
             } else {
                 elements.locationInput.value = cache.location || '';
             }
+        }
+        if (!locationKey && appState.observationsData != null) {
+            appState.observationsLocationKey = appState.currentLocationKey;
         }
         
         // Check if observations are incomplete and need refresh (deferred to background for performance)
@@ -3152,7 +3164,10 @@ function _renderCurrentModeImpl() {
             html = displayFullWeatherReport(appState.weatherData, appState.location);
             break;
         case 'history': {
-            const observationsList = getObservationsDisplayList(appState.observationsData);
+            const obsKey = (appState.observationsLocationKey || '').replace(/^uid_/, '');
+            const curKey = (appState.currentLocationKey || '').replace(/^uid_/, '');
+            const observationsMatchLocation = obsKey && curKey && obsKey === curKey;
+            const observationsList = observationsMatchLocation ? getObservationsDisplayList(appState.observationsData) : [];
             if (observationsList && observationsList.length > 0) {
                 html = displayObservations(observationsList, appState.location);
             } else {
