@@ -1782,12 +1782,18 @@ function getLastViewedLocation() {
 function saveWeatherDataToCache(weatherData, location, timestamp = null) {
     try {
         const locForObs = appState.location || location;
+        const cacheCity = (locForObs?.city ?? '').trim().toLowerCase();
+        const cacheState = (locForObs?.state ?? '').trim().toUpperCase();
+        const ref = appState.observationsLocationRef;
+        const refCity = (ref?.city ?? '').trim().toLowerCase();
+        const refState = (ref?.state ?? '').trim().toUpperCase();
+        const observationsBelongToThisLocation = cacheCity && cacheState && refCity === cacheCity && refState === cacheState;
         const cacheData = {
             weatherData: weatherData,
-            observationsData: appState.observationsData,
-            observationsAvailable: appState.observationsAvailable,
-            observationsLocation: (locForObs && typeof locForObs === 'object' && locForObs.city != null && locForObs.state != null)
-                ? { city: (locForObs.city || '').trim().toLowerCase(), state: (locForObs.state || '').trim().toUpperCase() }
+            observationsData: observationsBelongToThisLocation ? appState.observationsData : null,
+            observationsAvailable: observationsBelongToThisLocation && appState.observationsAvailable,
+            observationsLocation: (observationsBelongToThisLocation && locForObs && typeof locForObs === 'object' && locForObs.city != null && locForObs.state != null)
+                ? { city: cacheCity, state: cacheState }
                 : null
         };
         
@@ -2264,7 +2270,7 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
             appState.observationsData = rawObservations;
         }
         appState.observationsLocationKey = locationKey ?? null;
-        if (cacheLoc?.city != null && cacheLoc?.state != null) {
+        if (rawObservations != null && cacheLoc?.city != null && cacheLoc?.state != null) {
             appState.observationsLocationRef = { city: cacheCity, state: cacheState };
         } else {
             appState.observationsLocationRef = null;
@@ -2803,6 +2809,17 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         
         appState.weatherData = processedWeather;
         appState.location = weatherData.location;
+        // Clear observations if they belong to a different location so we don't show wrong history until new observations load
+        const ref = appState.observationsLocationRef;
+        if (ref && weatherData.location) {
+            const newCity = (weatherData.location.city ?? '').trim().toLowerCase();
+            const newState = (weatherData.location.state ?? '').trim().toUpperCase();
+            if (ref.city !== newCity || ref.state !== newState) {
+                appState.observationsData = null;
+                appState.observationsLocationKey = null;
+                appState.observationsLocationRef = null;
+            }
+        }
         
         // Update current location button state based on whether this is 'here' or not
         if (location.toLowerCase() === 'here') {
