@@ -1,4 +1,6 @@
-﻿<#
+<#
+.ENCODING
+    This file MUST be saved as UTF-8 with BOM. Do not change the encoding or script errors may occur (e.g. with glyphs/emoji).
 .SYNOPSIS
     A PowerShell script to retrieve and display detailed weather information for a specified location.
     
@@ -1139,7 +1141,11 @@ function Update-WeatherData {
                     }
                 }
             } else {
-                # Job still running - store job reference for later use
+                # Job still running - remove any previous stored job to avoid leak, then store new reference
+                if ($null -ne $script:noaaStationsJob) {
+                    Remove-Job -Job $script:noaaStationsJob -Force -ErrorAction SilentlyContinue
+                    $script:noaaStationsJob = $null
+                }
                 $script:noaaStationsJob = $noaaStationsJob
                 Write-Verbose "NOAA stations refresh still in progress (non-blocking)"
             }
@@ -1586,6 +1592,19 @@ $script:observationsPreloadAttempted = $false
 $script:pointsDataForObservations = $pointsData
 $script:headersForObservations = $headers
 $script:timeZoneForObservations = $timeZone
+
+# Collect initial NOAA stations job (started earlier in parallel) to avoid job leak and use for Location Info
+$noaaJobResult = Wait-Job -Job $noaaStationsJob -Timeout 15
+if ($noaaJobResult) {
+    $script:noaaStationsData = $noaaStationsJob | Receive-Job
+    Remove-Job -Job $noaaStationsJob -Force
+    if ($script:noaaStationsData -and $script:noaaStationsData.Success) {
+        Write-Verbose "NOAA stations data loaded from initial fetch"
+    }
+} else {
+    Remove-Job -Job $noaaStationsJob -Force
+    Write-Verbose "NOAA stations initial job timed out or failed; will fetch on demand if needed"
+}
 
 if ($Observations.IsPresent) {
     # If Observations mode is requested at startup, fetch immediately
@@ -4769,6 +4788,12 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
     
     while ($true) {
         try {
+            # Remove any orphaned completed/failed jobs to prevent memory growth over long runs
+            Get-Job -ErrorAction SilentlyContinue | Where-Object {
+                ($_.State -eq 'Completed' -or $_.State -eq 'Failed') -and
+                $_ -ne $script:observationsPreloadJob -and $_ -ne $script:noaaStationsJob
+            } | Remove-Job -Force -ErrorAction SilentlyContinue
+
             # Preload observations data in background if not already loaded (non-blocking)
             # Only attempt preload once to avoid infinite loops
             if ($null -eq $script:observationsData -and -not $script:observationsDataLoading -and -not $Observations.IsPresent -and $null -eq $script:observationsPreloadJob -and -not $script:observationsPreloadAttempted) {
