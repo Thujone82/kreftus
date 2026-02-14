@@ -8,7 +8,8 @@ const appState = {
     currentLocationKey: null, // Store the current location key to ensure accurate favorite matching
     isCurrentLocationActive: false, // Track if current location (here) is selected
     observationsData: null,
-    observationsLocationKey: null, // which location the observations belong to (avoids showing wrong favorite's history)
+    observationsLocationKey: null,
+    observationsLocationRef: null, // { city, state } - which location the observations are for (never show wrong city's history)
     observationsAvailable: false,
     autoUpdateEnabled: true,
     lastFetchTime: null,
@@ -117,6 +118,7 @@ function performFullReset() {
             appState.currentLocationKey = null;
             appState.observationsData = null;
             appState.observationsLocationKey = null;
+            appState.observationsLocationRef = null;
             appState.lastFetchTime = null;
         }
         
@@ -1179,6 +1181,7 @@ async function checkObservationsAvailability(pointsData, timeZone) {
                 appState.observationsAvailable = false;
                 appState.observationsData = null;
                 appState.observationsLocationKey = null;
+                appState.observationsLocationRef = null;
             } else {
                 console.log('No observation stations available, preserving existing cached observations data');
             }
@@ -1193,6 +1196,7 @@ async function checkObservationsAvailability(pointsData, timeZone) {
                 appState.observationsAvailable = false;
                 appState.observationsData = null;
                 appState.observationsLocationKey = null;
+                appState.observationsLocationRef = null;
             } else {
                 console.log('No observation station found, preserving existing cached observations data');
             }
@@ -1207,6 +1211,7 @@ async function checkObservationsAvailability(pointsData, timeZone) {
                 appState.observationsAvailable = false;
                 appState.observationsData = null;
                 appState.observationsLocationKey = null;
+                appState.observationsLocationRef = null;
             } else {
                 console.log('No observations data returned, preserving existing cached observations data');
             }
@@ -1224,6 +1229,7 @@ async function checkObservationsAvailability(pointsData, timeZone) {
                 appState.observationsAvailable = false;
                 appState.observationsData = null;
                 appState.observationsLocationKey = null;
+                appState.observationsLocationRef = null;
             } else {
                 console.log('Processed observations empty, preserving existing cached observations data');
             }
@@ -1232,6 +1238,14 @@ async function checkObservationsAvailability(pointsData, timeZone) {
         
         appState.observationsData = processedObservations;
         appState.observationsLocationKey = appState.currentLocationKey;
+        if (appState.location?.city != null && appState.location?.state != null) {
+            appState.observationsLocationRef = {
+                city: (appState.location.city || '').trim().toLowerCase(),
+                state: (appState.location.state || '').trim().toUpperCase()
+            };
+        } else {
+            appState.observationsLocationRef = null;
+        }
         appState.observationsAvailable = true;
         return true;
     } catch (error) {
@@ -1241,6 +1255,7 @@ async function checkObservationsAvailability(pointsData, timeZone) {
             appState.observationsAvailable = false;
             appState.observationsData = null;
             appState.observationsLocationKey = null;
+            appState.observationsLocationRef = null;
         } else {
             console.log('Error fetching observations, preserving existing cached observations data');
         }
@@ -1766,10 +1781,14 @@ function getLastViewedLocation() {
 //           If not provided, preserves the existing cache timestamp (when updating cache with other data).
 function saveWeatherDataToCache(weatherData, location, timestamp = null) {
     try {
+        const locForObs = appState.location || location;
         const cacheData = {
             weatherData: weatherData,
             observationsData: appState.observationsData,
-            observationsAvailable: appState.observationsAvailable
+            observationsAvailable: appState.observationsAvailable,
+            observationsLocation: (locForObs && typeof locForObs === 'object' && locForObs.city != null && locForObs.state != null)
+                ? { city: (locForObs.city || '').trim().toLowerCase(), state: (locForObs.state || '').trim().toUpperCase() }
+                : null
         };
         
         // Generate cache key for location-specific cache
@@ -2226,7 +2245,18 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
         
         // Restore app state from cache (always set observations from THIS cache so each favorite shows its own history)
         appState.weatherData = restoredWeatherData;
+        const cacheLoc = restoredWeatherData?.location;
+        const cacheCity = (cacheLoc?.city ?? '').trim().toLowerCase();
+        const cacheState = (cacheLoc?.state ?? '').trim().toUpperCase();
         let rawObservations = cache.data.observationsData ?? null;
+        const savedObsLocation = cache.data.observationsLocation;
+        const savedCity = savedObsLocation?.city ?? '';
+        const savedState = savedObsLocation?.state ?? '';
+        if (rawObservations != null && savedObsLocation && cacheCity && cacheState) {
+            if (savedCity !== cacheCity || savedState !== cacheState) {
+                rawObservations = null;
+            }
+        }
         if (Array.isArray(rawObservations)) {
             const tz = restoredWeatherData?.location?.timeZone ?? null;
             appState.observationsData = migrateLegacyObservationsCache(rawObservations, tz);
@@ -2234,7 +2264,12 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
             appState.observationsData = rawObservations;
         }
         appState.observationsLocationKey = locationKey ?? null;
-        appState.observationsAvailable = cache.data.observationsAvailable || false;
+        if (cacheLoc?.city != null && cacheLoc?.state != null) {
+            appState.observationsLocationRef = { city: cacheCity, state: cacheState };
+        } else {
+            appState.observationsLocationRef = null;
+        }
+        appState.observationsAvailable = rawObservations != null && (cache.data.observationsAvailable || false);
         
         // Find matching favorite UID (declare at function scope so it's accessible in requestAnimationFrame)
         let matchingFavoriteUID = null;
@@ -3164,10 +3199,12 @@ function _renderCurrentModeImpl() {
             html = displayFullWeatherReport(appState.weatherData, appState.location);
             break;
         case 'history': {
-            const obsKey = (appState.observationsLocationKey || '').replace(/^uid_/, '');
-            const curKey = (appState.currentLocationKey || '').replace(/^uid_/, '');
-            const observationsMatchLocation = obsKey && curKey && obsKey === curKey;
-            const observationsList = observationsMatchLocation ? getObservationsDisplayList(appState.observationsData) : [];
+            const loc = appState.location;
+            const ref = appState.observationsLocationRef;
+            const locationMatch = ref && loc && loc.city != null && loc.state != null &&
+                (loc.city || '').trim().toLowerCase() === ref.city &&
+                (loc.state || '').trim().toUpperCase() === ref.state;
+            const observationsList = locationMatch ? getObservationsDisplayList(appState.observationsData) : [];
             if (observationsList && observationsList.length > 0) {
                 html = displayObservations(observationsList, appState.location);
             } else {
