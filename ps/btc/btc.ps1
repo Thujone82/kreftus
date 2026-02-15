@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Retrieves and displays Bitcoin (BTC) data from LiveCoinWatch API. Supports .ini configuration,
     profit/loss calculation, CSV logging, first-run setup, config update, and accurate 24h price
