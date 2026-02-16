@@ -1,4 +1,4 @@
-<#
+﻿<#
 .ENCODING
     This file MUST be saved as UTF-8 with BOM. Do not change the encoding or script errors may occur (e.g. with glyphs/emoji).
 .SYNOPSIS
@@ -30,6 +30,7 @@
     - Precipitation: Red (>50%), Yellow (21-50%), White (≤20%)
     - Humidity: Cyan (<30%), White (30-60%), Yellow (61-70%), Red (>70%)
     - Dew Point: Cyan (<40°F), White (40-54°F), Yellow (55-64°F), Red (≥65°F)
+    - Pressure (Observations): Cyan (<29.50 inHg), White (29.50-30.20), Yellow (>30.20), Alert (extreme)
     
 .PARAMETER Location
     The location for which to retrieve weather. Can be a 5-digit US zip code or a "City, State" string, or 'here'.
@@ -328,6 +329,7 @@ function Convert-ObservationsData {
                     Humidities = @()
                     Precipitations = @()
                     Conditions = @()
+                    Pressures = @()
                 }
             }
             
@@ -357,6 +359,13 @@ function Convert-ObservationsData {
             # Extract wind direction
             if ($props.windDirection -and $props.windDirection.value) {
                 $dailyData[$obsDate].WindDirections += $props.windDirection.value
+            }
+            
+            # Extract sea-level pressure (NWS API returns Pascals; convert to inHg: inHg = Pa / 3386.389)
+            if ($props.seaLevelPressure -and $null -ne $props.seaLevelPressure.value) {
+                $pressurePa = $props.seaLevelPressure.value
+                $pressureInHg = $pressurePa / 3386.389
+                $dailyData[$obsDate].Pressures += $pressureInHg
             }
             
             # Extract humidity
@@ -421,6 +430,7 @@ function Convert-ObservationsData {
                     AvgHumidity = if ($dayData.Humidities.Count -gt 0) { [Math]::Round(($dayData.Humidities | Measure-Object -Average).Average, 1) } else { $null }
                     TotalPrecipitation = if ($dayData.Precipitations.Count -gt 0) { [Math]::Round(($dayData.Precipitations | Measure-Object -Sum).Sum, 2) } else { 0 }
                     Conditions = if ($dayData.Conditions.Count -gt 0) { ($dayData.Conditions | Group-Object | Sort-Object Count -Descending | Select-Object -First 1).Name } else { "N/A" }
+                    Pressure = if ($dayData.Pressures.Count -gt 0) { [Math]::Round(($dayData.Pressures | Measure-Object -Average).Average, 2) } else { $null }
                 }
             } else {
                 # No data for this day
@@ -435,6 +445,7 @@ function Convert-ObservationsData {
                     AvgHumidity = $null
                     TotalPrecipitation = 0
                     Conditions = "N/A"
+                    Pressure = $null
                 }
             }
         }
@@ -3274,6 +3285,18 @@ function Show-Observations {
             if ($windDirStr) {
                 Write-Host " $windDirStr" -ForegroundColor $DefaultColor -NoNewline
             }
+        }
+        
+        # Pressure display (inHg) - color by range: low (Cyan), normal (White), high (Yellow), extreme (Magenta)
+        $pressureInHg = $dayData.Pressure
+        if ($null -ne $pressureInHg) {
+            $pressureColor = if ($pressureInHg -lt 29.0 -or $pressureInHg -gt 30.5) { $AlertColor }
+                            elseif ($pressureInHg -lt 29.50) { "Cyan" }
+                            elseif ($pressureInHg -le 30.20) { $DefaultColor }
+                            else { "Yellow" }
+            Write-Host " P:$pressureInHg inHg" -ForegroundColor $pressureColor -NoNewline
+        } else {
+            Write-Host " P:N/A" -ForegroundColor $DefaultColor -NoNewline
         }
         
         # Precipitation display

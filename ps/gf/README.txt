@@ -41,6 +41,7 @@ The script first uses a geocoding service to determine the latitude and longitud
     - White: Comfortable, pleasant (40-54°F)
     - Yellow: Getting sticky/muggy (55-64°F)
     - Red: Oppressive, very uncomfortable (≥65°F)
+  - **Pressure (Observations only):** Barometric pressure in inHg: Cyan (<29.50), White (29.50-30.20), Yellow (>30.20), Alert (extreme)
 - **Robust Error Handling:** Implements exponential backoff retry logic for service unavailability, automatically retrying up to 10 times with increasing delays (1s to 512s) before gracefully exiting with a clear error message.
 - **Weather Alerts:** Automatically displays any active weather alerts (e.g., warnings, watches) for the location.
 - **NWS Resources:** Provides clickable links to official NWS resources:
@@ -177,7 +178,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 - `-Observations` or `-o` [switch]
   - Shows historical weather observations for the last 7 days.
-  - Displays daily aggregates including high/low temperatures, average and maximum wind speeds, wind direction, humidity, total precipitation, and general conditions.
+  - Displays daily aggregates including high/low temperatures, average and maximum wind speeds, wind direction, barometric pressure (inHg) with color coding, humidity, total precipitation, and general conditions.
   - Includes moon phase information and windchill/heat index calculations when applicable.
   - Only shows days that have actual observation data available.
   - Enters interactive mode after display (use -x to exit immediately).
@@ -300,7 +301,7 @@ The observations mode (`-o` or `-observations`) provides historical weather data
 
 - **Historical Data:** Shows weather observations from the last 7 days
 - **Sunrise/Sunset/Day Length:** Displays sunrise time, sunset time, and day length for each observation day (calculated astronomically)
-- **Daily Aggregates:** Displays high/low temperatures, average and maximum wind speeds, wind direction, humidity, total precipitation, and general conditions
+- **Daily Aggregates:** Displays high/low temperatures, average and maximum wind speeds, wind direction, barometric pressure (inHg) after wind with color coding, humidity, total precipitation, and general conditions
 - **Moon Phase Information:** Includes moon phase emoji and information for each day
 - **Windchill/Heat Index:** Calculates and displays windchill (≤50°F) and heat index (≥80°F) when applicable
 - **Data Filtering:** Only displays days that have actual observation data (skips days with no data)
