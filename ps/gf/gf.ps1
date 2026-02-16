@@ -31,6 +31,7 @@
     - Humidity: Cyan (<30%), White (30-60%), Yellow (61-70%), Red (>70%)
     - Dew Point: Cyan (<40°F), White (40-54°F), Yellow (55-64°F), Red (≥65°F)
     - Pressure (Observations): Cyan (<29.50 inHg), White (29.50-30.20), Yellow (>30.20), Alert (extreme)
+    - Clouds (Observations): When the station provides cloud data, "Clouds:" is shown on the same line as Conditions (label white, data gray). Codes: SKC (clear), FEW (few), SCT (scattered), BKN (broken), OVC (overcast), VV (vertical visibility; sky obscured). Omitted when not available.
     
 .PARAMETER Location
     The location for which to retrieve weather. Can be a 5-digit US zip code or a "City, State" string, or 'here'.
@@ -162,6 +163,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host "                • White (≤5mph), Yellow (6-9mph), Red (10-14mph), Magenta (15mph+)" -ForegroundColor Gray
     Write-Host "                • Peak wind hours highlighted with inverted colors" -ForegroundColor Gray
     Write-Host "  -o, -Observations    Show historical weather observations" -ForegroundColor Cyan
+    Write-Host "                • Clouds on same line as Conditions when available (SKC=clear, FEW=few, SCT=scattered, BKN=broken, OVC=overcast, VV=vertical visibility)" -ForegroundColor Gray
     Write-Host "  -u, -NoAutoUpdate Start with automatic updates disabled" -ForegroundColor Cyan
     Write-Host "  -b, -NoBar    Start with control bar hidden" -ForegroundColor Cyan
     Write-Host "  -x, -NoInteractive Exit immediately (no interactive mode)" -ForegroundColor Cyan
@@ -330,6 +332,7 @@ function Convert-ObservationsData {
                     Precipitations = @()
                     Conditions = @()
                     Pressures = @()
+                    CloudSummaries = @()
                 }
             }
             
@@ -395,6 +398,20 @@ function Convert-ObservationsData {
             if ($props.textDescription) {
                 $dailyData[$obsDate].Conditions += $props.textDescription
             }
+            
+            # Extract cloud layers summary (amount + base height in ft)
+            if ($props.cloudLayers -and $props.cloudLayers.Count -gt 0) {
+                $parts = @()
+                foreach ($layer in $props.cloudLayers) {
+                    $amount = if ($layer.amount) { $layer.amount.Trim() } else { '?' }
+                    $baseM = if ($layer.base -and $null -ne $layer.base.value) { $layer.base.value } else { $null }
+                    $baseFt = if ($null -ne $baseM) { [Math]::Round($baseM * 3.28084) } else { $null }
+                    $ftStr = if ($null -ne $baseFt) { "{0:N0} ft" -f $baseFt } else { "? ft" }
+                    $parts += "$amount $ftStr"
+                }
+                $summary = $parts -join ', '
+                if ($summary) { $dailyData[$obsDate].CloudSummaries += $summary }
+            }
         }
         
         # Calculate daily aggregates
@@ -431,6 +448,10 @@ function Convert-ObservationsData {
                     TotalPrecipitation = if ($dayData.Precipitations.Count -gt 0) { [Math]::Round(($dayData.Precipitations | Measure-Object -Sum).Sum, 2) } else { 0 }
                     Conditions = if ($dayData.Conditions.Count -gt 0) { ($dayData.Conditions | Group-Object | Sort-Object Count -Descending | Select-Object -First 1).Name } else { "N/A" }
                     Pressure = if ($dayData.Pressures.Count -gt 0) { [Math]::Round(($dayData.Pressures | Measure-Object -Average).Average, 2) } else { $null }
+                    CloudSummary = if ($dayData.CloudSummaries.Count -gt 0) {
+                        $nonEmpty = $dayData.CloudSummaries | Where-Object { $_ -and $_.ToString().Trim() }
+                        if ($nonEmpty) { ($nonEmpty | Group-Object | Sort-Object Count -Descending | Select-Object -First 1).Name } else { $null }
+                    } else { $null }
                 }
             } else {
                 # No data for this day
@@ -446,6 +467,7 @@ function Convert-ObservationsData {
                     TotalPrecipitation = 0
                     Conditions = "N/A"
                     Pressure = $null
+                    CloudSummary = $null
                 }
             }
         }
@@ -3312,22 +3334,25 @@ function Show-Observations {
         
         Write-Host ""
         
-        # Conditions display
-        if ($dayData.Conditions -ne "N/A") {
-            $terminalWidth = $Host.UI.RawUI.WindowSize.Width
-            $conditionsLabel = "$moonEmoji Conditions: "
-            $conditionsText = $dayData.Conditions
-            
-            $wrappedConditions = Format-TextWrap -Text $conditionsText -Width ($terminalWidth - (Get-StringDisplayWidth $conditionsLabel))
-            
-            Write-Host $conditionsLabel -ForegroundColor White -NoNewline
-            Write-Host $wrappedConditions[0] -ForegroundColor $detailedForecastColor
-            # Additional wrapped lines with proper indentation
-            for ($i = 1; $i -lt $wrappedConditions.Count; $i++) {
-                Write-Host ("          " + $wrappedConditions[$i]) -ForegroundColor $detailedForecastColor
-            }
+        # Conditions display (Clouds on same line when available: "Conditions: X Clouds: Y")
+        $conditionsLabel = "$moonEmoji Conditions: "
+        $conditionsValue = if ($dayData.Conditions -ne "N/A") { $dayData.Conditions } else { "N/A" }
+        if ($dayData.CloudSummary -and $dayData.CloudSummary.ToString().Trim()) {
+            $conditionsValue = "$conditionsValue Clouds: $($dayData.CloudSummary)"
+        }
+        $terminalWidth = $Host.UI.RawUI.WindowSize.Width
+        $wrappedConditions = Format-TextWrap -Text $conditionsValue -Width ($terminalWidth - (Get-StringDisplayWidth $conditionsLabel))
+        Write-Host $conditionsLabel -ForegroundColor White -NoNewline
+        $firstLine = $wrappedConditions[0]
+        if ($firstLine -match '^(.+?) Clouds: (.+)$') {
+            Write-Host $Matches[1] -ForegroundColor $detailedForecastColor -NoNewline
+            Write-Host " Clouds: " -ForegroundColor White -NoNewline
+            Write-Host $Matches[2] -ForegroundColor $detailedForecastColor
         } else {
-            Write-Host "$moonEmoji Conditions: N/A" -ForegroundColor $detailedForecastColor
+            Write-Host $firstLine -ForegroundColor $detailedForecastColor
+        }
+        for ($i = 1; $i -lt $wrappedConditions.Count; $i++) {
+            Write-Host ("          " + $wrappedConditions[$i]) -ForegroundColor $detailedForecastColor
         }
         
         Write-Host ""

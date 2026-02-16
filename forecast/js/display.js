@@ -1105,11 +1105,15 @@ function displayObservations(observationsData, location) {
             html += '</div>';
         }
         
-        // Conditions line: {moonEmoji} Conditions: {description}
+        // Conditions line (Clouds on same line when available): Conditions: {description} Clouds: {summary}
         html += '<div></div>'; // Line feed before moon phase icon
         html += '<div class="condition-row">';
         html += `<span class="condition-label">${moonEmoji} Conditions:</span>`;
         html += `<span class="condition-value forecast-text">${dayData.conditions}</span>`;
+        if (dayData.cloudSummary != null && String(dayData.cloudSummary).trim()) {
+            html += ' <span class="condition-label">Clouds:</span>';
+            html += ` <span class="condition-value forecast-text">${dayData.cloudSummary}</span>`;
+        }
         html += '</div>';
         
         html += '</div>';

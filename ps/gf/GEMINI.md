@@ -30,7 +30,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
   - **Enhanced Daily Mode (`-d`):** Shows comprehensive 7-day forecast with sunrise/sunset/day length for each day, detailed wind information, windchill/heat index, and word-wrapped detailed forecasts
   - **Rain Forecast Mode (`-r` or `-rain`):** Shows rain likelihood forecast with visual sparklines for 96 hours
   - **Wind Forecast Mode (`-w` or `-wind`):** Shows wind outlook forecast with direction glyphs for 96 hours
-  - **Observations Mode (`-o` or `-observations`):** Shows historical weather observations for the last 7 days with sunrise/sunset/day length for each day, daily aggregates, and barometric pressure (inHg) with color coding
+  - **Observations Mode (`-o` or `-observations`):** Shows historical weather observations for the last 7 days with sunrise/sunset/day length for each day, daily aggregates, barometric pressure (inHg) with color coding, and cloud summary ("Clouds:") on the same line as Conditions when the station provides cloud data (label white, data gray; omitted when unavailable). Cloud codes: SKC (clear), FEW (few), SCT (scattered), BKN (broken), OVC (overcast)
   - **No-Interactive Mode (`-x`):** Exits immediately after displaying data (perfect for scripting)
 - **Interactive Mode:** When run from non-terminal environments, provides keyboard shortcuts for dynamic view switching:
   - **[H]** - Switch to hourly forecast only
@@ -806,6 +806,7 @@ The observations mode (`-o` or `-observations`) provides historical weather data
 - **Historical Data:** Shows weather observations from the last 7 days
 - **Daily Aggregates:** Displays high/low temperatures, average and maximum wind speeds, wind direction, humidity, total precipitation, and general conditions
 - **Barometric Pressure:** Displays sea-level pressure in inHg for each day (after wind), with color coding: low (Cyan), normal (White), high (Yellow), extreme (Alert)
+- **Cloud Summary:** When the station provides cloud layers data, "Clouds:" is shown on the same line as Conditions (label white, data gray). Codes: SKC (clear), FEW (few), SCT (scattered), BKN (broken), OVC (overcast). Omitted when not available
 - **Moon Phase Information:** Includes moon phase emoji and information for each day
 - **Windchill/Heat Index:** Calculates and displays windchill (≤50°F) and heat index (≥80°F) when applicable
 - **Data Filtering:** Only displays days that have actual observation data (skips days with no data)

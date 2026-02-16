@@ -42,6 +42,7 @@ The script first uses a geocoding service to determine the latitude and longitud
     - Yellow: Getting sticky/muggy (55-64°F)
     - Red: Oppressive, very uncomfortable (≥65°F)
   - **Pressure (Observations only):** Barometric pressure in inHg: Cyan (<29.50), White (29.50-30.20), Yellow (>30.20), Alert (extreme)
+  - **Clouds (Observations only):** When data is available, "Clouds:" is shown on the same line as Conditions (white label, gray data). Codes: SKC (clear), FEW (few), SCT (scattered), BKN (broken), OVC (overcast). Omitted when not available
 - **Robust Error Handling:** Implements exponential backoff retry logic for service unavailability, automatically retrying up to 10 times with increasing delays (1s to 512s) before gracefully exiting with a clear error message.
 - **Weather Alerts:** Automatically displays any active weather alerts (e.g., warnings, watches) for the location.
 - **NWS Resources:** Provides clickable links to official NWS resources:
@@ -178,7 +179,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 - `-Observations` or `-o` [switch]
   - Shows historical weather observations for the last 7 days.
-  - Displays daily aggregates including high/low temperatures, average and maximum wind speeds, wind direction, barometric pressure (inHg) with color coding, humidity, total precipitation, and general conditions.
+  - Displays daily aggregates including high/low temperatures, average and maximum wind speeds, wind direction, barometric pressure (inHg) with color coding, humidity, total precipitation, general conditions, and cloud summary (Clouds:) on the same line as Conditions when the station provides cloud data (white label, gray data; omitted when not). Cloud codes: SKC=clear, FEW=few, SCT=scattered, BKN=broken, OVC=overcast.
   - Includes moon phase information and windchill/heat index calculations when applicable.
   - Only shows days that have actual observation data available.
   - Enters interactive mode after display (use -x to exit immediately).
@@ -301,7 +302,7 @@ The observations mode (`-o` or `-observations`) provides historical weather data
 
 - **Historical Data:** Shows weather observations from the last 7 days
 - **Sunrise/Sunset/Day Length:** Displays sunrise time, sunset time, and day length for each observation day (calculated astronomically)
-- **Daily Aggregates:** Displays high/low temperatures, average and maximum wind speeds, wind direction, barometric pressure (inHg) after wind with color coding, humidity, total precipitation, and general conditions
+- **Daily Aggregates:** Displays high/low temperatures, average and maximum wind speeds, wind direction, barometric pressure (inHg) after wind with color coding, humidity, total precipitation, general conditions, and cloud summary (Clouds:) on the same line as Conditions when available (white label, gray data; omitted when not). Cloud codes: SKC, FEW, SCT, BKN, OVC
 - **Moon Phase Information:** Includes moon phase emoji and information for each day
 - **Windchill/Heat Index:** Calculates and displays windchill (≤50°F) and heat index (≥80°F) when applicable
 - **Data Filtering:** Only displays days that have actual observation data (skips days with no data)
@@ -332,6 +333,7 @@ Each day shows:
 - **Precipitation:** Total precipitation for the day in inches (if any), accurately converted from millimeters
 - **Humidity:** Average relative humidity percentage
 - **Conditions:** Most common weather condition description for the day
+- **Clouds:** Cloud summary on the same line as Conditions when the station provides cloud data (e.g. "Conditions: Cloudy Clouds: BKN 2,400 ft, OVC 3,900 ft"); omitted when not available. Codes: SKC (clear), FEW (few), SCT (scattered), BKN (broken), OVC (overcast)
 - **Moon Phase:** Moon phase emoji and information
 
 ### Observations Mode Use Cases:

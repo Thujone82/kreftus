@@ -256,7 +256,8 @@ function processObservationsData(observationsData, timeZoneId) {
                     humidities: [],
                     precipitations: [],
                     conditions: [],
-                    pressures: []
+                    pressures: [],
+                    cloudSummaryStrings: []
                 };
             }
             
@@ -331,6 +332,19 @@ function processObservationsData(observationsData, timeZoneId) {
             // Extract conditions
             if (props.textDescription) {
                 dailyData[obsDate].conditions.push(props.textDescription);
+            }
+            
+            // Extract cloud layers summary (amount + base height in ft)
+            if (props.cloudLayers && Array.isArray(props.cloudLayers) && props.cloudLayers.length > 0) {
+                const parts = props.cloudLayers.map(layer => {
+                    const amount = (layer.amount || '').trim() || '?';
+                    const baseM = layer.base && layer.base.value != null ? layer.base.value : null;
+                    const baseFt = baseM != null ? Math.round(baseM * 3.28084) : null;
+                    const ftStr = baseFt != null ? baseFt.toLocaleString() + ' ft' : '? ft';
+                    return amount + ' ' + ftStr;
+                });
+                const summary = parts.join(', ');
+                if (summary) dailyData[obsDate].cloudSummaryStrings.push(summary);
             }
         } catch (error) {
             console.error('Error processing observation:', error);
@@ -416,6 +430,16 @@ function processObservationsData(observationsData, timeZoneId) {
             const pressure = dayData.pressures && dayData.pressures.length > 0
                 ? Math.round(dayData.pressures.reduce((a, b) => a + b, 0) / dayData.pressures.length * 100) / 100
                 : null;
+            let cloudSummary = null;
+            if (dayData.cloudSummaryStrings && dayData.cloudSummaryStrings.length > 0) {
+                const nonEmpty = dayData.cloudSummaryStrings.filter(s => s && String(s).trim());
+                if (nonEmpty.length > 0) {
+                    const counts = {};
+                    nonEmpty.forEach(s => { counts[s] = (counts[s] || 0) + 1; });
+                    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+                    cloudSummary = sorted[0][0];
+                }
+            }
             
             result.push({
                 date: date,
@@ -429,7 +453,8 @@ function processObservationsData(observationsData, timeZoneId) {
                 avgHumidity: avgHumidity,
                 totalPrecipitation: totalPrecipitation,
                 conditions: conditions,
-                pressure: pressure
+                pressure: pressure,
+                cloudSummary: cloudSummary
             });
         } else {
             // No data for this day - add empty entry
@@ -445,7 +470,8 @@ function processObservationsData(observationsData, timeZoneId) {
                 avgHumidity: null,
                 totalPrecipitation: 0,
                 conditions: 'N/A',
-                pressure: null
+                pressure: null,
+                cloudSummary: null
             });
         }
     }
@@ -470,7 +496,8 @@ function migrateLegacyObservationsCache(observationsArray, timeZoneId) {
             humidities: d.avgHumidity != null ? [d.avgHumidity] : [],
             precipitations: (d.totalPrecipitation != null && d.totalPrecipitation > 0) ? [d.totalPrecipitation] : [],
             conditions: (d.conditions && d.conditions !== 'N/A') ? [d.conditions] : [],
-            pressures: d.pressure != null ? [d.pressure] : []
+            pressures: d.pressure != null ? [d.pressure] : [],
+            cloudSummaryStrings: d.cloudSummary != null && String(d.cloudSummary).trim() ? [d.cloudSummary] : []
         };
     });
     return { dailyByDate, timeZoneId: timeZoneId || null, displayList: observationsArray };
@@ -524,9 +551,18 @@ function getObservationsDisplayList(observationsData) {
             const pressure = dayData.pressures && dayData.pressures.length > 0
                 ? Math.round(dayData.pressures.reduce((a, b) => a + b, 0) / dayData.pressures.length * 100) / 100
                 : null;
-            result.push({ date, highTemp, lowTemp, avgWindSpeed, maxWindSpeed, maxWindGust, maxWind, windDirection, avgHumidity, totalPrecipitation, conditions, pressure });
+            let cloudSummary = null;
+            if (dayData.cloudSummaryStrings && dayData.cloudSummaryStrings.length > 0) {
+                const nonEmpty = dayData.cloudSummaryStrings.filter(s => s && String(s).trim());
+                if (nonEmpty.length > 0) {
+                    const counts = {};
+                    nonEmpty.forEach(s => { counts[s] = (counts[s] || 0) + 1; });
+                    cloudSummary = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+                }
+            }
+            result.push({ date, highTemp, lowTemp, avgWindSpeed, maxWindSpeed, maxWindGust, maxWind, windDirection, avgHumidity, totalPrecipitation, conditions, pressure, cloudSummary });
         } else {
-            result.push({ date, highTemp: null, lowTemp: null, avgWindSpeed: null, maxWindSpeed: null, maxWindGust: null, maxWind: null, windDirection: null, avgHumidity: null, totalPrecipitation: 0, conditions: 'N/A', pressure: null });
+            result.push({ date, highTemp: null, lowTemp: null, avgWindSpeed: null, maxWindSpeed: null, maxWindGust: null, maxWind: null, windDirection: null, avgHumidity: null, totalPrecipitation: 0, conditions: 'N/A', pressure: null, cloudSummary: null });
         }
     }
     const filtered = result.filter(day => day.highTemp !== null || day.lowTemp !== null || day.avgWindSpeed !== null);

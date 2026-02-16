@@ -56,7 +56,7 @@ If you experience issues with corrupted favorites that cannot be removed, you ca
 - **Daily**: Enhanced 7-day forecast with sunrise/sunset/day length for each day and detailed forecasts
 - **Rain**: 96-hour rain likelihood sparklines (5 days max)
 - **Wind**: 96-hour wind direction glyphs (5 days max)
-- **History**: Historical observations with sunrise/sunset/day length for each day. When the station provides it, barometric pressure (inHg) is shown after wind with color coding; when pressure data is not available for a day, the pressure row is omitted (nothing is shown).
+- **History**: Historical observations with sunrise/sunset/day length for each day. When the station provides it, barometric pressure (inHg) is shown after wind with color coding; when pressure data is not available for a day, the pressure row is omitted (nothing is shown). When the station provides cloud data, "Clouds:" is shown on the same line as Conditions (label white, data gray). Cloud codes: SKC (clear), FEW (few), SCT (scattered), BKN (broken), OVC (overcast). Omitted when not available.
 
 ## NOAA Resources
 
