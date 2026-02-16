@@ -1,4 +1,4 @@
-<#
+﻿<#
 .ENCODING
     This file MUST be saved as UTF-8 with BOM. Do not change the encoding or script errors may occur (e.g. with glyphs/emoji).
 .SYNOPSIS
