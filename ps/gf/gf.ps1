@@ -164,7 +164,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host "                • Peak wind hours highlighted with inverted colors" -ForegroundColor Gray
     Write-Host "  -o, -Observations    Show historical weather observations" -ForegroundColor Cyan
     Write-Host "                • Clouds on same line as Conditions when available (SKC=clear, FEW=few, SCT=scattered, BKN=broken, OVC=overcast, VV=vertical visibility)" -ForegroundColor Gray
-    Write-Host "                • Pressure (inHg): Cyan (<29.50), White (29.50-30.20), Yellow (>30.20), Alert (extreme)" -ForegroundColor Gray
+    Write-Host "                • Pressure (inHg): Cyan (<29.50), White (29.50-30.20), Yellow (>30.20), Red (extreme <29.0 or >30.5)" -ForegroundColor Gray
     Write-Host "  -u, -NoAutoUpdate Start with automatic updates disabled" -ForegroundColor Cyan
     Write-Host "  -b, -NoBar    Start with control bar hidden" -ForegroundColor Cyan
     Write-Host "  -x, -NoInteractive Exit immediately (no interactive mode)" -ForegroundColor Cyan
