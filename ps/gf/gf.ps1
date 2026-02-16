@@ -1,4 +1,4 @@
-﻿<#
+<#
 .ENCODING
     This file MUST be saved as UTF-8 with BOM. Do not change the encoding or script errors may occur (e.g. with glyphs/emoji).
 .SYNOPSIS
@@ -5435,7 +5435,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     # Check if preload job is still running
                     if ($null -ne $script:observationsPreloadJob) {
                         if ($script:observationsPreloadJob.State -eq 'Running') {
-                            Write-Host "Waiting for preloaded data..." -ForegroundColor Yellow
+                            Write-Host "Loading historical data..." -ForegroundColor Yellow
                             Wait-Job -Job $script:observationsPreloadJob | Out-Null
                         }
                         if ($script:observationsPreloadJob.State -eq 'Completed') {
