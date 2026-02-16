@@ -773,6 +773,14 @@ function getHumidityColor(humidity) {
     return "humidity-normal";
 }
 
+// Get pressure color class (inHg; for History observations)
+function getPressureColor(inHg) {
+    if (inHg < 29.0 || inHg > 30.5) return "pressure-extreme";
+    if (inHg < 29.50) return "pressure-low";
+    if (inHg <= 30.20) return "pressure-normal";
+    return "pressure-high";
+}
+
 // Get dew point color class
 function getDewPointColor(dewPointF) {
     if (dewPointF >= 65) return "dewpoint-oppressive";

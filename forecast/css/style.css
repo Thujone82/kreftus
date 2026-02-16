@@ -636,6 +636,23 @@ main {
     color: var(--color-alert);
 }
 
+/* Pressure Colors (History observations, inHg) */
+.pressure-low {
+    color: var(--color-cyan);
+}
+
+.pressure-normal {
+    color: var(--color-text);
+}
+
+.pressure-high {
+    color: var(--color-warning);
+}
+
+.pressure-extreme {
+    color: var(--color-alert);
+}
+
 /* Forecast Text */
 .forecast-text {
     color: var(--color-forecast);

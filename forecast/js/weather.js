@@ -255,7 +255,8 @@ function processObservationsData(observationsData, timeZoneId) {
                     windDirections: [],
                     humidities: [],
                     precipitations: [],
-                    conditions: []
+                    conditions: [],
+                    pressures: []
                 };
             }
             
@@ -295,6 +296,12 @@ function processObservationsData(observationsData, timeZoneId) {
             // Extract wind direction
             if (props.windDirection && props.windDirection.value !== null && props.windDirection.value !== undefined) {
                 dailyData[obsDate].windDirections.push(props.windDirection.value);
+            }
+            
+            // Extract sea-level pressure (NWS API returns Pascals; convert to inHg: inHg = Pa / 3386.389)
+            if (props.seaLevelPressure && props.seaLevelPressure.value != null) {
+                const pressureInHg = props.seaLevelPressure.value / 3386.389;
+                dailyData[obsDate].pressures.push(pressureInHg);
             }
             
             // Extract humidity
@@ -406,6 +413,10 @@ function processObservationsData(observationsData, timeZoneId) {
                 conditions = sortedConditions[0][0];
             }
             
+            const pressure = dayData.pressures && dayData.pressures.length > 0
+                ? Math.round(dayData.pressures.reduce((a, b) => a + b, 0) / dayData.pressures.length * 100) / 100
+                : null;
+            
             result.push({
                 date: date,
                 highTemp: highTemp,
@@ -417,7 +428,8 @@ function processObservationsData(observationsData, timeZoneId) {
                 windDirection: windDirection,
                 avgHumidity: avgHumidity,
                 totalPrecipitation: totalPrecipitation,
-                conditions: conditions
+                conditions: conditions,
+                pressure: pressure
             });
         } else {
             // No data for this day - add empty entry
@@ -432,7 +444,8 @@ function processObservationsData(observationsData, timeZoneId) {
                 windDirection: null,
                 avgHumidity: null,
                 totalPrecipitation: 0,
-                conditions: 'N/A'
+                conditions: 'N/A',
+                pressure: null
             });
         }
     }
@@ -456,7 +469,8 @@ function migrateLegacyObservationsCache(observationsArray, timeZoneId) {
             windDirections: d.windDirection != null ? [d.windDirection] : [],
             humidities: d.avgHumidity != null ? [d.avgHumidity] : [],
             precipitations: (d.totalPrecipitation != null && d.totalPrecipitation > 0) ? [d.totalPrecipitation] : [],
-            conditions: (d.conditions && d.conditions !== 'N/A') ? [d.conditions] : []
+            conditions: (d.conditions && d.conditions !== 'N/A') ? [d.conditions] : [],
+            pressures: d.pressure != null ? [d.pressure] : []
         };
     });
     return { dailyByDate, timeZoneId: timeZoneId || null, displayList: observationsArray };
@@ -507,9 +521,12 @@ function getObservationsDisplayList(observationsData) {
                 dayData.conditions.forEach(cond => { conditionCounts[cond] = (conditionCounts[cond] || 0) + 1; });
                 conditions = Object.entries(conditionCounts).sort((a, b) => b[1] - a[1])[0][0];
             }
-            result.push({ date, highTemp, lowTemp, avgWindSpeed, maxWindSpeed, maxWindGust, maxWind, windDirection, avgHumidity, totalPrecipitation, conditions });
+            const pressure = dayData.pressures && dayData.pressures.length > 0
+                ? Math.round(dayData.pressures.reduce((a, b) => a + b, 0) / dayData.pressures.length * 100) / 100
+                : null;
+            result.push({ date, highTemp, lowTemp, avgWindSpeed, maxWindSpeed, maxWindGust, maxWind, windDirection, avgHumidity, totalPrecipitation, conditions, pressure });
         } else {
-            result.push({ date, highTemp: null, lowTemp: null, avgWindSpeed: null, maxWindSpeed: null, maxWindGust: null, maxWind: null, windDirection: null, avgHumidity: null, totalPrecipitation: 0, conditions: 'N/A' });
+            result.push({ date, highTemp: null, lowTemp: null, avgWindSpeed: null, maxWindSpeed: null, maxWindGust: null, maxWind: null, windDirection: null, avgHumidity: null, totalPrecipitation: 0, conditions: 'N/A', pressure: null });
         }
     }
     const filtered = result.filter(day => day.highTemp !== null || day.lowTemp !== null || day.avgWindSpeed !== null);

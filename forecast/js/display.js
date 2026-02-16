@@ -1081,6 +1081,14 @@ function displayObservations(observationsData, location) {
         
         html += '</div>';
         
+        // Pressure line (only when data available; no row when missing)
+        if (dayData.pressure != null) {
+            html += '<div class="condition-row">';
+            html += '<span class="condition-label">Pressure:</span>';
+            html += `<span class="condition-value ${getPressureColor(dayData.pressure)}">${dayData.pressure} inHg</span>`;
+            html += '</div>';
+        }
+        
         // Precipitation line: Precip: {total}" if > 0
         if (dayData.totalPrecipitation > 0) {
             html += '<div class="condition-row">';
