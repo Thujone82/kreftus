@@ -11,6 +11,7 @@ const appState = {
     observationsLocationKey: null,
     observationsLocationRef: null, // { city, state } - which location the observations are for (never show wrong city's history)
     observationsAvailable: false,
+    observationsNeedRefresh: false, // set when cached observations are incomplete; cleared after successful fetch
     autoUpdateEnabled: true,
     lastFetchTime: null,
     hourlyScrollIndex: 0,
@@ -2474,17 +2475,24 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
             deferCheck(() => {
                 const observationsComplete = observationsCoverFullWeek(getObservationsDisplayList(appState.observationsData));
                 if (!observationsComplete) {
-                    console.log('Cached observations are incomplete (less than 7 days), refreshing in background...');
-                    // Refresh observations in the background
-                    // We need pointsData to refresh observations, so we'll need to fetch it
-                    // For now, trigger a full refresh which will update observations
+                    console.log('Cached observations are incomplete (less than 7 days), flushing and refetching...');
+                    appState.observationsNeedRefresh = true;
+                    // Flush stale observations so UI does not show outdated data
+                    appState.observationsData = null;
+                    appState.observationsAvailable = false;
+                    appState.observationsLocationKey = null;
+                    appState.observationsLocationRef = null;
+                    updateHistoryButtonState();
+                    if (appState.currentMode === 'history') {
+                        renderCurrentMode();
+                    }
                     const locationToRefresh = restoredWeatherData.location.city && restoredWeatherData.location.state
                         ? `${restoredWeatherData.location.city}, ${restoredWeatherData.location.state}`
                         : (cache.location || 'here');
-                    // Use a small delay to allow the UI to render first
                     setTimeout(() => {
                         loadWeatherData(locationToRefresh, false, true).catch(error => {
                             console.error('Background observations refresh failed:', error);
+                            appState.observationsNeedRefresh = false;
                         });
                     }, 100);
                 }
@@ -2629,7 +2637,7 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
                 locationMatch = location.toLowerCase() === locationText.toLowerCase();
             }
             
-            if (locationMatch && !isCacheStale(appState.lastFetchTime)) {
+            if (locationMatch && !isCacheStale(appState.lastFetchTime) && !appState.observationsNeedRefresh) {
                 // We already have fresh data for this location - just render it
                 console.log('Using existing fresh data for location:', location);
                 setLoading(false, background);
@@ -2716,8 +2724,8 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             }
         }
         
-        // If we found a cache, check if it's fresh
-        if (cacheToUse && cacheToUse.data) {
+        // If we found a cache, check if it's fresh (skip cache when refetching for incomplete observations)
+        if (cacheToUse && cacheToUse.data && !appState.observationsNeedRefresh) {
             const cacheTimestamp = cacheToUse.timestamp instanceof Date ? cacheToUse.timestamp : new Date(cacheToUse.timestamp);
             const cacheAge = Date.now() - cacheTimestamp.getTime();
             const isStale = isCacheStale(cacheToUse.timestamp);
@@ -3010,6 +3018,7 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         // Check observations availability and fetch observations in background (non-blocking)
         // This allows the UI to display immediately while observations load
         checkObservationsAvailability(weatherData.points, weatherData.location.timeZone).then(() => {
+            appState.observationsNeedRefresh = false;
             // Observations completed - update History button state
             updateHistoryButtonState();
             // If we're currently viewing history mode, re-render to show the observations
@@ -3022,11 +3031,13 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             }
         }).catch(error => {
             console.error('Error fetching observations in background:', error);
+            appState.observationsNeedRefresh = false;
             // Still update button state even on error
             updateHistoryButtonState();
         });
     } catch (error) {
         setLoading(false, background);
+        appState.observationsNeedRefresh = false;
         let errorMessage = error.message;
         
         // Handle location detection failures silently if requested (when trying to auto-detect 'here')
