@@ -344,6 +344,13 @@
                 },
                 {
                     "@type": "SoftwareApplication",
+                    "name": "Here",
+                    "description": "PowerShell script for IP-based geolocation and astronomical data: sunrise, sunset, day length, solar noon, irradiance, moon phase. Optional IP argument.",
+                    "url": "https://kreft.us/here/",
+                    "applicationCategory": "UtilityApplication"
+                },
+                {
+                    "@type": "SoftwareApplication",
                     "name": "GetWeather CLI",
                     "description": "Command-line utility for retrieving weather information using OpenWeatherMap API. Available as PowerShell script and native Go application.",
                     "url": "https://kreft.us/gw/",
@@ -621,6 +628,21 @@
                             <div>
                                 <h2>rc (Run Continuously)</h2>
                                 <p><b>rc v1.4</b> is a command-line utility that executes a given command string in a loop. After each execution, it waits for a specified period before running the command again. <b>Features:</b> Optional precision mode to account for the command's execution time, preventing timing drift and ensuring runs start at a consistent interval. <b>Period Suffixes:</b> Support for time units: 's' (seconds), 'm' (minutes, optional), 'h' (hours). Integers default to minutes. <b>Skip Mode:</b> Skip initial executions before starting command execution (e.g., -skip 2 skips first 2 runs). <b>Limit Mode:</b> Limit total executions (skipped executions don't count). <b>Silent Mode:</b> Suppress status messages while preserving command output. <b>Clear Mode:</b> Clear screen before each execution for clean output display.<br><br>Available in a native Go version for cross-platform performance and a PowerShell version for Windows environments. </p>
+                            </div>
+                        </a>
+                    </td>
+                </tr>
+                <tr class="project-row" onclick="window.location.href='./here/';">
+                    <td class="project-image-cell">
+                        <a href="./here/" tabindex="-1">
+                            <img src="./images/here.png" alt="Here — IP location and astronomical info" loading="lazy">
+                        </a>
+                    </td>
+                    <td class="project-text-cell">
+                        <a href="./here/" tabindex="-1">
+                            <div>
+                                <h2>Here</h2>
+                                <p><b>Here</b> is a PowerShell script that retrieves your machine's approximate geographical location using a public IP geolocation API. It optionally accepts an IP address to query. For that location it displays astronomical data: sunrise, sunset, day length, solar noon, clear-sky irradiance (W/m²), moon phase, and next full/new moon. Accuracy is IP-based, not GPS.</p>
                             </div>
                         </a>
                     </td>
