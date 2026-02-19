@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Virtual Bitcoin Trader (vBTC) - Interactive Bitcoin trading simulation
 
@@ -497,6 +497,25 @@ function Write-AlignedLine {
         Write-Host (" " * $paddingRequired) -NoNewline
     }
     Write-Host $Value -ForegroundColor $ValueColor
+}
+
+function Write-AlignedLineWithBrackets {
+    param (
+        [string]$Label,
+        [string]$MainValue,
+        [string]$BracketContent,
+        [System.ConsoleColor]$ValueColor = "White",
+        [int]$ValueStartColumn = 22
+    )
+    Write-Host -NoNewline $Label
+    $paddingRequired = $ValueStartColumn - $Label.Length
+    if ($paddingRequired -gt 0) {
+        Write-Host (" " * $paddingRequired) -NoNewline
+    }
+    Write-Host -NoNewline $MainValue -ForegroundColor $ValueColor
+    Write-Host -NoNewline " [" -ForegroundColor White
+    Write-Host -NoNewline $BracketContent -ForegroundColor $ValueColor
+    Write-Host "]" -ForegroundColor White
 }
 
 function Show-LoadingScreen {
@@ -1608,14 +1627,7 @@ function Show-HelpScreen {
     while ($true) {
         if ([System.Console]::KeyAvailable) {
             $key = [System.Console]::ReadKey($true)
-            
-            # Handle Enter key to return to main screen
-            if ($key.Key -eq 'Enter') {
-                return
-            }
-            
-            # Handle Esc key to return to main screen
-            if ($key.Key -eq 'Escape') {
+            if ($key.Key -eq 'Enter' -or $key.Key -eq 'Escape') {
                 return
             }
         }
@@ -1751,7 +1763,7 @@ function Show-LedgerScreen {
                     elseif ($portfolioValue -lt $startingCapital) { $portfolioColor = "Red" }
                 }
 
-                # Portfolio Value with session delta in [] (green if up, red if down)
+                # Portfolio Value with session delta in [] (green if up, red if down); brackets white, content colored
                 Write-Host -NoNewline "Portfolio Value:"
                 $pvPadding = 22 - "Portfolio Value:".Length
                 if ($pvPadding -gt 0) { Write-Host (" " * $pvPadding) -NoNewline }
@@ -1761,21 +1773,29 @@ function Show-LedgerScreen {
                     $absDelta = [Math]::Abs($sessionPortfolioDelta)
                     $formattedDelta = $absDelta.ToString("C2")
                     $sign = if ($sessionPortfolioDelta -gt 0) { "+" } elseif ($sessionPortfolioDelta -lt 0) { "-" } else { "" }
-                    $deltaStr = " [$sign$formattedDelta]"
+                    $deltaContent = "$sign$formattedDelta"
                     $deltaColor = if ($sessionPortfolioDelta -gt 0) { "Green" } elseif ($sessionPortfolioDelta -lt 0) { "Red" } else { "White" }
-                    Write-Host $deltaStr -ForegroundColor $deltaColor
+                    Write-Host -NoNewline " [" -ForegroundColor White
+                    Write-Host -NoNewline $deltaContent -ForegroundColor $deltaColor
+                    Write-Host "]" -ForegroundColor White
                 } else {
                     Write-Host ""
                 }
 
-                # Trading Statistics Section (all-time with session in [])
+                # Trading Statistics Section (all-time with session in []); brackets white, content colored
                 if ($summary.TotalBuyUSD -gt 0) {
                     $usdVal = "{0:C2}" -f $summary.TotalBuyUSD
-                    if ($sessionSummary) { $usdVal += " [{0:C2}]" -f $sessionSummary.TotalBuyUSD }
-                    Write-AlignedLine -Label "Total Bought (USD):" -Value $usdVal -ValueColor "Green"
+                    if ($sessionSummary) {
+                        Write-AlignedLineWithBrackets -Label "Total Bought (USD):" -MainValue $usdVal -BracketContent ($sessionSummary.TotalBuyUSD.ToString("C2")) -ValueColor "Green"
+                    } else {
+                        Write-AlignedLine -Label "Total Bought (USD):" -Value $usdVal -ValueColor "Green"
+                    }
                     $btcVal = $summary.TotalBuyBTC.ToString("F8")
-                    if ($sessionSummary) { $btcVal += " [{0}]" -f $sessionSummary.TotalBuyBTC.ToString("F8") }
-                    Write-AlignedLine -Label "Total Bought (BTC):" -Value $btcVal -ValueColor "Green"
+                    if ($sessionSummary) {
+                        Write-AlignedLineWithBrackets -Label "Total Bought (BTC):" -MainValue $btcVal -BracketContent ($sessionSummary.TotalBuyBTC.ToString("F8")) -ValueColor "Green"
+                    } else {
+                        Write-AlignedLine -Label "Total Bought (BTC):" -Value $btcVal -ValueColor "Green"
+                    }
                 }
 
                 # Display additional statistics
@@ -1792,19 +1812,21 @@ function Show-LedgerScreen {
                 if ($summary.AvgBuyPrice -gt 0) {
                     $avgVal = "{0:C2}" -f $summary.AvgBuyPrice
                     if ($sessionSummary) {
-                        if ($sessionSummary.AvgBuyPrice -gt 0) { $avgVal += " [{0:C2}]" -f $sessionSummary.AvgBuyPrice }
-                        else { $avgVal += " [$0.00]" }
+                        $bracketContent = if ($sessionSummary.AvgBuyPrice -gt 0) { $sessionSummary.AvgBuyPrice.ToString("C2") } else { "$0.00" }
+                        Write-AlignedLineWithBrackets -Label "Average Purchase:" -MainValue $avgVal -BracketContent $bracketContent -ValueColor "Green"
+                    } else {
+                        Write-AlignedLine -Label "Average Purchase:" -Value $avgVal -ValueColor "Green"
                     }
-                    Write-AlignedLine -Label "Average Purchase:" -Value $avgVal -ValueColor "Green"
                 }
 
                 if ($summary.AvgSalePrice -gt 0) {
                     $saleVal = "{0:C2}" -f $summary.AvgSalePrice
                     if ($sessionSummary) {
-                        if ($sessionSummary.AvgSalePrice -gt 0) { $saleVal += " [{0:C2}]" -f $sessionSummary.AvgSalePrice }
-                        else { $saleVal += " [$0.00]" }
+                        $bracketContent = if ($sessionSummary.AvgSalePrice -gt 0) { $sessionSummary.AvgSalePrice.ToString("C2") } else { "$0.00" }
+                        Write-AlignedLineWithBrackets -Label "Average Sale:" -MainValue $saleVal -BracketContent $bracketContent -ValueColor "Red"
+                    } else {
+                        Write-AlignedLine -Label "Average Sale:" -Value $saleVal -ValueColor "Red"
                     }
-                    Write-AlignedLine -Label "Average Sale:" -Value $saleVal -ValueColor "Red"
                 }
                 if ($totalTransactions -gt 0 -and $summary.MaxUSD -ge $summary.MinUSD) {
                     Write-AlignedLine -Label "Tx Range:" -Value ("{0:C2} - {1:C2}" -f $summary.MinUSD, $summary.MaxUSD) -ValueColor "White"

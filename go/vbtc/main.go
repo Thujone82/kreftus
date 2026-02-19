@@ -979,7 +979,7 @@ func showLedgerScreen(reader *bufio.Reader) {
 		portfolioColor = color.New(color.FgRed)
 	}
 
-	// Portfolio Value with session delta in [] (green if up, red if down)
+	// Portfolio Value with session delta in [] (green if up, red if down); brackets white, content colored
 	fmt.Print("Portfolio Value:")
 	fmt.Print(strings.Repeat(" ", summaryValueStartColumn-len("Portfolio Value:")))
 	portfolioColor.Print(fmt.Sprintf("$%s", formatFloat(portfolioValue, 2)))
@@ -990,30 +990,34 @@ func showLedgerScreen(reader *bufio.Reader) {
 			sign = "-"
 		}
 		absDelta := math.Abs(sessionPortfolioDelta)
-		deltaStr := fmt.Sprintf(" [%s$%s]", sign, formatFloat(absDelta, 2))
+		deltaContent := fmt.Sprintf("%s$%s", sign, formatFloat(absDelta, 2))
 		deltaColor := color.New(color.FgWhite)
 		if sessionPortfolioDelta > 0 {
 			deltaColor = color.New(color.FgGreen)
 		} else if sessionPortfolioDelta < 0 {
 			deltaColor = color.New(color.FgRed)
 		}
-		deltaColor.Println(deltaStr)
+		color.New(color.FgWhite).Print(" [")
+		deltaColor.Print(deltaContent)
+		color.New(color.FgWhite).Println("]")
 	} else {
 		fmt.Println()
 	}
 
-	// Trading Statistics Section (all-time with session in [])
+	// Trading Statistics Section (all-time with session in []); brackets white, content colored
 	if summary.TotalBuyUSD > 0 {
 		v := fmt.Sprintf("$%s", formatFloat(summary.TotalBuyUSD, 2))
 		if sessionSummary != nil {
-			v += fmt.Sprintf(" [$%s]", formatFloat(sessionSummary.TotalBuyUSD, 2))
+			writeAlignedLineWithBrackets("Total Bought (USD):", v, fmt.Sprintf("$%s", formatFloat(sessionSummary.TotalBuyUSD, 2)), color.New(color.FgGreen), summaryValueStartColumn)
+		} else {
+			writeAlignedLine("Total Bought (USD):", v, color.New(color.FgGreen), summaryValueStartColumn)
 		}
-		writeAlignedLine("Total Bought (USD):", v, color.New(color.FgGreen), summaryValueStartColumn)
 		btcVal := fmt.Sprintf("%.8f", summary.TotalBuyBTC)
 		if sessionSummary != nil {
-			btcVal += fmt.Sprintf(" [%.8f]", sessionSummary.TotalBuyBTC)
+			writeAlignedLineWithBrackets("Total Bought (BTC):", btcVal, fmt.Sprintf("%.8f", sessionSummary.TotalBuyBTC), color.New(color.FgGreen), summaryValueStartColumn)
+		} else {
+			writeAlignedLine("Total Bought (BTC):", btcVal, color.New(color.FgGreen), summaryValueStartColumn)
 		}
-		writeAlignedLine("Total Bought (BTC):", btcVal, color.New(color.FgGreen), summaryValueStartColumn)
 	}
 
 	// Display additional statistics
@@ -1030,21 +1034,23 @@ func showLedgerScreen(reader *bufio.Reader) {
 	if summary.AvgBuyPrice > 0 {
 		v := fmt.Sprintf("$%s", formatFloat(summary.AvgBuyPrice, 2))
 		if sessionSummary != nil && sessionSummary.AvgBuyPrice > 0 {
-			v += fmt.Sprintf(" [$%s]", formatFloat(sessionSummary.AvgBuyPrice, 2))
+			writeAlignedLineWithBrackets("Average Purchase:", v, fmt.Sprintf("$%s", formatFloat(sessionSummary.AvgBuyPrice, 2)), color.New(color.FgGreen), summaryValueStartColumn)
 		} else if sessionSummary != nil {
-			v += " [$0.00]"
+			writeAlignedLineWithBrackets("Average Purchase:", v, "$0.00", color.New(color.FgGreen), summaryValueStartColumn)
+		} else {
+			writeAlignedLine("Average Purchase:", v, color.New(color.FgGreen), summaryValueStartColumn)
 		}
-		writeAlignedLine("Average Purchase:", v, color.New(color.FgGreen), summaryValueStartColumn)
 	}
 
 	if summary.AvgSalePrice > 0 {
 		v := fmt.Sprintf("$%s", formatFloat(summary.AvgSalePrice, 2))
 		if sessionSummary != nil && sessionSummary.AvgSalePrice > 0 {
-			v += fmt.Sprintf(" [$%s]", formatFloat(sessionSummary.AvgSalePrice, 2))
+			writeAlignedLineWithBrackets("Average Sale:", v, fmt.Sprintf("$%s", formatFloat(sessionSummary.AvgSalePrice, 2)), color.New(color.FgRed), summaryValueStartColumn)
 		} else if sessionSummary != nil {
-			v += " [$0.00]"
+			writeAlignedLineWithBrackets("Average Sale:", v, "$0.00", color.New(color.FgRed), summaryValueStartColumn)
+		} else {
+			writeAlignedLine("Average Sale:", v, color.New(color.FgRed), summaryValueStartColumn)
 		}
-		writeAlignedLine("Average Sale:", v, color.New(color.FgRed), summaryValueStartColumn)
 	}
 	if totalTransactions > 0 && summary.MaxUSD >= summary.MinUSD {
 		writeAlignedLine("Tx Range:", fmt.Sprintf("$%s - $%s", formatFloat(summary.MinUSD, 2), formatFloat(summary.MaxUSD, 2)), color.New(color.FgWhite), summaryValueStartColumn)
@@ -1435,6 +1441,24 @@ func writeAlignedLine(label, value string, c *color.Color, startColumn ...int) {
 	fmt.Print(label)
 	fmt.Print(strings.Repeat(" ", padding))
 	c.Println(value)
+}
+
+// writeAlignedLineWithBrackets prints label, mainPart in c, then " [" in white, bracketContent in c, "]" in white.
+func writeAlignedLineWithBrackets(label, mainPart, bracketContent string, c *color.Color, startColumn int) {
+	valueStartColumn := 22
+	if startColumn > 0 {
+		valueStartColumn = startColumn
+	}
+	padding := valueStartColumn - len(label)
+	if padding < 0 {
+		padding = 0
+	}
+	fmt.Print(label)
+	fmt.Print(strings.Repeat(" ", padding))
+	c.Print(mainPart)
+	color.New(color.FgWhite).Print(" [")
+	c.Print(bracketContent)
+	color.New(color.FgWhite).Println("]")
 }
 
 // --- API and Data Functions ---
