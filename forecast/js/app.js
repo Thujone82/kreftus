@@ -1169,8 +1169,21 @@ async function checkObservationsAvailability(pointsData, timeZone) {
         // Check if we already have fresh observations in appState
         if (appState.observationsData && appState.observationsAvailable && appState.lastFetchTime) {
             if (!isCacheStale(appState.lastFetchTime)) {
-                console.log('Using existing fresh observations data (age:', Math.round((Date.now() - appState.lastFetchTime) / 1000), 'seconds)');
-                return true;
+                // Also check if observations are complete (cover full week including today)
+                // If incomplete, we need to refetch even if timestamp is fresh
+                const observationsComplete = observationsCoverFullWeek(getObservationsDisplayList(appState.observationsData));
+                if (observationsComplete) {
+                    console.log('Using existing fresh observations data (age:', Math.round((Date.now() - appState.lastFetchTime) / 1000), 'seconds)');
+                    return true;
+                } else {
+                    console.log('Existing observations are incomplete (missing today or recent days), will refresh');
+                    // Flush incomplete observations so we don't show stale data
+                    appState.observationsData = null;
+                    appState.observationsAvailable = false;
+                    appState.observationsLocationKey = null;
+                    appState.observationsLocationRef = null;
+                    // Continue to fetch fresh observations below
+                }
             } else {
                 console.log('Existing observations are stale, will refresh');
             }
