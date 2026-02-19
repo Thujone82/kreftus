@@ -12,6 +12,7 @@ const appState = {
     observationsLocationRef: null, // { city, state } - which location the observations are for (never show wrong city's history)
     observationsAvailable: false,
     observationsNeedRefresh: false, // set when cached observations are incomplete; cleared after successful fetch
+    observationsLoading: false,     // true while fetching observations (for History tab loading banner)
     autoUpdateEnabled: true,
     lastFetchTime: null,
     hourlyScrollIndex: 0,
@@ -1206,6 +1207,11 @@ async function checkObservationsAvailability(pointsData, timeZone) {
             return false;
         }
         
+        appState.observationsLoading = true;
+        if (appState.currentMode === 'history') {
+            renderCurrentMode();
+        }
+        try {
         // Try to fetch observation stations
         const stationId = await fetchNWSObservationStations(pointsData);
         if (!stationId) {
@@ -1266,6 +1272,9 @@ async function checkObservationsAvailability(pointsData, timeZone) {
         }
         appState.observationsAvailable = true;
         return true;
+        } finally {
+            appState.observationsLoading = false;
+        }
     } catch (error) {
         console.error('Error checking observations availability:', error);
         // Preserve existing observations data on error (especially important in history mode)
@@ -3255,16 +3264,20 @@ function _renderCurrentModeImpl() {
             html = displayFullWeatherReport(appState.weatherData, appState.location);
             break;
         case 'history': {
-            const loc = appState.location;
-            const ref = appState.observationsLocationRef;
-            const locationMatch = ref && loc && loc.city != null && loc.state != null &&
-                (loc.city || '').trim().toLowerCase() === ref.city &&
-                (loc.state || '').trim().toUpperCase() === ref.state;
-            const observationsList = locationMatch ? getObservationsDisplayList(appState.observationsData) : [];
-            if (observationsList && observationsList.length > 0) {
-                html = displayObservations(observationsList, appState.location);
+            if (appState.observationsLoading) {
+                html = '<div class="history-banner history-banner-loading">Loading History..</div>';
             } else {
-                html = '<div class="error-message">No historical observations available.</div>';
+                const loc = appState.location;
+                const ref = appState.observationsLocationRef;
+                const locationMatch = ref && loc && loc.city != null && loc.state != null &&
+                    (loc.city || '').trim().toLowerCase() === ref.city &&
+                    (loc.state || '').trim().toUpperCase() === ref.state;
+                const observationsList = locationMatch ? getObservationsDisplayList(appState.observationsData) : [];
+                if (observationsList && observationsList.length > 0) {
+                    html = displayObservations(observationsList, appState.location);
+                } else {
+                    html = '<div class="history-banner history-banner-error">No historical observations available.</div>';
+                }
             }
             break;
         }
