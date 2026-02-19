@@ -19,7 +19,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
 - **No API Key Required:** Uses the free National Weather Service API which requires no registration or API key.
 - **Flexible Location Input:** Can determine latitude and longitude from either a 5-digit US zip code, a "City, State" formatted string, or the "here" keyword for automatic location detection.
 - **Automatic Location Detection:** Uses ip-api.com to automatically detect the user's current location based on their IP address when "here" is specified.
-- **Comprehensive Data Display:** Shows current temperature, conditions, wind chill and heat index calculations (using NWS formulas), detailed forecasts for today and tomorrow, wind information, sunrise and sunset times (calculated astronomically), moon phase information with emoji and next full moon date, rain likelihood forecasts with visual sparklines, and wind outlook forecasts with direction glyphs. **All times (hourly forecasts, sunrise, sunset, update times) are displayed in the destination location's local timezone, not your system's timezone.** Enhanced Daily Mode and Observations Mode display sunrise, sunset, and day length for each day. Section titles (Hourly, 7-Day Summary, Rain Outlook, Wind Outlook) use as many words from the city name as fit within 20 characters to prevent title wrapping and maintain consistent formatting (e.g., "Salt Lake City" fits fully, "Portland International Airport" becomes "Portland").
+- **Comprehensive Data Display:** Shows current temperature, conditions, wind chill and heat index calculations (using NWS formulas), detailed forecasts for today and tomorrow, wind information, sunrise and sunset times (calculated astronomically), solar irradiance (clear-sky GHI in W/m², displayed after sunset in white; hidden in terse mode), moon phase information with emoji and next full moon date, rain likelihood forecasts with visual sparklines, and wind outlook forecasts with direction glyphs. **All times (hourly forecasts, sunrise, sunset, update times) are displayed in the destination location's local timezone, not your system's timezone.** Enhanced Daily Mode and Observations Mode display sunrise, sunset, and day length for each day. Section titles (Hourly, 7-Day Summary, Rain Outlook, Wind Outlook) use as many words from the city name as fit within 20 characters to prevent title wrapping and maintain consistent formatting (e.g., "Salt Lake City" fits fully, "Portland International Airport" becomes "Portland").
 - **Weather Alerts:** Automatically fetches and displays any active weather alerts (e.g., warnings, watches) from official sources.
 - **Color-Coded Metrics:** Key data points (temperature, wind speed) change color (blue for cold, red for hot) to indicate potentially hazardous conditions. Rain likelihood sparklines use color coding (white for very low, cyan for low, green for light, yellow for medium, red for high probability). Wind outlook glyphs use color coding (white for calm, yellow for light breeze, red for moderate wind, magenta for strong wind) with peak wind hours highlighted using inverted colors. **Hour Labels:** Hour labels in the hourly forecast (e.g., "08:00", "09:00") are colored yellow when the majority of that hour is during daytime (determined by checking if the hour midpoint falls between sunrise and sunset), otherwise displayed in white. This applies to both the hourly forecast in the main modal and the dedicated hourly modal. **Humidity:** Uses meteorological comfort thresholds based on relative humidity percentage. Low humidity (<30%) can cause dry skin, static electricity, and respiratory discomfort (cyan). Comfortable range (30-60%) is ideal for human comfort (white). Elevated humidity (61-70%) begins to feel muggy and can affect perceived temperature (yellow). High humidity (>70%) is oppressive, significantly increases heat index, and can be dangerous in hot weather (red). **Dew Point:** More reliable than humidity for assessing comfort as it's independent of temperature. Dew point represents the temperature at which air becomes saturated and condensation forms. Values below 40°F indicate very dry air (cyan), 40-54°F is comfortable (white), 55-64°F feels sticky and muggy (yellow), and 65°F+ is oppressive and can be dangerous when combined with high temperatures (red). Dew points above 70°F are rare but extremely uncomfortable. **Pressure (Observations):** Barometric pressure in inHg with color coding: low (<29.50 inHg) cyan, normal (29.50-30.20) white, high (30.20-30.50) yellow, extreme (<29.0 or >30.5) alert/magenta.
 - **Multiple Display Modes:**
@@ -95,6 +95,7 @@ Due to differences between the OpenWeatherMap and National Weather Service APIs,
 ### Features Added/Enhanced
 
 - **Sunrise/Sunset Times:** Calculated using NOAA astronomical algorithms based on location coordinates and time zone. All displayed times (hourly forecasts, sunrise, sunset, update times) are shown in the destination location's local timezone, not your system's timezone.
+- **Solar Irradiance:** Clear-sky global horizontal irradiance (GHI) in W/m² calculated from solar position (zenith angle) at the current time; displayed after Sunset in white as "Solar: XW/m2"; hidden in terse mode.
 - **Moon Phase Information:** Astronomical moon phase calculation with emoji display and next full moon date
 - **Humidity Data:** Available in current conditions display
 
@@ -531,6 +532,60 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 - **NOAA Tide Predictions Enhancement:** Improved tide prediction fetching to automatically retrieve adjacent days (yesterday and tomorrow) when today's predictions don't include a "last" or "next" tide, ensuring complete tide information is always available regardless of time of day
 - **Hour Label Color Coding:** Hour labels in the hourly forecast are now colored yellow when the majority of that hour is during daytime (determined by checking if the hour midpoint falls between sunrise and sunset), making it easier to quickly distinguish daytime vs nighttime hours at a glance. Applies to both the hourly forecast in the main modal and the dedicated hourly modal.
 - **Comprehensive Documentation:** Updated README and project documentation
+- **Solar Irradiance Display:** Clear-sky GHI (W/m²) after Sunset in white; hidden in terse mode
+
+### Solar Irradiance (v2.1)
+
+The solar irradiance feature displays estimated clear-sky global horizontal irradiance (GHI) in W/m² at the current time for the location. It appears after the Sunset line in the current conditions section (full mode and hourly/daily/observations; **hidden in terse mode**).
+
+#### Solar Irradiance Features:
+
+- **Display Format:** "Solar: XW/m2" in white, shown after "Sunset: ..." and before "Moon Phase: ..."
+- **Units:** Watts per square meter (W/m²), integer
+- **Scope:** Full mode, hourly mode, 7-day mode, observations mode, and after manual/auto refresh when not in terse mode
+- **Terse Mode:** Solar line is not shown in terse mode (`-t` or [T] key) to keep the terse view minimal
+
+#### Technical Implementation:
+
+**Function:** `Get-SolarIrradiance`  
+**Location:** After `Get-SunriseSunset` (around line 1938)
+
+**Parameters:**
+- `[double]$Latitude` – Location latitude
+- `[double]$Longitude` – Location longitude
+- `[DateTime]$Date` – Time for which to compute irradiance (interpreted as UTC via `$Date.ToUniversalTime()`)
+- `[string]$TimeZoneId` – IANA or Windows time zone ID (used by callers for context; calculation uses UTC)
+
+**Algorithm:**
+1. **Date/UTC:** `$utcNow = $Date.ToUniversalTime()`; date-only and `$dayOfYear` from UTC date.
+2. **NOAA solar math (same as sunrise/sunset):**
+   - Fractional year: `γ = 2π × (dayOfYear - 1) / 365`
+   - Equation of time (minutes): NOAA series in γ
+   - Solar declination (radians): NOAA series in γ
+   - Solar noon (minutes from UTC midnight): `720 - 4×Longitude - equationOfTime`
+3. **Hour angle:** `utcMinutesFromMidnight = hour×60 + minute + second/60`; `H_deg = (utcMinutesFromMidnight - solarNoonUtcMin) / 4` (15° per hour from solar noon).
+4. **Solar zenith:** `cos(θ) = sin(lat)·sin(δ) + cos(lat)·cos(δ)·cos(H_rad)`. Clamp inputs to [-1,1] for safety.
+5. **Irradiance:** If `cos(θ) ≤ 0` (sun below horizon), return 0. Otherwise `GHI = 1000 × cos(θ)` (simple clear-sky model; max ~1000 W/m² at zenith). Return `[Math]::Round(GHI)`.
+
+**Display Integration:**
+- **Show-CurrentConditions:** Optional parameter `[string]$SolarIrradiance = $null`. When non-null, after the Sunset line: `Write-Host "Solar: $SolarIrradiance" -ForegroundColor White`.
+- **Show-FullWeatherReport:** Receives `CurrentTimeDateTime` (DateTime). When Lat, Lon, TimeZone, and `CurrentTimeDateTime` are present, computes `$solarStr = "${solarWm2}W/m2"` via `Get-SolarIrradiance` and passes `-SolarIrradiance $solarStr` to `Show-CurrentConditions`.
+- **Terse mode:** All terse-mode call paths pass `-SolarIrradiance $null` (no solar computation in those branches), so the Solar line is not displayed.
+
+**Edge Cases:**
+- **Polar night:** Sun never rises → GHI = 0 → "Solar: 0W/m2" if solar were shown (full mode shows it).
+- **Polar day:** Sun never sets → calculation still varies by hour angle; valid GHI returned.
+- **Missing coords/timezone/DateTime:** Callers skip irradiance and pass `$null` for `SolarIrradiance`.
+
+**Data Flow:**
+1. Main/refresh code has Lat, Lon, TimeZone, and fetch time (`$dataFetchTime` or `$script:dataFetchTime`).
+2. Full report: `Show-FullWeatherReport` called with `-CurrentTimeDateTime $dataFetchTime`; it computes `$solarStr` and passes it to `Show-CurrentConditions`.
+3. Interactive non-terse branches: compute `$solarStr` from `Get-SolarIrradiance` with `$script:dataFetchTime` and pass to `Show-CurrentConditions`.
+4. Terse branches: pass `-SolarIrradiance $null` (no `Get-SolarIrradiance` call).
+
+**Notes:**
+- NWS API does not provide irradiance; this is a clear-sky estimate only (no clouds, aerosols, or observed sky condition).
+- Formula `1000 × cos(zenith)` approximates typical clear-sky GHI; real conditions vary.
 
 ### Auto-Refresh Technical Implementation
 

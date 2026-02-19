@@ -18,6 +18,7 @@ The script first uses a geocoding service to determine the latitude and longitud
   - Detailed daily and tomorrow forecasts.
   - Wind speed and direction.
   - Sunrise and sunset times (calculated astronomically).
+  - Solar irradiance (clear-sky GHI in W/m²) after sunset, in white; hidden in terse mode.
   - Moon phase information with emoji and next full moon date.
   - **All times displayed in location's timezone:** Hourly forecasts, sunrise, sunset, and update times are shown in the destination location's local timezone, not your system's timezone.
   - Weather alerts and warnings.
@@ -511,6 +512,7 @@ Due to differences in the National Weather Service API, the following features a
 
 ## Features Added/Enhanced
 - **Sunrise/Sunset Times:** Calculated using NOAA astronomical algorithms based on location coordinates and time zone. All displayed times (hourly forecasts, sunrise, sunset, update times) are shown in the destination location's local timezone, not your system's timezone.
+- **Solar Irradiance:** Clear-sky global horizontal irradiance (GHI) in W/m² at the current time, displayed after Sunset as "Solar: XW/m2" in white. Hidden in terse mode. Estimate only (NWS does not provide irradiance).
 - **Humidity Data:** Available in current conditions display
 
 ## API Information
