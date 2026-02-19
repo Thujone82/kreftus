@@ -13,6 +13,7 @@
 .NOTES
     - Requires an active internet connection.
     - Location accuracy is based on the IP address, not GPS, so it may be less precise.
+    - Displays astronomical data: sunrise, sunset, day length, solar noon, irradiance (clear-sky GHI in W/m²), moon phase.
     - Usage: .\here.ps1 [IPAddress]
     - Example: .\here.ps1 1.1.1.1
 #>
@@ -145,6 +146,36 @@ function Get-SunriseSunset {
         IsPolarNight = $false
         SolarNoonUtcMin = $solarNoonUtcMin
     }
+}
+
+# Function to calculate clear-sky solar irradiance (GHI) in W/m² at a given time and location
+function Get-SolarIrradiance {
+    param(
+        [double]$Latitude,
+        [double]$Longitude,
+        [DateTime]$Date,
+        [string]$TimeZoneId
+    )
+
+    function ToRadians([double]$deg) { return [Math]::PI * $deg / 180.0 }
+
+    $latRad = ToRadians $Latitude
+    $utcNow = $Date.ToUniversalTime()
+    $dateOnly = [DateTime]::new($utcNow.Year, $utcNow.Month, $utcNow.Day, 0, 0, 0, [System.DateTimeKind]::Utc)
+    $dayOfYear = $dateOnly.DayOfYear
+
+    $gamma = 2.0 * [Math]::PI * ($dayOfYear - 1) / 365.0
+    $equationOfTime = 229.18 * (0.000075 + 0.001868 * [Math]::Cos($gamma) - 0.032077 * [Math]::Sin($gamma) - 0.014615 * [Math]::Cos(2*$gamma) - 0.040849 * [Math]::Sin(2*$gamma))
+    $declination = 0.006918 - 0.399912 * [Math]::Cos($gamma) + 0.070257 * [Math]::Sin($gamma) - 0.006758 * [Math]::Cos(2*$gamma) + 0.000907 * [Math]::Sin(2*$gamma) - 0.002697 * [Math]::Cos(3*$gamma) + 0.00148 * [Math]::Sin(3*$gamma)
+    $solarNoonUtcMin = 720.0 - 4.0 * $Longitude - $equationOfTime
+    $utcMinutesFromMidnight = $utcNow.Hour * 60 + $utcNow.Minute + $utcNow.Second / 60.0
+    $hourAngleDeg = ($utcMinutesFromMidnight - $solarNoonUtcMin) / 4.0
+    $hourAngleRad = ToRadians $hourAngleDeg
+    $cosZenith = [Math]::Sin($latRad) * [Math]::Sin($declination) + [Math]::Cos($latRad) * [Math]::Cos($declination) * [Math]::Cos($hourAngleRad)
+
+    if ($cosZenith -le 0) { return 0 }
+    $ghi = 1000.0 * $cosZenith
+    return [Math]::Round($ghi)
 }
 
 # Function to calculate moon phase using simple astronomical method
@@ -326,6 +357,11 @@ if ($GeoLocation) {
             # Calculate and display solar noon (midpoint between sunrise and sunset)
             $solarNoon = $sunriseTime.AddMinutes($dayLength.TotalMinutes / 2)
             Write-ModernRow "Solar Noon" $solarNoon.ToString("h:mm tt")
+
+            # Calculate and display solar irradiance (clear-sky GHI at current time)
+            $nowUtc = [TimeZoneInfo]::ConvertTimeToUtc($currentLocalTime, $tzInfo)
+            $irradianceWm2 = Get-SolarIrradiance -Latitude $GeoLocation.Latitude -Longitude $GeoLocation.Longitude -Date $nowUtc -TimeZoneId $timeZoneId
+            Write-ModernRow "Irradiance" "$irradianceWm2 W/m²"
         }
     }
     

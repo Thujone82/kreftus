@@ -17,7 +17,7 @@ FEATURES:
     - Comprehensive error handling with timeout detection
     - Clean ASCII-based formatting for universal compatibility
     - Astronomical calculations (sunrise, sunset, moon phase)
-    - Day length and solar noon calculations
+    - Day length, solar noon, and solar irradiance (clear-sky GHI in W/m²) calculations
     - Timezone-aware local time display
     - Polar day/night handling for extreme latitudes
 
@@ -56,6 +56,7 @@ INFORMATION DISPLAYED:
     Sunset    - Calculated sunset time (NOAA algorithm)
     Day Length - Duration between sunrise and sunset
     Solar Noon - Time when sun reaches highest point
+    Irradiance  - Clear-sky solar irradiance at current time (W/m²)
     Moon Phase - Current moon phase (text description)
 
 ACCURACY NOTE:
@@ -110,6 +111,7 @@ EXAMPLE OUTPUT:
     Sunset    : 4:36 PM
     Day Length: 8 hours 46 minutes
     Solar Noon: 12:13 PM
+    Irradiance : 258 W/m²
     Moon Phase: Waxing Gibbous
     
     Accuracy is based on your ISP's IP address assignment, not GPS.
@@ -122,17 +124,19 @@ TROUBLESHOOTING:
 
 ASTRONOMICAL CALCULATIONS:
     - Sunrise and sunset times calculated using NOAA algorithms
+    - Solar irradiance (clear-sky GHI) at current time in W/m² (simple zenith-angle model)
     - Moon phase calculated using astronomical method (reference date: Jan 6, 2000)
     - All calculations performed locally using coordinates (no additional APIs)
     - Automatic timezone resolution (IANA to Windows timezone conversion)
     - Handles edge cases: polar day/night scenarios
 
-VERSION: 1.1
+VERSION: 1.2
 AUTHOR:  Generated for kreftus project
 DATE:    Current
 LICENSE: See project LICENSE file
 
 CHANGELOG:
+    v1.2 - Added solar irradiance (clear-sky GHI in W/m²) after Solar Noon
     v1.1 - Added astronomical information (sunrise, sunset, moon phase, 
            day length, solar noon, timezone, local time)
     v1.0 - Initial release with modern formatting and clean colorized output
