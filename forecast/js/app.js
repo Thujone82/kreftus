@@ -669,6 +669,10 @@ function setupEventListeners() {
     // Clear input on focus so user can type a new location without deleting first
     elements.locationInput.addEventListener('focus', () => {
         elements.locationInput.value = '';
+        elements.locationInput._userFocused = true;
+    });
+    elements.locationInput.addEventListener('blur', () => {
+        elements.locationInput._userFocused = false;
     });
     
     // Mode buttons
@@ -1754,6 +1758,13 @@ function updateFavoriteCustomName(identifier, customName) {
     }
 }
 
+// Set location input value only when not focused by user (avoids overwriting after clear-on-focus on iPad)
+function setLocationInputValue(value) {
+    if (!elements.locationInput) return;
+    if (document.activeElement === elements.locationInput && elements.locationInput._userFocused) return;
+    elements.locationInput.value = value || '';
+}
+
 // Last viewed location functions
 function saveLastViewedLocation(location, locationObject, searchQuery) {
     try {
@@ -2173,6 +2184,14 @@ function renderLocationButtons(activeUID = null) {
         currentUID = generateLocationUID(appState.location);
     }
     
+    // Skip DOM update if active state unchanged (prevents blinking on iPad from repeated renders)
+    const currentActiveBtn = elements.locationButtons.querySelector('.location-btn.active');
+    const currentActiveUid = currentActiveBtn ? (currentActiveBtn.getAttribute('data-location-uid') || currentActiveBtn.getAttribute('data-location-key')) : null;
+    if (currentActiveUid === (currentUID || '') && !favoritesUpdated) {
+        const buttonCount = elements.locationButtons.querySelectorAll('.location-btn').length;
+        if (buttonCount === favorites.length) return;
+    }
+    
     let html = '';
     favorites.forEach(favorite => {
         // Use customName if available, otherwise fall back to name
@@ -2490,7 +2509,7 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
             }
             
             const locationText = formatLocationDisplayName(restoredWeatherData.location.city, restoredWeatherData.location.state);
-            elements.locationInput.value = locationText;
+            setLocationInputValue(locationText);
         } else {
             // Fallback to cached location string
             // Format the location string for display (remove ", US" if present)
@@ -2499,7 +2518,7 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
                 if (parts.length >= 2) {
                     const city = parts[0];
                     const state = parts[1];
-                    elements.locationInput.value = formatLocationDisplayName(city, state);
+                    setLocationInputValue(formatLocationDisplayName(city, state));
                     appState.location = {
                         city: city,
                         state: state,
@@ -2509,10 +2528,10 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
                         timeZone: 'America/New_York'
                     };
                 } else {
-                    elements.locationInput.value = cache.location;
+                    setLocationInputValue(cache.location);
                 }
             } else {
-                elements.locationInput.value = cache.location || '';
+                setLocationInputValue(cache.location || '');
             }
         }
         if (!locationKey && appState.observationsData != null) {
@@ -3002,7 +3021,7 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         
         // Update location in input field
         const locationText = formatLocationDisplayName(weatherData.location.city, weatherData.location.state);
-        elements.locationInput.value = locationText;
+        setLocationInputValue(locationText);
         
         // Update URL if location changed (preserve mode)
         if (location && location.toLowerCase() !== 'here') {

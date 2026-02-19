@@ -1,13 +1,13 @@
-﻿let CACHE_NAME = 'forecast-v1.0.0-021926@0759';
-let STATIC_CACHE = 'forecast-static-v1.0.0';
-let DATA_CACHE = 'forecast-data-v1.0.0';
+﻿let CACHE_NAME = 'forecast-v1.0.1-021926@0759';
+let STATIC_CACHE = 'forecast-static-v1.0.1';
+let DATA_CACHE = 'forecast-data-v1.0.1';
 
 // Initialize cache names from manifest
 async function initializeCacheNames() {
     try {
         const response = await fetch('/forecast/manifest.json?t=' + Date.now());
         const manifest = await response.json();
-        const version = manifest.version || '1.0.0';
+        const version = manifest.version || '1.0.1';
         CACHE_NAME = `forecast-v${version}`;
         STATIC_CACHE = `forecast-static-v${version}`;
         DATA_CACHE = `forecast-data-v${version}`;
@@ -155,7 +155,7 @@ async function checkForUpdate() {
         const manifest = await response.json();
         
         // Get current version from cache name or default
-        const currentVersion = CACHE_NAME.match(/v([\d.]+)/)?.[1] || '1.0.0';
+        const currentVersion = CACHE_NAME.match(/v([\d.]+)/)?.[1] || '1.0.1';
         
         if (manifest.version !== currentVersion) {
             // Notify all clients about the update
