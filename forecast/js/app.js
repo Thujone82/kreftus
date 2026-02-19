@@ -626,6 +626,13 @@ function setupForecastTextVisibility() {
         // Use window resize event as fallback
         window.addEventListener('resize', updateForecastTextVisibility);
     }
+    // Persist location and mode when PWA/tab is closed or sent to background so it reopens to the same view
+    window.addEventListener('pagehide', persistCurrentView);
+    window.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            persistCurrentView();
+        }
+    });
 }
 
 function setupEventListeners() {
@@ -962,6 +969,12 @@ async function handleLocationButtonClick(uid) {
     
     if (cacheLoaded) {
         console.log('handleLocationButtonClick: Successfully loaded cached data for favorite:', favorite.name || favorite.searchQuery);
+        // Persist this as last viewed so PWA reopens to this location/mode
+        const displayName = favorite.name || (appState.location && formatLocationDisplayName(appState.location.city, appState.location.state)) || favorite.searchQuery;
+        saveLastViewedLocation(displayName, appState.location, favorite.searchQuery);
+        try {
+            localStorage.setItem('forecastCurrentMode', appState.currentMode);
+        } catch (e) { /* ignore */ }
         // Update URL
         updateURL(favorite.searchQuery, appState.currentMode);
         
@@ -1800,6 +1813,28 @@ function getLastViewedLocation() {
     } catch (error) {
         console.warn('Failed to load last viewed location:', error);
         return null;
+    }
+}
+
+// Persist current location and mode so PWA reopens to the same view (e.g. on close or background)
+function persistCurrentView() {
+    try {
+        if (appState.currentMode && ['full', 'history', 'hourly', 'daily', 'rain', 'wind'].includes(appState.currentMode)) {
+            localStorage.setItem('forecastCurrentMode', appState.currentMode);
+        }
+        if (!appState.location || !appState.weatherData) return;
+        const locationText = formatLocationDisplayName(appState.location.city, appState.location.state);
+        if (appState.isCurrentLocationActive) {
+            const lastViewed = { key: 'here', searchQuery: 'here', name: locationText || 'Current location', location: appState.location };
+            localStorage.setItem('forecastLastViewedLocation', JSON.stringify(lastViewed));
+        } else {
+            const searchQuery = elements.locationInput && elements.locationInput.value
+                ? elements.locationInput.value.trim()
+                : (locationText || 'here');
+            saveLastViewedLocation(locationText || searchQuery, appState.location, searchQuery);
+        }
+    } catch (error) {
+        console.warn('Failed to persist current view:', error);
     }
 }
 
