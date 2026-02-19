@@ -195,6 +195,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host " • Humidity" -ForegroundColor Cyan
     Write-Host " • Wind (with gust if available; red if wind speed >=16 mph)" -ForegroundColor Cyan
     Write-Host " • Sunrise and Sunset times (calculated astronomically)" -ForegroundColor Cyan
+    Write-Host " • Solar irradiance (clear-sky GHI in W/m²; hidden in terse mode)" -ForegroundColor Cyan
     Write-Host " • Detailed Forecast" -ForegroundColor Cyan
     Write-Host " • Weather Alerts" -ForegroundColor Cyan
     Write-Host " • Forecast Fetch timestamp" -ForegroundColor Cyan
