@@ -308,27 +308,24 @@ async function init() {
                     cachedDataLoaded = loadCachedWeatherData(cacheKey, lastViewed.searchQuery);
                     if (cachedDataLoaded) {
                         // Update location input field with the saved location name
-                        if (lastViewed.name && elements.locationInput) {
-                            elements.locationInput.value = lastViewed.name;
-                        }
+                        setLocationInputValue(lastViewed.name);
                         
-                        // Find matching favorite UID for button highlighting
+                        // Resolve active UID for star + location button (must match so both show active/green)
                         let activeUID = lastViewed.uid;
-                        if (!activeUID && cacheKey.startsWith('uid_')) {
-                            // Extract UID from UID-based cache key
-                            activeUID = cacheKey.replace('uid_', '');
-                        } else if (!activeUID && lastViewed.location) {
-                            // Generate UID from location
+                        if (!activeUID && cacheKey && cacheKey.startsWith('uid_')) {
+                            activeUID = cacheKey.replace(/^uid_/, '');
+                        }
+                        if (!activeUID && lastViewed.location) {
                             activeUID = generateLocationUID(lastViewed.location);
                         }
+                        const favorite = activeUID ? (getFavoriteByUID(activeUID) || getFavoriteByKey(activeUID)) : null;
+                        const identifierForButtons = (favorite && favorite.uid) ? favorite.uid : activeUID;
                         
-                        // Update favorite button state and location buttons
-                        updateFavoriteButtonState(activeUID);
-                        // Render location buttons if favorites exist
+                        // Ensure star and location button both show active when loading a favorited location
+                        updateFavoriteButtonState(identifierForButtons);
                         if (favorites.length > 0) {
-                            renderLocationButtons(activeUID);
+                            renderLocationButtons(identifierForButtons);
                         }
-                        // Update current location button state (not active since we're using a favorite)
                         updateCurrentLocationButtonState(false);
                         return; // Successfully loaded last viewed favorite location
                     }
@@ -1698,8 +1695,10 @@ function removeFavorite(identifier) {
 function isFavorite(identifier) {
     if (!identifier) return false;
     const favorites = getFavorites();
-    // Check by UID first (preferred), then by key (backward compatibility)
-    return favorites.some(fav => fav.uid === identifier || fav.key === identifier);
+    // Normalize: appState.currentLocationKey may be "uid_xxx" (cache key)
+    const rawUid = (typeof identifier === 'string' && identifier.startsWith('uid_'))
+        ? identifier.replace(/^uid_/, '') : identifier;
+    return favorites.some(fav => fav.uid === identifier || fav.key === identifier || fav.uid === rawUid);
 }
 
 function getFavoriteByUID(uid) {
@@ -2604,17 +2603,15 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
             // Update last update time (this uses appState.lastFetchTime, so it should be correct now)
             updateLastUpdateTime();
             
-            // Update favorite button state and location buttons
+            // Update favorite button state and location buttons (must match so star + location button are both active)
             // Extract UID from cache key if it's UID-based, or find matching favorite
             let activeIdentifier = matchingFavoriteUID;
             if (!activeIdentifier) {
                 if (locationKey && locationKey.startsWith('uid_')) {
                     // Extract UID from UID-based cache key
-                    const uidFromKey = locationKey.replace('uid_', '');
+                    const uidFromKey = locationKey.replace(/^uid_/, '');
                     const favorite = getFavoriteByUID(uidFromKey);
-                    if (favorite && favorite.uid) {
-                        activeIdentifier = favorite.uid;
-                    }
+                    activeIdentifier = (favorite && favorite.uid) ? favorite.uid : uidFromKey;
                 } else if (locationKey) {
                     // Location key - find matching favorite by key
                     const favorite = getFavoriteByKey(locationKey);
