@@ -658,6 +658,10 @@ function setupEventListeners() {
             }
         }
     });
+    // Clear input on focus so user can type a new location without deleting first
+    elements.locationInput.addEventListener('focus', () => {
+        elements.locationInput.value = '';
+    });
     
     // Mode buttons
     if (elements.modeButtons && elements.modeButtons.length > 0) {
