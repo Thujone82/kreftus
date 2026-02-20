@@ -1,4 +1,4 @@
-<#
+﻿<#
 .ENCODING
     This file MUST be saved as UTF-8 with BOM. Do not change the encoding or script errors may occur (e.g. with glyphs/emoji).
 .SYNOPSIS
@@ -195,7 +195,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host " • Humidity" -ForegroundColor Cyan
     Write-Host " • Wind (with gust if available; red if wind speed >=16 mph)" -ForegroundColor Cyan
     Write-Host " • Sunrise and Sunset times (calculated astronomically)" -ForegroundColor Cyan
-    Write-Host " • Solar irradiance (clear-sky GHI in W/m²; hidden in terse mode)" -ForegroundColor Cyan
+    Write-Host " • Solar irradiance (clear-sky GHI in W/m² at current time + peak at solar noon; hidden in terse mode)" -ForegroundColor Cyan
     Write-Host " • Detailed Forecast" -ForegroundColor Cyan
     Write-Host " • Weather Alerts" -ForegroundColor Cyan
     Write-Host " • Forecast Fetch timestamp" -ForegroundColor Cyan
@@ -1985,6 +1985,26 @@ function Get-SolarIrradiance {
     return [Math]::Round($ghi)
 }
 
+# Returns solar noon in UTC and local time for a given date (same NOAA math as Get-SolarIrradiance / Get-SunriseSunset)
+function Get-SolarNoonForDate {
+    param(
+        [double]$Latitude,
+        [double]$Longitude,
+        [DateTime]$Date,
+        [string]$TimeZoneId
+    )
+    $utcNow = $Date.ToUniversalTime()
+    $dateOnly = [DateTime]::new($utcNow.Year, $utcNow.Month, $utcNow.Day, 0, 0, 0, [System.DateTimeKind]::Utc)
+    $dayOfYear = $dateOnly.DayOfYear
+    $gamma = 2.0 * [Math]::PI * ($dayOfYear - 1) / 365.0
+    $equationOfTime = 229.18 * (0.000075 + 0.001868 * [Math]::Cos($gamma) - 0.032077 * [Math]::Sin($gamma) - 0.014615 * [Math]::Cos(2*$gamma) - 0.040849 * [Math]::Sin(2*$gamma))
+    $solarNoonUtcMin = 720.0 - 4.0 * $Longitude - $equationOfTime
+    $solarNoonUtc = $dateOnly.AddMinutes($solarNoonUtcMin)
+    $tzInfo = Get-ResolvedTimeZoneInfo -TimeZoneId $TimeZoneId
+    $solarNoonLocal = [System.TimeZoneInfo]::ConvertTimeFromUtc($solarNoonUtc, $tzInfo)
+    return @{ SolarNoonUtc = $solarNoonUtc; SolarNoonLocal = $solarNoonLocal }
+}
+
 # Helper function to format day length as "Xh Ym"
 function Format-DayLength {
     param(
@@ -2524,7 +2544,7 @@ function Show-CurrentConditions {
         Write-Host "Sunset: $SunsetTime" -ForegroundColor Yellow
     }
     if ($SolarIrradiance) {
-        Write-Host "Solar: $SolarIrradiance" -ForegroundColor White
+        Write-Host "Irradiance: $SolarIrradiance" -ForegroundColor White
     }
     
     # Display moon phase information
@@ -4315,11 +4335,14 @@ function Show-FullWeatherReport {
         } else { 
             "N/A" 
         }
-        # Compute solar irradiance when we have coords, timezone, and DateTime
+        # Compute solar irradiance when we have coords, timezone, and DateTime (current + peak at solar noon)
         $solarStr = $null
         if ($Lat -ne 0 -and $Lon -ne 0 -and $TimeZone -and $null -ne $CurrentTimeDateTime -and $CurrentTimeDateTime -is [DateTime]) {
             $solarWm2 = Get-SolarIrradiance -Latitude $Lat -Longitude $Lon -Date $CurrentTimeDateTime -TimeZoneId $TimeZone
-            $solarStr = "${solarWm2}W/m2"
+            $solarNoon = Get-SolarNoonForDate -Latitude $Lat -Longitude $Lon -Date $CurrentTimeDateTime -TimeZoneId $TimeZone
+            $peakWm2 = Get-SolarIrradiance -Latitude $Lat -Longitude $Lon -Date $solarNoon.SolarNoonUtc -TimeZoneId $TimeZone
+            $solarNoonLocalStr = $solarNoon.SolarNoonLocal.ToString('h:mm')
+            $solarStr = "${solarWm2}W/m2 [Peak ${peakWm2}W/m2 @ $solarNoonLocalStr]"
         }
         Show-CurrentConditions -City $City -State $State -WeatherIcon $WeatherIcon -CurrentConditions $CurrentConditions -CurrentTemp $CurrentTemp -TempColor $TempColor -CurrentTempTrend $CurrentTempTrend -CurrentWind $CurrentWind -WindColor $WindColor -CurrentWindDir $CurrentWindDir -WindGust $WindGust -CurrentHumidity $CurrentHumidity -CurrentDewPoint $CurrentDewPoint -CurrentPrecipProb $CurrentPrecipProb -CurrentTimeLocal $CurrentTimeLocal -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $DefaultColor -AlertColor $AlertColor -TitleColor $TitleColor -InfoColor $InfoColor -MoonPhase $MoonPhase -MoonEmoji $MoonEmoji -IsFullMoon $IsFullMoon -NextFullMoonDate $NextFullMoonDate -IsNewMoon $IsNewMoon -ShowNextFullMoon $ShowNextFullMoon -ShowNextNewMoon $ShowNextNewMoon -NextNewMoonDate $NextNewMoonDate -SolarIrradiance $solarStr
     }

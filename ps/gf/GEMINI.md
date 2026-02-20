@@ -95,7 +95,7 @@ Due to differences between the OpenWeatherMap and National Weather Service APIs,
 ### Features Added/Enhanced
 
 - **Sunrise/Sunset Times:** Calculated using NOAA astronomical algorithms based on location coordinates and time zone. All displayed times (hourly forecasts, sunrise, sunset, update times) are shown in the destination location's local timezone, not your system's timezone.
-- **Solar Irradiance:** Clear-sky global horizontal irradiance (GHI) in W/m² calculated from solar position (zenith angle) at the current time; displayed after Sunset in white as "Solar: XW/m2"; hidden in terse mode.
+- **Solar Irradiance:** Clear-sky global horizontal irradiance (GHI) in W/m² at the current time plus peak GHI at location solar noon with time; displayed after Sunset in white as "Irradiance: XW/m2 [Peak YW/m2 @ h:mm]"; hidden in terse mode.
 - **Moon Phase Information:** Astronomical moon phase calculation with emoji display and next full moon date
 - **Humidity Data:** Available in current conditions display
 
@@ -532,15 +532,15 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 - **NOAA Tide Predictions Enhancement:** Improved tide prediction fetching to automatically retrieve adjacent days (yesterday and tomorrow) when today's predictions don't include a "last" or "next" tide, ensuring complete tide information is always available regardless of time of day
 - **Hour Label Color Coding:** Hour labels in the hourly forecast are now colored yellow when the majority of that hour is during daytime (determined by checking if the hour midpoint falls between sunrise and sunset), making it easier to quickly distinguish daytime vs nighttime hours at a glance. Applies to both the hourly forecast in the main modal and the dedicated hourly modal.
 - **Comprehensive Documentation:** Updated README and project documentation
-- **Solar Irradiance Display:** Clear-sky GHI (W/m²) after Sunset in white; hidden in terse mode
+- **Solar Irradiance Display:** Clear-sky GHI (W/m²) at current time plus peak at solar noon with time, after Sunset in white; hidden in terse mode
 
 ### Solar Irradiance (v2.1)
 
-The solar irradiance feature displays estimated clear-sky global horizontal irradiance (GHI) in W/m² at the current time for the location. It appears after the Sunset line in the current conditions section (full mode and hourly/daily/observations; **hidden in terse mode**).
+The solar irradiance feature displays estimated clear-sky global horizontal irradiance (GHI) in W/m² at the current time for the location, plus the peak GHI at the location's solar noon and the time of solar noon. It appears after the Sunset line in the current conditions section (full mode and hourly/daily/observations; **hidden in terse mode**).
 
 #### Solar Irradiance Features:
 
-- **Display Format:** "Solar: XW/m2" in white, shown after "Sunset: ..." and before "Moon Phase: ..."
+- **Display Format:** "Irradiance: XW/m2 [Peak YW/m2 @ h:mm]" in white (X = current GHI, Y = peak at solar noon, h:mm = solar noon local time), shown after "Sunset: ..." and before "Moon Phase: ..."
 - **Units:** Watts per square meter (W/m²), integer
 - **Scope:** Full mode, hourly mode, 7-day mode, observations mode, and after manual/auto refresh when not in terse mode
 - **Terse Mode:** Solar line is not shown in terse mode (`-t` or [T] key) to keep the terse view minimal
@@ -567,13 +567,15 @@ The solar irradiance feature displays estimated clear-sky global horizontal irra
 4. **Solar zenith:** `cos(θ) = sin(lat)·sin(δ) + cos(lat)·cos(δ)·cos(H_rad)`. Clamp inputs to [-1,1] for safety.
 5. **Irradiance:** If `cos(θ) ≤ 0` (sun below horizon), return 0. Otherwise `GHI = 1000 × cos(θ)` (simple clear-sky model; max ~1000 W/m² at zenith). Return `[Math]::Round(GHI)`.
 
+**Helper:** `Get-SolarNoonForDate` (after `Get-SolarIrradiance`) returns solar noon in UTC and local time for a given date using the same NOAA solar math; used to compute peak irradiance at solar noon and the display time.
+
 **Display Integration:**
-- **Show-CurrentConditions:** Optional parameter `[string]$SolarIrradiance = $null`. When non-null, after the Sunset line: `Write-Host "Solar: $SolarIrradiance" -ForegroundColor White`.
-- **Show-FullWeatherReport:** Receives `CurrentTimeDateTime` (DateTime). When Lat, Lon, TimeZone, and `CurrentTimeDateTime` are present, computes `$solarStr = "${solarWm2}W/m2"` via `Get-SolarIrradiance` and passes `-SolarIrradiance $solarStr` to `Show-CurrentConditions`.
+- **Show-CurrentConditions:** Optional parameter `[string]$SolarIrradiance = $null`. When non-null, after the Sunset line: `Write-Host "Irradiance: $SolarIrradiance" -ForegroundColor White`.
+- **Show-FullWeatherReport:** Receives `CurrentTimeDateTime` (DateTime). When Lat, Lon, TimeZone, and `CurrentTimeDateTime` are present, computes current GHI via `Get-SolarIrradiance`, gets solar noon via `Get-SolarNoonForDate`, computes peak GHI at solar noon via `Get-SolarIrradiance` with `SolarNoonUtc`, then `$solarStr = "${solarWm2}W/m2 [Peak ${peakWm2}W/m2 @ $solarNoonLocalStr]"` and passes `-SolarIrradiance $solarStr` to `Show-CurrentConditions`.
 - **Terse mode:** All terse-mode call paths pass `-SolarIrradiance $null` (no solar computation in those branches), so the Solar line is not displayed.
 
 **Edge Cases:**
-- **Polar night:** Sun never rises → GHI = 0 → "Solar: 0W/m2" if solar were shown (full mode shows it).
+- **Polar night:** Sun never rises → GHI = 0 → "Irradiance: 0W/m2 [Peak 0W/m2 @ ...]" if solar were shown (full mode shows it).
 - **Polar day:** Sun never sets → calculation still varies by hour angle; valid GHI returned.
 - **Missing coords/timezone/DateTime:** Callers skip irradiance and pass `$null` for `SolarIrradiance`.
 
