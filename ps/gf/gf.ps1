@@ -4342,7 +4342,7 @@ function Show-FullWeatherReport {
             $solarNoon = Get-SolarNoonForDate -Latitude $Lat -Longitude $Lon -Date $CurrentTimeDateTime -TimeZoneId $TimeZone
             $peakWm2 = Get-SolarIrradiance -Latitude $Lat -Longitude $Lon -Date $solarNoon.SolarNoonUtc -TimeZoneId $TimeZone
             $solarNoonLocalStr = $solarNoon.SolarNoonLocal.ToString('h:mm')
-            $solarStr = "${solarWm2}W/m2 [Peak ${peakWm2}W/m2 @ $solarNoonLocalStr]"
+            $solarStr = "${solarWm2}W/m2 [${peakWm2}W/m2 @ $solarNoonLocalStr]"
         }
         Show-CurrentConditions -City $City -State $State -WeatherIcon $WeatherIcon -CurrentConditions $CurrentConditions -CurrentTemp $CurrentTemp -TempColor $TempColor -CurrentTempTrend $CurrentTempTrend -CurrentWind $CurrentWind -WindColor $WindColor -CurrentWindDir $CurrentWindDir -WindGust $WindGust -CurrentHumidity $CurrentHumidity -CurrentDewPoint $CurrentDewPoint -CurrentPrecipProb $CurrentPrecipProb -CurrentTimeLocal $CurrentTimeLocal -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $DefaultColor -AlertColor $AlertColor -TitleColor $TitleColor -InfoColor $InfoColor -MoonPhase $MoonPhase -MoonEmoji $MoonEmoji -IsFullMoon $IsFullMoon -NextFullMoonDate $NextFullMoonDate -IsNewMoon $IsNewMoon -ShowNextFullMoon $ShowNextFullMoon -ShowNextNewMoon $ShowNextNewMoon -NextNewMoonDate $NextNewMoonDate -SolarIrradiance $solarStr
     }
