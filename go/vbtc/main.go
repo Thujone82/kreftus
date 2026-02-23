@@ -400,7 +400,9 @@ func showMainScreen() {
 				if hourlyAvg > 0 && apiData.Rate24hTotalChange1h >= 0 {
 					multiplier := apiData.Rate24hTotalChange1h / hourlyAvg
 					velocity = int(math.Round(float64(velocity) * multiplier))
-					if apiData.Rate24hTotalChange1h > hourlyAvg {
+					if velocity >= 50 {
+						velocityColor = color.New(color.FgMagenta)
+					} else if apiData.Rate24hTotalChange1h > hourlyAvg {
 						velocityColor = color.New(color.FgGreen)
 					} else {
 						velocityColor = color.New(color.FgRed)

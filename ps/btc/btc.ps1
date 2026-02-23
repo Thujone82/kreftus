@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Retrieves and displays Bitcoin (BTC) data from LiveCoinWatch API. Supports .ini configuration,
     profit/loss calculation, CSV logging, first-run setup, config update, and accurate 24h price
@@ -699,7 +699,7 @@ try {
                     if ($hourlyAvg -gt 0 -and $historicalStats.PSObject.Properties.Name -contains 'TotalChange1h' -and $null -ne $historicalStats.TotalChange1h) {
                         $multiplier = $historicalStats.TotalChange1h / $hourlyAvg
                         $velocity = [math]::Round($velocity * $multiplier)
-                        $velocityColor = if ($historicalStats.TotalChange1h -gt $hourlyAvg) { "Green" } else { "Red" }
+                        $velocityColor = if ($velocity -ge 50) { "Magenta" } elseif ($historicalStats.TotalChange1h -gt $hourlyAvg) { "Green" } else { "Red" }
                         Write-Verbose "Velocity calculation: TotalChange=$($historicalStats.TotalChange), 1HourDeltaTotal=$($historicalStats.TotalChange1h), 24H High=$($historicalStats.High), 24H Low=$($historicalStats.Low), range=$range, Volatility=$($historicalStats.Volatility)% (as whole number), hourlyAvg=$hourlyAvg, multiplier=$multiplier, velocity=$velocity"
                     } else {
                         Write-Verbose "Velocity calculation: TotalChange=$($historicalStats.TotalChange), 24H High=$($historicalStats.High), 24H Low=$($historicalStats.Low), range=$range, Volatility=$($historicalStats.Volatility)% (as whole number), velocity=$velocity"

@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Virtual Bitcoin Trader (vBTC) - Interactive Bitcoin trading simulation
 
@@ -633,7 +633,7 @@ function Show-MainScreen {
             if ($hourlyAvg -gt 0 -and $ApiData.PSObject.Properties['rate24hTotalChange1h'] -and $null -ne $ApiData.rate24hTotalChange1h) {
                 $multiplier = $ApiData.rate24hTotalChange1h / $hourlyAvg
                 $velocity = [math]::Round($velocity * $multiplier)
-                $velocityColor = if ($ApiData.rate24hTotalChange1h -gt $hourlyAvg) { "Green" } else { "Red" }
+                $velocityColor = if ($velocity -ge 50) { "Magenta" } elseif ($ApiData.rate24hTotalChange1h -gt $hourlyAvg) { "Green" } else { "Red" }
                 Write-Verbose "Velocity calculation: TotalChange=$($ApiData.rate24hTotalChange), 1HourDeltaTotal=$($ApiData.rate24hTotalChange1h), 24H High=$($ApiData.rate24hHigh), 24H Low=$($ApiData.rate24hLow), range=$range, Volatility=$($ApiData.volatility24h)% (as whole number), hourlyAvg=$hourlyAvg, multiplier=$multiplier, velocity=$velocity"
             } else {
                 Write-Verbose "Velocity calculation: TotalChange=$($ApiData.rate24hTotalChange), 24H High=$($ApiData.rate24hHigh), 24H Low=$($ApiData.rate24hLow), range=$range, Volatility=$($ApiData.volatility24h)% (as whole number), velocity=$velocity"

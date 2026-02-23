@@ -119,6 +119,7 @@ The main screen shows **Volatility** with an optional bracketed integer (e.g. `V
 
 #### Velocity color
 - The **velocity bracket** (e.g. `[15]`) is colored separately from the volatility percentage:
+  - **Magenta:** velocity >= 50 (high activity)
   - **Green:** `1HourDeltaTotal > (24DeltaTotal/24)` — last hour above average
   - **Red:** otherwise (last hour at or below average)
   - **White:** when multiplier data is missing (no `1HourDeltaTotal` or `hourlyAvg`)
