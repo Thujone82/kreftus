@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Retrieves the machine's approximate geographical location using a public IP Geolocation API.
 
@@ -358,10 +358,13 @@ if ($GeoLocation) {
             $solarNoon = $sunriseTime.AddMinutes($dayLength.TotalMinutes / 2)
             Write-ModernRow "Solar Noon" $solarNoon.ToString("h:mm tt")
 
-            # Calculate and display solar irradiance (clear-sky GHI at current time)
+            # Calculate and display solar irradiance (clear-sky GHI at current time + peak at solar noon)
             $nowUtc = [TimeZoneInfo]::ConvertTimeToUtc($currentLocalTime, $tzInfo)
             $irradianceWm2 = Get-SolarIrradiance -Latitude $GeoLocation.Latitude -Longitude $GeoLocation.Longitude -Date $nowUtc -TimeZoneId $timeZoneId
-            Write-ModernRow "Irradiance" "$irradianceWm2 W/m²"
+            $solarNoonUtc = [TimeZoneInfo]::ConvertTimeToUtc($solarNoon, $tzInfo)
+            $peakWm2 = Get-SolarIrradiance -Latitude $GeoLocation.Latitude -Longitude $GeoLocation.Longitude -Date $solarNoonUtc -TimeZoneId $timeZoneId
+            $solarNoonStr = $solarNoon.ToString('h:mm')
+            Write-ModernRow "Irradiance" "$irradianceWm2 W/m² [$peakWm2 W/m² @ $solarNoonStr]"
         }
     }
     
