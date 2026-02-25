@@ -51,15 +51,31 @@ try {
     if (-not (Test-Path -LiteralPath $trimpsPath)) {
         New-Item -ItemType Directory -Path $trimpsPath -Force | Out-Null
     }
-    # --- Copy all items (including .git) from clone into trimps, except .vscode ---
-    Get-ChildItem -Path $cloneDir -Force | Where-Object { $_.Name -ne '.vscode' } | ForEach-Object {
-        Copy-Item -LiteralPath $_.FullName -Destination $trimpsPath -Recurse -Force
+    # --- Copy only files that are new or changed (skip .git, .vscode); skip PWA-owned files only when we already have them ---
+    # Do not overwrite index.html, manifest.json, or sw.js when they already exist - we own them and restore below
+    $pwaOwnedFiles = @{ 'index.html' = $true; 'manifest.json' = $true; 'sw.js' = $true }
+    $cloneBaseLen = (Resolve-Path -LiteralPath $cloneDir).Path.TrimEnd('\').Length + 1
+    Get-ChildItem -Path $cloneDir -Recurse -File -Force | Where-Object { $_.FullName -notmatch '\.(git|vscode)\\' } | ForEach-Object {
+        $rel = $_.FullName.Substring($cloneBaseLen)
+        $dest = Join-Path $trimpsPath $rel
+        if ($pwaOwnedFiles.ContainsKey($rel) -and (Test-Path -LiteralPath $dest)) { return }
+        $doCopy = $true
+        if (Test-Path -LiteralPath $dest) {
+            $srcHash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+            $destHash = (Get-FileHash -LiteralPath $dest -Algorithm SHA256).Hash
+            if ($srcHash -eq $destHash) { $doCopy = $false }
+        }
+        if ($doCopy) {
+            $destDir = Split-Path -Parent $dest
+            if (-not (Test-Path -LiteralPath $destDir)) { New-Item -ItemType Directory -Path $destDir -Force | Out-Null }
+            Copy-Item -LiteralPath $_.FullName -Destination $dest -Force
+        }
     }
 } finally {
     Remove-Item -LiteralPath $cloneDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-# --- Remove trimps/.git to localise; remove .vscode so it is not present ---
+# --- Remove trimps/.git if present (we do not copy it); remove .vscode so it is not present ---
 $gitPath = Join-Path $trimpsPath '.git'
 if (Test-Path -LiteralPath $gitPath) {
     Remove-Item -LiteralPath $gitPath -Recurse -Force
@@ -69,11 +85,19 @@ if (Test-Path -LiteralPath $vscodePath) {
     Remove-Item -LiteralPath $vscodePath -Recurse -Force
 }
 
-# --- Restore PWA: manifest.json ---
+# --- Restore PWA: manifest.json (only write if missing or content differs); use UTF-8 no BOM for stable compare ---
 $manifestContent = '{"name":"Trimps","short_name":"Trimps","start_url":"./","display":"standalone","scope":"./","icons":[{"src":"favicon.ico","type":"image/x-icon","sizes":"any"}]}'
-Set-Content -LiteralPath (Join-Path $trimpsPath 'manifest.json') -Value $manifestContent -Encoding UTF8 -NoNewline
+$manifestPath = Join-Path $trimpsPath 'manifest.json'
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+$needWriteManifest = -not (Test-Path -LiteralPath $manifestPath)
+if (-not $needWriteManifest) {
+    $needWriteManifest = [System.IO.File]::ReadAllText($manifestPath, $utf8NoBom) -ne $manifestContent
+}
+if ($needWriteManifest) {
+    [System.IO.File]::WriteAllText($manifestPath, $manifestContent, $utf8NoBom)
+}
 
-# --- Restore PWA: sw.js ---
+# --- Restore PWA: sw.js (only write if missing or content differs) ---
 $swContent = @'
 const CACHE_NAME = 'trimps-v1';
 
@@ -126,13 +150,22 @@ self.addEventListener('fetch', function (event) {
   );
 });
 '@
-Set-Content -LiteralPath (Join-Path $trimpsPath 'sw.js') -Value $swContent -Encoding UTF8
+$swPath = Join-Path $trimpsPath 'sw.js'
+$needWriteSw = -not (Test-Path -LiteralPath $swPath)
+if (-not $needWriteSw) {
+    $needWriteSw = [System.IO.File]::ReadAllText($swPath, $utf8NoBom) -ne $swContent
+}
+if ($needWriteSw) {
+    [System.IO.File]::WriteAllText($swPath, $swContent, $utf8NoBom)
+}
 
-# --- Restore PWA: index.html (idempotent) ---
+# --- Restore PWA: index.html (idempotent; only write if we made edits) ---
 $indexPath = Join-Path $trimpsPath 'index.html'
 $indexHtml = Get-Content -LiteralPath $indexPath -Raw -Encoding UTF8
+$indexChanged = $false
 if ($indexHtml -notmatch 'manifest\.json') {
     $indexHtml = $indexHtml -replace '(\t<link rel="icon" href="favicon\.ico"[^>]*>)', ('$1' + "`r`n`t<link rel=`"manifest`" href=`"manifest.json`">")
+    $indexChanged = $true
 }
 if ($indexHtml -notmatch 'serviceWorker') {
     $swScript = @'
@@ -147,8 +180,11 @@ if ($indexHtml -notmatch 'serviceWorker') {
 	</script>
 '@
     $indexHtml = $indexHtml -replace '\s*</body>', "$swScript`r`n`t</body>"
+    $indexChanged = $true
 }
-Set-Content -LiteralPath $indexPath -Value $indexHtml -Encoding UTF8 -NoNewline
+if ($indexChanged) {
+    [System.IO.File]::WriteAllText($indexPath, $indexHtml, $utf8NoBom)
+}
 
 # --- Capture "after" state ---
 $after = Get-TrimpsFileHashes -BasePath $trimpsPath
