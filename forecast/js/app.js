@@ -452,27 +452,36 @@ async function init() {
                 const searchQuery = cache.location || elements.locationInput.value.trim() || 'here';
                 cachedDataLoaded = loadCachedWeatherData(null, searchQuery);
                 if (cachedDataLoaded) {
-                    // Check if this is current location
-                    if (searchQuery.toLowerCase() === 'here') {
-                        appState.isCurrentLocationActive = true;
-                        updateCurrentLocationButtonState(true);
-                    } else {
-                        updateCurrentLocationButtonState(false);
-                    }
-                    // Update favorite button state
-                    updateFavoriteButtonState();
-                    // Render location buttons if favorites exist
-                    if (favorites.length > 0) {
-                        renderLocationButtons();
-                    }
-                    // Update current location button state
-                    // Check if this is 'here' or a favorite
-                    if (locationToLoad && locationToLoad.toLowerCase() === 'here') {
+                    // When cache is 'here', only show "here" as active if cached location does NOT match a favorite
+                    if (searchQuery.toLowerCase() === 'here' && appState.location) {
+                        const uid = generateLocationUID(appState.location);
+                        const matchingFav = uid ? getFavoriteByUID(uid) : null;
+                        const matchByCityState = !matchingFav && appState.location.city && appState.location.state && favorites.find(fav => fav.location &&
+                            (fav.location.city || '').trim().toLowerCase() === (appState.location.city || '').trim().toLowerCase() &&
+                            (fav.location.state || '').trim().toUpperCase() === (appState.location.state || '').trim().toUpperCase());
+                        const effectiveFavorite = matchingFav || matchByCityState;
+                        if (effectiveFavorite && effectiveFavorite.uid) {
+                            appState.isCurrentLocationActive = false;
+                            updateFavoriteButtonState(effectiveFavorite.uid);
+                            if (favorites.length > 0) renderLocationButtons(effectiveFavorite.uid);
+                            updateCurrentLocationButtonState(false);
+                        } else {
+                            appState.isCurrentLocationActive = true;
+                            updateCurrentLocationButtonState(true);
+                            updateFavoriteButtonState();
+                        }
+                    } else if (locationToLoad && locationToLoad.toLowerCase() === 'here') {
                         appState.isCurrentLocationActive = true;
                         updateCurrentLocationButtonState(true);
                     } else {
                         appState.isCurrentLocationActive = false;
                         updateCurrentLocationButtonState(false);
+                    }
+                    if (searchQuery.toLowerCase() !== 'here' || !appState.location) {
+                        updateFavoriteButtonState();
+                    }
+                    if (favorites.length > 0) {
+                        renderLocationButtons();
                     }
                     return; // Successfully loaded from cache
                 }
@@ -531,14 +540,33 @@ async function init() {
     updateFavoriteButtonState();
     
     // Update current location button state based on what was loaded
-    // Check if the loaded location is 'here' or a favorite
+    // When last viewed was 'here', only show "here" as active if that location does NOT match a favorite.
+    // If it matches a favorite, keep the favorite selected so we don't unselect it.
     const lastViewed = getLastViewedLocation();
+    const favorites = getFavorites();
     if (lastViewed && lastViewed.searchQuery && lastViewed.searchQuery.toLowerCase() === 'here') {
-        appState.isCurrentLocationActive = true;
-        updateCurrentLocationButtonState(true);
+        let matchingFavorite = null;
+        if (lastViewed.location) {
+            const uid = generateLocationUID(lastViewed.location);
+            matchingFavorite = uid ? getFavoriteByUID(uid) : null;
+            if (!matchingFavorite && lastViewed.location.city && lastViewed.location.state) {
+                matchingFavorite = favorites.find(fav => fav.location && (
+                    (fav.location.city || '').trim().toLowerCase() === (lastViewed.location.city || '').trim().toLowerCase() &&
+                    (fav.location.state || '').trim().toUpperCase() === (lastViewed.location.state || '').trim().toUpperCase()
+                )) || null;
+            }
+        }
+        if (matchingFavorite && matchingFavorite.uid) {
+            appState.isCurrentLocationActive = false;
+            updateFavoriteButtonState(matchingFavorite.uid);
+            if (favorites.length > 0) renderLocationButtons(matchingFavorite.uid);
+            updateCurrentLocationButtonState(false);
+        } else {
+            appState.isCurrentLocationActive = true;
+            updateCurrentLocationButtonState(true);
+        }
     } else {
         // Check if it's a favorite
-        const favorites = getFavorites();
         let isFavorite = false;
         if (lastViewed && lastViewed.uid) {
             isFavorite = favorites.some(fav => fav.uid === lastViewed.uid);
@@ -546,13 +574,11 @@ async function init() {
             const generatedUID = generateLocationUID(lastViewed.location);
             isFavorite = favorites.some(fav => fav.uid === generatedUID);
         }
-        // If it's not 'here' and not a favorite, current location is not active
         appState.isCurrentLocationActive = false;
         updateCurrentLocationButtonState(false);
     }
     
     // Render location buttons if favorites exist
-    const favorites = getFavorites();
     if (favorites.length > 0) {
         renderLocationButtons();
     }
@@ -837,12 +863,36 @@ function handleFavoriteToggle() {
             return;
         }
         
+        // Prevent duplicate: if this location already exists as a favorite, just select it instead of adding again
+        const uidForCheck = generateLocationUID(appState.location);
+        const keyForCheck = generateLocationKey(appState.location);
+        const existingByUID = uidForCheck ? getFavoriteByUID(uidForCheck) : null;
+        const existingByKey = keyForCheck ? getFavoriteByKey(keyForCheck) : null;
+        let existingFavorite = existingByUID || existingByKey;
+        if (!existingFavorite) {
+            const favorites = getFavorites();
+            const cityNorm = (appState.location.city || '').trim().toLowerCase();
+            const stateNorm = (appState.location.state || '').trim().toUpperCase();
+            existingFavorite = favorites.find(fav => fav.location &&
+                (fav.location.city || '').trim().toLowerCase() === cityNorm &&
+                (fav.location.state || '').trim().toUpperCase() === stateNorm) || null;
+        }
+        if (existingFavorite && existingFavorite.uid) {
+            appState.currentLocationKey = existingFavorite.uid;
+            updateFavoriteButtonState(existingFavorite.uid);
+            if (elements.locationsDrawer && !elements.locationsDrawer.classList.contains('hidden')) {
+                renderLocationButtons(existingFavorite.uid);
+            }
+            return;
+        }
+        
         const locationText = formatLocationDisplayName(appState.location.city, appState.location.state);
         const searchQuery = elements.locationInput.value.trim() || locationText;
         const saved = saveFavorite(locationText, appState.location, searchQuery);
         if (saved) {
-            // Update the stored locationKey to match the newly saved favorite
-            appState.currentLocationKey = locationKey;
+            // Update the stored locationKey to match the newly saved favorite (use UID if we have it)
+            const added = getFavoriteByUID(generateLocationUID(appState.location)) || getFavoriteByKey(locationKey);
+            appState.currentLocationKey = (added && added.uid) ? added.uid : locationKey;
             elements.favoriteBtn.classList.add('active');
             
             // Re-render location buttons if drawer is open
@@ -887,12 +937,22 @@ function handleLocationButtonEdit(locationBtn) {
     const saveEdit = () => {
         const newName = input.value.trim();
         const oldName = favorite.customName || favorite.name;
-        
+
         // Only update if name changed
         if (newName !== oldName) {
             const favoriteUID = favorite.uid || favorite.key;
             if (updateFavoriteCustomName(favoriteUID, newName)) {
                 renderLocationButtons();
+                // If this favorite is the currently displayed location, refresh the main UI
+                const isCurrent = appState.currentLocationKey && (
+                    appState.currentLocationKey === favoriteUID ||
+                    appState.currentLocationKey === favorite.key ||
+                    (String(appState.currentLocationKey).startsWith('uid_') && String(appState.currentLocationKey).replace(/^uid_/, '') === favoriteUID)
+                );
+                if (isCurrent) {
+                    setLocationInputValue(newName, true);
+                    renderCurrentMode();
+                }
             }
         } else {
             // Name unchanged, just restore button
@@ -1636,7 +1696,7 @@ function saveFavorite(location, locationObject, searchQuery, customName) {
         const favorites = getFavorites();
         
         // Check if already exists by UID (primary identifier)
-        const existingIndex = favorites.findIndex(fav => fav.uid === uid);
+        let existingIndex = favorites.findIndex(fav => fav.uid === uid);
         if (existingIndex !== -1) {
             // Update existing favorite if customName is provided
             if (customName !== undefined) {
@@ -1645,6 +1705,25 @@ function saveFavorite(location, locationObject, searchQuery, customName) {
                 console.log('Favorite custom name updated:', uid, customName);
             }
             return true; // Already favorited
+        }
+        
+        // Check if already exists by normalized city+state (prevents duplicates when UID differs, e.g. coords vs city/state)
+        const cityNorm = (locationObject.city || '').trim().toLowerCase().replace(/[^a-zA-Z0-9\s]/g, '');
+        const stateNorm = (locationObject.state || '').trim().toUpperCase().replace(/[^a-zA-Z0-9]/g, '');
+        if (cityNorm && stateNorm) {
+            existingIndex = favorites.findIndex(fav => {
+                if (!fav.location) return false;
+                const fCity = (fav.location.city || '').trim().toLowerCase().replace(/[^a-zA-Z0-9\s]/g, '');
+                const fState = (fav.location.state || '').trim().toUpperCase().replace(/[^a-zA-Z0-9]/g, '');
+                return fCity === cityNorm && fState === stateNorm;
+            });
+            if (existingIndex !== -1) {
+                if (customName !== undefined) {
+                    favorites[existingIndex].customName = customName || null;
+                    localStorage.setItem('forecastFavorites', JSON.stringify(favorites));
+                }
+                return true; // Same location already favorited, no duplicate
+            }
         }
         
         // Add new favorite with UID
@@ -1758,9 +1837,10 @@ function updateFavoriteCustomName(identifier, customName) {
 }
 
 // Set location input value only when not focused by user (avoids overwriting after clear-on-focus on iPad)
-function setLocationInputValue(value) {
+// Pass forceUpdate true when intentionally refreshing after e.g. favorite name save so the UI always updates
+function setLocationInputValue(value, forceUpdate) {
     if (!elements.locationInput) return;
-    if (document.activeElement === elements.locationInput && elements.locationInput._userFocused) return;
+    if (!forceUpdate && document.activeElement === elements.locationInput && elements.locationInput._userFocused) return;
     elements.locationInput.value = value || '';
 }
 
@@ -2184,9 +2264,11 @@ function renderLocationButtons(activeUID = null) {
     }
     
     // Skip DOM update if active state unchanged (prevents blinking on iPad from repeated renders)
+    // Never skip when a button is in edit mode (has .location-btn-edit) so the edit box closes and reverts to button
+    const inEditMode = elements.locationButtons.querySelector('.location-btn-edit');
     const currentActiveBtn = elements.locationButtons.querySelector('.location-btn.active');
     const currentActiveUid = currentActiveBtn ? (currentActiveBtn.getAttribute('data-location-uid') || currentActiveBtn.getAttribute('data-location-key')) : null;
-    if (currentActiveUid === (currentUID || '') && !favoritesUpdated) {
+    if (!inEditMode && currentActiveUid === (currentUID || '') && !favoritesUpdated) {
         const buttonCount = elements.locationButtons.querySelectorAll('.location-btn').length;
         if (buttonCount === favorites.length) return;
     }
@@ -2944,15 +3026,18 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         
         // Update currentLocationKey from the loaded location
         // CRITICAL: We need to find the matching favorite using multiple methods:
-        // 1. Check if generated key matches a favorite's key
-        // 2. Check if location matches a favorite's location object (city + state)
-        // 3. Check if the search query (location parameter) matches a favorite's searchQuery
+        // 1. Check if UID matches (handles "here" resolving to same place as a favorite)
+        // 2. Check if generated key matches a favorite's key
+        // 3. Check if location matches a favorite's location object (city + state)
+        // 4. Check if the search query (location parameter) matches a favorite's searchQuery
         // This ensures we use the favorite's key even if the state differs (e.g., US vs AK)
         let generatedKey = generateLocationKey(weatherData.location);
         let matchingFavoriteAfterFetch = null;
-        
-        // First, check if generated key matches a favorite's key
-        if (generatedKey && isFavorite(generatedKey)) {
+        const locationUID = generateLocationUID(weatherData.location);
+        if (locationUID) {
+            matchingFavoriteAfterFetch = getFavoriteByUID(locationUID);
+        }
+        if (!matchingFavoriteAfterFetch && generatedKey && isFavorite(generatedKey)) {
             matchingFavoriteAfterFetch = getFavoriteByKey(generatedKey);
         }
         
@@ -3076,14 +3161,23 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         renderLocationButtons(activeIdentifier);
         
         // Update current location button state (already set earlier in function based on location parameter)
-        // This ensures the button state is correct after all processing
+        // When 'here' was requested: only show "here" as active if the resolved location does NOT match a favorite.
+        // If it matches a favorite, keep the favorite selected and do not show "here" as active (avoids unselecting favorite).
         if (location.toLowerCase() === 'here') {
-            updateCurrentLocationButtonState(true);
+            if (matchingFavoriteAfterFetch) {
+                appState.isCurrentLocationActive = false;
+                updateCurrentLocationButtonState(false);
+            } else {
+                appState.isCurrentLocationActive = true;
+                updateCurrentLocationButtonState(true);
+            }
         } else if (activeIdentifier) {
             // It's a favorite, so current location is not active
+            appState.isCurrentLocationActive = false;
             updateCurrentLocationButtonState(false);
         } else {
             // Not 'here' and not a favorite - current location is not active
+            appState.isCurrentLocationActive = false;
             updateCurrentLocationButtonState(false);
         }
         
@@ -3308,11 +3402,21 @@ function _renderCurrentModeImpl() {
         return;
     }
     
+    // Use favorite custom name for header when current location is that favorite
+    let locationDisplayName = formatLocationDisplayName(appState.location.city, appState.location.state);
+    if (appState.currentLocationKey) {
+        const uid = String(appState.currentLocationKey).replace(/^uid_/, '');
+        const fav = getFavoriteByUID(uid) || getFavoriteByKey(appState.currentLocationKey);
+        if (fav) {
+            locationDisplayName = (fav.customName && fav.customName.trim()) ? fav.customName.trim() : (fav.name || locationDisplayName);
+        }
+    }
+    
     let html = '';
     
     switch (appState.currentMode) {
         case 'full':
-            html = displayFullWeatherReport(appState.weatherData, appState.location);
+            html = displayFullWeatherReport(appState.weatherData, appState.location, locationDisplayName);
             break;
         case 'history': {
             if (appState.observationsLoading) {
@@ -3345,7 +3449,7 @@ function _renderCurrentModeImpl() {
             html = displayWindForecast(appState.weatherData, appState.location);
             break;
         default:
-            html = displayFullWeatherReport(appState.weatherData, appState.location);
+            html = displayFullWeatherReport(appState.weatherData, appState.location, locationDisplayName);
     }
     
     elements.weatherContent.innerHTML = html;

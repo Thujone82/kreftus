@@ -20,12 +20,13 @@ function getTimeAgo(date) {
 }
 
 // Display current conditions
-function displayCurrentConditions(weather, location) {
+// optionalDisplayName: when provided (e.g. favorite custom name), used for the section header instead of city/state
+function displayCurrentConditions(weather, location, optionalDisplayName) {
     const { current, location: loc } = weather;
     const { sunrise, sunset, moonPhase } = loc;
-    
+
     let html = '<div class="current-conditions">';
-    const locationDisplayName = formatLocationDisplayName(location.city, location.state);
+    const locationDisplayName = optionalDisplayName || formatLocationDisplayName(location.city, location.state);
     html += `<div class="section-header">${locationDisplayName} Current Conditions</div>`;
     
     html += '<div class="condition-row">';
@@ -835,9 +836,10 @@ function displayLocationInfo(location, noaaStation = null) {
 }
 
 // Display full weather report
-function displayFullWeatherReport(weather, location) {
+// optionalLocationDisplayName: when provided (e.g. favorite custom name), used for Current Conditions header
+function displayFullWeatherReport(weather, location, optionalLocationDisplayName) {
     let html = '';
-    html += displayCurrentConditions(weather, location);
+    html += displayCurrentConditions(weather, location, optionalLocationDisplayName);
     html += displayForecastText(weather.forecast.today.name, weather.forecast.today.text);
     if (weather.forecast.tomorrow.text) {
         html += displayForecastText(weather.forecast.tomorrow.name, weather.forecast.tomorrow.text);
