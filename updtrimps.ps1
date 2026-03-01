@@ -14,38 +14,27 @@ $ErrorActionPreference = 'Stop'
 $trimpsPath = Join-Path $PSScriptRoot 'trimps'
 
 function Write-Header {
-  param([string]$Title)
-  $width = 48
-  $padLeftCount = [int][math]::Floor(($width - $Title.Length) / 2)
-  $padRightCount = $width - $padLeftCount - $Title.Length
-  
-  $border = "=" * $width
+  param([string]$Text)
+  $border = "=" * ($Text.Length + 8)
+  Write-Host $border -NoNewline -ForegroundColor Cyan
   $consoleWidth = $host.UI.RawUI.BufferSize.Width
   $remainingWidth = $consoleWidth - $border.Length
-  
+  if ($remainingWidth -gt 0) {
+    Write-Host (" " * $remainingWidth) -NoNewline -BackgroundColor Black
+  }
   Write-Host ""
-  # Top border
+  Write-Host ("    $Text    ") -NoNewline -ForegroundColor Black -BackgroundColor Cyan
+  $remainingAfterTitle = $consoleWidth - ($Text.Length + 8)
+  if ($remainingAfterTitle -gt 0) {
+    Write-Host (" " * $remainingAfterTitle) -NoNewline -BackgroundColor Black
+  }
+  Write-Host ""
   Write-Host $border -NoNewline -ForegroundColor Cyan
   if ($remainingWidth -gt 0) {
     Write-Host (" " * $remainingWidth) -NoNewline -BackgroundColor Black
   }
   Write-Host ""
-  
-  # Title row
-  Write-Host ("=" * $padLeftCount) -NoNewline -ForegroundColor Cyan -BackgroundColor Cyan
-  Write-Host $Title -NoNewline -ForegroundColor Black -BackgroundColor Cyan
-  Write-Host ("=" * $padRightCount) -NoNewline -ForegroundColor Cyan -BackgroundColor Cyan
-  if ($remainingWidth -gt 0) {
-    Write-Host (" " * $remainingWidth) -NoNewline -BackgroundColor Black
-  }
-  Write-Host ""
-  
-  # Bottom border
-  Write-Host $border -NoNewline -ForegroundColor Cyan
-  if ($remainingWidth -gt 0) {
-    Write-Host (" " * $remainingWidth) -NoNewline -BackgroundColor Black
-  }
-  Write-Host ""
+  [Console]::ResetColor()
 }
 
 function Write-Step {
@@ -265,10 +254,16 @@ $removed = [string[]]($before.Keys | Where-Object { -not $after.ContainsKey($_) 
 $updated = [string[]]($before.Keys | Where-Object { $after.ContainsKey($_) -and $before[$_] -ne $after[$_] })
 
 Write-Header "Update Summary"
+[Console]::ResetColor()
 
 if ($added.Count -eq 0 -and $removed.Count -eq 0 -and $updated.Count -eq 0) {
   Write-Output 'No changes.'
-  Write-Host "No changes detected. The local trimps/ directory is already up-to-date." -ForegroundColor DarkGray
+  $noChgMsg = "No changes detected. The local trimps/ directory is already up-to-date."
+  Write-Host $noChgMsg -NoNewline -ForegroundColor DarkGray
+  $summaryCw = [Math]::Max(80, $host.UI.RawUI.BufferSize.Width)
+  $summaryRemain = $summaryCw - $noChgMsg.Length
+  if ($summaryRemain -gt 0) { Write-Host (" " * $summaryRemain) -NoNewline -BackgroundColor Black }
+  Write-Host ""
 }
 else {
   if ($added.Count -gt 0) {
@@ -299,4 +294,10 @@ else {
   }
 }
 
-Write-Host "`nUpdate complete.`n" -ForegroundColor Cyan
+$completeMsg = "Update complete."
+$cw = [Math]::Max(80, $host.UI.RawUI.BufferSize.Width)
+Write-Host "`n$completeMsg" -NoNewline -ForegroundColor DarkGray
+$remain = $cw - $completeMsg.Length
+if ($remain -gt 0) { Write-Host (" " * $remain) -NoNewline -BackgroundColor Black }
+Write-Host ""
+[Console]::ResetColor()
