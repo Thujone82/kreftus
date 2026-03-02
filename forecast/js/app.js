@@ -275,16 +275,20 @@ async function init() {
     }
     
     // Try to load cached data first (unless URL specifies a different location)
+    // Top priority: retain last used view. Only use 'here' as default when we have nothing to restore.
     let cachedDataLoaded = false;
     let locationToLoad = null;
+    let hasRestorableView = false;
     
     if (locationParam) {
         // URL parameter takes precedence
         locationToLoad = locationParam;
+        hasRestorableView = true;
     } else {
         // Check for last viewed location (even if not a favorite)
         const lastViewed = getLastViewedLocation();
         if (lastViewed) {
+            hasRestorableView = true;
             // Check if lastViewed is a favorite - if so, prefer it over current location
             const favorites = getFavorites();
             let isFavorite = false;
@@ -348,7 +352,15 @@ async function init() {
             const storedLocation = localStorage.getItem('forecastLocation');
             if (storedLocation && storedLocation.trim() !== '') {
                 locationToLoad = storedLocation;
+                hasRestorableView = true;
             }
+        }
+        // Defensive: if we have saved last-viewed data at all, treat as restorable (don't overwrite with 'here')
+        if (!hasRestorableView && typeof localStorage !== 'undefined') {
+            try {
+                const raw = localStorage.getItem('forecastLastViewedLocation');
+                if (raw && raw.trim() !== '' && raw !== 'null') hasRestorableView = true;
+            } catch (e) { /* ignore */ }
         }
     }
     
@@ -508,14 +520,13 @@ async function init() {
             console.error('Error loading weather data:', error);
         }
     } else {
-        // Only try to detect location automatically if no favorite was last viewed
-        // This prevents overriding favorite selection
+        // Only run 'here' when we have NO restorable view. Top priority is retaining last used view.
         const lastViewed = getLastViewedLocation();
         const favorites = getFavorites();
-        let shouldDetectLocation = true;
+        let shouldDetectLocation = !hasRestorableView;
         
-        if (lastViewed) {
-            // Check if lastViewed is a favorite
+        if (shouldDetectLocation && lastViewed) {
+            // Extra guard: if we have any last-viewed state, do not overwrite with 'here'
             if (lastViewed.uid) {
                 shouldDetectLocation = !favorites.some(fav => fav.uid === lastViewed.uid);
             } else if (lastViewed.location) {
@@ -525,7 +536,7 @@ async function init() {
         }
         
         if (shouldDetectLocation) {
-            // Try to detect location automatically (silently on failure)
+            // No restorable view: default to current location (silently on failure)
             try {
                 appState.isCurrentLocationActive = true;
                 await loadWeatherData('here', true); // true = silent on location detection failure
