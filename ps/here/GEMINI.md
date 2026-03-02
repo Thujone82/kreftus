@@ -6,6 +6,8 @@
 **Date:** 2026-02-19  
 **Version:** 1.2
 
+---
+
 ### Description
 
 `here.ps1` is a PowerShell script that retrieves and displays the machine's approximate geographical location using IP-based geolocation. It queries a public API (ip-api.com) for coordinates and timezone based on the machine's public IP (or an optional IP argument), then presents location details, network information, and astronomical data (sunrise, sunset, day length, solar noon, solar irradiance, moon phase) in a colorized, sectioned format. All astronomical values are computed locally from coordinates; no additional APIs are used for sun or moon data.
