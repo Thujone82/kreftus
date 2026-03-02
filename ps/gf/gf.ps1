@@ -2023,7 +2023,7 @@ function Get-SolarIrradianceSummary {
         $solarWm2 = Get-SolarIrradiance -Latitude $Latitude -Longitude $Longitude -Date $CurrentTimeDateTime -TimeZoneId $TimeZoneId
         $solarNoon = Get-SolarNoonForDate -Latitude $Latitude -Longitude $Longitude -Date $CurrentTimeDateTime -TimeZoneId $TimeZoneId
         $peakWm2 = Get-SolarIrradiance -Latitude $Latitude -Longitude $Longitude -Date $solarNoon.SolarNoonUtc -TimeZoneId $TimeZoneId
-        $solarNoonLocalStr = $solarNoon.SolarNoonLocal.ToString('h:mm')
+        $solarNoonLocalStr = $solarNoon.SolarNoonLocal.ToString('HH:mm')
         return "${solarWm2}W/m² [${peakWm2}W/m² @ $solarNoonLocalStr]"
     }
     catch {
@@ -4356,24 +4356,24 @@ function Show-FullWeatherReport {
     )
     
     if ($ShowCurrentConditions) {
-        # Format sunrise: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+        # Format sunrise: date/time in 24-hour format if polar night/day, otherwise time (24H)
         # During polar night: shows next sunrise; during polar day: shows last sunrise
         $sunriseTimeStr = if ($null -ne $SunriseTime) { 
             if ($IsPolarNight -or $IsPolarDay) { 
                 $SunriseTime.ToString('MM/dd HH:mm') 
             } else { 
-                $SunriseTime.ToString('h:mm tt') 
+                $SunriseTime.ToString('HH:mm') 
             }
         } else { 
             "N/A" 
         }
-        # Format sunset: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+        # Format sunset: date/time in 24-hour format if polar night/day, otherwise time (24H)
         # During polar night: shows last sunset; during polar day: shows next sunset
         $sunsetTimeStr = if ($null -ne $SunsetTime) { 
             if ($IsPolarNight -or $IsPolarDay) { 
                 $SunsetTime.ToString('MM/dd HH:mm') 
             } else { 
-                $SunsetTime.ToString('h:mm tt') 
+                $SunsetTime.ToString('HH:mm') 
             }
         } else { 
             "N/A" 
@@ -5231,24 +5231,24 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } elseif ($isTerseMode) {
                             # Preserve current mode - show terse mode if in terse mode
-                            # Format sunrise: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+                            # Format sunrise: date/time in 24-hour format if polar night/day, otherwise time (24H)
                             # During polar night: shows next sunrise; during polar day: shows last sunrise
                             $sunriseTimeStr = if ($null -ne $script:sunriseTime) { 
                                 if ($script:isPolarNight -or $script:isPolarDay) { 
                                     $script:sunriseTime.ToString('MM/dd HH:mm') 
                                 } else { 
-                                    $script:sunriseTime.ToString('h:mm tt') 
+                                    $script:sunriseTime.ToString('HH:mm') 
                                 }
                             } else { 
                                 "N/A" 
                             }
-                            # Format sunset: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+                            # Format sunset: date/time in 24-hour format if polar night/day, otherwise time (24H)
                             # During polar night: shows last sunset; during polar day: shows next sunset
                             $sunsetTimeStr = if ($null -ne $script:sunsetTime) { 
                                 if ($script:isPolarNight -or $script:isPolarDay) { 
                                     $script:sunsetTime.ToString('MM/dd HH:mm') 
                                 } else { 
-                                    $script:sunsetTime.ToString('h:mm tt') 
+                                    $script:sunsetTime.ToString('HH:mm') 
                                 }
                             } else { 
                                 "N/A" 
@@ -5284,24 +5284,24 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $false
                         } elseif ($isTerseMode) {
                             # Preserve current mode - show terse mode if in terse mode
-                            # Format sunrise: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+                            # Format sunrise: date/time in 24-hour format if polar night/day, otherwise time (24H)
                             # During polar night: shows next sunrise; during polar day: shows last sunrise
                             $sunriseTimeStr = if ($null -ne $script:sunriseTime) { 
                                 if ($script:isPolarNight -or $script:isPolarDay) { 
                                     $script:sunriseTime.ToString('MM/dd HH:mm') 
                                 } else { 
-                                    $script:sunriseTime.ToString('h:mm tt') 
+                                    $script:sunriseTime.ToString('HH:mm') 
                                 }
                             } else { 
                                 "N/A" 
                             }
-                            # Format sunset: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+                            # Format sunset: date/time in 24-hour format if polar night/day, otherwise time (24H)
                             # During polar night: shows last sunset; during polar day: shows next sunset
                             $sunsetTimeStr = if ($null -ne $script:sunsetTime) { 
                                 if ($script:isPolarNight -or $script:isPolarDay) { 
                                     $script:sunsetTime.ToString('MM/dd HH:mm') 
                                 } else { 
-                                    $script:sunsetTime.ToString('h:mm tt') 
+                                    $script:sunsetTime.ToString('HH:mm') 
                                 }
                             } else { 
                                 "N/A" 
@@ -5361,7 +5361,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         if ($script:isPolarNight -or $script:isPolarDay) { 
                             $script:sunriseTime.ToString('MM/dd HH:mm') 
                         } else { 
-                            $script:sunriseTime.ToString('h:mm tt') 
+                            $script:sunriseTime.ToString('HH:mm') 
                         }
                     } else { 
                         "N/A" 
@@ -5370,7 +5370,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         if ($script:isPolarNight -or $script:isPolarDay) { 
                             $script:sunsetTime.ToString('MM/dd HH:mm') 
                         } else { 
-                            $script:sunsetTime.ToString('h:mm tt') 
+                            $script:sunsetTime.ToString('HH:mm') 
                         }
                     } else { 
                         "N/A" 
@@ -5433,24 +5433,24 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     } else {
                         # Preserve current mode - show terse mode if in terse mode
                         if ($isTerseMode) {
-                            # Format sunrise: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+                            # Format sunrise: date/time in 24-hour format if polar night/day, otherwise time (24H)
                             # During polar night: shows next sunrise; during polar day: shows last sunrise
                             $sunriseTimeStr = if ($null -ne $script:sunriseTime) { 
                                 if ($script:isPolarNight -or $script:isPolarDay) { 
                                     $script:sunriseTime.ToString('MM/dd HH:mm') 
                                 } else { 
-                                    $script:sunriseTime.ToString('h:mm tt') 
+                                    $script:sunriseTime.ToString('HH:mm') 
                                 }
                             } else { 
                                 "N/A" 
                             }
-                            # Format sunset: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+                            # Format sunset: date/time in 24-hour format if polar night/day, otherwise time (24H)
                             # During polar night: shows last sunset; during polar day: shows next sunset
                             $sunsetTimeStr = if ($null -ne $script:sunsetTime) { 
                                 if ($script:isPolarNight -or $script:isPolarDay) { 
                                     $script:sunsetTime.ToString('MM/dd HH:mm') 
                                 } else { 
-                                    $script:sunsetTime.ToString('h:mm tt') 
+                                    $script:sunsetTime.ToString('HH:mm') 
                                 }
                             } else { 
                                 "N/A" 
@@ -5503,24 +5503,24 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     } else {
                         # Preserve current mode - show terse mode if in terse mode
                         if ($isTerseMode) {
-                            # Format sunrise: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+                            # Format sunrise: date/time in 24-hour format if polar night/day, otherwise time (24H)
                             # During polar night: shows next sunrise; during polar day: shows last sunrise
                             $sunriseTimeStr = if ($null -ne $script:sunriseTime) { 
                                 if ($script:isPolarNight -or $script:isPolarDay) { 
                                     $script:sunriseTime.ToString('MM/dd HH:mm') 
                                 } else { 
-                                    $script:sunriseTime.ToString('h:mm tt') 
+                                    $script:sunriseTime.ToString('HH:mm') 
                                 }
                             } else { 
                                 "N/A" 
                             }
-                            # Format sunset: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+                            # Format sunset: date/time in 24-hour format if polar night/day, otherwise time (24H)
                             # During polar night: shows last sunset; during polar day: shows next sunset
                             $sunsetTimeStr = if ($null -ne $script:sunsetTime) { 
                                 if ($script:isPolarNight -or $script:isPolarDay) { 
                                     $script:sunsetTime.ToString('MM/dd HH:mm') 
                                 } else { 
-                                    $script:sunsetTime.ToString('h:mm tt') 
+                                    $script:sunsetTime.ToString('HH:mm') 
                                 }
                             } else { 
                                 "N/A" 
@@ -5682,24 +5682,24 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             Show-WindForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } elseif ($isTerseMode) {
-                            # Format sunrise: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+                            # Format sunrise: date/time in 24-hour format if polar night/day, otherwise time (24H)
                             # During polar night: shows next sunrise; during polar day: shows last sunrise
                             $sunriseTimeStr = if ($null -ne $script:sunriseTime) { 
                                 if ($script:isPolarNight -or $script:isPolarDay) { 
                                     $script:sunriseTime.ToString('MM/dd HH:mm') 
                                 } else { 
-                                    $script:sunriseTime.ToString('h:mm tt') 
+                                    $script:sunriseTime.ToString('HH:mm') 
                                 }
                             } else { 
                                 "N/A" 
                             }
-                            # Format sunset: date/time in 24-hour format if polar night/day, otherwise time in 12-hour format
+                            # Format sunset: date/time in 24-hour format if polar night/day, otherwise time (24H)
                             # During polar night: shows last sunset; during polar day: shows next sunset
                             $sunsetTimeStr = if ($null -ne $script:sunsetTime) { 
                                 if ($script:isPolarNight -or $script:isPolarDay) { 
                                     $script:sunsetTime.ToString('MM/dd HH:mm') 
                                 } else { 
-                                    $script:sunsetTime.ToString('h:mm tt') 
+                                    $script:sunsetTime.ToString('HH:mm') 
                                 }
                             } else { 
                                 "N/A" 
