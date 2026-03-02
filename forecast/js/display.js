@@ -372,11 +372,12 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
             let sunriseStr = "";
             let sunsetStr = "";
             let dayLengthStr = "";
+            let daySunTimes = null;
             if (location.lat && location.lon && location.timeZone) {
-            // Use the location's date (not viewer local) for accurate sunrise/sunset calculation
-            const periodLocal = location.timeZone ? convertToTimeZone(periodTime, location.timeZone) : periodTime;
-            const dayDate = new Date(periodLocal.getFullYear(), periodLocal.getMonth(), periodLocal.getDate());
-                const daySunTimes = calculateSunriseSunset(
+                // Use the location's date (not viewer local) for accurate sunrise/sunset calculation
+                const periodLocal = location.timeZone ? convertToTimeZone(periodTime, location.timeZone) : periodTime;
+                const dayDate = new Date(periodLocal.getFullYear(), periodLocal.getMonth(), periodLocal.getDate());
+                daySunTimes = calculateSunriseSunset(
                     location.lat,
                     location.lon,
                     dayDate,
@@ -447,8 +448,25 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
                 
                 html += `<div class="daily-details">${moonPhaseInfo.emoji} Night: ${nightDetailedForecast}</div>`;
             } else {
-                const currentHour = periodTime.getHours();
-                const isCurrentPeriodNight = (currentHour >= 18 || currentHour < 6);
+                // Determine if this single period should be treated as night or day.
+                // Prefer per-day sunrise/sunset (including polar flags) when available; otherwise fall back to a simple time-based rule.
+                let isCurrentPeriodNight;
+                if (daySunTimes) {
+                    if (daySunTimes.isPolarNight) {
+                        isCurrentPeriodNight = true;
+                    } else if (daySunTimes.isPolarDay) {
+                        isCurrentPeriodNight = false;
+                    } else {
+                        // Use the same sunrise/sunset-based daytime check as hourly coloring,
+                        // then invert it to get night vs day for this period.
+                        const isDaytime = isHourMidpointDaytime(periodTime, daySunTimes.sunrise, daySunTimes.sunset, location.timeZone);
+                        isCurrentPeriodNight = !isDaytime;
+                    }
+                } else {
+                    const currentHour = periodTime.getHours();
+                    isCurrentPeriodNight = (currentHour >= 18 || currentHour < 6);  // Fallback: Evening (6 PM) to morning (6 AM)
+                }
+                
                 // Calculate moon phase for this period's date
                 const moonPhaseInfo = calculateMoonPhase(periodTime);
                 const singlePeriodLabel = isCurrentPeriodNight ? `${moonPhaseInfo.emoji} Night: ` : `${periodIcon} Day: `;
