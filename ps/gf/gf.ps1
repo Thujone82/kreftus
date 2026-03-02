@@ -3053,9 +3053,20 @@ function Show-SevenDayForecast {
             # Get terminal width for text wrapping
             $terminalWidth = $Host.UI.RawUI.WindowSize.Width
             
-            # Determine if current period is day or night based on time
-            $currentHour = $currentPeriodTime.Hour
-            $isCurrentPeriodNight = ($currentHour -ge 18 -or $currentHour -lt 6)  # Evening (6 PM) to morning (6 AM)
+            # Determine if current period is day or night from sunrise/sunset for this day
+            if ($null -ne $daySunTimes) {
+                if ($daySunTimes.IsPolarNight) {
+                    $isCurrentPeriodNight = $true
+                } elseif ($daySunTimes.IsPolarDay) {
+                    $isCurrentPeriodNight = $false
+                } elseif ($daySunTimes.Sunrise -and $daySunTimes.Sunset) {
+                    $isCurrentPeriodNight = ($currentPeriodTime -lt $daySunTimes.Sunrise) -or ($currentPeriodTime -ge $daySunTimes.Sunset)
+                } else {
+                    $isCurrentPeriodNight = ($currentPeriodTime.Hour -ge 18 -or $currentPeriodTime.Hour -lt 6)
+                }
+            } else {
+                $isCurrentPeriodNight = ($currentPeriodTime.Hour -ge 18 -or $currentPeriodTime.Hour -lt 6)
+            }
             
             # If we have both day and night periods, show both
             if ($nightDetailedForecast) {
