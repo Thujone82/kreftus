@@ -20,13 +20,13 @@ function getTimeAgo(date) {
 }
 
 // Display current conditions
-// optionalDisplayName: when provided (e.g. favorite custom name), used for the section header instead of city/state
+// Header should always use normalized City, ST from the location object, not custom labels
 function displayCurrentConditions(weather, location, optionalDisplayName) {
     const { current, location: loc } = weather;
     const { sunrise, sunset, moonPhase } = loc;
 
     let html = '<div class="current-conditions">';
-    const locationDisplayName = optionalDisplayName || formatLocationDisplayName(location.city, location.state);
+    const locationDisplayName = formatLocationDisplayName(location.city, location.state);
     html += `<div class="section-header">${locationDisplayName} Current Conditions</div>`;
     
     html += '<div class="condition-row">';
