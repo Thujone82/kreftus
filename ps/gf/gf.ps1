@@ -2005,6 +2005,32 @@ function Get-SolarNoonForDate {
     return @{ SolarNoonUtc = $solarNoonUtc; SolarNoonLocal = $solarNoonLocal }
 }
 
+# Helper to build a formatted solar irradiance summary string (current + peak at solar noon)
+function Get-SolarIrradianceSummary {
+    param(
+        [double]$Latitude,
+        [double]$Longitude,
+        [DateTime]$CurrentTimeDateTime,
+        [string]$TimeZoneId
+    )
+
+    # Require reasonable inputs
+    if ($Latitude -eq 0 -and $Longitude -eq 0) { return $null }
+    if (-not $TimeZoneId) { return $null }
+    if ($null -eq $CurrentTimeDateTime -or -not ($CurrentTimeDateTime -is [DateTime])) { return $null }
+
+    try {
+        $solarWm2 = Get-SolarIrradiance -Latitude $Latitude -Longitude $Longitude -Date $CurrentTimeDateTime -TimeZoneId $TimeZoneId
+        $solarNoon = Get-SolarNoonForDate -Latitude $Latitude -Longitude $Longitude -Date $CurrentTimeDateTime -TimeZoneId $TimeZoneId
+        $peakWm2 = Get-SolarIrradiance -Latitude $Latitude -Longitude $Longitude -Date $solarNoon.SolarNoonUtc -TimeZoneId $TimeZoneId
+        $solarNoonLocalStr = $solarNoon.SolarNoonLocal.ToString('h:mm')
+        return "${solarWm2}W/m² [${peakWm2}W/m² @ $solarNoonLocalStr]"
+    }
+    catch {
+        return $null
+    }
+}
+
 # Helper function to format day length as "Xh Ym"
 function Format-DayLength {
     param(
@@ -2456,7 +2482,8 @@ function Show-CurrentConditions {
         [bool]$ShowNextFullMoon,
         [bool]$ShowNextNewMoon,
         [string]$NextNewMoonDate,
-        [string]$SolarIrradiance = $null
+        [string]$SolarIrradiance = $null,
+        [bool]$IsTerseMode = $false
     )
     
     Write-Host "*** $city, $state Current Conditions ***" -ForegroundColor $TitleColor
@@ -2510,8 +2537,8 @@ function Show-CurrentConditions {
     
     Write-Host "Humidity: $currentHumidity%" -ForegroundColor $humidityColor
     
-    # Display dew point if available
-    if ($null -ne $currentDewPoint) {
+    # Display dew point if available (suppressed in terse mode)
+    if (-not $IsTerseMode -and $null -ne $currentDewPoint) {
         try {
             $dewPointCelsius = [double]$currentDewPoint
             $dewPointF = [math]::Round($dewPointCelsius * 9/5 + 32, 1)
@@ -2537,11 +2564,15 @@ function Show-CurrentConditions {
     }
 
     # Display sunrise and sunset times
-    if ($SunriseTime) {
-        Write-Host "Sunrise: $SunriseTime" -ForegroundColor Yellow
-    }
-    if ($SunsetTime) {
-        Write-Host "Sunset: $SunsetTime" -ForegroundColor Yellow
+    if ($IsTerseMode -and $SunriseTime -and $SunsetTime) {
+        Write-Host "Sunrise-Sunset: $SunriseTime-$SunsetTime" -ForegroundColor Yellow
+    } else {
+        if ($SunriseTime) {
+            Write-Host "Sunrise: $SunriseTime" -ForegroundColor Yellow
+        }
+        if ($SunsetTime) {
+            Write-Host "Sunset: $SunsetTime" -ForegroundColor Yellow
+        }
     }
     if ($SolarIrradiance) {
         Write-Host "Irradiance: $SolarIrradiance" -ForegroundColor White
@@ -4309,7 +4340,8 @@ function Show-FullWeatherReport {
         [object]$SunsetTime = $null,
         [bool]$IsPolarNight = $false,
         [bool]$IsPolarDay = $false,
-        [object]$CurrentTimeDateTime = $null
+        [object]$CurrentTimeDateTime = $null,
+        [bool]$IsTerseMode = $false
     )
     
     if ($ShowCurrentConditions) {
@@ -4336,15 +4368,8 @@ function Show-FullWeatherReport {
             "N/A" 
         }
         # Compute solar irradiance when we have coords, timezone, and DateTime (current + peak at solar noon)
-        $solarStr = $null
-        if ($Lat -ne 0 -and $Lon -ne 0 -and $TimeZone -and $null -ne $CurrentTimeDateTime -and $CurrentTimeDateTime -is [DateTime]) {
-            $solarWm2 = Get-SolarIrradiance -Latitude $Lat -Longitude $Lon -Date $CurrentTimeDateTime -TimeZoneId $TimeZone
-            $solarNoon = Get-SolarNoonForDate -Latitude $Lat -Longitude $Lon -Date $CurrentTimeDateTime -TimeZoneId $TimeZone
-            $peakWm2 = Get-SolarIrradiance -Latitude $Lat -Longitude $Lon -Date $solarNoon.SolarNoonUtc -TimeZoneId $TimeZone
-            $solarNoonLocalStr = $solarNoon.SolarNoonLocal.ToString('h:mm')
-            $solarStr = "${solarWm2}W/m² [${peakWm2}W/m² @ $solarNoonLocalStr]"
-        }
-        Show-CurrentConditions -City $City -State $State -WeatherIcon $WeatherIcon -CurrentConditions $CurrentConditions -CurrentTemp $CurrentTemp -TempColor $TempColor -CurrentTempTrend $CurrentTempTrend -CurrentWind $CurrentWind -WindColor $WindColor -CurrentWindDir $CurrentWindDir -WindGust $WindGust -CurrentHumidity $CurrentHumidity -CurrentDewPoint $CurrentDewPoint -CurrentPrecipProb $CurrentPrecipProb -CurrentTimeLocal $CurrentTimeLocal -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $DefaultColor -AlertColor $AlertColor -TitleColor $TitleColor -InfoColor $InfoColor -MoonPhase $MoonPhase -MoonEmoji $MoonEmoji -IsFullMoon $IsFullMoon -NextFullMoonDate $NextFullMoonDate -IsNewMoon $IsNewMoon -ShowNextFullMoon $ShowNextFullMoon -ShowNextNewMoon $ShowNextNewMoon -NextNewMoonDate $NextNewMoonDate -SolarIrradiance $solarStr
+        $solarStr = Get-SolarIrradianceSummary -Latitude $Lat -Longitude $Lon -CurrentTimeDateTime $CurrentTimeDateTime -TimeZoneId $TimeZone
+        Show-CurrentConditions -City $City -State $State -WeatherIcon $WeatherIcon -CurrentConditions $CurrentConditions -CurrentTemp $CurrentTemp -TempColor $TempColor -CurrentTempTrend $CurrentTempTrend -CurrentWind $CurrentWind -WindColor $WindColor -CurrentWindDir $CurrentWindDir -WindGust $WindGust -CurrentHumidity $CurrentHumidity -CurrentDewPoint $CurrentDewPoint -CurrentPrecipProb $CurrentPrecipProb -CurrentTimeLocal $CurrentTimeLocal -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $DefaultColor -AlertColor $AlertColor -TitleColor $TitleColor -InfoColor $InfoColor -MoonPhase $MoonPhase -MoonEmoji $MoonEmoji -IsFullMoon $IsFullMoon -NextFullMoonDate $NextFullMoonDate -IsNewMoon $IsNewMoon -ShowNextFullMoon $ShowNextFullMoon -ShowNextNewMoon $ShowNextNewMoon -NextNewMoonDate $NextNewMoonDate -SolarIrradiance $solarStr -IsTerseMode $IsTerseMode
     }
 
     if ($ShowTodayForecast) {
@@ -4833,7 +4858,7 @@ if ($Rain.IsPresent) {
         exit 0
     }
 } else {
-    Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsPolarNight $isPolarNight -IsPolarDay $isPolarDay -CurrentTimeDateTime $dataFetchTime
+    Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsPolarNight $isPolarNight -IsPolarDay $isPolarDay -CurrentTimeDateTime $dataFetchTime -IsTerseMode $Terse.IsPresent
 }
 
 # Detect if we're in an interactive environment that supports ReadKey
@@ -5217,7 +5242,8 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             } else { 
                                 "N/A" 
                             }
-                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $null
+                            $solarStr = Get-SolarIrradianceSummary -Latitude $lat -Longitude $lon -CurrentTimeDateTime $script:dataFetchTime -TimeZoneId $timeZone
+                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $solarStr -IsTerseMode $isTerseMode
                             Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                             Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false -TimeZone $timeZone
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
@@ -5269,7 +5295,8 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             } else { 
                                 "N/A" 
                             }
-                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $null
+                            $solarStr = Get-SolarIrradianceSummary -Latitude $lat -Longitude $lon -CurrentTimeDateTime $script:dataFetchTime -TimeZoneId $timeZone
+                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $solarStr
                             Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                             Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false -TimeZone $timeZone
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $false
@@ -5337,7 +5364,8 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     } else { 
                         "N/A" 
                     }
-                    Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $null
+                    $solarStr = Get-SolarIrradianceSummary -Latitude $lat -Longitude $lon -CurrentTimeDateTime $script:dataFetchTime -TimeZoneId $timeZone
+                    Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $solarStr
                     Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                     Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false -TimeZone $timeZone
                     Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
@@ -5416,7 +5444,8 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             } else { 
                                 "N/A" 
                             }
-                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $null
+                            $solarStr = Get-SolarIrradianceSummary -Latitude $lat -Longitude $lon -CurrentTimeDateTime $script:dataFetchTime -TimeZoneId $timeZone
+                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $solarStr
                             Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                             Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false -TimeZone $timeZone
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
@@ -5485,7 +5514,8 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             } else { 
                                 "N/A" 
                             }
-                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $null
+                            $solarStr = Get-SolarIrradianceSummary -Latitude $lat -Longitude $lon -CurrentTimeDateTime $script:dataFetchTime -TimeZoneId $timeZone
+                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $solarStr
                             Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                             Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false -TimeZone $timeZone
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
@@ -5663,7 +5693,8 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             } else { 
                                 "N/A" 
                             }
-                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $null
+                            $solarStr = Get-SolarIrradianceSummary -Latitude $lat -Longitude $lon -CurrentTimeDateTime $script:dataFetchTime -TimeZoneId $timeZone
+                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $solarStr
                             Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                             Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false -TimeZone $timeZone
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)

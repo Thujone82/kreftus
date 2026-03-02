@@ -18,7 +18,7 @@ The script first uses a geocoding service to determine the latitude and longitud
   - Detailed daily and tomorrow forecasts.
   - Wind speed and direction.
   - Sunrise and sunset times (calculated astronomically).
-  - Solar irradiance (clear-sky GHI in W/m² at current time plus peak at solar noon with time) after sunset, in white; hidden in terse mode.
+  - Solar irradiance (clear-sky GHI in W/m² at current time plus peak at solar noon with time) after sunset, in white, in both full and terse views.
   - Moon phase information with emoji and next full moon date.
   - **All times displayed in location's timezone:** Hourly forecasts, sunrise, sunset, and update times are shown in the destination location's local timezone, not your system's timezone.
   - Weather alerts and warnings.
@@ -146,6 +146,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 - `-Terse` or `-t` [switch]
   - Shows only current conditions and today's forecast (plus alerts if they exist).
+  - Combines sunrise and sunset into a single `Sunrise-Sunset: start-end` line and omits the Dew Point line for a tighter layout, while still showing irradiance when available.
   - Provides a streamlined, focused view for quick weather checks.
 
 - `-Hourly` or `-h` [switch]
