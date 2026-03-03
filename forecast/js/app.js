@@ -58,7 +58,8 @@ function initializeElements() {
         primaryAccentColor: document.getElementById('primaryAccentColor'),
         secondaryAccentColor: document.getElementById('secondaryAccentColor'),
         irradianceCheckbox: document.getElementById('irradianceCheckbox'),
-        configModalClose: document.getElementById('configModalClose')
+        configModalClose: document.getElementById('configModalClose'),
+        configModalReset: document.getElementById('configModalReset')
     };
     
     console.log('Elements initialized:', {
@@ -781,6 +782,18 @@ function setupConfigModal() {
         elements.configModalClose.addEventListener('click', (e) => {
             e.preventDefault();
             closeConfigModal();
+        });
+    }
+
+    if (elements.configModalReset) {
+        elements.configModalReset.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (confirm('Are you sure? This will reset all Saved locations.')) {
+                if (performFullReset()) {
+                    closeConfigModal();
+                    window.location.reload();
+                }
+            }
         });
     }
 
