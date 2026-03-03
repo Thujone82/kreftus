@@ -552,6 +552,26 @@ main {
     background: var(--color-bg);
 }
 
+.config-option.config-extras .config-option-label {
+    display: block;
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 0.35rem;
+}
+
+.config-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.config-checkbox-label input[type="checkbox"] {
+    cursor: pointer;
+}
+
 .config-modal-content #configModalClose {
     margin-top: 1rem;
     width: 100%;

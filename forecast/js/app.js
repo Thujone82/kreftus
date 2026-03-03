@@ -57,6 +57,7 @@ function initializeElements() {
         configModal: document.getElementById('configModal'),
         primaryAccentColor: document.getElementById('primaryAccentColor'),
         secondaryAccentColor: document.getElementById('secondaryAccentColor'),
+        irradianceCheckbox: document.getElementById('irradianceCheckbox'),
         configModalClose: document.getElementById('configModalClose')
     };
     
@@ -183,6 +184,7 @@ async function init() {
 
     // Apply saved accent colors
     loadAccentColors();
+    loadShowIrradiance();
     
     // Set up forecast text visibility observer
     setupForecastTextVisibility();
@@ -712,6 +714,17 @@ function saveAccentColors(primary, secondary) {
     localStorage.setItem('forecastAccentSecondary', secondary);
 }
 
+function loadShowIrradiance() {
+    const enabled = localStorage.getItem('forecastShowIrradiance') === 'true';
+    if (elements.irradianceCheckbox) {
+        elements.irradianceCheckbox.checked = enabled;
+    }
+}
+
+function saveShowIrradiance(enabled) {
+    localStorage.setItem('forecastShowIrradiance', enabled ? 'true' : 'false');
+}
+
 function setupConfigModal() {
     if (!elements.headerIcon || !elements.configModal) return;
 
@@ -747,6 +760,14 @@ function setupConfigModal() {
             const secondary = e.target.value;
             const primary = (elements.primaryAccentColor && elements.primaryAccentColor.value) || ACCENT_DEFAULTS.primary;
             saveAccentColors(primary, secondary);
+        });
+    }
+
+    if (elements.irradianceCheckbox) {
+        elements.irradianceCheckbox.addEventListener('change', (e) => {
+            const enabled = !!e.target.checked;
+            saveShowIrradiance(enabled);
+            renderCurrentMode();
         });
     }
 

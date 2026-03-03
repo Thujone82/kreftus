@@ -266,6 +266,50 @@ function getDayOfYear(date) {
     return Math.floor(diff / (1000 * 60 * 60 * 24));
 }
 
+// Calculate clear-sky solar irradiance (GHI) in W/m² at a given time and location (NOAA-based)
+function getSolarIrradiance(latitude, longitude, date) {
+    const latRad = toRadians(latitude);
+    const utcNow = new Date(date.getTime());
+    const dateOnly = new Date(Date.UTC(utcNow.getUTCFullYear(), utcNow.getUTCMonth(), utcNow.getUTCDate(), 0, 0, 0));
+    const dayOfYear = getDayOfYear(dateOnly);
+    const gamma = 2.0 * Math.PI * (dayOfYear - 1) / 365.0;
+    const equationOfTime = 229.18 * (0.000075 + 0.001868 * Math.cos(gamma) - 0.032077 * Math.sin(gamma) - 0.014615 * Math.cos(2 * gamma) - 0.040849 * Math.sin(2 * gamma));
+    const declination = 0.006918 - 0.399912 * Math.cos(gamma) + 0.070257 * Math.sin(gamma) - 0.006758 * Math.cos(2 * gamma) + 0.000907 * Math.sin(2 * gamma) - 0.002697 * Math.cos(3 * gamma) + 0.00148 * Math.sin(3 * gamma);
+    const solarNoonUtcMin = 720.0 - 4.0 * longitude - equationOfTime;
+    const utcMinutesFromMidnight = utcNow.getUTCHours() * 60 + utcNow.getUTCMinutes() + utcNow.getUTCSeconds() / 60.0;
+    const hourAngleDeg = (utcMinutesFromMidnight - solarNoonUtcMin) / 4.0;
+    const hourAngleRad = toRadians(hourAngleDeg);
+    const cosZenith = Math.sin(latRad) * Math.sin(declination) + Math.cos(latRad) * Math.cos(declination) * Math.cos(hourAngleRad);
+    if (cosZenith <= 0) return 0;
+    const ghi = 1000.0 * cosZenith;
+    return Math.round(ghi);
+}
+
+// Returns solar noon in UTC for a given date (same NOAA math as getSolarIrradiance)
+function getSolarNoonForDate(latitude, longitude, date) {
+    const dateOnly = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0));
+    const dayOfYear = getDayOfYear(dateOnly);
+    const gamma = 2.0 * Math.PI * (dayOfYear - 1) / 365.0;
+    const equationOfTime = 229.18 * (0.000075 + 0.001868 * Math.cos(gamma) - 0.032077 * Math.sin(gamma) - 0.014615 * Math.cos(2 * gamma) - 0.040849 * Math.sin(2 * gamma));
+    const solarNoonUtcMin = 720.0 - 4.0 * longitude - equationOfTime;
+    const solarNoonUtc = new Date(dateOnly.getTime() + solarNoonUtcMin * 60000);
+    return solarNoonUtc;
+}
+
+// Build formatted solar irradiance summary (current + peak at solar noon)
+function getSolarIrradianceSummary(latitude, longitude, currentTimeDateTime, timeZoneId) {
+    if ((latitude === 0 && longitude === 0) || !timeZoneId || !currentTimeDateTime) return null;
+    try {
+        const solarWm2 = getSolarIrradiance(latitude, longitude, currentTimeDateTime);
+        const solarNoonUtc = getSolarNoonForDate(latitude, longitude, currentTimeDateTime);
+        const peakWm2 = getSolarIrradiance(latitude, longitude, solarNoonUtc);
+        const solarNoonLocalStr = formatTime24(solarNoonUtc, timeZoneId);
+        return `${solarWm2}W/m² [${peakWm2}W/m² @ ${solarNoonLocalStr}]`;
+    } catch (e) {
+        return null;
+    }
+}
+
 // Convert UTC date to timezone (simplified - uses Intl.DateTimeFormat)
 function convertToTimeZone(date, timeZoneId) {
     if (!timeZoneId) return date;

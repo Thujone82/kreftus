@@ -97,6 +97,17 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
         html += `<span class="condition-value">${sunsetDisplay}</span>`;
         html += '</div>';
     }
+
+    if (localStorage.getItem('forecastShowIrradiance') === 'true' && location.lat != null && location.lon != null && location.timeZone) {
+        const currentTime = (typeof appState !== 'undefined' && appState.lastFetchTime) ? appState.lastFetchTime : new Date();
+        const irradianceStr = getSolarIrradianceSummary(location.lat, location.lon, currentTime, location.timeZone);
+        if (irradianceStr) {
+            html += '<div class="condition-row">';
+            html += `<span class="condition-label">Irradiance:</span>`;
+            html += `<span class="condition-value">${irradianceStr}</span>`;
+            html += '</div>';
+        }
+    }
     
     if (moonPhase && moonPhase.emoji) {
         html += '<div class="condition-row">';
