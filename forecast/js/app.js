@@ -1144,8 +1144,12 @@ function updateFavoriteButtonState(identifier = null) {
         return;
     }
     
-    // Use provided identifier (UID or key) if available, otherwise try to generate from appState.location
+    // Use provided identifier (UID or key) if available
+    // When no identifier given: prefer existing appState.currentLocationKey if it's a favorite (retain restored PWA state)
     let identifierToCheck = identifier;
+    if (!identifierToCheck && appState.currentLocationKey && isFavorite(appState.currentLocationKey)) {
+        identifierToCheck = appState.currentLocationKey;
+    }
     if (!identifierToCheck && appState.location) {
         // Prefer UID (more stable)
         identifierToCheck = generateLocationUID(appState.location);
@@ -2268,8 +2272,12 @@ function renderLocationButtons(activeUID = null) {
     }
     
     // Get current location UID to determine which button should be active
-    // Use provided activeUID if available, otherwise try to generate from appState.location
+    // Use provided activeUID if available; then appState.currentLocationKey (retain restored PWA state); then derive from appState.location
     let currentUID = activeUID;
+    if (!currentUID && appState.currentLocationKey) {
+        const raw = appState.currentLocationKey;
+        currentUID = raw.startsWith('uid_') ? raw.replace(/^uid_/, '') : raw;
+    }
     if (!currentUID && appState.location) {
         currentUID = generateLocationUID(appState.location);
     }
@@ -2748,6 +2756,13 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
                 // Not 'here' and not a favorite
                 appState.isCurrentLocationActive = false;
                 updateCurrentLocationButtonState(false);
+            }
+            
+            // Persist last viewed so PWA reopens to this view and later code paths don't overwrite selection
+            if (appState.location && (activeIdentifier || searchQuery === 'here')) {
+                const locationText = formatLocationDisplayName(appState.location.city, appState.location.state);
+                const q = (searchQuery && searchQuery.toLowerCase() === 'here') ? 'here' : (searchQuery || locationText);
+                saveLastViewedLocation(locationText, appState.location, q);
             }
             
             // Render current mode to display cached data (already uses requestAnimationFrame internally)
