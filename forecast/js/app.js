@@ -52,7 +52,12 @@ function initializeElements() {
         currentLocationBtn: document.getElementById('currentLocationBtn'),
         locationsBtn: document.getElementById('locationsBtn'),
         locationsDrawer: document.getElementById('locationsDrawer'),
-        locationButtons: document.getElementById('locationButtons')
+        locationButtons: document.getElementById('locationButtons'),
+        headerIcon: document.getElementById('headerIcon'),
+        configModal: document.getElementById('configModal'),
+        primaryAccentColor: document.getElementById('primaryAccentColor'),
+        secondaryAccentColor: document.getElementById('secondaryAccentColor'),
+        configModalClose: document.getElementById('configModalClose')
     };
     
     console.log('Elements initialized:', {
@@ -175,6 +180,9 @@ async function init() {
     console.log('Setting up event listeners...');
     setupEventListeners();
     console.log('Event listeners set up');
+
+    // Apply saved accent colors
+    loadAccentColors();
     
     // Set up forecast text visibility observer
     setupForecastTextVisibility();
@@ -669,6 +677,99 @@ function setupForecastTextVisibility() {
     });
 }
 
+// Config modal - accent colors
+const ACCENT_DEFAULTS = { primary: '#00ff00', secondary: '#00ced1' };
+
+function openConfigModal() {
+    if (elements.configModal) {
+        elements.configModal.classList.remove('hidden');
+    }
+}
+
+function closeConfigModal() {
+    if (elements.configModal) {
+        elements.configModal.classList.add('hidden');
+    }
+}
+
+function loadAccentColors() {
+    const primary = localStorage.getItem('forecastAccentPrimary');
+    const secondary = localStorage.getItem('forecastAccentSecondary');
+    if (primary) {
+        document.documentElement.style.setProperty('--color-title', primary);
+        if (elements.primaryAccentColor) elements.primaryAccentColor.value = primary;
+    }
+    if (secondary) {
+        document.documentElement.style.setProperty('--color-default', secondary);
+        if (elements.secondaryAccentColor) elements.secondaryAccentColor.value = secondary;
+    }
+}
+
+function saveAccentColors(primary, secondary) {
+    document.documentElement.style.setProperty('--color-title', primary);
+    document.documentElement.style.setProperty('--color-default', secondary);
+    localStorage.setItem('forecastAccentPrimary', primary);
+    localStorage.setItem('forecastAccentSecondary', secondary);
+}
+
+function setupConfigModal() {
+    if (!elements.headerIcon || !elements.configModal) return;
+
+    let clickTimer = null;
+    let isDoubleClick = false;
+    elements.headerIcon.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (clickTimer) {
+            clearTimeout(clickTimer);
+            clickTimer = null;
+            isDoubleClick = true;
+            openConfigModal();
+            return;
+        }
+        isDoubleClick = false;
+        clickTimer = setTimeout(() => {
+            if (!isDoubleClick) {
+                // Single click - no action
+            }
+            clickTimer = null;
+        }, 300);
+    });
+
+    if (elements.primaryAccentColor) {
+        elements.primaryAccentColor.addEventListener('input', (e) => {
+            const primary = e.target.value;
+            const secondary = (elements.secondaryAccentColor && elements.secondaryAccentColor.value) || ACCENT_DEFAULTS.secondary;
+            saveAccentColors(primary, secondary);
+        });
+    }
+    if (elements.secondaryAccentColor) {
+        elements.secondaryAccentColor.addEventListener('input', (e) => {
+            const secondary = e.target.value;
+            const primary = (elements.primaryAccentColor && elements.primaryAccentColor.value) || ACCENT_DEFAULTS.primary;
+            saveAccentColors(primary, secondary);
+        });
+    }
+
+    if (elements.configModal) {
+        const overlay = elements.configModal.querySelector('.config-modal-overlay');
+        if (overlay) {
+            overlay.addEventListener('click', closeConfigModal);
+        }
+    }
+    if (elements.configModalClose) {
+        elements.configModalClose.addEventListener('click', (e) => {
+            e.preventDefault();
+            closeConfigModal();
+        });
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && elements.configModal && !elements.configModal.classList.contains('hidden')) {
+            closeConfigModal();
+        }
+    });
+}
+
 function setupEventListeners() {
     // Verify elements exist
     if (!elements.searchBtn || !elements.locationInput) {
@@ -829,6 +930,9 @@ function setupEventListeners() {
     
     // Set up hourly navigation handlers once (using event delegation)
     setupHourlyNavigation();
+
+    // Config modal
+    setupConfigModal();
 }
 
 // Handle favorite toggle

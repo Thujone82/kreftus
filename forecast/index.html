@@ -14,7 +14,7 @@
     <header>
         <div class="header-left">
             <h1>
-                <img src="icons/light-icon-192.png" alt="Forecast Icon" class="header-icon">
+                <img id="headerIcon" src="icons/light-icon-192.png" alt="Forecast Icon" class="header-icon">
                 <span class="forecast-text">Forecast</span>
             </h1>
         </div>
@@ -72,6 +72,23 @@
             <button id="reloadBtn" class="btn btn-primary">Reload</button>
         </div>
     </main>
+
+    <!-- Config Modal -->
+    <div id="configModal" class="config-modal hidden">
+        <div class="config-modal-overlay"></div>
+        <div class="config-modal-content">
+            <h2 class="config-modal-title">Settings</h2>
+            <div class="config-option">
+                <label for="primaryAccentColor">Primary Accent Color</label>
+                <input type="color" id="primaryAccentColor" value="#00ff00">
+            </div>
+            <div class="config-option">
+                <label for="secondaryAccentColor">Secondary Accent Color</label>
+                <input type="color" id="secondaryAccentColor" value="#00ced1">
+            </div>
+            <button id="configModalClose" class="btn btn-primary">Done</button>
+        </div>
+    </div>
 
     <script src="js/utils.js?v=4"></script>
     <script src="js/api.js?v=4"></script>

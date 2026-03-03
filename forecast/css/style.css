@@ -486,6 +486,77 @@ main {
     display: none;
 }
 
+/* Config Modal */
+.config-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.config-modal.hidden {
+    display: none;
+}
+
+.config-modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.6);
+    cursor: pointer;
+}
+
+.config-modal-content {
+    position: relative;
+    background-color: var(--color-bg-secondary);
+    border: 2px solid var(--color-title);
+    border-radius: 8px;
+    padding: 1.5rem;
+    max-width: 320px;
+    width: 100%;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.config-modal-title {
+    color: var(--color-title);
+    font-size: 1.5rem;
+    margin-bottom: 1.25rem;
+}
+
+.config-option {
+    margin-bottom: 1rem;
+}
+
+.config-option label {
+    display: block;
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 0.35rem;
+}
+
+.config-option input[type="color"] {
+    width: 100%;
+    height: 44px;
+    border: 2px solid var(--color-default);
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 2px;
+    background: var(--color-bg);
+}
+
+.config-modal-content #configModalClose {
+    margin-top: 1rem;
+    width: 100%;
+}
+
 /* History tab banners */
 .history-banner {
     padding: 1rem;
