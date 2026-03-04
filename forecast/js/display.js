@@ -168,13 +168,11 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
     return html;
 }
 
-// Display forecast text
+// Display forecast text (normalized to one paragraph; wrapping handled by CSS)
 function displayForecastText(title, text) {
-    const wrappedLines = wrapText(text, 80);
+    const normalized = (text == null ? '' : String(text)).replace(/\s+/g, ' ').trim();
     let html = `<div class="section-header">${title}</div>`;
-    html += '<div class="forecast-text">';
-    html += wrappedLines.join('\n');
-    html += '</div>';
+    html += `<div class="forecast-period-text forecast-text">${normalized}</div>`;
     return html;
 }
 
@@ -448,16 +446,17 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
             
             // Day and night detailed forecasts
             if (nightDetailedForecast) {
-                const dayForecastText = period.detailedForecast || "No detailed forecast available";
+                const dayForecastText = (period.detailedForecast || "No detailed forecast available").replace(/\s+/g, ' ').trim();
+                const nightForecastNormalized = (nightDetailedForecast || '').replace(/\s+/g, ' ').trim();
                 
-                html += `<div class="daily-details">${periodIcon} Day: ${dayForecastText}</div>`;
+                html += `<div class="daily-details forecast-period-text">${periodIcon} Day: ${dayForecastText}</div>`;
                 
                 // Calculate moon phase for the night period's date
                 // Use the night period's date if available, otherwise use the day period's date
                 const nightDate = nightPeriodTime || periodTime;
                 const moonPhaseInfo = calculateMoonPhase(nightDate);
                 
-                html += `<div class="daily-details">${moonPhaseInfo.emoji} Night: ${nightDetailedForecast}</div>`;
+                html += `<div class="daily-details forecast-period-text">${moonPhaseInfo.emoji} Night: ${nightForecastNormalized}</div>`;
             } else {
                 // Determine if this single period should be treated as night or day.
                 // Prefer per-day sunrise/sunset (including polar flags) when available; otherwise fall back to a simple time-based rule.
@@ -481,9 +480,9 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
                 // Calculate moon phase for this period's date
                 const moonPhaseInfo = calculateMoonPhase(periodTime);
                 const singlePeriodLabel = isCurrentPeriodNight ? `${moonPhaseInfo.emoji} Night: ` : `${periodIcon} Day: `;
-                const singlePeriodText = period.detailedForecast || "No detailed forecast available";
+                const singlePeriodText = (period.detailedForecast || "No detailed forecast available").replace(/\s+/g, ' ').trim();
                 
-                html += `<div class="daily-details">${singlePeriodLabel}${singlePeriodText}</div>`;
+                html += `<div class="daily-details forecast-period-text">${singlePeriodLabel}${singlePeriodText}</div>`;
             }
         } else {
             // Standard mode

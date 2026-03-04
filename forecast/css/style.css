@@ -775,6 +775,12 @@ main {
     word-wrap: break-word;
 }
 
+.forecast-period-text {
+    max-width: min(90ch, 620px);
+    white-space: normal;
+    overflow-wrap: break-word;
+}
+
 /* Hourly Forecast */
 /* Hourly navigation buttons */
 .hourly-nav-btn {
