@@ -400,6 +400,11 @@ main {
     background-color: var(--color-bg);
 }
 
+.location-btn-dragging {
+    opacity: 0.6;
+    cursor: grabbing;
+}
+
 .toggle-label {
     display: flex;
     align-items: center;

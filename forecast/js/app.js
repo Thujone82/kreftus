@@ -934,6 +934,90 @@ function setupEventListeners() {
                 clickTimer = null;
             }, 300); // 300ms delay to detect double-click
         });
+
+        // Drag-and-drop reorder: live DOM reorder during drag, save on drop; drop outside = cancel
+        let dragFromIndex = null;
+        let lastInsertIndex = null;
+        elements.locationButtons.addEventListener('dragstart', (e) => {
+            const btn = e.target.closest('.location-btn');
+            if (!btn || btn.querySelector('.location-btn-edit')) return;
+            const index = btn.getAttribute('data-index');
+            if (index === null) return;
+            const idx = parseInt(index, 10);
+            e.dataTransfer.setData('text/plain', String(idx));
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setDragImage(btn, 0, 0);
+            btn.classList.add('location-btn-dragging');
+            dragFromIndex = idx;
+            lastInsertIndex = null;
+        });
+        elements.locationButtons.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const container = elements.locationButtons;
+            const dragged = container.querySelector('.location-btn-dragging');
+            if (!dragged) return;
+            const otherButtons = [...container.querySelectorAll('.location-btn')].filter(b => b !== dragged);
+            if (otherButtons.length === 0) return;
+            const x = e.clientX;
+            const y = e.clientY;
+            const containerRect = container.getBoundingClientRect();
+            let insertIndex = 0;
+            for (let i = 0; i < otherButtons.length; i++) {
+                const r = otherButtons[i].getBoundingClientRect();
+                if (y >= r.top && y <= r.bottom) {
+                    const mid = r.left + r.width / 2;
+                    insertIndex = x <= mid ? i : i + 1;
+                    break;
+                }
+                if (i === otherButtons.length - 1 && y > r.bottom) insertIndex = otherButtons.length;
+            }
+            // Make it easy to drop at end: if pointer is right of the last button's center and within container height, use end
+            const lastBtn = otherButtons[otherButtons.length - 1];
+            if (lastBtn) {
+                const lastR = lastBtn.getBoundingClientRect();
+                const atEndZone = x >= (lastR.left + lastR.width / 2) && y >= containerRect.top && y <= containerRect.bottom;
+                if (atEndZone) insertIndex = otherButtons.length;
+            }
+            lastInsertIndex = insertIndex;
+            if (insertIndex >= otherButtons.length) {
+                container.appendChild(dragged);
+            } else {
+                container.insertBefore(dragged, otherButtons[insertIndex]);
+            }
+        });
+        elements.locationButtons.addEventListener('dragleave', (e) => {
+            if (!elements.locationButtons.contains(e.relatedTarget)) {
+                lastInsertIndex = null;
+            }
+        });
+        elements.locationButtons.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const fromIndex = dragFromIndex !== null ? dragFromIndex : parseInt(e.dataTransfer.getData('text/plain'), 10);
+            const toIndex = lastInsertIndex;
+            lastInsertIndex = null;
+            dragFromIndex = null;
+            if (toIndex !== null && toIndex !== undefined) {
+                const ti = Number(toIndex);
+                if (!Number.isNaN(fromIndex) && !Number.isNaN(ti) && fromIndex !== ti) {
+                    reorderFavorites(fromIndex, ti);
+                }
+            }
+        });
+        elements.locationButtons.addEventListener('dragend', (e) => {
+            const btn = e.target.closest('.location-btn');
+            if (btn) btn.classList.remove('location-btn-dragging');
+            lastInsertIndex = null;
+            dragFromIndex = null;
+            const activeUID = appState.currentLocationKey ? (String(appState.currentLocationKey).startsWith('uid_') ? appState.currentLocationKey.replace(/^uid_/, '') : appState.currentLocationKey) : null;
+            if (activeUID != null) renderLocationButtons(activeUID);
+            else if (appState.location) {
+                const uid = generateLocationUID(appState.location);
+                if (uid) renderLocationButtons(uid);
+                else renderLocationButtons();
+            } else renderLocationButtons();
+        });
     }
     
         // Update notification
@@ -1924,6 +2008,23 @@ function removeFavorite(identifier) {
     }
 }
 
+function reorderFavorites(fromIndex, toIndex) {
+    if (fromIndex === toIndex) return;
+    const favorites = getFavorites();
+    if (fromIndex < 0 || fromIndex >= favorites.length || toIndex < 0 || toIndex >= favorites.length) return;
+    const [removed] = favorites.splice(fromIndex, 1);
+    favorites.splice(toIndex, 0, removed);
+    localStorage.setItem('forecastFavorites', JSON.stringify(favorites));
+    const activeUID = appState.currentLocationKey ? (String(appState.currentLocationKey).startsWith('uid_') ? appState.currentLocationKey.replace(/^uid_/, '') : appState.currentLocationKey) : null;
+    if (!activeUID && appState.location) {
+        const uid = generateLocationUID(appState.location);
+        if (uid) renderLocationButtons(uid);
+        else renderLocationButtons();
+    } else {
+        renderLocationButtons(activeUID);
+    }
+}
+
 function isFavorite(identifier) {
     if (!identifier) return false;
     const favorites = getFavorites();
@@ -2431,7 +2532,7 @@ function renderLocationButtons(activeUID = null) {
     }
     
     let html = '';
-    favorites.forEach(favorite => {
+    favorites.forEach((favorite, index) => {
         // Use customName if available, otherwise fall back to name
         const displayName = favorite.customName || favorite.name;
         const truncatedName = truncateCityName(displayName, 20);
@@ -2441,7 +2542,7 @@ function renderLocationButtons(activeUID = null) {
         const activeClass = isActive ? ' active' : '';
         // Use UID as the primary identifier in data attribute (should always exist now)
         const uid = favorite.uid || favorite.key; // Fallback to key for old favorites without UID
-        html += `<button class="location-btn${activeClass}" data-location-uid="${uid}" data-location-key="${favorite.key || ''}" data-custom-name="${favorite.customName || ''}">${truncatedName}</button>`;
+        html += `<button type="button" class="location-btn${activeClass}" data-location-uid="${uid}" data-location-key="${favorite.key || ''}" data-custom-name="${favorite.customName || ''}" data-index="${index}" draggable="true">${truncatedName}</button>`;
     });
     
     elements.locationButtons.innerHTML = html;
