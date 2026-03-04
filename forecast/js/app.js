@@ -3918,10 +3918,30 @@ function isDataStale() {
     return diff > DATA_STALE_THRESHOLD;
 }
 
+// Get the location string to use for refresh (favors current favorite/location over input, so auto-update does not use "here" when input was cleared on focus)
+function getLocationForRefresh() {
+    if (appState.currentLocationKey && isFavorite(appState.currentLocationKey)) {
+        const uid = String(appState.currentLocationKey).startsWith('uid_') ? appState.currentLocationKey.replace(/^uid_/, '') : appState.currentLocationKey;
+        const fav = getFavoriteByUID(uid) || getFavoriteByKey(appState.currentLocationKey);
+        if (fav) {
+            const q = (fav.searchQuery || '').trim();
+            if (q) return q;
+            if (fav.location && fav.location.city != null && fav.location.state != null) {
+                return formatLocationDisplayName(fav.location.city, fav.location.state);
+            }
+            if (fav.name) return fav.name;
+        }
+    }
+    if (appState.location && appState.location.city != null && appState.location.state != null) {
+        return formatLocationDisplayName(appState.location.city, appState.location.state);
+    }
+    return (elements.locationInput && elements.locationInput.value) ? elements.locationInput.value.trim() : '';
+}
+
 // Auto-refresh check
 function checkAutoRefresh() {
     if (appState.autoUpdateEnabled && isDataStale() && appState.location) {
-        const location = elements.locationInput.value.trim() || 'here';
+        const location = getLocationForRefresh() || 'here';
         loadWeatherData(location, false, true); // Use background mode to keep content visible
     }
 }
