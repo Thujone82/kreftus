@@ -197,7 +197,8 @@ main {
 }
 
 .btn-primary:hover {
-    background-color: #00cc00;
+    background-color: var(--color-title);
+    filter: brightness(1.15);
     transform: translateY(-1px);
 }
 
@@ -207,8 +208,13 @@ main {
 }
 
 .btn-secondary:hover {
-    background-color: #00b8b8;
+    background-color: var(--color-default);
+    filter: brightness(1.15);
     transform: translateY(-1px);
+}
+
+.btn:hover:active {
+    filter: none;
 }
 
 .btn:active {
