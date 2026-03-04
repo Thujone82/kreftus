@@ -1,20 +1,7 @@
-﻿let CACHE_NAME = 'forecast-v1.0.1-030326@2125';
-let STATIC_CACHE = 'forecast-static-v1.0.1';
-let DATA_CACHE = 'forecast-data-v1.0.1';
-
-// Initialize cache names from manifest
-async function initializeCacheNames() {
-    try {
-        const response = await fetch('/forecast/manifest.json?t=' + Date.now());
-        const manifest = await response.json();
-        const version = manifest.version || '1.0.1';
-        CACHE_NAME = `forecast-v${version}`;
-        STATIC_CACHE = `forecast-static-v${version}`;
-        DATA_CACHE = `forecast-data-v${version}`;
-    } catch (error) {
-        console.error('Error initializing cache names:', error);
-    }
-}
+const VERSION = '1.2.0';
+const CACHE_NAME = `forecast-v${VERSION}`;
+const STATIC_CACHE = `forecast-static-v${VERSION}`;
+const DATA_CACHE = `forecast-data-v${VERSION}`;
 
 const STATIC_ASSETS = [
     '/forecast/',
@@ -33,11 +20,7 @@ const STATIC_ASSETS = [
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
     event.waitUntil(
-        initializeCacheNames().then(() => {
-            return caches.open(STATIC_CACHE).then((cache) => {
-                return cache.addAll(STATIC_ASSETS);
-            });
-        })
+        caches.open(STATIC_CACHE).then((cache) => cache.addAll(STATIC_ASSETS))
     );
     self.skipWaiting();
 });
@@ -45,20 +28,17 @@ self.addEventListener('install', (event) => {
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
     event.waitUntil(
-        initializeCacheNames().then(() => {
-            return caches.keys().then((cacheNames) => {
-                return Promise.all(
-                    cacheNames.map((cacheName) => {
-                        // Delete all old caches that don't match current version
-                        if (cacheName.startsWith('forecast-') && 
-                            cacheName !== STATIC_CACHE && 
-                            cacheName !== DATA_CACHE) {
-                            console.log('Deleting old cache:', cacheName);
-                            return caches.delete(cacheName);
-                        }
-                    })
-                );
-            });
+        caches.keys().then((cacheNames) => {
+            return Promise.all(
+                cacheNames.map((cacheName) => {
+                    if (cacheName.startsWith('forecast-') &&
+                        cacheName !== STATIC_CACHE &&
+                        cacheName !== DATA_CACHE) {
+                        console.log('Deleting old cache:', cacheName);
+                        return caches.delete(cacheName);
+                    }
+                })
+            );
         }).then(() => {
             // Clear localStorage cache when service worker updates
             // This ensures users get fresh data with new features (like NOAA station data)
@@ -154,8 +134,7 @@ async function checkForUpdate() {
         const response = await fetch('/forecast/manifest.json?t=' + Date.now());
         const manifest = await response.json();
         
-        // Get current version from cache name or default
-        const currentVersion = CACHE_NAME.match(/v([\d.]+)/)?.[1] || '1.0.1';
+        const currentVersion = VERSION;
         
         if (manifest.version !== currentVersion) {
             // Notify all clients about the update
