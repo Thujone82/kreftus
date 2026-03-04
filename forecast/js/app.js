@@ -3797,19 +3797,11 @@ function setupHourlyNavigation() {
 
 // Show control bar update indicator (spinner + "Updating" text)
 function showControlBarUpdateIndicator() {
-    if (!elements.autoUpdateToggleLabel) return;
-    
-    // Hide checkbox and label text
-    if (elements.autoUpdateToggle) {
-        elements.autoUpdateToggle.style.display = 'none';
-    }
-    const labelSpan = elements.autoUpdateToggleLabel.querySelector('span');
-    if (labelSpan) {
-        labelSpan.style.display = 'none';
-    }
+    const container = elements.autoUpdateToggleLabel || document.getElementById('updateIndicatorContainer');
+    if (!container) return;
     
     // Create or show update indicator
-    let updateIndicator = elements.autoUpdateToggleLabel.querySelector('.update-indicator');
+    let updateIndicator = container.querySelector('.update-indicator');
     if (!updateIndicator) {
         updateIndicator = document.createElement('div');
         updateIndicator.className = 'update-indicator';
@@ -3819,26 +3811,17 @@ function showControlBarUpdateIndicator() {
         text.textContent = 'Updating';
         updateIndicator.appendChild(spinner);
         updateIndicator.appendChild(text);
-        elements.autoUpdateToggleLabel.appendChild(updateIndicator);
+        container.appendChild(updateIndicator);
     }
     updateIndicator.style.display = 'flex';
 }
 
-// Hide control bar update indicator (restore checkbox and label text)
+// Hide control bar update indicator
 function hideControlBarUpdateIndicator() {
-    if (!elements.autoUpdateToggleLabel) return;
+    const container = elements.autoUpdateToggleLabel || document.getElementById('updateIndicatorContainer');
+    if (!container) return;
     
-    // Show checkbox and label text
-    if (elements.autoUpdateToggle) {
-        elements.autoUpdateToggle.style.display = '';
-    }
-    const labelSpan = elements.autoUpdateToggleLabel.querySelector('span');
-    if (labelSpan) {
-        labelSpan.style.display = '';
-    }
-    
-    // Hide update indicator
-    const updateIndicator = elements.autoUpdateToggleLabel.querySelector('.update-indicator');
+    const updateIndicator = container.querySelector('.update-indicator');
     if (updateIndicator) {
         updateIndicator.style.display = 'none';
     }

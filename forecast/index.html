@@ -42,10 +42,7 @@
             <button id="currentLocationBtn" class="btn btn-secondary current-location-btn" title="Use Current Location">📍</button>
             <button id="locationsBtn" class="btn btn-secondary locations-btn">🌎Locations ▾</button>
             <button id="refreshBtn" class="btn btn-secondary">Refresh</button>
-            <label class="toggle-label">
-                <input type="checkbox" id="autoUpdateToggle" checked>
-                <span>Auto-Update</span>
-            </label>
+            <span id="updateIndicatorContainer" class="toggle-label"></span>
             <span id="lastUpdate" class="last-update"></span>
         </section>
 
@@ -85,6 +82,12 @@
             <div class="config-option">
                 <label for="secondaryAccentColor">Secondary Accent Color</label>
                 <input type="color" id="secondaryAccentColor" value="#00ced1">
+            </div>
+            <div class="config-option">
+                <label class="config-checkbox-label">
+                    <input type="checkbox" id="autoUpdateToggle" checked>
+                    <span>Auto-Update</span>
+                </label>
             </div>
             <div class="config-option config-extras">
                 <span class="config-option-label">Extras</span>
