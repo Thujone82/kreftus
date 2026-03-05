@@ -59,7 +59,8 @@ function initializeElements() {
         secondaryAccentColor: document.getElementById('secondaryAccentColor'),
         irradianceCheckbox: document.getElementById('irradianceCheckbox'),
         configModalClose: document.getElementById('configModalClose'),
-        configModalReset: document.getElementById('configModalReset')
+        configModalReset: document.getElementById('configModalReset'),
+        configModalVersion: document.getElementById('configModalVersion')
     };
     
     console.log('Elements initialized:', {
@@ -687,6 +688,22 @@ function openConfigModal() {
     if (elements.configModal) {
         elements.configModal.classList.remove('hidden');
     }
+    updateConfigModalVersionNote();
+}
+
+async function updateConfigModalVersionNote() {
+    const el = elements.configModalVersion;
+    if (!el) return;
+    let version = '?';
+    try {
+        const swResponse = await fetch('service-worker.js?t=' + Date.now(), { method: 'GET', cache: 'no-cache' });
+        const text = await swResponse.text();
+        const match = text.match(/const\s+VERSION\s*=\s*['"]([^'"]+)['"]/);
+        if (match && match[1]) version = match[1];
+    } catch (e) {
+        console.warn('Failed to fetch service-worker.js for version:', e);
+    }
+    el.textContent = version === '?' ? 'Forecast v? (version when online)' : `Forecast v${version}`;
 }
 
 function closeConfigModal() {
