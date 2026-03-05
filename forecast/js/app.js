@@ -955,6 +955,8 @@ function setupEventListeners() {
         // Drag-and-drop reorder: live DOM reorder during drag, save on drop; drop outside = cancel
         let dragFromIndex = null;
         let lastInsertIndex = null;
+        let dragLastClientX = null;
+        let dragStartClientX = null;
         elements.locationButtons.addEventListener('dragstart', (e) => {
             const btn = e.target.closest('.location-btn');
             if (!btn || btn.querySelector('.location-btn-edit')) return;
@@ -967,6 +969,8 @@ function setupEventListeners() {
             btn.classList.add('location-btn-dragging');
             dragFromIndex = idx;
             lastInsertIndex = null;
+            dragLastClientX = null;
+            dragStartClientX = e.clientX;
         });
         elements.locationButtons.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -979,28 +983,27 @@ function setupEventListeners() {
             const x = e.clientX;
             const y = e.clientY;
             const containerRect = container.getBoundingClientRect();
-            let insertIndex = 0;
-            for (let i = 0; i < otherButtons.length; i++) {
-                const r = otherButtons[i].getBoundingClientRect();
-                if (y >= r.top && y <= r.bottom) {
-                    const mid = r.left + r.width / 2;
-                    insertIndex = x <= mid ? i : i + 1;
-                    break;
+            // Offset so the drag image (not just cursor) drives the slot. Cursor is at top-left of image:
+            // when dragging right the cursor is behind the image → use point to the right of cursor;
+            // when dragging left the cursor is ahead of the image → use point to the left of cursor.
+            const dropOffsetX = 40;
+            const prevX = dragLastClientX ?? dragStartClientX;
+            const effectiveX = (prevX !== null && x < prevX) ? x - dropOffsetX : x + dropOffsetX;
+            dragLastClientX = x;
+            const inRow = y >= containerRect.top && y <= containerRect.bottom;
+            if (inRow) {
+                // Insert index = number of buttons whose center is to the left of effectiveX
+                let insertIndex = otherButtons.filter((b) => {
+                    const r = b.getBoundingClientRect();
+                    return (r.left + r.width / 2) < effectiveX;
+                }).length;
+                insertIndex = Math.min(insertIndex, otherButtons.length);
+                lastInsertIndex = insertIndex;
+                if (insertIndex >= otherButtons.length) {
+                    container.appendChild(dragged);
+                } else {
+                    container.insertBefore(dragged, otherButtons[insertIndex]);
                 }
-                if (i === otherButtons.length - 1 && y > r.bottom) insertIndex = otherButtons.length;
-            }
-            // Make it easy to drop at end: if pointer is right of the last button's center and within container height, use end
-            const lastBtn = otherButtons[otherButtons.length - 1];
-            if (lastBtn) {
-                const lastR = lastBtn.getBoundingClientRect();
-                const atEndZone = x >= (lastR.left + lastR.width / 2) && y >= containerRect.top && y <= containerRect.bottom;
-                if (atEndZone) insertIndex = otherButtons.length;
-            }
-            lastInsertIndex = insertIndex;
-            if (insertIndex >= otherButtons.length) {
-                container.appendChild(dragged);
-            } else {
-                container.insertBefore(dragged, otherButtons[insertIndex]);
             }
         });
         elements.locationButtons.addEventListener('dragleave', (e) => {
@@ -1027,6 +1030,8 @@ function setupEventListeners() {
             if (btn) btn.classList.remove('location-btn-dragging');
             lastInsertIndex = null;
             dragFromIndex = null;
+            dragLastClientX = null;
+            dragStartClientX = null;
             const activeUID = appState.currentLocationKey ? (String(appState.currentLocationKey).startsWith('uid_') ? appState.currentLocationKey.replace(/^uid_/, '') : appState.currentLocationKey) : null;
             if (activeUID != null) renderLocationButtons(activeUID);
             else if (appState.location) {
