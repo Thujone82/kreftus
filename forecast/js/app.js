@@ -33,6 +33,12 @@ let elements = {};
 // PWA install: store beforeinstallprompt event to trigger from custom button
 let deferredInstallPrompt = null;
 
+function isPwaStandalone() {
+    return window.matchMedia('(display-mode: standalone)').matches ||
+        window.navigator.standalone === true ||
+        document.referrer.includes('android-app://');
+}
+
 // Initialize DOM elements
 function initializeElements() {
     console.log('Initializing DOM elements');
@@ -220,6 +226,11 @@ async function init() {
                     // Service worker updated - clear localStorage cache to get fresh data with new features
                     console.log('Service worker updated, clearing cache:', event.data.reason);
                     clearAllCachedData();
+                    // Running as installed PWA: ensure Install button stays hidden after update
+                    if (isPwaStandalone()) {
+                        deferredInstallPrompt = null;
+                        if (elements.installBtn) elements.installBtn.classList.add('hidden');
+                    }
                     // If we have a current location, refresh the data to get new features (like NOAA station)
                     if (appState.location || elements.locationInput.value) {
                         const locationToRefresh = elements.locationInput.value || 'here';
@@ -241,14 +252,18 @@ async function init() {
     }
 
     // PWA install: custom Install Forecast button (Settings modal)
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
-        window.navigator.standalone === true ||
-        document.referrer.includes('android-app://');
+    const isStandalone = isPwaStandalone();
     if (elements.installBtn && isStandalone) {
         elements.installBtn.classList.add('hidden');
     }
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
+        // Do not show install button when already running as installed PWA (e.g. after an update)
+        if (isPwaStandalone()) {
+            deferredInstallPrompt = null;
+            if (elements.installBtn) elements.installBtn.classList.add('hidden');
+            return;
+        }
         deferredInstallPrompt = e;
         if (elements.installBtn) elements.installBtn.classList.remove('hidden');
     });
