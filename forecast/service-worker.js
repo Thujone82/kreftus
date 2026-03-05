@@ -1,4 +1,4 @@
-﻿const VERSION = '1.2.7c';
+﻿const VERSION = '1.2.8';
 const CACHE_NAME = `forecast-v${VERSION}`;
 const STATIC_CACHE = `forecast-static-v${VERSION}`;
 const DATA_CACHE = `forecast-data-v${VERSION}`;
@@ -121,10 +121,12 @@ self.addEventListener('fetch', (event) => {
     }
 });
 
-// Listen for messages from the app to check for updates
+// Listen for messages from the app to check for updates or get version
 self.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'CHECK_UPDATE') {
         checkForUpdate();
+    } else if (event.data && event.data.type === 'GET_VERSION' && event.source) {
+        event.source.postMessage({ type: 'VERSION', version: VERSION });
     }
 });
 

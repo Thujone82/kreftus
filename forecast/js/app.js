@@ -748,15 +748,29 @@ async function updateConfigModalVersionNote() {
     const el = elements.configModalVersion;
     if (!el) return;
     let version = '?';
-    try {
-        const swResponse = await fetch('service-worker.js?t=' + Date.now(), { method: 'GET', cache: 'no-cache' });
-        const text = await swResponse.text();
-        const match = text.match(/const\s+VERSION\s*=\s*['"]([^'"]+)['"]/);
-        if (match && match[1]) version = match[1];
-    } catch (e) {
-        console.warn('Failed to fetch service-worker.js for version:', e);
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        try {
+            version = await requestServiceWorkerVersion();
+        } catch (e) {
+            console.warn('Failed to get version from service worker:', e);
+        }
     }
     el.textContent = version === '?' ? 'Forecast v? (version when online)' : `Forecast v${version}`;
+}
+
+function requestServiceWorkerVersion() {
+    return new Promise((resolve) => {
+        const timeout = setTimeout(() => resolve('?'), 2000);
+        const onMessage = (event) => {
+            if (event.data && event.data.type === 'VERSION') {
+                clearTimeout(timeout);
+                navigator.serviceWorker.removeEventListener('message', onMessage);
+                resolve(event.data.version || '?');
+            }
+        };
+        navigator.serviceWorker.addEventListener('message', onMessage);
+        navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' });
+    });
 }
 
 function closeConfigModal() {
