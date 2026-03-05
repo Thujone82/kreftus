@@ -588,6 +588,11 @@ main {
     width: 100%;
 }
 
+.config-modal-content #installBtn {
+    margin-top: 0.75rem;
+    width: 100%;
+}
+
 .config-reset-btn {
     margin-top: 0.75rem;
     width: 100%;
