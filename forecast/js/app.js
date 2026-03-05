@@ -30,6 +30,9 @@ const AUTO_UPDATE_INTERVAL = 600000; // 10 minutes
 // DOM elements - will be initialized when DOM is ready
 let elements = {};
 
+// PWA install: store beforeinstallprompt event to trigger from custom button
+let deferredInstallPrompt = null;
+
 // Initialize DOM elements
 function initializeElements() {
     console.log('Initializing DOM elements');
@@ -60,7 +63,9 @@ function initializeElements() {
         irradianceCheckbox: document.getElementById('irradianceCheckbox'),
         configModalClose: document.getElementById('configModalClose'),
         configModalReset: document.getElementById('configModalReset'),
-        configModalVersion: document.getElementById('configModalVersion')
+        configModalVersion: document.getElementById('configModalVersion'),
+        installBtn: document.getElementById('installBtn'),
+        configModalIosInstallHint: document.getElementById('configModalIosInstallHint')
     };
     
     console.log('Elements initialized:', {
@@ -233,6 +238,39 @@ async function init() {
             console.error('Service Worker registration failed:', error);
             // Don't block app initialization if service worker fails
         }
+    }
+
+    // PWA install: custom Install Forecast button (Settings modal)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+        window.navigator.standalone === true ||
+        document.referrer.includes('android-app://');
+    if (elements.installBtn && isStandalone) {
+        elements.installBtn.classList.add('hidden');
+    }
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredInstallPrompt = e;
+        if (elements.installBtn) elements.installBtn.classList.remove('hidden');
+    });
+    window.addEventListener('appinstalled', () => {
+        deferredInstallPrompt = null;
+        if (elements.installBtn) elements.installBtn.classList.add('hidden');
+    });
+    if (elements.installBtn) {
+        elements.installBtn.addEventListener('click', async () => {
+            if (!deferredInstallPrompt) return;
+            deferredInstallPrompt.prompt();
+            const { outcome } = await deferredInstallPrompt.userChoice;
+            console.log('User install choice:', outcome);
+            deferredInstallPrompt = null;
+            elements.installBtn.classList.add('hidden');
+        });
+    }
+    // iOS: show Add to Home Screen instructions (beforeinstallprompt not supported)
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (elements.configModalIosInstallHint && isIos && !isStandalone) {
+        elements.configModalIosInstallHint.textContent = 'To install on iPhone: tap Share, then Add to Home Screen.';
+        elements.configModalIosInstallHint.classList.remove('hidden');
     }
     
     // Check for stored auto-update preference
