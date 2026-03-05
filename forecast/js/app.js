@@ -712,12 +712,27 @@ function closeConfigModal() {
     }
 }
 
+const THEME_COLOR_DEFAULT = '#008B8B'; // matches manifest.json theme_color
+
+function applyThemeColorToTitleBar(hexColor) {
+    let meta = document.querySelector('meta[name="theme-color"]');
+    if (!meta) {
+        meta = document.createElement('meta');
+        meta.name = 'theme-color';
+        document.head.appendChild(meta);
+    }
+    meta.content = hexColor || THEME_COLOR_DEFAULT;
+}
+
 function loadAccentColors() {
     const primary = localStorage.getItem('forecastAccentPrimary');
     const secondary = localStorage.getItem('forecastAccentSecondary');
     if (primary) {
         document.documentElement.style.setProperty('--color-title', primary);
         if (elements.primaryAccentColor) elements.primaryAccentColor.value = primary;
+        applyThemeColorToTitleBar(primary);
+    } else {
+        applyThemeColorToTitleBar(THEME_COLOR_DEFAULT);
     }
     if (secondary) {
         document.documentElement.style.setProperty('--color-default', secondary);
@@ -730,6 +745,7 @@ function saveAccentColors(primary, secondary) {
     document.documentElement.style.setProperty('--color-default', secondary);
     localStorage.setItem('forecastAccentPrimary', primary);
     localStorage.setItem('forecastAccentSecondary', secondary);
+    applyThemeColorToTitleBar(primary);
 }
 
 function loadShowIrradiance() {
