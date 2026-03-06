@@ -20,6 +20,8 @@ const appState = {
     error: null,
     useMetric: false,
     use24h: false,
+    /** Version of this app instance (set once at load, used in Settings modal until reload) */
+    currentAppVersion: null,
     // In-memory cache for parsed weather data (keyed by locationKey + timestamp)
     // This avoids repeated JSON.parse operations when switching between favorites
     cachedWeatherDataByKey: new Map()
@@ -209,6 +211,9 @@ async function init() {
     console.log('Setting up event listeners...');
     setupEventListeners();
     console.log('Event listeners set up');
+
+    // Capture app version once at load (from SW or manifest) so Settings modal shows this page's version until reload
+    loadAppVersionOnce();
 
     // Apply saved accent colors and settings
     loadAccentColors();
@@ -762,18 +767,37 @@ function openConfigModal() {
     updateConfigModalVersionNote();
 }
 
-async function updateConfigModalVersionNote() {
+/** Uses version stored at load (appState.currentAppVersion). Does not re-query SW so the modal shows the version of the app you are currently running until reload. */
+function updateConfigModalVersionNote() {
     const el = elements.configModalVersion;
     if (!el) return;
-    let version = '?';
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        try {
-            version = await requestServiceWorkerVersion();
-        } catch (e) {
-            console.warn('Failed to get version from service worker:', e);
-        }
-    }
+    const version = appState.currentAppVersion ?? '?';
     el.textContent = version === '?' ? 'Forecast v? (version when online)' : `Forecast v${version}`;
+}
+
+/** Load version once at init from SW or manifest and store in appState.currentAppVersion. Called once so the modal always shows the version of this page load until reload. */
+function loadAppVersionOnce() {
+    (async () => {
+        let version = null;
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            try {
+                version = await requestServiceWorkerVersion();
+            } catch (e) {
+                // ignore
+            }
+        }
+        if (!version || version === '?') {
+            try {
+                const res = await fetch('/forecast/manifest.json');
+                const manifest = await res.json();
+                version = manifest.version || null;
+            } catch (e) {
+                // ignore
+            }
+        }
+        if (version) appState.currentAppVersion = version;
+        updateConfigModalVersionNote();
+    })();
 }
 
 function requestServiceWorkerVersion() {
