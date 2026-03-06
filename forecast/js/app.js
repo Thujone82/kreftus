@@ -773,8 +773,8 @@ function openConfigModal() {
     const primaryLabel = elements.configModal ? elements.configModal.querySelector('label[for="primaryAccentColor"]') : null;
     const secondaryLabel = elements.configModal ? elements.configModal.querySelector('label[for="secondaryAccentColor"]') : null;
     if (isPerLocationColorsEnabled()) {
-        const locationLabel = getCurrentLocationLabel();
-        const prefix = locationLabel ? locationLabel + ' ' : 'Global ';
+        const fav = getCurrentFavorite();
+        const prefix = fav ? (getCurrentLocationLabel() || 'Global') + ' ' : 'Global ';
         if (primaryLabel) primaryLabel.textContent = prefix + 'Primary Accent Color';
         if (secondaryLabel) secondaryLabel.textContent = prefix + 'Secondary Accent Color';
     } else {
@@ -1140,8 +1140,8 @@ function setupConfigModal() {
             const primaryLabel = elements.configModal ? elements.configModal.querySelector('label[for="primaryAccentColor"]') : null;
             const secondaryLabel = elements.configModal ? elements.configModal.querySelector('label[for="secondaryAccentColor"]') : null;
             if (enabled) {
-                const locationLabel = getCurrentLocationLabel();
-                const prefix = locationLabel ? locationLabel + ' ' : 'Global ';
+                const fav = getCurrentFavorite();
+                const prefix = fav ? (getCurrentLocationLabel() || 'Global') + ' ' : 'Global ';
                 if (primaryLabel) primaryLabel.textContent = prefix + 'Primary Accent Color';
                 if (secondaryLabel) secondaryLabel.textContent = prefix + 'Secondary Accent Color';
             } else {
