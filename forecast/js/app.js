@@ -2914,11 +2914,10 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
         // Check if cache is stale - if so, trigger background refresh immediately
         // Declare at function scope so it can be used later for observations check
         const cacheIsStale = isCacheStale(cache.timestamp);
-        if (cacheIsStale) {
-            // Determine the location to refresh
+        if (cacheIsStale && appState.autoUpdateEnabled) {
+            // Only refresh in background when auto-update is on; when off, user expects to see cached data only
             let locationToRefresh = searchQuery;
             if (!locationToRefresh && restoredWeatherData && restoredWeatherData.location) {
-                // Build search query from location object
                 if (restoredWeatherData.location.city && restoredWeatherData.location.state) {
                     locationToRefresh = `${restoredWeatherData.location.city}, ${restoredWeatherData.location.state}`;
                 }
@@ -2926,16 +2925,14 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
             if (!locationToRefresh) {
                 locationToRefresh = cache.location || 'here';
             }
-            
-            // Trigger background refresh (non-blocking, won't show loading indicator)
             console.log('Cache is stale, refreshing in background...');
             setTimeout(() => {
                 loadWeatherData(locationToRefresh, false, true).catch(error => {
                     console.error('Background refresh failed for cached location:', error);
                 });
-            }, 100); // Small delay to ensure UI renders first
-        } else if (restoredWeatherData?.location && rawObservations == null) {
-            // This location has no observations yet; fetch in background so History becomes available
+            }, 100);
+        } else if (restoredWeatherData?.location && rawObservations == null && appState.autoUpdateEnabled) {
+            // Only fetch observations in background when auto-update is on
             const locationToFetch = searchQuery || (restoredWeatherData.location.city != null && restoredWeatherData.location.state != null
                 ? `${restoredWeatherData.location.city}, ${restoredWeatherData.location.state}`
                 : null) || cache.location || 'here';
@@ -3369,25 +3366,18 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             if (!isStale) {
                 // Cache is fresh - use it instead of fetching
                 console.log('Using fresh cached data for location:', location, 'cache timestamp:', cacheTimestamp.toISOString());
-                // CRITICAL: Preserve the cache timestamp BEFORE loading cached data
-                // This ensures appState.lastFetchTime reflects the actual NWS fetch time
                 const preservedCacheTimestamp = cacheTimestamp;
                 const cacheLoaded = loadCachedWeatherData(cacheKeyToUse, location);
                 if (cacheLoaded) {
-                    // DEFENSIVE: Ensure lastFetchTime is set to the cache timestamp
-                    // This prevents any accidental overwrites during async operations
                     if (appState.lastFetchTime !== preservedCacheTimestamp) {
                         console.warn('lastFetchTime was modified during loadCachedWeatherData, restoring cache timestamp');
                         appState.lastFetchTime = preservedCacheTimestamp;
                     }
                     console.log('Cache loaded successfully, lastFetchTime set to:', appState.lastFetchTime.toISOString(), 'Age:', Math.round((Date.now() - appState.lastFetchTime.getTime()) / 1000), 'seconds');
-                    
-                    // Update current location button state based on location parameter
                     if (location.toLowerCase() === 'here') {
                         appState.isCurrentLocationActive = true;
                         updateCurrentLocationButtonState(true);
                     } else {
-                        // Check if this is a favorite - if so, current location is not active
                         const favorites = getFavorites();
                         const isFavorite = favorites.some(fav => {
                             if (fav.location && appState.location) {
@@ -3402,27 +3392,18 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
                         appState.isCurrentLocationActive = false;
                         updateCurrentLocationButtonState(false);
                     }
-                    
                     setLoading(false, background);
-                    
-                    // Ensure the display is updated (loadCachedWeatherData renders in requestAnimationFrame,
-                    // but we also call it here to ensure immediate update)
                     renderCurrentMode();
                     updateFavoriteButtonState();
                     renderLocationButtons();
-                    // Still trigger background refresh if cache is getting close to stale
-                    const refreshThreshold = DATA_STALE_THRESHOLD * 0.8; // Refresh at 80% of stale threshold
-                    if (cacheAge > refreshThreshold) {
+                    const refreshThreshold = DATA_STALE_THRESHOLD * 0.8;
+                    if (cacheAge > refreshThreshold && appState.autoUpdateEnabled) {
                         console.log('Cache is getting close to stale, refreshing in background...');
-                        // CRITICAL: Preserve timestamp before background refresh
-                        // The background refresh should NOT overwrite the displayed timestamp until it completes
                         const timestampBeforeRefresh = appState.lastFetchTime;
                         setTimeout(() => {
                             loadWeatherData(location, false, true).then(() => {
-                                // Background refresh completed - timestamp will be updated with new fetch time
                                 console.log('Background refresh completed, timestamp updated to:', appState.lastFetchTime.toISOString());
                             }).catch(error => {
-                                // On error, restore the original timestamp
                                 console.error('Background refresh failed:', error);
                                 if (appState.lastFetchTime !== timestampBeforeRefresh) {
                                     appState.lastFetchTime = timestampBeforeRefresh;
@@ -3436,6 +3417,25 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
                     console.warn('loadCachedWeatherData returned false, will fetch fresh data');
                 }
             } else {
+                // Cache is stale - when auto-update is off, show cached data and do not fetch (user has no expectation of update)
+                if (!appState.autoUpdateEnabled && cacheToUse && cacheToUse.data) {
+                    console.log('Auto-update disabled, showing cached data for location:', location);
+                    const cacheLoaded = loadCachedWeatherData(cacheKeyToUse, location);
+                    if (cacheLoaded) {
+                        if (location.toLowerCase() === 'here') {
+                            appState.isCurrentLocationActive = true;
+                            updateCurrentLocationButtonState(true);
+                        } else {
+                            appState.isCurrentLocationActive = false;
+                            updateCurrentLocationButtonState(false);
+                        }
+                        setLoading(false, background);
+                        renderCurrentMode();
+                        updateFavoriteButtonState();
+                        renderLocationButtons();
+                        return;
+                    }
+                }
                 console.log('Cache is stale, will fetch fresh data');
             }
         } else {
