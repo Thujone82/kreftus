@@ -660,6 +660,11 @@ main {
     width: 100%;
 }
 
+.config-reset-colors-btn {
+    margin-bottom: 1rem;
+    width: 100%;
+}
+
 .config-reset-btn {
     margin-top: 0.75rem;
     width: 100%;

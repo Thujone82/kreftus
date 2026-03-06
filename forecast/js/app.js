@@ -69,6 +69,7 @@ function initializeElements() {
         configModal: document.getElementById('configModal'),
         primaryAccentColor: document.getElementById('primaryAccentColor'),
         secondaryAccentColor: document.getElementById('secondaryAccentColor'),
+        configModalResetColors: document.getElementById('configModalResetColors'),
         irradianceCheckbox: document.getElementById('irradianceCheckbox'),
         unitsMetricCheckbox: document.getElementById('unitsMetricCheckbox'),
         time24Checkbox: document.getElementById('time24Checkbox'),
@@ -132,11 +133,15 @@ function performFullReset() {
         // Clear current mode (will reset to default)
         localStorage.removeItem('forecastCurrentMode');
 
-        // Clear units, time format, and favorites drawer state so reload uses defaults
+        // Clear all settings so reload uses defaults (colors, units, time format, irradiance, auto-update, drawer)
+        localStorage.removeItem('forecastAccentPrimary');
+        localStorage.removeItem('forecastAccentSecondary');
+        localStorage.removeItem('forecastShowIrradiance');
+        localStorage.removeItem('forecastAutoUpdate');
         localStorage.removeItem('forecastUseMetric');
         localStorage.removeItem('forecastUse24h');
         localStorage.removeItem('forecastLocationsDrawerOpen');
-        
+
         // Clear in-memory cache
         if (appState && appState.cachedWeatherDataByKey) {
             appState.cachedWeatherDataByKey.clear();
@@ -918,6 +923,14 @@ function setupConfigModal() {
             const secondary = e.target.value;
             const primary = (elements.primaryAccentColor && elements.primaryAccentColor.value) || ACCENT_DEFAULTS.primary;
             saveAccentColors(primary, secondary);
+        });
+    }
+    if (elements.configModalResetColors) {
+        elements.configModalResetColors.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (elements.primaryAccentColor) elements.primaryAccentColor.value = ACCENT_DEFAULTS.primary;
+            if (elements.secondaryAccentColor) elements.secondaryAccentColor.value = ACCENT_DEFAULTS.secondary;
+            saveAccentColors(ACCENT_DEFAULTS.primary, ACCENT_DEFAULTS.secondary);
         });
     }
 
