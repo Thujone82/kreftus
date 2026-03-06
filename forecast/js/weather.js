@@ -335,17 +335,13 @@ function processObservationsData(observationsData, timeZoneId) {
                 dailyData[obsDate].conditions.push(props.textDescription);
             }
             
-            // Extract cloud layers summary (amount + base height in ft)
+            // Extract cloud layers summary (amount + base height in m; unit applied at display time)
             if (props.cloudLayers && Array.isArray(props.cloudLayers) && props.cloudLayers.length > 0) {
-                const parts = props.cloudLayers.map(layer => {
+                props.cloudLayers.forEach(layer => {
                     const amount = (layer.amount || '').trim() || '?';
                     const baseM = layer.base && layer.base.value != null ? layer.base.value : null;
-                    const baseFt = baseM != null ? Math.round(baseM * 3.28084) : null;
-                    const ftStr = baseFt != null ? baseFt.toLocaleString() + ' ft' : '? ft';
-                    return amount + ' ' + ftStr;
+                    dailyData[obsDate].cloudSummaryStrings.push({ amount, baseM });
                 });
-                const summary = parts.join(', ');
-                if (summary) dailyData[obsDate].cloudSummaryStrings.push(summary);
             }
         } catch (error) {
             console.error('Error processing observation:', error);
@@ -433,12 +429,17 @@ function processObservationsData(observationsData, timeZoneId) {
                 : null;
             let cloudSummary = null;
             if (dayData.cloudSummaryStrings && dayData.cloudSummaryStrings.length > 0) {
-                const nonEmpty = dayData.cloudSummaryStrings.filter(s => s && String(s).trim());
-                if (nonEmpty.length > 0) {
+                const items = dayData.cloudSummaryStrings.filter(x => x && (typeof x === 'object' ? x.amount : String(x).trim()));
+                if (items.length > 0) {
                     const counts = {};
-                    nonEmpty.forEach(s => { counts[s] = (counts[s] || 0) + 1; });
+                    items.forEach(x => {
+                        const key = typeof x === 'object' ? (x.amount + '_' + (x.baseM != null ? x.baseM : '?')) : x;
+                        counts[key] = (counts[key] || 0) + 1;
+                    });
                     const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-                    cloudSummary = sorted[0][0];
+                    const winnerKey = sorted[0][0];
+                    const winner = items.find(x => (typeof x === 'object' ? (x.amount + '_' + (x.baseM != null ? x.baseM : '?')) : x) === winnerKey);
+                    cloudSummary = winner != null ? winner : null;
                 }
             }
             
@@ -554,11 +555,17 @@ function getObservationsDisplayList(observationsData) {
                 : null;
             let cloudSummary = null;
             if (dayData.cloudSummaryStrings && dayData.cloudSummaryStrings.length > 0) {
-                const nonEmpty = dayData.cloudSummaryStrings.filter(s => s && String(s).trim());
-                if (nonEmpty.length > 0) {
+                const items = dayData.cloudSummaryStrings.filter(x => x && (typeof x === 'object' ? x.amount : String(x).trim()));
+                if (items.length > 0) {
                     const counts = {};
-                    nonEmpty.forEach(s => { counts[s] = (counts[s] || 0) + 1; });
-                    cloudSummary = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+                    items.forEach(x => {
+                        const key = typeof x === 'object' ? (x.amount + '_' + (x.baseM != null ? x.baseM : '?')) : x;
+                        counts[key] = (counts[key] || 0) + 1;
+                    });
+                    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+                    const winnerKey = sorted[0][0];
+                    const winner = items.find(x => (typeof x === 'object' ? (x.amount + '_' + (x.baseM != null ? x.baseM : '?')) : x) === winnerKey);
+                    cloudSummary = winner != null ? winner : null;
                 }
             }
             result.push({ date, highTemp, lowTemp, avgWindSpeed, maxWindSpeed, maxWindGust, maxWind, windDirection, avgHumidity, totalPrecipitation, conditions, pressure, cloudSummary });

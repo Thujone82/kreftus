@@ -36,6 +36,29 @@ function formatPrecipInches(inches) {
     const n = Number(inches);
     return appState.useMetric ? (typeof inToMm !== 'undefined' ? inToMm(n) + 'mm' : n + '"') : n + '"';
 }
+function formatCloudSummary(cloudSummary) {
+    if (cloudSummary == null) return '';
+    if (typeof cloudSummary === 'object' && cloudSummary.amount != null) {
+        const amount = cloudSummary.amount;
+        const baseM = cloudSummary.baseM;
+        if (baseM == null || isNaN(Number(baseM))) return amount + ' ?';
+        const n = Number(baseM);
+        return appState.useMetric
+            ? amount + ' ' + Math.round(n) + ' m'
+            : amount + ' ' + Math.round(n * 3.28084).toLocaleString() + ' ft';
+    }
+    const s = String(cloudSummary).trim();
+    if (!s) return '';
+    if (appState.useMetric && typeof ftToM !== 'undefined') {
+        const match = s.match(/^(.+?)\s+([\d,]+)\s*ft\s*$/i);
+        if (match) {
+            const amountPart = match[1].trim();
+            const ftNum = parseFloat(match[2].replace(/,/g, ''));
+            if (!isNaN(ftNum)) return amountPart + ' ' + ftToM(ftNum) + ' m';
+        }
+    }
+    return s;
+}
 
 // Get time ago string (helper function, also defined in app.js)
 function getTimeAgo(date) {
@@ -1179,9 +1202,9 @@ function displayObservations(observationsData, location) {
         html += '<div class="condition-row">';
         html += `<span class="condition-label">${moonEmoji} Conditions:</span>`;
         html += `<span class="condition-value forecast-text">${dayData.conditions}</span>`;
-        if (dayData.cloudSummary != null && String(dayData.cloudSummary).trim()) {
+        if (dayData.cloudSummary != null && (typeof dayData.cloudSummary === 'object' ? dayData.cloudSummary.amount : String(dayData.cloudSummary).trim())) {
             html += ' <span class="condition-label">Clouds:</span>';
-            html += ` <span class="condition-value forecast-text">${dayData.cloudSummary}</span>`;
+            html += ` <span class="condition-value forecast-text">${formatCloudSummary(dayData.cloudSummary)}</span>`;
         }
         html += '</div>';
         
