@@ -1,5 +1,23 @@
 // Utility functions for weather calculations and formatting
 
+// Unit conversion helpers for metric display (data remains in US units internally)
+function tempFtoC(f) {
+    if (f == null || isNaN(f)) return null;
+    return Math.round((f - 32) * 5 / 9 * 10) / 10;
+}
+function mphToMps(mph) {
+    if (mph == null || isNaN(mph)) return null;
+    return Math.round(mph * 0.44704 * 10) / 10;
+}
+function inHgToHpa(inHg) {
+    if (inHg == null || isNaN(inHg)) return null;
+    return Math.round(inHg * 33.8639);
+}
+function ftToM(ft) {
+    if (ft == null || isNaN(ft)) return null;
+    return Math.round(ft * 0.3048);
+}
+
 // Convert degrees to radians
 function toRadians(deg) {
     return Math.PI * deg / 180.0;
@@ -303,7 +321,7 @@ function getSolarIrradianceSummary(latitude, longitude, currentTimeDateTime, tim
         const solarWm2 = getSolarIrradiance(latitude, longitude, currentTimeDateTime);
         const solarNoonUtc = getSolarNoonForDate(latitude, longitude, currentTimeDateTime);
         const peakWm2 = getSolarIrradiance(latitude, longitude, solarNoonUtc);
-        const solarNoonLocalStr = formatTime24(solarNoonUtc, timeZoneId);
+        const solarNoonLocalStr = formatTimeForDisplay(solarNoonUtc, timeZoneId);
         return `${solarWm2}W/m² [${peakWm2}W/m² @ ${solarNoonLocalStr}]`;
     } catch (e) {
         return null;
@@ -626,6 +644,18 @@ function formatTime(date, timeZoneId) {
     }
 }
 
+// Format time according to user preference (AM/PM or 24H)
+function formatTimeForDisplay(date, timeZoneId) {
+    const use24h = typeof appState !== 'undefined' && appState.use24h;
+    return use24h ? formatTime24(date, timeZoneId) : formatTime(date, timeZoneId);
+}
+
+// Format date+time according to user preference (AM/PM or 24H)
+function formatDateTimeForDisplay(date, timeZoneId) {
+    const use24h = typeof appState !== 'undefined' && appState.use24h;
+    return use24h ? formatDateTime24(date, timeZoneId) : formatDateTime(date, timeZoneId);
+}
+
 // Format time in 24-hour format (HH:mm)
 function formatTime24(date, timeZoneId) {
     if (!date) return "";
@@ -738,7 +768,13 @@ function formatDateTime24(date, timeZoneId) {
     }
 }
 
-// Format sunrise date/time for polar night (MM/dd HH:mm format)
+// Format sunrise date/time for polar night - respects user AM/PM vs 24H preference
+function formatSunriseDateForDisplay(date, timeZoneId) {
+    const use24h = typeof appState !== 'undefined' && appState.use24h;
+    return use24h ? formatSunriseDate(date, timeZoneId) : formatSunriseDateAMPM(date, timeZoneId);
+}
+
+// Format sunrise date/time for polar night (24h: MM/dd HH:mm)
 function formatSunriseDate(date, timeZoneId) {
     if (!date) return "";
     
@@ -784,6 +820,33 @@ function formatSunriseDate(date, timeZoneId) {
         const hour = String(d.getHours()).padStart(2, '0');
         const min = String(d.getMinutes()).padStart(2, '0');
         return `${month}/${day} ${hour}:${min}`;
+    }
+}
+
+// Format sunrise date/time in AM/PM (for polar night/day when user prefers AM/PM)
+function formatSunriseDateAMPM(date, timeZoneId) {
+    if (!date) return "";
+    try {
+        if (!timeZoneId) {
+            timeZoneId = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        }
+        const formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: timeZoneId,
+            month: '2-digit',
+            day: '2-digit',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
+        return formatter.format(date);
+    } catch (error) {
+        try {
+            if (timeZoneId) {
+                const converted = convertToTimeZone(date, timeZoneId);
+                return converted.toLocaleTimeString('en-US', { month: '2-digit', day: '2-digit', hour: 'numeric', minute: '2-digit', hour12: true });
+            }
+        } catch (e) {}
+        return date.toLocaleString();
     }
 }
 

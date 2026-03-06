@@ -583,6 +583,61 @@ main {
     cursor: pointer;
 }
 
+/* Centered two-option toggle row: left label | toggle pill | right label */
+.config-option.config-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+.config-toggle-row .config-toggle-label {
+    flex: 1;
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+    text-align: right;
+}
+.config-toggle-row .config-toggle-label:last-of-type {
+    text-align: left;
+}
+.config-toggle-pill {
+    flex-shrink: 0;
+    position: relative;
+    display: inline-block;
+    width: 48px;
+    height: 26px;
+    cursor: pointer;
+}
+.config-toggle-pill input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.config-toggle-slider {
+    position: absolute;
+    inset: 0;
+    background-color: var(--color-bg);
+    border: 2px solid var(--color-default);
+    border-radius: 26px;
+    transition: background 0.2s;
+}
+.config-toggle-slider::before {
+    content: '';
+    position: absolute;
+    height: 18px;
+    width: 18px;
+    left: 2px;
+    bottom: 2px;
+    background-color: var(--color-default);
+    border-radius: 50%;
+    transition: transform 0.2s;
+}
+.config-toggle-pill input:checked + .config-toggle-slider {
+    background-color: var(--color-title);
+}
+.config-toggle-pill input:checked + .config-toggle-slider::before {
+    transform: translateX(22px);
+}
+
 .config-modal-content #configModalClose {
     margin-top: 1rem;
     width: 100%;

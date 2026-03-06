@@ -1,5 +1,27 @@
 // Display mode rendering functions
 
+// Unit formatting (uses appState.useMetric and utils conversion helpers)
+function formatTemp(f) {
+    if (f == null || isNaN(Number(f))) return '';
+    const n = Number(f);
+    return appState.useMetric ? (typeof tempFtoC !== 'undefined' ? tempFtoC(n) + '°C' : n + '°F') : n + '°F';
+}
+function formatWindSpeed(mph) {
+    if (mph == null || isNaN(Number(mph))) return '';
+    const n = Number(mph);
+    return appState.useMetric ? (typeof mphToMps !== 'undefined' ? mphToMps(n) + ' m/s' : n + ' mph') : n + ' mph';
+}
+function formatPressure(inHg) {
+    if (inHg == null || isNaN(Number(inHg))) return '';
+    const n = Number(inHg);
+    return appState.useMetric ? (typeof inHgToHpa !== 'undefined' ? inHgToHpa(n) + ' hPa' : n + ' inHg') : n + ' inHg';
+}
+function formatElevation(ft) {
+    if (ft == null || isNaN(Number(ft))) return '';
+    const n = Number(ft);
+    return appState.useMetric ? (typeof ftToM !== 'undefined' ? ftToM(n) + 'm' : n + 'ft') : n + 'ft';
+}
+
 // Get time ago string (helper function, also defined in app.js)
 function getTimeAgo(date) {
     const now = new Date();
@@ -36,12 +58,12 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
     
     html += '<div class="condition-row">';
     html += `<span class="condition-label">Temperature:</span>`;
-    html += `<span class="condition-value ${getTempColor(current.temp)}">${current.temp}°F</span>`;
+    html += `<span class="condition-value ${getTempColor(current.temp)}">${formatTemp(current.temp)}</span>`;
     
     if (current.windChill) {
-        html += ` <span class="temp-cold">[${current.windChill}°F]</span>`;
+        html += ` <span class="temp-cold">[${formatTemp(current.windChill)}]</span>`;
     } else if (current.heatIndex) {
-        html += ` <span class="temp-hot">[${current.heatIndex}°F]</span>`;
+        html += ` <span class="temp-hot">[${formatTemp(current.heatIndex)}]</span>`;
     }
     
     if (current.trend) {
@@ -53,9 +75,9 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
     html += `<span class="condition-label">Wind:</span>`;
     const windSpeedNum = getWindSpeed(current.wind);
     const windGlyphData = getWindGlyph(current.windDir, windSpeedNum);
-    html += `<span class="condition-value" style="color:${windGlyphData.color}">${current.wind} ${current.windDir} ${windGlyphData.char}</span>`;
+    html += `<span class="condition-value" style="color:${windGlyphData.color}">${formatWindSpeed(windSpeedNum)} ${current.windDir} ${windGlyphData.char}</span>`;
     if (current.windGust) {
-        html += ` <span class="wind-strong">(gusts to ${current.windGust} mph)</span>`;
+        html += ` <span class="wind-strong">(gusts to ${formatWindSpeed(current.windGust)})</span>`;
     }
     html += '</div>';
     
@@ -67,7 +89,7 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
     if (current.dewPoint !== null) {
         html += '<div class="condition-row">';
         html += `<span class="condition-label">Dew Point:</span>`;
-        html += `<span class="condition-value ${getDewPointColor(current.dewPoint)}">${current.dewPoint}°F</span>`;
+        html += `<span class="condition-value ${getDewPointColor(current.dewPoint)}">${formatTemp(current.dewPoint)}</span>`;
         html += '</div>';
     }
     
@@ -83,7 +105,7 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
         html += `<span class="condition-label">Sunrise:</span>`;
         // Format as date/time (MM/dd HH:mm) if polar night/day, otherwise time (12-hour format)
         // During polar night: shows next sunrise; during polar day: shows last sunrise
-        const sunriseDisplay = (loc.isPolarNight || loc.isPolarDay) ? formatSunriseDate(sunrise, location.timeZone) : formatTime(sunrise, location.timeZone);
+        const sunriseDisplay = (loc.isPolarNight || loc.isPolarDay) ? formatSunriseDateForDisplay(sunrise, location.timeZone) : formatTimeForDisplay(sunrise, location.timeZone);
         html += `<span class="condition-value">${sunriseDisplay}</span>`;
         html += '</div>';
     }
@@ -93,7 +115,7 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
         html += `<span class="condition-label">Sunset:</span>`;
         // Format as date/time (MM/dd HH:mm) if polar night/day, otherwise time (12-hour format)
         // During polar night: shows last sunset; during polar day: shows next sunset
-        const sunsetDisplay = (loc.isPolarNight || loc.isPolarDay) ? formatSunriseDate(sunset, location.timeZone) : formatTime(sunset, location.timeZone);
+        const sunsetDisplay = (loc.isPolarNight || loc.isPolarDay) ? formatSunriseDateForDisplay(sunset, location.timeZone) : formatTimeForDisplay(sunset, location.timeZone);
         html += `<span class="condition-value">${sunsetDisplay}</span>`;
         html += '</div>';
     }
@@ -153,11 +175,11 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
         
         // Format in viewer's local timezone (don't pass timeZoneId, or pass undefined/null)
         // This will use the browser's local timezone
-        updatedTimeHtml = formatDateTime(fetchTime, null);
+        updatedTimeHtml = formatDateTimeForDisplay(fetchTime, null);
     } else if (current.time) {
         // Fallback to current.time if lastFetchTime not available (shouldn't happen, but safety)
         // Still format in viewer's local timezone
-        updatedTimeHtml = formatDateTime(current.time, null);
+        updatedTimeHtml = formatDateTimeForDisplay(current.time, null);
     }
     
     html += `<span class="condition-value">${updatedTimeHtml}${timeAgoHtml}</span>`;
@@ -249,7 +271,7 @@ function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12,
     for (let i = startIndex; i < endIndex; i++) {
         const period = periods[i];
         const periodTime = new Date(period.startTime);
-        const hourDisplay = formatTime(periodTime, location.timeZone);
+        const hourDisplay = formatTimeForDisplay(periodTime, location.timeZone);
         const temp = period.temperature;
         const wind = period.windSpeed;
         const windDir = period.windDirection;
@@ -272,14 +294,14 @@ function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12,
         if (tempNum <= 50) {
             const windChill = calculateWindChill(tempNum, windSpeedNum);
             if (windChill && Math.abs(tempNum - windChill) > 1) {
-                windchillHeatIndex = ` [${windChill}°F]`;
+                windchillHeatIndex = ` [${formatTemp(windChill)}]`;
                 windchillHeatIndexClass = "temp-cold";
             }
         } else if (tempNum >= 80) {
             const humidityNum = period.relativeHumidity?.value || 0;
             const heatIndex = calculateHeatIndex(tempNum, humidityNum);
             if (heatIndex && Math.abs(heatIndex - tempNum) > 1) {
-                windchillHeatIndex = ` [${heatIndex}°F]`;
+                windchillHeatIndex = ` [${formatTemp(heatIndex)}]`;
                 windchillHeatIndexClass = "temp-hot";
             }
         }
@@ -289,8 +311,8 @@ function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12,
         
         html += '<tr>';
         html += `<td class="${hourLabelColorClass}">${hourDisplay}</td>`;
-        html += `<td>${periodIcon} <span class="${getTempColor(temp)}">${temp}°F</span>${windchillHeatIndex ? `<span class="${windchillHeatIndexClass}">${windchillHeatIndex}</span>` : ''}</td>`;
-        html += `<td class="${getWindColor(windSpeedNum)}">${wind} ${windDir}</td>`;
+        html += `<td>${periodIcon} <span class="${getTempColor(temp)}">${formatTemp(temp)}</span>${windchillHeatIndex ? `<span class="${windchillHeatIndexClass}">${windchillHeatIndex}</span>` : ''}</td>`;
+        html += `<td class="${getWindColor(windSpeedNum)}">${formatWindSpeed(windSpeedNum)} ${windDir}</td>`;
         html += `<td class="${getPrecipColor(precipProb)}">${precipProb > 0 ? `${precipProb}%` : ''}</td>`;
         html += `<td>${shortForecast}</td>`;
         html += '</tr>';
@@ -357,7 +379,7 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
             // Enhanced mode
             const windSpeed = getWindSpeed(period.windSpeed);
             const windColor = windSpeed >= 16 ? "wind-strong" : "";
-            const windDisplay = period.windSpeed.replace(/\s+mph/, 'mph');
+            const windDisplay = appState.useMetric ? (typeof mphToMps !== 'undefined' ? mphToMps(windSpeed) + ' m/s' : period.windSpeed) : period.windSpeed.replace(/\s+mph/, 'mph');
             
             // Calculate windchill or heat index
             const tempNum = parseFloat(temp);
@@ -367,13 +389,13 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
             if (tempNum <= 50) {
                 const windChill = calculateWindChill(tempNum, windSpeed);
                 if (windChill && Math.abs(tempNum - windChill) > 1) {
-                    windChillHeatIndex = ` <span class="temp-cold">[${windChill}°F]</span>`;
+                    windChillHeatIndex = ` <span class="temp-cold">[${formatTemp(windChill)}]</span>`;
                 }
             } else if (tempNum >= 80) {
                 const humidityNum = period.relativeHumidity?.value || 0;
                 const heatIndex = calculateHeatIndex(tempNum, humidityNum);
                 if (heatIndex && Math.abs(heatIndex - tempNum) > 1) {
-                    windChillHeatIndex = ` <span class="temp-hot">[${heatIndex}°F]</span>`;
+                    windChillHeatIndex = ` <span class="temp-hot">[${formatTemp(heatIndex)}]</span>`;
                 }
             }
             
@@ -395,10 +417,10 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
                 if (daySunTimes.sunrise) {
                     // Format sunrise: date/time (MM/dd HH:mm) if polar night/day, otherwise time (24-hour format)
                     // During polar night: shows next sunrise; during polar day: shows last sunrise
-                    sunriseStr = (daySunTimes.isPolarNight || daySunTimes.isPolarDay) ? formatSunriseDate(daySunTimes.sunrise, location.timeZone) : formatTime24(daySunTimes.sunrise, location.timeZone);
+                    sunriseStr = (daySunTimes.isPolarNight || daySunTimes.isPolarDay) ? formatSunriseDateForDisplay(daySunTimes.sunrise, location.timeZone) : formatTimeForDisplay(daySunTimes.sunrise, location.timeZone);
                     // Show sunset if available (during polar night: last sunset; during polar day: next sunset)
                     if (daySunTimes.sunset) {
-                        sunsetStr = (daySunTimes.isPolarNight || daySunTimes.isPolarDay) ? formatSunriseDate(daySunTimes.sunset, location.timeZone) : formatTime24(daySunTimes.sunset, location.timeZone);
+                        sunsetStr = (daySunTimes.isPolarNight || daySunTimes.isPolarDay) ? formatSunriseDateForDisplay(daySunTimes.sunset, location.timeZone) : formatTimeForDisplay(daySunTimes.sunset, location.timeZone);
                         // Only show day length if not polar night/day (normal day)
                         if (!daySunTimes.isPolarNight && !daySunTimes.isPolarDay) {
                             dayLengthStr = formatDayLength(daySunTimes.sunrise, daySunTimes.sunset);
@@ -429,14 +451,14 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
             // Temperature and info row (combined) - day name only if no sunrise/sunset
             if (sunriseStr && sunsetStr && dayLengthStr) {
                 // No day name here, it's on the sunrise line
-                html += `<div class="daily-temp-row"> <span class="${getTempColor(temp)}">H:${temp}°F</span>${windChillHeatIndex || ' '}`;
+                html += `<div class="daily-temp-row"> <span class="${getTempColor(temp)}">H:${formatTemp(temp)}</span>${windChillHeatIndex || ' '}`;
             } else {
                 // If no sunrise/sunset, show day name on temperature line
-                html += `<div class="daily-temp-row">${dayNameWithDate}:<span class="${getTempColor(temp)}">H:${temp}°F</span>${windChillHeatIndex || ' '}`;
+                html += `<div class="daily-temp-row">${dayNameWithDate}:<span class="${getTempColor(temp)}">H:${formatTemp(temp)}</span>${windChillHeatIndex || ' '}`;
                 html += '<div></div>'; // Line feed after day label for narrow mode
             }
             if (nightTemp) {
-                html += `<span class="${getTempColor(nightTemp)}">L:${nightTemp}°F</span>`;
+                html += `<span class="${getTempColor(nightTemp)}">L:${formatTemp(nightTemp)}</span>`;
             }
             html += ` <span class="${windColor}">${windDisplay} ${period.windDirection}</span>`;
             if (precipProb > 0) {
@@ -487,9 +509,9 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
         } else {
             // Standard mode
             // Temperature and info row (combined)
-            html += `<div class="daily-temp-row">${dayName}: ${periodIcon} <span class="${getTempColor(temp)}">H:${temp}°F</span>`;
+            html += `<div class="daily-temp-row">${dayName}: ${periodIcon} <span class="${getTempColor(temp)}">H:${formatTemp(temp)}</span>`;
             if (nightTemp) {
-                html += ` <span class="${getTempColor(nightTemp)}">L:${nightTemp}°F</span>`;
+                html += ` <span class="${getTempColor(nightTemp)}">L:${formatTemp(nightTemp)}</span>`;
             }
             html += ` ${shortForecast}`;
             if (precipProb > 0) {
@@ -647,7 +669,7 @@ function displayWindForecast(weather, location) {
                             maxWindSpeed <= 14 ? "wind-moderate" : "wind-strong";
         
         html += '<div class="wind-day">';
-        html += `<div class="wind-day-header">${dayName} <span class="wind-speed ${maxWindColor}">${maxWindSpeed < 10 ? ' ' : ''}${maxWindSpeed}mph</span></div>`;
+        html += `<div class="wind-day-header">${dayName} <span class="wind-speed ${maxWindColor}">${formatWindSpeed(maxWindSpeed)}</span></div>`;
         html += '<span class="wind-grid">';
         
         // Build wind glyphs for 24 hours (on same line)
@@ -700,8 +722,8 @@ function displayWeatherAlerts(alerts, showDetails = true, timeZoneId = null) {
         // Format times in location's timezone to match the alert description text
         // The description text already contains times in local time, so we must match that
         const targetTimeZone = timeZoneId || Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const effectiveFormatted = formatDateTime24(effective, targetTimeZone);
-        const expiresFormatted = formatDateTime24(eventEnd, targetTimeZone);
+        const effectiveFormatted = formatDateTimeForDisplay(effective, targetTimeZone);
+        const expiresFormatted = formatDateTimeForDisplay(eventEnd, targetTimeZone);
         
         html += '<div class="alert-item">';
         html += `<div class="alert-title">${event}</div>`;
@@ -779,7 +801,7 @@ function displayLocationInfo(location, noaaStation = null) {
     const utcOffsetStr = getUtcOffsetString(location.timeZone);
     html += `<div class="location-info-item">Time Zone: ${location.timeZone}${utcOffsetStr}</div>`;
     html += `<div class="location-info-item">Coordinates: ${location.lat}, ${location.lon}</div>`;
-    html += `<div class="location-info-item">Elevation: ${location.elevationFeet}ft</div>`;
+    html += `<div class="location-info-item">Elevation: ${formatElevation(location.elevationFeet)}</div>`;
     
     html += '<div class="location-info-item">NWS Resources: ';
     const forecastUrl = `https://forecast.weather.gov/MapClick.php?lat=${location.lat}&lon=${location.lon}`;
@@ -971,10 +993,10 @@ function displayObservations(observationsData, location) {
             if (daySunTimes.sunrise) {
                 // Format sunrise: date/time (MM/dd HH:mm) if polar night/day, otherwise time (24-hour format)
                 // During polar night: shows next sunrise; during polar day: shows last sunrise
-                sunriseStr = (daySunTimes.isPolarNight || daySunTimes.isPolarDay) ? formatSunriseDate(daySunTimes.sunrise, location.timeZone) : formatTime24(daySunTimes.sunrise, location.timeZone);
+                sunriseStr = (daySunTimes.isPolarNight || daySunTimes.isPolarDay) ? formatSunriseDateForDisplay(daySunTimes.sunrise, location.timeZone) : formatTimeForDisplay(daySunTimes.sunrise, location.timeZone);
                 // Show sunset if available (during polar night: last sunset; during polar day: next sunset)
                 if (daySunTimes.sunset) {
-                    sunsetStr = (daySunTimes.isPolarNight || daySunTimes.isPolarDay) ? formatSunriseDate(daySunTimes.sunset, location.timeZone) : formatTime24(daySunTimes.sunset, location.timeZone);
+                    sunsetStr = (daySunTimes.isPolarNight || daySunTimes.isPolarDay) ? formatSunriseDateForDisplay(daySunTimes.sunset, location.timeZone) : formatTimeForDisplay(daySunTimes.sunset, location.timeZone);
                     // Only show day length if not polar night/day (normal day)
                     if (!daySunTimes.isPolarNight && !daySunTimes.isPolarDay) {
                         dayLengthStr = formatDayLength(daySunTimes.sunrise, daySunTimes.sunset);
@@ -1005,7 +1027,7 @@ function displayObservations(observationsData, location) {
         html += ' <span class="condition-label">Temp:</span>';
         
         if (dayData.highTemp !== null) {
-            html += `<span class="condition-value ${getTempColor(dayData.highTemp)}">H:${dayData.highTemp}°F</span>`;
+            html += `<span class="condition-value ${getTempColor(dayData.highTemp)}">H:${formatTemp(dayData.highTemp)}</span>`;
         } else {
             html += '<span class="condition-value">H:N/A</span>';
         }
@@ -1031,13 +1053,13 @@ function displayObservations(observationsData, location) {
         }
         
         if (windChill) {
-            html += ` <span class="condition-value">Windchill[<span class="temp-cold">${windChill}°F</span>]</span>`;
+            html += ` <span class="condition-value">Windchill[<span class="temp-cold">${formatTemp(windChill)}</span>]</span>`;
         } else if (heatIndex) {
-            html += ` <span class="condition-value">HeatIndex[<span class="temp-hot">${heatIndex}°F</span>]</span>`;
+            html += ` <span class="condition-value">HeatIndex[<span class="temp-hot">${formatTemp(heatIndex)}</span>]</span>`;
         }
         
         if (dayData.lowTemp !== null) {
-            html += ` <span class="condition-value ${getTempColor(dayData.lowTemp)}">L:${dayData.lowTemp}°F</span>`;
+            html += ` <span class="condition-value ${getTempColor(dayData.lowTemp)}">L:${formatTemp(dayData.lowTemp)}</span>`;
         } else {
             html += ' <span class="condition-value">L:N/A</span>';
         }
@@ -1059,8 +1081,8 @@ function displayObservations(observationsData, location) {
                 // Show average with gust (preferred - most accurate)
                 const maxWindGustNum = Math.round(dayData.maxWindGust);
                 const gustWindColor = getWindColor(maxWindGustNum);
-                html += `<span class="condition-value ${avgWindColor}">avg ${avgWindSpeedNum}mph</span>`;
-                html += ` <span class="condition-value ${gustWindColor}">gust ${maxWindGustNum}mph</span>`;
+                html += `<span class="condition-value ${avgWindColor}">avg ${formatWindSpeed(dayData.avgWindSpeed)}</span>`;
+                html += ` <span class="condition-value ${gustWindColor}">gust ${formatWindSpeed(dayData.maxWindGust)}</span>`;
                 if (windDir) {
                     html += ` <span class="condition-value">${windDir}</span>`;
                 }
@@ -1070,21 +1092,21 @@ function displayObservations(observationsData, location) {
                 if (Math.abs(dayData.maxWindSpeed - dayData.avgWindSpeed) > 1) {
                     // Only show max if it differs significantly from avg
                     const maxWindColor = getWindColor(maxWindSpeedNum);
-                    html += `<span class="condition-value ${avgWindColor}">avg ${avgWindSpeedNum}mph</span>`;
-                    html += ` <span class="condition-value ${maxWindColor}">max ${maxWindSpeedNum}mph</span>`;
+                    html += `<span class="condition-value ${avgWindColor}">avg ${formatWindSpeed(dayData.avgWindSpeed)}</span>`;
+                    html += ` <span class="condition-value ${maxWindColor}">max ${formatWindSpeed(dayData.maxWindSpeed)}</span>`;
                     if (windDir) {
                         html += ` <span class="condition-value">${windDir}</span>`;
                     }
                 } else {
                     // If max and avg are similar, just show avg
-                    html += `<span class="condition-value ${avgWindColor}">avg ${avgWindSpeedNum}mph</span>`;
+                    html += `<span class="condition-value ${avgWindColor}">avg ${formatWindSpeed(dayData.avgWindSpeed)}</span>`;
                     if (windDir) {
                         html += ` <span class="condition-value">${windDir}</span>`;
                     }
                 }
             } else {
                 // Just show average if no max/gust data
-                html += `<span class="condition-value ${avgWindColor}">avg ${avgWindSpeedNum}mph</span>`;
+                html += `<span class="condition-value ${avgWindColor}">avg ${formatWindSpeed(dayData.avgWindSpeed)}</span>`;
                 if (windDir) {
                     html += ` <span class="condition-value">${windDir}</span>`;
                 }
@@ -1093,7 +1115,7 @@ function displayObservations(observationsData, location) {
             // Fallback to max if avg not available
             const maxWindSpeedNum = Math.round(dayData.maxWindSpeed);
             const maxWindColor = getWindColor(maxWindSpeedNum);
-            html += `<span class="condition-value ${maxWindColor}">max ${maxWindSpeedNum}mph</span>`;
+            html += `<span class="condition-value ${maxWindColor}">max ${formatWindSpeed(dayData.maxWindSpeed)}</span>`;
             if (windDir) {
                 html += ` <span class="condition-value">${windDir}</span>`;
             }
@@ -1101,7 +1123,7 @@ function displayObservations(observationsData, location) {
             // Fallback to gust if available
             const maxWindGustNum = Math.round(dayData.maxWindGust);
             const gustWindColor = getWindColor(maxWindGustNum);
-            html += `<span class="condition-value ${gustWindColor}">gust ${maxWindGustNum}mph</span>`;
+            html += `<span class="condition-value ${gustWindColor}">gust ${formatWindSpeed(dayData.maxWindGust)}</span>`;
             if (windDir) {
                 html += ` <span class="condition-value">${windDir}</span>`;
             }
@@ -1115,7 +1137,7 @@ function displayObservations(observationsData, location) {
         if (dayData.pressure != null) {
             html += '<div class="condition-row">';
             html += '<span class="condition-label">Pressure:</span>';
-            html += `<span class="condition-value ${getPressureColor(dayData.pressure)}">${dayData.pressure} inHg</span>`;
+            html += `<span class="condition-value ${getPressureColor(dayData.pressure)}">${formatPressure(dayData.pressure)}</span>`;
             html += '</div>';
         }
         

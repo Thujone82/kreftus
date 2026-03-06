@@ -31,16 +31,9 @@ All static assets are cached in the `STATIC_ASSETS` array in `service-worker.js`
 
 ## Cache-Busting Parameters
 
-Script and stylesheet URLs in `index.html` use query parameters so updates bypass cache:
+Script and stylesheet URLs in `index.html` use the same **VERSION** as the service worker. The file contains placeholders `?v={{VERSION}}` that are replaced at deploy time.
 
-- `css/style.css?v=3`
-- `js/utils.js?v=4`
-- `js/api.js?v=4`
-- `js/weather.js?v=4`
-- `js/display.js?v=4`
-- `js/app.js?v=4`
-
-Bump these when changing the corresponding files.
+**Deploy-time script:** Run `node forecast/scripts/inject-version.js` (from repo root) before deploying. The script reads `VERSION` from `forecast/service-worker.js` and replaces all `{{VERSION}}` in `forecast/index.html` with that value. Then only `VERSION` in `service-worker.js` and `version` in `manifest.json` need to be updated on release; asset cache busting stays in sync automatically.
 
 ---
 

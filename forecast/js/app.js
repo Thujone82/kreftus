@@ -18,6 +18,8 @@ const appState = {
     hourlyScrollIndex: 0,
     loading: false,
     error: null,
+    useMetric: false,
+    use24h: false,
     // In-memory cache for parsed weather data (keyed by locationKey + timestamp)
     // This avoids repeated JSON.parse operations when switching between favorites
     cachedWeatherDataByKey: new Map()
@@ -67,6 +69,8 @@ function initializeElements() {
         primaryAccentColor: document.getElementById('primaryAccentColor'),
         secondaryAccentColor: document.getElementById('secondaryAccentColor'),
         irradianceCheckbox: document.getElementById('irradianceCheckbox'),
+        unitsMetricCheckbox: document.getElementById('unitsMetricCheckbox'),
+        time24Checkbox: document.getElementById('time24Checkbox'),
         configModalClose: document.getElementById('configModalClose'),
         configModalReset: document.getElementById('configModalReset'),
         configModalVersion: document.getElementById('configModalVersion'),
@@ -126,6 +130,11 @@ function performFullReset() {
         
         // Clear current mode (will reset to default)
         localStorage.removeItem('forecastCurrentMode');
+
+        // Clear units, time format, and favorites drawer state so reload uses defaults
+        localStorage.removeItem('forecastUseMetric');
+        localStorage.removeItem('forecastUse24h');
+        localStorage.removeItem('forecastLocationsDrawerOpen');
         
         // Clear in-memory cache
         if (appState && appState.cachedWeatherDataByKey) {
@@ -195,10 +204,13 @@ async function init() {
     setupEventListeners();
     console.log('Event listeners set up');
 
-    // Apply saved accent colors
+    // Apply saved accent colors and settings
     loadAccentColors();
     loadShowIrradiance();
-    
+    loadUnits();
+    loadTimeFormat();
+    restoreLocationsDrawerState();
+
     // Set up forecast text visibility observer
     setupForecastTextVisibility();
     
@@ -826,6 +838,50 @@ function saveShowIrradiance(enabled) {
     localStorage.setItem('forecastShowIrradiance', enabled ? 'true' : 'false');
 }
 
+function loadUnits() {
+    const stored = localStorage.getItem('forecastUseMetric');
+    const useMetric = stored === 'true';
+    appState.useMetric = useMetric;
+    if (elements.unitsMetricCheckbox) {
+        elements.unitsMetricCheckbox.checked = useMetric;
+    }
+}
+
+function saveUnits(useMetric) {
+    appState.useMetric = useMetric;
+    localStorage.setItem('forecastUseMetric', useMetric ? 'true' : 'false');
+    if (typeof renderCurrentMode === 'function') renderCurrentMode();
+}
+
+function loadTimeFormat() {
+    const use24h = localStorage.getItem('forecastUse24h') === 'true';
+    appState.use24h = use24h;
+    if (elements.time24Checkbox) {
+        elements.time24Checkbox.checked = use24h;
+    }
+}
+
+function saveTimeFormat(use24h) {
+    appState.use24h = use24h;
+    localStorage.setItem('forecastUse24h', use24h ? 'true' : 'false');
+    if (typeof renderCurrentMode === 'function') renderCurrentMode();
+}
+
+function restoreLocationsDrawerState() {
+    if (!elements.locationsDrawer || !elements.locationsBtn) return;
+    const open = localStorage.getItem('forecastLocationsDrawerOpen') === 'true';
+    if (open) {
+        elements.locationsDrawer.classList.remove('hidden');
+        elements.locationsBtn.textContent = '🌎Locations ▴';
+        elements.locationsBtn.classList.add('active');
+        renderLocationButtons();
+    } else {
+        elements.locationsDrawer.classList.add('hidden');
+        elements.locationsBtn.textContent = '🌎Locations ▾';
+        elements.locationsBtn.classList.remove('active');
+    }
+}
+
 function setupConfigModal() {
     if (!elements.headerIcon || !elements.configModal) return;
 
@@ -861,6 +917,17 @@ function setupConfigModal() {
             const secondary = e.target.value;
             const primary = (elements.primaryAccentColor && elements.primaryAccentColor.value) || ACCENT_DEFAULTS.primary;
             saveAccentColors(primary, secondary);
+        });
+    }
+
+    if (elements.unitsMetricCheckbox) {
+        elements.unitsMetricCheckbox.addEventListener('change', (e) => {
+            saveUnits(!!e.target.checked);
+        });
+    }
+    if (elements.time24Checkbox) {
+        elements.time24Checkbox.addEventListener('change', (e) => {
+            saveTimeFormat(!!e.target.checked);
         });
     }
 
@@ -2585,6 +2652,7 @@ function toggleLocationsDrawer() {
         elements.locationsBtn.textContent = '🌎Locations ▾';
         elements.locationsBtn.classList.remove('active');
     }
+    localStorage.setItem('forecastLocationsDrawerOpen', elements.locationsDrawer.classList.contains('hidden') ? 'false' : 'true');
 }
 
 function renderLocationButtons(activeUID = null) {

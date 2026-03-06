@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#008B8B">
     <title>Forecast</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="css/style.css?v=3">
+    <link rel="stylesheet" href="css/style.css?v=1.2.8">
     <link rel="icon" type="image/png" href="icons/light-icon-192.png">
 </head>
 <body>
@@ -83,17 +83,33 @@
                 <label for="secondaryAccentColor">Secondary Accent Color</label>
                 <input type="color" id="secondaryAccentColor" value="#00ced1">
             </div>
+            <div class="config-option config-toggle-row">
+                <span class="config-toggle-label">Standard</span>
+                <label class="config-toggle-pill">
+                    <input type="checkbox" id="unitsMetricCheckbox" aria-label="Use metric units">
+                    <span class="config-toggle-slider"></span>
+                </label>
+                <span class="config-toggle-label">Metric</span>
+            </div>
+            <div class="config-option config-toggle-row">
+                <span class="config-toggle-label">AM/PM</span>
+                <label class="config-toggle-pill">
+                    <input type="checkbox" id="time24Checkbox" aria-label="Use 24-hour time">
+                    <span class="config-toggle-slider"></span>
+                </label>
+                <span class="config-toggle-label">24H</span>
+            </div>
             <div class="config-option">
                 <label class="config-checkbox-label">
                     <input type="checkbox" id="autoUpdateToggle" checked>
-                    <span>Auto-Update</span>
+                    <span>Auto-Update Data</span>
                 </label>
             </div>
             <div class="config-option config-extras">
                 <span class="config-option-label">Extras</span>
                 <label class="config-checkbox-label">
                     <input type="checkbox" id="irradianceCheckbox">
-                    <span>Enable Irradiance</span>
+                    <span>Enable Solar Irradiance</span>
                 </label>
             </div>
             <button id="configModalClose" class="btn btn-primary">Done</button>
@@ -104,11 +120,11 @@
         </div>
     </div>
 
-    <script src="js/utils.js?v=4"></script>
-    <script src="js/api.js?v=4"></script>
-    <script src="js/weather.js?v=4"></script>
-    <script src="js/display.js?v=4"></script>
-    <script src="js/app.js?v=4"></script>
+    <script src="js/utils.js?v=1.2.8"></script>
+    <script src="js/api.js?v=1.2.8"></script>
+    <script src="js/weather.js?v=1.2.8"></script>
+    <script src="js/display.js?v=1.2.8"></script>
+    <script src="js/app.js?v=1.2.8"></script>
 </body>
 </html>
 
