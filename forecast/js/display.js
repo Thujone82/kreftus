@@ -31,6 +31,11 @@ function formatTideHeight(ft) {
     const n = Number(ft);
     return appState.useMetric ? (n * 0.3048).toFixed(2) + 'm' : n.toFixed(2) + 'ft';
 }
+function formatPrecipInches(inches) {
+    if (inches == null || isNaN(Number(inches))) return '';
+    const n = Number(inches);
+    return appState.useMetric ? (typeof inToMm !== 'undefined' ? inToMm(n) + 'mm' : n + '"') : n + '"';
+}
 
 // Get time ago string (helper function, also defined in app.js)
 function getTimeAgo(date) {
@@ -1151,11 +1156,11 @@ function displayObservations(observationsData, location) {
             html += '</div>';
         }
         
-        // Precipitation line: Precip: {total}" if > 0
+        // Precipitation line: Precip: {total}" or mm if metric
         if (dayData.totalPrecipitation > 0) {
             html += '<div class="condition-row">';
             html += '<span class="condition-label">Precip:</span>';
-            html += `<span class="condition-value ${getPrecipColor(dayData.totalPrecipitation * 100)}">${dayData.totalPrecipitation}"</span>`;
+            html += `<span class="condition-value ${getPrecipColor(dayData.totalPrecipitation * 100)}">${formatPrecipInches(dayData.totalPrecipitation)}</span>`;
             html += '</div>';
         }
         

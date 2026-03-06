@@ -21,6 +21,10 @@ function miToKm(mi) {
     if (mi == null || isNaN(mi)) return null;
     return Math.round(mi * 1.60934 * 100) / 100;
 }
+function inToMm(inches) {
+    if (inches == null || isNaN(inches)) return null;
+    return Math.round(inches * 25.4 * 10) / 10;
+}
 
 // Convert degrees to radians
 function toRadians(deg) {
