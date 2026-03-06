@@ -865,14 +865,18 @@ function displayLocationInfo(location, noaaStation = null) {
             html += '<span class="location-info-label">Tides: </span>';
             html += '<span class="noaa-tide-info">';
             
+            const timeZone = location.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const tightTime = (s) => {
+                s = (s || '').replace(/\s+([AP]M)$/i, '$1'); // 3:13 AM -> 3:13AM
+                if (typeof appState !== 'undefined' && appState.use24h) s = s.replace(':', ''); // 03:13 -> 0313
+                return s;
+            };
             // Display last tide if available
             if (lastTide) {
                 const lastHeight = formatTideHeight(lastTide.height);
-                const lastHour = String(lastTide.time.getHours()).padStart(2, '0');
-                const lastMin = String(lastTide.time.getMinutes()).padStart(2, '0');
-                const lastTime = `${lastHour}${lastMin}`;
+                const lastTimeStr = tightTime(typeof formatTimeForDisplay === 'function' ? formatTimeForDisplay(lastTide.time, timeZone) : lastTide.time.toLocaleTimeString());
                 const lastArrow = lastTide.type === 'L' ? '↓' : '↑';
-                html += `Last${lastArrow}: ${lastHeight}@${lastTime}`;
+                html += `Last${lastArrow}: ${lastHeight}@${lastTimeStr}`;
             }
             
             // Add space between last and next if both are present
@@ -883,11 +887,9 @@ function displayLocationInfo(location, noaaStation = null) {
             // Display next tide if available
             if (nextTide) {
                 const nextHeight = formatTideHeight(nextTide.height);
-                const nextHour = String(nextTide.time.getHours()).padStart(2, '0');
-                const nextMin = String(nextTide.time.getMinutes()).padStart(2, '0');
-                const nextTime = `${nextHour}${nextMin}`;
+                const nextTimeStr = tightTime(typeof formatTimeForDisplay === 'function' ? formatTimeForDisplay(nextTide.time, timeZone) : nextTide.time.toLocaleTimeString());
                 const nextArrow = nextTide.type === 'H' ? '↑' : '↓';
-                html += `Next${nextArrow}: ${nextHeight}@${nextTime}`;
+                html += `Next${nextArrow}: ${nextHeight}@${nextTimeStr}`;
             }
             
             html += '</span>';
