@@ -2950,8 +2950,15 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
         }
         
         // If cached data doesn't have NOAA station but we have coordinates, fetch it in background
-        // Skip when noaaOutOfRange is true (we already determined no station within 100 miles)
-        if (restoredWeatherData && restoredWeatherData.location && !restoredWeatherData.noaaStation && !restoredWeatherData.noaaOutOfRange) {
+        // Skip when noaaOutOfRange is true (in cache) or coordinates are known out-of-range (api.js localStorage)
+        const noaaKnownOutOfRange = restoredWeatherData?.noaaOutOfRange === true ||
+            (restoredWeatherData?.location?.lat != null && restoredWeatherData?.location?.lon != null &&
+             typeof loadNoaaOutOfRangeFromCache === 'function' &&
+             loadNoaaOutOfRangeFromCache(restoredWeatherData.location.lat, restoredWeatherData.location.lon));
+        if (restoredWeatherData && restoredWeatherData.location && !restoredWeatherData.noaaStation && noaaKnownOutOfRange) {
+            console.log('NOAA out-of-range flag detected for this location, skipping station lookup.');
+        }
+        if (restoredWeatherData && restoredWeatherData.location && !restoredWeatherData.noaaStation && !noaaKnownOutOfRange) {
             console.log('Cached data missing NOAA station, fetching in background...');
             // Fetch NOAA station in background (non-blocking)
             // fetchNoaaTideStation is available globally from api.js
@@ -2981,6 +2988,11 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
                     console.error('Error fetching NOAA station for cached location:', error);
                 }
             }, 500);
+        } else if (restoredWeatherData && restoredWeatherData.location && !restoredWeatherData.noaaStation && noaaKnownOutOfRange && !restoredWeatherData.noaaOutOfRange) {
+            // We skipped the fetch because coordinates are known out-of-range; backfill cache so next load has the flag
+            restoredWeatherData.noaaOutOfRange = true;
+            appState.weatherData = restoredWeatherData;
+            saveWeatherDataToCache(restoredWeatherData, restoredWeatherData.location, appState.lastFetchTime);
         }
         
         // Restore location if available in cached data
