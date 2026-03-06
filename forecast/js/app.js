@@ -769,6 +769,18 @@ function openConfigModal() {
     const effective = getEffectiveThemeColors();
     if (elements.primaryAccentColor) elements.primaryAccentColor.value = effective.primary;
     if (elements.secondaryAccentColor) elements.secondaryAccentColor.value = effective.secondary;
+    // When per-location colors are on, show current location or "Global" in color picker labels
+    const primaryLabel = elements.configModal ? elements.configModal.querySelector('label[for="primaryAccentColor"]') : null;
+    const secondaryLabel = elements.configModal ? elements.configModal.querySelector('label[for="secondaryAccentColor"]') : null;
+    if (isPerLocationColorsEnabled()) {
+        const locationLabel = getCurrentLocationLabel();
+        const prefix = locationLabel ? locationLabel + ' ' : 'Global ';
+        if (primaryLabel) primaryLabel.textContent = prefix + 'Primary Accent Color';
+        if (secondaryLabel) secondaryLabel.textContent = prefix + 'Secondary Accent Color';
+    } else {
+        if (primaryLabel) primaryLabel.textContent = 'Primary Accent Color';
+        if (secondaryLabel) secondaryLabel.textContent = 'Secondary Accent Color';
+    }
     if (elements.configModal) {
         elements.configModal.classList.remove('hidden');
     }
@@ -904,6 +916,26 @@ function getEffectiveThemeColors() {
         return { primary: fav.primaryColor || primary, secondary: fav.secondaryColor || secondary };
     }
     return { primary, secondary };
+}
+
+/** Label for the current location (matches location button: customName/name or "City, State"). */
+function getCurrentLocationLabel() {
+    const fav = getCurrentFavorite();
+    if (fav) {
+        const name = fav.customName || fav.name;
+        if (name) return name;
+        if (fav.location && fav.location.city != null && fav.location.state != null) {
+            return formatLocationDisplayName(fav.location.city, fav.location.state);
+        }
+        return fav.searchQuery || '';
+    }
+    if (appState.location && appState.location.city != null && appState.location.state != null) {
+        return formatLocationDisplayName(appState.location.city, appState.location.state);
+    }
+    if (elements.locationInput && elements.locationInput.value) {
+        return elements.locationInput.value.trim();
+    }
+    return '';
 }
 
 function applyThemeForCurrentLocation() {
@@ -1103,6 +1135,18 @@ function setupConfigModal() {
                 const secondary = localStorage.getItem('forecastAccentSecondary') || ACCENT_DEFAULTS.secondary;
                 if (elements.primaryAccentColor) elements.primaryAccentColor.value = primary;
                 if (elements.secondaryAccentColor) elements.secondaryAccentColor.value = secondary;
+            }
+            // Update color picker labels (modal may be open)
+            const primaryLabel = elements.configModal ? elements.configModal.querySelector('label[for="primaryAccentColor"]') : null;
+            const secondaryLabel = elements.configModal ? elements.configModal.querySelector('label[for="secondaryAccentColor"]') : null;
+            if (enabled) {
+                const locationLabel = getCurrentLocationLabel();
+                const prefix = locationLabel ? locationLabel + ' ' : 'Global ';
+                if (primaryLabel) primaryLabel.textContent = prefix + 'Primary Accent Color';
+                if (secondaryLabel) secondaryLabel.textContent = prefix + 'Secondary Accent Color';
+            } else {
+                if (primaryLabel) primaryLabel.textContent = 'Primary Accent Color';
+                if (secondaryLabel) secondaryLabel.textContent = 'Secondary Accent Color';
             }
         });
     }
