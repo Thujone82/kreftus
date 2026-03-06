@@ -129,7 +129,8 @@ function processWeatherData(weatherData) {
             isPolarDay: sunTimes.isPolarDay,
             moonPhase: moonPhaseInfo
         },
-        noaaStation: weatherData.noaaStation || null
+        noaaStation: weatherData.noaaStation || null,
+        noaaOutOfRange: weatherData.noaaOutOfRange || false
     };
 }
 

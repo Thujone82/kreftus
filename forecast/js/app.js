@@ -1071,8 +1071,11 @@ function setupEventListeners() {
         elements.autoUpdateToggle.addEventListener('change', (e) => {
             appState.autoUpdateEnabled = e.target.checked;
             localStorage.setItem('forecastAutoUpdate', appState.autoUpdateEnabled.toString());
-            // DO NOT overwrite lastFetchTime here - it should only be set when data is actually fetched
-            // The lastFetchTime represents when NWS data was fetched, not when auto-update is enabled
+            // When enabling auto-update, if current location's data is already stale, refresh now
+            if (appState.autoUpdateEnabled && appState.location && isDataStale()) {
+                const location = getLocationForRefresh() || 'here';
+                loadWeatherData(location, false, true);
+            }
         });
     }
     
@@ -2947,8 +2950,8 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
         }
         
         // If cached data doesn't have NOAA station but we have coordinates, fetch it in background
-        // This handles old cached data from before NOAA feature was added
-        if (restoredWeatherData && restoredWeatherData.location && !restoredWeatherData.noaaStation) {
+        // Skip when noaaOutOfRange is true (we already determined no station within 100 miles)
+        if (restoredWeatherData && restoredWeatherData.location && !restoredWeatherData.noaaStation && !restoredWeatherData.noaaOutOfRange) {
             console.log('Cached data missing NOAA station, fetching in background...');
             // Fetch NOAA station in background (non-blocking)
             // fetchNoaaTideStation is available globally from api.js
@@ -2965,10 +2968,12 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
                             // Update weather data with NOAA station
                             restoredWeatherData.noaaStation = noaaStation;
                             appState.weatherData = restoredWeatherData;
-                            // Re-render to show NOAA station
                             renderCurrentMode();
-                            // Update cache with new data, but PRESERVE the original cache timestamp
-                            // Pass the preserved timestamp to ensure it's not updated
+                            saveWeatherDataToCache(restoredWeatherData, restoredWeatherData.location, preservedTimestamp);
+                        } else {
+                            // No station within 100 miles - mark so we don't search again when loading this location
+                            restoredWeatherData.noaaOutOfRange = true;
+                            appState.weatherData = restoredWeatherData;
                             saveWeatherDataToCache(restoredWeatherData, restoredWeatherData.location, preservedTimestamp);
                         }
                     }

@@ -535,6 +535,42 @@ const STATIONS_CACHE_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in millise
 const STATIONS_CACHE_KEY = 'forecastNoaaStations';
 const STATIONS_CACHE_TIMESTAMP_KEY = 'forecastNoaaStationsTimestamp';
 
+// NOAA "out of range" cache: avoid re-running station search when we already know no station within 100 miles
+const NOAA_OUT_OF_RANGE_CACHE_DAYS = 7;
+const NOAA_OUT_OF_RANGE_CACHE_MS = NOAA_OUT_OF_RANGE_CACHE_DAYS * 24 * 60 * 60 * 1000;
+
+function getNoaaOutOfRangeCacheKey(lat, lon) {
+    const rLat = Math.round(Number(lat) * 100) / 100;
+    const rLon = Math.round(Number(lon) * 100) / 100;
+    return `forecastNoaaOutOfRange_${rLat}_${rLon}`;
+}
+
+function loadNoaaOutOfRangeFromCache(lat, lon) {
+    try {
+        const key = getNoaaOutOfRangeCacheKey(lat, lon);
+        const raw = localStorage.getItem(key);
+        if (!raw) return false;
+        const obj = JSON.parse(raw);
+        if (!obj || typeof obj.ts !== 'number') return false;
+        if (Date.now() - obj.ts > NOAA_OUT_OF_RANGE_CACHE_MS) {
+            localStorage.removeItem(key);
+            return false;
+        }
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+function saveNoaaOutOfRangeToCache(lat, lon) {
+    try {
+        const key = getNoaaOutOfRangeCacheKey(lat, lon);
+        localStorage.setItem(key, JSON.stringify({ ts: Date.now() }));
+    } catch (e) {
+        // ignore
+    }
+}
+
 // Load cached stations.json if available and fresh
 function loadCachedStations() {
     try {
@@ -1046,8 +1082,9 @@ async function fetchWeatherData(location) {
     // It will be used as the cache timestamp and displayed in the "Updated:" field
     const nwsFetchStartTime = new Date();
     
-    // Start fetching NOAA stations.json in parallel (doesn't depend on NWS data)
-    const noaaStationsPromise = fetchNoaaStationsJson();
+    // Skip NOAA station search entirely if we already know this location is out of range
+    const noaaSkipSearch = loadNoaaOutOfRangeFromCache(lat, lon);
+    const noaaStationsPromise = noaaSkipSearch ? Promise.resolve(null) : fetchNoaaStationsJson();
     
     // Fetch NWS points data (first NWS API call)
     const pointsData = await fetchNWSPoints(lat, lon);
@@ -1074,23 +1111,33 @@ async function fetchWeatherData(location) {
     const elevationFeet = Math.round(elevationMeters * 3.28084);
     
     // Fetch NOAA tide station data using pre-fetched stations (non-blocking, don't fail if it errors)
+    // Skip entirely when we already know this location is out of NOAA range (fresh-fetch optimization)
     let noaaStation = null;
-    try {
-        noaaStation = await fetchNoaaTideStation(lat, lon, preFetchedStations);
-        
-        // If we have a station, fetch tide predictions (products already fetched in fetchNoaaTideStation)
-        if (noaaStation) {
-            try {
-                noaaStation.tideData = await fetchNoaaTidePredictions(noaaStation.stationId, timeZone);
-            } catch (error) {
-                console.error('Error fetching tide predictions:', error);
-                // Continue without tide data
+    if (noaaSkipSearch) {
+        // Already cached as out of range; no stations fetch or lookup was performed
+    } else {
+        try {
+            noaaStation = await fetchNoaaTideStation(lat, lon, preFetchedStations);
+            
+            // If we have a station, fetch tide predictions (products already fetched in fetchNoaaTideStation)
+            if (noaaStation) {
+                try {
+                    noaaStation.tideData = await fetchNoaaTidePredictions(noaaStation.stationId, timeZone);
+                } catch (error) {
+                    console.error('Error fetching tide predictions:', error);
+                    // Continue without tide data
+                }
+            } else {
+                saveNoaaOutOfRangeToCache(lat, lon);
             }
+        } catch (error) {
+            console.error('Error fetching NOAA station data:', error);
+            // Continue without NOAA data (do not set noaaOutOfRange - we may retry later)
         }
-    } catch (error) {
-        console.error('Error fetching NOAA station data:', error);
-        // Continue without NOAA data
     }
+    
+    // When we successfully determined no station is within 100 miles, mark so we don't re-search when loading from cache
+    const noaaOutOfRange = noaaStation === null;
     
     return {
         location: { lat, lon, city, state, timeZone, radarStation, elevationFeet },
@@ -1099,6 +1146,7 @@ async function fetchWeatherData(location) {
         hourly: hourlyData,
         alerts: alertsData,
         noaaStation: noaaStation,
+        noaaOutOfRange: noaaOutOfRange,
         fetchTime: nwsFetchStartTime  // Use the timestamp from when NWS API calls started
     };
 }
