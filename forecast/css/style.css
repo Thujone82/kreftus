@@ -281,7 +281,12 @@ main {
 .control-bar .btn {
     padding: 0.25rem 0.5rem;
     font-size: 0.7rem;
+    height: 24px;
     min-height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
 }
 
 /* Favorite button - grayscale when inactive, square with larger emoji */
@@ -1438,7 +1443,8 @@ main {
     .control-bar .btn {
         padding: 0.2rem 0.35rem;
         font-size: 0.65rem;
-        min-height: 20px;
+        height: 24px;
+        min-height: 24px;
     }
 
     .hourly-table {
@@ -1677,7 +1683,8 @@ main {
     .control-bar .btn {
         padding: 0.15rem 0.25rem;
         font-size: 0.6rem;
-        min-height: 18px;
+        height: 24px;
+        min-height: 24px;
     }
 
     .last-update {
