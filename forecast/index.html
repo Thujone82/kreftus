@@ -14,13 +14,13 @@
     <header>
         <div class="header-left">
             <h1>
-                <img id="headerIcon" src="icons/light-icon-192.png" alt="Forecast Icon" class="header-icon" title="Double-click for settings">
+                <img id="headerIcon" src="icons/light-icon-192.png" alt="Forecast Icon" class="header-icon" title="Double-click for settings" role="button" aria-label="Double-click to open settings">
                 <span class="forecast-text">Forecast</span>
             </h1>
         </div>
         <div class="header-right">
-            <input type="text" id="locationInput" placeholder="Zip Code or City, State" autocomplete="off">
-            <button id="searchBtn" class="btn btn-primary">Load</button>
+            <input type="text" id="locationInput" placeholder="Zip Code or City, State" autocomplete="off" aria-label="Location: zip code or city, state">
+            <button id="searchBtn" class="btn btn-primary" aria-label="Load weather for entered location">Load</button>
         </div>
     </header>
 
@@ -38,10 +38,10 @@
 
         <!-- Control Bar -->
         <section class="control-bar">
-            <button id="favoriteBtn" class="btn btn-secondary favorite-btn">⭐️</button>
-            <button id="currentLocationBtn" class="btn btn-secondary current-location-btn" title="Use Current Location">📍</button>
-            <button id="locationsBtn" class="btn btn-secondary locations-btn">🌎Locations ▾</button>
-            <button id="refreshBtn" class="btn btn-secondary">Refresh</button>
+            <button id="favoriteBtn" class="btn btn-secondary favorite-btn" title="Select to save location" aria-label="Select to save location">⭐️</button>
+            <button id="currentLocationBtn" class="btn btn-secondary current-location-btn" title="Load this location" aria-label="Load this location">📍</button>
+            <button id="locationsBtn" class="btn btn-secondary locations-btn" title="Click to open/close locations bar" aria-label="Open or close locations bar">🌎Locations ▾</button>
+            <button id="refreshBtn" class="btn btn-secondary" title="Click to update data" aria-label="Update weather data">Refresh</button>
             <span id="updateIndicatorContainer" class="toggle-label"></span>
             <span id="lastUpdate" class="last-update"></span>
         </section>
@@ -66,15 +66,15 @@
         <!-- Update Notification -->
         <div id="updateNotification" class="update-notification hidden">
             <span>New version available!</span>
-            <button id="reloadBtn" class="btn btn-primary">Reload</button>
+            <button id="reloadBtn" class="btn btn-primary" aria-label="Reload page to get new version">Reload</button>
         </div>
     </main>
 
     <!-- Config Modal -->
-    <div id="configModal" class="config-modal hidden">
+    <div id="configModal" class="config-modal hidden" role="dialog" aria-modal="true" aria-labelledby="configModalTitle">
         <div class="config-modal-overlay"></div>
         <div class="config-modal-content">
-            <h2 class="config-modal-title">Settings</h2>
+            <h2 id="configModalTitle" class="config-modal-title">Settings</h2>
             <div class="config-option">
                 <label for="primaryAccentColor">Primary Accent Color</label>
                 <input type="color" id="primaryAccentColor" value="#00ff00">
@@ -83,7 +83,7 @@
                 <label for="secondaryAccentColor">Secondary Accent Color</label>
                 <input type="color" id="secondaryAccentColor" value="#00ced1">
             </div>
-            <button type="button" id="configModalResetColors" class="btn btn-secondary config-reset-colors-btn">Reset Colors</button>
+            <button type="button" id="configModalResetColors" class="btn btn-secondary config-reset-colors-btn" aria-label="Reset accent colors to default">Reset Colors</button>
             <div class="config-option config-toggle-row">
                 <span class="config-toggle-label">Standard</span>
                 <label class="config-toggle-pill">
@@ -102,20 +102,20 @@
             </div>
             <div class="config-option">
                 <label class="config-checkbox-label">
-                    <input type="checkbox" id="autoUpdateToggle" checked>
+                    <input type="checkbox" id="autoUpdateToggle" checked aria-label="Automatically update weather data">
                     <span>Auto-Update Data</span>
                 </label>
             </div>
             <div class="config-option config-extras">
                 <span class="config-option-label">Extras</span>
                 <label class="config-checkbox-label">
-                    <input type="checkbox" id="irradianceCheckbox">
+                    <input type="checkbox" id="irradianceCheckbox" aria-label="Enable solar irradiance in conditions">
                     <span>Enable Solar Irradiance</span>
                 </label>
             </div>
-            <button id="configModalClose" class="btn btn-primary">Done</button>
-            <button id="installBtn" class="btn btn-secondary hidden" title="Install Forecast app">Install Forecast</button>
-            <button id="configModalReset" class="btn btn-secondary config-reset-btn">Reset Forecast</button>
+            <button id="configModalClose" class="btn btn-primary" aria-label="Close settings">Done</button>
+            <button id="installBtn" class="btn btn-secondary hidden" title="Install Forecast app" aria-label="Install Forecast app">Install Forecast</button>
+            <button id="configModalReset" class="btn btn-secondary config-reset-btn" aria-label="Reset Forecast: clear all saved locations and data">Reset Forecast</button>
             <p id="configModalVersion" class="config-version-note" aria-live="polite"></p>
             <p id="configModalIosInstallHint" class="config-ios-install-hint hidden" aria-live="polite"></p>
         </div>

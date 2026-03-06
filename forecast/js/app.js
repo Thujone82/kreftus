@@ -4196,7 +4196,8 @@ function createShareButton() {
     shareBtn.id = 'shareBtn';
     shareBtn.className = 'btn btn-secondary';
     shareBtn.innerHTML = '🔗 Share';
-    shareBtn.title = 'Copy shareable link';
+    shareBtn.title = 'Click to share this Forecast page';
+    shareBtn.setAttribute('aria-label', 'Share this Forecast page');
     shareBtn.addEventListener('click', handleShare);
     
     // Insert after refresh button
@@ -4208,8 +4209,8 @@ function createShareButton() {
     configBtn.id = 'configBtn';
     configBtn.className = 'btn btn-secondary config-btn';
     configBtn.innerHTML = '⚙️';
-    configBtn.title = 'Settings';
-    configBtn.setAttribute('aria-label', 'Settings');
+    configBtn.title = 'Open Settings';
+    configBtn.setAttribute('aria-label', 'Open Settings');
     configBtn.addEventListener('click', (e) => {
         e.preventDefault();
         openConfigModal();
