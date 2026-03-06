@@ -1,4 +1,4 @@
-﻿const VERSION = '1.3.1-toggles';
+﻿const VERSION = '1.3.2';
 const CACHE_NAME = `forecast-v${VERSION}`;
 const STATIC_CACHE = `forecast-static-v${VERSION}`;
 const DATA_CACHE = `forecast-data-v${VERSION}`;

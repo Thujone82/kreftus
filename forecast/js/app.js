@@ -59,6 +59,7 @@ function initializeElements() {
         updateNotification: document.getElementById('updateNotification'),
         reloadBtn: document.getElementById('reloadBtn'),
         shareBtn: null, // Will be created dynamically
+        configBtn: null, // Will be created dynamically
         favoriteBtn: document.getElementById('favoriteBtn'),
         currentLocationBtn: document.getElementById('currentLocationBtn'),
         locationsBtn: document.getElementById('locationsBtn'),
@@ -4188,6 +4189,20 @@ function createShareButton() {
     // Insert after refresh button
     elements.refreshBtn.parentNode.insertBefore(shareBtn, elements.refreshBtn.nextSibling);
     elements.shareBtn = shareBtn;
+
+    // Config button (after share) - opens Settings modal
+    const configBtn = document.createElement('button');
+    configBtn.id = 'configBtn';
+    configBtn.className = 'btn btn-secondary config-btn';
+    configBtn.innerHTML = '⚙️';
+    configBtn.title = 'Settings';
+    configBtn.setAttribute('aria-label', 'Settings');
+    configBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        openConfigModal();
+    });
+    shareBtn.parentNode.insertBefore(configBtn, shareBtn.nextSibling);
+    elements.configBtn = configBtn;
     
     updateShareButton();
 }
