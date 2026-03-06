@@ -73,6 +73,7 @@ function initializeElements() {
         secondaryAccentColor: document.getElementById('secondaryAccentColor'),
         configModalResetColors: document.getElementById('configModalResetColors'),
         irradianceCheckbox: document.getElementById('irradianceCheckbox'),
+        perLocationColorsCheckbox: document.getElementById('perLocationColorsCheckbox'),
         unitsMetricCheckbox: document.getElementById('unitsMetricCheckbox'),
         time24Checkbox: document.getElementById('time24Checkbox'),
         configModalClose: document.getElementById('configModalClose'),
@@ -139,6 +140,7 @@ function performFullReset() {
         localStorage.removeItem('forecastAccentPrimary');
         localStorage.removeItem('forecastAccentSecondary');
         localStorage.removeItem('forecastShowIrradiance');
+        localStorage.removeItem('forecastPerLocationColors');
         localStorage.removeItem('forecastAutoUpdate');
         localStorage.removeItem('forecastUseMetric');
         localStorage.removeItem('forecastUse24h');
@@ -217,11 +219,14 @@ async function init() {
 
     // Apply saved accent colors and settings
     loadAccentColors();
+    loadPerLocationColors();
     loadShowIrradiance();
     loadUnits();
     loadTimeFormat();
     restoreLocationsDrawerState();
 
+    // Apply effective theme (global or per-location) after state may have been restored
+    applyThemeForCurrentLocation();
     // Set up forecast text visibility observer
     setupForecastTextVisibility();
     
@@ -761,6 +766,9 @@ function setupForecastTextVisibility() {
 const ACCENT_DEFAULTS = { primary: '#00ff00', secondary: '#00ced1' };
 
 function openConfigModal() {
+    const effective = getEffectiveThemeColors();
+    if (elements.primaryAccentColor) elements.primaryAccentColor.value = effective.primary;
+    if (elements.secondaryAccentColor) elements.secondaryAccentColor.value = effective.secondary;
     if (elements.configModal) {
         elements.configModal.classList.remove('hidden');
     }
@@ -857,6 +865,52 @@ function saveAccentColors(primary, secondary) {
     applyThemeColorToTitleBar(primary);
 }
 
+function getCurrentFavorite() {
+    const key = appState.currentLocationKey;
+    if (!key) return null;
+    const uid = String(key).startsWith('uid_') ? key.replace(/^uid_/, '') : key;
+    return getFavoriteByUID(uid) || getFavoriteByKey(key) || null;
+}
+
+function isPerLocationColorsEnabled() {
+    return localStorage.getItem('forecastPerLocationColors') === 'true';
+}
+
+function loadPerLocationColors() {
+    const enabled = localStorage.getItem('forecastPerLocationColors') === 'true';
+    if (elements.perLocationColorsCheckbox) {
+        elements.perLocationColorsCheckbox.checked = enabled;
+    }
+}
+
+function savePerLocationColors(enabled) {
+    localStorage.setItem('forecastPerLocationColors', enabled ? 'true' : 'false');
+}
+
+function applyThemeColorsToDOM(primary, secondary) {
+    const p = primary || ACCENT_DEFAULTS.primary;
+    const s = secondary || ACCENT_DEFAULTS.secondary;
+    document.documentElement.style.setProperty('--color-title', p);
+    document.documentElement.style.setProperty('--color-default', s);
+    applyThemeColorToTitleBar(p);
+}
+
+function getEffectiveThemeColors() {
+    const primary = localStorage.getItem('forecastAccentPrimary') || ACCENT_DEFAULTS.primary;
+    const secondary = localStorage.getItem('forecastAccentSecondary') || ACCENT_DEFAULTS.secondary;
+    if (!isPerLocationColorsEnabled()) return { primary, secondary };
+    const fav = getCurrentFavorite();
+    if (fav && (fav.primaryColor || fav.secondaryColor)) {
+        return { primary: fav.primaryColor || primary, secondary: fav.secondaryColor || secondary };
+    }
+    return { primary, secondary };
+}
+
+function applyThemeForCurrentLocation() {
+    const { primary, secondary } = getEffectiveThemeColors();
+    applyThemeColorsToDOM(primary, secondary);
+}
+
 function loadShowIrradiance() {
     const enabled = localStorage.getItem('forecastShowIrradiance') === 'true';
     if (elements.irradianceCheckbox) {
@@ -939,14 +993,48 @@ function setupConfigModal() {
         elements.primaryAccentColor.addEventListener('input', (e) => {
             const primary = e.target.value;
             const secondary = (elements.secondaryAccentColor && elements.secondaryAccentColor.value) || ACCENT_DEFAULTS.secondary;
-            saveAccentColors(primary, secondary);
+            if (isPerLocationColorsEnabled()) {
+                const fav = getCurrentFavorite();
+                if (fav) {
+                    fav.primaryColor = primary;
+                    fav.secondaryColor = secondary;
+                    const favorites = getFavorites();
+                    const idx = favorites.findIndex(f => f.uid === fav.uid || f.key === fav.key);
+                    if (idx !== -1) {
+                        favorites[idx] = { ...favorites[idx], primaryColor: primary, secondaryColor: secondary };
+                        localStorage.setItem('forecastFavorites', JSON.stringify(favorites));
+                    }
+                    applyThemeColorsToDOM(primary, secondary);
+                } else {
+                    saveAccentColors(primary, secondary);
+                }
+            } else {
+                saveAccentColors(primary, secondary);
+            }
         });
     }
     if (elements.secondaryAccentColor) {
         elements.secondaryAccentColor.addEventListener('input', (e) => {
             const secondary = e.target.value;
             const primary = (elements.primaryAccentColor && elements.primaryAccentColor.value) || ACCENT_DEFAULTS.primary;
-            saveAccentColors(primary, secondary);
+            if (isPerLocationColorsEnabled()) {
+                const fav = getCurrentFavorite();
+                if (fav) {
+                    fav.primaryColor = primary;
+                    fav.secondaryColor = secondary;
+                    const favorites = getFavorites();
+                    const idx = favorites.findIndex(f => f.uid === fav.uid || f.key === fav.key);
+                    if (idx !== -1) {
+                        favorites[idx] = { ...favorites[idx], primaryColor: primary, secondaryColor: secondary };
+                        localStorage.setItem('forecastFavorites', JSON.stringify(favorites));
+                    }
+                    applyThemeColorsToDOM(primary, secondary);
+                } else {
+                    saveAccentColors(primary, secondary);
+                }
+            } else {
+                saveAccentColors(primary, secondary);
+            }
         });
     }
     if (elements.configModalResetColors) {
@@ -954,7 +1042,25 @@ function setupConfigModal() {
             e.preventDefault();
             if (elements.primaryAccentColor) elements.primaryAccentColor.value = ACCENT_DEFAULTS.primary;
             if (elements.secondaryAccentColor) elements.secondaryAccentColor.value = ACCENT_DEFAULTS.secondary;
-            saveAccentColors(ACCENT_DEFAULTS.primary, ACCENT_DEFAULTS.secondary);
+            if (isPerLocationColorsEnabled()) {
+                const fav = getCurrentFavorite();
+                if (fav && (fav.primaryColor || fav.secondaryColor)) {
+                    const favorites = getFavorites();
+                    const idx = favorites.findIndex(f => f.uid === fav.uid || f.key === fav.key);
+                    if (idx !== -1) {
+                        const updated = { ...favorites[idx] };
+                        delete updated.primaryColor;
+                        delete updated.secondaryColor;
+                        favorites[idx] = updated;
+                        localStorage.setItem('forecastFavorites', JSON.stringify(favorites));
+                    }
+                    applyThemeForCurrentLocation();
+                } else {
+                    saveAccentColors(ACCENT_DEFAULTS.primary, ACCENT_DEFAULTS.secondary);
+                }
+            } else {
+                saveAccentColors(ACCENT_DEFAULTS.primary, ACCENT_DEFAULTS.secondary);
+            }
         });
     }
 
@@ -974,6 +1080,30 @@ function setupConfigModal() {
             const enabled = !!e.target.checked;
             saveShowIrradiance(enabled);
             renderCurrentMode();
+        });
+    }
+    if (elements.perLocationColorsCheckbox) {
+        elements.perLocationColorsCheckbox.addEventListener('change', (e) => {
+            const enabled = !!e.target.checked;
+            savePerLocationColors(enabled);
+            if (!enabled) {
+                const favorites = getFavorites();
+                let changed = false;
+                favorites.forEach(fav => {
+                    if (fav.primaryColor || fav.secondaryColor) {
+                        delete fav.primaryColor;
+                        delete fav.secondaryColor;
+                        changed = true;
+                    }
+                });
+                if (changed) localStorage.setItem('forecastFavorites', JSON.stringify(favorites));
+                applyThemeForCurrentLocation();
+                // Sync color choosers to global so they don't keep showing the previous per-location values
+                const primary = localStorage.getItem('forecastAccentPrimary') || ACCENT_DEFAULTS.primary;
+                const secondary = localStorage.getItem('forecastAccentSecondary') || ACCENT_DEFAULTS.secondary;
+                if (elements.primaryAccentColor) elements.primaryAccentColor.value = primary;
+                if (elements.secondaryAccentColor) elements.secondaryAccentColor.value = secondary;
+            }
         });
     }
 
@@ -3229,6 +3359,8 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
                 saveLastViewedLocation(locationText, appState.location, q);
             }
             
+            // Apply theme for current location (global or per-favorite when per-location colors enabled)
+            applyThemeForCurrentLocation();
             // Render current mode to display cached data (already uses requestAnimationFrame internally)
             // This will call displayCurrentConditions which uses appState.lastFetchTime
             renderCurrentMode();
@@ -3652,6 +3784,9 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         
         // Update location buttons to highlight the active one (use UID if available)
         renderLocationButtons(activeIdentifier);
+        
+        // Apply theme for current location (global or per-favorite when per-location colors enabled)
+        applyThemeForCurrentLocation();
         
         // Update current location button state (already set earlier in function based on location parameter)
         // When 'here' was requested: only show "here" as active if the resolved location does NOT match a favorite.
