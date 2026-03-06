@@ -17,6 +17,10 @@ function ftToM(ft) {
     if (ft == null || isNaN(ft)) return null;
     return Math.round(ft * 0.3048);
 }
+function miToKm(mi) {
+    if (mi == null || isNaN(mi)) return null;
+    return Math.round(mi * 1.60934 * 100) / 100;
+}
 
 // Convert degrees to radians
 function toRadians(deg) {

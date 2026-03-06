@@ -21,6 +21,16 @@ function formatElevation(ft) {
     const n = Number(ft);
     return appState.useMetric ? (typeof ftToM !== 'undefined' ? ftToM(n) + 'm' : n + 'ft') : n + 'ft';
 }
+function formatDistance(mi) {
+    if (mi == null || isNaN(Number(mi))) return '';
+    const n = Number(mi);
+    return appState.useMetric ? (typeof miToKm !== 'undefined' ? miToKm(n) + 'km' : n.toFixed(2) + 'mi') : n.toFixed(2) + 'mi';
+}
+function formatTideHeight(ft) {
+    if (ft == null || isNaN(Number(ft))) return '';
+    const n = Number(ft);
+    return appState.useMetric ? (n * 0.3048).toFixed(2) + 'm' : n.toFixed(2) + 'ft';
+}
 
 // Get time ago string (helper function, also defined in app.js)
 function getTimeAgo(date) {
@@ -822,7 +832,7 @@ function displayLocationInfo(location, noaaStation = null) {
         // Calculate bearing and cardinal direction from location to station
         const bearing = calculateBearing(location.lat, location.lon, noaaStation.lat, noaaStation.lon);
         const cardinalDir = getCardinalDirection(bearing);
-        const distanceStr = `${noaaStation.distance.toFixed(2)}mi`;
+        const distanceStr = formatDistance(noaaStation.distance);
         
         html += `NOAA Station: <span class="noaa-station-name">${noaaStation.name} (<a href="${stationHomeUrl}" target="_blank" class="location-info-link no-margin">${noaaStation.stationId}</a>)</span> ${distanceStr} ${cardinalDir}`;
         html += '</div>';
@@ -852,7 +862,7 @@ function displayLocationInfo(location, noaaStation = null) {
             
             // Display last tide if available
             if (lastTide) {
-                const lastHeight = `${lastTide.height.toFixed(2)}ft`;
+                const lastHeight = formatTideHeight(lastTide.height);
                 const lastHour = String(lastTide.time.getHours()).padStart(2, '0');
                 const lastMin = String(lastTide.time.getMinutes()).padStart(2, '0');
                 const lastTime = `${lastHour}${lastMin}`;
@@ -867,7 +877,7 @@ function displayLocationInfo(location, noaaStation = null) {
             
             // Display next tide if available
             if (nextTide) {
-                const nextHeight = `${nextTide.height.toFixed(2)}ft`;
+                const nextHeight = formatTideHeight(nextTide.height);
                 const nextHour = String(nextTide.time.getHours()).padStart(2, '0');
                 const nextMin = String(nextTide.time.getMinutes()).padStart(2, '0');
                 const nextTime = `${nextHour}${nextMin}`;
