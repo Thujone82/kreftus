@@ -87,7 +87,9 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
 
     let html = '<div class="current-conditions">';
     const locationDisplayName = formatLocationDisplayName(location.city, location.state);
-    html += `<div class="section-header">${locationDisplayName} Current Conditions</div>`;
+    const hasActiveAlerts = weather.alerts && Array.isArray(weather.alerts) && weather.alerts.length > 0;
+    const headerText = (hasActiveAlerts ? '⚠️' : '') + locationDisplayName + ' Current Conditions';
+    html += `<div class="section-header">${headerText}</div>`;
     
     html += '<div class="condition-row">';
     html += `<span class="condition-label">Currently:</span>`;
