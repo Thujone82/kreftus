@@ -251,23 +251,16 @@ async function init() {
                 if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
                     showUpdateNotification();
                 } else if (event.data && event.data.type === 'CLEAR_CACHE') {
-                    // Service worker updated - clear localStorage cache to get fresh data with new features
-                    console.log('Service worker updated, clearing cache:', event.data.reason);
+                    // Service worker updated - clear localStorage cache and reload so new JS runs (e.g. new UI like alert ⚠️)
+                    console.log('Service worker updated, clearing cache and reloading:', event.data.reason);
                     clearAllCachedData();
                     // Running as installed PWA: ensure Install button stays hidden after update
                     if (isPwaStandalone()) {
                         deferredInstallPrompt = null;
                         if (elements.installBtn) elements.installBtn.classList.add('hidden');
                     }
-                    // If we have a current location, refresh the data to get new features (like NOAA station)
-                    if (appState.location || elements.locationInput.value) {
-                        const locationToRefresh = elements.locationInput.value || 'here';
-                        setTimeout(() => {
-                            loadWeatherData(locationToRefresh, false, false).catch(error => {
-                                console.error('Error refreshing data after cache clear:', error);
-                            });
-                        }, 500);
-                    }
+                    // Reload the page so the new service worker serves the new app code; avoids stale UI on mobile
+                    window.location.reload();
                 }
             });
             
