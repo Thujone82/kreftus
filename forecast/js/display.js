@@ -318,10 +318,10 @@ function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12,
         const precipProb = period.probabilityOfPrecipitation?.value || 0;
         const shortForecast = period.shortForecast;
         
-        // Determine if daytime
-        const isPeriodDaytime = period.isDaytime !== undefined 
-            ? period.isDaytime 
-            : (periodTime.getHours() >= 6 && periodTime.getHours() < 18);
+        // Determine if daytime for icon: use sunrise/sunset so night icons only from first full hour after sunset, day from hour sun comes up
+        const isPeriodDaytime = (sunrise && sunset)
+            ? isHourDaytimeForIcon(periodTime, sunrise, sunset, location.timeZone)
+            : (period.isDaytime !== undefined ? period.isDaytime : (periodTime.getHours() >= 6 && periodTime.getHours() < 18));
         
         const periodIcon = getWeatherIcon(period.icon, isPeriodDaytime, precipProb);
         

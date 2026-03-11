@@ -945,6 +945,32 @@ function isHourMidpointDaytime(periodTime, sunrise, sunset, timeZone) {
     }
 }
 
+// Day/night for hourly icons: day from the hour sunrise occurs through the hour that contains sunset;
+// night from the first full hour after sunset until the hour before sunrise.
+// Returns true if the period should use the daytime icon.
+function isHourDaytimeForIcon(periodTime, sunrise, sunset, timeZone) {
+    if (!sunrise || !sunset) {
+        const hour = periodTime.getHours();
+        return hour >= 6 && hour < 18;
+    }
+    const sunriseDate = sunrise instanceof Date ? sunrise : new Date(sunrise);
+    const sunsetDate = sunset instanceof Date ? sunset : new Date(sunset);
+    const periodDate = new Date(periodTime.getFullYear(), periodTime.getMonth(), periodTime.getDate());
+    const normalizedSunrise = new Date(periodDate);
+    normalizedSunrise.setHours(sunriseDate.getHours(), sunriseDate.getMinutes(), sunriseDate.getSeconds(), sunriseDate.getMilliseconds());
+    const normalizedSunset = new Date(periodDate);
+    normalizedSunset.setHours(sunsetDate.getHours(), sunsetDate.getMinutes(), sunsetDate.getSeconds(), sunsetDate.getMilliseconds());
+    const periodStart = periodTime.getHours() * 60 + periodTime.getMinutes();
+    const sunriseTime = normalizedSunrise.getHours() * 60 + normalizedSunrise.getMinutes();
+    const sunsetTime = normalizedSunset.getHours() * 60 + normalizedSunset.getMinutes();
+    const sunriseHourStart = Math.floor(sunriseTime / 60) * 60;
+    const firstFullHourAfterSunset = Math.floor(sunsetTime / 60) * 60 + 60;
+    if (sunsetTime < sunriseTime) {
+        return periodStart >= sunriseHourStart || periodStart < firstFullHourAfterSunset;
+    }
+    return periodStart >= sunriseHourStart && periodStart < firstFullHourAfterSunset;
+}
+
 // Get hour label color class
 function getHourLabelColor(periodTime, sunrise, sunset, timeZone) {
     if (isHourMidpointDaytime(periodTime, sunrise, sunset, timeZone)) {
