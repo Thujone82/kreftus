@@ -3900,6 +3900,8 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
 // Preserves 1-week cache items (stations.json, water level support, tide predictions)
 async function handleRefresh() {
     console.log('Refresh button clicked - loading cached data first, then refreshing');
+    // Force full refetch including history (observations) so locations that previously failed get a retry
+    appState.observationsNeedRefresh = true;
     
     // Use current location from state when available so we refresh the displayed location, not a different one
     const locationFromInput = elements.locationInput.value.trim() || 'here';
