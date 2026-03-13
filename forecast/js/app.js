@@ -37,6 +37,8 @@ let elements = {};
 // PWA install: store beforeinstallprompt event to trigger from custom button
 let deferredInstallPrompt = null;
 
+let runDeferredInitDone = false;
+
 function isPwaStandalone() {
     return window.matchMedia('(display-mode: standalone)').matches ||
         window.navigator.standalone === true ||
@@ -175,6 +177,92 @@ function performFullReset() {
     }
 }
 
+// Run after first paint (or at end of init): SW, migrations, version, forecast text visibility, PWA install, intervals.
+function runDeferredInit() {
+    if (runDeferredInitDone) return;
+    runDeferredInitDone = true;
+    const migrationSuccess = migrateFavorites();
+    if (!migrationSuccess) {
+        console.warn('Favorites migration failed - favorites have been cleared');
+    }
+    loadAppVersionOnce();
+    setupForecastTextVisibility();
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/forecast/service-worker.js').then((registration) => {
+            console.log('Service Worker registered:', registration);
+            registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        showUpdateNotification();
+                    }
+                });
+            });
+            setInterval(checkForUpdate, 300000);
+        }).catch((error) => {
+            console.error('Service Worker registration failed:', error);
+        });
+    }
+    navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
+            showUpdateNotification();
+        } else if (event.data && event.data.type === 'CLEAR_CACHE') {
+            console.log('Service worker updated, clearing cache and reloading:', event.data.reason);
+            clearAllCachedData();
+            if (isPwaStandalone()) {
+                deferredInstallPrompt = null;
+                if (elements.installBtn) elements.installBtn.classList.add('hidden');
+            }
+            window.location.reload();
+        }
+    });
+    const isStandalone = isPwaStandalone();
+    if (elements.installBtn && isStandalone) {
+        elements.installBtn.classList.add('hidden');
+    }
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        if (isPwaStandalone()) {
+            deferredInstallPrompt = null;
+            if (elements.installBtn) elements.installBtn.classList.add('hidden');
+            return;
+        }
+        deferredInstallPrompt = e;
+        if (elements.installBtn) elements.installBtn.classList.remove('hidden');
+    });
+    window.addEventListener('appinstalled', () => {
+        deferredInstallPrompt = null;
+        if (elements.installBtn) elements.installBtn.classList.add('hidden');
+    });
+    if (elements.installBtn) {
+        elements.installBtn.addEventListener('click', async () => {
+            if (!deferredInstallPrompt) return;
+            deferredInstallPrompt.prompt();
+            const { outcome } = await deferredInstallPrompt.userChoice;
+            console.log('User install choice:', outcome);
+            deferredInstallPrompt = null;
+            elements.installBtn.classList.add('hidden');
+        });
+    }
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (elements.configModalIosInstallHint && isIos && !isStandalone) {
+        elements.configModalIosInstallHint.textContent = 'To install on iPhone: tap Share, then Add to Home Screen.';
+        elements.configModalIosInstallHint.classList.remove('hidden');
+    }
+    const storedAutoUpdate = localStorage.getItem('forecastAutoUpdate');
+    if (storedAutoUpdate !== null) {
+        appState.autoUpdateEnabled = storedAutoUpdate === 'true';
+        if (elements.autoUpdateToggle) {
+            elements.autoUpdateToggle.checked = appState.autoUpdateEnabled;
+        }
+    }
+    if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+    autoRefreshInterval = setInterval(checkAutoRefresh, 60000);
+    if (updateTimeInterval) clearInterval(updateTimeInterval);
+    updateTimeInterval = setInterval(updateLastUpdateTime, 30000);
+    updateHistoryButtonState();
+}
+
 // Initialize app
 async function init() {
     console.log('init() called');
@@ -202,22 +290,12 @@ async function init() {
         return;
     }
     
-    // Migrate old favorites to new format (do this early, before favorites are used)
-    // Run after elements are initialized so error messages can be displayed
-    const migrationSuccess = migrateFavorites();
-    if (!migrationSuccess) {
-        console.warn('Favorites migration failed - favorites have been cleared');
-    }
-    
-    // Set up event listeners FIRST - this is critical!
+    // Set up event listeners first so UI works as soon as we paint
     console.log('Setting up event listeners...');
     setupEventListeners();
     console.log('Event listeners set up');
 
-    // Capture app version once at load (from SW or manifest) so Settings modal shows this page's version until reload
-    loadAppVersionOnce();
-
-    // Apply saved accent colors and settings
+    // Apply saved accent colors and settings (needed for first paint)
     loadAccentColors();
     loadPerLocationColors();
     loadShowIrradiance();
@@ -225,110 +303,9 @@ async function init() {
     loadTimeFormat();
     restoreLocationsDrawerState();
 
-    // Apply effective theme (global or per-location) after state may have been restored
+    // Apply effective theme (global or per-location) for first paint
     applyThemeForCurrentLocation();
-    // Set up forecast text visibility observer
-    setupForecastTextVisibility();
-    
-    // Register service worker (non-blocking)
-    if ('serviceWorker' in navigator) {
-        try {
-            const registration = await navigator.serviceWorker.register('/forecast/service-worker.js');
-            console.log('Service Worker registered:', registration);
-            
-            // Check for updates
-            registration.addEventListener('updatefound', () => {
-                const newWorker = registration.installing;
-                newWorker.addEventListener('statechange', () => {
-                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        showUpdateNotification();
-                    }
-                });
-            });
-            
-            // Listen for messages from service worker
-            navigator.serviceWorker.addEventListener('message', (event) => {
-                if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
-                    showUpdateNotification();
-                } else if (event.data && event.data.type === 'CLEAR_CACHE') {
-                    // Service worker updated - clear localStorage cache and reload so new JS runs (e.g. new UI like alert ⚠️)
-                    console.log('Service worker updated, clearing cache and reloading:', event.data.reason);
-                    clearAllCachedData();
-                    // Running as installed PWA: ensure Install button stays hidden after update
-                    if (isPwaStandalone()) {
-                        deferredInstallPrompt = null;
-                        if (elements.installBtn) elements.installBtn.classList.add('hidden');
-                    }
-                    // Reload the page so the new service worker serves the new app code; avoids stale UI on mobile
-                    window.location.reload();
-                }
-            });
-            
-            // Check for manifest update periodically
-            setInterval(checkForUpdate, 300000); // Check every 5 minutes
-        } catch (error) {
-            console.error('Service Worker registration failed:', error);
-            // Don't block app initialization if service worker fails
-        }
-    }
 
-    // PWA install: custom Install Forecast button (Settings modal)
-    const isStandalone = isPwaStandalone();
-    if (elements.installBtn && isStandalone) {
-        elements.installBtn.classList.add('hidden');
-    }
-    window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        // Do not show install button when already running as installed PWA (e.g. after an update)
-        if (isPwaStandalone()) {
-            deferredInstallPrompt = null;
-            if (elements.installBtn) elements.installBtn.classList.add('hidden');
-            return;
-        }
-        deferredInstallPrompt = e;
-        if (elements.installBtn) elements.installBtn.classList.remove('hidden');
-    });
-    window.addEventListener('appinstalled', () => {
-        deferredInstallPrompt = null;
-        if (elements.installBtn) elements.installBtn.classList.add('hidden');
-    });
-    if (elements.installBtn) {
-        elements.installBtn.addEventListener('click', async () => {
-            if (!deferredInstallPrompt) return;
-            deferredInstallPrompt.prompt();
-            const { outcome } = await deferredInstallPrompt.userChoice;
-            console.log('User install choice:', outcome);
-            deferredInstallPrompt = null;
-            elements.installBtn.classList.add('hidden');
-        });
-    }
-    // iOS: show Add to Home Screen instructions (beforeinstallprompt not supported)
-    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    if (elements.configModalIosInstallHint && isIos && !isStandalone) {
-        elements.configModalIosInstallHint.textContent = 'To install on iPhone: tap Share, then Add to Home Screen.';
-        elements.configModalIosInstallHint.classList.remove('hidden');
-    }
-    
-    // Check for stored auto-update preference
-    const storedAutoUpdate = localStorage.getItem('forecastAutoUpdate');
-    if (storedAutoUpdate !== null) {
-        appState.autoUpdateEnabled = storedAutoUpdate === 'true';
-        if (elements.autoUpdateToggle) {
-            elements.autoUpdateToggle.checked = appState.autoUpdateEnabled;
-        }
-    }
-    
-    // Set up auto-refresh interval
-    if (autoRefreshInterval) clearInterval(autoRefreshInterval);
-    autoRefreshInterval = setInterval(checkAutoRefresh, 60000); // Check every minute
-    
-    // Set up update time interval
-    if (updateTimeInterval) clearInterval(updateTimeInterval);
-    updateTimeInterval = setInterval(updateLastUpdateTime, 30000); // Update every 30 seconds
-    
-    // Initialize History button state (disabled by default until data is loaded)
-    updateHistoryButtonState();
-    
     // Check for URL query parameters
     const urlParams = new URLSearchParams(window.location.search);
     const locationParam = urlParams.get('location');
@@ -417,6 +394,8 @@ async function init() {
                             renderLocationButtons(identifierForButtons);
                         }
                         updateCurrentLocationButtonState(false);
+                        renderCurrentMode();
+                        runDeferredInit();
                         return; // Successfully loaded last viewed favorite location
                     }
                 }
@@ -492,13 +471,13 @@ async function init() {
         
         if (cachedDataLoaded && cache) {
             // Cached data was loaded (stale check and refresh handled by loadCachedWeatherData)
-            // Update favorite button state
             updateFavoriteButtonState();
-            // Render location buttons if favorites exist
             const favorites = getFavorites();
             if (favorites.length > 0) {
                 renderLocationButtons();
             }
+            renderCurrentMode();
+            runDeferredInit();
             return; // Successfully loaded from cache
         }
     } else {
@@ -538,6 +517,8 @@ async function init() {
                         renderLocationButtons(activeUID);
                     }
                     updateCurrentLocationButtonState(false);
+                    renderCurrentMode();
+                    runDeferredInit();
                     return;
                 }
             }
@@ -581,6 +562,8 @@ async function init() {
                     if (favorites.length > 0) {
                         renderLocationButtons();
                     }
+                    renderCurrentMode();
+                    runDeferredInit();
                     return; // Successfully loaded from cache
                 }
             }
@@ -679,6 +662,7 @@ async function init() {
     if (favorites.length > 0) {
         renderLocationButtons();
     }
+    runDeferredInit();
 }
 
 // Set up event listeners

@@ -1,4 +1,4 @@
-﻿const VERSION = '1.4.6';
+﻿const VERSION = '1.5.0';
 const CACHE_NAME = `forecast-v${VERSION}`;
 const STATIC_CACHE = `forecast-static-v${VERSION}`;
 const DATA_CACHE = `forecast-data-v${VERSION}`;
@@ -92,24 +92,25 @@ self.addEventListener('fetch', (event) => {
                 })
         );
     } else if (url.pathname.endsWith('.js') || url.pathname.endsWith('.html') || url.pathname.endsWith('.css') || url.pathname.endsWith('.json')) {
-        // Handle JS, HTML, CSS, and JSON files with network-first strategy to ensure updates
+        // Stale-while-revalidate: serve from cache immediately, then revalidate in background
         event.respondWith(
-            fetch(request, { cache: 'no-cache' })
-                .then((response) => {
-                    // Clone the response
-                    const responseClone = response.clone();
-                    // Cache successful responses
-                    if (response.status === 200) {
-                        caches.open(STATIC_CACHE).then((cache) => {
-                            cache.put(request, responseClone);
-                        });
-                    }
-                    return response;
-                })
-                .catch(() => {
-                    // Network failed, try cache
-                    return caches.match(request);
-                })
+            caches.match(request).then((cachedResponse) => {
+                const fetchPromise = fetch(request, { cache: 'no-cache' })
+                    .then((response) => {
+                        if (response.status === 200) {
+                            const responseClone = response.clone();
+                            caches.open(STATIC_CACHE).then((cache) => cache.put(request, responseClone));
+                        }
+                        return response;
+                    })
+                    .catch(() => null);
+                // Return cached response if available (revalidate in background), else wait for network
+                if (cachedResponse) {
+                    void fetchPromise;
+                    return cachedResponse;
+                }
+                return fetchPromise.then((networkResponse) => networkResponse || caches.match(request));
+            })
         );
     } else {
         // Handle other static assets with cache-first strategy
