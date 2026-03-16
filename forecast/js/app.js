@@ -14,6 +14,8 @@ const appState = {
     observationsNeedRefresh: false, // set when cached observations are incomplete; cleared after successful fetch
     observationsLoading: false,     // true while fetching observations (for History tab loading banner)
     autoUpdateEnabled: true,
+    updateAllEnabled: false, // when auto-update on: refresh all favorites' caches in background
+    updateAllInFlight: false, // prevents overlapping Update All sweeps
     lastFetchTime: null,
     hourlyScrollIndex: 0,
     loading: false,
@@ -55,6 +57,8 @@ function initializeElements() {
         modeButtons: document.querySelectorAll('.mode-btn'),
         refreshBtn: document.getElementById('refreshBtn'),
         autoUpdateToggle: document.getElementById('autoUpdateToggle'),
+        updateAllToggle: document.getElementById('updateAllToggle'),
+        updateAllToggleContainer: document.getElementById('updateAllToggleContainer'),
         autoUpdateToggleLabel: document.querySelector('.toggle-label'),
         lastUpdate: document.getElementById('lastUpdate'),
         loadingIndicator: document.getElementById('loadingIndicator'),
@@ -256,6 +260,21 @@ function runDeferredInit() {
             elements.autoUpdateToggle.checked = appState.autoUpdateEnabled;
         }
     }
+
+    // Update All toggle (only meaningful when auto-update enabled)
+    const storedUpdateAll = localStorage.getItem('forecastUpdateAll');
+    appState.updateAllEnabled = storedUpdateAll === 'true';
+    if (!appState.autoUpdateEnabled) {
+        appState.updateAllEnabled = false;
+    }
+    if (elements.updateAllToggle) {
+        elements.updateAllToggle.checked = appState.updateAllEnabled;
+    }
+    if (elements.updateAllToggleContainer) {
+        if (appState.autoUpdateEnabled) elements.updateAllToggleContainer.classList.remove('hidden');
+        else elements.updateAllToggleContainer.classList.add('hidden');
+    }
+
     if (autoRefreshInterval) clearInterval(autoRefreshInterval);
     autoRefreshInterval = setInterval(checkAutoRefresh, 60000);
     if (updateTimeInterval) clearInterval(updateTimeInterval);
@@ -1230,10 +1249,41 @@ function setupEventListeners() {
         elements.autoUpdateToggle.addEventListener('change', (e) => {
             appState.autoUpdateEnabled = e.target.checked;
             localStorage.setItem('forecastAutoUpdate', appState.autoUpdateEnabled.toString());
+            // Show/hide Update All toggle (only when auto-update enabled)
+            if (elements.updateAllToggleContainer) {
+                if (appState.autoUpdateEnabled) {
+                    elements.updateAllToggleContainer.classList.remove('hidden');
+                } else {
+                    elements.updateAllToggleContainer.classList.add('hidden');
+                }
+            }
+            // If auto-update is turned off, force Update All off (and persist) to retain default behavior
+            if (!appState.autoUpdateEnabled) {
+                appState.updateAllEnabled = false;
+                localStorage.setItem('forecastUpdateAll', 'false');
+                if (elements.updateAllToggle) elements.updateAllToggle.checked = false;
+            }
             // When enabling auto-update, if current location's data is already stale, refresh now
             if (appState.autoUpdateEnabled && appState.location && isDataStale()) {
                 const location = getLocationForRefresh() || 'here';
                 loadWeatherData(location, false, true);
+            }
+        });
+    }
+    if (elements.updateAllToggle) {
+        elements.updateAllToggle.addEventListener('change', (e) => {
+            // Only meaningful when auto-update is enabled
+            if (!appState.autoUpdateEnabled) {
+                e.target.checked = false;
+                appState.updateAllEnabled = false;
+                localStorage.setItem('forecastUpdateAll', 'false');
+                return;
+            }
+            appState.updateAllEnabled = !!e.target.checked;
+            localStorage.setItem('forecastUpdateAll', appState.updateAllEnabled ? 'true' : 'false');
+            // If enabling, run an immediate sweep if anything is stale
+            if (appState.updateAllEnabled) {
+                checkAutoRefresh();
             }
         });
     }
@@ -2523,6 +2573,172 @@ function persistCurrentView() {
 // Cache storage functions
 // timestamp: Optional. If provided, updates the cache timestamp (only when fetching from NWS API).
 //           If not provided, preserves the existing cache timestamp (when updating cache with other data).
+function getFavoriteCacheKey(fav) {
+    if (!fav) return null;
+    if (fav.uid) return `uid_${fav.uid}`;
+    return fav.key || null;
+}
+
+function isCacheTimestampStale(timestampIso) {
+    if (!timestampIso) return true;
+    const ts = new Date(timestampIso);
+    if (Number.isNaN(ts.getTime())) return true;
+    return (Date.now() - ts.getTime()) > DATA_STALE_THRESHOLD;
+}
+
+function loadCacheTimestampForKey(cacheKey) {
+    if (!cacheKey) return null;
+    try {
+        return localStorage.getItem(`forecastCachedTimestamp_${cacheKey}`);
+    } catch (e) {
+        return null;
+    }
+}
+
+function saveWeatherDataToCacheByKey({ cacheKey, locationString = '', weatherData, timestamp }) {
+    if (!cacheKey) return false;
+    try {
+        const dataKey = `forecastCachedData_${cacheKey}`;
+        const locationKeyStr = `forecastCachedLocation_${cacheKey}`;
+        const timestampKey = `forecastCachedTimestamp_${cacheKey}`;
+
+        const existingRaw = localStorage.getItem(dataKey);
+        let existing = null;
+        try { existing = existingRaw ? JSON.parse(existingRaw) : null; } catch (e) { existing = null; }
+
+        const cacheData = {
+            weatherData,
+            observationsData: existing?.observationsData ?? null,
+            observationsAvailable: existing?.observationsAvailable ?? false,
+            observationsLocation: existing?.observationsLocation ?? null
+        };
+
+        const timestampIso = (timestamp instanceof Date) ? timestamp.toISOString() : (timestamp || new Date().toISOString());
+
+        localStorage.setItem(dataKey, JSON.stringify(cacheData));
+        localStorage.setItem(locationKeyStr, locationString || '');
+        localStorage.setItem(timestampKey, timestampIso);
+
+        // Update in-memory cache for fast reads
+        const memoryCacheKey = `${cacheKey}_${timestampIso}`;
+        appState.cachedWeatherDataByKey.set(memoryCacheKey, cacheData);
+        if (appState.cachedWeatherDataByKey.size > 20) {
+            const firstKey = appState.cachedWeatherDataByKey.keys().next().value;
+            appState.cachedWeatherDataByKey.delete(firstKey);
+        }
+        return true;
+    } catch (error) {
+        console.warn('Failed to save cache by key:', cacheKey, error);
+        return false;
+    }
+}
+
+function saveObservationsToCacheByKey({ cacheKey, observationsData, observationsAvailable, observationsLocation }) {
+    if (!cacheKey) return false;
+    try {
+        const dataKey = `forecastCachedData_${cacheKey}`;
+        const existingRaw = localStorage.getItem(dataKey);
+        let existing = null;
+        try { existing = existingRaw ? JSON.parse(existingRaw) : null; } catch (e) { existing = null; }
+
+        const merged = {
+            weatherData: existing?.weatherData ?? null,
+            observationsData: observationsData ?? null,
+            observationsAvailable: !!observationsAvailable,
+            observationsLocation: observationsLocation ?? null
+        };
+
+        localStorage.setItem(dataKey, JSON.stringify(merged));
+
+        // Also update in-memory cache entries for this cacheKey (best-effort)
+        for (const [k, v] of appState.cachedWeatherDataByKey.entries()) {
+            if (String(k).startsWith(`${cacheKey}_`)) {
+                appState.cachedWeatherDataByKey.set(k, merged);
+            }
+        }
+        return true;
+    } catch (error) {
+        console.warn('Failed to save observations cache by key:', cacheKey, error);
+        return false;
+    }
+}
+
+let updateAllObservationsScheduled = false;
+
+function scheduleUpdateAllObservationsSweep() {
+    if (!appState.autoUpdateEnabled || !appState.updateAllEnabled) return;
+    if (updateAllObservationsScheduled) return;
+    updateAllObservationsScheduled = true;
+
+    const run = async () => {
+        updateAllObservationsScheduled = false;
+        const favorites = getFavorites();
+        if (!favorites || favorites.length === 0) return;
+
+        const theme = getEffectiveThemeColors ? getEffectiveThemeColors() : null;
+        const secondaryColor = theme ? (theme.secondary || null) : null;
+        // Phase 2 indicator: use secondary accent color
+        showControlBarUpdateIndicator(secondaryColor);
+
+        try {
+        for (const fav of favorites) {
+            if (!appState.autoUpdateEnabled || !appState.updateAllEnabled) return;
+            const cacheKey = getFavoriteCacheKey(fav);
+            if (!cacheKey) continue;
+
+            // Load existing cache payload to see whether we need observations
+            let cached = null;
+            try {
+                const raw = localStorage.getItem(`forecastCachedData_${cacheKey}`);
+                cached = raw ? JSON.parse(raw) : null;
+            } catch (e) { cached = null; }
+
+            const hasObs = !!cached?.observationsAvailable && cached?.observationsData != null;
+            // If we already have observations, only refresh if the overall cache timestamp is stale
+            const tsIso = loadCacheTimestampForKey(cacheKey);
+            const shouldRefreshObs = !hasObs || isCacheTimestampStale(tsIso);
+            if (!shouldRefreshObs) continue;
+
+            // Need points+timezone to fetch observations; use cached weatherData if present, otherwise skip
+            const weatherData = cached?.weatherData;
+            const pointsData = weatherData?.points;
+            const timeZone = weatherData?.location?.timeZone;
+            const locObj = weatherData?.location;
+            if (!pointsData || !timeZone || !locObj || locObj.city == null || locObj.state == null) continue;
+
+            try {
+                const stationId = await fetchNWSObservationStations(pointsData);
+                if (!stationId) continue;
+                const observationsData = await fetchNWSObservations(stationId, timeZone);
+                if (!observationsData || !observationsData.features || observationsData.features.length === 0) continue;
+                const processed = processObservationsData(observationsData, timeZone);
+                const observationsLocation = { city: (locObj.city || '').trim().toLowerCase(), state: (locObj.state || '').trim().toUpperCase() };
+                saveObservationsToCacheByKey({
+                    cacheKey,
+                    observationsData: processed,
+                    observationsAvailable: true,
+                    observationsLocation
+                });
+            } catch (e) {
+                // Low priority: ignore failures
+                console.warn('Update All: failed to refresh observations for', fav.name || fav.searchQuery || cacheKey, e);
+            }
+
+            // Throttle between favorites to reduce bursts
+            await new Promise(r => setTimeout(r, 750));
+        }
+        } finally {
+            hideControlBarUpdateIndicator();
+        }
+    };
+
+    if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(() => { run().catch(() => {}); }, { timeout: 3000 });
+    } else {
+        setTimeout(() => { run().catch(() => {}); }, 1500);
+    }
+}
+
 function saveWeatherDataToCache(weatherData, location, timestamp = null) {
     try {
         const locForObs = appState.location || location;
@@ -4165,7 +4381,8 @@ function setupHourlyNavigation() {
 }
 
 // Show control bar update indicator (spinner + "Updating" text)
-function showControlBarUpdateIndicator() {
+// colorHex (optional): accent color to use for spinner/text (defaults to current theme primary)
+function showControlBarUpdateIndicator(colorHex) {
     const container = elements.autoUpdateToggleLabel || document.getElementById('updateIndicatorContainer');
     if (!container) return;
     
@@ -4181,6 +4398,21 @@ function showControlBarUpdateIndicator() {
         updateIndicator.appendChild(spinner);
         updateIndicator.appendChild(text);
         container.appendChild(updateIndicator);
+    }
+    // Apply accent color
+    try {
+        const theme = getEffectiveThemeColors ? getEffectiveThemeColors() : null;
+        const fallbackColor = theme ? (theme.primary || theme.secondary) : null;
+        const effectiveColor = colorHex || fallbackColor;
+        if (effectiveColor) {
+            updateIndicator.style.color = effectiveColor;
+            const spinnerEl = updateIndicator.querySelector('.spinner');
+            if (spinnerEl) {
+                spinnerEl.style.borderTopColor = effectiveColor;
+            }
+        }
+    } catch (e) {
+        // Non-fatal; leave default styling
     }
     updateIndicator.style.display = 'flex';
 }
@@ -4309,10 +4541,87 @@ function getLocationForRefresh() {
 
 // Auto-refresh check
 function checkAutoRefresh() {
-    if (appState.autoUpdateEnabled && isDataStale() && appState.location) {
-        const location = getLocationForRefresh() || 'here';
-        loadWeatherData(location, false, true); // Use background mode to keep content visible
+    if (!appState.autoUpdateEnabled) return;
+    // Default behavior: refresh only the displayed location when stale
+    if (!appState.updateAllEnabled) {
+        if (isDataStale() && appState.location) {
+            const location = getLocationForRefresh() || 'here';
+            loadWeatherData(location, false, true); // Use background mode to keep content visible
+        }
+        return;
     }
+
+    // Update All: refresh all stale favorites in background (weather first, observations later)
+    if (appState.updateAllInFlight) return;
+    const favorites = getFavorites();
+    if (!favorites || favorites.length === 0) {
+        // Nothing to update; still keep displayed location behavior for non-favorites
+        if (isDataStale() && appState.location) {
+            const location = getLocationForRefresh() || 'here';
+            loadWeatherData(location, false, true);
+        }
+        return;
+    }
+
+    const staleFavorites = favorites.filter(fav => {
+        const cacheKey = getFavoriteCacheKey(fav);
+        const ts = loadCacheTimestampForKey(cacheKey);
+        return isCacheTimestampStale(ts);
+    });
+
+    // If nothing is stale, no work
+    if (staleFavorites.length === 0) return;
+
+    appState.updateAllInFlight = true;
+
+    (async () => {
+        try {
+            const theme = getEffectiveThemeColors ? getEffectiveThemeColors() : null;
+            const primaryColor = theme ? (theme.primary || null) : null;
+            // Phase 1 indicator: use primary accent color
+            showControlBarUpdateIndicator(primaryColor);
+
+            // Phase 1: update weather caches for all stale favorites
+            for (const fav of staleFavorites) {
+                const cacheKey = getFavoriteCacheKey(fav);
+                if (!cacheKey) continue;
+                const locationQuery = (fav.searchQuery || (fav.location && fav.location.city != null && fav.location.state != null
+                    ? formatLocationDisplayName(fav.location.city, fav.location.state)
+                    : (fav.name || ''))).trim();
+                if (!locationQuery) continue;
+
+                try {
+                    const raw = await fetchWeatherData(locationQuery);
+                    const processed = processWeatherData(raw);
+                    const locStr = processed?.location && processed.location.city != null && processed.location.state != null
+                        ? formatLocationDisplayName(processed.location.city, processed.location.state)
+                        : (fav.name || locationQuery);
+                    const ts = raw.fetchTime || new Date();
+                    saveWeatherDataToCacheByKey({
+                        cacheKey,
+                        locationString: locStr,
+                        weatherData: processed,
+                        timestamp: ts
+                    });
+                } catch (e) {
+                    // Keep existing cache on failure; log only
+                    console.warn('Update All: failed to refresh weather for', fav.name || fav.searchQuery || cacheKey, e);
+                }
+            }
+
+            // Keep currently displayed location updated too (same as old behavior)
+            if (isDataStale() && appState.location) {
+                const location = getLocationForRefresh() || 'here';
+                loadWeatherData(location, false, true);
+            }
+
+            // Phase 2 is scheduled separately (observations); implemented below.
+            scheduleUpdateAllObservationsSweep();
+        } finally {
+            hideControlBarUpdateIndicator();
+            appState.updateAllInFlight = false;
+        }
+    })();
 }
 
 // Check for app update
