@@ -526,6 +526,8 @@ main {
     align-items: center;
     justify-content: center;
     padding: 1rem;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .config-modal.hidden {
@@ -550,6 +552,9 @@ main {
     padding: 1.5rem;
     max-width: 320px;
     width: 100%;
+    max-height: min(calc(100vh - 2rem), calc(100dvh - 2rem));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
