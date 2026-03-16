@@ -390,6 +390,8 @@ async function init() {
                         
                         // Ensure star and location button both show active when loading a favorited location
                         updateFavoriteButtonState(identifierForButtons);
+                        // Per-location colors: apply immediately so the title bar color is correct on first paint
+                        applyThemeForCurrentLocation();
                         if (favorites.length > 0) {
                             renderLocationButtons(identifierForButtons);
                         }
@@ -476,6 +478,8 @@ async function init() {
             if (favorites.length > 0) {
                 renderLocationButtons();
             }
+            // Per-location colors: ensure title bar theme-color matches active favorite before first render
+            applyThemeForCurrentLocation();
             renderCurrentMode();
             runDeferredInit();
             return; // Successfully loaded from cache
@@ -517,6 +521,8 @@ async function init() {
                         renderLocationButtons(activeUID);
                     }
                     updateCurrentLocationButtonState(false);
+                    // Per-location colors: ensure title bar theme-color matches active favorite before first render
+                    applyThemeForCurrentLocation();
                     renderCurrentMode();
                     runDeferredInit();
                     return;
@@ -562,6 +568,8 @@ async function init() {
                     if (favorites.length > 0) {
                         renderLocationButtons();
                     }
+                    // Per-location colors: apply before first render so title bar is correct
+                    applyThemeForCurrentLocation();
                     renderCurrentMode();
                     runDeferredInit();
                     return; // Successfully loaded from cache
