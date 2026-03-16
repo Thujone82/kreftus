@@ -743,10 +743,30 @@ function displayWeatherAlerts(alerts, showDetails = true, timeZoneId = null) {
     if (!alerts || alerts.length === 0) {
         return '';
     }
+
+    // Filter out test/monitoring-only alerts (e.g., "Test Message" that should be suppressed)
+    const filteredAlerts = alerts.filter((alert) => {
+        const props = alert && alert.properties;
+        if (!props) return false;
+        const event = props.event || '';
+        const headline = props.headline || '';
+        const description = props.description || '';
+
+        // Suppress known test messages
+        if (event.trim().toLowerCase() === 'test message') return false;
+        if (headline.toLowerCase().includes('monitoring message only. please disregard.')) return false;
+        if (description.toLowerCase().includes('monitoring message only. please disregard.')) return false;
+
+        return true;
+    });
+
+    if (filteredAlerts.length === 0) {
+        return '';
+    }
     
     let html = '<div class="section-header">Active Weather Alerts</div>';
     
-    alerts.forEach((alert, index) => {
+    filteredAlerts.forEach((alert, index) => {
         const props = alert.properties;
         const event = props.event;
         const headline = props.headline;
