@@ -2665,28 +2665,22 @@ function saveObservationsToCacheByKey({ cacheKey, observationsData, observations
 
 let updateAllObservationsScheduled = false;
 
-function scheduleUpdateAllObservationsSweep() {
+// Runs phase 2 (observations) for all favorites that have cached weather with points. Call when phase 1 is complete.
+async function runUpdateAllObservationsSweep() {
     if (!appState.autoUpdateEnabled || !appState.updateAllEnabled) return;
-    if (updateAllObservationsScheduled) return;
-    updateAllObservationsScheduled = true;
+    const favorites = getFavorites();
+    if (!favorites || favorites.length === 0) return;
 
-    const run = async () => {
-        updateAllObservationsScheduled = false;
-        const favorites = getFavorites();
-        if (!favorites || favorites.length === 0) return;
+    const theme = getEffectiveThemeColors ? getEffectiveThemeColors() : null;
+    const secondaryColor = theme ? (theme.secondary || null) : null;
+    showControlBarUpdateIndicator(secondaryColor);
 
-        const theme = getEffectiveThemeColors ? getEffectiveThemeColors() : null;
-        const secondaryColor = theme ? (theme.secondary || null) : null;
-        // Phase 2 indicator: use secondary accent color
-        showControlBarUpdateIndicator(secondaryColor);
-
-        try {
+    try {
         for (const fav of favorites) {
-            if (!appState.autoUpdateEnabled || !appState.updateAllEnabled) return;
+            if (!appState.autoUpdateEnabled || !appState.updateAllEnabled) break;
             const cacheKey = getFavoriteCacheKey(fav);
             if (!cacheKey) continue;
 
-            // Load existing cache payload to see whether we need observations
             let cached = null;
             try {
                 const raw = localStorage.getItem(`forecastCachedData_${cacheKey}`);
@@ -2694,12 +2688,10 @@ function scheduleUpdateAllObservationsSweep() {
             } catch (e) { cached = null; }
 
             const hasObs = !!cached?.observationsAvailable && cached?.observationsData != null;
-            // If we already have observations, only refresh if the overall cache timestamp is stale
             const tsIso = loadCacheTimestampForKey(cacheKey);
             const shouldRefreshObs = !hasObs || isCacheTimestampStale(tsIso);
             if (!shouldRefreshObs) continue;
 
-            // Need points+timezone to fetch observations; use cached weatherData if present, otherwise skip
             const weatherData = cached?.weatherData;
             const pointsData = weatherData?.points;
             const timeZone = weatherData?.location?.timeZone;
@@ -2720,23 +2712,31 @@ function scheduleUpdateAllObservationsSweep() {
                     observationsLocation
                 });
             } catch (e) {
-                // Low priority: ignore failures
                 console.warn('Update All: failed to refresh observations for', fav.name || fav.searchQuery || cacheKey, e);
             }
 
-            // Throttle between favorites to reduce bursts
             await new Promise(r => setTimeout(r, 750));
         }
-        } finally {
-            hideControlBarUpdateIndicator();
+    } finally {
+        hideControlBarUpdateIndicator();
+    }
+}
+
+function scheduleUpdateAllObservationsSweep() {
+    if (!appState.autoUpdateEnabled || !appState.updateAllEnabled) return;
+    if (updateAllObservationsScheduled) return;
+    updateAllObservationsScheduled = true;
+
+    const run = async () => {
+        updateAllObservationsScheduled = false;
+        try {
+            await runUpdateAllObservationsSweep();
+        } catch (e) {
+            console.warn('Update All observations sweep failed:', e);
         }
     };
 
-    if (typeof requestIdleCallback !== 'undefined') {
-        requestIdleCallback(() => { run().catch(() => {}); }, { timeout: 3000 });
-    } else {
-        setTimeout(() => { run().catch(() => {}); }, 1500);
-    }
+    setTimeout(run, 0);
 }
 
 function saveWeatherDataToCache(weatherData, location, timestamp = null) {
@@ -4597,10 +4597,12 @@ function checkAutoRefresh() {
                         ? formatLocationDisplayName(processed.location.city, processed.location.state)
                         : (fav.name || locationQuery);
                     const ts = raw.fetchTime || new Date();
+                    // Include points so phase 2 (observations) can run from cache
+                    const weatherDataWithPoints = raw.points ? { ...processed, points: raw.points } : processed;
                     saveWeatherDataToCacheByKey({
                         cacheKey,
                         locationString: locStr,
-                        weatherData: processed,
+                        weatherData: weatherDataWithPoints,
                         timestamp: ts
                     });
                 } catch (e) {
@@ -4615,8 +4617,8 @@ function checkAutoRefresh() {
                 loadWeatherData(location, false, true);
             }
 
-            // Phase 2 is scheduled separately (observations); implemented below.
-            scheduleUpdateAllObservationsSweep();
+            // Phase 2 runs when phase 1 is complete (observations sweep)
+            await runUpdateAllObservationsSweep();
         } finally {
             hideControlBarUpdateIndicator();
             appState.updateAllInFlight = false;
