@@ -1730,84 +1730,50 @@ function updateFavoriteButtonState(identifier = null) {
         return;
     }
     
-    // Use provided identifier (UID or key) if available
-    // When no identifier given: prefer existing appState.currentLocationKey if it's a favorite (retain restored PWA state)
-    let identifierToCheck = identifier;
-    if (!identifierToCheck && appState.currentLocationKey && isFavorite(appState.currentLocationKey)) {
-        identifierToCheck = appState.currentLocationKey;
+    const favorites = getFavorites();
+
+    // Determine which favorite (if any) should be considered active.
+    // IMPORTANT: Do NOT overwrite appState.currentLocationKey with a generated UID that might not match the stored favorite UID.
+    let favoriteMatch = null;
+
+    // 1) If caller passed an identifier, try direct UID/key match first
+    if (identifier) {
+        const raw = String(identifier);
+        const normalized = raw.startsWith('uid_') ? raw.replace(/^uid_/, '') : raw;
+        favoriteMatch = favorites.find(f => f.uid === normalized || f.key === raw || f.key === normalized) || null;
     }
-    if (!identifierToCheck && appState.location) {
-        // Prefer UID (more stable)
-        identifierToCheck = generateLocationUID(appState.location);
-        
-        // If UID doesn't match, try key as fallback
-        if (identifierToCheck && !isFavorite(identifierToCheck)) {
-            const keyToCheck = generateLocationKey(appState.location);
-            if (keyToCheck && isFavorite(keyToCheck)) {
-                identifierToCheck = keyToCheck;
-            } else {
-                // Try to find a matching favorite by comparing location objects
-                const favorites = getFavorites();
-                const matchingFavorite = favorites.find(fav => {
-                    if (fav.location && appState.location) {
-                        const favCity = (fav.location.city || '').trim().toLowerCase();
-                        const favState = (fav.location.state || '').trim().toUpperCase();
-                        const currentCity = (appState.location.city || '').trim().toLowerCase();
-                        const currentState = (appState.location.state || '').trim().toUpperCase();
-                        
-                        if (favCity === currentCity && favState === currentState) {
-                            return true;
-                        }
-                    }
-                    return false;
-                });
-                
-                if (matchingFavorite) {
-                    // Use the favorite's UID (preferred) or key as fallback
-                    identifierToCheck = matchingFavorite.uid || matchingFavorite.key;
-                }
-            }
+
+    // 2) If we have an existing currentLocationKey that is a favorite, retain it
+    if (!favoriteMatch && appState.currentLocationKey && isFavorite(appState.currentLocationKey)) {
+        const raw = String(appState.currentLocationKey);
+        const normalized = raw.startsWith('uid_') ? raw.replace(/^uid_/, '') : raw;
+        favoriteMatch = favorites.find(f => f.uid === normalized || f.key === raw || f.key === normalized) || null;
+    }
+
+    // 3) Fall back to matching by current location city/state (more stable than coordinates)
+    if (!favoriteMatch && appState.location) {
+        const currentCity = (appState.location.city || '').trim().toLowerCase();
+        const currentState = (appState.location.state || '').trim().toUpperCase();
+        if (currentCity && currentState) {
+            favoriteMatch = favorites.find(f => {
+                if (!f.location) return false;
+                const favCity = (f.location.city || '').trim().toLowerCase();
+                const favState = (f.location.state || '').trim().toUpperCase();
+                return favCity === currentCity && favState === currentState;
+            }) || null;
         }
     }
-    
-    // Store the identifier in appState for use by handleFavoriteToggle
-    if (identifierToCheck) {
-        appState.currentLocationKey = identifierToCheck; // Keep same property name for compatibility
-    }
-    
-    if (!identifierToCheck) {
-        appState.currentLocationKey = null;
-        elements.favoriteBtn.classList.remove('active');
+
+    if (favoriteMatch && favoriteMatch.uid) {
+        elements.favoriteBtn.classList.add('active');
+        // Use UID-based cache key format consistently everywhere
+        appState.currentLocationKey = `uid_${favoriteMatch.uid}`;
         return;
     }
-    
-    // CRITICAL: Check if identifier is a favorite - try both UID and key
-    // This ensures favorites are correctly identified even if identifier format varies
-    const isFav = isFavorite(identifierToCheck);
-    
-    if (isFav) {
-        elements.favoriteBtn.classList.add('active');
-        // Ensure appState.currentLocationKey is set to the correct identifier
-        // Prefer UID if available, otherwise use the identifier passed
-        if (identifierToCheck && !identifierToCheck.startsWith('uid_')) {
-            // Try to find the favorite and use its UID if available
-            const favorite = getFavoriteByUID(identifierToCheck) || getFavoriteByKey(identifierToCheck);
-            if (favorite && favorite.uid) {
-                appState.currentLocationKey = favorite.uid;
-            }
-        }
-    } else {
-        // Not a favorite - check if any favorite button is active
-        // If no favorite button is active, star button should be disabled
-        const hasActiveFavoriteButton = elements.locationButtons && 
-            elements.locationButtons.querySelector('.location-btn.active');
-        
-        if (!hasActiveFavoriteButton) {
-            // No favorite button is active, so star button should be disabled
-            elements.favoriteBtn.classList.remove('active');
-            appState.currentLocationKey = null;
-        }
-    }
+
+    // Not currently a favorite (or we couldn't match). Don't clear currentLocationKey here since it's also used for caching;
+    // only update the star visual state.
+    elements.favoriteBtn.classList.remove('active');
 }
 
 // Handle search
@@ -2883,7 +2849,16 @@ function renderLocationButtons(activeUID = null) {
         currentUID = raw.startsWith('uid_') ? raw.replace(/^uid_/, '') : raw;
     }
     if (!currentUID && appState.location) {
-        currentUID = generateLocationUID(appState.location);
+        // Prefer matching a favorite by city/state (more stable than coordinates) to determine active button
+        const favorites = getFavorites();
+        const currentCity = (appState.location.city || '').trim().toLowerCase();
+        const currentState = (appState.location.state || '').trim().toUpperCase();
+        const matchingFavorite = (currentCity && currentState)
+            ? favorites.find(f => f.location &&
+                ((f.location.city || '').trim().toLowerCase() === currentCity) &&
+                ((f.location.state || '').trim().toUpperCase() === currentState))
+            : null;
+        currentUID = (matchingFavorite && matchingFavorite.uid) ? matchingFavorite.uid : generateLocationUID(appState.location);
     }
     
     // Skip DOM update if active state unchanged (prevents blinking on iPad from repeated renders)
