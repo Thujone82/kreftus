@@ -1,4 +1,4 @@
-﻿const VERSION = '1.6.3';
+﻿const VERSION = '1.6.4';
 const CACHE_NAME = `forecast-v${VERSION}`;
 const STATIC_CACHE = `forecast-static-v${VERSION}`;
 const DATA_CACHE = `forecast-data-v${VERSION}`;
@@ -126,6 +126,9 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'CHECK_UPDATE') {
         checkForUpdate();
+    } else if (event.data && event.data.type === 'SKIP_WAITING') {
+        // Let the app trigger immediate activation of a waiting SW
+        self.skipWaiting();
     } else if (event.data && event.data.type === 'GET_VERSION' && event.source) {
         event.source.postMessage({ type: 'VERSION', version: VERSION });
     }

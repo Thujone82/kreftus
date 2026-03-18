@@ -1446,22 +1446,67 @@ function setupEventListeners() {
         if (elements.reloadBtn) {
             elements.reloadBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
-                // Clear all caches and reload
-                if ('caches' in window) {
-                    const cacheNames = await caches.keys();
-                    await Promise.all(
-                        cacheNames.map(cacheName => caches.delete(cacheName))
-                    );
+                // Upgrade flow: activate the waiting SW, then reload once it controls the page.
+                // This avoids the "need a second refresh" issue caused by stale-while-revalidate app shell caching.
+                if (!('serviceWorker' in navigator)) {
+                    window.location.reload();
+                    return;
                 }
-                // Unregister service worker to force update
-                if ('serviceWorker' in navigator) {
+
+                const doReloadOnceControlled = () => {
+                    let reloaded = false;
+                    const onControllerChange = () => {
+                        if (reloaded) return;
+                        reloaded = true;
+                        navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+                        window.location.reload();
+                    };
+                    navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+
+                    // Safety: if controller doesn't change (no SW), still reload.
+                    setTimeout(() => {
+                        if (reloaded) return;
+                        navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+                        window.location.reload();
+                    }, 3000);
+                };
+
+                try {
                     const registration = await navigator.serviceWorker.getRegistration();
-                    if (registration) {
-                        await registration.unregister();
+                    if (!registration) {
+                        window.location.reload();
+                        return;
                     }
+
+                    // Ask the browser to check for an update right now.
+                    if (typeof registration.update === 'function') {
+                        await registration.update();
+                    }
+
+                    // If there is a waiting worker, tell it to activate now.
+                    if (registration.waiting) {
+                        doReloadOnceControlled();
+                        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                        return;
+                    }
+
+                    // If an update is currently installing, wait for it to reach "installed" then skip-waiting.
+                    if (registration.installing) {
+                        doReloadOnceControlled();
+                        const installing = registration.installing;
+                        installing.addEventListener('statechange', () => {
+                            if (installing.state === 'installed' && registration.waiting) {
+                                registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                            }
+                        });
+                        return;
+                    }
+                } catch (err) {
+                    console.warn('Reload upgrade flow failed; falling back to reload.', err);
                 }
-                // Reload the page
-                window.location.reload(true);
+
+                // Fallback: reload normally.
+                window.location.reload();
             });
         }
     
