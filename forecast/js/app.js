@@ -2712,6 +2712,49 @@ function saveObservationsToCacheByKey({ cacheKey, observationsData, observations
     }
 }
 
+// Refresh observations for a cached location without touching weather timestamps.
+// This keeps "Updated" tied to the weather fetch time while still enabling History data.
+async function refreshObservationsForCachedLocation({ cacheKey, weatherData }) {
+    if (!cacheKey || !weatherData) return false;
+    const pointsData = weatherData.points;
+    const timeZone = weatherData?.location?.timeZone;
+    const locObj = weatherData?.location;
+    if (!pointsData || !timeZone || !locObj || locObj.city == null || locObj.state == null) return false;
+
+    const stationId = await fetchNWSObservationStations(pointsData);
+    if (!stationId) return false;
+    const observationsData = await fetchNWSObservations(stationId, timeZone);
+    if (!observationsData || !observationsData.features || observationsData.features.length === 0) return false;
+    const processed = processObservationsData(observationsData, timeZone);
+    const observationsLocation = {
+        city: (locObj.city || '').trim().toLowerCase(),
+        state: (locObj.state || '').trim().toUpperCase()
+    };
+    saveObservationsToCacheByKey({
+        cacheKey,
+        observationsData: processed,
+        observationsAvailable: true,
+        observationsLocation
+    });
+
+    // If the same location is still on screen, update in-memory observations state only.
+    const activeLoc = appState.location;
+    const activeCity = (activeLoc?.city || '').trim().toLowerCase();
+    const activeState = (activeLoc?.state || '').trim().toUpperCase();
+    if (activeCity === observationsLocation.city && activeState === observationsLocation.state) {
+        appState.observationsData = processed;
+        appState.observationsAvailable = true;
+        appState.observationsLocationKey = cacheKey;
+        appState.observationsLocationRef = observationsLocation;
+        appState.observationsNeedRefresh = false;
+        updateHistoryButtonState();
+        if (appState.currentMode === 'history') {
+            renderCurrentMode();
+        }
+    }
+    return true;
+}
+
 let updateAllObservationsScheduled = false;
 
 // Runs phase 2 (observations) for all favorites that have cached weather with points. Call when phase 1 is complete.
@@ -3336,15 +3379,20 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
                 });
             }, 100);
         } else if (restoredWeatherData?.location && rawObservations == null && appState.autoUpdateEnabled) {
-            // Only fetch observations in background when auto-update is on
-            const locationToFetch = searchQuery || (restoredWeatherData.location.city != null && restoredWeatherData.location.state != null
-                ? `${restoredWeatherData.location.city}, ${restoredWeatherData.location.state}`
-                : null) || cache.location || 'here';
-            if (locationToFetch) {
-                console.log('Location has no observations, fetching in background:', locationToFetch);
+            // Only fetch observations in background when auto-update is on.
+            // IMPORTANT: do not call loadWeatherData() here, because that would refresh weather and
+            // overwrite the displayed weather timestamp ("Updated") with "just now".
+            const observationsCacheKey = locationKey
+                || appState.currentLocationKey
+                || generateLocationKey(restoredWeatherData.location);
+            if (observationsCacheKey) {
+                console.log('Location has no observations, fetching observations-only in background:', observationsCacheKey);
                 setTimeout(() => {
-                    loadWeatherData(locationToFetch, false, true).catch(error => {
-                        console.error('Background observations fetch failed:', error);
+                    refreshObservationsForCachedLocation({
+                        cacheKey: observationsCacheKey,
+                        weatherData: restoredWeatherData
+                    }).catch(error => {
+                        console.error('Background observations-only fetch failed:', error);
                     });
                 }, 200);
             }
