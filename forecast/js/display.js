@@ -81,6 +81,22 @@ function getTimeAgo(date) {
 
 // Display current conditions
 // Header should always use normalized City, ST from the location object, not custom labels
+function getAlertHeaderEmojiSuffix(alerts) {
+    if (!Array.isArray(alerts) || alerts.length === 0) return '';
+
+    const subjectText = alerts.map((alert) => {
+        const props = alert && alert.properties ? alert.properties : {};
+        return `${props.event || ''} ${props.headline || ''}`.toLowerCase();
+    }).join(' ');
+
+    let suffix = '';
+    if (subjectText.includes('fire weather') || subjectText.includes('red flag')) suffix += '🔥';
+    if (subjectText.includes('tornado')) suffix += '🌪';
+    if (subjectText.includes('thunderstorm')) suffix += '⛈';
+    if (subjectText.includes('winter weather') || subjectText.includes('blizzard')) suffix += '❄️';
+    return suffix;
+}
+
 function displayCurrentConditions(weather, location, optionalDisplayName) {
     const { current, location: loc } = weather;
     const { sunrise, sunset, moonPhase } = loc;
@@ -88,7 +104,9 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
     let html = '<div class="current-conditions">';
     const locationDisplayName = formatLocationDisplayName(location.city, location.state);
     const hasActiveAlerts = weather.alerts && Array.isArray(weather.alerts) && weather.alerts.length > 0;
-    const headerText = (hasActiveAlerts ? '⚠️' : '') + locationDisplayName + ' Current Conditions';
+    const alertEmojiSuffix = hasActiveAlerts ? getAlertHeaderEmojiSuffix(weather.alerts) : '';
+    const alertPrefix = hasActiveAlerts ? `⚠️${alertEmojiSuffix}` : '';
+    const headerText = alertPrefix + locationDisplayName + ' Current Conditions';
     html += `<div class="section-header">${headerText}</div>`;
     
     html += '<div class="condition-row">';
