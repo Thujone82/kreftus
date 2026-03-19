@@ -403,6 +403,13 @@ main {
     border-color: var(--color-title);
 }
 
+.location-btn.updating {
+    --location-update-accent: var(--color-default);
+    border-color: var(--location-update-accent);
+    color: var(--location-update-accent);
+    animation: location-btn-pulse 1.1s ease-in-out infinite;
+}
+
 .location-btn-edit {
     padding: 0.5rem 0.75rem;
     background-color: var(--color-bg-secondary);
@@ -426,6 +433,27 @@ main {
 .location-btn-dragging {
     opacity: 0.6;
     cursor: grabbing;
+}
+
+@keyframes location-btn-pulse {
+    0% {
+        box-shadow: 0 0 0 0 var(--location-update-accent);
+        transform: translateY(0);
+    }
+    50% {
+        box-shadow: 0 0 0 6px transparent;
+        transform: translateY(-1px);
+    }
+    100% {
+        box-shadow: 0 0 0 0 transparent;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .location-btn.updating {
+        animation: none;
+    }
 }
 
 .toggle-label {

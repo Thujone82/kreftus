@@ -26,12 +26,16 @@ const appState = {
     currentAppVersion: null,
     // In-memory cache for parsed weather data (keyed by locationKey + timestamp)
     // This avoids repeated JSON.parse operations when switching between favorites
-    cachedWeatherDataByKey: new Map()
+    cachedWeatherDataByKey: new Map(),
+    // Background Update All visual state (spinner color + pulsing favorite button)
+    backgroundUpdateVisualUid: null
 };
 
 // Constants
 const DATA_STALE_THRESHOLD = 600000; // 10 minutes in milliseconds
 const AUTO_UPDATE_INTERVAL = 600000; // 10 minutes
+const UPDATE_VISUAL_SWITCH_DEBOUNCE_MS = 120;
+const UPDATE_VISUAL_MIN_VISIBLE_MS = 400;
 
 // DOM elements - will be initialized when DOM is ready
 let elements = {};
@@ -2716,15 +2720,14 @@ async function runUpdateAllObservationsSweep() {
     const favorites = getFavorites();
     if (!favorites || favorites.length === 0) return;
 
-    const theme = getEffectiveThemeColors ? getEffectiveThemeColors() : null;
-    const secondaryColor = theme ? (theme.secondary || null) : null;
-    showControlBarUpdateIndicator(secondaryColor);
-
     try {
         for (const fav of favorites) {
             if (!appState.autoUpdateEnabled || !appState.updateAllEnabled) break;
             const cacheKey = getFavoriteCacheKey(fav);
             if (!cacheKey) continue;
+            const uid = fav.uid || fav.key || null;
+            const phaseColor = getFavoriteUpdateColor(fav, 'phase2');
+            if (uid) scheduleBackgroundUpdateVisual(uid, phaseColor);
 
             let cached = null;
             try {
@@ -2763,7 +2766,7 @@ async function runUpdateAllObservationsSweep() {
             await new Promise(r => setTimeout(r, 750));
         }
     } finally {
-        hideControlBarUpdateIndicator();
+        scheduleHideBackgroundUpdateVisual();
     }
 }
 
@@ -3170,6 +3173,9 @@ function renderLocationButtons(activeUID = null) {
             appState.currentLocationKey = null;
         }
     }
+
+    // Re-apply pulse when favorites drawer re-renders during an active background update.
+    syncBackgroundUpdateFavoritePulse();
 }
 
 // Restore Date objects from cached data (JSON serialization converts dates to strings)
@@ -4425,6 +4431,137 @@ function setupHourlyNavigation() {
     }
 }
 
+const backgroundUpdateVisualState = {
+    isVisible: false,
+    currentUid: null,
+    currentColor: null,
+    lastShownAtMs: 0,
+    switchTimer: null,
+    hideTimer: null
+};
+
+function setFavoriteButtonUpdating(uid, isUpdating, colorHex = null) {
+    if (!elements.locationButtons || !uid) return;
+    const selector = `.location-btn[data-location-uid="${uid}"]`;
+    const button = elements.locationButtons.querySelector(selector);
+    if (!button) return;
+    if (isUpdating) {
+        button.classList.add('updating');
+        if (colorHex) button.style.setProperty('--location-update-accent', colorHex);
+        else button.style.removeProperty('--location-update-accent');
+    } else {
+        button.classList.remove('updating');
+        button.style.removeProperty('--location-update-accent');
+    }
+}
+
+function clearFavoriteButtonUpdating(uid) {
+    if (!uid) return;
+    setFavoriteButtonUpdating(uid, false);
+}
+
+function syncBackgroundUpdateFavoritePulse() {
+    if (!appState.backgroundUpdateVisualUid || !backgroundUpdateVisualState.isVisible) return;
+    setFavoriteButtonUpdating(appState.backgroundUpdateVisualUid, true, backgroundUpdateVisualState.currentColor);
+}
+
+function getGlobalAccentFallbacks() {
+    return {
+        primary: localStorage.getItem('forecastAccentPrimary') || ACCENT_DEFAULTS.primary,
+        secondary: localStorage.getItem('forecastAccentSecondary') || ACCENT_DEFAULTS.secondary
+    };
+}
+
+function getFavoriteUpdateColor(favorite, phase) {
+    const fallbacks = getGlobalAccentFallbacks();
+    if (phase === 'phase2') return favorite?.secondaryColor || fallbacks.secondary || fallbacks.primary;
+    return favorite?.primaryColor || fallbacks.primary || fallbacks.secondary;
+}
+
+function applyBackgroundUpdateVisualNow(uid, colorHex) {
+    if (appState.backgroundUpdateVisualUid && appState.backgroundUpdateVisualUid !== uid) {
+        clearFavoriteButtonUpdating(appState.backgroundUpdateVisualUid);
+    }
+    appState.backgroundUpdateVisualUid = uid || null;
+    backgroundUpdateVisualState.currentUid = uid || null;
+    backgroundUpdateVisualState.currentColor = colorHex || null;
+    backgroundUpdateVisualState.lastShownAtMs = Date.now();
+    backgroundUpdateVisualState.isVisible = true;
+    showControlBarUpdateIndicator(colorHex || null);
+    if (uid) setFavoriteButtonUpdating(uid, true, colorHex || null);
+}
+
+function scheduleBackgroundUpdateVisual(uid, colorHex) {
+    if (!uid) return;
+    if (backgroundUpdateVisualState.switchTimer) {
+        clearTimeout(backgroundUpdateVisualState.switchTimer);
+        backgroundUpdateVisualState.switchTimer = null;
+    }
+    if (backgroundUpdateVisualState.hideTimer) {
+        clearTimeout(backgroundUpdateVisualState.hideTimer);
+        backgroundUpdateVisualState.hideTimer = null;
+    }
+
+    // Avoid retriggering visual updates for same location/color.
+    if (backgroundUpdateVisualState.isVisible &&
+        backgroundUpdateVisualState.currentUid === uid &&
+        backgroundUpdateVisualState.currentColor === (colorHex || null)) {
+        syncBackgroundUpdateFavoritePulse();
+        return;
+    }
+
+    if (!backgroundUpdateVisualState.isVisible) {
+        applyBackgroundUpdateVisualNow(uid, colorHex);
+        return;
+    }
+
+    const elapsed = Date.now() - backgroundUpdateVisualState.lastShownAtMs;
+    const remainingMinVisible = Math.max(0, UPDATE_VISUAL_MIN_VISIBLE_MS - elapsed);
+    const delay = Math.max(UPDATE_VISUAL_SWITCH_DEBOUNCE_MS, remainingMinVisible);
+    backgroundUpdateVisualState.switchTimer = setTimeout(() => {
+        backgroundUpdateVisualState.switchTimer = null;
+        applyBackgroundUpdateVisualNow(uid, colorHex);
+    }, delay);
+}
+
+function scheduleHideBackgroundUpdateVisual(force = false) {
+    if (backgroundUpdateVisualState.switchTimer) {
+        clearTimeout(backgroundUpdateVisualState.switchTimer);
+        backgroundUpdateVisualState.switchTimer = null;
+    }
+    if (backgroundUpdateVisualState.hideTimer) {
+        clearTimeout(backgroundUpdateVisualState.hideTimer);
+        backgroundUpdateVisualState.hideTimer = null;
+    }
+
+    const hideNow = () => {
+        if (appState.backgroundUpdateVisualUid) {
+            clearFavoriteButtonUpdating(appState.backgroundUpdateVisualUid);
+        }
+        appState.backgroundUpdateVisualUid = null;
+        backgroundUpdateVisualState.currentUid = null;
+        backgroundUpdateVisualState.currentColor = null;
+        backgroundUpdateVisualState.isVisible = false;
+        hideControlBarUpdateIndicator();
+    };
+
+    if (force || !backgroundUpdateVisualState.isVisible) {
+        hideNow();
+        return;
+    }
+
+    const elapsed = Date.now() - backgroundUpdateVisualState.lastShownAtMs;
+    const remainingMinVisible = Math.max(0, UPDATE_VISUAL_MIN_VISIBLE_MS - elapsed);
+    if (remainingMinVisible <= 0) {
+        hideNow();
+        return;
+    }
+    backgroundUpdateVisualState.hideTimer = setTimeout(() => {
+        backgroundUpdateVisualState.hideTimer = null;
+        hideNow();
+    }, remainingMinVisible);
+}
+
 // Show control bar update indicator (spinner + "Updating" text)
 // colorHex (optional): accent color to use for spinner/text (defaults to current theme primary)
 function showControlBarUpdateIndicator(colorHex) {
@@ -4621,15 +4758,13 @@ function checkAutoRefresh() {
 
     (async () => {
         try {
-            const theme = getEffectiveThemeColors ? getEffectiveThemeColors() : null;
-            const primaryColor = theme ? (theme.primary || null) : null;
-            // Phase 1 indicator: use primary accent color
-            showControlBarUpdateIndicator(primaryColor);
-
             // Phase 1: update weather caches for all stale favorites
             for (const fav of staleFavorites) {
                 const cacheKey = getFavoriteCacheKey(fav);
                 if (!cacheKey) continue;
+                const uid = fav.uid || fav.key || null;
+                const phaseColor = getFavoriteUpdateColor(fav, 'phase1');
+                if (uid) scheduleBackgroundUpdateVisual(uid, phaseColor);
                 const locationQuery = (fav.searchQuery || (fav.location && fav.location.city != null && fav.location.state != null
                     ? formatLocationDisplayName(fav.location.city, fav.location.state)
                     : (fav.name || ''))).trim();
@@ -4659,13 +4794,17 @@ function checkAutoRefresh() {
             // Keep currently displayed location updated too (same as old behavior)
             if (isDataStale() && appState.location) {
                 const location = getLocationForRefresh() || 'here';
-                loadWeatherData(location, false, true);
+                try {
+                    await loadWeatherData(location, false, true);
+                } catch (e) {
+                    console.warn('Update All: failed to refresh displayed location', e);
+                }
             }
 
             // Phase 2 runs when phase 1 is complete (observations sweep)
             await runUpdateAllObservationsSweep();
         } finally {
-            hideControlBarUpdateIndicator();
+            scheduleHideBackgroundUpdateVisual();
             appState.updateAllInFlight = false;
         }
     })();
