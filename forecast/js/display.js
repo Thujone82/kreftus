@@ -81,6 +81,23 @@ function getTimeAgo(date) {
 
 // Display current conditions
 // Header should always use normalized City, ST from the location object, not custom labels
+function isSuppressedAlert(alert) {
+    const props = alert && alert.properties;
+    if (!props) return true;
+    const event = (props.event || '').trim().toLowerCase();
+    const headline = (props.headline || '').toLowerCase();
+    const description = (props.description || '').toLowerCase();
+    if (event === 'test message') return true;
+    if (headline.includes('monitoring message only. please disregard.')) return true;
+    if (description.includes('monitoring message only. please disregard.')) return true;
+    return false;
+}
+
+function getDisplayableAlerts(alerts) {
+    if (!Array.isArray(alerts) || alerts.length === 0) return [];
+    return alerts.filter(alert => !isSuppressedAlert(alert));
+}
+
 function getAlertHeaderEmojiSuffix(alerts) {
     if (!Array.isArray(alerts) || alerts.length === 0) return '';
 
@@ -103,8 +120,9 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
 
     let html = '<div class="current-conditions">';
     const locationDisplayName = formatLocationDisplayName(location.city, location.state);
-    const hasActiveAlerts = weather.alerts && Array.isArray(weather.alerts) && weather.alerts.length > 0;
-    const alertEmojiSuffix = hasActiveAlerts ? getAlertHeaderEmojiSuffix(weather.alerts) : '';
+    const displayableAlerts = getDisplayableAlerts(weather.alerts);
+    const hasActiveAlerts = displayableAlerts.length > 0;
+    const alertEmojiSuffix = hasActiveAlerts ? getAlertHeaderEmojiSuffix(displayableAlerts) : '';
     const alertPrefix = hasActiveAlerts ? `⚠️${alertEmojiSuffix} ` : '';
     const headerText = alertPrefix + locationDisplayName + ' Current Conditions';
     html += `<div class="section-header">${headerText}</div>`;
@@ -762,21 +780,8 @@ function displayWeatherAlerts(alerts, showDetails = true, timeZoneId = null) {
         return '';
     }
 
-    // Filter out test/monitoring-only alerts (e.g., "Test Message" that should be suppressed)
-    const filteredAlerts = alerts.filter((alert) => {
-        const props = alert && alert.properties;
-        if (!props) return false;
-        const event = props.event || '';
-        const headline = props.headline || '';
-        const description = props.description || '';
-
-        // Suppress known test messages
-        if (event.trim().toLowerCase() === 'test message') return false;
-        if (headline.toLowerCase().includes('monitoring message only. please disregard.')) return false;
-        if (description.toLowerCase().includes('monitoring message only. please disregard.')) return false;
-
-        return true;
-    });
+    // Filter out suppressed test/monitoring-only alerts
+    const filteredAlerts = getDisplayableAlerts(alerts);
 
     if (filteredAlerts.length === 0) {
         return '';
