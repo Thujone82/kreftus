@@ -281,6 +281,10 @@ function runDeferredInit() {
 
     if (autoRefreshInterval) clearInterval(autoRefreshInterval);
     autoRefreshInterval = setInterval(checkAutoRefresh, 60000);
+    // On app open, don't wait for the first interval tick when Update All is enabled.
+    if (appState.autoUpdateEnabled && appState.updateAllEnabled) {
+        setTimeout(() => { checkAutoRefresh(); }, 0);
+    }
     if (updateTimeInterval) clearInterval(updateTimeInterval);
     updateTimeInterval = setInterval(updateLastUpdateTime, 30000);
     updateHistoryButtonState();
