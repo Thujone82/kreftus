@@ -105,7 +105,7 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
     const locationDisplayName = formatLocationDisplayName(location.city, location.state);
     const hasActiveAlerts = weather.alerts && Array.isArray(weather.alerts) && weather.alerts.length > 0;
     const alertEmojiSuffix = hasActiveAlerts ? getAlertHeaderEmojiSuffix(weather.alerts) : '';
-    const alertPrefix = hasActiveAlerts ? `⚠️${alertEmojiSuffix}` : '';
+    const alertPrefix = hasActiveAlerts ? `⚠️${alertEmojiSuffix} ` : '';
     const headerText = alertPrefix + locationDisplayName + ' Current Conditions';
     html += `<div class="section-header">${headerText}</div>`;
     
