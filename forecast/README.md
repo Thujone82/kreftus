@@ -5,10 +5,11 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 ## Features
 
 - **No API Key Required**: Uses free National Weather Service API
+- **Optional AQI (AirNow)**: Add your own AirNow API key in Settings to display an AQI line in Current Conditions
 - **Multiple Display Modes**: Full, Daily, Hourly, Rain, Wind, and History
 - **PWA Support**: Installable as a web app with offline support and update detection
 - **Saved Locations**: Save favorite locations and switch between them; locations bar open/closed state is remembered
-- **Settings (gear or double-click header icon)**: Accent colors (primary/secondary), Reset Colors, Standard/Metric units, AM/PM or 24-hour time, Auto-Update Data, Extras (Enable Solar Irradiance, Enable per Location Colors); Reset Forecast clears all data and settings to defaults
+- **Settings (gear or double-click header icon)**: Accent colors (primary/secondary), Reset Colors, Standard/Metric units, AM/PM or 24-hour time, Auto-Update Data, optional AQI (Enable AQI + AirNow API key with inline validation), Extras (Enable Solar Irradiance, Enable per Location Colors); Reset Forecast clears all data and settings to defaults
 - **Control Bar**: Favorite (save location), current location (pin), Locations (open/close saved locations), Refresh, Share (copy or share URL), Settings (gear)
 - **Share**: Copy shareable link or use Web Share API when available; URL can include location and mode
 - **Units**: Standard (°F, mph, inHg, ft, in) or Metric (°C, m/s, hPa, m, mm) for all displayed values—temperature, wind, pressure, elevation, station distance, tide heights, precipitation, and cloud ceiling (ft or m) in History
@@ -36,7 +37,8 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 3. Use the **mode** buttons (Full, Daily, Hourly, Rain, Wind, History) to switch views.
 4. **Star** saves the current location to the Locations bar; **Locations** opens/closes the saved locations list.
 5. **Refresh** updates weather data; **Share** copies or shares the current page URL (with location and mode).
-6. **Gear** (or double-click the header icon) opens **Settings**: accent colors, Reset Colors, Standard/Metric, AM/PM vs 24H, Auto-Update Data, Extras (Enable Solar Irradiance, Enable per Location Colors). **Reset Forecast** clears all favorites, cache, and settings and reloads.
+6. **Gear** (or double-click the header icon) opens **Settings**: accent colors, Reset Colors, Standard/Metric, AM/PM vs 24H, Auto-Update Data, optional AQI setup, Extras (Enable Solar Irradiance, Enable per Location Colors). **Reset Forecast** clears all favorites, cache, and settings and reloads.
+7. To enable AQI, toggle **Enable AQI**, paste your **AirNow API Key**, and wait for a green check mark after validation. Register a key at [Request an AirNow API Key](https://docs.airnowapi.org/account/request/).
 
 ## Reset Feature
 
@@ -54,7 +56,7 @@ A full reset clears everything and restores defaults:
 
 ## Display Modes
 
-- **Full**: Current conditions (header shows ⚠️ before "Current Conditions" when the location has active NWS alerts), forecast text, hourly table, 7-day summary, alerts, location info (elevation, NWS/NOAA links, tides when available).
+- **Full**: Current conditions (header shows ⚠️ before "Current Conditions" when the location has active NWS alerts), optional AQI line (when enabled and key is valid), forecast text, hourly table, 7-day summary, alerts, location info (elevation, NWS/NOAA links, tides when available).
 - **Daily**: 7-day forecast with sunrise/sunset/day length per day, high/low temps, wind, precipitation chance, detailed text.
 - **Hourly**: Scrollable hourly table (time, temp, wind, precip %, forecast); nav to earlier/later hours.
 - **Rain**: Rain outlook with likelihood over the next ~96 hours (up to 5 days).

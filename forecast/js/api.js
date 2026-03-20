@@ -6,6 +6,11 @@ const NWS_HEADERS = {
     "User-Agent": "kreft.us/forecast"
 };
 
+const AIRNOW_HEADERS = {
+    "Accept": "application/json",
+    "User-Agent": "kreft.us/forecast"
+};
+
 // Exponential backoff retry logic
 async function fetchWithRetry(url, options = {}, maxRetries = 10) {
     const baseDelay = 1000; // 1 second
@@ -1059,7 +1064,32 @@ async function fetchNoaaTidePredictions(stationId, timeZone) {
 }
 
 // Fetch all weather data for a location
-async function fetchWeatherData(location) {
+async function fetchAirNowAqi(lat, lon, apiKey, distanceMiles = 25) {
+    try {
+        const key = (apiKey || '').trim();
+        if (!key) return null;
+        if (lat == null || lon == null) return null;
+        const latNum = Number(lat);
+        const lonNum = Number(lon);
+        if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) return null;
+        const url = `https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=${encodeURIComponent(latNum)}&longitude=${encodeURIComponent(lonNum)}&distance=${encodeURIComponent(distanceMiles)}&API_KEY=${encodeURIComponent(key)}`;
+        const response = await fetch(url, { headers: AIRNOW_HEADERS });
+        if (!response.ok) {
+            console.warn('AirNow AQI request failed:', response.status, response.statusText);
+            return null;
+        }
+        const rows = await response.json();
+        return Array.isArray(rows) ? rows : null;
+    } catch (error) {
+        console.warn('AirNow AQI request error:', error);
+        return null;
+    }
+}
+
+// Fetch all weather data for a location
+async function fetchWeatherData(location, options = {}) {
+    const includeAqi = !!options.includeAqi;
+    const airNowApiKey = options.airNowApiKey || '';
     let lat, lon, city, state;
     
     // Geocode location or detect current location
@@ -1099,11 +1129,12 @@ async function fetchWeatherData(location) {
     const radarStation = pointsData.properties.radarStation;
     
     // Fetch forecast and hourly data concurrently (main NWS API calls)
-    const [forecastData, hourlyData, alertsData, preFetchedStations] = await Promise.all([
+    const [forecastData, hourlyData, alertsData, preFetchedStations, aqiRows] = await Promise.all([
         fetchNWSForecast(forecastUrl),
         fetchNWSHourly(hourlyUrl),
         fetchNWSAlerts(lat, lon),
-        noaaStationsPromise  // NOAA stations fetch in parallel
+        noaaStationsPromise,  // NOAA stations fetch in parallel
+        includeAqi ? fetchAirNowAqi(lat, lon, airNowApiKey) : Promise.resolve(null)
     ]);
     
     // Extract elevation from forecast data
@@ -1145,6 +1176,7 @@ async function fetchWeatherData(location) {
         forecast: forecastData,
         hourly: hourlyData,
         alerts: alertsData,
+        aqiRows: aqiRows,
         noaaStation: noaaStation,
         noaaOutOfRange: noaaOutOfRange,
         fetchTime: nwsFetchStartTime  // Use the timestamp from when NWS API calls started

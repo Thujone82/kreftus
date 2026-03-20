@@ -79,6 +79,18 @@ function getTimeAgo(date) {
     }
 }
 
+function getAqiCategoryColor(categoryNumber) {
+    switch (Number(categoryNumber)) {
+        case 1: return '#32cd32'; // Good
+        case 2: return '#00ced1'; // Moderate
+        case 3: return '#ffff00'; // USG
+        case 4: return '#ffff00'; // Unhealthy
+        case 5: return '#ff0000'; // Very Unhealthy
+        case 6: return '#ff00ff'; // Hazardous
+        default: return 'var(--color-text)';
+    }
+}
+
 // Display current conditions
 // Header should always use normalized City, ST from the location object, not custom labels
 function isSuppressedAlert(alert) {
@@ -131,6 +143,26 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
     html += `<span class="condition-label">Currently:</span>`;
     html += `<span class="condition-value">${current.icon} ${current.conditions}</span>`;
     html += '</div>';
+
+    if (weather.aqi && weather.aqi.show && typeof appState !== 'undefined' && appState.enableAqi) {
+        const categoryColor = getAqiCategoryColor(weather.aqi.categoryNumber);
+        html += '<div class="condition-row">';
+        html += '<span class="condition-label">AQI:</span>';
+        html += '<span class="condition-value">';
+        if (weather.aqi.categoryName) {
+            html += `<span style="color:${categoryColor}">${weather.aqi.categoryName}</span>`;
+        }
+        if (weather.aqi.o3 && weather.aqi.o3.aqi != null) {
+            const o3Color = getAqiCategoryColor(weather.aqi.o3.categoryNumber);
+            html += ` <span style="color:${o3Color}">O3[${weather.aqi.o3.aqi}]</span>`;
+        }
+        if (weather.aqi.pm25 && weather.aqi.pm25.aqi != null) {
+            const pmColor = getAqiCategoryColor(weather.aqi.pm25.categoryNumber);
+            html += ` <span style="color:${pmColor}">PM2.5[${weather.aqi.pm25.aqi}]</span>`;
+        }
+        html += '</span>';
+        html += '</div>';
+    }
     
     html += '<div class="condition-row">';
     html += `<span class="condition-label">Temperature:</span>`;

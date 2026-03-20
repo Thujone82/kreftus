@@ -14,6 +14,9 @@ const appState = {
     observationsNeedRefresh: false, // set when cached observations are incomplete; cleared after successful fetch
     observationsLoading: false,     // true while fetching observations (for History tab loading banner)
     autoUpdateEnabled: true,
+    enableAqi: false,
+    airNowApiKey: '',
+    airNowApiKeyValid: false,
     updateAllEnabled: false, // when auto-update on: refresh all favorites' caches in background
     updateAllInFlight: false, // prevents overlapping Update All sweeps
     lastFetchTime: null,
@@ -44,6 +47,8 @@ let elements = {};
 let deferredInstallPrompt = null;
 
 let runDeferredInitDone = false;
+let aqiValidationTimer = null;
+let aqiValidationSeq = 0;
 
 function isPwaStandalone() {
     return window.matchMedia('(display-mode: standalone)').matches ||
@@ -61,6 +66,10 @@ function initializeElements() {
         modeButtons: document.querySelectorAll('.mode-btn'),
         refreshBtn: document.getElementById('refreshBtn'),
         autoUpdateToggle: document.getElementById('autoUpdateToggle'),
+        enableAqiToggle: document.getElementById('enableAqiToggle'),
+        aqiApiKeyContainer: document.getElementById('aqiApiKeyContainer'),
+        aqiApiKeyInput: document.getElementById('aqiApiKeyInput'),
+        aqiApiKeyStatus: document.getElementById('aqiApiKeyStatus'),
         updateAllToggle: document.getElementById('updateAllToggle'),
         updateAllToggleContainer: document.getElementById('updateAllToggleContainer'),
         autoUpdateToggleLabel: document.querySelector('.toggle-label'),
@@ -152,6 +161,9 @@ function performFullReset() {
         localStorage.removeItem('forecastShowIrradiance');
         localStorage.removeItem('forecastPerLocationColors');
         localStorage.removeItem('forecastAutoUpdate');
+        localStorage.removeItem('forecastEnableAqi');
+        localStorage.removeItem('forecastAirNowApiKey');
+        localStorage.removeItem('forecastAirNowApiKeyValid');
         localStorage.removeItem('forecastUseMetric');
         localStorage.removeItem('forecastUse24h');
         localStorage.removeItem('forecastLocationsDrawerOpen');
@@ -170,6 +182,9 @@ function performFullReset() {
             appState.observationsLocationKey = null;
             appState.observationsLocationRef = null;
             appState.lastFetchTime = null;
+            appState.enableAqi = false;
+            appState.airNowApiKey = '';
+            appState.airNowApiKeyValid = false;
         }
         
         console.log('Full reset completed: all favorites and cached data cleared');
@@ -264,6 +279,7 @@ function runDeferredInit() {
             elements.autoUpdateToggle.checked = appState.autoUpdateEnabled;
         }
     }
+    loadAqiSettings();
 
     // Update All toggle (only meaningful when auto-update enabled)
     const storedUpdateAll = localStorage.getItem('forecastUpdateAll');
@@ -796,6 +812,7 @@ function openConfigModal() {
     if (elements.configModal) {
         elements.configModal.classList.remove('hidden');
     }
+    syncAqiSettingsVisibility();
     updateConfigModalVersionNote();
 }
 
@@ -966,6 +983,126 @@ function saveShowIrradiance(enabled) {
     localStorage.setItem('forecastShowIrradiance', enabled ? 'true' : 'false');
 }
 
+function setAqiKeyStatusState(state) {
+    const el = elements.aqiApiKeyStatus;
+    if (!el) return;
+    el.classList.remove('valid', 'invalid');
+    el.textContent = '';
+    if (state === 'valid') {
+        el.textContent = '✓';
+        el.classList.add('valid');
+    } else if (state === 'invalid') {
+        el.textContent = '✕';
+        el.classList.add('invalid');
+    }
+}
+
+function syncAqiSettingsVisibility() {
+    if (elements.enableAqiToggle) {
+        elements.enableAqiToggle.checked = !!appState.enableAqi;
+    }
+    if (elements.aqiApiKeyContainer) {
+        if (appState.enableAqi) elements.aqiApiKeyContainer.classList.remove('hidden');
+        else elements.aqiApiKeyContainer.classList.add('hidden');
+    }
+    if (elements.aqiApiKeyInput) {
+        elements.aqiApiKeyInput.value = appState.airNowApiKey || '';
+    }
+    if (!appState.enableAqi) setAqiKeyStatusState(null);
+    else setAqiKeyStatusState(appState.airNowApiKeyValid ? 'valid' : null);
+}
+
+function loadAqiSettings() {
+    appState.enableAqi = localStorage.getItem('forecastEnableAqi') === 'true';
+    appState.airNowApiKey = localStorage.getItem('forecastAirNowApiKey') || '';
+    appState.airNowApiKeyValid = localStorage.getItem('forecastAirNowApiKeyValid') === 'true';
+    if (!appState.airNowApiKey) appState.airNowApiKeyValid = false;
+    syncAqiSettingsVisibility();
+}
+
+function persistAqiSettings() {
+    localStorage.setItem('forecastEnableAqi', appState.enableAqi ? 'true' : 'false');
+    localStorage.setItem('forecastAirNowApiKey', appState.airNowApiKey || '');
+    localStorage.setItem('forecastAirNowApiKeyValid', appState.airNowApiKeyValid ? 'true' : 'false');
+}
+
+function disableAqiRuntimeState() {
+    appState.enableAqi = false;
+    appState.airNowApiKeyValid = false;
+    if (aqiValidationTimer) {
+        clearTimeout(aqiValidationTimer);
+        aqiValidationTimer = null;
+    }
+    // Invalidate any in-flight validation callback.
+    aqiValidationSeq++;
+    if (appState.weatherData) {
+        appState.weatherData.aqi = { show: false };
+    }
+    setAqiKeyStatusState(null);
+}
+
+function getAqiValidationCoords() {
+    if (appState.location && appState.location.lat != null && appState.location.lon != null) {
+        return { lat: appState.location.lat, lon: appState.location.lon };
+    }
+    // Fallback to geographic center of CONUS when no location has been loaded yet.
+    return { lat: 39.8283, lon: -98.5795 };
+}
+
+async function validateAirNowApiKey(inputKey) {
+    const key = (inputKey || '').trim();
+    if (!key) {
+        appState.airNowApiKeyValid = false;
+        persistAqiSettings();
+        setAqiKeyStatusState(null);
+        return false;
+    }
+    const requestSeq = ++aqiValidationSeq;
+    const coords = getAqiValidationCoords();
+    const rows = await fetchAirNowAqi(coords.lat, coords.lon, key);
+    if (requestSeq !== aqiValidationSeq || !appState.enableAqi) return false;
+    const isValid = Array.isArray(rows) && rows.length > 0;
+    appState.airNowApiKeyValid = isValid;
+    persistAqiSettings();
+    setAqiKeyStatusState(isValid ? 'valid' : 'invalid');
+
+    // Immediately reflect AQI state in the currently rendered weather view.
+    if (appState.weatherData && appState.location) {
+        if (isValid && typeof normalizeAirNowAqi === 'function') {
+            appState.weatherData.aqi = normalizeAirNowAqi(rows);
+        } else {
+            appState.weatherData.aqi = { show: false };
+        }
+        renderCurrentMode();
+    }
+
+    return isValid;
+}
+
+function scheduleAirNowApiKeyValidation(delayMs = 400) {
+    if (aqiValidationTimer) {
+        clearTimeout(aqiValidationTimer);
+        aqiValidationTimer = null;
+    }
+    const key = (appState.airNowApiKey || '').trim();
+    if (!appState.enableAqi || !key) {
+        aqiValidationSeq++;
+        appState.airNowApiKeyValid = false;
+        if (appState.weatherData) appState.weatherData.aqi = { show: false };
+        persistAqiSettings();
+        setAqiKeyStatusState(null);
+        return;
+    }
+    aqiValidationTimer = setTimeout(() => {
+        aqiValidationTimer = null;
+        validateAirNowApiKey(key).catch(() => {
+            appState.airNowApiKeyValid = false;
+            persistAqiSettings();
+            setAqiKeyStatusState('invalid');
+        });
+    }, delayMs);
+}
+
 function loadUnits() {
     const stored = localStorage.getItem('forecastUseMetric');
     const useMetric = stored === 'true';
@@ -1124,6 +1261,38 @@ function setupConfigModal() {
             const enabled = !!e.target.checked;
             saveShowIrradiance(enabled);
             renderCurrentMode();
+        });
+    }
+    if (elements.enableAqiToggle) {
+        elements.enableAqiToggle.addEventListener('change', (e) => {
+            const enabled = !!e.target.checked;
+            appState.enableAqi = enabled;
+            if (!enabled) {
+                disableAqiRuntimeState();
+            } else if ((appState.airNowApiKey || '').trim()) {
+                scheduleAirNowApiKeyValidation(150);
+            }
+            persistAqiSettings();
+            syncAqiSettingsVisibility();
+            if (appState.weatherData && appState.location) {
+                // Re-render to show/hide AQI line immediately.
+                renderCurrentMode();
+            }
+        });
+    }
+    if (elements.aqiApiKeyInput) {
+        elements.aqiApiKeyInput.addEventListener('input', (e) => {
+            appState.airNowApiKey = e.target.value || '';
+            appState.airNowApiKeyValid = false;
+            persistAqiSettings();
+            if (appState.enableAqi) scheduleAirNowApiKeyValidation();
+            else setAqiKeyStatusState(null);
+        });
+        elements.aqiApiKeyInput.addEventListener('blur', () => {
+            if (appState.enableAqi) scheduleAirNowApiKeyValidation(100);
+        });
+        elements.aqiApiKeyInput.addEventListener('paste', () => {
+            if (appState.enableAqi) scheduleAirNowApiKeyValidation(250);
         });
     }
     if (elements.perLocationColorsCheckbox) {
@@ -3919,7 +4088,10 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             throw new Error('fetchWeatherData function not found. Please ensure api.js is loaded.');
         }
         
-        const weatherData = await fetchWeatherData(location);
+        const weatherData = await fetchWeatherData(location, {
+            includeAqi: !!(appState.enableAqi && appState.airNowApiKeyValid && (appState.airNowApiKey || '').trim()),
+            airNowApiKey: appState.airNowApiKey || ''
+        });
         const processedWeather = processWeatherData(weatherData);
         
         appState.weatherData = processedWeather;
@@ -4823,7 +4995,10 @@ function checkAutoRefresh() {
                 if (!locationQuery) continue;
 
                 try {
-                    const raw = await fetchWeatherData(locationQuery);
+                    const raw = await fetchWeatherData(locationQuery, {
+                        includeAqi: !!(appState.enableAqi && appState.airNowApiKeyValid && (appState.airNowApiKey || '').trim()),
+                        airNowApiKey: appState.airNowApiKey || ''
+                    });
                     const processed = processWeatherData(raw);
                     const locStr = processed?.location && processed.location.city != null && processed.location.state != null
                         ? formatLocationDisplayName(processed.location.city, processed.location.state)

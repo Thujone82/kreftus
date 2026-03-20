@@ -1,5 +1,50 @@
 // Weather data processing and calculations
 
+function normalizeAirNowAqi(aqiRows) {
+    if (!Array.isArray(aqiRows) || aqiRows.length === 0) {
+        return { show: false };
+    }
+
+    const getPollutant = (name) => {
+        const row = aqiRows.find(r => String(r?.ParameterName || '').toUpperCase() === name);
+        if (!row || row.AQI == null) return null;
+        const aqi = Number(row.AQI);
+        if (!Number.isFinite(aqi)) return null;
+        const categoryNumber = Number(row?.Category?.Number);
+        const categoryName = row?.Category?.Name || '';
+        return {
+            aqi: Math.round(aqi),
+            categoryNumber: Number.isFinite(categoryNumber) ? categoryNumber : null,
+            categoryName
+        };
+    };
+
+    const o3 = getPollutant('O3');
+    const pm25 = getPollutant('PM2.5');
+    const available = [o3, pm25].filter(Boolean);
+    if (available.length === 0) return { show: false };
+
+    let highest = available[0];
+    for (let i = 1; i < available.length; i++) {
+        const candidate = available[i];
+        const hNum = highest.categoryNumber ?? -1;
+        const cNum = candidate.categoryNumber ?? -1;
+        if (cNum > hNum) highest = candidate;
+    }
+
+    const categoryNumber = highest.categoryNumber;
+    const categoryName = highest.categoryName || '';
+    if (categoryNumber === 7) return { show: false };
+
+    return {
+        show: true,
+        categoryNumber,
+        categoryName,
+        o3,
+        pm25
+    };
+}
+
 // Process weather data from API responses
 function processWeatherData(weatherData) {
     const { location, forecast, hourly, alerts } = weatherData;
@@ -121,6 +166,7 @@ function processWeatherData(weatherData) {
             periods: hourly.properties.periods
         },
         alerts: alerts?.features || [],
+        aqi: normalizeAirNowAqi(weatherData.aqiRows),
         location: {
             ...location,
             sunrise: sunTimes.sunrise,
