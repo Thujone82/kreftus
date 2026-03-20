@@ -6,11 +6,6 @@ const NWS_HEADERS = {
     "User-Agent": "kreft.us/forecast"
 };
 
-const AIRNOW_HEADERS = {
-    "Accept": "application/json",
-    "User-Agent": "kreft.us/forecast"
-};
-
 // Exponential backoff retry logic
 async function fetchWithRetry(url, options = {}, maxRetries = 10) {
     const baseDelay = 1000; // 1 second
@@ -1073,7 +1068,11 @@ async function fetchAirNowAqi(lat, lon, apiKey, distanceMiles = 25) {
         const lonNum = Number(lon);
         if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) return null;
         const url = `https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=${encodeURIComponent(latNum)}&longitude=${encodeURIComponent(lonNum)}&distance=${encodeURIComponent(distanceMiles)}&API_KEY=${encodeURIComponent(key)}`;
-        const response = await fetch(url, { headers: AIRNOW_HEADERS });
+        // iOS Safari can reject browser fetches that attempt to set User-Agent.
+        // Keep this request simple and let the browser supply UA automatically.
+        const response = await fetch(url, {
+            headers: { "Accept": "application/json" }
+        });
         if (!response.ok) {
             console.warn('AirNow AQI request failed:', response.status, response.statusText);
             return null;
