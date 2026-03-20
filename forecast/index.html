@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#008B8B">
     <title>Forecast</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="css/style.css?v=1.2.10">
+    <link rel="stylesheet" href="css/style.css?v=1.7.9">
     <link rel="icon" type="image/png" href="icons/light-icon-192.png">
 </head>
 <body>
@@ -114,36 +114,34 @@
                     <span>Auto-Update Data</span>
                 </label>
             </div>
-            <div class="config-option">
+            <div class="config-option config-extras">
+                <span class="config-option-label">Extras</span>
                 <label class="config-checkbox-label">
                     <input type="checkbox" id="enableAqiToggle" aria-label="Enable AQI data from AirNow">
                     <span>Enable AQI</span>
                 </label>
-            </div>
-            <div id="aqiApiKeyContainer" class="config-option hidden">
-                <label for="aqiApiKeyInput">AirNow API Key:</label>
-                <div class="api-key-inline-row">
-                    <input type="password" id="aqiApiKeyInput" class="config-api-key-input" aria-label="AirNow API Key">
-                    <span id="aqiApiKeyStatus" class="api-key-status" aria-live="polite"></span>
+                <div id="aqiApiKeyContainer" class="config-option hidden">
+                    <label for="aqiApiKeyInput">AirNow API Key:</label>
+                    <div class="api-key-inline-row">
+                        <input type="password" id="aqiApiKeyInput" class="config-api-key-input" aria-label="AirNow API Key">
+                        <span id="aqiApiKeyStatus" class="api-key-status" aria-live="polite"></span>
+                    </div>
+                    <div id="aqiApiKeyHelpBlock" class="aqi-api-key-help-block">
+                        <small class="config-api-key-help">
+                            <a href="https://docs.airnowapi.org/account/request/" target="_blank" rel="noopener noreferrer">Request an AirNow API Key</a>
+                        </small>
+                        <small class="config-api-key-help">AQI is optional and disabled by default. Your key is stored locally in this browser.</small>
+                    </div>
+                    <small id="aqiApiKeyDebug" class="config-api-key-debug hidden" aria-live="polite"></small>
                 </div>
-                <div id="aqiApiKeyHelpBlock" class="aqi-api-key-help-block">
-                    <small class="config-api-key-help">
-                        <a href="https://docs.airnowapi.org/account/request/" target="_blank" rel="noopener noreferrer">Request an AirNow API Key</a>
-                    </small>
-                    <small class="config-api-key-help">AQI is optional and disabled by default. Your key is stored locally in this browser.</small>
+                <div id="updateAllToggleContainer" class="config-option config-toggle-row hidden">
+                    <span class="config-toggle-label">Displayed</span>
+                    <label class="config-toggle-pill">
+                        <input type="checkbox" id="updateAllToggle" aria-label="Update all saved locations in background when stale">
+                        <span class="config-toggle-slider"></span>
+                    </label>
+                    <span class="config-toggle-label">All</span>
                 </div>
-                <small id="aqiApiKeyDebug" class="config-api-key-debug hidden" aria-live="polite"></small>
-            </div>
-            <div id="updateAllToggleContainer" class="config-option config-toggle-row hidden">
-                <span class="config-toggle-label">Displayed</span>
-                <label class="config-toggle-pill">
-                    <input type="checkbox" id="updateAllToggle" aria-label="Update all saved locations in background when stale">
-                    <span class="config-toggle-slider"></span>
-                </label>
-                <span class="config-toggle-label">All</span>
-            </div>
-            <div class="config-option config-extras">
-                <span class="config-option-label">Extras</span>
                 <label class="config-checkbox-label">
                     <input type="checkbox" id="irradianceCheckbox" aria-label="Enable solar irradiance in conditions">
                     <span>Enable Solar Irradiance</span>
@@ -161,11 +159,11 @@
         </div>
     </div>
 
-    <script src="js/utils.js?v=1.2.10"></script>
-    <script src="js/api.js?v=1.2.10"></script>
-    <script src="js/weather.js?v=1.2.10"></script>
-    <script src="js/display.js?v=1.2.10"></script>
-    <script src="js/app.js?v=1.2.10"></script>
+    <script src="js/utils.js?v=1.7.9"></script>
+    <script src="js/api.js?v=1.7.9"></script>
+    <script src="js/weather.js?v=1.7.9"></script>
+    <script src="js/display.js?v=1.7.9"></script>
+    <script src="js/app.js?v=1.7.9"></script>
 </body>
 </html>
 
