@@ -2933,6 +2933,46 @@ async function refreshObservationsForCachedLocation({ cacheKey, weatherData }) {
     return true;
 }
 
+// Refresh AQI for a cached location without changing weather fetch timestamps.
+async function refreshAqiForCachedLocation({ cacheKey, weatherData }) {
+    if (!cacheKey || !weatherData) return false;
+    if (!appState.enableAqi || !appState.airNowApiKeyValid) return false;
+    const key = (appState.airNowApiKey || '').trim();
+    if (!key) return false;
+    const lat = weatherData?.location?.lat;
+    const lon = weatherData?.location?.lon;
+    if (lat == null || lon == null) return false;
+
+    const rows = await fetchAirNowAqi(lat, lon, key);
+    if (!Array.isArray(rows) || rows.length === 0) return false;
+    if (typeof normalizeAirNowAqi !== 'function') return false;
+
+    const normalizedAqi = normalizeAirNowAqi(rows);
+    const updatedWeatherData = { ...weatherData, aqi: normalizedAqi };
+    const tsIso = loadCacheTimestampForKey(cacheKey);
+    const ts = tsIso ? new Date(tsIso) : (appState.lastFetchTime || null);
+
+    saveWeatherDataToCacheByKey({
+        cacheKey,
+        locationString: weatherData?.location?.city != null && weatherData?.location?.state != null
+            ? formatLocationDisplayName(weatherData.location.city, weatherData.location.state)
+            : '',
+        weatherData: updatedWeatherData,
+        timestamp: ts
+    });
+
+    const activeLoc = appState.location;
+    const activeCity = (activeLoc?.city || '').trim().toLowerCase();
+    const activeState = (activeLoc?.state || '').trim().toUpperCase();
+    const cachedCity = (weatherData?.location?.city || '').trim().toLowerCase();
+    const cachedState = (weatherData?.location?.state || '').trim().toUpperCase();
+    if (activeCity && activeState && activeCity === cachedCity && activeState === cachedState) {
+        appState.weatherData = updatedWeatherData;
+        renderCurrentMode();
+    }
+    return true;
+}
+
 let updateAllObservationsScheduled = false;
 
 // Runs phase 2 (observations) for all favorites that have cached weather with points. Call when phase 1 is complete.
@@ -3573,6 +3613,25 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
                         console.error('Background observations-only fetch failed:', error);
                     });
                 }, 200);
+            }
+        }
+
+        // If AQI is enabled and valid but missing from cached weather, backfill AQI in background
+        // without forcing a full weather refresh or changing weather fetch timestamp.
+        const missingAqiInCache = !restoredWeatherData?.aqi || !restoredWeatherData?.aqi?.show;
+        if (appState.enableAqi && appState.airNowApiKeyValid && missingAqiInCache) {
+            const aqiCacheKey = locationKey
+                || appState.currentLocationKey
+                || generateLocationKey(restoredWeatherData.location);
+            if (aqiCacheKey) {
+                setTimeout(() => {
+                    refreshAqiForCachedLocation({
+                        cacheKey: aqiCacheKey,
+                        weatherData: restoredWeatherData
+                    }).catch(error => {
+                        console.error('Background AQI-only fetch failed:', error);
+                    });
+                }, 150);
             }
         }
         
