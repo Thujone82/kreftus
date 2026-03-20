@@ -1271,6 +1271,11 @@ function setupConfigModal() {
                 disableAqiRuntimeState();
             } else if ((appState.airNowApiKey || '').trim()) {
                 scheduleAirNowApiKeyValidation(150);
+                // When Update All is enabled, force stale so favorite refreshes fetch AQI-enabled payloads.
+                if (appState.autoUpdateEnabled && appState.updateAllEnabled) {
+                    markAllWeatherCachesStale();
+                    checkAutoRefresh();
+                }
             }
             persistAqiSettings();
             syncAqiSettingsVisibility();
@@ -4419,34 +4424,9 @@ async function handleRefresh() {
     
     // Mark all weather data cache timestamps as stale (10 minutes ago)
     // This forces a reload of weather data, observations, etc.
-    const staleTimestamp = new Date(Date.now() - DATA_STALE_THRESHOLD - 1000); // 1 second past stale threshold
-    
+
     try {
-        // Get all localStorage keys
-        const keys = Object.keys(localStorage);
-        
-        // Mark weather data cache timestamps as stale
-        keys.forEach(key => {
-            // Mark location-specific weather cache timestamps
-            if (key.startsWith('forecastCachedTimestamp_')) {
-                localStorage.setItem(key, staleTimestamp.toISOString());
-                console.log('Marked cache as stale:', key);
-            }
-        });
-        
-        // Mark default weather cache timestamp
-        if (localStorage.getItem('forecastCachedTimestamp')) {
-            localStorage.setItem('forecastCachedTimestamp', staleTimestamp.toISOString());
-            console.log('Marked default cache as stale');
-        }
-        
-        // Clear in-memory cache to force reload from localStorage (which now has stale timestamps)
-        appState.cachedWeatherDataByKey.clear();
-        
-        // Mark appState.lastFetchTime as stale so loadWeatherData will fetch fresh data
-        if (appState.lastFetchTime) {
-            appState.lastFetchTime = staleTimestamp;
-        }
+        markAllWeatherCachesStale();
         
         console.log('Fetching fresh data for location:', locationToRefresh);
         
@@ -4914,6 +4894,24 @@ function getTimeAgo(date) {
         return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
     } else {
         return date.toLocaleString();
+    }
+}
+
+// Marks all cached weather timestamps stale so the next refresh cycle re-fetches full weather payloads.
+function markAllWeatherCachesStale() {
+    const staleTimestamp = new Date(Date.now() - DATA_STALE_THRESHOLD - 1000); // 1s past stale threshold
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+        if (key.startsWith('forecastCachedTimestamp_')) {
+            localStorage.setItem(key, staleTimestamp.toISOString());
+        }
+    });
+    if (localStorage.getItem('forecastCachedTimestamp')) {
+        localStorage.setItem('forecastCachedTimestamp', staleTimestamp.toISOString());
+    }
+    appState.cachedWeatherDataByKey.clear();
+    if (appState.lastFetchTime) {
+        appState.lastFetchTime = staleTimestamp;
     }
 }
 
