@@ -1088,6 +1088,8 @@ async function fetchAirNowAqi(lat, lon, apiKey, distanceMiles = 25) {
             window.__airNowAqiLastError = `HTTP ${response.status}: ${response.statusText}`;
             return null;
         }
+        // Mark transport/API call success even if data rows are empty for this location/time.
+        window.__airNowAqiLastError = '';
         const rows = await response.json();
         if (!Array.isArray(rows)) {
             window.__airNowAqiLastError = 'Unexpected API response shape';

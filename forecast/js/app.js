@@ -1086,19 +1086,19 @@ async function validateAirNowApiKey(inputKey) {
     const coords = getAqiValidationCoords();
     const rows = await fetchAirNowAqi(coords.lat, coords.lon, key);
     if (requestSeq !== aqiValidationSeq || !appState.enableAqi) return false;
-    const isValid = Array.isArray(rows) && rows.length > 0;
+    // Key is valid when the request itself succeeds; some locations can legitimately return no AQI rows.
+    const requestSucceeded = !window.__airNowAqiLastError;
+    const isValid = requestSucceeded;
     appState.airNowApiKeyValid = isValid;
     persistAqiSettings();
     setAqiKeyStatusState(isValid ? 'valid' : 'invalid');
     if (isValid) {
         setAqiDebugMessage('');
-    } else if (rows === null) {
+    } else if (rows === null || !requestSucceeded) {
         const detail = (typeof window !== 'undefined' && window.__airNowAqiLastError)
             ? ` (${window.__airNowAqiLastError})`
             : '';
         setAqiDebugMessage(`Validation request failed${detail}.`);
-    } else {
-        setAqiDebugMessage('Validation returned no AQI data for this key/location.');
     }
 
     // Immediately reflect AQI state in the currently rendered weather view.
