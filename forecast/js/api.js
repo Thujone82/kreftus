@@ -1061,12 +1061,22 @@ async function fetchNoaaTidePredictions(stationId, timeZone) {
 // Fetch all weather data for a location
 async function fetchAirNowAqi(lat, lon, apiKey, distanceMiles = 25) {
     try {
+        window.__airNowAqiLastError = '';
         const key = (apiKey || '').trim();
-        if (!key) return null;
-        if (lat == null || lon == null) return null;
+        if (!key) {
+            window.__airNowAqiLastError = 'Missing API key';
+            return null;
+        }
+        if (lat == null || lon == null) {
+            window.__airNowAqiLastError = 'Missing location coordinates';
+            return null;
+        }
         const latNum = Number(lat);
         const lonNum = Number(lon);
-        if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) return null;
+        if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) {
+            window.__airNowAqiLastError = 'Invalid location coordinates';
+            return null;
+        }
         const url = `https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=${encodeURIComponent(latNum)}&longitude=${encodeURIComponent(lonNum)}&distance=${encodeURIComponent(distanceMiles)}&API_KEY=${encodeURIComponent(key)}`;
         // iOS Safari can reject browser fetches that attempt to set User-Agent.
         // Keep this request simple and let the browser supply UA automatically.
@@ -1075,12 +1085,18 @@ async function fetchAirNowAqi(lat, lon, apiKey, distanceMiles = 25) {
         });
         if (!response.ok) {
             console.warn('AirNow AQI request failed:', response.status, response.statusText);
+            window.__airNowAqiLastError = `HTTP ${response.status}: ${response.statusText}`;
             return null;
         }
         const rows = await response.json();
-        return Array.isArray(rows) ? rows : null;
+        if (!Array.isArray(rows)) {
+            window.__airNowAqiLastError = 'Unexpected API response shape';
+            return null;
+        }
+        return rows;
     } catch (error) {
         console.warn('AirNow AQI request error:', error);
+        window.__airNowAqiLastError = error && error.message ? error.message : String(error);
         return null;
     }
 }

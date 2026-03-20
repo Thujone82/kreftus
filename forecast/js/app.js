@@ -1000,7 +1000,15 @@ function setAqiKeyStatusState(state) {
 }
 
 function setAqiDebugMessage(message) {
-    const el = elements.aqiApiKeyDebug;
+    let el = elements.aqiApiKeyDebug;
+    if (!el && elements.aqiApiKeyContainer) {
+        el = document.createElement('small');
+        el.id = 'aqiApiKeyDebug';
+        el.className = 'config-api-key-debug hidden';
+        el.setAttribute('aria-live', 'polite');
+        elements.aqiApiKeyContainer.appendChild(el);
+        elements.aqiApiKeyDebug = el;
+    }
     if (!el) return;
     if (!message) {
         el.textContent = '';
@@ -1085,7 +1093,10 @@ async function validateAirNowApiKey(inputKey) {
     if (isValid) {
         setAqiDebugMessage('');
     } else if (rows === null) {
-        setAqiDebugMessage('Validation request failed (network/browser/API). Please try again.');
+        const detail = (typeof window !== 'undefined' && window.__airNowAqiLastError)
+            ? ` (${window.__airNowAqiLastError})`
+            : '';
+        setAqiDebugMessage(`Validation request failed${detail}.`);
     } else {
         setAqiDebugMessage('Validation returned no AQI data for this key/location.');
     }
@@ -1118,13 +1129,17 @@ function scheduleAirNowApiKeyValidation(delayMs = 400) {
         setAqiDebugMessage('');
         return;
     }
+    setAqiDebugMessage('Validating key...');
     aqiValidationTimer = setTimeout(() => {
         aqiValidationTimer = null;
         validateAirNowApiKey(key).catch(() => {
             appState.airNowApiKeyValid = false;
             persistAqiSettings();
             setAqiKeyStatusState('invalid');
-            setAqiDebugMessage('Validation request failed (network/browser/API). Please try again.');
+            const detail = (typeof window !== 'undefined' && window.__airNowAqiLastError)
+                ? ` (${window.__airNowAqiLastError})`
+                : '';
+            setAqiDebugMessage(`Validation request failed${detail}.`);
         });
     }, delayMs);
 }
