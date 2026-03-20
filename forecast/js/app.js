@@ -73,6 +73,7 @@ function initializeElements() {
         aqiApiKeyInput: document.getElementById('aqiApiKeyInput'),
         aqiApiKeyStatus: document.getElementById('aqiApiKeyStatus'),
         aqiApiKeyDebug: document.getElementById('aqiApiKeyDebug'),
+        aqiApiKeyHelpBlock: document.getElementById('aqiApiKeyHelpBlock'),
         updateAllToggle: document.getElementById('updateAllToggle'),
         updateAllToggleContainer: document.getElementById('updateAllToggleContainer'),
         autoUpdateToggleLabel: document.querySelector('.toggle-label'),
@@ -1007,6 +1008,17 @@ function setAqiKeyStatusState(state) {
     }
 }
 
+/** Hide registration/help copy once the key validates; show again if key becomes invalid or is cleared. */
+function syncAqiApiKeyHelpBlockVisibility() {
+    const block = elements.aqiApiKeyHelpBlock;
+    if (!block) return;
+    if (appState.enableAqi && appState.airNowApiKeyValid) {
+        block.classList.add('hidden');
+    } else {
+        block.classList.remove('hidden');
+    }
+}
+
 function setAqiDebugMessage(message) {
     let el = elements.aqiApiKeyDebug;
     if (!el && elements.aqiApiKeyContainer) {
@@ -1041,6 +1053,7 @@ function syncAqiSettingsVisibility() {
     if (!appState.enableAqi) setAqiKeyStatusState(null);
     else setAqiKeyStatusState(appState.airNowApiKeyValid ? 'valid' : null);
     if (!appState.enableAqi) setAqiDebugMessage('');
+    syncAqiApiKeyHelpBlockVisibility();
 }
 
 function loadAqiSettings() {
@@ -1071,6 +1084,7 @@ function disableAqiRuntimeState() {
     }
     setAqiKeyStatusState(null);
     setAqiDebugMessage('');
+    syncAqiApiKeyHelpBlockVisibility();
 }
 
 function getAqiValidationCoords() {
@@ -1088,12 +1102,16 @@ async function validateAirNowApiKey(inputKey) {
         persistAqiSettings();
         setAqiKeyStatusState(null);
         setAqiDebugMessage('');
+        syncAqiApiKeyHelpBlockVisibility();
         return false;
     }
     const requestSeq = ++aqiValidationSeq;
     const coords = getAqiValidationCoords();
     const rows = await fetchAirNowAqi(coords.lat, coords.lon, key);
-    if (requestSeq !== aqiValidationSeq || !appState.enableAqi) return false;
+    if (requestSeq !== aqiValidationSeq || !appState.enableAqi) {
+        syncAqiApiKeyHelpBlockVisibility();
+        return false;
+    }
     // Key is valid when the request itself succeeds; some locations can legitimately return no AQI rows.
     const requestSucceeded = !window.__airNowAqiLastError;
     const isValid = requestSucceeded;
@@ -1119,6 +1137,7 @@ async function validateAirNowApiKey(inputKey) {
         renderCurrentMode();
     }
 
+    syncAqiApiKeyHelpBlockVisibility();
     return isValid;
 }
 
@@ -1135,6 +1154,7 @@ function scheduleAirNowApiKeyValidation(delayMs = 400) {
         persistAqiSettings();
         setAqiKeyStatusState(null);
         setAqiDebugMessage('');
+        syncAqiApiKeyHelpBlockVisibility();
         return;
     }
     setAqiDebugMessage('Validating key...');
@@ -1148,6 +1168,7 @@ function scheduleAirNowApiKeyValidation(delayMs = 400) {
                 ? ` (${window.__airNowAqiLastError})`
                 : '';
             setAqiDebugMessage(`Validation request failed${detail}.`);
+            syncAqiApiKeyHelpBlockVisibility();
         });
     }, delayMs);
 }
@@ -1370,6 +1391,7 @@ function setupConfigModal() {
             appState.airNowApiKey = e.target.value || '';
             appState.airNowApiKeyValid = false;
             persistAqiSettings();
+            syncAqiApiKeyHelpBlockVisibility();
             if (appState.enableAqi) scheduleAirNowApiKeyValidation();
             else setAqiKeyStatusState(null);
         });
