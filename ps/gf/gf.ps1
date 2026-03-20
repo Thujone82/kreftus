@@ -1,4 +1,4 @@
-<#
+﻿<#
 .ENCODING
     This file MUST be saved as UTF-8 with BOM. Do not change the encoding or script errors may occur (e.g. with glyphs/emoji).
 .SYNOPSIS
@@ -874,7 +874,7 @@ function Update-WeatherData {
         # This ensures we use the exact URLs the API provides, avoiding potential URL construction issues
         $forecastUrl = $pointsData.properties.forecast
         $hourlyUrl = $pointsData.properties.forecastHourly
-        $aqiUrl = "https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=$lat&longitude=$lon&distance=25&API_KEY=39B9CAC6-CBA4-4ECE-A44A-512EE3B5AEBA"
+        $aqiUrl = "https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=$lat&longitude=$lon&distance=25&API_KEY=DA771551-4D4D-4571-BCA6-D1B632268818"
         Write-Verbose "GET: $aqiUrl"
         
         $forecastJob = Start-ApiJob -Url $forecastUrl -Headers $headers -JobName "ForecastData"
@@ -1211,7 +1211,12 @@ function Update-WeatherData {
             PM25CategoryNumber = $null
         }
         if ($aqiJob.State -eq 'Completed') {
-            $aqiJson = $aqiJob | Receive-Job
+            $aqiJobErrors = @()
+            $aqiJson = $aqiJob | Receive-Job -ErrorVariable aqiJobErrors -ErrorAction SilentlyContinue
+            if ($aqiJobErrors -and $aqiJobErrors.Count -gt 0) {
+                $aqiErrMsg = ($aqiJobErrors | ForEach-Object { $_.Exception.Message } | Select-Object -Unique) -join "; "
+                Write-Verbose "AirNow AQI non-blocking failure details: $aqiErrMsg"
+            }
             if (-not [string]::IsNullOrWhiteSpace($aqiJson)) {
                 try {
                     $airNowData = $aqiJson | ConvertFrom-Json
@@ -1700,7 +1705,7 @@ Remove-Job -Job $pointsJob
 # This ensures we use the correct office code (e.g., AER vs AFC)
 $forecastUrl = $pointsData.properties.forecast
 $hourlyUrl = $pointsData.properties.forecastHourly
-$aqiUrl = "https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=$lat&longitude=$lon&distance=25&API_KEY=39B9CAC6-CBA4-4ECE-A44A-512EE3B5AEBA"
+$aqiUrl = "https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=$lat&longitude=$lon&distance=25&API_KEY=DA771551-4D4D-4571-BCA6-D1B632268818"
 Write-Verbose "GET: $aqiUrl"
 
 # Extract grid information (for reference/debugging)
@@ -1802,7 +1807,12 @@ $aqiData = @{
     PM25CategoryNumber = $null
 }
 if ($aqiJob.State -eq 'Completed') {
-    $aqiJson = $aqiJob | Receive-Job
+    $aqiJobErrors = @()
+    $aqiJson = $aqiJob | Receive-Job -ErrorVariable aqiJobErrors -ErrorAction SilentlyContinue
+    if ($aqiJobErrors -and $aqiJobErrors.Count -gt 0) {
+        $aqiErrMsg = ($aqiJobErrors | ForEach-Object { $_.Exception.Message } | Select-Object -Unique) -join "; "
+        Write-Verbose "AirNow AQI non-blocking failure details: $aqiErrMsg"
+    }
     if (-not [string]::IsNullOrWhiteSpace($aqiJson)) {
         try {
             $airNowData = $aqiJson | ConvertFrom-Json
@@ -2783,15 +2793,20 @@ function Show-CurrentConditions {
             $aqiCategoryColor = Get-AqiColorFromCategoryNumber -CategoryNumber $AqiCategoryNumber
             $o3Color = Get-AqiColorFromCategoryNumber -CategoryNumber $O3CategoryNumber
             $pm25Color = Get-AqiColorFromCategoryNumber -CategoryNumber $PM25CategoryNumber
-            $o3Text = if ($null -ne $O3AQI) { "$O3AQI" } else { "--" }
-            $pm25Text = if ($null -ne $PM25AQI) { "$PM25AQI" } else { "--" }
+            $showO3 = ($null -ne $O3AQI -and $O3AQI -gt 0)
+            $showPM25 = ($null -ne $PM25AQI -and $PM25AQI -gt 0)
 
             Write-Host "AQI: " -ForegroundColor White -NoNewline
             Write-Host "$AqiCategoryName" -ForegroundColor $aqiCategoryColor -NoNewline
-            Write-Host " " -ForegroundColor White -NoNewline
-            Write-Host "O3[$o3Text]" -ForegroundColor $o3Color -NoNewline
-            Write-Host " " -ForegroundColor White -NoNewline
-            Write-Host "PM2.5[$pm25Text]" -ForegroundColor $pm25Color
+            if ($showO3) {
+                Write-Host " " -ForegroundColor White -NoNewline
+                Write-Host "O3[$O3AQI]" -ForegroundColor $o3Color -NoNewline
+            }
+            if ($showPM25) {
+                Write-Host " " -ForegroundColor White -NoNewline
+                Write-Host "PM2.5[$PM25AQI]" -ForegroundColor $pm25Color -NoNewline
+            }
+            Write-Host ""
         } else {
             Write-Verbose "AQI line suppressed in terse mode (highest category $AqiCategoryNumber not in 2-6)"
         }
