@@ -25,6 +25,8 @@ const appState = {
     error: null,
     useMetric: false,
     use24h: false,
+    /** 'compact' (default) | 'normal' — UI density for control bar, favorites, and body text */
+    uiDensity: 'compact',
     /** Version of this app instance (set once at load, used in Settings modal until reload) */
     currentAppVersion: null,
     // In-memory cache for parsed weather data (keyed by locationKey + timestamp)
@@ -96,6 +98,7 @@ function initializeElements() {
         perLocationColorsCheckbox: document.getElementById('perLocationColorsCheckbox'),
         unitsMetricCheckbox: document.getElementById('unitsMetricCheckbox'),
         time24Checkbox: document.getElementById('time24Checkbox'),
+        uiDensityNormalCheckbox: document.getElementById('uiDensityNormalCheckbox'),
         configModalClose: document.getElementById('configModalClose'),
         configModalReset: document.getElementById('configModalReset'),
         configModalVersion: document.getElementById('configModalVersion'),
@@ -167,6 +170,7 @@ function performFullReset() {
         localStorage.removeItem('forecastAirNowApiKeyValid');
         localStorage.removeItem('forecastUseMetric');
         localStorage.removeItem('forecastUse24h');
+        localStorage.removeItem('forecastUiDensity');
         localStorage.removeItem('forecastLocationsDrawerOpen');
 
         // Clear in-memory cache
@@ -186,6 +190,7 @@ function performFullReset() {
             appState.enableAqi = false;
             appState.airNowApiKey = '';
             appState.airNowApiKeyValid = false;
+            appState.uiDensity = 'compact';
         }
         
         console.log('Full reset completed: all favorites and cached data cleared');
@@ -815,6 +820,9 @@ function openConfigModal() {
         elements.configModal.classList.remove('hidden');
     }
     syncAqiSettingsVisibility();
+    if (elements.uiDensityNormalCheckbox) {
+        elements.uiDensityNormalCheckbox.checked = appState.uiDensity === 'normal';
+    }
     updateConfigModalVersionNote();
 }
 
@@ -1167,6 +1175,32 @@ function loadTimeFormat() {
     }
 }
 
+function applyUiDensityToDocument() {
+    const normal = appState.uiDensity === 'normal';
+    if (document.body) {
+        document.body.classList.toggle('ui-density-normal', normal);
+    }
+}
+
+function loadUiDensity() {
+    let density = localStorage.getItem('forecastUiDensity');
+    if (density !== 'normal' && density !== 'compact') {
+        density = 'compact';
+    }
+    appState.uiDensity = density;
+    if (elements.uiDensityNormalCheckbox) {
+        elements.uiDensityNormalCheckbox.checked = density === 'normal';
+    }
+    applyUiDensityToDocument();
+}
+
+function saveUiDensity(isNormal) {
+    appState.uiDensity = isNormal ? 'normal' : 'compact';
+    localStorage.setItem('forecastUiDensity', appState.uiDensity);
+    applyUiDensityToDocument();
+    if (typeof renderCurrentMode === 'function') renderCurrentMode();
+}
+
 function saveTimeFormat(use24h) {
     appState.use24h = use24h;
     localStorage.setItem('forecastUse24h', use24h ? 'true' : 'false');
@@ -1294,6 +1328,11 @@ function setupConfigModal() {
     if (elements.time24Checkbox) {
         elements.time24Checkbox.addEventListener('change', (e) => {
             saveTimeFormat(!!e.target.checked);
+        });
+    }
+    if (elements.uiDensityNormalCheckbox) {
+        elements.uiDensityNormalCheckbox.addEventListener('change', (e) => {
+            saveUiDensity(!!e.target.checked);
         });
     }
 

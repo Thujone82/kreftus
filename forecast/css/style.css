@@ -32,6 +32,15 @@ body {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    --ui-control-bar-scale: 1;
+    --ui-location-scale: 1;
+    --ui-text-scale: 1;
+}
+
+body.ui-density-normal {
+    --ui-control-bar-scale: 1.5;
+    --ui-location-scale: 1.25;
+    --ui-text-scale: 1.25;
 }
 
 header {
@@ -279,10 +288,10 @@ main {
 }
 
 .control-bar .btn {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.7rem;
-    height: 24px;
-    min-height: 24px;
+    padding: calc(0.25rem * var(--ui-control-bar-scale)) calc(0.5rem * var(--ui-control-bar-scale));
+    font-size: calc(0.7rem * var(--ui-control-bar-scale));
+    height: calc(24px * var(--ui-control-bar-scale));
+    min-height: calc(24px * var(--ui-control-bar-scale));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -293,13 +302,13 @@ main {
 .favorite-btn {
     filter: grayscale(100%);
     transition: filter 0.2s;
-    padding: 0.25rem;
-    width: 24px;
-    height: 24px;
+    padding: calc(0.25rem * var(--ui-control-bar-scale));
+    width: calc(24px * var(--ui-control-bar-scale));
+    height: calc(24px * var(--ui-control-bar-scale));
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.2rem;
+    font-size: calc(1.2rem * var(--ui-control-bar-scale));
     line-height: 1;
 }
 
@@ -311,24 +320,24 @@ main {
 .current-location-btn {
     filter: grayscale(100%);
     transition: filter 0.2s;
-    padding: 0.25rem;
-    width: 24px;
-    height: 24px;
+    padding: calc(0.25rem * var(--ui-control-bar-scale));
+    width: calc(24px * var(--ui-control-bar-scale));
+    height: calc(24px * var(--ui-control-bar-scale));
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1rem;
+    font-size: calc(1rem * var(--ui-control-bar-scale));
 }
 
 /* Config/Settings button - icon only, matches other icon buttons */
 .config-btn {
-    padding: 0.25rem;
-    width: 24px;
-    height: 24px;
+    padding: calc(0.25rem * var(--ui-control-bar-scale));
+    width: calc(24px * var(--ui-control-bar-scale));
+    height: calc(24px * var(--ui-control-bar-scale));
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1rem;
+    font-size: calc(1rem * var(--ui-control-bar-scale));
     line-height: 1;
 }
 
@@ -373,16 +382,16 @@ main {
 
 /* Individual location buttons */
 .location-btn {
-    padding: 0.5rem 0.75rem;
+    padding: calc(0.5rem * var(--ui-location-scale)) calc(0.75rem * var(--ui-location-scale));
     background-color: var(--color-bg-secondary);
-    border: 2px solid var(--color-default);
+    border: calc(2px * var(--ui-location-scale)) solid var(--color-default);
     color: var(--color-default);
     border-radius: 4px;
-    font-size: 0.85rem;
+    font-size: calc(0.85rem * var(--ui-location-scale));
     font-weight: bold;
     cursor: pointer;
     transition: all 0.2s;
-    min-height: 36px;
+    min-height: calc(36px * var(--ui-location-scale));
     font-family: inherit;
     white-space: nowrap;
 }
@@ -418,14 +427,14 @@ main {
 }
 
 .location-btn-edit {
-    padding: 0.5rem 0.75rem;
+    padding: calc(0.5rem * var(--ui-location-scale)) calc(0.75rem * var(--ui-location-scale));
     background-color: var(--color-bg-secondary);
-    border: 2px solid var(--color-title);
+    border: calc(2px * var(--ui-location-scale)) solid var(--color-title);
     color: var(--color-text);
     border-radius: 4px;
-    font-size: 0.85rem;
+    font-size: calc(0.85rem * var(--ui-location-scale));
     font-weight: bold;
-    min-height: 36px;
+    min-height: calc(36px * var(--ui-location-scale));
     width: 100%;
     box-sizing: border-box;
     outline: none;
@@ -448,7 +457,7 @@ main {
         transform: translateY(0);
     }
     50% {
-        box-shadow: 0 0 0 6px transparent;
+        box-shadow: 0 0 0 calc(6px * var(--ui-location-scale)) transparent;
         transform: translateY(-1px);
     }
     100% {
@@ -469,12 +478,12 @@ main {
     gap: 0.5rem;
     color: var(--color-text-secondary);
     cursor: pointer;
-    font-size: 0.65rem;
+    font-size: calc(0.65rem * var(--ui-control-bar-scale));
 }
 
 .toggle-label input[type="checkbox"] {
-    width: 14px;
-    height: 14px;
+    width: calc(14px * var(--ui-control-bar-scale));
+    height: calc(14px * var(--ui-control-bar-scale));
     cursor: pointer;
 }
 
@@ -489,9 +498,9 @@ main {
 }
 
 .update-indicator .spinner {
-    width: 16px;
-    height: 16px;
-    border: 2px solid var(--color-bg-secondary);
+    width: calc(16px * var(--ui-control-bar-scale));
+    height: calc(16px * var(--ui-control-bar-scale));
+    border: calc(2px * var(--ui-control-bar-scale)) solid var(--color-bg-secondary);
     border-top-color: var(--color-default);
     border-radius: 50%;
     animation: spin 1s linear infinite;
@@ -499,12 +508,12 @@ main {
 
 .update-indicator span {
     color: var(--color-default);
-    font-size: 0.9rem;
+    font-size: calc(0.9rem * var(--ui-control-bar-scale));
 }
 
 .last-update {
     color: var(--color-info);
-    font-size: 0.9rem;
+    font-size: calc(0.9rem * var(--ui-control-bar-scale));
     margin-left: auto;
 }
 
@@ -516,6 +525,11 @@ main {
     gap: 1rem;
     padding: 2rem;
     color: var(--color-default);
+    font-size: 1rem;
+}
+
+body.ui-density-normal .loading-indicator {
+    font-size: calc(1rem * var(--ui-text-scale));
 }
 
 .loading-indicator.hidden {
@@ -523,9 +537,9 @@ main {
 }
 
 .spinner {
-    width: 40px;
-    height: 40px;
-    border: 4px solid var(--color-bg-secondary);
+    width: calc(40px * var(--ui-text-scale));
+    height: calc(40px * var(--ui-text-scale));
+    border: calc(4px * var(--ui-text-scale)) solid var(--color-bg-secondary);
     border-top-color: var(--color-default);
     border-radius: 50%;
     animation: spin 1s linear infinite;
@@ -543,6 +557,11 @@ main {
     border-radius: 4px;
     margin-bottom: 1rem;
     font-weight: bold;
+    font-size: 1rem;
+}
+
+body.ui-density-normal .error-message {
+    font-size: calc(1rem * var(--ui-text-scale));
 }
 
 .error-message.hidden {
@@ -591,11 +610,16 @@ main {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    font-size: 1rem;
+}
+
+body.ui-density-normal .config-modal-content {
+    font-size: calc(1rem * var(--ui-text-scale));
 }
 
 .config-modal-title {
     color: var(--color-title);
-    font-size: 1.5rem;
+    font-size: 1.5em;
     margin-bottom: 1.25rem;
 }
 
@@ -606,13 +630,13 @@ main {
 .config-option label {
     display: block;
     color: var(--color-text-secondary);
-    font-size: 0.9rem;
+    font-size: 0.9em;
     margin-bottom: 0.35rem;
 }
 
 .config-option input[type="color"] {
     width: 100%;
-    height: 44px;
+    height: calc(44px * var(--ui-text-scale));
     border: 2px solid var(--color-default);
     border-radius: 4px;
     cursor: pointer;
@@ -623,7 +647,7 @@ main {
 .config-option.config-extras .config-option-label {
     display: block;
     color: var(--color-text-secondary);
-    font-size: 0.9rem;
+    font-size: 0.9em;
     margin-bottom: 0.35rem;
 }
 
@@ -632,7 +656,7 @@ main {
     align-items: center;
     gap: 0.5rem;
     color: var(--color-text-secondary);
-    font-size: 0.9rem;
+    font-size: 0.9em;
     cursor: pointer;
 }
 
@@ -648,7 +672,8 @@ main {
 
 .config-api-key-input {
     width: 100%;
-    padding: 0.5rem;
+    padding: calc(0.5rem * var(--ui-text-scale));
+    font-size: 1em;
     border: 1px solid var(--color-default);
     border-radius: 4px;
     background: var(--color-bg);
@@ -657,9 +682,9 @@ main {
 }
 
 .api-key-status {
-    min-width: 1rem;
+    min-width: 1em;
     font-weight: bold;
-    font-size: 1rem;
+    font-size: 1em;
     line-height: 1;
 }
 
@@ -674,7 +699,7 @@ main {
 .config-api-key-help {
     display: block;
     margin-top: 0.35rem;
-    font-size: 0.75rem;
+    font-size: 0.75em;
     color: var(--color-text-secondary);
 }
 
@@ -687,7 +712,7 @@ main {
 .config-api-key-debug {
     display: block;
     margin-top: 0.35rem;
-    font-size: 0.75rem;
+    font-size: 0.75em;
     color: var(--color-alert);
 }
 
@@ -701,7 +726,7 @@ main {
 .config-toggle-row .config-toggle-label {
     flex: 1;
     color: var(--color-text-secondary);
-    font-size: 0.9rem;
+    font-size: 0.9em;
     text-align: right;
 }
 .config-toggle-row .config-toggle-label:last-of-type {
@@ -756,6 +781,13 @@ main {
     width: 100%;
 }
 
+/* Modal buttons follow modal font-size (em) and scale padding/min-height with density */
+.config-modal-content .btn {
+    font-size: 1em;
+    padding: calc(0.75rem * var(--ui-text-scale)) calc(1.5rem * var(--ui-text-scale));
+    min-height: calc(44px * var(--ui-text-scale));
+}
+
 .config-reset-colors-btn {
     margin-bottom: 1rem;
     width: 100%;
@@ -767,13 +799,13 @@ main {
 }
 
 .config-version-note {
-    font-size: 0.75rem;
+    font-size: 0.75em;
     color: var(--color-text-secondary);
     margin-top: 1rem;
 }
 
 .config-ios-install-hint {
-    font-size: 0.75rem;
+    font-size: 0.75em;
     color: var(--color-text-secondary);
     margin-top: 0.5rem;
 }
@@ -799,15 +831,20 @@ main {
     color: var(--color-text);
 }
 
-/* Weather Content */
+/* Weather Content — font-size sets em basis for density (compact 1rem, normal 1.25rem) */
 .weather-content {
     margin-top: 1rem;
+    font-size: 1rem;
+}
+
+body.ui-density-normal .weather-content {
+    font-size: calc(1rem * var(--ui-text-scale));
 }
 
 /* Section Headers */
 .section-header {
     color: var(--color-title);
-    font-size: 1.5rem;
+    font-size: 1.5em;
     font-weight: bold;
     margin: 0.5rem 0 0.25rem 0;
     padding-bottom: 0.15rem;
@@ -1044,7 +1081,7 @@ main {
     display: flex !important;
     align-items: center;
     justify-content: center;
-    font-size: 0.65rem;
+    font-size: 0.65em;
     color: var(--color-text-secondary);
     background-color: var(--color-bg-secondary);
     height: 1.25em !important;
@@ -1076,7 +1113,7 @@ main {
     display: flex !important;
     align-items: center;
     justify-content: center;
-    font-size: 0.65rem;
+    font-size: 0.65em;
     color: var(--color-text-secondary);
     background-color: var(--color-bg-secondary);
     box-sizing: border-box;
@@ -1108,7 +1145,7 @@ main {
     justify-content: center;
     text-align: center;
     font-family: 'Courier New', monospace !important;
-    font-size: 1rem;
+    font-size: 1em;
     line-height: 2.5em; /* Match height for vertical centering */
     padding: 0;
     margin: 0;
@@ -1136,7 +1173,7 @@ main {
     width: 100%;
     min-width: 600px;
     border-collapse: collapse;
-    font-size: 0.9rem;
+    font-size: 0.9em;
 }
 
 .hourly-table th,
@@ -1204,7 +1241,7 @@ main {
     align-items: center;
     gap: 0.5rem;
     flex-wrap: nowrap; /* Keep on one line if possible */
-    font-size: 0.95rem;
+    font-size: 0.95em;
     flex-shrink: 0;
     white-space: nowrap;
 }
@@ -1243,7 +1280,7 @@ main {
 }
 
 .rain-sparkline {
-    font-size: 1.2rem;
+    font-size: 1.2em;
     line-height: 1.5;
     font-family: monospace;
     white-space: nowrap;
@@ -1271,7 +1308,7 @@ main {
 }
 
 .wind-glyphs {
-    font-size: 1.2rem;
+    font-size: 1.2em;
     line-height: 1.5;
     font-family: monospace;
     white-space: nowrap;
@@ -1297,7 +1334,7 @@ main {
 
 .alert-title {
     font-weight: bold;
-    font-size: 1.1rem;
+    font-size: 1.1em;
     margin-bottom: 0.5rem;
 }
 
@@ -1307,7 +1344,7 @@ main {
 }
 
 .alert-times {
-    font-size: 0.9rem;
+    font-size: 0.9em;
     color: var(--color-text-secondary);
 }
 
@@ -1364,6 +1401,17 @@ main {
     gap: 1rem;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
     z-index: 1000;
+    font-size: 1rem;
+}
+
+body.ui-density-normal .update-notification {
+    font-size: calc(1rem * var(--ui-text-scale));
+}
+
+.update-notification .btn {
+    font-size: 1em;
+    padding: calc(0.75rem * var(--ui-text-scale)) calc(1.5rem * var(--ui-text-scale));
+    min-height: calc(44px * var(--ui-text-scale));
 }
 
 .update-notification.hidden {
@@ -1513,7 +1561,7 @@ main {
     .daily-info-row {
         display: flex;
         flex-wrap: wrap; /* Allow wrapping only when needed on narrow screens */
-        font-size: 0.9rem;
+        font-size: 0.9em;
         line-height: 1.4;
         width: 100%;
         margin-bottom: 0.25rem;
@@ -1528,18 +1576,18 @@ main {
 
     .last-update {
         margin-left: auto;
-        font-size: 0.8rem;
+        font-size: calc(0.8rem * var(--ui-control-bar-scale));
     }
 
     .control-bar .btn {
-        padding: 0.2rem 0.35rem;
-        font-size: 0.65rem;
-        height: 24px;
-        min-height: 24px;
+        padding: calc(0.2rem * var(--ui-control-bar-scale)) calc(0.35rem * var(--ui-control-bar-scale));
+        font-size: calc(0.65rem * var(--ui-control-bar-scale));
+        height: calc(24px * var(--ui-control-bar-scale));
+        min-height: calc(24px * var(--ui-control-bar-scale));
     }
 
     .hourly-table {
-        font-size: 0.8rem;
+        font-size: 0.8em;
         min-width: 100%;
     }
 
@@ -1549,7 +1597,7 @@ main {
     }
 
     .section-header {
-        font-size: 1.2rem;
+        font-size: 1.2em;
         margin-bottom: 0.4rem;
     }
     
@@ -1611,7 +1659,7 @@ main {
         max-width: 100%;
         gap: 1px;
         flex-basis: 100%;
-        font-size: 0.85rem;
+        font-size: 0.85em;
     }
     .wind-day {
         flex-wrap: wrap;
@@ -1637,7 +1685,7 @@ main {
         max-width: unset;
         height: 2.5em; /* Match rain-block height for consistency */
         line-height: 2.5em; /* Match height for vertical centering */
-        font-size: 0.85rem;
+        font-size: 0.85em;
     }
 
     .update-notification {
@@ -1772,14 +1820,14 @@ main {
     }
 
     .control-bar .btn {
-        padding: 0.15rem 0.25rem;
-        font-size: 0.6rem;
-        height: 24px;
-        min-height: 24px;
+        padding: calc(0.15rem * var(--ui-control-bar-scale)) calc(0.25rem * var(--ui-control-bar-scale));
+        font-size: calc(0.6rem * var(--ui-control-bar-scale));
+        height: calc(24px * var(--ui-control-bar-scale));
+        min-height: calc(24px * var(--ui-control-bar-scale));
     }
 
     .last-update {
-        font-size: 0.75rem;
+        font-size: calc(0.75rem * var(--ui-control-bar-scale));
     }
 
     .daily-item {
@@ -1795,14 +1843,14 @@ main {
         flex-wrap: wrap;
         margin-bottom: 0.25rem;
         width: 100%;
-        font-size: 0.8rem;
+        font-size: 0.8em;
         gap: 0.25rem;
     }
 
     .daily-info-row {
         display: flex;
         flex-wrap: wrap; /* Allow wrapping only when needed on very narrow screens */
-        font-size: 0.85rem;
+        font-size: 0.85em;
         line-height: 1.4;
         width: 100%;
         margin-bottom: 0.25rem;
@@ -1819,7 +1867,7 @@ main {
     }
 
     .hourly-table {
-        font-size: 0.75rem;
+        font-size: 0.75em;
     }
 
     .hourly-table th,
@@ -1828,7 +1876,7 @@ main {
     }
 
     .section-header {
-        font-size: 1.1rem;
+        font-size: 1.1em;
         margin-bottom: 0.3rem;
     }
     
@@ -1909,7 +1957,7 @@ main {
     
     .wind-grid {
         padding: 2px 3px;
-        font-size: 0.8rem;
+        font-size: 0.8em;
         display: grid;
         grid-template-columns: repeat(24, 1fr);
         width: 100%;
