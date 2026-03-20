@@ -1,4 +1,4 @@
-﻿<#
+<#
 .ENCODING
     This file MUST be saved as UTF-8 with BOM. Do not change the encoding or script errors may occur (e.g. with glyphs/emoji).
 .SYNOPSIS
@@ -675,6 +675,122 @@ function Start-ApiJob {
     return $job
 }
 
+# Function to map AQI category number to display color
+function Get-AqiColorFromCategoryNumber {
+    param(
+        [int]$CategoryNumber
+    )
+
+    switch ($CategoryNumber) {
+        1 { return "Green" }
+        2 { return "Cyan" }
+        3 { return "Yellow" }
+        4 { return "Yellow" }
+        5 { return "Red" }
+        6 { return "Magenta" }
+        default { return "White" }
+    }
+}
+
+# Function to normalize AirNow AQI response data
+function Get-AirNowAqiData {
+    param(
+        [object]$AirNowData
+    )
+
+    $result = @{
+        ShowAqi = $false
+        CategoryName = $null
+        CategoryNumber = $null
+        O3AQI = $null
+        O3CategoryNumber = $null
+        PM25AQI = $null
+        PM25CategoryNumber = $null
+    }
+
+    if ($null -eq $AirNowData) {
+        Write-Verbose "AirNow AQI: response object is null; AQI line suppressed"
+        return $result
+    }
+
+    $entries = if ($AirNowData -is [array]) { $AirNowData } else { @($AirNowData) }
+    if (-not $entries -or $entries.Count -eq 0) {
+        Write-Verbose "AirNow AQI: response is empty; AQI line suppressed"
+        return $result
+    }
+    Write-Verbose "AirNow AQI: received $($entries.Count) observation row(s)"
+
+    $categoryNameByNumber = @{}
+
+    foreach ($entry in $entries) {
+        if ($null -eq $entry) { continue }
+
+        $parameterName = [string]$entry.ParameterName
+        $aqiValue = $null
+        $categoryNumber = $null
+        $categoryName = $null
+
+        if ($entry.PSObject.Properties['AQI'] -and $null -ne $entry.AQI) {
+            try { $aqiValue = [int]$entry.AQI } catch { $aqiValue = $null }
+        }
+
+        if ($entry.PSObject.Properties['Category'] -and $null -ne $entry.Category) {
+            if ($entry.Category.PSObject.Properties['Number'] -and $null -ne $entry.Category.Number) {
+                try { $categoryNumber = [int]$entry.Category.Number } catch { $categoryNumber = $null }
+            }
+            if ($entry.Category.PSObject.Properties['Name'] -and $entry.Category.Name) {
+                $categoryName = [string]$entry.Category.Name
+            }
+        }
+
+        if ($null -ne $categoryNumber -and $categoryName) {
+            $categoryNameByNumber[$categoryNumber] = $categoryName
+        }
+
+        if ($parameterName -eq "O3") {
+            $result.O3AQI = $aqiValue
+            $result.O3CategoryNumber = $categoryNumber
+        } elseif ($parameterName -eq "PM2.5") {
+            $result.PM25AQI = $aqiValue
+            $result.PM25CategoryNumber = $categoryNumber
+        }
+    }
+
+    $categoryNumbers = @()
+    if ($null -ne $result.O3CategoryNumber) { $categoryNumbers += $result.O3CategoryNumber }
+    if ($null -ne $result.PM25CategoryNumber) { $categoryNumbers += $result.PM25CategoryNumber }
+
+    if ($categoryNumbers.Count -eq 0) {
+        Write-Verbose "AirNow AQI: no usable O3/PM2.5 category numbers found; AQI line suppressed"
+        return $result
+    }
+
+    $highestCategory = ($categoryNumbers | Measure-Object -Maximum).Maximum
+    if ($highestCategory -eq 7) {
+        Write-Verbose "AirNow AQI: highest category is 7 (Unavailable); AQI line suppressed"
+        return $result
+    }
+
+    $result.CategoryNumber = $highestCategory
+    if ($categoryNameByNumber.ContainsKey($highestCategory)) {
+        $result.CategoryName = $categoryNameByNumber[$highestCategory]
+    } else {
+        $result.CategoryName = switch ($highestCategory) {
+            1 { "Good" }
+            2 { "Moderate" }
+            3 { "Unhealthy for Sensitive Groups" }
+            4 { "Unhealthy" }
+            5 { "Very Unhealthy" }
+            6 { "Hazardous" }
+            default { "Unknown" }
+        }
+    }
+
+    Write-Verbose "AirNow AQI parsed: Category=$($result.CategoryName)[$($result.CategoryNumber)] O3=$($result.O3AQI)[$($result.O3CategoryNumber)] PM2.5=$($result.PM25AQI)[$($result.PM25CategoryNumber)]"
+    $result.ShowAqi = $true
+    return $result
+}
+
 # Function to refresh weather data with exponential backoff
 # Implements retry logic with exponential backoff to handle temporary service unavailability
 # - Maximum 10 retry attempts
@@ -758,9 +874,12 @@ function Update-WeatherData {
         # This ensures we use the exact URLs the API provides, avoiding potential URL construction issues
         $forecastUrl = $pointsData.properties.forecast
         $hourlyUrl = $pointsData.properties.forecastHourly
+        $aqiUrl = "https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=$lat&longitude=$lon&distance=25&API_KEY=39B9CAC6-CBA4-4ECE-A44A-512EE3B5AEBA"
+        Write-Verbose "GET: $aqiUrl"
         
         $forecastJob = Start-ApiJob -Url $forecastUrl -Headers $headers -JobName "ForecastData"
         $hourlyJob = Start-ApiJob -Url $hourlyUrl -Headers $headers -JobName "HourlyData"
+        $aqiJob = Start-ApiJob -Url $aqiUrl -Headers @{} -JobName "AirNowAQI"
         
         # Start alerts job in parallel
         $alertsUrl = "https://api.weather.gov/alerts/active?point=$lat,$lon"
@@ -775,7 +894,7 @@ function Update-WeatherData {
             $stationsJob = Start-ApiJob -Url $observationStationsUrl -Headers $headers -JobName "ObservationStations"
         }
         
-        $jobsToWaitFor = @($forecastJob, $hourlyJob, $alertsJob)
+        $jobsToWaitFor = @($forecastJob, $hourlyJob, $alertsJob, $aqiJob)
         if ($stationsJob) {
             $jobsToWaitFor += $stationsJob
         }
@@ -1080,6 +1199,39 @@ function Update-WeatherData {
             $script:hourlyData = $hourlyData
         }
         $script:alertsData = $alertsData
+
+        # Process AQI job - non-fatal on errors
+        $script:aqiData = @{
+            ShowAqi = $false
+            CategoryName = $null
+            CategoryNumber = $null
+            O3AQI = $null
+            O3CategoryNumber = $null
+            PM25AQI = $null
+            PM25CategoryNumber = $null
+        }
+        if ($aqiJob.State -eq 'Completed') {
+            $aqiJson = $aqiJob | Receive-Job
+            if (-not [string]::IsNullOrWhiteSpace($aqiJson)) {
+                try {
+                    $airNowData = $aqiJson | ConvertFrom-Json
+                    $script:aqiData = Get-AirNowAqiData -AirNowData $airNowData
+                    if ($script:aqiData.ShowAqi) {
+                        Write-Verbose "AirNow AQI display enabled (highest category $($script:aqiData.CategoryNumber))"
+                    } else {
+                        Write-Verbose "AirNow AQI data retrieved but display is suppressed by AQI rules"
+                    }
+                } catch {
+                    Write-Verbose "Failed to parse AirNow AQI data: $($_.Exception.Message)"
+                }
+            } else {
+                Write-Verbose "AirNow AQI API returned empty payload; AQI line suppressed"
+            }
+            Remove-Job -Job $aqiJob -Force -ErrorAction SilentlyContinue
+        } else {
+            Write-Verbose "AirNow AQI API failed - continuing without AQI output"
+            Remove-Job -Job $aqiJob -Force -ErrorAction SilentlyContinue
+        }
         
         # Update current conditions (only if hourly data is available)
         if ($hourlyData) {
@@ -1106,6 +1258,24 @@ function Update-WeatherData {
             } else {
                 $script:currentTempTrend = "steady"
             }
+        }
+
+        # Update AQI display fields
+        $script:aqiShow = $false
+        $script:aqiCategoryName = $null
+        $script:aqiCategoryNumber = $null
+        $script:o3Aqi = $null
+        $script:o3CategoryNumber = $null
+        $script:pm25Aqi = $null
+        $script:pm25CategoryNumber = $null
+        if ($script:aqiData -and $script:aqiData.ShowAqi) {
+            $script:aqiShow = $true
+            $script:aqiCategoryName = $script:aqiData.CategoryName
+            $script:aqiCategoryNumber = $script:aqiData.CategoryNumber
+            $script:o3Aqi = $script:aqiData.O3AQI
+            $script:o3CategoryNumber = $script:aqiData.O3CategoryNumber
+            $script:pm25Aqi = $script:aqiData.PM25AQI
+            $script:pm25CategoryNumber = $script:aqiData.PM25CategoryNumber
         }
         
         # Update forecast data (only if forecast data is available)
@@ -1530,6 +1700,8 @@ Remove-Job -Job $pointsJob
 # This ensures we use the correct office code (e.g., AER vs AFC)
 $forecastUrl = $pointsData.properties.forecast
 $hourlyUrl = $pointsData.properties.forecastHourly
+$aqiUrl = "https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=$lat&longitude=$lon&distance=25&API_KEY=39B9CAC6-CBA4-4ECE-A44A-512EE3B5AEBA"
+Write-Verbose "GET: $aqiUrl"
 
 # Extract grid information (for reference/debugging)
 $office = $pointsData.properties.cwa
@@ -1564,13 +1736,14 @@ if ($VerbosePreference -ne 'Continue') {
 Write-Host "Calling API for $locationDisplay Hourly..." -ForegroundColor Cyan
 
 $hourlyJob = Start-ApiJob -Url $hourlyUrl -Headers $headers -JobName "HourlyData"
+$aqiJob = Start-ApiJob -Url $aqiUrl -Headers @{} -JobName "AirNowAQI"
 if ($VerbosePreference -ne 'Continue') {
     Clear-Host
 }
 Write-Host "Loading $locationDisplay Data..." -ForegroundColor Yellow
 
 
-$jobsToWaitFor = @($forecastJob, $hourlyJob)
+$jobsToWaitFor = @($forecastJob, $hourlyJob, $aqiJob)
 Wait-Job -Job $jobsToWaitFor | Out-Null
 
 # --- COLLECT RESULTS AND HANDLE ERRORS ---
@@ -1616,8 +1789,40 @@ Write-Verbose "Hourly data retrieved successfully"
 
 # Set script-scoped variable for refresh operations
 $script:hourlyData = $hourlyData
+Remove-Job -Job @($forecastJob, $hourlyJob)
 
-Remove-Job -Job $jobsToWaitFor
+# --- COLLECT AQI DATA (NON-FATAL) ---
+$aqiData = @{
+    ShowAqi = $false
+    CategoryName = $null
+    CategoryNumber = $null
+    O3AQI = $null
+    O3CategoryNumber = $null
+    PM25AQI = $null
+    PM25CategoryNumber = $null
+}
+if ($aqiJob.State -eq 'Completed') {
+    $aqiJson = $aqiJob | Receive-Job
+    if (-not [string]::IsNullOrWhiteSpace($aqiJson)) {
+        try {
+            $airNowData = $aqiJson | ConvertFrom-Json
+            $aqiData = Get-AirNowAqiData -AirNowData $airNowData
+            if ($aqiData.ShowAqi) {
+                Write-Verbose "AirNow AQI display enabled (highest category $($aqiData.CategoryNumber))"
+            } else {
+                Write-Verbose "AirNow AQI data retrieved but display is suppressed by AQI rules"
+            }
+        } catch {
+            Write-Verbose "Failed to parse AirNow AQI data: $($_.Exception.Message)"
+        }
+    } else {
+        Write-Verbose "AirNow AQI API returned empty payload; AQI line suppressed"
+    }
+} else {
+    Write-Verbose "AirNow AQI API failed - continuing without AQI output"
+}
+Remove-Job -Job $aqiJob -Force -ErrorAction SilentlyContinue
+$script:aqiData = $aqiData
 
 # Preload observations data after initial load (for better UX when switching to Observations mode)
 # Store points data and headers for later use
@@ -2161,6 +2366,29 @@ if ($currentPeriod.PSObject.Properties['dewpoint'] -and $null -ne $currentPeriod
 
 $currentPrecipProb = $currentPeriod.probabilityOfPrecipitation.value
 $currentIcon = $currentPeriod.icon
+$aqiShow = $false
+$aqiCategoryName = $null
+$aqiCategoryNumber = $null
+$o3Aqi = $null
+$o3CategoryNumber = $null
+$pm25Aqi = $null
+$pm25CategoryNumber = $null
+if ($aqiData -and $aqiData.ShowAqi) {
+    $aqiShow = $true
+    $aqiCategoryName = $aqiData.CategoryName
+    $aqiCategoryNumber = $aqiData.CategoryNumber
+    $o3Aqi = $aqiData.O3AQI
+    $o3CategoryNumber = $aqiData.O3CategoryNumber
+    $pm25Aqi = $aqiData.PM25AQI
+    $pm25CategoryNumber = $aqiData.PM25CategoryNumber
+}
+$script:aqiShow = $aqiShow
+$script:aqiCategoryName = $aqiCategoryName
+$script:aqiCategoryNumber = $aqiCategoryNumber
+$script:o3Aqi = $o3Aqi
+$script:o3CategoryNumber = $o3CategoryNumber
+$script:pm25Aqi = $pm25Aqi
+$script:pm25CategoryNumber = $pm25CategoryNumber
 
 # --- Temperature Trend Detection ---
 # Calculate trend by comparing current temp to next hour temp (future-looking trend)
@@ -2483,8 +2711,25 @@ function Show-CurrentConditions {
         [bool]$ShowNextNewMoon,
         [string]$NextNewMoonDate,
         [string]$SolarIrradiance = $null,
-        [bool]$IsTerseMode = $false
+        [bool]$IsTerseMode = $false,
+        [bool]$ShowAqi = $false,
+        [string]$AqiCategoryName = $null,
+        [int]$AqiCategoryNumber = $null,
+        [int]$O3AQI = $null,
+        [int]$O3CategoryNumber = $null,
+        [int]$PM25AQI = $null,
+        [int]$PM25CategoryNumber = $null
     )
+
+    if (-not $ShowAqi -and $script:aqiShow) {
+        $ShowAqi = $script:aqiShow
+        $AqiCategoryName = $script:aqiCategoryName
+        $AqiCategoryNumber = $script:aqiCategoryNumber
+        $O3AQI = $script:o3Aqi
+        $O3CategoryNumber = $script:o3CategoryNumber
+        $PM25AQI = $script:pm25Aqi
+        $PM25CategoryNumber = $script:pm25CategoryNumber
+    }
     
     Write-Host "*** $city, $state Current Conditions ***" -ForegroundColor $TitleColor
     Write-Host "Currently: $weatherIcon $currentConditions" -ForegroundColor $DefaultColor
@@ -2527,6 +2772,30 @@ function Show-CurrentConditions {
         Write-Host " (gusts to $windGust mph)" -ForegroundColor $AlertColor -NoNewline
     }
     Write-Host ""
+
+    if ($ShowAqi) {
+        $showAqiLine = $true
+        if ($IsTerseMode) {
+            $showAqiLine = ($AqiCategoryNumber -ge 2 -and $AqiCategoryNumber -le 6)
+        }
+
+        if ($showAqiLine) {
+            $aqiCategoryColor = Get-AqiColorFromCategoryNumber -CategoryNumber $AqiCategoryNumber
+            $o3Color = Get-AqiColorFromCategoryNumber -CategoryNumber $O3CategoryNumber
+            $pm25Color = Get-AqiColorFromCategoryNumber -CategoryNumber $PM25CategoryNumber
+            $o3Text = if ($null -ne $O3AQI) { "$O3AQI" } else { "--" }
+            $pm25Text = if ($null -ne $PM25AQI) { "$PM25AQI" } else { "--" }
+
+            Write-Host "AQI: " -ForegroundColor White -NoNewline
+            Write-Host "$AqiCategoryName" -ForegroundColor $aqiCategoryColor -NoNewline
+            Write-Host " " -ForegroundColor White -NoNewline
+            Write-Host "O3[$o3Text]" -ForegroundColor $o3Color -NoNewline
+            Write-Host " " -ForegroundColor White -NoNewline
+            Write-Host "PM2.5[$pm25Text]" -ForegroundColor $pm25Color
+        } else {
+            Write-Verbose "AQI line suppressed in terse mode (highest category $AqiCategoryNumber not in 2-6)"
+        }
+    }
 
     # Apply humidity color scheme based on comfort levels
     $humidityValue = [double]$currentHumidity
@@ -4352,8 +4621,25 @@ function Show-FullWeatherReport {
         [bool]$IsPolarNight = $false,
         [bool]$IsPolarDay = $false,
         [object]$CurrentTimeDateTime = $null,
-        [bool]$IsTerseMode = $false
+        [bool]$IsTerseMode = $false,
+        [bool]$ShowAqi = $false,
+        [string]$AqiCategoryName = $null,
+        [int]$AqiCategoryNumber = $null,
+        [int]$O3AQI = $null,
+        [int]$O3CategoryNumber = $null,
+        [int]$PM25AQI = $null,
+        [int]$PM25CategoryNumber = $null
     )
+
+    if (-not $ShowAqi -and $script:aqiShow) {
+        $ShowAqi = $script:aqiShow
+        $AqiCategoryName = $script:aqiCategoryName
+        $AqiCategoryNumber = $script:aqiCategoryNumber
+        $O3AQI = $script:o3Aqi
+        $O3CategoryNumber = $script:o3CategoryNumber
+        $PM25AQI = $script:pm25Aqi
+        $PM25CategoryNumber = $script:pm25CategoryNumber
+    }
     
     if ($ShowCurrentConditions) {
         # Format sunrise: date/time in 24-hour format if polar night/day, otherwise time (24H)
@@ -4380,7 +4666,7 @@ function Show-FullWeatherReport {
         }
         # Compute solar irradiance when we have coords, timezone, and DateTime (current + peak at solar noon)
         $solarStr = Get-SolarIrradianceSummary -Latitude $Lat -Longitude $Lon -CurrentTimeDateTime $CurrentTimeDateTime -TimeZoneId $TimeZone
-        Show-CurrentConditions -City $City -State $State -WeatherIcon $WeatherIcon -CurrentConditions $CurrentConditions -CurrentTemp $CurrentTemp -TempColor $TempColor -CurrentTempTrend $CurrentTempTrend -CurrentWind $CurrentWind -WindColor $WindColor -CurrentWindDir $CurrentWindDir -WindGust $WindGust -CurrentHumidity $CurrentHumidity -CurrentDewPoint $CurrentDewPoint -CurrentPrecipProb $CurrentPrecipProb -CurrentTimeLocal $CurrentTimeLocal -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $DefaultColor -AlertColor $AlertColor -TitleColor $TitleColor -InfoColor $InfoColor -MoonPhase $MoonPhase -MoonEmoji $MoonEmoji -IsFullMoon $IsFullMoon -NextFullMoonDate $NextFullMoonDate -IsNewMoon $IsNewMoon -ShowNextFullMoon $ShowNextFullMoon -ShowNextNewMoon $ShowNextNewMoon -NextNewMoonDate $NextNewMoonDate -SolarIrradiance $solarStr -IsTerseMode $IsTerseMode
+        Show-CurrentConditions -City $City -State $State -WeatherIcon $WeatherIcon -CurrentConditions $CurrentConditions -CurrentTemp $CurrentTemp -TempColor $TempColor -CurrentTempTrend $CurrentTempTrend -CurrentWind $CurrentWind -WindColor $WindColor -CurrentWindDir $CurrentWindDir -WindGust $WindGust -CurrentHumidity $CurrentHumidity -CurrentDewPoint $CurrentDewPoint -CurrentPrecipProb $CurrentPrecipProb -CurrentTimeLocal $CurrentTimeLocal -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $DefaultColor -AlertColor $AlertColor -TitleColor $TitleColor -InfoColor $InfoColor -MoonPhase $MoonPhase -MoonEmoji $MoonEmoji -IsFullMoon $IsFullMoon -NextFullMoonDate $NextFullMoonDate -IsNewMoon $IsNewMoon -ShowNextFullMoon $ShowNextFullMoon -ShowNextNewMoon $ShowNextNewMoon -NextNewMoonDate $NextNewMoonDate -SolarIrradiance $solarStr -IsTerseMode $IsTerseMode -ShowAqi $ShowAqi -AqiCategoryName $AqiCategoryName -AqiCategoryNumber $AqiCategoryNumber -O3AQI $O3AQI -O3CategoryNumber $O3CategoryNumber -PM25AQI $PM25AQI -PM25CategoryNumber $PM25CategoryNumber
     }
 
     if ($ShowTodayForecast) {
@@ -4869,7 +5155,7 @@ if ($Rain.IsPresent) {
         exit 0
     }
 } else {
-    Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsPolarNight $isPolarNight -IsPolarDay $isPolarDay -CurrentTimeDateTime $dataFetchTime -IsTerseMode $Terse.IsPresent
+    Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $hourlyData -ForecastData $forecastData -AlertsData $alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsPolarNight $isPolarNight -IsPolarDay $isPolarDay -CurrentTimeDateTime $dataFetchTime -IsTerseMode $Terse.IsPresent -ShowAqi $aqiShow -AqiCategoryName $aqiCategoryName -AqiCategoryNumber $aqiCategoryNumber -O3AQI $o3Aqi -O3CategoryNumber $o3CategoryNumber -PM25AQI $pm25Aqi -PM25CategoryNumber $pm25CategoryNumber
 }
 
 # Detect if we're in an interactive environment that supports ReadKey

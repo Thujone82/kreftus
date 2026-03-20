@@ -22,6 +22,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
 - **Comprehensive Data Display:** Shows current temperature, conditions, wind chill and heat index calculations (using NWS formulas), detailed forecasts for today and tomorrow, wind information, sunrise and sunset times (calculated astronomically), solar irradiance (clear-sky GHI in W/m², displayed after sunset in white, including in terse mode), moon phase information with emoji and next full moon date, rain likelihood forecasts with visual sparklines, and wind outlook forecasts with direction glyphs. **All times (hourly forecasts, sunrise, sunset, update times) are displayed in the destination location's local timezone, not your system's timezone.** Enhanced Daily Mode and Observations Mode display sunrise, sunset, and day length for each day. Section titles (Hourly, 7-Day Summary, Rain Outlook, Wind Outlook) use as many words from the city name as fit within 20 characters to prevent title wrapping and maintain consistent formatting (e.g., "Salt Lake City" fits fully, "Portland International Airport" becomes "Portland").
 - **Weather Alerts:** Automatically fetches and displays any active weather alerts (e.g., warnings, watches) from official sources.
 - **Color-Coded Metrics:** Key data points (temperature, wind speed) change color (blue for cold, red for hot) to indicate potentially hazardous conditions. Rain likelihood sparklines use color coding (white for very low, cyan for low, green for light, yellow for medium, red for high probability). Wind outlook glyphs use color coding (white for calm, yellow for light breeze, red for moderate wind, magenta for strong wind) with peak wind hours highlighted using inverted colors. **Hour Labels:** Hour labels in the hourly forecast (e.g., "08:00", "09:00") are colored yellow when the majority of that hour is during daytime (determined by checking if the hour midpoint falls between sunrise and sunset), otherwise displayed in white. This applies to both the hourly forecast in the main modal and the dedicated hourly modal. **Humidity:** Uses meteorological comfort thresholds based on relative humidity percentage. Low humidity (<30%) can cause dry skin, static electricity, and respiratory discomfort (cyan). Comfortable range (30-60%) is ideal for human comfort (white). Elevated humidity (61-70%) begins to feel muggy and can affect perceived temperature (yellow). High humidity (>70%) is oppressive, significantly increases heat index, and can be dangerous in hot weather (red). **Dew Point:** More reliable than humidity for assessing comfort as it's independent of temperature. Dew point represents the temperature at which air becomes saturated and condensation forms. Values below 40°F indicate very dry air (cyan), 40-54°F is comfortable (white), 55-64°F feels sticky and muggy (yellow), and 65°F+ is oppressive and can be dangerous when combined with high temperatures (red). Dew points above 70°F are rare but extremely uncomfortable. **Pressure (Observations):** Barometric pressure in inHg with color coding: low (<29.50 inHg) cyan, normal (29.50-30.20) white, high (30.20-30.50) yellow, extreme (<29.0 or >30.5) alert/magenta.
+- **AQI Line (AirNow):** Current conditions now include an `AQI:` line immediately after `Wind:` when AirNow data is available and displayable. Format: `AQI: {CategoryName} O3[{O3AQI}] PM2.5[{PM25AQI}]`. `AQI:` is white; `CategoryName` is colored by the highest AirNow category number from O3/PM2.5 (1=Green, 2=Cyan, 3/4=Yellow, 5=Red, 6=Magenta). `O3[...]` and `PM2.5[...]` are independently colored by each pollutant's category number. The line is suppressed when data is unavailable, response is empty, highest category is 7 (Unavailable), or in terse mode unless highest category is 2-6.
 - **Multiple Display Modes:**
   - **Full Mode (default):** Shows all available weather information
   - **Terse Mode (`-t`):** Shows only current conditions and today's forecast (plus alerts)
@@ -71,8 +72,22 @@ The script follows a multi-step process:
 - **Forecast:** `https://api.weather.gov/gridpoints/{office}/{gridX},{gridY}/forecast`
 - **Hourly:** `https://api.weather.gov/gridpoints/{office}/{gridX},{gridY}/forecast/hourly`
 - **Alerts:** `https://api.weather.gov/alerts/active?point={lat},{lon}`
+- **AirNow AQI:** `https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude={lat}&longitude={lon}&distance=25&API_KEY={key}`
 - **Observation Stations:** `https://api.weather.gov/points/{lat},{lon}/stations`
 - **Observations:** `https://api.weather.gov/stations/{stationId}/observations?start={startTime}&end={endTime}&limit=500`
+
+### AQI Verbose Logging
+
+When running with `-Verbose`, AQI-specific diagnostics are emitted to help troubleshoot display behavior:
+
+- Logs the full AirNow request URL (`GET: ...`) in both initial load and refresh paths.
+- Logs row counts returned by AirNow and parsed values for category/O3/PM2.5.
+- Logs explicit suppression reasons, including:
+  - null or empty AirNow payload,
+  - no usable O3/PM2.5 category numbers,
+  - highest category of 7 (Unavailable),
+  - terse mode suppression when highest category is outside 2-6.
+- Logs whether AQI display was enabled or suppressed after parsing.
 
 ### Configuration
 

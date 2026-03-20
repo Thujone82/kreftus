@@ -22,6 +22,7 @@ The script first uses a geocoding service to determine the latitude and longitud
   - Moon phase information with emoji and next full moon date.
   - **All times displayed in location's timezone:** Hourly forecasts, sunrise, sunset, and update times are shown in the destination location's local timezone, not your system's timezone.
   - Weather alerts and warnings.
+  - AQI line (AirNow) after Wind in current conditions when available: `AQI: CategoryName O3[<AQI>] PM2.5[<AQI>]`.
   - Rain likelihood forecast with visual sparklines.
   - Wind outlook forecast with direction glyphs.
 - **Smart Color-Coding:** Important metrics are color-coded for quick assessment:
@@ -44,6 +45,18 @@ The script first uses a geocoding service to determine the latitude and longitud
     - Red: Oppressive, very uncomfortable (≥65°F)
   - **Pressure (Observations only):** Barometric pressure in inHg: Cyan (<29.50), White (29.50-30.20), Yellow (>30.20), Alert (extreme)
   - **Clouds (Observations only):** When data is available, "Clouds:" is shown on the same line as Conditions (white label, gray data). Codes: SKC (clear), FEW (few), SCT (scattered), BKN (broken), OVC (overcast). Omitted when not available
+  - **AQI (Current conditions):**
+    - `AQI:` label is always White.
+    - `CategoryName` color uses highest category number from O3/PM2.5:
+      - 1 Good = Green
+      - 2 Moderate = Cyan
+      - 3 Unhealthy for Sensitive Groups = Yellow
+      - 4 Unhealthy = Yellow
+      - 5 Very Unhealthy = Red
+      - 6 Hazardous = Magenta
+      - 7 Unavailable = suppress AQI line
+    - `O3[...]` and `PM2.5[...]` are each colored from their own category numbers.
+    - In terse mode, AQI is shown only when highest category is 2-6; otherwise suppressed.
 - **Robust Error Handling:** Implements exponential backoff retry logic for service unavailability, automatically retrying up to 10 times with increasing delays (1s to 512s) before gracefully exiting with a clear error message.
 - **Weather Alerts:** Automatically displays any active weather alerts (e.g., warnings, watches) for the location.
 - **NWS Resources:** Provides clickable links to official NWS resources:
@@ -142,7 +155,12 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
   - Displays a detailed help and usage message in the console.
 
 - `-Verbose` [switch]
-  - A built-in PowerShell parameter that, when used with this script, will display the URLs being called for geocoding and weather data. Useful for debugging.
+  - A built-in PowerShell parameter that displays debugging details for API calls and processing.
+  - Includes AQI diagnostics:
+    - AirNow request URL (`GET: ...`)
+    - Number of AQI rows returned
+    - Parsed AQI summary (category, O3, PM2.5)
+    - Suppression reasons (empty/null payload, unavailable category 7, terse-mode suppression)
 
 - `-Terse` or `-t` [switch]
   - Shows only current conditions and today's forecast (plus alerts if they exist).
@@ -501,6 +519,8 @@ These messages provide clear feedback about the script's progress and help users
   - `/alerts/active` - Get active weather alerts
   - `/points/{lat},{lon}/stations` - Get observation stations for a location
   - `/stations/{stationId}/observations` - Get historical observations from a station
+- This script also uses the AirNow API endpoint for AQI:
+  - `https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude={lat}&longitude={lon}&distance=25&API_KEY={key}`
 
 ## Features Removed from Original OpenWeatherMap Version
 Due to differences in the National Weather Service API, the following features are not available:
