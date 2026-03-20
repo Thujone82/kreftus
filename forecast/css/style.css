@@ -684,6 +684,13 @@ main {
     text-decoration: underline;
 }
 
+.config-api-key-debug {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.75rem;
+    color: var(--color-alert);
+}
+
 /* Centered two-option toggle row: left label | toggle pill | right label */
 .config-option.config-toggle-row {
     display: flex;

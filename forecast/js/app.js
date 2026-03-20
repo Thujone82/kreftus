@@ -70,6 +70,7 @@ function initializeElements() {
         aqiApiKeyContainer: document.getElementById('aqiApiKeyContainer'),
         aqiApiKeyInput: document.getElementById('aqiApiKeyInput'),
         aqiApiKeyStatus: document.getElementById('aqiApiKeyStatus'),
+        aqiApiKeyDebug: document.getElementById('aqiApiKeyDebug'),
         updateAllToggle: document.getElementById('updateAllToggle'),
         updateAllToggleContainer: document.getElementById('updateAllToggleContainer'),
         autoUpdateToggleLabel: document.querySelector('.toggle-label'),
@@ -998,6 +999,18 @@ function setAqiKeyStatusState(state) {
     }
 }
 
+function setAqiDebugMessage(message) {
+    const el = elements.aqiApiKeyDebug;
+    if (!el) return;
+    if (!message) {
+        el.textContent = '';
+        el.classList.add('hidden');
+        return;
+    }
+    el.textContent = message;
+    el.classList.remove('hidden');
+}
+
 function syncAqiSettingsVisibility() {
     if (elements.enableAqiToggle) {
         elements.enableAqiToggle.checked = !!appState.enableAqi;
@@ -1011,6 +1024,7 @@ function syncAqiSettingsVisibility() {
     }
     if (!appState.enableAqi) setAqiKeyStatusState(null);
     else setAqiKeyStatusState(appState.airNowApiKeyValid ? 'valid' : null);
+    if (!appState.enableAqi) setAqiDebugMessage('');
 }
 
 function loadAqiSettings() {
@@ -1040,6 +1054,7 @@ function disableAqiRuntimeState() {
         appState.weatherData.aqi = { show: false };
     }
     setAqiKeyStatusState(null);
+    setAqiDebugMessage('');
 }
 
 function getAqiValidationCoords() {
@@ -1056,6 +1071,7 @@ async function validateAirNowApiKey(inputKey) {
         appState.airNowApiKeyValid = false;
         persistAqiSettings();
         setAqiKeyStatusState(null);
+        setAqiDebugMessage('');
         return false;
     }
     const requestSeq = ++aqiValidationSeq;
@@ -1066,6 +1082,13 @@ async function validateAirNowApiKey(inputKey) {
     appState.airNowApiKeyValid = isValid;
     persistAqiSettings();
     setAqiKeyStatusState(isValid ? 'valid' : 'invalid');
+    if (isValid) {
+        setAqiDebugMessage('');
+    } else if (rows === null) {
+        setAqiDebugMessage('Validation request failed (network/browser/API). Please try again.');
+    } else {
+        setAqiDebugMessage('Validation returned no AQI data for this key/location.');
+    }
 
     // Immediately reflect AQI state in the currently rendered weather view.
     if (appState.weatherData && appState.location) {
@@ -1092,6 +1115,7 @@ function scheduleAirNowApiKeyValidation(delayMs = 400) {
         if (appState.weatherData) appState.weatherData.aqi = { show: false };
         persistAqiSettings();
         setAqiKeyStatusState(null);
+        setAqiDebugMessage('');
         return;
     }
     aqiValidationTimer = setTimeout(() => {
@@ -1100,6 +1124,7 @@ function scheduleAirNowApiKeyValidation(delayMs = 400) {
             appState.airNowApiKeyValid = false;
             persistAqiSettings();
             setAqiKeyStatusState('invalid');
+            setAqiDebugMessage('Validation request failed (network/browser/API). Please try again.');
         });
     }, delayMs);
 }
