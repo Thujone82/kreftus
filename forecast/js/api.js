@@ -3,7 +3,7 @@
 // Headers for NWS API requests
 const NWS_HEADERS = {
     "Accept": "application/geo+json",
-    "User-Agent": "GetForecast/1.0 (081625PDX)"
+    "User-Agent": "kreft.us/forecast"
 };
 
 // Exponential backoff retry logic
@@ -51,7 +51,7 @@ async function geocodeLocation(location) {
         
         const geoData = await fetch(geoUrl, {
             headers: {
-                'User-Agent': 'GetForecast/1.0 (Weather App)'
+                'User-Agent': 'kreft.us/forecast'
             }
         });
         if (!geoData.ok) {
@@ -226,7 +226,7 @@ async function detectCurrentLocation() {
                     const reverseGeoUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`;
                     const response = await fetch(reverseGeoUrl, {
                         headers: {
-                            'User-Agent': 'GetForecast/1.0 (Weather App)'
+                            'User-Agent': 'kreft.us/forecast'
                         }
                     });
                     const data = await response.json();
