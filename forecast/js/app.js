@@ -342,6 +342,7 @@ async function init() {
     loadAccentColors();
     loadPerLocationColors();
     loadShowIrradiance();
+    loadAqiSettings();
     loadUnits();
     loadTimeFormat();
     restoreLocationsDrawerState();
