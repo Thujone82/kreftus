@@ -114,6 +114,14 @@
                     <span>Auto-Update Data</span>
                 </label>
             </div>
+            <div id="updateAllToggleContainer" class="config-option config-toggle-row hidden">
+                <span class="config-toggle-label">Displayed</span>
+                <label class="config-toggle-pill">
+                    <input type="checkbox" id="updateAllToggle" aria-label="Update all saved locations in background when stale">
+                    <span class="config-toggle-slider"></span>
+                </label>
+                <span class="config-toggle-label">All</span>
+            </div>
             <div class="config-option config-extras">
                 <span class="config-option-label">Extras</span>
                 <label class="config-checkbox-label">
@@ -133,14 +141,6 @@
                         <small class="config-api-key-help">AQI is optional and disabled by default. Your key is stored locally in this browser.</small>
                     </div>
                     <small id="aqiApiKeyDebug" class="config-api-key-debug hidden" aria-live="polite"></small>
-                </div>
-                <div id="updateAllToggleContainer" class="config-option config-toggle-row hidden">
-                    <span class="config-toggle-label">Displayed</span>
-                    <label class="config-toggle-pill">
-                        <input type="checkbox" id="updateAllToggle" aria-label="Update all saved locations in background when stale">
-                        <span class="config-toggle-slider"></span>
-                    </label>
-                    <span class="config-toggle-label">All</span>
                 </div>
                 <label class="config-checkbox-label">
                     <input type="checkbox" id="irradianceCheckbox" aria-label="Enable solar irradiance in conditions">
