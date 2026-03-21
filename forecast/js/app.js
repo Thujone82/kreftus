@@ -22,6 +22,7 @@ const appState = {
     lastFetchTime: null,
     hourlyScrollIndex: 0,
     loading: false,
+    loadingRequestCount: 0, // keep spinner visible while any network call is in flight
     error: null,
     useMetric: false,
     use24h: false,
@@ -4977,8 +4978,9 @@ function hideControlBarUpdateIndicator() {
 
 // Set loading state
 function setLoading(loading, background = false) {
-    appState.loading = loading;
     if (loading) {
+        appState.loadingRequestCount = Math.max(0, Number(appState.loadingRequestCount) || 0) + 1;
+        appState.loading = true;
         // Check if weather data already exists
         const hasExistingData = appState.weatherData !== null;
         
@@ -4994,6 +4996,12 @@ function setLoading(loading, background = false) {
             // Don't show control bar indicator during initial load
         }
     } else {
+        appState.loadingRequestCount = Math.max(0, (Number(appState.loadingRequestCount) || 0) - 1);
+        if (appState.loadingRequestCount > 0) {
+            // Another request is still in flight; keep spinner visible.
+            return;
+        }
+        appState.loading = false;
         // Hide control bar update indicator
         hideControlBarUpdateIndicator();
         
