@@ -17,7 +17,7 @@ It prints step-by-step status and exits non-zero on failure.
 
 [CmdletBinding()]
 param(
-    [Parameter(Position = 0, Mandatory = $true)]
+    [Parameter(Position = 0, Mandatory = $false)]
     [string]$Version
 )
 
@@ -32,6 +32,51 @@ function Write-Step {
     Write-Host "==> $Message" -ForegroundColor $Color
 }
 
+function Get-CurrentVersionFromServiceWorker {
+    param(
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        throw "Missing file: $Path"
+    }
+
+    $content = (Read-TextWithBomState -Path $Path).Text
+    $match = [regex]::Match($content, "const\s+VERSION\s*=\s*'([^']+)';")
+    if (-not $match.Success) {
+        throw "Could not determine current version from service-worker.js"
+    }
+    return $match.Groups[1].Value
+}
+
+function Read-TextWithBomState {
+    param(
+        [string]$Path
+    )
+
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $hasUtf8Bom = $bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF
+    $text = [System.Text.Encoding]::UTF8.GetString($bytes)
+    if ($text.Length -gt 0 -and [int][char]$text[0] -eq 0xFEFF) {
+        $text = $text.Substring(1)
+    }
+    return [pscustomobject]@{
+        Text = $text
+        HasUtf8Bom = $hasUtf8Bom
+    }
+}
+
+function Write-TextPreserveBom {
+    param(
+        [string]$Path,
+        [string]$Text,
+        [bool]$HasUtf8Bom
+    )
+
+    $encoding = [System.Text.UTF8Encoding]::new($HasUtf8Bom)
+    [System.IO.File]::WriteAllText($Path, $Text, $encoding)
+}
+
 function Replace-OrFail {
     param(
         [string]$Path,
@@ -44,7 +89,8 @@ function Replace-OrFail {
         throw "Missing file: $Path"
     }
 
-    $content = Get-Content -LiteralPath $Path -Raw
+    $readState = Read-TextWithBomState -Path $Path
+    $content = $readState.Text
     $regex = [regex]::new($Pattern)
     if (-not $regex.IsMatch($content)) {
         throw "No change made for $Description in $Path (pattern not found)."
@@ -59,7 +105,7 @@ function Replace-OrFail {
     $updated = $regex.Replace($content, $Replacement, 1)
     $changed = $updated -ne $content
     if ($changed) {
-        Set-Content -LiteralPath $Path -Value $updated -Encoding UTF8
+        Write-TextPreserveBom -Path $Path -Text $updated -HasUtf8Bom $readState.HasUtf8Bom
     }
     return [pscustomobject]@{
         Changed = $changed
@@ -80,7 +126,8 @@ function Update-AssetVersion-OrFail {
         throw "Missing file: $Path"
     }
 
-    $content = Get-Content -LiteralPath $Path -Raw
+    $readState = Read-TextWithBomState -Path $Path
+    $content = $readState.Text
     $regex = [regex]::new($Pattern)
     $match = $regex.Match($content)
     if (-not $match.Success) {
@@ -92,7 +139,7 @@ function Update-AssetVersion-OrFail {
     $updated = $regex.Replace($content, $newValue, 1)
     $changed = $updated -ne $content
     if ($changed) {
-        Set-Content -LiteralPath $Path -Value $updated -Encoding UTF8
+        Write-TextPreserveBom -Path $Path -Text $updated -HasUtf8Bom $readState.HasUtf8Bom
     }
     return [pscustomobject]@{
         Changed = $changed
@@ -102,6 +149,17 @@ function Update-AssetVersion-OrFail {
 }
 
 try {
+    $forecastRoot = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
+    $serviceWorkerPath = Join-Path $forecastRoot 'service-worker.js'
+    $manifestPath = Join-Path $forecastRoot 'manifest.json'
+    $indexPath = Join-Path $forecastRoot 'index.html'
+
+    if ([string]::IsNullOrWhiteSpace($Version)) {
+        $currentVersion = Get-CurrentVersionFromServiceWorker -Path $serviceWorkerPath
+        Write-Host "Current version is $currentVersion" -ForegroundColor Yellow
+        $Version = Read-Host "Enter updated version"
+    }
+
     # Allow alphanumeric semantic-ish versions (e.g. 1.7.12b), but strip spaces
     # and any characters that are unsafe/invalid for URL query values.
     $inputVersion = $Version
@@ -110,11 +168,6 @@ try {
     if ([string]::IsNullOrWhiteSpace($sanitizedVersion)) {
         throw "Invalid version '$inputVersion'. After filtering invalid characters, no usable version remained."
     }
-
-    $forecastRoot = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
-    $serviceWorkerPath = Join-Path $forecastRoot 'service-worker.js'
-    $manifestPath = Join-Path $forecastRoot 'manifest.json'
-    $indexPath = Join-Path $forecastRoot 'index.html'
 
     if ($sanitizedVersion -ne $inputVersion) {
         Write-Step "Input version normalized from '$inputVersion' to '$sanitizedVersion'" 'Yellow'
