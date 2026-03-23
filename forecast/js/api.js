@@ -272,98 +272,135 @@ async function detectCurrentLocation() {
     });
 }
 
-// Detect location using IP address (fallback)
+function normalizeIpGeoLocation(raw) {
+    if (!raw) return null;
+    const lat = Number(raw.lat);
+    const lon = Number(raw.lon);
+    const city = raw.city != null ? String(raw.city).trim() : '';
+    const state = raw.state != null ? String(raw.state).trim() : '';
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || !city || !state) {
+        return null;
+    }
+    return { lat, lon, city, state };
+}
+
+async function getGeoFromIpApi() {
+    const provider = 'ip-api.com';
+    const url = 'https://ip-api.com/json/';
+    console.log(`[${provider}] Starting request: ${url}`);
+    const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+    });
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    const data = await response.json();
+    if (data.status !== 'success') {
+        throw new Error(data.message || 'API status not success');
+    }
+    const normalized = normalizeIpGeoLocation({
+        lat: data.lat,
+        lon: data.lon,
+        city: data.city,
+        state: data.regionName || data.region
+    });
+    if (!normalized) {
+        throw new Error('Missing required location fields');
+    }
+    return normalized;
+}
+
+async function getGeoFromIpWhoIs() {
+    const provider = 'ipwho.is';
+    const url = 'https://ipwho.is/';
+    console.log(`[${provider}] Starting request: ${url}`);
+    const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+    });
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    const data = await response.json();
+    if (data.success === false) {
+        throw new Error(data.message || data.reason || 'API status not success');
+    }
+    const normalized = normalizeIpGeoLocation({
+        lat: data.latitude,
+        lon: data.longitude,
+        city: data.city,
+        state: data.region_code || data.region
+    });
+    if (!normalized) {
+        throw new Error('Missing required location fields');
+    }
+    return normalized;
+}
+
+async function getGeoFromIpApiCo() {
+    const provider = 'ipapi.co';
+    const url = 'https://ipapi.co/json/';
+    console.log(`[${provider}] Starting request: ${url}`);
+    const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+    });
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    const data = await response.json();
+    if (data.error) {
+        throw new Error(data.reason || data.message || 'API returned error');
+    }
+    const normalized = normalizeIpGeoLocation({
+        lat: data.latitude,
+        lon: data.longitude,
+        city: data.city,
+        state: data.region_code || data.region
+    });
+    if (!normalized) {
+        throw new Error('Missing required location fields');
+    }
+    return normalized;
+}
+
+// Detect location using IP address (fallback for 'here' only)
 async function detectLocationByIP() {
-    try {
-        console.log('Attempting IP-based geolocation...');
-        // Try multiple IP geolocation services for better browser compatibility
-        // ip-api.com free tier has CORS restrictions for browser requests
-        // Try ipapi.co first (better CORS support), then fallback to ip-api.com
-        
-        const services = [
-            {
-                name: 'ipapi.co',
-                url: 'https://ipapi.co/json/',
-                parse: (data) => ({
-                    lat: data.latitude,
-                    lon: data.longitude,
-                    city: data.city,
-                    state: data.region_code || data.region
-                })
-            },
-            {
-                name: 'ip-api.com (HTTPS)',
-                url: 'https://ip-api.com/json/',
-                parse: (data) => {
-                    if (data.status === "success") {
-                        return {
-                            lat: data.lat,
-                            lon: data.lon,
-                            city: data.city,
-                            state: data.regionName
-                        };
-                    }
-                    throw new Error(data.message || "IP geolocation failed");
-                }
-            },
-            {
-                name: 'ip-api.com (HTTP)',
-                url: 'http://ip-api.com/json/',
-                parse: (data) => {
-                    if (data.status === "success") {
-                        return {
-                            lat: data.lat,
-                            lon: data.lon,
-                            city: data.city,
-                            state: data.regionName
-                        };
-                    }
-                    throw new Error(data.message || "IP geolocation failed");
-                }
-            }
-        ];
-        
-        for (const service of services) {
-            try {
-                console.log(`Trying ${service.name}:`, service.url);
-                const response = await fetch(service.url, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json'
-                    }
-                });
-                
-                if (!response.ok) {
-                    console.log(`${service.name} returned error:`, response.status, response.statusText);
-                    continue; // Try next service
-                }
-                
-                const data = await response.json();
-                console.log(`${service.name} response:`, data);
-                
-                const result = service.parse(data);
-                console.log(`Successfully detected location using ${service.name}:`, result);
-                return result;
-            } catch (error) {
-                console.log(`${service.name} failed:`, error.message);
-                // Continue to next service
-                continue;
-            }
-        }
-        
-        // All services failed
-        throw new Error('All IP geolocation services failed');
-    } catch (error) {
-        console.error('IP geolocation error:', error);
-        // Re-throw with more context
-        if (error.message.includes('fetch') || error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-            throw new Error(`Network error: Unable to reach IP geolocation service. Please check your internet connection.`);
-        } else if (error.message.includes('CORS') || error.message.includes('Mixed Content') || error.message.includes('blocked')) {
-            throw new Error(`CORS error: IP geolocation service is not accessible. Please try entering a location manually.`);
-        } else {
-            throw new Error(`Unable to detect location: ${error.message}`);
+    const providers = [
+        { name: 'ip-api.com', invoke: getGeoFromIpApi },
+        { name: 'ipwho.is', invoke: getGeoFromIpWhoIs },
+        { name: 'ipapi.co', invoke: getGeoFromIpApiCo }
+    ];
+
+    console.log('Attempting IP-based geolocation fallback chain...');
+    const failures = [];
+
+    for (const provider of providers) {
+        const startedAt = Date.now();
+        try {
+            const result = await provider.invoke();
+            const durationMs = Date.now() - startedAt;
+            console.log(`[${provider.name}] Success (${durationMs}ms):`, result);
+            return result;
+        } catch (error) {
+            const durationMs = Date.now() - startedAt;
+            const reason = error && error.message ? error.message : String(error);
+            failures.push({ provider: provider.name, reason });
+            console.warn(`[${provider.name}] Failed (${durationMs}ms): ${reason}`);
         }
     }
+
+    const failureSummary = failures.map(f => `${f.provider}: ${f.reason}`).join(' | ');
+    console.error('All IP geolocation providers failed:', failureSummary);
+    const combined = failureSummary || 'All providers failed';
+    if (combined.includes('fetch') || combined.includes('Failed to fetch') || combined.includes('NetworkError')) {
+        throw new Error('Network error: Unable to reach IP geolocation service. Please check your internet connection.');
+    }
+    if (combined.includes('CORS') || combined.includes('Mixed Content') || combined.includes('blocked')) {
+        throw new Error('CORS error: IP geolocation service is not accessible. Please try entering a location manually.');
+    }
+    throw new Error(`Unable to detect location automatically: ${combined}`);
 }
 
 // Fetch NWS points data

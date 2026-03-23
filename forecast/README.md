@@ -90,7 +90,8 @@ The app checks for new versions (e.g. via `manifest.json` version and service wo
 
 ## Technical Details
 
-- **APIs**: National Weather Service (weather.gov), NOAA CO-OPS (tide stations), OpenStreetMap Nominatim (geocoding), ip-api.com (IP geolocation fallback), Browser Geolocation (current location).
+- **APIs**: National Weather Service (weather.gov), NOAA CO-OPS (tide stations), OpenStreetMap Nominatim (geocoding), Browser Geolocation (current location), and IP geolocation fallback chain for here: ip-api.com -> ipwho.is -> ipapi.co.
+- **Location preference**: User-provided locations (zip/city,state/favorites) are always preferred; IP geolocation is only fallback for here when browser geolocation is unavailable or fails.
 - **Stack**: Vanilla JavaScript, HTML5, CSS3 (variables, responsive layout), Service Worker (PWA), localStorage (preferences, favorites, cache keys).
 - **Browser support**: Modern browsers with Service Worker support (Chrome, Firefox, Edge, Safari).
 

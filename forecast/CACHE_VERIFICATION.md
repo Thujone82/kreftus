@@ -53,7 +53,7 @@ Defined in `service-worker.js` from the `VERSION` constant:
 ### Network-first (updates preferred)
 
 - **JS, HTML, CSS, JSON** (including `/forecast/` and manifest): `fetch(..., { cache: 'no-cache' })`, then on success the response is cloned and stored in `STATIC_CACHE`. On network failure, fallback to cache.
-- **API requests** (api.weather.gov, nominatim.openstreetmap.org, ip-api.com): fetch from network first; on success (status 200) clone and store in `DATA_CACHE`. On network failure, use cache or return offline JSON.
+- **API requests** (api.weather.gov, nominatim.openstreetmap.org, ip-api.com, ipwho.is, ipapi.co): fetch from network first; on success (status 200) clone and store in `DATA_CACHE`. On network failure, use cache or return offline JSON.
 
 ### Cache-first
 
