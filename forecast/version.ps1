@@ -158,6 +158,11 @@ try {
         $currentVersion = Get-CurrentVersionFromServiceWorker -Path $serviceWorkerPath
         Write-Host "Current version is $currentVersion" -ForegroundColor Yellow
         $Version = Read-Host "Enter updated version"
+        if ([string]::IsNullOrWhiteSpace($Version)) {
+            Write-Host ""
+            Write-Host "Version must not be blank, update cancelled" -ForegroundColor Red
+            exit 1
+        }
     }
 
     # Allow alphanumeric semantic-ish versions (e.g. 1.7.12b), but strip spaces
