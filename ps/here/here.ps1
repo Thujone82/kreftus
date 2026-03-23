@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Retrieves the machine's approximate geographical location using a public IP Geolocation API.
 
@@ -10,6 +10,9 @@
 .PARAMETER IPAddress
     Optional IP address to query. If not provided, queries the machine's own public IP.
 
+.PARAMETER Verbose
+    Shows request URL, timeout, and full exception details when the geolocation call fails.
+
 .NOTES
     - Requires an active internet connection.
     - Location accuracy is based on the IP address, not GPS, so it may be less precise.
@@ -18,6 +21,7 @@
     - Example: .\here.ps1 1.1.1.1
 #>
 
+[CmdletBinding()]
 param([string]$IPAddress)
 
 function Write-ModernHeader ($Text) {
@@ -245,10 +249,61 @@ function Get-MoonPhase {
     }
 }
 
+function Write-HereGeoErrorDetail {
+    param(
+        [System.Management.Automation.ErrorRecord]$ErrorRecord,
+        [string]$RequestUri,
+        [int]$TimeoutSec
+    )
+    $ex = $ErrorRecord.Exception
+    Write-Host "Failed to connect to the IP geolocation service." -ForegroundColor Red
+    Write-Host "  Exception: $($ex.Message)" -ForegroundColor Yellow
+    if ($ex.InnerException) {
+        Write-Host "  Inner:     $($ex.InnerException.Message)" -ForegroundColor Yellow
+    }
+    if ($ErrorRecord.ErrorDetails -and $ErrorRecord.ErrorDetails.Message) {
+        Write-Host "  Details:   $($ErrorRecord.ErrorDetails.Message)" -ForegroundColor Yellow
+    }
+    if ($ex -is [System.Net.WebException]) {
+        Write-Host "  Web status: $($ex.Status)" -ForegroundColor Yellow
+        if ($ex.Response) {
+            try {
+                $code = [int]$ex.Response.StatusCode
+                Write-Host "  HTTP:      $code $($ex.Response.StatusDescription)" -ForegroundColor Yellow
+            } catch {}
+        }
+    }
+    # Common hints without needing -Verbose
+    $msg = $ex.Message + $(if ($ex.InnerException) { $ex.InnerException.Message } else { '' })
+    if ($msg -match 'timeout|timed out|TaskCanceled|canceled') {
+        Write-Host "  Hint: Request exceeded ${TimeoutSec}s or was canceled (firewall, proxy, or slow link)." -ForegroundColor DarkYellow
+    }
+    if ($msg -match 'refused|actively refused|connection reset|Could not establish|No connection') {
+        Write-Host "  Hint: Connection blocked or reset — check firewall, VPN, proxy, or corporate filter for http://ip-api.com" -ForegroundColor DarkYellow
+    }
+    if ($msg -match 'SSL|TLS|certificate|HTTPS') {
+        Write-Host "  Hint: TLS/SSL issue — try updating PowerShell / OS root certificates." -ForegroundColor DarkYellow
+    }
+    Write-Verbose "Request: GET $RequestUri (TimeoutSec=$TimeoutSec)"
+    if ($VerbosePreference -eq 'Continue') {
+        Write-Host ""
+        Write-Host "--- Verbose diagnostics ---" -ForegroundColor DarkGray
+        Write-Host "  Request URL: $RequestUri" -ForegroundColor DarkGray
+        Write-Host "  TimeoutSec:  $TimeoutSec" -ForegroundColor DarkGray
+        Write-Host "  PSVersion:   $($PSVersionTable.PSVersion)" -ForegroundColor DarkGray
+        Write-Host "  Full exception:" -ForegroundColor DarkGray
+        ($ex | Format-List * -Force | Out-String).TrimEnd() -split "`n" | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
+        Write-Host "  Error record:" -ForegroundColor DarkGray
+        ($ErrorRecord | Format-List * -Force | Out-String).TrimEnd() -split "`n" | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
+    }
+}
+
 function Get-MachineIPGeoLocation {
     param([string]$IPAddress)
-    
-    # Build API URL - append IP if provided, otherwise query own IP
+
+    $TimeoutSec = 5
+
+    # Build API URL - append IP if provided, otherwise query own IP (free tier uses HTTP)
     if ($IPAddress) {
         $IPGeolocationAPI = "http://ip-api.com/json/$IPAddress"
         Write-Host "Querying geolocation for IP: $IPAddress..." -ForegroundColor Gray
@@ -256,9 +311,10 @@ function Get-MachineIPGeoLocation {
         $IPGeolocationAPI = "http://ip-api.com/json/"
         Write-Host "Querying public IP geolocation service..." -ForegroundColor Gray
     }
-    
+    Write-Verbose "GET $IPGeolocationAPI (TimeoutSec=$TimeoutSec)"
+
     try {
-        $Response = Invoke-RestMethod -Uri $IPGeolocationAPI -Method Get -TimeoutSec 5
+        $Response = Invoke-RestMethod -Uri $IPGeolocationAPI -Method Get -TimeoutSec $TimeoutSec
         if ($Response.status -eq "success") {
             [PSCustomObject]@{
                 Latitude  = $Response.lat
@@ -271,16 +327,14 @@ function Get-MachineIPGeoLocation {
                 Timezone  = $Response.timezone
             }
         } else {
-            Write-Host "Geolocation API request failed." -ForegroundColor Red
-            Write-Host "Message: $($Response.message)" -ForegroundColor DarkRed
+            Write-Host "Geolocation API returned a non-success status." -ForegroundColor Red
+            Write-Host "  Message: $($Response.message)" -ForegroundColor DarkRed
+            Write-Verbose "Raw response: $($Response | ConvertTo-Json -Compress -Depth 5)"
             return $null
         }
     }
     catch {
-        Write-Host "Failed to connect to the IP geolocation service." -ForegroundColor Red
-        if ($_.Exception.Message -like "*timeout*") {
-            Write-Host "The request timed out." -ForegroundColor DarkYellow
-        }
+        Write-HereGeoErrorDetail -ErrorRecord $_ -RequestUri $IPGeolocationAPI -TimeoutSec $TimeoutSec
         return $null
     }
 }
