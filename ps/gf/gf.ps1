@@ -94,7 +94,10 @@ param(
     [switch]$Observations,
 
     [Parameter(Mandatory = $false)]
-    [string]$Noaa
+    [string]$Noaa,
+
+    [Alias('aqi')]
+    [switch]$AqiSetup
 )
 
 # --- Helper Functions ---
@@ -163,6 +166,9 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host "                • White (≤5mph), Yellow (6-9mph), Red (10-14mph), Magenta (15mph+)" -ForegroundColor Gray
     Write-Host "                • Peak wind hours highlighted with inverted colors" -ForegroundColor Gray
     Write-Host "  -o, -Observations    Show historical weather observations" -ForegroundColor Cyan
+    Write-Host "  -aqi, -AqiSetup     AirNow API key setup (User env var AirNowAPI); exits after setup" -ForegroundColor Cyan
+    Write-Host "                • Request a key: https://docs.airnowapi.org/account/request/" -ForegroundColor Gray
+    Write-Host "                • Optional AQI in weather requires AirNowAPI; see README.txt" -ForegroundColor Gray
     Write-Host "                • Clouds on same line as Conditions when available (SKC=clear, FEW=few, SCT=scattered, BKN=broken, OVC=overcast, VV=vertical visibility)" -ForegroundColor Gray
     Write-Host "                • Pressure (inHg): Cyan (<29.50), White (29.50-30.20), Yellow (>30.20), Red (extreme <29.0 or >30.5)" -ForegroundColor Gray
     Write-Host "  -u, -NoAutoUpdate Start with automatic updates disabled" -ForegroundColor Cyan
@@ -184,18 +190,18 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host "    [F] - Return to full display" -ForegroundColor Cyan
     Write-Host "    [Enter] or [Esc] - Exit the script" -ForegroundColor Cyan
      Write-Host "  In hourly mode, use [↑] and [↓] arrows to scroll through all 48 hours" -ForegroundColor Cyan
-     Write-Host "  Note: All times (hourly, sunrise, sunset) are displayed in the location's timezone" -ForegroundColor Gray
+     Write-Host '  Note: All times (hourly, sunrise, sunset) are displayed in the location''s timezone' -ForegroundColor Gray
     Write-Host ""
     Write-Host "This script retrieves weather info from National Weather Service API (geocoding via OpenStreetMap) and outputs:" -ForegroundColor Blue
-    Write-Host " • Location (City, State)" -ForegroundColor Cyan
+    Write-Host ' • Location (City, State)' -ForegroundColor Cyan
     Write-Host " • Current Conditions" -ForegroundColor Cyan
-    Write-Host " • Temperature with forecast range (Blue <33°F / Red >89°F)" -ForegroundColor Cyan
-    Write-Host " • Wind Chill (Blue when temp <= 50°F and difference > 1°F)" -ForegroundColor Cyan
-    Write-Host " • Heat Index (Red when temp >= 80°F and difference > 1°F)" -ForegroundColor Cyan
+    Write-Host ' • Temperature with forecast range (Blue <33°F / Red >89°F)' -ForegroundColor Cyan
+    Write-Host ' • Wind Chill (Blue when temp <= 50°F and difference > 1°F)' -ForegroundColor Cyan
+    Write-Host ' • Heat Index (Red when temp >= 80°F and difference > 1°F)' -ForegroundColor Cyan
     Write-Host " • Humidity" -ForegroundColor Cyan
-    Write-Host " • Wind (with gust if available; red if wind speed >=16 mph)" -ForegroundColor Cyan
+    Write-Host ' • Wind (with gust if available; red if wind speed >=16 mph)' -ForegroundColor Cyan
     Write-Host " • Sunrise and Sunset times (calculated astronomically)" -ForegroundColor Cyan
-    Write-Host " • Solar irradiance (clear-sky GHI in W/m² at current time + peak at solar noon; hidden in terse mode)" -ForegroundColor Cyan
+    Write-Host ' • Solar irradiance (clear-sky GHI in W/m² at current time + peak at solar noon; hidden in terse mode)' -ForegroundColor Cyan
     Write-Host " • Detailed Forecast" -ForegroundColor Cyan
     Write-Host " • Weather Alerts" -ForegroundColor Cyan
     Write-Host " • Forecast Fetch timestamp" -ForegroundColor Cyan
@@ -213,6 +219,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host "  .\gf.ps1 97219 -w For Wind Outlook" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 97219 -o For Observations" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 -Help" -ForegroundColor Cyan
+    Write-Host "  .\gf.ps1 -aqi                    # Configure AirNow API key (persisted User env)" -ForegroundColor Cyan
     return
 }
 
@@ -675,6 +682,168 @@ function Start-ApiJob {
     return $job
 }
 
+# Read persisted AirNow API key: User env (primary), Machine, then current process
+function Get-AirNowApiKeyFromEnvironment {
+    $k = [Environment]::GetEnvironmentVariable('AirNowAPI', 'User')
+    if ([string]::IsNullOrWhiteSpace($k)) {
+        $k = [Environment]::GetEnvironmentVariable('AirNowAPI', 'Machine')
+    }
+    if ([string]::IsNullOrWhiteSpace($k)) {
+        $k = $env:AirNowAPI
+    }
+    if ([string]::IsNullOrWhiteSpace($k)) { return $null }
+    return $k.Trim()
+}
+
+function Get-AirNowObservationUrl {
+    param(
+        [double]$Lat,
+        [double]$Lon,
+        [string]$ApiKey,
+        [int]$DistanceMiles = 25
+    )
+    $latStr = ($Lat -as [string])
+    $lonStr = ($Lon -as [string])
+    return "https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=$latStr&longitude=$lonStr&distance=$DistanceMiles&API_KEY=$ApiKey"
+}
+
+function Get-AirNowUrlVerboseLog {
+    param([double]$Lat, [double]$Lon)
+    $latStr = ($Lat -as [string])
+    $lonStr = ($Lon -as [string])
+    return "https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=$latStr&longitude=$lonStr&distance=25&API_KEY=(redacted)"
+}
+
+# Fixed lat/lon for AirNow API key validation (-aqi setup only; not shown to the user)
+function Get-AqiValidationCoordinates {
+    $lat = 45.5202471
+    $lon = -122.674194
+    Write-Verbose "AQI validation coords: fixed ($lat, $lon)"
+    return @{ Lat = $lat; Lon = $lon }
+}
+
+function Test-AirNowApiKey {
+    param(
+        [string]$ApiKey,
+        [double]$Lat,
+        [double]$Lon
+    )
+    if ([string]::IsNullOrWhiteSpace($ApiKey)) {
+        return @{ Ok = $false; StatusCode = $null; Detail = "Empty API key" }
+    }
+    $url = Get-AirNowObservationUrl -Lat $Lat -Lon $Lon -ApiKey $ApiKey
+    try {
+        $null = Invoke-RestMethod -Uri $url -Method Get -TimeoutSec 30 -ErrorAction Stop
+        return @{ Ok = $true; StatusCode = 200; Detail = "Request succeeded" }
+    } catch {
+        $code = $null
+        if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+            try { $code = [int]$_.Exception.Response.StatusCode } catch { }
+        }
+        $msg = $_.Exception.Message
+        return @{ Ok = $false; StatusCode = $code; Detail = $msg }
+    }
+}
+
+function Mask-AirNowKeyDisplay {
+    param([string]$Key)
+    if ([string]::IsNullOrWhiteSpace($Key)) { return "(not set)" }
+    if ($Key.Length -le 8) { return "****" }
+    return "****$($Key.Substring([Math]::Max(0, $Key.Length - 4)))"
+}
+
+function Invoke-AirNowAqiSetupMenu {
+    param(
+        [hashtable]$ValCoords
+    )
+    $currentKey = Get-AirNowApiKeyFromEnvironment
+    if ($null -eq $currentKey) {
+        Write-Host "No AirNowAPI key is set in your User environment." -ForegroundColor Yellow
+        $plain = Read-Host "Paste your AirNow API Key (stored in User env)"
+        if ([string]::IsNullOrWhiteSpace($plain)) {
+            Write-Host "No key entered. Exiting." -ForegroundColor Yellow
+            return
+        }
+        [Environment]::SetEnvironmentVariable('AirNowAPI', $plain.Trim(), 'User')
+        $env:AirNowAPI = $plain.Trim()
+        Write-Host "Key saved to User environment variable AirNowAPI." -ForegroundColor Green
+        $test = Test-AirNowApiKey -ApiKey $plain.Trim() -Lat $ValCoords.Lat -Lon $ValCoords.Lon
+        if ($test.Ok) {
+            Write-Host "Validation: OK (HTTP $($test.StatusCode)) - $($test.Detail)" -ForegroundColor Green
+        } else {
+            $sc = if ($null -ne $test.StatusCode) { $test.StatusCode } else { "?" }
+            Write-Host "Validation: FAILED (HTTP $sc) - $($test.Detail)" -ForegroundColor Red
+        }
+        Write-Host ""
+        $null = Get-AirNowApiKeyFromEnvironment
+    }
+
+    while ($true) {
+        $keyNow = Get-AirNowApiKeyFromEnvironment
+        Write-Host "Current key: $(Mask-AirNowKeyDisplay -Key $keyNow)" -ForegroundColor White
+        if ($keyNow) {
+            $test = Test-AirNowApiKey -ApiKey $keyNow -Lat $ValCoords.Lat -Lon $ValCoords.Lon
+            if ($test.Ok) {
+                Write-Host "Status: Valid (HTTP $($test.StatusCode))" -ForegroundColor Green
+            } else {
+                $sc = if ($null -ne $test.StatusCode) { $test.StatusCode } else { "?" }
+                Write-Host "Status: Invalid (HTTP $sc) - $($test.Detail)" -ForegroundColor Red
+            }
+        } else {
+            Write-Host "Status: No key configured" -ForegroundColor Yellow
+        }
+        Write-Host ""
+        # Match interactive control bar: green label, cyan shortcut letter, white remainder, two spaces between options
+        Write-Host "Option: " -ForegroundColor Green -NoNewline
+        Write-Host "U" -ForegroundColor Cyan -NoNewline; Write-Host "pdate key" -ForegroundColor White -NoNewline
+        Write-Host "  " -NoNewline
+        Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "elete key" -ForegroundColor White -NoNewline
+        Write-Host "  " -NoNewline
+        Write-Host "Q" -ForegroundColor Cyan -NoNewline; Write-Host "uit" -ForegroundColor White
+        $choice = Read-Host "Choice"
+        if ($choice -match '^[Uu]$') {
+            $plain = Read-Host "New AirNow API Key"
+            if (-not [string]::IsNullOrWhiteSpace($plain)) {
+                [Environment]::SetEnvironmentVariable('AirNowAPI', $plain.Trim(), 'User')
+                $env:AirNowAPI = $plain.Trim()
+                Write-Host "Key updated." -ForegroundColor Green
+                $test = Test-AirNowApiKey -ApiKey $plain.Trim() -Lat $ValCoords.Lat -Lon $ValCoords.Lon
+                if ($test.Ok) {
+                    Write-Host "Validation: OK (HTTP $($test.StatusCode))" -ForegroundColor Green
+                } else {
+                    $sc = if ($null -ne $test.StatusCode) { $test.StatusCode } else { "?" }
+                    Write-Host "Validation: FAILED (HTTP $sc) - $($test.Detail)" -ForegroundColor Red
+                }
+            }
+        } elseif ($choice -match '^[Dd]$') {
+            $confirm = Read-Host "Delete AirNowAPI from User environment? (y/N)"
+            if ($confirm -match '^[Yy]') {
+                [Environment]::SetEnvironmentVariable('AirNowAPI', $null, 'User')
+                Remove-Item Env:\AirNowAPI -ErrorAction SilentlyContinue
+                Write-Host "AirNowAPI removed. New terminals will not have AQI until you set the key again." -ForegroundColor Yellow
+            }
+        } elseif ($choice -match '^[Qq]$') {
+            return
+        } else {
+            Write-Host "Unknown choice." -ForegroundColor Gray
+        }
+        Write-Host ""
+    }
+}
+
+function Show-AirNowAqiSetup {
+    $requestKeyUrl = "https://docs.airnowapi.org/account/request/"
+    Write-Host ""
+    Write-Host "*** AQI Setup (AirNow) ***" -ForegroundColor Green
+    Write-Host "Optional AQI uses your own AirNow API key stored in your Windows User environment variable AirNowAPI." -ForegroundColor Cyan
+    Write-Host "Request a key: " -NoNewline -ForegroundColor White
+    Write-Host $requestKeyUrl -ForegroundColor Cyan
+    Write-Host ""
+
+    $valCoords = Get-AqiValidationCoordinates
+    Invoke-AirNowAqiSetupMenu -ValCoords $valCoords
+}
+
 # Function to map AQI category number to display color
 function Get-AqiColorFromCategoryNumber {
     param(
@@ -874,12 +1043,20 @@ function Update-WeatherData {
         # This ensures we use the exact URLs the API provides, avoiding potential URL construction issues
         $forecastUrl = $pointsData.properties.forecast
         $hourlyUrl = $pointsData.properties.forecastHourly
-        $aqiUrl = "https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=$lat&longitude=$lon&distance=25&API_KEY=DA771551-4D4D-4571-BCA6-D1B632268818"
-        Write-Verbose "GET: $aqiUrl"
+        $airNowKey = Get-AirNowApiKeyFromEnvironment
+        $aqiJob = $null
+        if ($airNowKey) {
+            $aqiLat = [double]$lat
+            $aqiLon = [double]$lon
+            $aqiUrl = Get-AirNowObservationUrl -Lat $aqiLat -Lon $aqiLon -ApiKey $airNowKey
+            Write-Verbose "GET: $(Get-AirNowUrlVerboseLog -Lat $aqiLat -Lon $aqiLon)"
+            $aqiJob = Start-ApiJob -Url $aqiUrl -Headers @{} -JobName "AirNowAQI"
+        } else {
+            Write-Verbose "AQI disabled: AirNowAPI environment variable not set (persisted User env or session)"
+        }
         
         $forecastJob = Start-ApiJob -Url $forecastUrl -Headers $headers -JobName "ForecastData"
         $hourlyJob = Start-ApiJob -Url $hourlyUrl -Headers $headers -JobName "HourlyData"
-        $aqiJob = Start-ApiJob -Url $aqiUrl -Headers @{} -JobName "AirNowAQI"
         
         # Start alerts job in parallel
         $alertsUrl = "https://api.weather.gov/alerts/active?point=$lat,$lon"
@@ -894,7 +1071,8 @@ function Update-WeatherData {
             $stationsJob = Start-ApiJob -Url $observationStationsUrl -Headers $headers -JobName "ObservationStations"
         }
         
-        $jobsToWaitFor = @($forecastJob, $hourlyJob, $alertsJob, $aqiJob)
+        $jobsToWaitFor = @($forecastJob, $hourlyJob, $alertsJob)
+        if ($aqiJob) { $jobsToWaitFor += $aqiJob }
         if ($stationsJob) {
             $jobsToWaitFor += $stationsJob
         }
@@ -1210,32 +1388,34 @@ function Update-WeatherData {
             PM25AQI = $null
             PM25CategoryNumber = $null
         }
-        if ($aqiJob.State -eq 'Completed') {
-            $aqiJobErrors = @()
-            $aqiJson = $aqiJob | Receive-Job -ErrorVariable aqiJobErrors -ErrorAction SilentlyContinue
-            if ($aqiJobErrors -and $aqiJobErrors.Count -gt 0) {
-                $aqiErrMsg = ($aqiJobErrors | ForEach-Object { $_.Exception.Message } | Select-Object -Unique) -join "; "
-                Write-Verbose "AirNow AQI non-blocking failure details: $aqiErrMsg"
-            }
-            if (-not [string]::IsNullOrWhiteSpace($aqiJson)) {
-                try {
-                    $airNowData = $aqiJson | ConvertFrom-Json
-                    $script:aqiData = Get-AirNowAqiData -AirNowData $airNowData
-                    if ($script:aqiData.ShowAqi) {
-                        Write-Verbose "AirNow AQI display enabled (highest category $($script:aqiData.CategoryNumber))"
-                    } else {
-                        Write-Verbose "AirNow AQI data retrieved but display is suppressed by AQI rules"
-                    }
-                } catch {
-                    Write-Verbose "Failed to parse AirNow AQI data: $($_.Exception.Message)"
+        if ($aqiJob) {
+            if ($aqiJob.State -eq 'Completed') {
+                $aqiJobErrors = @()
+                $aqiJson = $aqiJob | Receive-Job -ErrorVariable aqiJobErrors -ErrorAction SilentlyContinue
+                if ($aqiJobErrors -and $aqiJobErrors.Count -gt 0) {
+                    $aqiErrMsg = ($aqiJobErrors | ForEach-Object { $_.Exception.Message } | Select-Object -Unique) -join "; "
+                    Write-Verbose "AirNow AQI non-blocking failure details: $aqiErrMsg"
                 }
+                if (-not [string]::IsNullOrWhiteSpace($aqiJson)) {
+                    try {
+                        $airNowData = $aqiJson | ConvertFrom-Json
+                        $script:aqiData = Get-AirNowAqiData -AirNowData $airNowData
+                        if ($script:aqiData.ShowAqi) {
+                            Write-Verbose "AirNow AQI display enabled (highest category $($script:aqiData.CategoryNumber))"
+                        } else {
+                            Write-Verbose "AirNow AQI data retrieved but display is suppressed by AQI rules"
+                        }
+                    } catch {
+                        Write-Verbose "Failed to parse AirNow AQI data: $($_.Exception.Message)"
+                    }
+                } else {
+                    Write-Verbose "AirNow AQI API returned empty payload; AQI line suppressed"
+                }
+                Remove-Job -Job $aqiJob -Force -ErrorAction SilentlyContinue
             } else {
-                Write-Verbose "AirNow AQI API returned empty payload; AQI line suppressed"
+                Write-Verbose "AirNow AQI API failed - continuing without AQI output"
+                Remove-Job -Job $aqiJob -Force -ErrorAction SilentlyContinue
             }
-            Remove-Job -Job $aqiJob -Force -ErrorAction SilentlyContinue
-        } else {
-            Write-Verbose "AirNow AQI API failed - continuing without AQI output"
-            Remove-Job -Job $aqiJob -Force -ErrorAction SilentlyContinue
         }
         
         # Update current conditions (only if hourly data is available)
@@ -1421,6 +1601,11 @@ function Update-WeatherData {
 $headers = @{
     "Accept"     = "application/geo+json"
     "User-Agent" = $userAgent
+}
+
+if ($AqiSetup.IsPresent) {
+    Show-AirNowAqiSetup
+    exit 0
 }
 
 # Determine the parent's process name.
@@ -1705,8 +1890,17 @@ Remove-Job -Job $pointsJob
 # This ensures we use the correct office code (e.g., AER vs AFC)
 $forecastUrl = $pointsData.properties.forecast
 $hourlyUrl = $pointsData.properties.forecastHourly
-$aqiUrl = "https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=$lat&longitude=$lon&distance=25&API_KEY=DA771551-4D4D-4571-BCA6-D1B632268818"
-Write-Verbose "GET: $aqiUrl"
+$airNowKey = Get-AirNowApiKeyFromEnvironment
+$aqiJob = $null
+$aqiUrl = $null
+if ($airNowKey) {
+    $aqiLat = [double]$lat
+    $aqiLon = [double]$lon
+    $aqiUrl = Get-AirNowObservationUrl -Lat $aqiLat -Lon $aqiLon -ApiKey $airNowKey
+    Write-Verbose "GET: $(Get-AirNowUrlVerboseLog -Lat $aqiLat -Lon $aqiLon)"
+} else {
+    Write-Verbose "AQI disabled: AirNowAPI environment variable not set (persisted User env or session)"
+}
 
 # Extract grid information (for reference/debugging)
 $office = $pointsData.properties.cwa
@@ -1741,14 +1935,17 @@ if ($VerbosePreference -ne 'Continue') {
 Write-Host "Calling API for $locationDisplay Hourly..." -ForegroundColor Cyan
 
 $hourlyJob = Start-ApiJob -Url $hourlyUrl -Headers $headers -JobName "HourlyData"
-$aqiJob = Start-ApiJob -Url $aqiUrl -Headers @{} -JobName "AirNowAQI"
+if ($aqiUrl) {
+    $aqiJob = Start-ApiJob -Url $aqiUrl -Headers @{} -JobName "AirNowAQI"
+}
 if ($VerbosePreference -ne 'Continue') {
     Clear-Host
 }
 Write-Host "Loading $locationDisplay Data..." -ForegroundColor Yellow
 
 
-$jobsToWaitFor = @($forecastJob, $hourlyJob, $aqiJob)
+$jobsToWaitFor = @($forecastJob, $hourlyJob)
+if ($aqiJob) { $jobsToWaitFor += $aqiJob }
 Wait-Job -Job $jobsToWaitFor | Out-Null
 
 # --- COLLECT RESULTS AND HANDLE ERRORS ---
@@ -1806,32 +2003,34 @@ $aqiData = @{
     PM25AQI = $null
     PM25CategoryNumber = $null
 }
-if ($aqiJob.State -eq 'Completed') {
-    $aqiJobErrors = @()
-    $aqiJson = $aqiJob | Receive-Job -ErrorVariable aqiJobErrors -ErrorAction SilentlyContinue
-    if ($aqiJobErrors -and $aqiJobErrors.Count -gt 0) {
-        $aqiErrMsg = ($aqiJobErrors | ForEach-Object { $_.Exception.Message } | Select-Object -Unique) -join "; "
-        Write-Verbose "AirNow AQI non-blocking failure details: $aqiErrMsg"
-    }
-    if (-not [string]::IsNullOrWhiteSpace($aqiJson)) {
-        try {
-            $airNowData = $aqiJson | ConvertFrom-Json
-            $aqiData = Get-AirNowAqiData -AirNowData $airNowData
-            if ($aqiData.ShowAqi) {
-                Write-Verbose "AirNow AQI display enabled (highest category $($aqiData.CategoryNumber))"
-            } else {
-                Write-Verbose "AirNow AQI data retrieved but display is suppressed by AQI rules"
+if ($aqiJob) {
+    if ($aqiJob.State -eq 'Completed') {
+        $aqiJobErrors = @()
+        $aqiJson = $aqiJob | Receive-Job -ErrorVariable aqiJobErrors -ErrorAction SilentlyContinue
+        if ($aqiJobErrors -and $aqiJobErrors.Count -gt 0) {
+            $aqiErrMsg = ($aqiJobErrors | ForEach-Object { $_.Exception.Message } | Select-Object -Unique) -join "; "
+            Write-Verbose "AirNow AQI non-blocking failure details: $aqiErrMsg"
+        }
+        if (-not [string]::IsNullOrWhiteSpace($aqiJson)) {
+            try {
+                $airNowData = $aqiJson | ConvertFrom-Json
+                $aqiData = Get-AirNowAqiData -AirNowData $airNowData
+                if ($aqiData.ShowAqi) {
+                    Write-Verbose "AirNow AQI display enabled (highest category $($aqiData.CategoryNumber))"
+                } else {
+                    Write-Verbose "AirNow AQI data retrieved but display is suppressed by AQI rules"
+                }
+            } catch {
+                Write-Verbose "Failed to parse AirNow AQI data: $($_.Exception.Message)"
             }
-        } catch {
-            Write-Verbose "Failed to parse AirNow AQI data: $($_.Exception.Message)"
+        } else {
+            Write-Verbose "AirNow AQI API returned empty payload; AQI line suppressed"
         }
     } else {
-        Write-Verbose "AirNow AQI API returned empty payload; AQI line suppressed"
+        Write-Verbose "AirNow AQI API failed - continuing without AQI output"
     }
-} else {
-    Write-Verbose "AirNow AQI API failed - continuing without AQI output"
+    Remove-Job -Job $aqiJob -Force -ErrorAction SilentlyContinue
 }
-Remove-Job -Job $aqiJob -Force -ErrorAction SilentlyContinue
 $script:aqiData = $aqiData
 
 # Preload observations data after initial load (for better UX when switching to Observations mode)

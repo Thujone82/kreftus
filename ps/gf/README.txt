@@ -22,7 +22,7 @@ The script first uses a geocoding service to determine the latitude and longitud
   - Moon phase information with emoji and next full moon date.
   - **All times displayed in location's timezone:** Hourly forecasts, sunrise, sunset, and update times are shown in the destination location's local timezone, not your system's timezone.
   - Weather alerts and warnings.
-  - AQI line (AirNow) after Wind in current conditions when available: `AQI: CategoryName O3[<AQI>] PM2.5[<AQI>]`.
+  - AQI line (AirNow) after Wind when configured: requires your own **AirNow API key** in the persisted Windows **User** environment variable **`AirNowAPI`** (not stored in the script). Use **`.\gf.ps1 -aqi`** to set or validate the key (see [Parameters](#parameters)). When the variable is unset, AQI is omitted.
   - Rain likelihood forecast with visual sparklines.
   - Wind outlook forecast with direction glyphs.
 - **Smart Color-Coding:** Important metrics are color-coded for quick assessment:
@@ -103,7 +103,8 @@ The script first uses a geocoding service to determine the latitude and longitud
 ## Requirements
 - PowerShell
 - An active internet connection.
-- No API key required - uses the free National Weather Service API.
+- **NWS / geocoding:** No API key required for weather (National Weather Service and OpenStreetMap Nominatim).
+- **AQI (optional):** If you want the AirNow AQI line, set the **User** environment variable **`AirNowAPI`** to your key from https://docs.airnowapi.org/account/request/ or run **`.\gf.ps1 -aqi`**.
 
 ## How to Run
 1.  Open a PowerShell terminal.
@@ -157,10 +158,16 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 - `-Verbose` [switch]
   - A built-in PowerShell parameter that displays debugging details for API calls and processing.
   - Includes AQI diagnostics:
-    - AirNow request URL (`GET: ...`)
+    - AirNow request line (`GET:` with API key redacted)
     - Number of AQI rows returned
     - Parsed AQI summary (category, O3, PM2.5)
     - Suppression reasons (empty/null payload, unavailable category 7, terse-mode suppression)
+
+- `-aqi` (alias) or `-AqiSetup` [switch]
+  - Opens the **AQI Setup** screen only, then exits (no weather fetch).
+  - Stores your key in the **User** environment variable **`AirNowAPI`** using `[Environment]::SetEnvironmentVariable(..., 'User')` so **new PowerShell sessions** keep the key (not session-only).
+  - Validates the key with a test request to AirNow at fixed coordinates (Portland, OR area: 45.5202471, -122.674194).
+  - Request an AirNow key: https://docs.airnowapi.org/account/request/
 
 - `-Terse` or `-t` [switch]
   - Shows only current conditions and today's forecast (plus alerts if they exist).
@@ -302,6 +309,11 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 ### Example 15: View help information
 ```powershell
 .\gf.ps1 -Help
+```
+
+### Example 15a: AirNow API key setup (AQI optional)
+```powershell
+.\gf.ps1 -aqi
 ```
 
 ### Example 16: Start with control bar hidden
@@ -541,3 +553,4 @@ Due to differences in the National Weather Service API, the following features a
 - **User Agent:** GetForecast/1.0 (081625PDX)
 - **Format:** GeoJSON
 - **Rate Limits:** None specified, but please be respectful of the service
+- **AirNow (optional AQI):** `https://www.airnowapi.org/aq/observation/latLong/current/` — requires your own API key in the **`AirNowAPI`** User environment variable; the script never embeds a key.
