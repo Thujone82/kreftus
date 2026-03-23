@@ -5,7 +5,8 @@
 
 DESCRIPTION:
     This PowerShell script retrieves the machine's approximate geographical 
-    location using a public IP Geolocation API. It provides a clean, modern
+    location using public IP Geolocation APIs with automatic fallback. It
+    provides a clean, modern
     colorized output showing location details, coordinates, network information,
     and astronomical data (sunrise, sunset, moon phase, solar information) with
     professional formatting.
@@ -15,6 +16,8 @@ FEATURES:
     - Real-time API query feedback
     - Organized information display with modern headers
     - Comprehensive error handling with timeout detection
+    - Multi-provider geolocation fallback (ip-api.com -> ipwho.is -> ipapi.co)
+    - Provider-by-provider verbose diagnostics with request status and timing
     - Clean ASCII-based formatting for universal compatibility
     - Astronomical calculations (sunrise, sunset, moon phase)
     - Day length, solar noon, and solar irradiance (clear-sky GHI in W/m²) calculations
@@ -28,6 +31,8 @@ REQUIREMENTS:
 
 USAGE:
     .\here.ps1
+    .\here.ps1 -Verbose
+    .\here.ps1 1.1.1.1 -Verbose
     
     Or from any directory:
     PowerShell -ExecutionPolicy Bypass -File "C:\path\to\here.ps1"
@@ -64,18 +69,44 @@ ACCURACY NOTE:
     Results may vary depending on your internet service provider's network
     infrastructure and IP geolocation database accuracy.
 
-API USED:
-    ip-api.com (free tier)
-    - No API key required
-    - Automatic IP detection
-    - JSON response format
-    - 5-second timeout
+API PROVIDERS (FALLBACK ORDER):
+    1) ip-api.com
+       - URL: http://ip-api.com/json/{ip?}
+       - No API key required
+       - Free tier endpoint uses HTTP
+
+    2) ipwho.is
+       - URL: https://ipwho.is/{ip?}
+       - No API key required
+       - HTTPS endpoint
+
+    3) ipapi.co
+       - URL: https://ipapi.co/{ip?}/json/
+       - No API key required (basic usage)
+       - HTTPS endpoint
+
+    Notes:
+    - Provider timeout is 5 seconds per attempt.
+    - The script stops at the first successful provider.
 
 ERROR HANDLING:
-    - Connection timeout detection (5 seconds)
+    - Connection timeout detection (5 seconds per provider)
     - API failure message handling
     - Network connectivity validation
+    - Automatic fallback to next provider on failure
+    - Final aggregated failure summary when all providers fail
     - Clear error messages with appropriate colors
+
+VERBOSE DIAGNOSTICS (-Verbose):
+    For each provider attempt, verbose output includes:
+    - Provider name
+    - Request URL
+    - Timeout seconds
+    - Request duration (ms)
+    - API status/message when available
+    - HTTP status when available
+    - Exception type/message on transport failures
+    - Full exception and ErrorRecord details for troubleshooting
 
 COLOR SCHEME:
     Cyan     - Headers and borders
@@ -119,6 +150,8 @@ EXAMPLE OUTPUT:
 TROUBLESHOOTING:
     - Ensure internet connectivity
     - Check firewall settings
+    - If ip-api.com is unreachable, script will automatically try ipwho.is then ipapi.co
+    - Use -Verbose to view per-provider request status and timing
     - Verify PowerShell execution policy
     - Try running as administrator if blocked
 
@@ -130,12 +163,15 @@ ASTRONOMICAL CALCULATIONS:
     - Automatic timezone resolution (IANA to Windows timezone conversion)
     - Handles edge cases: polar day/night scenarios
 
-VERSION: 1.2
+VERSION: 1.3
 AUTHOR:  Generated for kreftus project
 DATE:    Current
 LICENSE: See project LICENSE file
 
 CHANGELOG:
+    v1.3 - Added multi-provider geolocation fallback chain:
+           ip-api.com -> ipwho.is -> ipapi.co
+           Added provider-level verbose diagnostics and request status reporting
     v1.2 - Added solar irradiance (clear-sky GHI in W/m²) after Solar Noon
     v1.1 - Added astronomical information (sunrise, sunset, moon phase, 
            day length, solar noon, timezone, local time)

@@ -3,8 +3,9 @@
     Retrieves the machine's approximate geographical location using a public IP Geolocation API.
 
 .DESCRIPTION
-    This script uses Invoke-RestMethod to query a third-party web service 
-    (ip-api.com) for the geographical location based on the machine's public IP address.
+    This script uses Invoke-RestMethod to query third-party web services
+    for geographical location based on the machine's public IP address.
+    Provider fallback order: ip-api.com -> ipwho.is -> ipapi.co.
     Optionally accepts an IP address as a command line argument to query a specific IP.
 
 .PARAMETER IPAddress
@@ -16,6 +17,7 @@
 .NOTES
     - Requires an active internet connection.
     - Location accuracy is based on the IP address, not GPS, so it may be less precise.
+    - Geolocation provider fallback order: ip-api.com, ipwho.is, ipapi.co.
     - Displays astronomical data: sunrise, sunset, day length, solar noon, irradiance (clear-sky GHI in W/m²), moon phase.
     - Usage: .\here.ps1 [IPAddress]
     - Example: .\here.ps1 1.1.1.1
@@ -249,53 +251,232 @@ function Get-MoonPhase {
     }
 }
 
-function Write-HereGeoErrorDetail {
+function New-HereGeoAttemptResult {
     param(
-        [System.Management.Automation.ErrorRecord]$ErrorRecord,
-        [string]$RequestUri,
-        [int]$TimeoutSec
+        [string]$ProviderName,
+        [string]$RequestUri
     )
-    $ex = $ErrorRecord.Exception
-    Write-Host "Failed to connect to the IP geolocation service." -ForegroundColor Red
-    Write-Host "  Exception: $($ex.Message)" -ForegroundColor Yellow
-    if ($ex.InnerException) {
-        Write-Host "  Inner:     $($ex.InnerException.Message)" -ForegroundColor Yellow
+
+    return [PSCustomObject]@{
+        ProviderName      = $ProviderName
+        RequestUri        = $RequestUri
+        TimeoutSec        = $null
+        DurationMs        = $null
+        Success           = $false
+        ApiStatus         = $null
+        ApiMessage        = $null
+        HttpStatus        = $null
+        ExceptionType     = $null
+        ExceptionMessage  = $null
+        ErrorRecord       = $null
+        Location          = $null
     }
-    if ($ErrorRecord.ErrorDetails -and $ErrorRecord.ErrorDetails.Message) {
-        Write-Host "  Details:   $($ErrorRecord.ErrorDetails.Message)" -ForegroundColor Yellow
+}
+
+function Get-HereGeoFailureReason {
+    param([psobject]$Attempt)
+
+    if ($Attempt.ApiMessage -and -not [string]::IsNullOrWhiteSpace($Attempt.ApiMessage)) {
+        return $Attempt.ApiMessage
     }
-    if ($ex -is [System.Net.WebException]) {
-        Write-Host "  Web status: $($ex.Status)" -ForegroundColor Yellow
-        if ($ex.Response) {
+    if ($Attempt.ExceptionMessage -and -not [string]::IsNullOrWhiteSpace($Attempt.ExceptionMessage)) {
+        return $Attempt.ExceptionMessage
+    }
+    if ($Attempt.HttpStatus -and -not [string]::IsNullOrWhiteSpace($Attempt.HttpStatus)) {
+        return "HTTP $($Attempt.HttpStatus)"
+    }
+    if ($Attempt.ApiStatus -and -not [string]::IsNullOrWhiteSpace($Attempt.ApiStatus)) {
+        return "status=$($Attempt.ApiStatus)"
+    }
+    return "Unknown failure"
+}
+
+function Write-HereGeoAttemptDetail {
+    param(
+        [psobject]$Attempt,
+        [switch]$FinalFailure
+    )
+
+    $reason = Get-HereGeoFailureReason -Attempt $Attempt
+
+    if ($FinalFailure) {
+        Write-Host "Failed provider: $($Attempt.ProviderName) [$reason]" -ForegroundColor DarkYellow
+    }
+
+    Write-Verbose "[$($Attempt.ProviderName)] Request URL: $($Attempt.RequestUri)"
+    Write-Verbose "[$($Attempt.ProviderName)] TimeoutSec:  $($Attempt.TimeoutSec)"
+    Write-Verbose "[$($Attempt.ProviderName)] DurationMs:  $($Attempt.DurationMs)"
+    Write-Verbose "[$($Attempt.ProviderName)] ApiStatus:   $($Attempt.ApiStatus)"
+    Write-Verbose "[$($Attempt.ProviderName)] ApiMessage:  $($Attempt.ApiMessage)"
+    Write-Verbose "[$($Attempt.ProviderName)] HttpStatus:  $($Attempt.HttpStatus)"
+    Write-Verbose "[$($Attempt.ProviderName)] Exception:   $($Attempt.ExceptionType) $($Attempt.ExceptionMessage)"
+
+    if ($VerbosePreference -eq 'Continue' -and $Attempt.ErrorRecord) {
+        Write-Host ""
+        Write-Host "--- Verbose diagnostics [$($Attempt.ProviderName)] ---" -ForegroundColor DarkGray
+        Write-Host "  Request URL: $($Attempt.RequestUri)" -ForegroundColor DarkGray
+        Write-Host "  TimeoutSec:  $($Attempt.TimeoutSec)" -ForegroundColor DarkGray
+        Write-Host "  DurationMs:  $($Attempt.DurationMs)" -ForegroundColor DarkGray
+        Write-Host "  PSVersion:   $($PSVersionTable.PSVersion)" -ForegroundColor DarkGray
+        Write-Host "  Full exception:" -ForegroundColor DarkGray
+        ($Attempt.ErrorRecord.Exception | Format-List * -Force | Out-String).TrimEnd() -split "`n" | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
+        Write-Host "  Error record:" -ForegroundColor DarkGray
+        ($Attempt.ErrorRecord | Format-List * -Force | Out-String).TrimEnd() -split "`n" | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
+    }
+}
+
+function New-HereGeoLocationObject {
+    param(
+        [object]$Latitude,
+        [object]$Longitude,
+        [string]$City,
+        [string]$Region,
+        [string]$Country,
+        [string]$PublicIP,
+        [string]$Provider,
+        [string]$Timezone
+    )
+
+    if ($null -eq $Latitude -or $null -eq $Longitude) {
+        return $null
+    }
+
+    return [PSCustomObject]@{
+        Latitude  = [double]$Latitude
+        Longitude = [double]$Longitude
+        City      = $City
+        Region    = $Region
+        Country   = $Country
+        PublicIP  = $PublicIP
+        Provider  = $Provider
+        Timezone  = $Timezone
+    }
+}
+
+function Get-GeoFromIpApi {
+    param([string]$IPAddress, [int]$TimeoutSec)
+
+    $requestUri = if ($IPAddress) { "http://ip-api.com/json/$IPAddress" } else { "http://ip-api.com/json/" }
+    $attempt = New-HereGeoAttemptResult -ProviderName "ip-api.com" -RequestUri $requestUri
+    $attempt.TimeoutSec = $TimeoutSec
+
+    try {
+        $response = Invoke-RestMethod -Uri $requestUri -Method Get -TimeoutSec $TimeoutSec
+        $attempt.ApiStatus = [string]$response.status
+        $attempt.ApiMessage = [string]$response.message
+
+        if ($response.status -eq "success") {
+            $attempt.Success = $true
+            $attempt.Location = New-HereGeoLocationObject `
+                -Latitude $response.lat `
+                -Longitude $response.lon `
+                -City ([string]$response.city) `
+                -Region ([string]$response.regionName) `
+                -Country ([string]$response.country) `
+                -PublicIP ([string]$response.query) `
+                -Provider ([string]$response.isp) `
+                -Timezone ([string]$response.timezone)
+        }
+    }
+    catch {
+        $attempt.ErrorRecord = $_
+        $attempt.ExceptionType = $_.Exception.GetType().FullName
+        $attempt.ExceptionMessage = $_.Exception.Message
+        if ($_.Exception -is [System.Net.WebException] -and $_.Exception.Response) {
             try {
-                $code = [int]$ex.Response.StatusCode
-                Write-Host "  HTTP:      $code $($ex.Response.StatusDescription)" -ForegroundColor Yellow
+                $attempt.HttpStatus = "{0} {1}" -f [int]$_.Exception.Response.StatusCode, $_.Exception.Response.StatusDescription
             } catch {}
         }
     }
-    # Common hints without needing -Verbose
-    $msg = $ex.Message + $(if ($ex.InnerException) { $ex.InnerException.Message } else { '' })
-    if ($msg -match 'timeout|timed out|TaskCanceled|canceled') {
-        Write-Host "  Hint: Request exceeded ${TimeoutSec}s or was canceled (firewall, proxy, or slow link)." -ForegroundColor DarkYellow
+
+    return $attempt
+}
+
+function Get-GeoFromIpWhoIs {
+    param([string]$IPAddress, [int]$TimeoutSec)
+
+    $requestUri = if ($IPAddress) { "https://ipwho.is/$IPAddress" } else { "https://ipwho.is/" }
+    $attempt = New-HereGeoAttemptResult -ProviderName "ipwho.is" -RequestUri $requestUri
+    $attempt.TimeoutSec = $TimeoutSec
+
+    try {
+        $response = Invoke-RestMethod -Uri $requestUri -Method Get -TimeoutSec $TimeoutSec
+        $attempt.ApiStatus = [string]$response.success
+        $attempt.ApiMessage = [string]$response.message
+
+        if ($response.success -eq $true) {
+            $isp = $null
+            if ($response.connection) {
+                $isp = [string]$response.connection.isp
+            }
+            $timezone = $null
+            if ($response.timezone) {
+                $timezone = [string]$response.timezone.id
+            }
+
+            $attempt.Success = $true
+            $attempt.Location = New-HereGeoLocationObject `
+                -Latitude $response.latitude `
+                -Longitude $response.longitude `
+                -City ([string]$response.city) `
+                -Region ([string]$response.region) `
+                -Country ([string]$response.country) `
+                -PublicIP ([string]$response.ip) `
+                -Provider $isp `
+                -Timezone $timezone
+        }
     }
-    if ($msg -match 'refused|actively refused|connection reset|Could not establish|No connection') {
-        Write-Host "  Hint: Connection blocked or reset — check firewall, VPN, proxy, or corporate filter for http://ip-api.com" -ForegroundColor DarkYellow
+    catch {
+        $attempt.ErrorRecord = $_
+        $attempt.ExceptionType = $_.Exception.GetType().FullName
+        $attempt.ExceptionMessage = $_.Exception.Message
+        if ($_.Exception -is [System.Net.WebException] -and $_.Exception.Response) {
+            try {
+                $attempt.HttpStatus = "{0} {1}" -f [int]$_.Exception.Response.StatusCode, $_.Exception.Response.StatusDescription
+            } catch {}
+        }
     }
-    if ($msg -match 'SSL|TLS|certificate|HTTPS') {
-        Write-Host "  Hint: TLS/SSL issue — try updating PowerShell / OS root certificates." -ForegroundColor DarkYellow
+
+    return $attempt
+}
+
+function Get-GeoFromIpApiCo {
+    param([string]$IPAddress, [int]$TimeoutSec)
+
+    $requestUri = if ($IPAddress) { "https://ipapi.co/$IPAddress/json/" } else { "https://ipapi.co/json/" }
+    $attempt = New-HereGeoAttemptResult -ProviderName "ipapi.co" -RequestUri $requestUri
+    $attempt.TimeoutSec = $TimeoutSec
+
+    try {
+        $response = Invoke-RestMethod -Uri $requestUri -Method Get -TimeoutSec $TimeoutSec
+        $attempt.ApiStatus = if ($response.error -eq $true) { "error" } else { "success" }
+        $attempt.ApiMessage = if ($response.reason) { [string]$response.reason } else { [string]$response.error }
+
+        if ($response.error -ne $true -and $null -ne $response.latitude -and $null -ne $response.longitude) {
+            $attempt.Success = $true
+            $attempt.Location = New-HereGeoLocationObject `
+                -Latitude $response.latitude `
+                -Longitude $response.longitude `
+                -City ([string]$response.city) `
+                -Region ([string]$response.region) `
+                -Country ([string]$response.country_name) `
+                -PublicIP ([string]$response.ip) `
+                -Provider ([string]$response.org) `
+                -Timezone ([string]$response.timezone)
+        }
     }
-    Write-Verbose "Request: GET $RequestUri (TimeoutSec=$TimeoutSec)"
-    if ($VerbosePreference -eq 'Continue') {
-        Write-Host ""
-        Write-Host "--- Verbose diagnostics ---" -ForegroundColor DarkGray
-        Write-Host "  Request URL: $RequestUri" -ForegroundColor DarkGray
-        Write-Host "  TimeoutSec:  $TimeoutSec" -ForegroundColor DarkGray
-        Write-Host "  PSVersion:   $($PSVersionTable.PSVersion)" -ForegroundColor DarkGray
-        Write-Host "  Full exception:" -ForegroundColor DarkGray
-        ($ex | Format-List * -Force | Out-String).TrimEnd() -split "`n" | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
-        Write-Host "  Error record:" -ForegroundColor DarkGray
-        ($ErrorRecord | Format-List * -Force | Out-String).TrimEnd() -split "`n" | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
+    catch {
+        $attempt.ErrorRecord = $_
+        $attempt.ExceptionType = $_.Exception.GetType().FullName
+        $attempt.ExceptionMessage = $_.Exception.Message
+        if ($_.Exception -is [System.Net.WebException] -and $_.Exception.Response) {
+            try {
+                $attempt.HttpStatus = "{0} {1}" -f [int]$_.Exception.Response.StatusCode, $_.Exception.Response.StatusDescription
+            } catch {}
+        }
     }
+
+    return $attempt
 }
 
 function Get-MachineIPGeoLocation {
@@ -303,40 +484,44 @@ function Get-MachineIPGeoLocation {
 
     $TimeoutSec = 5
 
-    # Build API URL - append IP if provided, otherwise query own IP (free tier uses HTTP)
     if ($IPAddress) {
-        $IPGeolocationAPI = "http://ip-api.com/json/$IPAddress"
         Write-Host "Querying geolocation for IP: $IPAddress..." -ForegroundColor Gray
     } else {
-        $IPGeolocationAPI = "http://ip-api.com/json/"
         Write-Host "Querying public IP geolocation service..." -ForegroundColor Gray
     }
-    Write-Verbose "GET $IPGeolocationAPI (TimeoutSec=$TimeoutSec)"
 
-    try {
-        $Response = Invoke-RestMethod -Uri $IPGeolocationAPI -Method Get -TimeoutSec $TimeoutSec
-        if ($Response.status -eq "success") {
-            [PSCustomObject]@{
-                Latitude  = $Response.lat
-                Longitude = $Response.lon
-                City      = $Response.city
-                Region    = $Response.regionName
-                Country   = $Response.country
-                PublicIP  = $Response.query
-                Provider  = $Response.isp
-                Timezone  = $Response.timezone
-            }
-        } else {
-            Write-Host "Geolocation API returned a non-success status." -ForegroundColor Red
-            Write-Host "  Message: $($Response.message)" -ForegroundColor DarkRed
-            Write-Verbose "Raw response: $($Response | ConvertTo-Json -Compress -Depth 5)"
-            return $null
+    $providerSequence = @(
+        @{ Name = "ip-api.com"; Invoke = { param($ip, $timeout) Get-GeoFromIpApi -IPAddress $ip -TimeoutSec $timeout } },
+        @{ Name = "ipwho.is";   Invoke = { param($ip, $timeout) Get-GeoFromIpWhoIs -IPAddress $ip -TimeoutSec $timeout } },
+        @{ Name = "ipapi.co";   Invoke = { param($ip, $timeout) Get-GeoFromIpApiCo -IPAddress $ip -TimeoutSec $timeout } }
+    )
+
+    $attempts = @()
+
+    foreach ($provider in $providerSequence) {
+        Write-Verbose "[$($provider.Name)] Starting request..."
+        $timer = [System.Diagnostics.Stopwatch]::StartNew()
+        $attempt = & $provider.Invoke $IPAddress $TimeoutSec
+        $timer.Stop()
+        $attempt.DurationMs = [int]$timer.ElapsedMilliseconds
+        $attempts += $attempt
+
+        if ($attempt.Success -and $attempt.Location) {
+            Write-Verbose "[$($provider.Name)] Request succeeded (DurationMs=$($attempt.DurationMs), Status=$($attempt.ApiStatus))"
+            return $attempt.Location
         }
+
+        Write-Verbose "[$($provider.Name)] Request failed (DurationMs=$($attempt.DurationMs), Status=$($attempt.ApiStatus), Message=$($attempt.ApiMessage))"
+        Write-HereGeoAttemptDetail -Attempt $attempt
+        Write-Verbose "[$($provider.Name)] Provider failed, trying next provider..."
     }
-    catch {
-        Write-HereGeoErrorDetail -ErrorRecord $_ -RequestUri $IPGeolocationAPI -TimeoutSec $TimeoutSec
-        return $null
+
+    Write-Host "All geolocation providers failed." -ForegroundColor Red
+    foreach ($attempt in $attempts) {
+        Write-HereGeoAttemptDetail -Attempt $attempt -FinalFailure
     }
+    Write-Host "Could not retrieve geolocation data from ip-api.com, ipwho.is, or ipapi.co." -ForegroundColor DarkRed
+    return $null
 }
 
 # Script Execution
