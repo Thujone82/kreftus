@@ -18,7 +18,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
 
 - **No API Key Required:** Uses the free National Weather Service API which requires no registration or API key.
 - **Flexible Location Input:** Can determine latitude and longitude from either a 5-digit US zip code, a "City, State" formatted string, or the "here" keyword for automatic location detection.
-- **Automatic Location Detection:** Uses ip-api.com to automatically detect the user's current location based on their IP address when "here" is specified.
+- **Automatic Location Detection:** Uses a fallback provider chain (`ip-api.com` -> `ipwho.is` -> `ipapi.co`) to detect the user's current location from public IP when "here" is specified.
 - **Comprehensive Data Display:** Shows current temperature, conditions, wind chill and heat index calculations (using NWS formulas), detailed forecasts for today and tomorrow, wind information, sunrise and sunset times (calculated astronomically), solar irradiance (clear-sky GHI in W/m², displayed after sunset in white, including in terse mode), moon phase information with emoji and next full moon date, rain likelihood forecasts with visual sparklines, and wind outlook forecasts with direction glyphs. **All times (hourly forecasts, sunrise, sunset, update times) are displayed in the destination location's local timezone, not your system's timezone.** Enhanced Daily Mode and Observations Mode display sunrise, sunset, and day length for each day. Section titles (Hourly, 7-Day Summary, Rain Outlook, Wind Outlook) use as many words from the city name as fit within 20 characters to prevent title wrapping and maintain consistent formatting (e.g., "Salt Lake City" fits fully, "Portland International Airport" becomes "Portland").
 - **Weather Alerts:** Automatically fetches and displays any active weather alerts (e.g., warnings, watches) from official sources.
 - **Color-Coded Metrics:** Key data points (temperature, wind speed) change color (blue for cold, red for hot) to indicate potentially hazardous conditions. Rain likelihood sparklines use color coding (white for very low, cyan for low, green for light, yellow for medium, red for high probability). Wind outlook glyphs use color coding (white for calm, yellow for light breeze, red for moderate wind, magenta for strong wind) with peak wind hours highlighted using inverted colors. **Hour Labels:** Hour labels in the hourly forecast (e.g., "08:00", "09:00") are colored yellow when the majority of that hour is during daytime (determined by checking if the hour midpoint falls between sunrise and sunset), otherwise displayed in white. This applies to both the hourly forecast in the main modal and the dedicated hourly modal. **Humidity:** Uses meteorological comfort thresholds based on relative humidity percentage. Low humidity (<30%) can cause dry skin, static electricity, and respiratory discomfort (cyan). Comfortable range (30-60%) is ideal for human comfort (white). Elevated humidity (61-70%) begins to feel muggy and can affect perceived temperature (yellow). High humidity (>70%) is oppressive, significantly increases heat index, and can be dangerous in hot weather (red). **Dew Point:** More reliable than humidity for assessing comfort as it's independent of temperature. Dew point represents the temperature at which air becomes saturated and condensation forms. Values below 40°F indicate very dry air (cyan), 40-54°F is comfortable (white), 55-64°F feels sticky and muggy (yellow), and 65°F+ is oppressive and can be dangerous when combined with high temperatures (red). Dew points above 70°F are rare but extremely uncomfortable. **Pressure (Observations):** Barometric pressure in inHg with color coding: low (<29.50 inHg) cyan, normal (29.50-30.20) white, high (30.20-30.50) yellow, extreme (<29.0 or >30.5) alert/magenta.
@@ -63,11 +63,23 @@ The script follows a multi-step process:
 
 **Update-WeatherData URL Consistency:** The `Update-WeatherData` function now uses URLs directly from the Points API response (`$pointsData.properties.forecast` and `$pointsData.properties.forecastHourly`) instead of manually constructing them, matching the initial load behavior exactly. This ensures consistency between initial load and refresh operations, preventing potential URL format issues that could cause update failures. The function also uses `Wait-Job -Job $jobsToWaitFor | Out-Null` (waiting indefinitely) instead of a 30-second timeout, matching the initial load behavior and relying on the job's internal timeout in `Start-ApiJob`.
 
+**Here Geolocation Fallback Chain:** The `here` path in `gf.ps1` uses provider-specific helpers (`Get-GeoFromIpApi`, `Get-GeoFromIpWhoIs`, `Get-GeoFromIpApiCo`) under `Get-CurrentLocation`, with ordered fallback and short-circuit success. Each provider attempt is normalized to a shared contract before being mapped into the existing `here` location object used by the rest of the weather flow.
+
+- **Provider order:** `ip-api.com` -> `ipwho.is` -> `ipapi.co`
+- **Normalized contract fields:** `Latitude`, `Longitude`, `City`, `Region`, `Country`, `PublicIP`, `Provider`, `Timezone`
+- **Short-circuit behavior:** First successful provider ends lookup immediately; no additional providers are called.
+- **Verbose diagnostics per attempt:** request URL, timeout, duration, API status/message, HTTP status (if available), exception type/message, plus detailed exception dump when `-Verbose` is enabled.
+- **Aggregate failure handling:** If all providers fail, script prints concise provider-specific failure lines (`Failed provider: ... [reason]`) and throws a single final error for the caller path (`Location not found, try again` in existing control flow).
+
 ### API Endpoints Used
 
 - **Geocoding:** 
   - `https://api.zippopotam.us/us/{zipcode}` (for zip codes)
   - `https://nominatim.openstreetmap.org/search` (for city/state)
+- **Here Auto-Location (fallback chain):**
+  - `http://ip-api.com/json/` (primary)
+  - `https://ipwho.is/` (secondary)
+  - `https://ipapi.co/json/` (tertiary)
 - **NWS Points:** `https://api.weather.gov/points/{lat},{lon}`
 - **Forecast:** `https://api.weather.gov/gridpoints/{office}/{gridX},{gridY}/forecast`
 - **Hourly:** `https://api.weather.gov/gridpoints/{office}/{gridX},{gridY}/forecast/hourly`

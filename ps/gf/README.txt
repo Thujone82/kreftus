@@ -10,7 +10,7 @@ The script first uses a geocoding service to determine the latitude and longitud
 
 ## Features
 - **Flexible Location Input:** Accepts 5-digit zip codes, city/state names (e.g., "Portland, OR"), or "here" for automatic location detection.
-- **Automatic Location Detection:** Use "here" to automatically detect your location based on your IP address.
+- **Automatic Location Detection:** Use "here" to automatically detect your location based on your IP address with provider fallback (`ip-api.com` -> `ipwho.is` -> `ipapi.co`).
 - **Interactive Prompt:** If no location is provided, the script displays a welcome screen and prompts for input.
 - **Comprehensive Weather Data:** Displays a wide range of information, including:
   - Current temperature and conditions.
