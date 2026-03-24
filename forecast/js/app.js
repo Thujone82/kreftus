@@ -3722,7 +3722,7 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
         // If AQI is enabled and valid but missing from cached weather, backfill AQI in background
         // without forcing a full weather refresh or changing weather fetch timestamp.
         const missingAqiInCache = !restoredWeatherData?.aqi || !restoredWeatherData?.aqi?.show;
-        if (appState.enableAqi && appState.airNowApiKeyValid && missingAqiInCache) {
+        if (appState.autoUpdateEnabled && appState.enableAqi && appState.airNowApiKeyValid && missingAqiInCache) {
             const aqiCacheKey = locationKey
                 || appState.currentLocationKey
                 || generateLocationKey(restoredWeatherData.location);
@@ -4055,6 +4055,13 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
 // Load weather data
 async function loadWeatherData(location, silentOnLocationFailure = false, background = false) {
     try {
+        // Hard guard: when Auto-Update Data is off, block all background-triggered fetches.
+        // Manual/user-initiated actions call loadWeatherData with background=false.
+        if (background && !appState.autoUpdateEnabled) {
+            console.log('Skipping background weather fetch because Auto-Update Data is off.');
+            return;
+        }
+
         setLoading(true, background);
         hideError();
         
