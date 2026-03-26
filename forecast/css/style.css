@@ -892,6 +892,20 @@ body.ui-density-normal .weather-content {
     color: var(--color-text);
 }
 
+/* AQI token styles */
+.aqi-token {
+    display: inline-block;
+    line-height: 1.2;
+}
+
+.aqi-token-severe {
+    color: #ffffff;
+    border: 1px solid #ffffff;
+    border-radius: 4px;
+    padding: 0.05rem 0.3rem;
+    font-weight: 700;
+}
+
 /* Updated timestamp - blue by default, red if stale */
 .updated-timestamp {
     color: var(--color-info); /* Blue */
