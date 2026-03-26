@@ -31,9 +31,14 @@ All static assets are cached in the `STATIC_ASSETS` array in `service-worker.js`
 
 ## Cache-Busting Parameters
 
-Script and stylesheet URLs in `index.html` use the same **VERSION** as the service worker. The file contains placeholders `?v={{VERSION}}` that are replaced at deploy time.
+Script and stylesheet URLs in `index.html` use explicit `?v=<version>` query params.
 
-**Deploy-time script:** Run `node forecast/scripts/inject-version.js` (from repo root) before deploying. The script reads `VERSION` from `forecast/service-worker.js` and replaces all `{{VERSION}}` in `forecast/index.html` with that value. Then only `VERSION` in `service-worker.js` and `version` in `manifest.json` need to be updated on release; asset cache busting stays in sync automatically.
+**Release workflow:** Run `.\forecast\version.ps1 <newVersion>` from repo root (or run without args to be prompted). The script updates:
+- `service-worker.js` (`const VERSION = '...'`)
+- `manifest.json` (`"version": "..."`)
+- `index.html` asset query params (`?v=...`)
+
+This keeps service worker cache versioning and asset cache-busting aligned without any deploy-time placeholder injection.
 
 ---
 
@@ -118,6 +123,6 @@ When the app receives `CLEAR_CACHE` from the service worker:
 ## Testing the Update Flow
 
 1. Bump **both** `VERSION` in `service-worker.js` and `version` in `manifest.json` (e.g. `1.2.4` → `1.2.5`).
-2. Optionally bump cache-busting params in `index.html` for changed files (e.g. `?v=5`).
+2. Run `.\forecast\version.ps1 <newVersion>` to update cache-busting params in `index.html` along with service worker/manifest versions.
 3. Deploy; the app will detect the change within 5 minutes (or when the user triggers a check), or immediately when a new SW installs (`updatefound`).
 4. “New version available!” should appear; clicking **Reload** should clear caches, unregister the SW, and reload with the new version.

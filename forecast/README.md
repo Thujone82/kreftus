@@ -5,11 +5,11 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 ## Features
 
 - **No API Key Required**: Uses free National Weather Service API
-- **Optional AQI (AirNow)**: Add your own AirNow API key in Settings to display an AQI line in Current Conditions
+- **Optional AQI (AirNow)**: Add your own AirNow API key in Settings to display an AQI line in Current Conditions using official AQI category colors; categories 5/6 are emphasized with white text on colored badges and white borders for contrast
 - **Multiple Display Modes**: Full, Daily, Hourly, Rain, Wind, and History
 - **PWA Support**: Installable as a web app with offline support and update detection
 - **Saved Locations**: Save favorite locations and switch between them; locations bar open/closed state is remembered
-- **Settings (gear or double-click header icon)**: Accent colors (primary/secondary), Reset Colors, Standard/Metric units, AM/PM or 24-hour time, Auto-Update Data, optional AQI (Enable AQI + AirNow API key with inline validation), Extras (Enable Solar Irradiance, Enable per Location Colors); Reset Forecast clears all data and settings to defaults
+- **Settings (gear or double-click header icon)**: Accent colors (primary/secondary), Reset Colors, Standard/Metric units, AM/PM or 24-hour time, Compact/Normal density, Auto-Update Data, optional AQI (Enable AQI + AirNow API key with inline validation), Extras (Enable Solar Irradiance, Enable per Location Colors); Reset Forecast clears all data and settings to defaults
 - **Control Bar**: Favorite (save location), current location (pin), Locations (open/close saved locations), Refresh, Share (copy or share URL), Settings (gear)
 - **Share**: Copy shareable link or use Web Share API when available; URL can include location and mode
 - **Units**: Standard (°F, mph, inHg, ft, in) or Metric (°C, m/s, hPa, m, mm) for all displayed values—temperature, wind, pressure, elevation, station distance, tide heights, precipitation, and cloud ceiling (ft or m) in History
@@ -28,7 +28,7 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 
 2. **Deploy**: Static web app; serve from any web server. HTTPS is required in production for PWA features (service worker, install prompt).
 
-3. **Cache busting (optional)**: Run `node forecast/scripts/inject-version.js` from the repo root before deploy. It reads `VERSION` from `service-worker.js` and replaces `{{VERSION}}` in `index.html` so one version drives both the service worker cache and asset query params. See `CACHE_VERIFICATION.md` for details.
+3. **Version + cache busting (recommended)**: Run `.\forecast\version.ps1 <newVersion>` from the repo root (or run without args to be prompted). It updates `service-worker.js`, `manifest.json`, and `index.html` asset query versions in one step while preserving UTF-8 BOM in `index.html`. If prompt input is blank, the script cancels with: `Version must not be blank, update cancelled`.
 
 ## Usage
 
@@ -37,7 +37,7 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 3. Use the **mode** buttons (Full, Daily, Hourly, Rain, Wind, History) to switch views.
 4. **Star** saves the current location to the Locations bar; **Locations** opens/closes the saved locations list.
 5. **Refresh** updates weather data; **Share** copies or shares the current page URL (with location and mode).
-6. **Gear** (or double-click the header icon) opens **Settings**: accent colors, Reset Colors, Standard/Metric, AM/PM vs 24H, Auto-Update Data, optional AQI setup, Extras (Enable Solar Irradiance, Enable per Location Colors). **Reset Forecast** clears all favorites, cache, and settings and reloads.
+6. **Gear** (or double-click the header icon) opens **Settings**: accent colors, Reset Colors, Standard/Metric, AM/PM vs 24H, Compact/Normal density, Auto-Update Data, optional AQI setup, Extras (Enable Solar Irradiance, Enable per Location Colors). **Reset Forecast** clears all favorites, cache, and settings and reloads.
 7. To enable AQI, toggle **Enable AQI**, paste your **AirNow API Key**, and wait for a green check mark after validation. Register a key at [Request an AirNow API Key](https://docs.airnowapi.org/account/request/).
 
 ## Reset Feature
@@ -56,7 +56,7 @@ A full reset clears everything and restores defaults:
 
 ## Display Modes
 
-- **Full**: Current conditions (header shows ⚠️ before "Current Conditions" when the location has active NWS alerts), optional AQI line (when enabled and key is valid), forecast text, hourly table, 7-day summary, alerts, location info (elevation, NWS/NOAA links, tides when available).
+- **Full**: Current conditions (header shows ⚠️ before "Current Conditions" when the location has active NWS alerts), optional AQI line (when enabled and key is valid) with official AQI colors and high-contrast category 5/6 badges, forecast text, hourly table, 7-day summary, alerts, location info (elevation, NWS/NOAA links, tides when available).
 - **Daily**: 7-day forecast with sunrise/sunset/day length per day, high/low temps, wind, precipitation chance, detailed text.
 - **Hourly**: Scrollable hourly table (time, temp, wind, precip %, forecast); nav to earlier/later hours.
 - **Rain**: Rain outlook with likelihood over the next ~96 hours (up to 5 days).
@@ -86,7 +86,7 @@ When **Enable per Location Colors** (under Extras in Settings) is off, one globa
 
 ## Auto-Update Mechanism
 
-The app checks for new versions (e.g. via `manifest.json` version and service worker). When an update is detected, a “New version available!” message appears; the user can click **Reload** to load the new version. When the user turns **Auto-Update Data** on, if the currently loaded location's data is already stale, a refresh is triggered immediately. Bump `VERSION` in `service-worker.js` and `version` in `manifest.json` for releases; run `scripts/inject-version.js` before deploy to keep asset cache busting in sync.
+The app checks for new versions (e.g. via `manifest.json` version and service worker). When an update is detected, a “New version available!” message appears; the user can click **Reload** to load the new version. When **Auto-Update Data** is on, stale data can refresh in the background. When **Auto-Update Data** is off, only a manual **Refresh** updates weather data for the currently selected location (other cached favorites are not refreshed). For releases, use `forecast/version.ps1` to keep `service-worker.js`, `manifest.json`, and `index.html` cache-busting versions aligned.
 
 ## Technical Details
 
@@ -120,8 +120,7 @@ forecast/
 │   ├── weather.js       # Data parsing and aggregation
 │   ├── display.js       # Per-mode rendering and unit formatting
 │   └── utils.js         # Conversions, time, sun/moon
-├── scripts/
-│   └── inject-version.js  # Deploy: inject VERSION into index.html
+├── version.ps1            # Release helper: updates versions in service-worker.js, manifest.json, and index.html
 └── icons/               # PWA icons (e.g. 192px, 512px)
 ```
 
