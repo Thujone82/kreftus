@@ -4544,8 +4544,8 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
 }
 
 // Handle refresh
-// Marks all 10-minute cache items (weather data, observations) as stale and forces reload
-// Preserves 1-week cache items (stations.json, water level support, tide predictions)
+// Refreshes only the currently selected/displayed location.
+// Does not mutate timestamps for other favorites.
 async function handleRefresh() {
     console.log('Refresh button clicked - loading cached data first, then refreshing');
     // Force full refetch including history (observations) so locations that previously failed get a retry
@@ -4591,12 +4591,7 @@ async function handleRefresh() {
         }
     }
     
-    // Mark all weather data cache timestamps as stale (10 minutes ago)
-    // This forces a reload of weather data, observations, etc.
-
     try {
-        markAllWeatherCachesStale();
-        
         console.log('Fetching fresh data for location:', locationToRefresh);
         
         // Now fetch fresh data for the current location (this will update the display and save to the correct cache key)
