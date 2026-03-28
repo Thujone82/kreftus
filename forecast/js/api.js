@@ -1095,33 +1095,69 @@ async function fetchNoaaTidePredictions(stationId, timeZone) {
     }
 }
 
+const AIRNOW_FETCH_TIMEOUT_MS = 25000;
+
+function logAirNowConsole(level, message, detail) {
+    const prefix = '[Forecast AQI]';
+    if (detail !== undefined) {
+        console[level](`${prefix} ${message}`, detail);
+    } else {
+        console[level](`${prefix} ${message}`);
+    }
+}
+
+/** URL safe for logs (never prints the API key). */
+function redactAirNowUrl(url) {
+    return String(url).replace(/([?&])API_KEY=[^&]*/i, '$1API_KEY=(redacted)');
+}
+
 // Fetch all weather data for a location
 async function fetchAirNowAqi(lat, lon, apiKey, distanceMiles = 25) {
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+        abortController.abort();
+    }, AIRNOW_FETCH_TIMEOUT_MS);
     try {
         window.__airNowAqiLastError = '';
         const key = (apiKey || '').trim();
         if (!key) {
             window.__airNowAqiLastError = 'Missing API key';
+            logAirNowConsole('warn', 'request skipped: missing API key');
             return null;
         }
         if (lat == null || lon == null) {
             window.__airNowAqiLastError = 'Missing location coordinates';
+            logAirNowConsole('warn', 'request skipped: missing coordinates', { lat, lon });
             return null;
         }
         const latNum = Number(lat);
         const lonNum = Number(lon);
         if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) {
             window.__airNowAqiLastError = 'Invalid location coordinates';
+            logAirNowConsole('warn', 'request skipped: invalid coordinates', { lat, lon });
             return null;
         }
         const url = `https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=${encodeURIComponent(latNum)}&longitude=${encodeURIComponent(lonNum)}&distance=${encodeURIComponent(distanceMiles)}&API_KEY=${encodeURIComponent(key)}`;
+        logAirNowConsole('info', 'request start', {
+            url: redactAirNowUrl(url),
+            latitude: latNum,
+            longitude: lonNum,
+            distanceMiles,
+            apiKeyLength: key.length,
+            timeoutMs: AIRNOW_FETCH_TIMEOUT_MS
+        });
         // iOS Safari can reject browser fetches that attempt to set User-Agent.
         // Keep this request simple and let the browser supply UA automatically.
         const response = await fetch(url, {
-            headers: { "Accept": "application/json" }
+            headers: { Accept: 'application/json' },
+            signal: abortController.signal
         });
         if (!response.ok) {
-            console.warn('AirNow AQI request failed:', response.status, response.statusText);
+            logAirNowConsole('warn', 'HTTP error from AirNow', {
+                status: response.status,
+                statusText: response.statusText,
+                url: redactAirNowUrl(url)
+            });
             window.__airNowAqiLastError = `HTTP ${response.status}: ${response.statusText}`;
             return null;
         }
@@ -1130,13 +1166,28 @@ async function fetchAirNowAqi(lat, lon, apiKey, distanceMiles = 25) {
         const rows = await response.json();
         if (!Array.isArray(rows)) {
             window.__airNowAqiLastError = 'Unexpected API response shape';
+            logAirNowConsole('warn', 'unexpected JSON shape (expected array)', typeof rows);
             return null;
         }
+        logAirNowConsole('info', 'request OK', { rowCount: rows.length, url: redactAirNowUrl(url) });
         return rows;
     } catch (error) {
-        console.warn('AirNow AQI request error:', error);
-        window.__airNowAqiLastError = error && error.message ? error.message : String(error);
+        const name = error && error.name ? error.name : '';
+        if (name === 'AbortError') {
+            window.__airNowAqiLastError = `Request timed out after ${AIRNOW_FETCH_TIMEOUT_MS / 1000}s`;
+            logAirNowConsole('warn', 'request aborted (timeout)', { timeoutMs: AIRNOW_FETCH_TIMEOUT_MS });
+        } else {
+            const baseMsg = error && error.message ? error.message : String(error);
+            window.__airNowAqiLastError = baseMsg;
+            logAirNowConsole('warn', 'request failed (network / CORS / blocked)', {
+                name,
+                message: baseMsg,
+                hint: 'If the console shows "Cross-Origin Request Blocked" or "CORS request did not succeed", the browser blocked the AirNow call. AirNow may not allow browser-origin requests; the API is intended for server-side or tools that are not subject to CORS.'
+            });
+        }
         return null;
+    } finally {
+        clearTimeout(timeoutId);
     }
 }
 

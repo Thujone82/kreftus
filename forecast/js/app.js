@@ -1108,34 +1108,74 @@ async function validateAirNowApiKey(inputKey) {
     }
     const requestSeq = ++aqiValidationSeq;
     const coords = getAqiValidationCoords();
-    const rows = await fetchAirNowAqi(coords.lat, coords.lon, key);
-    if (requestSeq !== aqiValidationSeq || !appState.enableAqi) {
+    console.log('[Forecast AQI] validation: started', {
+        seq: requestSeq,
+        lat: coords.lat,
+        lon: coords.lon,
+        keyLength: key.length
+    });
+    let rows;
+    try {
+        rows = await fetchAirNowAqi(coords.lat, coords.lon, key);
+    } catch (err) {
+        console.error('[Forecast AQI] validation: fetch threw unexpectedly', err);
+        if (requestSeq === aqiValidationSeq && appState.enableAqi) {
+            appState.airNowApiKeyValid = false;
+            persistAqiSettings();
+            setAqiKeyStatusState('invalid');
+            setAqiDebugMessage(`Validation failed: ${err && err.message ? err.message : String(err)}`);
+        }
         syncAqiApiKeyHelpBlockVisibility();
         return false;
     }
+    if (requestSeq !== aqiValidationSeq || !appState.enableAqi) {
+        console.log('[Forecast AQI] validation: discarded (superseded or AQI disabled)', {
+            seq: requestSeq,
+            currentSeq: aqiValidationSeq,
+            enableAqi: appState.enableAqi
+        });
+        syncAqiApiKeyHelpBlockVisibility();
+        return false;
+    }
+    const lastErr = typeof window !== 'undefined' ? window.__airNowAqiLastError : '';
     // Key is valid when the request itself succeeds; some locations can legitimately return no AQI rows.
-    const requestSucceeded = !window.__airNowAqiLastError;
+    const requestSucceeded = !lastErr;
     const isValid = requestSucceeded;
+    console.log('[Forecast AQI] validation: finished', {
+        seq: requestSeq,
+        isValid,
+        rowCount: Array.isArray(rows) ? rows.length : null,
+        lastError: lastErr || '(none)'
+    });
     appState.airNowApiKeyValid = isValid;
     persistAqiSettings();
     setAqiKeyStatusState(isValid ? 'valid' : 'invalid');
     if (isValid) {
         setAqiDebugMessage('');
     } else if (rows === null || !requestSucceeded) {
-        const detail = (typeof window !== 'undefined' && window.__airNowAqiLastError)
-            ? ` (${window.__airNowAqiLastError})`
-            : '';
-        setAqiDebugMessage(`Validation request failed${detail}.`);
+        const detail = lastErr ? ` (${lastErr})` : '';
+        const networkHint =
+            lastErr &&
+            /networkerror|failed to fetch|timed out|abort/i.test(lastErr);
+        setAqiDebugMessage(
+            networkHint
+                ? `Validation failed${detail}. Check the console for [Forecast AQI] — browser or network may be blocking the AirNow request.`
+                : `Validation request failed${detail}.`
+        );
     }
 
     // Immediately reflect AQI state in the currently rendered weather view.
     if (appState.weatherData && appState.location) {
-        if (isValid && typeof normalizeAirNowAqi === 'function') {
-            appState.weatherData.aqi = normalizeAirNowAqi(rows);
-        } else {
-            appState.weatherData.aqi = { show: false };
+        try {
+            if (isValid && typeof normalizeAirNowAqi === 'function') {
+                appState.weatherData.aqi = normalizeAirNowAqi(rows);
+            } else {
+                appState.weatherData.aqi = { show: false };
+            }
+            renderCurrentMode();
+        } catch (renderErr) {
+            console.error('[Forecast AQI] validation: render failed after validation', renderErr);
         }
-        renderCurrentMode();
     }
 
     syncAqiApiKeyHelpBlockVisibility();
@@ -1159,15 +1199,19 @@ function scheduleAirNowApiKeyValidation(delayMs = 400) {
         return;
     }
     setAqiDebugMessage('Validating key...');
+    console.log('[Forecast AQI] validation: scheduled', { delayMs, keyLength: key.length });
     aqiValidationTimer = setTimeout(() => {
         aqiValidationTimer = null;
-        validateAirNowApiKey(key).catch(() => {
+        validateAirNowApiKey(key).catch((err) => {
+            console.error('[Forecast AQI] validation: promise rejected', err);
             appState.airNowApiKeyValid = false;
             persistAqiSettings();
             setAqiKeyStatusState('invalid');
             const detail = (typeof window !== 'undefined' && window.__airNowAqiLastError)
                 ? ` (${window.__airNowAqiLastError})`
-                : '';
+                : err && err.message
+                  ? ` (${err.message})`
+                  : '';
             setAqiDebugMessage(`Validation request failed${detail}.`);
             syncAqiApiKeyHelpBlockVisibility();
         });
@@ -2708,17 +2752,34 @@ function saveFavorite(location, locationObject, searchQuery, customName) {
 
 function removeFavorite(identifier) {
     try {
+        if (!identifier) return false;
         const favorites = getFavorites();
-        // Support both UID and key for backward compatibility
-        const filtered = favorites.filter(fav => fav.uid !== identifier && fav.key !== identifier);
+        // Match logic must mirror isFavorite(): currentLocationKey is often "uid_<uuid>" but fav.uid is the bare id.
+        const rawUid =
+            typeof identifier === 'string' && identifier.startsWith('uid_')
+                ? identifier.replace(/^uid_/, '')
+                : null;
+        const index = favorites.findIndex(
+            (fav) =>
+                fav.uid === identifier ||
+                fav.key === identifier ||
+                (rawUid && fav.uid === rawUid)
+        );
+        if (index === -1) {
+            console.warn('removeFavorite: no matching favorite for identifier', identifier);
+            return false;
+        }
+        const removedFavorite = favorites[index];
+        const filtered = favorites.filter((_, i) => i !== index);
         localStorage.setItem('forecastFavorites', JSON.stringify(filtered));
-        
-        // Find the favorite to get its key for cache clearing
-        const removedFavorite = favorites.find(fav => fav.uid === identifier || fav.key === identifier);
-        if (removedFavorite && removedFavorite.key) {
+
+        if (removedFavorite.key) {
             clearLocationCache(removedFavorite.key);
         }
-        
+        if (removedFavorite.uid) {
+            clearLocationCache(`uid_${removedFavorite.uid}`);
+        }
+
         return true;
     } catch (error) {
         console.warn('Failed to remove favorite:', error);
