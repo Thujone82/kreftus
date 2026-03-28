@@ -99,10 +99,17 @@
 
     Runs 'Get-Date' every hour, skips the first execution, then executes 3 times before exiting.
 
+.PARAMETER Help
+    Displays full command-line reference (arguments, period format, scheduling behavior) and exits.
+
 .NOTES
     To stop the script, press Ctrl+C in the terminal window where it is running.
 #>
 param(
+    [Parameter(Mandatory=$false, HelpMessage="Show full CLI reference and exit.")]
+    [Alias('h', '?')]
+    [switch]$Help,
+
     [Parameter(Position=0)]
     [string]$Command,
 
@@ -127,6 +134,76 @@ param(
     [Parameter(Mandatory=$false, HelpMessage="Maximum number of executions to perform. Skipped executions do not count. 0 = no limit.")]
     [int]$Limit = 0
 )
+
+if ($Help.IsPresent) {
+    $banner = 'Run Continuously (rc.ps1) - CLI reference'
+    Write-Host $banner -ForegroundColor Cyan
+    Write-Host ('=' * $banner.Length) -ForegroundColor DarkGray
+    Write-Host ''
+    Write-Host @'
+SYNOPSIS
+  Runs a PowerShell command string on a repeating interval until you press Ctrl+C or -Limit is reached.
+
+USAGE
+  .\rc.ps1 [[-Command] string] [[-Period] string] [-Precision] [-Silent] [-Clear]
+           [-Skip int] [-Limit int] [-Help]
+
+  With no -Command, the script prompts for command, period, precision, clear, and limit.
+
+PARAMETERS
+  -Command string     (positional 0)
+      Expression evaluated each iteration (Invoke-Expression). Quote strings that contain spaces.
+      Example: "Get-Date" or "Get-Process | Select-Object -First 5"
+
+  -Period string      (positional 1, default: 5)
+      Wait between iterations. See PERIOD FORMAT below. Invalid values fall back to 5 minutes.
+
+  -Precision          Alias: -p
+      Grid-aligned scheduling from script start time. Sleep fills the gap to the next interval boundary;
+      if a run exceeds its slot, the next iteration starts immediately to recover.
+
+  -Silent             Alias: -s
+      Suppresses status lines (timestamps, waits, skip/limit banners). Command output and errors still show.
+
+  -Clear              Aliases: -c, -cl
+      Clears the host before each run (and once at startup if set).
+
+  -Skip int           (default: 0 when omitted)
+      Number of first loop iterations that skip invoking -Command but still advance the wait schedule.
+      If you pass -Skip and the value is 0, it is treated as 1 (skip the first execution only).
+
+  -Limit int          (default: 0)
+      Maximum times -Command is actually executed. Skipped iterations do not count. 0 = unlimited.
+
+  -Help               Aliases: -h, -?
+      Show this reference and exit.
+
+PERIOD FORMAT (internal function: Convert-Period)
+  Suffix   Meaning        Examples
+  (none)   minutes        5  -> 5 minutes
+  s        seconds        15s
+  m        minutes        5m
+  h        hours          1h
+  Blank or non-numeric values use 5 minutes.
+
+SCHEDULING
+  Standard (default)     After each iteration (or skip wait), sleeps for the full period. Simple; can drift.
+  -Precision            Aligns to multiples of the period from the time the script started.
+
+STOPPING
+  Ctrl+C in the same console window.
+
+EXAMPLES
+  .\rc.ps1 "Get-Date" 1
+  .\rc.ps1 ".\my-script.ps1" 10 -Precision -Silent
+  .\rc.ps1 "Get-Process" 15s -Limit 5
+  .\rc.ps1 -Help
+
+For comment-based help: Get-Help .\rc.ps1 -Full
+
+'@
+    exit 0
+}
 
 # Function to parse period string with suffixes (s, m, h) and convert to minutes
 function Convert-Period {
