@@ -3142,8 +3142,9 @@ let updateAllObservationsScheduled = false;
 // Runs phase 2 (observations) for all favorites that have cached weather with points. Call when phase 1 is complete.
 async function runUpdateAllObservationsSweep() {
     if (!appState.autoUpdateEnabled || !appState.updateAllEnabled) return;
-    const favorites = getFavorites();
+    const favorites = orderFavoritesByActiveFirst(getFavorites());
     if (!favorites || favorites.length === 0) return;
+    console.log('Update All phase 2 start order:', favorites.map(f => f?.name || f?.searchQuery || f?.uid || f?.key || '(unknown)').join(' -> '));
 
     try {
         for (const fav of favorites) {
@@ -5175,6 +5176,36 @@ function getLocationForRefresh() {
     return (elements.locationInput && elements.locationInput.value) ? elements.locationInput.value.trim() : '';
 }
 
+function getActiveFavoriteIdentifier() {
+    if (appState.currentLocationKey && isFavorite(appState.currentLocationKey)) {
+        const raw = String(appState.currentLocationKey);
+        return raw.startsWith('uid_') ? raw.replace(/^uid_/, '') : raw;
+    }
+    if (appState.location) {
+        const uid = generateLocationUID(appState.location);
+        if (uid && getFavoriteByUID(uid)) return uid;
+    }
+    return null;
+}
+
+function orderFavoritesByActiveFirst(favorites) {
+    if (!Array.isArray(favorites) || favorites.length <= 1) return favorites || [];
+    const activeIdentifier = getActiveFavoriteIdentifier();
+    if (!activeIdentifier) return favorites;
+
+    const idx = favorites.findIndex((fav) =>
+        fav && (fav.uid === activeIdentifier || fav.key === activeIdentifier)
+    );
+    if (idx <= 0) {
+        const fav = favorites[0];
+        console.log('Update All priority: active location already first:', fav?.name || fav?.searchQuery || fav?.uid || fav?.key || '(unknown)');
+        return favorites;
+    }
+    const fav = favorites[idx];
+    console.log('Update All priority: moving active location to front:', fav?.name || fav?.searchQuery || fav?.uid || fav?.key || '(unknown)');
+    return [favorites[idx], ...favorites.slice(0, idx), ...favorites.slice(idx + 1)];
+}
+
 // Auto-refresh check
 function checkAutoRefresh() {
     if (!appState.autoUpdateEnabled) return;
@@ -5204,16 +5235,20 @@ function checkAutoRefresh() {
         const ts = loadCacheTimestampForKey(cacheKey);
         return isCacheTimestampStale(ts);
     });
+    const staleFavoritesOrdered = orderFavoritesByActiveFirst(staleFavorites);
+    if (staleFavoritesOrdered.length > 0) {
+        console.log('Update All phase 1 stale order:', staleFavoritesOrdered.map(f => f?.name || f?.searchQuery || f?.uid || f?.key || '(unknown)').join(' -> '));
+    }
 
     // If nothing is stale, no work
-    if (staleFavorites.length === 0) return;
+    if (staleFavoritesOrdered.length === 0) return;
 
     appState.updateAllInFlight = true;
 
     (async () => {
         try {
             // Phase 1: update weather caches for all stale favorites
-            for (const fav of staleFavorites) {
+            for (const fav of staleFavoritesOrdered) {
                 const cacheKey = getFavoriteCacheKey(fav);
                 if (!cacheKey) continue;
                 const uid = fav.uid || fav.key || null;
