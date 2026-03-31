@@ -18,7 +18,11 @@ It prints step-by-step status and exits non-zero on failure.
 [CmdletBinding()]
 param(
     [Parameter(Position = 0, Mandatory = $false)]
-    [string]$Version
+    [string]$Version,
+    [switch]$Rev,
+    [switch]$Minor,
+    [switch]$Major,
+    [switch]$Help
 )
 
 Set-StrictMode -Version Latest
@@ -30,6 +34,63 @@ function Write-Step {
         [string]$Color = 'Cyan'
     )
     Write-Host "==> $Message" -ForegroundColor $Color
+}
+
+function Show-VersionScriptHelp {
+    $helpText = @'
+Forecast version updater
+
+Usage:
+  .\forecast\version.ps1 [<version>] [-rev|-minor|-major] [-help]
+
+Description:
+  Updates version values in:
+    - forecast/service-worker.js  (const VERSION = 'x.y.z')
+    - forecast/manifest.json      ("version": "x.y.z")
+    - forecast/index.html         (css/js ?v= cache-busting links)
+
+Modes:
+  1) Explicit version:
+     .\forecast\version.ps1 1.8.6
+     - Uses the provided version string after sanitization.
+     - Allowed characters: A-Z a-z 0-9 . _ -
+     - Spaces and invalid URL characters are removed.
+
+  2) Increment revision:
+     .\forecast\version.ps1 -rev
+     - Reads current version from service-worker.js.
+     - Increments revision only: Major.Minor.Revision -> Major.Minor.(Revision+1)
+     - Example: 1.2.3 -> 1.2.4
+
+  3) Increment minor:
+     .\forecast\version.ps1 -minor
+     - Reads current version from service-worker.js.
+     - Increments minor and resets revision: Major.Minor.Revision -> Major.(Minor+1).0
+     - Example: 1.2.3 -> 1.3.0
+
+  4) Increment major:
+     .\forecast\version.ps1 -major
+     - Reads current version from service-worker.js.
+     - Increments major and resets minor/revision: Major.Minor.Revision -> (Major+1).0.0
+     - Example: 1.2.3 -> 2.0.0
+
+Version parsing notes:
+  - Increment modes parse numeric base as: ^(\d+)\.(\d+)\.(\d+)
+  - Any trailing note/suffix is ignored in increment mode.
+    Example: 1.2.3-test with -rev becomes 1.2.4
+
+Interactive prompt behavior:
+  - If no explicit version and no increment switch is provided,
+    the script prompts for "Enter updated version".
+  - Blank input cancels with:
+    "Version must not be blank, update cancelled"
+
+Rules:
+  - -rev, -minor, and -major are mutually exclusive.
+  - Do not combine explicit <version> with increment switches.
+  - -help shows this message and exits without changing files.
+'@
+    Write-Host $helpText -ForegroundColor Gray
 }
 
 function Get-CurrentVersionFromServiceWorker {
@@ -47,6 +108,49 @@ function Get-CurrentVersionFromServiceWorker {
         throw "Could not determine current version from service-worker.js"
     }
     return $match.Groups[1].Value
+}
+
+function ConvertTo-BaseSemVerOrFail {
+    param(
+        [string]$RawVersion
+    )
+
+    $versionText = if ($null -eq $RawVersion) { '' } else { [string]$RawVersion }
+    $match = [regex]::Match($versionText, '^(\d+)\.(\d+)\.(\d+)')
+    if (-not $match.Success) {
+        throw "Current version '$RawVersion' is not parseable as Major.Minor.Revision"
+    }
+
+    return [pscustomobject]@{
+        Major = [int]$match.Groups[1].Value
+        Minor = [int]$match.Groups[2].Value
+        Revision = [int]$match.Groups[3].Value
+        Base = "$($match.Groups[1].Value).$($match.Groups[2].Value).$($match.Groups[3].Value)"
+    }
+}
+
+function Get-IncrementedVersion {
+    param(
+        [int]$MajorPart,
+        [int]$MinorPart,
+        [int]$RevisionPart,
+        [string]$Mode
+    )
+
+    switch ($Mode) {
+        'rev' {
+            return "$MajorPart.$MinorPart.$([int]($RevisionPart + 1))"
+        }
+        'minor' {
+            return "$MajorPart.$([int]($MinorPart + 1)).0"
+        }
+        'major' {
+            return "$([int]($MajorPart + 1)).0.0"
+        }
+        default {
+            throw "Unknown increment mode '$Mode'"
+        }
+    }
 }
 
 function Read-TextWithBomState {
@@ -77,7 +181,7 @@ function Write-TextPreserveBom {
     [System.IO.File]::WriteAllText($Path, $Text, $encoding)
 }
 
-function Replace-OrFail {
+function Set-TextByPatternOrFail {
     param(
         [string]$Path,
         [string]$Pattern,
@@ -149,38 +253,66 @@ function Update-AssetVersion-OrFail {
 }
 
 try {
+    if ($Help) {
+        Show-VersionScriptHelp
+        exit 0
+    }
+
     $forecastRoot = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
     $serviceWorkerPath = Join-Path $forecastRoot 'service-worker.js'
     $manifestPath = Join-Path $forecastRoot 'manifest.json'
     $indexPath = Join-Path $forecastRoot 'index.html'
 
-    if ([string]::IsNullOrWhiteSpace($Version)) {
-        $currentVersion = Get-CurrentVersionFromServiceWorker -Path $serviceWorkerPath
-        Write-Host "Current version is $currentVersion" -ForegroundColor Yellow
-        $Version = Read-Host "Enter updated version"
+    $incrementFlagsUsed = @($Rev, $Minor, $Major).Where({ $_ }).Count
+    if ($incrementFlagsUsed -gt 1) {
+        throw "Options -rev, -minor, and -major are mutually exclusive. Specify only one."
+    }
+    if ($incrementFlagsUsed -gt 0 -and -not [string]::IsNullOrWhiteSpace($Version)) {
+        throw "Do not provide a version value together with -rev/-minor/-major. Use either explicit version OR one increment flag."
+    }
+
+    $currentVersion = Get-CurrentVersionFromServiceWorker -Path $serviceWorkerPath
+    $sanitizedVersion = $null
+
+    if ($incrementFlagsUsed -gt 0) {
+        $mode = if ($Rev) { 'rev' } elseif ($Minor) { 'minor' } else { 'major' }
+        $parsed = ConvertTo-BaseSemVerOrFail -RawVersion $currentVersion
+        $sanitizedVersion = Get-IncrementedVersion `
+            -MajorPart $parsed.Major `
+            -MinorPart $parsed.Minor `
+            -RevisionPart $parsed.Revision `
+            -Mode $mode
+        Write-Step "Current version source: $currentVersion" 'Yellow'
+        Write-Step "Parsed base version: $($parsed.Base)" 'Yellow'
+        Write-Step "Increment mode: -$mode" 'Yellow'
+    } else {
         if ([string]::IsNullOrWhiteSpace($Version)) {
-            Write-Host ""
-            Write-Host "Version must not be blank, update cancelled" -ForegroundColor Red
-            exit 1
+            Write-Host "Current version is $currentVersion" -ForegroundColor Yellow
+            $Version = Read-Host "Enter updated version"
+            if ([string]::IsNullOrWhiteSpace($Version)) {
+                Write-Host ""
+                Write-Host "Version must not be blank, update cancelled" -ForegroundColor Red
+                exit 1
+            }
         }
-    }
 
-    # Allow alphanumeric semantic-ish versions (e.g. 1.7.12b), but strip spaces
-    # and any characters that are unsafe/invalid for URL query values.
-    $inputVersion = $Version
-    $trimmedVersion = ($Version -replace '\s+', '')
-    $sanitizedVersion = ($trimmedVersion -replace '[^A-Za-z0-9._-]', '')
-    if ([string]::IsNullOrWhiteSpace($sanitizedVersion)) {
-        throw "Invalid version '$inputVersion'. After filtering invalid characters, no usable version remained."
-    }
+        # Allow alphanumeric semantic-ish versions (e.g. 1.7.12b), but strip spaces
+        # and any characters that are unsafe/invalid for URL query values.
+        $inputVersion = $Version
+        $trimmedVersion = ($Version -replace '\s+', '')
+        $sanitizedVersion = ($trimmedVersion -replace '[^A-Za-z0-9._-]', '')
+        if ([string]::IsNullOrWhiteSpace($sanitizedVersion)) {
+            throw "Invalid version '$inputVersion'. After filtering invalid characters, no usable version remained."
+        }
 
-    if ($sanitizedVersion -ne $inputVersion) {
-        Write-Step "Input version normalized from '$inputVersion' to '$sanitizedVersion'" 'Yellow'
+        if ($sanitizedVersion -ne $inputVersion) {
+            Write-Step "Input version normalized from '$inputVersion' to '$sanitizedVersion'" 'Yellow'
+        }
     }
     Write-Step "Target version: $sanitizedVersion" 'Yellow'
 
     Write-Step "Updating service-worker VERSION in $serviceWorkerPath"
-    $swResult = Replace-OrFail `
+    $swResult = Set-TextByPatternOrFail `
         -Path $serviceWorkerPath `
         -Pattern "const\s+VERSION\s*=\s*'[^']+';" `
         -Replacement "const VERSION = '$sanitizedVersion';" `
@@ -194,7 +326,7 @@ try {
     }
 
     Write-Step "Updating manifest version in $manifestPath"
-    $manifestResult = Replace-OrFail `
+    $manifestResult = Set-TextByPatternOrFail `
         -Path $manifestPath `
         -Pattern '"version"\s*:\s*"[^"]+"' `
         -Replacement "`"version`": `"$sanitizedVersion`"" `
