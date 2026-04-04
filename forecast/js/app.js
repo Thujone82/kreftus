@@ -353,6 +353,7 @@ async function init() {
     loadAqiSettings();
     loadUnits();
     loadTimeFormat();
+    loadUiDensity();
     restoreLocationsDrawerState();
 
     // Apply effective theme (global or per-location) for first paint
