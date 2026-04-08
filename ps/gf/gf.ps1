@@ -1041,11 +1041,11 @@ function Get-AqiColorFromCategoryNumber {
 
     switch ($CategoryNumber) {
         1 { return "Green" }
-        2 { return "Cyan" }
-        3 { return "Yellow" }
-        4 { return "Yellow" }
-        5 { return "Red" }
-        6 { return "Magenta" }
+        2 { return "Yellow" }
+        3 { return "DarkYellow" }
+        4 { return "Red" }
+        5 { return "Magenta" }
+        6 { return "DarkRed" }
         default { return "White" }
     }
 }
