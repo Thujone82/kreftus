@@ -56,7 +56,7 @@ A full reset clears everything and restores defaults:
 
 ## Display Modes
 
-- **Full**: Current conditions (header shows ⚠️ before "Current Conditions" when the location has active NWS alerts), optional AQI line (when enabled and key is valid) with official AQI colors and high-contrast category 5/6 badges, forecast text, optional **Radar** section when **Enable Radar** is on (same NWS ridge loop as the Location Information “Radar” link; image is not scaled above its native size, and the service worker caches it for offline), hourly table, 7-day summary, alerts, location info (elevation, NWS/NOAA links, tides when available).
+- **Full**: Current conditions (header shows ⚠️ before "Current Conditions" when the location has active NWS alerts), optional AQI line (when enabled and key is valid) with official AQI colors and high-contrast category 5/6 badges, forecast text, optional **Radar** section when **Enable Radar** is on (same NWS ridge loop as the Location Information “Radar” link; image is not scaled above its native size; the GIF is treated as stale on the same cadence as weather data—refreshed after weather fetches, on a background timer, and when the tab becomes visible, with cache-busted requests so the loop updates while offline fallback still uses the last cached frame), hourly table, 7-day summary, alerts, location info (elevation, NWS/NOAA links, tides when available).
 - **Daily**: 7-day forecast with sunrise/sunset/day length per day, high/low temps, wind, precipitation chance, detailed text.
 - **Hourly**: Scrollable hourly table (time, temp, wind, precip %, forecast); nav to earlier/later hours.
 - **Rain**: Rain outlook with likelihood over the next ~96 hours (up to 5 days).

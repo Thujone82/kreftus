@@ -1013,10 +1013,12 @@ function displayRadarSection(location) {
     if (!location || !location.radarStation) return '';
     if (typeof localStorage !== 'undefined' && localStorage.getItem('forecastShowRadar') !== 'true') return '';
     const radarUrl = `https://radar.weather.gov/ridge/standard/${location.radarStation}_loop.gif`;
+    const bust = (typeof appState !== 'undefined' && appState.radarGifBust != null) ? appState.radarGifBust : Date.now();
+    const imgSrc = `${radarUrl}?_=${bust}`;
     let html = '<div class="radar-section">';
     html += '<div class="section-header">Radar</div>';
     html += `<a href="${radarUrl}" target="_blank" rel="noopener noreferrer" class="radar-section-link" aria-label="Open NWS radar loop in new tab">`;
-    html += `<img src="${radarUrl}" alt="NWS radar loop for ${location.radarStation}" class="radar-section-img" loading="eager">`;
+    html += `<img src="${imgSrc}" alt="NWS radar loop for ${location.radarStation}" class="radar-section-img" loading="eager">`;
     html += '</a>';
     html += '</div>';
     return html;

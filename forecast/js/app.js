@@ -34,11 +34,17 @@ const appState = {
     // This avoids repeated JSON.parse operations when switching between favorites
     cachedWeatherDataByKey: new Map(),
     // Background Update All visual state (spinner color + pulsing favorite button)
-    backgroundUpdateVisualUid: null
+    backgroundUpdateVisualUid: null,
+    /** Query-bust value for NWS radar GIF (`?_=`); bump to force browser + SW network refresh */
+    radarGifBust: Date.now(),
+    /** When we last bumped radarGifBust (for stale checks) */
+    radarGifLastBustAt: Date.now()
 };
 
 // Constants
 const DATA_STALE_THRESHOLD = 600000; // 10 minutes in milliseconds
+/** Radar loop GIF refresh cadence (aligned with weather staleness). */
+const RADAR_GIF_STALE_MS = DATA_STALE_THRESHOLD;
 const AUTO_UPDATE_INTERVAL = 600000; // 10 minutes
 const UPDATE_VISUAL_SWITCH_DEBOUNCE_MS = 120;
 const UPDATE_VISUAL_MIN_VISIBLE_MS = 400;
@@ -313,6 +319,8 @@ function runDeferredInit() {
     }
     if (updateTimeInterval) clearInterval(updateTimeInterval);
     updateTimeInterval = setInterval(updateLastUpdateTime, 30000);
+    if (radarGifStaleCheckInterval) clearInterval(radarGifStaleCheckInterval);
+    radarGifStaleCheckInterval = setInterval(maybeRefreshStaleRadarGif, 60000);
     updateHistoryButtonState();
 }
 
@@ -799,6 +807,8 @@ function setupForecastTextVisibility() {
     window.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') {
             persistCurrentView();
+        } else if (document.visibilityState === 'visible') {
+            maybeRefreshStaleRadarGif();
         }
     });
 }
@@ -1010,13 +1020,39 @@ function saveShowRadar(enabled) {
     localStorage.setItem('forecastShowRadar', enabled ? 'true' : 'false');
 }
 
-/** Warm SW cache for NWS radar loop GIF (same URL as NWS Resources → Radar). */
+/** Warm SW cache for NWS radar loop GIF (canonical URL; SW uses cache-first for no query string). */
 function prefetchNwsRadarIfEnabled(loc) {
     if (!loc || !loc.radarStation) return;
     if (localStorage.getItem('forecastShowRadar') !== 'true') return;
     const url = `https://radar.weather.gov/ridge/standard/${loc.radarStation}_loop.gif`;
     const img = new Image();
     img.src = url;
+}
+
+function bumpRadarGifBust() {
+    const t = Date.now();
+    appState.radarGifBust = t;
+    appState.radarGifLastBustAt = t;
+}
+
+/**
+ * When radar GIF is stale, bump cache-bust and update the in-DOM img (or re-render Full mode).
+ * Uses same staleness window as weather data (RADAR_GIF_STALE_MS).
+ */
+function maybeRefreshStaleRadarGif() {
+    if (localStorage.getItem('forecastShowRadar') !== 'true') return;
+    if (appState.currentMode !== 'full') return;
+    if (!appState.location?.radarStation || !appState.weatherData) return;
+    const last = appState.radarGifLastBustAt || 0;
+    if (Date.now() - last < RADAR_GIF_STALE_MS) return;
+    bumpRadarGifBust();
+    const img = document.querySelector('.radar-section-img');
+    if (img && appState.location.radarStation) {
+        const base = `https://radar.weather.gov/ridge/standard/${appState.location.radarStation}_loop.gif`;
+        img.src = `${base}?_=${appState.radarGifBust}`;
+    } else {
+        renderCurrentMode();
+    }
 }
 
 function setAqiKeyStatusState(state) {
@@ -1431,6 +1467,7 @@ function setupConfigModal() {
             const enabled = !!e.target.checked;
             saveShowRadar(enabled);
             if (enabled && appState.location) {
+                bumpRadarGifBust();
                 prefetchNwsRadarIfEnabled(appState.location);
             }
             renderCurrentMode();
@@ -4574,6 +4611,8 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             updateCurrentLocationButtonState(false);
         }
         
+        // New weather fetch → treat radar loop as stale so the GIF refetches
+        bumpRadarGifBust();
         // Render current mode immediately (don't wait for observations)
         renderCurrentMode();
         prefetchNwsRadarIfEnabled(weatherData.location);
@@ -5543,6 +5582,7 @@ if (document.readyState === 'loading') {
 // Set up auto-refresh interval (only after app is initialized)
 let autoRefreshInterval = null;
 let updateTimeInterval = null;
+let radarGifStaleCheckInterval = null;
 
 // These will be set up in init() after app is ready
 
