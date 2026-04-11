@@ -96,6 +96,7 @@ function initializeElements() {
         primaryAccentColor: document.getElementById('primaryAccentColor'),
         secondaryAccentColor: document.getElementById('secondaryAccentColor'),
         configModalResetColors: document.getElementById('configModalResetColors'),
+        enableRadarCheckbox: document.getElementById('enableRadarCheckbox'),
         irradianceCheckbox: document.getElementById('irradianceCheckbox'),
         perLocationColorsCheckbox: document.getElementById('perLocationColorsCheckbox'),
         unitsMetricCheckbox: document.getElementById('unitsMetricCheckbox'),
@@ -165,6 +166,7 @@ function performFullReset() {
         localStorage.removeItem('forecastAccentPrimary');
         localStorage.removeItem('forecastAccentSecondary');
         localStorage.removeItem('forecastShowIrradiance');
+        localStorage.removeItem('forecastShowRadar');
         localStorage.removeItem('forecastPerLocationColors');
         localStorage.removeItem('forecastAutoUpdate');
         localStorage.removeItem('forecastEnableAqi');
@@ -350,6 +352,7 @@ async function init() {
     loadAccentColors();
     loadPerLocationColors();
     loadShowIrradiance();
+    loadShowRadar();
     loadAqiSettings();
     loadUnits();
     loadTimeFormat();
@@ -996,6 +999,26 @@ function saveShowIrradiance(enabled) {
     localStorage.setItem('forecastShowIrradiance', enabled ? 'true' : 'false');
 }
 
+function loadShowRadar() {
+    const enabled = localStorage.getItem('forecastShowRadar') === 'true';
+    if (elements.enableRadarCheckbox) {
+        elements.enableRadarCheckbox.checked = enabled;
+    }
+}
+
+function saveShowRadar(enabled) {
+    localStorage.setItem('forecastShowRadar', enabled ? 'true' : 'false');
+}
+
+/** Warm SW cache for NWS radar loop GIF (same URL as NWS Resources → Radar). */
+function prefetchNwsRadarIfEnabled(loc) {
+    if (!loc || !loc.radarStation) return;
+    if (localStorage.getItem('forecastShowRadar') !== 'true') return;
+    const url = `https://radar.weather.gov/ridge/standard/${loc.radarStation}_loop.gif`;
+    const img = new Image();
+    img.src = url;
+}
+
 function setAqiKeyStatusState(state) {
     const el = elements.aqiApiKeyStatus;
     if (!el) return;
@@ -1403,6 +1426,16 @@ function setupConfigModal() {
         });
     }
 
+    if (elements.enableRadarCheckbox) {
+        elements.enableRadarCheckbox.addEventListener('change', (e) => {
+            const enabled = !!e.target.checked;
+            saveShowRadar(enabled);
+            if (enabled && appState.location) {
+                prefetchNwsRadarIfEnabled(appState.location);
+            }
+            renderCurrentMode();
+        });
+    }
     if (elements.irradianceCheckbox) {
         elements.irradianceCheckbox.addEventListener('change', (e) => {
             const enabled = !!e.target.checked;
@@ -4543,7 +4576,8 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         
         // Render current mode immediately (don't wait for observations)
         renderCurrentMode();
-        
+        prefetchNwsRadarIfEnabled(weatherData.location);
+
         setLoading(false, background);
         
         // Check observations availability and fetch observations in background (non-blocking)

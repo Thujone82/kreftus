@@ -1008,6 +1008,20 @@ function displayLocationInfo(location, noaaStation = null) {
     return html;
 }
 
+/** NWS ridge loop GIF (same URL as NWS Resources → Radar). Shown in Full mode when setting enabled. */
+function displayRadarSection(location) {
+    if (!location || !location.radarStation) return '';
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('forecastShowRadar') !== 'true') return '';
+    const radarUrl = `https://radar.weather.gov/ridge/standard/${location.radarStation}_loop.gif`;
+    let html = '<div class="radar-section">';
+    html += '<div class="section-header">Radar</div>';
+    html += `<a href="${radarUrl}" target="_blank" rel="noopener noreferrer" class="radar-section-link" aria-label="Open NWS radar loop in new tab">`;
+    html += `<img src="${radarUrl}" alt="NWS radar loop for ${location.radarStation}" class="radar-section-img" loading="eager">`;
+    html += '</a>';
+    html += '</div>';
+    return html;
+}
+
 // Display full weather report
 // optionalLocationDisplayName: when provided (e.g. favorite custom name), used for Current Conditions header
 function displayFullWeatherReport(weather, location, optionalLocationDisplayName) {
@@ -1017,6 +1031,7 @@ function displayFullWeatherReport(weather, location, optionalLocationDisplayName
     if (weather.forecast.tomorrow.text) {
         html += displayForecastText(weather.forecast.tomorrow.name, weather.forecast.tomorrow.text);
     }
+    html += displayRadarSection(location);
     html += displayHourlyForecast(weather, location, 0, 12, false);
     html += displaySevenDayForecast(weather, location, false);
     html += displayWeatherAlerts(weather.alerts, true, location.timeZone);

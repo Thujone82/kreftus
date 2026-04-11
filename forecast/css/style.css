@@ -860,6 +860,27 @@ body.ui-density-normal .weather-content {
     white-space: pre;
 }
 
+/* Radar (NWS ridge loop GIF, Full mode when enabled) */
+.radar-section {
+    margin-bottom: 0.75rem;
+}
+
+.radar-section-link {
+    display: inline-block;
+    max-width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: var(--color-bg-secondary);
+}
+
+/* Never upscale past the GIF’s native pixels; shrink only when viewport is narrower */
+.radar-section-img {
+    display: block;
+    width: auto;
+    max-width: 100%;
+    height: auto;
+}
+
 /* Current Conditions */
 .current-conditions {
     background-color: var(--color-bg-secondary);

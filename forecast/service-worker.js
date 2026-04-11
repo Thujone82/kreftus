@@ -1,4 +1,4 @@
-const VERSION = '1.8.7';
+const VERSION = '1.9.0';
 const CACHE_NAME = `forecast-v${VERSION}`;
 const STATIC_CACHE = `forecast-static-v${VERSION}`;
 const DATA_CACHE = `forecast-data-v${VERSION}`;
@@ -91,6 +91,28 @@ self.addEventListener('fetch', (event) => {
                     });
                 })
         );
+    } else if (url.hostname === 'radar.weather.gov' &&
+        url.pathname.includes('/ridge/standard/') &&
+        url.pathname.endsWith('.gif')) {
+        // NWS radar loop: cache-first for fast/offline PWA, revalidate in background when online
+        event.respondWith((async () => {
+            const cache = await caches.open(DATA_CACHE);
+            const cached = await cache.match(request);
+            const networkPromise = fetch(request, { cache: 'no-cache' })
+                .then((response) => {
+                    if (response.status === 200) {
+                        cache.put(request, response.clone());
+                    }
+                    return response;
+                })
+                .catch(() => null);
+            if (cached) {
+                void networkPromise;
+                return cached;
+            }
+            const networkResponse = await networkPromise;
+            return networkResponse || (await cache.match(request));
+        })());
     } else if (url.pathname.endsWith('.js') || url.pathname.endsWith('.html') || url.pathname.endsWith('.css') || url.pathname.endsWith('.json')) {
         // Stale-while-revalidate: serve from cache immediately, then revalidate in background
         event.respondWith(
