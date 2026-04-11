@@ -1,0 +1,19 @@
+---
+description: User controls Forecast version bumps; agents must not change version numbers on their own
+globs: forecast/**
+alwaysApply: false
+---
+
+# Forecast: manual version control only
+
+**Do not** change Forecast release or cache-bust version numbers as part of routine feature work, bugfixes, or refactors unless the user **explicitly** asks you to bump or set a version (e.g. “bump to 1.9.5”, “update the version for release”).
+
+**Leave unchanged without explicit instruction:**
+
+- [`forecast/service-worker.js`](forecast/service-worker.js) — `VERSION` and cache names derived from it  
+- [`forecast/manifest.json`](forecast/manifest.json) — `version`  
+- [`forecast/index.html`](forecast/index.html) — `?v=` on CSS/JS (and any other versioned asset query strings)
+
+If new or changed scripts would not load until cache busting, **say so** and let the user bump versions; do not bump automatically.
+
+When the user **does** request a version change, keep **service worker**, **manifest**, and **index.html** `?v=` values in sync with their chosen number (unless they specify otherwise).

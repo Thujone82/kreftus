@@ -1,12 +1,12 @@
 ---
-description: Forecast app commits must name the version when bumping SW/manifest/index cache bust
+description: When Forecast version files change, commits must name the version (user bumps versions manually)
 globs: forecast/**
 alwaysApply: false
 ---
 
 # Forecast: version must appear in commit messages
 
-When a commit changes **any** of the following, the **commit message must explicitly state the new Forecast app version** (e.g. `v1.9.0` in the subject or first line of the body):
+The user controls when versions change; see **forecast-version-manual**. When a commit includes changes **they** made to **any** of the following, the **commit message must explicitly state the Forecast app version** (e.g. `v1.9.0` in the subject or first line of the body):
 
 - [`forecast/service-worker.js`](forecast/service-worker.js) — `VERSION` constant (and derived cache names)
 - [`forecast/manifest.json`](forecast/manifest.json) — `version` field
@@ -17,6 +17,6 @@ When a commit changes **any** of the following, the **commit message must explic
 - `forecast: Enable Radar; release v1.9.0`
 - `forecast v1.9.0: radar section, offline cache, README`
 
-**Avoid:** bumping those files while the message only describes features with no version string.
+**Avoid:** commits that touch those version surfaces without naming the version in the message.
 
-Prefer keeping all three locations in sync (e.g. `forecast/version.ps1` from repo docs) and reflecting that single version in the commit message.
+When bumping for a release, the user typically aligns service worker, manifest, and `index.html` `?v=`; mirror that single version in the commit message.
