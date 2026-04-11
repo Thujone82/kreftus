@@ -246,13 +246,22 @@ function runDeferredInit() {
         if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
             showUpdateNotification();
         } else if (event.data && event.data.type === 'CLEAR_CACHE') {
-            console.log('Service worker updated, clearing cache and reloading:', event.data.reason);
+            // Do not call location.reload() here. activate() broadcasts CLEAR_CACHE while the
+            // "Reload" upgrade flow also reloads on controllerchange — double reload caused a loop.
+            // Clearing localStorage weather cache is enough; the next navigation/reload loads fresh assets.
+            const dedupeKey = 'forecastClearCacheHandledAt';
+            const now = Date.now();
+            const last = Number(sessionStorage.getItem(dedupeKey) || 0);
+            if (last && now - last < 5000) {
+                return;
+            }
+            sessionStorage.setItem(dedupeKey, String(now));
+            console.log('Service worker updated, clearing cached weather data:', event.data.reason);
             clearAllCachedData();
             if (isPwaStandalone()) {
                 deferredInstallPrompt = null;
                 if (elements.installBtn) elements.installBtn.classList.add('hidden');
             }
-            window.location.reload();
         }
     });
     const isStandalone = isPwaStandalone();
