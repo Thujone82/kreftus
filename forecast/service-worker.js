@@ -1,4 +1,4 @@
-const VERSION = '1.9.1';
+const VERSION = '1.9.2';
 const CACHE_NAME = `forecast-v${VERSION}`;
 const STATIC_CACHE = `forecast-static-v${VERSION}`;
 const DATA_CACHE = `forecast-data-v${VERSION}`;
@@ -94,33 +94,43 @@ self.addEventListener('fetch', (event) => {
     } else if (url.hostname === 'radar.weather.gov' &&
         url.pathname.includes('/ridge/standard/') &&
         url.pathname.endsWith('.gif')) {
-        // Radar GIF: cache under canonical URL. `?_=` bust → network-first + update cache; no query → cache-first warm/offline.
+        // Radar GIF: NWS does not send CORS headers — must use no-cors (like <img>), not default cors fetch.
+        // Cache under canonical URL. `?_=` bust → network-first; no query → cache-first warm/offline.
         const canonicalUrl = url.origin + url.pathname;
-        const canonicalRequest = new Request(canonicalUrl);
+        const noCorsReq = new Request(canonicalUrl, { mode: 'no-cors', cache: 'no-cache' });
         const wantsFresh = url.searchParams.has('_');
+
+        const cacheIfUsable = (cache, response) => {
+            if (response && (response.type === 'opaque' || response.status === 200)) {
+                try {
+                    cache.put(noCorsReq, response.clone());
+                } catch (e) { /* ignore */ }
+            }
+        };
+
+        const fromCacheOrEmpty = async (cache) => {
+            const hit = await cache.match(noCorsReq);
+            return hit || new Response('', { status: 503, statusText: 'Unavailable' });
+        };
 
         if (wantsFresh) {
             event.respondWith(
                 caches.open(DATA_CACHE).then((cache) =>
-                    fetch(canonicalRequest, { cache: 'no-cache' })
+                    fetch(noCorsReq)
                         .then((response) => {
-                            if (response.status === 200) {
-                                cache.put(canonicalRequest, response.clone());
-                            }
+                            cacheIfUsable(cache, response);
                             return response;
                         })
-                        .catch(() => cache.match(canonicalRequest))
+                        .catch(() => fromCacheOrEmpty(cache))
                 )
             );
         } else {
             event.respondWith(
                 caches.open(DATA_CACHE).then(async (cache) => {
-                    const cached = await cache.match(canonicalRequest);
-                    const networkPromise = fetch(canonicalRequest, { cache: 'no-cache' })
+                    const cached = await cache.match(noCorsReq);
+                    const networkPromise = fetch(noCorsReq)
                         .then((response) => {
-                            if (response.status === 200) {
-                                cache.put(canonicalRequest, response.clone());
-                            }
+                            cacheIfUsable(cache, response);
                             return response;
                         })
                         .catch(() => null);
@@ -129,7 +139,7 @@ self.addEventListener('fetch', (event) => {
                         return cached;
                     }
                     const networkResponse = await networkPromise;
-                    return networkResponse || (await cache.match(canonicalRequest));
+                    return networkResponse || (await fromCacheOrEmpty(cache));
                 })
             );
         }
