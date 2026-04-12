@@ -125,6 +125,21 @@ function processWeatherData(weatherData) {
             heatIndex = null; // Only show if difference > 1°F
         }
     }
+
+    let wbgt = null;
+    if (tempNum > 50) {
+        const fetchAt = weatherData.fetchTime ? new Date(weatherData.fetchTime) : new Date();
+        wbgt = calculateEstimatedWBGT(
+            tempNum,
+            currentHumidity,
+            windSpeedNum,
+            location.lat,
+            location.lon,
+            fetchAt,
+            isCurrentlyDaytime,
+            currentConditions
+        );
+    }
     
     // Extract today's and tomorrow's forecasts
     const todayPeriod = forecast.properties.periods[0];
@@ -149,6 +164,7 @@ function processWeatherData(weatherData) {
             trend: currentTempTrend,
             windChill: windChill,
             heatIndex: heatIndex,
+            wbgt: wbgt,
             time: weatherData.fetchTime
         },
         forecast: {

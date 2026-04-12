@@ -60,6 +60,10 @@ function formatCloudSummary(cloudSummary) {
     return s;
 }
 
+function wbgtFeelsLikeEnabled() {
+    return typeof appState !== 'undefined' && appState.feelsLikeMode === 'wbgt';
+}
+
 // Get time ago string (helper function, also defined in app.js)
 function getTimeAgo(date) {
     const now = new Date();
@@ -174,8 +178,15 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
     html += `<span class="condition-label">Temperature:</span>`;
     html += `<span class="condition-value ${getTempColor(current.temp)}">${formatTemp(current.temp)}</span>`;
     
+    const currentTempNum = parseFloat(current.temp);
     if (current.windChill) {
         html += ` <span class="temp-cold">[${formatTemp(current.windChill)}]</span>`;
+    } else if (
+        wbgtFeelsLikeEnabled() &&
+        current.wbgt != null &&
+        shouldShowEstimatedWBGTBracket(currentTempNum, current.wbgt)
+    ) {
+        html += ` <span class="temp-hot">[${formatTemp(current.wbgt)}]</span>`;
     } else if (current.heatIndex) {
         html += ` <span class="temp-hot">[${formatTemp(current.heatIndex)}]</span>`;
     }
@@ -411,6 +422,22 @@ function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12,
                 windchillHeatIndex = ` [${formatTemp(windChill)}]`;
                 windchillHeatIndexClass = "temp-cold";
             }
+        } else if (wbgtFeelsLikeEnabled()) {
+            const humidityNum = period.relativeHumidity?.value || 0;
+            const wbgtVal = calculateEstimatedWBGT(
+                tempNum,
+                humidityNum,
+                windSpeedNum,
+                location.lat,
+                location.lon,
+                periodTime,
+                isPeriodDaytime,
+                shortForecast
+            );
+            if (wbgtVal != null && shouldShowEstimatedWBGTBracket(tempNum, wbgtVal)) {
+                windchillHeatIndex = ` [${formatTemp(wbgtVal)}]`;
+                windchillHeatIndexClass = "temp-hot";
+            }
         } else if (tempNum >= 80) {
             const humidityNum = period.relativeHumidity?.value || 0;
             const heatIndex = calculateHeatIndex(tempNum, humidityNum);
@@ -495,23 +522,8 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
             const windColor = windSpeed >= 16 ? "wind-strong" : "";
             const windDisplay = appState.useMetric ? (typeof mphToMps !== 'undefined' ? mphToMps(windSpeed) + ' m/s' : period.windSpeed) : period.windSpeed.replace(/\s+mph/, 'mph');
             
-            // Calculate windchill or heat index
             const tempNum = parseFloat(temp);
             let windChillHeatIndex = "";
-            let windChillHeatIndexClass = "";
-            
-            if (tempNum <= 50) {
-                const windChill = calculateWindChill(tempNum, windSpeed);
-                if (windChill && Math.abs(tempNum - windChill) > 1) {
-                    windChillHeatIndex = ` <span class="temp-cold">[${formatTemp(windChill)}]</span>`;
-                }
-            } else if (tempNum >= 80) {
-                const humidityNum = period.relativeHumidity?.value || 0;
-                const heatIndex = calculateHeatIndex(tempNum, humidityNum);
-                if (heatIndex && Math.abs(heatIndex - tempNum) > 1) {
-                    windChillHeatIndex = ` <span class="temp-hot">[${formatTemp(heatIndex)}]</span>`;
-                }
-            }
             
             // Calculate sunrise/sunset for this specific day (use date only, not time)
             let sunriseStr = "";
@@ -540,6 +552,54 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
                             dayLengthStr = formatDayLength(daySunTimes.sunrise, daySunTimes.sunset);
                         }
                     }
+                }
+            }
+
+            let isWbgtPeriodDaytime =
+                period.isDaytime !== undefined
+                    ? period.isDaytime
+                    : periodTime.getHours() >= 6 && periodTime.getHours() < 18;
+            if (
+                daySunTimes &&
+                daySunTimes.sunrise &&
+                daySunTimes.sunset &&
+                !daySunTimes.isPolarNight &&
+                !daySunTimes.isPolarDay &&
+                location.timeZone
+            ) {
+                isWbgtPeriodDaytime = isHourMidpointDaytime(
+                    periodTime,
+                    daySunTimes.sunrise,
+                    daySunTimes.sunset,
+                    location.timeZone
+                );
+            }
+
+            if (tempNum <= 50) {
+                const windChill = calculateWindChill(tempNum, windSpeed);
+                if (windChill && Math.abs(tempNum - windChill) > 1) {
+                    windChillHeatIndex = ` <span class="temp-cold">[${formatTemp(windChill)}]</span>`;
+                }
+            } else if (wbgtFeelsLikeEnabled()) {
+                const humidityNum = period.relativeHumidity?.value || 0;
+                const wbgtVal = calculateEstimatedWBGT(
+                    tempNum,
+                    humidityNum,
+                    windSpeed,
+                    location.lat,
+                    location.lon,
+                    periodTime,
+                    isWbgtPeriodDaytime,
+                    shortForecast
+                );
+                if (wbgtVal != null && shouldShowEstimatedWBGTBracket(tempNum, wbgtVal)) {
+                    windChillHeatIndex = ` <span class="temp-hot">[${formatTemp(wbgtVal)}]</span>`;
+                }
+            } else if (tempNum >= 80) {
+                const humidityNum = period.relativeHumidity?.value || 0;
+                const heatIndex = calculateHeatIndex(tempNum, humidityNum);
+                if (heatIndex && Math.abs(heatIndex - tempNum) > 1) {
+                    windChillHeatIndex = ` <span class="temp-hot">[${formatTemp(heatIndex)}]</span>`;
                 }
             }
             
@@ -1172,9 +1232,10 @@ function displayObservations(observationsData, location) {
             html += '<span class="condition-value">H:N/A</span>';
         }
         
-        // Calculate windchill or heat index
+        // Calculate windchill, optional estimated WBGT, or heat index
         let windChill = null;
         let heatIndex = null;
+        let wbgtVal = null;
         if (dayData.highTemp !== null && dayData.avgWindSpeed !== null) {
             const tempNum = dayData.highTemp;
             const windSpeedNum = dayData.avgWindSpeed;
@@ -1183,6 +1244,20 @@ function displayObservations(observationsData, location) {
                 windChill = calculateWindChill(tempNum, windSpeedNum);
                 if (windChill && Math.abs(tempNum - windChill) <= 1) {
                     windChill = null; // Only show if difference > 1°F
+                }
+            } else if (wbgtFeelsLikeEnabled() && dayData.avgHumidity !== null) {
+                wbgtVal = calculateEstimatedWBGT(
+                    tempNum,
+                    dayData.avgHumidity,
+                    windSpeedNum,
+                    location.lat,
+                    location.lon,
+                    date,
+                    true,
+                    dayData.conditions
+                );
+                if (!shouldShowEstimatedWBGTBracket(tempNum, wbgtVal)) {
+                    wbgtVal = null;
                 }
             } else if (tempNum >= 80 && dayData.avgHumidity !== null) {
                 heatIndex = calculateHeatIndex(tempNum, dayData.avgHumidity);
@@ -1194,6 +1269,8 @@ function displayObservations(observationsData, location) {
         
         if (windChill) {
             html += ` <span class="condition-value">Windchill[<span class="temp-cold">${formatTemp(windChill)}</span>]</span>`;
+        } else if (wbgtVal != null) {
+            html += ` <span class="condition-value">WBGT[<span class="temp-hot">${formatTemp(wbgtVal)}</span>]</span>`;
         } else if (heatIndex) {
             html += ` <span class="condition-value">HeatIndex[<span class="temp-hot">${formatTemp(heatIndex)}</span>]</span>`;
         }

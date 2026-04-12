@@ -9,7 +9,7 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 - **Multiple Display Modes**: Full, Daily, Hourly, Rain, Wind, and History
 - **PWA Support**: Installable as a web app with offline support and update detection
 - **Saved Locations**: Save favorite locations and switch between them; locations bar open/closed state is remembered
-- **Settings (gear or double-click header icon)**: Accent colors (primary/secondary), Reset Colors, Standard/Metric units, AM/PM or 24-hour time, Compact/Normal density, Auto-Update Data, optional AQI (Enable AQI + AirNow API key with inline validation), Extras (Enable Radar—off by default: NWS ridge loop GIF in Full mode above hourly, cached by the service worker for offline; Enable Solar Irradiance; Enable per Location Colors); Reset Forecast clears all data and settings to defaults
+- **Settings (gear or double-click header icon)**: Accent colors (primary/secondary), Reset Colors, Standard/Metric units, AM/PM or 24-hour time, Compact/Normal density, Feels-Like vs **WBGT** (optional estimated wet-bulb globe temperature when warm—see below), Auto-Update Data, optional AQI (Enable AQI + AirNow API key with inline validation), Extras (Enable Radar—off by default: NWS ridge loop GIF in Full mode above hourly, cached by the service worker for offline; Enable Solar Irradiance; Enable per Location Colors); Reset Forecast clears all data and settings to defaults
 - **Control Bar**: Favorite (save location), current location (pin), Locations (open/close saved locations), Refresh, Share (copy or share URL), Settings (gear)
 - **Share**: Copy shareable link or use Web Share API when available; URL can include location and mode
 - **Units**: Standard (°F, mph, inHg, ft, in) or Metric (°C, m/s, hPa, m, mm) for all displayed values—temperature, wind, pressure, elevation, station distance, tide heights, precipitation, and cloud ceiling (ft or m) in History
@@ -17,7 +17,7 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 - **Responsive Design**: Works on all screen sizes and aspect ratios
 - **Location Input**: Zip code, "City, State", or use the pin button for automatic current location
 - **Color-Coded Metrics**: Temperature, wind, precipitation, humidity, dew point, pressure
-- **Weather Calculations**: Wind chill, heat index, sunrise/sunset, moon phase
+- **Weather Calculations**: Wind chill, NWS heat index (default warm “feels like”), optional **estimated WBGT** when you enable the Feels-Like → WBGT toggle (not instrument-grade: Stull wet-bulb plus a simplified globe term using clear-sky solar × a **forecast-text** cloud heuristic); sunrise/sunset, moon phase
 - **Sunrise/Sunset/Day Length**: Shown for each day in Daily and History (astronomical calculation)
 - **NOAA Tide Stations**: When a station is within 100 miles, shows station name, distance (mi/km), cardinal direction, links to Tide Prediction/Datums/Levels, and last/next tide (height in ft or m, time)
 - **Accessibility**: ARIA labels and dialog roles for screen readers; keyboard support (Escape closes Settings)
@@ -37,7 +37,7 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 3. Use the **mode** buttons (Full, Daily, Hourly, Rain, Wind, History) to switch views.
 4. **Star** saves the current location to the Locations bar; **Locations** opens/closes the saved locations list.
 5. **Refresh** updates weather data; **Share** copies or shares the current page URL (with location and mode).
-6. **Gear** (or double-click the header icon) opens **Settings**: accent colors, Reset Colors, Standard/Metric, AM/PM vs 24H, Compact/Normal density, Auto-Update Data, optional AQI setup, Extras (Enable Radar for Full-mode NWS loop with offline cache; Enable Solar Irradiance; Enable per Location Colors). **Reset Forecast** clears all favorites, cache, and settings and reloads.
+6. **Gear** (or double-click the header icon) opens **Settings**: accent colors, Reset Colors, Standard/Metric, AM/PM vs 24H, Compact/Normal density, Feels-Like vs WBGT, Auto-Update Data, optional AQI setup, Extras (Enable Radar for Full-mode NWS loop with offline cache; Enable Solar Irradiance; Enable per Location Colors). **Reset Forecast** clears all favorites, cache, and settings and reloads.
 7. To enable AQI, toggle **Enable AQI**, paste your **AirNow API Key**, and wait for a green check mark after validation. Register a key at [Request an AirNow API Key](https://docs.airnowapi.org/account/request/).
 
 ## Reset Feature
@@ -49,7 +49,7 @@ A full reset clears everything and restores defaults:
    - Clear all saved locations (favorites)
    - Clear all cached weather and NOAA data
    - Clear last viewed location and stored location
-   - Reset display mode, units, time format, accent colors, radar (to disabled), irradiance, auto-update, per-location colors (to disabled), and locations bar state to defaults
+   - Reset display mode, units, time format, accent colors, radar (to disabled), irradiance, Feels-Like/WBGT (to default Feels-Like), auto-update, per-location colors (to disabled), and locations bar state to defaults
    - Reload the page
 
 **Note**: This cannot be undone.
@@ -61,7 +61,7 @@ A full reset clears everything and restores defaults:
 - **Hourly**: Scrollable hourly table (time, temp, wind, precip %, forecast); nav to earlier/later hours.
 - **Rain**: Rain outlook with likelihood over the next ~96 hours (up to 5 days).
 - **Wind**: Wind direction/speed over the same period.
-- **History**: Historical observations by day with sunrise/sunset/day length. Per day: high/low temp (with wind chill/heat index when applicable), wind (avg/gust or max), pressure (inHg or hPa), precip (in or mm), humidity, conditions, clouds (amount and base height in ft or m per units). Cloud codes: SKC, FEW, SCT, BKN, OVC. Rows omitted when data is not available.
+- **History**: Historical observations by day with sunrise/sunset/day length. Per day: high/low temp (with wind chill, or estimated WBGT, or heat index when applicable—matching the Feels-Like/WBGT setting), wind (avg/gust or max), pressure (inHg or hPa), precip (in or mm), humidity, conditions, clouds (amount and base height in ft or m per units). Cloud codes: SKC, FEW, SCT, BKN, OVC. Rows omitted when data is not available.
 
 All numeric values (temp, wind, pressure, elevation, distance, tide height, precip depth) follow the **Standard** or **Metric** setting. Times follow **AM/PM** or **24H**.
 

@@ -458,6 +458,72 @@ function calculateWindChill(tempF, windSpeedMph) {
     return Math.round(windChill);
 }
 
+/**
+ * Phase-1 heuristic: map NWS shortForecast / observation text to clear-sky transmittance (0–1).
+ * Not meteorological truth — rough categories for estimated outdoor WBGT solar term only.
+ */
+function solarTransmittanceFromForecastText(shortForecastOrText, isDaytime) {
+    if (!isDaytime) return 0;
+    const raw = (shortForecastOrText == null ? '' : String(shortForecastOrText)).toLowerCase();
+    if (!raw.trim()) return 0.75;
+    const s = raw;
+    if (/\b(tornado|hurricane|blizzard)\b/.test(s)) return 0.12;
+    if (/\b(thunder|t-storm|tstorm|lightning)\b/.test(s)) return 0.18;
+    if (/\b(snow|sleet|hail|ice|freezing|wintry)\b/.test(s)) return 0.2;
+    if (/\b(shower|rain|drizzle|precip|storm)\b/.test(s)) return 0.22;
+    if (/\b(fog|mist|haze|smoke|dust)\b/.test(s)) return 0.35;
+    if (/\bovercast\b/.test(s)) return 0.28;
+    if (/\bcloudy\b/.test(s) && !/\bpartly\b/.test(s) && !/\bmostly\b/.test(s)) return 0.32;
+    if (/\bmostly\s+cloudy\b/.test(s)) return 0.48;
+    if (/\bpartly\s+(cloudy|sunny)\b/.test(s) || /\bpartly\s+cloud\b/.test(s)) return 0.72;
+    if (/\bscattered\b|\bbroken\b/.test(s)) return 0.72;
+    if (/\bmostly\s+sunny\b|\bfew\b/.test(s)) return 0.88;
+    if (/\bclear\b|\bfair\b|\bsunny\b/.test(s)) return 1;
+    return 0.75;
+}
+
+/**
+ * Estimated outdoor WBGT (°F): Stull wet-bulb (Bull. AMS 2011, eq. 1) + simplified globe term from
+ * clear-sky GHI × forecast-text transmittance and wind. Not instrumented WBGT.
+ */
+function calculateEstimatedWBGT(tempF, humidityPct, windMph, lat, lon, atDate, isDaytime, skyText) {
+    if (tempF == null || !Number.isFinite(tempF) || tempF <= 50) return null;
+    let rh = Number(humidityPct);
+    if (!Number.isFinite(rh)) return null;
+    rh = Math.min(100, Math.max(1, rh));
+    const at = atDate instanceof Date ? atDate : (atDate ? new Date(atDate) : new Date());
+    const TaC = (tempF - 32) * (5 / 9);
+    const RH = rh;
+    const TwC =
+        TaC * Math.atan(0.151977 * Math.sqrt(RH + 8.313659)) +
+        Math.atan(TaC + RH) -
+        Math.atan(RH - 1.676331) +
+        0.00391838 * Math.pow(RH, 1.5) * Math.atan(0.023101 * RH) -
+        4.686035;
+    if (!Number.isFinite(TwC)) return null;
+    let effectiveSolar = 0;
+    if (lat != null && lon != null && Number.isFinite(lat) && Number.isFinite(lon)) {
+        const clearGhi = getSolarIrradiance(lat, lon, at);
+        const f = solarTransmittanceFromForecastText(skyText, !!isDaytime);
+        effectiveSolar = clearGhi * f;
+    }
+    const vMps = Math.max(0, (windMph || 0) * 0.44704);
+    const globeExcess =
+        effectiveSolar > 0
+            ? Math.min(14, effectiveSolar / 85 / (0.55 + 0.35 * Math.sqrt(vMps + 0.5)))
+            : 0;
+    const TgC = TaC + globeExcess;
+    const wbgtC = 0.7 * TwC + 0.2 * TgC + 0.1 * TaC;
+    const wbgtF = wbgtC * (9 / 5) + 32;
+    return Math.round(wbgtF * 10) / 10;
+}
+
+/** Bracket WBGT when it differs enough from dry bulb or in warm band (parallel to heat-index display intent). */
+function shouldShowEstimatedWBGTBracket(tempF, wbgtF) {
+    if (wbgtF == null || !Number.isFinite(wbgtF) || !Number.isFinite(tempF)) return false;
+    return Math.abs(wbgtF - tempF) > 1 || tempF >= 75;
+}
+
 // Calculate heat index using NWS Rothfusz regression
 function calculateHeatIndex(tempF, humidity) {
     // Heat index only applies when temp >= 80°F

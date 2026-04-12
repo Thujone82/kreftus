@@ -28,6 +28,8 @@ const appState = {
     use24h: false,
     /** 'compact' (default) | 'normal' — UI density for control bar, favorites, and body text */
     uiDensity: 'compact',
+    /** 'classic' (default): wind chill / NWS heat index; 'wbgt': estimated wet-bulb globe temperature when warm */
+    feelsLikeMode: 'classic',
     /** Version of this app instance (set once at load, used in Settings modal until reload) */
     currentAppVersion: null,
     // In-memory cache for parsed weather data (keyed by locationKey + timestamp)
@@ -108,6 +110,7 @@ function initializeElements() {
         unitsMetricCheckbox: document.getElementById('unitsMetricCheckbox'),
         time24Checkbox: document.getElementById('time24Checkbox'),
         uiDensityNormalCheckbox: document.getElementById('uiDensityNormalCheckbox'),
+        feelsLikeWbgtCheckbox: document.getElementById('feelsLikeWbgtCheckbox'),
         configModalClose: document.getElementById('configModalClose'),
         configModalReset: document.getElementById('configModalReset'),
         configModalVersion: document.getElementById('configModalVersion'),
@@ -181,6 +184,7 @@ function performFullReset() {
         localStorage.removeItem('forecastUseMetric');
         localStorage.removeItem('forecastUse24h');
         localStorage.removeItem('forecastUiDensity');
+        localStorage.removeItem('forecastFeelsLikeWbgt');
         localStorage.removeItem('forecastLocationsDrawerOpen');
 
         // Clear in-memory cache
@@ -201,6 +205,7 @@ function performFullReset() {
             appState.airNowApiKey = '';
             appState.airNowApiKeyValid = false;
             appState.uiDensity = 'compact';
+            appState.feelsLikeMode = 'classic';
         }
         
         console.log('Full reset completed: all favorites and cached data cleared');
@@ -374,6 +379,7 @@ async function init() {
     loadUnits();
     loadTimeFormat();
     loadUiDensity();
+    loadFeelsLikeMode();
     restoreLocationsDrawerState();
 
     // Apply effective theme (global or per-location) for first paint
@@ -847,6 +853,9 @@ function openConfigModal() {
     syncAqiSettingsVisibility();
     if (elements.uiDensityNormalCheckbox) {
         elements.uiDensityNormalCheckbox.checked = appState.uiDensity === 'normal';
+    }
+    if (elements.feelsLikeWbgtCheckbox) {
+        elements.feelsLikeWbgtCheckbox.checked = appState.feelsLikeMode === 'wbgt';
     }
     updateConfigModalVersionNote();
 }
@@ -1336,6 +1345,20 @@ function saveUiDensity(isNormal) {
     if (typeof renderCurrentMode === 'function') renderCurrentMode();
 }
 
+function loadFeelsLikeMode() {
+    const wbgt = localStorage.getItem('forecastFeelsLikeWbgt') === 'true';
+    appState.feelsLikeMode = wbgt ? 'wbgt' : 'classic';
+    if (elements.feelsLikeWbgtCheckbox) {
+        elements.feelsLikeWbgtCheckbox.checked = wbgt;
+    }
+}
+
+function saveFeelsLikeMode(useWbgt) {
+    appState.feelsLikeMode = useWbgt ? 'wbgt' : 'classic';
+    localStorage.setItem('forecastFeelsLikeWbgt', useWbgt ? 'true' : 'false');
+    if (typeof renderCurrentMode === 'function') renderCurrentMode();
+}
+
 function saveTimeFormat(use24h) {
     appState.use24h = use24h;
     localStorage.setItem('forecastUse24h', use24h ? 'true' : 'false');
@@ -1468,6 +1491,11 @@ function setupConfigModal() {
     if (elements.uiDensityNormalCheckbox) {
         elements.uiDensityNormalCheckbox.addEventListener('change', (e) => {
             saveUiDensity(!!e.target.checked);
+        });
+    }
+    if (elements.feelsLikeWbgtCheckbox) {
+        elements.feelsLikeWbgtCheckbox.addEventListener('change', (e) => {
+            saveFeelsLikeMode(!!e.target.checked);
         });
     }
 
