@@ -24,7 +24,7 @@
     The script includes wind chill and heat index calculations using NWS formulas (or estimated WBGT with -wbgt, aligned with the forecast web app):
     - Wind Chill: Displayed in blue when temperature <= 50°F and difference > 1°F
     - Heat Index: Displayed in red when temperature >= 80°F and difference > 1°F
-    - WBGT (-wbgt): Estimated outdoor WBGT in red using the same bracket rules as the web (includes warm band from 75°F)
+    - WBGT (-wbgt): Estimated outdoor WBGT; bracket colored like dry bulb (Blue <33°F / default / alert >89°F); same bracket rules as the web (includes warm band from 75°F)
     
     Color-coded weather indicators:
     - Temperature: Blue (<33°F), Red (>89°F), White (normal range)
@@ -203,7 +203,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host " • Current Conditions" -ForegroundColor Cyan
     Write-Host ' • Temperature with forecast range (Blue <33°F / Red >89°F)' -ForegroundColor Cyan
     Write-Host ' • Wind Chill (Blue when temp <= 50°F and difference > 1°F)' -ForegroundColor Cyan
-    Write-Host ' • Heat Index (Red when temp >= 80°F and difference > 1°F), or WBGT with -wbgt (red per web bracket rules from 75°F)' -ForegroundColor Cyan
+    Write-Host ' • Heat Index (Red when temp >= 80°F and difference > 1°F), or WBGT with -wbgt (bracket uses same temp colors as dry bulb; web bracket rules from 75°F)' -ForegroundColor Cyan
     Write-Host " • Humidity" -ForegroundColor Cyan
     Write-Host ' • Wind (with gust if available; red if wind speed >=16 mph)' -ForegroundColor Cyan
     Write-Host " • Sunrise and Sunset times (calculated astronomically)" -ForegroundColor Cyan
@@ -2975,6 +2975,19 @@ function Format-WbgtDisplayValue {
     return "{0:0.#}" -f $WbgtF
 }
 
+# Same banding as forecast/hourly temp lines: Blue <33°F, AlertColor >89°F, else DefaultColor
+function Get-TempBandForegroundColor {
+    param(
+        [double]$TempFahrenheit,
+        [string]$DefaultColor,
+        [string]$AlertColor
+    )
+    $band = [int]$TempFahrenheit
+    if ($band -lt $script:COLD_TEMP_THRESHOLD) { return "Blue" }
+    if ($band -gt $script:HOT_TEMP_THRESHOLD) { return $AlertColor }
+    return $DefaultColor
+}
+
 # Estimated outdoor WBGT (°F): Stull wet-bulb + simplified globe term (forecast/js/utils.js)
 function Get-EstimatedWBGT {
     param(
@@ -3276,7 +3289,8 @@ function Show-CurrentConditions {
         $wbgt = Get-EstimatedWBGT -TempF $tempNum -HumidityPct $humidityNum -WindMph $windSpeedNum -Lat $Latitude -Lon $Longitude -AtDate $obsDt -IsDaytime $isDay -SkyText $CurrentConditions -TimeZoneId $TimeZoneId
         if ($null -ne $wbgt -and (Test-ShouldShowEstimatedWBGTBracket -TempF $tempNum -WbgtF $wbgt)) {
             $wbgtDisp = Format-WbgtDisplayValue -WbgtF $wbgt
-            Write-Host " [${wbgtDisp}°F]" -ForegroundColor Red -NoNewline
+            $wbgtColor = Get-TempBandForegroundColor -TempFahrenheit $wbgt -DefaultColor $DefaultColor -AlertColor $AlertColor
+            Write-Host " [${wbgtDisp}°F]" -ForegroundColor $wbgtColor -NoNewline
         }
     }
     elseif ($tempNum -ge 80) {
@@ -3581,7 +3595,7 @@ function Show-HourlyForecast {
             if ($null -ne $wbgt -and (Test-ShouldShowEstimatedWBGTBracket -TempF $tempNum -WbgtF $wbgt)) {
                 $wbgtDisp = Format-WbgtDisplayValue -WbgtF $wbgt
                 $windchillHeatIndex = " [${wbgtDisp}°F]"
-                $windchillHeatIndexColor = "Red"
+                $windchillHeatIndexColor = Get-TempBandForegroundColor -TempFahrenheit $wbgt -DefaultColor $DefaultColor -AlertColor $AlertColor
             }
         }
         elseif ($tempNum -ge 80) {
@@ -3784,7 +3798,7 @@ function Show-SevenDayForecast {
                 if ($null -ne $wbgt -and (Test-ShouldShowEstimatedWBGTBracket -TempF $tempNum -WbgtF $wbgt)) {
                     $wbgtDisp = Format-WbgtDisplayValue -WbgtF $wbgt
                     $windChillHeatIndex = " [${wbgtDisp}°F]"
-                    $windChillHeatIndexColor = "Red"
+                    $windChillHeatIndexColor = Get-TempBandForegroundColor -TempFahrenheit $wbgt -DefaultColor $DefaultColor -AlertColor $AlertColor
                 }
             } elseif ($tempNum -ge 80) {
                 $humidityNum = [double]$period.relativeHumidity.value
@@ -4107,7 +4121,7 @@ function Show-Observations {
                 if ($null -ne $wbgt -and (Test-ShouldShowEstimatedWBGTBracket -TempF $tempNum -WbgtF $wbgt)) {
                     $wbgtDisp = Format-WbgtDisplayValue -WbgtF $wbgt
                     $windChillHeatIndex = " [${wbgtDisp}°F]"
-                    $windChillHeatIndexColor = "Red"
+                    $windChillHeatIndexColor = Get-TempBandForegroundColor -TempFahrenheit $wbgt -DefaultColor $DefaultColor -AlertColor $AlertColor
                 }
             } elseif ($tempNum -ge 80) {
                 $humidityNum = if ($null -ne $dayData.AvgHumidity) { [double]$dayData.AvgHumidity } else { 0 }

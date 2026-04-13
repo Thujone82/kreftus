@@ -64,6 +64,11 @@ function wbgtFeelsLikeEnabled() {
     return typeof appState !== 'undefined' && appState.feelsLikeMode === 'wbgt';
 }
 
+/** Same °F banding as primary temps — use for WBGT bracket styling when WBGT mode is on. */
+function wbgtDisplayColorClass(wbgtF) {
+    return typeof getTempColor === 'function' ? getTempColor(wbgtF) : 'temp-normal';
+}
+
 // Get time ago string (helper function, also defined in app.js)
 function getTimeAgo(date) {
     const now = new Date();
@@ -186,7 +191,7 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
         current.wbgt != null &&
         shouldShowEstimatedWBGTBracket(currentTempNum, current.wbgt)
     ) {
-        html += ` <span class="temp-hot">[${formatTemp(current.wbgt)}]</span>`;
+        html += ` <span class="condition-value ${wbgtDisplayColorClass(current.wbgt)}">[${formatTemp(current.wbgt)}]</span>`;
     } else if (current.heatIndex) {
         html += ` <span class="temp-hot">[${formatTemp(current.heatIndex)}]</span>`;
     }
@@ -436,7 +441,7 @@ function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12,
             );
             if (wbgtVal != null && shouldShowEstimatedWBGTBracket(tempNum, wbgtVal)) {
                 windchillHeatIndex = ` [${formatTemp(wbgtVal)}]`;
-                windchillHeatIndexClass = "temp-hot";
+                windchillHeatIndexClass = wbgtDisplayColorClass(wbgtVal);
             }
         } else if (tempNum >= 80) {
             const humidityNum = period.relativeHumidity?.value || 0;
@@ -582,18 +587,36 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
                 }
             } else if (wbgtFeelsLikeEnabled()) {
                 const humidityNum = period.relativeHumidity?.value || 0;
+                // Peak WBGT for the day: solar term uses clear-sky GHI at solar noon (location calendar day), not period start
+                let wbgtAtDate = periodTime;
+                let wbgtIsDaytime = isWbgtPeriodDaytime;
+                if (location.lat && location.lon) {
+                    let anchorForSolarNoon = periodTime;
+                    if (location.timeZone) {
+                        const ymd = new Intl.DateTimeFormat('en-CA', {
+                            timeZone: location.timeZone,
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                        }).format(periodTime);
+                        const [y, m, d] = ymd.split('-').map(Number);
+                        anchorForSolarNoon = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+                    }
+                    wbgtAtDate = getSolarNoonForDate(location.lat, location.lon, anchorForSolarNoon);
+                    wbgtIsDaytime = getSolarIrradiance(location.lat, location.lon, wbgtAtDate) > 0;
+                }
                 const wbgtVal = calculateEstimatedWBGT(
                     tempNum,
                     humidityNum,
                     windSpeed,
                     location.lat,
                     location.lon,
-                    periodTime,
-                    isWbgtPeriodDaytime,
+                    wbgtAtDate,
+                    wbgtIsDaytime,
                     shortForecast
                 );
                 if (wbgtVal != null && shouldShowEstimatedWBGTBracket(tempNum, wbgtVal)) {
-                    windChillHeatIndex = ` <span class="temp-hot">[${formatTemp(wbgtVal)}]</span>`;
+                    windChillHeatIndex = ` <span class="${wbgtDisplayColorClass(wbgtVal)}">[${formatTemp(wbgtVal)}]</span>`;
                 }
             } else if (tempNum >= 80) {
                 const humidityNum = period.relativeHumidity?.value || 0;
@@ -1270,7 +1293,7 @@ function displayObservations(observationsData, location) {
         if (windChill) {
             html += ` <span class="condition-value">Windchill[<span class="temp-cold">${formatTemp(windChill)}</span>]</span>`;
         } else if (wbgtVal != null) {
-            html += ` <span class="condition-value">WBGT[<span class="temp-hot">${formatTemp(wbgtVal)}</span>]</span>`;
+            html += ` <span class="condition-value ${wbgtDisplayColorClass(wbgtVal)}">WBGT[${formatTemp(wbgtVal)}]</span>`;
         } else if (heatIndex) {
             html += ` <span class="condition-value">HeatIndex[<span class="temp-hot">${formatTemp(heatIndex)}</span>]</span>`;
         }

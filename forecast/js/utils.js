@@ -924,10 +924,12 @@ function formatSunriseDateAMPM(date, timeZoneId) {
     }
 }
 
-// Get temperature color class
+// Get temperature color class (dry-bulb °F thresholds; pass numeric °F even when displaying °C)
 function getTempColor(temp) {
-    if (temp < 33) return "temp-cold";
-    if (temp > 89) return "temp-hot";
+    const t = Number(temp);
+    if (!Number.isFinite(t)) return "temp-normal";
+    if (t < 33) return "temp-cold";
+    if (t > 89) return "temp-hot";
     return "temp-normal";
 }
 
