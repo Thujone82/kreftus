@@ -57,7 +57,8 @@ Defined in `service-worker.js` from the `VERSION` constant:
 
 ### Network-first (updates preferred)
 
-- **JS, HTML, CSS, JSON** (including `/forecast/` and manifest): `fetch(..., { cache: 'no-cache' })`, then on success the response is cloned and stored in `STATIC_CACHE`. On network failure, fallback to cache.
+- **Document navigations** to `/forecast/`, `/forecast`, or `.../forecast/index.html`: network-first (`fetch` with `cache: 'no-cache'`), then cache the response; offline fallback to cache. (PWA `start_url` is `/forecast/`; it must not use cache-first or the shell can stay stale while `VERSION` updates.)
+- **Other JS, HTML, CSS, JSON** (e.g. `/forecast/index.html` fetched as a subresource, or `.css` / `.js` / `.json`): stale-while-revalidate — return cache immediately if present, revalidate in background. On miss, network then cache.
 - **API requests** (api.weather.gov, nominatim.openstreetmap.org, ip-api.com, ipwho.is, ipapi.co): fetch from network first; on success (status 200) clone and store in `DATA_CACHE`. On network failure, use cache or return offline JSON.
 
 ### Cache-first

@@ -2,7 +2,7 @@
   "name": "Forecast",
   "short_name": "Forecast",
   "description": "Weather forecast app using National Weather Service API",
-  "version": "1.10.1",
+  "version": "1.10.2",
   "start_url": "/forecast/",
   "display": "standalone",
   "background_color": "#1a1a1a",

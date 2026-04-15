@@ -1,4 +1,4 @@
-const VERSION = '1.10.1';
+const VERSION = '1.10.2';
 const CACHE_NAME = `forecast-v${VERSION}`;
 const STATIC_CACHE = `forecast-static-v${VERSION}`;
 const DATA_CACHE = `forecast-data-v${VERSION}`;
@@ -143,6 +143,34 @@ self.addEventListener('fetch', (event) => {
                 })
             );
         }
+    } else if (
+        request.method === 'GET' &&
+        request.mode === 'navigate' &&
+        (url.pathname === '/forecast/' ||
+            url.pathname === '/forecast' ||
+            /\/forecast\/index\.html$/i.test(url.pathname))
+    ) {
+        // Network-first for the HTML shell. PWA start_url is /forecast/ — it does not match the .html
+        // branch below and previously fell through to cache-first, so users could keep a stale index
+        // (missing new settings UI) while the SW VERSION had already updated.
+        event.respondWith(
+            fetch(request, { cache: 'no-cache' })
+                .then((response) => {
+                    if (response && response.status === 200) {
+                        const clone = response.clone();
+                        caches.open(STATIC_CACHE).then((cache) => cache.put(request, clone));
+                    }
+                    return response;
+                })
+                .catch(() =>
+                    caches.match(request).then(
+                        (hit) =>
+                            hit ||
+                            caches.match(new Request(url.origin + '/forecast/index.html', { method: 'GET' })) ||
+                            caches.match(new Request(url.origin + '/forecast/', { method: 'GET' }))
+                    )
+                )
+        );
     } else if (url.pathname.endsWith('.js') || url.pathname.endsWith('.html') || url.pathname.endsWith('.css') || url.pathname.endsWith('.json')) {
         // Stale-while-revalidate: serve from cache immediately, then revalidate in background
         event.respondWith(
