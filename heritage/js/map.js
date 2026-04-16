@@ -25,6 +25,14 @@
 
     const PORTLAND = { lat: 45.5152, lng: -122.6784 };
     const MI_20_METERS = 32186.88;
+    // Sanity radius for "is this tree really in the Portland metro?". Matches
+    // the 75 mi viewbox used by heritage.ps1's Nominatim geocoder. Rows whose
+    // coords fall outside this ring are treated as if ungeocoded — they can
+    // slip in from stale IndexedDB from old sync runs (e.g. a tree that was
+    // later marked "removed" with null coords in trees.json, but whose old
+    // bad lat/lng still lives in the user's browser DB), and they wreck
+    // fitBounds by stretching it across the Atlantic toward Null Island.
+    const PORTLAND_SANITY_RADIUS_M = 120700; // ~75 mi
 
     const COLOR_FOUND   = '#2e7d32';
     const COLOR_NOT     = '#d4a24a';
@@ -388,7 +396,7 @@
     function renderTrees(trees) {
         clearMarkers();
         for (const t of trees) {
-            if (typeof t.lat !== 'number' || typeof t.lng !== 'number') continue;
+            if (!isTreeMappable(t)) continue;
             addMarker(t);
         }
     }
@@ -403,14 +411,20 @@
 
     function updateTreeMarker(tree) {
         let m = markers.get(tree.id);
-        if (!m && typeof tree.lat === 'number' && typeof tree.lng === 'number') {
+        const mappable = isTreeMappable(tree);
+        if (!m && mappable) {
             addMarker(tree);
             return;
         }
+        if (m && !mappable) {
+            // Tree's coords went null (e.g. sync cleared them after removal)
+            // or drifted outside the sanity ring. Drop the stale marker.
+            m.remove();
+            markers.delete(tree.id);
+            return;
+        }
         if (m) {
-            if (typeof tree.lat === 'number' && typeof tree.lng === 'number') {
-                m.setLatLng([tree.lat, tree.lng]);
-            }
+            m.setLatLng([tree.lat, tree.lng]);
             m.setStyle(markerStyleFor(tree));
             const tt = m.getTooltip();
             if (tt) tt.setContent(titleFor(tree));
@@ -477,7 +491,7 @@
 
         const foundDateStr = tree.foundDate ? formatLocalDate(tree.foundDate) : null;
 
-        const hasCoords = typeof tree.lat === 'number' && typeof tree.lng === 'number';
+        const hasCoords = isTreeMappable(tree);
         const navHref = hasCoords ? walkingDirectionsUrl(tree.lat, tree.lng) : '';
 
         let primary = '';
@@ -588,13 +602,26 @@
         return 2 * R * Math.asin(Math.sqrt(s));
     }
 
+    // True only if the tree has numeric coords AND they fall inside the
+    // Portland sanity ring. Used by every render/bounds/nearest call so a
+    // stale Africa-coord row can't pin itself or blow up fitBounds.
+    function isTreeMappable(tree) {
+        if (!tree) return false;
+        const lat = tree.lat;
+        const lng = tree.lng;
+        if (typeof lat !== 'number' || typeof lng !== 'number') return false;
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+        const d = distanceMeters(PORTLAND, { lat, lng });
+        return Number.isFinite(d) && d <= PORTLAND_SANITY_RADIUS_M;
+    }
+
     function countGeocodedTrees(trees) {
-        return trees.filter((t) => typeof t.lat === 'number' && typeof t.lng === 'number').length;
+        return trees.filter(isTreeMappable).length;
     }
 
     function fitBoundsAllGeocodedTrees(trees, animate) {
         if (!map) return;
-        const geoTrees = trees.filter((t) => typeof t.lat === 'number' && typeof t.lng === 'number');
+        const geoTrees = trees.filter(isTreeMappable);
         if (geoTrees.length === 0) {
             map.setView([PORTLAND.lat, PORTLAND.lng], 12, { animate: !!animate });
             return;
@@ -616,14 +643,14 @@
         let best = null;
         let bestD = Infinity;
         for (const t of trees) {
-            if (typeof t.lat !== 'number' || typeof t.lng !== 'number') continue;
+            if (!isTreeMappable(t)) continue;
             if (t.removed != null) continue;
             const d = distanceMeters(center, { lat: t.lat, lng: t.lng });
             if (d < bestD) { bestD = d; best = t; }
         }
         if (!best) {
             for (const t of trees) {
-                if (typeof t.lat !== 'number' || typeof t.lng !== 'number') continue;
+                if (!isTreeMappable(t)) continue;
                 const d = distanceMeters(center, { lat: t.lat, lng: t.lng });
                 if (d < bestD) { bestD = d; best = t; }
             }
@@ -634,7 +661,7 @@
     function autoFit(user, trees, opts) {
         if (!map) return;
         const animate = !!(opts && opts.animate);
-        const geoTrees = trees.filter((t) => typeof t.lat === 'number' && typeof t.lng === 'number');
+        const geoTrees = trees.filter(isTreeMappable);
         if (geoTrees.length === 0) {
             map.setView([PORTLAND.lat, PORTLAND.lng], 12, { animate });
             return;
@@ -722,7 +749,7 @@
         modalMapViewWide = false;
         void syncModalZoomToggleButton();
         const tree = await HeritageDB.getTree(id);
-        if (!tree || typeof tree.lat !== 'number' || typeof tree.lng !== 'number') return false;
+        if (!tree || !isTreeMappable(tree)) return false;
         const targetZoom = Math.max(map ? map.getZoom() : 16, (opts && opts.minZoom) || 16);
         map.setView([tree.lat, tree.lng], targetZoom, { animate: true });
         // Give the pan a tick so the popup opens at the final position.
@@ -768,6 +795,7 @@
         syncModalZoomToggleButton,
         toggleModalMapZoom,
         distanceMeters,
+        isTreeMappable,
         PORTLAND
     };
 })(window);

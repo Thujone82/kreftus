@@ -40,7 +40,13 @@
         const n = Math.max(1, limit || 10);
         const { origin, fromUser } = originFor();
         const trees = await HeritageDB.getAllTrees();
-        const withGeo = trees.filter((t) => typeof t.lat === 'number' && typeof t.lng === 'number');
+        // Defer to HeritageMap.isTreeMappable (Portland sanity ring) if it's
+        // exported, otherwise fall back to the plain number check. This keeps
+        // stale Africa-coord rows from any past sync out of the Nearby list.
+        const passes = (typeof HeritageMap.isTreeMappable === 'function')
+            ? HeritageMap.isTreeMappable
+            : (t) => typeof t.lat === 'number' && typeof t.lng === 'number';
+        const withGeo = trees.filter(passes);
         const scored = withGeo.map((t) => ({
             tree: t,
             distance: HeritageMap.distanceMeters(origin, { lat: t.lat, lng: t.lng })
