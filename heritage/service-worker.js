@@ -17,7 +17,7 @@
 // IndexedDB is NEVER touched by the service worker, so installing an app update
 // cannot wipe a user's Found marks or notes.
 
-const VERSION = '1.0.8';
+const VERSION = '1.0.9';
 const STATIC_CACHE = `heritage-static-v${VERSION}`;
 const DATA_CACHE   = `heritage-data-v${VERSION}`;
 const TILE_CACHE   = `heritage-tiles-v1`;    // tile URLs are versionless, so keep across app bumps
@@ -38,7 +38,8 @@ const STATIC_ASSETS = [
     '/heritage/js/ui.js',
     '/heritage/js/sw-register.js',
     '/heritage/icons/icon-192.png',
-    '/heritage/icons/icon-512.png'
+    '/heritage/icons/icon-512.png',
+    '/heritage/icons/PDXTrees.png'
 ];
 
 self.addEventListener('install', (event) => {
