@@ -31,13 +31,15 @@
     const COLOR_REMOVED = '#7a7a7a';
     const COLOR_STROKE  = '#1f3b2a';
 
-    // geo: (RFC 5870) — OS picks the default maps / nav handler (strongest on
-    // Android; iOS varies). Testing instead of a Google-only https deep link.
+    // Google Maps "directions" deep link. geo: URIs work cleanly on Android
+    // but Safari/iOS and Windows routinely silently no-op on them, so we keep
+    // the universal https deep link — every platform renders it, and on
+    // mobile it still opens the native Google Maps app when installed.
     function walkingDirectionsUrl(lat, lng) {
         const la = Number(lat);
         const ln = Number(lng);
         if (!Number.isFinite(la) || !Number.isFinite(ln)) return '#';
-        return `geo:${la},${ln}`;
+        return `https://www.google.com/maps/dir/?api=1&destination=${la},${ln}&travelmode=walking`;
     }
 
     // CARTO Voyager: muted, natural palette that matches the PNW/woodsy theme
@@ -70,11 +72,18 @@
     const LIVE_WATCH_MIN_MOVE_M = 7;
 
     const LONG_PRESS_MS = 600;
-    const LONG_PRESS_MOVE_PX = 14;
+    // Tight threshold so even a small drift while the finger/mouse is down
+    // kills the prompt. Panning and two-finger pinches always cross this.
+    const LONG_PRESS_MOVE_PX = 6;
     let longPressTimer = null;
     let longPressPointerId = null;
     let longPressStartX = 0;
     let longPressStartY = 0;
+    // Track every active pointer on the map so we can abort the long-press
+    // as soon as a second finger lands (pinch-zoom) or any touch begins to
+    // pan. Leaflet intercepts some events, so we can't rely on pointermove
+    // alone.
+    const activePointers = new Map();
 
     // ---------------------------------------------------------------------
     // Init
@@ -207,6 +216,13 @@
         const el = map.getContainer();
 
         const onPointerDown = (e) => {
+            activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            // Any time a second pointer lands, kill the pending long-press.
+            // This catches two-finger zoom/pan on mobile before it ever fires.
+            if (activePointers.size > 1) {
+                clearLongPressTimer();
+                return;
+            }
             if (e.pointerType === 'mouse' && e.button !== 0) return;
             if (!shouldAllowMapLongPressTarget(e.target)) return;
             longPressPointerId = e.pointerId;
@@ -216,11 +232,21 @@
             longPressTimer = setTimeout(() => {
                 longPressTimer = null;
                 longPressPointerId = null;
+                // Never prompt if another finger joined between the timer
+                // starting and firing.
+                if (activePointers.size !== 1) return;
                 void promptAndRefreshUserLocation();
             }, LONG_PRESS_MS);
         };
 
         const onPointerMove = (e) => {
+            if (activePointers.has(e.pointerId)) {
+                activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            }
+            if (activePointers.size > 1) {
+                clearLongPressTimer();
+                return;
+            }
             if (longPressPointerId == null || e.pointerId !== longPressPointerId || !longPressTimer) return;
             const dx = e.clientX - longPressStartX;
             const dy = e.clientY - longPressStartY;
@@ -230,6 +256,7 @@
         };
 
         const onPointerEnd = (e) => {
+            activePointers.delete(e.pointerId);
             if (longPressPointerId != null && e.pointerId === longPressPointerId) {
                 clearLongPressTimer();
             }
@@ -239,6 +266,12 @@
         el.addEventListener('pointermove', onPointerMove);
         el.addEventListener('pointerup', onPointerEnd);
         el.addEventListener('pointercancel', onPointerEnd);
+        el.addEventListener('pointerleave', onPointerEnd);
+
+        // Leaflet swallows pointermove deltas while it pans, so the
+        // per-pointer threshold above doesn't always trip. Hook its own
+        // move/zoom start events as an extra belt-and-suspenders cancel.
+        map.on('movestart zoomstart dragstart', clearLongPressTimer);
     }
 
     async function promptAndRefreshUserLocation() {
@@ -451,7 +484,7 @@
 
         const navLink = hasCoords
             ? `<a class="tree-info-nav" href="${escapeHtml(navHref)}" target="_blank" rel="noopener"
-                   title="Open location in your maps app (geo: link)"
+                   title="Open walking directions in Google Maps"
                    aria-label="Navigate to heritage tree #${escapeHtml(tree.id)}">
                    <span class="tree-info-nav-icon" aria-hidden="true">\u{1F6B6}</span>
                    <span class="tree-info-nav-label">Navigate</span>

@@ -1,5 +1,6 @@
 // Nearby panel: list the 10 closest trees to the user's current location,
-// with a Navigate link using geo: so the OS can open the user's maps app.
+// with a Navigate link that opens Google Maps walking directions (works on
+// iOS, Android, Windows, and desktop web alike).
 
 (function (global) {
     'use strict';
@@ -16,7 +17,7 @@
         const la = Number(lat);
         const ln = Number(lng);
         if (!Number.isFinite(la) || !Number.isFinite(ln)) return '#';
-        return `geo:${la},${ln}`;
+        return `https://www.google.com/maps/dir/?api=1&destination=${la},${ln}&travelmode=walking`;
     }
 
     function originFor() {
@@ -125,14 +126,16 @@
 
         view.addEventListener('click', () => onView(row.tree));
 
-        // Navigate link: geo: URI so the OS can open the user's preferred maps app.
-        // Rendered as a real anchor so middle/cmd-click and "open in new tab" work.
+        // Navigate link: Google Maps walking directions. Rendered as a real
+        // anchor so middle/cmd-click and "open in new tab" work on desktop,
+        // and mobile OSes still deep-link into the native Google Maps app
+        // when it's installed.
         const nav = document.createElement('a');
         nav.className = 'nearby-item-nav';
         nav.href = walkingNavUrl(row.tree.lat, row.tree.lng);
         nav.target = '_blank';
         nav.rel = 'noopener';
-        nav.title = 'Open location in your maps app (geo: link)';
+        nav.title = 'Open walking directions in Google Maps';
         nav.setAttribute('aria-label',
             `Navigate to ${row.tree.species || row.tree.name || row.tree.id}`);
         const navIcon = document.createElement('span');
