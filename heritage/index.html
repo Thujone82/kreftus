@@ -79,15 +79,11 @@
                 <li>Create a new project (or select an existing one) and click
                     <strong>Create Credentials &rarr; API Key</strong>.
                 </li>
-                <li>Enable these APIs on the project:
-                    <ul>
-                        <li><strong>Maps JavaScript API</strong> &ndash; for the map and markers</li>
-                        <li><strong>Geocoding API</strong> &ndash; to turn tree addresses into coordinates</li>
-                    </ul>
-                </li>
-                <li>(Recommended) Restrict the key to the two APIs above and to your site&rsquo;s URL.</li>
-                <li>Paste the key below. Google&rsquo;s free monthly credit covers the one-time geocoding
-                    of ~400 trees and normal map use by a long way.</li>
+                <li>Enable <strong>Maps JavaScript API</strong> on the project. That&rsquo;s all the
+                    app needs &mdash; tree coordinates are pre-resolved via OpenStreetMap Nominatim by the
+                    included PowerShell scraper, so no Geocoding API is required.</li>
+                <li>(Recommended) Restrict the key to <em>Maps JavaScript API</em> and to your site&rsquo;s URL.</li>
+                <li>Paste the key below. Google&rsquo;s free monthly credit covers normal map use by a long way.</li>
             </ol>
 
             <div id="setupError" class="setup-error hidden" role="alert"></div>

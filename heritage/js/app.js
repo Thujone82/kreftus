@@ -5,11 +5,17 @@
 //      On save: persist key, continue boot.
 //   2. Open IndexedDB.
 //   3. If DB empty: fetch heritage/data/trees.json and initial-load it.
+//      (Tree coordinates ship pre-geocoded from heritage/heritage.ps1, so this
+//      is immediate - no live geocoding needed for the common case.)
 //   4. Load Google Maps JS API with the saved key.
 //   5. Init map, render markers for all trees that have coords.
-//   6. Kick off geocoding of any pending trees in the background.
+//   6. Silent coord backfill: if any tree is missing coords (e.g. upgrading
+//      from a pre-0.2 build that geocoded live), re-merge the bundled JSON
+//      to pick up the pre-resolved coordinates.
 //   7. Camera auto-fit based on user location vs. Portland.
-//   8. Wire Nearby, Check-for-updates, Settings, Update banner.
+//   8. Fallback live geocoder runs ONLY for trees the scraper couldn't
+//      resolve, and stays silent when nothing is pending.
+//   9. Wire Nearby, Check-for-updates, Settings, Update banner.
 
 (function (global) {
     'use strict';
@@ -150,10 +156,11 @@
 
         // Initial data load if DB is empty.
         const count = await HeritageDB.countTrees();
+        let snap = null;
         if (count === 0) {
             HeritageUI.showProgress('Loading tree list\u2026');
             HeritageUI.updateProgress(0, 1, 'Loading tree list');
-            const snap = await HeritageSync.fetchSnapshot();
+            snap = await HeritageSync.fetchSnapshot();
             const { inserted } = await HeritageSync.initialLoad(snap);
             HeritageUI.updateProgress(1, 1, 'Loading tree list');
             HeritageUI.hideProgress();
@@ -167,15 +174,38 @@
         HeritageMap.setOnTreeUpdate(onTreeRecordChanged);
 
         // Render whatever we already have coordinates for.
-        const initialTrees = await HeritageDB.getAllTrees();
+        let initialTrees = await HeritageDB.getAllTrees();
         HeritageMap.renderTrees(initialTrees);
+
+        // Silent coord backfill: the bundled snapshot now ships pre-geocoded by
+        // heritage.ps1 (via OpenStreetMap Nominatim). If any non-removed tree
+        // in the DB is still missing coords (e.g. the user is upgrading from a
+        // version that geocoded live), pull them straight from the JSON rather
+        // than hitting a geocoding service in the browser.
+        const needsBackfill = initialTrees.some((t) =>
+            (t.lat == null || t.lng == null) && t.removed == null &&
+            t.geocodeStatus !== 'skipped-no-address'
+        );
+        if (needsBackfill) {
+            try {
+                if (!snap) snap = await HeritageSync.fetchSnapshot();
+                const summary = await HeritageSync.mergeUpdate(snap);
+                if (summary.updated > 0 || summary.added > 0) {
+                    initialTrees = await HeritageDB.getAllTrees();
+                    HeritageMap.renderTrees(initialTrees);
+                }
+            } catch (e) {
+                // Offline or snapshot missing; fall back to the live geocoder below.
+            }
+        }
 
         // Resolve user location (best-effort) and place marker + auto-fit camera.
         const user = await HeritageMap.getUserLocation(7000);
         if (user) HeritageMap.placeUserMarker();
         HeritageMap.autoFit(user, initialTrees);
 
-        // Kick off geocoding of any pending trees in the background.
+        // Fallback live geocoder: only fires if the snapshot didn't cover a tree.
+        // Stays silent when the backfill (above) handled everything.
         runBackgroundGeocode();
     }
 

@@ -1,15 +1,22 @@
 // Loads heritage/data/trees.json and merges it into the IndexedDB.
 //
+// The bundled snapshot is produced by heritage/heritage.ps1 which pre-geocodes
+// every tree. Coordinates therefore arrive in the JSON and are written
+// straight into the DB. The browser-side geocoder only runs for the rare cases
+// where the scraper couldn't resolve an address.
+//
 // Merge rules (hard requirement from the product spec):
-//   - NEW id in JSON (not in DB)     -> insert a new record. found=false,
-//                                       notes="", no lat/lng. Needs geocoding.
+//   - NEW id in JSON (not in DB)     -> insert a new record with the JSON's
+//                                       lat/lng (if any). found=false, notes="".
 //   - EXISTING id:
 //       * Always update canonical fields if they changed:
-//           year, name, species, commonName
-//       * Update location text if changed. If location changed, clear lat/lng
-//         and mark geocodeStatus = "pending" so the geocoder retries it. The
-//         user's found/foundDate/notes are STILL preserved.
-//       * Update `removed` year (only way to add a "newly removed" marker).
+//           year, name, species, commonName, removed.
+//       * Update location text if changed. If the JSON has fresh coords, use
+//         them; otherwise clear lat/lng and mark geocodeStatus = "pending" so
+//         the fallback geocoder can retry. User found/foundDate/notes are
+//         preserved in every case.
+//       * When the snapshot provides authoritative coords (scraper succeeded)
+//         they overwrite any stale lat/lng in the DB.
 //       * NEVER overwrite found, foundDate, notes.
 //
 // Anything extra in the JSON that we don't know about is ignored. Anything in
@@ -35,6 +42,9 @@
     function decorate(source) {
         // `source` is one element from the scraper's trees array.
         const { species, common } = HeritageWiki.splitSpeciesAndCommon(source.name || '');
+        const lat = Number(source.lat);
+        const lng = Number(source.lng);
+        const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
         return {
             id: source.id,
             year: Number.isFinite(source.year) ? source.year : null,
@@ -42,7 +52,10 @@
             species,
             commonName: common,
             location: source.location || '',
-            removed: (source.removed === null || source.removed === undefined) ? null : Number(source.removed)
+            removed: (source.removed === null || source.removed === undefined) ? null : Number(source.removed),
+            lat: hasCoords ? lat : null,
+            lng: hasCoords ? lng : null,
+            geocodeStatus: source.geocodeStatus || (hasCoords ? 'ok' : null)
         };
     }
 
@@ -60,11 +73,21 @@
         const now = new Date().toISOString();
         const records = snapshot.trees.map((src) => {
             const d = decorate(src);
+            const hasCoords = (d.lat != null && d.lng != null);
+            // Removed trees don't need geocoding even if coords are missing.
+            const defaultStatus = hasCoords ? 'ok'
+                : (d.removed != null ? 'skipped-removed' : 'pending');
             return {
-                ...d,
-                lat: null,
-                lng: null,
-                geocodeStatus: 'pending',
+                id: d.id,
+                year: d.year,
+                name: d.name,
+                species: d.species,
+                commonName: d.commonName,
+                location: d.location,
+                removed: d.removed,
+                lat: d.lat,
+                lng: d.lng,
+                geocodeStatus: d.geocodeStatus || defaultStatus,
                 geocodeTriedAt: null,
                 found: false,
                 foundDate: null,
@@ -94,13 +117,22 @@
 
         for (const src of snapshot.trees) {
             const d = decorate(src);
+            const hasCoords = (d.lat != null && d.lng != null);
             const prev = byId.get(d.id);
             if (!prev) {
+                const defaultStatus = hasCoords ? 'ok'
+                    : (d.removed != null ? 'skipped-removed' : 'pending');
                 toWrite.push({
-                    ...d,
-                    lat: null,
-                    lng: null,
-                    geocodeStatus: 'pending',
+                    id: d.id,
+                    year: d.year,
+                    name: d.name,
+                    species: d.species,
+                    commonName: d.commonName,
+                    location: d.location,
+                    removed: d.removed,
+                    lat: d.lat,
+                    lng: d.lng,
+                    geocodeStatus: d.geocodeStatus || defaultStatus,
                     geocodeTriedAt: null,
                     found: false,
                     foundDate: null,
@@ -117,8 +149,11 @@
             const nameChanged = prev.name !== d.name;
             const yearChanged = prev.year !== d.year;
             const removedChanged = (prev.removed || null) !== (d.removed || null);
+            const coordsChanged = hasCoords && (prev.lat !== d.lat || prev.lng !== d.lng);
+            const dbMissingCoords = (prev.lat == null || prev.lng == null);
 
-            if (!locChanged && !nameChanged && !yearChanged && !removedChanged) {
+            if (!locChanged && !nameChanged && !yearChanged && !removedChanged
+                && !coordsChanged && !(dbMissingCoords && hasCoords)) {
                 // Nothing to persist.
                 continue;
             }
@@ -134,13 +169,22 @@
                 lastUpdatedAt: now
                 // found / foundDate / notes intentionally untouched.
             };
-            if (locChanged) {
-                // Force a fresh geocode, but leave old lat/lng in place until we have a new one,
-                // so the marker stays on the map in the meantime.
-                merged.geocodeStatus = 'pending';
+            if (hasCoords) {
+                // Scraper result is authoritative.
+                merged.lat = d.lat;
+                merged.lng = d.lng;
+                merged.geocodeStatus = 'ok';
                 merged.geocodeTriedAt = null;
-                locationChanged++;
+            } else if (locChanged) {
+                // Snapshot doesn't have coords for this location - queue fallback geocode.
+                merged.lat = null;
+                merged.lng = null;
+                merged.geocodeStatus = (d.removed != null) ? 'skipped-removed' : 'pending';
+                merged.geocodeTriedAt = null;
+            } else if (d.removed != null && prev.geocodeStatus === 'pending') {
+                merged.geocodeStatus = 'skipped-removed';
             }
+            if (locChanged) locationChanged++;
             toWrite.push(merged);
             updated++;
             if (removedAppeared) newlyRemoved++;

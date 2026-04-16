@@ -1,18 +1,22 @@
-// Throttled geocoding queue.
+// Throttled geocoding queue (fallback only).
 //
-// Runs google.maps.Geocoder against any tree with geocodeStatus === 'pending'
-// (or a manually-requested 'failed' retry). Reports progress via a callback
-// so the UI can drive the top progress bar.
+// The bundled snapshot is pre-geocoded by heritage/heritage.ps1, so this
+// module almost never has any work to do. It exists so that any tree whose
+// address couldn't be resolved by the script (rare) can still be attempted
+// from the browser.
 //
-// Throttling: concurrency 1, ~180ms between requests. Google Geocoding API's
-// per-second cap is generous, but being polite avoids temporary over-quota
-// failures (OVER_QUERY_LIMIT).
+// Uses the free OpenStreetMap Nominatim API (no API key needed). Nominatim's
+// Acceptable Use Policy caps us at 1 request/second for a shared endpoint
+// and asks for an identifying User-Agent. Browsers silently drop the
+// User-Agent header so the request actually goes out with the browser's
+// native UA; that's fine for the tiny volume this fallback produces.
 
 (function (global) {
     'use strict';
 
-    const PORTLAND_OR_SUFFIX = ', Portland, OR';
-    const STEP_MS = 180;
+    const PORTLAND_OR_SUFFIX = ', Portland, OR, USA';
+    const STEP_MS = 1200;
+    const BASE = 'https://nominatim.openstreetmap.org/search';
 
     let running = false;
 
@@ -21,9 +25,7 @@
     function sanitizeLocation(loc) {
         if (!loc) return '';
         let t = String(loc);
-        // Strip parenthetical qualifiers like "(private, side yard)".
         t = t.replace(/\([^)]*\)/g, ' ');
-        // Collapse whitespace.
         t = t.replace(/\s+/g, ' ').trim();
         return t;
     }
@@ -31,24 +33,42 @@
     function buildAddress(tree) {
         const loc = sanitizeLocation(tree.location);
         if (!loc) return null;
-        // If the location already says "Removed from list ..." there is no real address to geocode.
         if (/removed from list/i.test(loc)) return null;
-        // If the location already mentions Portland/Oregon/OR, don't double it up.
-        if (/\bPortland\b/i.test(loc)) return loc;
+        if (/\bPortland\b/i.test(loc)) {
+            if (!/\bOR\b|\bOregon\b/i.test(loc)) return loc + ', OR, USA';
+            if (!/\bUSA\b|\bUS\b|United States/i.test(loc)) return loc + ', USA';
+            return loc;
+        }
         return loc + PORTLAND_OR_SUFFIX;
     }
 
-    function geocodeOnce(geocoder, address) {
-        return new Promise((resolve) => {
-            geocoder.geocode({ address }, (results, status) => {
-                if (status === 'OK' && results && results[0] && results[0].geometry) {
-                    const loc = results[0].geometry.location;
-                    resolve({ ok: true, lat: loc.lat(), lng: loc.lng(), status });
-                } else {
-                    resolve({ ok: false, status });
+    async function geocodeOnce(address) {
+        const url = `${BASE}?q=${encodeURIComponent(address)}&format=json&limit=1&countrycodes=us&addressdetails=1`;
+        try {
+            const resp = await fetch(url, {
+                headers: {
+                    'Accept': 'application/json',
+                    // Browsers strip the User-Agent header but setting it is harmless.
+                    'User-Agent': 'PDXHeritageTrees/1.0'
                 }
             });
-        });
+            if (!resp.ok) {
+                if (resp.status === 429) return { ok: false, status: 'RATE_LIMITED' };
+                return { ok: false, status: `HTTP_${resp.status}` };
+            }
+            const data = await resp.json();
+            if (Array.isArray(data) && data.length > 0) {
+                const first = data[0];
+                const lat = parseFloat(first.lat);
+                const lng = parseFloat(first.lon);
+                if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                    return { ok: true, lat, lng, status: 'OK' };
+                }
+            }
+            return { ok: false, status: 'ZERO_RESULTS' };
+        } catch (err) {
+            return { ok: false, status: 'REQUEST_ERROR', message: err && err.message };
+        }
     }
 
     /**
@@ -67,18 +87,12 @@
             const onTree     = (opts && opts.onTree)     || (() => {});
             const includeFailed = !!(opts && opts.includeFailed);
 
-            if (!global.google || !global.google.maps || !global.google.maps.Geocoder) {
-                throw new Error('Google Maps Geocoder is not available. Is the API key correct?');
-            }
-            const geocoder = new global.google.maps.Geocoder();
-
             const all = await HeritageDB.getAllTrees();
             const needs = all.filter((t) =>
-                (t.geocodeStatus === 'pending') ||
-                (includeFailed && t.geocodeStatus === 'failed') ||
-                (!t.lat || !t.lng) && (t.removed == null)
+                ((t.geocodeStatus === 'pending') ||
+                 (includeFailed && t.geocodeStatus === 'failed') ||
+                 ((t.lat == null || t.lng == null) && t.removed == null))
             );
-            // Skip removed trees if we don't have a real address for them.
             const queue = needs.filter((t) => buildAddress(t) !== null);
             const total = queue.length;
 
@@ -87,7 +101,7 @@
 
             for (const tree of queue) {
                 const address = buildAddress(tree);
-                const result = await geocodeOnce(geocoder, address);
+                const result = await geocodeOnce(address);
                 const now = new Date().toISOString();
                 const updated = await HeritageDB.updateTree(tree.id, (t) => {
                     t.geocodeTriedAt = now;
@@ -106,9 +120,8 @@
                 if (result.ok) succeeded++; else failed++;
                 onProgress({ done, total, currentId: tree.id });
 
-                // Back off if Google told us we're going too fast.
-                if (result.status === 'OVER_QUERY_LIMIT') {
-                    await wait(2000);
+                if (result.status === 'RATE_LIMITED') {
+                    await wait(10000);
                 }
                 await wait(STEP_MS);
             }
