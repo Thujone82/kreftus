@@ -1,0 +1,2786 @@
+﻿{
+    "sourceUrl":  "https://www.portland.gov/trees/heritage/heritage-trees-year",
+    "scrapedAt":  "2026-04-16T17:13:10Z",
+    "count":  397,
+    "trees":  [
+                  {
+                      "id":  "001",
+                      "year":  1993,
+                      "name":  "Ulmus americana - American elm",
+                      "location":  "Removed from list in 2024",
+                      "removed":  2024
+                  },
+                  {
+                      "id":  "002",
+                      "year":  1993,
+                      "name":  "Platanus x acerifolia - London planetree",
+                      "location":  "NW Corner of SW Park \u0026 Main (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "003",
+                      "year":  1993,
+                      "name":  "Liriodendron tulipifera - Tulip tree",
+                      "location":  "1403 NE Weidler St (private, side yard, corner lot)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "004",
+                      "year":  1993,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "2137 SE 32nd Pl (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "005",
+                      "year":  1993,
+                      "name":  "Pinus nigra - Austrian pine",
+                      "location":  "SW 20th \u0026 Howards Way (right-of-way, TriMet)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "006",
+                      "year":  1993,
+                      "name":  "Cedrus libani - Cedar of lebanon",
+                      "location":  "2024 SW Howards Way (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "007",
+                      "year":  1994,
+                      "name":  "Fagus sylvatica - European beech",
+                      "location":  "10115 NE Thompson St (right-of-way, unimproved)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "008",
+                      "year":  1994,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "7168 N Olin Ave (right of way, unimproved)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "009",
+                      "year":  1994,
+                      "name":  "Quercus rubra - Northern red oak",
+                      "location":  "1961 SW Vista Ave (private, front yard) - removed in 2025",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "010",
+                      "year":  1994,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "1310-1338 NW 23rd Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "011",
+                      "year":  1994,
+                      "name":  "Liriodendron tulipifera - Tulip tree",
+                      "location":  "2390 SW Madison St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "012",
+                      "year":  1994,
+                      "name":  "Ulmus americana - American elm",
+                      "location":  "Removed from list in 2018",
+                      "removed":  2018
+                  },
+                  {
+                      "id":  "013",
+                      "year":  1994,
+                      "name":  "Quercus bicolor - Swamp white oak",
+                      "location":  "Removed from list in 2011",
+                      "removed":  2011
+                  },
+                  {
+                      "id":  "014",
+                      "year":  1994,
+                      "name":  "Magnolia acuminata - Cucumber tree",
+                      "location":  "1961 NW Glisan St (PP\u0026R, Couch Park)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "015",
+                      "year":  1994,
+                      "name":  "Platanus occidentalis - American sycamore",
+                      "location":  "4234 SE 33rd Pl (right-of-way, unimproved)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "016",
+                      "year":  1994,
+                      "name":  "Fagus sylvatica f. purpurea - European beech",
+                      "location":  "1579 SE Nehalem St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "017",
+                      "year":  1994,
+                      "name":  "Liriodendron tulipifera - Tulip tree",
+                      "location":  "3104 SE Gladstone St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "018",
+                      "year":  1994,
+                      "name":  "Pinus radiata - Monterey pine",
+                      "location":  "5330 SE 37th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "019",
+                      "year":  1994,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "Removed in 2024",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "020",
+                      "year":  1994,
+                      "name":  "Quercus velutina - Black oak",
+                      "location":  "3203 SE Woodstock Blvd (private, Reed College)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "021",
+                      "year":  1994,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "1224 SE Sellwood Blvd (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "022",
+                      "year":  1994,
+                      "name":  "Betula nigra - River birch",
+                      "location":  "7951 SE 7th Ave (PP\u0026R)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "023",
+                      "year":  1994,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "Removed from list in 2024",
+                      "removed":  2024
+                  },
+                  {
+                      "id":  "024",
+                      "year":  1994,
+                      "name":  "Catalpa speciosa - Northern catalpa",
+                      "location":  "2827 NE 24th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "025",
+                      "year":  1994,
+                      "name":  "Catalpa speciosa - Northern catalpa",
+                      "location":  "2827 NE 24th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "026",
+                      "year":  1994,
+                      "name":  "Ulmus minor var. vulgaris - English elm",
+                      "location":  "Removed from list in 2023",
+                      "removed":  2023
+                  },
+                  {
+                      "id":  "027",
+                      "year":  1994,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "5000 N Willamette Blvd (private, University of Portland)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "028",
+                      "year":  1994,
+                      "name":  "Acer macrophyllum - Bigleaf maple",
+                      "location":  "Removed from list in 2000",
+                      "removed":  2000
+                  },
+                  {
+                      "id":  "029",
+                      "year":  1994,
+                      "name":  "Acer saccharinum - Silver maple",
+                      "location":  "Removed from list in 2003",
+                      "removed":  2003
+                  },
+                  {
+                      "id":  "030",
+                      "year":  1994,
+                      "name":  "Ulmus minor `variegata\u0027 - Tartan elm",
+                      "location":  "2120 SE 24th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "031",
+                      "year":  1994,
+                      "name":  "Juglans nigra - Black walnut",
+                      "location":  "7703 SE Martins St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "032",
+                      "year":  1994,
+                      "name":  "Carya tomentosa - Mockernut hickory",
+                      "location":  "1609 SE Umatilla St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "033",
+                      "year":  1994,
+                      "name":  "Carya laciniosa - Shellbark hickory",
+                      "location":  "143 SE 32nd Ave (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "034",
+                      "year":  1994,
+                      "name":  "Carya laciniosa - Shellbark hickory",
+                      "location":  "143 SE 32nd Ave (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "035",
+                      "year":  1994,
+                      "name":  "Juglands nigra - Black walnut",
+                      "location":  "1600 SW Salmon St (Portland Public Schools)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "036",
+                      "year":  1994,
+                      "name":  "Ulmus minor var. vulgaris - English elm",
+                      "location":  "2363 NW Flanders St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "037",
+                      "year":  1994,
+                      "name":  "Magnolia grandiflora - Southern magnolia",
+                      "location":  "212 SW Meade St #WI (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "038",
+                      "year":  1995,
+                      "name":  "Liriodendron tulipifera - Tulip tree",
+                      "location":  "5450 SE 40th Ave (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "039",
+                      "year":  1995,
+                      "name":  "Catalpa speciosa - Northern catalpa",
+                      "location":  "1126 SE 15th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "040",
+                      "year":  1995,
+                      "name":  "Platanus x acerifolia - London planetree",
+                      "location":  "1816 SE 21st Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "041",
+                      "year":  1995,
+                      "name":  "Aesculus flava - Yellow buckeye",
+                      "location":  "3387 SE Tibbetts St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "042",
+                      "year":  1995,
+                      "name":  "Catalpa speciosa - Northern catalpa",
+                      "location":  "Removed from list in 2007",
+                      "removed":  2007
+                  },
+                  {
+                      "id":  "043",
+                      "year":  1995,
+                      "name":  "Arbutus menziesii - Madrone",
+                      "location":  "Removed from list in 2015",
+                      "removed":  2015
+                  },
+                  {
+                      "id":  "044",
+                      "year":  1995,
+                      "name":  "Betula pendula x B pubescens - Birch hybrid",
+                      "location":  "Removed from list in 2017",
+                      "removed":  2017
+                  },
+                  {
+                      "id":  "045",
+                      "year":  1995,
+                      "name":  "Quercus rubra - Northern red oak",
+                      "location":  "2642 NW Lovejoy St (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "046",
+                      "year":  1995,
+                      "name":  "Ulmus x hollandica - Dutch elm",
+                      "location":  "2330 NW Flanders St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "047",
+                      "year":  1995,
+                      "name":  "Ulmus glabra `Camperdownii\u0027 - Camperdown elm",
+                      "location":  "3040 SE McLoughlin Blvd (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "048",
+                      "year":  1995,
+                      "name":  "Nyssa sylvatica - Tupelo",
+                      "location":  "7951 SE 7th Ave (PP\u0026R, Sellwood Park)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "049",
+                      "year":  1995,
+                      "name":  "Tilia platyphyllos - Bigleaf linden",
+                      "location":  "2204 SE 11th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "050",
+                      "year":  1995,
+                      "name":  "Araucaria araucana - Monkey puzzle",
+                      "location":  "Removed from list in 2001",
+                      "removed":  2001
+                  },
+                  {
+                      "id":  "051",
+                      "year":  1995,
+                      "name":  "Paulownia tomentosa - Empress tree",
+                      "location":  "Removed from list in 2023",
+                      "removed":  2023
+                  },
+                  {
+                      "id":  "052",
+                      "year":  1995,
+                      "name":  "Cryptomeria japonica - Cryptomeria",
+                      "location":  "7688 SW Capitol Hwy (PP\u0026R, Multnomah Arts Center)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "053",
+                      "year":  1995,
+                      "name":  "Fraxinus latifolia - Oregon ash",
+                      "location":  "2038 SW Myrtle St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "054",
+                      "year":  1995,
+                      "name":  "Fagus sylvatica f. purpurea - European beech",
+                      "location":  "1875 SW Park Ave (Portland State University)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "055",
+                      "year":  1995,
+                      "name":  "Liquidambar styraciflua - American sweetgum",
+                      "location":  "2617 NE 16th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "056",
+                      "year":  1995,
+                      "name":  "Liquidambar styraciflua - American sweetgum",
+                      "location":  "2617 NE 16th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "057",
+                      "year":  1995,
+                      "name":  "Cunninghamia lanceolata - China fir",
+                      "location":  "1104 SE Mall St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "058",
+                      "year":  1995,
+                      "name":  "Juglans nigra - Black walnut",
+                      "location":  "1942 SE 30th Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "059",
+                      "year":  1995,
+                      "name":  "Magnolia fraseri - Fraser magnolia",
+                      "location":  "Removed from list in 2008",
+                      "removed":  2008
+                  },
+                  {
+                      "id":  "060",
+                      "year":  1995,
+                      "name":  "Acer rubrum - Red maple",
+                      "location":  "Removed from list in 2015",
+                      "removed":  2015
+                  },
+                  {
+                      "id":  "061",
+                      "year":  1995,
+                      "name":  "Pinus monticola - Western white pine",
+                      "location":  "1726 SE 24th Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "062",
+                      "year":  1995,
+                      "name":  "Tilia platyphyllos - Bigleaf linden",
+                      "location":  "6325 SE Division St (PP\u0026R, Mt Tabor Park)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "063",
+                      "year":  1995,
+                      "name":  "Fagus sylvatica f. purpurea - European beech",
+                      "location":  "2401 SE 26th Ave (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "064",
+                      "year":  1995,
+                      "name":  "Castanea sativa - Spanish chestnut",
+                      "location":  "Removed in 2024",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "065",
+                      "year":  1995,
+                      "name":  "Juglans nigra - Black walnut",
+                      "location":  "Removed from list in 2005",
+                      "removed":  2005
+                  },
+                  {
+                      "id":  "066",
+                      "year":  1995,
+                      "name":  "Quercus rubra - Northern red oak",
+                      "location":  "1009 NE Stanton St (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "067",
+                      "year":  1995,
+                      "name":  "Pinus densiflora - Japanese red pine",
+                      "location":  "Removed from list in 2016",
+                      "removed":  2016
+                  },
+                  {
+                      "id":  "068",
+                      "year":  1995,
+                      "name":  "Pinus densiflora - Japanese red pine",
+                      "location":  "110 NE 39th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "069",
+                      "year":  1995,
+                      "name":  "Ulmus americana - American elm",
+                      "location":  "Removed from list in 2017",
+                      "removed":  2017
+                  },
+                  {
+                      "id":  "070",
+                      "year":  1995,
+                      "name":  "Salix babylonica - Weeping willow",
+                      "location":  "Removed from list in 2024",
+                      "removed":  2024
+                  },
+                  {
+                      "id":  "071",
+                      "year":  1995,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "9107 N Richmond Ave (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "072",
+                      "year":  1995,
+                      "name":  "Castanea sativa - Spanish chestnut",
+                      "location":  "Removed from list in 2012",
+                      "removed":  2012
+                  },
+                  {
+                      "id":  "073",
+                      "year":  1995,
+                      "name":  "Ginkgo biloba - Ginkgo",
+                      "location":  "662 NW Melinda Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "074",
+                      "year":  1995,
+                      "name":  "Castanea sativa - Spanish chestnut",
+                      "location":  "Removed in 2025",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "075",
+                      "year":  1996,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "4620 SW 29th Pl (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "076",
+                      "year":  1996,
+                      "name":  "Cornus nuttallii - Pacific dogwood",
+                      "location":  "Removed from list in 2022",
+                      "removed":  2022
+                  },
+                  {
+                      "id":  "077",
+                      "year":  1996,
+                      "name":  "Cornus nuttallii - Pacific dogwood",
+                      "location":  "7817 N Haven Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "078",
+                      "year":  1996,
+                      "name":  "Juglans regia - English walnut",
+                      "location":  "5941 NE 45th Ave (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "079",
+                      "year":  1996,
+                      "name":  "Quercus chrysolepis - Canyon live oak",
+                      "location":  "2425 NE Alameda St (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "080",
+                      "year":  1996,
+                      "name":  "Pterocarya fraxinifolia - Caucasian wingnut",
+                      "location":  "2737 NE 15th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "081",
+                      "year":  1996,
+                      "name":  "Pterocarya fraxinifolia - Caucasian wingnut",
+                      "location":  "2738 NE 15th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "082",
+                      "year":  1996,
+                      "name":  "Pterocarya fraxinifolia - Caucasian wingnut",
+                      "location":  "2739 NE 15th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "083",
+                      "year":  1996,
+                      "name":  "Pterocarya fraxinifolia - Caucasian wingnut",
+                      "location":  "2740 NE 15th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "084",
+                      "year":  1996,
+                      "name":  "Pterocarya fraxinifolia - Caucasian wingnut",
+                      "location":  "2741 NE 15th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "085",
+                      "year":  1996,
+                      "name":  "Pterocarya fraxinifolia - Caucasian wingnut",
+                      "location":  "1408 NE Knott St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "086",
+                      "year":  1996,
+                      "name":  "Pterocarya fraxinifolia - Caucasian wingnut",
+                      "location":  "1409 NE Knott St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "087",
+                      "year":  1996,
+                      "name":  "Pterocarya fraxinifolia - Caucasian wingnut",
+                      "location":  "1410 NE Knott St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "088",
+                      "year":  1996,
+                      "name":  "Pterocarya fraxinifolia - Caucasian wingnut",
+                      "location":  "1411 NE Knott St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "089",
+                      "year":  1996,
+                      "name":  "Quercus prinus - Chestnut oak",
+                      "location":  "1927 NE Tillamook St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "090",
+                      "year":  1996,
+                      "name":  "Populus x canadensis - Carolina poplar",
+                      "location":  "Removed from list 2023",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "091",
+                      "year":  1996,
+                      "name":  "Quercus coccinea - Scarlet oak",
+                      "location":  "2502 SE Sherman St (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "092",
+                      "year":  1996,
+                      "name":  "Quercus rubra - Northern red oak",
+                      "location":  "Removed from list in 2005",
+                      "removed":  2005
+                  },
+                  {
+                      "id":  "093",
+                      "year":  1996,
+                      "name":  "Quercus rubra - Northern red oak",
+                      "location":  "Removed from list in 2005",
+                      "removed":  2005
+                  },
+                  {
+                      "id":  "094",
+                      "year":  1996,
+                      "name":  "Quercus rubra - Northern red oak",
+                      "location":  "Removed from list in 2005",
+                      "removed":  2005
+                  },
+                  {
+                      "id":  "095",
+                      "year":  1996,
+                      "name":  "Quercus rubra - Northern red oak",
+                      "location":  "Removed from list in 2005",
+                      "removed":  2005
+                  },
+                  {
+                      "id":  "096",
+                      "year":  1996,
+                      "name":  "Quercus rubra - Northern red oak",
+                      "location":  "Removed from list in 2005",
+                      "removed":  2005
+                  },
+                  {
+                      "id":  "097",
+                      "year":  1996,
+                      "name":  "Rhododendron ponticum - Ponticum rhododendron",
+                      "location":  "1905 SE Larch Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "098",
+                      "year":  1996,
+                      "name":  "Aesculus glabra - Ohio buckeye",
+                      "location":  "2160 SW Main St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "099",
+                      "year":  1996,
+                      "name":  "Acer saccharinum - Silver maple",
+                      "location":  "Removed from list in 2004",
+                      "removed":  2004
+                  },
+                  {
+                      "id":  "100",
+                      "year":  1996,
+                      "name":  "Aesculus hippocastanum - Common horsechestnut",
+                      "location":  "1013 SE Lambert St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "101",
+                      "year":  1996,
+                      "name":  "Aesculus hippocastanum - Common horsechestnut",
+                      "location":  "1014 SE Lambert St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "102",
+                      "year":  1996,
+                      "name":  "Ulmus x hollandica \u0027Vegeta\u0027 - American elm",
+                      "location":  "4534 SW 60th Pl (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "103",
+                      "year":  1996,
+                      "name":  "Liriodendron tulipifera - Tulip tree",
+                      "location":  "2404 NE Clackamas St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "104",
+                      "year":  1996,
+                      "name":  "Liriodendron tulipifera - Tulip tree",
+                      "location":  "2405 NE Clackamas St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "105",
+                      "year":  1996,
+                      "name":  "Acer campestre - Hedge maple",
+                      "location":  "2517 NE Multnomah St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "106",
+                      "year":  1996,
+                      "name":  "Acer campestre - Hedge maple",
+                      "location":  "2518 NE Multnomah St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "107",
+                      "year":  1996,
+                      "name":  "Fagus sylvatica f. purpurea - European beech",
+                      "location":  "2425 NE Alameda St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "108",
+                      "year":  1996,
+                      "name":  "Juglans nigra - Black walnut",
+                      "location":  "2830 N Williams Ave (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "109",
+                      "year":  1996,
+                      "name":  "Crataegus x lavallei - Lavalle hawthorn",
+                      "location":  "1011 SW 12th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "110",
+                      "year":  1996,
+                      "name":  "Crataegus x lavallei - Lavalle hawthorn",
+                      "location":  "1011 SW 12th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "111",
+                      "year":  1996,
+                      "name":  "Crataegus x lavallei - Lavalle hawthorn",
+                      "location":  "1011 SW 12th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "112",
+                      "year":  1996,
+                      "name":  "Crataegus x lavallei - Lavalle hawthorn",
+                      "location":  "1011 SW 12th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "113",
+                      "year":  1996,
+                      "name":  "Cedrus deodara - Deodar cedar",
+                      "location":  "2609 SW Park Pl (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "114",
+                      "year":  1996,
+                      "name":  "Tilia platyphyllos - Bigleaf linden",
+                      "location":  "Removed from list in 2008",
+                      "removed":  2008
+                  },
+                  {
+                      "id":  "115",
+                      "year":  1996,
+                      "name":  "Juglans cinerea - Butternut",
+                      "location":  "1584 SE Lexington St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "116",
+                      "year":  1996,
+                      "name":  "Juglans cinerea - Butternut",
+                      "location":  "Removed in 2024",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "117",
+                      "year":  1996,
+                      "name":  "Cornus nuttallii - Pacific dogwood",
+                      "location":  "Removed in 2026",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "118",
+                      "year":  1996,
+                      "name":  "Magnolia tripetela - Umbrella magnolia",
+                      "location":  "Removed from list in 2011",
+                      "removed":  2011
+                  },
+                  {
+                      "id":  "119",
+                      "year":  1996,
+                      "name":  "Ulmus x hollandica - Dutch elm",
+                      "location":  "2455 NW Johnson St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "120",
+                      "year":  1996,
+                      "name":  "Ulmus minor - Smoothleaf elm",
+                      "location":  "6125 SW Boundary St (private)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "121",
+                      "year":  1997,
+                      "name":  "Acer pseudoplatanus - Sycamore maple",
+                      "location":  "2807 NE 8th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "122",
+                      "year":  1997,
+                      "name":  "Acer pseudoplatanus - Sycamore maple",
+                      "location":  "2808 NE 8th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "123",
+                      "year":  1997,
+                      "name":  "Acer macrophyllum - Bigleaf maple",
+                      "location":  "Removed from list in 2003",
+                      "removed":  2003
+                  },
+                  {
+                      "id":  "124",
+                      "year":  1997,
+                      "name":  "Liriodendron tulipifera - Tulip tree",
+                      "location":  "1208 SE 53rd Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "125",
+                      "year":  1997,
+                      "name":  "Sequoiadendron giganteum - Giant sequoia",
+                      "location":  "2896 SW Patton Rd (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "126",
+                      "year":  1997,
+                      "name":  "Fagus sylvatica f. pendula - Weeping beech",
+                      "location":  "2417 SW 16th Ave (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "127",
+                      "year":  1997,
+                      "name":  "Ulmus americana - American elm",
+                      "location":  "Removed from list in 2017",
+                      "removed":  2017
+                  },
+                  {
+                      "id":  "128",
+                      "year":  1997,
+                      "name":  "Cedrus atlantica - Atlas cedar",
+                      "location":  "2033 SW Madison St (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "129",
+                      "year":  1997,
+                      "name":  "Platanus orientalis - Oriental planetree",
+                      "location":  "1032 SW Taylors Ferry Rd (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "130",
+                      "year":  1997,
+                      "name":  "Pinus ponderosa - Ponderosa pine",
+                      "location":  "4504 SW Shattuck Rd (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "131",
+                      "year":  1997,
+                      "name":  "Ulmus glabra `Camperdownii\u0027 - Camperdown elm",
+                      "location":  "Removed from list in 2001",
+                      "removed":  2001
+                  },
+                  {
+                      "id":  "132",
+                      "year":  1997,
+                      "name":  "Cladrastis kentukea - Yellowwood",
+                      "location":  "2425 SE Bybee Blvd (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "133",
+                      "year":  1997,
+                      "name":  "Magnolia grandiflora - Southern magnolia",
+                      "location":  "1410 SW Harrison St (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "134",
+                      "year":  1997,
+                      "name":  "Pseudotsuga menziesii - Douglas fir",
+                      "location":  "Danford Balch Homesite (PP\u0026R, Upper Macleay Park)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "135",
+                      "year":  1997,
+                      "name":  "Tilia americana - Basswood",
+                      "location":  "8332 SE 16th Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "136",
+                      "year":  1997,
+                      "name":  "Tilia americana - Basswood",
+                      "location":  "8332 SE 16th Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "137",
+                      "year":  1997,
+                      "name":  "Magnolia x soulangiana - Saucer magnolia",
+                      "location":  "1041 SW Vista Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "138",
+                      "year":  1997,
+                      "name":  "Arbutus menziesii - Madrone",
+                      "location":  "Removed from list in 2002",
+                      "removed":  2002
+                  },
+                  {
+                      "id":  "139",
+                      "year":  1997,
+                      "name":  "Pinus ponderosa - Ponderosa pine",
+                      "location":  "4825 SW Dosch Park Ln (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "140",
+                      "year":  1997,
+                      "name":  "Pinus ponderosa - Ponderosa pine",
+                      "location":  "4826 SW Dosch Park Ln (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "141",
+                      "year":  1997,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "4825 SW Dosch Park Ln (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "142",
+                      "year":  1997,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "Removed from list in 2011",
+                      "removed":  2011
+                  },
+                  {
+                      "id":  "143",
+                      "year":  1997,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "Removed from list in 2024",
+                      "removed":  2024
+                  },
+                  {
+                      "id":  "144",
+                      "year":  1997,
+                      "name":  "Pinus strobus - Eastern white pine",
+                      "location":  "4825 SW Dosch Park Ln (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "145",
+                      "year":  1997,
+                      "name":  "Thuja plicata - Western redcedar",
+                      "location":  "4825 SW Dosch Park Ln (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "146",
+                      "year":  1997,
+                      "name":  "Calocedrus decurrens - Incense cedar",
+                      "location":  "4825 SW Dosch Park Ln (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "147",
+                      "year":  1997,
+                      "name":  "Picea sitchensis - Sitka spruce",
+                      "location":  "4711 SW Campbell Ct (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "148",
+                      "year":  1997,
+                      "name":  "Pseudotsuga menziesii - Douglas fir",
+                      "location":  "2525 SW Montgomery Dr (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "149",
+                      "year":  1997,
+                      "name":  "Styphnolobium japonica - Japanese pagoda tree",
+                      "location":  "3075 NW Cornell Rd (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "150",
+                      "year":  1997,
+                      "name":  "Juglans nigra - Black walnut",
+                      "location":  "4404 SE 35th Ave (private, rear yard of 4 properties)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "151",
+                      "year":  1997,
+                      "name":  "Juglans nigra - Black walnut",
+                      "location":  "4818 SE Tenino Dr (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "152",
+                      "year":  1997,
+                      "name":  "Sequoiadendron giganteum - Giant sequoia",
+                      "location":  "6325 SE Division St (PP\u0026R, Mt Tabor Park)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "153",
+                      "year":  1997,
+                      "name":  "Ostrya virginiana - American hop - hornbeam",
+                      "location":  "221 NE 45th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "154",
+                      "year":  1997,
+                      "name":  "Ostrya virginiana - American hop - hornbeam",
+                      "location":  "Removed in 2024",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "155",
+                      "year":  1997,
+                      "name":  "Fagus sylvatica f. purpurea - European beech",
+                      "location":  "1719 NE Knott St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "156",
+                      "year":  1997,
+                      "name":  "Quercus rubra - Northern red oak",
+                      "location":  "5700 SE Taylor St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "157",
+                      "year":  1997,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "Removed from list in 2023",
+                      "removed":  2023
+                  },
+                  {
+                      "id":  "158",
+                      "year":  1997,
+                      "name":  "Sequoiadendron giganteum - Giant sequoia",
+                      "location":  "2393 SW Park Pl #101 (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "159",
+                      "year":  1997,
+                      "name":  "Cercidiphyllum japonicum - Katsura",
+                      "location":  "1132 SW Vista Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "160",
+                      "year":  1997,
+                      "name":  "Cercidiphyllum japonicum - Katsura",
+                      "location":  "SE 39th \u0026 Oak (PP\u0026R, Laurelhurst Park)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "161",
+                      "year":  1997,
+                      "name":  "Tilia platyphyllos - Bigleaf linden",
+                      "location":  "Removed from list in 2015",
+                      "removed":  2015
+                  },
+                  {
+                      "id":  "162",
+                      "year":  1997,
+                      "name":  "Catalpa bignonioides - Southern catalpa",
+                      "location":  "5533 N Maryland Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "163",
+                      "year":  1997,
+                      "name":  "Betula pendula - European white birch",
+                      "location":  "Removed in 2023",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "164",
+                      "year":  1997,
+                      "name":  "Platanus x acerifolia - London planetree",
+                      "location":  "1728 NE Stanton St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "165",
+                      "year":  1997,
+                      "name":  "Sequoiadendron giganteum - Giant sequoia",
+                      "location":  "5511 SE Hawthorne Blvd (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "166",
+                      "year":  1997,
+                      "name":  "Gymnocladus dioica - Kentucky coffeetree",
+                      "location":  "Removed from list in 2010",
+                      "removed":  2010
+                  },
+                  {
+                      "id":  "167",
+                      "year":  1997,
+                      "name":  "Sequoia sempervirens - Coast redwood",
+                      "location":  "3381 SE Francis St (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "168",
+                      "year":  1998,
+                      "name":  "Acer palmatum - Japanese maple",
+                      "location":  "2367 NW Kearney St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "169",
+                      "year":  1998,
+                      "name":  "Thuja plicata - Western redcedar",
+                      "location":  "6215 SW 27th Ave (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "170",
+                      "year":  1998,
+                      "name":  "Carya ovata - Shagbark hickory",
+                      "location":  "Removed from list in 2018",
+                      "removed":  2018
+                  },
+                  {
+                      "id":  "171",
+                      "year":  1998,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "7100 SW Macadam Ave (PP\u0026R, Willamette Park)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "172",
+                      "year":  1998,
+                      "name":  "Ulmus x hollandica \u0027Hollandica\u0027 - Dutch elm",
+                      "location":  "1150 SW King Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "173",
+                      "year":  1998,
+                      "name":  "Fagus sylvatica f. purpurea - European beech",
+                      "location":  "2909 SW 2nd Ave (PP\u0026R, Lair Hill Park)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "174",
+                      "year":  1998,
+                      "name":  "Carya ovata - Shagbark hickory",
+                      "location":  "3037 SW 2nd Ave (PP\u0026R, Lair Hill Park)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "175",
+                      "year":  1998,
+                      "name":  "Quercus rubra - Northern red oak",
+                      "location":  "SE Powell Blvd (PP\u0026R, Powell Park)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "176",
+                      "year":  1998,
+                      "name":  "Quercus rubra - Northern red oak",
+                      "location":  "SE Powell Blvd (PP\u0026R, Powell Park)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "177",
+                      "year":  1998,
+                      "name":  "Acer saccharum - Sugar maple",
+                      "location":  "3715 N Baldwin St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "178",
+                      "year":  1998,
+                      "name":  "Pinus pinea - Italian stone pine",
+                      "location":  "2856 N Emerson Ct (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "179",
+                      "year":  1998,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "SW Corner of SW Lane \u0026 Corbett (PP\u0026R)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "180",
+                      "year":  1998,
+                      "name":  "Aesculus flava - Yellow buckeye",
+                      "location":  "5511 SE 44th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "181",
+                      "year":  1998,
+                      "name":  "Pinus coulteri - Coulter pine",
+                      "location":  "Removed from list in 2023",
+                      "removed":  2023
+                  },
+                  {
+                      "id":  "182",
+                      "year":  1998,
+                      "name":  "Castanea dentata - American chestnut",
+                      "location":  "Removed from list in 2023",
+                      "removed":  2023
+                  },
+                  {
+                      "id":  "183",
+                      "year":  1998,
+                      "name":  "Castanea dentata - American chestnut",
+                      "location":  "Removed from list in 2017",
+                      "removed":  2017
+                  },
+                  {
+                      "id":  "184",
+                      "year":  1998,
+                      "name":  "Umbellularia californica - Oregon myrtle",
+                      "location":  "2408 SE 16th Ave (private, rear yard, corner lot)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "185",
+                      "year":  1998,
+                      "name":  "Calocedrus decurrens - Incense cedar",
+                      "location":  "1144 SE 55th Ave (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "186",
+                      "year":  1998,
+                      "name":  "Carpinus caroliniana - American hornbeam",
+                      "location":  "4327 SE Ellis St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "187",
+                      "year":  1998,
+                      "name":  "Ginkgo biloba - Ginkgo",
+                      "location":  "3203 SE Woodstock Blvd (private, Reed College)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "188",
+                      "year":  1998,
+                      "name":  "Ginkgo biloba - Ginkgo",
+                      "location":  "3204 SE Woodstock Blvd (private, Reed College)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "189",
+                      "year":  1998,
+                      "name":  "Sciadopitys verticillata - Umbrella pine",
+                      "location":  "2870 NW Cornell Rd (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "190",
+                      "year":  1998,
+                      "name":  "Sciadopitys verticillata - Umbrella pine",
+                      "location":  "2870 NW Cornell Rd (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "191",
+                      "year":  1998,
+                      "name":  "Quercus palustris - Pin oak",
+                      "location":  "Removed from list in 2022",
+                      "removed":  2022
+                  },
+                  {
+                      "id":  "192",
+                      "year":  1998,
+                      "name":  "Zelkova serrata - Zelkova",
+                      "location":  "4066 SE Oak St (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "193",
+                      "year":  1998,
+                      "name":  "Fagus sylvatica - European beech",
+                      "location":  "4343 SE Madison St (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "194",
+                      "year":  1998,
+                      "name":  "Carya illinoinensis - Pecan",
+                      "location":  "SE 47th \u0026 Steele (PP\u0026R)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "195",
+                      "year":  1998,
+                      "name":  "Carya illinoinensis - Pecan",
+                      "location":  "SE 47th \u0026 Steele (PP\u0026R)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "196",
+                      "year":  1998,
+                      "name":  "Aesculus californica - California buckeye",
+                      "location":  "5527 SE Tolman St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "197",
+                      "year":  1998,
+                      "name":  "Pinus monophylla - Single - needle pinyon",
+                      "location":  "Removed from list in 2024",
+                      "removed":  2024
+                  },
+                  {
+                      "id":  "198",
+                      "year":  1998,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "7654 N Crawford St (Portland Parks N Crawford St \u0026 N Pold St Property)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "199",
+                      "year":  1998,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "7654 N Crawford St (Portland Parks N Crawford St \u0026 N Pold St Property)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "200",
+                      "year":  1998,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "Removed from list in 2022",
+                      "removed":  2022
+                  },
+                  {
+                      "id":  "201",
+                      "year":  1998,
+                      "name":  "Calocedrus decurrens - Incense cedar",
+                      "location":  "3022 N Ainsworth St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "202",
+                      "year":  1998,
+                      "name":  "Pinus engelmannii - Apache pine",
+                      "location":  "5936 N Delaware Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "203",
+                      "year":  1998,
+                      "name":  "Cercis siliquastrum - Judas tree",
+                      "location":  "2336 NE Ridgewood Dr (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "204",
+                      "year":  1999,
+                      "name":  "Malus x domestica - Gravenstein apple",
+                      "location":  "Removed in 2025",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "205",
+                      "year":  1999,
+                      "name":  "Ginkgo biloba - Ginkgo",
+                      "location":  "1836 SE 51st Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "206",
+                      "year":  1999,
+                      "name":  "Prunus avium - Royal Ann cherry",
+                      "location":  "Removed from list in 2023",
+                      "removed":  2023
+                  },
+                  {
+                      "id":  "207",
+                      "year":  1999,
+                      "name":  "Styphnolobium japonica - Japanese pagoda tree",
+                      "location":  "6436 SE Morrison St (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "208",
+                      "year":  1999,
+                      "name":  "Fagus sylvatica - European beech",
+                      "location":  "5925 SE Madison St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "209",
+                      "year":  1999,
+                      "name":  "Cedrus deodara - Deodar cedar",
+                      "location":  "5925 SE Madison St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "210",
+                      "year":  1999,
+                      "name":  "Ulmus glabra - Wych elm",
+                      "location":  "222 SE 17th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "211",
+                      "year":  1999,
+                      "name":  "Prunus avium - Cherry",
+                      "location":  "Removed from list in 2023",
+                      "removed":  2023
+                  },
+                  {
+                      "id":  "212",
+                      "year":  1999,
+                      "name":  "Platanus occidentalis - American sycamore",
+                      "location":  "2524 NE 25th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "213",
+                      "year":  1999,
+                      "name":  "Prunus pendula - Weeping cherry",
+                      "location":  "3403 NE 18th Ave (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "214",
+                      "year":  1999,
+                      "name":  "Liquidambar styraciflua - American sweetgum",
+                      "location":  "5104 NE Flanders St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "215",
+                      "year":  1999,
+                      "name":  "Acer saccharinum - Silver maple",
+                      "location":  "Removed from list in 2011",
+                      "removed":  2011
+                  },
+                  {
+                      "id":  "216",
+                      "year":  1999,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "5739 SW Cheltenham Dr (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "217",
+                      "year":  1999,
+                      "name":  "Prunus x yedoensis - Yoshino cherry",
+                      "location":  "55 SW Ash St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "218",
+                      "year":  1999,
+                      "name":  "Platanus x acerifolia - London planetree",
+                      "location":  "2024 SW Howards Way (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "219",
+                      "year":  1999,
+                      "name":  "Ulmus x hollandica - Dutch elm",
+                      "location":  "1225 SW 6th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "220",
+                      "year":  1999,
+                      "name":  "Pinus rudis - Endlicher pine",
+                      "location":  "2403 SW Jefferson St (PP\u0026R, Washington Park)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "221",
+                      "year":  1999,
+                      "name":  "Sequoiadendron giganteum - Giant sequoia",
+                      "location":  "2234-2238 SW Vista Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "222",
+                      "year":  1999,
+                      "name":  "Platanus occidentalis - American sycamore",
+                      "location":  "Removed from list in 2019",
+                      "removed":  2019
+                  },
+                  {
+                      "id":  "223",
+                      "year":  1999,
+                      "name":  "Platanus occidentalis - American sycamore",
+                      "location":  "Removed from list in 2019",
+                      "removed":  2019
+                  },
+                  {
+                      "id":  "224",
+                      "year":  1999,
+                      "name":  "Platanus occidentalis - American sycamore",
+                      "location":  "Removed from list in 2019",
+                      "removed":  2019
+                  },
+                  {
+                      "id":  "225",
+                      "year":  1999,
+                      "name":  "Platanus occidentalis - American sycamore",
+                      "location":  "Removed from list in 2019",
+                      "removed":  2019
+                  },
+                  {
+                      "id":  "226",
+                      "year":  1999,
+                      "name":  "Platanus occidentalis - American sycamore",
+                      "location":  "Removed from list in 2019",
+                      "removed":  2019
+                  },
+                  {
+                      "id":  "227",
+                      "year":  1999,
+                      "name":  "Ulmus x hollandica \u0027Hollandica\u0027 - Dutch elm",
+                      "location":  "Removed from list in 2013",
+                      "removed":  2013
+                  },
+                  {
+                      "id":  "228",
+                      "year":  1999,
+                      "name":  "Ulmus minor var. vulgaris - English elm",
+                      "location":  "Removed from list in 2013",
+                      "removed":  2013
+                  },
+                  {
+                      "id":  "229",
+                      "year":  1999,
+                      "name":  "Ulmus x hollandica \u0027Hollandica\u0027 - Dutch elm",
+                      "location":  "Removed from list in 2017",
+                      "removed":  2017
+                  },
+                  {
+                      "id":  "230",
+                      "year":  1999,
+                      "name":  "Ulmus americana - American elm",
+                      "location":  "Removed from list in 2013",
+                      "removed":  2013
+                  },
+                  {
+                      "id":  "231",
+                      "year":  1999,
+                      "name":  "Ulmus americana - American elm",
+                      "location":  "625-635 NW 21st Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "232",
+                      "year":  1999,
+                      "name":  "Ulmus americana - American elm",
+                      "location":  "Removed from list in 2000",
+                      "removed":  2000
+                  },
+                  {
+                      "id":  "233",
+                      "year":  1999,
+                      "name":  "Cryptomeria japonica - Cryptomeria",
+                      "location":  "6232 NE Stanton St (private, front yard, corner lot)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "234",
+                      "year":  1999,
+                      "name":  "Pinus lambertiana - Sugar pine",
+                      "location":  "Removed from list in 2006",
+                      "removed":  2006
+                  },
+                  {
+                      "id":  "235",
+                      "year":  1999,
+                      "name":  "Juglans cinerea - Butternut",
+                      "location":  "9009 N Foss Ave (PP\u0026R, Charles Jordan Community Center)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "236",
+                      "year":  2001,
+                      "name":  "Araucaria araucana - Monkey puzzle",
+                      "location":  "419 NE Hazelfern Pl (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "237",
+                      "year":  2001,
+                      "name":  "Araucaria araucana - Monkey puzzle",
+                      "location":  "415 NE Laurelhurst Pl (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "238",
+                      "year":  2001,
+                      "name":  "Quercus coccinea - Scarlet oak",
+                      "location":  "3922 N Overlook Blvd (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "239",
+                      "year":  2001,
+                      "name":  "Pinus sabiniana - Gray pine",
+                      "location":  "4074 N Massachusetts Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "240",
+                      "year":  2002,
+                      "name":  "Ulmus laevis - European white elm",
+                      "location":  "3331 NE Hancock St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "241",
+                      "year":  2002,
+                      "name":  "Acer palmatum - Japanese maple",
+                      "location":  "3652 SE Alder St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "242",
+                      "year":  2003,
+                      "name":  "Juglans regia - English walnut",
+                      "location":  "907 SE Bidwell St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "243",
+                      "year":  2003,
+                      "name":  "Quercus phellos - Willow oak",
+                      "location":  "Columbia Park (PP\u0026R)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "244",
+                      "year":  2003,
+                      "name":  "Quercus phellos - Willow oak",
+                      "location":  "SW Wright \u0026 Park Pl (PP\u0026R, Washington Park)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "245",
+                      "year":  2003,
+                      "name":  "Pinus ponderosa - Ponderosa pine",
+                      "location":  "8143 SW 37th Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "246",
+                      "year":  2003,
+                      "name":  "Metasequoia glyptostroboides - Dawn redwood",
+                      "location":  "2562 SW Hillcrest Dr (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "247",
+                      "year":  2003,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "Removed from list in 2018",
+                      "removed":  2018
+                  },
+                  {
+                      "id":  "248",
+                      "year":  2003,
+                      "name":  "Umbellularia californica - Oregon myrtle",
+                      "location":  "2904 N Portland Blvd (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "249",
+                      "year":  2003,
+                      "name":  "Aesculus hippocastanum - Common horsechestnut",
+                      "location":  "1465 NE Going St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "250",
+                      "year":  2003,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "8516 N Fowler Ct (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "251",
+                      "year":  2003,
+                      "name":  "Taxus baccata - English yew",
+                      "location":  "3345 SE Milwaukie Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "252",
+                      "year":  2003,
+                      "name":  "Acer macrophyllum - Bigleaf maple",
+                      "location":  "6733 N Greeley Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "253",
+                      "year":  2003,
+                      "name":  "Metasequoia glyptostroboides - Dawn redwood",
+                      "location":  "1617 NE Brazee St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "254",
+                      "year":  2003,
+                      "name":  "Metasequoia glyptostroboides - Dawn redwood",
+                      "location":  "3515 N Lombard Ct (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "255",
+                      "year":  2003,
+                      "name":  "Abies grandis - Grand fir",
+                      "location":  "252 NW Maywood Dr (removed in 2015)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "256",
+                      "year":  2003,
+                      "name":  "Fraxinus americana - American ash",
+                      "location":  "412 NE Hazelfern Pl (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "257",
+                      "year":  2003,
+                      "name":  "Aesculus californica - California buckeye",
+                      "location":  "8827 N Haven Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "258",
+                      "year":  2003,
+                      "name":  "Ulmus minor - Smoothleaf elm",
+                      "location":  "2546 NE 18th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "259",
+                      "year":  2004,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "South of 3969 N Overlook Terr (private, undeveloped lot)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "260",
+                      "year":  2004,
+                      "name":  "Pseudotsuga menziesii - Douglas fir",
+                      "location":  "Powell Butte Nature Park (Portland Water Bureau)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "261",
+                      "year":  2004,
+                      "name":  "Aesculus hippocastanum \u0027Baumannii\u0027 - Common horsechestnut",
+                      "location":  "1529 NE Thompson St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "262",
+                      "year":  2004,
+                      "name":  "Liriodendron tulipifera - Tulip tree",
+                      "location":  "4807 NE 10th Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "263",
+                      "year":  2004,
+                      "name":  "Acer saccharinum - Silver maple",
+                      "location":  "12456 SW Orchard Hill Rd (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "264",
+                      "year":  2004,
+                      "name":  "Betula nigra - River birch",
+                      "location":  "2104/2106 SE Yamhill St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "265",
+                      "year":  2004,
+                      "name":  "Davidia involucrata var. vilmorinia - Hardy dove tree",
+                      "location":  "Removed from list in 2023",
+                      "removed":  2023
+                  },
+                  {
+                      "id":  "266",
+                      "year":  2004,
+                      "name":  "Ulmus x hollandica \u0027Hollandica\u0027 - Dutch elm",
+                      "location":  "Removed from list in 2019",
+                      "removed":  2019
+                  },
+                  {
+                      "id":  "267",
+                      "year":  2005,
+                      "name":  "Pinus ponderosa - Ponderosa pine",
+                      "location":  "Removed from list in 2006",
+                      "removed":  2006
+                  },
+                  {
+                      "id":  "268",
+                      "year":  2005,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "5813 SE Steele St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "269",
+                      "year":  2005,
+                      "name":  "Platanus x acerifolia - London planetree",
+                      "location":  "2407 NE 18th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "270",
+                      "year":  2005,
+                      "name":  "Platanus x acerifolia - London planetree",
+                      "location":  "2407 NE 18th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "271",
+                      "year":  2005,
+                      "name":  "Carya illinoinensis - Pecan",
+                      "location":  "3329 SE Madison St (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "272",
+                      "year":  2005,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "5545, 5559, \u0026 5560 SE 109th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "273",
+                      "year":  2005,
+                      "name":  "Araucaria araucana - Monkey puzzle",
+                      "location":  "Removed from list in 2024",
+                      "removed":  2024
+                  },
+                  {
+                      "id":  "274",
+                      "year":  2005,
+                      "name":  "Quercus rubra - Northern red oak",
+                      "location":  "5340 N Interstate Ave (PP\u0026R, Patton Square Park)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "275",
+                      "year":  2005,
+                      "name":  "Acer platanoides - Norway maple",
+                      "location":  "7351 SE 31st Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "276",
+                      "year":  2005,
+                      "name":  "Sequoiadendron giganteum - Giant sequoia",
+                      "location":  "7404 N Oatman Ave (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "277",
+                      "year":  2005,
+                      "name":  "Cedrus atlantica - Atlas cedar",
+                      "location":  "2190 SW Kings Ct (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "278",
+                      "year":  2005,
+                      "name":  "Carya laciniosa - Shellbark hickory",
+                      "location":  "1942 SW Montgomery Dr (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "279",
+                      "year":  2007,
+                      "name":  "Pseudotsuga menziesii - Douglas fir",
+                      "location":  "13931 NE Glisan St (private)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "280",
+                      "year":  2007,
+                      "name":  "Liriodendron tulipifera - Tulip tree",
+                      "location":  "1602 SE 32nd Pl (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "281",
+                      "year":  2007,
+                      "name":  "Pinus wallichiana - Himalayan pine",
+                      "location":  "3310 NW Franklin Ct (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "282",
+                      "year":  2007,
+                      "name":  "Sequoia sempervirens - Coast redwood",
+                      "location":  "701 NW Culpepper Terr (PP\u0026R, Hillside Park)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "283",
+                      "year":  2007,
+                      "name":  "Abies concolor - White fir",
+                      "location":  "2156 SW Laurel St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "284",
+                      "year":  2008,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "4768 N Oberlin St (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "285",
+                      "year":  2008,
+                      "name":  "Pinus ponderosa - Ponderosa pine",
+                      "location":  "3437 NE 29th Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "286",
+                      "year":  2009,
+                      "name":  "Ginkgo biloba - Ginkgo",
+                      "location":  "3145 NE 8th Ave (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "287",
+                      "year":  2009,
+                      "name":  "Ulmus glabra `Camperdownii\u0027 - Camperdown elm",
+                      "location":  "1836 SE Locust Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "288",
+                      "year":  2009,
+                      "name":  "Lagerstroemia indica - Crape myrtle",
+                      "location":  "4201 SE Franklin St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "289",
+                      "year":  2009,
+                      "name":  "Lagerstroemia indica - Crape myrtle",
+                      "location":  "4201 SE Franklin St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "290",
+                      "year":  2009,
+                      "name":  "Malus x domestica - Yellow bellflower apple",
+                      "location":  "4700-4799 SW Campbell Ct (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "291",
+                      "year":  2009,
+                      "name":  "Osmanthus fragrans - Osmanthus",
+                      "location":  "Removed from list in 2018",
+                      "removed":  2018
+                  },
+                  {
+                      "id":  "292",
+                      "year":  2009,
+                      "name":  "Davidia involucrata - Dove Tree",
+                      "location":  "2425 SE Bybee Blvd (Crystal Springs Rhododendron Garden, fee entry)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "293",
+                      "year":  2009,
+                      "name":  "Calocedrus decurrens - Incense cedar",
+                      "location":  "Lone Fir Pioneer Cemetery (Metro)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "294",
+                      "year":  2009,
+                      "name":  "Pseudotsuga menziesii - Douglas fir",
+                      "location":  "Lone Fir Pioneer Cemetery (Metro)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "295",
+                      "year":  2009,
+                      "name":  "Acer macrophyllum - Bigleaf maple",
+                      "location":  "Removed from list in 2022",
+                      "removed":  2022
+                  },
+                  {
+                      "id":  "296",
+                      "year":  2009,
+                      "name":  "Chamaecyparis lawsoniana - Port Orford cedar",
+                      "location":  "3203 SE Woodstock Blvd (private, Reed College)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "297",
+                      "year":  2009,
+                      "name":  "Castanea sativa - Spanish chestnut",
+                      "location":  "828 NE Prescott St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "298",
+                      "year":  2010,
+                      "name":  "Catalpa bignonioides - Southern catalpa",
+                      "location":  "3401 SE Clinton St (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "299",
+                      "year":  2010,
+                      "name":  "Pinus taeda - Loblolly pine",
+                      "location":  "3045 NE 9th Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "300",
+                      "year":  2010,
+                      "name":  "Cedrus deodara - Deodar cedar",
+                      "location":  "3735 SE Woodstock Blvd (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "301",
+                      "year":  2010,
+                      "name":  "Sequoia sempervirens - Coast redwood",
+                      "location":  "7617 SE Main St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "302",
+                      "year":  2010,
+                      "name":  "Quercus rubra - Northern red oak",
+                      "location":  "4706 SE 58th Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "303",
+                      "year":  2010,
+                      "name":  "Platanus x acerifolia - London planetree",
+                      "location":  "2437 NE Regents Dr (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "304",
+                      "year":  2010,
+                      "name":  "Quercus macrocarpa - Burr oak",
+                      "location":  "2921-2955 SE Washington St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "305",
+                      "year":  2010,
+                      "name":  "Acer pseudoplatanus - Sycamore maple",
+                      "location":  "2923 NE 8th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "306",
+                      "year":  2011,
+                      "name":  "Metasequoia glyptostroboides - Dawn redwoods (12 trees)",
+                      "location":  "Upper Macleay Park (PP\u0026R)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "307",
+                      "year":  2011,
+                      "name":  "Sequoiadendron giganteum - Giant sequoia",
+                      "location":  "5810 SE Taylor St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "308",
+                      "year":  2011,
+                      "name":  "Acer pseudoplatanus - Sycamore maple",
+                      "location":  "2607 NE Wasco St (right-of-way, removed from list in 2020)",
+                      "removed":  2020
+                  },
+                  {
+                      "id":  "309",
+                      "year":  2011,
+                      "name":  "Cedrus atlantica - Atlas cedar",
+                      "location":  "7000 SW 63rd Ave (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "310",
+                      "year":  2011,
+                      "name":  "Diospyrus virginiana - American persimmon",
+                      "location":  "6440 NE 36th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "311",
+                      "year":  2011,
+                      "name":  "Larix kaempferi - Japanese larch",
+                      "location":  "4626 NE 37th Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "312",
+                      "year":  2013,
+                      "name":  "Fagus sylvatica f. purpurea - European beech",
+                      "location":  "4073 N Gantenbein Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "313",
+                      "year":  2013,
+                      "name":  "Metasequoia glyptostroboides - Dawn redwood",
+                      "location":  "SW Bary Ln (PP\u0026R, Hoyt Arboretum)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "314",
+                      "year":  2013,
+                      "name":  "Quercus palustris - Pin oak",
+                      "location":  "Removed in 2026",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "315",
+                      "year":  2014,
+                      "name":  "Aesculus hippocastanum - Common horsechestnut",
+                      "location":  "4741 SE 36th Pl (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "316",
+                      "year":  2014,
+                      "name":  "Fagus sylvatica - European beech",
+                      "location":  "1357 SW Spring Garden (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "317",
+                      "year":  2014,
+                      "name":  "Tilia tomentosa - Silver linden",
+                      "location":  "408 N Rosa Parks Way (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "318",
+                      "year":  2015,
+                      "name":  "Ulmus americana - American elm",
+                      "location":  "2803 SE Main St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "319",
+                      "year":  2015,
+                      "name":  "Ulmus americana - American elm",
+                      "location":  "Removed from list in 2018",
+                      "removed":  2018
+                  },
+                  {
+                      "id":  "320",
+                      "year":  2015,
+                      "name":  "Prunus armeniaca - Apricot",
+                      "location":  "4823 NE 18th Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "321",
+                      "year":  2015,
+                      "name":  "Malus x domestica - Gravenstein apple",
+                      "location":  "Removed 2025",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "322",
+                      "year":  2015,
+                      "name":  "Aesculus hippocastanum - Common horsechestnut",
+                      "location":  "8710 N Willamette Blvd (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "323",
+                      "year":  2015,
+                      "name":  "Juglans x paradox - Paradox walnut",
+                      "location":  "Removed from list in 2019",
+                      "removed":  2019
+                  },
+                  {
+                      "id":  "324",
+                      "year":  2016,
+                      "name":  "Arbutus menziessi - madrone",
+                      "location":  "Removed in 2025",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "325",
+                      "year":  2016,
+                      "name":  "Metasequoia glyptostroboides - dawn redwood",
+                      "location":  "4600 SW Maplewood Dr (private, yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "326",
+                      "year":  2016,
+                      "name":  "Metasequoia glyptostroboides - dawn redwood",
+                      "location":  "4600 SW Maplewood Dr (private, yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "327",
+                      "year":  2016,
+                      "name":  "Prunus X \u0027Shirotae\u0027 - Mt. Fuji flowering cherry",
+                      "location":  "221 NE 58th Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "328",
+                      "year":  2016,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "Removed from list in 2018",
+                      "removed":  2018
+                  },
+                  {
+                      "id":  "329",
+                      "year":  2016,
+                      "name":  "Sequoia sempervirens - coast redwood",
+                      "location":  "N Princeton St \u0026 N Syracuse St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "330",
+                      "year":  2017,
+                      "name":  "Taxodium distichum - bald cypress",
+                      "location":  "4600 SW Maplewood Rd (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "331",
+                      "year":  2017,
+                      "name":  "Pinus bungeana - lacebark pine",
+                      "location":  "Removed from list in 2022",
+                      "removed":  2022
+                  },
+                  {
+                      "id":  "332",
+                      "year":  2017,
+                      "name":  "Quercus rubru - Northern red oak",
+                      "location":  "Removed from list in 2023",
+                      "removed":  2023
+                  },
+                  {
+                      "id":  "333",
+                      "year":  2017,
+                      "name":  "Ulmus glabra `Camperdownii\u0027 - Camperdown elm",
+                      "location":  "4223 SE 67th Ave (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "334",
+                      "year":  2017,
+                      "name":  "Pinus ponderosa - ponderosa pine",
+                      "location":  "6804 N Campbell St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "335",
+                      "year":  2017,
+                      "name":  "Carpinus betulus - European hornbeam",
+                      "location":  "Fernhill Park, NE 39th Ave \u0026 NE Ainsworth St (PP\u0026R)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "336",
+                      "year":  2017,
+                      "name":  "Carpinus betulus - European hornbeam",
+                      "location":  "Fernhill Park, NE 39th Ave \u0026 NE Ainsworth St (PP\u0026R)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "337",
+                      "year":  2018,
+                      "name":  "Abies grandis - Grand fir",
+                      "location":  "Pier Park, 10325 N Lombard St (PP\u0026R)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "338",
+                      "year":  2018,
+                      "name":  "Platanus acerifolia - London planetree",
+                      "location":  "3967 N Overlook Blvd (right-of-way, NW corner)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "339",
+                      "year":  2018,
+                      "name":  "Platanus acerifolia - London planetree",
+                      "location":  "3967 N Overlook Blvd (right-of-way, NE corner)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "340",
+                      "year":  2018,
+                      "name":  "Platanus acerifolia - London planetree",
+                      "location":  "3967 N Overlook Blvd (right-of-way, S corner)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "341",
+                      "year":  2018,
+                      "name":  "Platanus acerifolia - London planetree",
+                      "location":  "1335 N Mason St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "342",
+                      "year":  2018,
+                      "name":  "Juglans regia - English walnut",
+                      "location":  "4528 N Vancouver Ave (private, back yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "343",
+                      "year":  2018,
+                      "name":  "Quercus rubra - Red oak",
+                      "location":  "5245 NE Cleveland Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "344",
+                      "year":  2018,
+                      "name":  "Sassafras albidum - Sassafras",
+                      "location":  "5901 N Borthwick Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "345",
+                      "year":  2018,
+                      "name":  "Chamaecyparis pisifera \u0027Boulevard\u0027 - Boulevard cypress",
+                      "location":  "3401 SE Clinton St (private, side yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "346",
+                      "year":  2018,
+                      "name":  "Fagus sylvatica f. pupurea - Copper beech",
+                      "location":  "3839 SE Woodward St (private, front yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "347",
+                      "year":  2018,
+                      "name":  "Fagus sylvatica - European beech",
+                      "location":  "7110 SE 29th Ave (private, backyard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "348",
+                      "year":  2018,
+                      "name":  "Pseudotsuga menziesii - Douglas - fir",
+                      "location":  "8207 SW 30th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "349",
+                      "year":  2018,
+                      "name":  "Pinus ponderosa - Ponderosa pine",
+                      "location":  "4124 SW Canby St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "350",
+                      "year":  2018,
+                      "name":  "Parrotia persica - Persian ironwood",
+                      "location":  "4600 SW Maplewood Rd (private)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "351",
+                      "year":  2018,
+                      "name":  "Halesia monticola - Mountain silverbell",
+                      "location":  "4600 SW Maplewood Rd (private)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "352",
+                      "year":  2018,
+                      "name":  "Acer pictum - Painted maple",
+                      "location":  "4600 SW Maplewood Rd (private)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "353",
+                      "year":  2019,
+                      "name":  "Gymnocladus dioica - Kentucky coffeetree",
+                      "location":  "6635 N Baltimore Ave (PP\u0026R, Cathedral Park)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "354",
+                      "year":  2019,
+                      "name":  "Umbellularia californica - Oregon myrtle",
+                      "location":  "8235 \u0026 8241 N Chautauqua Blvd (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "355",
+                      "year":  2019,
+                      "name":  "Pinus densiflora - Japanese red pine",
+                      "location":  "10040 NE 6th Dr (PP\u0026R, Columbia Children\u0027s Arboretum)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "356",
+                      "year":  2019,
+                      "name":  "Metasequoia glyptostroboides - Dawn redwood",
+                      "location":  "6805 NE 32nd Ave (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "357",
+                      "year":  2019,
+                      "name":  "Fagus sylvatica - Copper beech",
+                      "location":  "3834 NE 23rd Ave (private, rear yard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "358",
+                      "year":  2019,
+                      "name":  "Acer campestre - Hedge maple",
+                      "location":  "3424 NE 17th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "359",
+                      "year":  2019,
+                      "name":  "Pseudotsuga menziesii - Douglas - fir",
+                      "location":  "5151 NW Cornell Rd (private, Audubon Society)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "360",
+                      "year":  2019,
+                      "name":  "Castanea sativa - Spanish chestnut",
+                      "location":  "2704 SE 84th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "361",
+                      "year":  2019,
+                      "name":  "Populus nigra var. italica - Lombardy poplar",
+                      "location":  "16160 SE Powell Blvd (PP\u0026R, Powell Butte Nature Park)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "362",
+                      "year":  2019,
+                      "name":  "Cedrus atlantica - Blue Atlas cedar",
+                      "location":  "6704 SE 122nd Ave (PP\u0026R, Leach Botanical Garden)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "363",
+                      "year":  2019,
+                      "name":  "Liquidambar styraciflua - Sweetgum",
+                      "location":  "7300 SW Brier Pl (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "364",
+                      "year":  2019,
+                      "name":  "Quercus palustris - Pin oak",
+                      "location":  "7326 SW Brier Pl (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "365",
+                      "year":  2020,
+                      "name":  "Abies pinsapo - Spanish fir",
+                      "location":  "9008 N Charleston Ave (private)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "366",
+                      "year":  2020,
+                      "name":  "Platanus x acerifolia - London planetree",
+                      "location":  "23 NE Morgan St (private)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "367",
+                      "year":  2020,
+                      "name":  "Tilia tomentosa - Siver linden",
+                      "location":  "Peninsula Park (PP\u0026R)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "368",
+                      "year":  2020,
+                      "name":  "Cedrus deodara - Deodar cedar",
+                      "location":  "6006 N Mississippi Ave (private)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "369",
+                      "year":  2020,
+                      "name":  "Ulmus americana - American elm",
+                      "location":  "Overlook Park (PP\u0026R)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "370",
+                      "year":  2020,
+                      "name":  "Quercus hypoleucoides - Silverleaf oak",
+                      "location":  "2627 NE 11th Ave (right-of-way, north tree)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "371",
+                      "year":  2020,
+                      "name":  "Quercus hypoleucoides - Silverleaf oak",
+                      "location":  "2627 NE 11th Ave (right-of-way, south tree)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "372",
+                      "year":  2020,
+                      "name":  "Fagus sylvatica - European beech",
+                      "location":  "3310 NE 36th Ave (private)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "373",
+                      "year":  2020,
+                      "name":  "Fagus sylvatica - European beech",
+                      "location":  "810 SE 86th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "374",
+                      "year":  2020,
+                      "name":  "Ginkgo biloba - Ginkgo",
+                      "location":  "6704 SE 122nd Ave (Leach Botanical Garden, PP\u0026R)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "375",
+                      "year":  2020,
+                      "name":  "Crataegus x lavallei - Lavalle hawthorn",
+                      "location":  "6704 SE 122nd Ave (Leach Botanical Garden, PP\u0026R)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "376",
+                      "year":  2020,
+                      "name":  "Stewartia monadelpha - Orangebark stewartia",
+                      "location":  "6704 SE 122nd Ave (Leach Botanical Garden, PP\u0026R)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "377",
+                      "year":  2020,
+                      "name":  "Eucalyptus perriniana - Spinning gum",
+                      "location":  "3415 SW Water Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "378",
+                      "year":  2022,
+                      "name":  "Pseudotsuga menziesii - Douglas - fir",
+                      "location":  "5518 SE 139th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "379",
+                      "year":  2022,
+                      "name":  "Cinnamomum japonicum - Japanese cinnamon",
+                      "location":  "3223 NE 16th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "380",
+                      "year":  2022,
+                      "name":  "Cinnamomum japonicum - Japanese cinnamon",
+                      "location":  "3223 NE 16th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "381",
+                      "year":  2022,
+                      "name":  "Abies grandis - Grand fir",
+                      "location":  "7100 SW Brier Pl (private)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "382",
+                      "year":  2022,
+                      "name":  "Cedrus deodara - Deodar cedar",
+                      "location":  "617 NE Prescott St (private)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "383",
+                      "year":  2022,
+                      "name":  "Cedrus deodara - Deodar cedar",
+                      "location":  "617 NE Prescott St (private)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "384",
+                      "year":  2022,
+                      "name":  "Thuja plicata - Western redcedar",
+                      "location":  "7077 SW 32nd Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "385",
+                      "year":  2022,
+                      "name":  "Cercidiphyllum japonicum - Katsura",
+                      "location":  "Pier Park (PP\u0026R, hole 4 on disc golf course)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "386",
+                      "year":  2022,
+                      "name":  "Sequoiadendron giganteum - Giant sequoia",
+                      "location":  "3114 NW Thurman St (private)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "387",
+                      "year":  2023,
+                      "name":  "Fagus sylvatica - Copper beech",
+                      "location":  "1943 SE Hemlock Ave (private)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "388",
+                      "year":  2023,
+                      "name":  "Platanus x acerfolia - London planetree",
+                      "location":  "5014 NE Simpson St (private)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "389",
+                      "year":  2023,
+                      "name":  "Corylus colurna - Turkish hazelnut",
+                      "location":  "Knott Park (PP\u0026R)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "390",
+                      "year":  2023,
+                      "name":  "Cedrus libani ssp. Atlantica - Atlas cedar",
+                      "location":  "Multnomah Arts Center, 7688 SW Capitol Hwy (PP\u0026R)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "391",
+                      "year":  2023,
+                      "name":  "Chamaecyparis lawsoniana - Port Orford cedar",
+                      "location":  "5210 NE Thompson St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "392",
+                      "year":  2023,
+                      "name":  "Stypholobium japonicum syn. Sophora japonica",
+                      "location":  "Argay Park (PP\u0026R)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "393",
+                      "year":  2024,
+                      "name":  "Fagus sylvatica - Copper beech",
+                      "location":  "Clark Elementary School on SE 89th Ave (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "394",
+                      "year":  2024,
+                      "name":  "Thuja plicata - western redcedar",
+                      "location":  "34 SE 88th Ave (private, backyard)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "395",
+                      "year":  2024,
+                      "name":  "Platanus occidentalis - American sycamore",
+                      "location":  "2417 NW Raleigh St (right-of-way)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "396",
+                      "year":  2024,
+                      "name":  "Liriodendron tulipifera - tulip tree",
+                      "location":  "2835 SE Carlton St (private)",
+                      "removed":  null
+                  },
+                  {
+                      "id":  "397",
+                      "year":  2024,
+                      "name":  "Quercus garryana - Oregon white oak",
+                      "location":  "1144 SE Flavel St (private)",
+                      "removed":  null
+                  }
+              ]
+}

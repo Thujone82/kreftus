@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+    <meta name="description" content="PDX Heritage Trees: a local, offline-friendly field guide to Portland's registered Heritage Trees. Track which trees you have found, take notes, and navigate to nearby trees.">
+    <meta name="theme-color" content="#1f3b2a">
+    <title>PDX Heritage Trees</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="css/styles.css?v=1.0.0">
+    <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+    <link rel="apple-touch-icon" href="icons/icon-192.svg">
+</head>
+<body>
+    <!-- Map canvas (full viewport background) -->
+    <div id="map" aria-label="Map of Portland heritage trees"></div>
+
+    <!-- Top progress bar (shown during sync / geocoding / updates) -->
+    <div id="progressBar" class="progress-bar hidden" role="progressbar" aria-live="polite">
+        <div class="progress-bar-fill" id="progressBarFill"></div>
+        <div class="progress-bar-label" id="progressBarLabel">Loading...</div>
+    </div>
+
+    <!-- Header: title + settings gear -->
+    <header class="app-header" id="appHeader">
+        <h1 class="app-title">
+            <span class="app-title-leaf" aria-hidden="true">&#129716;</span>
+            <span class="app-title-text">PDX Heritage Trees</span>
+        </h1>
+        <button id="settingsBtn" class="icon-btn" title="Settings" aria-label="Open settings">
+            <span aria-hidden="true">&#9881;&#65039;</span>
+        </button>
+    </header>
+
+    <!-- Bottom action bar -->
+    <nav class="action-bar" id="actionBar">
+        <button id="nearbyBtn" class="action-btn" aria-label="Show nearby heritage trees">
+            <span class="action-btn-icon" aria-hidden="true">&#128205;</span>
+            <span class="action-btn-label">Nearby</span>
+        </button>
+        <button id="recenterBtn" class="action-btn" aria-label="Recenter map on Portland or your location">
+            <span class="action-btn-icon" aria-hidden="true">&#127758;</span>
+            <span class="action-btn-label">Recenter</span>
+        </button>
+        <button id="checkUpdatesBtn" class="action-btn" aria-label="Check for updates to the tree list">
+            <span class="action-btn-icon" aria-hidden="true">&#128260;</span>
+            <span class="action-btn-label">Check updates</span>
+        </button>
+    </nav>
+
+    <!-- Setup screen (first run / missing API key) -->
+    <section id="setupScreen" class="setup-screen hidden" aria-labelledby="setupTitle">
+        <div class="setup-card">
+            <h2 id="setupTitle" class="setup-title">Welcome to PDX Heritage Trees</h2>
+            <p class="setup-lede">
+                A local field guide to Portland&rsquo;s registered Heritage Trees.
+                Explore a map of every tree on the City registry, mark the ones you have
+                visited, and take notes &mdash; all stored privately in your browser.
+            </p>
+
+            <h3 class="setup-subtitle">What this app does</h3>
+            <ul class="setup-list">
+                <li>Loads the full list of Portland&rsquo;s Heritage Trees from a bundled snapshot.</li>
+                <li>Looks up each tree&rsquo;s coordinates so it can be plotted on a map.</li>
+                <li>Lets you mark trees as <em>Found</em>, timestamp the find, and jot notes.</li>
+                <li>Finds the <strong>10 closest</strong> trees to you and can launch walking directions.</li>
+                <li>Stays up to date when the City adds or removes trees &mdash; your notes are preserved.</li>
+            </ul>
+
+            <h3 class="setup-subtitle">You&rsquo;ll need a free Google Maps API key</h3>
+            <ol class="setup-steps">
+                <li>Open the
+                    <a href="https://console.cloud.google.com/google/maps-apis/credentials"
+                       target="_blank" rel="noopener" class="setup-link">
+                        Google Cloud Console &rarr; Credentials
+                    </a>
+                    and sign in.
+                </li>
+                <li>Create a new project (or select an existing one) and click
+                    <strong>Create Credentials &rarr; API Key</strong>.
+                </li>
+                <li>Enable these APIs on the project:
+                    <ul>
+                        <li><strong>Maps JavaScript API</strong> &ndash; for the map and markers</li>
+                        <li><strong>Geocoding API</strong> &ndash; to turn tree addresses into coordinates</li>
+                    </ul>
+                </li>
+                <li>(Recommended) Restrict the key to the two APIs above and to your site&rsquo;s URL.</li>
+                <li>Paste the key below. Google&rsquo;s free monthly credit covers the one-time geocoding
+                    of ~400 trees and normal map use by a long way.</li>
+            </ol>
+
+            <div id="setupError" class="setup-error hidden" role="alert"></div>
+
+            <label for="apiKeyInput" class="setup-field-label">Google Maps API Key</label>
+            <div class="setup-field-row">
+                <input type="text" id="apiKeyInput" class="setup-input"
+                       placeholder="AIza..." autocomplete="off" spellcheck="false">
+                <button id="saveApiKeyBtn" class="btn btn-primary">Save &amp; Continue</button>
+            </div>
+            <p class="setup-fineprint">
+                Your key is stored in your browser&rsquo;s localStorage. It never leaves your device
+                except in the requests it makes directly to Google.
+            </p>
+        </div>
+    </section>
+
+    <!-- Nearby panel (slides up from bottom) -->
+    <section id="nearbyPanel" class="side-panel hidden" aria-labelledby="nearbyTitle" aria-hidden="true">
+        <header class="side-panel-header">
+            <h2 id="nearbyTitle">10 Nearest Heritage Trees</h2>
+            <button class="icon-btn" id="closeNearbyBtn" aria-label="Close nearby panel">&times;</button>
+        </header>
+        <p class="side-panel-sub" id="nearbyOrigin">From your current location</p>
+        <ol id="nearbyList" class="nearby-list" aria-live="polite"></ol>
+        <p class="side-panel-fineprint">
+            Tap a tree to open walking directions in Google Maps.
+        </p>
+    </section>
+
+    <!-- Settings modal -->
+    <div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <div class="modal-overlay" data-close-modal></div>
+        <div class="modal-content">
+            <header class="modal-header">
+                <h2 id="settingsTitle">Settings</h2>
+                <button class="icon-btn" data-close-modal aria-label="Close settings">&times;</button>
+            </header>
+
+            <section class="modal-section">
+                <label for="settingsApiKey" class="modal-label">Google Maps API Key</label>
+                <div class="modal-field-row">
+                    <input type="text" id="settingsApiKey" class="modal-input"
+                           autocomplete="off" spellcheck="false">
+                    <button id="settingsSaveApiKey" class="btn btn-secondary">Save</button>
+                </div>
+                <p class="modal-fineprint">
+                    Changing the key reloads the page so the new key takes effect.
+                </p>
+            </section>
+
+            <section class="modal-section">
+                <h3 class="modal-subtitle">Data</h3>
+                <div class="modal-stats" id="modalStats">
+                    <div><span>Trees:</span> <span id="statTotal">&ndash;</span></div>
+                    <div><span>Found:</span> <span id="statFound">&ndash;</span></div>
+                    <div><span>Removed:</span> <span id="statRemoved">&ndash;</span></div>
+                    <div><span>Last updated:</span> <span id="statLastSync">&ndash;</span></div>
+                </div>
+                <div class="modal-actions">
+                    <button id="modalCheckUpdates" class="btn btn-secondary">Check for updates</button>
+                    <button id="modalRegeocode" class="btn btn-secondary"
+                            title="Retry geocoding for any trees that failed">Retry failed geocoding</button>
+                </div>
+            </section>
+
+            <section class="modal-section">
+                <h3 class="modal-subtitle">App</h3>
+                <div class="modal-stats">
+                    <div><span>Version:</span> <span id="statVersion">1.0.0</span></div>
+                    <div><span>Service worker:</span> <span id="statSw">&ndash;</span></div>
+                </div>
+                <div class="modal-actions">
+                    <button id="modalCheckAppUpdate" class="btn btn-secondary">Check for app update</button>
+                </div>
+            </section>
+
+            <p class="modal-fineprint modal-footer-note">
+                Your <em>Found</em> marks and notes live in your browser&rsquo;s IndexedDB and are
+                preserved across app updates.
+            </p>
+        </div>
+    </div>
+
+    <!-- Toast (transient messages) -->
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+    <!-- Update available notification -->
+    <div id="updateNotification" class="update-notification hidden" role="status" aria-live="polite">
+        <span>New app version available</span>
+        <button id="updateReloadBtn" class="btn btn-primary" aria-label="Reload to get the new version">Reload</button>
+    </div>
+
+    <!-- Scripts (order matters) -->
+    <script src="js/db.js?v=1.0.0"></script>
+    <script src="js/wiki.js?v=1.0.0"></script>
+    <script src="js/sync.js?v=1.0.0"></script>
+    <script src="js/geocode.js?v=1.0.0"></script>
+    <script src="js/map.js?v=1.0.0"></script>
+    <script src="js/nearby.js?v=1.0.0"></script>
+    <script src="js/ui.js?v=1.0.0"></script>
+    <script src="js/sw-register.js?v=1.0.0"></script>
+    <script src="js/app.js?v=1.0.0"></script>
+</body>
+</html>
