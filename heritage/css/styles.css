@@ -25,8 +25,9 @@
     --z-header:     100;
     --z-actionbar:  100;
     --z-sidepanel:  150;
-    --z-toast:      200;
     --z-modal:      300;
+    /* Toast must sit above .modal (300) so feedback isn’t behind the dimmed overlay + blur. */
+    --z-toast:      450;
     --z-setup:      400;
     --z-update:     500;
 
@@ -38,8 +39,7 @@
     --shadow-md: 0 4px 16px rgba(0,0,0,0.45);
     --shadow-lg: 0 10px 40px rgba(0,0,0,0.55);
 
-    --font-serif: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, Cambria, serif;
-    --font-sans:  -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -99,7 +99,7 @@ button { font-family: inherit; }
 
 .app-title {
     margin: 0;
-    font-family: var(--font-serif);
+    font-family: var(--font-sans);
     font-weight: 600;
     font-size: 1.15rem;
     letter-spacing: 0.01em;
@@ -108,7 +108,15 @@ button { font-family: inherit; }
     gap: 0.45rem;
     text-shadow: 0 1px 2px rgba(0,0,0,0.7);
 }
-.app-title-leaf { font-size: 1.3rem; }
+.app-title-logo {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    display: block;
+    object-fit: contain;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
 
 .icon-btn {
     background: rgba(26, 36, 28, 0.72);
@@ -230,7 +238,7 @@ button { font-family: inherit; }
     color: var(--pnw-cream);
 }
 .setup-title {
-    font-family: var(--font-serif);
+    font-family: var(--font-sans);
     margin: 0 0 0.35rem;
     color: var(--pnw-fern);
     font-size: 1.7rem;
@@ -241,7 +249,7 @@ button { font-family: inherit; }
     margin: 0 0 1.1rem;
 }
 .setup-subtitle {
-    font-family: var(--font-serif);
+    font-family: var(--font-sans);
     color: var(--pnw-cedar);
     margin: 1.2rem 0 0.5rem;
     font-size: 1.05rem;
@@ -373,7 +381,7 @@ button { font-family: inherit; }
 }
 .side-panel-header h2 {
     margin: 0;
-    font-family: var(--font-serif);
+    font-family: var(--font-sans);
     font-size: 1.15rem;
     color: var(--pnw-fern);
 }
@@ -453,7 +461,7 @@ button { font-family: inherit; }
 .nearby-item-nav-icon { font-size: 0.95rem; line-height: 1; }
 .nearby-item-nav-label { letter-spacing: 0.02em; }
 .nearby-item-name {
-    font-family: var(--font-serif);
+    font-family: var(--font-sans);
     font-style: italic;
     font-size: 1rem;
 }
@@ -527,7 +535,7 @@ button { font-family: inherit; }
 }
 .modal-header h2 {
     margin: 0;
-    font-family: var(--font-serif);
+    font-family: var(--font-sans);
     color: var(--pnw-fern);
     font-size: 1.25rem;
 }
@@ -538,7 +546,7 @@ button { font-family: inherit; }
 }
 .modal-section:last-of-type { border-bottom: 0; padding-bottom: 0; }
 .modal-subtitle {
-    font-family: var(--font-serif);
+    font-family: var(--font-sans);
     color: var(--pnw-cedar);
     margin: 0 0 0.5rem;
     font-size: 1rem;
@@ -592,6 +600,20 @@ button { font-family: inherit; }
     gap: 0.4rem;
     margin-top: 0.35rem;
 }
+.modal-actions-column {
+    flex-direction: column;
+    align-items: stretch;
+}
+.modal-actions-column .btn {
+    width: 100%;
+    justify-content: center;
+}
+.modal-ios-install-hint {
+    color: var(--pnw-fog);
+    font-size: 0.8rem;
+    margin: 0.5rem 0 0;
+    line-height: 1.35;
+}
 
 /* ==========================================================================
    Tree info window (rendered inside Google Maps InfoWindow)
@@ -605,7 +627,7 @@ button { font-family: inherit; }
 }
 .tree-info-title {
     margin: 0 0 0.15rem;
-    font-family: var(--font-serif);
+    font-family: var(--font-sans);
     font-size: 1.05rem;
     line-height: 1.25;
 }

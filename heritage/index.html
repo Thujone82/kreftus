@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#1f3b2a">
     <title>PDX Heritage Trees</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="css/styles.css?v=1.0.1">
+    <link rel="stylesheet" href="css/styles.css?v=1.0.2">
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -28,7 +28,8 @@
     <!-- Header: title + settings gear -->
     <header class="app-header" id="appHeader">
         <h1 class="app-title">
-            <span class="app-title-leaf" aria-hidden="true">&#129716;</span>
+            <img class="app-title-logo" src="icons/icon-192.png?v=1.0.1" alt=""
+                 width="32" height="32" decoding="async" fetchpriority="high">
             <span class="app-title-text">PDX Heritage Trees</span>
         </h1>
         <button id="settingsBtn" class="icon-btn" title="Settings" aria-label="Open settings">
@@ -97,10 +98,14 @@
                     <div><span>Version:</span> <span id="statVersion">1.0.0</span></div>
                     <div><span>Service worker:</span> <span id="statSw">&ndash;</span></div>
                 </div>
-                <div class="modal-actions">
+                <div class="modal-actions modal-actions-column">
+                    <button type="button" id="installPwaBtn" class="btn btn-secondary hidden"
+                            title="Install PDX Heritage Trees on this device"
+                            aria-label="Install PDX Heritage Trees">Install PDX Heritage Trees</button>
                     <button id="modalCheckAppUpdate" class="btn btn-secondary"
                             title="Refresh the tree database and check for a new app version">Check for app update</button>
                 </div>
+                <p id="pwaIosInstallHint" class="modal-ios-install-hint hidden" aria-live="polite"></p>
             </section>
 
             <p class="modal-fineprint modal-footer-note">
@@ -123,14 +128,14 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
             integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
             crossorigin="anonymous"></script>
-    <script src="js/db.js?v=1.0.1"></script>
-    <script src="js/wiki.js?v=1.0.1"></script>
-    <script src="js/sync.js?v=1.0.1"></script>
-    <script src="js/geocode.js?v=1.0.1"></script>
-    <script src="js/map.js?v=1.0.1"></script>
-    <script src="js/nearby.js?v=1.0.1"></script>
-    <script src="js/ui.js?v=1.0.1"></script>
-    <script src="js/sw-register.js?v=1.0.1"></script>
-    <script src="js/app.js?v=1.0.1"></script>
+    <script src="js/db.js?v=1.0.2"></script>
+    <script src="js/wiki.js?v=1.0.2"></script>
+    <script src="js/sync.js?v=1.0.2"></script>
+    <script src="js/geocode.js?v=1.0.2"></script>
+    <script src="js/map.js?v=1.0.2"></script>
+    <script src="js/nearby.js?v=1.0.2"></script>
+    <script src="js/ui.js?v=1.0.2"></script>
+    <script src="js/sw-register.js?v=1.0.2"></script>
+    <script src="js/app.js?v=1.0.2"></script>
 </body>
 </html>

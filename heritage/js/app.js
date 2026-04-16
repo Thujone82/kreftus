@@ -22,12 +22,21 @@
     'use strict';
 
     const LEGACY_KEY_API = 'pdxHeritageGoogleApiKey';
-    const APP_VERSION = '1.0.1';
+    const APP_VERSION = '1.0.2';
 
     const state = {
         mapReady: false,
         geocodingActive: false
     };
+
+    /** Stored for deferred `beforeinstallprompt` (Chromium/Edge/Android). */
+    let deferredInstallPrompt = null;
+
+    function isPwaStandalone() {
+        return window.matchMedia('(display-mode: standalone)').matches ||
+            window.navigator.standalone === true ||
+            document.referrer.includes('android-app://');
+    }
 
     document.addEventListener('DOMContentLoaded', init);
 
@@ -63,6 +72,60 @@
 
         const modalAppUpdate = document.getElementById('modalCheckAppUpdate');
         if (modalAppUpdate) modalAppUpdate.addEventListener('click', onCheckAppUpdate);
+
+        wirePwaInstall();
+    }
+
+    function wirePwaInstall() {
+        const installBtn = document.getElementById('installPwaBtn');
+        const iosHint = document.getElementById('pwaIosInstallHint');
+
+        const hideInstall = () => {
+            if (installBtn) installBtn.classList.add('hidden');
+        };
+
+        if (isPwaStandalone()) {
+            hideInstall();
+            deferredInstallPrompt = null;
+        }
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            if (isPwaStandalone()) {
+                deferredInstallPrompt = null;
+                hideInstall();
+                return;
+            }
+            deferredInstallPrompt = e;
+            if (installBtn) installBtn.classList.remove('hidden');
+        });
+
+        window.addEventListener('appinstalled', () => {
+            deferredInstallPrompt = null;
+            hideInstall();
+        });
+
+        if (installBtn) {
+            installBtn.addEventListener('click', async () => {
+                if (!deferredInstallPrompt) return;
+                try {
+                    deferredInstallPrompt.prompt();
+                    await deferredInstallPrompt.userChoice;
+                } catch (err) {
+                    console.warn('Install prompt failed:', err);
+                }
+                deferredInstallPrompt = null;
+                installBtn.classList.add('hidden');
+            });
+        }
+
+        const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        if (iosHint && isIos && !isPwaStandalone()) {
+            iosHint.textContent =
+                'To install on iPhone or iPad: tap Share, then Add to Home Screen.';
+            iosHint.classList.remove('hidden');
+        }
     }
 
     // -------------------------------------------------------------------
