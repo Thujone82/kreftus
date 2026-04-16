@@ -8,8 +8,12 @@
     <title>PDX Heritage Trees</title>
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="css/styles.css?v=1.0.0">
-    <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
-    <link rel="apple-touch-icon" href="icons/icon-192.svg">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin="anonymous">
 </head>
 <body>
     <!-- Map canvas (full viewport background) -->
@@ -42,64 +46,7 @@
             <span class="action-btn-icon" aria-hidden="true">&#127758;</span>
             <span class="action-btn-label">Recenter</span>
         </button>
-        <button id="checkUpdatesBtn" class="action-btn" aria-label="Check for updates to the tree list">
-            <span class="action-btn-icon" aria-hidden="true">&#128260;</span>
-            <span class="action-btn-label">Check updates</span>
-        </button>
     </nav>
-
-    <!-- Setup screen (first run / missing API key) -->
-    <section id="setupScreen" class="setup-screen hidden" aria-labelledby="setupTitle">
-        <div class="setup-card">
-            <h2 id="setupTitle" class="setup-title">Welcome to PDX Heritage Trees</h2>
-            <p class="setup-lede">
-                A local field guide to Portland&rsquo;s registered Heritage Trees.
-                Explore a map of every tree on the City registry, mark the ones you have
-                visited, and take notes &mdash; all stored privately in your browser.
-            </p>
-
-            <h3 class="setup-subtitle">What this app does</h3>
-            <ul class="setup-list">
-                <li>Loads the full list of Portland&rsquo;s Heritage Trees from a bundled snapshot.</li>
-                <li>Looks up each tree&rsquo;s coordinates so it can be plotted on a map.</li>
-                <li>Lets you mark trees as <em>Found</em>, timestamp the find, and jot notes.</li>
-                <li>Finds the <strong>10 closest</strong> trees to you and can launch walking directions.</li>
-                <li>Stays up to date when the City adds or removes trees &mdash; your notes are preserved.</li>
-            </ul>
-
-            <h3 class="setup-subtitle">You&rsquo;ll need a free Google Maps API key</h3>
-            <ol class="setup-steps">
-                <li>Open the
-                    <a href="https://console.cloud.google.com/google/maps-apis/credentials"
-                       target="_blank" rel="noopener" class="setup-link">
-                        Google Cloud Console &rarr; Credentials
-                    </a>
-                    and sign in.
-                </li>
-                <li>Create a new project (or select an existing one) and click
-                    <strong>Create Credentials &rarr; API Key</strong>.
-                </li>
-                <li>Enable <strong>Maps JavaScript API</strong> on the project. That&rsquo;s all the
-                    app needs &mdash; tree coordinates are pre-resolved via OpenStreetMap Nominatim by the
-                    included PowerShell scraper, so no Geocoding API is required.</li>
-                <li>(Recommended) Restrict the key to <em>Maps JavaScript API</em> and to your site&rsquo;s URL.</li>
-                <li>Paste the key below. Google&rsquo;s free monthly credit covers normal map use by a long way.</li>
-            </ol>
-
-            <div id="setupError" class="setup-error hidden" role="alert"></div>
-
-            <label for="apiKeyInput" class="setup-field-label">Google Maps API Key</label>
-            <div class="setup-field-row">
-                <input type="text" id="apiKeyInput" class="setup-input"
-                       placeholder="AIza..." autocomplete="off" spellcheck="false">
-                <button id="saveApiKeyBtn" class="btn btn-primary">Save &amp; Continue</button>
-            </div>
-            <p class="setup-fineprint">
-                Your key is stored in your browser&rsquo;s localStorage. It never leaves your device
-                except in the requests it makes directly to Google.
-            </p>
-        </div>
-    </section>
 
     <!-- Nearby panel (slides up from bottom) -->
     <section id="nearbyPanel" class="side-panel hidden" aria-labelledby="nearbyTitle" aria-hidden="true">
@@ -124,14 +71,13 @@
             </header>
 
             <section class="modal-section">
-                <label for="settingsApiKey" class="modal-label">Google Maps API Key</label>
-                <div class="modal-field-row">
-                    <input type="text" id="settingsApiKey" class="modal-input"
-                           autocomplete="off" spellcheck="false">
-                    <button id="settingsSaveApiKey" class="btn btn-secondary">Save</button>
-                </div>
+                <h3 class="modal-subtitle">Map</h3>
                 <p class="modal-fineprint">
-                    Changing the key reloads the page so the new key takes effect.
+                    Basemap &copy; <a href="https://www.openstreetmap.org/copyright"
+                        target="_blank" rel="noopener">OpenStreetMap</a> contributors
+                    &copy; <a href="https://carto.com/attributions" target="_blank"
+                        rel="noopener">CARTO</a>. Tree coordinates resolved via
+                    OpenStreetMap Nominatim.
                 </p>
             </section>
 
@@ -143,11 +89,6 @@
                     <div><span>Removed:</span> <span id="statRemoved">&ndash;</span></div>
                     <div><span>Last updated:</span> <span id="statLastSync">&ndash;</span></div>
                 </div>
-                <div class="modal-actions">
-                    <button id="modalCheckUpdates" class="btn btn-secondary">Check for updates</button>
-                    <button id="modalRegeocode" class="btn btn-secondary"
-                            title="Retry geocoding for any trees that failed">Retry failed geocoding</button>
-                </div>
             </section>
 
             <section class="modal-section">
@@ -157,7 +98,8 @@
                     <div><span>Service worker:</span> <span id="statSw">&ndash;</span></div>
                 </div>
                 <div class="modal-actions">
-                    <button id="modalCheckAppUpdate" class="btn btn-secondary">Check for app update</button>
+                    <button id="modalCheckAppUpdate" class="btn btn-secondary"
+                            title="Refresh the tree database and check for a new app version">Check for app update</button>
                 </div>
             </section>
 
@@ -178,6 +120,9 @@
     </div>
 
     <!-- Scripts (order matters) -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin="anonymous"></script>
     <script src="js/db.js?v=1.0.0"></script>
     <script src="js/wiki.js?v=1.0.0"></script>
     <script src="js/sync.js?v=1.0.0"></script>

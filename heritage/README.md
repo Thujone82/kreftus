@@ -1,25 +1,26 @@
 # PDX Heritage Trees
 
 A small, installable PWA field guide to Portland's registered **Heritage Trees**.
-It keeps a local database of every tree on the City registry, plots them on a
-Google Map, and lets you mark which ones you've found, timestamp the find, and
-take notes &mdash; all stored privately in your browser.
+It keeps a local database of every tree on the City registry, plots them on an
+OpenStreetMap-backed map, and lets you mark which ones you've found, timestamp
+the find, and take notes &mdash; all stored privately in your browser.
 
-The initial tree list is scraped from
-[portland.gov/trees/heritage/heritage-trees-year](https://www.portland.gov/trees/heritage/heritage-trees-year)
-by the included PowerShell script (`heritage/heritage.ps1`), which **also
-geocodes every address via the free OpenStreetMap Nominatim API** (no API key
-needed) and bundles the result as a JSON snapshot (`data/trees.json`). The
-app reads that JSON on first run and &mdash; because the coordinates are
-already resolved &mdash; the map populates instantly without any live
-geocoding in the browser. Everything then runs entirely offline from your
-browser's IndexedDB.
+**No API keys required.** The basemap uses [Leaflet](https://leafletjs.com/)
+with the [CARTO Voyager](https://carto.com/basemaps/) tile style (OpenStreetMap
+data under a CARTO-designed palette that suits the Pacific Northwest look).
+Geocoding is handled offline by the included PowerShell scraper, which calls
+OpenStreetMap's free [Nominatim](https://nominatim.openstreetmap.org/) service
+and bundles the resolved coordinates alongside the tree list in
+`data/trees.json`. The app reads that JSON on first run, so the map populates
+instantly without any live geocoding in the browser. Everything then runs
+entirely offline from your browser's IndexedDB.
 
 ## Features
 
 - **Full registry** &mdash; every tree with Tree #, year added, species / common
   name, location, and "Removed from list in YYYY" where applicable.
-- **Interactive map** &mdash; Google Maps with colored markers:
+- **Interactive map** &mdash; Leaflet + CARTO Voyager basemap (OSM data) with
+  colored markers:
   - Green: trees you have marked as **found**
   - Amber: trees not yet found
   - Gray: trees removed from the registry
@@ -28,57 +29,51 @@ browser's IndexedDB.
   **Notes** field.
 - **Nearby** &mdash; lists the 10 closest trees to your current location and
   launches walking directions in Google Maps on tap.
-- **Check for updates** &mdash; re-reads the bundled snapshot and diff-merges
-  any new or removed trees into your local database **without** touching your
-  found marks or notes.
+- **Check for app update** &mdash; a single action in Settings that refreshes
+  the tree database from `data/trees.json` *and* asks the service worker to
+  look for a new app shell. New/removed trees are diff-merged **without**
+  touching your found marks or notes.
 - **Installable PWA** &mdash; runs offline after first load; the service worker
   keeps the app shell fresh without wiping your data on upgrade.
 
 ## Requirements
 
-- A modern browser (Chrome, Edge, Firefox, Safari) with IndexedDB,
-  `localStorage`, and service worker support.
-- A free **Google Maps API key** with **Maps JavaScript API** enabled
-  (that's the only Google API the app needs &mdash; coordinates are resolved
-  by the scraper via OpenStreetMap).
-- PowerShell 7+ (`pwsh`) to refresh the tree list with `heritage.ps1`. The
-  script uses OpenStreetMap's Nominatim service and needs no API key of any
-  kind.
-
-Google's monthly free credit covers normal map use by a long way. There are
-no runtime geocoding charges because the scraper resolves every address
-offline.
+- A modern browser (Chrome, Edge, Firefox, Safari) with IndexedDB and
+  service worker support.
+- No API keys. No Google Cloud account. No billing setup.
+- PowerShell 7+ (`pwsh`) if you want to refresh the tree list with
+  `heritage.ps1`. The script uses OpenStreetMap's Nominatim service and needs
+  no API key either.
 
 ## Setup
 
-### 1. Get a free Google Maps API key
+Open `heritage/index.html` in a browser, or deploy the entire `heritage/`
+folder to your site at `/heritage/`. That's the whole setup.
 
-1. Go to the
-   [Google Cloud Console &rarr; Credentials](https://console.cloud.google.com/google/maps-apis/credentials)
-   and sign in.
-2. Create a new project (or select an existing one) and click
-   **Create Credentials &rarr; API Key**.
-3. Enable **Maps JavaScript API** on the project
-   (**APIs &amp; Services &rarr; Library**). That's the only API the PWA uses.
-4. *(Recommended)* Restrict the key to *Maps JavaScript API* and to your site's
-   URL under **Application restrictions** and **API restrictions**.
+On first launch the app:
 
-### 2. First launch
-
-1. Open `heritage/index.html` in a browser (or deploy the `heritage/`
-   folder to your site at `/heritage/`).
-2. The welcome screen walks you through pasting your API key. The key is
-   stored in `localStorage` under `pdxHeritageGoogleApiKey` and is only ever
-   sent to Google.
-3. After you save the key, the app:
-   - Loads `data/trees.json` (~400 trees, coordinates included) into IndexedDB.
-   - Initializes the map and drops all markers immediately.
-   - Runs a **fallback** geocode pass only for any tree whose address couldn't
-     be resolved during the snapshot build (usually none). A top progress bar
-     shows `Geocoding trees... N / M` during that rare case.
+1. Loads `data/trees.json` (~400 trees, coordinates included) into IndexedDB.
+2. Initializes the Leaflet map and drops all markers immediately.
+3. Runs a **fallback** browser-side geocode pass only for any tree whose
+   address couldn't be resolved during the snapshot build (usually none). A top
+   progress bar shows `Geocoding trees... N / M` during that rare case.
 
 In the common case a fresh install is interactive within a few seconds,
 because the heavy lifting happened offline inside `heritage.ps1`.
+
+### Map layer
+
+- **Library:** Leaflet 1.9.4, loaded from `unpkg.com` and cached by the
+  service worker after first use.
+- **Tiles:** CARTO Voyager raster tiles
+  (`https://{a,b,c,d}.basemaps.cartocdn.com/rastertiles/voyager/...`). CARTO
+  explicitly permits free use of their basemaps for personal projects and
+  hobby apps. Attribution for OpenStreetMap contributors and CARTO is shown in
+  the map's bottom-right and again in **Settings &rarr; Map**.
+- **Offline:** tiles are cached cache-first in `heritage-tiles-v1`, so areas
+  you've previously panned to stay available without a connection.
+- **Swapping tile layers:** change `TILE_URL` / `TILE_ATTRIBUTION` at the top
+  of `js/map.js` &mdash; everything else is provider-agnostic.
 
 ## Usage
 
@@ -96,15 +91,20 @@ because the heavy lifting happened offline inside `heritage.ps1`.
   walking distance. Tapping a row opens Google Maps walking directions.
 - **Recenter** &mdash; re-runs the camera logic (user within 20 mi of Portland
   vs. fit-all).
-- **Check updates** &mdash; re-reads `data/trees.json` and diff-merges:
-  - New trees are inserted and queued for geocoding.
-  - Trees that are now marked "Removed from list in YYYY" get their `removed`
-    year set and their markers turn gray.
-  - Changed addresses trigger a re-geocode (lat/lng will be refreshed).
-  - **Your found marks, find dates, and notes are never overwritten.**
-- **Settings (gear icon)** &mdash; edit your API key, view stats
-  (total / found / removed / last updated), retry failed geocodes, and check
-  for an app update.
+- **Settings (gear icon)** &mdash; view basemap attribution and data stats
+  (total / found / removed / last updated).
+- **Check for app update** (Settings &rarr; App) &mdash; one tap does two
+  things:
+  1. Refreshes `data/trees.json` from the network and diff-merges it into the
+     local database. New trees are inserted with their pre-geocoded
+     coordinates, trees newly flagged "Removed from list in YYYY" turn gray,
+     and any canonical-field changes (year/name/location) propagate.
+  2. Pings the service worker to look for a new app shell; if one is found,
+     the **New app version available &mdash; Reload** banner appears.
+
+  **Your found marks, find dates, and notes are never overwritten** by either
+  step. If the network is unavailable the tree refresh is skipped silently
+  and the app-version check still runs.
 
 ## Data source
 
@@ -281,9 +281,9 @@ There are two independent "update" concepts:
 
 ```
 heritage/
-  index.html                 # PWA shell (setup screen, map, nav, modal)
+  index.html                 # PWA shell (map, nav, settings modal)
   manifest.json              # PWA manifest (start_url /heritage/)
-  service-worker.js          # network-first shell, SWR assets, NF data
+  service-worker.js          # NF shell, SWR assets, NF data, cache-first tiles
   heritage.ps1               # scraper + geocoder -> data/trees.json
   version.ps1                # bumps the app version across files
   README.md                  # this file
@@ -293,34 +293,36 @@ heritage/
     db.js                    # IndexedDB wrapper (trees, meta stores)
     wiki.js                  # species -> Wikipedia URL
     sync.js                  # fetch trees.json, diff-merge preserving user data
-    geocode.js               # fallback Geocoding API queue (rarely runs)
-    map.js                   # map, markers, info window, camera logic
-    nearby.js                # 10-nearest list + walking nav
+    geocode.js               # fallback Nominatim queue (rarely runs in browser)
+    map.js                   # Leaflet map, markers, popup, camera logic
+    nearby.js                # 10-nearest list + walking nav (Google Maps deep link)
     ui.js                    # progress bar, toast, modal helpers
     sw-register.js           # service worker + update banner
     app.js                   # boot & glue
   data/
     trees.json               # bundled pre-geocoded snapshot
   icons/
-    icon.svg / icon-192.svg / icon-512.svg
+    icon-192.png / icon-512.png (PWA / favicon / Apple touch)
 ```
 
 ## Troubleshooting
 
-- **"That doesn't look like a Google Maps API key"** &mdash; keys start with
-  `AIza`. If yours is different (e.g. a legacy format), enter it anyway; the
-  check is advisory.
-- **Map doesn't load** &mdash; open the browser console. A 403 or
-  `InvalidKeyMapError` usually means either the key is mistyped or the
-  **Maps JavaScript API** isn't enabled on the Cloud project.
+- **Blank map, nothing loads** &mdash; open DevTools &rarr; Network and filter
+  on `cartocdn.com`. If those requests fail, a privacy extension
+  (uBlock, Brave Shields, etc.) or corporate filter may be blocking the tile
+  host. Whitelisting `basemaps.cartocdn.com` and `unpkg.com` fixes it.
+- **Tiles load but markers don't** &mdash; open DevTools &rarr; Application
+  &rarr; IndexedDB and confirm `heritage-db` / `trees` has rows. If it's
+  empty, delete it and reload; the app will repopulate from `data/trees.json`.
 - **Marker missing for a tree** &mdash; some addresses ("Removed from list in
   2024", or a non-addressable reference like "NW Corner of SW Park &amp; Main
-  (right-of-way)") will not resolve. Re-run `heritage/heritage.ps1`: when it
-  gets to that tree it prints the details and research links and lets you
-  enter a better address. The edit is persisted in `trees.json` and picked up
-  by the app on its next **Check for updates**. As a last resort the app also
-  has **Settings &rarr; Retry failed geocoding** which uses the browser's
-  fallback geocoder.
+  (right-of-way)") won't resolve. Re-run `heritage/heritage.ps1`: when it gets
+  to that tree it prints the details and research links and lets you enter a
+  better address. The edit is persisted in `trees.json` and picked up by the
+  app the next time you tap **Settings &rarr; Check for app update**. A
+  silent browser-side Nominatim fallback also runs on boot for any tree
+  still missing coordinates, so a stuck marker usually self-heals within a
+  minute of the next launch.
 - **Nominatim 403 / 429 / "blocked"** &mdash; OpenStreetMap rate-limits the
   free tier aggressively. Pass `-UserAgent "PDXHeritageTrees (your@email)"`
   so they can reach you, and consider raising `-DelayMs` or running the

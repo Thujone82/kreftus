@@ -7,6 +7,11 @@
 //   - JS / CSS / JSON / SVG / HTML assets: stale-while-revalidate.
 //   - Tree snapshot (data/trees.json): network-first (we *want* updates to the
 //     list whenever we can get them; cache is a fallback for offline use).
+//   - Leaflet CDN (unpkg.com/leaflet@...): stale-while-revalidate, so the
+//     map library stays available offline after the first visit.
+//   - CARTO basemap tiles (basemaps.cartocdn.com): cache-first with a fetch
+//     fallback. Tiles are immutable for a given z/x/y so cache-first is ideal,
+//     and it lets the map render offline wherever the user has already panned.
 //   - Everything else (images, icons, manifest): cache-first.
 //
 // IndexedDB is NEVER touched by the service worker, so installing an app update
@@ -15,6 +20,8 @@
 const VERSION = '1.0.0';
 const STATIC_CACHE = `heritage-static-v${VERSION}`;
 const DATA_CACHE   = `heritage-data-v${VERSION}`;
+const TILE_CACHE   = `heritage-tiles-v1`;    // tile URLs are versionless, so keep across app bumps
+const VENDOR_CACHE = `heritage-vendor-v1`;   // leaflet CDN - not worth re-downloading on every app bump
 
 const STATIC_ASSETS = [
     '/heritage/',
@@ -30,9 +37,8 @@ const STATIC_ASSETS = [
     '/heritage/js/nearby.js',
     '/heritage/js/ui.js',
     '/heritage/js/sw-register.js',
-    '/heritage/icons/icon.svg',
-    '/heritage/icons/icon-192.svg',
-    '/heritage/icons/icon-512.svg'
+    '/heritage/icons/icon-192.png',
+    '/heritage/icons/icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -48,11 +54,12 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
+    const KEEP = new Set([STATIC_CACHE, DATA_CACHE, TILE_CACHE, VENDOR_CACHE]);
     event.waitUntil(
         caches.keys().then((names) =>
             Promise.all(
                 names
-                    .filter((n) => n.startsWith('heritage-') && n !== STATIC_CACHE && n !== DATA_CACHE)
+                    .filter((n) => n.startsWith('heritage-') && !KEEP.has(n))
                     .map((n) => caches.delete(n))
             )
         ).then(() => self.clients.claim())
@@ -64,9 +71,19 @@ self.addEventListener('fetch', (event) => {
     if (request.method !== 'GET') return;
     const url = new URL(request.url);
 
-    // Same-origin only; let cross-origin requests (Google Maps, Wikipedia) pass through
-    // without going through the SW cache.
-    if (url.origin !== self.location.origin) return;
+    // Cross-origin: CARTO tile host, Leaflet CDN, anything else (Wikipedia,
+    // Nominatim, Google walking-directions deep links) passes through.
+    if (url.origin !== self.location.origin) {
+        if (/^https:\/\/[a-d]\.basemaps\.cartocdn\.com\//i.test(url.href)) {
+            event.respondWith(cacheFirst(request, TILE_CACHE));
+            return;
+        }
+        if (/^https:\/\/unpkg\.com\/leaflet@/i.test(url.href)) {
+            event.respondWith(staleWhileRevalidate(request, VENDOR_CACHE));
+            return;
+        }
+        return;
+    }
 
     const isNav =
         request.mode === 'navigate' &&
@@ -96,6 +113,19 @@ self.addEventListener('fetch', (event) => {
         caches.match(request).then((hit) => hit || fetch(request))
     );
 });
+
+function cacheFirst(request, cacheName) {
+    return caches.match(request).then((hit) => {
+        if (hit) return hit;
+        return fetch(request).then((response) => {
+            if (response && (response.status === 200 || response.type === 'opaque')) {
+                const clone = response.clone();
+                caches.open(cacheName).then((cache) => cache.put(request, clone));
+            }
+            return response;
+        }).catch(() => hit || offlineFallback(request));
+    });
+}
 
 function networkFirst(request, cacheName) {
     return fetch(request, { cache: 'no-cache' })

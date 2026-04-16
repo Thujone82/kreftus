@@ -1,31 +1,31 @@
 // Main application wiring.
 //
-// Boot sequence:
-//   1. If no Google Maps API key in localStorage -> show setup screen.
-//      On save: persist key, continue boot.
-//   2. Open IndexedDB.
-//   3. If DB empty: fetch heritage/data/trees.json and initial-load it.
+// Boot sequence (no API key required - basemap via Leaflet + CARTO Voyager):
+//   1. Open IndexedDB.
+//   2. If DB empty: fetch heritage/data/trees.json and initial-load it.
 //      (Tree coordinates ship pre-geocoded from heritage/heritage.ps1, so this
 //      is immediate - no live geocoding needed for the common case.)
-//   4. Load Google Maps JS API with the saved key.
-//   5. Init map, render markers for all trees that have coords.
-//   6. Silent coord backfill: if any tree is missing coords (e.g. upgrading
+//   3. Init Leaflet map and render markers for all trees that have coords.
+//   4. Silent coord backfill: if any tree is missing coords (e.g. upgrading
 //      from a pre-0.2 build that geocoded live), re-merge the bundled JSON
 //      to pick up the pre-resolved coordinates.
-//   7. Camera auto-fit based on user location vs. Portland.
-//   8. Fallback live geocoder runs ONLY for trees the scraper couldn't
+//   5. Camera auto-fit based on user location vs. Portland.
+//   6. Fallback live geocoder runs ONLY for trees the scraper couldn't
 //      resolve, and stays silent when nothing is pending.
-//   9. Wire Nearby, Check-for-updates, Settings, Update banner.
+//   7. Wire Nearby, Check-for-updates, Settings, Update banner.
+//
+// One-time migration: older builds stored a Google Maps API key in
+// localStorage under 'pdxHeritageGoogleApiKey'. We clean that up on first
+// boot so nothing lingers.
 
 (function (global) {
     'use strict';
 
-    const KEY_API = 'pdxHeritageGoogleApiKey';
+    const LEGACY_KEY_API = 'pdxHeritageGoogleApiKey';
     const APP_VERSION = '1.0.0';
 
     const state = {
-        apiKey: null,
-        mapsReady: false,
+        mapReady: false,
         geocodingActive: false
     };
 
@@ -35,54 +35,18 @@
         HeritageSW.register();
         wireStaticUi();
 
-        state.apiKey = (localStorage.getItem(KEY_API) || '').trim();
-        if (!state.apiKey) {
-            showSetup();
-            return;
-        }
+        // Drop any leftover Google Maps API key from an older install.
+        try { localStorage.removeItem(LEGACY_KEY_API); } catch (e) { /* ignore */ }
 
         try {
-            await bootWithKey();
+            await boot();
         } catch (err) {
             console.error('Boot failed:', err);
-            HeritageUI.toast('Something went wrong starting up. Check your API key in Settings.', 5000);
-            showSetup(err && err.message);
+            HeritageUI.toast('Something went wrong starting up. See console for details.', 5000);
         }
-    }
-
-    // -------------------------------------------------------------------
-    // Setup screen
-    // -------------------------------------------------------------------
-
-    function showSetup(errMsg) {
-        const screen = document.getElementById('setupScreen');
-        if (!screen) return;
-        screen.classList.remove('hidden');
-        const errEl = document.getElementById('setupError');
-        if (errMsg && errEl) {
-            errEl.textContent = errMsg;
-            errEl.classList.remove('hidden');
-        } else if (errEl) {
-            errEl.classList.add('hidden');
-        }
-        const input = document.getElementById('apiKeyInput');
-        if (input) {
-            input.value = state.apiKey || '';
-            setTimeout(() => input.focus(), 50);
-        }
-    }
-
-    function hideSetup() {
-        const screen = document.getElementById('setupScreen');
-        if (screen) screen.classList.add('hidden');
     }
 
     function wireStaticUi() {
-        const saveBtn = document.getElementById('saveApiKeyBtn');
-        if (saveBtn) saveBtn.addEventListener('click', onSaveApiKey);
-        const input = document.getElementById('apiKeyInput');
-        if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') onSaveApiKey(); });
-
         const settingsBtn = document.getElementById('settingsBtn');
         if (settingsBtn) settingsBtn.addEventListener('click', openSettings);
         document.querySelectorAll('[data-close-modal]').forEach((el) => {
@@ -97,61 +61,15 @@
         const recenterBtn = document.getElementById('recenterBtn');
         if (recenterBtn) recenterBtn.addEventListener('click', onRecenter);
 
-        const checkUpdates = document.getElementById('checkUpdatesBtn');
-        if (checkUpdates) checkUpdates.addEventListener('click', onCheckUpdates);
-
-        const modalSaveKey = document.getElementById('settingsSaveApiKey');
-        if (modalSaveKey) modalSaveKey.addEventListener('click', onModalSaveKey);
-
-        const modalCheck = document.getElementById('modalCheckUpdates');
-        if (modalCheck) modalCheck.addEventListener('click', onCheckUpdates);
-
-        const modalRe = document.getElementById('modalRegeocode');
-        if (modalRe) modalRe.addEventListener('click', onRetryFailedGeocodes);
-
         const modalAppUpdate = document.getElementById('modalCheckAppUpdate');
-        if (modalAppUpdate) modalAppUpdate.addEventListener('click', () => {
-            HeritageSW.requestUpdateCheck();
-            HeritageUI.toast('Checked for app updates.');
-        });
-    }
-
-    async function onSaveApiKey() {
-        const input = document.getElementById('apiKeyInput');
-        const key = (input && input.value || '').trim();
-        if (!key || !/^AIza[\w-]{10,}$/.test(key) && key.length < 20) {
-            const err = document.getElementById('setupError');
-            if (err) {
-                err.textContent = 'That does not look like a Google Maps API key. It should start with "AIza".';
-                err.classList.remove('hidden');
-            }
-            return;
-        }
-        localStorage.setItem(KEY_API, key);
-        state.apiKey = key;
-        try {
-            await bootWithKey();
-        } catch (err) {
-            console.error(err);
-            showSetup(err && err.message);
-        }
-    }
-
-    async function onModalSaveKey() {
-        const input = document.getElementById('settingsApiKey');
-        const key = (input && input.value || '').trim();
-        if (!key) { HeritageUI.toast('Enter a key first.'); return; }
-        localStorage.setItem(KEY_API, key);
-        HeritageUI.toast('API key saved. Reloading\u2026');
-        setTimeout(() => window.location.reload(), 700);
+        if (modalAppUpdate) modalAppUpdate.addEventListener('click', onCheckAppUpdate);
     }
 
     // -------------------------------------------------------------------
     // Boot pipeline
     // -------------------------------------------------------------------
 
-    async function bootWithKey() {
-        hideSetup();
+    async function boot() {
         await HeritageDB.open();
 
         // Initial data load if DB is empty.
@@ -167,17 +85,16 @@
             HeritageUI.toast(`Loaded ${inserted} trees.`);
         }
 
-        // Load Google Maps JS API with the saved key, then init map.
-        await loadGoogleMaps(state.apiKey);
-        state.mapsReady = true;
+        // Init Leaflet map.
         await HeritageMap.init('map');
+        state.mapReady = true;
         HeritageMap.setOnTreeUpdate(onTreeRecordChanged);
 
         // Render whatever we already have coordinates for.
         let initialTrees = await HeritageDB.getAllTrees();
         HeritageMap.renderTrees(initialTrees);
 
-        // Silent coord backfill: the bundled snapshot now ships pre-geocoded by
+        // Silent coord backfill: the bundled snapshot ships pre-geocoded by
         // heritage.ps1 (via OpenStreetMap Nominatim). If any non-removed tree
         // in the DB is still missing coords (e.g. the user is upgrading from a
         // version that geocoded live), pull them straight from the JSON rather
@@ -207,23 +124,6 @@
         // Fallback live geocoder: only fires if the snapshot didn't cover a tree.
         // Stays silent when the backfill (above) handled everything.
         runBackgroundGeocode();
-    }
-
-    function loadGoogleMaps(apiKey) {
-        return new Promise((resolve, reject) => {
-            if (global.google && global.google.maps) return resolve();
-            const cbName = '__heritageMapsLoaded';
-            global[cbName] = () => {
-                try { delete global[cbName]; } catch (e) { global[cbName] = undefined; }
-                resolve();
-            };
-            const s = document.createElement('script');
-            s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=geometry&callback=${cbName}&loading=async`;
-            s.async = true;
-            s.defer = true;
-            s.onerror = () => reject(new Error('Failed to load Google Maps. Check the API key.'));
-            document.head.appendChild(s);
-        });
     }
 
     async function runBackgroundGeocode(opts) {
@@ -267,8 +167,8 @@
     }
 
     function onTreeRecordChanged(_tree) {
-        // Could update stats panel if open; keep it cheap.
-        if (!document.getElementById('settingsModal').classList.contains('hidden')) {
+        const modal = document.getElementById('settingsModal');
+        if (modal && !modal.classList.contains('hidden')) {
             HeritageUI.refreshStats();
         }
     }
@@ -284,43 +184,62 @@
         HeritageMap.recenter(user, trees);
     }
 
-    async function onCheckUpdates() {
-        try {
-            HeritageUI.showProgress('Checking for updates\u2026');
-            const snap = await HeritageSync.fetchSnapshot();
-            const summary = await HeritageSync.mergeUpdate(snap);
-            HeritageUI.hideProgress();
+    // "Check for app update" does two things in one tap:
+    //   1. Refresh the tree database from data/trees.json (bypassing the SW
+    //      data cache) and diff-merge it into IndexedDB without touching the
+    //      user's found marks or notes.
+    //   2. Ping the service worker to check for a new app shell; if there is
+    //      one, sw-register surfaces the "New app version available" banner.
+    async function onCheckAppUpdate() {
+        const btn = document.getElementById('modalCheckAppUpdate');
+        if (btn) btn.disabled = true;
 
-            // Refresh markers for the full set (cheap at ~400).
+        let dataSummary = null;
+        try {
+            HeritageUI.showProgress('Refreshing tree database\u2026');
+            // fetchSnapshot already appends a ?t= bust and uses cache: 'no-cache';
+            // the SW serves trees.json network-first, so this always hits the origin.
+            const snap = await HeritageSync.fetchSnapshot();
+            dataSummary = await HeritageSync.mergeUpdate(snap);
             const trees = await HeritageDB.getAllTrees();
             HeritageMap.renderTrees(trees);
-
-            const parts = [];
-            if (summary.added)           parts.push(`+${summary.added} new`);
-            if (summary.newlyRemoved)    parts.push(`${summary.newlyRemoved} newly removed`);
-            if (summary.locationChanged) parts.push(`${summary.locationChanged} re-geocoding`);
-            if (parts.length === 0) parts.push('no changes to the list');
-            HeritageUI.toast(`Check complete \u2014 ${parts.join(', ')}. Your notes and found dates are untouched.`, 5000);
-
-            // If anything was added or re-geocoded, run the geocoder for the new queue.
-            if (summary.added > 0 || summary.locationChanged > 0) {
+            await HeritageUI.refreshStats();
+            if (dataSummary.added > 0 || dataSummary.locationChanged > 0) {
+                // Extremely rare with server-side geocoding, but keep the
+                // silent fallback alive just in case a snapshot ships a
+                // tree without coordinates.
                 runBackgroundGeocode();
             }
         } catch (err) {
-            console.error(err);
+            console.error('Tree database refresh failed:', err);
+        } finally {
             HeritageUI.hideProgress();
-            HeritageUI.toast('Could not check for updates. Are you offline?', 4500);
         }
-    }
 
-    function onRetryFailedGeocodes() {
-        HeritageUI.toast('Retrying failed geocodes\u2026');
-        runBackgroundGeocode({ includeFailed: true });
+        try {
+            HeritageSW.requestUpdateCheck();
+        } catch (err) {
+            console.error('App update check failed:', err);
+        }
+
+        const parts = [];
+        if (dataSummary) {
+            if (dataSummary.added)        parts.push(`+${dataSummary.added} new tree${dataSummary.added === 1 ? '' : 's'}`);
+            if (dataSummary.newlyRemoved) parts.push(`${dataSummary.newlyRemoved} newly removed`);
+            if (dataSummary.updated && !dataSummary.added && !dataSummary.newlyRemoved) {
+                parts.push(`${dataSummary.updated} updated`);
+            }
+            if (parts.length === 0) parts.push('tree database is up to date');
+        } else {
+            parts.push('could not refresh tree database (offline?)');
+        }
+        parts.push('checked for app update');
+        HeritageUI.toast(parts.join(' \u2014 ') + '.', 5000);
+
+        if (btn) btn.disabled = false;
     }
 
     async function openSettings() {
-        const input = document.getElementById('settingsApiKey');
-        if (input) input.value = state.apiKey || '';
         const verEl = document.getElementById('statVersion');
         if (verEl) verEl.textContent = APP_VERSION;
         const swEl = document.getElementById('statSw');
