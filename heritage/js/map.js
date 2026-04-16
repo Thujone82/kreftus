@@ -101,7 +101,13 @@
             zoom: 12,
             zoomControl: true,
             attributionControl: true,
-            worldCopyJump: false
+            worldCopyJump: false,
+            // Allow fitBounds to pick a fractional zoom so "show every tree"
+            // hugs the tree footprint instead of rounding down to the next
+            // integer (which on narrow viewports drops another ~0.7 zoom
+            // levels and zooms way past the tree box). zoomDelta stays at
+            // the default 1 so the +/- buttons still step by whole levels.
+            zoomSnap: 0.25
             // Note: SVG renderer (default) - canvas-rendered circleMarkers had
             // flaky click/popup interactions with a bound tooltip. With ~400
             // pins SVG performance is fine on any modern browser.
@@ -594,7 +600,16 @@
             return;
         }
         const bounds = L.latLngBounds(geoTrees.map((t) => [t.lat, t.lng]));
-        map.fitBounds(bounds, { padding: [40, 40], animate: !!animate });
+        // "Zoom out" should hug the tree box: a small pad keeps edge markers
+        // from kissing the viewport, but we don't want a wide halo around
+        // the set. Pair with zoomSnap: 0.25 on the map so Leaflet picks the
+        // tightest zoom that still satisfies the pad instead of rounding
+        // down to the next integer.
+        map.fitBounds(bounds, {
+            padding: [16, 16],
+            maxZoom: TILE_MAX_ZOOM,
+            animate: !!animate
+        });
     }
 
     function nearestTreeTo(center, trees) {
