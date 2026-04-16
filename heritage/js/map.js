@@ -60,8 +60,10 @@
             zoom: 12,
             zoomControl: true,
             attributionControl: true,
-            preferCanvas: true,   // canvas-backed circle markers scale better than SVG for ~400 pins
             worldCopyJump: false
+            // Note: SVG renderer (default) - canvas-rendered circleMarkers had
+            // flaky click/popup interactions with a bound tooltip. With ~400
+            // pins SVG performance is fine on any modern browser.
         });
         // Place the zoom control in the bottom-left so the top-right gear button
         // and the bottom action bar keep their real estate.
@@ -84,16 +86,47 @@
     // User location
     // ---------------------------------------------------------------------
 
-    function getUserLocation(timeoutMs) {
+    // Two-stage location lookup:
+    //   1. High-accuracy first (GPS on mobile, WiFi + sensors on laptops,
+    //      forces a fresh fix via maximumAge: 0). Gets us a device-grade
+    //      position when it's available.
+    //   2. If the high-accuracy attempt times out or errors (but NOT if the
+    //      user denied permission - no point re-asking), fall back to a
+    //      fast coarse fix with a generous cache window. This is the IP /
+    //      WiFi-triangulated estimate we were using before.
+    // The resolved object includes `accuracy` (meters) and `highAccuracy`
+    // (boolean) so callers can decide whether to show an accuracy ring.
+    function getUserLocation(totalTimeoutMs) {
         return new Promise((resolve) => {
             if (!navigator.geolocation) return resolve(null);
+
+            const total = Math.max(6000, totalTimeoutMs || 14000);
+            const preciseMs = Math.min(9000, Math.floor(total * 0.65));
+            const fallbackMs = Math.max(3000, total - preciseMs);
+
+            const accept = (pos, highAccuracy) => {
+                userLatLng = {
+                    lat: pos.coords.latitude,
+                    lng: pos.coords.longitude,
+                    accuracy: pos.coords.accuracy,
+                    highAccuracy: !!highAccuracy
+                };
+                resolve(userLatLng);
+            };
+
             navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    userLatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                    resolve(userLatLng);
+                (pos) => accept(pos, true),
+                (err) => {
+                    if (err && err.code === 1 /* PERMISSION_DENIED */) {
+                        return resolve(null);
+                    }
+                    navigator.geolocation.getCurrentPosition(
+                        (pos) => accept(pos, false),
+                        () => resolve(null),
+                        { timeout: fallbackMs, maximumAge: 600000, enableHighAccuracy: false }
+                    );
                 },
-                () => resolve(null),
-                { timeout: timeoutMs || 8000, maximumAge: 300000, enableHighAccuracy: false }
+                { timeout: preciseMs, maximumAge: 0, enableHighAccuracy: true }
             );
         });
     }
@@ -178,6 +211,16 @@
     // Info popup
     // ---------------------------------------------------------------------
 
+    const POPUP_OPTIONS = {
+        maxWidth: 340,
+        minWidth: 240,
+        autoPan: true,
+        autoPanPadding: [24, 80],
+        keepInView: true,
+        closeButton: true,
+        className: 'tree-info-popup'
+    };
+
     async function openInfoForTree(id, keepOpen) {
         const tree = await HeritageDB.getTree(id);
         if (!tree) return;
@@ -185,35 +228,25 @@
         if (!marker) return;
 
         const html = buildInfoContent(tree);
-        marker.unbindPopup();
-        marker.bindPopup(html, {
-            maxWidth: 340,
-            minWidth: 240,
-            autoPan: true,
-            autoPanPadding: [24, 80],
-            keepInView: true,
-            closeButton: true,
-            className: 'tree-info-popup'
-        });
-
-        if (keepOpen || marker.isPopupOpen()) {
-            marker.openPopup();
+        if (marker.getPopup()) {
+            marker.setPopupContent(html);
         } else {
-            marker.openPopup();
+            marker.bindPopup(html, POPUP_OPTIONS);
+        }
+
+        const wasOpen = marker.isPopupOpen();
+        if (!wasOpen) marker.openPopup();
+        if (!keepOpen && !wasOpen) {
             map.panTo(marker.getLatLng(), { animate: true });
         }
         openTreeId = id;
 
-        // Popup content is injected on open. Wire listeners after the popup
-        // opens (Leaflet fires 'popupopen' on the marker).
-        const onOpen = () => {
-            marker.off('popupopen', onOpen);
-            wireInfoListeners(tree);
-        };
-        marker.on('popupopen', onOpen);
-        // If the popup is already open (re-render case) the event won't fire
-        // again, so wire immediately.
-        if (marker.isPopupOpen()) setTimeout(() => wireInfoListeners(tree), 0);
+        // openPopup() inserts the popup DOM synchronously, but the elements
+        // inside .tree-info are not always queryable until the next tick
+        // depending on the Leaflet build. setTimeout(0) is a safe fence and
+        // works whether the popup was freshly opened or just had its content
+        // swapped.
+        setTimeout(() => wireInfoListeners(tree), 0);
     }
 
     function buildInfoContent(tree) {
@@ -371,6 +404,18 @@
         autoFit(user, trees);
     }
 
+    // Pan/zoom to a tree and open its info popup. Used by the Nearby panel.
+    // Returns true if the tree was found and focused.
+    async function focusTree(id, opts) {
+        const tree = await HeritageDB.getTree(id);
+        if (!tree || typeof tree.lat !== 'number' || typeof tree.lng !== 'number') return false;
+        const targetZoom = Math.max(map ? map.getZoom() : 16, (opts && opts.minZoom) || 16);
+        map.setView([tree.lat, tree.lng], targetZoom, { animate: true });
+        // Give the pan a tick so the popup opens at the final position.
+        setTimeout(() => { openInfoForTree(id); }, 120);
+        return true;
+    }
+
     // ---------------------------------------------------------------------
     // Utils
     // ---------------------------------------------------------------------
@@ -404,6 +449,7 @@
         setOnTreeUpdate,
         autoFit,
         recenter,
+        focusTree,
         distanceMeters,
         PORTLAND
     };

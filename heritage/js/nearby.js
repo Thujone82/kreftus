@@ -70,53 +70,94 @@
 
         listEl.innerHTML = '';
         for (const row of rows) {
-            const li = document.createElement('li');
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'nearby-item';
+            listEl.appendChild(buildRow(row));
+        }
+    }
 
-            const nameSpan = document.createElement('span');
-            nameSpan.className = 'nearby-item-name';
-            nameSpan.textContent = row.tree.species || row.tree.name || `#${row.tree.id}`;
+    function buildRow(row) {
+        const li = document.createElement('li');
+        li.className = 'nearby-row';
 
-            const dist = document.createElement('span');
-            dist.className = 'nearby-item-distance';
-            dist.textContent = formatDistance(row.distance);
+        // Main "View on map" button: name + metadata row. Tapping it closes
+        // the Nearby panel and opens the tree's popup on the map.
+        const view = document.createElement('button');
+        view.type = 'button';
+        view.className = 'nearby-item';
+        view.title = 'Show this tree on the map';
 
-            const meta = document.createElement('span');
-            meta.className = 'nearby-item-meta';
-            const idBadge = document.createElement('span');
-            idBadge.textContent = `#${row.tree.id}`;
-            meta.appendChild(idBadge);
-            if (row.tree.commonName) {
-                const common = document.createElement('span');
-                common.textContent = row.tree.commonName;
-                meta.appendChild(common);
-            }
-            const badge = document.createElement('span');
-            if (row.tree.removed != null) {
-                badge.className = 'nearby-item-badge removed';
-                badge.textContent = `Removed ${row.tree.removed}`;
-            } else if (row.tree.found) {
-                badge.className = 'nearby-item-badge found';
-                badge.textContent = 'Found';
-            } else {
-                badge.className = 'nearby-item-badge notfound';
-                badge.textContent = 'Not found';
-            }
-            meta.appendChild(badge);
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'nearby-item-name';
+        nameSpan.textContent = row.tree.species || row.tree.name || `#${row.tree.id}`;
 
-            btn.appendChild(nameSpan);
-            btn.appendChild(dist);
-            btn.appendChild(meta);
+        const dist = document.createElement('span');
+        dist.className = 'nearby-item-distance';
+        dist.textContent = formatDistance(row.distance);
 
-            btn.addEventListener('click', () => {
-                const url = walkingNavUrl(row.tree.lat, row.tree.lng);
-                window.open(url, '_blank', 'noopener');
-            });
+        const meta = document.createElement('span');
+        meta.className = 'nearby-item-meta';
+        const idBadge = document.createElement('span');
+        idBadge.textContent = `#${row.tree.id}`;
+        meta.appendChild(idBadge);
+        if (row.tree.commonName) {
+            const common = document.createElement('span');
+            common.textContent = row.tree.commonName;
+            meta.appendChild(common);
+        }
+        const badge = document.createElement('span');
+        if (row.tree.removed != null) {
+            badge.className = 'nearby-item-badge removed';
+            badge.textContent = `Removed ${row.tree.removed}`;
+        } else if (row.tree.found) {
+            badge.className = 'nearby-item-badge found';
+            badge.textContent = 'Found';
+        } else {
+            badge.className = 'nearby-item-badge notfound';
+            badge.textContent = 'Not found';
+        }
+        meta.appendChild(badge);
 
-            li.appendChild(btn);
-            listEl.appendChild(li);
+        view.appendChild(nameSpan);
+        view.appendChild(dist);
+        view.appendChild(meta);
+
+        view.addEventListener('click', () => onView(row.tree));
+
+        // Navigate link: walking directions in Google Maps (universal deep link,
+        // no API key needed). Rendered as a real anchor so middle/cmd-click
+        // and "open in new tab" both work naturally.
+        const nav = document.createElement('a');
+        nav.className = 'nearby-item-nav';
+        nav.href = walkingNavUrl(row.tree.lat, row.tree.lng);
+        nav.target = '_blank';
+        nav.rel = 'noopener';
+        nav.title = 'Walking directions in Google Maps';
+        nav.setAttribute('aria-label',
+            `Walking directions to ${row.tree.species || row.tree.name || row.tree.id}`);
+        const navIcon = document.createElement('span');
+        navIcon.className = 'nearby-item-nav-icon';
+        navIcon.setAttribute('aria-hidden', 'true');
+        // Unicode walking-person (U+1F6B6) + right arrow keeps the icon
+        // readable on both light-ish and very dark backgrounds.
+        navIcon.textContent = '\u{1F6B6}';
+        const navLabel = document.createElement('span');
+        navLabel.className = 'nearby-item-nav-label';
+        navLabel.textContent = 'Navigate';
+        nav.appendChild(navIcon);
+        nav.appendChild(navLabel);
+
+        li.appendChild(view);
+        li.appendChild(nav);
+        return li;
+    }
+
+    async function onView(tree) {
+        // Close the panel first so the popup isn't hidden under it on small
+        // screens, then defer to the map for the actual pan/zoom + open.
+        try { HeritageUI.closeNearby(); } catch (e) { /* no-op */ }
+        if (HeritageMap && typeof HeritageMap.focusTree === 'function') {
+            await HeritageMap.focusTree(tree.id);
+        } else if (HeritageMap && typeof HeritageMap.openInfoForTree === 'function') {
+            HeritageMap.openInfoForTree(tree.id);
         }
     }
 

@@ -22,7 +22,7 @@
     'use strict';
 
     const LEGACY_KEY_API = 'pdxHeritageGoogleApiKey';
-    const APP_VERSION = '1.0.0';
+    const APP_VERSION = '1.0.1';
 
     const state = {
         mapReady: false,
