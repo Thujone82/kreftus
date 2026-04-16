@@ -665,11 +665,44 @@ button { font-family: inherit; }
 }
 .tree-info-actions {
     display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    margin: 0.25rem 0 0.5rem;
+}
+.tree-info-actions-main {
+    display: flex;
     gap: 0.4rem;
     align-items: center;
     flex-wrap: wrap;
-    margin: 0.25rem 0 0.5rem;
+    flex: 1 1 auto;
+    min-width: 0;
 }
+.tree-info-nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.35rem 0.55rem;
+    border: 1px solid #a7cba1;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #1a4a5c;
+    text-decoration: none;
+    background: #eef5f0;
+    flex-shrink: 0;
+    line-height: 1.2;
+}
+.tree-info-nav:hover,
+.tree-info-nav:focus-visible {
+    background: #dfece3;
+    border-color: #2e7d32;
+    color: #0f3d24;
+    outline: none;
+}
+.tree-info-nav-icon { font-size: 0.95rem; line-height: 1; }
+.tree-info-nav-label { letter-spacing: 0.02em; }
 .tree-info-btn {
     padding: 0.35rem 0.7rem;
     border-radius: 6px;

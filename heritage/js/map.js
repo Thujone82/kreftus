@@ -26,6 +26,10 @@
     const COLOR_REMOVED = '#7a7a7a';
     const COLOR_STROKE  = '#1f3b2a';
 
+    function walkingDirectionsUrl(lat, lng) {
+        return `https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=${lat},${lng}`;
+    }
+
     // CARTO Voyager: muted, natural palette that matches the PNW/woodsy theme
     // and keeps colored markers legible. Allowed for hobby/personal apps per
     // CARTO's basemap usage terms.
@@ -260,12 +264,33 @@
 
         const foundDateStr = tree.foundDate ? formatLocalDate(tree.foundDate) : null;
 
-        const actions = tree.removed != null
-            ? ''
-            : tree.found
+        const hasCoords = typeof tree.lat === 'number' && typeof tree.lng === 'number';
+        const navHref = hasCoords ? walkingDirectionsUrl(tree.lat, tree.lng) : '';
+
+        let primary = '';
+        if (tree.removed == null) {
+            primary = tree.found
                 ? `<span class="tree-info-found">Found ${escapeHtml(foundDateStr || '')}</span>
-                   <button class="tree-info-btn ghost" data-action="undo">Undo</button>`
-                : `<button class="tree-info-btn primary" data-action="found">Mark as found</button>`;
+                   <button type="button" class="tree-info-btn ghost" data-action="undo">Undo</button>`
+                : `<button type="button" class="tree-info-btn primary" data-action="found">Mark as found</button>`;
+        }
+
+        const navLink = hasCoords
+            ? `<a class="tree-info-nav" href="${escapeHtml(navHref)}" target="_blank" rel="noopener"
+                   title="Walking directions in Google Maps"
+                   aria-label="Walking directions to heritage tree #${escapeHtml(tree.id)}">
+                   <span class="tree-info-nav-icon" aria-hidden="true">\u{1F6B6}</span>
+                   <span class="tree-info-nav-label">Navigate</span>
+               </a>`
+            : '';
+
+        const actionsInner = [
+            primary ? `<div class="tree-info-actions-main">${primary}</div>` : '',
+            navLink
+        ].filter(Boolean).join('');
+        const actionsBlock = actionsInner
+            ? `<div class="tree-info-actions">${actionsInner}</div>`
+            : '';
 
         const badges = [];
         badges.push(`<span class="badge">#${escapeHtml(tree.id)}</span>`);
@@ -277,7 +302,7 @@
                 <h3 class="tree-info-title">${titleHtml}</h3>
                 <div class="tree-info-meta">${badges.join('')}</div>
                 <p class="tree-info-loc">${escapeHtml(tree.location || '')}</p>
-                <div class="tree-info-actions">${actions}</div>
+                ${actionsBlock}
                 <label class="tree-info-notes-label" for="notes-${escapeHtml(tree.id)}">
                     Notes <span class="tree-info-saved" data-saved>Saved</span>
                 </label>
