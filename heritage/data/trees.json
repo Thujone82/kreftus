@@ -1,6 +1,6 @@
 {
   "sourceUrl": "https://www.portland.gov/trees/heritage/heritage-trees-year",
-  "scrapedAt": "2026-04-16T21:50:33Z",
+  "scrapedAt": "2026-04-16T22:09:17Z",
   "count": 397,
   "trees": [
     {
@@ -4611,8 +4611,8 @@
       "name": "Pinus densiflora - Japanese red pine",
       "location": "10040 NE 6th Dr (PP&R, Columbia Children's Arboretum)",
       "removed": null,
-      "lat": 45.5952186,
-      "lng": -122.6625335,
+      "lat": 45.59389748505207,
+      "lng": -122.65937162023663,
       "geocodeStatus": "ok",
       "geocodeAddress": "10040 NE 6th Dr, Portland, OR, USA",
       "geocodeFormatted": "10040, Northeast 6th Drive, Faloma, East Columbia, Portland, Multnomah County, Oregon, 97211, United States",
