@@ -1,6 +1,6 @@
 {
   "sourceUrl": "https://www.portland.gov/trees/heritage/heritage-trees-year",
-  "scrapedAt": "2026-04-16T22:09:17Z",
+  "scrapedAt": "2026-04-16T23:58:13Z",
   "count": 397,
   "trees": [
     {
@@ -4754,8 +4754,8 @@
       "name": "Platanus x acerifolia - London planetree",
       "location": "23 NE Morgan St (private)",
       "removed": null,
-      "lat": 45.5746177,
-      "lng": -122.6661967,
+      "lat": 45.574558926755415,
+      "lng": -122.66612512034936,
       "geocodeStatus": "ok",
       "geocodeAddress": "23 NE Morgan St, Portland, OR, USA",
       "geocodeFormatted": "23, Northeast Morgan Street, Piedmont, Portland, Multnomah County, Oregon, 97211, United States",
