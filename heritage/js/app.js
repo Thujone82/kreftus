@@ -22,7 +22,7 @@
     'use strict';
 
     const LEGACY_KEY_API = 'pdxHeritageGoogleApiKey';
-    const APP_VERSION = '1.0.4';
+    const APP_VERSION = '1.0.5';
 
     const state = {
         mapReady: false,
@@ -72,6 +72,11 @@
 
         const modalAppUpdate = document.getElementById('modalCheckAppUpdate');
         if (modalAppUpdate) modalAppUpdate.addEventListener('click', onCheckAppUpdate);
+
+        const modalMapZoom = document.getElementById('modalMapZoomToggle');
+        if (modalMapZoom) {
+            modalMapZoom.addEventListener('click', () => { void HeritageMap.toggleModalMapZoom(); });
+        }
 
         wirePwaInstall();
     }
@@ -232,10 +237,11 @@
         }
     }
 
-    function onTreeRecordChanged(_tree) {
+    async function onTreeRecordChanged(_tree) {
         const modal = document.getElementById('settingsModal');
         if (modal && !modal.classList.contains('hidden')) {
-            HeritageUI.refreshStats();
+            await HeritageUI.refreshStats();
+            await HeritageMap.syncModalZoomToggleButton();
         }
     }
 
@@ -270,6 +276,7 @@
             const trees = await HeritageDB.getAllTrees();
             HeritageMap.renderTrees(trees);
             await HeritageUI.refreshStats();
+            await HeritageMap.syncModalZoomToggleButton();
             if (dataSummary.added > 0 || dataSummary.locationChanged > 0) {
                 // Extremely rare with server-side geocoding, but keep the
                 // silent fallback alive just in case a snapshot ships a
@@ -314,6 +321,7 @@
             swEl.textContent = v ? `active (v${v})` : 'not registered yet';
         }
         await HeritageUI.refreshStats();
+        await HeritageMap.syncModalZoomToggleButton();
         HeritageUI.openModal('settingsModal');
     }
 

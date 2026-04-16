@@ -31,8 +31,13 @@
     const COLOR_REMOVED = '#7a7a7a';
     const COLOR_STROKE  = '#1f3b2a';
 
+    // geo: (RFC 5870) — OS picks the default maps / nav handler (strongest on
+    // Android; iOS varies). Testing instead of a Google-only https deep link.
     function walkingDirectionsUrl(lat, lng) {
-        return `https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=${lat},${lng}`;
+        const la = Number(lat);
+        const ln = Number(lng);
+        if (!Number.isFinite(la) || !Number.isFinite(ln)) return '#';
+        return `geo:${la},${ln}`;
     }
 
     // CARTO Voyager: muted, natural palette that matches the PNW/woodsy theme
@@ -52,6 +57,9 @@
     let userMarker = null;
     let onTreeUpdateCallback = null;
     let openTreeId = null;
+
+    /** Settings modal: false = startup-style framing, true = fit every mapped tree. */
+    let modalMapViewWide = false;
 
     let geoWatchId = null;
     let hadLiveWatchPermission = false;
@@ -443,8 +451,8 @@
 
         const navLink = hasCoords
             ? `<a class="tree-info-nav" href="${escapeHtml(navHref)}" target="_blank" rel="noopener"
-                   title="Walking directions in Google Maps"
-                   aria-label="Walking directions to heritage tree #${escapeHtml(tree.id)}">
+                   title="Open location in your maps app (geo: link)"
+                   aria-label="Navigate to heritage tree #${escapeHtml(tree.id)}">
                    <span class="tree-info-nav-icon" aria-hidden="true">\u{1F6B6}</span>
                    <span class="tree-info-nav-label">Navigate</span>
                </a>`
@@ -541,6 +549,21 @@
         return 2 * R * Math.asin(Math.sqrt(s));
     }
 
+    function countGeocodedTrees(trees) {
+        return trees.filter((t) => typeof t.lat === 'number' && typeof t.lng === 'number').length;
+    }
+
+    function fitBoundsAllGeocodedTrees(trees, animate) {
+        if (!map) return;
+        const geoTrees = trees.filter((t) => typeof t.lat === 'number' && typeof t.lng === 'number');
+        if (geoTrees.length === 0) {
+            map.setView([PORTLAND.lat, PORTLAND.lng], 12, { animate: !!animate });
+            return;
+        }
+        const bounds = L.latLngBounds(geoTrees.map((t) => [t.lat, t.lng]));
+        map.fitBounds(bounds, { padding: [40, 40], animate: !!animate });
+    }
+
     function nearestTreeTo(center, trees) {
         let best = null;
         let bestD = Infinity;
@@ -560,11 +583,12 @@
         return best;
     }
 
-    function autoFit(user, trees) {
+    function autoFit(user, trees, opts) {
         if (!map) return;
+        const animate = !!(opts && opts.animate);
         const geoTrees = trees.filter((t) => typeof t.lat === 'number' && typeof t.lng === 'number');
         if (geoTrees.length === 0) {
-            map.setView([PORTLAND.lat, PORTLAND.lng], 12);
+            map.setView([PORTLAND.lat, PORTLAND.lng], 12, { animate });
             return;
         }
 
@@ -581,23 +605,74 @@
                 map.fitBounds(bounds, {
                     paddingTopLeft: [60, 90],
                     paddingBottomRight: [60, 130],
-                    animate: false
+                    animate
                 });
                 return;
             }
         }
 
-        const bounds = L.latLngBounds(geoTrees.map((t) => [t.lat, t.lng]));
-        map.fitBounds(bounds, { padding: [40, 40], animate: false });
+        fitBoundsAllGeocodedTrees(trees, animate);
     }
 
     function recenter(user, trees) {
-        autoFit(user, trees);
+        modalMapViewWide = false;
+        void syncModalZoomToggleButton();
+        autoFit(user, trees, { animate: true });
+    }
+
+    async function syncModalZoomToggleButton() {
+        const btn = document.getElementById('modalMapZoomToggle');
+        if (!btn) return;
+        let trees = [];
+        try {
+            trees = await HeritageDB.getAllTrees();
+        } catch (e) {
+            btn.disabled = true;
+            btn.textContent = 'Zoom out';
+            return;
+        }
+        const n = countGeocodedTrees(trees);
+        if (n <= 50) {
+            modalMapViewWide = false;
+            btn.disabled = true;
+            btn.textContent = 'Zoom out';
+            btn.title = 'With 50 or fewer mapped trees, the default view already shows them all.';
+            btn.setAttribute('aria-pressed', 'false');
+            return;
+        }
+        btn.disabled = false;
+        btn.textContent = modalMapViewWide ? 'Zoom in' : 'Zoom out';
+        btn.title = modalMapViewWide
+            ? 'Return to the default startup zoom (near you and nearby trees, or the usual wide view).'
+            : 'Zoom out to show every mapped tree at once.';
+        btn.setAttribute('aria-pressed', modalMapViewWide ? 'true' : 'false');
+    }
+
+    async function toggleModalMapZoom() {
+        const btn = document.getElementById('modalMapZoomToggle');
+        if (!btn || btn.disabled || !map) return;
+        let trees = [];
+        try {
+            trees = await HeritageDB.getAllTrees();
+        } catch (e) { return; }
+        if (countGeocodedTrees(trees) <= 50) return;
+
+        const user = getCachedUserLocation();
+        if (!modalMapViewWide) {
+            fitBoundsAllGeocodedTrees(trees, true);
+            modalMapViewWide = true;
+        } else {
+            autoFit(user, trees, { animate: true });
+            modalMapViewWide = false;
+        }
+        await syncModalZoomToggleButton();
     }
 
     // Pan/zoom to a tree and open its info popup. Used by the Nearby panel.
     // Returns true if the tree was found and focused.
     async function focusTree(id, opts) {
+        modalMapViewWide = false;
+        void syncModalZoomToggleButton();
         const tree = await HeritageDB.getTree(id);
         if (!tree || typeof tree.lat !== 'number' || typeof tree.lng !== 'number') return false;
         const targetZoom = Math.max(map ? map.getZoom() : 16, (opts && opts.minZoom) || 16);
@@ -642,6 +717,8 @@
         autoFit,
         recenter,
         focusTree,
+        syncModalZoomToggleButton,
+        toggleModalMapZoom,
         distanceMeters,
         PORTLAND
     };

@@ -28,7 +28,7 @@ entirely offline from your browser's IndexedDB.
   (linked to Wikipedia), the address, a **Mark as found** button, and a
   **Notes** field.
 - **Nearby** &mdash; lists the 10 closest trees to your current location and
-  launches walking directions in Google Maps on tap.
+  launches navigation via a `geo:` link so the OS can open the user&rsquo;s maps app.
 - **Check for app update** &mdash; a single action in Settings that refreshes
   the tree database from `data/trees.json` *and* asks the service worker to
   look for a new app shell. New/removed trees are diff-merged **without**
@@ -88,7 +88,7 @@ because the heavy lifting happened offline inside `heritage.ps1`.
     green. An **Undo** button appears with a localized find timestamp.
   - **Notes** &mdash; type freely; notes autosave when you leave the field.
 - **Nearby** &mdash; bottom bar button. Shows the 10 closest trees with
-  walking distance. Tapping a row opens Google Maps walking directions.
+  walking distance. Tapping Navigate opens a `geo:` link for the device&rsquo;s maps app.
 - **Recenter** &mdash; re-runs the camera logic (user within 20 mi of Portland
   vs. fit-all).
 - **Settings (gear icon)** &mdash; view basemap attribution and data stats
@@ -295,7 +295,7 @@ heritage/
     sync.js                  # fetch trees.json, diff-merge preserving user data
     geocode.js               # fallback Nominatim queue (rarely runs in browser)
     map.js                   # Leaflet map, markers, popup, camera logic
-    nearby.js                # 10-nearest list + walking nav (Google Maps deep link)
+    nearby.js                # 10-nearest list + geo: navigate links
     ui.js                    # progress bar, toast, modal helpers
     sw-register.js           # service worker + update banner
     app.js                   # boot & glue

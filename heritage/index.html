@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#1f3b2a">
     <title>PDX Heritage Trees</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="css/styles.css?v=1.0.4">
+    <link rel="stylesheet" href="css/styles.css?v=1.0.5">
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -58,7 +58,7 @@
         <p class="side-panel-sub" id="nearbyOrigin">From your current location</p>
         <ol id="nearbyList" class="nearby-list" aria-live="polite"></ol>
         <p class="side-panel-fineprint">
-            Tap a tree to open walking directions in Google Maps.
+            Tap a tree to open navigation in your device&rsquo;s maps app (geo: link).
         </p>
     </section>
 
@@ -80,6 +80,13 @@
                         rel="noopener">CARTO</a>. Tree coordinates resolved via
                     OpenStreetMap Nominatim.
                 </p>
+                <div class="modal-actions modal-actions-column">
+                    <button type="button" id="modalMapZoomToggle" class="btn btn-secondary" disabled
+                            aria-pressed="false"
+                            title="Zoom out to show every mapped tree (enabled when more than 50 trees have coordinates)">
+                        Zoom out
+                    </button>
+                </div>
             </section>
 
             <section class="modal-section">
@@ -128,14 +135,14 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
             integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
             crossorigin="anonymous"></script>
-    <script src="js/db.js?v=1.0.4"></script>
-    <script src="js/wiki.js?v=1.0.4"></script>
-    <script src="js/sync.js?v=1.0.4"></script>
-    <script src="js/geocode.js?v=1.0.4"></script>
-    <script src="js/map.js?v=1.0.4"></script>
-    <script src="js/nearby.js?v=1.0.4"></script>
-    <script src="js/ui.js?v=1.0.4"></script>
-    <script src="js/sw-register.js?v=1.0.4"></script>
-    <script src="js/app.js?v=1.0.4"></script>
+    <script src="js/db.js?v=1.0.5"></script>
+    <script src="js/wiki.js?v=1.0.5"></script>
+    <script src="js/sync.js?v=1.0.5"></script>
+    <script src="js/geocode.js?v=1.0.5"></script>
+    <script src="js/map.js?v=1.0.5"></script>
+    <script src="js/nearby.js?v=1.0.5"></script>
+    <script src="js/ui.js?v=1.0.5"></script>
+    <script src="js/sw-register.js?v=1.0.5"></script>
+    <script src="js/app.js?v=1.0.5"></script>
 </body>
 </html>
