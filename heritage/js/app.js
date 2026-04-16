@@ -22,7 +22,7 @@
     'use strict';
 
     const LEGACY_KEY_API = 'pdxHeritageGoogleApiKey';
-    const APP_VERSION = '1.0.3';
+    const APP_VERSION = '1.0.4';
 
     const state = {
         mapReady: false,
@@ -181,7 +181,10 @@
 
         // Resolve user location (best-effort) and place marker + auto-fit camera.
         const user = await HeritageMap.getUserLocation(7000);
-        if (user) HeritageMap.placeUserMarker();
+        if (user) {
+            HeritageMap.placeUserMarker();
+            HeritageMap.startLiveLocationUpdates();
+        }
         HeritageMap.autoFit(user, initialTrees);
 
         // Fallback live geocoder: only fires if the snapshot didn't cover a tree.

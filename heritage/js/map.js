@@ -14,6 +14,11 @@
 //   - If user is within 20 miles of Portland: fit bounds of (user, nearest tree)
 //     with small padding so both are visible.
 //   - Otherwise: fit bounds of all trees centered on Portland.
+//
+// User location:
+//   - Press-and-hold (~600 ms) on empty map tiles asks to refresh location.
+//   - After a successful initial fix, watchPosition keeps the blue dot updated
+//     while the tab is visible (throttled by time + distance).
 
 (function (global) {
     'use strict';
@@ -48,6 +53,21 @@
     let onTreeUpdateCallback = null;
     let openTreeId = null;
 
+    let geoWatchId = null;
+    let hadLiveWatchPermission = false;
+    let lastWatchEmitMs = 0;
+    let lastWatchEmittedLatLng = null;
+
+    const LIVE_WATCH_MIN_MS = 3500;
+    const LIVE_WATCH_MIN_MOVE_M = 7;
+
+    const LONG_PRESS_MS = 600;
+    const LONG_PRESS_MOVE_PX = 14;
+    let longPressTimer = null;
+    let longPressPointerId = null;
+    let longPressStartX = 0;
+    let longPressStartY = 0;
+
     // ---------------------------------------------------------------------
     // Init
     // ---------------------------------------------------------------------
@@ -81,6 +101,8 @@
         }).addTo(map);
 
         map.on('popupclose', () => { openTreeId = null; });
+        wireMapLongPressLocationRefresh();
+        wireVisibilityForLiveLocation();
         return map;
     }
 
@@ -149,6 +171,150 @@
             pane: 'markerPane'
         }).addTo(map);
         userMarker.bindTooltip('Your location', { direction: 'top', offset: [0, -6] });
+        if (typeof userMarker.bringToFront === 'function') {
+            try { userMarker.bringToFront(); } catch (e) { /* ignore */ }
+        }
+    }
+
+    function shouldAllowMapLongPressTarget(target) {
+        if (!target || !target.closest) return false;
+        if (!target.closest('#map')) return false;
+        if (target.closest('.leaflet-control-container')) return false;
+        if (target.closest('.leaflet-popup')) return false;
+        // Tree markers, user dot, etc. — long-press empty map / tiles only.
+        if (target.closest('.leaflet-interactive')) return false;
+        return true;
+    }
+
+    function clearLongPressTimer() {
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+        }
+        longPressPointerId = null;
+    }
+
+    function wireMapLongPressLocationRefresh() {
+        if (!map) return;
+        const el = map.getContainer();
+
+        const onPointerDown = (e) => {
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            if (!shouldAllowMapLongPressTarget(e.target)) return;
+            longPressPointerId = e.pointerId;
+            longPressStartX = e.clientX;
+            longPressStartY = e.clientY;
+            clearLongPressTimer();
+            longPressTimer = setTimeout(() => {
+                longPressTimer = null;
+                longPressPointerId = null;
+                void promptAndRefreshUserLocation();
+            }, LONG_PRESS_MS);
+        };
+
+        const onPointerMove = (e) => {
+            if (longPressPointerId == null || e.pointerId !== longPressPointerId || !longPressTimer) return;
+            const dx = e.clientX - longPressStartX;
+            const dy = e.clientY - longPressStartY;
+            if (dx * dx + dy * dy > LONG_PRESS_MOVE_PX * LONG_PRESS_MOVE_PX) {
+                clearLongPressTimer();
+            }
+        };
+
+        const onPointerEnd = (e) => {
+            if (longPressPointerId != null && e.pointerId === longPressPointerId) {
+                clearLongPressTimer();
+            }
+        };
+
+        el.addEventListener('pointerdown', onPointerDown);
+        el.addEventListener('pointermove', onPointerMove);
+        el.addEventListener('pointerup', onPointerEnd);
+        el.addEventListener('pointercancel', onPointerEnd);
+    }
+
+    async function promptAndRefreshUserLocation() {
+        const msg = 'Update your location on the map?\n\n' +
+            'The blue dot will move to your current position.';
+        if (!window.confirm(msg)) return;
+
+        const u = await getUserLocation(22000);
+        if (u) {
+            placeUserMarker();
+            startLiveLocationUpdates();
+            if (global.HeritageUI && typeof global.HeritageUI.toast === 'function') {
+                global.HeritageUI.toast('Location updated.', 2600);
+            }
+        } else if (global.HeritageUI && typeof global.HeritageUI.toast === 'function') {
+            global.HeritageUI.toast(
+                'Could not read your location. Check browser permissions and try again.',
+                4500
+            );
+        }
+    }
+
+    function maybeApplyWatchPosition(pos) {
+        const now = Date.now();
+        const cand = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+            highAccuracy: !!(pos.coords.accuracy != null && pos.coords.accuracy <= 80)
+        };
+        if (lastWatchEmittedLatLng) {
+            const moved = distanceMeters(lastWatchEmittedLatLng, cand);
+            const elapsed = now - lastWatchEmitMs;
+            if (moved < LIVE_WATCH_MIN_MOVE_M && elapsed < LIVE_WATCH_MIN_MS) return;
+        }
+        lastWatchEmitMs = now;
+        lastWatchEmittedLatLng = { lat: cand.lat, lng: cand.lng };
+        userLatLng = {
+            lat: cand.lat,
+            lng: cand.lng,
+            accuracy: cand.accuracy,
+            highAccuracy: cand.highAccuracy
+        };
+        placeUserMarker();
+    }
+
+    function pauseLiveLocationUpdates() {
+        if (typeof geoWatchId === 'number') {
+            try { navigator.geolocation.clearWatch(geoWatchId); } catch (e) { /* ignore */ }
+            geoWatchId = null;
+        }
+    }
+
+    function startLiveLocationUpdates() {
+        if (!navigator.geolocation || typeof geoWatchId === 'number') return;
+        if (!userLatLng) return;
+
+        geoWatchId = navigator.geolocation.watchPosition(
+            (pos) => { maybeApplyWatchPosition(pos); },
+            (err) => {
+                if (err && err.code === 1) {
+                    hadLiveWatchPermission = false;
+                    pauseLiveLocationUpdates();
+                }
+            },
+            { enableHighAccuracy: true, maximumAge: 4000, timeout: 25000 }
+        );
+        hadLiveWatchPermission = true;
+    }
+
+    let visibilityForLiveLocationBound = false;
+    function wireVisibilityForLiveLocation() {
+        if (visibilityForLiveLocationBound) return;
+        visibilityForLiveLocationBound = true;
+
+        document.addEventListener('visibilitychange', () => {
+            if (!hadLiveWatchPermission) return;
+            if (document.hidden) {
+                pauseLiveLocationUpdates();
+            } else if (userLatLng) {
+                startLiveLocationUpdates();
+            }
+        });
+        window.addEventListener('beforeunload', pauseLiveLocationUpdates);
     }
 
     // ---------------------------------------------------------------------
@@ -467,6 +633,7 @@
         getUserLocation,
         getCachedUserLocation,
         placeUserMarker,
+        startLiveLocationUpdates,
         renderTrees,
         updateTreeMarker,
         clearMarkers,
