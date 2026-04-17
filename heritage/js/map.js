@@ -485,7 +485,7 @@
         const wikiUrl = HeritageWiki.wikipediaUrlForSpecies(species);
         const titleHtml = wikiUrl
             ? `<a href="${wikiUrl}" target="_blank" rel="noopener">
-                   <span class="tree-info-species">${escapeHtml(species)}</span>${common ? ' &mdash; <span class="tree-info-common">' + escapeHtml(common) + '</span>' : ''}
+                   <span class="tree-info-species">${escapeHtml(species)}</span>${common ? '<br><span class="tree-info-common">' + escapeHtml(common) + '</span>' : ''}
                </a>`
             : `<span class="tree-info-species">${escapeHtml(tree.name || '')}</span>`;
 
