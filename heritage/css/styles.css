@@ -75,6 +75,13 @@ button { font-family: inherit; }
         radial-gradient(ellipse at center, var(--pnw-moss), var(--pnw-forest-2));
 }
 
+/* Lift Leaflet's bottom-left zoom controls above the fixed action bar so the
+   +/- buttons stay tappable. The action bar is roughly a button (~49px) plus
+   vertical padding + safe-area inset, so reserve ~84px plus the inset. */
+.leaflet-bottom.leaflet-left {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
+}
+
 /* ==========================================================================
    Header (top bar)
    ========================================================================== */
