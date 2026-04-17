@@ -2,7 +2,7 @@
   "name": "PDX Heritage Trees",
   "short_name": "PDX Trees",
   "description": "A local, offline-friendly field guide to Portland's registered Heritage Trees. Track which trees you've found, take notes, and navigate to nearby trees.",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "start_url": "/heritage/",
   "scope": "/heritage/",
   "display": "standalone",

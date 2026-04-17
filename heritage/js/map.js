@@ -17,6 +17,10 @@
 //
 // User location:
 //   - Press-and-hold (~600 ms) on empty map tiles asks to refresh location.
+//     The long-press is disabled once we have a high-accuracy fix (the user
+//     granted permission and the browser returned a real GPS/WiFi position,
+//     not the IP-based coarse fallback), since watchPosition already keeps
+//     that fix fresh and a confirm prompt would just be noise.
 //   - After a successful initial fix, watchPosition keeps the blue dot updated
 //     while the tab is visible (throttled by time + distance).
 
@@ -217,6 +221,14 @@
         return true;
     }
 
+    // When we already have a high-accuracy fix (real GPS / WiFi, not the
+    // IP-based coarse fallback), the press-to-refresh prompt is redundant —
+    // watchPosition keeps the blue dot fresh on its own and any new fix will
+    // override the current position without a user confirm.
+    function isLongPressLocationRefreshDisabled() {
+        return !!(userLatLng && userLatLng.highAccuracy);
+    }
+
     function clearLongPressTimer() {
         if (longPressTimer) {
             clearTimeout(longPressTimer);
@@ -239,6 +251,10 @@
             }
             if (e.pointerType === 'mouse' && e.button !== 0) return;
             if (!shouldAllowMapLongPressTarget(e.target)) return;
+            // Skip entirely when we already have a high-accuracy fix; the
+            // refresh prompt would only be useful while we're stuck on the
+            // IP-based fallback.
+            if (isLongPressLocationRefreshDisabled()) return;
             longPressPointerId = e.pointerId;
             longPressStartX = e.clientX;
             longPressStartY = e.clientY;
@@ -249,6 +265,9 @@
                 // Never prompt if another finger joined between the timer
                 // starting and firing.
                 if (activePointers.size !== 1) return;
+                // Re-check in case watchPosition upgraded us to a live fix
+                // mid-press; no need to ask again in that case.
+                if (isLongPressLocationRefreshDisabled()) return;
                 void promptAndRefreshUserLocation();
             }, LONG_PRESS_MS);
         };
