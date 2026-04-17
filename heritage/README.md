@@ -128,19 +128,44 @@ From the repository root:
 
 ```powershell
 pwsh -File heritage/heritage.ps1
-
-# Optional flags
-#   -Force           re-geocode every tree even if cached
-#   -NoInteractive   don't prompt on failures (mark them failed instead)
-#   -Update          skip scraping; edit one tree at a time (see below)
-#   -DelayMs 1100    delay between Nominatim requests (default 1100 ms)
-#   -UserAgent "..." override the User-Agent (please include an email or URL
-#                    so OSM can reach you if there's a problem)
 ```
 
 A fresh run of ~400 trees takes about 7&ndash;8 minutes (pacing is dictated by
 Nominatim's 1 req/sec policy). Subsequent runs, once coordinates are cached,
 complete in a few seconds.
+
+#### `heritage.ps1` parameter reference
+
+| Parameter         | Type      | Default                                                                 | Purpose                                                                                       |
+| ----------------- | --------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `-Url`            | `string`  | `https://www.portland.gov/trees/heritage/heritage-trees-year`           | Page to scrape. Override only if the City moves the registry.                                 |
+| `-Output`         | `string`  | `<script dir>\data\trees.json`                                          | Destination snapshot path. Parent directories are created as needed.                          |
+| `-UserAgent`      | `string`  | `PDXHeritageTreesScraper (https://github.com/kreftus/kreftus)`          | Value sent to Nominatim. Per OSM policy, include an email or URL that identifies you.         |
+| `-DelayMs`        | `int`     | `1100`                                                                  | Milliseconds to wait between Nominatim calls. Raise if you hit rate limits.                   |
+| `-NoInteractive`  | `switch`  | off                                                                     | Never prompt on failures. Failing trees are marked `failed` so a later run can retry them.    |
+| `-Force`          | `switch`  | off                                                                     | Re-geocode every tree even if the previous snapshot had usable coordinates.                   |
+| `-Update`         | `switch`  | off                                                                     | Skip scraping/geocoding entirely; open the existing `trees.json` for per-tree manual editing. |
+| `-Tree` *(pos 0)* | `string`  | *(empty)*                                                               | Only meaningful with `-Update`. Jumps straight to this tree number (e.g. `366`, `#366`).      |
+
+Examples:
+
+```powershell
+# First ever run (or after deleting data/trees.json): scrape + geocode everything,
+# prompting on any failure.
+pwsh -File heritage/heritage.ps1
+
+# CI / batch mode: no prompts, mark failures instead.
+pwsh -File heritage/heritage.ps1 -NoInteractive
+
+# Re-geocode everything from scratch, slower pacing for a flaky network.
+pwsh -File heritage/heritage.ps1 -Force -DelayMs 2000
+
+# Be a good OSM citizen on a hosted runner.
+pwsh -File heritage/heritage.ps1 -UserAgent "PDXHeritageTrees (me@example.com)"
+
+# Open update mode and jump straight to tree #366.
+pwsh -File heritage/heritage.ps1 -Update 366
+```
 
 ### Per-tree progress and interactive fallback on failure
 
@@ -197,13 +222,22 @@ mis-match or a change on the City's page), you don't have to re-scrape
 everything &mdash; run the script in update mode and edit just that tree:
 
 ```powershell
+# Interactive: asks which tree to edit.
 pwsh -File heritage/heritage.ps1 -Update
+
+# Jump directly to tree #366 (accepts "366", "#366", or whitespace around it).
+pwsh -File heritage/heritage.ps1 -Update 366
 ```
 
 Update mode skips the HTML fetch entirely. It loads the existing
-`data/trees.json`, asks for a tree number (e.g. `158`, `#158`, or `1`), and
-shows every stored field including distance-from-Portland. You can then
-choose what to do:
+`data/trees.json`, asks for a tree number (or uses the one passed positionally
+after `-Update`), and shows every stored field including
+distance-from-Portland. After you finish editing that tree the script returns
+to the "Enter tree #" prompt so you can keep working &mdash; press Enter or
+`q` to quit. If the tree number supplied positionally isn't in the snapshot,
+the script warns and falls through to the normal prompt.
+
+From the edit menu you can:
 
 | Key | Action                                                                 |
 | --- | ---------------------------------------------------------------------- |
@@ -334,15 +368,72 @@ heritage/
 
 ## Versioning
 
-The app version lives in three places:
+The app version lives in four places &mdash; they must stay in sync or
+browsers will serve stale assets after an update:
 
-- `service-worker.js`      &rarr; `const VERSION = '1.0.0'`
-- `manifest.json`          &rarr; `"version": "1.0.0"`
-- `index.html`             &rarr; `?v=1.0.0` query on each asset
+- `service-worker.js`      &rarr; `const VERSION = 'x.y.z';`
+- `manifest.json`          &rarr; `"version": "x.y.z"`
+- `js/app.js`              &rarr; `const APP_VERSION = 'x.y.z';`
+- `index.html`             &rarr; `?v=x.y.z` cache-busting query on every
+  `css/*.css` and `js/*.js` asset reference
 
-These are bumped together only when the app changes in a way that warrants a
-new service worker (asset list, caching behavior, etc.). They are not bumped
-automatically.
+These are never bumped automatically; use `version.ps1` whenever you change
+the app in a way that warrants a new service worker (asset list, caching
+behavior, UI changes the user should see immediately, etc.).
+
+### `version.ps1` &mdash; one-shot version bumper
+
+`version.ps1` rewrites all four locations atomically and preserves each
+file's original UTF-8 BOM state. If any target file is missing or its
+version marker can't be found, the script throws and exits non-zero without
+writing partial updates.
+
+```powershell
+# Interactive: prints current version, prompts for the new value.
+pwsh -File heritage/version.ps1
+
+# Explicit version (sanitized; see rules below).
+pwsh -File heritage/version.ps1 1.1.0
+pwsh -File heritage/version.ps1 1.7.12b
+
+# Increment flags (mutually exclusive with each other and with an explicit version).
+pwsh -File heritage/version.ps1 -Rev     # 1.2.3 -> 1.2.4
+pwsh -File heritage/version.ps1 -Minor   # 1.2.3 -> 1.3.0
+pwsh -File heritage/version.ps1 -Major   # 1.2.3 -> 2.0.0
+
+# Show built-in help without touching any files.
+pwsh -File heritage/version.ps1 -Help
+```
+
+#### Parameter reference
+
+| Parameter          | Type     | Purpose                                                                                                   |
+| ------------------ | -------- | --------------------------------------------------------------------------------------------------------- |
+| `-Version` *(pos 0)* | `string` | Explicit version string. Sanitized to `[A-Za-z0-9._-]` (spaces and URL-unsafe characters are stripped). |
+| `-Rev`             | `switch` | Reads the current version from `service-worker.js` and increments only the revision.                      |
+| `-Minor`           | `switch` | Increments the minor and resets the revision to `0`.                                                      |
+| `-Major`           | `switch` | Increments the major and resets minor/revision to `0`.                                                    |
+| `-Help`            | `switch` | Prints full usage text and exits without modifying any files.                                             |
+
+#### Rules and behavior
+
+- `-Rev`, `-Minor`, and `-Major` are **mutually exclusive** &mdash; specifying
+  more than one aborts the run.
+- Combining `-Rev`/`-Minor`/`-Major` with an explicit `-Version` value is an
+  error; use either an explicit version **or** one increment flag.
+- Increment modes parse the existing version as `^(\d+)\.(\d+)\.(\d+)`; any
+  trailing suffix is ignored. For example `1.2.3-test` with `-Rev` becomes
+  `1.2.4`.
+- Explicit versions are normalized by stripping whitespace first, then any
+  character outside `A-Z a-z 0-9 . _ -`. If the resulting string is empty the
+  script throws.
+- When running interactively (no explicit version and no increment flag), a
+  blank prompt cancels with `Version must not be blank, update cancelled`
+  and exits `1`.
+- The script prints step-by-step `old -> new` diffs for every patched file
+  and a final green summary. Re-running with the same version is safe &mdash;
+  already-current files report `already set to x.y.z` in dark yellow instead
+  of overwriting.
 
 ## License
 

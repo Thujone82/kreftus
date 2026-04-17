@@ -30,12 +30,15 @@
 #  - Use -Update to skip scraping and edit individual trees in the existing
 #    snapshot: pick a tree by number, then re-geocode it or hand-edit any
 #    field (coords, location, name, year, removed, geocodeAddress, ...).
+#    An optional tree number can be supplied (positional) to jump straight to
+#    that tree without being prompted first, e.g. '-Update 366'.
 #
 # Usage:
 #   pwsh -File heritage/heritage.ps1
 #   pwsh -File heritage/heritage.ps1 -Force -NoInteractive
 #   pwsh -File heritage/heritage.ps1 -UserAgent "PDXHeritageTrees (me@example.com)"
 #   pwsh -File heritage/heritage.ps1 -Update
+#   pwsh -File heritage/heritage.ps1 -Update 366
 
 param(
     [string]$Url       = 'https://www.portland.gov/trees/heritage/heritage-trees-year',
@@ -44,7 +47,9 @@ param(
     [int]   $DelayMs   = 1100,
     [switch]$NoInteractive,
     [switch]$Force,
-    [switch]$Update
+    [switch]$Update,
+    [Parameter(Position = 0)]
+    [string]$Tree      = ''
 )
 
 # Portland metro geofence. Nominatim viewbox format is "left,top,right,bottom"
@@ -398,8 +403,31 @@ function Update-Tree-Regeocode {
     }
 }
 
+function Resolve-TreeEntry {
+    # Parse a user-entered tree number ("366", "#366", "  366 ", ...) and find
+    # the matching tree in the loaded snapshot. Emits diagnostic output for
+    # invalid/missing entries and returns $null when no tree matches.
+    param(
+        $Trees,
+        [string]$Entry,
+        [switch]$Silent
+    )
+    if ($null -eq $Entry) { return $null }
+    $trimmed = $Entry.Trim().TrimStart('#')
+    if (-not $trimmed) { return $null }
+    $n = 0
+    if (-not [int]::TryParse($trimmed, [ref]$n) -or $n -lt 1) {
+        if (-not $Silent) { Write-Host "  Not a valid tree number." -ForegroundColor Yellow }
+        return $null
+    }
+    $id = "{0:D3}" -f $n
+    foreach ($t in $Trees) { if ($t.id -eq $id) { return $t } }
+    if (-not $Silent) { Write-Host ("  No tree #{0} in snapshot." -f $id) -ForegroundColor Yellow }
+    return $null
+}
+
 function Invoke-UpdateMode {
-    param([string]$OutputPath, [string]$UserAgent, [int]$DelayMs, [string]$SourceUrl)
+    param([string]$OutputPath, [string]$UserAgent, [int]$DelayMs, [string]$SourceUrl, [string]$InitialTree = '')
 
     if (-not (Test-Path $OutputPath)) {
         Write-Host ("No existing snapshot at {0}. Run the scraper first." -f $OutputPath) -ForegroundColor Red
@@ -414,24 +442,30 @@ function Invoke-UpdateMode {
     foreach ($pt in $raw.trees) { $trees += ,(ConvertTo-TreeHash -PsTree $pt) }
     Write-Host ("   loaded {0} trees" -f $trees.Count)
 
-    while ($true) {
-        Write-Host ""
-        Write-Host "Enter tree # to update (blank or 'q' to quit): " -NoNewline -ForegroundColor Cyan
-        $entry = Read-Host
-        if ($null -eq $entry) { break }
-        $trimmed = $entry.Trim().TrimStart('#')
-        if (-not $trimmed -or $trimmed -eq 'q' -or $trimmed -eq 'Q') { break }
-        $n = 0
-        if (-not [int]::TryParse($trimmed, [ref]$n) -or $n -lt 1) {
-            Write-Host "  Not a valid tree number." -ForegroundColor Yellow
-            continue
+    # If the caller supplied a tree number (e.g. -Update 366), try to jump
+    # straight into editing that tree on the first pass. On success we skip
+    # the initial prompt; on failure we fall through to the normal loop.
+    $pendingTree = $null
+    if ($InitialTree) {
+        $pendingTree = Resolve-TreeEntry -Trees $trees -Entry $InitialTree
+        if ($null -ne $pendingTree) {
+            Write-Host ("   starting with tree #{0}" -f $pendingTree.id) -ForegroundColor DarkGray
         }
-        $id = "{0:D3}" -f $n
-        $tree = $null
-        foreach ($t in $trees) { if ($t.id -eq $id) { $tree = $t; break } }
-        if ($null -eq $tree) {
-            Write-Host ("  No tree #{0} in snapshot." -f $id) -ForegroundColor Yellow
-            continue
+    }
+
+    while ($true) {
+        if ($pendingTree) {
+            $tree = $pendingTree
+            $pendingTree = $null
+        } else {
+            Write-Host ""
+            Write-Host "Enter tree # to update (blank or 'q' to quit): " -NoNewline -ForegroundColor Cyan
+            $entry = Read-Host
+            if ($null -eq $entry) { break }
+            $trimmed = $entry.Trim()
+            if (-not $trimmed -or $trimmed -eq 'q' -or $trimmed -eq 'Q') { break }
+            $tree = Resolve-TreeEntry -Trees $trees -Entry $trimmed
+            if ($null -eq $tree) { continue }
         }
 
         $dirty = $false
@@ -544,7 +578,7 @@ function Prompt-Alternate {
 # --- Update mode ----------------------------------------------------------
 
 if ($Update) {
-    Invoke-UpdateMode -OutputPath $Output -UserAgent $UserAgent -DelayMs $DelayMs -SourceUrl $Url
+    Invoke-UpdateMode -OutputPath $Output -UserAgent $UserAgent -DelayMs $DelayMs -SourceUrl $Url -InitialTree $Tree
     return
 }
 
