@@ -98,6 +98,32 @@
         panel.setAttribute('aria-hidden', 'true');
     }
 
+    // --- Found modal open/close + action-bar button visibility ------------
+
+    function openFound() {
+        if (global.HeritageFound && typeof HeritageFound.render === 'function') {
+            HeritageFound.render();
+        }
+        openModal('foundModal');
+    }
+
+    // Show the '[tree] Found' action-bar button only when the user actually
+    // has at least one found tree to list. Safe to call any time; falls back
+    // to hiding the button if the DB / HeritageFound helper isn't ready.
+    async function refreshFoundButton() {
+        const btn = document.getElementById('foundBtn');
+        if (!btn) return;
+        try {
+            const n = (global.HeritageFound && typeof HeritageFound.countFound === 'function')
+                ? await HeritageFound.countFound()
+                : 0;
+            if (n > 0) btn.classList.remove('hidden');
+            else       btn.classList.add('hidden');
+        } catch (e) {
+            btn.classList.add('hidden');
+        }
+    }
+
     global.HeritageUI = {
         showProgress,
         updateProgress,
@@ -108,6 +134,8 @@
         refreshStats,
         openNearby,
         closeNearby,
+        openFound,
+        refreshFoundButton,
         formatLocalDate
     };
 })(window);

@@ -22,7 +22,7 @@
     'use strict';
 
     const LEGACY_KEY_API = 'pdxHeritageGoogleApiKey';
-    const APP_VERSION = '1.0.11';
+    const APP_VERSION = '1.1.0';
 
     const state = {
         mapReady: false,
@@ -58,14 +58,23 @@
     function wireStaticUi() {
         const settingsBtn = document.getElementById('settingsBtn');
         if (settingsBtn) settingsBtn.addEventListener('click', openSettings);
+        // Close whichever modal the clicked element lives inside, rather than
+        // hard-coding settingsModal. Lets the Found modal share the same
+        // [data-close-modal] convention.
         document.querySelectorAll('[data-close-modal]').forEach((el) => {
-            el.addEventListener('click', () => HeritageUI.closeModal('settingsModal'));
+            el.addEventListener('click', () => {
+                const modal = el.closest('.modal');
+                if (modal && modal.id) HeritageUI.closeModal(modal.id);
+            });
         });
 
         const nearbyBtn = document.getElementById('nearbyBtn');
         if (nearbyBtn) nearbyBtn.addEventListener('click', HeritageUI.openNearby);
         const closeNearbyBtn = document.getElementById('closeNearbyBtn');
         if (closeNearbyBtn) closeNearbyBtn.addEventListener('click', HeritageUI.closeNearby);
+
+        const foundBtn = document.getElementById('foundBtn');
+        if (foundBtn) foundBtn.addEventListener('click', HeritageUI.openFound);
 
         const recenterBtn = document.getElementById('recenterBtn');
         if (recenterBtn) recenterBtn.addEventListener('click', onRecenter);
@@ -192,6 +201,9 @@
         }
         HeritageMap.autoFit(user, initialTrees);
 
+        // Show/hide the Found action-bar button based on stored marks.
+        void HeritageUI.refreshFoundButton();
+
         // Fallback live geocoder: only fires if the snapshot didn't cover a tree.
         // Stays silent when the backfill (above) handled everything.
         runBackgroundGeocode();
@@ -242,6 +254,14 @@
         if (modal && !modal.classList.contains('hidden')) {
             await HeritageUI.refreshStats();
             await HeritageMap.syncModalZoomToggleButton();
+        }
+        // Reflect any Mark-as-found / Undo immediately in the action bar, and
+        // re-render the Found list if it happens to be open.
+        await HeritageUI.refreshFoundButton();
+        const foundModal = document.getElementById('foundModal');
+        if (foundModal && !foundModal.classList.contains('hidden')
+            && global.HeritageFound && typeof HeritageFound.render === 'function') {
+            await HeritageFound.render();
         }
     }
 

@@ -501,6 +501,77 @@ button { font-family: inherit; }
 }
 
 /* ==========================================================================
+   Found-trees modal (list of trees the user has marked as found)
+   ========================================================================== */
+
+.found-table-wrap {
+    max-height: 55vh;
+    overflow-y: auto;
+    border: 1px solid rgba(122, 166, 114, 0.2);
+    border-radius: var(--radius-sm);
+    background: rgba(10, 18, 13, 0.25);
+}
+.found-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    color: var(--pnw-cream);
+}
+.found-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--pnw-forest);
+    color: var(--pnw-cedar);
+    font-family: var(--font-sans);
+    font-weight: 600;
+    text-align: left;
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid rgba(122, 166, 114, 0.3);
+    z-index: 1;
+}
+.found-table tbody td {
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px dashed rgba(236, 230, 211, 0.12);
+    vertical-align: top;
+}
+.found-table tbody tr:last-child td { border-bottom: 0; }
+
+.found-row { cursor: pointer; transition: background 120ms ease; }
+.found-row:hover { background: rgba(46, 125, 50, 0.14); }
+.found-row:focus-visible {
+    outline: 2px solid var(--pnw-fern);
+    outline-offset: -2px;
+    background: rgba(46, 125, 50, 0.14);
+}
+.found-row:hover .found-col-name,
+.found-row:focus-visible .found-col-name { color: var(--pnw-fern); }
+
+.found-col-id {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    color: var(--pnw-fog);
+    width: 1%;
+}
+.found-col-name { font-style: normal; }
+.found-col-date {
+    white-space: nowrap;
+    color: var(--pnw-fog);
+    font-size: 0.82rem;
+    width: 1%;
+}
+
+.found-empty {
+    color: var(--pnw-fog);
+    text-align: center;
+    padding: 0.8rem 0.5rem;
+}
+
+@media (max-width: 480px) {
+    .found-table { font-size: 0.85rem; }
+    .found-col-date { font-size: 0.78rem; }
+}
+
+/* ==========================================================================
    Modal (Settings)
    ========================================================================== */
 

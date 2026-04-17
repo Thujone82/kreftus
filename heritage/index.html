@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#1f3b2a">
     <title>PDX Heritage Trees</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="css/styles.css?v=1.0.11">
+    <link rel="stylesheet" href="css/styles.css?v=1.1.0">
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -43,6 +43,10 @@
             <span class="action-btn-icon" aria-hidden="true">&#128205;</span>
             <span class="action-btn-label">Nearby</span>
         </button>
+        <button id="foundBtn" class="action-btn hidden" aria-label="Show trees you have marked as found">
+            <span class="action-btn-icon" aria-hidden="true">&#127794;</span>
+            <span class="action-btn-label">Found</span>
+        </button>
         <button id="recenterBtn" class="action-btn" aria-label="Recenter map on Portland or your location">
             <span class="action-btn-icon" aria-hidden="true">&#127758;</span>
             <span class="action-btn-label">Recenter</span>
@@ -61,6 +65,30 @@
             Tap Navigate to open walking directions in Google Maps.
         </p>
     </section>
+
+    <!-- Found-trees modal -->
+    <div id="foundModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="foundTitle">
+        <div class="modal-overlay" data-close-modal></div>
+        <div class="modal-content">
+            <header class="modal-header">
+                <h2 id="foundTitle">Trees you have found</h2>
+                <button class="icon-btn" data-close-modal aria-label="Close found list">&times;</button>
+            </header>
+            <p class="modal-fineprint" id="foundSubtitle">Most recent first. Tap a row to view it on the map.</p>
+            <div class="found-table-wrap">
+                <table class="found-table" aria-describedby="foundSubtitle">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="found-col-id">Tree #</th>
+                            <th scope="col" class="found-col-name">Name</th>
+                            <th scope="col" class="found-col-date">Found</th>
+                        </tr>
+                    </thead>
+                    <tbody id="foundTableBody" aria-live="polite"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
     <!-- Settings modal -->
     <div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
@@ -136,14 +164,15 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
             integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
             crossorigin="anonymous"></script>
-    <script src="js/db.js?v=1.0.11"></script>
-    <script src="js/wiki.js?v=1.0.11"></script>
-    <script src="js/sync.js?v=1.0.11"></script>
-    <script src="js/geocode.js?v=1.0.11"></script>
-    <script src="js/map.js?v=1.0.11"></script>
-    <script src="js/nearby.js?v=1.0.11"></script>
-    <script src="js/ui.js?v=1.0.11"></script>
-    <script src="js/sw-register.js?v=1.0.11"></script>
-    <script src="js/app.js?v=1.0.11"></script>
+    <script src="js/db.js?v=1.1.0"></script>
+    <script src="js/wiki.js?v=1.1.0"></script>
+    <script src="js/sync.js?v=1.1.0"></script>
+    <script src="js/geocode.js?v=1.1.0"></script>
+    <script src="js/map.js?v=1.1.0"></script>
+    <script src="js/nearby.js?v=1.1.0"></script>
+    <script src="js/found.js?v=1.1.0"></script>
+    <script src="js/ui.js?v=1.1.0"></script>
+    <script src="js/sw-register.js?v=1.1.0"></script>
+    <script src="js/app.js?v=1.1.0"></script>
 </body>
 </html>
