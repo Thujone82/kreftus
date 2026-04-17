@@ -667,6 +667,26 @@ button { font-family: inherit; }
     margin-top: 0.5rem;
 }
 .modal-footer-note { margin-top: 0.75rem; }
+
+/* Links inside modals: the browser default purple/blue is unreadable on our
+   dark-forest background, so force a warm amber that keeps strong contrast
+   for both unvisited and visited states. */
+.modal-content a,
+.modal-content a:visited {
+    color: var(--pnw-amber);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.modal-content a:hover,
+.modal-content a:focus-visible {
+    color: var(--pnw-cream);
+    text-decoration-color: var(--pnw-fern);
+}
+.modal-content a:focus-visible {
+    outline: 2px solid var(--pnw-fern);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
 .modal-stats {
     display: grid;
     grid-template-columns: 1fr 1fr;
