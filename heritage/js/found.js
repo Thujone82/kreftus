@@ -68,7 +68,7 @@
 
         if (subtitle) {
             subtitle.textContent = rows.length > 0
-                ? `${rows.length} tree${rows.length === 1 ? '' : 's'} found \u2014 most recent first. Tap a row to view it on the map.`
+                ? `${rows.length} tree${rows.length === 1 ? '' : 's'} found \u2014 tap a row to view it on the map.`
                 : 'No trees marked as found yet.';
         }
 
