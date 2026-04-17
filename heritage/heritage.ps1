@@ -355,6 +355,46 @@ function Read-Coordinate {
     return $Current
 }
 
+function Read-LatMaybePair {
+    # Reads the 'lat' field but also accepts a combined "lat, lng" paste
+    # (like Google Maps' share format, e.g. "45.574557, -122.666124"). When
+    # a valid pair is entered the caller can skip the separate lng prompt.
+    # Returns a hashtable { lat = <value-or-null>; lng = <value-or-null>; gotBoth = <bool> }.
+    param(
+        $CurrentLat,
+        [double]$LatMin, [double]$LatMax,
+        [double]$LngMin, [double]$LngMax
+    )
+    $latStr = if ($null -eq $CurrentLat) { '(null)' } else { ([double]$CurrentLat).ToString('F6') }
+    Write-Host ("  New lat (blank = keep {0}, '-' = clear, 'lat, lng' sets both): " -f $latStr) -NoNewline -ForegroundColor Cyan
+    $answer = Read-Host
+    if ($null -eq $answer)        { return @{ lat = $CurrentLat; lng = $null; gotBoth = $false } }
+    $trim = $answer.Trim()
+    if (-not $trim)               { return @{ lat = $CurrentLat; lng = $null; gotBoth = $false } }
+    if ($trim -eq '-')            { return @{ lat = $null;       lng = $null; gotBoth = $false } }
+
+    if ($trim.Contains(',')) {
+        $parts = $trim.Split(@(','), 2)
+        $latPart = $parts[0].Trim()
+        $lngPart = if ($parts.Length -gt 1) { $parts[1].Trim() } else { '' }
+        $dLat = 0.0; $dLng = 0.0
+        $latOk = [double]::TryParse($latPart, [ref]$dLat) -and $dLat -ge $LatMin -and $dLat -le $LatMax
+        $lngOk = [double]::TryParse($lngPart, [ref]$dLng) -and $dLng -ge $LngMin -and $dLng -le $LngMax
+        if ($latOk -and $lngOk) {
+            return @{ lat = $dLat; lng = $dLng; gotBoth = $true }
+        }
+        Write-Host "  Paired 'lat, lng' invalid or out of range; keeping previous lat and asking for lng separately." -ForegroundColor Yellow
+        return @{ lat = $CurrentLat; lng = $null; gotBoth = $false }
+    }
+
+    $d = 0.0
+    if ([double]::TryParse($trim, [ref]$d) -and $d -ge $LatMin -and $d -le $LatMax) {
+        return @{ lat = $d; lng = $null; gotBoth = $false }
+    }
+    Write-Host "  Not a valid coordinate; keeping previous value." -ForegroundColor Yellow
+    return @{ lat = $CurrentLat; lng = $null; gotBoth = $false }
+}
+
 function Update-Tree-Regeocode {
     param($Tree, [string]$UserAgent, [int]$DelayMs)
     $startAddress = if ($Tree.geocodeAddress) { $Tree.geocodeAddress } else { Build-Address $Tree.location }
@@ -492,8 +532,15 @@ function Invoke-UpdateMode {
                     $dirty = $true
                 }
                 'c' {
-                    $newLat = Read-Coordinate -Label 'lat' -Current $tree.lat -Min 20.0 -Max 55.0
-                    $newLng = Read-Coordinate -Label 'lng' -Current $tree.lng -Min -140.0 -Max -100.0
+                    $latResult = Read-LatMaybePair -CurrentLat $tree.lat `
+                        -LatMin 20.0 -LatMax 55.0 -LngMin -140.0 -LngMax -100.0
+                    $newLat = $latResult.lat
+                    if ($latResult.gotBoth) {
+                        $newLng = $latResult.lng
+                        Write-Host ("  lng parsed from paired input: {0}" -f ([double]$newLng).ToString('F6')) -ForegroundColor DarkGray
+                    } else {
+                        $newLng = Read-Coordinate -Label 'lng' -Current $tree.lng -Min -140.0 -Max -100.0
+                    }
                     $tree.lat = $newLat
                     $tree.lng = $newLng
                     if ($null -ne $newLat -and $null -ne $newLng) {
