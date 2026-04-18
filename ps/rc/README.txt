@@ -74,8 +74,7 @@ The script offers two modes for scheduling: a simple delay mode and a high-preci
   - Sets the minimum expected runtime for each command execution using period format (`s`, `m`, `h`, or minutes without suffix).
   - A run is considered successful only if command duration is greater than or equal to this threshold.
   - When set, rc prints:
-    - Last successful completion time
-    - Total number of successful runs
+    - Last success timestamp and `successes/total` runs (e.g. `Last Success: N/A (0/10)`)
     - Total runtime across successful runs only
     - Runtime of the most recent successful run
   - Before the first successful run, `Last Success` fields show `N/A`.

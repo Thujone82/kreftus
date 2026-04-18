@@ -465,7 +465,7 @@ while ($true) {
                     } else {
                         'N/A'
                     }
-                    Write-Host "Last Success: $lastSuccessDisplay ($successfulExecutionCount)`nTotal Runtime: $totalSuccessDisplay ($lastSuccessRuntimeDisplay)"
+                    Write-Host "Last Success: $lastSuccessDisplay ($successfulExecutionCount/$actualExecutionCount)`nTotal Runtime: $totalSuccessDisplay ($lastSuccessRuntimeDisplay)"
                 }
                 Write-Host "Press Ctrl+C to stop."
             }
