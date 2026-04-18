@@ -283,6 +283,27 @@ function Convert-Period {
     return @{ Minutes = $minutes; Display = $display }
 }
 
+function Format-CompactDuration {
+    param(
+        [TimeSpan]$Span,
+        [switch]$ShowFractionWhenUnderMinute
+    )
+
+    if ($Span.TotalHours -ge 1) {
+        return ('{0:00}:{1:00}:{2:00}s' -f [int]$Span.TotalHours, $Span.Minutes, $Span.Seconds)
+    }
+
+    if ($Span.TotalMinutes -ge 1) {
+        return ('{0:00}:{1:00}s' -f [int]$Span.TotalMinutes, $Span.Seconds)
+    }
+
+    if ($ShowFractionWhenUnderMinute) {
+        return ('{0:N2}s' -f $Span.TotalSeconds)
+    }
+
+    return ('{0}s' -f [math]::Round($Span.TotalSeconds, 0))
+}
+
 # Parse period string
 $periodInfo = Convert-Period $Period
 $PeriodMinutes = $periodInfo.Minutes
@@ -422,7 +443,9 @@ while ($true) {
 
         if ($sleepTimeSpan.TotalSeconds -gt 0) {
             if (-not $Silent.IsPresent) {
-                Write-Host "Command took $($commandDuration.TotalSeconds.ToString('F2'))s. Waiting for $([math]::Round($sleepTimeSpan.TotalSeconds, 0))s. Next run at $($nextTargetTime.ToString('HH:mm:ss'))."
+                $runtimeDisplay = Format-CompactDuration -Span $commandDuration -ShowFractionWhenUnderMinute
+                $waitingDisplay = Format-CompactDuration -Span $sleepTimeSpan
+                Write-Host "Runtime: $runtimeDisplay Waiting: $waitingDisplay Next Run: $($nextTargetTime.ToString('HH:mm:ss'))"
                 if ($expectThreshold -and $executionCount -gt $Skip) {
                     $lastSuccessDisplay = if ($lastSuccessfulCompletionTime) { $lastSuccessfulCompletionTime.ToString('HH:mm:ss') } else { 'N/A' }
                     $totalSuccessDisplay = '{0:00}:{1:00}:{2:00}.{3:00}' -f [int]$totalSuccessfulRuntime.TotalHours, $totalSuccessfulRuntime.Minutes, $totalSuccessfulRuntime.Seconds, [int]([math]::Floor($totalSuccessfulRuntime.Milliseconds / 10))
