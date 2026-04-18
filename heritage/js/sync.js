@@ -63,6 +63,14 @@
         return (a || '').trim() === (b || '').trim();
     }
 
+    /** Normalize DB / JSON lat-lng for comparison (IndexedDB may round types). */
+    function finiteCoord(v) {
+        if (v === null || v === undefined) return null;
+        if (typeof v === 'string' && v.trim() === '') return null;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+    }
+
     /**
      * Initial population: fills the DB from the snapshot if empty.
      * Returns { inserted, total }.
@@ -149,7 +157,12 @@
             const nameChanged = prev.name !== d.name;
             const yearChanged = prev.year !== d.year;
             const removedChanged = (prev.removed || null) !== (d.removed || null);
-            const coordsChanged = hasCoords && (prev.lat !== d.lat || prev.lng !== d.lng);
+            const pl = finiteCoord(prev.lat);
+            const pg = finiteCoord(prev.lng);
+            const coordsChanged = hasCoords && (
+                pl === null || pg === null ||
+                Math.abs(pl - d.lat) > 1e-8 || Math.abs(pg - d.lng) > 1e-8
+            );
             const dbMissingCoords = (prev.lat == null || prev.lng == null);
 
             if (!locChanged && !nameChanged && !yearChanged && !removedChanged

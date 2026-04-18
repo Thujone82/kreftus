@@ -5,14 +5,18 @@
 //   2. If DB empty: fetch heritage/data/trees.json and initial-load it.
 //      (Tree coordinates ship pre-geocoded from heritage/heritage.ps1, so this
 //      is immediate - no live geocoding needed for the common case.)
-//   3. Init Leaflet map and render markers for all trees that have coords.
-//   4. Silent coord backfill: if any tree is missing coords (e.g. upgrading
+//   3. If DB already has trees: fetch trees.json once; when scrapedAt is newer
+//      than the last merged sourceVersion in meta, diff-merge the snapshot so
+//      coordinate fixes and registry edits land without requiring "Check for
+//      app update" on every cold start.
+//   4. Init Leaflet map and render markers for all trees that have coords.
+//   5. Silent coord backfill: if any tree is still missing coords (e.g. upgrading
 //      from a pre-0.2 build that geocoded live), re-merge the bundled JSON
-//      to pick up the pre-resolved coordinates.
-//   5. Camera auto-fit based on user location vs. Portland.
-//   6. Fallback live geocoder runs ONLY for trees the scraper couldn't
+//      to pick up the pre-resolved coordinates (skipped when step 3 just merged).
+//   6. Camera auto-fit based on user location vs. Portland.
+//   7. Fallback live geocoder runs ONLY for trees the scraper couldn't
 //      resolve, and stays silent when nothing is pending.
-//   7. Wire Nearby, Check-for-updates, Settings, Update banner.
+//   8. Wire Nearby, Check-for-updates, Settings, Update banner.
 //
 // One-time migration: older builds stored a Google Maps API key in
 // localStorage under 'pdxHeritageGoogleApiKey'. We clean that up on first
@@ -22,7 +26,7 @@
     'use strict';
 
     const LEGACY_KEY_API = 'pdxHeritageGoogleApiKey';
-    const APP_VERSION = '1.1.4';
+    const APP_VERSION = '1.1.5';
 
     const state = {
         mapReady: false,
@@ -160,6 +164,20 @@
             HeritageUI.updateProgress(1, 1, 'Loading tree list');
             HeritageUI.hideProgress();
             HeritageUI.toast(`Loaded ${inserted} trees.`);
+        } else {
+            // Merge a newer trees.json (scrapedAt) into IndexedDB before the map
+            // reads the DB. Otherwise every tree already had coords from an older
+            // snapshot and we never re-merged on cold start — marker positions
+            // stayed stale until the user opened Settings and refreshed manually.
+            try {
+                snap = await HeritageSync.fetchSnapshot();
+                const metaVer = await HeritageDB.getMeta('sourceVersion');
+                if (snap.scrapedAt && snap.scrapedAt !== metaVer) {
+                    await HeritageSync.mergeUpdate(snap);
+                }
+            } catch (e) {
+                // Offline or fetch blocked — use whatever is already in IndexedDB.
+            }
         }
 
         // Init Leaflet map.
