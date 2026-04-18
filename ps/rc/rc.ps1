@@ -425,9 +425,13 @@ while ($true) {
                 Write-Host "Command took $($commandDuration.TotalSeconds.ToString('F2'))s. Waiting for $([math]::Round($sleepTimeSpan.TotalSeconds, 0))s. Next run at $($nextTargetTime.ToString('HH:mm:ss')).`nPress Ctrl+C to stop."
                 if ($expectThreshold -and $executionCount -gt $Skip) {
                     $lastSuccessDisplay = if ($lastSuccessfulCompletionTime) { $lastSuccessfulCompletionTime.ToString('HH:mm:ss') } else { 'N/A' }
-                    $totalSuccessDisplay = ('{0:N2}s' -f $totalSuccessfulRuntime.TotalSeconds)
-                    $lastSuccessRuntimeDisplay = if ($lastSuccessfulRuntime) { ('{0:N2}s' -f $lastSuccessfulRuntime.TotalSeconds) } else { 'N/A' }
-                    Write-Host "Last Success: $lastSuccessDisplay ($successfulExecutionCount) Total Runtime: $totalSuccessDisplay ($lastSuccessRuntimeDisplay)"
+                    $totalSuccessDisplay = '{0:00}:{1:00}:{2:00}.{3:00}' -f [int]$totalSuccessfulRuntime.TotalHours, $totalSuccessfulRuntime.Minutes, $totalSuccessfulRuntime.Seconds, [int]([math]::Floor($totalSuccessfulRuntime.Milliseconds / 10))
+                    $lastSuccessRuntimeDisplay = if ($lastSuccessfulRuntime) {
+                        '{0:00}:{1:00}:{2:00}.{3:00}' -f [int]$lastSuccessfulRuntime.TotalHours, $lastSuccessfulRuntime.Minutes, $lastSuccessfulRuntime.Seconds, [int]([math]::Floor($lastSuccessfulRuntime.Milliseconds / 10))
+                    } else {
+                        'N/A'
+                    }
+                    Write-Host "Last Success: $lastSuccessDisplay ($successfulExecutionCount)`nTotal Runtime: $totalSuccessDisplay ($lastSuccessRuntimeDisplay)"
                 }
             }
             Start-Sleep -Seconds $sleepTimeSpan.TotalSeconds
