@@ -1,6 +1,6 @@
 {
   "sourceUrl": "https://www.portland.gov/trees/heritage/heritage-trees-year",
-  "scrapedAt": "2026-04-16T23:58:13Z",
+  "scrapedAt": "2026-04-18T00:15:41Z",
   "count": 397,
   "trees": [
     {
@@ -737,8 +737,8 @@
       "name": "Cunninghamia lanceolata - China fir",
       "location": "1104 SE Mall St (right-of-way)",
       "removed": null,
-      "lat": 45.4912351,
-      "lng": -122.6539936,
+      "lat": 45.49138077338172,
+      "lng": -122.65410376697075,
       "geocodeStatus": "ok",
       "geocodeAddress": "1104 SE Mall St, Portland, OR, USA",
       "geocodeFormatted": "1104, Southeast Mall Street, Brooklyn, Portland, Multnomah County, Oregon, 97202, United States",
