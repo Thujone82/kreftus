@@ -206,7 +206,7 @@ PERIOD FORMAT (internal function: Convert-Period)
 
 SCHEDULING
   Standard (default)     After each iteration (or skip wait), sleeps for the full period. Simple; can drift.
-  -Precision            Aligns to multiples of the period from the time the script started.
+  -Precision             Aligns to multiples of the period from the time the script started.
 
 STOPPING
   Ctrl+C in the same console window.
