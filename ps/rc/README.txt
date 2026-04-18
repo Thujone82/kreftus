@@ -23,6 +23,7 @@ The script offers two modes for scheduling: a simple delay mode and a high-preci
 - **Clear Mode (`-c`):** Clears the screen before executing the command in each iteration, providing a clean output display for each run. Useful for monitoring scenarios where you want to see only the current command output.
 - **Skip Mode (`-Skip`):** Allows you to skip a specified number of initial executions before starting to run the command. If `-Skip 0` is specified, it defaults to 1 (skips the first execution). Useful for delaying the start of command execution while maintaining the timing schedule.
 - **Limit Mode (`-Limit`):** Limits the total number of executions to perform. Skipped executions do not count toward this limit. Useful for running a command a specific number of times and then exiting.
+- **Expected Runtime Tracking (`-Expect`/`-e`):** Sets a minimum expected command runtime using period format (`s`/`m`/`h`). Runs below the threshold are treated as failures, and success metrics are tracked and reported.
 - **Period Suffixes:** Support for time unit suffixes on period input: 's' for seconds, 'm' for minutes (optional), 'h' for hours. Integers without suffix default to minutes.
 
 ## Requirements
@@ -68,6 +69,16 @@ The script offers two modes for scheduling: a simple delay mode and a high-preci
   - The maximum number of executions to perform. Skipped executions do not count toward this limit.
   - If `-Limit` is not specified or set to 0, there is no limit (default is 0).
   - For example, `-Limit 5` will execute the command 5 times, then exit.
+
+- `-Expect` or `-e` [string]
+  - Sets the minimum expected runtime for each command execution using period format (`s`, `m`, `h`, or minutes without suffix).
+  - A run is considered successful only if command duration is greater than or equal to this threshold.
+  - When set, rc prints:
+    - Last successful completion time
+    - Total number of successful runs
+    - Total runtime across successful runs only
+    - Runtime of the most recent successful run
+  - Before the first successful run, `Last Success` fields show `N/A`.
 
 ## Examples
 
@@ -142,6 +153,18 @@ Runs 'Get-Process' every 5 minutes, but only executes 3 times total, then exits.
 .\rc.ps1 "Get-Date" 30s -Skip 2 -Limit 5
 ```
 Runs 'Get-Date' every 30 seconds, skips the first 2 executions, then executes 5 times before exiting.
+
+### Example 13: Expected Runtime Threshold
+```powershell
+.\rc.ps1 "Invoke-WebRequest https://example.com" 5s -Expect 1s
+```
+Runs every 5 seconds and counts a run as successful only if it takes at least 1 second.
+
+### Example 14: Alias Form
+```powershell
+.\rc.ps1 "Get-Date" 1m -e 1s
+```
+Uses the `-e` alias to require at least 1 second runtime for a run to count as successful.
 
 ## Notes
 - To stop the script at any time, press `Ctrl+C` in the terminal window where it is running.

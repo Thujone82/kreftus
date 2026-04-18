@@ -51,6 +51,11 @@
     The maximum number of executions to perform. Skipped executions do not count toward this limit.
     If -Limit is not specified or set to 0, there is no limit (default is 0).
 
+.PARAMETER Expect
+    Minimum expected command runtime using Period format (s/m/h, or minutes without suffix).
+    Runs that complete faster than this threshold are treated as failures.
+    Alias: -e
+
 .EXAMPLE
     .\rc.ps1 "Get-Process -Name 'chrome' | Stop-Process -Force" 1
     
@@ -99,6 +104,11 @@
 
     Runs 'Get-Date' every hour, skips the first execution, then executes 3 times before exiting.
 
+.EXAMPLE
+    .\rc.ps1 "Invoke-WebRequest https://example.com" 5s -Expect 1s
+
+    Runs every 5 seconds and tracks successful runs where command duration is at least 1 second.
+
 .PARAMETER Help
     Displays full command-line reference (arguments, period format, scheduling behavior) and exits.
 
@@ -132,7 +142,11 @@ param(
     [int]$Skip = 0,
 
     [Parameter(Mandatory=$false, HelpMessage="Maximum number of executions to perform. Skipped executions do not count. 0 = no limit.")]
-    [int]$Limit = 0
+    [int]$Limit = 0,
+
+    [Parameter(Mandatory=$false, HelpMessage="Minimum expected command runtime. Accepts period format (s/m/h). Runs below this threshold are treated as failures.")]
+    [Alias('e')]
+    [string]$Expect
 )
 
 if ($Help.IsPresent) {
@@ -146,7 +160,7 @@ SYNOPSIS
 
 USAGE
   .\rc.ps1 [[-Command] string] [[-Period] string] [-Precision] [-Silent] [-Clear]
-           [-Skip int] [-Limit int] [-Help]
+           [-Skip int] [-Limit int] [-Expect string] [-Help]
 
   With no -Command, the script prompts for command, period, precision, clear, and limit.
 
@@ -175,6 +189,10 @@ PARAMETERS
   -Limit int          (default: 0)
       Maximum times -Command is actually executed. Skipped iterations do not count. 0 = unlimited.
 
+  -Expect string      Alias: -e
+      Minimum expected command runtime in Period format. A run counts as success only when
+      command duration is greater than or equal to this threshold.
+
   -Help               Aliases: -h, -?
       Show this reference and exit.
 
@@ -197,6 +215,7 @@ EXAMPLES
   .\rc.ps1 "Get-Date" 1
   .\rc.ps1 ".\my-script.ps1" 10 -Precision -Silent
   .\rc.ps1 "Get-Process" 15s -Limit 5
+  .\rc.ps1 "Invoke-WebRequest https://example.com" 5s -Expect 1s
   .\rc.ps1 -Help
 
 For comment-based help: Get-Help .\rc.ps1 -Full
@@ -268,6 +287,14 @@ function Convert-Period {
 $periodInfo = Convert-Period $Period
 $PeriodMinutes = $periodInfo.Minutes
 $PeriodDisplay = $periodInfo.Display
+$expectThreshold = $null
+$expectDisplay = $null
+
+if ($PSBoundParameters.ContainsKey('Expect')) {
+    $expectInfo = Convert-Period $Expect
+    $expectThreshold = [TimeSpan]::FromMinutes($expectInfo.Minutes)
+    $expectDisplay = $expectInfo.Display
+}
 
 # If -Skip parameter was explicitly provided but value is 0, default to 1
 # This allows -Skip to default to skipping 1 execution when used without a value
@@ -310,6 +337,9 @@ if ($Clear.IsPresent) {
 
 if (-not $Silent.IsPresent) {
     Write-Host "Running `"$Command`" every $PeriodDisplay. Press Ctrl+C to stop.`n"
+    if ($expectThreshold) {
+        Write-Host "Expected minimum command runtime: $expectDisplay." -ForegroundColor Magenta
+    }
     if ($Skip -gt 0) {
         Write-Host "Skipping the first $Skip execution(s)." -ForegroundColor Yellow
     }
@@ -325,9 +355,15 @@ if ($Precision.IsPresent -and -not $Silent.IsPresent) {
 # Initialize execution counter to track loop iterations
 $executionCount = 0
 $actualExecutionCount = 0
+$successfulExecutionCount = 0
+$totalSuccessfulRuntime = [TimeSpan]::Zero
+$lastSuccessfulRuntime = $null
+$lastSuccessfulCompletionTime = $null
 while ($true) {
     $executionCount++
     $loopStartTime = Get-Date
+    $commandDuration = $null
+    $commandEndTime = $null
     
     # Skip execution if we haven't reached the skip threshold yet
     # User feedback is provided unless Silent mode is enabled
@@ -346,9 +382,20 @@ while ($true) {
                 Write-Host "($(Get-Date -Format 'HH:mm:ss')) Executing command..."
             }
             Invoke-Expression $Command
+            $commandEndTime = Get-Date
+            $commandDuration = $commandEndTime - $loopStartTime
         }
         catch {
+            $commandEndTime = Get-Date
+            $commandDuration = $commandEndTime - $loopStartTime
             Write-Warning "Command failed: $_"
+        }
+
+        if ($expectThreshold -and $commandDuration -ge $expectThreshold) {
+            $successfulExecutionCount++
+            $totalSuccessfulRuntime = $totalSuccessfulRuntime.Add($commandDuration)
+            $lastSuccessfulRuntime = $commandDuration
+            $lastSuccessfulCompletionTime = $commandEndTime
         }
         
         # Check if limit reached
@@ -362,7 +409,9 @@ while ($true) {
 
     if ($Precision.IsPresent) {
         $currentTime = Get-Date
-        $commandDuration = $currentTime - $loopStartTime
+        if (-not $commandDuration) {
+            $commandDuration = $currentTime - $loopStartTime
+        }
 
         # Calculate the next scheduled run time based on the script's start time (grid alignment)
         $totalElapsedMinutes = ($currentTime - $scriptStartTime).TotalMinutes
@@ -374,6 +423,12 @@ while ($true) {
         if ($sleepTimeSpan.TotalSeconds -gt 0) {
             if (-not $Silent.IsPresent) {
                 Write-Host "Command took $($commandDuration.TotalSeconds.ToString('F2'))s. Waiting for $([math]::Round($sleepTimeSpan.TotalSeconds, 0))s. Next run at $($nextTargetTime.ToString('HH:mm:ss')).`nPress Ctrl+C to stop."
+                if ($expectThreshold -and $executionCount -gt $Skip) {
+                    $lastSuccessDisplay = if ($lastSuccessfulCompletionTime) { $lastSuccessfulCompletionTime.ToString('HH:mm:ss') } else { 'N/A' }
+                    $totalSuccessDisplay = ('{0:N2}s' -f $totalSuccessfulRuntime.TotalSeconds)
+                    $lastSuccessRuntimeDisplay = if ($lastSuccessfulRuntime) { ('{0:N2}s' -f $lastSuccessfulRuntime.TotalSeconds) } else { 'N/A' }
+                    Write-Host "Last Success: $lastSuccessDisplay ($successfulExecutionCount) Total Runtime: $totalSuccessDisplay ($lastSuccessRuntimeDisplay)"
+                }
             }
             Start-Sleep -Seconds $sleepTimeSpan.TotalSeconds
         } else {
