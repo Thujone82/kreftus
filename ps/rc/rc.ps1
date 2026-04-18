@@ -304,6 +304,16 @@ function Format-CompactDuration {
     return ('{0}s' -f [math]::Round($Span.TotalSeconds, 0))
 }
 
+function Format-LastSuccessTimestamp {
+    param([datetime]$Timestamp)
+
+    if ($Timestamp.Date -eq (Get-Date).Date) {
+        return $Timestamp.ToString('HH:mm:ss')
+    }
+
+    return $Timestamp.ToString('MMddyy@HH:mm:ss')
+}
+
 # Parse period string
 $periodInfo = Convert-Period $Period
 $PeriodMinutes = $periodInfo.Minutes
@@ -447,7 +457,7 @@ while ($true) {
                 $waitingDisplay = Format-CompactDuration -Span $sleepTimeSpan
                 Write-Host "Runtime: $runtimeDisplay Waiting: $waitingDisplay Next Run: $($nextTargetTime.ToString('HH:mm:ss'))"
                 if ($expectThreshold -and $executionCount -gt $Skip) {
-                    $lastSuccessDisplay = if ($lastSuccessfulCompletionTime) { $lastSuccessfulCompletionTime.ToString('HH:mm:ss') } else { 'N/A' }
+                    $lastSuccessDisplay = if ($lastSuccessfulCompletionTime) { Format-LastSuccessTimestamp $lastSuccessfulCompletionTime } else { 'N/A' }
                     $totalSuccessDisplay = '{0:00}:{1:00}:{2:00}.{3:00}' -f [int]$totalSuccessfulRuntime.TotalHours, $totalSuccessfulRuntime.Minutes, $totalSuccessfulRuntime.Seconds, [int]([math]::Floor($totalSuccessfulRuntime.Milliseconds / 10))
                     $lastSuccessRuntimeDisplay = if ($lastSuccessfulRuntime) {
                         '{0:00}:{1:00}:{2:00}.{3:00}' -f [int]$lastSuccessfulRuntime.TotalHours, $lastSuccessfulRuntime.Minutes, $lastSuccessfulRuntime.Seconds, [int]([math]::Floor($lastSuccessfulRuntime.Milliseconds / 10))
