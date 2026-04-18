@@ -304,7 +304,7 @@ function Format-CompactDuration {
     return ('{0}s' -f [math]::Round($Span.TotalSeconds, 0))
 }
 
-function Format-LastSuccessTimestamp {
+function Format-DateAwareTimestamp {
     param([datetime]$Timestamp)
 
     if ($Timestamp.Date -eq (Get-Date).Date) {
@@ -455,9 +455,10 @@ while ($true) {
             if (-not $Silent.IsPresent) {
                 $runtimeDisplay = Format-CompactDuration -Span $commandDuration -ShowFractionWhenUnderMinute
                 $waitingDisplay = Format-CompactDuration -Span $sleepTimeSpan
-                Write-Host "Runtime: $runtimeDisplay Waiting: $waitingDisplay Next Run: $($nextTargetTime.ToString('HH:mm:ss'))"
+                $nextRunDisplay = Format-DateAwareTimestamp $nextTargetTime
+                Write-Host "Runtime: $runtimeDisplay Waiting: $waitingDisplay Next Run: $nextRunDisplay"
                 if ($expectThreshold -and $executionCount -gt $Skip) {
-                    $lastSuccessDisplay = if ($lastSuccessfulCompletionTime) { Format-LastSuccessTimestamp $lastSuccessfulCompletionTime } else { 'N/A' }
+                    $lastSuccessDisplay = if ($lastSuccessfulCompletionTime) { Format-DateAwareTimestamp $lastSuccessfulCompletionTime } else { 'N/A' }
                     $totalSuccessDisplay = '{0:00}:{1:00}:{2:00}.{3:00}' -f [int]$totalSuccessfulRuntime.TotalHours, $totalSuccessfulRuntime.Minutes, $totalSuccessfulRuntime.Seconds, [int]([math]::Floor($totalSuccessfulRuntime.Milliseconds / 10))
                     $lastSuccessRuntimeDisplay = if ($lastSuccessfulRuntime) {
                         '{0:00}:{1:00}:{2:00}.{3:00}' -f [int]$lastSuccessfulRuntime.TotalHours, $lastSuccessfulRuntime.Minutes, $lastSuccessfulRuntime.Seconds, [int]([math]::Floor($lastSuccessfulRuntime.Milliseconds / 10))
