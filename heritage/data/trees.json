@@ -1,6 +1,6 @@
 {
   "sourceUrl": "https://www.portland.gov/trees/heritage/heritage-trees-year",
-  "scrapedAt": "2026-04-18T00:15:41Z",
+  "scrapedAt": "2026-04-19T03:40:20Z",
   "count": 397,
   "trees": [
     {
@@ -698,8 +698,8 @@
       "name": "Fagus sylvatica f. purpurea - European beech",
       "location": "1875 SW Park Ave (Portland State University)",
       "removed": null,
-      "lat": 45.5115399,
-      "lng": -122.686242,
+      "lat": 45.51147607132781,
+      "lng": -122.68583456362626,
       "geocodeStatus": "ok",
       "geocodeAddress": "1875 SW Park Ave, Portland, OR, USA",
       "geocodeFormatted": "Branford Price Millar Library, 1875, Southwest Park Avenue, University District, Downtown, Portland, Multnomah County, Oregon, 97201, United States",
