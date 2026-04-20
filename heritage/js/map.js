@@ -11,8 +11,9 @@
 //   Removed  -> gray
 //
 // Camera logic on boot:
-//   - If user is within 20 miles of Portland: fit bounds of (user, nearest tree)
-//     with small padding so both are visible.
+//   - If user is within 20 miles of Portland: fit bounds of (user, nearest
+//     UNFOUND tree) with small padding so both are visible. If every nearby
+//     tree is already found, fall back to the nearest non-removed tree.
 //   - Otherwise: fit bounds of all trees centered on Portland.
 //
 // User location:
@@ -663,9 +664,17 @@
         let bestD = Infinity;
         for (const t of trees) {
             if (!isTreeMappable(t)) continue;
-            if (t.removed != null) continue;
+            if (t.removed != null || t.found) continue;
             const d = distanceMeters(center, { lat: t.lat, lng: t.lng });
             if (d < bestD) { bestD = d; best = t; }
+        }
+        if (!best) {
+            for (const t of trees) {
+                if (!isTreeMappable(t)) continue;
+                if (t.removed != null) continue;
+                const d = distanceMeters(center, { lat: t.lat, lng: t.lng });
+                if (d < bestD) { bestD = d; best = t; }
+            }
         }
         if (!best) {
             for (const t of trees) {
