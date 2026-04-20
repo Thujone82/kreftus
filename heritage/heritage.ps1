@@ -509,7 +509,10 @@ function Invoke-UpdateMode {
         }
 
         $dirty = $false
-        while ($true) {
+        # Label required: `break` inside `switch` only leaves the switch, not this
+        # loop. Option [s] must exit the loop so the outer prompt can ask for the
+        # next tree #.
+        :treeEdit while ($true) {
             Show-TreeForUpdate -Tree $tree
             Write-Host ""
             Write-Host "  What to update?" -ForegroundColor Yellow
@@ -572,7 +575,13 @@ function Invoke-UpdateMode {
                     Write-Host "  geocoding cleared." -ForegroundColor DarkGray
                     $dirty = $true
                 }
-                's' { if ($dirty) { Save-Snapshot -Trees $trees -OutputPath $OutputPath -SourceUrl $sourceUrlFromFile; Write-Host "  saved." -ForegroundColor Green }; break }
+                's' {
+                    if ($dirty) {
+                        Save-Snapshot -Trees $trees -OutputPath $OutputPath -SourceUrl $sourceUrlFromFile
+                        Write-Host "  saved." -ForegroundColor Green
+                    }
+                    break treeEdit
+                }
                 'q' { if ($dirty) { Save-Snapshot -Trees $trees -OutputPath $OutputPath -SourceUrl $sourceUrlFromFile; Write-Host "  saved." -ForegroundColor Green }; return }
                 default { Write-Host "  Unknown option." -ForegroundColor Yellow }
             }
