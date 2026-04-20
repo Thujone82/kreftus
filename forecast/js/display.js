@@ -162,23 +162,6 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
     html += `<span class="condition-value">${current.icon} ${current.conditions}</span>`;
     html += '</div>';
 
-    if (weather.aqi && weather.aqi.show && typeof appState !== 'undefined' && appState.enableAqi) {
-        html += '<div class="condition-row">';
-        html += '<span class="condition-label">AQI:</span>';
-        html += '<span class="condition-value">';
-        if (weather.aqi.categoryName) {
-            html += renderAqiToken(weather.aqi.categoryName, weather.aqi.categoryNumber);
-        }
-        if (weather.aqi.o3 && weather.aqi.o3.aqi != null) {
-            html += ` ${renderAqiToken(`O3[${weather.aqi.o3.aqi}]`, weather.aqi.o3.categoryNumber)}`;
-        }
-        if (weather.aqi.pm25 && weather.aqi.pm25.aqi != null) {
-            html += ` ${renderAqiToken(`PM2.5[${weather.aqi.pm25.aqi}]`, weather.aqi.pm25.categoryNumber)}`;
-        }
-        html += '</span>';
-        html += '</div>';
-    }
-    
     html += '<div class="condition-row">';
     html += `<span class="condition-label">Temperature:</span>`;
     html += `<span class="condition-value ${getTempColor(current.temp)}">${formatTemp(current.temp)}</span>`;
@@ -210,6 +193,23 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
         html += ` <span class="wind-strong">(gusts to ${formatWindSpeed(current.windGust)})</span>`;
     }
     html += '</div>';
+
+    if (weather.aqi && weather.aqi.show && typeof appState !== 'undefined' && appState.enableAqi) {
+        html += '<div class="condition-row">';
+        html += '<span class="condition-label">AQI:</span>';
+        html += '<span class="condition-value">';
+        if (weather.aqi.categoryName) {
+            html += renderAqiToken(weather.aqi.categoryName, weather.aqi.categoryNumber);
+        }
+        if (weather.aqi.o3 && weather.aqi.o3.aqi != null) {
+            html += ` ${renderAqiToken(`O3[${weather.aqi.o3.aqi}]`, weather.aqi.o3.categoryNumber)}`;
+        }
+        if (weather.aqi.pm25 && weather.aqi.pm25.aqi != null) {
+            html += ` ${renderAqiToken(`PM2.5[${weather.aqi.pm25.aqi}]`, weather.aqi.pm25.categoryNumber)}`;
+        }
+        html += '</span>';
+        html += '</div>';
+    }
     
     html += '<div class="condition-row">';
     html += `<span class="condition-label">Humidity:</span>`;
