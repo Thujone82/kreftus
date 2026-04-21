@@ -832,9 +832,9 @@ function Invoke-UpdateMode {
             Write-Host "    [g] re-geocode (prompts for address, bounded to Portland)"
             Write-Host "    [c] enter lat/lng directly"
             Write-Host "    [a] edit geocodeAddress string"
-            Write-Host "    [l] edit location (City-listed address)"
-            Write-Host "    [n] edit name"
-            Write-Host "    [y] edit year"
+            Write-Host "    [l] edit location (City-listed address; sets manualKeep.location)"
+            Write-Host "    [n] edit name (sets manualKeep.name)"
+            Write-Host "    [y] edit year (sets manualKeep.year)"
             Write-Host "    [r] set/clear removed year"
             Write-Host "    [x] clear geocoding (mark pending for next scraper run)"
             Write-Host "    [s] save and pick another tree"
@@ -871,9 +871,39 @@ function Invoke-UpdateMode {
                     $dirty = $true
                 }
                 'a' { $tree.geocodeAddress = Read-OptionalString -Label 'geocodeAddress' -Current ([string]$tree.geocodeAddress); $dirty = $true }
-                'l' { $tree.location       = Read-OptionalString -Label 'location'       -Current ([string]$tree.location);       $dirty = $true }
-                'n' { $tree.name           = Read-OptionalString -Label 'name'           -Current ([string]$tree.name);           $dirty = $true }
-                'y' { $tree.year           = Read-OptionalInt    -Label 'year'           -Current $tree.year -Min 1800 -Max 2100; $dirty = $true }
+                'l' {
+                    $newLocation = Read-OptionalString -Label 'location' -Current ([string]$tree.location)
+                    if ($newLocation -cne [string]$tree.location) {
+                        $tree.location = $newLocation
+                        Add-TreeManualKeepField -Tree $tree -Field 'location'
+                    } else {
+                        $tree.location = $newLocation
+                    }
+                    $dirty = $true
+                }
+                'n' {
+                    $newName = Read-OptionalString -Label 'name' -Current ([string]$tree.name)
+                    if ($newName -cne [string]$tree.name) {
+                        $tree.name = $newName
+                        Add-TreeManualKeepField -Tree $tree -Field 'name'
+                    } else {
+                        $tree.name = $newName
+                    }
+                    $dirty = $true
+                }
+                'y' {
+                    $newYear = Read-OptionalInt -Label 'year' -Current $tree.year -Min 1800 -Max 2100
+                    $oldYear = if ($null -eq $tree.year) { $null } else { [int]$tree.year }
+                    if ($null -eq $oldYear -and $null -eq $newYear) {
+                        $tree.year = $newYear
+                    } elseif ($oldYear -ne $newYear) {
+                        $tree.year = $newYear
+                        Add-TreeManualKeepField -Tree $tree -Field 'year'
+                    } else {
+                        $tree.year = $newYear
+                    }
+                    $dirty = $true
+                }
                 'r' {
                     $tree.removed = Read-OptionalInt -Label 'removed year' -Current $tree.removed -Min 1800 -Max 2100
                     if ($null -ne $tree.removed) { $tree.geocodeStatus = 'skipped-removed' }
