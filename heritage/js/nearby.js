@@ -80,11 +80,14 @@
 
         listEl.innerHTML = '';
         for (const row of rows) {
-            listEl.appendChild(buildRow(row));
+            listEl.appendChild(buildTreeRow(row));
         }
     }
 
-    function buildRow(row) {
+    function buildTreeRow(row, opts) {
+        const onViewHandler = (opts && typeof opts.onView === 'function')
+            ? opts.onView
+            : onView;
         const li = document.createElement('li');
         li.className = 'nearby-row';
 
@@ -130,7 +133,7 @@
         view.appendChild(dist);
         view.appendChild(meta);
 
-        view.addEventListener('click', () => onView(row.tree));
+        view.addEventListener('click', () => onViewHandler(row.tree));
 
         // Navigate link: Google Maps walking directions. Rendered as a real
         // anchor so middle/cmd-click and "open in new tab" work on desktop,
@@ -175,6 +178,8 @@
     global.HeritageNearby = {
         render,
         computeNearest,
+        originFor,
+        buildTreeRow,
         walkingNavUrl,
         formatDistance
     };

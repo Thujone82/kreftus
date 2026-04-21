@@ -220,6 +220,7 @@ button { font-family: inherit; }
 .action-btn:active { transform: scale(0.97); }
 .action-btn-icon { font-size: 1.15rem; }
 .action-btn-label { font-size: 0.75rem; letter-spacing: 0.02em; }
+#searchBtn .action-btn-icon { font-size: 1.05rem; }
 
 /* ==========================================================================
    Setup screen
@@ -571,6 +572,34 @@ button { font-family: inherit; }
     color: var(--pnw-fog);
     text-align: center;
     padding: 0.8rem 0.5rem;
+}
+
+/* ==========================================================================
+   Search modal
+   ========================================================================== */
+
+.search-modal-content {
+    max-width: 760px;
+}
+
+.search-input-wrap {
+    margin: 0.6rem 0 0.75rem;
+}
+
+.search-input {
+    width: 100%;
+}
+
+.search-results {
+    max-height: 55vh;
+    overflow-y: auto;
+    padding-right: 0.1rem;
+}
+
+.search-empty {
+    list-style: none;
+    margin-left: -1.3rem;
+    padding-left: 1.3rem;
 }
 
 @media (max-width: 480px) {

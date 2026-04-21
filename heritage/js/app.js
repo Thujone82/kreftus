@@ -26,7 +26,7 @@
     'use strict';
 
     const LEGACY_KEY_API = 'pdxHeritageGoogleApiKey';
-    const APP_VERSION = '1.1.6';
+    const APP_VERSION = '1.2.0';
 
     const state = {
         mapReady: false,
@@ -68,7 +68,13 @@
         document.querySelectorAll('[data-close-modal]').forEach((el) => {
             el.addEventListener('click', () => {
                 const modal = el.closest('.modal');
-                if (modal && modal.id) HeritageUI.closeModal(modal.id);
+                if (modal && modal.id) {
+                    HeritageUI.closeModal(modal.id);
+                    if (modal.id === 'searchModal' && global.HeritageSearch
+                        && typeof HeritageSearch.close === 'function') {
+                        HeritageSearch.close();
+                    }
+                }
             });
         });
 
@@ -79,6 +85,9 @@
 
         const foundBtn = document.getElementById('foundBtn');
         if (foundBtn) foundBtn.addEventListener('click', HeritageUI.openFound);
+
+        const searchBtn = document.getElementById('searchBtn');
+        if (searchBtn) searchBtn.addEventListener('click', HeritageUI.openSearch);
 
         const recenterBtn = document.getElementById('recenterBtn');
         if (recenterBtn) recenterBtn.addEventListener('click', onRecenter);

@@ -414,6 +414,20 @@ function Get-MilesFromPortland {
     return $R * $c
 }
 
+function Get-MilesBetween {
+    param([double]$Lat1, [double]$Lng1, [double]$Lat2, [double]$Lng2)
+    $R = 3958.7613  # Earth radius in miles
+    $lat1 = $Lat1 * [Math]::PI / 180.0
+    $lat2 = $Lat2 * [Math]::PI / 180.0
+    $dLat = ($Lat2 - $Lat1) * [Math]::PI / 180.0
+    $dLng = ($Lng2 - $Lng1) * [Math]::PI / 180.0
+    $a = [Math]::Sin($dLat / 2) * [Math]::Sin($dLat / 2) +
+         [Math]::Cos($lat1) * [Math]::Cos($lat2) *
+         [Math]::Sin($dLng / 2) * [Math]::Sin($dLng / 2)
+    $c = 2 * [Math]::Atan2([Math]::Sqrt($a), [Math]::Sqrt(1 - $a))
+    return $R * $c
+}
+
 function Invoke-Geocode {
     param(
         [string]$Address,
@@ -848,12 +862,15 @@ function Invoke-UpdateMode {
                     $dirty = $true
                 }
                 'c' {
+                    $oldLat = $tree.lat
+                    $oldLng = $tree.lng
                     $latResult = Read-LatMaybePair -CurrentLat $tree.lat `
                         -LatMin 20.0 -LatMax 55.0 -LngMin -140.0 -LngMax -100.0
                     $newLat = $latResult.lat
                     if ($latResult.gotBoth) {
                         $newLng = $latResult.lng
-                        Write-Host ("  lng parsed from paired input: {0}" -f ([double]$newLng).ToString('F6')) -ForegroundColor DarkGray
+                        Write-Host ("  coords parsed from paired input: lat={0}, lng={1}" -f `
+                            ([double]$newLat).ToString('F6'), ([double]$newLng).ToString('F6')) -ForegroundColor DarkGray
                     } else {
                         $newLng = Read-Coordinate -Label 'lng' -Current $tree.lng -Min -140.0 -Max -100.0
                     }
@@ -867,6 +884,17 @@ function Invoke-UpdateMode {
                         if ($miles -gt $script:PortlandMaxMiles) {
                             Write-Host ("  WARNING: {0:F1} mi from Portland center; the PWA will still show it." -f $miles) -ForegroundColor Yellow
                         }
+                    }
+                    if ($null -ne $oldLat -and $null -ne $oldLng -and $null -ne $newLat -and $null -ne $newLng) {
+                        $movedMiles = Get-MilesBetween -Lat1 ([double]$oldLat) -Lng1 ([double]$oldLng) -Lat2 ([double]$newLat) -Lng2 ([double]$newLng)
+                        $distanceLabel = if ($movedMiles -lt 1.0) {
+                            ("{0:F0} ft" -f ($movedMiles * 5280.0))
+                        } else {
+                            ("{0:F3} mi" -f $movedMiles)
+                        }
+                        Write-Host ("  moved: {0} (from {1}, {2} to {3}, {4})" -f `
+                            $distanceLabel, ([double]$oldLat).ToString('F6'), ([double]$oldLng).ToString('F6'),
+                            ([double]$newLat).ToString('F6'), ([double]$newLng).ToString('F6')) -ForegroundColor DarkGray
                     }
                     $dirty = $true
                 }

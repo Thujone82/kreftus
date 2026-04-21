@@ -107,6 +107,14 @@
         openModal('foundModal');
     }
 
+    function openSearch() {
+        if (global.HeritageSearch && typeof HeritageSearch.open === 'function') {
+            HeritageSearch.open();
+            return;
+        }
+        openModal('searchModal');
+    }
+
     // Show the '[tree] Found' action-bar button only when the user actually
     // has at least one found tree to list. Safe to call any time; falls back
     // to hiding the button if the DB / HeritageFound helper isn't ready.
@@ -135,6 +143,7 @@
         openNearby,
         closeNearby,
         openFound,
+        openSearch,
         refreshFoundButton,
         formatLocalDate
     };
