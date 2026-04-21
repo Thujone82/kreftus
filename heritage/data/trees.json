@@ -1,6 +1,6 @@
 {
   "sourceUrl": "https://www.portland.gov/trees/heritage/heritage-trees-year",
-  "scrapedAt": "2026-04-20T22:51:34Z",
+  "scrapedAt": "2026-04-21T01:36:37Z",
   "count": 397,
   "trees": [
     {
@@ -14,7 +14,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "002",
@@ -27,7 +28,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "45.517069789036086, -122.68266987828842",
       "geocodeFormatted": "Southwest Main Street, University District, Downtown, Portland, Multnomah County, Oregon, 97205, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "003",
@@ -40,7 +42,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1403 NE Weidler St, Portland, OR, USA",
       "geocodeFormatted": "Namaste, 1403, Northeast Weidler Street, Lloyd District, Portland, Multnomah County, Oregon, 97232, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "004",
@@ -53,7 +56,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2137 SE 32nd Pl, Portland, OR, USA",
       "geocodeFormatted": "2137, Southeast 32nd Place, Colonial Heights, Richmond, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "005",
@@ -66,7 +70,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "45.51789496871712, -122.69458299086891",
       "geocodeFormatted": "Southwest 20th Avenue, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "006",
@@ -79,7 +84,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2024 SW Howards Way, Portland, OR, USA",
       "geocodeFormatted": "2024, Southwest Howards Way, Goose Hollow, Portland, Multnomah County, Oregon, 97201, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "007",
@@ -92,7 +98,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "10115 NE Thompson St, Portland, OR, USA",
       "geocodeFormatted": "10115, Northeast Thompson Street, Parkrose Heights, Portland, Multnomah County, Oregon, 97220, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "008",
@@ -105,7 +112,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "7168 N Olin Ave, Portland, OR, USA",
       "geocodeFormatted": "7168, North Olin Avenue, University Park, Portland, Multnomah County, Oregon, 97203, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "009",
@@ -118,7 +126,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "010",
@@ -131,7 +140,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1338 NW 23rd Ave",
       "geocodeFormatted": "1338, Northwest 23rd Avenue, Nob Hill, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "011",
@@ -144,7 +154,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2390 SW Madison St, Portland, OR, USA",
       "geocodeFormatted": "2390, Southwest Madison Street, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "012",
@@ -157,7 +168,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "013",
@@ -170,7 +182,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "014",
@@ -183,7 +196,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1961 NW Glisan St, Portland, OR, USA",
       "geocodeFormatted": "1961, Northwest Glisan Street, Nob Hill, Northwest District, Portland, Multnomah County, Oregon, 97209, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "015",
@@ -196,7 +210,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4234 SE 33rd Pl, Portland, OR, USA",
       "geocodeFormatted": "4234, Southeast 33rd Place, Creston-Kenilworth, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "016",
@@ -209,7 +224,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1579 SE Nehalem St, Portland, OR, USA",
       "geocodeFormatted": "1579, Southeast Nehalem Street, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "017",
@@ -222,7 +238,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3104 SE Gladstone St, Portland, OR, USA",
       "geocodeFormatted": "3104, Southeast Gladstone Street, Creston-Kenilworth, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "018",
@@ -235,7 +252,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5330 SE 37th Ave, Portland, OR, USA",
       "geocodeFormatted": "5330, Southeast 37th Avenue, Reed, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "019",
@@ -248,7 +266,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "020",
@@ -261,7 +280,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3203 SE Woodstock Blvd, Portland, OR, USA",
       "geocodeFormatted": "Reed College, 3203, Southeast Woodstock Boulevard, Eastmoreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "021",
@@ -274,7 +294,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1224 SE Sellwood Blvd, Portland, OR, USA",
       "geocodeFormatted": "1224, Southeast Sellwood Boulevard, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 90202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "022",
@@ -287,7 +308,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "7951 SE 7th Ave, Portland, OR, USA",
       "geocodeFormatted": "Sellwood Pool, 7951, Southeast 7th Avenue, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "023",
@@ -300,7 +322,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "024",
@@ -313,7 +336,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2827 NE 24th Ave, Portland, OR, USA",
       "geocodeFormatted": "2827, Northeast 24th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "025",
@@ -326,7 +350,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2827 NE 24th Ave, Portland, OR, USA",
       "geocodeFormatted": "2827, Northeast 24th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "026",
@@ -339,7 +364,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "027",
@@ -352,7 +378,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5000 N Willamette Blvd, Portland, OR, USA",
       "geocodeFormatted": "University of Portland, 5000, North Willamette Boulevard, University Park, Portland, Multnomah County, Oregon, 97203, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "028",
@@ -365,7 +392,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "029",
@@ -378,7 +406,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "030",
@@ -391,7 +420,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2120 SE 24th Ave, Portland, OR, USA",
       "geocodeFormatted": "2120, Southeast 24th Avenue, Colonial Heights, Hosford-Abernethy, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "031",
@@ -404,7 +434,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "7703 SE Martins St, Portland, OR, USA",
       "geocodeFormatted": "7703, Southeast Martins Street, Mount Scott-Arleta, Portland, Multnomah County, Oregon, 97206, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "032",
@@ -417,7 +448,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1609 SE Umatilla St, Portland, OR, USA",
       "geocodeFormatted": "1609, Southeast Umatilla Street, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "033",
@@ -430,7 +462,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "143 SE 32nd Ave, Portland, OR, USA",
       "geocodeFormatted": "143, Southeast 32nd Avenue, Kerns, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "034",
@@ -443,7 +476,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "143 SE 32nd Ave, Portland, OR, USA",
       "geocodeFormatted": "143, Southeast 32nd Avenue, Kerns, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "035",
@@ -456,7 +490,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1600 SW Salmon St, Portland, OR, USA",
       "geocodeFormatted": "Southwest Salmon Street, Downtown, Portland, Multnomah County, Oregon, 97204, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "036",
@@ -469,7 +504,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2363 NW Flanders St, Portland, OR, USA",
       "geocodeFormatted": "2363, Northwest Flanders Street, Nob Hill, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "037",
@@ -482,7 +518,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "212 SW Meade St",
       "geocodeFormatted": "212, Southwest Meade Street, Lair Hill, South Portland, Portland, Multnomah County, Oregon, 97201, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "038",
@@ -495,7 +532,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5450 SE 40th Ave, Portland, OR, USA",
       "geocodeFormatted": "5450, Southeast 40th Avenue, Woodstock, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "039",
@@ -508,7 +546,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1126 SE 15th Ave, Portland, OR, USA",
       "geocodeFormatted": "1126, Southeast 15th Avenue, Buckman, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "040",
@@ -521,7 +560,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1816 SE 21st Ave, Portland, OR, USA",
       "geocodeFormatted": "1816, Southeast 21st Avenue, Colonial Heights, Hosford-Abernethy, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "041",
@@ -534,7 +574,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3387 SE Tibbetts St, Portland, OR, USA",
       "geocodeFormatted": "3387, Southeast Tibbetts Street, Richmond, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "042",
@@ -547,7 +588,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "043",
@@ -560,7 +602,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "044",
@@ -573,7 +616,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "045",
@@ -586,7 +630,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2642 NW Lovejoy St, Portland, OR, USA",
       "geocodeFormatted": "2642, Northwest Lovejoy Street, Nob Hill, Hillside, Portland, Multnomah County, Oregon, 97210, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "046",
@@ -599,7 +644,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2330 NW Flanders St, Portland, OR, USA",
       "geocodeFormatted": "2330, Northwest Flanders Street, Nob Hill, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "047",
@@ -612,7 +658,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3040 SE McLoughlin Blvd, Portland, OR, USA",
       "geocodeFormatted": "3040, Southeast McLoughlin Boulevard, Brooklyn, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "048",
@@ -625,7 +672,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "7951 SE 7th Ave, Portland, OR, USA",
       "geocodeFormatted": "Sellwood Pool, 7951, Southeast 7th Avenue, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "049",
@@ -638,7 +686,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2204 SE 11th Ave, Portland, OR, USA",
       "geocodeFormatted": "2204, Southeast 11th Avenue, Ladd's Addition, Hosford-Abernethy, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "050",
@@ -651,7 +700,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "051",
@@ -664,7 +714,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "052",
@@ -677,7 +728,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "7688 SW Capitol Hwy, Portland, OR, USA",
       "geocodeFormatted": "Multnomah Arts Center, 7688, Southwest Capitol Highway, Multnomah Village, Multnomah, Portland, Multnomah County, Oregon, 97219, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "053",
@@ -690,7 +742,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2038 SW Myrtle St, Portland, OR, USA",
       "geocodeFormatted": "2038, Southwest Myrtle Street, Portland Heights, Southwest Hills, Portland, Multnomah County, Oregon, 97201, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "054",
@@ -698,12 +751,13 @@
       "name": "Fagus sylvatica f. purpurea - European beech",
       "location": "1875 SW Park Ave (Portland State University)",
       "removed": null,
-      "lat": 45.51147607132781,
-      "lng": -122.68583456362626,
+      "lat": 45.511489235976654,
+      "lng": -122.68580124020826,
       "geocodeStatus": "ok",
       "geocodeAddress": "1875 SW Park Ave, Portland, OR, USA",
       "geocodeFormatted": "Branford Price Millar Library, 1875, Southwest Park Avenue, University District, Downtown, Portland, Multnomah County, Oregon, 97201, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "055",
@@ -716,7 +770,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2617 NE 16th Ave, Portland, OR, USA",
       "geocodeFormatted": "2617, Northeast 16th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "056",
@@ -729,7 +784,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2617 NE 16th Ave, Portland, OR, USA",
       "geocodeFormatted": "2617, Northeast 16th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "057",
@@ -737,12 +793,13 @@
       "name": "Cunninghamia lanceolata - China fir",
       "location": "1104 SE Mall St (right-of-way)",
       "removed": null,
-      "lat": 45.49138077338172,
-      "lng": -122.65410376697075,
+      "lat": 45.49139045022627,
+      "lng": -122.65409272375689,
       "geocodeStatus": "ok",
       "geocodeAddress": "1104 SE Mall St, Portland, OR, USA",
       "geocodeFormatted": "1104, Southeast Mall Street, Brooklyn, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "058",
@@ -755,7 +812,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1942 SE 30th Ave, Portland, OR, USA",
       "geocodeFormatted": "1942, Southeast 30th Avenue, Colonial Heights, Richmond, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "059",
@@ -768,7 +826,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "060",
@@ -781,7 +840,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "061",
@@ -794,7 +854,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1726 SE 24th Ave, Portland, OR, USA",
       "geocodeFormatted": "1726, Southeast 24th Avenue, Colonial Heights, Hosford-Abernethy, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "062",
@@ -807,7 +868,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "6325 SE Division St, Portland, OR, USA",
       "geocodeFormatted": "6325, Southeast Division Street, South Tabor, Portland, Multnomah County, Oregon, 97206, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "063",
@@ -820,7 +882,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2401 SE 26th Ave, Portland, OR, USA",
       "geocodeFormatted": "2401, Southeast 26th Avenue, Colonial Heights, Hosford-Abernethy, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "064",
@@ -833,7 +896,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "065",
@@ -846,7 +910,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "066",
@@ -859,7 +924,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1009 NE Stanton St, Portland, OR, USA",
       "geocodeFormatted": "1009, Northeast Stanton Street, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "067",
@@ -872,7 +938,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "068",
@@ -884,8 +951,9 @@
       "lng": -122.6226611,
       "geocodeStatus": "ok",
       "geocodeAddress": "110 NE 39th Ave, Portland, OR, USA",
-      "geocodeFormatted": "110, Northeast CÃ©sar E. ChÃ¡vez Boulevard, Laurelhurst, Portland, Multnomah County, Oregon, 97232, United States",
-      "geocodeError": null
+      "geocodeFormatted": "110, Northeast CÃƒÂ©sar E. ChÃƒÂ¡vez Boulevard, Laurelhurst, Portland, Multnomah County, Oregon, 97232, United States",
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "069",
@@ -898,7 +966,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "070",
@@ -911,7 +980,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "071",
@@ -924,7 +994,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "9107 N Richmond Ave, Portland, OR, USA",
       "geocodeFormatted": "9107, North Richmond Avenue, Saint Johns, Portland, Multnomah County, Oregon, 97203, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "072",
@@ -937,7 +1008,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "073",
@@ -950,7 +1022,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "662 NW Melinda Ave, Portland, OR, USA",
       "geocodeFormatted": "662, Northwest Melinda Avenue, Kings Heights, Hillside, Portland, Multnomah County, Oregon, 97210, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "074",
@@ -963,7 +1036,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "075",
@@ -976,7 +1050,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4620 SW 29th Pl, Portland, OR, USA",
       "geocodeFormatted": "4620, Southwest 29th Place, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "076",
@@ -989,7 +1064,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "077",
@@ -1002,7 +1078,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "7817 N Haven Ave, Portland, OR, USA",
       "geocodeFormatted": "7817, North Haven Avenue, Portsmouth, Portland, Multnomah County, Oregon, 97203, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "078",
@@ -1015,7 +1092,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5941 NE 45th Ave, Portland, OR, USA",
       "geocodeFormatted": "5941, Northeast 45th Avenue, Cully, Portland, Multnomah County, Oregon, 97218, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "079",
@@ -1028,7 +1106,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2425 NE Alameda St, Portland, OR, USA",
       "geocodeFormatted": "2425, Northeast Alameda Street, Alameda, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "080",
@@ -1041,7 +1120,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2737 NE 15th Ave, Portland, OR, USA",
       "geocodeFormatted": "2737, Northeast 15th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "081",
@@ -1054,7 +1134,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2738 NE 15th Ave, Portland, OR, USA",
       "geocodeFormatted": "2738, Northeast 15th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "082",
@@ -1067,7 +1148,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2739 NE 15th Ave, Portland, OR, USA",
       "geocodeFormatted": "2739, Northeast 15th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "083",
@@ -1080,7 +1162,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2740 NE 15th Ave, Portland, OR, USA",
       "geocodeFormatted": "2740, Northeast 15th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "084",
@@ -1093,7 +1176,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2741 NE 15th Ave, Portland, OR, USA",
       "geocodeFormatted": "2741, Northeast 15th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "085",
@@ -1106,7 +1190,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1408 NE Knott St, Portland, OR, USA",
       "geocodeFormatted": "1408, Northeast Knott Street, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "086",
@@ -1119,7 +1204,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1409 NE Knott St, Portland, OR, USA",
       "geocodeFormatted": "1409, Northeast Knott Street, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "087",
@@ -1132,7 +1218,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1410 NE Knott St, Portland, OR, USA",
       "geocodeFormatted": "1410, Northeast Knott Street, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "088",
@@ -1145,7 +1232,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1411 NE Knott St, Portland, OR, USA",
       "geocodeFormatted": "1411, Northeast Knott Street, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "089",
@@ -1158,7 +1246,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1927 NE Tillamook St, Portland, OR, USA",
       "geocodeFormatted": "1927, Northeast Tillamook Street, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "090",
@@ -1171,7 +1260,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "091",
@@ -1184,7 +1274,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2502 SE Sherman St, Portland, OR, USA",
       "geocodeFormatted": "2502, Southeast Sherman Street, Colonial Heights, Hosford-Abernethy, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "092",
@@ -1197,7 +1288,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "093",
@@ -1210,7 +1302,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "094",
@@ -1223,7 +1316,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "095",
@@ -1236,7 +1330,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "096",
@@ -1249,7 +1344,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "097",
@@ -1262,7 +1358,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1905 SE Larch Ave, Portland, OR, USA",
       "geocodeFormatted": "1905, Southeast Larch Avenue, Ladd's Addition, Hosford-Abernethy, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "098",
@@ -1275,7 +1372,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2160 SW Main St, Portland, OR, USA",
       "geocodeFormatted": "2160, Southwest Main Street, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "099",
@@ -1288,7 +1386,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "100",
@@ -1301,7 +1400,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1013 SE Lambert St, Portland, OR, USA",
       "geocodeFormatted": "1013, Southeast Lambert Street, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "101",
@@ -1314,7 +1414,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1014 SE Lambert St, Portland, OR, USA",
       "geocodeFormatted": "1014, Southeast Lambert Street, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "102",
@@ -1327,7 +1428,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4534 SW 60th Pl, Portland, OR, USA",
       "geocodeFormatted": "4534, Southwest 60th Place, Wilcox Estates, Bridlemile, Portland, Multnomah County, Oregon, 97221, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "103",
@@ -1340,7 +1442,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2404 NE Clackamas St, Portland, OR, USA",
       "geocodeFormatted": "2404, Northeast Clackamas Street, Sullivan's Gulch, Portland, Multnomah County, Oregon, 97232, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "104",
@@ -1353,7 +1456,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2405 NE Clackamas St, Portland, OR, USA",
       "geocodeFormatted": "2405, Northeast Clackamas Street, Sullivan's Gulch, Portland, Multnomah County, Oregon, 97232, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "105",
@@ -1366,7 +1470,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2517 NE Multnomah St, Portland, OR, USA",
       "geocodeFormatted": "2517, Northeast Multnomah Street, Sullivan's Gulch, Portland, Multnomah County, Oregon, 97232, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "106",
@@ -1379,7 +1484,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2518 NE Multnomah St, Portland, OR, USA",
       "geocodeFormatted": "2518, Northeast Multnomah Street, Sullivan's Gulch, Portland, Multnomah County, Oregon, 97232, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "107",
@@ -1392,7 +1498,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2425 NE Alameda St, Portland, OR, USA",
       "geocodeFormatted": "2425, Northeast Alameda Street, Alameda, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "108",
@@ -1405,7 +1512,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2830 N Williams Ave, Portland, OR, USA",
       "geocodeFormatted": "2830, North Williams Avenue, Albina, Eliot, Portland, Multnomah County, Oregon, 97227, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "109",
@@ -1418,7 +1526,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1011 SW 12th Ave, Portland, OR, USA",
       "geocodeFormatted": "1011, Southwest 12th Avenue, University District, Downtown, Portland, Multnomah County, Oregon, 97205, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "110",
@@ -1431,7 +1540,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1011 SW 12th Ave, Portland, OR, USA",
       "geocodeFormatted": "1011, Southwest 12th Avenue, University District, Downtown, Portland, Multnomah County, Oregon, 97205, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "111",
@@ -1444,7 +1554,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1011 SW 12th Ave, Portland, OR, USA",
       "geocodeFormatted": "1011, Southwest 12th Avenue, University District, Downtown, Portland, Multnomah County, Oregon, 97205, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "112",
@@ -1457,7 +1568,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1011 SW 12th Ave, Portland, OR, USA",
       "geocodeFormatted": "1011, Southwest 12th Avenue, University District, Downtown, Portland, Multnomah County, Oregon, 97205, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "113",
@@ -1470,7 +1582,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2609 SW Park Pl, Portland, OR, USA",
       "geocodeFormatted": "2609, Southwest Park Place, Arlington Heights, Portland, Multnomah County, Oregon, 97205, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "114",
@@ -1483,7 +1596,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "115",
@@ -1496,7 +1610,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1584 SE Lexington St, Portland, OR, USA",
       "geocodeFormatted": "1584, Southeast Lexington Street, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "116",
@@ -1509,7 +1624,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "117",
@@ -1522,7 +1638,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "118",
@@ -1535,7 +1652,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "119",
@@ -1548,7 +1666,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2455 NW Johnson St, Portland, OR, USA",
       "geocodeFormatted": "2455, Northwest Johnson Street, Nob Hill, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "120",
@@ -1561,7 +1680,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "6125 SW Boundary St, Portland, OR, USA",
       "geocodeFormatted": "Harold Schnitzer Center for Living, 6125, Southwest Boundary Street, Cedar Sinai Park, Hayhurst, Portland, Multnomah County, Oregon, 97221, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "121",
@@ -1574,7 +1694,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2807 NE 8th Ave, Portland, OR, USA",
       "geocodeFormatted": "2807, Northeast 8th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "122",
@@ -1587,7 +1708,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2808 NE 8th Ave, Portland, OR, USA",
       "geocodeFormatted": "2808, Northeast 8th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "123",
@@ -1600,7 +1722,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "124",
@@ -1613,7 +1736,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1208 SE 53rd Ave, Portland, OR, USA",
       "geocodeFormatted": "1208, Southeast 53rd Avenue, Mount Tabor, Portland, Multnomah County, Oregon, 97215, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "125",
@@ -1626,7 +1750,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2896 SW Patton Rd, Portland, OR, USA",
       "geocodeFormatted": "2896, Southwest Patton Road, Southwest Hills, Portland, Multnomah County, Oregon, 97201, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "126",
@@ -1639,7 +1764,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2417 SW 16th Ave, Portland, OR, USA",
       "geocodeFormatted": "2417, Southwest 16th Avenue, Portland Heights, Southwest Hills, Portland, Multnomah County, Oregon, 97201, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "127",
@@ -1652,7 +1778,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "128",
@@ -1665,7 +1792,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2033 SW Madison St, Portland, OR, USA",
       "geocodeFormatted": "2033, Southwest Madison Street, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "129",
@@ -1678,7 +1806,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1032 SW Taylors Ferry Rd, Portland, OR, USA",
       "geocodeFormatted": "1032, Southwest Taylors Ferry Road, Marshall Park, Portland, Multnomah County, Oregon, 97219, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "130",
@@ -1691,7 +1820,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4504 SW Shattuck Rd, Portland, OR, USA",
       "geocodeFormatted": "4504, Southwest Shattuck Road, Wilcox Estates, Bridlemile, Portland, Multnomah County, Oregon, 97221, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "131",
@@ -1704,7 +1834,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "132",
@@ -1717,7 +1848,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2425 SE Bybee Blvd, Portland, OR, USA",
       "geocodeFormatted": "Eastmoreland Golf Course, 2425, Southeast Bybee Boulevard, Eastmoreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "133",
@@ -1730,7 +1862,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1410 SW Harrison St, Portland, OR, USA",
       "geocodeFormatted": "1410, Southwest Harrison Street, Southwest Hills, Portland, Multnomah County, Oregon, 97201, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "134",
@@ -1743,7 +1876,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "Danford Balch Homesite, Portland, OR, USA",
       "geocodeFormatted": "Danford Balch Homesite, Northwest Upshur Street, Willamette Heights, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "135",
@@ -1756,7 +1890,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "8332 SE 16th Ave, Portland, OR, USA",
       "geocodeFormatted": "8332, Southeast 16th Avenue, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "136",
@@ -1769,7 +1904,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "8332 SE 16th Ave, Portland, OR, USA",
       "geocodeFormatted": "8332, Southeast 16th Avenue, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "137",
@@ -1782,7 +1918,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1041 SW Vista Ave, Portland, OR, USA",
       "geocodeFormatted": "1041, Southwest Vista Avenue, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "138",
@@ -1795,7 +1932,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "139",
@@ -1808,7 +1946,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4825 SW Dosch Park Ln, Portland, OR, USA",
       "geocodeFormatted": "4825, Southwest Dosch Park Lane, Dosch Estates, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "140",
@@ -1821,7 +1960,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4826 SW Dosch Park Ln, Portland, OR, USA",
       "geocodeFormatted": "4826, Southwest Dosch Park Lane, Dosch Estates, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "141",
@@ -1834,7 +1974,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4825 SW Dosch Park Ln, Portland, OR, USA",
       "geocodeFormatted": "4825, Southwest Dosch Park Lane, Dosch Estates, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "142",
@@ -1847,7 +1988,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "143",
@@ -1860,7 +2002,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "144",
@@ -1873,7 +2016,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4825 SW Dosch Park Ln, Portland, OR, USA",
       "geocodeFormatted": "4825, Southwest Dosch Park Lane, Dosch Estates, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "145",
@@ -1886,7 +2030,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4825 SW Dosch Park Ln, Portland, OR, USA",
       "geocodeFormatted": "4825, Southwest Dosch Park Lane, Dosch Estates, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "146",
@@ -1899,7 +2044,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4825 SW Dosch Park Ln, Portland, OR, USA",
       "geocodeFormatted": "4825, Southwest Dosch Park Lane, Dosch Estates, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "147",
@@ -1912,7 +2058,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4711 SW Campbell Ct, Portland, OR, USA",
       "geocodeFormatted": "4711, Southwest Campbell Court, Dosch Estates, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "148",
@@ -1925,7 +2072,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2525 SW Montgomery Dr, Portland, OR, USA",
       "geocodeFormatted": "2525, Southwest Montgomery Drive, Portland Heights, Southwest Hills, Portland, Multnomah County, Oregon, 97201, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "149",
@@ -1938,7 +2086,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3075 NW Cornell Rd, Portland, OR, USA",
       "geocodeFormatted": "3075, Northwest Cornell Road, Kings Heights, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "150",
@@ -1951,7 +2100,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4404 SE 35th Ave, Portland, OR, USA",
       "geocodeFormatted": "4404, Southeast 35th Avenue, Creston-Kenilworth, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "151",
@@ -1964,7 +2114,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4818 SE Tenino Dr, Portland, OR, USA",
       "geocodeFormatted": "4818, Southeast Tenino Drive, Errol Heights, Brentwood-Darlington, Portland, Multnomah County, Oregon, 97206, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "152",
@@ -1977,7 +2128,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "6325 SE Division St, Portland, OR, USA",
       "geocodeFormatted": "6325, Southeast Division Street, South Tabor, Portland, Multnomah County, Oregon, 97206, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "153",
@@ -1990,7 +2142,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "221 NE 45th Ave, Portland, OR, USA",
       "geocodeFormatted": "221, Northeast 45th Avenue, North Tabor, Portland, Multnomah County, Oregon, 97213, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "154",
@@ -2003,7 +2156,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "155",
@@ -2016,7 +2170,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1719 NE Knott St, Portland, OR, USA",
       "geocodeFormatted": "1719, Northeast Knott Street, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "156",
@@ -2029,7 +2184,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5700 SE Taylor St, Portland, OR, USA",
       "geocodeFormatted": "5700, Southeast Taylor Street, Mount Tabor, Portland, Multnomah County, Oregon, 97215, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "157",
@@ -2042,7 +2198,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "158",
@@ -2055,7 +2212,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2393 SW Park Pl, portland or",
       "geocodeFormatted": "2393, Southwest Park Place, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "159",
@@ -2068,7 +2226,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1132 SW Vista Ave, Portland, OR, USA",
       "geocodeFormatted": "Portland Garden Club, 1132, Southwest Vista Avenue, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "160",
@@ -2080,8 +2239,9 @@
       "lng": -122.6227602,
       "geocodeStatus": "ok",
       "geocodeAddress": "45.52030735167692, -122.6230534000139",
-      "geocodeFormatted": "330, Southeast CÃ©sar E. ChÃ¡vez Boulevard, Laurelhurst, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeFormatted": "330, Southeast CÃƒÂ©sar E. ChÃƒÂ¡vez Boulevard, Laurelhurst, Portland, Multnomah County, Oregon, 97214, United States",
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "161",
@@ -2094,7 +2254,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "162",
@@ -2107,7 +2268,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5533 N Maryland Ave, Portland, OR, USA",
       "geocodeFormatted": "5533, North Maryland Avenue, Overlook, Portland, Multnomah County, Oregon, 97217, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "163",
@@ -2120,7 +2282,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "164",
@@ -2133,7 +2296,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1728 NE Stanton St, Portland, OR, USA",
       "geocodeFormatted": "1728, Northeast Stanton Street, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "165",
@@ -2146,7 +2310,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5511 SE Hawthorne Blvd, Portland, OR, USA",
       "geocodeFormatted": "Western Seminary, 5511, Southeast Hawthorne Boulevard, Mount Tabor, Portland, Multnomah County, Oregon, 97215, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "166",
@@ -2159,7 +2324,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "167",
@@ -2172,7 +2338,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3381 SE Francis St, Portland, OR, USA",
       "geocodeFormatted": "3381, Southeast Francis Street, Creston-Kenilworth, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "168",
@@ -2185,7 +2352,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2367 NW Kearney St, Portland, OR, USA",
       "geocodeFormatted": "2367, Northwest Kearney Street, Nob Hill, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "169",
@@ -2198,7 +2366,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "6215 SW 27th Ave, Portland, OR, USA",
       "geocodeFormatted": "6215, Southwest 27th Avenue, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "170",
@@ -2211,7 +2380,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "171",
@@ -2224,7 +2394,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "7100 SW Macadam Ave, Portland, OR, USA",
       "geocodeFormatted": "7100, South Macadam Avenue, John's Landing, South Portland, Portland, Multnomah County, Oregon, 97219, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "172",
@@ -2237,7 +2408,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1150 SW King Ave, Portland, OR, USA",
       "geocodeFormatted": "1150, Southwest King Avenue, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "173",
@@ -2250,7 +2422,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2909 SW 2nd Ave, Portland, OR, USA",
       "geocodeFormatted": "Carnegie Annex, 2909, Southwest 2nd Avenue, Lair Hill, South Portland, Portland, Multnomah County, Oregon, 97201, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "174",
@@ -2263,7 +2436,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3037 SW 2nd Ave, Portland, OR, USA",
       "geocodeFormatted": "3037, Southwest 2nd Avenue, Lair Hill, South Portland, Portland, Multnomah County, Oregon, 97201, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "175",
@@ -2276,7 +2450,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "SE Powell Blvd, Portland, OR, USA",
       "geocodeFormatted": "Southeast Powell Boulevard, I-205 Multi-Use Path, Lents, Portland, Multnomah County, Oregon, 97266, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "176",
@@ -2289,7 +2464,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "SE Powell Blvd, Portland, OR, USA",
       "geocodeFormatted": "Southeast Powell Boulevard, I-205 Multi-Use Path, Lents, Portland, Multnomah County, Oregon, 97266, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "177",
@@ -2302,7 +2478,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3715 N Baldwin St, Portland, OR, USA",
       "geocodeFormatted": "3715, North Baldwin Street, Kenton, Portland, Multnomah County, Oregon, 97217, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "178",
@@ -2315,7 +2492,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2856 N Emerson Ct, Portland, OR, USA",
       "geocodeFormatted": "2856, North Emerson Court, Overlook, Portland, Multnomah County, Oregon, 97217, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "179",
@@ -2328,7 +2506,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "SW Lane & Corbett",
       "geocodeFormatted": "South Corbett Lane, Collins View, Portland, Multnomah County, Oregon, 97219, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "180",
@@ -2341,7 +2520,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5511 SE 44th Ave, Portland, OR, USA",
       "geocodeFormatted": "5511, Southeast 44th Avenue, Woodstock, Portland, Multnomah County, Oregon, 97206, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "181",
@@ -2354,7 +2534,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "182",
@@ -2367,7 +2548,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "183",
@@ -2380,7 +2562,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "184",
@@ -2393,7 +2576,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2408 SE 16th Ave, Portland, OR, USA",
       "geocodeFormatted": "Saint Philip Neri Catholic Church, 2408, Southeast 16th Avenue, Ladd's Addition, Hosford-Abernethy, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "185",
@@ -2406,7 +2590,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1144 SE 55th Ave, Portland, OR, USA",
       "geocodeFormatted": "1144, Southeast 55th Avenue, Mount Tabor, Portland, Multnomah County, Oregon, 97215, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "186",
@@ -2419,7 +2604,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4327 SE Ellis St, Portland, OR, USA",
       "geocodeFormatted": "4327, Southeast Ellis Street, Woodstock, Portland, Multnomah County, Oregon, 97206, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "187",
@@ -2432,7 +2618,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3203 SE Woodstock Blvd, Portland, OR, USA",
       "geocodeFormatted": "Reed College, 3203, Southeast Woodstock Boulevard, Eastmoreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "188",
@@ -2445,7 +2632,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3204 SE Woodstock Blvd, Portland, OR, USA",
       "geocodeFormatted": "3204, Southeast Woodstock Boulevard, Eastmoreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "189",
@@ -2458,7 +2646,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2870 NW Cornell Rd, Portland, OR, USA",
       "geocodeFormatted": "2870, Northwest Cornell Road, Kings Heights, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "190",
@@ -2471,7 +2660,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2870 NW Cornell Rd, Portland, OR, USA",
       "geocodeFormatted": "2870, Northwest Cornell Road, Kings Heights, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "191",
@@ -2484,7 +2674,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "192",
@@ -2497,7 +2688,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4066 SE Oak St, Portland, OR, USA",
       "geocodeFormatted": "4066, Southeast Oak Street, Laurelhurst, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "193",
@@ -2510,7 +2702,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4343 SE Madison St, Portland, OR, USA",
       "geocodeFormatted": "4343, Southeast Madison Street, Hawthorne, Sunnyside, Portland, Multnomah County, Oregon, 97215, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "194",
@@ -2523,7 +2716,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "SE 47th & Steele, Portland, OR, USA",
       "geocodeFormatted": "Southeast Steele & 47th, Southeast Steele Street, Woodstock, Portland, Multnomah County, Oregon, 97286, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "195",
@@ -2536,7 +2730,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "SE 47th & Steele, Portland, OR, USA",
       "geocodeFormatted": "Southeast Steele & 47th, Southeast Steele Street, Woodstock, Portland, Multnomah County, Oregon, 97286, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "196",
@@ -2549,7 +2744,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5527 SE Tolman St, Portland, OR, USA",
       "geocodeFormatted": "5527, Southeast Tolman Street, Woodstock, Portland, Multnomah County, Oregon, 97206, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "197",
@@ -2562,7 +2758,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "198",
@@ -2575,7 +2772,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "7654 N Crawford St, Portland, OR, USA",
       "geocodeFormatted": "7654, North Crawford Street, Cathedral Park, Portland, Multnomah County, Oregon, 97203, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "199",
@@ -2588,7 +2786,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "7654 N Crawford St, Portland, OR, USA",
       "geocodeFormatted": "7654, North Crawford Street, Cathedral Park, Portland, Multnomah County, Oregon, 97203, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "200",
@@ -2601,7 +2800,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "201",
@@ -2614,7 +2814,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3022 N Ainsworth St, Portland, OR, USA",
       "geocodeFormatted": "3022, North Ainsworth Street, Overlook, Portland, Multnomah County, Oregon, 97217, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "202",
@@ -2627,7 +2828,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5936 N Delaware Ave, Portland, OR, USA",
       "geocodeFormatted": "5936, North Delaware Avenue, Overlook, Portland, Multnomah County, Oregon, 97217, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "203",
@@ -2640,7 +2842,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2336 NE Ridgewood Dr, Portland, OR, USA",
       "geocodeFormatted": "2336, Northeast Ridgewood Drive, Alameda, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "204",
@@ -2653,7 +2856,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "205",
@@ -2666,7 +2870,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1836 SE 51st Ave, Portland, OR, USA",
       "geocodeFormatted": "1836, Southeast 51st Avenue, Mount Tabor, Portland, Multnomah County, Oregon, 97215, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "206",
@@ -2679,7 +2884,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "207",
@@ -2692,7 +2898,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "6436 SE Morrison St, Portland, OR, USA",
       "geocodeFormatted": "6436, Southeast Morrison Street, Mount Tabor, Portland, Multnomah County, Oregon, 97215, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "208",
@@ -2705,7 +2912,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5925 SE Madison St, Portland, OR, USA",
       "geocodeFormatted": "5925, Southeast Madison Street, Mount Tabor, Portland, Multnomah County, Oregon, 97215, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "209",
@@ -2718,7 +2926,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5925 SE Madison St, Portland, OR, USA",
       "geocodeFormatted": "5925, Southeast Madison Street, Mount Tabor, Portland, Multnomah County, Oregon, 97215, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "210",
@@ -2731,7 +2940,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "222 SE 17th Ave, Portland, OR, USA",
       "geocodeFormatted": "222, Southeast 17th Avenue, Buckman, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "211",
@@ -2744,7 +2954,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "212",
@@ -2757,7 +2968,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2524 NE 25th Ave, Portland, OR, USA",
       "geocodeFormatted": "2524, Northeast 25th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "213",
@@ -2770,7 +2982,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3403 NE 18th Ave, Portland, OR, USA",
       "geocodeFormatted": "3403, Northeast 18th Avenue, Sabin, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "214",
@@ -2783,7 +2996,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5104 NE Flanders St, Portland, OR, USA",
       "geocodeFormatted": "5104, Northeast Flanders Street, North Tabor, Portland, Multnomah County, Oregon, 97213, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "215",
@@ -2796,7 +3010,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "216",
@@ -2809,7 +3024,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5739 SW Cheltenham Dr, Portland, OR, USA",
       "geocodeFormatted": "5739, Southwest Cheltenham Drive, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "217",
@@ -2822,7 +3038,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "55 SW Ash St, Portland, OR, USA",
       "geocodeFormatted": "Portland Fire & Rescue, 55, Southwest Ash Street, Chinatown, Old Town, Portland, Multnomah County, Oregon, 97204, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "218",
@@ -2835,7 +3052,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2024 SW Howards Way, Portland, OR, USA",
       "geocodeFormatted": "2024, Southwest Howards Way, Goose Hollow, Portland, Multnomah County, Oregon, 97201, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "219",
@@ -2848,7 +3066,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1225 SW 6th Ave, Portland, OR, USA",
       "geocodeFormatted": "University Club, 1225, Southwest 6th Avenue, University District, Downtown, Portland, Multnomah County, Oregon, 97204, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "220",
@@ -2861,7 +3080,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2403 SW Jefferson St, Portland, OR, USA",
       "geocodeFormatted": "2403, Southwest Jefferson Street, Southwest Hills, Portland, Multnomah County, Oregon, 97201, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "221",
@@ -2874,7 +3094,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2234-2238 SW Vista Ave, Portland, OR, USA",
       "geocodeFormatted": "Southwest Vista Avenue, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "222",
@@ -2887,7 +3108,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "223",
@@ -2900,7 +3122,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "224",
@@ -2913,7 +3136,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "225",
@@ -2926,7 +3150,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "226",
@@ -2939,7 +3164,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "227",
@@ -2952,7 +3178,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "228",
@@ -2965,7 +3192,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "229",
@@ -2978,7 +3206,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "230",
@@ -2991,7 +3220,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "231",
@@ -3004,7 +3234,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "45.52753778241444, -122.6945725946979",
       "geocodeFormatted": "Northwest 21st Avenue, Nob Hill, Northwest District, Portland, Multnomah County, Oregon, 97205, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "232",
@@ -3017,7 +3248,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "233",
@@ -3030,7 +3262,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "6232 NE Stanton St, Portland, OR, USA",
       "geocodeFormatted": "6232, Northeast Stanton Street, Roseway, Rose City Park, Portland, Multnomah County, Oregon, 97213, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "234",
@@ -3043,7 +3276,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "235",
@@ -3056,7 +3290,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "9009 N Foss Ave, Portland, OR, USA",
       "geocodeFormatted": "Charles Jordan Community Center, 9009, North Foss Avenue, Portsmouth, Portland, Multnomah County, Oregon, 97217, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "236",
@@ -3069,7 +3304,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "419 NE Hazelfern Pl, Portland, OR, USA",
       "geocodeFormatted": "419, Northeast Hazelfern Place, Laurelhurst, Portland, Multnomah County, Oregon, 97232, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "237",
@@ -3082,7 +3318,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "415 NE Laurelhurst Pl, Portland, OR, USA",
       "geocodeFormatted": "415, Northeast Laurelhurst Place, Laurelhurst, Portland, Multnomah County, Oregon, 97232, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "238",
@@ -3095,7 +3332,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3922 N Overlook Blvd, Portland, OR, USA",
       "geocodeFormatted": "3922, North Overlook Boulevard, Overlook, Portland, Multnomah County, Oregon, 97227, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "239",
@@ -3108,7 +3346,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4074 N Massachusetts Ave, Portland, OR, USA",
       "geocodeFormatted": "4074, North Massachusetts Avenue, Overlook, Portland, Multnomah County, Oregon, 97227, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "240",
@@ -3121,7 +3360,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3331 NE Hancock St, Portland, OR, USA",
       "geocodeFormatted": "3331, Northeast Hancock Street, Grant Park, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "241",
@@ -3133,8 +3373,9 @@
       "lng": -122.6260364,
       "geocodeStatus": "ok",
       "geocodeAddress": "3652 SE Alder St, Portland, OR, USA",
-      "geocodeFormatted": "3652, Southeast Alder Street, Belmont, Sunnyside, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeFormatted": "3652, Southeast Alder Street, BElmont, Sunnyside, Portland, Multnomah County, Oregon, 97214, United States",
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "242",
@@ -3147,7 +3388,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "907 SE Bidwell St, Portland, OR, USA",
       "geocodeFormatted": "907, Southeast Bidwell Street, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "243",
@@ -3160,7 +3402,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "Columbia Park, Portland, OR, USA",
       "geocodeFormatted": "Columbia Park, University Park, Portland, Multnomah County, Oregon, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "244",
@@ -3173,7 +3416,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "SW Wright & Park Pl, Portland, OR, USA",
       "geocodeFormatted": "Southwest Park Place & Wright, Southwest Park Place, Arlington Heights, Portland, Multnomah County, Oregon, 97210, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "245",
@@ -3186,7 +3430,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "8143 SW 37th Ave, Portland, OR, USA",
       "geocodeFormatted": "8143, Southwest 37th Avenue, Multnomah Village, Multnomah, Portland, Multnomah County, Oregon, 97219, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "246",
@@ -3199,7 +3444,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2562 SW Hillcrest Dr, Portland, OR, USA",
       "geocodeFormatted": "2562, Southwest Hillcrest Drive, Portland Heights, Southwest Hills, Portland, Multnomah County, Oregon, 97201, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "247",
@@ -3212,7 +3458,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "248",
@@ -3225,7 +3472,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2904 N Portland Blvd, OR, USA",
       "geocodeFormatted": "2904, North Rosa Parks Way, Arbor Lodge, Portland, Multnomah County, Oregon, 97217, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "249",
@@ -3238,7 +3486,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1465 NE Going St, Portland, OR, USA",
       "geocodeFormatted": "1465, Northeast Going Street, Sabin, Portland, Multnomah County, Oregon, 97211, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "250",
@@ -3251,7 +3500,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "8516 N Fowler Ct, Portland, OR, USA",
       "geocodeFormatted": "8516, North Fowler Court, Kenton, Portland, Multnomah County, Oregon, 97217, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "251",
@@ -3264,7 +3514,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3345 SE Milwaukie Ave, Portland, OR, USA",
       "geocodeFormatted": "3345, Southeast Milwaukie Avenue, Brooklyn, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "252",
@@ -3277,7 +3528,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "6733 N Greeley Ave, Portland, OR, USA",
       "geocodeFormatted": "6733, North Greeley Avenue, Arbor Lodge, Portland, Multnomah County, Oregon, 97217, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "253",
@@ -3290,7 +3542,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1617 NE Brazee St, Portland, OR, USA",
       "geocodeFormatted": "1617, Northeast Brazee Street, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "254",
@@ -3303,7 +3556,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "45.57163314459767, -122.62841838652999",
       "geocodeFormatted": "3515, Northeast Lombard Court, Concordia, Portland, Multnomah County, Oregon, 97211, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "255",
@@ -3316,7 +3570,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "256",
@@ -3329,7 +3584,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "412 NE Hazelfern Pl, Portland, OR, USA",
       "geocodeFormatted": "412, Northeast Hazelfern Place, Laurelhurst, Portland, Multnomah County, Oregon, 97232, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "257",
@@ -3342,7 +3598,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "8827 N Haven Ave, Portland, OR, USA",
       "geocodeFormatted": "8827, North Haven Avenue, Portsmouth, Portland, Multnomah County, Oregon, 97203, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "258",
@@ -3355,7 +3612,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2546 NE 18th Ave, Portland, OR, USA",
       "geocodeFormatted": "2546, Northeast 18th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "259",
@@ -3368,7 +3626,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3969 N Overlook Terr",
       "geocodeFormatted": "3969, North Overlook Terrace, Overlook, Portland, Multnomah County, Oregon, 97227, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "260",
@@ -3381,7 +3640,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "45.492011342861716, -122.49764825604161",
       "geocodeFormatted": "158th Service Road, Pleasant Valley, Portland, Multnomah County, Oregon, 97236, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "261",
@@ -3394,7 +3654,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1529 NE Thompson St, Portland, OR, USA",
       "geocodeFormatted": "1529, Northeast Thompson Street, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "262",
@@ -3407,7 +3668,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4807 NE 10th Ave, Portland, OR, USA",
       "geocodeFormatted": "4807, Northeast 10th Avenue, King, Portland, Multnomah County, Oregon, 97211, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "263",
@@ -3420,7 +3682,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "12456 SW Orchard Hill Rd, Portland, OR, USA",
       "geocodeFormatted": "12456, Southwest Orchard Hill Road, Arnold Creek, Lake Oswego, Multnomah County, Oregon, 97035, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "264",
@@ -3433,7 +3696,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2104/2106 SE Yamhill St, Portland, OR, USA",
       "geocodeFormatted": "Southeast Yamhill Street, Russellville, Mill Park, Portland, Multnomah County, Oregon, 97216, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "265",
@@ -3446,7 +3710,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "266",
@@ -3459,7 +3724,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "267",
@@ -3472,7 +3738,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "268",
@@ -3485,7 +3752,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5813 SE Steele St, Portland, OR, USA",
       "geocodeFormatted": "5813, Southeast Steele Street, Woodstock, Portland, Multnomah County, Oregon, 97206, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "269",
@@ -3498,7 +3766,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2407 NE 18th Ave, Portland, OR, USA",
       "geocodeFormatted": "2407, Northeast 18th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "270",
@@ -3511,7 +3780,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2407 NE 18th Ave, Portland, OR, USA",
       "geocodeFormatted": "2407, Northeast 18th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "271",
@@ -3523,8 +3793,9 @@
       "lng": -122.6302761,
       "geocodeStatus": "ok",
       "geocodeAddress": "3329 SE Madison St, Portland, OR, USA",
-      "geocodeFormatted": "3329, Southeast Madison Street, Belmont, Sunnyside, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeFormatted": "3329, Southeast Madison Street, BElmont, Sunnyside, Portland, Multnomah County, Oregon, 97214, United States",
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "272",
@@ -3537,7 +3808,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5560 SE 109th Ave",
       "geocodeFormatted": "5560, Southeast 109th Avenue, Lents, Portland, Multnomah County, Oregon, 97266, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "273",
@@ -3550,7 +3822,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "274",
@@ -3563,7 +3836,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5340 N Interstate Ave, Portland, OR, USA",
       "geocodeFormatted": "Interstate Firehouse Cultural Center, 5340, North Interstate Avenue, Overlook, Portland, Multnomah County, Oregon, 97217, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "275",
@@ -3576,7 +3850,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "7351 SE 31st Ave, Portland, OR, USA",
       "geocodeFormatted": "7351, Southeast 31st Avenue, Eastmoreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "276",
@@ -3589,7 +3864,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "7404 N Oatman Ave, Portland, OR, USA",
       "geocodeFormatted": "7404, North Oatman Avenue, Arbor Lodge, Portland, Multnomah County, Oregon, 97217, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "277",
@@ -3602,7 +3878,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2190 SW Kings Ct, Portland, OR, USA",
       "geocodeFormatted": "2190, Southwest Kings Court, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "278",
@@ -3615,7 +3892,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1942 SW Montgomery Dr, Portland, OR, USA",
       "geocodeFormatted": "1942, Southwest Montgomery Drive, Portland Heights, Southwest Hills, Portland, Multnomah County, Oregon, 97201, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "279",
@@ -3628,7 +3906,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "13931 NE Glisan St, Portland, OR, USA",
       "geocodeFormatted": "13931, Northeast Glisan Street, Hazelwood, Portland, Multnomah County, Oregon, 97230, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "280",
@@ -3641,7 +3920,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1602 SE 32nd Pl, Portland, OR, USA",
       "geocodeFormatted": "1602, Southeast 32nd Place, Colonial Heights, Richmond, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "281",
@@ -3654,7 +3934,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3310 NW Franklin Ct, Portland, OR, USA",
       "geocodeFormatted": "3310, Northwest Franklin Court, Willamette Heights, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "282",
@@ -3667,7 +3948,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "701 NW Culpepper Terr, Portland, OR, USA",
       "geocodeFormatted": "701, Northwest Culpepper Terrace, Kings Heights, Hillside, Portland, Multnomah County, Oregon, 97210, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "283",
@@ -3680,7 +3962,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2156 SW Laurel St, Portland, OR, USA",
       "geocodeFormatted": "2156, Southwest Laurel Street, Portland Heights, Southwest Hills, Portland, Multnomah County, Oregon, 97201, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "284",
@@ -3693,7 +3976,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4768 N Oberlin St, Portland, OR, USA",
       "geocodeFormatted": "4768, North Oberlin Street, University Park, Portland, Multnomah County, Oregon, 97203, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "285",
@@ -3706,7 +3990,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3437 NE 29th Ave, Portland, OR, USA",
       "geocodeFormatted": "3437, Northeast 29th Avenue, Alameda, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "286",
@@ -3719,7 +4004,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3145 NE 8th Ave, Portland, OR, USA",
       "geocodeFormatted": "3145, Northeast 8th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "287",
@@ -3732,7 +4018,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1836 SE Locust Ave, Portland, OR, USA",
       "geocodeFormatted": "1836, Southeast Locust Avenue, Ladd's Addition, Hosford-Abernethy, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "288",
@@ -3745,7 +4032,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4201 SE Franklin St, Portland, OR, USA",
       "geocodeFormatted": "4201, Southeast Franklin Street, Richmond, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "289",
@@ -3758,7 +4046,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4201 SE Franklin St, Portland, OR, USA",
       "geocodeFormatted": "4201, Southeast Franklin Street, Richmond, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "290",
@@ -3771,7 +4060,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4799 SW Campbell Ct",
       "geocodeFormatted": "4799, Southwest Campbell Court, Dosch Estates, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "291",
@@ -3784,7 +4074,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "292",
@@ -3797,7 +4088,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2425 SE Bybee Blvd, Portland, OR, USA",
       "geocodeFormatted": "Eastmoreland Golf Course, 2425, Southeast Bybee Boulevard, Eastmoreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "293",
@@ -3810,7 +4102,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "45.5183546225034, -122.64214068117506",
       "geocodeFormatted": "Macleay Mausoleum, Southeast Morrison Street, Buckman, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "294",
@@ -3823,7 +4116,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "45.5183546225034, -122.64214068117506",
       "geocodeFormatted": "Macleay Mausoleum, Southeast Morrison Street, Buckman, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "295",
@@ -3836,7 +4130,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "296",
@@ -3849,7 +4144,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3203 SE Woodstock Blvd, Portland, OR, USA",
       "geocodeFormatted": "Reed College, 3203, Southeast Woodstock Boulevard, Eastmoreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "297",
@@ -3862,7 +4158,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "828 NE Prescott St, Portland, OR, USA",
       "geocodeFormatted": "828, Northeast Prescott Street, McCoy Village Apartments, King, Portland, Multnomah County, Oregon, 97211, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "298",
@@ -3875,7 +4172,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3401 SE Clinton St, Portland, OR, USA",
       "geocodeFormatted": "3401, Southeast Clinton Street, Richmond, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "299",
@@ -3888,7 +4186,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3045 NE 9th Ave, Portland, OR, USA",
       "geocodeFormatted": "3045, Northeast 9th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "300",
@@ -3901,7 +4200,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3735 SE Woodstock Blvd, Portland, OR, USA",
       "geocodeFormatted": "3735, Southeast Woodstock Boulevard, Eastmoreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "301",
@@ -3914,7 +4214,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "7617 SE Main St, Portland, OR, USA",
       "geocodeFormatted": "St. Andrews Memory Care, 7617, Southeast Main Street, Montavilla, Portland, Multnomah County, Oregon, 97215, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "302",
@@ -3927,7 +4228,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4706 SE 58th Ave, Portland, OR, USA",
       "geocodeFormatted": "4706, Southeast 58th Avenue, Woodstock, Portland, Multnomah County, Oregon, 97206, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "303",
@@ -3940,7 +4242,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2437 NE Regents Dr, Portland, OR, USA",
       "geocodeFormatted": "2437, Northeast Regents Drive, Alameda, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "304",
@@ -3952,8 +4255,9 @@
       "lng": -122.635508,
       "geocodeStatus": "ok",
       "geocodeAddress": "2955 SE Washington St",
-      "geocodeFormatted": "2955, Southeast Washington Street, Belmont, Sunnyside, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeFormatted": "2955, Southeast Washington Street, BElmont, Sunnyside, Portland, Multnomah County, Oregon, 97214, United States",
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "305",
@@ -3966,7 +4270,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2923 NE 8th Ave, Portland, OR, USA",
       "geocodeFormatted": "2923, Northeast 8th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "306",
@@ -3979,7 +4284,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "Upper Macleay Park, Portland, OR, USA",
       "geocodeFormatted": "Upper Macleay Park Trailhead, Wildwood Trail, Forest Park, Portland, Multnomah County, Oregon, 97210, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "307",
@@ -3992,7 +4298,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5810 SE Taylor St, Portland, OR, USA",
       "geocodeFormatted": "5810, Southeast Taylor Street, Mount Tabor, Portland, Multnomah County, Oregon, 97215, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "308",
@@ -4005,7 +4312,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "309",
@@ -4018,7 +4326,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "7000 SW 63rd Ave, Portland, OR, USA",
       "geocodeFormatted": "7000, Southwest 63rd Avenue, Maplewood, Portland, Multnomah County, Oregon, 97219, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "310",
@@ -4031,7 +4340,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "6440 NE 36th Ave, Portland, OR, USA",
       "geocodeFormatted": "6440, Northeast 36th Avenue, Concordia, Portland, Multnomah County, Oregon, 97211, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "311",
@@ -4044,7 +4354,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4626 NE 37th Ave, Portland, OR, USA",
       "geocodeFormatted": "4626, Northeast 37th Avenue, Beaumont-Wilshire, Portland, Multnomah County, Oregon, 97211, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "312",
@@ -4057,7 +4368,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4073 N Gantenbein Ave, Portland, OR, USA",
       "geocodeFormatted": "4073, North Gantenbein Avenue, Mississippi, Boise, Portland, Multnomah County, Oregon, 97227, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "313",
@@ -4070,7 +4382,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "45.51637436640272, -122.71523385769159",
       "geocodeFormatted": "Oak Trail, Sylvan-Highlands, Portland, Multnomah County, Oregon, 97210, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "314",
@@ -4083,7 +4396,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "315",
@@ -4096,7 +4410,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4741 SE 36th Pl, Portland, OR, USA",
       "geocodeFormatted": "4741, Southeast 36th Place, Reed, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "316",
@@ -4109,7 +4424,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1357 SW Spring Garden, Portland, OR, USA",
       "geocodeFormatted": "1357, Southwest Spring Garden Street, South Burlingame, Portland, Multnomah County, Oregon, 97219, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "317",
@@ -4122,7 +4438,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "408 N Rosa Parks Way, Portland, OR, USA",
       "geocodeFormatted": "408, North Rosa Parks Way, Piedmont, Portland, Multnomah County, Oregon, 97217, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "318",
@@ -4134,8 +4451,9 @@
       "lng": -122.6369356,
       "geocodeStatus": "ok",
       "geocodeAddress": "2803 SE Main St, Portland, OR, USA",
-      "geocodeFormatted": "2803, Southeast Main Street, Belmont, Sunnyside, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeFormatted": "2803, Southeast Main Street, BElmont, Sunnyside, Portland, Multnomah County, Oregon, 97214, United States",
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "319",
@@ -4148,7 +4466,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "320",
@@ -4161,7 +4480,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4823 NE 18th Ave, Portland, OR, USA",
       "geocodeFormatted": "4823, Northeast 18th Avenue, Alberta, Vernon, Portland, Multnomah County, Oregon, 97211, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "321",
@@ -4174,7 +4494,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "322",
@@ -4187,7 +4508,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "8710 N Willamette Blvd, Portland, OR, USA",
       "geocodeFormatted": "8710, North Willamette Boulevard, Cathedral Park, Portland, Multnomah County, Oregon, 97203, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "323",
@@ -4200,7 +4522,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "324",
@@ -4213,7 +4536,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "325",
@@ -4226,7 +4550,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4600 SW Maplewood Rd, Portland, OR 97219",
       "geocodeFormatted": "4600, Southwest Maplewood Road, Maplewood, Portland, Multnomah County, Oregon, 97219, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "326",
@@ -4239,7 +4564,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4600 SW Maplewood Rd, Portland, OR 97219",
       "geocodeFormatted": "4600, Southwest Maplewood Road, Maplewood, Portland, Multnomah County, Oregon, 97219, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "327",
@@ -4252,7 +4578,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "221 NE 58th Ave, Portland, OR, USA",
       "geocodeFormatted": "221, Northeast 58th Avenue, North Tabor, Portland, Multnomah County, Oregon, 97213, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "328",
@@ -4265,7 +4592,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "329",
@@ -4278,7 +4606,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "45.57960296757948, -122.72699074234087",
       "geocodeFormatted": "5330, North Syracuse Street, University Park, Portland, Multnomah County, Oregon, 97203, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "330",
@@ -4291,7 +4620,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4600 SW Maplewood Rd, Portland, OR, USA",
       "geocodeFormatted": "4600, Southwest Maplewood Road, Maplewood, Portland, Multnomah County, Oregon, 97219, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "331",
@@ -4304,7 +4634,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "332",
@@ -4317,7 +4648,8 @@
       "geocodeStatus": "skipped-removed",
       "geocodeAddress": null,
       "geocodeFormatted": null,
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "333",
@@ -4330,7 +4662,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4223 SE 67th Ave, Portland, OR, USA",
       "geocodeFormatted": "4223, Southeast 67th Avenue, Arleta, Foster-Powell, Portland, Multnomah County, Oregon, 97206, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "334",
@@ -4343,7 +4676,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "6804 N Campbell St, Portland, OR, USA",
       "geocodeFormatted": "North Campbell Avenue, Overlook, Portland, Multnomah County, Oregon, 97217, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "335",
@@ -4356,7 +4690,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "45.56638793244057, -122.62341926451887",
       "geocodeFormatted": "Northeast Simpson Street, Concordia, Portland, Multnomah County, Oregon, 97211, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "336",
@@ -4369,7 +4704,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "45.56638793244057, -122.62341926451887",
       "geocodeFormatted": "Northeast Simpson Street, Concordia, Portland, Multnomah County, Oregon, 97211, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "337",
@@ -4382,7 +4718,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "10325 N Lombard St",
       "geocodeFormatted": "10325, North Lombard Street, Saint Johns, Portland, Multnomah County, Oregon, 97203, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "338",
@@ -4395,7 +4732,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3967 N Overlook Blvd, Portland, OR, USA",
       "geocodeFormatted": "3967, North Overlook Boulevard, Overlook, Portland, Multnomah County, Oregon, 97227, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "339",
@@ -4408,7 +4746,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3967 N Overlook Blvd, Portland, OR, USA",
       "geocodeFormatted": "3967, North Overlook Boulevard, Overlook, Portland, Multnomah County, Oregon, 97227, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "340",
@@ -4421,7 +4760,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3967 N Overlook Blvd, Portland, OR, USA",
       "geocodeFormatted": "3967, North Overlook Boulevard, Overlook, Portland, Multnomah County, Oregon, 97227, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "341",
@@ -4434,7 +4774,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1335 N Mason St, Portland, OR, USA",
       "geocodeFormatted": "Harbor Freight Tools, 1335, North Mason Street, Overlook, Portland, Multnomah County, Oregon, 97217, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "342",
@@ -4447,7 +4788,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4528 N Vancouver Ave, Portland, OR, USA",
       "geocodeFormatted": "4528, North Vancouver Avenue, Humboldt, Portland, Multnomah County, Oregon, 97217, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "343",
@@ -4460,7 +4802,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5245 NE Cleveland Ave, Portland, OR, USA",
       "geocodeFormatted": "5245, Northeast Cleveland Avenue, Humboldt, Portland, Multnomah County, Oregon, 97211, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "344",
@@ -4473,7 +4816,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5901 N Borthwick Ave, Portland, OR, USA",
       "geocodeFormatted": "5901, North Borthwick Avenue, Humboldt, Portland, Multnomah County, Oregon, 97217, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "345",
@@ -4486,7 +4830,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3401 SE Clinton St, Portland, OR, USA",
       "geocodeFormatted": "3401, Southeast Clinton Street, Richmond, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "346",
@@ -4499,7 +4844,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3839 SE Woodward St, Portland, OR, USA",
       "geocodeFormatted": "3839, Southeast Woodward Street, Richmond, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "347",
@@ -4512,7 +4858,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "7110 SE 29th Ave, Portland, OR, USA",
       "geocodeFormatted": "7110, Southeast 29th Avenue, Eastmoreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "348",
@@ -4525,7 +4872,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "8207 SW 30th Ave, Portland, OR, USA",
       "geocodeFormatted": "8207, Southwest 30th Avenue, Multnomah Village, Multnomah, Portland, Multnomah County, Oregon, 97219, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "349",
@@ -4538,7 +4886,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4124 SW Canby St, Portland, OR, USA",
       "geocodeFormatted": "4124, Southwest Canby Street, Multnomah Village, Multnomah, Portland, Multnomah County, Oregon, 97219, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "350",
@@ -4551,7 +4900,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4600 SW Maplewood Rd, Portland, OR, USA",
       "geocodeFormatted": "4600, Southwest Maplewood Road, Maplewood, Portland, Multnomah County, Oregon, 97219, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "351",
@@ -4564,7 +4914,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4600 SW Maplewood Rd, Portland, OR, USA",
       "geocodeFormatted": "4600, Southwest Maplewood Road, Maplewood, Portland, Multnomah County, Oregon, 97219, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "352",
@@ -4577,7 +4928,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "4600 SW Maplewood Rd, Portland, OR, USA",
       "geocodeFormatted": "4600, Southwest Maplewood Road, Maplewood, Portland, Multnomah County, Oregon, 97219, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "353",
@@ -4590,7 +4942,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "6635 N Baltimore Ave, Portland, OR, USA",
       "geocodeFormatted": "6635, North Baltimore Avenue, Cathedral Park, Portland, Multnomah County, Oregon, 97203, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "354",
@@ -4603,7 +4956,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "8241 N Chautauqua Blvd",
       "geocodeFormatted": "8241, North Chautauqua Boulevard, Portsmouth, Portland, Multnomah County, Oregon, 97217, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "355",
@@ -4611,12 +4965,13 @@
       "name": "Pinus densiflora - Japanese red pine",
       "location": "10040 NE 6th Dr (PP&R, Columbia Children's Arboretum)",
       "removed": null,
-      "lat": 45.59389748505207,
-      "lng": -122.65937162023663,
+      "lat": 45.59389748505206,
+      "lng": -122.65937162023664,
       "geocodeStatus": "ok",
       "geocodeAddress": "10040 NE 6th Dr, Portland, OR, USA",
       "geocodeFormatted": "10040, Northeast 6th Drive, Faloma, East Columbia, Portland, Multnomah County, Oregon, 97211, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "356",
@@ -4629,7 +4984,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "6805 NE 32nd Ave, Portland, OR, USA",
       "geocodeFormatted": "6805, Northeast 32nd Avenue, Concordia, Portland, Multnomah County, Oregon, 97211, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "357",
@@ -4642,7 +4998,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3834 NE 23rd Ave, Portland, OR, USA",
       "geocodeFormatted": "3834, Northeast 23rd Avenue, Alameda, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "358",
@@ -4655,7 +5012,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3424 NE 17th Ave, Portland, OR, USA",
       "geocodeFormatted": "3424, Northeast 17th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "359",
@@ -4668,7 +5026,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5151 NW Cornell Rd, Portland, OR, USA",
       "geocodeFormatted": "Bird Alliance of Oregon, 5151, Northwest Cornell Road, Forest Park, Portland, Multnomah County, Oregon, 97210, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "360",
@@ -4681,7 +5040,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2704 SE 84th Ave, Portland, OR, USA",
       "geocodeFormatted": "2704, Southeast 84th Avenue, Powellhurst-Gilbert, Portland, Multnomah County, Oregon, 97266, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "361",
@@ -4694,7 +5054,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "16160 SE Powell Blvd, Portland, OR, USA",
       "geocodeFormatted": "16160, Southeast Powell Boulevard, Centennial, Portland, Multnomah County, Oregon, 97236, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "362",
@@ -4707,7 +5068,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "6704 SE 122nd Ave, Portland, OR, USA",
       "geocodeFormatted": "6704, Southeast 122nd Avenue, Gilbert, Pleasant Valley, Portland, Multnomah County, Oregon, 97236, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "363",
@@ -4720,7 +5082,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "7300 SW Brier Pl, Portland, OR, USA",
       "geocodeFormatted": "7300, Southwest Brier Place, John's Landing, South Portland, Portland, Multnomah County, Oregon, 97219, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "364",
@@ -4733,7 +5096,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "7326 SW Brier Pl, Portland, OR, USA",
       "geocodeFormatted": "7326, Southwest Brier Place, John's Landing, South Portland, Portland, Multnomah County, Oregon, 97219, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "365",
@@ -4746,7 +5110,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "9008 N Charleston Ave, Portland, OR, USA",
       "geocodeFormatted": "9008, North Charleston Avenue, Saint Johns, Portland, Multnomah County, Oregon, 97203, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "366",
@@ -4759,7 +5124,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "23 NE Morgan St, Portland, OR, USA",
       "geocodeFormatted": "23, Northeast Morgan Street, Piedmont, Portland, Multnomah County, Oregon, 97211, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "367",
@@ -4772,7 +5138,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "Peninsula Park, Portland, OR, USA",
       "geocodeFormatted": "Peninsula Park, 700, Piedmont, Portland, Multnomah County, Oregon, 97217, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "368",
@@ -4785,7 +5152,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "6006 N Mississippi Ave, Portland, OR, USA",
       "geocodeFormatted": "6006, North Mississippi Avenue, Piedmont, Portland, Multnomah County, Oregon, 97217, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "369",
@@ -4798,7 +5166,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "Overlook Park, Portland, OR, USA",
       "geocodeFormatted": "Overlook Park, Overlook, Portland, Multnomah County, Oregon, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "370",
@@ -4811,7 +5180,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2627 NE 11th Ave, Portland, OR, USA",
       "geocodeFormatted": "2627, Northeast 11th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "371",
@@ -4824,7 +5194,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2627 NE 11th Ave, Portland, OR, USA",
       "geocodeFormatted": "2627, Northeast 11th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "372",
@@ -4837,7 +5208,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3310 NE 36th Ave, Portland, OR, USA",
       "geocodeFormatted": "3310, Northeast 36th Avenue, Beaumont-Wilshire, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "373",
@@ -4850,7 +5222,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "810 SE 86th Ave, Portland, OR, USA",
       "geocodeFormatted": "810, Southeast 86th Avenue, Montavilla, Portland, Multnomah County, Oregon, 97216, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "374",
@@ -4863,7 +5236,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "6704 SE 122nd Ave, Portland, OR, USA",
       "geocodeFormatted": "6704, Southeast 122nd Avenue, Gilbert, Pleasant Valley, Portland, Multnomah County, Oregon, 97236, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "375",
@@ -4876,7 +5250,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "6704 SE 122nd Ave, Portland, OR, USA",
       "geocodeFormatted": "6704, Southeast 122nd Avenue, Gilbert, Pleasant Valley, Portland, Multnomah County, Oregon, 97236, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "376",
@@ -4889,7 +5264,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "6704 SE 122nd Ave, Portland, OR, USA",
       "geocodeFormatted": "6704, Southeast 122nd Avenue, Gilbert, Pleasant Valley, Portland, Multnomah County, Oregon, 97236, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "377",
@@ -4902,7 +5278,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3415 SW Water Ave, Portland, OR, USA",
       "geocodeFormatted": "3415, South Water Avenue, Corbett, South Portland, Portland, Multnomah County, Oregon, 97239, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "378",
@@ -4915,7 +5292,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5518 SE 139th Ave, Portland, OR, USA",
       "geocodeFormatted": "5518, Southeast 139th Avenue, Powellhurst-Gilbert, Portland, Multnomah County, Oregon, 97236, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "379",
@@ -4928,7 +5306,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3223 NE 16th Ave, Portland, OR, USA",
       "geocodeFormatted": "3223, Northeast 16th Avenue, Sabin, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "380",
@@ -4941,7 +5320,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3223 NE 16th Ave, Portland, OR, USA",
       "geocodeFormatted": "3223, Northeast 16th Avenue, Sabin, Portland, Multnomah County, Oregon, 97212, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "381",
@@ -4954,7 +5334,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "7100 SW Brier Pl, Portland, OR, USA",
       "geocodeFormatted": "7100, Southwest Brier Place, John's Landing, South Portland, Portland, Multnomah County, Oregon, 97219, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "382",
@@ -4967,7 +5348,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "617 NE Prescott St, Portland, OR, USA",
       "geocodeFormatted": "617, Northeast Prescott Street, McCoy Village Apartments, King, Portland, Multnomah County, Oregon, 97211, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "383",
@@ -4980,7 +5362,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "617 NE Prescott St, Portland, OR, USA",
       "geocodeFormatted": "617, Northeast Prescott Street, McCoy Village Apartments, King, Portland, Multnomah County, Oregon, 97211, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "384",
@@ -4993,7 +5376,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "7077 SW 32nd Ave, Portland, OR, USA",
       "geocodeFormatted": "7077, Southwest 32nd Avenue, Multnomah Village, Multnomah, Portland, Multnomah County, Oregon, 97219, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "385",
@@ -5006,7 +5390,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "Pier Park, Portland, OR, USA",
       "geocodeFormatted": "Pier Park, Saint Johns, Portland, Multnomah County, Oregon, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "386",
@@ -5019,7 +5404,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "3114 NW Thurman St, Portland, OR, USA",
       "geocodeFormatted": "3114, Northwest Thurman Street, Willamette Heights, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "387",
@@ -5032,7 +5418,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1943 SE Hemlock Ave, Portland, OR, USA",
       "geocodeFormatted": "1943, Southeast Hemlock Avenue, Ladd's Addition, Hosford-Abernethy, Portland, Multnomah County, Oregon, 97214, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "388",
@@ -5045,7 +5432,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5014 NE Simpson St, Portland, OR, USA",
       "geocodeFormatted": "5014, Northeast Simpson Street, Cully, Portland, Multnomah County, Oregon, 97218, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "389",
@@ -5058,7 +5446,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "Knott Park, Portland, OR, USA",
       "geocodeFormatted": "Knott Park, Knott Community Garden, Parkrose Heights, Portland, Multnomah County, Oregon, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "390",
@@ -5071,7 +5460,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "Multnomah Arts Center, 7688 SW Capitol Hwy, Portland, OR, USA",
       "geocodeFormatted": "Multnomah Arts Center, 7688, Southwest Capitol Highway, Multnomah Village, Multnomah, Portland, Multnomah County, Oregon, 97219, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "391",
@@ -5084,7 +5474,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "5210 NE Thompson St, Portland, OR, USA",
       "geocodeFormatted": "5210, Northeast Thompson Street, Rose City Park, Portland, Multnomah County, Oregon, 97213, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "392",
@@ -5097,7 +5488,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "Argay Park, Portland, OR, USA",
       "geocodeFormatted": "Argay Park, Argay Terrace, Portland, Multnomah County, Oregon, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "393",
@@ -5110,7 +5502,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "Clark Elementary School",
       "geocodeFormatted": "William Clark Elementary School, 1231, Southeast 92nd Avenue, Montavilla, Portland, Multnomah County, Oregon, 97216, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "394",
@@ -5123,7 +5516,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "34 SE 88th Ave, Portland, OR, USA",
       "geocodeFormatted": "34, Southeast 88th Avenue, Montavilla, Portland, Multnomah County, Oregon, 97216, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "395",
@@ -5136,7 +5530,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2417 NW Raleigh St, Portland, OR, USA",
       "geocodeFormatted": "2417, Northwest Raleigh Street, Nob Hill, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "396",
@@ -5149,7 +5544,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "2835 SE Carlton St, Portland, OR, USA",
       "geocodeFormatted": "2835, Southeast Carlton Street, Eastmoreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     },
     {
       "id": "397",
@@ -5162,7 +5558,8 @@
       "geocodeStatus": "ok",
       "geocodeAddress": "1144 SE Flavel St, Portland, OR, USA",
       "geocodeFormatted": "1144, Southeast Flavel Street, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
-      "geocodeError": null
+      "geocodeError": null,
+      "manualKeep": null
     }
   ]
 }

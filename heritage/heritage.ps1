@@ -10,8 +10,13 @@
 # Design notes:
 #  - Coordinates are cached from the previous snapshot: if a tree's ID and
 #    location text haven't changed, its lat/lng are reused without another
-#    API call. Re-running the script after a site update only geocodes the
-#    new or changed entries.
+#    API call. If you hand-edit geocodeAddress or lat/lng (or use -Update to
+#    enter manual coords), those rows are also kept across runs unless the
+#    snapshot row was removed or you pass -Force to re-geocode everything.
+#    When the City site text for name / location / year differs from the last
+#    snapshot, interactive runs prompt: keep snapshot (stored in `manualKeep`
+#    so it won't ask again) or overwrite from the City. `-NoInteractive` keeps
+#    the live City text for those deltas without prompting.
 #  - Nominatim's Acceptable Use Policy: max 1 request/second, include a
 #    descriptive User-Agent that identifies the application. The script sleeps
 #    ~1100 ms between calls to stay polite.
@@ -24,6 +29,8 @@
 #    alternate address. User can also open any research link in their default
 #    browser, retry the same address, skip, mark removed, or quit.
 #  - Use -NoInteractive to mark failures without prompting (for CI / batch).
+#    Listing deltas (name/location/year vs snapshot) also default to City text
+#    without prompts when -NoInteractive is set.
 #  - Use -Force to re-geocode every tree even if cached.
 #  - Use -UserAgent to override the Nominatim User-Agent (include an email or
 #    URL that identifies you, per OSM policy).
@@ -48,8 +55,10 @@ param(
     [switch]$NoInteractive,
     [switch]$Force,
     [switch]$Update,
+    # Must not be named $Tree: case-insensitive clash with scraper body $tree
+    # would coerce PSCustomObject rows to [string] when assigning $tree = ...
     [Parameter(Position = 0)]
-    [string]$Tree      = ''
+    [string]$UpdateTree = ''
 )
 
 # Portland metro geofence. Nominatim viewbox format is "left,top,right,bottom"
@@ -113,6 +122,62 @@ function Parse-RemovedYear {
 
 function Pad-Id { param([int]$N) return ('{0:D3}' -f $N) }
 
+# Read the tree id field whether the row is a PSCustomObject (JSON) or an
+# ordered hashtable (update mode). Plain strings in trees.json (corruption)
+# return $null.
+function Get-TreeIdScalar {
+    param($Tree)
+    if ($null -eq $Tree) { return $null }
+    if ($Tree -is [string]) { return $null }
+    if ($Tree -is [System.Collections.IDictionary]) {
+        foreach ($k in @('id', 'Id', 'ID')) {
+            $has = if ($Tree -is [hashtable]) { $Tree.ContainsKey($k) } else { $Tree.Contains($k) }
+            if ($has) { return $Tree[$k] }
+        }
+        return $null
+    }
+    $p = $Tree.PSObject.Properties['id']
+    if ($null -ne $p) { return $p.Value }
+    $p2 = $Tree.PSObject.Properties['Id']
+    if ($null -ne $p2) { return $p2.Value }
+    return $null
+}
+
+# Canonical id "001".."999" for hashtable keys and comparisons.
+function Normalize-TreeId {
+    param($Id)
+    if ($null -eq $Id) { return $null }
+    if ($Id -is [System.Collections.IDictionary]) {
+        foreach ($k in @('id', 'Id', 'ID')) {
+            $has = if ($Id -is [hashtable]) { $Id.ContainsKey($k) } else { $Id.Contains($k) }
+            if ($has) { return (Normalize-TreeId $Id[$k]) }
+        }
+        return $null
+    }
+    # Use [UInt32] not [uint]: Windows PowerShell 5.1 has no [uint] accelerator and
+    # `-is [uint]` throws "Unable to find type [uint]" instead of evaluating false.
+    if ($Id -is [byte] -or $Id -is [sbyte] -or $Id -is [int16] -or $Id -is [uint16] -or
+        $Id -is [int] -or $Id -is [UInt32] -or $Id -is [long] -or $Id -is [uint64]) {
+        $n = [int64]$Id
+        if ($n -lt 1) { return $null }
+        return ('{0:D3}' -f $n)
+    }
+    if ($Id -is [double] -or $Id -is [float] -or $Id -is [decimal]) {
+        $d = [double]$Id
+        if ([double]::IsNaN($d)) { return $null }
+        $n = [int64][math]::Round($d)
+        if ($n -lt 1) { return $null }
+        return ('{0:D3}' -f $n)
+    }
+    $s = ([string]$Id).Trim().TrimStart('#')
+    if (-not $s) { return $null }
+    $digits = $s -replace '[^\d]', ''
+    if (-not $digits) { return $null }
+    $n2 = 0
+    if (-not [int]::TryParse($digits, [ref]$n2) -or $n2 -lt 1) { return $null }
+    return ('{0:D3}' -f $n2)
+}
+
 function Sanitize-Location {
     param([string]$Loc)
     if (-not $Loc) { return '' }
@@ -132,6 +197,207 @@ function Build-Address {
         return $clean
     }
     return "$clean, Portland, OR, USA"
+}
+
+# True when the previous snapshot row looks user-tuned so we should not
+# replace lat/lng/geocodeAddress (and we carry location forward) when the City
+# HTML drifts: custom geocode, manual coords, different listing text vs scrape
+# while the snapshot already has coordinates, etc. Use -Force to take City
+# text and re-geocode from scratch.
+function Test-ManualGeocodeHint {
+    param($Prev, $CurrentT)
+    if ($null -eq $Prev) { return $false }
+    if ($null -ne $Prev.removed) { return $false }
+    if ($Prev.geocodeFormatted -eq 'manual coords') { return $true }
+    $autoAddr = Build-Address $CurrentT.location
+    if ([string]::IsNullOrWhiteSpace($autoAddr)) { return $false }
+    $ga = [string]$Prev.geocodeAddress
+    if ([string]::IsNullOrWhiteSpace($ga)) { return $false }
+    return ($ga.Trim().ToLowerInvariant() -ne $autoAddr.Trim().ToLowerInvariant())
+}
+
+function Format-DeltaSnippet {
+    param([string]$Text, [int]$MaxLen = 90)
+    if ($null -eq $Text) { return '(null)' }
+    $t = $Text.Replace("`r", '').Replace("`n", ' | ')
+    if ($t.Length -le $MaxLen) { return $t }
+    return $t.Substring(0, $MaxLen) + '...'
+}
+
+function Get-ManualKeepSet {
+    param($Tree)
+    $h = @{}
+    if ($null -eq $Tree) { return $h }
+    $raw = $null
+    if ($Tree -is [System.Collections.IDictionary]) {
+        foreach ($k in @('manualKeep', 'ManualKeep')) {
+            $has = if ($Tree -is [hashtable]) { $Tree.ContainsKey($k) } else { $Tree.Contains($k) }
+            if ($has) { $raw = $Tree[$k]; break }
+        }
+    } else {
+        $p = $Tree.PSObject.Properties['manualKeep']
+        if ($null -ne $p) { $raw = $p.Value }
+    }
+    if ($null -eq $raw) { return $h }
+    foreach ($item in @($raw)) {
+        if ($null -eq $item) { continue }
+        $s = ([string]$item).Trim().ToLowerInvariant()
+        if ($s -in @('name', 'location', 'year')) { $h[$s] = $true }
+    }
+    return $h
+}
+
+function Set-TreeManualKeep {
+    param($Tree, [string[]]$FieldNames)
+    $uniq = [System.Collections.Generic.List[string]]::new()
+    foreach ($f in $FieldNames) {
+        if (-not $f) { continue }
+        $n = $f.Trim().ToLowerInvariant()
+        if ($n -notin @('name', 'location', 'year')) { continue }
+        if (-not $uniq.Contains($n)) { [void]$uniq.Add($n) }
+    }
+    $arr = @($uniq | Sort-Object)
+    $val = if ($arr.Count -gt 0) { $arr } else { $null }
+    if ($Tree -is [System.Collections.IDictionary]) {
+        $Tree['manualKeep'] = $val
+    } else {
+        if ($null -ne $Tree.PSObject.Properties['manualKeep']) {
+            $Tree.manualKeep = $val
+        } else {
+            $Tree | Add-Member -NotePropertyName manualKeep -NotePropertyValue $val -Force
+        }
+    }
+}
+
+function Add-TreeManualKeepField {
+    param($Tree, [string]$Field)
+    $mk = Get-ManualKeepSet -Tree $Tree
+    $list = [System.Collections.Generic.List[string]]::new()
+    foreach ($x in $mk.Keys) { [void]$list.Add([string]$x) }
+    $fn = $Field.Trim().ToLowerInvariant()
+    if (-not $list.Contains($fn)) { [void]$list.Add($fn) }
+    Set-TreeManualKeep -Tree $Tree -FieldNames @($list)
+}
+
+function Remove-TreeManualKeepField {
+    param($Tree, [string]$Field)
+    $mk = Get-ManualKeepSet -Tree $Tree
+    $fn = $Field.Trim().ToLowerInvariant()
+    $list = [System.Collections.Generic.List[string]]::new()
+    foreach ($x in $mk.Keys) {
+        if ([string]$x -ne $fn) { [void]$list.Add([string]$x) }
+    }
+    Set-TreeManualKeep -Tree $Tree -FieldNames @($list)
+}
+
+function Copy-LockedFieldsFromPrev {
+    param($Tree, $Prev)
+    if ($null -eq $Prev) { return }
+    $mk = Get-ManualKeepSet -Tree $Prev
+    if ($mk.Count -eq 0) { return }
+    foreach ($k in @($mk.Keys)) {
+        switch ($k) {
+            'name' {
+                if ($null -ne $Prev.name) { $Tree.name = $Prev.name }
+            }
+            'location' {
+                if ($null -ne $Prev.location) { $Tree.location = $Prev.location }
+            }
+            'year' {
+                if ($null -ne $Prev.year) { $Tree.year = [int]$Prev.year }
+            }
+        }
+    }
+    $names = @($mk.Keys | ForEach-Object { [string]$_ })
+    Set-TreeManualKeep -Tree $Tree -FieldNames $names
+}
+
+function Test-ListingFieldDelta {
+    param($Prev, $Tree, [string]$FieldKey)
+    switch ($FieldKey) {
+        'name' {
+            return ([string]$Prev.name).Trim() -cne ([string]$Tree.name).Trim()
+        }
+        'location' {
+            return ([string]$Prev.location).Trim() -cne ([string]$Tree.location).Trim()
+        }
+        'year' {
+            $py = 0
+            $ty = 0
+            [void][int]::TryParse([string]$Prev.year, [ref]$py)
+            [void][int]::TryParse([string]$Tree.year, [ref]$ty)
+            return ($py -ne $ty)
+        }
+        default { return $false }
+    }
+}
+
+function Invoke-ListingDeltaWorkflow {
+    param($Prev, $Tree, [string]$BannerPrefix, [switch]$NoInteractive, $Stats)
+    if ($null -eq $Prev) { return $false }
+    if ($null -ne $Prev.removed) { return $false }
+    $changed = $false
+    Copy-LockedFieldsFromPrev -Tree $Tree -Prev $Prev
+    $defs = @(
+        @{ Key = 'name';     Label = 'Tree / species name' }
+        @{ Key = 'location'; Label = 'City listing (address line)' }
+        @{ Key = 'year';     Label = 'Registration year' }
+    )
+    foreach ($def in $defs) {
+        $k = $def.Key
+        $mk = Get-ManualKeepSet -Tree $Tree
+        if ($mk.ContainsKey($k)) { continue }
+        if (-not (Test-ListingFieldDelta -Prev $Prev -Tree $Tree -FieldKey $k)) { continue }
+        if ($NoInteractive) {
+            $Stats.deltaAutoupdate++
+            continue
+        }
+        Write-Host ''
+        Write-Host ("{0}  LISTING DELTA - {1}" -f $BannerPrefix, $def.Label) -ForegroundColor Yellow
+        $snap = switch ($k) {
+            'location' { [string]$Prev.location }
+            'name'     { [string]$Prev.name }
+            'year'     { "$($Prev.year)" }
+        }
+        $city = switch ($k) {
+            'location' { [string]$Tree.location }
+            'name'     { [string]$Tree.name }
+            'year'     { "$($Tree.year)" }
+        }
+        Write-Host ("  Snapshot:  {0}" -f (Format-DeltaSnippet $snap)) -ForegroundColor DarkGray
+        Write-Host ("  City site: {0}" -f (Format-DeltaSnippet $city)) -ForegroundColor DarkGray
+        Write-Host '  [K]eep snapshot (manual; saved to manualKeep - no future prompt for this field)' -ForegroundColor Cyan
+        Write-Host '  [U]pdate from City (overwrite this field from the live scrape)' -ForegroundColor Cyan
+        $choice = ''
+        while ($true) {
+            Write-Host '  > ' -NoNewline -ForegroundColor Cyan
+            $ans = Read-Host
+            if ($null -eq $ans) { $ans = '' }
+            $choice = $ans.Trim().ToLowerInvariant()
+            if (-not $choice) {
+                Write-Host '  Please enter K or U.' -ForegroundColor Red
+                continue
+            }
+            $c0 = $choice.Substring(0, 1)
+            if ($c0 -eq 'k' -or $c0 -eq 'u') { break }
+            Write-Host '  Please enter K or U.' -ForegroundColor Red
+        }
+        if ($choice.StartsWith('k')) {
+            switch ($k) {
+                'name'     { $Tree.name     = $Prev.name }
+                'location' { $Tree.location = $Prev.location }
+                'year'     { if ($null -ne $Prev.year) { $Tree.year = [int]$Prev.year } }
+            }
+            Add-TreeManualKeepField -Tree $Tree -Field $k
+            $Stats.deltaKept++
+            $changed = $true
+        } else {
+            Remove-TreeManualKeepField -Tree $Tree -Field $k
+            $Stats.deltaUpdated++
+            $changed = $true
+        }
+    }
+    return $changed
 }
 
 function Get-MilesFromPortland {
@@ -233,6 +499,23 @@ function Save-Snapshot {
     param($Trees, [string]$OutputPath, [string]$SourceUrl)
     $outDir = Split-Path -Parent $OutputPath
     if (-not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
+    foreach ($tr in @($Trees)) {
+        if ($null -eq $tr) {
+            throw 'Save-Snapshot: null tree row (refusing to write corrupt JSON).'
+        }
+        if ($tr -is [string]) {
+            throw 'Save-Snapshot: string tree row (in-memory snapshot is corrupt). Restore heritage/data/trees.json from backup or git, then re-run.'
+        }
+        $idNorm = Normalize-TreeId (Get-TreeIdScalar $tr)
+        if (-not $idNorm) {
+            throw 'Save-Snapshot: tree row has no usable id (refusing to write corrupt JSON).'
+        }
+        if ($tr -is [System.Collections.IDictionary]) {
+            $tr['id'] = $idNorm
+        } else {
+            $tr.id = $idNorm
+        }
+    }
     $snapshot = [ordered]@{
         sourceUrl = $SourceUrl
         scrapedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
@@ -245,6 +528,17 @@ function Save-Snapshot {
     # exists, so we prefer [IO.File]::Replace which is an atomic NTFS swap.
     $tmp  = $OutputPath + '.tmp'
     $json = $snapshot | ConvertTo-Json -Depth 8
+    try {
+        $probe = $json | ConvertFrom-Json
+        if ($probe.trees) {
+            $first = @($probe.trees)[0]
+            if ($first -is [string]) {
+                throw 'Round-trip validation failed: trees[0] is a string after ConvertTo-Json (would corrupt JSON on disk).'
+            }
+        }
+    } catch {
+        throw "Save-Snapshot: serialized JSON failed validation: $_"
+    }
     Set-Content -Path $tmp -Value $json -Encoding UTF8
     $fullTmp = (Resolve-Path -LiteralPath $tmp).Path
     $fullDst = if (Test-Path -LiteralPath $OutputPath) {
@@ -268,6 +562,9 @@ function Save-Snapshot {
 
 function ConvertTo-TreeHash {
     param($PsTree)
+    if ($PsTree -is [string]) {
+        throw 'trees[] row is a plain string (heritage/data/trees.json is corrupt). Restore from git or a backup, then retry.'
+    }
     # Turn a PSCustomObject (loaded via ConvertFrom-Json) into an ordered
     # hashtable so it serializes identically on write and supports free
     # property assignment/addition.
@@ -275,7 +572,8 @@ function ConvertTo-TreeHash {
     $fields = @(
         'id','year','name','location','removed',
         'lat','lng',
-        'geocodeStatus','geocodeAddress','geocodeFormatted','geocodeError'
+        'geocodeStatus','geocodeAddress','geocodeFormatted','geocodeError',
+        'manualKeep'
     )
     foreach ($f in $fields) { $h[$f] = $null }
     foreach ($prop in $PsTree.PSObject.Properties) {
@@ -461,7 +759,10 @@ function Resolve-TreeEntry {
         return $null
     }
     $id = "{0:D3}" -f $n
-    foreach ($t in $Trees) { if ($t.id -eq $id) { return $t } }
+    foreach ($t in $Trees) {
+        $tid = Normalize-TreeId (Get-TreeIdScalar $t)
+        if ($tid -eq $id) { return $t }
+    }
     if (-not $Silent) { Write-Host ("  No tree #{0} in snapshot." -f $id) -ForegroundColor Yellow }
     return $null
 }
@@ -478,8 +779,20 @@ function Invoke-UpdateMode {
     Write-Host ("== Update mode ==  loading {0}" -f $OutputPath) -ForegroundColor Cyan
     $raw = Get-Content -Path $OutputPath -Raw | ConvertFrom-Json
     $sourceUrlFromFile = if ($raw.sourceUrl) { [string]$raw.sourceUrl } else { $SourceUrl }
+    $rawTrees = $raw.trees
+    if ($null -eq $rawTrees) { $rawTrees = $raw.Trees }
+    if ($null -eq $rawTrees) {
+        Write-Error ("{0} has no trees or Trees array." -f $OutputPath)
+        exit 1
+    }
     $trees = @()
-    foreach ($pt in $raw.trees) { $trees += ,(ConvertTo-TreeHash -PsTree $pt) }
+    foreach ($pt in $rawTrees) {
+        if ($pt -is [string]) {
+            Write-Error ("{0} is corrupt: trees[] contains plain strings (not JSON objects). Restore from git or a backup, then retry." -f $OutputPath)
+            exit 1
+        }
+        $trees += ,(ConvertTo-TreeHash -PsTree $pt)
+    }
     Write-Host ("   loaded {0} trees" -f $trees.Count)
 
     # If the caller supplied a tree number (e.g. -Update 366), try to jump
@@ -634,7 +947,7 @@ function Prompt-Alternate {
 # --- Update mode ----------------------------------------------------------
 
 if ($Update) {
-    Invoke-UpdateMode -OutputPath $Output -UserAgent $UserAgent -DelayMs $DelayMs -SourceUrl $Url -InitialTree $Tree
+    Invoke-UpdateMode -OutputPath $Output -UserAgent $UserAgent -DelayMs $DelayMs -SourceUrl $Url -InitialTree $UpdateTree
     return
 }
 
@@ -693,10 +1006,15 @@ foreach ($m in $rowMatches) {
         geocodeAddress   = $null
         geocodeFormatted = $null
         geocodeError     = $null
+        manualKeep       = $null
     }
     [void]$trees.Add($tree)
 }
-$trees = @($trees | Sort-Object -Property @{Expression = { [int]$_.id }})
+$trees = @($trees | Sort-Object -Property @{ Expression = {
+    $nk = Normalize-TreeId (Get-TreeIdScalar $_)
+    if (-not $nk) { return [int]::MaxValue }
+    return [int]$nk
+}})
 
 # --- Load previous snapshot for coordinate cache ---------------------------
 
@@ -705,9 +1023,23 @@ $prevCount = 0
 if (Test-Path $Output) {
     try {
         $prev = Get-Content -Raw -Path $Output | ConvertFrom-Json
-        if ($prev.trees) {
-            $prevCount = $prev.trees.Count
-            foreach ($pt in $prev.trees) { $prevMap[$pt.id] = $pt }
+        $prevTrees = $prev.trees
+        if ($null -eq $prevTrees) { $prevTrees = $prev.Trees }
+        if ($prevTrees) {
+            $prevCount = $prevTrees.Count
+            foreach ($pt in $prevTrees) {
+                if ($null -eq $pt) { continue }
+                if ($pt -is [string]) {
+                    Write-Warning "Previous snapshot has a string trees[] row (corrupt JSON). Skipping that cache entry. Restore heritage/data/trees.json from git or a backup."
+                    continue
+                }
+                $key = Normalize-TreeId (Get-TreeIdScalar $pt)
+                if (-not $key) {
+                    Write-Warning 'Previous snapshot has a tree row with missing or unusable id; skipping that cache entry.'
+                    continue
+                }
+                $prevMap[$key] = $pt
+            }
             Write-Host "   Cached $prevCount records from previous snapshot." -ForegroundColor DarkGray
         }
     } catch {
@@ -725,13 +1057,16 @@ Write-Host "   Delay between requests: ${DelayMs}ms" -ForegroundColor DarkGray
 $total = $trees.Count
 $i = 0
 $stats = [ordered]@{
-    reused     = 0
-    geocoded   = 0
-    manual     = 0
-    failed     = 0
-    skipped    = 0
-    added      = 0
-    removedNow = 0
+    reused           = 0
+    geocoded         = 0
+    manual           = 0
+    failed           = 0
+    skipped          = 0
+    added            = 0
+    removedNow       = 0
+    deltaKept        = 0
+    deltaUpdated     = 0
+    deltaAutoupdate  = 0
 }
 
 $userQuit = $false
@@ -739,20 +1074,36 @@ $userQuit = $false
 try {
     foreach ($t in $trees) {
         $i++
-        $prefix = "[{0,3}/{1,3}] #{2}" -f $i, $total, $t.id
+        $idKey = Normalize-TreeId (Get-TreeIdScalar $t)
+        if (-not $idKey) {
+            Write-Error ('Geocode loop: tree row has no usable id after parse: {0}' -f ($t | Out-String))
+            exit 1
+        }
+        $prefix = "[{0,3}/{1,3}] #{2}" -f $i, $total, $idKey
         Write-Host ""
         Write-Host ("{0}  {1}" -f $prefix, $t.name) -ForegroundColor White
-        if ($t.location) { Write-Host ("        {0}" -f $t.location) -ForegroundColor DarkGray }
 
         $prev = $null
-        if ($prevMap.ContainsKey($t.id)) { $prev = $prevMap[$t.id] }
+        if ($prevMap.ContainsKey($idKey)) { $prev = $prevMap[$idKey] }
         if (-not $prev) { $stats.added++ }
+
+        $deltaDirty = $false
+        if ($null -ne $prev) {
+            $deltaDirty = Invoke-ListingDeltaWorkflow -Prev $prev -Tree $t -BannerPrefix $prefix -NoInteractive:$NoInteractive -Stats $stats
+            if ($deltaDirty) {
+                Save-Snapshot -Trees $trees -OutputPath $Output -SourceUrl $Url
+            }
+        }
 
         # Persist user-supplied data across runs. If the previous snapshot
         # already has a good result for this tree (same location text, coords
         # or removed year) carry that forward so the user doesn't have to
         # re-correct anything they fixed in an earlier run.
         $locSame = ($null -ne $prev) -and ((Sanitize-Location $prev.location) -eq (Sanitize-Location $t.location))
+        $manualHint = Test-ManualGeocodeHint -Prev $prev -CurrentT $t
+        $prevHasCoords = ($null -ne $prev) -and ($null -ne $prev.lat) -and ($null -ne $prev.lng)
+        $reusePrevGeocode = (-not $Force) -and ($null -ne $prev) -and ($null -eq $prev.removed) -and
+            $prevHasCoords -and ($locSame -or $manualHint)
 
         # 1) Manual "mark removed": City text doesn't yet mention removal but
         #    the previous snapshot has a removed year -> keep it.
@@ -762,6 +1113,7 @@ try {
 
         # Removed trees - no geocode. Save only if this changed state.
         if ($null -ne $t.removed) {
+            if ($t.location) { Write-Host ("        {0}" -f $t.location) -ForegroundColor DarkGray }
             $wasAlreadyRemoved = ($null -ne $prev) -and ($null -ne $prev.removed) -and ($locSame) -and ($prev.geocodeStatus -eq 'skipped-removed')
             $t.geocodeStatus = 'skipped-removed'
             Write-Host ("        removed from list in {0}; no geocode" -f $t.removed) -ForegroundColor DarkGray
@@ -772,20 +1124,39 @@ try {
         }
 
         # 2) Previous successful geocode (including a manual-address fix) ->
-        #    reuse the coords and any saved manual address unless the City's
-        #    location text changed or -Force was specified.
-        $prevHasCoords = ($null -ne $prev) -and ($null -ne $prev.lat) -and ($null -ne $prev.lng)
-        if (-not $Force -and $prevHasCoords -and $locSame) {
+        #    reuse the coords and any saved manual address when the City-listed
+        #    location still matches (sanitized) OR the snapshot shows a custom
+        #    geocode / manual coords (see Test-ManualGeocodeHint). -Force skips.
+        if ($reusePrevGeocode) {
             $t.lat = [double]$prev.lat
             $t.lng = [double]$prev.lng
             $t.geocodeStatus = 'ok'
             if ($prev.PSObject.Properties['geocodeAddress'])   { $t.geocodeAddress   = $prev.geocodeAddress }
             if ($prev.PSObject.Properties['geocodeFormatted']) { $t.geocodeFormatted = $prev.geocodeFormatted }
-            $tag = if ($prev.geocodeAddress -and $prev.geocodeAddress -ne (Build-Address $t.location)) { ' (manual)' } else { '' }
+            $t.geocodeError = $null
+            # Only substitute snapshot `location` when the user marked it manualKeep.
+            # Do not use locSame alone: Sanitize-Location can match when raw text still
+            # differs (e.g. case), and then copying prev would undo a listing-delta [U].
+            $mkLoc = Get-ManualKeepSet -Tree $t
+            if ($mkLoc.ContainsKey('location') -and $null -ne $prev.location -and
+                -not [string]::IsNullOrWhiteSpace([string]$prev.location)) {
+                $t.location = $prev.location
+            }
+            $tag = if ($manualHint) { ' (manual)' } elseif ($prev.geocodeAddress -and $prev.geocodeAddress -ne (Build-Address $t.location)) { ' (manual)' } else { '' }
+            if ($t.location) { Write-Host ("        {0}" -f $t.location) -ForegroundColor DarkGray }
             Write-Host ("        cached{0}  -> {1:F6}, {2:F6}" -f $tag, $t.lat, $t.lng) -ForegroundColor DarkGreen
             $stats.reused++
             continue
         }
+
+        # Manual geocode hint but no reusable coords (rare): use snapshot listing
+        # only when `location` is in manualKeep (same rule as reuse block above).
+        if ($manualHint -and (Get-ManualKeepSet -Tree $t).ContainsKey('location') -and ($null -ne $prev) -and
+            ($null -eq $prev.removed) -and ($null -ne $prev.location) -and
+            -not [string]::IsNullOrWhiteSpace([string]$prev.location)) {
+            $t.location = $prev.location
+        }
+        if ($t.location) { Write-Host ("        {0}" -f $t.location) -ForegroundColor DarkGray }
 
         $address = Build-Address $t.location
         if (-not $address) {
@@ -898,4 +1269,8 @@ Write-Host ("Failed:       {0}" -f $stats.failed) -ForegroundColor $failColor
 if ($prevCount -gt 0) {
     Write-Host ("Added:        {0} new vs previous snapshot" -f $stats.added) -ForegroundColor DarkGray
     Write-Host ("Newly removed:{0}" -f $stats.removedNow) -ForegroundColor DarkGray
+}
+if (($stats.deltaKept + $stats.deltaUpdated + $stats.deltaAutoupdate) -gt 0) {
+    Write-Host ("Listing delta: {0} kept (manualKeep), {1} updated from City, {2} auto City (-NoInteractive)" -f `
+        $stats.deltaKept, $stats.deltaUpdated, $stats.deltaAutoupdate) -ForegroundColor DarkGray
 }
