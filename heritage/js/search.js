@@ -14,6 +14,21 @@
         return normalize(query).split(/\s+/).map((x) => x.trim()).filter(Boolean);
     }
 
+    function parseQueryTokens(query) {
+        return tokenize(query).map((token) => {
+            if (token.startsWith('#')) {
+                return {
+                    kind: 'id',
+                    value: token.slice(1).trim()
+                };
+            }
+            return {
+                kind: 'text',
+                value: token
+            };
+        }).filter((t) => t.value.length > 0);
+    }
+
     function toNum(v) {
         const n = Number(v);
         return Number.isFinite(n) ? n : null;
@@ -49,7 +64,16 @@
 
     async function ensureIndex() {
         treesCache = await HeritageDB.getAllTrees();
-        indexCache = treesCache.map((tree) => ({ tree, blob: buildSearchBlob(tree) }));
+        indexCache = treesCache.map((tree) => {
+            const idText = normalize(tree.id);
+            const idNumeric = String(parseInt(tree.id, 10));
+            return {
+                tree,
+                blob: buildSearchBlob(tree),
+                idText,
+                idNumeric: Number.isFinite(Number(idNumeric)) ? idNumeric : ''
+            };
+        });
     }
 
     function getOrigin() {
@@ -71,11 +95,16 @@
     }
 
     function queryRows(query) {
-        const tokens = tokenize(query);
+        const tokens = parseQueryTokens(query);
         if (tokens.length === 0) return [];
         const origin = getOrigin();
         const rows = indexCache
-            .filter((row) => tokens.every((t) => row.blob.includes(t)))
+            .filter((row) => tokens.every((t) => {
+                if (t.kind === 'id') {
+                    return row.idText.includes(t.value) || row.idNumeric.includes(t.value);
+                }
+                return row.blob.includes(t.value);
+            }))
             .map((row) => {
                 const isMappable = HeritageMap.isTreeMappable(row.tree);
                 const distance = isMappable
