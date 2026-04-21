@@ -1,6 +1,6 @@
 {
   "sourceUrl": "https://www.portland.gov/trees/heritage/heritage-trees-year",
-  "scrapedAt": "2026-04-21T01:36:37Z",
+  "scrapedAt": "2026-04-21T01:50:15Z",
   "count": 397,
   "trees": [
     {
@@ -20,7 +20,7 @@
     {
       "id": "002",
       "year": 1993,
-      "name": "Platanus x acerifolia - London planetree",
+      "name": "Platanus x Acerifolia - London Planetree",
       "location": "NW Corner of SW Park & Main (right-of-way)",
       "removed": null,
       "lat": 45.517108,
@@ -29,12 +29,12 @@
       "geocodeAddress": "45.517069789036086, -122.68266987828842",
       "geocodeFormatted": "Southwest Main Street, University District, Downtown, Portland, Multnomah County, Oregon, 97205, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "003",
       "year": 1993,
-      "name": "Liriodendron tulipifera - Tulip tree",
+      "name": "Liriodendron Tulipifera - Tulip Tree",
       "location": "1403 NE Weidler St (private, side yard, corner lot)",
       "removed": null,
       "lat": 45.5344773,
@@ -43,12 +43,12 @@
       "geocodeAddress": "1403 NE Weidler St, Portland, OR, USA",
       "geocodeFormatted": "Namaste, 1403, Northeast Weidler Street, Lloyd District, Portland, Multnomah County, Oregon, 97232, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "004",
       "year": 1993,
-      "name": "Quercus garryana - Oregon white oak",
+      "name": "Quercus Garryana - Oregon White Oak",
       "location": "2137 SE 32nd Pl (private, side yard)",
       "removed": null,
       "lat": 45.5074982,
@@ -57,12 +57,12 @@
       "geocodeAddress": "2137 SE 32nd Pl, Portland, OR, USA",
       "geocodeFormatted": "2137, Southeast 32nd Place, Colonial Heights, Richmond, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "005",
       "year": 1993,
-      "name": "Pinus nigra - Austrian pine",
+      "name": "Pinus Nigra - Austrian Pine",
       "location": "SW 20th & Howards Way (right-of-way, TriMet)",
       "removed": null,
       "lat": 45.5178889,
@@ -71,12 +71,12 @@
       "geocodeAddress": "45.51789496871712, -122.69458299086891",
       "geocodeFormatted": "Southwest 20th Avenue, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "006",
       "year": 1993,
-      "name": "Cedrus libani - Cedar of lebanon",
+      "name": "Cedrus Libani - Cedar Of Lebanon",
       "location": "2024 SW Howards Way (private, side yard)",
       "removed": null,
       "lat": 45.5179312,
@@ -85,12 +85,12 @@
       "geocodeAddress": "2024 SW Howards Way, Portland, OR, USA",
       "geocodeFormatted": "2024, Southwest Howards Way, Goose Hollow, Portland, Multnomah County, Oregon, 97201, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "007",
       "year": 1994,
-      "name": "Fagus sylvatica - European beech",
+      "name": "Fagus Sylvatica - European Beech",
       "location": "10115 NE Thompson St (right-of-way, unimproved)",
       "removed": null,
       "lat": 45.5391306,
@@ -99,12 +99,12 @@
       "geocodeAddress": "10115 NE Thompson St, Portland, OR, USA",
       "geocodeFormatted": "10115, Northeast Thompson Street, Parkrose Heights, Portland, Multnomah County, Oregon, 97220, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "008",
       "year": 1994,
-      "name": "Quercus garryana - Oregon white oak",
+      "name": "Quercus Garryana - Oregon White Oak",
       "location": "7168 N Olin Ave (right of way, unimproved)",
       "removed": null,
       "lat": 45.5769389,
@@ -113,7 +113,7 @@
       "geocodeAddress": "7168 N Olin Ave, Portland, OR, USA",
       "geocodeFormatted": "7168, North Olin Avenue, University Park, Portland, Multnomah County, Oregon, 97203, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "009",
@@ -132,7 +132,7 @@
     {
       "id": "010",
       "year": 1994,
-      "name": "Quercus garryana - Oregon white oak",
+      "name": "Quercus Garryana - Oregon White Oak",
       "location": "1310-1338 NW 23rd Ave (right-of-way)",
       "removed": null,
       "lat": 45.5324388,
@@ -141,12 +141,12 @@
       "geocodeAddress": "1338 NW 23rd Ave",
       "geocodeFormatted": "1338, Northwest 23rd Avenue, Nob Hill, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "011",
       "year": 1994,
-      "name": "Liriodendron tulipifera - Tulip tree",
+      "name": "Liriodendron Tulipifera - Tulip Tree",
       "location": "2390 SW Madison St (private, front yard)",
       "removed": null,
       "lat": 45.5196308,
@@ -155,7 +155,7 @@
       "geocodeAddress": "2390 SW Madison St, Portland, OR, USA",
       "geocodeFormatted": "2390, Southwest Madison Street, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "012",
@@ -188,7 +188,7 @@
     {
       "id": "014",
       "year": 1994,
-      "name": "Magnolia acuminata - Cucumber tree",
+      "name": "Magnolia Acuminata - Cucumber Tree",
       "location": "1961 NW Glisan St (PP&R, Couch Park)",
       "removed": null,
       "lat": 45.5266355,
@@ -197,12 +197,12 @@
       "geocodeAddress": "1961 NW Glisan St, Portland, OR, USA",
       "geocodeFormatted": "1961, Northwest Glisan Street, Nob Hill, Northwest District, Portland, Multnomah County, Oregon, 97209, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "015",
       "year": 1994,
-      "name": "Platanus occidentalis - American sycamore",
+      "name": "Platanus Occidentalis - American Sycamore",
       "location": "4234 SE 33rd Pl (right-of-way, unimproved)",
       "removed": null,
       "lat": 45.4921978,
@@ -211,12 +211,12 @@
       "geocodeAddress": "4234 SE 33rd Pl, Portland, OR, USA",
       "geocodeFormatted": "4234, Southeast 33rd Place, Creston-Kenilworth, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "016",
       "year": 1994,
-      "name": "Fagus sylvatica f. purpurea - European beech",
+      "name": "Fagus Sylvatica f. Purpurea - European Beech",
       "location": "1579 SE Nehalem St (private, front yard)",
       "removed": null,
       "lat": 45.4660197,
@@ -225,12 +225,12 @@
       "geocodeAddress": "1579 SE Nehalem St, Portland, OR, USA",
       "geocodeFormatted": "1579, Southeast Nehalem Street, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "017",
       "year": 1994,
-      "name": "Liriodendron tulipifera - Tulip tree",
+      "name": "Liriodendron Tulipifera - Tulip Tree",
       "location": "3104 SE Gladstone St (private, front yard)",
       "removed": null,
       "lat": 45.493111,
@@ -239,12 +239,12 @@
       "geocodeAddress": "3104 SE Gladstone St, Portland, OR, USA",
       "geocodeFormatted": "3104, Southeast Gladstone Street, Creston-Kenilworth, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "018",
       "year": 1994,
-      "name": "Pinus radiata - Monterey pine",
+      "name": "Pinus Radiata - Monterey Pine",
       "location": "5330 SE 37th Ave (right-of-way)",
       "removed": null,
       "lat": 45.484228,
@@ -253,7 +253,7 @@
       "geocodeAddress": "5330 SE 37th Ave, Portland, OR, USA",
       "geocodeFormatted": "5330, Southeast 37th Avenue, Reed, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "019",
@@ -272,7 +272,7 @@
     {
       "id": "020",
       "year": 1994,
-      "name": "Quercus velutina - Black oak",
+      "name": "Quercus Velutina - Black Oak",
       "location": "3203 SE Woodstock Blvd (private, Reed College)",
       "removed": null,
       "lat": 45.4814993,
@@ -281,12 +281,12 @@
       "geocodeAddress": "3203 SE Woodstock Blvd, Portland, OR, USA",
       "geocodeFormatted": "Reed College, 3203, Southeast Woodstock Boulevard, Eastmoreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "021",
       "year": 1994,
-      "name": "Quercus garryana - Oregon white oak",
+      "name": "Quercus Garryana - Oregon White Oak",
       "location": "1224 SE Sellwood Blvd (private, front yard)",
       "removed": null,
       "lat": 45.471246,
@@ -295,12 +295,12 @@
       "geocodeAddress": "1224 SE Sellwood Blvd, Portland, OR, USA",
       "geocodeFormatted": "1224, Southeast Sellwood Boulevard, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 90202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "022",
       "year": 1994,
-      "name": "Betula nigra - River birch",
+      "name": "Betula Nigra - River Birch",
       "location": "7951 SE 7th Ave (PP&R)",
       "removed": null,
       "lat": 45.4664882,
@@ -309,7 +309,7 @@
       "geocodeAddress": "7951 SE 7th Ave, Portland, OR, USA",
       "geocodeFormatted": "Sellwood Pool, 7951, Southeast 7th Avenue, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "023",
@@ -328,7 +328,7 @@
     {
       "id": "024",
       "year": 1994,
-      "name": "Catalpa speciosa - Northern catalpa",
+      "name": "Catalpa Speciosa - Northern Catalpa",
       "location": "2827 NE 24th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5432197,
@@ -337,12 +337,12 @@
       "geocodeAddress": "2827 NE 24th Ave, Portland, OR, USA",
       "geocodeFormatted": "2827, Northeast 24th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "025",
       "year": 1994,
-      "name": "Catalpa speciosa - Northern catalpa",
+      "name": "Catalpa Speciosa - Northern Catalpa",
       "location": "2827 NE 24th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5432197,
@@ -351,7 +351,7 @@
       "geocodeAddress": "2827 NE 24th Ave, Portland, OR, USA",
       "geocodeFormatted": "2827, Northeast 24th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "026",
@@ -370,7 +370,7 @@
     {
       "id": "027",
       "year": 1994,
-      "name": "Quercus garryana - Oregon white oak",
+      "name": "Quercus Garryana - Oregon White Oak",
       "location": "5000 N Willamette Blvd (private, University of Portland)",
       "removed": null,
       "lat": 45.5736806,
@@ -379,7 +379,7 @@
       "geocodeAddress": "5000 N Willamette Blvd, Portland, OR, USA",
       "geocodeFormatted": "University of Portland, 5000, North Willamette Boulevard, University Park, Portland, Multnomah County, Oregon, 97203, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "028",
@@ -412,7 +412,7 @@
     {
       "id": "030",
       "year": 1994,
-      "name": "Ulmus minor `variegata' - Tartan elm",
+      "name": "Ulmus Minor `Variegata' - Tartan Elm",
       "location": "2120 SE 24th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5074268,
@@ -421,12 +421,12 @@
       "geocodeAddress": "2120 SE 24th Ave, Portland, OR, USA",
       "geocodeFormatted": "2120, Southeast 24th Avenue, Colonial Heights, Hosford-Abernethy, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "031",
       "year": 1994,
-      "name": "Juglans nigra - Black walnut",
+      "name": "Juglans Nigra - Black Walnut",
       "location": "7703 SE Martins St (right-of-way)",
       "removed": null,
       "lat": 45.4791369,
@@ -435,12 +435,12 @@
       "geocodeAddress": "7703 SE Martins St, Portland, OR, USA",
       "geocodeFormatted": "7703, Southeast Martins Street, Mount Scott-Arleta, Portland, Multnomah County, Oregon, 97206, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "032",
       "year": 1994,
-      "name": "Carya tomentosa - Mockernut hickory",
+      "name": "Carya Tomentosa - Mockernut Hickory",
       "location": "1609 SE Umatilla St (right-of-way)",
       "removed": null,
       "lat": 45.4630353,
@@ -449,12 +449,12 @@
       "geocodeAddress": "1609 SE Umatilla St, Portland, OR, USA",
       "geocodeFormatted": "1609, Southeast Umatilla Street, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "033",
       "year": 1994,
-      "name": "Carya laciniosa - Shellbark hickory",
+      "name": "Carya Laciniosa - Shellbark Hickory",
       "location": "143 SE 32nd Ave (private, rear yard)",
       "removed": null,
       "lat": 45.5214559,
@@ -463,12 +463,12 @@
       "geocodeAddress": "143 SE 32nd Ave, Portland, OR, USA",
       "geocodeFormatted": "143, Southeast 32nd Avenue, Kerns, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "034",
       "year": 1994,
-      "name": "Carya laciniosa - Shellbark hickory",
+      "name": "Carya Laciniosa - Shellbark Hickory",
       "location": "143 SE 32nd Ave (private, rear yard)",
       "removed": null,
       "lat": 45.5214559,
@@ -477,12 +477,12 @@
       "geocodeAddress": "143 SE 32nd Ave, Portland, OR, USA",
       "geocodeFormatted": "143, Southeast 32nd Avenue, Kerns, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "035",
       "year": 1994,
-      "name": "Juglands nigra - Black walnut",
+      "name": "Juglands Nigra - Black Walnut",
       "location": "1600 SW Salmon St (Portland Public Schools)",
       "removed": null,
       "lat": 45.5179535,
@@ -491,12 +491,12 @@
       "geocodeAddress": "1600 SW Salmon St, Portland, OR, USA",
       "geocodeFormatted": "Southwest Salmon Street, Downtown, Portland, Multnomah County, Oregon, 97204, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "036",
       "year": 1994,
-      "name": "Ulmus minor var. vulgaris - English elm",
+      "name": "Ulmus Minor var. Vulgaris - English Elm",
       "location": "2363 NW Flanders St (right-of-way)",
       "removed": null,
       "lat": 45.525718,
@@ -505,12 +505,12 @@
       "geocodeAddress": "2363 NW Flanders St, Portland, OR, USA",
       "geocodeFormatted": "2363, Northwest Flanders Street, Nob Hill, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "037",
       "year": 1994,
-      "name": "Magnolia grandiflora - Southern magnolia",
+      "name": "Magnolia Grandiflora - Southern Magnolia",
       "location": "212 SW Meade St #WI (private, rear yard)",
       "removed": null,
       "lat": 45.5027909,
@@ -519,12 +519,12 @@
       "geocodeAddress": "212 SW Meade St",
       "geocodeFormatted": "212, Southwest Meade Street, Lair Hill, South Portland, Portland, Multnomah County, Oregon, 97201, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "038",
       "year": 1995,
-      "name": "Liriodendron tulipifera - Tulip tree",
+      "name": "Liriodendron Tulipifera - Tulip Tree",
       "location": "5450 SE 40th Ave (private, side yard)",
       "removed": null,
       "lat": 45.4830611,
@@ -533,12 +533,12 @@
       "geocodeAddress": "5450 SE 40th Ave, Portland, OR, USA",
       "geocodeFormatted": "5450, Southeast 40th Avenue, Woodstock, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "039",
       "year": 1995,
-      "name": "Catalpa speciosa - Northern catalpa",
+      "name": "Catalpa Speciosa - Northern Catalpa",
       "location": "1126 SE 15th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5146235,
@@ -547,12 +547,12 @@
       "geocodeAddress": "1126 SE 15th Ave, Portland, OR, USA",
       "geocodeFormatted": "1126, Southeast 15th Avenue, Buckman, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "040",
       "year": 1995,
-      "name": "Platanus x acerifolia - London planetree",
+      "name": "Platanus x Acerifolia - London Planetree",
       "location": "1816 SE 21st Ave (private, front yard)",
       "removed": null,
       "lat": 45.5100742,
@@ -561,12 +561,12 @@
       "geocodeAddress": "1816 SE 21st Ave, Portland, OR, USA",
       "geocodeFormatted": "1816, Southeast 21st Avenue, Colonial Heights, Hosford-Abernethy, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "041",
       "year": 1995,
-      "name": "Aesculus flava - Yellow buckeye",
+      "name": "Aesculus Flava - Yellow Buckeye",
       "location": "3387 SE Tibbetts St (right-of-way)",
       "removed": null,
       "lat": 45.5007112,
@@ -575,7 +575,7 @@
       "geocodeAddress": "3387 SE Tibbetts St, Portland, OR, USA",
       "geocodeFormatted": "3387, Southeast Tibbetts Street, Richmond, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "042",
@@ -622,7 +622,7 @@
     {
       "id": "045",
       "year": 1995,
-      "name": "Quercus rubra - Northern red oak",
+      "name": "Quercus Rubra - Northern Red Oak",
       "location": "2642 NW Lovejoy St (private, rear yard)",
       "removed": null,
       "lat": 45.5292695,
@@ -631,12 +631,12 @@
       "geocodeAddress": "2642 NW Lovejoy St, Portland, OR, USA",
       "geocodeFormatted": "2642, Northwest Lovejoy Street, Nob Hill, Hillside, Portland, Multnomah County, Oregon, 97210, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "046",
       "year": 1995,
-      "name": "Ulmus x hollandica - Dutch elm",
+      "name": "Ulmus x Hollandica - Dutch Elm",
       "location": "2330 NW Flanders St (right-of-way)",
       "removed": null,
       "lat": 45.5253064,
@@ -645,12 +645,12 @@
       "geocodeAddress": "2330 NW Flanders St, Portland, OR, USA",
       "geocodeFormatted": "2330, Northwest Flanders Street, Nob Hill, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "047",
       "year": 1995,
-      "name": "Ulmus glabra `Camperdownii' - Camperdown elm",
+      "name": "Ulmus Glabra `Camperdownii' - Camperdown Elm",
       "location": "3040 SE McLoughlin Blvd (private, side yard)",
       "removed": null,
       "lat": 45.5009503,
@@ -659,12 +659,12 @@
       "geocodeAddress": "3040 SE McLoughlin Blvd, Portland, OR, USA",
       "geocodeFormatted": "3040, Southeast McLoughlin Boulevard, Brooklyn, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "048",
       "year": 1995,
-      "name": "Nyssa sylvatica - Tupelo",
+      "name": "Nyssa Sylvatica - Tupelo",
       "location": "7951 SE 7th Ave (PP&R, Sellwood Park)",
       "removed": null,
       "lat": 45.4664882,
@@ -673,12 +673,12 @@
       "geocodeAddress": "7951 SE 7th Ave, Portland, OR, USA",
       "geocodeFormatted": "Sellwood Pool, 7951, Southeast 7th Avenue, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "049",
       "year": 1995,
-      "name": "Tilia platyphyllos - Bigleaf linden",
+      "name": "Tilia Platyphyllos - Bigleaf Linden",
       "location": "2204 SE 11th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5070927,
@@ -687,7 +687,7 @@
       "geocodeAddress": "2204 SE 11th Ave, Portland, OR, USA",
       "geocodeFormatted": "2204, Southeast 11th Avenue, Ladd's Addition, Hosford-Abernethy, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "050",
@@ -720,7 +720,7 @@
     {
       "id": "052",
       "year": 1995,
-      "name": "Cryptomeria japonica - Cryptomeria",
+      "name": "Cryptomeria Japonica - Cryptomeria",
       "location": "7688 SW Capitol Hwy (PP&R, Multnomah Arts Center)",
       "removed": null,
       "lat": 45.4682846,
@@ -729,12 +729,12 @@
       "geocodeAddress": "7688 SW Capitol Hwy, Portland, OR, USA",
       "geocodeFormatted": "Multnomah Arts Center, 7688, Southwest Capitol Highway, Multnomah Village, Multnomah, Portland, Multnomah County, Oregon, 97219, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "053",
       "year": 1995,
-      "name": "Fraxinus latifolia - Oregon ash",
+      "name": "Fraxinus Latifolia - Oregon Ash",
       "location": "2038 SW Myrtle St (right-of-way)",
       "removed": null,
       "lat": 45.5113285,
@@ -743,12 +743,12 @@
       "geocodeAddress": "2038 SW Myrtle St, Portland, OR, USA",
       "geocodeFormatted": "2038, Southwest Myrtle Street, Portland Heights, Southwest Hills, Portland, Multnomah County, Oregon, 97201, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "054",
       "year": 1995,
-      "name": "Fagus sylvatica f. purpurea - European beech",
+      "name": "Fagus Sylvatica f. Purpurea - European Beech",
       "location": "1875 SW Park Ave (Portland State University)",
       "removed": null,
       "lat": 45.511489235976654,
@@ -757,12 +757,12 @@
       "geocodeAddress": "1875 SW Park Ave, Portland, OR, USA",
       "geocodeFormatted": "Branford Price Millar Library, 1875, Southwest Park Avenue, University District, Downtown, Portland, Multnomah County, Oregon, 97201, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "055",
       "year": 1995,
-      "name": "Liquidambar styraciflua - American sweetgum",
+      "name": "Liquidambar Styraciflua - American Sweetgum",
       "location": "2617 NE 16th Ave (right-of-way)",
       "removed": null,
       "lat": 45.541511,
@@ -771,12 +771,12 @@
       "geocodeAddress": "2617 NE 16th Ave, Portland, OR, USA",
       "geocodeFormatted": "2617, Northeast 16th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "056",
       "year": 1995,
-      "name": "Liquidambar styraciflua - American sweetgum",
+      "name": "Liquidambar Styraciflua - American Sweetgum",
       "location": "2617 NE 16th Ave (right-of-way)",
       "removed": null,
       "lat": 45.541511,
@@ -785,12 +785,12 @@
       "geocodeAddress": "2617 NE 16th Ave, Portland, OR, USA",
       "geocodeFormatted": "2617, Northeast 16th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "057",
       "year": 1995,
-      "name": "Cunninghamia lanceolata - China fir",
+      "name": "Cunninghamia Lanceolata - China Fir",
       "location": "1104 SE Mall St (right-of-way)",
       "removed": null,
       "lat": 45.49139045022627,
@@ -799,12 +799,12 @@
       "geocodeAddress": "1104 SE Mall St, Portland, OR, USA",
       "geocodeFormatted": "1104, Southeast Mall Street, Brooklyn, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "058",
       "year": 1995,
-      "name": "Juglans nigra - Black walnut",
+      "name": "Juglans Nigra - Black Walnut",
       "location": "1942 SE 30th Ave (private, front yard)",
       "removed": null,
       "lat": 45.5090925,
@@ -813,7 +813,7 @@
       "geocodeAddress": "1942 SE 30th Ave, Portland, OR, USA",
       "geocodeFormatted": "1942, Southeast 30th Avenue, Colonial Heights, Richmond, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "059",
@@ -846,7 +846,7 @@
     {
       "id": "061",
       "year": 1995,
-      "name": "Pinus monticola - Western white pine",
+      "name": "Pinus Monticola - Western White Pine",
       "location": "1726 SE 24th Ave (private, front yard)",
       "removed": null,
       "lat": 45.5105243,
@@ -855,12 +855,12 @@
       "geocodeAddress": "1726 SE 24th Ave, Portland, OR, USA",
       "geocodeFormatted": "1726, Southeast 24th Avenue, Colonial Heights, Hosford-Abernethy, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "062",
       "year": 1995,
-      "name": "Tilia platyphyllos - Bigleaf linden",
+      "name": "Tilia Platyphyllos - Bigleaf Linden",
       "location": "6325 SE Division St (PP&R, Mt Tabor Park)",
       "removed": null,
       "lat": 45.5065722,
@@ -869,12 +869,12 @@
       "geocodeAddress": "6325 SE Division St, Portland, OR, USA",
       "geocodeFormatted": "6325, Southeast Division Street, South Tabor, Portland, Multnomah County, Oregon, 97206, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "063",
       "year": 1995,
-      "name": "Fagus sylvatica f. purpurea - European beech",
+      "name": "Fagus Sylvatica f. Purpurea - European Beech",
       "location": "2401 SE 26th Ave (private, side yard)",
       "removed": null,
       "lat": 45.5054438,
@@ -883,7 +883,7 @@
       "geocodeAddress": "2401 SE 26th Ave, Portland, OR, USA",
       "geocodeFormatted": "2401, Southeast 26th Avenue, Colonial Heights, Hosford-Abernethy, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "064",
@@ -916,7 +916,7 @@
     {
       "id": "066",
       "year": 1995,
-      "name": "Quercus rubra - Northern red oak",
+      "name": "Quercus Rubra - Northern Red Oak",
       "location": "1009 NE Stanton St (private, side yard)",
       "removed": null,
       "lat": 45.5438276,
@@ -925,7 +925,7 @@
       "geocodeAddress": "1009 NE Stanton St, Portland, OR, USA",
       "geocodeFormatted": "1009, Northeast Stanton Street, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "067",
@@ -944,7 +944,7 @@
     {
       "id": "068",
       "year": 1995,
-      "name": "Pinus densiflora - Japanese red pine",
+      "name": "Pinus Densiflora - Japanese Red Pine",
       "location": "110 NE 39th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5244598,
@@ -953,7 +953,7 @@
       "geocodeAddress": "110 NE 39th Ave, Portland, OR, USA",
       "geocodeFormatted": "110, Northeast CÃƒÂ©sar E. ChÃƒÂ¡vez Boulevard, Laurelhurst, Portland, Multnomah County, Oregon, 97232, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "069",
@@ -986,7 +986,7 @@
     {
       "id": "071",
       "year": 1995,
-      "name": "Quercus garryana - Oregon white oak",
+      "name": "Quercus Garryana - Oregon White Oak",
       "location": "9107 N Richmond Ave (private, rear yard)",
       "removed": null,
       "lat": 45.5930513,
@@ -995,7 +995,7 @@
       "geocodeAddress": "9107 N Richmond Ave, Portland, OR, USA",
       "geocodeFormatted": "9107, North Richmond Avenue, Saint Johns, Portland, Multnomah County, Oregon, 97203, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "072",
@@ -1014,7 +1014,7 @@
     {
       "id": "073",
       "year": 1995,
-      "name": "Ginkgo biloba - Ginkgo",
+      "name": "Ginkgo Biloba - Ginkgo",
       "location": "662 NW Melinda Ave (private, front yard)",
       "removed": null,
       "lat": 45.5278096,
@@ -1023,7 +1023,7 @@
       "geocodeAddress": "662 NW Melinda Ave, Portland, OR, USA",
       "geocodeFormatted": "662, Northwest Melinda Avenue, Kings Heights, Hillside, Portland, Multnomah County, Oregon, 97210, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "074",
@@ -1042,7 +1042,7 @@
     {
       "id": "075",
       "year": 1996,
-      "name": "Quercus garryana - Oregon white oak",
+      "name": "Quercus Garryana - Oregon White Oak",
       "location": "4620 SW 29th Pl (private, front yard)",
       "removed": null,
       "lat": 45.489545,
@@ -1051,7 +1051,7 @@
       "geocodeAddress": "4620 SW 29th Pl, Portland, OR, USA",
       "geocodeFormatted": "4620, Southwest 29th Place, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "076",
@@ -1070,7 +1070,7 @@
     {
       "id": "077",
       "year": 1996,
-      "name": "Cornus nuttallii - Pacific dogwood",
+      "name": "Cornus Nuttallii - Pacific Dogwood",
       "location": "7817 N Haven Ave (right-of-way)",
       "removed": null,
       "lat": 45.5823478,
@@ -1079,12 +1079,12 @@
       "geocodeAddress": "7817 N Haven Ave, Portland, OR, USA",
       "geocodeFormatted": "7817, North Haven Avenue, Portsmouth, Portland, Multnomah County, Oregon, 97203, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "078",
       "year": 1996,
-      "name": "Juglans regia - English walnut",
+      "name": "Juglans Regia - English Walnut",
       "location": "5941 NE 45th Ave (private, side yard)",
       "removed": null,
       "lat": 45.5657754,
@@ -1093,12 +1093,12 @@
       "geocodeAddress": "5941 NE 45th Ave, Portland, OR, USA",
       "geocodeFormatted": "5941, Northeast 45th Avenue, Cully, Portland, Multnomah County, Oregon, 97218, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "079",
       "year": 1996,
-      "name": "Quercus chrysolepis - Canyon live oak",
+      "name": "Quercus Chrysolepis - Canyon Live Oak",
       "location": "2425 NE Alameda St (private, side yard)",
       "removed": null,
       "lat": 45.5515406,
@@ -1107,12 +1107,12 @@
       "geocodeAddress": "2425 NE Alameda St, Portland, OR, USA",
       "geocodeFormatted": "2425, Northeast Alameda Street, Alameda, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "080",
       "year": 1996,
-      "name": "Pterocarya fraxinifolia - Caucasian wingnut",
+      "name": "Pterocarya Fraxinifolia - Caucasian Wingnut",
       "location": "2737 NE 15th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5424433,
@@ -1121,12 +1121,12 @@
       "geocodeAddress": "2737 NE 15th Ave, Portland, OR, USA",
       "geocodeFormatted": "2737, Northeast 15th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "081",
       "year": 1996,
-      "name": "Pterocarya fraxinifolia - Caucasian wingnut",
+      "name": "Pterocarya Fraxinifolia - Caucasian Wingnut",
       "location": "2738 NE 15th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5424556,
@@ -1135,12 +1135,12 @@
       "geocodeAddress": "2738 NE 15th Ave, Portland, OR, USA",
       "geocodeFormatted": "2738, Northeast 15th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "082",
       "year": 1996,
-      "name": "Pterocarya fraxinifolia - Caucasian wingnut",
+      "name": "Pterocarya Fraxinifolia - Caucasian Wingnut",
       "location": "2739 NE 15th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5424566,
@@ -1149,12 +1149,12 @@
       "geocodeAddress": "2739 NE 15th Ave, Portland, OR, USA",
       "geocodeFormatted": "2739, Northeast 15th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "083",
       "year": 1996,
-      "name": "Pterocarya fraxinifolia - Caucasian wingnut",
+      "name": "Pterocarya Fraxinifolia - Caucasian Wingnut",
       "location": "2740 NE 15th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5424689,
@@ -1163,12 +1163,12 @@
       "geocodeAddress": "2740 NE 15th Ave, Portland, OR, USA",
       "geocodeFormatted": "2740, Northeast 15th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "084",
       "year": 1996,
-      "name": "Pterocarya fraxinifolia - Caucasian wingnut",
+      "name": "Pterocarya Fraxinifolia - Caucasian Wingnut",
       "location": "2741 NE 15th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5424699,
@@ -1177,12 +1177,12 @@
       "geocodeAddress": "2741 NE 15th Ave, Portland, OR, USA",
       "geocodeFormatted": "2741, Northeast 15th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "085",
       "year": 1996,
-      "name": "Pterocarya fraxinifolia - Caucasian wingnut",
+      "name": "Pterocarya Fraxinifolia - Caucasian Wingnut",
       "location": "1408 NE Knott St (right-of-way)",
       "removed": null,
       "lat": 45.5418583,
@@ -1191,12 +1191,12 @@
       "geocodeAddress": "1408 NE Knott St, Portland, OR, USA",
       "geocodeFormatted": "1408, Northeast Knott Street, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "086",
       "year": 1996,
-      "name": "Pterocarya fraxinifolia - Caucasian wingnut",
+      "name": "Pterocarya Fraxinifolia - Caucasian Wingnut",
       "location": "1409 NE Knott St (right-of-way)",
       "removed": null,
       "lat": 45.5421648,
@@ -1205,12 +1205,12 @@
       "geocodeAddress": "1409 NE Knott St, Portland, OR, USA",
       "geocodeFormatted": "1409, Northeast Knott Street, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "087",
       "year": 1996,
-      "name": "Pterocarya fraxinifolia - Caucasian wingnut",
+      "name": "Pterocarya Fraxinifolia - Caucasian Wingnut",
       "location": "1410 NE Knott St (right-of-way)",
       "removed": null,
       "lat": 45.5419998,
@@ -1219,12 +1219,12 @@
       "geocodeAddress": "1410 NE Knott St, Portland, OR, USA",
       "geocodeFormatted": "1410, Northeast Knott Street, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "088",
       "year": 1996,
-      "name": "Pterocarya fraxinifolia - Caucasian wingnut",
+      "name": "Pterocarya Fraxinifolia - Caucasian Wingnut",
       "location": "1411 NE Knott St (right-of-way)",
       "removed": null,
       "lat": 45.5421648,
@@ -1233,12 +1233,12 @@
       "geocodeAddress": "1411 NE Knott St, Portland, OR, USA",
       "geocodeFormatted": "1411, Northeast Knott Street, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "089",
       "year": 1996,
-      "name": "Quercus prinus - Chestnut oak",
+      "name": "Quercus Prinus - Chestnut Oak",
       "location": "1927 NE Tillamook St (private, front yard)",
       "removed": null,
       "lat": 45.5377345,
@@ -1247,7 +1247,7 @@
       "geocodeAddress": "1927 NE Tillamook St, Portland, OR, USA",
       "geocodeFormatted": "1927, Northeast Tillamook Street, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "090",
@@ -1266,7 +1266,7 @@
     {
       "id": "091",
       "year": 1996,
-      "name": "Quercus coccinea - Scarlet oak",
+      "name": "Quercus Coccinea - Scarlet Oak",
       "location": "2502 SE Sherman St (private, rear yard)",
       "removed": null,
       "lat": 45.506028,
@@ -1275,7 +1275,7 @@
       "geocodeAddress": "2502 SE Sherman St, Portland, OR, USA",
       "geocodeFormatted": "2502, Southeast Sherman Street, Colonial Heights, Hosford-Abernethy, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "092",
@@ -1350,7 +1350,7 @@
     {
       "id": "097",
       "year": 1996,
-      "name": "Rhododendron ponticum - Ponticum rhododendron",
+      "name": "Rhododendron Ponticum - Ponticum Rhododendron",
       "location": "1905 SE Larch Ave (private, front yard)",
       "removed": null,
       "lat": 45.509619,
@@ -1359,12 +1359,12 @@
       "geocodeAddress": "1905 SE Larch Ave, Portland, OR, USA",
       "geocodeFormatted": "1905, Southeast Larch Avenue, Ladd's Addition, Hosford-Abernethy, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "098",
       "year": 1996,
-      "name": "Aesculus glabra - Ohio buckeye",
+      "name": "Aesculus Glabra - Ohio Buckeye",
       "location": "2160 SW Main St (right-of-way)",
       "removed": null,
       "lat": 45.5204438,
@@ -1373,7 +1373,7 @@
       "geocodeAddress": "2160 SW Main St, Portland, OR, USA",
       "geocodeFormatted": "2160, Southwest Main Street, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "099",
@@ -1392,7 +1392,7 @@
     {
       "id": "100",
       "year": 1996,
-      "name": "Aesculus hippocastanum - Common horsechestnut",
+      "name": "Aesculus Hippocastanum - Common Horsechestnut",
       "location": "1013 SE Lambert St (right-of-way)",
       "removed": null,
       "lat": 45.4687993,
@@ -1401,12 +1401,12 @@
       "geocodeAddress": "1013 SE Lambert St, Portland, OR, USA",
       "geocodeFormatted": "1013, Southeast Lambert Street, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "101",
       "year": 1996,
-      "name": "Aesculus hippocastanum - Common horsechestnut",
+      "name": "Aesculus Hippocastanum - Common Horsechestnut",
       "location": "1014 SE Lambert St (right-of-way)",
       "removed": null,
       "lat": 45.468516,
@@ -1415,12 +1415,12 @@
       "geocodeAddress": "1014 SE Lambert St, Portland, OR, USA",
       "geocodeFormatted": "1014, Southeast Lambert Street, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "102",
       "year": 1996,
-      "name": "Ulmus x hollandica 'Vegeta' - American elm",
+      "name": "Ulmus x Hollandica 'Vegeta' - American Elm",
       "location": "4534 SW 60th Pl (private, front yard)",
       "removed": null,
       "lat": 45.4902175,
@@ -1429,12 +1429,12 @@
       "geocodeAddress": "4534 SW 60th Pl, Portland, OR, USA",
       "geocodeFormatted": "4534, Southwest 60th Place, Wilcox Estates, Bridlemile, Portland, Multnomah County, Oregon, 97221, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "103",
       "year": 1996,
-      "name": "Liriodendron tulipifera - Tulip tree",
+      "name": "Liriodendron Tulipifera - Tulip Tree",
       "location": "2404 NE Clackamas St (right-of-way)",
       "removed": null,
       "lat": 45.5326844,
@@ -1443,12 +1443,12 @@
       "geocodeAddress": "2404 NE Clackamas St, Portland, OR, USA",
       "geocodeFormatted": "2404, Northeast Clackamas Street, Sullivan's Gulch, Portland, Multnomah County, Oregon, 97232, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "104",
       "year": 1996,
-      "name": "Liriodendron tulipifera - Tulip tree",
+      "name": "Liriodendron Tulipifera - Tulip Tree",
       "location": "2405 NE Clackamas St (right-of-way)",
       "removed": null,
       "lat": 45.533228,
@@ -1457,12 +1457,12 @@
       "geocodeAddress": "2405 NE Clackamas St, Portland, OR, USA",
       "geocodeFormatted": "2405, Northeast Clackamas Street, Sullivan's Gulch, Portland, Multnomah County, Oregon, 97232, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "105",
       "year": 1996,
-      "name": "Acer campestre - Hedge maple",
+      "name": "Acer Campestre - Hedge Maple",
       "location": "2517 NE Multnomah St (right-of-way)",
       "removed": null,
       "lat": 45.5316064,
@@ -1471,12 +1471,12 @@
       "geocodeAddress": "2517 NE Multnomah St, Portland, OR, USA",
       "geocodeFormatted": "2517, Northeast Multnomah Street, Sullivan's Gulch, Portland, Multnomah County, Oregon, 97232, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "106",
       "year": 1996,
-      "name": "Acer campestre - Hedge maple",
+      "name": "Acer Campestre - Hedge Maple",
       "location": "2518 NE Multnomah St (right-of-way)",
       "removed": null,
       "lat": 45.531357,
@@ -1485,12 +1485,12 @@
       "geocodeAddress": "2518 NE Multnomah St, Portland, OR, USA",
       "geocodeFormatted": "2518, Northeast Multnomah Street, Sullivan's Gulch, Portland, Multnomah County, Oregon, 97232, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "107",
       "year": 1996,
-      "name": "Fagus sylvatica f. purpurea - European beech",
+      "name": "Fagus Sylvatica f. Purpurea - European Beech",
       "location": "2425 NE Alameda St (private, front yard)",
       "removed": null,
       "lat": 45.5515406,
@@ -1499,12 +1499,12 @@
       "geocodeAddress": "2425 NE Alameda St, Portland, OR, USA",
       "geocodeFormatted": "2425, Northeast Alameda Street, Alameda, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "108",
       "year": 1996,
-      "name": "Juglans nigra - Black walnut",
+      "name": "Juglans Nigra - Black Walnut",
       "location": "2830 N Williams Ave (private, rear yard)",
       "removed": null,
       "lat": 45.5431705,
@@ -1513,12 +1513,12 @@
       "geocodeAddress": "2830 N Williams Ave, Portland, OR, USA",
       "geocodeFormatted": "2830, North Williams Avenue, Albina, Eliot, Portland, Multnomah County, Oregon, 97227, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "109",
       "year": 1996,
-      "name": "Crataegus x lavallei - Lavalle hawthorn",
+      "name": "Crataegus x Lavallei - Lavalle Hawthorn",
       "location": "1011 SW 12th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5184205,
@@ -1527,12 +1527,12 @@
       "geocodeAddress": "1011 SW 12th Ave, Portland, OR, USA",
       "geocodeFormatted": "1011, Southwest 12th Avenue, University District, Downtown, Portland, Multnomah County, Oregon, 97205, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "110",
       "year": 1996,
-      "name": "Crataegus x lavallei - Lavalle hawthorn",
+      "name": "Crataegus x Lavallei - Lavalle Hawthorn",
       "location": "1011 SW 12th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5184205,
@@ -1541,12 +1541,12 @@
       "geocodeAddress": "1011 SW 12th Ave, Portland, OR, USA",
       "geocodeFormatted": "1011, Southwest 12th Avenue, University District, Downtown, Portland, Multnomah County, Oregon, 97205, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "111",
       "year": 1996,
-      "name": "Crataegus x lavallei - Lavalle hawthorn",
+      "name": "Crataegus x Lavallei - Lavalle Hawthorn",
       "location": "1011 SW 12th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5184205,
@@ -1555,12 +1555,12 @@
       "geocodeAddress": "1011 SW 12th Ave, Portland, OR, USA",
       "geocodeFormatted": "1011, Southwest 12th Avenue, University District, Downtown, Portland, Multnomah County, Oregon, 97205, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "112",
       "year": 1996,
-      "name": "Crataegus x lavallei - Lavalle hawthorn",
+      "name": "Crataegus x Lavallei - Lavalle Hawthorn",
       "location": "1011 SW 12th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5184205,
@@ -1569,12 +1569,12 @@
       "geocodeAddress": "1011 SW 12th Ave, Portland, OR, USA",
       "geocodeFormatted": "1011, Southwest 12th Avenue, University District, Downtown, Portland, Multnomah County, Oregon, 97205, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "113",
       "year": 1996,
-      "name": "Cedrus deodara - Deodar cedar",
+      "name": "Cedrus Deodara - Deodar Cedar",
       "location": "2609 SW Park Pl (right-of-way)",
       "removed": null,
       "lat": 45.5219773,
@@ -1583,7 +1583,7 @@
       "geocodeAddress": "2609 SW Park Pl, Portland, OR, USA",
       "geocodeFormatted": "2609, Southwest Park Place, Arlington Heights, Portland, Multnomah County, Oregon, 97205, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "114",
@@ -1602,7 +1602,7 @@
     {
       "id": "115",
       "year": 1996,
-      "name": "Juglans cinerea - Butternut",
+      "name": "Juglans Cinerea - Butternut",
       "location": "1584 SE Lexington St (right-of-way)",
       "removed": null,
       "lat": 45.4669738,
@@ -1611,7 +1611,7 @@
       "geocodeAddress": "1584 SE Lexington St, Portland, OR, USA",
       "geocodeFormatted": "1584, Southeast Lexington Street, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "116",
@@ -1658,7 +1658,7 @@
     {
       "id": "119",
       "year": 1996,
-      "name": "Ulmus x hollandica - Dutch elm",
+      "name": "Ulmus x Hollandica - Dutch Elm",
       "location": "2455 NW Johnson St (right-of-way)",
       "removed": null,
       "lat": 45.5284952,
@@ -1667,12 +1667,12 @@
       "geocodeAddress": "2455 NW Johnson St, Portland, OR, USA",
       "geocodeFormatted": "2455, Northwest Johnson Street, Nob Hill, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "120",
       "year": 1996,
-      "name": "Ulmus minor - Smoothleaf elm",
+      "name": "Ulmus Minor - Smoothleaf Elm",
       "location": "6125 SW Boundary St (private)",
       "removed": null,
       "lat": 45.4863639,
@@ -1681,12 +1681,12 @@
       "geocodeAddress": "6125 SW Boundary St, Portland, OR, USA",
       "geocodeFormatted": "Harold Schnitzer Center for Living, 6125, Southwest Boundary Street, Cedar Sinai Park, Hayhurst, Portland, Multnomah County, Oregon, 97221, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "121",
       "year": 1997,
-      "name": "Acer pseudoplatanus - Sycamore maple",
+      "name": "Acer Pseudoplatanus - Sycamore Maple",
       "location": "2807 NE 8th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5429557,
@@ -1695,12 +1695,12 @@
       "geocodeAddress": "2807 NE 8th Ave, Portland, OR, USA",
       "geocodeFormatted": "2807, Northeast 8th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "122",
       "year": 1997,
-      "name": "Acer pseudoplatanus - Sycamore maple",
+      "name": "Acer Pseudoplatanus - Sycamore Maple",
       "location": "2808 NE 8th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5429822,
@@ -1709,7 +1709,7 @@
       "geocodeAddress": "2808 NE 8th Ave, Portland, OR, USA",
       "geocodeFormatted": "2808, Northeast 8th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "123",
@@ -1728,7 +1728,7 @@
     {
       "id": "124",
       "year": 1997,
-      "name": "Liriodendron tulipifera - Tulip tree",
+      "name": "Liriodendron Tulipifera - Tulip Tree",
       "location": "1208 SE 53rd Ave (private, front yard)",
       "removed": null,
       "lat": 45.5140806,
@@ -1737,12 +1737,12 @@
       "geocodeAddress": "1208 SE 53rd Ave, Portland, OR, USA",
       "geocodeFormatted": "1208, Southeast 53rd Avenue, Mount Tabor, Portland, Multnomah County, Oregon, 97215, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "125",
       "year": 1997,
-      "name": "Sequoiadendron giganteum - Giant sequoia",
+      "name": "Sequoiadendron Giganteum - Giant Sequoia",
       "location": "2896 SW Patton Rd (right-of-way)",
       "removed": null,
       "lat": 45.503924,
@@ -1751,12 +1751,12 @@
       "geocodeAddress": "2896 SW Patton Rd, Portland, OR, USA",
       "geocodeFormatted": "2896, Southwest Patton Road, Southwest Hills, Portland, Multnomah County, Oregon, 97201, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "126",
       "year": 1997,
-      "name": "Fagus sylvatica f. pendula - Weeping beech",
+      "name": "Fagus Sylvatica f. Pendula - Weeping Beech",
       "location": "2417 SW 16th Ave (private, side yard)",
       "removed": null,
       "lat": 45.5087548,
@@ -1765,7 +1765,7 @@
       "geocodeAddress": "2417 SW 16th Ave, Portland, OR, USA",
       "geocodeFormatted": "2417, Southwest 16th Avenue, Portland Heights, Southwest Hills, Portland, Multnomah County, Oregon, 97201, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "127",
@@ -1784,7 +1784,7 @@
     {
       "id": "128",
       "year": 1997,
-      "name": "Cedrus atlantica - Atlas cedar",
+      "name": "Cedrus Atlantica - Atlas Cedar",
       "location": "2033 SW Madison St (private, rear yard)",
       "removed": null,
       "lat": 45.5196143,
@@ -1793,12 +1793,12 @@
       "geocodeAddress": "2033 SW Madison St, Portland, OR, USA",
       "geocodeFormatted": "2033, Southwest Madison Street, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "129",
       "year": 1997,
-      "name": "Platanus orientalis - Oriental planetree",
+      "name": "Platanus Orientalis - Oriental Planetree",
       "location": "1032 SW Taylors Ferry Rd (private, rear yard)",
       "removed": null,
       "lat": 45.4630475,
@@ -1807,12 +1807,12 @@
       "geocodeAddress": "1032 SW Taylors Ferry Rd, Portland, OR, USA",
       "geocodeFormatted": "1032, Southwest Taylors Ferry Road, Marshall Park, Portland, Multnomah County, Oregon, 97219, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "130",
       "year": 1997,
-      "name": "Pinus ponderosa - Ponderosa pine",
+      "name": "Pinus Ponderosa - Ponderosa Pine",
       "location": "4504 SW Shattuck Rd (private, front yard)",
       "removed": null,
       "lat": 45.4905888,
@@ -1821,7 +1821,7 @@
       "geocodeAddress": "4504 SW Shattuck Rd, Portland, OR, USA",
       "geocodeFormatted": "4504, Southwest Shattuck Road, Wilcox Estates, Bridlemile, Portland, Multnomah County, Oregon, 97221, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "131",
@@ -1840,7 +1840,7 @@
     {
       "id": "132",
       "year": 1997,
-      "name": "Cladrastis kentukea - Yellowwood",
+      "name": "Cladrastis Kentukea - Yellowwood",
       "location": "2425 SE Bybee Blvd (right-of-way)",
       "removed": null,
       "lat": 45.4751207,
@@ -1849,12 +1849,12 @@
       "geocodeAddress": "2425 SE Bybee Blvd, Portland, OR, USA",
       "geocodeFormatted": "Eastmoreland Golf Course, 2425, Southeast Bybee Boulevard, Eastmoreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "133",
       "year": 1997,
-      "name": "Magnolia grandiflora - Southern magnolia",
+      "name": "Magnolia Grandiflora - Southern Magnolia",
       "location": "1410 SW Harrison St (private, side yard)",
       "removed": null,
       "lat": 45.513033,
@@ -1863,12 +1863,12 @@
       "geocodeAddress": "1410 SW Harrison St, Portland, OR, USA",
       "geocodeFormatted": "1410, Southwest Harrison Street, Southwest Hills, Portland, Multnomah County, Oregon, 97201, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "134",
       "year": 1997,
-      "name": "Pseudotsuga menziesii - Douglas fir",
+      "name": "Pseudotsuga Menziesii - Douglas Fir",
       "location": "Danford Balch Homesite (PP&R, Upper Macleay Park)",
       "removed": null,
       "lat": 45.5358981,
@@ -1877,12 +1877,12 @@
       "geocodeAddress": "Danford Balch Homesite, Portland, OR, USA",
       "geocodeFormatted": "Danford Balch Homesite, Northwest Upshur Street, Willamette Heights, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "135",
       "year": 1997,
-      "name": "Tilia americana - Basswood",
+      "name": "Tilia Americana - Basswood",
       "location": "8332 SE 16th Ave (private, front yard)",
       "removed": null,
       "lat": 45.462356,
@@ -1891,12 +1891,12 @@
       "geocodeAddress": "8332 SE 16th Ave, Portland, OR, USA",
       "geocodeFormatted": "8332, Southeast 16th Avenue, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "136",
       "year": 1997,
-      "name": "Tilia americana - Basswood",
+      "name": "Tilia Americana - Basswood",
       "location": "8332 SE 16th Ave (private, front yard)",
       "removed": null,
       "lat": 45.462356,
@@ -1905,12 +1905,12 @@
       "geocodeAddress": "8332 SE 16th Ave, Portland, OR, USA",
       "geocodeFormatted": "8332, Southeast 16th Avenue, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "137",
       "year": 1997,
-      "name": "Magnolia x soulangiana - Saucer magnolia",
+      "name": "Magnolia x Soulangiana - Saucer Magnolia",
       "location": "1041 SW Vista Ave (private, front yard)",
       "removed": null,
       "lat": 45.5206517,
@@ -1919,7 +1919,7 @@
       "geocodeAddress": "1041 SW Vista Ave, Portland, OR, USA",
       "geocodeFormatted": "1041, Southwest Vista Avenue, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "138",
@@ -1938,7 +1938,7 @@
     {
       "id": "139",
       "year": 1997,
-      "name": "Pinus ponderosa - Ponderosa pine",
+      "name": "Pinus Ponderosa - Ponderosa Pine",
       "location": "4825 SW Dosch Park Ln (private, front yard)",
       "removed": null,
       "lat": 45.487442,
@@ -1947,12 +1947,12 @@
       "geocodeAddress": "4825 SW Dosch Park Ln, Portland, OR, USA",
       "geocodeFormatted": "4825, Southwest Dosch Park Lane, Dosch Estates, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "140",
       "year": 1997,
-      "name": "Pinus ponderosa - Ponderosa pine",
+      "name": "Pinus Ponderosa - Ponderosa Pine",
       "location": "4826 SW Dosch Park Ln (private, rear yard)",
       "removed": null,
       "lat": 45.4874993,
@@ -1961,12 +1961,12 @@
       "geocodeAddress": "4826 SW Dosch Park Ln, Portland, OR, USA",
       "geocodeFormatted": "4826, Southwest Dosch Park Lane, Dosch Estates, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "141",
       "year": 1997,
-      "name": "Quercus garryana - Oregon white oak",
+      "name": "Quercus Garryana - Oregon White Oak",
       "location": "4825 SW Dosch Park Ln (private, rear yard)",
       "removed": null,
       "lat": 45.487442,
@@ -1975,7 +1975,7 @@
       "geocodeAddress": "4825 SW Dosch Park Ln, Portland, OR, USA",
       "geocodeFormatted": "4825, Southwest Dosch Park Lane, Dosch Estates, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "142",
@@ -2008,7 +2008,7 @@
     {
       "id": "144",
       "year": 1997,
-      "name": "Pinus strobus - Eastern white pine",
+      "name": "Pinus Strobus - Eastern White Pine",
       "location": "4825 SW Dosch Park Ln (private, side yard)",
       "removed": null,
       "lat": 45.487442,
@@ -2017,12 +2017,12 @@
       "geocodeAddress": "4825 SW Dosch Park Ln, Portland, OR, USA",
       "geocodeFormatted": "4825, Southwest Dosch Park Lane, Dosch Estates, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "145",
       "year": 1997,
-      "name": "Thuja plicata - Western redcedar",
+      "name": "Thuja Plicata - Western Redcedar",
       "location": "4825 SW Dosch Park Ln (private, rear yard)",
       "removed": null,
       "lat": 45.487442,
@@ -2031,12 +2031,12 @@
       "geocodeAddress": "4825 SW Dosch Park Ln, Portland, OR, USA",
       "geocodeFormatted": "4825, Southwest Dosch Park Lane, Dosch Estates, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "146",
       "year": 1997,
-      "name": "Calocedrus decurrens - Incense cedar",
+      "name": "Calocedrus Decurrens - Incense Cedar",
       "location": "4825 SW Dosch Park Ln (private, front yard)",
       "removed": null,
       "lat": 45.487442,
@@ -2045,12 +2045,12 @@
       "geocodeAddress": "4825 SW Dosch Park Ln, Portland, OR, USA",
       "geocodeFormatted": "4825, Southwest Dosch Park Lane, Dosch Estates, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "147",
       "year": 1997,
-      "name": "Picea sitchensis - Sitka spruce",
+      "name": "Picea Sitchensis - Sitka Spruce",
       "location": "4711 SW Campbell Ct (private, side yard)",
       "removed": null,
       "lat": 45.4879164,
@@ -2059,12 +2059,12 @@
       "geocodeAddress": "4711 SW Campbell Ct, Portland, OR, USA",
       "geocodeFormatted": "4711, Southwest Campbell Court, Dosch Estates, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "148",
       "year": 1997,
-      "name": "Pseudotsuga menziesii - Douglas fir",
+      "name": "Pseudotsuga Menziesii - Douglas Fir",
       "location": "2525 SW Montgomery Dr (right-of-way)",
       "removed": null,
       "lat": 45.5086411,
@@ -2073,12 +2073,12 @@
       "geocodeAddress": "2525 SW Montgomery Dr, Portland, OR, USA",
       "geocodeFormatted": "2525, Southwest Montgomery Drive, Portland Heights, Southwest Hills, Portland, Multnomah County, Oregon, 97201, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "149",
       "year": 1997,
-      "name": "Styphnolobium japonica - Japanese pagoda tree",
+      "name": "Styphnolobium Japonica - Japanese Pagoda Tree",
       "location": "3075 NW Cornell Rd (private, side yard)",
       "removed": null,
       "lat": 45.5326051,
@@ -2087,12 +2087,12 @@
       "geocodeAddress": "3075 NW Cornell Rd, Portland, OR, USA",
       "geocodeFormatted": "3075, Northwest Cornell Road, Kings Heights, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "150",
       "year": 1997,
-      "name": "Juglans nigra - Black walnut",
+      "name": "Juglans Nigra - Black Walnut",
       "location": "4404 SE 35th Ave (private, rear yard of 4 properties)",
       "removed": null,
       "lat": 45.490989,
@@ -2101,12 +2101,12 @@
       "geocodeAddress": "4404 SE 35th Ave, Portland, OR, USA",
       "geocodeFormatted": "4404, Southeast 35th Avenue, Creston-Kenilworth, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "151",
       "year": 1997,
-      "name": "Juglans nigra - Black walnut",
+      "name": "Juglans Nigra - Black Walnut",
       "location": "4818 SE Tenino Dr (private, front yard)",
       "removed": null,
       "lat": 45.4656022,
@@ -2115,12 +2115,12 @@
       "geocodeAddress": "4818 SE Tenino Dr, Portland, OR, USA",
       "geocodeFormatted": "4818, Southeast Tenino Drive, Errol Heights, Brentwood-Darlington, Portland, Multnomah County, Oregon, 97206, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "152",
       "year": 1997,
-      "name": "Sequoiadendron giganteum - Giant sequoia",
+      "name": "Sequoiadendron Giganteum - Giant Sequoia",
       "location": "6325 SE Division St (PP&R, Mt Tabor Park)",
       "removed": null,
       "lat": 45.5065722,
@@ -2129,12 +2129,12 @@
       "geocodeAddress": "6325 SE Division St, Portland, OR, USA",
       "geocodeFormatted": "6325, Southeast Division Street, South Tabor, Portland, Multnomah County, Oregon, 97206, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "153",
       "year": 1997,
-      "name": "Ostrya virginiana - American hop - hornbeam",
+      "name": "Ostrya Virginiana - American Hop - Hornbeam",
       "location": "221 NE 45th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5251048,
@@ -2143,7 +2143,7 @@
       "geocodeAddress": "221 NE 45th Ave, Portland, OR, USA",
       "geocodeFormatted": "221, Northeast 45th Avenue, North Tabor, Portland, Multnomah County, Oregon, 97213, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "154",
@@ -2162,7 +2162,7 @@
     {
       "id": "155",
       "year": 1997,
-      "name": "Fagus sylvatica f. purpurea - European beech",
+      "name": "Fagus Sylvatica f. Purpurea - European Beech",
       "location": "1719 NE Knott St (private, front yard)",
       "removed": null,
       "lat": 45.5424173,
@@ -2171,12 +2171,12 @@
       "geocodeAddress": "1719 NE Knott St, Portland, OR, USA",
       "geocodeFormatted": "1719, Northeast Knott Street, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "156",
       "year": 1997,
-      "name": "Quercus rubra - Northern red oak",
+      "name": "Quercus Rubra - Northern Red Oak",
       "location": "5700 SE Taylor St (private, front yard)",
       "removed": null,
       "lat": 45.5145691,
@@ -2185,7 +2185,7 @@
       "geocodeAddress": "5700 SE Taylor St, Portland, OR, USA",
       "geocodeFormatted": "5700, Southeast Taylor Street, Mount Tabor, Portland, Multnomah County, Oregon, 97215, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "157",
@@ -2204,7 +2204,7 @@
     {
       "id": "158",
       "year": 1997,
-      "name": "Sequoiadendron giganteum - Giant sequoia",
+      "name": "Sequoiadendron Giganteum - Giant Sequoia",
       "location": "2393 SW Park Pl #101 (private, rear yard)",
       "removed": null,
       "lat": 45.5216479,
@@ -2213,12 +2213,12 @@
       "geocodeAddress": "2393 SW Park Pl, portland or",
       "geocodeFormatted": "2393, Southwest Park Place, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "159",
       "year": 1997,
-      "name": "Cercidiphyllum japonicum - Katsura",
+      "name": "Cercidiphyllum Japonicum - Katsura",
       "location": "1132 SW Vista Ave (private, front yard)",
       "removed": null,
       "lat": 45.5200649,
@@ -2227,12 +2227,12 @@
       "geocodeAddress": "1132 SW Vista Ave, Portland, OR, USA",
       "geocodeFormatted": "Portland Garden Club, 1132, Southwest Vista Avenue, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "160",
       "year": 1997,
-      "name": "Cercidiphyllum japonicum - Katsura",
+      "name": "Cercidiphyllum Japonicum - Katsura",
       "location": "SE 39th & Oak (PP&R, Laurelhurst Park)",
       "removed": null,
       "lat": 45.5205295,
@@ -2241,7 +2241,7 @@
       "geocodeAddress": "45.52030735167692, -122.6230534000139",
       "geocodeFormatted": "330, Southeast CÃƒÂ©sar E. ChÃƒÂ¡vez Boulevard, Laurelhurst, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "161",
@@ -2260,7 +2260,7 @@
     {
       "id": "162",
       "year": 1997,
-      "name": "Catalpa bignonioides - Southern catalpa",
+      "name": "Catalpa Bignonioides - Southern Catalpa",
       "location": "5533 N Maryland Ave (right-of-way)",
       "removed": null,
       "lat": 45.56324096810494,
@@ -2269,7 +2269,7 @@
       "geocodeAddress": "5533 N Maryland Ave, Portland, OR, USA",
       "geocodeFormatted": "5533, North Maryland Avenue, Overlook, Portland, Multnomah County, Oregon, 97217, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "163",
@@ -2288,7 +2288,7 @@
     {
       "id": "164",
       "year": 1997,
-      "name": "Platanus x acerifolia - London planetree",
+      "name": "Platanus x Acerifolia - London Planetree",
       "location": "1728 NE Stanton St (private, front yard)",
       "removed": null,
       "lat": 45.5434427,
@@ -2297,12 +2297,12 @@
       "geocodeAddress": "1728 NE Stanton St, Portland, OR, USA",
       "geocodeFormatted": "1728, Northeast Stanton Street, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "165",
       "year": 1997,
-      "name": "Sequoiadendron giganteum - Giant sequoia",
+      "name": "Sequoiadendron Giganteum - Giant Sequoia",
       "location": "5511 SE Hawthorne Blvd (private, side yard)",
       "removed": null,
       "lat": 45.5123694,
@@ -2311,7 +2311,7 @@
       "geocodeAddress": "5511 SE Hawthorne Blvd, Portland, OR, USA",
       "geocodeFormatted": "Western Seminary, 5511, Southeast Hawthorne Boulevard, Mount Tabor, Portland, Multnomah County, Oregon, 97215, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "166",
@@ -2330,7 +2330,7 @@
     {
       "id": "167",
       "year": 1997,
-      "name": "Sequoia sempervirens - Coast redwood",
+      "name": "Sequoia Sempervirens - Coast Redwood",
       "location": "3381 SE Francis St (private, rear yard)",
       "removed": null,
       "lat": 45.4949692,
@@ -2339,12 +2339,12 @@
       "geocodeAddress": "3381 SE Francis St, Portland, OR, USA",
       "geocodeFormatted": "3381, Southeast Francis Street, Creston-Kenilworth, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "168",
       "year": 1998,
-      "name": "Acer palmatum - Japanese maple",
+      "name": "Acer Palmatum - Japanese Maple",
       "location": "2367 NW Kearney St (private, front yard)",
       "removed": null,
       "lat": 45.5292159,
@@ -2353,12 +2353,12 @@
       "geocodeAddress": "2367 NW Kearney St, Portland, OR, USA",
       "geocodeFormatted": "2367, Northwest Kearney Street, Nob Hill, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "169",
       "year": 1998,
-      "name": "Thuja plicata - Western redcedar",
+      "name": "Thuja Plicata - Western Redcedar",
       "location": "6215 SW 27th Ave (private, rear yard)",
       "removed": null,
       "lat": 45.4785726,
@@ -2367,7 +2367,7 @@
       "geocodeAddress": "6215 SW 27th Ave, Portland, OR, USA",
       "geocodeFormatted": "6215, Southwest 27th Avenue, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "170",
@@ -2386,7 +2386,7 @@
     {
       "id": "171",
       "year": 1998,
-      "name": "Quercus garryana - Oregon white oak",
+      "name": "Quercus Garryana - Oregon White Oak",
       "location": "7100 SW Macadam Ave (PP&R, Willamette Park)",
       "removed": null,
       "lat": 45.472525,
@@ -2395,12 +2395,12 @@
       "geocodeAddress": "7100 SW Macadam Ave, Portland, OR, USA",
       "geocodeFormatted": "7100, South Macadam Avenue, John's Landing, South Portland, Portland, Multnomah County, Oregon, 97219, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "172",
       "year": 1998,
-      "name": "Ulmus x hollandica 'Hollandica' - Dutch elm",
+      "name": "Ulmus x Hollandica 'Hollandica' - Dutch Elm",
       "location": "1150 SW King Ave (right-of-way)",
       "removed": null,
       "lat": 45.5197489,
@@ -2409,12 +2409,12 @@
       "geocodeAddress": "1150 SW King Ave, Portland, OR, USA",
       "geocodeFormatted": "1150, Southwest King Avenue, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "173",
       "year": 1998,
-      "name": "Fagus sylvatica f. purpurea - European beech",
+      "name": "Fagus Sylvatica f. Purpurea - European Beech",
       "location": "2909 SW 2nd Ave (PP&R, Lair Hill Park)",
       "removed": null,
       "lat": 45.5020776,
@@ -2423,12 +2423,12 @@
       "geocodeAddress": "2909 SW 2nd Ave, Portland, OR, USA",
       "geocodeFormatted": "Carnegie Annex, 2909, Southwest 2nd Avenue, Lair Hill, South Portland, Portland, Multnomah County, Oregon, 97201, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "174",
       "year": 1998,
-      "name": "Carya ovata - Shagbark hickory",
+      "name": "Carya Ovata - Shagbark Hickory",
       "location": "3037 SW 2nd Ave (PP&R, Lair Hill Park)",
       "removed": null,
       "lat": 45.5009893,
@@ -2437,12 +2437,12 @@
       "geocodeAddress": "3037 SW 2nd Ave, Portland, OR, USA",
       "geocodeFormatted": "3037, Southwest 2nd Avenue, Lair Hill, South Portland, Portland, Multnomah County, Oregon, 97201, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "175",
       "year": 1998,
-      "name": "Quercus rubra - Northern red oak",
+      "name": "Quercus Rubra - Northern Red Oak",
       "location": "SE Powell Blvd (PP&R, Powell Park)",
       "removed": null,
       "lat": 45.4957548,
@@ -2451,12 +2451,12 @@
       "geocodeAddress": "SE Powell Blvd, Portland, OR, USA",
       "geocodeFormatted": "Southeast Powell Boulevard, I-205 Multi-Use Path, Lents, Portland, Multnomah County, Oregon, 97266, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "176",
       "year": 1998,
-      "name": "Quercus rubra - Northern red oak",
+      "name": "Quercus Rubra - Northern Red Oak",
       "location": "SE Powell Blvd (PP&R, Powell Park)",
       "removed": null,
       "lat": 45.4957548,
@@ -2465,12 +2465,12 @@
       "geocodeAddress": "SE Powell Blvd, Portland, OR, USA",
       "geocodeFormatted": "Southeast Powell Boulevard, I-205 Multi-Use Path, Lents, Portland, Multnomah County, Oregon, 97266, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "177",
       "year": 1998,
-      "name": "Acer saccharum - Sugar maple",
+      "name": "Acer Saccharum - Sugar Maple",
       "location": "3715 N Baldwin St (right-of-way)",
       "removed": null,
       "lat": 45.5787933,
@@ -2479,12 +2479,12 @@
       "geocodeAddress": "3715 N Baldwin St, Portland, OR, USA",
       "geocodeFormatted": "3715, North Baldwin Street, Kenton, Portland, Multnomah County, Oregon, 97217, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "178",
       "year": 1998,
-      "name": "Pinus pinea - Italian stone pine",
+      "name": "Pinus Pinea - Italian Stone Pine",
       "location": "2856 N Emerson Ct (right-of-way)",
       "removed": null,
       "lat": 45.5612323,
@@ -2493,12 +2493,12 @@
       "geocodeAddress": "2856 N Emerson Ct, Portland, OR, USA",
       "geocodeFormatted": "2856, North Emerson Court, Overlook, Portland, Multnomah County, Oregon, 97217, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "179",
       "year": 1998,
-      "name": "Quercus garryana - Oregon white oak",
+      "name": "Quercus Garryana - Oregon White Oak",
       "location": "SW Corner of SW Lane & Corbett (PP&R)",
       "removed": null,
       "lat": 45.4568299,
@@ -2507,12 +2507,12 @@
       "geocodeAddress": "SW Lane & Corbett",
       "geocodeFormatted": "South Corbett Lane, Collins View, Portland, Multnomah County, Oregon, 97219, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "180",
       "year": 1998,
-      "name": "Aesculus flava - Yellow buckeye",
+      "name": "Aesculus Flava - Yellow Buckeye",
       "location": "5511 SE 44th Ave (right-of-way)",
       "removed": null,
       "lat": 45.4824921,
@@ -2521,7 +2521,7 @@
       "geocodeAddress": "5511 SE 44th Ave, Portland, OR, USA",
       "geocodeFormatted": "5511, Southeast 44th Avenue, Woodstock, Portland, Multnomah County, Oregon, 97206, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "181",
@@ -2568,7 +2568,7 @@
     {
       "id": "184",
       "year": 1998,
-      "name": "Umbellularia californica - Oregon myrtle",
+      "name": "Umbellularia Californica - Oregon Myrtle",
       "location": "2408 SE 16th Ave (private, rear yard, corner lot)",
       "removed": null,
       "lat": 45.5050922,
@@ -2577,12 +2577,12 @@
       "geocodeAddress": "2408 SE 16th Ave, Portland, OR, USA",
       "geocodeFormatted": "Saint Philip Neri Catholic Church, 2408, Southeast 16th Avenue, Ladd's Addition, Hosford-Abernethy, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "185",
       "year": 1998,
-      "name": "Calocedrus decurrens - Incense cedar",
+      "name": "Calocedrus Decurrens - Incense Cedar",
       "location": "1144 SE 55th Ave (private, side yard)",
       "removed": null,
       "lat": 45.5146012,
@@ -2591,12 +2591,12 @@
       "geocodeAddress": "1144 SE 55th Ave, Portland, OR, USA",
       "geocodeFormatted": "1144, Southeast 55th Avenue, Mount Tabor, Portland, Multnomah County, Oregon, 97215, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "186",
       "year": 1998,
-      "name": "Carpinus caroliniana - American hornbeam",
+      "name": "Carpinus Caroliniana - American Hornbeam",
       "location": "4327 SE Ellis St (right-of-way)",
       "removed": null,
       "lat": 45.4822506,
@@ -2605,12 +2605,12 @@
       "geocodeAddress": "4327 SE Ellis St, Portland, OR, USA",
       "geocodeFormatted": "4327, Southeast Ellis Street, Woodstock, Portland, Multnomah County, Oregon, 97206, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "187",
       "year": 1998,
-      "name": "Ginkgo biloba - Ginkgo",
+      "name": "Ginkgo Biloba - Ginkgo",
       "location": "3203 SE Woodstock Blvd (private, Reed College)",
       "removed": null,
       "lat": 45.4814993,
@@ -2619,12 +2619,12 @@
       "geocodeAddress": "3203 SE Woodstock Blvd, Portland, OR, USA",
       "geocodeFormatted": "Reed College, 3203, Southeast Woodstock Boulevard, Eastmoreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "188",
       "year": 1998,
-      "name": "Ginkgo biloba - Ginkgo",
+      "name": "Ginkgo Biloba - Ginkgo",
       "location": "3204 SE Woodstock Blvd (private, Reed College)",
       "removed": null,
       "lat": 45.4791066,
@@ -2633,12 +2633,12 @@
       "geocodeAddress": "3204 SE Woodstock Blvd, Portland, OR, USA",
       "geocodeFormatted": "3204, Southeast Woodstock Boulevard, Eastmoreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "189",
       "year": 1998,
-      "name": "Sciadopitys verticillata - Umbrella pine",
+      "name": "Sciadopitys Verticillata - Umbrella Pine",
       "location": "2870 NW Cornell Rd (private, front yard)",
       "removed": null,
       "lat": 45.5328465,
@@ -2647,12 +2647,12 @@
       "geocodeAddress": "2870 NW Cornell Rd, Portland, OR, USA",
       "geocodeFormatted": "2870, Northwest Cornell Road, Kings Heights, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "190",
       "year": 1998,
-      "name": "Sciadopitys verticillata - Umbrella pine",
+      "name": "Sciadopitys Verticillata - Umbrella Pine",
       "location": "2870 NW Cornell Rd (private, front yard)",
       "removed": null,
       "lat": 45.5328465,
@@ -2661,7 +2661,7 @@
       "geocodeAddress": "2870 NW Cornell Rd, Portland, OR, USA",
       "geocodeFormatted": "2870, Northwest Cornell Road, Kings Heights, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "191",
@@ -2680,7 +2680,7 @@
     {
       "id": "192",
       "year": 1998,
-      "name": "Zelkova serrata - Zelkova",
+      "name": "Zelkova Serrata - Zelkova",
       "location": "4066 SE Oak St (private, rear yard)",
       "removed": null,
       "lat": 45.5199557,
@@ -2689,12 +2689,12 @@
       "geocodeAddress": "4066 SE Oak St, Portland, OR, USA",
       "geocodeFormatted": "4066, Southeast Oak Street, Laurelhurst, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "193",
       "year": 1998,
-      "name": "Fagus sylvatica - European beech",
+      "name": "Fagus Sylvatica - European Beech",
       "location": "4343 SE Madison St (private, rear yard)",
       "removed": null,
       "lat": 45.5130713,
@@ -2703,12 +2703,12 @@
       "geocodeAddress": "4343 SE Madison St, Portland, OR, USA",
       "geocodeFormatted": "4343, Southeast Madison Street, Hawthorne, Sunnyside, Portland, Multnomah County, Oregon, 97215, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "194",
       "year": 1998,
-      "name": "Carya illinoinensis - Pecan",
+      "name": "Carya Illinoinensis - Pecan",
       "location": "SE 47th & Steele (PP&R)",
       "removed": null,
       "lat": 45.484614,
@@ -2717,12 +2717,12 @@
       "geocodeAddress": "SE 47th & Steele, Portland, OR, USA",
       "geocodeFormatted": "Southeast Steele & 47th, Southeast Steele Street, Woodstock, Portland, Multnomah County, Oregon, 97286, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "195",
       "year": 1998,
-      "name": "Carya illinoinensis - Pecan",
+      "name": "Carya Illinoinensis - Pecan",
       "location": "SE 47th & Steele (PP&R)",
       "removed": null,
       "lat": 45.484614,
@@ -2731,12 +2731,12 @@
       "geocodeAddress": "SE 47th & Steele, Portland, OR, USA",
       "geocodeFormatted": "Southeast Steele & 47th, Southeast Steele Street, Woodstock, Portland, Multnomah County, Oregon, 97286, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "196",
       "year": 1998,
-      "name": "Aesculus californica - California buckeye",
+      "name": "Aesculus Californica - California Buckeye",
       "location": "5527 SE Tolman St (private, front yard)",
       "removed": null,
       "lat": 45.4777922,
@@ -2745,7 +2745,7 @@
       "geocodeAddress": "5527 SE Tolman St, Portland, OR, USA",
       "geocodeFormatted": "5527, Southeast Tolman Street, Woodstock, Portland, Multnomah County, Oregon, 97206, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "197",
@@ -2764,7 +2764,7 @@
     {
       "id": "198",
       "year": 1998,
-      "name": "Quercus garryana - Oregon white oak",
+      "name": "Quercus Garryana - Oregon White Oak",
       "location": "7654 N Crawford St (Portland Parks N Crawford St & N Pold St Property)",
       "removed": null,
       "lat": 45.5825689,
@@ -2773,12 +2773,12 @@
       "geocodeAddress": "7654 N Crawford St, Portland, OR, USA",
       "geocodeFormatted": "7654, North Crawford Street, Cathedral Park, Portland, Multnomah County, Oregon, 97203, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "199",
       "year": 1998,
-      "name": "Quercus garryana - Oregon white oak",
+      "name": "Quercus Garryana - Oregon White Oak",
       "location": "7654 N Crawford St (Portland Parks N Crawford St & N Pold St Property)",
       "removed": null,
       "lat": 45.5825689,
@@ -2787,7 +2787,7 @@
       "geocodeAddress": "7654 N Crawford St, Portland, OR, USA",
       "geocodeFormatted": "7654, North Crawford Street, Cathedral Park, Portland, Multnomah County, Oregon, 97203, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "200",
@@ -2806,7 +2806,7 @@
     {
       "id": "201",
       "year": 1998,
-      "name": "Calocedrus decurrens - Incense cedar",
+      "name": "Calocedrus Decurrens - Incense Cedar",
       "location": "3022 N Ainsworth St (private, front yard)",
       "removed": null,
       "lat": 45.5661992,
@@ -2815,12 +2815,12 @@
       "geocodeAddress": "3022 N Ainsworth St, Portland, OR, USA",
       "geocodeFormatted": "3022, North Ainsworth Street, Overlook, Portland, Multnomah County, Oregon, 97217, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "202",
       "year": 1998,
-      "name": "Pinus engelmannii - Apache pine",
+      "name": "Pinus Engelmannii - Apache Pine",
       "location": "5936 N Delaware Ave (right-of-way)",
       "removed": null,
       "lat": 45.5662153,
@@ -2829,12 +2829,12 @@
       "geocodeAddress": "5936 N Delaware Ave, Portland, OR, USA",
       "geocodeFormatted": "5936, North Delaware Avenue, Overlook, Portland, Multnomah County, Oregon, 97217, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "203",
       "year": 1998,
-      "name": "Cercis siliquastrum - Judas tree",
+      "name": "Cercis Siliquastrum - Judas Tree",
       "location": "2336 NE Ridgewood Dr (private, front yard)",
       "removed": null,
       "lat": 45.5506827,
@@ -2843,7 +2843,7 @@
       "geocodeAddress": "2336 NE Ridgewood Dr, Portland, OR, USA",
       "geocodeFormatted": "2336, Northeast Ridgewood Drive, Alameda, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "204",
@@ -2862,7 +2862,7 @@
     {
       "id": "205",
       "year": 1999,
-      "name": "Ginkgo biloba - Ginkgo",
+      "name": "Ginkgo Biloba - Ginkgo",
       "location": "1836 SE 51st Ave (right-of-way)",
       "removed": null,
       "lat": 45.509505,
@@ -2871,7 +2871,7 @@
       "geocodeAddress": "1836 SE 51st Ave, Portland, OR, USA",
       "geocodeFormatted": "1836, Southeast 51st Avenue, Mount Tabor, Portland, Multnomah County, Oregon, 97215, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "206",
@@ -2890,7 +2890,7 @@
     {
       "id": "207",
       "year": 1999,
-      "name": "Styphnolobium japonica - Japanese pagoda tree",
+      "name": "Styphnolobium Japonica - Japanese Pagoda Tree",
       "location": "6436 SE Morrison St (private, side yard)",
       "removed": null,
       "lat": 45.517227,
@@ -2899,12 +2899,12 @@
       "geocodeAddress": "6436 SE Morrison St, Portland, OR, USA",
       "geocodeFormatted": "6436, Southeast Morrison Street, Mount Tabor, Portland, Multnomah County, Oregon, 97215, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "208",
       "year": 1999,
-      "name": "Fagus sylvatica - European beech",
+      "name": "Fagus Sylvatica - European Beech",
       "location": "5925 SE Madison St (private, front yard)",
       "removed": null,
       "lat": 45.5131604,
@@ -2913,12 +2913,12 @@
       "geocodeAddress": "5925 SE Madison St, Portland, OR, USA",
       "geocodeFormatted": "5925, Southeast Madison Street, Mount Tabor, Portland, Multnomah County, Oregon, 97215, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "209",
       "year": 1999,
-      "name": "Cedrus deodara - Deodar cedar",
+      "name": "Cedrus Deodara - Deodar Cedar",
       "location": "5925 SE Madison St (private, front yard)",
       "removed": null,
       "lat": 45.5131604,
@@ -2927,12 +2927,12 @@
       "geocodeAddress": "5925 SE Madison St, Portland, OR, USA",
       "geocodeFormatted": "5925, Southeast Madison Street, Mount Tabor, Portland, Multnomah County, Oregon, 97215, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "210",
       "year": 1999,
-      "name": "Ulmus glabra - Wych elm",
+      "name": "Ulmus Glabra - Wych Elm",
       "location": "222 SE 17th Ave (right-of-way)",
       "removed": null,
       "lat": 45.521055,
@@ -2941,7 +2941,7 @@
       "geocodeAddress": "222 SE 17th Ave, Portland, OR, USA",
       "geocodeFormatted": "222, Southeast 17th Avenue, Buckman, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "211",
@@ -2960,7 +2960,7 @@
     {
       "id": "212",
       "year": 1999,
-      "name": "Platanus occidentalis - American sycamore",
+      "name": "Platanus Occidentalis - American Sycamore",
       "location": "2524 NE 25th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5409473,
@@ -2969,12 +2969,12 @@
       "geocodeAddress": "2524 NE 25th Ave, Portland, OR, USA",
       "geocodeFormatted": "2524, Northeast 25th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "213",
       "year": 1999,
-      "name": "Prunus pendula - Weeping cherry",
+      "name": "Prunus Pendula - Weeping Cherry",
       "location": "3403 NE 18th Ave (private, rear yard)",
       "removed": null,
       "lat": 45.5475532,
@@ -2983,12 +2983,12 @@
       "geocodeAddress": "3403 NE 18th Ave, Portland, OR, USA",
       "geocodeFormatted": "3403, Northeast 18th Avenue, Sabin, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "214",
       "year": 1999,
-      "name": "Liquidambar styraciflua - American sweetgum",
+      "name": "Liquidambar Styraciflua - American Sweetgum",
       "location": "5104 NE Flanders St (right-of-way)",
       "removed": null,
       "lat": 45.5256229,
@@ -2997,7 +2997,7 @@
       "geocodeAddress": "5104 NE Flanders St, Portland, OR, USA",
       "geocodeFormatted": "5104, Northeast Flanders Street, North Tabor, Portland, Multnomah County, Oregon, 97213, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "215",
@@ -3016,7 +3016,7 @@
     {
       "id": "216",
       "year": 1999,
-      "name": "Quercus garryana - Oregon white oak",
+      "name": "Quercus Garryana - Oregon White Oak",
       "location": "5739 SW Cheltenham Dr (private, rear yard)",
       "removed": null,
       "lat": 45.4819831,
@@ -3025,12 +3025,12 @@
       "geocodeAddress": "5739 SW Cheltenham Dr, Portland, OR, USA",
       "geocodeFormatted": "5739, Southwest Cheltenham Drive, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "217",
       "year": 1999,
-      "name": "Prunus x yedoensis - Yoshino cherry",
+      "name": "Prunus x Yedoensis - Yoshino Cherry",
       "location": "55 SW Ash St (right-of-way)",
       "removed": null,
       "lat": 45.5219236,
@@ -3039,12 +3039,12 @@
       "geocodeAddress": "55 SW Ash St, Portland, OR, USA",
       "geocodeFormatted": "Portland Fire & Rescue, 55, Southwest Ash Street, Chinatown, Old Town, Portland, Multnomah County, Oregon, 97204, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "218",
       "year": 1999,
-      "name": "Platanus x acerifolia - London planetree",
+      "name": "Platanus x Acerifolia - London Planetree",
       "location": "2024 SW Howards Way (private, front yard)",
       "removed": null,
       "lat": 45.5179312,
@@ -3053,12 +3053,12 @@
       "geocodeAddress": "2024 SW Howards Way, Portland, OR, USA",
       "geocodeFormatted": "2024, Southwest Howards Way, Goose Hollow, Portland, Multnomah County, Oregon, 97201, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "219",
       "year": 1999,
-      "name": "Ulmus x hollandica - Dutch elm",
+      "name": "Ulmus x Hollandica - Dutch Elm",
       "location": "1225 SW 6th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5153538,
@@ -3067,12 +3067,12 @@
       "geocodeAddress": "1225 SW 6th Ave, Portland, OR, USA",
       "geocodeFormatted": "University Club, 1225, Southwest 6th Avenue, University District, Downtown, Portland, Multnomah County, Oregon, 97204, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "220",
       "year": 1999,
-      "name": "Pinus rudis - Endlicher pine",
+      "name": "Pinus Rudis - Endlicher Pine",
       "location": "2403 SW Jefferson St (PP&R, Washington Park)",
       "removed": null,
       "lat": 45.5177959,
@@ -3081,12 +3081,12 @@
       "geocodeAddress": "2403 SW Jefferson St, Portland, OR, USA",
       "geocodeFormatted": "2403, Southwest Jefferson Street, Southwest Hills, Portland, Multnomah County, Oregon, 97201, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "221",
       "year": 1999,
-      "name": "Sequoiadendron giganteum - Giant sequoia",
+      "name": "Sequoiadendron Giganteum - Giant Sequoia",
       "location": "2234-2238 SW Vista Ave (private, front yard)",
       "removed": null,
       "lat": 45.5234197,
@@ -3095,7 +3095,7 @@
       "geocodeAddress": "2234-2238 SW Vista Ave, Portland, OR, USA",
       "geocodeFormatted": "Southwest Vista Avenue, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "222",
@@ -3226,7 +3226,7 @@
     {
       "id": "231",
       "year": 1999,
-      "name": "Ulmus americana - American elm",
+      "name": "Ulmus Americana - American Elm",
       "location": "625-635 NW 21st Ave (right-of-way)",
       "removed": null,
       "lat": 45.5275176,
@@ -3235,7 +3235,7 @@
       "geocodeAddress": "45.52753778241444, -122.6945725946979",
       "geocodeFormatted": "Northwest 21st Avenue, Nob Hill, Northwest District, Portland, Multnomah County, Oregon, 97205, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "232",
@@ -3254,7 +3254,7 @@
     {
       "id": "233",
       "year": 1999,
-      "name": "Cryptomeria japonica - Cryptomeria",
+      "name": "Cryptomeria Japonica - Cryptomeria",
       "location": "6232 NE Stanton St (private, front yard, corner lot)",
       "removed": null,
       "lat": 45.5435082,
@@ -3263,7 +3263,7 @@
       "geocodeAddress": "6232 NE Stanton St, Portland, OR, USA",
       "geocodeFormatted": "6232, Northeast Stanton Street, Roseway, Rose City Park, Portland, Multnomah County, Oregon, 97213, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "234",
@@ -3282,7 +3282,7 @@
     {
       "id": "235",
       "year": 1999,
-      "name": "Juglans cinerea - Butternut",
+      "name": "Juglans Cinerea - Butternut",
       "location": "9009 N Foss Ave (PP&R, Charles Jordan Community Center)",
       "removed": null,
       "lat": 45.5877494,
@@ -3291,12 +3291,12 @@
       "geocodeAddress": "9009 N Foss Ave, Portland, OR, USA",
       "geocodeFormatted": "Charles Jordan Community Center, 9009, North Foss Avenue, Portsmouth, Portland, Multnomah County, Oregon, 97217, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "236",
       "year": 2001,
-      "name": "Araucaria araucana - Monkey puzzle",
+      "name": "Araucaria Araucana - Monkey Puzzle",
       "location": "419 NE Hazelfern Pl (private, front yard)",
       "removed": null,
       "lat": 45.5252782,
@@ -3305,12 +3305,12 @@
       "geocodeAddress": "419 NE Hazelfern Pl, Portland, OR, USA",
       "geocodeFormatted": "419, Northeast Hazelfern Place, Laurelhurst, Portland, Multnomah County, Oregon, 97232, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "237",
       "year": 2001,
-      "name": "Araucaria araucana - Monkey puzzle",
+      "name": "Araucaria Araucana - Monkey Puzzle",
       "location": "415 NE Laurelhurst Pl (private, front yard)",
       "removed": null,
       "lat": 45.525396,
@@ -3319,12 +3319,12 @@
       "geocodeAddress": "415 NE Laurelhurst Pl, Portland, OR, USA",
       "geocodeFormatted": "415, Northeast Laurelhurst Place, Laurelhurst, Portland, Multnomah County, Oregon, 97232, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "238",
       "year": 2001,
-      "name": "Quercus coccinea - Scarlet oak",
+      "name": "Quercus Coccinea - Scarlet Oak",
       "location": "3922 N Overlook Blvd (private, front yard)",
       "removed": null,
       "lat": 45.5512646,
@@ -3333,12 +3333,12 @@
       "geocodeAddress": "3922 N Overlook Blvd, Portland, OR, USA",
       "geocodeFormatted": "3922, North Overlook Boulevard, Overlook, Portland, Multnomah County, Oregon, 97227, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "239",
       "year": 2001,
-      "name": "Pinus sabiniana - Gray pine",
+      "name": "Pinus Sabiniana - Gray Pine",
       "location": "4074 N Massachusetts Ave (right-of-way)",
       "removed": null,
       "lat": 45.5532448,
@@ -3347,12 +3347,12 @@
       "geocodeAddress": "4074 N Massachusetts Ave, Portland, OR, USA",
       "geocodeFormatted": "4074, North Massachusetts Avenue, Overlook, Portland, Multnomah County, Oregon, 97227, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "240",
       "year": 2002,
-      "name": "Ulmus laevis - European white elm",
+      "name": "Ulmus Laevis - European White Elm",
       "location": "3331 NE Hancock St (right-of-way)",
       "removed": null,
       "lat": 45.5366568,
@@ -3361,12 +3361,12 @@
       "geocodeAddress": "3331 NE Hancock St, Portland, OR, USA",
       "geocodeFormatted": "3331, Northeast Hancock Street, Grant Park, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "241",
       "year": 2002,
-      "name": "Acer palmatum - Japanese maple",
+      "name": "Acer Palmatum - Japanese Maple",
       "location": "3652 SE Alder St (private, front yard)",
       "removed": null,
       "lat": 45.5176434,
@@ -3375,12 +3375,12 @@
       "geocodeAddress": "3652 SE Alder St, Portland, OR, USA",
       "geocodeFormatted": "3652, Southeast Alder Street, BElmont, Sunnyside, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "242",
       "year": 2003,
-      "name": "Juglans regia - English walnut",
+      "name": "Juglans Regia - English Walnut",
       "location": "907 SE Bidwell St (right-of-way)",
       "removed": null,
       "lat": 45.4680609,
@@ -3389,12 +3389,12 @@
       "geocodeAddress": "907 SE Bidwell St, Portland, OR, USA",
       "geocodeFormatted": "907, Southeast Bidwell Street, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "243",
       "year": 2003,
-      "name": "Quercus phellos - Willow oak",
+      "name": "Quercus Phellos - Willow Oak",
       "location": "Columbia Park (PP&R)",
       "removed": null,
       "lat": 45.5780302,
@@ -3403,12 +3403,12 @@
       "geocodeAddress": "Columbia Park, Portland, OR, USA",
       "geocodeFormatted": "Columbia Park, University Park, Portland, Multnomah County, Oregon, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "244",
       "year": 2003,
-      "name": "Quercus phellos - Willow oak",
+      "name": "Quercus Phellos - Willow Oak",
       "location": "SW Wright & Park Pl (PP&R, Washington Park)",
       "removed": null,
       "lat": 45.5217424,
@@ -3417,12 +3417,12 @@
       "geocodeAddress": "SW Wright & Park Pl, Portland, OR, USA",
       "geocodeFormatted": "Southwest Park Place & Wright, Southwest Park Place, Arlington Heights, Portland, Multnomah County, Oregon, 97210, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "245",
       "year": 2003,
-      "name": "Pinus ponderosa - Ponderosa pine",
+      "name": "Pinus Ponderosa - Ponderosa Pine",
       "location": "8143 SW 37th Ave (private, front yard)",
       "removed": null,
       "lat": 45.4655302,
@@ -3431,12 +3431,12 @@
       "geocodeAddress": "8143 SW 37th Ave, Portland, OR, USA",
       "geocodeFormatted": "8143, Southwest 37th Avenue, Multnomah Village, Multnomah, Portland, Multnomah County, Oregon, 97219, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "246",
       "year": 2003,
-      "name": "Metasequoia glyptostroboides - Dawn redwood",
+      "name": "Metasequoia Glyptostroboides - Dawn Redwood",
       "location": "2562 SW Hillcrest Dr (private, rear yard)",
       "removed": null,
       "lat": 45.5072416,
@@ -3445,7 +3445,7 @@
       "geocodeAddress": "2562 SW Hillcrest Dr, Portland, OR, USA",
       "geocodeFormatted": "2562, Southwest Hillcrest Drive, Portland Heights, Southwest Hills, Portland, Multnomah County, Oregon, 97201, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "247",
@@ -3464,7 +3464,7 @@
     {
       "id": "248",
       "year": 2003,
-      "name": "Umbellularia californica - Oregon myrtle",
+      "name": "Umbellularia Californica - Oregon Myrtle",
       "location": "2904 N Portland Blvd (right-of-way)",
       "removed": null,
       "lat": 45.5697123,
@@ -3473,12 +3473,12 @@
       "geocodeAddress": "2904 N Portland Blvd, OR, USA",
       "geocodeFormatted": "2904, North Rosa Parks Way, Arbor Lodge, Portland, Multnomah County, Oregon, 97217, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "249",
       "year": 2003,
-      "name": "Aesculus hippocastanum - Common horsechestnut",
+      "name": "Aesculus Hippocastanum - Common Horsechestnut",
       "location": "1465 NE Going St (right-of-way)",
       "removed": null,
       "lat": 45.5565353,
@@ -3487,12 +3487,12 @@
       "geocodeAddress": "1465 NE Going St, Portland, OR, USA",
       "geocodeFormatted": "1465, Northeast Going Street, Sabin, Portland, Multnomah County, Oregon, 97211, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "250",
       "year": 2003,
-      "name": "Quercus garryana - Oregon white oak",
+      "name": "Quercus Garryana - Oregon White Oak",
       "location": "8516 N Fowler Ct (right-of-way)",
       "removed": null,
       "lat": 45.5845544,
@@ -3501,12 +3501,12 @@
       "geocodeAddress": "8516 N Fowler Ct, Portland, OR, USA",
       "geocodeFormatted": "8516, North Fowler Court, Kenton, Portland, Multnomah County, Oregon, 97217, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "251",
       "year": 2003,
-      "name": "Taxus baccata - English yew",
+      "name": "Taxus Baccata - English Yew",
       "location": "3345 SE Milwaukie Ave (private, front yard)",
       "removed": null,
       "lat": 45.4989812,
@@ -3515,12 +3515,12 @@
       "geocodeAddress": "3345 SE Milwaukie Ave, Portland, OR, USA",
       "geocodeFormatted": "3345, Southeast Milwaukie Avenue, Brooklyn, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "252",
       "year": 2003,
-      "name": "Acer macrophyllum - Bigleaf maple",
+      "name": "Acer Macrophyllum - Bigleaf Maple",
       "location": "6733 N Greeley Ave (right-of-way)",
       "removed": null,
       "lat": 45.5714967,
@@ -3529,12 +3529,12 @@
       "geocodeAddress": "6733 N Greeley Ave, Portland, OR, USA",
       "geocodeFormatted": "6733, North Greeley Avenue, Arbor Lodge, Portland, Multnomah County, Oregon, 97217, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "253",
       "year": 2003,
-      "name": "Metasequoia glyptostroboides - Dawn redwood",
+      "name": "Metasequoia Glyptostroboides - Dawn Redwood",
       "location": "1617 NE Brazee St (private, front yard)",
       "removed": null,
       "lat": 45.5407527,
@@ -3543,12 +3543,12 @@
       "geocodeAddress": "1617 NE Brazee St, Portland, OR, USA",
       "geocodeFormatted": "1617, Northeast Brazee Street, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "254",
       "year": 2003,
-      "name": "Metasequoia glyptostroboides - Dawn redwood",
+      "name": "Metasequoia Glyptostroboides - Dawn Redwood",
       "location": "3515 N Lombard Ct (private, rear yard)",
       "removed": null,
       "lat": 45.5717154,
@@ -3557,7 +3557,7 @@
       "geocodeAddress": "45.57163314459767, -122.62841838652999",
       "geocodeFormatted": "3515, Northeast Lombard Court, Concordia, Portland, Multnomah County, Oregon, 97211, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "255",
@@ -3576,7 +3576,7 @@
     {
       "id": "256",
       "year": 2003,
-      "name": "Fraxinus americana - American ash",
+      "name": "Fraxinus Americana - American Ash",
       "location": "412 NE Hazelfern Pl (right-of-way)",
       "removed": null,
       "lat": 45.5253739,
@@ -3585,12 +3585,12 @@
       "geocodeAddress": "412 NE Hazelfern Pl, Portland, OR, USA",
       "geocodeFormatted": "412, Northeast Hazelfern Place, Laurelhurst, Portland, Multnomah County, Oregon, 97232, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "257",
       "year": 2003,
-      "name": "Aesculus californica - California buckeye",
+      "name": "Aesculus Californica - California Buckeye",
       "location": "8827 N Haven Ave (right-of-way)",
       "removed": null,
       "lat": 45.5863099,
@@ -3599,12 +3599,12 @@
       "geocodeAddress": "8827 N Haven Ave, Portland, OR, USA",
       "geocodeFormatted": "8827, North Haven Avenue, Portsmouth, Portland, Multnomah County, Oregon, 97203, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "258",
       "year": 2003,
-      "name": "Ulmus minor - Smoothleaf elm",
+      "name": "Ulmus Minor - Smoothleaf Elm",
       "location": "2546 NE 18th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5412326,
@@ -3613,12 +3613,12 @@
       "geocodeAddress": "2546 NE 18th Ave, Portland, OR, USA",
       "geocodeFormatted": "2546, Northeast 18th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "259",
       "year": 2004,
-      "name": "Quercus garryana - Oregon white oak",
+      "name": "Quercus Garryana - Oregon White Oak",
       "location": "South of 3969 N Overlook Terr (private, undeveloped lot)",
       "removed": null,
       "lat": 45.5515451,
@@ -3627,12 +3627,12 @@
       "geocodeAddress": "3969 N Overlook Terr",
       "geocodeFormatted": "3969, North Overlook Terrace, Overlook, Portland, Multnomah County, Oregon, 97227, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "260",
       "year": 2004,
-      "name": "Pseudotsuga menziesii - Douglas fir",
+      "name": "Pseudotsuga Menziesii - Douglas Fir",
       "location": "Powell Butte Nature Park (Portland Water Bureau)",
       "removed": null,
       "lat": 45.4919776,
@@ -3641,12 +3641,12 @@
       "geocodeAddress": "45.492011342861716, -122.49764825604161",
       "geocodeFormatted": "158th Service Road, Pleasant Valley, Portland, Multnomah County, Oregon, 97236, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "261",
       "year": 2004,
-      "name": "Aesculus hippocastanum 'Baumannii' - Common horsechestnut",
+      "name": "Aesculus Hippocastanum 'Baumannii' - Common Horsechestnut",
       "location": "1529 NE Thompson St (right-of-way)",
       "removed": null,
       "lat": 45.5392374,
@@ -3655,12 +3655,12 @@
       "geocodeAddress": "1529 NE Thompson St, Portland, OR, USA",
       "geocodeFormatted": "1529, Northeast Thompson Street, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "262",
       "year": 2004,
-      "name": "Liriodendron tulipifera - Tulip tree",
+      "name": "Liriodendron Tulipifera - Tulip Tree",
       "location": "4807 NE 10th Ave (private, front yard)",
       "removed": null,
       "lat": 45.5574695,
@@ -3669,12 +3669,12 @@
       "geocodeAddress": "4807 NE 10th Ave, Portland, OR, USA",
       "geocodeFormatted": "4807, Northeast 10th Avenue, King, Portland, Multnomah County, Oregon, 97211, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "263",
       "year": 2004,
-      "name": "Acer saccharinum - Silver maple",
+      "name": "Acer Saccharinum - Silver Maple",
       "location": "12456 SW Orchard Hill Rd (private, rear yard)",
       "removed": null,
       "lat": 45.4351566,
@@ -3683,12 +3683,12 @@
       "geocodeAddress": "12456 SW Orchard Hill Rd, Portland, OR, USA",
       "geocodeFormatted": "12456, Southwest Orchard Hill Road, Arnold Creek, Lake Oswego, Multnomah County, Oregon, 97035, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "264",
       "year": 2004,
-      "name": "Betula nigra - River birch",
+      "name": "Betula Nigra - River Birch",
       "location": "2104/2106 SE Yamhill St (right-of-way)",
       "removed": null,
       "lat": 45.5161375,
@@ -3697,7 +3697,7 @@
       "geocodeAddress": "2104/2106 SE Yamhill St, Portland, OR, USA",
       "geocodeFormatted": "Southeast Yamhill Street, Russellville, Mill Park, Portland, Multnomah County, Oregon, 97216, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "265",
@@ -3744,7 +3744,7 @@
     {
       "id": "268",
       "year": 2005,
-      "name": "Quercus garryana - Oregon white oak",
+      "name": "Quercus Garryana - Oregon White Oak",
       "location": "5813 SE Steele St (right-of-way)",
       "removed": null,
       "lat": 45.4848572,
@@ -3753,12 +3753,12 @@
       "geocodeAddress": "5813 SE Steele St, Portland, OR, USA",
       "geocodeFormatted": "5813, Southeast Steele Street, Woodstock, Portland, Multnomah County, Oregon, 97206, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "269",
       "year": 2005,
-      "name": "Platanus x acerifolia - London planetree",
+      "name": "Platanus x Acerifolia - London Planetree",
       "location": "2407 NE 18th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5398385,
@@ -3767,12 +3767,12 @@
       "geocodeAddress": "2407 NE 18th Ave, Portland, OR, USA",
       "geocodeFormatted": "2407, Northeast 18th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "270",
       "year": 2005,
-      "name": "Platanus x acerifolia - London planetree",
+      "name": "Platanus x Acerifolia - London Planetree",
       "location": "2407 NE 18th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5398385,
@@ -3781,12 +3781,12 @@
       "geocodeAddress": "2407 NE 18th Ave, Portland, OR, USA",
       "geocodeFormatted": "2407, Northeast 18th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "271",
       "year": 2005,
-      "name": "Carya illinoinensis - Pecan",
+      "name": "Carya Illinoinensis - Pecan",
       "location": "3329 SE Madison St (private, side yard)",
       "removed": null,
       "lat": 45.5130885,
@@ -3795,12 +3795,12 @@
       "geocodeAddress": "3329 SE Madison St, Portland, OR, USA",
       "geocodeFormatted": "3329, Southeast Madison Street, BElmont, Sunnyside, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "272",
       "year": 2005,
-      "name": "Quercus garryana - Oregon white oak",
+      "name": "Quercus Garryana - Oregon White Oak",
       "location": "5545, 5559, & 5560 SE 109th Ave (right-of-way)",
       "removed": null,
       "lat": 45.4819066,
@@ -3809,7 +3809,7 @@
       "geocodeAddress": "5560 SE 109th Ave",
       "geocodeFormatted": "5560, Southeast 109th Avenue, Lents, Portland, Multnomah County, Oregon, 97266, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "273",
@@ -3828,7 +3828,7 @@
     {
       "id": "274",
       "year": 2005,
-      "name": "Quercus rubra - Northern red oak",
+      "name": "Quercus Rubra - Northern Red Oak",
       "location": "5340 N Interstate Ave (PP&R, Patton Square Park)",
       "removed": null,
       "lat": 45.56147620543627,
@@ -3837,12 +3837,12 @@
       "geocodeAddress": "5340 N Interstate Ave, Portland, OR, USA",
       "geocodeFormatted": "Interstate Firehouse Cultural Center, 5340, North Interstate Avenue, Overlook, Portland, Multnomah County, Oregon, 97217, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "275",
       "year": 2005,
-      "name": "Acer platanoides - Norway maple",
+      "name": "Acer Platanoides - Norway Maple",
       "location": "7351 SE 31st Ave (right-of-way)",
       "removed": null,
       "lat": 45.4710992,
@@ -3851,12 +3851,12 @@
       "geocodeAddress": "7351 SE 31st Ave, Portland, OR, USA",
       "geocodeFormatted": "7351, Southeast 31st Avenue, Eastmoreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "276",
       "year": 2005,
-      "name": "Sequoiadendron giganteum - Giant sequoia",
+      "name": "Sequoiadendron Giganteum - Giant Sequoia",
       "location": "7404 N Oatman Ave (private, rear yard)",
       "removed": null,
       "lat": 45.5765337,
@@ -3865,12 +3865,12 @@
       "geocodeAddress": "7404 N Oatman Ave, Portland, OR, USA",
       "geocodeFormatted": "7404, North Oatman Avenue, Arbor Lodge, Portland, Multnomah County, Oregon, 97217, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "277",
       "year": 2005,
-      "name": "Cedrus atlantica - Atlas cedar",
+      "name": "Cedrus Atlantica - Atlas Cedar",
       "location": "2190 SW Kings Ct (private, rear yard)",
       "removed": null,
       "lat": 45.5198104,
@@ -3879,12 +3879,12 @@
       "geocodeAddress": "2190 SW Kings Ct, Portland, OR, USA",
       "geocodeFormatted": "2190, Southwest Kings Court, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "278",
       "year": 2005,
-      "name": "Carya laciniosa - Shellbark hickory",
+      "name": "Carya Laciniosa - Shellbark Hickory",
       "location": "1942 SW Montgomery Dr (private, front yard)",
       "removed": null,
       "lat": 45.5133225,
@@ -3893,12 +3893,12 @@
       "geocodeAddress": "1942 SW Montgomery Dr, Portland, OR, USA",
       "geocodeFormatted": "1942, Southwest Montgomery Drive, Portland Heights, Southwest Hills, Portland, Multnomah County, Oregon, 97201, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "279",
       "year": 2007,
-      "name": "Pseudotsuga menziesii - Douglas fir",
+      "name": "Pseudotsuga Menziesii - Douglas Fir",
       "location": "13931 NE Glisan St (private)",
       "removed": null,
       "lat": 45.5282447,
@@ -3907,12 +3907,12 @@
       "geocodeAddress": "13931 NE Glisan St, Portland, OR, USA",
       "geocodeFormatted": "13931, Northeast Glisan Street, Hazelwood, Portland, Multnomah County, Oregon, 97230, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "280",
       "year": 2007,
-      "name": "Liriodendron tulipifera - Tulip tree",
+      "name": "Liriodendron Tulipifera - Tulip Tree",
       "location": "1602 SE 32nd Pl (right-of-way)",
       "removed": null,
       "lat": 45.5112238,
@@ -3921,12 +3921,12 @@
       "geocodeAddress": "1602 SE 32nd Pl, Portland, OR, USA",
       "geocodeFormatted": "1602, Southeast 32nd Place, Colonial Heights, Richmond, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "281",
       "year": 2007,
-      "name": "Pinus wallichiana - Himalayan pine",
+      "name": "Pinus Wallichiana - Himalayan Pine",
       "location": "3310 NW Franklin Ct (private, side yard)",
       "removed": null,
       "lat": 45.5349784,
@@ -3935,12 +3935,12 @@
       "geocodeAddress": "3310 NW Franklin Ct, Portland, OR, USA",
       "geocodeFormatted": "3310, Northwest Franklin Court, Willamette Heights, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "282",
       "year": 2007,
-      "name": "Sequoia sempervirens - Coast redwood",
+      "name": "Sequoia Sempervirens - Coast Redwood",
       "location": "701 NW Culpepper Terr (PP&R, Hillside Park)",
       "removed": null,
       "lat": 45.5280662,
@@ -3949,12 +3949,12 @@
       "geocodeAddress": "701 NW Culpepper Terr, Portland, OR, USA",
       "geocodeFormatted": "701, Northwest Culpepper Terrace, Kings Heights, Hillside, Portland, Multnomah County, Oregon, 97210, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "283",
       "year": 2007,
-      "name": "Abies concolor - White fir",
+      "name": "Abies Concolor - White Fir",
       "location": "2156 SW Laurel St (private, front yard)",
       "removed": null,
       "lat": 45.5110048,
@@ -3963,12 +3963,12 @@
       "geocodeAddress": "2156 SW Laurel St, Portland, OR, USA",
       "geocodeFormatted": "2156, Southwest Laurel Street, Portland Heights, Southwest Hills, Portland, Multnomah County, Oregon, 97201, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "284",
       "year": 2008,
-      "name": "Quercus garryana - Oregon white oak",
+      "name": "Quercus Garryana - Oregon White Oak",
       "location": "4768 N Oberlin St (private, rear yard)",
       "removed": null,
       "lat": 45.5783287,
@@ -3977,12 +3977,12 @@
       "geocodeAddress": "4768 N Oberlin St, Portland, OR, USA",
       "geocodeFormatted": "4768, North Oberlin Street, University Park, Portland, Multnomah County, Oregon, 97203, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "285",
       "year": 2008,
-      "name": "Pinus ponderosa - Ponderosa pine",
+      "name": "Pinus Ponderosa - Ponderosa Pine",
       "location": "3437 NE 29th Ave (private, front yard)",
       "removed": null,
       "lat": 45.5480242,
@@ -3991,12 +3991,12 @@
       "geocodeAddress": "3437 NE 29th Ave, Portland, OR, USA",
       "geocodeFormatted": "3437, Northeast 29th Avenue, Alameda, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "286",
       "year": 2009,
-      "name": "Ginkgo biloba - Ginkgo",
+      "name": "Ginkgo Biloba - Ginkgo",
       "location": "3145 NE 8th Ave (private, rear yard)",
       "removed": null,
       "lat": 45.5459224,
@@ -4005,12 +4005,12 @@
       "geocodeAddress": "3145 NE 8th Ave, Portland, OR, USA",
       "geocodeFormatted": "3145, Northeast 8th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "287",
       "year": 2009,
-      "name": "Ulmus glabra `Camperdownii' - Camperdown elm",
+      "name": "Ulmus Glabra `Camperdownii' - Camperdown Elm",
       "location": "1836 SE Locust Ave (private, front yard)",
       "removed": null,
       "lat": 45.5097697,
@@ -4019,12 +4019,12 @@
       "geocodeAddress": "1836 SE Locust Ave, Portland, OR, USA",
       "geocodeFormatted": "1836, Southeast Locust Avenue, Ladd's Addition, Hosford-Abernethy, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "288",
       "year": 2009,
-      "name": "Lagerstroemia indica - Crape myrtle",
+      "name": "Lagerstroemia Indica - Crape Myrtle",
       "location": "4201 SE Franklin St (private, front yard)",
       "removed": null,
       "lat": 45.499033,
@@ -4033,12 +4033,12 @@
       "geocodeAddress": "4201 SE Franklin St, Portland, OR, USA",
       "geocodeFormatted": "4201, Southeast Franklin Street, Richmond, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "289",
       "year": 2009,
-      "name": "Lagerstroemia indica - Crape myrtle",
+      "name": "Lagerstroemia Indica - Crape Myrtle",
       "location": "4201 SE Franklin St (private, front yard)",
       "removed": null,
       "lat": 45.499033,
@@ -4047,12 +4047,12 @@
       "geocodeAddress": "4201 SE Franklin St, Portland, OR, USA",
       "geocodeFormatted": "4201, Southeast Franklin Street, Richmond, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "290",
       "year": 2009,
-      "name": "Malus x domestica - Yellow bellflower apple",
+      "name": "Malus x Domestica - Yellow Bellflower Apple",
       "location": "4700-4799 SW Campbell Ct (right-of-way)",
       "removed": null,
       "lat": 45.487901,
@@ -4061,7 +4061,7 @@
       "geocodeAddress": "4799 SW Campbell Ct",
       "geocodeFormatted": "4799, Southwest Campbell Court, Dosch Estates, Hillsdale, Portland, Multnomah County, Oregon, 97239, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "291",
@@ -4080,7 +4080,7 @@
     {
       "id": "292",
       "year": 2009,
-      "name": "Davidia involucrata - Dove Tree",
+      "name": "Davidia Involucrata - Dove Tree",
       "location": "2425 SE Bybee Blvd (Crystal Springs Rhododendron Garden, fee entry)",
       "removed": null,
       "lat": 45.4751207,
@@ -4089,12 +4089,12 @@
       "geocodeAddress": "2425 SE Bybee Blvd, Portland, OR, USA",
       "geocodeFormatted": "Eastmoreland Golf Course, 2425, Southeast Bybee Boulevard, Eastmoreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "293",
       "year": 2009,
-      "name": "Calocedrus decurrens - Incense cedar",
+      "name": "Calocedrus Decurrens - Incense Cedar",
       "location": "Lone Fir Pioneer Cemetery (Metro)",
       "removed": null,
       "lat": 45.5176838,
@@ -4103,12 +4103,12 @@
       "geocodeAddress": "45.5183546225034, -122.64214068117506",
       "geocodeFormatted": "Macleay Mausoleum, Southeast Morrison Street, Buckman, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "294",
       "year": 2009,
-      "name": "Pseudotsuga menziesii - Douglas fir",
+      "name": "Pseudotsuga Menziesii - Douglas Fir",
       "location": "Lone Fir Pioneer Cemetery (Metro)",
       "removed": null,
       "lat": 45.5176838,
@@ -4117,7 +4117,7 @@
       "geocodeAddress": "45.5183546225034, -122.64214068117506",
       "geocodeFormatted": "Macleay Mausoleum, Southeast Morrison Street, Buckman, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "295",
@@ -4136,7 +4136,7 @@
     {
       "id": "296",
       "year": 2009,
-      "name": "Chamaecyparis lawsoniana - Port Orford cedar",
+      "name": "Chamaecyparis Lawsoniana - Port Orford Cedar",
       "location": "3203 SE Woodstock Blvd (private, Reed College)",
       "removed": null,
       "lat": 45.4814993,
@@ -4145,12 +4145,12 @@
       "geocodeAddress": "3203 SE Woodstock Blvd, Portland, OR, USA",
       "geocodeFormatted": "Reed College, 3203, Southeast Woodstock Boulevard, Eastmoreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "297",
       "year": 2009,
-      "name": "Castanea sativa - Spanish chestnut",
+      "name": "Castanea Sativa - Spanish Chestnut",
       "location": "828 NE Prescott St (right-of-way)",
       "removed": null,
       "lat": 45.5552794,
@@ -4159,12 +4159,12 @@
       "geocodeAddress": "828 NE Prescott St, Portland, OR, USA",
       "geocodeFormatted": "828, Northeast Prescott Street, McCoy Village Apartments, King, Portland, Multnomah County, Oregon, 97211, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "298",
       "year": 2010,
-      "name": "Catalpa bignonioides - Southern catalpa",
+      "name": "Catalpa Bignonioides - Southern Catalpa",
       "location": "3401 SE Clinton St (private, side yard)",
       "removed": null,
       "lat": 45.5038276,
@@ -4173,12 +4173,12 @@
       "geocodeAddress": "3401 SE Clinton St, Portland, OR, USA",
       "geocodeFormatted": "3401, Southeast Clinton Street, Richmond, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "299",
       "year": 2010,
-      "name": "Pinus taeda - Loblolly pine",
+      "name": "Pinus Taeda - Loblolly Pine",
       "location": "3045 NE 9th Ave (private, front yard)",
       "removed": null,
       "lat": 45.5449792,
@@ -4187,12 +4187,12 @@
       "geocodeAddress": "3045 NE 9th Ave, Portland, OR, USA",
       "geocodeFormatted": "3045, Northeast 9th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "300",
       "year": 2010,
-      "name": "Cedrus deodara - Deodar cedar",
+      "name": "Cedrus Deodara - Deodar Cedar",
       "location": "3735 SE Woodstock Blvd (private, front yard)",
       "removed": null,
       "lat": 45.4794385,
@@ -4201,12 +4201,12 @@
       "geocodeAddress": "3735 SE Woodstock Blvd, Portland, OR, USA",
       "geocodeFormatted": "3735, Southeast Woodstock Boulevard, Eastmoreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "301",
       "year": 2010,
-      "name": "Sequoia sempervirens - Coast redwood",
+      "name": "Sequoia Sempervirens - Coast Redwood",
       "location": "7617 SE Main St (private, front yard)",
       "removed": null,
       "lat": 45.5140881,
@@ -4215,12 +4215,12 @@
       "geocodeAddress": "7617 SE Main St, Portland, OR, USA",
       "geocodeFormatted": "St. Andrews Memory Care, 7617, Southeast Main Street, Montavilla, Portland, Multnomah County, Oregon, 97215, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "302",
       "year": 2010,
-      "name": "Quercus rubra - Northern red oak",
+      "name": "Quercus Rubra - Northern Red Oak",
       "location": "4706 SE 58th Ave (private, front yard)",
       "removed": null,
       "lat": 45.4889328,
@@ -4229,12 +4229,12 @@
       "geocodeAddress": "4706 SE 58th Ave, Portland, OR, USA",
       "geocodeFormatted": "4706, Southeast 58th Avenue, Woodstock, Portland, Multnomah County, Oregon, 97206, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "303",
       "year": 2010,
-      "name": "Platanus x acerifolia - London planetree",
+      "name": "Platanus x Acerifolia - London Planetree",
       "location": "2437 NE Regents Dr (right-of-way)",
       "removed": null,
       "lat": 45.5496854,
@@ -4243,12 +4243,12 @@
       "geocodeAddress": "2437 NE Regents Dr, Portland, OR, USA",
       "geocodeFormatted": "2437, Northeast Regents Drive, Alameda, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "304",
       "year": 2010,
-      "name": "Quercus macrocarpa - Burr oak",
+      "name": "Quercus Macrocarpa - Burr Oak",
       "location": "2921-2955 SE Washington St (right-of-way)",
       "removed": null,
       "lat": 45.5187619,
@@ -4257,12 +4257,12 @@
       "geocodeAddress": "2955 SE Washington St",
       "geocodeFormatted": "2955, Southeast Washington Street, BElmont, Sunnyside, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "305",
       "year": 2010,
-      "name": "Acer pseudoplatanus - Sycamore maple",
+      "name": "Acer Pseudoplatanus - Sycamore Maple",
       "location": "2923 NE 8th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5441019,
@@ -4271,12 +4271,12 @@
       "geocodeAddress": "2923 NE 8th Ave, Portland, OR, USA",
       "geocodeFormatted": "2923, Northeast 8th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "306",
       "year": 2011,
-      "name": "Metasequoia glyptostroboides - Dawn redwoods (12 trees)",
+      "name": "Metasequoia Glyptostroboides - Dawn Redwoods (12 Trees)",
       "location": "Upper Macleay Park (PP&R)",
       "removed": null,
       "lat": 45.527031,
@@ -4285,12 +4285,12 @@
       "geocodeAddress": "Upper Macleay Park, Portland, OR, USA",
       "geocodeFormatted": "Upper Macleay Park Trailhead, Wildwood Trail, Forest Park, Portland, Multnomah County, Oregon, 97210, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "307",
       "year": 2011,
-      "name": "Sequoiadendron giganteum - Giant sequoia",
+      "name": "Sequoiadendron Giganteum - Giant Sequoia",
       "location": "5810 SE Taylor St (private, front yard)",
       "removed": null,
       "lat": 45.5146168,
@@ -4299,7 +4299,7 @@
       "geocodeAddress": "5810 SE Taylor St, Portland, OR, USA",
       "geocodeFormatted": "5810, Southeast Taylor Street, Mount Tabor, Portland, Multnomah County, Oregon, 97215, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "308",
@@ -4318,7 +4318,7 @@
     {
       "id": "309",
       "year": 2011,
-      "name": "Cedrus atlantica - Atlas cedar",
+      "name": "Cedrus Atlantica - Atlas Cedar",
       "location": "7000 SW 63rd Ave (private, side yard)",
       "removed": null,
       "lat": 45.4743378,
@@ -4327,12 +4327,12 @@
       "geocodeAddress": "7000 SW 63rd Ave, Portland, OR, USA",
       "geocodeFormatted": "7000, Southwest 63rd Avenue, Maplewood, Portland, Multnomah County, Oregon, 97219, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "310",
       "year": 2011,
-      "name": "Diospyrus virginiana - American persimmon",
+      "name": "Diospyrus Virginiana - American Persimmon",
       "location": "6440 NE 36th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5696031,
@@ -4341,12 +4341,12 @@
       "geocodeAddress": "6440 NE 36th Ave, Portland, OR, USA",
       "geocodeFormatted": "6440, Northeast 36th Avenue, Concordia, Portland, Multnomah County, Oregon, 97211, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "311",
       "year": 2011,
-      "name": "Larix kaempferi - Japanese larch",
+      "name": "Larix Kaempferi - Japanese Larch",
       "location": "4626 NE 37th Ave (private, front yard)",
       "removed": null,
       "lat": 45.5571118,
@@ -4355,12 +4355,12 @@
       "geocodeAddress": "4626 NE 37th Ave, Portland, OR, USA",
       "geocodeFormatted": "4626, Northeast 37th Avenue, Beaumont-Wilshire, Portland, Multnomah County, Oregon, 97211, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "312",
       "year": 2013,
-      "name": "Fagus sylvatica f. purpurea - European beech",
+      "name": "Fagus Sylvatica f. Purpurea - European Beech",
       "location": "4073 N Gantenbein Ave (private, front yard)",
       "removed": null,
       "lat": 45.5531754,
@@ -4369,12 +4369,12 @@
       "geocodeAddress": "4073 N Gantenbein Ave, Portland, OR, USA",
       "geocodeFormatted": "4073, North Gantenbein Avenue, Mississippi, Boise, Portland, Multnomah County, Oregon, 97227, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "313",
       "year": 2013,
-      "name": "Metasequoia glyptostroboides - Dawn redwood",
+      "name": "Metasequoia Glyptostroboides - Dawn Redwood",
       "location": "SW Bary Ln (PP&R, Hoyt Arboretum)",
       "removed": null,
       "lat": 45.5164269,
@@ -4383,7 +4383,7 @@
       "geocodeAddress": "45.51637436640272, -122.71523385769159",
       "geocodeFormatted": "Oak Trail, Sylvan-Highlands, Portland, Multnomah County, Oregon, 97210, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "314",
@@ -4402,7 +4402,7 @@
     {
       "id": "315",
       "year": 2014,
-      "name": "Aesculus hippocastanum - Common horsechestnut",
+      "name": "Aesculus Hippocastanum - Common Horsechestnut",
       "location": "4741 SE 36th Pl (right-of-way)",
       "removed": null,
       "lat": 45.4885076,
@@ -4411,12 +4411,12 @@
       "geocodeAddress": "4741 SE 36th Pl, Portland, OR, USA",
       "geocodeFormatted": "4741, Southeast 36th Place, Reed, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "316",
       "year": 2014,
-      "name": "Fagus sylvatica - European beech",
+      "name": "Fagus Sylvatica - European Beech",
       "location": "1357 SW Spring Garden (private, front yard)",
       "removed": null,
       "lat": 45.4636569,
@@ -4425,12 +4425,12 @@
       "geocodeAddress": "1357 SW Spring Garden, Portland, OR, USA",
       "geocodeFormatted": "1357, Southwest Spring Garden Street, South Burlingame, Portland, Multnomah County, Oregon, 97219, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "317",
       "year": 2014,
-      "name": "Tilia tomentosa - Silver linden",
+      "name": "Tilia Tomentosa - Silver Linden",
       "location": "408 N Rosa Parks Way (right-of-way)",
       "removed": null,
       "lat": 45.5697184,
@@ -4439,12 +4439,12 @@
       "geocodeAddress": "408 N Rosa Parks Way, Portland, OR, USA",
       "geocodeFormatted": "408, North Rosa Parks Way, Piedmont, Portland, Multnomah County, Oregon, 97217, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "318",
       "year": 2015,
-      "name": "Ulmus americana - American elm",
+      "name": "Ulmus Americana - American Elm",
       "location": "2803 SE Main St (right-of-way)",
       "removed": null,
       "lat": 45.5138902,
@@ -4453,7 +4453,7 @@
       "geocodeAddress": "2803 SE Main St, Portland, OR, USA",
       "geocodeFormatted": "2803, Southeast Main Street, BElmont, Sunnyside, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "319",
@@ -4472,7 +4472,7 @@
     {
       "id": "320",
       "year": 2015,
-      "name": "Prunus armeniaca - Apricot",
+      "name": "Prunus Armeniaca - Apricot",
       "location": "4823 NE 18th Ave (private, front yard)",
       "removed": null,
       "lat": 45.5581004,
@@ -4481,7 +4481,7 @@
       "geocodeAddress": "4823 NE 18th Ave, Portland, OR, USA",
       "geocodeFormatted": "4823, Northeast 18th Avenue, Alberta, Vernon, Portland, Multnomah County, Oregon, 97211, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "321",
@@ -4500,7 +4500,7 @@
     {
       "id": "322",
       "year": 2015,
-      "name": "Aesculus hippocastanum - Common horsechestnut",
+      "name": "Aesculus Hippocastanum - Common Horsechestnut",
       "location": "8710 N Willamette Blvd (right-of-way)",
       "removed": null,
       "lat": 45.5894474,
@@ -4509,7 +4509,7 @@
       "geocodeAddress": "8710 N Willamette Blvd, Portland, OR, USA",
       "geocodeFormatted": "8710, North Willamette Boulevard, Cathedral Park, Portland, Multnomah County, Oregon, 97203, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "323",
@@ -4542,7 +4542,7 @@
     {
       "id": "325",
       "year": 2016,
-      "name": "Metasequoia glyptostroboides - dawn redwood",
+      "name": "Metasequoia Glyptostroboides - Dawn Redwood",
       "location": "4600 SW Maplewood Dr (private, yard)",
       "removed": null,
       "lat": 45.4684119,
@@ -4551,12 +4551,12 @@
       "geocodeAddress": "4600 SW Maplewood Rd, Portland, OR 97219",
       "geocodeFormatted": "4600, Southwest Maplewood Road, Maplewood, Portland, Multnomah County, Oregon, 97219, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "326",
       "year": 2016,
-      "name": "Metasequoia glyptostroboides - dawn redwood",
+      "name": "Metasequoia Glyptostroboides - Dawn Redwood",
       "location": "4600 SW Maplewood Dr (private, yard)",
       "removed": null,
       "lat": 45.4684119,
@@ -4565,12 +4565,12 @@
       "geocodeAddress": "4600 SW Maplewood Rd, Portland, OR 97219",
       "geocodeFormatted": "4600, Southwest Maplewood Road, Maplewood, Portland, Multnomah County, Oregon, 97219, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "327",
       "year": 2016,
-      "name": "Prunus X 'Shirotae' - Mt. Fuji flowering cherry",
+      "name": "Prunus x 'Shirotae' - Mt. Fuji Flowering Cherry",
       "location": "221 NE 58th Ave (private, front yard)",
       "removed": null,
       "lat": 45.524648,
@@ -4579,7 +4579,7 @@
       "geocodeAddress": "221 NE 58th Ave, Portland, OR, USA",
       "geocodeFormatted": "221, Northeast 58th Avenue, North Tabor, Portland, Multnomah County, Oregon, 97213, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "328",
@@ -4598,7 +4598,7 @@
     {
       "id": "329",
       "year": 2016,
-      "name": "Sequoia sempervirens - coast redwood",
+      "name": "Sequoia Sempervirens - Coast Redwood",
       "location": "N Princeton St & N Syracuse St (right-of-way)",
       "removed": null,
       "lat": 45.5796821,
@@ -4607,12 +4607,12 @@
       "geocodeAddress": "45.57960296757948, -122.72699074234087",
       "geocodeFormatted": "5330, North Syracuse Street, University Park, Portland, Multnomah County, Oregon, 97203, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "330",
       "year": 2017,
-      "name": "Taxodium distichum - bald cypress",
+      "name": "Taxodium Distichum - Bald Cypress",
       "location": "4600 SW Maplewood Rd (private, front yard)",
       "removed": null,
       "lat": 45.4684119,
@@ -4621,7 +4621,7 @@
       "geocodeAddress": "4600 SW Maplewood Rd, Portland, OR, USA",
       "geocodeFormatted": "4600, Southwest Maplewood Road, Maplewood, Portland, Multnomah County, Oregon, 97219, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "331",
@@ -4654,7 +4654,7 @@
     {
       "id": "333",
       "year": 2017,
-      "name": "Ulmus glabra `Camperdownii' - Camperdown elm",
+      "name": "Ulmus Glabra `Camperdownii' - Camperdown Elm",
       "location": "4223 SE 67th Ave (private, front yard)",
       "removed": null,
       "lat": 45.4918819,
@@ -4663,12 +4663,12 @@
       "geocodeAddress": "4223 SE 67th Ave, Portland, OR, USA",
       "geocodeFormatted": "4223, Southeast 67th Avenue, Arleta, Foster-Powell, Portland, Multnomah County, Oregon, 97206, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "334",
       "year": 2017,
-      "name": "Pinus ponderosa - ponderosa pine",
+      "name": "Pinus Ponderosa - Ponderosa Pine",
       "location": "6804 N Campbell St (right-of-way)",
       "removed": null,
       "lat": 45.57175516333696,
@@ -4677,12 +4677,12 @@
       "geocodeAddress": "6804 N Campbell St, Portland, OR, USA",
       "geocodeFormatted": "North Campbell Avenue, Overlook, Portland, Multnomah County, Oregon, 97217, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "335",
       "year": 2017,
-      "name": "Carpinus betulus - European hornbeam",
+      "name": "Carpinus Betulus - European Hornbeam",
       "location": "Fernhill Park, NE 39th Ave & NE Ainsworth St (PP&R)",
       "removed": null,
       "lat": 45.5657614,
@@ -4691,12 +4691,12 @@
       "geocodeAddress": "45.56638793244057, -122.62341926451887",
       "geocodeFormatted": "Northeast Simpson Street, Concordia, Portland, Multnomah County, Oregon, 97211, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "336",
       "year": 2017,
-      "name": "Carpinus betulus - European hornbeam",
+      "name": "Carpinus Betulus - European Hornbeam",
       "location": "Fernhill Park, NE 39th Ave & NE Ainsworth St (PP&R)",
       "removed": null,
       "lat": 45.5657614,
@@ -4705,12 +4705,12 @@
       "geocodeAddress": "45.56638793244057, -122.62341926451887",
       "geocodeFormatted": "Northeast Simpson Street, Concordia, Portland, Multnomah County, Oregon, 97211, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "337",
       "year": 2018,
-      "name": "Abies grandis - Grand fir",
+      "name": "Abies Grandis - Grand Fir",
       "location": "Pier Park, 10325 N Lombard St (PP&R)",
       "removed": null,
       "lat": 45.6013764,
@@ -4719,12 +4719,12 @@
       "geocodeAddress": "10325 N Lombard St",
       "geocodeFormatted": "10325, North Lombard Street, Saint Johns, Portland, Multnomah County, Oregon, 97203, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "338",
       "year": 2018,
-      "name": "Platanus acerifolia - London planetree",
+      "name": "Platanus Acerifolia - London Planetree",
       "location": "3967 N Overlook Blvd (right-of-way, NW corner)",
       "removed": null,
       "lat": 45.5517428,
@@ -4733,12 +4733,12 @@
       "geocodeAddress": "3967 N Overlook Blvd, Portland, OR, USA",
       "geocodeFormatted": "3967, North Overlook Boulevard, Overlook, Portland, Multnomah County, Oregon, 97227, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "339",
       "year": 2018,
-      "name": "Platanus acerifolia - London planetree",
+      "name": "Platanus Acerifolia - London Planetree",
       "location": "3967 N Overlook Blvd (right-of-way, NE corner)",
       "removed": null,
       "lat": 45.5517428,
@@ -4747,12 +4747,12 @@
       "geocodeAddress": "3967 N Overlook Blvd, Portland, OR, USA",
       "geocodeFormatted": "3967, North Overlook Boulevard, Overlook, Portland, Multnomah County, Oregon, 97227, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "340",
       "year": 2018,
-      "name": "Platanus acerifolia - London planetree",
+      "name": "Platanus Acerifolia - London Planetree",
       "location": "3967 N Overlook Blvd (right-of-way, S corner)",
       "removed": null,
       "lat": 45.5517428,
@@ -4761,12 +4761,12 @@
       "geocodeAddress": "3967 N Overlook Blvd, Portland, OR, USA",
       "geocodeFormatted": "3967, North Overlook Boulevard, Overlook, Portland, Multnomah County, Oregon, 97227, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "341",
       "year": 2018,
-      "name": "Platanus acerifolia - London planetree",
+      "name": "Platanus Acerifolia - London Planetree",
       "location": "1335 N Mason St (right-of-way)",
       "removed": null,
       "lat": 45.5538232,
@@ -4775,12 +4775,12 @@
       "geocodeAddress": "1335 N Mason St, Portland, OR, USA",
       "geocodeFormatted": "Harbor Freight Tools, 1335, North Mason Street, Overlook, Portland, Multnomah County, Oregon, 97217, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "342",
       "year": 2018,
-      "name": "Juglans regia - English walnut",
+      "name": "Juglans Regia - English Walnut",
       "location": "4528 N Vancouver Ave (private, back yard)",
       "removed": null,
       "lat": 45.55586,
@@ -4789,12 +4789,12 @@
       "geocodeAddress": "4528 N Vancouver Ave, Portland, OR, USA",
       "geocodeFormatted": "4528, North Vancouver Avenue, Humboldt, Portland, Multnomah County, Oregon, 97217, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "343",
       "year": 2018,
-      "name": "Quercus rubra - Red oak",
+      "name": "Quercus Rubra - Red Oak",
       "location": "5245 NE Cleveland Ave (right-of-way)",
       "removed": null,
       "lat": 45.5612213,
@@ -4803,12 +4803,12 @@
       "geocodeAddress": "5245 NE Cleveland Ave, Portland, OR, USA",
       "geocodeFormatted": "5245, Northeast Cleveland Avenue, Humboldt, Portland, Multnomah County, Oregon, 97211, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "344",
       "year": 2018,
-      "name": "Sassafras albidum - Sassafras",
+      "name": "Sassafras Albidum - Sassafras",
       "location": "5901 N Borthwick Ave (right-of-way)",
       "removed": null,
       "lat": 45.5656707,
@@ -4817,12 +4817,12 @@
       "geocodeAddress": "5901 N Borthwick Ave, Portland, OR, USA",
       "geocodeFormatted": "5901, North Borthwick Avenue, Humboldt, Portland, Multnomah County, Oregon, 97217, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "345",
       "year": 2018,
-      "name": "Chamaecyparis pisifera 'Boulevard' - Boulevard cypress",
+      "name": "Chamaecyparis Pisifera 'Boulevard' - Boulevard Cypress",
       "location": "3401 SE Clinton St (private, side yard)",
       "removed": null,
       "lat": 45.5038276,
@@ -4831,12 +4831,12 @@
       "geocodeAddress": "3401 SE Clinton St, Portland, OR, USA",
       "geocodeFormatted": "3401, Southeast Clinton Street, Richmond, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "346",
       "year": 2018,
-      "name": "Fagus sylvatica f. pupurea - Copper beech",
+      "name": "Fagus Sylvatica f. Pupurea - Copper Beech",
       "location": "3839 SE Woodward St (private, front yard)",
       "removed": null,
       "lat": 45.5021765,
@@ -4845,12 +4845,12 @@
       "geocodeAddress": "3839 SE Woodward St, Portland, OR, USA",
       "geocodeFormatted": "3839, Southeast Woodward Street, Richmond, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "347",
       "year": 2018,
-      "name": "Fagus sylvatica - European beech",
+      "name": "Fagus Sylvatica - European Beech",
       "location": "7110 SE 29th Ave (private, backyard)",
       "removed": null,
       "lat": 45.4725807,
@@ -4859,12 +4859,12 @@
       "geocodeAddress": "7110 SE 29th Ave, Portland, OR, USA",
       "geocodeFormatted": "7110, Southeast 29th Avenue, Eastmoreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "348",
       "year": 2018,
-      "name": "Pseudotsuga menziesii - Douglas - fir",
+      "name": "Pseudotsuga Menziesii - Douglas - Fir",
       "location": "8207 SW 30th Ave (right-of-way)",
       "removed": null,
       "lat": 45.4651148,
@@ -4873,12 +4873,12 @@
       "geocodeAddress": "8207 SW 30th Ave, Portland, OR, USA",
       "geocodeFormatted": "8207, Southwest 30th Avenue, Multnomah Village, Multnomah, Portland, Multnomah County, Oregon, 97219, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "349",
       "year": 2018,
-      "name": "Pinus ponderosa - Ponderosa pine",
+      "name": "Pinus Ponderosa - Ponderosa Pine",
       "location": "4124 SW Canby St (right-of-way)",
       "removed": null,
       "lat": 45.4687819,
@@ -4887,12 +4887,12 @@
       "geocodeAddress": "4124 SW Canby St, Portland, OR, USA",
       "geocodeFormatted": "4124, Southwest Canby Street, Multnomah Village, Multnomah, Portland, Multnomah County, Oregon, 97219, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "350",
       "year": 2018,
-      "name": "Parrotia persica - Persian ironwood",
+      "name": "Parrotia Persica - Persian Ironwood",
       "location": "4600 SW Maplewood Rd (private)",
       "removed": null,
       "lat": 45.4684119,
@@ -4901,12 +4901,12 @@
       "geocodeAddress": "4600 SW Maplewood Rd, Portland, OR, USA",
       "geocodeFormatted": "4600, Southwest Maplewood Road, Maplewood, Portland, Multnomah County, Oregon, 97219, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "351",
       "year": 2018,
-      "name": "Halesia monticola - Mountain silverbell",
+      "name": "Halesia Monticola - Mountain Silverbell",
       "location": "4600 SW Maplewood Rd (private)",
       "removed": null,
       "lat": 45.4684119,
@@ -4915,12 +4915,12 @@
       "geocodeAddress": "4600 SW Maplewood Rd, Portland, OR, USA",
       "geocodeFormatted": "4600, Southwest Maplewood Road, Maplewood, Portland, Multnomah County, Oregon, 97219, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "352",
       "year": 2018,
-      "name": "Acer pictum - Painted maple",
+      "name": "Acer Pictum - Painted Maple",
       "location": "4600 SW Maplewood Rd (private)",
       "removed": null,
       "lat": 45.4684119,
@@ -4929,12 +4929,12 @@
       "geocodeAddress": "4600 SW Maplewood Rd, Portland, OR, USA",
       "geocodeFormatted": "4600, Southwest Maplewood Road, Maplewood, Portland, Multnomah County, Oregon, 97219, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "353",
       "year": 2019,
-      "name": "Gymnocladus dioica - Kentucky coffeetree",
+      "name": "Gymnocladus Dioica - Kentucky Coffeetree",
       "location": "6635 N Baltimore Ave (PP&R, Cathedral Park)",
       "removed": null,
       "lat": 45.5892915,
@@ -4943,12 +4943,12 @@
       "geocodeAddress": "6635 N Baltimore Ave, Portland, OR, USA",
       "geocodeFormatted": "6635, North Baltimore Avenue, Cathedral Park, Portland, Multnomah County, Oregon, 97203, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "354",
       "year": 2019,
-      "name": "Umbellularia californica - Oregon myrtle",
+      "name": "Umbellularia Californica - Oregon Myrtle",
       "location": "8235 & 8241 N Chautauqua Blvd (private, rear yard)",
       "removed": null,
       "lat": 45.5829861,
@@ -4957,12 +4957,12 @@
       "geocodeAddress": "8241 N Chautauqua Blvd",
       "geocodeFormatted": "8241, North Chautauqua Boulevard, Portsmouth, Portland, Multnomah County, Oregon, 97217, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "355",
       "year": 2019,
-      "name": "Pinus densiflora - Japanese red pine",
+      "name": "Pinus Densiflora - Japanese Red Pine",
       "location": "10040 NE 6th Dr (PP&R, Columbia Children's Arboretum)",
       "removed": null,
       "lat": 45.59389748505206,
@@ -4971,12 +4971,12 @@
       "geocodeAddress": "10040 NE 6th Dr, Portland, OR, USA",
       "geocodeFormatted": "10040, Northeast 6th Drive, Faloma, East Columbia, Portland, Multnomah County, Oregon, 97211, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "356",
       "year": 2019,
-      "name": "Metasequoia glyptostroboides - Dawn redwood",
+      "name": "Metasequoia Glyptostroboides - Dawn Redwood",
       "location": "6805 NE 32nd Ave (private, rear yard)",
       "removed": null,
       "lat": 45.5721128,
@@ -4985,12 +4985,12 @@
       "geocodeAddress": "6805 NE 32nd Ave, Portland, OR, USA",
       "geocodeFormatted": "6805, Northeast 32nd Avenue, Concordia, Portland, Multnomah County, Oregon, 97211, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "357",
       "year": 2019,
-      "name": "Fagus sylvatica - Copper beech",
+      "name": "Fagus Sylvatica - Copper Beech",
       "location": "3834 NE 23rd Ave (private, rear yard)",
       "removed": null,
       "lat": 45.5506516,
@@ -4999,12 +4999,12 @@
       "geocodeAddress": "3834 NE 23rd Ave, Portland, OR, USA",
       "geocodeFormatted": "3834, Northeast 23rd Avenue, Alameda, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "358",
       "year": 2019,
-      "name": "Acer campestre - Hedge maple",
+      "name": "Acer Campestre - Hedge Maple",
       "location": "3424 NE 17th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5478365,
@@ -5013,12 +5013,12 @@
       "geocodeAddress": "3424 NE 17th Ave, Portland, OR, USA",
       "geocodeFormatted": "3424, Northeast 17th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "359",
       "year": 2019,
-      "name": "Pseudotsuga menziesii - Douglas - fir",
+      "name": "Pseudotsuga Menziesii - Douglas - Fir",
       "location": "5151 NW Cornell Rd (private, Audubon Society)",
       "removed": null,
       "lat": 45.5267893,
@@ -5027,12 +5027,12 @@
       "geocodeAddress": "5151 NW Cornell Rd, Portland, OR, USA",
       "geocodeFormatted": "Bird Alliance of Oregon, 5151, Northwest Cornell Road, Forest Park, Portland, Multnomah County, Oregon, 97210, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "360",
       "year": 2019,
-      "name": "Castanea sativa - Spanish chestnut",
+      "name": "Castanea Sativa - Spanish Chestnut",
       "location": "2704 SE 84th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5031833,
@@ -5041,12 +5041,12 @@
       "geocodeAddress": "2704 SE 84th Ave, Portland, OR, USA",
       "geocodeFormatted": "2704, Southeast 84th Avenue, Powellhurst-Gilbert, Portland, Multnomah County, Oregon, 97266, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "361",
       "year": 2019,
-      "name": "Populus nigra var. italica - Lombardy poplar",
+      "name": "Populus Nigra var. Italica - Lombardy Poplar",
       "location": "16160 SE Powell Blvd (PP&R, Powell Butte Nature Park)",
       "removed": null,
       "lat": 45.4947669,
@@ -5055,12 +5055,12 @@
       "geocodeAddress": "16160 SE Powell Blvd, Portland, OR, USA",
       "geocodeFormatted": "16160, Southeast Powell Boulevard, Centennial, Portland, Multnomah County, Oregon, 97236, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "362",
       "year": 2019,
-      "name": "Cedrus atlantica - Blue Atlas cedar",
+      "name": "Cedrus Atlantica - Blue Atlas Cedar",
       "location": "6704 SE 122nd Ave (PP&R, Leach Botanical Garden)",
       "removed": null,
       "lat": 45.4739598,
@@ -5069,12 +5069,12 @@
       "geocodeAddress": "6704 SE 122nd Ave, Portland, OR, USA",
       "geocodeFormatted": "6704, Southeast 122nd Avenue, Gilbert, Pleasant Valley, Portland, Multnomah County, Oregon, 97236, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "363",
       "year": 2019,
-      "name": "Liquidambar styraciflua - Sweetgum",
+      "name": "Liquidambar Styraciflua - Sweetgum",
       "location": "7300 SW Brier Pl (right-of-way)",
       "removed": null,
       "lat": 45.4717331,
@@ -5083,12 +5083,12 @@
       "geocodeAddress": "7300 SW Brier Pl, Portland, OR, USA",
       "geocodeFormatted": "7300, Southwest Brier Place, John's Landing, South Portland, Portland, Multnomah County, Oregon, 97219, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "364",
       "year": 2019,
-      "name": "Quercus palustris - Pin oak",
+      "name": "Quercus Palustris - Pin Oak",
       "location": "7326 SW Brier Pl (right-of-way)",
       "removed": null,
       "lat": 45.4714443,
@@ -5097,12 +5097,12 @@
       "geocodeAddress": "7326 SW Brier Pl, Portland, OR, USA",
       "geocodeFormatted": "7326, Southwest Brier Place, John's Landing, South Portland, Portland, Multnomah County, Oregon, 97219, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "365",
       "year": 2020,
-      "name": "Abies pinsapo - Spanish fir",
+      "name": "Abies Pinsapo - Spanish Fir",
       "location": "9008 N Charleston Ave (private)",
       "removed": null,
       "lat": 45.5926213,
@@ -5111,12 +5111,12 @@
       "geocodeAddress": "9008 N Charleston Ave, Portland, OR, USA",
       "geocodeFormatted": "9008, North Charleston Avenue, Saint Johns, Portland, Multnomah County, Oregon, 97203, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "366",
       "year": 2020,
-      "name": "Platanus x acerifolia - London planetree",
+      "name": "Platanus x Acerifolia - London Planetree",
       "location": "23 NE Morgan St (private)",
       "removed": null,
       "lat": 45.574558926755415,
@@ -5125,12 +5125,12 @@
       "geocodeAddress": "23 NE Morgan St, Portland, OR, USA",
       "geocodeFormatted": "23, Northeast Morgan Street, Piedmont, Portland, Multnomah County, Oregon, 97211, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "367",
       "year": 2020,
-      "name": "Tilia tomentosa - Siver linden",
+      "name": "Tilia Tomentosa - Siver Linden",
       "location": "Peninsula Park (PP&R)",
       "removed": null,
       "lat": 45.5681691,
@@ -5139,12 +5139,12 @@
       "geocodeAddress": "Peninsula Park, Portland, OR, USA",
       "geocodeFormatted": "Peninsula Park, 700, Piedmont, Portland, Multnomah County, Oregon, 97217, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "368",
       "year": 2020,
-      "name": "Cedrus deodara - Deodar cedar",
+      "name": "Cedrus Deodara - Deodar Cedar",
       "location": "6006 N Mississippi Ave (private)",
       "removed": null,
       "lat": 45.5665831,
@@ -5153,12 +5153,12 @@
       "geocodeAddress": "6006 N Mississippi Ave, Portland, OR, USA",
       "geocodeFormatted": "6006, North Mississippi Avenue, Piedmont, Portland, Multnomah County, Oregon, 97217, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "369",
       "year": 2020,
-      "name": "Ulmus americana - American elm",
+      "name": "Ulmus Americana - American Elm",
       "location": "Overlook Park (PP&R)",
       "removed": null,
       "lat": 45.5487166,
@@ -5167,12 +5167,12 @@
       "geocodeAddress": "Overlook Park, Portland, OR, USA",
       "geocodeFormatted": "Overlook Park, Overlook, Portland, Multnomah County, Oregon, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "370",
       "year": 2020,
-      "name": "Quercus hypoleucoides - Silverleaf oak",
+      "name": "Quercus Hypoleucoides - Silverleaf Oak",
       "location": "2627 NE 11th Ave (right-of-way, north tree)",
       "removed": null,
       "lat": 45.5416635,
@@ -5181,12 +5181,12 @@
       "geocodeAddress": "2627 NE 11th Ave, Portland, OR, USA",
       "geocodeFormatted": "2627, Northeast 11th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "371",
       "year": 2020,
-      "name": "Quercus hypoleucoides - Silverleaf oak",
+      "name": "Quercus Hypoleucoides - Silverleaf Oak",
       "location": "2627 NE 11th Ave (right-of-way, south tree)",
       "removed": null,
       "lat": 45.5416635,
@@ -5195,12 +5195,12 @@
       "geocodeAddress": "2627 NE 11th Ave, Portland, OR, USA",
       "geocodeFormatted": "2627, Northeast 11th Avenue, Irvington, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "372",
       "year": 2020,
-      "name": "Fagus sylvatica - European beech",
+      "name": "Fagus Sylvatica - European Beech",
       "location": "3310 NE 36th Ave (private)",
       "removed": null,
       "lat": 45.5469969,
@@ -5209,12 +5209,12 @@
       "geocodeAddress": "3310 NE 36th Ave, Portland, OR, USA",
       "geocodeFormatted": "3310, Northeast 36th Avenue, Beaumont-Wilshire, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "373",
       "year": 2020,
-      "name": "Fagus sylvatica - European beech",
+      "name": "Fagus Sylvatica - European Beech",
       "location": "810 SE 86th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5166731,
@@ -5223,12 +5223,12 @@
       "geocodeAddress": "810 SE 86th Ave, Portland, OR, USA",
       "geocodeFormatted": "810, Southeast 86th Avenue, Montavilla, Portland, Multnomah County, Oregon, 97216, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "374",
       "year": 2020,
-      "name": "Ginkgo biloba - Ginkgo",
+      "name": "Ginkgo Biloba - Ginkgo",
       "location": "6704 SE 122nd Ave (Leach Botanical Garden, PP&R)",
       "removed": null,
       "lat": 45.4739598,
@@ -5237,12 +5237,12 @@
       "geocodeAddress": "6704 SE 122nd Ave, Portland, OR, USA",
       "geocodeFormatted": "6704, Southeast 122nd Avenue, Gilbert, Pleasant Valley, Portland, Multnomah County, Oregon, 97236, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "375",
       "year": 2020,
-      "name": "Crataegus x lavallei - Lavalle hawthorn",
+      "name": "Crataegus x Lavallei - Lavalle Hawthorn",
       "location": "6704 SE 122nd Ave (Leach Botanical Garden, PP&R)",
       "removed": null,
       "lat": 45.4739598,
@@ -5251,12 +5251,12 @@
       "geocodeAddress": "6704 SE 122nd Ave, Portland, OR, USA",
       "geocodeFormatted": "6704, Southeast 122nd Avenue, Gilbert, Pleasant Valley, Portland, Multnomah County, Oregon, 97236, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "376",
       "year": 2020,
-      "name": "Stewartia monadelpha - Orangebark stewartia",
+      "name": "Stewartia Monadelpha - Orangebark Stewartia",
       "location": "6704 SE 122nd Ave (Leach Botanical Garden, PP&R)",
       "removed": null,
       "lat": 45.4739598,
@@ -5265,12 +5265,12 @@
       "geocodeAddress": "6704 SE 122nd Ave, Portland, OR, USA",
       "geocodeFormatted": "6704, Southeast 122nd Avenue, Gilbert, Pleasant Valley, Portland, Multnomah County, Oregon, 97236, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "377",
       "year": 2020,
-      "name": "Eucalyptus perriniana - Spinning gum",
+      "name": "Eucalyptus Perriniana - Spinning Gum",
       "location": "3415 SW Water Ave (right-of-way)",
       "removed": null,
       "lat": 45.4983947,
@@ -5279,12 +5279,12 @@
       "geocodeAddress": "3415 SW Water Ave, Portland, OR, USA",
       "geocodeFormatted": "3415, South Water Avenue, Corbett, South Portland, Portland, Multnomah County, Oregon, 97239, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "378",
       "year": 2022,
-      "name": "Pseudotsuga menziesii - Douglas - fir",
+      "name": "Pseudotsuga Menziesii - Douglas - Fir",
       "location": "5518 SE 139th Ave (right-of-way)",
       "removed": null,
       "lat": 45.482577,
@@ -5293,12 +5293,12 @@
       "geocodeAddress": "5518 SE 139th Ave, Portland, OR, USA",
       "geocodeFormatted": "5518, Southeast 139th Avenue, Powellhurst-Gilbert, Portland, Multnomah County, Oregon, 97236, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "379",
       "year": 2022,
-      "name": "Cinnamomum japonicum - Japanese cinnamon",
+      "name": "Cinnamomum Japonicum - Japanese Cinnamon",
       "location": "3223 NE 16th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5462853,
@@ -5307,12 +5307,12 @@
       "geocodeAddress": "3223 NE 16th Ave, Portland, OR, USA",
       "geocodeFormatted": "3223, Northeast 16th Avenue, Sabin, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "380",
       "year": 2022,
-      "name": "Cinnamomum japonicum - Japanese cinnamon",
+      "name": "Cinnamomum Japonicum - Japanese Cinnamon",
       "location": "3223 NE 16th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5462853,
@@ -5321,12 +5321,12 @@
       "geocodeAddress": "3223 NE 16th Ave, Portland, OR, USA",
       "geocodeFormatted": "3223, Northeast 16th Avenue, Sabin, Portland, Multnomah County, Oregon, 97212, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "381",
       "year": 2022,
-      "name": "Abies grandis - Grand fir",
+      "name": "Abies Grandis - Grand Fir",
       "location": "7100 SW Brier Pl (private)",
       "removed": null,
       "lat": 45.4728248,
@@ -5335,12 +5335,12 @@
       "geocodeAddress": "7100 SW Brier Pl, Portland, OR, USA",
       "geocodeFormatted": "7100, Southwest Brier Place, John's Landing, South Portland, Portland, Multnomah County, Oregon, 97219, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "382",
       "year": 2022,
-      "name": "Cedrus deodara - Deodar cedar",
+      "name": "Cedrus Deodara - Deodar Cedar",
       "location": "617 NE Prescott St (private)",
       "removed": null,
       "lat": 45.5556892,
@@ -5349,12 +5349,12 @@
       "geocodeAddress": "617 NE Prescott St, Portland, OR, USA",
       "geocodeFormatted": "617, Northeast Prescott Street, McCoy Village Apartments, King, Portland, Multnomah County, Oregon, 97211, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "383",
       "year": 2022,
-      "name": "Cedrus deodara - Deodar cedar",
+      "name": "Cedrus Deodara - Deodar Cedar",
       "location": "617 NE Prescott St (private)",
       "removed": null,
       "lat": 45.5556892,
@@ -5363,12 +5363,12 @@
       "geocodeAddress": "617 NE Prescott St, Portland, OR, USA",
       "geocodeFormatted": "617, Northeast Prescott Street, McCoy Village Apartments, King, Portland, Multnomah County, Oregon, 97211, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "384",
       "year": 2022,
-      "name": "Thuja plicata - Western redcedar",
+      "name": "Thuja Plicata - Western Redcedar",
       "location": "7077 SW 32nd Ave (right-of-way)",
       "removed": null,
       "lat": 45.4731844,
@@ -5377,12 +5377,12 @@
       "geocodeAddress": "7077 SW 32nd Ave, Portland, OR, USA",
       "geocodeFormatted": "7077, Southwest 32nd Avenue, Multnomah Village, Multnomah, Portland, Multnomah County, Oregon, 97219, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "385",
       "year": 2022,
-      "name": "Cercidiphyllum japonicum - Katsura",
+      "name": "Cercidiphyllum Japonicum - Katsura",
       "location": "Pier Park (PP&R, hole 4 on disc golf course)",
       "removed": null,
       "lat": 45.6021358,
@@ -5391,12 +5391,12 @@
       "geocodeAddress": "Pier Park, Portland, OR, USA",
       "geocodeFormatted": "Pier Park, Saint Johns, Portland, Multnomah County, Oregon, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "386",
       "year": 2022,
-      "name": "Sequoiadendron giganteum - Giant sequoia",
+      "name": "Sequoiadendron Giganteum - Giant Sequoia",
       "location": "3114 NW Thurman St (private)",
       "removed": null,
       "lat": 45.5355241,
@@ -5405,12 +5405,12 @@
       "geocodeAddress": "3114 NW Thurman St, Portland, OR, USA",
       "geocodeFormatted": "3114, Northwest Thurman Street, Willamette Heights, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "387",
       "year": 2023,
-      "name": "Fagus sylvatica - Copper beech",
+      "name": "Fagus Sylvatica - Copper Beech",
       "location": "1943 SE Hemlock Ave (private)",
       "removed": null,
       "lat": 45.5090924,
@@ -5419,12 +5419,12 @@
       "geocodeAddress": "1943 SE Hemlock Ave, Portland, OR, USA",
       "geocodeFormatted": "1943, Southeast Hemlock Avenue, Ladd's Addition, Hosford-Abernethy, Portland, Multnomah County, Oregon, 97214, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "388",
       "year": 2023,
-      "name": "Platanus x acerfolia - London planetree",
+      "name": "Platanus x Acerfolia - London Planetree",
       "location": "5014 NE Simpson St (private)",
       "removed": null,
       "lat": 45.5648717,
@@ -5433,12 +5433,12 @@
       "geocodeAddress": "5014 NE Simpson St, Portland, OR, USA",
       "geocodeFormatted": "5014, Northeast Simpson Street, Cully, Portland, Multnomah County, Oregon, 97218, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "389",
       "year": 2023,
-      "name": "Corylus colurna - Turkish hazelnut",
+      "name": "Corylus Colurna - Turkish Hazelnut",
       "location": "Knott Park (PP&R)",
       "removed": null,
       "lat": 45.5407993,
@@ -5447,12 +5447,12 @@
       "geocodeAddress": "Knott Park, Portland, OR, USA",
       "geocodeFormatted": "Knott Park, Knott Community Garden, Parkrose Heights, Portland, Multnomah County, Oregon, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "390",
       "year": 2023,
-      "name": "Cedrus libani ssp. Atlantica - Atlas cedar",
+      "name": "Cedrus Libani ssp. Atlantica - Atlas Cedar",
       "location": "Multnomah Arts Center, 7688 SW Capitol Hwy (PP&R)",
       "removed": null,
       "lat": 45.4682846,
@@ -5461,12 +5461,12 @@
       "geocodeAddress": "Multnomah Arts Center, 7688 SW Capitol Hwy, Portland, OR, USA",
       "geocodeFormatted": "Multnomah Arts Center, 7688, Southwest Capitol Highway, Multnomah Village, Multnomah, Portland, Multnomah County, Oregon, 97219, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "391",
       "year": 2023,
-      "name": "Chamaecyparis lawsoniana - Port Orford cedar",
+      "name": "Chamaecyparis Lawsoniana - Port Orford Cedar",
       "location": "5210 NE Thompson St (right-of-way)",
       "removed": null,
       "lat": 45.5388505,
@@ -5475,12 +5475,12 @@
       "geocodeAddress": "5210 NE Thompson St, Portland, OR, USA",
       "geocodeFormatted": "5210, Northeast Thompson Street, Rose City Park, Portland, Multnomah County, Oregon, 97213, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "392",
       "year": 2023,
-      "name": "Stypholobium japonicum syn. Sophora japonica",
+      "name": "Stypholobium Japonicum Syn. Sophora Japonica",
       "location": "Argay Park (PP&R)",
       "removed": null,
       "lat": 45.5516147,
@@ -5489,12 +5489,12 @@
       "geocodeAddress": "Argay Park, Portland, OR, USA",
       "geocodeFormatted": "Argay Park, Argay Terrace, Portland, Multnomah County, Oregon, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "393",
       "year": 2024,
-      "name": "Fagus sylvatica - Copper beech",
+      "name": "Fagus Sylvatica - Copper Beech",
       "location": "Clark Elementary School on SE 89th Ave (right-of-way)",
       "removed": null,
       "lat": 45.5133327,
@@ -5503,12 +5503,12 @@
       "geocodeAddress": "Clark Elementary School",
       "geocodeFormatted": "William Clark Elementary School, 1231, Southeast 92nd Avenue, Montavilla, Portland, Multnomah County, Oregon, 97216, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "394",
       "year": 2024,
-      "name": "Thuja plicata - western redcedar",
+      "name": "Thuja Plicata - Western Redcedar",
       "location": "34 SE 88th Ave (private, backyard)",
       "removed": null,
       "lat": 45.5222198,
@@ -5517,12 +5517,12 @@
       "geocodeAddress": "34 SE 88th Ave, Portland, OR, USA",
       "geocodeFormatted": "34, Southeast 88th Avenue, Montavilla, Portland, Multnomah County, Oregon, 97216, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "395",
       "year": 2024,
-      "name": "Platanus occidentalis - American sycamore",
+      "name": "Platanus Occidentalis - American Sycamore",
       "location": "2417 NW Raleigh St (right-of-way)",
       "removed": null,
       "lat": 45.5342055,
@@ -5531,12 +5531,12 @@
       "geocodeAddress": "2417 NW Raleigh St, Portland, OR, USA",
       "geocodeFormatted": "2417, Northwest Raleigh Street, Nob Hill, Northwest District, Portland, Multnomah County, Oregon, 97210, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "396",
       "year": 2024,
-      "name": "Liriodendron tulipifera - tulip tree",
+      "name": "Liriodendron Tulipifera - Tulip Tree",
       "location": "2835 SE Carlton St (private)",
       "removed": null,
       "lat": 45.4773393,
@@ -5545,12 +5545,12 @@
       "geocodeAddress": "2835 SE Carlton St, Portland, OR, USA",
       "geocodeFormatted": "2835, Southeast Carlton Street, Eastmoreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     },
     {
       "id": "397",
       "year": 2024,
-      "name": "Quercus garryana - Oregon white oak",
+      "name": "Quercus Garryana - Oregon White Oak",
       "location": "1144 SE Flavel St (private)",
       "removed": null,
       "lat": 45.4705522,
@@ -5559,7 +5559,7 @@
       "geocodeAddress": "1144 SE Flavel St, Portland, OR, USA",
       "geocodeFormatted": "1144, Southeast Flavel Street, Sellwood, Sellwood-Moreland, Portland, Multnomah County, Oregon, 97202, United States",
       "geocodeError": null,
-      "manualKeep": null
+      "manualKeep": "name"
     }
   ]
 }
