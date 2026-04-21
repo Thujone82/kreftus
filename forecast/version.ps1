@@ -27,6 +27,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$script:RollbackSnapshots = @{}
 
 function Write-Step {
     param(
@@ -174,11 +175,58 @@ function Write-TextPreserveBom {
     param(
         [string]$Path,
         [string]$Text,
-        [bool]$HasUtf8Bom
+        [bool]$HasUtf8Bom,
+        [int]$MaxAttempts = 8
     )
 
     $encoding = [System.Text.UTF8Encoding]::new($HasUtf8Bom)
-    [System.IO.File]::WriteAllText($Path, $Text, $encoding)
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            [System.IO.File]::WriteAllText($Path, $Text, $encoding)
+            return
+        } catch [System.IO.IOException], [System.UnauthorizedAccessException] {
+            if ($attempt -ge $MaxAttempts) {
+                throw
+            }
+            Start-Sleep -Milliseconds (100 * $attempt)
+        }
+    }
+}
+
+function Save-RollbackSnapshotIfMissing {
+    param(
+        [string]$Path
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) { return }
+    if ($script:RollbackSnapshots.ContainsKey($Path)) { return }
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+
+    $readState = Read-TextWithBomState -Path $Path
+    $script:RollbackSnapshots[$Path] = [pscustomobject]@{
+        Text = $readState.Text
+        HasUtf8Bom = $readState.HasUtf8Bom
+    }
+}
+
+function Invoke-RollbackSnapshots {
+    param()
+
+    if ($null -eq $script:RollbackSnapshots -or $script:RollbackSnapshots.Count -eq 0) {
+        return
+    }
+
+    Write-Host "Attempting rollback of modified files..." -ForegroundColor Yellow
+    foreach ($entry in $script:RollbackSnapshots.GetEnumerator()) {
+        $path = [string]$entry.Key
+        $snap = $entry.Value
+        try {
+            Write-TextPreserveBom -Path $path -Text ([string]$snap.Text) -HasUtf8Bom ([bool]$snap.HasUtf8Bom)
+            Write-Host " - rolled back: $path" -ForegroundColor DarkYellow
+        } catch {
+            Write-Host " - rollback failed: $path ($($_.Exception.Message))" -ForegroundColor Red
+        }
+    }
 }
 
 function Set-TextByPatternOrFail {
@@ -209,6 +257,7 @@ function Set-TextByPatternOrFail {
     $updated = $regex.Replace($content, $Replacement, 1)
     $changed = $updated -ne $content
     if ($changed) {
+        Save-RollbackSnapshotIfMissing -Path $Path
         Write-TextPreserveBom -Path $Path -Text $updated -HasUtf8Bom $readState.HasUtf8Bom
     }
     return [pscustomobject]@{
@@ -243,6 +292,7 @@ function Update-AssetVersion-OrFail {
     $updated = $regex.Replace($content, $newValue, 1)
     $changed = $updated -ne $content
     if ($changed) {
+        Save-RollbackSnapshotIfMissing -Path $Path
         Write-TextPreserveBom -Path $Path -Text $updated -HasUtf8Bom $readState.HasUtf8Bom
     }
     return [pscustomobject]@{
@@ -379,6 +429,7 @@ try {
     Write-Host " - index.html links:  $sanitizedVersion" -ForegroundColor Gray
 }
 catch {
+    Invoke-RollbackSnapshots
     Write-Host ""
     Write-Host "Version update failed: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
