@@ -401,11 +401,12 @@
         if (tree.removed != null) color = COLOR_REMOVED;
         else if (tree.found) color = COLOR_FOUND;
         return {
-            radius: 7,
+            // Slightly larger interaction area to make taps/clicks easier.
+            radius: 8,
             fillColor: color,
             fillOpacity: 0.92,
             color: COLOR_STROKE,
-            weight: 1.25
+            weight: 1.4
         };
     }
 

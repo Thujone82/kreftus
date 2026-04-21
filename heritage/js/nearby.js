@@ -88,6 +88,15 @@
         const onViewHandler = (opts && typeof opts.onView === 'function')
             ? opts.onView
             : onView;
+        const onTagClick = (opts && typeof opts.onTagClick === 'function')
+            ? opts.onTagClick
+            : null;
+        const activeTagSet = (opts && opts.activeTagSet instanceof Set)
+            ? opts.activeTagSet
+            : null;
+        const extraTags = (opts && Array.isArray(opts.metaTags))
+            ? opts.metaTags
+            : [];
         const li = document.createElement('li');
         li.className = 'nearby-row';
 
@@ -128,6 +137,33 @@
             badge.textContent = 'Not found';
         }
         meta.appendChild(badge);
+        for (const tag of extraTags) {
+            if (!tag || !tag.key || !tag.label) continue;
+            const t = document.createElement('span');
+            t.className = 'nearby-item-badge search-match-tag';
+            t.textContent = String(tag.label);
+            if (activeTagSet && activeTagSet.has(tag.key)) {
+                t.classList.add('active');
+            }
+            if (onTagClick) {
+                t.classList.add('clickable');
+                t.setAttribute('role', 'button');
+                t.setAttribute('tabindex', '0');
+                t.title = 'Toggle filter';
+                t.addEventListener('click', (ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    onTagClick(tag.key);
+                });
+                t.addEventListener('keydown', (ev) => {
+                    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    onTagClick(tag.key);
+                });
+            }
+            meta.appendChild(t);
+        }
 
         view.appendChild(nameSpan);
         view.appendChild(dist);

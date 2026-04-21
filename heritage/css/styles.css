@@ -503,6 +503,26 @@ button { font-family: inherit; }
 .nearby-item-badge.found   { color: var(--marker-found); }
 .nearby-item-badge.notfound{ color: var(--marker-not); }
 .nearby-item-badge.removed { color: var(--marker-removed); }
+.nearby-item-badge.search-match-tag {
+    color: var(--pnw-fog);
+    border-color: rgba(236, 230, 211, 0.35);
+    background: rgba(236, 230, 211, 0.06);
+}
+.nearby-item-badge.search-match-tag.clickable {
+    cursor: pointer;
+}
+.nearby-item-badge.search-match-tag.clickable:hover,
+.nearby-item-badge.search-match-tag.clickable:focus-visible {
+    color: var(--pnw-cream);
+    border-color: var(--pnw-fern);
+    background: rgba(46, 125, 50, 0.18);
+    outline: none;
+}
+.nearby-item-badge.search-match-tag.active {
+    color: var(--pnw-forest-2);
+    border-color: var(--pnw-fern);
+    background: var(--pnw-fern);
+}
 .nearby-empty {
     color: var(--pnw-fog);
     padding: 0.6rem 0.25rem;
