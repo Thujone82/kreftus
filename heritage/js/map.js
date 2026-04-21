@@ -137,6 +137,10 @@
         }).addTo(map);
 
         map.on('popupclose', () => { openTreeId = null; });
+        // Ensure hover tooltips never linger during camera changes.
+        map.on('zoomstart movestart', () => {
+            try { map.closeTooltip(); } catch (e) { /* ignore */ }
+        });
         wireMapLongPressLocationRefresh();
         wireVisibilityForLiveLocation();
         return map;
@@ -424,7 +428,18 @@
 
     function addMarker(tree) {
         const m = L.circleMarker([tree.lat, tree.lng], markerStyleFor(tree)).addTo(map);
-        m.bindTooltip(titleFor(tree), { direction: 'top', offset: [0, -6] });
+        m.bindTooltip(titleFor(tree), {
+            direction: 'top',
+            offset: [0, -6],
+            sticky: false
+        });
+        // Explicitly control hover lifecycle so labels close on mouseout.
+        m.on('mouseover', () => {
+            try { m.openTooltip(); } catch (e) { /* ignore */ }
+        });
+        m.on('mouseout', () => {
+            try { m.closeTooltip(); } catch (e) { /* ignore */ }
+        });
         m.on('click', () => openInfoForTree(tree.id));
         markers.set(tree.id, m);
         return m;

@@ -17,7 +17,7 @@
 // IndexedDB is NEVER touched by the service worker, so installing an app update
 // cannot wipe a user's Found marks or notes.
 
-const VERSION = '1.2.2';
+const VERSION = '1.2.3';
 const STATIC_CACHE = `heritage-static-v${VERSION}`;
 const DATA_CACHE   = `heritage-data-v${VERSION}`;
 const TILE_CACHE   = `heritage-tiles-v1`;    // tile URLs are versionless, so keep across app bumps

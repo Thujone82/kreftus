@@ -221,7 +221,7 @@
         const run = () => {
             const q = input.value || '';
             if (!q.trim()) {
-                renderEmpty('Type to search trees.');
+                renderEmpty('Type to search, click tags to toggle filters...');
                 return;
             }
             const rows = queryRows(q);
@@ -260,7 +260,7 @@
             input.focus();
             runQueryAndRender(true);
         } else {
-            renderEmpty('Type to search trees.');
+            renderEmpty('Type to search, click tags to toggle filters...');
         }
     }
 
@@ -268,7 +268,7 @@
         const input = document.getElementById('searchInput');
         if (input) input.value = '';
         activeFieldFilters.clear();
-        renderEmpty('Type to search trees.');
+        renderEmpty('Type to search, click tags to toggle filters...');
     }
 
     global.HeritageSearch = {
