@@ -251,6 +251,33 @@
         bootstrapped = true;
     }
 
+    function focusSearchInput(input) {
+        if (!input) return;
+        const tryFocus = () => {
+            try {
+                input.focus({ preventScroll: true });
+            } catch (e) {
+                try { input.focus(); } catch (err) { /* ignore */ }
+            }
+            return document.activeElement === input;
+        };
+        if (tryFocus()) {
+            try { input.select(); } catch (e) { /* ignore */ }
+            return;
+        }
+
+        // Retry across a few render ticks/transitions for slower clients.
+        const retryDelays = [0, 32, 96, 220, 420];
+        for (const delay of retryDelays) {
+            setTimeout(() => {
+                if (document.activeElement === input) return;
+                if (tryFocus()) {
+                    try { input.select(); } catch (e) { /* ignore */ }
+                }
+            }, delay);
+        }
+    }
+
     async function open() {
         HeritageUI.openModal('searchModal');
         bindInput();
@@ -258,13 +285,7 @@
         const input = document.getElementById('searchInput');
         if (input) {
             runQueryAndRender(true);
-            // Defer focus one tick so it reliably lands after modal paint/transition.
-            setTimeout(() => {
-                try {
-                    input.focus();
-                    input.select();
-                } catch (e) { /* ignore */ }
-            }, 0);
+            focusSearchInput(input);
         } else {
             renderEmpty('Type to search, click tags to toggle filters...');
         }
