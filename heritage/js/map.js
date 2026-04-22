@@ -705,13 +705,16 @@
     function autoFit(user, trees, opts) {
         if (!map) return;
         const animate = !!(opts && opts.animate);
+        const nearPortlandThresholdM = (opts && Number.isFinite(opts.nearPortlandThresholdM))
+            ? opts.nearPortlandThresholdM
+            : MI_20_METERS;
         const geoTrees = trees.filter(isTreeMappable);
         if (geoTrees.length === 0) {
             map.setView([PORTLAND.lat, PORTLAND.lng], 12, { animate });
             return;
         }
 
-        if (user && distanceMeters(user, PORTLAND) <= MI_20_METERS) {
+        if (user && distanceMeters(user, PORTLAND) <= nearPortlandThresholdM) {
             const nearest = nearestTreeTo(user, geoTrees);
             if (nearest) {
                 const bounds = L.latLngBounds([
@@ -736,7 +739,11 @@
     function recenter(user, trees) {
         modalMapViewWide = false;
         void syncModalZoomToggleButton();
-        autoFit(user, trees, { animate: true });
+        // Recenter uses the same metro threshold as startup auto-fit.
+        autoFit(user, trees, {
+            animate: true,
+            nearPortlandThresholdM: MI_20_METERS
+        });
     }
 
     async function syncModalZoomToggleButton() {

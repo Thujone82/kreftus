@@ -281,11 +281,15 @@
     async function open() {
         HeritageUI.openModal('searchModal');
         bindInput();
-        await ensureIndex();
         const input = document.getElementById('searchInput');
         if (input) {
-            runQueryAndRender(true);
+            // iOS/PWA focus is most reliable when it happens in the same tap
+            // gesture, before any awaited async work.
             focusSearchInput(input);
+        }
+        await ensureIndex();
+        if (input) {
+            runQueryAndRender(true);
         } else {
             renderEmpty('Type to search, click tags to toggle filters...');
         }
