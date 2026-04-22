@@ -257,8 +257,14 @@
         await ensureIndex();
         const input = document.getElementById('searchInput');
         if (input) {
-            input.focus();
             runQueryAndRender(true);
+            // Defer focus one tick so it reliably lands after modal paint/transition.
+            setTimeout(() => {
+                try {
+                    input.focus();
+                    input.select();
+                } catch (e) { /* ignore */ }
+            }, 0);
         } else {
             renderEmpty('Type to search, click tags to toggle filters...');
         }
