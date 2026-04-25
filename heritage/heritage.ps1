@@ -100,6 +100,12 @@ function Normalize-Name {
     param([string]$Raw)
     $text = Clean-HtmlText -Html $Raw
     $text = [regex]::Replace($text, '\s*[-\u2013\u2014]+\s*', ' - ')
+    if (-not [string]::IsNullOrWhiteSpace($text)) {
+        $ti = [System.Globalization.CultureInfo]::InvariantCulture.TextInfo
+        $text = $ti.ToTitleCase($text.ToLowerInvariant())
+        # Keep common botanical qualifiers lower-case in displayed names.
+        $text = [regex]::Replace($text, '\b(Ssp|Subsp|Var|F)\.', { param($m) ($m.Groups[1].Value.ToLowerInvariant() + '.') })
+    }
     return $text.Trim()
 }
 
