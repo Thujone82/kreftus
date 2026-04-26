@@ -109,6 +109,20 @@ function renderAqiToken(text, categoryNumber) {
     return `<span class="aqi-token" style="color:${categoryColor};">${text}</span>`;
 }
 
+function formatMagicHourValue(periodState, timeZoneId) {
+    if (!periodState) return 'Unavailable';
+    if (periodState.isActive && periodState.activeUntil) {
+        return `Active Until ${formatTimeForDisplay(periodState.activeUntil, timeZoneId)}`;
+    }
+    if (periodState.nextStart && periodState.nextEnd) {
+        return `${formatTimeForDisplay(periodState.nextStart, timeZoneId)}-${formatTimeForDisplay(periodState.nextEnd, timeZoneId)}`;
+    }
+    if (periodState.nextStart) {
+        return formatTimeForDisplay(periodState.nextStart, timeZoneId);
+    }
+    return 'Unavailable';
+}
+
 // Display current conditions
 // Header should always use normalized City, ST from the location object, not custom labels
 function isSuppressedAlert(alert) {
@@ -278,6 +292,28 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
             html += '<div class="condition-row">';
             html += `<span class="condition-label">Next New Moon:</span>`;
             html += `<span class="condition-value">${moonPhase.nextNewMoon}</span>`;
+            html += '</div>';
+        }
+    }
+
+    if (
+        localStorage.getItem('forecastShowMagicHours') === 'true' &&
+        location.lat != null &&
+        location.lon != null &&
+        location.timeZone &&
+        typeof getMagicHoursSummary === 'function'
+    ) {
+        const currentTime = (typeof appState !== 'undefined' && appState.lastFetchTime) ? appState.lastFetchTime : new Date();
+        const magicHours = getMagicHoursSummary(location.lat, location.lon, currentTime);
+        if (magicHours) {
+            html += '<div class="condition-row">';
+            html += '<span class="condition-label">Next Golden Hour:</span>';
+            html += `<span class="condition-value">${formatMagicHourValue(magicHours.golden, location.timeZone)}</span>`;
+            html += '</div>';
+
+            html += '<div class="condition-row">';
+            html += '<span class="condition-label">Next Blue Hour:</span>';
+            html += `<span class="condition-value">${formatMagicHourValue(magicHours.blue, location.timeZone)}</span>`;
             html += '</div>';
         }
     }

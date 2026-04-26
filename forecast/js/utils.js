@@ -336,6 +336,128 @@ function getSolarIrradianceSummary(latitude, longitude, currentTimeDateTime, tim
     }
 }
 
+// Solar elevation angle (degrees) at a given time/location (NOAA approximation)
+function getSolarElevationDegrees(latitude, longitude, date) {
+    const latRad = toRadians(latitude);
+    const utcNow = new Date(date.getTime());
+    const dateOnly = new Date(Date.UTC(utcNow.getUTCFullYear(), utcNow.getUTCMonth(), utcNow.getUTCDate(), 0, 0, 0));
+    const dayOfYear = getDayOfYear(dateOnly);
+    const gamma = 2.0 * Math.PI * (dayOfYear - 1) / 365.0;
+    const equationOfTime = 229.18 * (
+        0.000075 +
+        0.001868 * Math.cos(gamma) -
+        0.032077 * Math.sin(gamma) -
+        0.014615 * Math.cos(2 * gamma) -
+        0.040849 * Math.sin(2 * gamma)
+    );
+    const declination = 0.006918 -
+        0.399912 * Math.cos(gamma) +
+        0.070257 * Math.sin(gamma) -
+        0.006758 * Math.cos(2 * gamma) +
+        0.000907 * Math.sin(2 * gamma) -
+        0.002697 * Math.cos(3 * gamma) +
+        0.00148 * Math.sin(3 * gamma);
+    const solarNoonUtcMin = 720.0 - 4.0 * longitude - equationOfTime;
+    const utcMinutesFromMidnight = utcNow.getUTCHours() * 60 + utcNow.getUTCMinutes() + utcNow.getUTCSeconds() / 60.0;
+    const hourAngleDeg = (utcMinutesFromMidnight - solarNoonUtcMin) / 4.0;
+    const hourAngleRad = toRadians(hourAngleDeg);
+    const sinElevation = Math.sin(latRad) * Math.sin(declination) +
+        Math.cos(latRad) * Math.cos(declination) * Math.cos(hourAngleRad);
+    return toDegrees(Math.asin(Math.max(-1, Math.min(1, sinElevation))));
+}
+
+function isElevationWithinBand(elevationDeg, minDeg, maxDeg) {
+    return elevationDeg >= minDeg && elevationDeg <= maxDeg;
+}
+
+function refineBandBoundary(latitude, longitude, insideTime, outsideTime, minDeg, maxDeg) {
+    let inside = new Date(insideTime.getTime());
+    let outside = new Date(outsideTime.getTime());
+    for (let i = 0; i < 16; i++) {
+        const mid = new Date((inside.getTime() + outside.getTime()) / 2);
+        const midElev = getSolarElevationDegrees(latitude, longitude, mid);
+        if (isElevationWithinBand(midElev, minDeg, maxDeg)) {
+            inside = mid;
+        } else {
+            outside = mid;
+        }
+    }
+    return outside;
+}
+
+function getSunElevationBandState(latitude, longitude, nowDateTime, minDeg, maxDeg, lookAheadHours = 72) {
+    const now = new Date(nowDateTime.getTime());
+    const stepMs = 5 * 60 * 1000;
+    const limit = now.getTime() + (lookAheadHours * 60 * 60 * 1000);
+    const nowElev = getSolarElevationDegrees(latitude, longitude, now);
+    const activeNow = isElevationWithinBand(nowElev, minDeg, maxDeg);
+    const result = {
+        isActive: activeNow,
+        activeUntil: null,
+        nextStart: null,
+        nextEnd: null
+    };
+
+    if (activeNow) {
+        let prev = now;
+        for (let t = now.getTime() + stepMs; t <= limit; t += stepMs) {
+            const probe = new Date(t);
+            const elev = getSolarElevationDegrees(latitude, longitude, probe);
+            if (!isElevationWithinBand(elev, minDeg, maxDeg)) {
+                result.activeUntil = refineBandBoundary(latitude, longitude, prev, probe, minDeg, maxDeg);
+                break;
+            }
+            prev = probe;
+        }
+        return result;
+    }
+
+    // Find next start, then end.
+    let prev = now;
+    let prevInBand = false;
+    for (let t = now.getTime() + stepMs; t <= limit; t += stepMs) {
+        const probe = new Date(t);
+        const elev = getSolarElevationDegrees(latitude, longitude, probe);
+        const inBand = isElevationWithinBand(elev, minDeg, maxDeg);
+        if (!prevInBand && inBand) {
+            result.nextStart = refineBandBoundary(latitude, longitude, probe, prev, minDeg, maxDeg);
+            break;
+        }
+        prevInBand = inBand;
+        prev = probe;
+    }
+
+    if (!result.nextStart) {
+        return result;
+    }
+
+    prev = result.nextStart;
+    for (let t = result.nextStart.getTime() + stepMs; t <= limit; t += stepMs) {
+        const probe = new Date(t);
+        const elev = getSolarElevationDegrees(latitude, longitude, probe);
+        if (!isElevationWithinBand(elev, minDeg, maxDeg)) {
+            result.nextEnd = refineBandBoundary(latitude, longitude, prev, probe, minDeg, maxDeg);
+            break;
+        }
+        prev = probe;
+    }
+
+    return result;
+}
+
+// Golden hour: +6 to -4 degrees; Blue hour: -4 to -8 degrees
+function getMagicHoursSummary(latitude, longitude, nowDateTime) {
+    if (latitude == null || longitude == null || !nowDateTime) return null;
+    const lat = Number(latitude);
+    const lon = Number(longitude);
+    if (isNaN(lat) || isNaN(lon)) return null;
+
+    return {
+        golden: getSunElevationBandState(lat, lon, nowDateTime, -4, 6),
+        blue: getSunElevationBandState(lat, lon, nowDateTime, -8, -4)
+    };
+}
+
 // Convert UTC date to timezone (simplified - uses Intl.DateTimeFormat)
 function convertToTimeZone(date, timeZoneId) {
     if (!timeZoneId) return date;

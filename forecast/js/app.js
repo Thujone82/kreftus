@@ -106,6 +106,7 @@ function initializeElements() {
         configModalResetColors: document.getElementById('configModalResetColors'),
         enableRadarCheckbox: document.getElementById('enableRadarCheckbox'),
         irradianceCheckbox: document.getElementById('irradianceCheckbox'),
+        magicHoursCheckbox: document.getElementById('magicHoursCheckbox'),
         perLocationColorsCheckbox: document.getElementById('perLocationColorsCheckbox'),
         unitsMetricCheckbox: document.getElementById('unitsMetricCheckbox'),
         time24Checkbox: document.getElementById('time24Checkbox'),
@@ -175,6 +176,7 @@ function performFullReset() {
         localStorage.removeItem('forecastAccentPrimary');
         localStorage.removeItem('forecastAccentSecondary');
         localStorage.removeItem('forecastShowIrradiance');
+        localStorage.removeItem('forecastShowMagicHours');
         localStorage.removeItem('forecastShowRadar');
         localStorage.removeItem('forecastPerLocationColors');
         localStorage.removeItem('forecastAutoUpdate');
@@ -374,6 +376,7 @@ async function init() {
     loadAccentColors();
     loadPerLocationColors();
     loadShowIrradiance();
+    loadShowMagicHours();
     loadShowRadar();
     loadAqiSettings();
     loadUnits();
@@ -1027,6 +1030,17 @@ function saveShowIrradiance(enabled) {
     localStorage.setItem('forecastShowIrradiance', enabled ? 'true' : 'false');
 }
 
+function loadShowMagicHours() {
+    const enabled = localStorage.getItem('forecastShowMagicHours') === 'true';
+    if (elements.magicHoursCheckbox) {
+        elements.magicHoursCheckbox.checked = enabled;
+    }
+}
+
+function saveShowMagicHours(enabled) {
+    localStorage.setItem('forecastShowMagicHours', enabled ? 'true' : 'false');
+}
+
 function loadShowRadar() {
     const enabled = localStorage.getItem('forecastShowRadar') === 'true';
     if (elements.enableRadarCheckbox) {
@@ -1514,6 +1528,13 @@ function setupConfigModal() {
         elements.irradianceCheckbox.addEventListener('change', (e) => {
             const enabled = !!e.target.checked;
             saveShowIrradiance(enabled);
+            renderCurrentMode();
+        });
+    }
+    if (elements.magicHoursCheckbox) {
+        elements.magicHoursCheckbox.addEventListener('change', (e) => {
+            const enabled = !!e.target.checked;
+            saveShowMagicHours(enabled);
             renderCurrentMode();
         });
     }
