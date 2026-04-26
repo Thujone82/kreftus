@@ -109,16 +109,37 @@ function renderAqiToken(text, categoryNumber) {
     return `<span class="aqi-token" style="color:${categoryColor};">${text}</span>`;
 }
 
-function formatMagicHourValue(periodState, timeZoneId) {
+function formatMagicHourInstant(date, timeZoneId, referenceNow) {
+    if (!date) return 'Unavailable';
+    const ref = referenceNow || new Date();
+    try {
+        const fmt = new Intl.DateTimeFormat('en-CA', {
+            timeZone: timeZoneId,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+        const dKey = fmt.format(date);
+        const rKey = fmt.format(ref);
+        if (dKey !== rKey) {
+            return formatSunriseDateForDisplay(date, timeZoneId);
+        }
+    } catch (e) {
+        // Fall back to time-only if timezone comparison fails.
+    }
+    return formatTimeForDisplay(date, timeZoneId);
+}
+
+function formatMagicHourValue(periodState, timeZoneId, referenceNow) {
     if (!periodState) return 'Unavailable';
     if (periodState.isActive && periodState.activeUntil) {
-        return `Active Until ${formatTimeForDisplay(periodState.activeUntil, timeZoneId)}`;
+        return `Active Until ${formatMagicHourInstant(periodState.activeUntil, timeZoneId, referenceNow)}`;
     }
     if (periodState.nextStart && periodState.nextEnd) {
-        return `${formatTimeForDisplay(periodState.nextStart, timeZoneId)}-${formatTimeForDisplay(periodState.nextEnd, timeZoneId)}`;
+        return `${formatMagicHourInstant(periodState.nextStart, timeZoneId, referenceNow)}-${formatMagicHourInstant(periodState.nextEnd, timeZoneId, referenceNow)}`;
     }
     if (periodState.nextStart) {
-        return formatTimeForDisplay(periodState.nextStart, timeZoneId);
+        return formatMagicHourInstant(periodState.nextStart, timeZoneId, referenceNow);
     }
     return 'Unavailable';
 }
@@ -308,12 +329,12 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
         if (magicHours) {
             html += '<div class="condition-row">';
             html += '<span class="condition-label">Next Golden Hour:</span>';
-            html += `<span class="condition-value">${formatMagicHourValue(magicHours.golden, location.timeZone)}</span>`;
+            html += `<span class="condition-value">${formatMagicHourValue(magicHours.golden, location.timeZone, currentTime)}</span>`;
             html += '</div>';
 
             html += '<div class="condition-row">';
             html += '<span class="condition-label">Next Blue Hour:</span>';
-            html += `<span class="condition-value">${formatMagicHourValue(magicHours.blue, location.timeZone)}</span>`;
+            html += `<span class="condition-value">${formatMagicHourValue(magicHours.blue, location.timeZone, currentTime)}</span>`;
             html += '</div>';
         }
     }

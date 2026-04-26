@@ -385,7 +385,7 @@ function refineBandBoundary(latitude, longitude, insideTime, outsideTime, minDeg
     return outside;
 }
 
-function getSunElevationBandState(latitude, longitude, nowDateTime, minDeg, maxDeg, lookAheadHours = 72) {
+function getSunElevationBandState(latitude, longitude, nowDateTime, minDeg, maxDeg, lookAheadHours = 240) {
     const now = new Date(nowDateTime.getTime());
     const stepMs = 5 * 60 * 1000;
     const limit = now.getTime() + (lookAheadHours * 60 * 60 * 1000);
