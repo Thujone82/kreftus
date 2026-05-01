@@ -557,6 +557,10 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
         const shortForecast = period.shortForecast;
         const precipProb = period.probabilityOfPrecipitation?.value || 0;
         const periodIcon = getWeatherIcon(period.icon, true, precipProb);
+        const isPrimaryDaytime = period.isDaytime !== undefined
+            ? !!period.isDaytime
+            : (periodTime.getHours() >= 6 && periodTime.getHours() < 18);
+        const primaryTempLabel = isPrimaryDaytime ? 'H' : 'L';
         
         // Find night period for same day
         const currentDay = formatDate(periodTime);
@@ -705,10 +709,10 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
             // Temperature and info row (combined) - day name only if no sunrise/sunset
             if (sunriseStr && sunsetStr && dayLengthStr) {
                 // No day name here, it's on the sunrise line
-                html += `<div class="daily-temp-row"> <span class="${getTempColor(temp)}">H:${formatTemp(temp)}</span>${windChillHeatIndex || ' '}`;
+                html += `<div class="daily-temp-row"> <span class="${getTempColor(temp)}">${primaryTempLabel}:${formatTemp(temp)}</span>${windChillHeatIndex || ' '}`;
             } else {
                 // If no sunrise/sunset, show day name on temperature line
-                html += `<div class="daily-temp-row">${dayNameWithDate}:<span class="${getTempColor(temp)}">H:${formatTemp(temp)}</span>${windChillHeatIndex || ' '}`;
+                html += `<div class="daily-temp-row">${dayNameWithDate}:<span class="${getTempColor(temp)}">${primaryTempLabel}:${formatTemp(temp)}</span>${windChillHeatIndex || ' '}`;
                 html += '<div></div>'; // Line feed after day label for narrow mode
             }
             if (nightTemp) {
@@ -763,7 +767,7 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
         } else {
             // Standard mode
             // Temperature and info row (combined)
-            html += `<div class="daily-temp-row">${dayName}: ${periodIcon} <span class="${getTempColor(temp)}">H:${formatTemp(temp)}</span>`;
+            html += `<div class="daily-temp-row">${dayName}: ${periodIcon} <span class="${getTempColor(temp)}">${primaryTempLabel}:${formatTemp(temp)}</span>`;
             if (nightTemp) {
                 html += ` <span class="${getTempColor(nightTemp)}">L:${formatTemp(nightTemp)}</span>`;
             }
