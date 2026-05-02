@@ -163,21 +163,28 @@ function getDisplayableAlerts(alerts) {
     return alerts.filter(alert => !isSuppressedAlert(alert));
 }
 
-function getAlertHeaderEmojiSuffix(alerts) {
+function isAlertCurrentlyInEffect(alert, now = new Date()) {
+    const props = alert && alert.properties ? alert.properties : {};
+    if (!props.effective) return false;
+
+    const effective = new Date(props.effective);
+    const eventEnd = props.ends ? new Date(props.ends) : new Date(props.expires);
+    if (Number.isNaN(effective.getTime()) || Number.isNaN(eventEnd.getTime())) return false;
+
+    return now >= effective && now <= eventEnd;
+}
+
+function getAlertHeaderEmojiSuffix(alerts, now = new Date()) {
     if (!Array.isArray(alerts) || alerts.length === 0) return '';
 
-    const subjectText = alerts.map((alert) => {
+    const hasActiveHeatAlert = alerts.some((alert) => {
+        if (!isAlertCurrentlyInEffect(alert, now)) return false;
         const props = alert && alert.properties ? alert.properties : {};
-        return `${props.event || ''} ${props.headline || ''}`.toLowerCase();
-    }).join(' ');
+        const subjectText = `${props.event || ''} ${props.headline || ''}`.toLowerCase();
+        return subjectText.includes('heat');
+    });
 
-    let suffix = '';
-    if (subjectText.includes('fire weather') || subjectText.includes('red flag')) suffix += '🔥';
-    if (subjectText.includes('tornado')) suffix += '🌪';
-    if (subjectText.includes('thunderstorm')) suffix += '⛈';
-    if (subjectText.includes('winter weather') || subjectText.includes('blizzard')) suffix += '❄️';
-    if (subjectText.includes('heat')) suffix += '🌡';
-    return suffix;
+    return hasActiveHeatAlert ? '🌡' : '';
 }
 
 function displayCurrentConditions(weather, location, optionalDisplayName) {
