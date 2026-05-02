@@ -533,7 +533,13 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
     const cityName = truncateCityName(location.city, 20);
     
     let html = `<div class="section-header">${cityName} ${enhanced ? '7-Day Forecast' : '7-Day Summary'}</div>`;
-    
+    if (!enhanced) {
+        html += '<div class="hourly-forecast">';
+        html += '<table class="hourly-table seven-day-summary-table">';
+        html += '<thead><tr><th>Day</th><th>Temp</th><th>Precip</th><th>Forecast</th></tr></thead>';
+        html += '<tbody>';
+    }
+
     const processedDays = {};
     let dayCount = 0;
     const maxDays = 7;
@@ -580,9 +586,8 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
             }
         }
         
-        html += '<div class="daily-item">';
-        
         if (enhanced) {
+            html += '<div class="daily-item">';
             // Enhanced mode
             const windSpeed = getWindSpeed(period.windSpeed);
             const windColor = windSpeed >= 16 ? "wind-strong" : "";
@@ -764,26 +769,30 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
                 
                 html += `<div class="daily-details forecast-period-text">${singlePeriodLabel}${singlePeriodText}</div>`;
             }
-        } else {
-            // Standard mode
-            // Temperature and info row (combined)
-            html += `<div class="daily-temp-row">${dayName}: ${periodIcon} <span class="${getTempColor(temp)}">${primaryTempLabel}:${formatTemp(temp)}</span>`;
-            if (nightTemp) {
-                html += ` <span class="${getTempColor(nightTemp)}">L:${formatTemp(nightTemp)}</span>`;
-            }
-            html += ` ${shortForecast}`;
-            if (precipProb > 0) {
-                html += ` <span class="${getPrecipColor(precipProb)}">${precipProb}%☔️</span>`;
-            }
             html += '</div>';
+        } else {
+            // Standard mode: table row (Day | Temp | Precip | Forecast)
+            let tempCell = `${periodIcon} <span class="${getTempColor(temp)}">${primaryTempLabel}:${formatTemp(temp)}</span>`;
+            if (nightTemp) {
+                tempCell += ` <span class="${getTempColor(nightTemp)}">L:${formatTemp(nightTemp)}</span>`;
+            }
+            const precipDisplay = precipProb > 0 ? `${precipProb}%` : '';
+            html += '<tr>';
+            html += `<td>${dayName}</td>`;
+            html += `<td>${tempCell}</td>`;
+            html += `<td class="${getPrecipColor(precipProb)}">${precipDisplay}</td>`;
+            html += `<td>${shortForecast}</td>`;
+            html += '</tr>';
         }
-        
-        html += '</div>';
-        
+
         processedDays[dayName] = true;
         dayCount++;
     }
-    
+
+    if (!enhanced) {
+        html += '</tbody></table></div>';
+    }
+
     return html;
 }
 

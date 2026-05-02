@@ -1226,6 +1226,10 @@ body.ui-density-normal .weather-content {
     background-color: var(--color-bg);
 }
 
+.hourly-table.seven-day-summary-table {
+    min-width: 340px;
+}
+
 /* Daily Forecast */
 .daily-forecast {
     margin-bottom: 1rem;
