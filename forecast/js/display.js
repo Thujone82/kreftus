@@ -176,6 +176,7 @@ function getAlertHeaderEmojiSuffix(alerts) {
     if (subjectText.includes('tornado')) suffix += '🌪';
     if (subjectText.includes('thunderstorm')) suffix += '⛈';
     if (subjectText.includes('winter weather') || subjectText.includes('blizzard')) suffix += '❄️';
+    if (subjectText.includes('heat')) suffix += '🌡';
     return suffix;
 }
 
