@@ -3785,7 +3785,8 @@ function Show-SevenDayForecast {
             $tempNum = [double]$temp
             $windChillHeatIndex = ""
             $windChillHeatIndexColor = ""
-            $isPeriodDaytime = if ($period.PSObject.Properties['isDaytime']) { [bool]$period.isDaytime } else { $true }
+            $isPeriodDaytime = if ($period.PSObject.Properties['isDaytime']) { [bool]$period.isDaytime } else { ($periodTime.Hour -ge 6 -and $periodTime.Hour -lt 18) }
+            $primaryTempLabel = if ($isPeriodDaytime) { 'H' } else { 'L' }
             if ($tempNum -le 50) {
                 $windChill = Get-WindChill $tempNum $windSpeed
                 if ($null -ne $windChill -and ($tempNum - $windChill) -gt 1) {
@@ -3882,7 +3883,7 @@ function Show-SevenDayForecast {
             # Display date in white, then padding, then temperature
             Write-Host $dateStr -ForegroundColor White -NoNewline
             Write-Host $datePadding -ForegroundColor White -NoNewline
-            Write-Host "H:$temp°F" -ForegroundColor $tempColor -NoNewline
+            Write-Host "${primaryTempLabel}:$temp°F" -ForegroundColor $tempColor -NoNewline
             if ($windChillHeatIndex) {
                 Write-Host $windChillHeatIndex -ForegroundColor $windChillHeatIndexColor -NoNewline
             }
@@ -3955,11 +3956,18 @@ function Show-SevenDayForecast {
                 }
             }
         } else {
-            # Standard Full mode display (unchanged)
-            $formattedLine = Format-DailyLine -DayName $dayName -Icon $periodIcon -Temp $temp -NightTemp $nightTemp -Forecast $shortForecast -PrecipProb $precipProb
+            # Standard Full mode display
+            $isPrimaryDaytime = if ($period.PSObject.Properties['isDaytime']) { [bool]$period.isDaytime } else { ($periodTime.Hour -ge 6 -and $periodTime.Hour -lt 18) }
+            $primaryTempLabel = if ($isPrimaryDaytime) { 'H' } else { 'L' }
+            $formattedLine = Format-DailyLine -DayName $dayName -Icon $periodIcon -Temp $temp -NightTemp $nightTemp -Forecast $shortForecast -PrecipProb $precipProb -PrimaryTempLabel $primaryTempLabel
         
         # Split the line into parts for color coding
-        $tempStart = $formattedLine.IndexOf(" H:$temp°F")
+        $primaryTempToken = " ${primaryTempLabel}:$temp°F"
+        $tempStart = $formattedLine.IndexOf($primaryTempToken)
+        if ($tempStart -lt 0) {
+            $tempStart = $formattedLine.IndexOf(" H:$temp°F")
+            if ($tempStart -lt 0) { $tempStart = $formattedLine.IndexOf(" L:$temp°F") }
+        }
         if ($tempStart -lt 0) {
             $tempStart = $formattedLine.IndexOf(" $temp°F")
         }
@@ -3976,13 +3984,13 @@ function Show-SevenDayForecast {
             
             # Write temperature with color
             if ($nightTemp) {
-                Write-Host " H:$temp°F L:$nightTemp°F" -ForegroundColor $tempColor -NoNewline
+                Write-Host " ${primaryTempLabel}:$temp°F L:$nightTemp°F" -ForegroundColor $tempColor -NoNewline
             } else {
-                Write-Host " $temp°F" -ForegroundColor $tempColor -NoNewline
+                Write-Host " ${primaryTempLabel}:$temp°F" -ForegroundColor $tempColor -NoNewline
             }
             
             # Write everything after temperature with proper precipitation color coding
-            $tempEnd = if ($nightTemp) { " H:$temp°F L:$nightTemp°F".Length } else { " $temp°F".Length }
+            $tempEnd = if ($nightTemp) { " ${primaryTempLabel}:$temp°F L:$nightTemp°F".Length } else { " ${primaryTempLabel}:$temp°F".Length }
             $afterTemp = $formattedLine.Substring($tempStart + $tempEnd)
             
             # Check if there's precipitation data and apply color coding
@@ -5549,13 +5557,14 @@ function Format-DailyLine {
         [string]$Temp,
         [string]$NightTemp,
         [string]$Forecast,
-        [int]$PrecipProb
+        [int]$PrecipProb,
+        [string]$PrimaryTempLabel = 'H'
     )
     
     # Build the line components
     $dayPart = "$DayName`: "
     $iconPart = "$Icon"
-    $tempPart = if ($NightTemp) { " H:$Temp°F L:$NightTemp°F" } else { " $Temp°F" }
+    $tempPart = if ($NightTemp) { " ${PrimaryTempLabel}:$Temp°F L:$NightTemp°F" } else { " ${PrimaryTempLabel}:$Temp°F" }
     $forecastPart = " - $Forecast"
     $precipPart = if ($PrecipProb -gt 0) { " ($PrecipProb%☔️)" } else { "" }
     
