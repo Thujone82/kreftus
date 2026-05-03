@@ -19,6 +19,10 @@ The script first uses a geocoding service to determine the latitude and longitud
   - Wind speed and direction.
   - Sunrise and sunset times (calculated astronomically).
   - Solar irradiance (clear-sky GHI in W/m² at current time plus peak at solar noon with time) after sunset, in white, in both full and terse views.
+  - Optional Magic Hours lines (`-m` / `-Magic`) in Current Conditions immediately before `Updated:`:
+    - `Golden Hour:` / `Next Golden Hour:`
+    - `Blue Hour:` / `Next Blue Hour:`
+    - Active windows display `Active Until HH:mm`; inactive windows display `HH:mm-HH:mm`.
   - Moon phase information with emoji and next full moon date.
   - **All times displayed in location's timezone:** Hourly forecasts, sunrise, sunset, and update times are shown in the destination location's local timezone, not your system's timezone.
   - Weather alerts and warnings.
@@ -217,6 +221,11 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
   - Auto-updates are enabled by default (every 10 minutes).
   - Can be toggled on/off during interactive mode with the 'U' key.
 
+- `-Magic` or `-m` [switch]
+  - Enables Golden/Blue hour timing in Current Conditions.
+  - Displays the lines immediately before `Updated:`.
+  - Labels are `Golden Hour` / `Blue Hour` while active, otherwise `Next Golden Hour` / `Next Blue Hour`.
+
 - `-NoInteractive` or `-x` [switch]
   - Exits immediately after displaying weather data (no interactive mode).
   - Perfect for scripting and automation scenarios.
@@ -324,6 +333,11 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 ### Example 17: Use specific NOAA station by ID
 ```powershell
 .\gf.ps1 "Portland, OR" -Noaa 9440357
+```
+
+### Example 18: Enable Magic Hours in Current Conditions
+```powershell
+.\gf.ps1 "Portland, OR" -m
 ```
 
 ## Observations Mode

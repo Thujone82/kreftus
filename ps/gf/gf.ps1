@@ -102,7 +102,10 @@ param(
     [switch]$AqiSetup,
 
     [Alias('wbgt')]
-    [switch]$UseWbgt
+    [switch]$UseWbgt,
+
+    [Alias('m')]
+    [switch]$Magic
 )
 
 # --- Helper Functions ---
@@ -154,7 +157,7 @@ $script:MAX_DAILY_FORECAST_DAYS = 7
 $userAgent = $script:USER_AGENT
 
 # --- HELP LOGIC ---
-if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or $Rain.IsPresent -or $Wind.IsPresent -or $Observations.IsPresent -or $NoInteractive.IsPresent -or $UseWbgt.IsPresent) -and -not $Location)) {
+if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or $Rain.IsPresent -or $Wind.IsPresent -or $Observations.IsPresent -or $NoInteractive.IsPresent -or $UseWbgt.IsPresent -or $Magic.IsPresent) -and -not $Location)) {
     Write-Host "Usage: .\gf.ps1 [ZipCode | `"City, State`" | here] [Options] [-Verbose]" -ForegroundColor Green
     Write-Host " • Provide a 5-digit zipcode or a City, State (e.g., 'Portland, OR')." -ForegroundColor Cyan
     Write-Host " • Use 'here' to automatically detect your location from IP (ip-api.com -> ipwho.is -> ipapi.co fallback)." -ForegroundColor Cyan
@@ -180,6 +183,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host "  -b, -NoBar    Start with control bar hidden" -ForegroundColor Cyan
     Write-Host "  -x, -NoInteractive Exit immediately (no interactive mode)" -ForegroundColor Cyan
     Write-Host "  -wbgt (-UseWbgt) Use estimated WBGT instead of heat index (warm band from 75°F; matches forecast web heuristic)" -ForegroundColor Cyan
+    Write-Host "  -m, -Magic    Show Golden/Blue Hour lines in Current Conditions" -ForegroundColor Cyan
     Write-Host ""
          Write-Host "Interactive Mode:" -ForegroundColor Blue
      Write-Host "  When run interactively (not from terminal), the script enters interactive mode." -ForegroundColor Cyan
@@ -208,6 +212,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host ' • Wind (with gust if available; red if wind speed >=16 mph)' -ForegroundColor Cyan
     Write-Host " • Sunrise and Sunset times (calculated astronomically)" -ForegroundColor Cyan
     Write-Host ' • Solar irradiance (clear-sky GHI in W/m² at current time + peak at solar noon; hidden in terse mode)' -ForegroundColor Cyan
+    Write-Host ' • Magic Hours (Golden/Blue) before Updated when -m is enabled' -ForegroundColor Cyan
     Write-Host " • Detailed Forecast" -ForegroundColor Cyan
     Write-Host " • Weather Alerts" -ForegroundColor Cyan
     Write-Host " • Forecast Fetch timestamp" -ForegroundColor Cyan
@@ -224,12 +229,14 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host "  .\gf.ps1 97219 -r For Rain Outlook" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 97219 -w For Wind Outlook" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 97219 -o For Observations" -ForegroundColor Cyan
+    Write-Host "  .\gf.ps1 97219 -m For Magic Hours" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 -Help" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 -aqi                    # Configure AirNow API key (persisted User env)" -ForegroundColor Cyan
     return
 }
 
 $script:useWbgtFeelsLike = $UseWbgt.IsPresent
+$script:showMagicHours = $Magic.IsPresent
 
 # Function to get the parent process name using CIM
 function Get-ParentProcessName {
@@ -2641,6 +2648,176 @@ function Get-SolarIrradianceSummary {
     }
 }
 
+# Solar elevation angle (degrees) at a given time/location (NOAA approximation)
+function Get-SolarElevationDegrees {
+    param(
+        [double]$Latitude,
+        [double]$Longitude,
+        [DateTime]$Date
+    )
+
+    function ToRadians([double]$deg) { return [Math]::PI * $deg / 180.0 }
+    function ToDegrees([double]$rad) { return 180.0 * $rad / [Math]::PI }
+
+    $latRad = ToRadians $Latitude
+    $utcNow = $Date.ToUniversalTime()
+    $dateOnly = [DateTime]::new($utcNow.Year, $utcNow.Month, $utcNow.Day, 0, 0, 0, [System.DateTimeKind]::Utc)
+    $dayOfYear = $dateOnly.DayOfYear
+    $gamma = 2.0 * [Math]::PI * ($dayOfYear - 1) / 365.0
+    $equationOfTime = 229.18 * (0.000075 + 0.001868 * [Math]::Cos($gamma) - 0.032077 * [Math]::Sin($gamma) - 0.014615 * [Math]::Cos(2 * $gamma) - 0.040849 * [Math]::Sin(2 * $gamma))
+    $declination = 0.006918 - 0.399912 * [Math]::Cos($gamma) + 0.070257 * [Math]::Sin($gamma) - 0.006758 * [Math]::Cos(2 * $gamma) + 0.000907 * [Math]::Sin(2 * $gamma) - 0.002697 * [Math]::Cos(3 * $gamma) + 0.00148 * [Math]::Sin(3 * $gamma)
+    $solarNoonUtcMin = 720.0 - 4.0 * $Longitude - $equationOfTime
+    $utcMinutesFromMidnight = $utcNow.Hour * 60 + $utcNow.Minute + $utcNow.Second / 60.0
+    $hourAngleDeg = ($utcMinutesFromMidnight - $solarNoonUtcMin) / 4.0
+    $hourAngleRad = ToRadians $hourAngleDeg
+    $sinElevation = [Math]::Sin($latRad) * [Math]::Sin($declination) + [Math]::Cos($latRad) * [Math]::Cos($declination) * [Math]::Cos($hourAngleRad)
+    $clamped = [Math]::Max(-1.0, [Math]::Min(1.0, $sinElevation))
+    return ToDegrees([Math]::Asin($clamped))
+}
+
+function Test-ElevationWithinBand {
+    param(
+        [double]$ElevationDeg,
+        [double]$MinDeg,
+        [double]$MaxDeg
+    )
+    return ($ElevationDeg -ge $MinDeg -and $ElevationDeg -le $MaxDeg)
+}
+
+function Get-RefinedBandBoundary {
+    param(
+        [double]$Latitude,
+        [double]$Longitude,
+        [DateTime]$InsideTime,
+        [DateTime]$OutsideTime,
+        [double]$MinDeg,
+        [double]$MaxDeg
+    )
+
+    $inside = $InsideTime
+    $outside = $OutsideTime
+    for ($i = 0; $i -lt 16; $i++) {
+        $halfTicks = [int64](($outside.Ticks - $inside.Ticks) / 2)
+        $mid = $inside.AddTicks($halfTicks)
+        $midElev = Get-SolarElevationDegrees -Latitude $Latitude -Longitude $Longitude -Date $mid
+        if (Test-ElevationWithinBand -ElevationDeg $midElev -MinDeg $MinDeg -MaxDeg $MaxDeg) {
+            $inside = $mid
+        } else {
+            $outside = $mid
+        }
+    }
+    return $outside
+}
+
+function Get-SunElevationBandState {
+    param(
+        [double]$Latitude,
+        [double]$Longitude,
+        [DateTime]$NowDateTime,
+        [double]$MinDeg,
+        [double]$MaxDeg,
+        [int]$LookAheadHours = 240
+    )
+
+    $now = $NowDateTime
+    $stepMinutes = 5
+    $limit = $now.AddHours($LookAheadHours)
+    $nowElev = Get-SolarElevationDegrees -Latitude $Latitude -Longitude $Longitude -Date $now
+    $activeNow = Test-ElevationWithinBand -ElevationDeg $nowElev -MinDeg $MinDeg -MaxDeg $MaxDeg
+
+    $result = @{
+        IsActive = $activeNow
+        ActiveUntil = $null
+        NextStart = $null
+        NextEnd = $null
+    }
+
+    if ($activeNow) {
+        $prev = $now
+        $probe = $now.AddMinutes($stepMinutes)
+        while ($probe -le $limit) {
+            $elev = Get-SolarElevationDegrees -Latitude $Latitude -Longitude $Longitude -Date $probe
+            if (-not (Test-ElevationWithinBand -ElevationDeg $elev -MinDeg $MinDeg -MaxDeg $MaxDeg)) {
+                $result.ActiveUntil = Get-RefinedBandBoundary -Latitude $Latitude -Longitude $Longitude -InsideTime $prev -OutsideTime $probe -MinDeg $MinDeg -MaxDeg $MaxDeg
+                break
+            }
+            $prev = $probe
+            $probe = $probe.AddMinutes($stepMinutes)
+        }
+        return $result
+    }
+
+    $prev = $now
+    $prevInBand = $false
+    $probe = $now.AddMinutes($stepMinutes)
+    while ($probe -le $limit) {
+        $elev = Get-SolarElevationDegrees -Latitude $Latitude -Longitude $Longitude -Date $probe
+        $inBand = Test-ElevationWithinBand -ElevationDeg $elev -MinDeg $MinDeg -MaxDeg $MaxDeg
+        if (-not $prevInBand -and $inBand) {
+            $result.NextStart = Get-RefinedBandBoundary -Latitude $Latitude -Longitude $Longitude -InsideTime $probe -OutsideTime $prev -MinDeg $MinDeg -MaxDeg $MaxDeg
+            break
+        }
+        $prevInBand = $inBand
+        $prev = $probe
+        $probe = $probe.AddMinutes($stepMinutes)
+    }
+
+    if ($null -eq $result.NextStart) {
+        return $result
+    }
+
+    $prev = $result.NextStart
+    $probe = $result.NextStart.AddMinutes($stepMinutes)
+    while ($probe -le $limit) {
+        $elev = Get-SolarElevationDegrees -Latitude $Latitude -Longitude $Longitude -Date $probe
+        if (-not (Test-ElevationWithinBand -ElevationDeg $elev -MinDeg $MinDeg -MaxDeg $MaxDeg)) {
+            $result.NextEnd = Get-RefinedBandBoundary -Latitude $Latitude -Longitude $Longitude -InsideTime $prev -OutsideTime $probe -MinDeg $MinDeg -MaxDeg $MaxDeg
+            break
+        }
+        $prev = $probe
+        $probe = $probe.AddMinutes($stepMinutes)
+    }
+
+    return $result
+}
+
+function Get-MagicHoursSummary {
+    param(
+        [double]$Latitude,
+        [double]$Longitude,
+        [DateTime]$NowDateTime
+    )
+
+    if (($Latitude -eq 0 -and $Longitude -eq 0) -or $null -eq $NowDateTime) {
+        return $null
+    }
+
+    return @{
+        Golden = Get-SunElevationBandState -Latitude $Latitude -Longitude $Longitude -NowDateTime $NowDateTime -MinDeg -4 -MaxDeg 6
+        Blue = Get-SunElevationBandState -Latitude $Latitude -Longitude $Longitude -NowDateTime $NowDateTime -MinDeg -8 -MaxDeg -4
+    }
+}
+
+function Format-MagicHourValue {
+    param(
+        [object]$PeriodState,
+        [string]$TimeZoneId,
+        [DateTime]$ReferenceNow
+    )
+
+    if ($null -eq $PeriodState) { return "Unavailable" }
+    if ($PeriodState.IsActive -and $null -ne $PeriodState.ActiveUntil) {
+        return "Active Until $($PeriodState.ActiveUntil.ToString('HH:mm'))"
+    }
+    if ($null -ne $PeriodState.NextStart -and $null -ne $PeriodState.NextEnd) {
+        return "$($PeriodState.NextStart.ToString('HH:mm'))-$($PeriodState.NextEnd.ToString('HH:mm'))"
+    }
+    if ($null -ne $PeriodState.NextStart) {
+        return $PeriodState.NextStart.ToString('HH:mm')
+    }
+    return "Unavailable"
+}
+
 # Helper function to format day length as "Xh Ym"
 function Format-DayLength {
     param(
@@ -3251,8 +3428,13 @@ function Show-CurrentConditions {
         [object]$SunriseDateTime = $null,
         [object]$SunsetDateTime = $null,
         [bool]$IsPolarNight = $false,
-        [bool]$IsPolarDay = $false
+        [bool]$IsPolarDay = $false,
+        [bool]$ShowMagicHours = $false
     )
+
+    if (-not $ShowMagicHours -and $script:showMagicHours) {
+        $ShowMagicHours = $true
+    }
 
     if (-not $ShowAqi -and $script:aqiShow) {
         $ShowAqi = $script:aqiShow
@@ -3410,6 +3592,19 @@ function Show-CurrentConditions {
     }
     if ($ShowNextNewMoon -and $NextNewMoonDate) {
         Write-Host "Next New Moon: $NextNewMoonDate" -ForegroundColor Gray
+    }
+
+    if ($ShowMagicHours -and $Latitude -ne 0 -and $Longitude -ne 0 -and $TimeZoneId) {
+        $magicRef = if ($ObservationDateTime -is [DateTime]) { [DateTime]$ObservationDateTime } else { Get-Date }
+        $magicHours = Get-MagicHoursSummary -Latitude $Latitude -Longitude $Longitude -NowDateTime $magicRef
+        if ($magicHours) {
+            $goldenActive = ($magicHours.Golden.IsActive -and $null -ne $magicHours.Golden.ActiveUntil)
+            $blueActive = ($magicHours.Blue.IsActive -and $null -ne $magicHours.Blue.ActiveUntil)
+            $goldenLabel = if ($goldenActive) { "Golden Hour" } else { "Next Golden Hour" }
+            $blueLabel = if ($blueActive) { "Blue Hour" } else { "Next Blue Hour" }
+            Write-Host "${goldenLabel}: $(Format-MagicHourValue -PeriodState $magicHours.Golden -TimeZoneId $TimeZoneId -ReferenceNow $magicRef)" -ForegroundColor White
+            Write-Host "${blueLabel}: $(Format-MagicHourValue -PeriodState $magicHours.Blue -TimeZoneId $TimeZoneId -ReferenceNow $magicRef)" -ForegroundColor White
+        }
     }
 
     # Safely display API update time with validation
