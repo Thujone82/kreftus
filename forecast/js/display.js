@@ -335,13 +335,15 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
         const currentTime = (typeof appState !== 'undefined' && appState.lastFetchTime) ? appState.lastFetchTime : new Date();
         const magicHours = getMagicHoursSummary(location.lat, location.lon, currentTime);
         if (magicHours) {
+            const goldenActive = magicHours.golden && magicHours.golden.isActive && magicHours.golden.activeUntil;
+            const blueActive = magicHours.blue && magicHours.blue.isActive && magicHours.blue.activeUntil;
             html += '<div class="condition-row">';
-            html += '<span class="condition-label">Next Golden Hour:</span>';
+            html += `<span class="condition-label">${goldenActive ? 'Golden Hour:' : 'Next Golden Hour:'}</span>`;
             html += `<span class="condition-value">${formatMagicHourValue(magicHours.golden, location.timeZone, currentTime)}</span>`;
             html += '</div>';
 
             html += '<div class="condition-row">';
-            html += '<span class="condition-label">Next Blue Hour:</span>';
+            html += `<span class="condition-label">${blueActive ? 'Blue Hour:' : 'Next Blue Hour:'}</span>`;
             html += `<span class="condition-value">${formatMagicHourValue(magicHours.blue, location.timeZone, currentTime)}</span>`;
             html += '</div>';
         }
