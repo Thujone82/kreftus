@@ -458,11 +458,11 @@ function Get-CurrentLocation {
     throw "Unable to detect your location automatically from ip-api.com, ipwho.is, or ipapi.co."
 }
 
-# Helper function to clear screen with optional delay in verbose mode
+# Always clear the host before a full interactive redraw. Skipping Clear-Host when
+# $VerbosePreference is 'Continue' left the previous frame visible, so a refresh could
+# show two "Updated:" lines (old observation time plus the new one).
 function Clear-HostWithDelay {
-    if ($VerbosePreference -ne 'Continue') {
-        Clear-Host
-    }
+    Clear-Host
 }
 
 # Function to resolve timezone ID to TimeZoneInfo object
