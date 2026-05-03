@@ -3966,8 +3966,13 @@ function Show-SevenDayForecast {
             }
         }
         
-        # Color code temperature
-        $tempColor = if ([int]$temp -lt $script:COLD_TEMP_THRESHOLD) { "Blue" } elseif ([int]$temp -gt $script:HOT_TEMP_THRESHOLD) { $AlertColor } else { $DefaultColor }
+        # Color-code primary (H or L) and night companion temps independently
+        $primaryTempColor = Get-TempBandForegroundColor -TempFahrenheit ([double]$temp) -DefaultColor $DefaultColor -AlertColor $AlertColor
+        $nightTempColor = if ($null -ne $nightTemp -and "$nightTemp" -ne '') {
+            Get-TempBandForegroundColor -TempFahrenheit ([double]$nightTemp) -DefaultColor $DefaultColor -AlertColor $AlertColor
+        } else {
+            $null
+        }
         
         if ($IsEnhancedMode) {
             # Enhanced Daily mode display
@@ -4078,12 +4083,12 @@ function Show-SevenDayForecast {
             # Display date in white, then padding, then temperature
             Write-Host $dateStr -ForegroundColor White -NoNewline
             Write-Host $datePadding -ForegroundColor White -NoNewline
-            Write-Host "${primaryTempLabel}:$temp°F" -ForegroundColor $tempColor -NoNewline
+            Write-Host "${primaryTempLabel}:$temp°F" -ForegroundColor $primaryTempColor -NoNewline
             if ($windChillHeatIndex) {
                 Write-Host $windChillHeatIndex -ForegroundColor $windChillHeatIndexColor -NoNewline
             }
             if ($nightTemp) {
-                Write-Host " L:$nightTemp°F" -ForegroundColor $tempColor -NoNewline
+                Write-Host " L:$nightTemp°F" -ForegroundColor $nightTempColor -NoNewline
             }
             Write-Host " $windDisplay $($period.windDirection)" -ForegroundColor $windColor -NoNewline
             if ($precipProb -gt 0) {
@@ -4177,11 +4182,12 @@ function Show-SevenDayForecast {
                 Write-Host $formattedLine.Substring(0, $tempStart) -ForegroundColor $DefaultColor -NoNewline
             }
             
-            # Write temperature with color
+            # Write temperature with separate colors for primary vs companion (e.g. H vs L)
             if ($nightTemp) {
-                Write-Host " ${primaryTempLabel}:$temp°F L:$nightTemp°F" -ForegroundColor $tempColor -NoNewline
+                Write-Host " ${primaryTempLabel}:$temp°F" -ForegroundColor $primaryTempColor -NoNewline
+                Write-Host " L:$nightTemp°F" -ForegroundColor $nightTempColor -NoNewline
             } else {
-                Write-Host " ${primaryTempLabel}:$temp°F" -ForegroundColor $tempColor -NoNewline
+                Write-Host " ${primaryTempLabel}:$temp°F" -ForegroundColor $primaryTempColor -NoNewline
             }
             
             # Write everything after temperature with proper precipitation color coding
