@@ -3479,7 +3479,8 @@ function Show-CurrentConditions {
         $humidityNum = [double]$currentHumidity
         $heatIndex = Get-HeatIndex $tempNum $humidityNum
         if ($null -ne $heatIndex -and ([Math]::Abs($heatIndex - $tempNum) -gt 1)) {
-            Write-Host " [$heatIndex°F]" -ForegroundColor Red -NoNewline
+            $hiColor = Get-TempBandForegroundColor -TempFahrenheit ([double]$heatIndex) -DefaultColor $DefaultColor -AlertColor $AlertColor
+            Write-Host " [$heatIndex°F]" -ForegroundColor $hiColor -NoNewline
         }
     }
 
@@ -3798,7 +3799,7 @@ function Show-HourlyForecast {
             $heatIndex = Get-HeatIndex $tempNum $humidityNum
             if ($null -ne $heatIndex -and ([Math]::Abs($heatIndex - $tempNum) -gt 1)) {
                 $windchillHeatIndex = " [$heatIndex°F]"
-                $windchillHeatIndexColor = "Red"
+                $windchillHeatIndexColor = Get-TempBandForegroundColor -TempFahrenheit ([double]$heatIndex) -DefaultColor $DefaultColor -AlertColor $AlertColor
             }
         }
         
@@ -4006,7 +4007,7 @@ function Show-SevenDayForecast {
                 $heatIndex = Get-HeatIndex $tempNum $humidityNum
                 if ($null -ne $heatIndex -and ([Math]::Abs($heatIndex - $tempNum) -gt 1)) {
                     $windChillHeatIndex = " [$heatIndex°F]"
-                    $windChillHeatIndexColor = "Red"
+                    $windChillHeatIndexColor = Get-TempBandForegroundColor -TempFahrenheit ([double]$heatIndex) -DefaultColor $DefaultColor -AlertColor $AlertColor
                 }
             }
             
@@ -4337,7 +4338,7 @@ function Show-Observations {
                 $heatIndex = Get-HeatIndex $tempNum $humidityNum
                 if ($null -ne $heatIndex -and ([Math]::Abs($heatIndex - $tempNum) -gt 1)) {
                     $windChillHeatIndex = " [$heatIndex°F]"
-                    $windChillHeatIndexColor = "Red"
+                    $windChillHeatIndexColor = Get-TempBandForegroundColor -TempFahrenheit ([double]$heatIndex) -DefaultColor $DefaultColor -AlertColor $AlertColor
                 }
             }
         }

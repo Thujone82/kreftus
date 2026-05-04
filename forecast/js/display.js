@@ -219,7 +219,7 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
     ) {
         html += ` <span class="condition-value ${wbgtDisplayColorClass(current.wbgt)}">[${formatTemp(current.wbgt)}]</span>`;
     } else if (current.heatIndex) {
-        html += ` <span class="temp-hot">[${formatTemp(current.heatIndex)}]</span>`;
+        html += ` <span class="${getTempColor(current.heatIndex)}">[${formatTemp(current.heatIndex)}]</span>`;
     }
     
     if (current.trend) {
@@ -515,7 +515,7 @@ function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12,
             const heatIndex = calculateHeatIndex(tempNum, humidityNum);
             if (heatIndex && Math.abs(heatIndex - tempNum) > 1) {
                 windchillHeatIndex = ` [${formatTemp(heatIndex)}]`;
-                windchillHeatIndexClass = "temp-hot";
+                windchillHeatIndexClass = getTempColor(heatIndex);
             }
         }
         
@@ -698,7 +698,7 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
                 const humidityNum = period.relativeHumidity?.value || 0;
                 const heatIndex = calculateHeatIndex(tempNum, humidityNum);
                 if (heatIndex && Math.abs(heatIndex - tempNum) > 1) {
-                    windChillHeatIndex = ` <span class="temp-hot">[${formatTemp(heatIndex)}]</span>`;
+                    windChillHeatIndex = ` <span class="${getTempColor(heatIndex)}">[${formatTemp(heatIndex)}]</span>`;
                 }
             }
             
@@ -1375,7 +1375,7 @@ function displayObservations(observationsData, location) {
         } else if (wbgtVal != null) {
             html += ` <span class="condition-value ${wbgtDisplayColorClass(wbgtVal)}">WBGT[${formatTemp(wbgtVal)}]</span>`;
         } else if (heatIndex) {
-            html += ` <span class="condition-value">HeatIndex[<span class="temp-hot">${formatTemp(heatIndex)}</span>]</span>`;
+            html += ` <span class="condition-value">HeatIndex[<span class="${getTempColor(heatIndex)}">${formatTemp(heatIndex)}</span>]</span>`;
         }
         
         if (dayData.lowTemp !== null) {
