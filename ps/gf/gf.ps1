@@ -3455,7 +3455,7 @@ function Show-CurrentConditions {
     if ($tempNum -le 50) {
         $windSpeedNum = Get-WindSpeed $currentWind
         $windChill = Get-WindChill $tempNum $windSpeedNum
-        if ($null -ne $windChill -and ($tempNum - $windChill) -gt 1) {
+        if ($null -ne $windChill -and ([Math]::Abs($tempNum - $windChill) -gt 1)) {
             Write-Host " [$windChill°F]" -ForegroundColor Blue -NoNewline
         }
     }
@@ -3478,7 +3478,7 @@ function Show-CurrentConditions {
     elseif ($tempNum -ge 80) {
         $humidityNum = [double]$currentHumidity
         $heatIndex = Get-HeatIndex $tempNum $humidityNum
-        if ($null -ne $heatIndex -and ($heatIndex - $tempNum) -gt 1) {
+        if ($null -ne $heatIndex -and ([Math]::Abs($heatIndex - $tempNum) -gt 1)) {
             Write-Host " [$heatIndex°F]" -ForegroundColor Red -NoNewline
         }
     }
@@ -3777,7 +3777,7 @@ function Show-HourlyForecast {
         if ($tempNum -le 50) {
             $windSpeedNum = Get-WindSpeed $wind
             $windChill = Get-WindChill $tempNum $windSpeedNum
-            if ($null -ne $windChill -and ($tempNum - $windChill) -gt 1) {
+            if ($null -ne $windChill -and ([Math]::Abs($tempNum - $windChill) -gt 1)) {
                 $windchillHeatIndex = " [$windChill°F]"
                 $windchillHeatIndexColor = "Blue"
             }
@@ -3796,7 +3796,7 @@ function Show-HourlyForecast {
         elseif ($tempNum -ge 80) {
             $humidityNum = [double]$period.relativeHumidity.value
             $heatIndex = Get-HeatIndex $tempNum $humidityNum
-            if ($null -ne $heatIndex -and ($heatIndex - $tempNum) -gt 1) {
+            if ($null -ne $heatIndex -and ([Math]::Abs($heatIndex - $tempNum) -gt 1)) {
                 $windchillHeatIndex = " [$heatIndex°F]"
                 $windchillHeatIndexColor = "Red"
             }
@@ -3989,7 +3989,7 @@ function Show-SevenDayForecast {
             $primaryTempLabel = if ($isPeriodDaytime) { 'H' } else { 'L' }
             if ($tempNum -le 50) {
                 $windChill = Get-WindChill $tempNum $windSpeed
-                if ($null -ne $windChill -and ($tempNum - $windChill) -gt 1) {
+                if ($null -ne $windChill -and ([Math]::Abs($tempNum - $windChill) -gt 1)) {
                     $windChillHeatIndex = " [$windChill°F]"
                     $windChillHeatIndexColor = "Blue"
                 }
@@ -4004,7 +4004,7 @@ function Show-SevenDayForecast {
             } elseif ($tempNum -ge 80) {
                 $humidityNum = [double]$period.relativeHumidity.value
                 $heatIndex = Get-HeatIndex $tempNum $humidityNum
-                if ($null -ne $heatIndex -and ($heatIndex - $tempNum) -gt 1) {
+                if ($null -ne $heatIndex -and ([Math]::Abs($heatIndex - $tempNum) -gt 1)) {
                     $windChillHeatIndex = " [$heatIndex°F]"
                     $windChillHeatIndexColor = "Red"
                 }
@@ -4316,7 +4316,7 @@ function Show-Observations {
             $windSpeedNum = [double]$avgWindSpeed
             if ($tempNum -le 50) {
                 $windChill = Get-WindChill $tempNum $windSpeedNum
-                if ($null -ne $windChill -and ($tempNum - $windChill) -gt 1) {
+                if ($null -ne $windChill -and ([Math]::Abs($tempNum - $windChill) -gt 1)) {
                     $windChillHeatIndex = " [$windChill°F]"
                     $windChillHeatIndexColor = "Blue"
                 }
@@ -4335,7 +4335,7 @@ function Show-Observations {
             } elseif ($tempNum -ge 80) {
                 $humidityNum = if ($null -ne $dayData.AvgHumidity) { [double]$dayData.AvgHumidity } else { 0 }
                 $heatIndex = Get-HeatIndex $tempNum $humidityNum
-                if ($null -ne $heatIndex -and ($heatIndex - $tempNum) -gt 1) {
+                if ($null -ne $heatIndex -and ([Math]::Abs($heatIndex - $tempNum) -gt 1)) {
                     $windChillHeatIndex = " [$heatIndex°F]"
                     $windChillHeatIndexColor = "Red"
                 }
