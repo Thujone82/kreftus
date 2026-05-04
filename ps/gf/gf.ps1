@@ -2331,6 +2331,20 @@ function Format-TextWrap {
     return ,$lines
 }
 
+# Buffer width for Format-TextWrap ([ValidateRange(1,1000)]). Invalid/zero width during
+# resize, minimize, or host quirks caused binding failures after the section title was
+# already written — leaving a duplicate title on the next successful redraw.
+function Get-SafeConsoleWrapWidth {
+    try {
+        $w = [int]$Host.UI.RawUI.WindowSize.Width
+        if ($w -lt 1) { return 100 }
+        if ($w -gt 1000) { return 1000 }
+        return $w
+    } catch {
+        return 100
+    }
+}
+
 function Get-TruncatedCityName {
     param(
         [string]$CityName,
@@ -3636,9 +3650,11 @@ function Show-ForecastText {
         [string]$DefaultColor
     )
     
+    $wrapW = Get-SafeConsoleWrapWidth
+    $bodyText = if ($null -eq $ForecastText) { '' } else { [string]$ForecastText }
+    $wrappedForecast = Format-TextWrap -Text $bodyText -Width $wrapW
     Write-Host ""
     Write-Host "*** $Title ***" -ForegroundColor $TitleColor
-    $wrappedForecast = Format-TextWrap -Text $ForecastText -Width $Host.UI.RawUI.WindowSize.Width
     $wrappedForecast | ForEach-Object { Write-Host $_ -ForegroundColor $detailedForecastColor }
 }
 
@@ -4098,7 +4114,7 @@ function Show-SevenDayForecast {
             Write-Host ""
             
             # Get terminal width for text wrapping
-            $terminalWidth = $Host.UI.RawUI.WindowSize.Width
+            $terminalWidth = Get-SafeConsoleWrapWidth
             
             # Determine if current period is day or night from sunrise/sunset for this day
             if ($null -ne $daySunTimes) {
@@ -4121,7 +4137,7 @@ function Show-SevenDayForecast {
                 $dayLabel = "$periodIcon Day:   "
                 $dayForecastText = if ($period.detailedForecast) { $period.detailedForecast } else { "No detailed forecast available" }
                 
-                $wrappedDayForecast = Format-TextWrap -Text $dayForecastText -Width ($terminalWidth - (Get-StringDisplayWidth $dayLabel))
+                $wrappedDayForecast = Format-TextWrap -Text $dayForecastText -Width ([Math]::Max(20, $terminalWidth - (Get-StringDisplayWidth $dayLabel)))
                 
                 Write-Host $dayLabel -ForegroundColor White -NoNewline
                 Write-Host $wrappedDayForecast[0] -ForegroundColor $detailedForecastColor
@@ -4133,7 +4149,7 @@ function Show-SevenDayForecast {
                 # Night detailed forecast with wrapping
                 $nightLabel = "$moonEmoji Night: "
                 
-                $wrappedNightForecast = Format-TextWrap -Text $nightDetailedForecast -Width ($terminalWidth - (Get-StringDisplayWidth $nightLabel))
+                $wrappedNightForecast = Format-TextWrap -Text $nightDetailedForecast -Width ([Math]::Max(20, $terminalWidth - (Get-StringDisplayWidth $nightLabel)))
                 
                 Write-Host $nightLabel -ForegroundColor White -NoNewline
                 Write-Host $wrappedNightForecast[0] -ForegroundColor $detailedForecastColor
@@ -4146,7 +4162,7 @@ function Show-SevenDayForecast {
                 $singlePeriodLabel = if ($isCurrentPeriodNight) { "$moonEmoji Night: " } else { "$periodIcon Day:   " }
                 $singlePeriodText = if ($period.detailedForecast) { $period.detailedForecast } else { "No detailed forecast available" }
                 
-                $wrappedSingleForecast = Format-TextWrap -Text $singlePeriodText -Width ($terminalWidth - (Get-StringDisplayWidth $singlePeriodLabel))
+                $wrappedSingleForecast = Format-TextWrap -Text $singlePeriodText -Width ([Math]::Max(20, $terminalWidth - (Get-StringDisplayWidth $singlePeriodLabel)))
                 
                 Write-Host $singlePeriodLabel -ForegroundColor White -NoNewline
                 Write-Host $wrappedSingleForecast[0] -ForegroundColor $detailedForecastColor
@@ -4523,8 +4539,8 @@ function Show-Observations {
         if ($dayData.CloudSummary -and $dayData.CloudSummary.ToString().Trim()) {
             $conditionsValue = "$conditionsValue Clouds: $($dayData.CloudSummary)"
         }
-        $terminalWidth = $Host.UI.RawUI.WindowSize.Width
-        $wrappedConditions = Format-TextWrap -Text $conditionsValue -Width ($terminalWidth - (Get-StringDisplayWidth $conditionsLabel))
+        $terminalWidth = Get-SafeConsoleWrapWidth
+        $wrappedConditions = Format-TextWrap -Text $conditionsValue -Width ([Math]::Max(20, $terminalWidth - (Get-StringDisplayWidth $conditionsLabel)))
         Write-Host $conditionsLabel -ForegroundColor White -NoNewline
         $firstLine = $wrappedConditions[0]
         if ($firstLine -match '^(.+?) Clouds: (.+)$') {
@@ -4604,7 +4620,7 @@ function Show-WeatherAlerts {
                 # Full mode: label on own line, headline, details, Effective, Expires on separate lines
                 Write-Host "*** $alertEvent ***" -ForegroundColor $AlertColor
                 Write-Host "$alertHeadline" -ForegroundColor $DefaultColor
-                $wrappedAlert = Format-TextWrap -Text $alertDesc -Width $Host.UI.RawUI.WindowSize.Width
+                $wrappedAlert = Format-TextWrap -Text $alertDesc -Width (Get-SafeConsoleWrapWidth)
                 $wrappedAlert | ForEach-Object { Write-Host $_ -ForegroundColor $DefaultColor }
                 Write-Host "Effective: $($alertStart.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $InfoColor
                 Write-Host "Expires: $($alertEnd.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $InfoColor
