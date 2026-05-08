@@ -12,7 +12,7 @@ DESCRIPTION
     fetched data.
 
     The script features an interactive first-run setup to configure essential 
-    settings, such as the API key, if a configuration file (config.ini) is 
+    settings, such as the API key, if a configuration file (btc.ini) is 
     missing or incomplete. It also provides an interactive update mechanism via 
     the -Update switch to modify stored portfolio and logging preferences.
 
@@ -38,24 +38,24 @@ DESCRIPTION
 PARAMETERS
     -UserBTCAmount <double>
         Optional. Specifies the amount of Bitcoin owned by the user (e.g., 0.5). 
-        This value overrides the 'MyBTC' setting in config.ini for the current 
+        This value overrides the 'MyBTC' setting in btc.ini for the current 
         script run.
 
     -UserTotalCost <double>
         Optional. Specifies the total USD cost for the amount of Bitcoin defined 
-        by -UserBTCAmount or 'MyBTC' in config.ini. This value overrides the 
-        'MyCOST' setting in config.ini for the current script run. It is 
+        by -UserBTCAmount or 'MyBTC' in btc.ini. This value overrides the 
+        'MyCOST' setting in btc.ini for the current script run. It is 
         required for the Profit/Loss calculation.
 
     -LogToFile <string>
         Optional. Specifies the full or relative path to the CSV log file. 
-        This value overrides the 'LogPath' setting in config.ini for the 
+        This value overrides the 'LogPath' setting in btc.ini for the 
         current script run.
 
     -Update [<SwitchParameter>]
         Optional. If this switch is present, the script will enter an 
         interactive mode to update the 'MyBTC', 'MyCOST', and 'LogPath' 
-        settings stored in the config.ini file. After updating, the script 
+        settings stored in the btc.ini file. After updating, the script 
         will proceed with its normal operation using the new settings.
 
     -Verbose [<SwitchParameter>]
@@ -63,12 +63,12 @@ PARAMETERS
         display detailed operational messages, such as configuration loading steps, 
         API call statuses, and logging activities.
 
-CONFIGURATION FILE (config.ini)
-    The script uses a configuration file named 'config.ini', expected to be in 
+CONFIGURATION FILE (btc.ini)
+    The script uses a configuration file named 'btc.ini', expected to be in 
     the same directory as btc.ps1. If the file or essential settings (like 
     ApiKey) are missing, the script will initiate a first-run setup.
 
-    The config.ini structure is as follows:
+    The btc.ini structure is as follows:
 
     [Settings]
     ApiKey=YOUR_API_KEY_HERE
@@ -93,17 +93,17 @@ CONFIGURATION FILE (config.ini)
           Can be overridden by -UserTotalCost.
 
 FIRST-RUN SETUP
-    If the config.ini file is not found, or if the ApiKey is missing or empty 
+    If the btc.ini file is not found, or if the ApiKey is missing or empty 
     within it, the script will guide the user through a first-time setup process:
     1. Prompts for the LiveCoinWatch API Key (mandatory).
     2. Prompts for the user's BTC amount (optional).
     3. If a BTC amount is entered, prompts for the total cost of that BTC (optional).
     4. Prompts for a Log File Path (optional; leaving blank disables default logging).
-    The script then creates/updates config.ini with these details.
+    The script then creates/updates btc.ini with these details.
 
 UPDATE FUNCTIONALITY (-Update)
     When run with the -Update switch, the script allows interactive modification 
-    of the following settings in config.ini:
+    of the following settings in btc.ini:
     - MyBTC Amount
     - Total Cost (MyCOST)
     - Log File Path
@@ -162,7 +162,7 @@ OUTPUT
     Use -Verbose to see the calculation details.
 
 LOGGING
-    If a valid log path is determined (via -LogToFile parameter or config.ini), 
+    If a valid log path is determined (via -LogToFile parameter or btc.ini), 
     the script appends a new entry to a CSV file with each run. 
     The log includes:
     - Timestamp (YYYY-MM-DD HH:MM:SS)
@@ -181,13 +181,13 @@ LOGGING
 
 EXAMPLES
     .\btc.ps1
-        Runs the script with settings from config.ini.
+        Runs the script with settings from btc.ini.
 
     .\btc.ps1 -UserBTCAmount 0.5 -UserTotalCost 25000
-        Runs the script, overriding portfolio settings from config.ini for this run.
+        Runs the script, overriding portfolio settings from btc.ini for this run.
 
     .\btc.ps1 -Update
-        Prompts the user to update portfolio and log path settings in config.ini.
+        Prompts the user to update portfolio and log path settings in btc.ini.
 
     .\btc.ps1 -LogToFile "D:\CryptoLogs\bitcoin_tracker.csv"
         Runs the script and logs data to the specified custom path.
@@ -198,7 +198,7 @@ EXAMPLES
 NOTES
     - The script requires an active internet connection.
     - An API key from LiveCoinWatch.com is mandatory and should be stored in 
-      config.ini or entered during first-run setup.
+      btc.ini or entered during first-run setup.
     - The 24-hour price difference and additional metrics (1H SMA, High/Low, 
       Volatility) are calculated by fetching full 24-hour historical data via 
       the API. If this call fails, the script falls back to an estimated 

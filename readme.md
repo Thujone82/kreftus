@@ -22,7 +22,7 @@ This repository represents a unique approach to software development that levera
 
 ### Weather & Finance Tools
 - **[Forecast](forecast/)** - Web version of the Terminal app 'GetForecast'. Comprehensive weather utility using National Weather Service API with current conditions, hourly and daily forecasts, weather alerts, favorites saving, custom location names, locations drawer, auto-update, and PWA support with offline capabilities
-- **[BTC Track v1.5](btc/)** - Simple PWA-enabled app to track Bitcoin USD value, includes portfolio monitoring, charts, and AI current market insights using LiveCoinWatch and Google Gemini APIs
+- **[BTC Track v1.5](btc/)** - Simple PWA-enabled app to track Bitcoin USD value, includes portfolio monitoring, charts, PS-style market metrics (1H SMA, 24H Ago, 24H High/Low, Volatility), and AI market insights using LiveCoinWatch and OpenRouter
 
 ## 💻 CLI Applications
 
@@ -46,7 +46,7 @@ This project collection demonstrates sophisticated AI integration patterns:
 
 ### **AI API Integration**
 - **nfo2Go**: Supports both Google Gemini and OpenRouter APIs with dynamic model selection for location-based information briefings
-- **BTC Track**: Leverages Google Gemini for real-time Bitcoin market analysis and insights
+- **BTC Track**: Uses OpenRouter for real-time Bitcoin market analysis and insights
 
 ### **AI-Assisted Development**
 - All projects include comprehensive `GEMINI.md` files documenting AI collaboration
@@ -74,6 +74,7 @@ This project collection demonstrates sophisticated AI integration patterns:
 
 ### **External APIs**
 - **Google Gemini**: AI-powered content generation
+- **OpenRouter**: Unified AI model gateway with dynamic model selection support
 - **LiveCoinWatch**: Real-time cryptocurrency data
 - **OpenWeatherMap**: Weather data and forecasting
 - **National Weather Service**: Free weather data for US locations
