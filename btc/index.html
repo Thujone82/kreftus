@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">    
-    <title>BTC Track v1.4</title>
+    <title>BTC Track v1.5</title>
     <link rel="icon" href="./icons/32.png" type="image/png">
     <!-- You can create a 32x32.png from your 512x512.png or 192x192.png -->
     <link rel="apple-touch-icon" href="./icons/192.png">
@@ -82,7 +82,7 @@
         .data-item {
             display: flex;
             justify-content: space-between;
-            padding: 10px 0;
+            padding: 6px 0;
             border-bottom: 1px solid #2a2a3b;
             font-size: 1.65em; 
         }
@@ -94,7 +94,7 @@
             color: #c0c0c0;
             flex-basis: 40%; /* Adjusted from 45% to make label column narrower */
             text-align: right;
-            padding-right: 10px;
+            padding-right: 8px;
         }
 
         .data-item .value-container {
@@ -356,6 +356,10 @@
             cursor: default;
             flex-shrink: 0; /* Prevent status icon from shrinking */
         }
+        .model-option-free {
+            background-color: rgba(40, 167, 69, 0.15) !important;
+            color: #e0e0e0;
+        }
          .modal-content input[type="number"]::-webkit-inner-spin-button,
          .modal-content input[type="number"]::-webkit-outer-spin-button {
             -webkit-appearance: none;
@@ -509,6 +513,40 @@
                 </div>
             </div>
             <div class="data-item">
+                <span class="label">1H SMA:</span>
+                <div class="value-container">
+                    <span class="value default-color" id="sma1hValue">$----.--</span>
+                </div>
+            </div>
+            <div class="data-item">
+                <span class="label">24H Ago:</span>
+                <div class="value-container">
+                    <span class="value default-color" id="price24hAgoValue">$----.--</span>
+                    <span class="change default-color" id="price24hAgoChange">[--.--%]</span>
+                </div>
+            </div>
+            <div class="data-item">
+                <span class="label">24H High:</span>
+                <div class="value-container">
+                    <span class="value default-color" id="high24hValue">$----.--</span>
+                    <span class="change default-color" id="high24hTime">(at --:--)</span>
+                </div>
+            </div>
+            <div class="data-item">
+                <span class="label">24H Low:</span>
+                <div class="value-container">
+                    <span class="value default-color" id="low24hValue">$----.--</span>
+                    <span class="change default-color" id="low24hTime">(at --:--)</span>
+                </div>
+            </div>
+            <div class="data-item">
+                <span class="label">Volatility:</span>
+                <div class="value-container">
+                    <span class="value default-color" id="volatilityValue">--.--%</span>
+                    <span class="change default-color" id="velocityValue">[--]</span>
+                </div>
+            </div>
+            <div class="data-item">
                 <span class="label">24H Volume:</span>
                 <div class="value-container">
                     <span class="value default-color" id="volume24h">$---,---,---</span>
@@ -555,13 +593,19 @@
             <label for="userTotalCost">Total Cost for My BTC (USD, Optional):</label>
             <input type="number" id="userTotalCost" placeholder="e.g., 10000" step="any">
             
-            <label for="googleApiKey">Google API Key (for Insights):</label>
+            <label for="openRouterApiKey">OpenRouter API Key (for Insights):</label>
             <div class="api-key-wrapper">
-                <input type="password" id="googleApiKey" placeholder="Enter your Google API Key" class="api-key-input">
-                <span id="googleApiKeyStatus" class="api-key-status"></span>
+                <input type="password" id="openRouterApiKey" placeholder="Enter your OpenRouter API Key" class="api-key-input">
+                <span id="openRouterApiKeyStatus" class="api-key-status"></span>
             </div>
-            <div id="getGoogleApiKeyLinkContainer" style="text-align: right; margin-top: -5px; margin-bottom: 10px;">
-                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style="font-size: 0.8em; color: var(--accent-color, #f7931a);">Get Free API Key</a>
+            <div id="getOpenRouterApiKeyLinkContainer" style="text-align: right; margin-top: -5px; margin-bottom: 10px;">
+                <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" style="font-size: 0.8em; color: var(--accent-color, #f7931a);">Get OpenRouter API Key</a>
+            </div>
+            <div id="openRouterModelContainer" style="display: none;">
+                <label for="openRouterModel">OpenRouter Model:</label>
+                <select id="openRouterModel">
+                    <option value="">Select Model...</option>
+                </select>
             </div>
 
             <label for="accentColorPicker">Accent Color:</label>
@@ -611,7 +655,7 @@
 
         let validationAbortControllers = {
             livecoinwatch: null,
-            google: null
+            openrouter: null
         };
 
         async function validateLiveCoinWatchApiKey(apiKey) {
@@ -649,34 +693,107 @@
             }
         }
 
-        async function validateGoogleApiKey(apiKey) {
-            if (validationAbortControllers.google) {
-                validationAbortControllers.google.abort();
+        async function validateOpenRouterApiKey(apiKey) {
+            if (validationAbortControllers.openrouter) {
+                validationAbortControllers.openrouter.abort();
             }
-            validationAbortControllers.google = new AbortController();
-            const signal = validationAbortControllers.google.signal;
+            validationAbortControllers.openrouter = new AbortController();
+            const signal = validationAbortControllers.openrouter.signal;
 
             if (!apiKey) {
-                googleApiKeyStatusEl.textContent = '';
+                openRouterApiKeyStatusEl.textContent = '';
+                if (openRouterModelContainerEl) openRouterModelContainerEl.style.display = 'none';
                 return;
             }
 
-            googleApiKeyStatusEl.textContent = '...';
-            googleApiKeyStatusEl.title = 'Checking key...';
+            openRouterApiKeyStatusEl.textContent = '...';
+            openRouterApiKeyStatusEl.title = 'Checking key...';
 
             try {
-                const validationUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-                const response = await fetch(validationUrl, { signal });
+                const response = await fetch('https://openrouter.ai/api/v1/models', {
+                    headers: { 'Authorization': `Bearer ${apiKey}` },
+                    signal
+                });
 
                 if (signal.aborted) return;
 
-                googleApiKeyStatusEl.textContent = response.ok ? '✅' : '❌';
-                googleApiKeyStatusEl.title = response.ok ? 'API Key is valid!' : `Invalid key (Status: ${response.status})`;
+                if (response.ok) {
+                    openRouterApiKeyStatusEl.textContent = '✅';
+                    openRouterApiKeyStatusEl.title = 'API Key is valid!';
+                    if (openRouterModelContainerEl) openRouterModelContainerEl.style.display = 'block';
+                    await populateOpenRouterModelDropdown(config.openRouterModel || openRouterModelSelectEl.value || '');
+                } else if (response.status === 429) {
+                    openRouterApiKeyStatusEl.textContent = '⚠️';
+                    openRouterApiKeyStatusEl.title = 'Rate limit hit while checking key (429)';
+                    if (openRouterModelContainerEl) openRouterModelContainerEl.style.display = 'none';
+                } else {
+                    openRouterApiKeyStatusEl.textContent = '❌';
+                    openRouterApiKeyStatusEl.title = `Invalid key (Status: ${response.status})`;
+                    if (openRouterModelContainerEl) openRouterModelContainerEl.style.display = 'none';
+                }
             } catch (error) {
                 if (error.name === 'AbortError') return; // Abort is expected, do nothing
-                console.error('Error validating Google API key:', error);
-                googleApiKeyStatusEl.textContent = '⚠️';
-                googleApiKeyStatusEl.title = 'Network error during validation';
+                console.error('Error validating OpenRouter API key:', error);
+                openRouterApiKeyStatusEl.textContent = '⚠️';
+                openRouterApiKeyStatusEl.title = 'Network error during validation';
+                if (openRouterModelContainerEl) openRouterModelContainerEl.style.display = 'none';
+            }
+        }
+        
+        async function fetchOpenRouterModels() {
+            const response = await fetch('https://openrouter.ai/api/v1/models');
+            if (!response.ok) {
+                throw new Error(`Failed to fetch models: ${response.status}`);
+            }
+
+            const data = await response.json();
+            if (!data.data || !Array.isArray(data.data)) {
+                throw new Error('Invalid response format from OpenRouter models API');
+            }
+
+            const models = data.data.map(model => {
+                const isFree = model.id.endsWith(':free') || model.pricing?.prompt === '0';
+                return {
+                    id: model.id,
+                    name: model.name || model.id,
+                    isFree
+                };
+            });
+
+            models.sort((a, b) => {
+                if (a.isFree && !b.isFree) return -1;
+                if (!a.isFree && b.isFree) return 1;
+                return a.name.localeCompare(b.name);
+            });
+
+            return models;
+        }
+
+        async function populateOpenRouterModelDropdown(selectedModelId = '') {
+            if (!openRouterModelSelectEl) return;
+            openRouterModelSelectEl.innerHTML = '<option value="">Select Model...</option>';
+
+            try {
+                const models = await fetchOpenRouterModels();
+                models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.id;
+                    option.textContent = model.name;
+                    if (model.isFree) {
+                        option.classList.add('model-option-free');
+                    }
+                    if (model.id === selectedModelId) {
+                        option.selected = true;
+                    }
+                    openRouterModelSelectEl.appendChild(option);
+                });
+
+                if (selectedModelId && !models.some(model => model.id === selectedModelId)) {
+                    openRouterModelSelectEl.value = '';
+                }
+                toggleInsightsButtonVisibility();
+            } catch (error) {
+                console.error('Error populating OpenRouter models:', error);
             }
         }
         const API_BASE_URL = "https://api.livecoinwatch.com";
@@ -704,6 +821,15 @@
         const profitLossRowEl = document.getElementById('profitLossRow');
         const profitLossValueEl = document.getElementById('profitLossValue');
         const profitLossPercentEl = document.getElementById('profitLossPercent');
+        const sma1hValueEl = document.getElementById('sma1hValue');
+        const price24hAgoValueEl = document.getElementById('price24hAgoValue');
+        const price24hAgoChangeEl = document.getElementById('price24hAgoChange');
+        const high24hValueEl = document.getElementById('high24hValue');
+        const high24hTimeEl = document.getElementById('high24hTime');
+        const low24hValueEl = document.getElementById('low24hValue');
+        const low24hTimeEl = document.getElementById('low24hTime');
+        const volatilityValueEl = document.getElementById('volatilityValue');
+        const velocityValueEl = document.getElementById('velocityValue');
         const volume24hEl = document.getElementById('volume24h');
         const marketCapEl = document.getElementById('marketCap');
         const statusMessageEl = document.getElementById('statusMessage');
@@ -717,12 +843,14 @@
         const apiKeyInput = document.getElementById('apiKey');
         const userBtcAmountInput = document.getElementById('userBtcAmount');
         const userTotalCostInput = document.getElementById('userTotalCost');
-        const googleApiKeyInput = document.getElementById('googleApiKey');
-        const getGoogleApiKeyLinkContainerEl = document.getElementById('getGoogleApiKeyLinkContainer');
+        const openRouterApiKeyInput = document.getElementById('openRouterApiKey');
+        const openRouterModelSelectEl = document.getElementById('openRouterModel');
+        const openRouterModelContainerEl = document.getElementById('openRouterModelContainer');
+        const getOpenRouterApiKeyLinkContainerEl = document.getElementById('getOpenRouterApiKeyLinkContainer');
         const accentColorPickerEl = document.getElementById('accentColorPicker');
 
         const liveCoinWatchApiKeyStatusEl = document.getElementById('liveCoinWatchApiKeyStatus');
-        const googleApiKeyStatusEl = document.getElementById('googleApiKeyStatus');
+        const openRouterApiKeyStatusEl = document.getElementById('openRouterApiKeyStatus');
 
         const insightsButtonEl = document.getElementById('insightsButton');
         const insightModalEl = document.getElementById('insightModal');
@@ -837,7 +965,8 @@
         let lastDataFetchTimestamp = null;
         let updateTimestampInterval = null;
         let config = {
-            googleApiKey: '',
+            openRouterApiKey: '',
+            openRouterModel: '',
             apiKey: '',
             userBtcAmount: 0.0,
             userTotalCost: 0.0,
@@ -957,7 +1086,7 @@
                 apiKeyInput.value = config.apiKey || '';
                 userBtcAmountInput.value = config.userBtcAmount || '';
                 userTotalCostInput.value = config.userTotalCost || '';
-                googleApiKeyInput.value = config.googleApiKey || '';
+                openRouterApiKeyInput.value = config.openRouterApiKey || '';
                 timeframeSelectEl.value = config.selectedTimeframe || '24h';
                 accentColorPickerEl.value = config.accentColor || DEFAULT_ACCENT_COLOR;
             } else {
@@ -1000,20 +1129,21 @@
                 apiKeyInput.value = config.apiKey || '';
                 userBtcAmountInput.value = config.userBtcAmount || '';
                 userTotalCostInput.value = config.userTotalCost || '';
-                googleApiKeyInput.value = config.googleApiKey || '';
+                openRouterApiKeyInput.value = config.openRouterApiKey || '';
+                if (openRouterModelContainerEl) openRouterModelContainerEl.style.display = 'none';
                 accentColorPickerEl.value = config.accentColor || DEFAULT_ACCENT_COLOR;
                 getApiKeyLinkContainerEl.style.display = config.apiKey ? 'none' : 'block';
-                getGoogleApiKeyLinkContainerEl.style.display = config.googleApiKey ? 'none' : 'block';
+                getOpenRouterApiKeyLinkContainerEl.style.display = config.openRouterApiKey ? 'none' : 'block';
 
                 // Initial validation status
                 validateLiveCoinWatchApiKey(config.apiKey);
-                validateGoogleApiKey(config.googleApiKey);
+                validateOpenRouterApiKey(config.openRouterApiKey);
             }
         }
 
         function toggleInsightsButtonVisibility() {
             if (insightsButtonEl) {
-                insightsButtonEl.style.display = config.googleApiKey ? 'inline-block' : 'none';
+                insightsButtonEl.style.display = (config.openRouterApiKey && config.openRouterModel) ? 'inline-block' : 'none';
             }
         }
 
@@ -1190,18 +1320,22 @@
                 insightContentEl.innerHTML = "<p>No previous insight found. Fetching new report...</p>";
                 if(insightTimestampEl) insightTimestampEl.style.display = 'none';
                 if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'none';
-                fetchInsightFromGemini(); 
+                fetchInsightFromOpenRouter(); 
             }
         }
 
 
-        async function fetchInsightFromGemini() {
-            if (!config.googleApiKey) {
-                insightContentEl.innerHTML = "<p>Google API Key is not configured. Please set it up in Config.</p>";
+        async function fetchInsightFromOpenRouter() {
+            if (!config.openRouterApiKey) {
+                insightContentEl.innerHTML = "<p>OpenRouter API Key is not configured. Please set it up in Config.</p>";
+                return;
+            }
+            if (!config.openRouterModel) {
+                insightContentEl.innerHTML = "<p>OpenRouter model is not configured. Please set it up in Config.</p>";
                 return;
             }
 
-            console.log('[DEBUG] fetchInsightFromGemini called.');
+            console.log('[DEBUG] fetchInsightFromOpenRouter called.');
             toggleInsightModal(true);
             if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'none'; 
             if(insightTimestampEl) insightTimestampEl.style.display = 'none'; 
@@ -1210,36 +1344,38 @@
             if(insightModalHeaderLogoEl) insightModalHeaderLogoEl.classList.add('is-pulsing');
 
 
-            const modelName = "gemini-2.5-flash"; 
-            const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${config.googleApiKey}`;            
+            const modelName = config.openRouterModel;
+            const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
             const prompt = "What is happening in Bitcoin today, Cover main headlines, with summaries. Length 350-500 words, ensure output is formatted with markdown";
 
-            console.log(`[DEBUG] Attempting to fetch insight. Model: ${modelName}, API Key used: ${config.googleApiKey ? 'Yes' : 'No'}`);
+            console.log(`[DEBUG] Attempting to fetch insight. Model: ${modelName}, API Key used: ${config.openRouterApiKey ? 'Yes' : 'No'}`);
             console.log(`[DEBUG] Prompt: "${prompt}"`);
 
             try {
-                const response = await fetch(GEMINI_API_URL, {
+                const response = await fetch(OPENROUTER_API_URL, {
                     method: 'POST',
                     headers: {
+                        'Authorization': `Bearer ${config.openRouterApiKey}`,
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        tools: [ { "googleSearch": {} } ]
+                        model: modelName,
+                        messages: [{ role: 'user', content: prompt }],
+                        plugins: [{ id: 'web' }]
                     }),
                 });
 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({})); 
-                    console.error('[DEBUG] Gemini API response not OK. Status:', response.status, 'Error Data:', errorData);
+                    console.error('[DEBUG] OpenRouter API response not OK. Status:', response.status, 'Error Data:', errorData);
                     const errorMessage = errorData?.error?.message || `API Error: ${response.status}`;
                     throw new Error(errorMessage);
                 }
 
                 const data = await response.json();
-                console.log('[DEBUG] Gemini API response OK. Raw data:', data);
+                console.log('[DEBUG] OpenRouter API response OK. Raw data:', data);
 
-                const insightText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No insight received from AI.";
+                const insightText = data.choices?.[0]?.message?.content || "No insight received from AI.";
                 console.log('[DEBUG] Extracted insight text:', insightText.substring(0, 100) + "..."); 
                 
                 config.insightReport = {
@@ -1252,7 +1388,7 @@
                 console.log('[DEBUG] Calling updateInsightModalDisplay after successful fetch.');
                 updateInsightModalDisplay(); 
             } catch (error) {
-                console.error("Error fetching Gemini insight:", error);                
+                console.error("Error fetching OpenRouter insight:", error);                
                 insightContentEl.innerHTML = `<p>Error fetching insight: ${error.message}</p>`;
                 if(updateInsightButtonEl) updateInsightButtonEl.style.display = 'inline-block'; 
             } finally {
@@ -1495,6 +1631,99 @@
             marketCapEl.textContent = formatCurrency(currentData.cap, 0);
             applyColor(marketCapEl, currentData.delta.day); 
 
+            // Additional metrics inspired by the PowerShell edition.
+            const cached24hHistory = config.cachedChartData?.['24h']?.data;
+            const history24h = (Array.isArray(cached24hHistory) && cached24hHistory.length > 1)
+                ? cached24hHistory
+                : ((config.selectedTimeframe === '24h' && Array.isArray(historicalChartData) && historicalChartData.length > 1) ? historicalChartData : null);
+
+            if (history24h && history24h.length > 1) {
+                const sortedHistory = [...history24h].sort((a, b) => a.date - b.date);
+                const rates = sortedHistory.map(point => point.rate);
+                const minRate = Math.min(...rates);
+                const maxRate = Math.max(...rates);
+                const lowPoint = sortedHistory.reduce((min, point) => point.rate < min.rate ? point : min, sortedHistory[0]);
+                const highPoint = sortedHistory.reduce((max, point) => point.rate > max.rate ? point : max, sortedHistory[0]);
+                const nowMs = Date.now();
+                const oneHourAgoMs = nowMs - (60 * 60 * 1000);
+                const twelveHoursAgoMs = nowMs - (12 * 60 * 60 * 1000);
+
+                // 1H SMA (~12 points assuming 5-minute data granularity).
+                const smaPoints = sortedHistory.slice(Math.max(0, sortedHistory.length - 12));
+                const sma1h = smaPoints.reduce((sum, point) => sum + point.rate, 0) / Math.max(1, smaPoints.length);
+                sma1hValueEl.textContent = formatCurrency(sma1h);
+                applyColor(sma1hValueEl, btcPrice - sma1h);
+
+                // 24H Ago price and percent delta to current.
+                const target24hAgoMs = nowMs - (24 * 60 * 60 * 1000);
+                const point24hAgo = sortedHistory.reduce((closest, point) =>
+                    Math.abs(point.date - target24hAgoMs) < Math.abs(closest.date - target24hAgoMs) ? point : closest, sortedHistory[0]);
+                const percentFrom24hAgo = point24hAgo.rate ? ((btcPrice - point24hAgo.rate) / point24hAgo.rate) * 100 : 0;
+                price24hAgoValueEl.textContent = formatCurrency(point24hAgo.rate);
+                applyColor(price24hAgoValueEl, btcPrice - point24hAgo.rate);
+                price24hAgoChangeEl.textContent = `[${percentFrom24hAgo >= 0 ? '+' : ''}${formatNumber(percentFrom24hAgo, 2)}%]`;
+                applyColor(price24hAgoChangeEl, percentFrom24hAgo);
+
+                // 24H high/low and timestamps.
+                high24hValueEl.textContent = formatCurrency(highPoint.rate);
+                low24hValueEl.textContent = formatCurrency(lowPoint.rate);
+                high24hTimeEl.textContent = `(at ${new Date(highPoint.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })})`;
+                low24hTimeEl.textContent = `(at ${new Date(lowPoint.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })})`;
+
+                // Volatility + velocity score.
+                const volatility24h = minRate > 0 ? ((maxRate - minRate) / minRate) * 100 : 0;
+                const recentHistory = sortedHistory.filter(point => point.date >= twelveHoursAgoMs);
+                const olderHistory = sortedHistory.filter(point => point.date < twelveHoursAgoMs);
+                const recentMin = recentHistory.length ? Math.min(...recentHistory.map(point => point.rate)) : 0;
+                const recentMax = recentHistory.length ? Math.max(...recentHistory.map(point => point.rate)) : 0;
+                const olderMin = olderHistory.length ? Math.min(...olderHistory.map(point => point.rate)) : 0;
+                const olderMax = olderHistory.length ? Math.max(...olderHistory.map(point => point.rate)) : 0;
+                const volatility12h = recentMin > 0 ? ((recentMax - recentMin) / recentMin) * 100 : 0;
+                const volatility12hOld = olderMin > 0 ? ((olderMax - olderMin) / olderMin) * 100 : 0;
+
+                let totalChange = 0;
+                let totalChange1h = 0;
+                for (let i = 1; i < sortedHistory.length; i++) {
+                    const delta = Math.abs(sortedHistory[i].rate - sortedHistory[i - 1].rate);
+                    totalChange += delta;
+                    if (sortedHistory[i].date >= oneHourAgoMs) {
+                        totalChange1h += delta;
+                    }
+                }
+
+                let velocity = 0;
+                const range = maxRate - minRate;
+                if (range > 0) {
+                    velocity = Math.round((totalChange / range) * volatility24h);
+                    const hourlyAvg = totalChange / 24;
+                    if (hourlyAvg > 0) {
+                        velocity = Math.round(velocity * (totalChange1h / hourlyAvg));
+                    }
+                }
+
+                volatilityValueEl.textContent = `${formatNumber(volatility24h, 2)}%`;
+                velocityValueEl.textContent = `[${velocity}]`;
+                applyColor(volatilityValueEl, volatility12h - volatility12hOld);
+                velocityValueEl.classList.remove('green', 'red', 'magenta', 'default-color');
+                if (velocity >= 50) velocityValueEl.classList.add('magenta');
+                else if (totalChange1h > (totalChange / 24)) velocityValueEl.classList.add('green');
+                else velocityValueEl.classList.add('red');
+            } else {
+                sma1hValueEl.textContent = '$----.--';
+                price24hAgoValueEl.textContent = '$----.--';
+                price24hAgoChangeEl.textContent = '[--.--%]';
+                high24hValueEl.textContent = '$----.--';
+                high24hTimeEl.textContent = '(at --:--)';
+                low24hValueEl.textContent = '$----.--';
+                low24hTimeEl.textContent = '(at --:--)';
+                volatilityValueEl.textContent = '--.--%';
+                velocityValueEl.textContent = '[--]';
+                [sma1hValueEl, price24hAgoValueEl, price24hAgoChangeEl, high24hValueEl, high24hTimeEl, low24hValueEl, low24hTimeEl, volatilityValueEl, velocityValueEl].forEach(el => {
+                    el.classList.remove('green', 'red', 'magenta');
+                    el.classList.add('default-color');
+                });
+            }
+
             if (historicalChartData && historicalChartData.length > 0) {
                 drawPriceChart(historicalChartData, config.selectedTimeframe, currentData.allTimeHighUSD, config.accentColor || DEFAULT_ACCENT_COLOR);
             }
@@ -1513,6 +1742,15 @@
             profitLossRowEl.style.display = 'none';
             profitLossValueEl.textContent = '$----.--';
             profitLossPercentEl.textContent = '(-.--%)';
+            sma1hValueEl.textContent = '$----.--';
+            price24hAgoValueEl.textContent = '$----.--';
+            price24hAgoChangeEl.textContent = '[--.--%]';
+            high24hValueEl.textContent = '$----.--';
+            high24hTimeEl.textContent = '(at --:--)';
+            low24hValueEl.textContent = '$----.--';
+            low24hTimeEl.textContent = '(at --:--)';
+            volatilityValueEl.textContent = '--.--%';
+            velocityValueEl.textContent = '[--]';
             volume24hEl.textContent = '$---,---,---';
             marketCapEl.textContent = '$---,---,---';
             if (priceChartCanvas) {
@@ -1525,7 +1763,7 @@
                 ctx.fillText('Data unavailable', priceChartCanvas.width / 2, priceChartCanvas.height / 2);
             }
             lastUpdatedTextEl.textContent = 'Updated: --/--/--@--:--:--';
-            [btcPriceEl, btcChange24hEl, myBtcValueEl, myBtcValueChange24hEl, profitLossValueEl, profitLossPercentEl, volume24hEl, marketCapEl].forEach(el => {
+            [btcPriceEl, btcChange24hEl, myBtcValueEl, myBtcValueChange24hEl, profitLossValueEl, profitLossPercentEl, sma1hValueEl, price24hAgoValueEl, price24hAgoChangeEl, high24hValueEl, high24hTimeEl, low24hValueEl, low24hTimeEl, volatilityValueEl, velocityValueEl, volume24hEl, marketCapEl].forEach(el => {
                 el.classList.remove('green', 'red', 'magenta');
                 el.classList.add('default-color');
             });
@@ -1536,7 +1774,8 @@
             config.userBtcAmount = parseFloat(userBtcAmountInput.value) || 0.0;
             config.userTotalCost = parseFloat(userTotalCostInput.value) || 0.0;
             config.accentColor = accentColorPickerEl.value || DEFAULT_ACCENT_COLOR;
-            config.googleApiKey = googleApiKeyInput.value.trim();
+            config.openRouterApiKey = openRouterApiKeyInput.value.trim();
+            config.openRouterModel = openRouterModelSelectEl.value;
             
             try {
                 await saveAppData();
@@ -1596,7 +1835,7 @@
         insightsButtonEl.addEventListener('click', handleInsightsButtonClick);
         document.getElementById('closeInsightButton').addEventListener('click', () => toggleInsightModal(false));
         if (updateInsightButtonEl) {
-            updateInsightButtonEl.addEventListener('click', fetchInsightFromGemini); 
+            updateInsightButtonEl.addEventListener('click', fetchInsightFromOpenRouter); 
         }
 
         document.getElementById('refreshButton').addEventListener('click', async () => {
@@ -1612,8 +1851,8 @@
             getApiKeyLinkContainerEl.style.display = apiKeyInput.value.trim() ? 'none' : 'block';
         });
 
-        googleApiKeyInput.addEventListener('input', () => {
-            getGoogleApiKeyLinkContainerEl.style.display = googleApiKeyInput.value.trim() ? 'none' : 'block';
+        openRouterApiKeyInput.addEventListener('input', () => {
+            getOpenRouterApiKeyLinkContainerEl.style.display = openRouterApiKeyInput.value.trim() ? 'none' : 'block';
         });
 
         const debouncedValidateLcwKey = debounce(validateLiveCoinWatchApiKey, 500);
@@ -1621,18 +1860,22 @@
             getApiKeyLinkContainerEl.style.display = e.target.value.trim() ? 'none' : 'block';
             debouncedValidateLcwKey(e.target.value.trim());
         });
-        const debouncedValidateGoogleKey = debounce(validateGoogleApiKey, 500);
-        googleApiKeyInput.addEventListener('input', (e) => {
-            getGoogleApiKeyLinkContainerEl.style.display = e.target.value.trim() ? 'none' : 'block';
-            debouncedValidateGoogleKey(e.target.value.trim());
+        const debouncedValidateOpenRouterKey = debounce(validateOpenRouterApiKey, 500);
+        openRouterApiKeyInput.addEventListener('input', async (e) => {
+            const key = e.target.value.trim();
+            getOpenRouterApiKeyLinkContainerEl.style.display = key ? 'none' : 'block';
+            debouncedValidateOpenRouterKey(key);
+        });
+        openRouterModelSelectEl.addEventListener('change', () => {
+            toggleInsightsButtonVisibility();
         });
 
         // Show/hide API keys on focus/blur for easier editing
         apiKeyInput.addEventListener('focus', (e) => { e.target.type = 'text'; });
         apiKeyInput.addEventListener('blur', (e) => { e.target.type = 'password'; });
 
-        googleApiKeyInput.addEventListener('focus', (e) => { e.target.type = 'text'; });
-        googleApiKeyInput.addEventListener('blur', (e) => { e.target.type = 'password'; });
+        openRouterApiKeyInput.addEventListener('focus', (e) => { e.target.type = 'text'; });
+        openRouterApiKeyInput.addEventListener('blur', (e) => { e.target.type = 'password'; });
 
         function drawPriceChart(history, timeframe, allTimeHighUSD, accentColor) {
             if (!priceChartCanvas) return;
