@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">    
-    <title>BTC Track v1.5</title>
+    <title>BTC Track v1.5.1</title>
     <link rel="icon" href="./icons/32.png" type="image/png">
     <!-- You can create a 32x32.png from your 512x512.png or 192x192.png -->
     <link rel="apple-touch-icon" href="./icons/192.png">
@@ -360,6 +360,11 @@
             background-color: rgba(40, 167, 69, 0.15) !important;
             color: #e0e0e0;
         }
+        .openrouter-model-hint {
+            margin: -4px 0 10px 0;
+            font-size: 0.85em;
+            color: #ff6b6b;
+        }
          .modal-content input[type="number"]::-webkit-inner-spin-button,
          .modal-content input[type="number"]::-webkit-outer-spin-button {
             -webkit-appearance: none;
@@ -606,6 +611,7 @@
                 <select id="openRouterModel">
                     <option value="">Select Model...</option>
                 </select>
+                <p id="openRouterModelHint" class="openrouter-model-hint" style="display: none;">Select model to enable Insights</p>
             </div>
 
             <label for="accentColorPicker">Accent Color:</label>
@@ -693,6 +699,14 @@
             }
         }
 
+        function updateOpenRouterModelSetupHint() {
+            const hintEl = document.getElementById('openRouterModelHint');
+            if (!hintEl || !openRouterModelContainerEl || !openRouterModelSelectEl) return;
+            const containerVisible = openRouterModelContainerEl.style.display === 'block';
+            const noModelSelected = !openRouterModelSelectEl.value;
+            hintEl.style.display = (containerVisible && noModelSelected) ? 'block' : 'none';
+        }
+
         async function validateOpenRouterApiKey(apiKey) {
             if (validationAbortControllers.openrouter) {
                 validationAbortControllers.openrouter.abort();
@@ -703,6 +717,7 @@
             if (!apiKey) {
                 openRouterApiKeyStatusEl.textContent = '';
                 if (openRouterModelContainerEl) openRouterModelContainerEl.style.display = 'none';
+                updateOpenRouterModelSetupHint();
                 return;
             }
 
@@ -726,10 +741,12 @@
                     openRouterApiKeyStatusEl.textContent = '⚠️';
                     openRouterApiKeyStatusEl.title = 'Rate limit hit while checking key (429)';
                     if (openRouterModelContainerEl) openRouterModelContainerEl.style.display = 'none';
+                    updateOpenRouterModelSetupHint();
                 } else {
                     openRouterApiKeyStatusEl.textContent = '❌';
                     openRouterApiKeyStatusEl.title = `Invalid key (Status: ${response.status})`;
                     if (openRouterModelContainerEl) openRouterModelContainerEl.style.display = 'none';
+                    updateOpenRouterModelSetupHint();
                 }
             } catch (error) {
                 if (error.name === 'AbortError') return; // Abort is expected, do nothing
@@ -737,6 +754,7 @@
                 openRouterApiKeyStatusEl.textContent = '⚠️';
                 openRouterApiKeyStatusEl.title = 'Network error during validation';
                 if (openRouterModelContainerEl) openRouterModelContainerEl.style.display = 'none';
+                updateOpenRouterModelSetupHint();
             }
         }
         
@@ -792,8 +810,10 @@
                     openRouterModelSelectEl.value = '';
                 }
                 toggleInsightsButtonVisibility();
+                updateOpenRouterModelSetupHint();
             } catch (error) {
                 console.error('Error populating OpenRouter models:', error);
+                updateOpenRouterModelSetupHint();
             }
         }
         const API_BASE_URL = "https://api.livecoinwatch.com";
@@ -1131,6 +1151,7 @@
                 userTotalCostInput.value = config.userTotalCost || '';
                 openRouterApiKeyInput.value = config.openRouterApiKey || '';
                 if (openRouterModelContainerEl) openRouterModelContainerEl.style.display = 'none';
+                updateOpenRouterModelSetupHint();
                 accentColorPickerEl.value = config.accentColor || DEFAULT_ACCENT_COLOR;
                 getApiKeyLinkContainerEl.style.display = config.apiKey ? 'none' : 'block';
                 getOpenRouterApiKeyLinkContainerEl.style.display = config.openRouterApiKey ? 'none' : 'block';
@@ -1868,6 +1889,7 @@
         });
         openRouterModelSelectEl.addEventListener('change', () => {
             toggleInsightsButtonVisibility();
+            updateOpenRouterModelSetupHint();
         });
 
         // Show/hide API keys on focus/blur for easier editing
