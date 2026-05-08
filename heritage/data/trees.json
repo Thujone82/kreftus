@@ -1,6 +1,6 @@
 {
   "sourceUrl": "https://www.portland.gov/trees/heritage/heritage-trees-year",
-  "scrapedAt": "2026-05-08T22:23:25Z",
+  "scrapedAt": "2026-05-08T22:26:45Z",
   "count": 397,
   "trees": [
     {
@@ -4769,8 +4769,8 @@
       "name": "Platanus Acerifolia - London Planetree",
       "location": "1335 N Mason St (right-of-way)",
       "removed": null,
-      "lat": 45.5538232,
-      "lng": -122.6806014,
+      "lat": 45.554053341409684,
+      "lng": -122.68085899936774,
       "geocodeStatus": "ok",
       "geocodeAddress": "1335 N Mason St, Portland, OR, USA",
       "geocodeFormatted": "Harbor Freight Tools, 1335, North Mason Street, Overlook, Portland, Multnomah County, Oregon, 97217, United States",
