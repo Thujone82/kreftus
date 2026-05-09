@@ -1460,6 +1460,15 @@
                 toggleConfigModal(true);
                 return;
             }
+
+            console.log('[DEBUG] fetchData:start', {
+                forceRefresh,
+                timeframe: config.selectedTimeframe,
+                hasCurrentCache: !!_current_data_cache,
+                currentCacheAgeMs: config.lastFetchedCurrentDataTimestamp != null
+                    ? Date.now() - config.lastFetchedCurrentDataTimestamp
+                    : null
+            });
             
             if (!forceRefresh && _current_data_cache && config.lastFetchedCurrentDataTimestamp &&
                 (Date.now() - config.lastFetchedCurrentDataTimestamp < DATA_CACHE_DURATION_MS)) {
@@ -1467,7 +1476,12 @@
                 if (selectedChartCache && selectedChartCache.data && selectedChartCache.data.length > 0 && 
                     selectedChartCache.timestamp && (Date.now() - selectedChartCache.timestamp < DATA_CACHE_DURATION_MS) &&
                     typeof selectedChartCache.historicalRateAtStart === 'number') { 
-                    console.log('[DEBUG] All data (current, chart, historical start rate) for', config.selectedTimeframe, 'are fresh. Displaying from cache.');
+                    console.log('[DEBUG] fetchData:full cache hit → updateDisplay', {
+                        timeframe: config.selectedTimeframe,
+                        chartPoints: selectedChartCache.data.length,
+                        historicalRateAtStart: selectedChartCache.historicalRateAtStart,
+                        cached24hPoints: config.cachedChartData?.['24h']?.data?.length ?? 0
+                    });
                     lastDataFetchTimestamp = config.lastFetchedCurrentDataTimestamp; 
                     window.lastFetchedCurrentData = _current_data_cache; 
                     window.lastFetchedHistoricalChartData = selectedChartCache.data; 
@@ -1476,7 +1490,12 @@
                     setStatus('');
                     return; 
                 } else {
-                    console.log('[DEBUG] Current data is fresh (possibly from SW/localStorage), but chart data for', config.selectedTimeframe, 'is old/missing. Proceeding to full network fetch.');
+                    console.log('[DEBUG] fetchData:partial cache — current fresh but chart stale/missing; network fetch', {
+                        timeframe: config.selectedTimeframe,
+                        chartCache: selectedChartCache
+                            ? { points: selectedChartCache.data?.length ?? 0, ageMs: selectedChartCache.timestamp ? Date.now() - selectedChartCache.timestamp : null, hasHistStart: typeof selectedChartCache.historicalRateAtStart === 'number' }
+                            : null
+                    });
                 }
             }
             
@@ -1564,6 +1583,12 @@
                     } else { console.warn("Chart historical data fetch failed, status:", chartHistoryResponse.status); }
                 } catch (chartHistError) { console.warn("Error fetching chart historical data:", chartHistError); }
 
+                console.log('[DEBUG] fetchData:network complete → updateDisplay', {
+                    timeframe: config.selectedTimeframe,
+                    chartPoints: Array.isArray(historicalChartData) ? historicalChartData.length : 0,
+                    historicalRateAtStart: rateAtTimeframeStart,
+                    cached24hAfter: config.cachedChartData?.['24h']?.data?.length ?? 0
+                });
                 lastDataFetchTimestamp = config.lastFetchedCurrentDataTimestamp; 
                 updateDisplay(_current_data_cache, rateAtTimeframeStart, historicalChartData);
                 await saveAppData(); 
@@ -1579,6 +1604,13 @@
 
         function updateDisplay(currentData, historicalRateAtTimeframeStart, historicalChartData) {
             const btcPrice = currentData.rate;
+            console.log('[DEBUG] updateDisplay:start', {
+                timeframe: config.selectedTimeframe,
+                btcPrice,
+                historicalRateAtStart: typeof historicalRateAtTimeframeStart === 'number' ? historicalRateAtTimeframeStart : historicalRateAtTimeframeStart,
+                selectedChartPoints: Array.isArray(historicalChartData) ? historicalChartData.length : 'n/a',
+                cached24hPoints: config.cachedChartData?.['24h']?.data?.length ?? 0
+            });
             let priceDifferenceAbsolute = null;
             let changeForColoring = 0; 
 
@@ -1659,6 +1691,8 @@
                 : ((config.selectedTimeframe === '24h' && Array.isArray(historicalChartData) && historicalChartData.length > 1) ? historicalChartData : null);
 
             if (history24h && history24h.length > 1) {
+                const psSource = (Array.isArray(cached24hHistory) && cached24hHistory.length > 1) ? 'cachedChartData[24h]' : 'historicalChartData@24h';
+                console.log('[DEBUG] updateDisplay:PS metrics filled', { source: psSource, points: history24h.length });
                 const sortedHistory = [...history24h].sort((a, b) => a.date - b.date);
                 const rates = sortedHistory.map(point => point.rate);
                 const minRate = Math.min(...rates);
@@ -1728,8 +1762,13 @@
                 velocityValueEl.classList.remove('green', 'red', 'magenta', 'default-color');
                 if (velocity >= 50) velocityValueEl.classList.add('magenta');
                 else if (totalChange1h > (totalChange / 24)) velocityValueEl.classList.add('green');
-                else velocityValueEl.classList.add('red');
+                else                 velocityValueEl.classList.add('red');
             } else {
+                console.log('[DEBUG] updateDisplay:PS metrics placeholders', {
+                    cached24hPoints: Array.isArray(cached24hHistory) ? cached24hHistory.length : 0,
+                    timeframe: config.selectedTimeframe,
+                    selectedChartPoints: Array.isArray(historicalChartData) ? historicalChartData.length : 0
+                });
                 sma1hValueEl.textContent = '$----.--';
                 price24hAgoValueEl.textContent = '$----.--';
                 price24hAgoChangeEl.textContent = '[--.--%]';
@@ -1746,7 +1785,10 @@
             }
 
             if (historicalChartData && historicalChartData.length > 0) {
+                console.log('[DEBUG] updateDisplay:drawPriceChart', { points: historicalChartData.length, timeframe: config.selectedTimeframe });
                 drawPriceChart(historicalChartData, config.selectedTimeframe, currentData.allTimeHighUSD, config.accentColor || DEFAULT_ACCENT_COLOR);
+            } else {
+                console.log('[DEBUG] updateDisplay:skip chart', { selectedChartPoints: historicalChartData?.length ?? 0 });
             }
         }
 
@@ -1755,6 +1797,7 @@
         document.getElementById('cancelConfigButton').addEventListener('click', () => toggleConfigModal(false));
 
         function clearDisplayData() {
+            console.log('[DEBUG] clearDisplayData: resetting price / PS metric / chart fields');
             btcPriceEl.textContent = '$----.--';
             btcChange24hEl.textContent = '[$-.--]';
             myBtcValueRowEl.style.display = 'none';
