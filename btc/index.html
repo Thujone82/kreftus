@@ -114,6 +114,10 @@
             opacity: 0.8;
         }
 
+        #velocityValue[title] {
+            cursor: help;
+        }
+
         .data-item .label,
         .data-item .value,
         .data-item .change {
@@ -548,7 +552,7 @@
                 <span class="label">Volatility:</span>
                 <div class="value-container">
                     <span class="value default-color" id="volatilityValue">--.--%</span>
-                    <span class="change default-color" id="velocityValue">[--]</span>
+                    <span class="change default-color" id="velocityValue" title="Velocity = (totalΔ ÷ range) × vol% × (1hΔ ÷ avg-hourlyΔ)&#10;&#10;where totalΔ = sum of |step moves| over 24h, 1hΔ = that sum only for the last hour, avg-hourlyΔ = totalΔ/24, range = H−L, vol% = 24h (H−L)/L as a percent. (Zero if range ≤ 0; the last factor is skipped when avg-hourlyΔ is 0.)&#10;&#10;Red if last hour worse than average, Green if better, Magenta if velocity >50 (Hot Market)">[--]</span>
                 </div>
             </div>
             <div class="data-item">
