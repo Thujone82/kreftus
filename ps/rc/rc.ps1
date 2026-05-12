@@ -54,6 +54,7 @@
 .PARAMETER Expect
     Minimum expected command runtime using Period format (s/m/h, or minutes without suffix).
     Runs that complete faster than this threshold are treated as failures.
+    Success summary is printed after each run in both default and precision scheduling modes.
     Alias: -e
 
 .EXAMPLE
@@ -192,6 +193,7 @@ PARAMETERS
   -Expect string      Alias: -e
       Minimum expected command runtime in Period format. A run counts as success only when
       command duration is greater than or equal to this threshold.
+      Prints success summary after each run in standard and precision modes.
 
   -Help               Aliases: -h, -?
       Show this reference and exit.
@@ -312,6 +314,31 @@ function Format-DateAwareTimestamp {
     }
 
     return $Timestamp.ToString('MMddyy@HH:mm:ss')
+}
+
+function Write-ExpectSummaryIfNeeded {
+    param(
+        $ExpectThreshold,
+        [int]$ExecutionCount,
+        [int]$Skip,
+        $LastSuccessfulCompletionTime,
+        [int]$SuccessfulExecutionCount,
+        [int]$ActualExecutionCount,
+        [TimeSpan]$TotalSuccessfulRuntime,
+        $LastSuccessfulRuntime
+    )
+
+    if (-not $ExpectThreshold) { return }
+    if ($ExecutionCount -le $Skip) { return }
+
+    $lastSuccessDisplay = if ($LastSuccessfulCompletionTime) { Format-DateAwareTimestamp $LastSuccessfulCompletionTime } else { 'N/A' }
+    $totalSuccessDisplay = '{0:00}:{1:00}:{2:00}.{3:00}' -f [int]$TotalSuccessfulRuntime.TotalHours, $TotalSuccessfulRuntime.Minutes, $TotalSuccessfulRuntime.Seconds, [int]([math]::Floor($TotalSuccessfulRuntime.Milliseconds / 10))
+    $lastSuccessRuntimeDisplay = if ($LastSuccessfulRuntime) {
+        '{0:00}:{1:00}:{2:00}.{3:00}' -f [int]$LastSuccessfulRuntime.TotalHours, $LastSuccessfulRuntime.Minutes, $LastSuccessfulRuntime.Seconds, [int]([math]::Floor($LastSuccessfulRuntime.Milliseconds / 10))
+    } else {
+        'N/A'
+    }
+    Write-Host "Last Success: $lastSuccessDisplay ($SuccessfulExecutionCount/$ActualExecutionCount)`nTotal Runtime: $totalSuccessDisplay ($lastSuccessRuntimeDisplay)"
 }
 
 # Parse period string
@@ -457,16 +484,7 @@ while ($true) {
                 $waitingDisplay = Format-CompactDuration -Span $sleepTimeSpan
                 $nextRunDisplay = Format-DateAwareTimestamp $nextTargetTime
                 Write-Host "Runtime: $runtimeDisplay Waiting: $waitingDisplay Next Run: $nextRunDisplay"
-                if ($expectThreshold -and $executionCount -gt $Skip) {
-                    $lastSuccessDisplay = if ($lastSuccessfulCompletionTime) { Format-DateAwareTimestamp $lastSuccessfulCompletionTime } else { 'N/A' }
-                    $totalSuccessDisplay = '{0:00}:{1:00}:{2:00}.{3:00}' -f [int]$totalSuccessfulRuntime.TotalHours, $totalSuccessfulRuntime.Minutes, $totalSuccessfulRuntime.Seconds, [int]([math]::Floor($totalSuccessfulRuntime.Milliseconds / 10))
-                    $lastSuccessRuntimeDisplay = if ($lastSuccessfulRuntime) {
-                        '{0:00}:{1:00}:{2:00}.{3:00}' -f [int]$lastSuccessfulRuntime.TotalHours, $lastSuccessfulRuntime.Minutes, $lastSuccessfulRuntime.Seconds, [int]([math]::Floor($lastSuccessfulRuntime.Milliseconds / 10))
-                    } else {
-                        'N/A'
-                    }
-                    Write-Host "Last Success: $lastSuccessDisplay ($successfulExecutionCount/$actualExecutionCount)`nTotal Runtime: $totalSuccessDisplay ($lastSuccessRuntimeDisplay)"
-                }
+                Write-ExpectSummaryIfNeeded -ExpectThreshold $expectThreshold -ExecutionCount $executionCount -Skip $Skip -LastSuccessfulCompletionTime $lastSuccessfulCompletionTime -SuccessfulExecutionCount $successfulExecutionCount -ActualExecutionCount $actualExecutionCount -TotalSuccessfulRuntime $totalSuccessfulRuntime -LastSuccessfulRuntime $lastSuccessfulRuntime
                 Write-Host "Press Ctrl+C to stop."
             }
             Start-Sleep -Seconds $sleepTimeSpan.TotalSeconds
@@ -479,7 +497,13 @@ while ($true) {
         # Standard mode: wait for the specified period after command execution
         # Note: This wait period also applies during skipped executions to maintain timing
         if (-not $Silent.IsPresent) {
-            Write-Host "Waiting $PeriodDisplay. Press Ctrl+C to stop.`n"
+            if ($expectThreshold -and $executionCount -gt $Skip) {
+                Write-Host "Waiting $PeriodDisplay."
+                Write-ExpectSummaryIfNeeded -ExpectThreshold $expectThreshold -ExecutionCount $executionCount -Skip $Skip -LastSuccessfulCompletionTime $lastSuccessfulCompletionTime -SuccessfulExecutionCount $successfulExecutionCount -ActualExecutionCount $actualExecutionCount -TotalSuccessfulRuntime $totalSuccessfulRuntime -LastSuccessfulRuntime $lastSuccessfulRuntime
+                Write-Host "Press Ctrl+C to stop.`n"
+            } else {
+                Write-Host "Waiting $PeriodDisplay. Press Ctrl+C to stop.`n"
+            }
         }
         Start-Sleep -Seconds ($PeriodMinutes * 60)
     }

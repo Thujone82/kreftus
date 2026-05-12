@@ -77,6 +77,7 @@ The script offers two modes for scheduling: a simple delay mode and a high-preci
     - Last success timestamp and `successes/total` runs (e.g. `Last Success: N/A (0/10)`)
     - Total runtime across successful runs only
     - Runtime of the most recent successful run
+    - Summary appears after each run in both standard and precision (`-p`) scheduling modes.
   - Before the first successful run, `Last Success` fields show `N/A`.
 
 ## Examples
