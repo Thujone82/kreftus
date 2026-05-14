@@ -3047,6 +3047,34 @@ function Get-WindSpeed ($windString) {
     return 0
 }
 
+# Temperature/wind line colors for current conditions (used on first draw and after interactive refresh)
+function Get-CurrentConditionsBandColors {
+    param(
+        [object]$Temperature,
+        [AllowEmptyString()]
+        [string]$WindSpeedText,
+        [string]$DefaultColor,
+        [string]$AlertColor
+    )
+    $tempColor = if ([int]$Temperature -lt $script:COLD_TEMP_THRESHOLD) {
+        "Blue"
+    } elseif ([int]$Temperature -gt $script:HOT_TEMP_THRESHOLD) {
+        $AlertColor
+    } else {
+        $DefaultColor
+    }
+    $windSpeedNum = Get-WindSpeed $WindSpeedText
+    $windColor = if ($windSpeedNum -ge $script:WIND_ALERT_THRESHOLD) {
+        $AlertColor
+    } else {
+        $DefaultColor
+    }
+    [pscustomobject]@{
+        TempColor = $tempColor
+        WindColor = $windColor
+    }
+}
+
 # Function: Calculate wind chill using NWS formula
 function Get-WindChill {
     param(
@@ -5804,8 +5832,6 @@ function Format-DailyLine {
     return $completeLine
 }
 
-$windSpeed = Get-WindSpeed $currentWind
-
 # Use our API call time for the display timestamp
 $currentTimeLocal = $dataFetchTime
 Write-Verbose "Using API call time: $currentTimeLocal"
@@ -5847,21 +5873,10 @@ $infoColor = "Blue"
 $detailedForecastColor = "Gray"
 
 # Apply color coding based on weather conditions
-# Temperature: Blue if too cold (<33°F), Red if too hot (>89°F)
-if ([int]$currentTemp -lt $script:COLD_TEMP_THRESHOLD) {
-    $tempColor = "Blue"
-} elseif ([int]$currentTemp -gt $script:HOT_TEMP_THRESHOLD) {
-    $tempColor = $alertColor
-} else {
-    $tempColor = $defaultColor
-}
-
-# Wind: Red if wind speed is high (=16 mph)
-if ($windSpeed -ge $script:WIND_ALERT_THRESHOLD) {
-    $windColor = $alertColor
-} else {
-    $windColor = $defaultColor
-}
+# Temperature: Blue if too cold (<33°F), Red if too hot (>89°F); wind: Red at/above alert threshold
+$ccBandColors = Get-CurrentConditionsBandColors -Temperature $currentTemp -WindSpeedText $currentWind -DefaultColor $defaultColor -AlertColor $alertColor
+$tempColor = $ccBandColors.TempColor
+$windColor = $ccBandColors.WindColor
 
 if ($VerbosePreference -ne 'Continue') {
     Clear-Host
@@ -6318,6 +6333,9 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         $todayPeriodName = $script:todayPeriodName
                         $tomorrowForecast = $script:tomorrowForecast
                         $tomorrowPeriodName = $script:tomorrowPeriodName
+                        $ccBandColors = Get-CurrentConditionsBandColors -Temperature $currentTemp -WindSpeedText $currentWind -DefaultColor $defaultColor -AlertColor $alertColor
+                        $tempColor = $ccBandColors.TempColor
+                        $windColor = $ccBandColors.WindColor
                         
                         # Re-render current view with fresh data
                         Clear-HostWithDelay
@@ -6770,6 +6788,9 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         $todayPeriodName = $script:todayPeriodName
                         $tomorrowForecast = $script:tomorrowForecast
                         $tomorrowPeriodName = $script:tomorrowPeriodName
+                        $ccBandColors = Get-CurrentConditionsBandColors -Temperature $currentTemp -WindSpeedText $currentWind -DefaultColor $defaultColor -AlertColor $alertColor
+                        $tempColor = $ccBandColors.TempColor
+                        $windColor = $ccBandColors.WindColor
                         
                         # Re-render current view with fresh data
                         Clear-HostWithDelay
