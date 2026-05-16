@@ -24,6 +24,7 @@ The script offers two modes for scheduling: a simple delay mode and a high-preci
 - **Skip Mode (`-Skip`):** Allows you to skip a specified number of initial executions before starting to run the command. If `-Skip 0` is specified, it defaults to 1 (skips the first execution). Useful for delaying the start of command execution while maintaining the timing schedule.
 - **Limit Mode (`-Limit`):** Limits the total number of executions to perform. Skipped executions do not count toward this limit. Useful for running a command a specific number of times and then exiting.
 - **Expected Runtime Tracking (`-Expect`/`-e`):** Sets a minimum expected command runtime using period format (`s`/`m`/`h`). Runs below the threshold are treated as failures, and success metrics are tracked and reported.
+- **Command Marker Replace (`-Replace`/`-r`):** Replaces every literal `$^` marker in the command string with a supplied value before execution (e.g. `gf -x $^` with `-r pdx` runs as `gf -x pdx`).
 - **Period Suffixes:** Support for time unit suffixes on period input: 's' for seconds, 'm' for minutes (optional), 'h' for hours. Integers without suffix default to minutes.
 
 ## Requirements
@@ -79,6 +80,11 @@ The script offers two modes for scheduling: a simple delay mode and a high-preci
     - Runtime of the most recent successful run
     - Summary appears after each run in both standard and precision (`-p`) scheduling modes.
   - Before the first successful run, `Last Success` fields show `N/A`.
+
+- `-Replace` or `-r` [string]
+  - Replaces every literal `$^` marker in the command with the supplied string before execution.
+  - Use single quotes around the command when it contains `$^` so PowerShell does not expand `$`.
+  - If `-Replace` is set but the command has no `$^` marker, rc prints a soft warning and continues.
 
 ## Examples
 
@@ -165,6 +171,12 @@ Runs every 5 seconds and counts a run as successful only if it takes at least 1 
 .\rc.ps1 "Get-Date" 1m -e 1s
 ```
 Uses the `-e` alias to require at least 1 second runtime for a run to count as successful.
+
+### Example 15: Command Marker Replace
+```powershell
+.\rc.ps1 'gf -x $^' 5 -r pdx
+```
+Runs `gf -x pdx` every 5 minutes by substituting `pdx` for the `$^` marker in the command.
 
 ## Notes
 - To stop the script at any time, press `Ctrl+C` in the terminal window where it is running.

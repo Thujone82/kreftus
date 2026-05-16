@@ -57,6 +57,10 @@
     Success summary is printed after each run in both default and precision scheduling modes.
     Alias: -e
 
+.PARAMETER Replace
+    Replaces every literal $^ marker in -Command with this string before execution.
+    Alias: -r
+
 .EXAMPLE
     .\rc.ps1 "Get-Process -Name 'chrome' | Stop-Process -Force" 1
     
@@ -110,6 +114,11 @@
 
     Runs every 5 seconds and tracks successful runs where command duration is at least 1 second.
 
+.EXAMPLE
+    .\rc.ps1 'gf -x $^' 5 -r pdx
+
+    Runs 'gf -x pdx' every 5 minutes by substituting pdx for the $^ marker in the command.
+
 .PARAMETER Help
     Displays full command-line reference (arguments, period format, scheduling behavior) and exits.
 
@@ -147,7 +156,11 @@ param(
 
     [Parameter(Mandatory=$false, HelpMessage="Minimum expected command runtime. Accepts period format (s/m/h). Runs below this threshold are treated as failures.")]
     [Alias('e')]
-    [string]$Expect
+    [string]$Expect,
+
+    [Parameter(Mandatory=$false, HelpMessage='Replaces every literal $^ marker in -Command with this string.')]
+    [Alias('r')]
+    [string]$Replace
 )
 
 if ($Help.IsPresent) {
@@ -161,7 +174,7 @@ SYNOPSIS
 
 USAGE
   .\rc.ps1 [[-Command] string] [[-Period] string] [-Precision] [-Silent] [-Clear]
-           [-Skip int] [-Limit int] [-Expect string] [-Help]
+           [-Skip int] [-Limit int] [-Expect string] [-Replace string] [-Help]
 
   With no -Command, the script prompts for command, period, precision, clear, and limit.
 
@@ -195,6 +208,10 @@ PARAMETERS
       command duration is greater than or equal to this threshold.
       Prints success summary after each run in standard and precision modes.
 
+  -Replace string     Alias: -r
+      Replaces every literal $^ marker in -Command with this value before execution.
+      Emits a soft warning if -Replace is set but the command has no $^ marker.
+
   -Help               Aliases: -h, -?
       Show this reference and exit.
 
@@ -218,6 +235,7 @@ EXAMPLES
   .\rc.ps1 ".\my-script.ps1" 10 -Precision -Silent
   .\rc.ps1 "Get-Process" 15s -Limit 5
   .\rc.ps1 "Invoke-WebRequest https://example.com" 5s -Expect 1s
+  .\rc.ps1 'gf -x $^' 5 -r pdx
   .\rc.ps1 -Help
 
 For comment-based help: Get-Help .\rc.ps1 -Full
@@ -358,6 +376,13 @@ if ($PSBoundParameters.ContainsKey('Expect')) {
 # This allows -Skip to default to skipping 1 execution when used without a value
 if ($PSBoundParameters.ContainsKey('Skip') -and $Skip -eq 0) {
     $Skip = 1
+}
+
+if ($PSBoundParameters.ContainsKey('Replace')) {
+    if ($Command -notlike '*$^*' -and -not $Silent.IsPresent) {
+        Write-Warning '-Replace was specified but command does not contain the $^ marker.'
+    }
+    $Command = $Command.Replace('$^', $Replace)
 }
 
 if (-not $Command) {

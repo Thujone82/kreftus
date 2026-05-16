@@ -167,6 +167,14 @@
             margin-bottom: 1rem;
         }
 
+        code {
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 0.9em;
+            background-color: #eee;
+            padding: 0.1em 0.35em;
+            border-radius: 3px;
+        }
+
         /* Responsive adjustments */
         @media (max-width: 900px) {
             /* Make table cells behave like blocks to stack them */
@@ -213,21 +221,31 @@
                         <div>
                             <h2>rc v1.4</h2>
                             <p>
-                                <b>rc (Run Continuously)</b> is a command-line utility that executes a given command string in a loop. After each execution, it waits for a specified number of minutes before running the command again.
+                                <b>rc (Run Continuously)</b> is a command-line utility that executes a given command string in a loop. After each execution, it waits for a specified interval before running the command again. Available as a native <b>Go</b> binary (cross-platform) and a <b>PowerShell</b> script (Windows); both editions support the same flags and behavior.
                             </p>
                             <p>
                                 <b>Features:</b>
                             </p>
                             <ul>
-                                <li><b>Precision Mode (-p):</b> Accounts for the command's execution time, preventing timing drift and ensuring runs start at a consistent interval.</li>
-                                <li><b>Period Suffixes:</b> Support for time units: 's' (seconds), 'm' (minutes, optional), 'h' (hours). Integers without suffix default to minutes. Examples: 5, 15s, 5m, 1h.</li>
-                                <li><b>Skip Mode (-skip):</b> Skip a specified number of initial executions before starting command execution. If -skip 0 is specified, it defaults to 1.</li>
-                                <li><b>Limit Mode (-limit):</b> Limit the total number of executions to perform. Skipped executions do not count toward this limit.</li>
-                                <li><b>Silent Mode (-s):</b> Suppresses status output messages while still displaying command output and errors.</li>
-                                <li><b>Clear Mode (-c):</b> Clears the screen before executing the command in each iteration for clean output display.</li>
+                                <li><b>Precision Mode (-p):</b> Grid-aligned scheduling that accounts for execution time so runs start at consistent intervals.</li>
+                                <li><b>Period Suffixes:</b> Intervals use <code>s</code> (seconds), <code>m</code> (minutes, optional), or <code>h</code> (hours). Bare numbers default to minutes. Examples: <code>5</code>, <code>15s</code>, <code>5m</code>, <code>1h</code>.</li>
+                                <li><b>Expected Runtime (-e / -expect):</b> Sets a minimum duration for a successful run. Tracks last success time, successes vs total runs, and cumulative successful runtime. Summary prints in both standard and precision modes.</li>
+                                <li><b>Command Marker Replace (-r / -replace):</b> Replaces every literal <code>$^</code> in the command with a supplied value before execution (e.g. <code>gf -x $^</code> with <code>-r pdx</code> runs as <code>gf -x pdx</code>). Warns softly if <code>-r</code> is set but the command has no marker.</li>
+                                <li><b>Skip Mode (-skip):</b> Skip initial loop iterations before running the command. <code>-skip 0</code> defaults to skipping one execution.</li>
+                                <li><b>Limit Mode (-limit):</b> Stop after a set number of command executions (skipped iterations do not count).</li>
+                                <li><b>Silent Mode (-s):</b> Suppresses status lines; command output and errors still show.</li>
+                                <li><b>Clear Mode (-c):</b> Clears the screen before each run for a clean display.</li>
                             </ul>
                             <p>
-                                Available in a native Go version for cross-platform performance and a PowerShell version for Windows environments.
+                                <b>Examples:</b>
+                            </p>
+                            <ul>
+                                <li><code>rc "Get-Date" 1m -p</code> — every minute on a fixed schedule</li>
+                                <li><code>rc 'gf -x $^' 5m -r pdx</code> — every 5 minutes, substitute <code>pdx</code> for <code>$^</code></li>
+                                <li><code>rc ".\task.ps1" 10m -e 30s -limit 5</code> — require at least 30s per run, exit after 5 executions</li>
+                            </ul>
+                            <p>
+                                Run <code>rc -help</code> (Go) or <code>.\rc.ps1 -Help</code> (PowerShell) for the full CLI reference.
                             </p>
 
                             <h3>Updates</h3>

@@ -20,6 +20,8 @@ The application can run in two modes: a standard mode that waits for a fixed dur
 - **Clear Mode (`-c`):** Clears the screen before executing the command in each iteration, providing a clean output display for each run. Useful for monitoring scenarios where you want to see only the current command output.
 - **Skip Mode (`-skip`):** Allows you to skip a specified number of initial executions before starting to run the command. If `-skip 0` is specified, it defaults to 1 (skips the first execution). Useful for delaying the start of command execution while maintaining the timing schedule.
 - **Limit Mode (`-limit`):** Limits the total number of executions to perform. Skipped executions do not count toward this limit. Useful for running a command a specific number of times and then exiting.
+- **Expected Runtime Tracking (`-e`/`-expect`):** Sets a minimum expected command runtime using period format. Runs below the threshold are failures; success metrics print after each run in standard and precision modes.
+- **Command Marker Replace (`-r`/`-replace`):** Replaces every literal `$^` marker in the command with a supplied value before execution.
 - **Period Suffixes:** Support for time unit suffixes on period input: 's' for seconds, 'm' for minutes (optional), 'h' for hours. Integers without suffix default to minutes.
 - **Interactive Mode:** If run without any arguments, `rc` will interactively prompt you for the command, period, and timing mode.
 - **Cross-Platform:** The included `build.ps1` script compiles native executables for both Windows and Linux.
@@ -65,6 +67,13 @@ The application can run in two modes: a standard mode that waits for a fixed dur
   - The maximum number of executions to perform. Skipped executions do not count toward this limit.
   - If `-limit` is not specified or set to 0, there is no limit (default is 0).
   - For example, `-limit 5` will execute the command 5 times, then exit.
+
+- `-e`, `-expect <period>`
+  - Minimum expected command runtime (period format). Prints success summary after each run.
+
+- `-r`, `-replace <string>`
+  - Replaces every literal `$^` marker in the command with this value.
+  - Soft warning if `-replace` is set but the command has no `$^` marker.
 
 ## Examples
 
@@ -134,3 +143,15 @@ Runs 'Get-Process' every 5 minutes, but only executes 3 times total, then exits.
 ./rc "date" 30s -skip 2 -limit 5
 ```
 Runs 'date' every 30 seconds, skips the first 2 executions, then executes 5 times before exiting.
+
+### Example 13: Command Marker Replace
+```sh
+./rc 'gf -x $^' 5 -r pdx
+```
+Runs `gf -x pdx` every 5 minutes by substituting `pdx` for the `$^` marker.
+
+### Example 14: Expected Runtime (standard mode)
+```sh
+./rc "echo test" 3s -e 1s -limit 2
+```
+Runs every 3 seconds and prints success summary without requiring `-p`.

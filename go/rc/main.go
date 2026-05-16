@@ -73,6 +73,90 @@ func parsePeriod(periodStr string) (time.Duration, string, error) {
 	return duration, display, nil
 }
 
+func formatCompactDuration(d time.Duration, showFractionUnderMinute bool) string {
+	totalSec := int(d.Seconds())
+	h := totalSec / 3600
+	m := (totalSec % 3600) / 60
+	s := totalSec % 60
+
+	if h >= 1 {
+		return fmt.Sprintf("%02d:%02d:%02ds", h, m, s)
+	}
+	if m >= 1 {
+		return fmt.Sprintf("%02d:%02ds", m, s)
+	}
+	if showFractionUnderMinute {
+		return fmt.Sprintf("%.2fs", d.Seconds())
+	}
+	return fmt.Sprintf("%ds", int(math.Round(d.Seconds())))
+}
+
+func formatDateAwareTimestamp(t time.Time) string {
+	now := time.Now()
+	if t.Year() == now.Year() && t.YearDay() == now.YearDay() {
+		return t.Format("15:04:05")
+	}
+	return t.Format("010206@15:04:05")
+}
+
+func formatSuccessRuntime(d time.Duration) string {
+	totalSec := int(d.Seconds())
+	h := totalSec / 3600
+	m := (totalSec % 3600) / 60
+	s := totalSec % 60
+	cs := d.Milliseconds() / 10
+	if cs >= 100 {
+		cs = 99
+	}
+	return fmt.Sprintf("%02d:%02d:%02d.%02d", h, m, s, cs)
+}
+
+type expectState struct {
+	threshold              time.Duration
+	display                string
+	successCount           int
+	actualCount            int
+	totalSuccessfulRuntime time.Duration
+	lastSuccessfulRuntime  time.Duration
+	lastSuccessfulComplete time.Time
+	hasLastSuccess         bool
+}
+
+func printExpectSummary(expect *expectState, executionCount, skip int, silent bool) {
+	if expect == nil {
+		return
+	}
+	if executionCount <= skip {
+		return
+	}
+	if silent {
+		return
+	}
+
+	lastSuccessDisplay := "N/A"
+	if expect.hasLastSuccess {
+		lastSuccessDisplay = formatDateAwareTimestamp(expect.lastSuccessfulComplete)
+	}
+	totalSuccessDisplay := formatSuccessRuntime(expect.totalSuccessfulRuntime)
+	lastSuccessRuntimeDisplay := "N/A"
+	if expect.hasLastSuccess {
+		lastSuccessRuntimeDisplay = formatSuccessRuntime(expect.lastSuccessfulRuntime)
+	}
+	fmt.Printf("Last Success: %s (%d/%d)\nTotal Runtime: %s (%s)\n",
+		lastSuccessDisplay, expect.successCount, expect.actualCount,
+		totalSuccessDisplay, lastSuccessRuntimeDisplay)
+}
+
+func applyReplace(commandStr, replaceValue string, replaceSet, silent bool) string {
+	if !replaceSet {
+		return commandStr
+	}
+	if !strings.Contains(commandStr, "$^") && !silent {
+		color.Yellow("WARNING: -replace was specified but command does not contain the $^ marker.")
+	}
+	return strings.ReplaceAll(commandStr, "$^", replaceValue)
+}
+
 // clearScreen clears the terminal screen using platform-specific commands or ANSI escape sequences.
 func clearScreen() {
 	if runtime.GOOS == "windows" {
@@ -122,6 +206,7 @@ func printUsage() {
 
 	color.Yellow("USAGE")
 	fmt.Println("    rc \"<command>\" [period] [-p] [-s] [-c] [-skip <number>] [-limit <number>]")
+	fmt.Println("       [-e <period>] [-r <string>]")
 	fmt.Println()
 
 	color.Yellow("PARAMETERS")
@@ -150,6 +235,14 @@ func printUsage() {
 	color.Cyan("  -limit <number>")
 	fmt.Println("    Optional. The maximum number of executions to perform. Skipped executions do not count.")
 	fmt.Println("    If -limit is not specified or set to 0, there is no limit (default is 0).")
+	fmt.Println()
+	color.Cyan("  -e, -expect <period>")
+	fmt.Println("    Optional. Minimum expected command runtime (period format). Runs below threshold are failures.")
+	fmt.Println("    Prints success summary after each run in standard and precision modes.")
+	fmt.Println()
+	color.Cyan("  -r, -replace <string>")
+	fmt.Println("    Optional. Replaces every literal $^ marker in the command with this value.")
+	fmt.Println("    Emits a soft warning if -replace is set but the command has no $^ marker.")
 	fmt.Println()
 
 	color.Yellow("EXAMPLES")
@@ -182,6 +275,12 @@ func printUsage() {
 	color.Green("    rc \"date\" 1h -skip 1 -limit 3")
 	fmt.Println("    Runs 'date' every hour, skips the first execution, then executes 3 times before exiting.")
 	fmt.Println()
+	color.Green("    rc 'gf -x $^' 5 -r pdx")
+	fmt.Println("    Runs 'gf -x pdx' every 5 minutes by substituting pdx for the $^ marker.")
+	fmt.Println()
+	color.Green("    rc \"date\" 5s -e 1s")
+	fmt.Println("    Runs every 5 seconds and tracks successful runs where duration is at least 1 second.")
+	fmt.Println()
 }
 
 func main() {
@@ -194,6 +293,10 @@ func main() {
 	var clear bool
 	skip := 0 // Default skip count
 	limit := 0 // Default limit (0 = no limit)
+	var expectStr string
+	var expectSet bool
+	var replaceValue string
+	var replaceSet bool
 	var nonFlagArgs []string
 	skipFlagFound := false
 
@@ -209,20 +312,30 @@ func main() {
 			clear = true
 		case "-skip", "-Skip":
 			skipFlagFound = true
-			// Check if there's a next argument and it's a number
 			if i+1 < len(args) {
 				if s, err := strconv.Atoi(args[i+1]); err == nil {
 					skip = s
-					i++ // Skip the next argument since we consumed it
+					i++
 				}
 			}
 		case "-limit", "-Limit":
-			// Check if there's a next argument and it's a number
 			if i+1 < len(args) {
 				if l, err := strconv.Atoi(args[i+1]); err == nil && l >= 0 {
 					limit = l
-					i++ // Skip the next argument since we consumed it
+					i++
 				}
+			}
+		case "-e", "-expect", "-Expect":
+			expectSet = true
+			if i+1 < len(args) {
+				expectStr = args[i+1]
+				i++
+			}
+		case "-r", "-replace", "-Replace":
+			replaceSet = true
+			if i+1 < len(args) {
+				replaceValue = args[i+1]
+				i++
 			}
 		case "-h", "-help":
 			printUsage()
@@ -322,12 +435,30 @@ func main() {
 		periodDisplay = "5 minutes"
 	}
 
+	var expect *expectState
+	if expectSet {
+		expectDuration, expectDisplay, parseErr := parsePeriod(expectStr)
+		if parseErr != nil {
+			expectDuration = time.Minute
+			expectDisplay = "1 minute"
+		}
+		expect = &expectState{
+			threshold: expectDuration,
+			display:   expectDisplay,
+		}
+	}
+
+	commandStr = applyReplace(commandStr, replaceValue, replaceSet, silent)
+
 	// --- Initial Output ---
 	if clear {
 		clearScreen()
 	}
 	if !silent {
 		fmt.Printf("Running \"%s\" every %s. Press Ctrl+C to stop.\n\n", commandStr, periodDisplay)
+		if expect != nil {
+			color.Magenta("Expected minimum command runtime: %s.", expect.display)
+		}
 		if skip > 0 {
 			color.Yellow("Skipping the first %d execution(s).", skip)
 		}
@@ -349,14 +480,14 @@ func main() {
 	for {
 		executionCount++
 		loopStartTime := time.Now()
+		var commandDuration time.Duration
+		var hasCommandDuration bool
 
-		// Skip execution if we haven't reached the skip threshold yet
 		if executionCount <= skip {
 			if !silent {
 				color.Yellow("(%s) Skipping execution %d of %d...", loopStartTime.Format("15:04:05"), executionCount, skip)
 			}
 		} else {
-			// Execute the command once we've passed the skip threshold
 			actualExecutionCount++
 			if clear {
 				clearScreen()
@@ -365,8 +496,21 @@ func main() {
 				color.White("(%s) Executing command...", loopStartTime.Format("15:04:05"))
 			}
 			executeCommand(commandStr)
+			commandEndTime := time.Now()
+			commandDuration = commandEndTime.Sub(loopStartTime)
+			hasCommandDuration = true
 
-			// Check if limit reached
+			if expect != nil && commandDuration >= expect.threshold {
+				expect.successCount++
+				expect.totalSuccessfulRuntime += commandDuration
+				expect.lastSuccessfulRuntime = commandDuration
+				expect.lastSuccessfulComplete = commandEndTime
+				expect.hasLastSuccess = true
+			}
+			if expect != nil {
+				expect.actualCount = actualExecutionCount
+			}
+
 			if limit > 0 && actualExecutionCount >= limit {
 				if !silent {
 					color.Green("\nReached execution limit of %d. Exiting.", limit)
@@ -375,23 +519,10 @@ func main() {
 			}
 		}
 
-		if !precision {
-			// Standard mode: Wait for the full period after the command finishes.
-			// Note: This wait period also applies during skipped executions to maintain timing
-			if !silent {
-				color.White("Waiting %s. Press Ctrl+C to stop.\n", periodDisplay)
-				fmt.Println() // Extra newline to match PS script's `n
-			}
-			time.Sleep(periodDuration)
-		} else {
-			// Precision mode: Account for execution time to maintain a fixed grid.
+		if precision {
 			currentTime := time.Now()
-			var commandDuration time.Duration
-			if executionCount > skip {
+			if !hasCommandDuration {
 				commandDuration = currentTime.Sub(loopStartTime)
-			} else {
-				// During skipped executions, commandDuration is effectively 0
-				commandDuration = 0
 			}
 
 			totalElapsed := currentTime.Sub(scriptStartTime)
@@ -402,14 +533,28 @@ func main() {
 
 			if sleepDuration.Seconds() > 0 {
 				if !silent {
-					color.White("Command took %.2fs. Waiting for %.0fs. Next run at %s.\nPress Ctrl+C to stop.\n", commandDuration.Seconds(), math.Round(sleepDuration.Seconds()), nextTargetTime.Format("15:04:05"))
+					runtimeDisplay := formatCompactDuration(commandDuration, true)
+					waitingDisplay := formatCompactDuration(sleepDuration, false)
+					nextRunDisplay := formatDateAwareTimestamp(nextTargetTime)
+					color.White("Runtime: %s Waiting: %s Next Run: %s", runtimeDisplay, waitingDisplay, nextRunDisplay)
+					printExpectSummary(expect, executionCount, skip, silent)
+					color.White("Press Ctrl+C to stop.")
 				}
 				time.Sleep(sleepDuration)
-			} else {
-				if !silent {
-					color.Yellow("WARNING: Command execution time (%.2fs) overran its schedule. Running next iteration immediately.\n", commandDuration.Seconds())
+			} else if !silent {
+				color.Yellow("WARNING: Command execution time (%.2fs) overran its schedule. Running next iteration immediately.\n", commandDuration.Seconds())
+			}
+		} else {
+			if !silent {
+				if expect != nil && executionCount > skip {
+					fmt.Printf("Waiting %s.\n", periodDisplay)
+					printExpectSummary(expect, executionCount, skip, silent)
+					color.White("Press Ctrl+C to stop.\n")
+				} else {
+					color.White("Waiting %s. Press Ctrl+C to stop.\n", periodDisplay)
 				}
 			}
+			time.Sleep(periodDuration)
 		}
 	}
 }
