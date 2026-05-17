@@ -61,6 +61,14 @@
     Replaces every literal $^ marker in -Command with this string before execution.
     Alias: -r
 
+.PARAMETER Fail
+    Maximum number of failed runs (below -Expect threshold) before exiting. Requires -Expect.
+    Alias: -f
+
+.PARAMETER FailTime
+    Maximum cumulative failure time (failed runs times retry interval) before exiting. Requires -Expect.
+    Uses period format (s/m/h). Alias: -ft
+
 .EXAMPLE
     .\rc.ps1 "Get-Process -Name 'chrome' | Stop-Process -Force" 1
     
@@ -119,6 +127,11 @@
 
     Runs 'gf -x pdx' every 5 minutes by substituting pdx for the $^ marker in the command.
 
+.EXAMPLE
+    .\rc.ps1 "Get-Date" 5m -Expect 30s -Fail 3
+
+    Exits after 3 runs that finish faster than the 30 second expected minimum.
+
 .PARAMETER Help
     Displays full command-line reference (arguments, period format, scheduling behavior) and exits.
 
@@ -160,7 +173,15 @@ param(
 
     [Parameter(Mandatory=$false, HelpMessage='Replaces every literal $^ marker in -Command with this string.')]
     [Alias('r')]
-    [string]$Replace
+    [string]$Replace,
+
+    [Parameter(Mandatory=$false, HelpMessage="Maximum failed runs before exit. Requires -Expect. 0 = no limit.")]
+    [Alias('f')]
+    [int]$Fail = 0,
+
+    [Parameter(Mandatory=$false, HelpMessage="Maximum cumulative failure time before exit. Requires -Expect. Period format.")]
+    [Alias('ft')]
+    [string]$FailTime
 )
 
 if ($Help.IsPresent) {
@@ -174,7 +195,7 @@ SYNOPSIS
 
 USAGE
   .\rc.ps1 [[-Command] string] [[-Period] string] [-Precision] [-Silent] [-Clear]
-           [-Skip int] [-Limit int] [-Expect string] [-Replace string] [-Help]
+           [-Skip int] [-Limit int] [-Expect string] [-Replace string] [-Fail int] [-FailTime string] [-Help]
 
   With no -Command, the script prompts for command, period, precision, clear, and limit.
 
@@ -212,6 +233,12 @@ PARAMETERS
       Replaces every literal $^ marker in -Command with this value before execution.
       Emits a soft warning if -Replace is set but the command has no $^ marker.
 
+  -Fail int           Alias: -f
+      Exit after this many failed runs (duration below -Expect). Requires -Expect. 0 = unlimited.
+
+  -FailTime string    Alias: -ft
+      Exit when failed runs times retry interval reaches this cap. Period format. Requires -Expect.
+
   -Help               Aliases: -h, -?
       Show this reference and exit.
 
@@ -236,6 +263,7 @@ EXAMPLES
   .\rc.ps1 "Get-Process" 15s -Limit 5
   .\rc.ps1 "Invoke-WebRequest https://example.com" 5s -Expect 1s
   .\rc.ps1 'gf -x $^' 5 -r pdx
+  .\rc.ps1 "Get-Date" 5m -e 30s -fail 3
   .\rc.ps1 -Help
 
 For comment-based help: Get-Help .\rc.ps1 -Full
@@ -372,6 +400,31 @@ if ($PSBoundParameters.ContainsKey('Expect')) {
     $expectDisplay = $expectInfo.Display
 }
 
+$failLimit = 0
+$failTimeThreshold = $null
+$failTimeDisplay = $null
+$failLimitRequested = $PSBoundParameters.ContainsKey('Fail') -and $Fail -gt 0
+$failTimeRequested = $PSBoundParameters.ContainsKey('FailTime')
+
+if ($failLimitRequested -or $failTimeRequested) {
+    if (-not $expectThreshold) {
+        if (-not $Silent.IsPresent) {
+            Write-Warning '-Fail and -FailTime require -Expect (-e) and were ignored.'
+        }
+    } else {
+        if ($failLimitRequested) {
+            $failLimit = $Fail
+        }
+        if ($failTimeRequested) {
+            $failTimeInfo = Convert-Period $FailTime
+            $failTimeThreshold = [TimeSpan]::FromMinutes($failTimeInfo.Minutes)
+            $failTimeDisplay = $failTimeInfo.Display
+        }
+    }
+}
+
+$periodInterval = [TimeSpan]::FromMinutes($PeriodMinutes)
+
 # If -Skip parameter was explicitly provided but value is 0, default to 1
 # This allows -Skip to default to skipping 1 execution when used without a value
 if ($PSBoundParameters.ContainsKey('Skip') -and $Skip -eq 0) {
@@ -429,6 +482,12 @@ if (-not $Silent.IsPresent) {
     if ($Limit -gt 0) {
         Write-Host "Limited to $Limit execution(s)." -ForegroundColor Cyan
     }
+    if ($failLimit -gt 0) {
+        Write-Host "Failure limit: $failLimit failed run(s)." -ForegroundColor Red
+    }
+    if ($failTimeThreshold) {
+        Write-Host "Failure time limit: $failTimeDisplay." -ForegroundColor Red
+    }
 }
 $scriptStartTime = Get-Date
 if ($Precision.IsPresent -and -not $Silent.IsPresent) {
@@ -439,6 +498,8 @@ if ($Precision.IsPresent -and -not $Silent.IsPresent) {
 $executionCount = 0
 $actualExecutionCount = 0
 $successfulExecutionCount = 0
+$failedExecutionCount = 0
+$failedRetryTime = [TimeSpan]::Zero
 $totalSuccessfulRuntime = [TimeSpan]::Zero
 $lastSuccessfulRuntime = $null
 $lastSuccessfulCompletionTime = $null
@@ -479,12 +540,29 @@ while ($true) {
             $totalSuccessfulRuntime = $totalSuccessfulRuntime.Add($commandDuration)
             $lastSuccessfulRuntime = $commandDuration
             $lastSuccessfulCompletionTime = $commandEndTime
+        } elseif ($expectThreshold) {
+            $failedExecutionCount++
+            $failedRetryTime = $failedRetryTime.Add($periodInterval)
         }
-        
+
         # Check if limit reached
         if ($Limit -gt 0 -and $actualExecutionCount -ge $Limit) {
             if (-not $Silent.IsPresent) {
                 Write-Host "`nReached execution limit of $Limit. Exiting." -ForegroundColor Green
+            }
+            break
+        }
+
+        if ($failLimit -gt 0 -and $failedExecutionCount -ge $failLimit) {
+            if (-not $Silent.IsPresent) {
+                Write-Host "`nReached failure limit of $failLimit. Exiting." -ForegroundColor Red
+            }
+            break
+        }
+
+        if ($failTimeThreshold -and $failedRetryTime -ge $failTimeThreshold) {
+            if (-not $Silent.IsPresent) {
+                Write-Host "`nReached failure time limit of $failTimeDisplay. Exiting." -ForegroundColor Red
             }
             break
         }

@@ -25,6 +25,7 @@ The script offers two modes for scheduling: a simple delay mode and a high-preci
 - **Limit Mode (`-Limit`):** Limits the total number of executions to perform. Skipped executions do not count toward this limit. Useful for running a command a specific number of times and then exiting.
 - **Expected Runtime Tracking (`-Expect`/`-e`):** Sets a minimum expected command runtime using period format (`s`/`m`/`h`). Runs below the threshold are treated as failures, and success metrics are tracked and reported.
 - **Command Marker Replace (`-Replace`/`-r`):** Replaces every literal `$^` marker in the command string with a supplied value before execution (e.g. `gf -x $^` with `-r pdx` runs as `gf -x pdx`).
+- **Failure Limits (`-Fail`/`-f`, `-FailTime`/`-ft`):** Exit after a set number of failed runs or cumulative failure time (failed runs × retry interval). Requires `-Expect`. Warns and ignores limits if used without `-Expect`.
 - **Period Suffixes:** Support for time unit suffixes on period input: 's' for seconds, 'm' for minutes (optional), 'h' for hours. Integers without suffix default to minutes.
 
 ## Requirements
@@ -85,6 +86,16 @@ The script offers two modes for scheduling: a simple delay mode and a high-preci
   - Replaces every literal `$^` marker in the command with the supplied string before execution.
   - Use single quotes around the command when it contains `$^` so PowerShell does not expand `$`.
   - If `-Replace` is set but the command has no `$^` marker, rc prints a soft warning and continues.
+
+- `-Fail` or `-f` [int]
+  - Maximum number of failed runs (duration below `-Expect` threshold) before exiting.
+  - Requires `-Expect`. `0` or omitted = no failure-count limit.
+  - If set without `-Expect`, rc prints a soft warning and ignores this limit.
+
+- `-FailTime` or `-ft` [string]
+  - Maximum cumulative failure time before exiting. Each failure adds one retry interval (`Period`).
+  - Uses period format (`s`, `m`, `h`). Requires `-Expect`. `0` or omitted = no failure-time limit.
+  - If both `-Fail` and `-FailTime` are set, rc exits when either limit is reached first.
 
 ## Examples
 
@@ -177,6 +188,18 @@ Uses the `-e` alias to require at least 1 second runtime for a run to count as s
 .\rc.ps1 'gf -x $^' 5 -r pdx
 ```
 Runs `gf -x pdx` every 5 minutes by substituting `pdx` for the `$^` marker in the command.
+
+### Example 16: Failure Count Limit
+```powershell
+.\rc.ps1 "Get-Date" 5m -e 30s -fail 3
+```
+Exits after 3 runs that finish faster than the 30 second expected minimum.
+
+### Example 17: Failure Time Limit
+```powershell
+.\rc.ps1 "Get-Date" 5s -e 1s -failtime 30s
+```
+Exits when cumulative failure time reaches 30 seconds (6 failures at a 5 second period).
 
 ## Notes
 - To stop the script at any time, press `Ctrl+C` in the terminal window where it is running.

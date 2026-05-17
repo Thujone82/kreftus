@@ -206,7 +206,7 @@ func printUsage() {
 
 	color.Yellow("USAGE")
 	fmt.Println("    rc \"<command>\" [period] [-p] [-s] [-c] [-skip <number>] [-limit <number>]")
-	fmt.Println("       [-e <period>] [-r <string>]")
+	fmt.Println("       [-e <period>] [-r <string>] [-f <number>] [-ft <period>]")
 	fmt.Println()
 
 	color.Yellow("PARAMETERS")
@@ -243,6 +243,12 @@ func printUsage() {
 	color.Cyan("  -r, -replace <string>")
 	fmt.Println("    Optional. Replaces every literal $^ marker in the command with this value.")
 	fmt.Println("    Emits a soft warning if -replace is set but the command has no $^ marker.")
+	fmt.Println()
+	color.Cyan("  -f, -fail <number>")
+	fmt.Println("    Optional. Exit after this many failed runs (duration below -expect). Requires -expect. 0 = unlimited.")
+	fmt.Println()
+	color.Cyan("  -ft, -failtime <period>")
+	fmt.Println("    Optional. Exit when failed runs times retry interval reaches this cap. Period format. Requires -expect.")
 	fmt.Println()
 
 	color.Yellow("EXAMPLES")
@@ -281,6 +287,9 @@ func printUsage() {
 	color.Green("    rc \"date\" 5s -e 1s")
 	fmt.Println("    Runs every 5 seconds and tracks successful runs where duration is at least 1 second.")
 	fmt.Println()
+	color.Green("    rc \"date\" 5m -e 30s -fail 3")
+	fmt.Println("    Exits after 3 runs that finish faster than the 30 second expected minimum.")
+	fmt.Println()
 }
 
 func main() {
@@ -297,6 +306,10 @@ func main() {
 	var expectSet bool
 	var replaceValue string
 	var replaceSet bool
+	var failLimit int
+	var failSet bool
+	var failTimeStr string
+	var failTimeSet bool
 	var nonFlagArgs []string
 	skipFlagFound := false
 
@@ -335,6 +348,20 @@ func main() {
 			replaceSet = true
 			if i+1 < len(args) {
 				replaceValue = args[i+1]
+				i++
+			}
+		case "-f", "-fail", "-Fail":
+			failSet = true
+			if i+1 < len(args) {
+				if f, err := strconv.Atoi(args[i+1]); err == nil {
+					failLimit = f
+					i++
+				}
+			}
+		case "-ft", "-failtime", "-FailTime":
+			failTimeSet = true
+			if i+1 < len(args) {
+				failTimeStr = args[i+1]
 				i++
 			}
 		case "-h", "-help":
@@ -450,6 +477,34 @@ func main() {
 
 	commandStr = applyReplace(commandStr, replaceValue, replaceSet, silent)
 
+	failLimitActive := 0
+	var failTimeThreshold time.Duration
+	var failTimeDisplay string
+	failLimitRequested := failSet && failLimit > 0
+	failTimeRequested := failTimeSet
+
+	if failLimitRequested || failTimeRequested {
+		if expect == nil {
+			if !silent {
+				color.Yellow("WARNING: -fail and -failtime require -expect (-e) and were ignored.")
+			}
+		} else {
+			if failLimitRequested {
+				failLimitActive = failLimit
+			}
+			if failTimeRequested {
+				ftDuration, ftDisplay, parseErr := parsePeriod(failTimeStr)
+				if parseErr == nil && ftDuration > 0 {
+					failTimeThreshold = ftDuration
+					failTimeDisplay = ftDisplay
+				}
+			}
+		}
+	}
+
+	failedExecutionCount := 0
+	var failedRetryTime time.Duration
+
 	// --- Initial Output ---
 	if clear {
 		clearScreen()
@@ -464,6 +519,12 @@ func main() {
 		}
 		if limit > 0 {
 			color.Cyan("Limited to %d execution(s).", limit)
+		}
+		if failLimitActive > 0 {
+			color.Red("Failure limit: %d failed run(s).", failLimitActive)
+		}
+		if failTimeThreshold > 0 {
+			color.Red("Failure time limit: %s.", failTimeDisplay)
 		}
 	}
 	var scriptStartTime time.Time
@@ -506,6 +567,9 @@ func main() {
 				expect.lastSuccessfulRuntime = commandDuration
 				expect.lastSuccessfulComplete = commandEndTime
 				expect.hasLastSuccess = true
+			} else if expect != nil {
+				failedExecutionCount++
+				failedRetryTime += periodDuration
 			}
 			if expect != nil {
 				expect.actualCount = actualExecutionCount
@@ -514,6 +578,20 @@ func main() {
 			if limit > 0 && actualExecutionCount >= limit {
 				if !silent {
 					color.Green("\nReached execution limit of %d. Exiting.", limit)
+				}
+				break
+			}
+
+			if failLimitActive > 0 && failedExecutionCount >= failLimitActive {
+				if !silent {
+					color.Red("\nReached failure limit of %d. Exiting.", failLimitActive)
+				}
+				break
+			}
+
+			if failTimeThreshold > 0 && failedRetryTime >= failTimeThreshold {
+				if !silent {
+					color.Red("\nReached failure time limit of %s. Exiting.", failTimeDisplay)
 				}
 				break
 			}

@@ -22,6 +22,7 @@ The application can run in two modes: a standard mode that waits for a fixed dur
 - **Limit Mode (`-limit`):** Limits the total number of executions to perform. Skipped executions do not count toward this limit. Useful for running a command a specific number of times and then exiting.
 - **Expected Runtime Tracking (`-e`/`-expect`):** Sets a minimum expected command runtime using period format. Runs below the threshold are failures; success metrics print after each run in standard and precision modes.
 - **Command Marker Replace (`-r`/`-replace`):** Replaces every literal `$^` marker in the command with a supplied value before execution.
+- **Failure Limits (`-f`/`-fail`, `-ft`/`-failtime`):** Exit after a set number of failed runs or cumulative failure time (failed runs × retry interval). Requires `-expect`. Warns and ignores limits if used without `-expect`.
 - **Period Suffixes:** Support for time unit suffixes on period input: 's' for seconds, 'm' for minutes (optional), 'h' for hours. Integers without suffix default to minutes.
 - **Interactive Mode:** If run without any arguments, `rc` will interactively prompt you for the command, period, and timing mode.
 - **Cross-Platform:** The included `build.ps1` script compiles native executables for both Windows and Linux.
@@ -74,6 +75,13 @@ The application can run in two modes: a standard mode that waits for a fixed dur
 - `-r`, `-replace <string>`
   - Replaces every literal `$^` marker in the command with this value.
   - Soft warning if `-replace` is set but the command has no `$^` marker.
+
+- `-f`, `-fail <number>`
+  - Exit after this many failed runs (duration below `-expect`). Requires `-expect`. `0` = unlimited.
+
+- `-ft`, `-failtime <period>`
+  - Exit when failed runs times retry interval reaches this cap. Period format. Requires `-expect`.
+  - If both `-fail` and `-failtime` are set, rc exits when either limit is reached first.
 
 ## Examples
 
@@ -155,3 +163,15 @@ Runs `gf -x pdx` every 5 minutes by substituting `pdx` for the `$^` marker.
 ./rc "echo test" 3s -e 1s -limit 2
 ```
 Runs every 3 seconds and prints success summary without requiring `-p`.
+
+### Example 15: Failure Count Limit
+```sh
+./rc "date" 5m -e 30s -fail 3
+```
+Exits after 3 runs that finish faster than the 30 second expected minimum.
+
+### Example 16: Failure Time Limit
+```sh
+./rc "date" 5s -e 1s -failtime 30s
+```
+Exits when cumulative failure time reaches 30 seconds (6 failures at a 5 second period).
