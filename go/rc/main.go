@@ -122,6 +122,23 @@ type expectState struct {
 	hasLastSuccess         bool
 }
 
+func formatExpectConfigDetails(expect *expectState, failLimitActive int, failTimeDisplay string, failTimeThreshold time.Duration) string {
+	var parts []string
+	if expect != nil {
+		parts = append(parts, fmt.Sprintf("Expect: %s", expect.display))
+	}
+	if failLimitActive > 0 {
+		parts = append(parts, fmt.Sprintf("Fail: %d", failLimitActive))
+	}
+	if failTimeThreshold > 0 {
+		parts = append(parts, fmt.Sprintf("FailTime: %s", failTimeDisplay))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, " | ")
+}
+
 func printExpectSummary(expect *expectState, executionCount, skip int, silent bool) {
 	if expect == nil {
 		return
@@ -504,6 +521,7 @@ func main() {
 
 	failedExecutionCount := 0
 	var failedRetryTime time.Duration
+	expectConfigDetails := formatExpectConfigDetails(expect, failLimitActive, failTimeDisplay, failTimeThreshold)
 
 	// --- Initial Output ---
 	if clear {
@@ -511,20 +529,14 @@ func main() {
 	}
 	if !silent {
 		fmt.Printf("Running \"%s\" every %s. Press Ctrl+C to stop.\n\n", commandStr, periodDisplay)
-		if expect != nil {
-			color.Magenta("Expected minimum command runtime: %s.", expect.display)
+		if expectConfigDetails != "" {
+			color.Magenta(expectConfigDetails)
 		}
 		if skip > 0 {
 			color.Yellow("Skipping the first %d execution(s).", skip)
 		}
 		if limit > 0 {
 			color.Cyan("Limited to %d execution(s).", limit)
-		}
-		if failLimitActive > 0 {
-			color.Red("Failure limit: %d failed run(s).", failLimitActive)
-		}
-		if failTimeThreshold > 0 {
-			color.Red("Failure time limit: %s.", failTimeDisplay)
 		}
 	}
 	var scriptStartTime time.Time
@@ -554,7 +566,11 @@ func main() {
 				clearScreen()
 			}
 			if !silent {
-				color.White("(%s) Executing command...", loopStartTime.Format("15:04:05"))
+				executeMessage := fmt.Sprintf("(%s) Executing command...", loopStartTime.Format("15:04:05"))
+				if expectConfigDetails != "" {
+					executeMessage += fmt.Sprintf(" [%s]", expectConfigDetails)
+				}
+				color.White(executeMessage)
 			}
 			executeCommand(commandStr)
 			commandEndTime := time.Now()
@@ -584,6 +600,7 @@ func main() {
 
 			if failLimitActive > 0 && failedExecutionCount >= failLimitActive {
 				if !silent {
+					printExpectSummary(expect, executionCount, skip, silent)
 					color.Red("\nReached failure limit of %d. Exiting.", failLimitActive)
 				}
 				break
@@ -591,6 +608,7 @@ func main() {
 
 			if failTimeThreshold > 0 && failedRetryTime >= failTimeThreshold {
 				if !silent {
+					printExpectSummary(expect, executionCount, skip, silent)
 					color.Red("\nReached failure time limit of %s. Exiting.", failTimeDisplay)
 				}
 				break

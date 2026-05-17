@@ -362,6 +362,33 @@ function Format-DateAwareTimestamp {
     return $Timestamp.ToString('MMddyy@HH:mm:ss')
 }
 
+function Format-ExpectConfigDetails {
+    param(
+        $ExpectDisplay,
+        [int]$FailLimit,
+        $FailTimeDisplay,
+        $ExpectThreshold,
+        $FailTimeThreshold
+    )
+
+    $parts = @()
+    if ($ExpectThreshold) {
+        $parts += "Expect: $ExpectDisplay"
+    }
+    if ($FailLimit -gt 0) {
+        $parts += "Fail: $FailLimit"
+    }
+    if ($FailTimeThreshold) {
+        $parts += "FailTime: $FailTimeDisplay"
+    }
+
+    if ($parts.Count -eq 0) {
+        return $null
+    }
+
+    return $parts -join ' | '
+}
+
 function Write-ExpectSummaryIfNeeded {
     param(
         $ExpectThreshold,
@@ -471,22 +498,18 @@ if ($Clear.IsPresent) {
     Clear-Host
 }
 
+$expectConfigDetails = Format-ExpectConfigDetails -ExpectDisplay $expectDisplay -FailLimit $failLimit -FailTimeDisplay $failTimeDisplay -ExpectThreshold $expectThreshold -FailTimeThreshold $failTimeThreshold
+
 if (-not $Silent.IsPresent) {
     Write-Host "Running `"$Command`" every $PeriodDisplay. Press Ctrl+C to stop.`n"
-    if ($expectThreshold) {
-        Write-Host "Expected minimum command runtime: $expectDisplay." -ForegroundColor Magenta
+    if ($expectConfigDetails) {
+        Write-Host $expectConfigDetails -ForegroundColor Magenta
     }
     if ($Skip -gt 0) {
         Write-Host "Skipping the first $Skip execution(s)." -ForegroundColor Yellow
     }
     if ($Limit -gt 0) {
         Write-Host "Limited to $Limit execution(s)." -ForegroundColor Cyan
-    }
-    if ($failLimit -gt 0) {
-        Write-Host "Failure limit: $failLimit failed run(s)." -ForegroundColor Red
-    }
-    if ($failTimeThreshold) {
-        Write-Host "Failure time limit: $failTimeDisplay." -ForegroundColor Red
     }
 }
 $scriptStartTime = Get-Date
@@ -523,7 +546,11 @@ while ($true) {
                 Clear-Host
             }
             if (-not $Silent.IsPresent) {
-                Write-Host "($(Get-Date -Format 'HH:mm:ss')) Executing command..."
+                $executeMessage = "($(Get-Date -Format 'HH:mm:ss')) Executing command..."
+                if ($expectConfigDetails) {
+                    $executeMessage += " [$expectConfigDetails]"
+                }
+                Write-Host $executeMessage
             }
             Invoke-Expression $Command
             $commandEndTime = Get-Date
@@ -555,6 +582,7 @@ while ($true) {
 
         if ($failLimit -gt 0 -and $failedExecutionCount -ge $failLimit) {
             if (-not $Silent.IsPresent) {
+                Write-ExpectSummaryIfNeeded -ExpectThreshold $expectThreshold -ExecutionCount $executionCount -Skip $Skip -LastSuccessfulCompletionTime $lastSuccessfulCompletionTime -SuccessfulExecutionCount $successfulExecutionCount -ActualExecutionCount $actualExecutionCount -TotalSuccessfulRuntime $totalSuccessfulRuntime -LastSuccessfulRuntime $lastSuccessfulRuntime
                 Write-Host "`nReached failure limit of $failLimit. Exiting." -ForegroundColor Red
             }
             break
@@ -562,6 +590,7 @@ while ($true) {
 
         if ($failTimeThreshold -and $failedRetryTime -ge $failTimeThreshold) {
             if (-not $Silent.IsPresent) {
+                Write-ExpectSummaryIfNeeded -ExpectThreshold $expectThreshold -ExecutionCount $executionCount -Skip $Skip -LastSuccessfulCompletionTime $lastSuccessfulCompletionTime -SuccessfulExecutionCount $successfulExecutionCount -ActualExecutionCount $actualExecutionCount -TotalSuccessfulRuntime $totalSuccessfulRuntime -LastSuccessfulRuntime $lastSuccessfulRuntime
                 Write-Host "`nReached failure time limit of $failTimeDisplay. Exiting." -ForegroundColor Red
             }
             break
