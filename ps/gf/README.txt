@@ -534,6 +534,11 @@ The script provides dynamic loading messages that update during the data fetchin
 
 These messages provide clear feedback about the script's progress and help users understand what data is being loaded.
 
+## Changelog
+
+- **v2.2** — Soft-warn on unrecognized CLI options (e.g. accidental `-c`) and continue; suppress NWS test/monitoring-only alerts; current-conditions header shows ⚠️/🌡 when alerts are active (matches forecast web); fix alert section when API returns a single GeoJSON feature.
+- **v2.1** — Moon phase, rain/wind sparklines, observations mode, auto-refresh, solar irradiance, and related enhancements (see GEMINI.md).
+
 ## Notes
 - The National Weather Service API is free and requires no API key.
 - The API is limited to locations within the United States.

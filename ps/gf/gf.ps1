@@ -61,52 +61,123 @@
     Execute with ./<scriptname>, or simply <scriptname> if placed in your %PATH%
 #>
 
-param(
-    [Parameter(Mandatory = $false, Position = 0)]
-    [string]$Location,
+param()
 
-    [Parameter(Mandatory = $false)]
-    [switch]$Help,
+function Resolve-GfCommandLine {
+    param([string[]]$ArgumentList)
 
-    [Alias('t')]
-    [switch]$Terse,
+    $parsed = [ordered]@{
+        Location       = $null
+        Noaa           = $null
+        Help           = $false
+        Terse          = $false
+        Hourly         = $false
+        Daily          = $false
+        NoInteractive  = $false
+        Rain           = $false
+        Wind           = $false
+        NoAutoUpdate   = $false
+        NoBar          = $false
+        Observations   = $false
+        AqiSetup       = $false
+        UseWbgt        = $false
+        Magic          = $false
+        Verbose        = $false
+        IgnoredSwitches = [System.Collections.Generic.List[string]]::new()
+    }
 
-    [Alias('h')]
-    [switch]$Hourly,
+    $switchMap = @{
+        'help'          = { $parsed.Help = $true }
+        't'             = { $parsed.Terse = $true }
+        'terse'         = { $parsed.Terse = $true }
+        'h'             = { $parsed.Hourly = $true }
+        'hourly'        = { $parsed.Hourly = $true }
+        'd'             = { $parsed.Daily = $true }
+        'daily'         = { $parsed.Daily = $true }
+        'x'             = { $parsed.NoInteractive = $true }
+        'nointeractive' = { $parsed.NoInteractive = $true }
+        'r'             = { $parsed.Rain = $true }
+        'rain'          = { $parsed.Rain = $true }
+        'w'             = { $parsed.Wind = $true }
+        'wind'          = { $parsed.Wind = $true }
+        'u'             = { $parsed.NoAutoUpdate = $true }
+        'noautoupdate'  = { $parsed.NoAutoUpdate = $true }
+        'b'             = { $parsed.NoBar = $true }
+        'nobar'         = { $parsed.NoBar = $true }
+        'o'             = { $parsed.Observations = $true }
+        'observations'  = { $parsed.Observations = $true }
+        'aqi'           = { $parsed.AqiSetup = $true }
+        'aqisetup'      = { $parsed.AqiSetup = $true }
+        'wbgt'          = { $parsed.UseWbgt = $true }
+        'usewbgt'       = { $parsed.UseWbgt = $true }
+        'm'             = { $parsed.Magic = $true }
+        'magic'         = { $parsed.Magic = $true }
+        'verbose'       = { $parsed.Verbose = $true }
+        'vb'            = { $parsed.Verbose = $true }
+    }
 
-    [Alias('d')]
-    [switch]$Daily,
+    $i = 0
+    while ($i -lt $ArgumentList.Count) {
+        $arg = $ArgumentList[$i]
+        if ([string]::IsNullOrWhiteSpace($arg)) {
+            $i++
+            continue
+        }
 
-    [Alias('x')]
-    [switch]$NoInteractive,
+        if ($arg -match '^[-/]') {
+            $switchName = ($arg -replace '^[-/]+', '').ToLowerInvariant()
+            if ($switchMap.ContainsKey($switchName)) {
+                & $switchMap[$switchName]
+            }
+            elseif ($switchName -eq 'noaa') {
+                $i++
+                if ($i -lt $ArgumentList.Count -and $ArgumentList[$i] -notmatch '^[-/]') {
+                    $parsed.Noaa = $ArgumentList[$i]
+                }
+                else {
+                    $parsed.IgnoredSwitches.Add($arg)
+                    if ($i -lt $ArgumentList.Count) { $i-- }
+                }
+            }
+            else {
+                $parsed.IgnoredSwitches.Add($arg)
+            }
+            $i++
+            continue
+        }
 
-    [Alias('r')]
-    [switch]$Rain,
+        if ($null -eq $parsed.Location) {
+            $parsed.Location = $arg.Trim()
+        }
+        $i++
+    }
 
-    [Alias('w')]
-    [switch]$Wind,
+    return [pscustomobject]$parsed
+}
 
-    [Alias('u')]
-    [switch]$NoAutoUpdate,
+$gfCli = Resolve-GfCommandLine -ArgumentList @($args)
+foreach ($ignoredSwitch in $gfCli.IgnoredSwitches) {
+    Write-Host "Warning: Ignoring unrecognized option: $ignoredSwitch" -ForegroundColor Yellow
+}
+if ($gfCli.Verbose) {
+    $VerbosePreference = 'Continue'
+}
 
-    [Alias('b')]
-    [switch]$NoBar,
-
-    [Alias('o')]
-    [switch]$Observations,
-
-    [Parameter(Mandatory = $false)]
-    [string]$Noaa,
-
-    [Alias('aqi')]
-    [switch]$AqiSetup,
-
-    [Alias('wbgt')]
-    [switch]$UseWbgt,
-
-    [Alias('m')]
-    [switch]$Magic
-)
+$Location = $gfCli.Location
+$Noaa = $gfCli.Noaa
+$Help = [switch]($gfCli.Help)
+$Terse = [switch]($gfCli.Terse)
+$Hourly = [switch]($gfCli.Hourly)
+$Daily = [switch]($gfCli.Daily)
+$NoInteractive = [switch]($gfCli.NoInteractive)
+$Rain = [switch]($gfCli.Rain)
+$Wind = [switch]($gfCli.Wind)
+$NoAutoUpdate = [switch]($gfCli.NoAutoUpdate)
+$NoBar = [switch]($gfCli.NoBar)
+$Observations = [switch]($gfCli.Observations)
+$AqiSetup = [switch]($gfCli.AqiSetup)
+$UseWbgt = [switch]($gfCli.UseWbgt)
+$Magic = [switch]($gfCli.Magic)
 
 # --- Helper Functions ---
 
@@ -3471,7 +3542,8 @@ function Show-CurrentConditions {
         [object]$SunsetDateTime = $null,
         [bool]$IsPolarNight = $false,
         [bool]$IsPolarDay = $false,
-        [bool]$ShowMagicHours = $false
+        [bool]$ShowMagicHours = $false,
+        [object]$AlertsData = $null
     )
 
     if (-not $ShowMagicHours -and $script:showMagicHours) {
@@ -3487,8 +3559,21 @@ function Show-CurrentConditions {
         $PM25AQI = $script:pm25Aqi
         $PM25CategoryNumber = $script:pm25CategoryNumber
     }
+
+    $alertsForHeader = $AlertsData
+    if (-not $alertsForHeader -and $script:alertsData) {
+        $alertsForHeader = $script:alertsData
+    }
+    $headerNow = if ($ObservationDateTime -is [DateTime]) {
+        [DateTime]$ObservationDateTime
+    } elseif ($null -ne $ObservationDateTime) {
+        try { [DateTime]$ObservationDateTime } catch { Get-Date }
+    } else {
+        Get-Date
+    }
+    $alertHeaderPrefix = Get-NwsCurrentConditionsHeaderAlertPrefix -AlertsData $alertsForHeader -Now $headerNow
     
-    Write-Host "*** $city, $state Current Conditions ***" -ForegroundColor $TitleColor
+    Write-Host "*** $alertHeaderPrefix$city, $state Current Conditions ***" -ForegroundColor $TitleColor
     Write-Host "Currently: $weatherIcon $currentConditions" -ForegroundColor $DefaultColor
     Write-Host "Temperature: $currentTemp°F" -ForegroundColor $TempColor -NoNewline
 
@@ -4586,6 +4671,118 @@ function Show-Observations {
     }
 }
 
+# NWS GeoJSON helpers — always treat features as an array (ConvertFrom-Json may return a single Feature object)
+function Get-NwsAlertFeaturesArray {
+    param([object]$AlertsData)
+
+    if (-not $AlertsData -or -not $AlertsData.features) {
+        return @()
+    }
+    # @() wraps a lone Feature without enumerating its properties through the pipeline
+    return @($AlertsData.features)
+}
+
+function Get-NwsAlertProperties {
+    param([object]$Alert)
+
+    if (-not $Alert) { return $null }
+    if ($null -ne $Alert.properties) { return $Alert.properties }
+    if ($null -ne $Alert.PSObject.Properties['event']) { return $Alert }
+    return $null
+}
+
+# NWS test/monitoring-only alerts (match forecast/js/display.js isSuppressedAlert)
+function Test-IsSuppressedNwsAlert {
+    param([object]$Alert)
+
+    $props = Get-NwsAlertProperties -Alert $Alert
+    if (-not $props) { return $true }
+
+    $event = if ($props.event) { "$($props.event)".Trim().ToLower() } else { '' }
+    $headline = if ($props.headline) { "$($props.headline)".ToLower() } else { '' }
+    $description = if ($props.description) { "$($props.description)".ToLower() } else { '' }
+
+    if ($event -eq 'test message') { return $true }
+    if ($headline.Contains('monitoring message only. please disregard.')) { return $true }
+    if ($description.Contains('monitoring message only. please disregard.')) { return $true }
+    return $false
+}
+
+function Get-DisplayableNwsAlerts {
+    param([object]$AlertsData)
+
+    $features = Get-NwsAlertFeaturesArray -AlertsData $AlertsData
+    if ($features.Count -eq 0) {
+        return @()
+    }
+
+    $displayable = foreach ($feature in $features) {
+        if (-not (Test-IsSuppressedNwsAlert -Alert $feature)) {
+            $feature
+        }
+    }
+    return @($displayable)
+}
+
+# Match forecast/js/display.js isAlertCurrentlyInEffect
+function Test-NwsAlertCurrentlyInEffect {
+    param(
+        [object]$Alert,
+        [datetime]$Now = $(Get-Date)
+    )
+
+    $props = Get-NwsAlertProperties -Alert $Alert
+    if (-not $props -or -not $props.effective) { return $false }
+
+    try {
+        $effective = [DateTimeOffset]::Parse("$($props.effective)")
+        if ($props.ends) {
+            $eventEnd = [DateTimeOffset]::Parse("$($props.ends)")
+        } else {
+            $eventEnd = [DateTimeOffset]::Parse("$($props.expires)")
+        }
+    } catch {
+        return $false
+    }
+
+    $nowOffset = if ($Now -is [DateTimeOffset]) { $Now } else { [DateTimeOffset]$Now }
+    return ($nowOffset -ge $effective -and $nowOffset -le $eventEnd)
+}
+
+# Match forecast/js/display.js getAlertHeaderEmojiSuffix (heat alerts in effect only)
+function Get-NwsAlertHeaderEmojiSuffix {
+    param(
+        [object[]]$DisplayableAlerts,
+        [datetime]$Now = $(Get-Date)
+    )
+
+    if (-not $DisplayableAlerts -or $DisplayableAlerts.Count -eq 0) { return '' }
+
+    foreach ($alert in $DisplayableAlerts) {
+        if (-not (Test-NwsAlertCurrentlyInEffect -Alert $alert -Now $Now)) { continue }
+        $props = Get-NwsAlertProperties -Alert $alert
+        if (-not $props) { continue }
+        $eventText = if ($props.event) { "$($props.event)" } else { '' }
+        $headlineText = if ($props.headline) { "$($props.headline)" } else { '' }
+        $subjectText = "$eventText $headlineText".ToLower()
+        if ($subjectText.Contains('heat')) { return '🌡' }
+    }
+    return ''
+}
+
+# Match forecast/js/display.js alertPrefix in displayCurrentConditions
+function Get-NwsCurrentConditionsHeaderAlertPrefix {
+    param(
+        [object]$AlertsData,
+        [datetime]$Now = $(Get-Date)
+    )
+
+    $displayableAlerts = Get-DisplayableNwsAlerts -AlertsData $AlertsData
+    if ($displayableAlerts.Count -eq 0) { return '' }
+    $emojiSuffix = Get-NwsAlertHeaderEmojiSuffix -DisplayableAlerts $displayableAlerts -Now $Now
+    return "⚠️$emojiSuffix "
+}
+
 # Function to display weather alerts
 function Show-WeatherAlerts {
     param(
@@ -4598,70 +4795,82 @@ function Show-WeatherAlerts {
     )
     # Use local copy from PSBoundParameters to avoid unbound parameter reference (can crash in some hosts)
     $showDetails = if ($PSBoundParameters.ContainsKey('ShowDetails')) { $ShowDetails } else { $true }
-    
-    if ($alertsData -and $alertsData.features.Count -gt 0) {
-        if ($showDetails) {
-            Write-Host ""
-            Write-Host "*** Active Weather Alerts ***" -ForegroundColor $AlertColor
-        } else {
-            Write-Host ""
-        }
-        for ($i = 0; $i -lt $alertsData.features.Count; $i++) {
-            $alert = $alertsData.features[$i]
-            $alertProps = $alert.properties
+
+    $alertsToShow = $AlertsData
+    if (-not $alertsToShow -and $script:alertsData) {
+        $alertsToShow = $script:alertsData
+    }
+
+    $displayableAlerts = Get-DisplayableNwsAlerts -AlertsData $alertsToShow
+    if ($displayableAlerts.Count -eq 0) {
+        return
+    }
+
+    if ($showDetails) {
+        Write-Host ""
+        Write-Host "*** Active Weather Alerts ***" -ForegroundColor $AlertColor
+    } else {
+        Write-Host ""
+    }
+
+    $alertIndex = 0
+    foreach ($alert in $displayableAlerts) {
+        try {
+            $alertProps = Get-NwsAlertProperties -Alert $alert
+            if (-not $alertProps) { continue }
+
             $alertEvent = $alertProps.event
             $alertHeadline = $alertProps.headline
             $alertDesc = $alertProps.description
-            
-            # Parse alert times - API returns ISO 8601 format (typically UTC with 'Z' suffix)
-            # The alert description text already contains times in local time, so we must
-            # convert the effective/expires times to the location's timezone to match
-            # Note: 'expires' is when the alert message expires, 'ends' is when the event actually ends
-            # We use 'ends' if available to match the description text, otherwise fall back to 'expires'
-            $alertStartOffset = [DateTimeOffset]::Parse($alertProps.effective)
-            if ($alertProps.ends) {
-                $alertEndOffset = [DateTimeOffset]::Parse($alertProps.ends)
-            } else {
-                $alertEndOffset = [DateTimeOffset]::Parse($alertProps.expires)
+
+            if ([string]::IsNullOrWhiteSpace("$alertProps.effective")) {
+                Write-Verbose "Skipping alert without effective time: $alertEvent"
+                continue
             }
-            
-            # Always convert to location's timezone to match the alert description text
-            # The description text uses local time, so effective/expires must also be local
+
+            # Parse alert times - API returns ISO 8601 format (typically UTC with 'Z' suffix)
+            $alertStartOffset = [DateTimeOffset]::Parse("$($alertProps.effective)")
+            if ($alertProps.ends) {
+                $alertEndOffset = [DateTimeOffset]::Parse("$($alertProps.ends)")
+            } else {
+                $alertEndOffset = [DateTimeOffset]::Parse("$($alertProps.expires)")
+            }
+
             if ($TimeZone) {
                 $locationTimeZone = Get-ResolvedTimeZoneInfo -TimeZoneId $TimeZone
                 if ($locationTimeZone) {
-                    # Convert DateTimeOffset to location's timezone
                     $alertStart = [System.TimeZoneInfo]::ConvertTime($alertStartOffset, $locationTimeZone)
                     $alertEnd = [System.TimeZoneInfo]::ConvertTime($alertEndOffset, $locationTimeZone)
                 } else {
-                    # Fallback to local time if timezone resolution fails
                     $alertStart = $alertStartOffset.LocalDateTime
                     $alertEnd = $alertEndOffset.LocalDateTime
                 }
             } else {
-                # Fallback to local time if no timezone provided
                 $alertStart = $alertStartOffset.LocalDateTime
                 $alertEnd = $alertEndOffset.LocalDateTime
             }
-            
+
             if ($showDetails) {
-                # Full mode: label on own line, headline, details, Effective, Expires on separate lines
                 Write-Host "*** $alertEvent ***" -ForegroundColor $AlertColor
                 Write-Host "$alertHeadline" -ForegroundColor $DefaultColor
-                $wrappedAlert = Format-TextWrap -Text $alertDesc -Width (Get-SafeConsoleWrapWidth)
-                $wrappedAlert | ForEach-Object { Write-Host $_ -ForegroundColor $DefaultColor }
+                if (-not [string]::IsNullOrWhiteSpace($alertDesc)) {
+                    $wrappedAlert = Format-TextWrap -Text $alertDesc -Width (Get-SafeConsoleWrapWidth)
+                    $wrappedAlert | ForEach-Object { Write-Host $_ -ForegroundColor $DefaultColor }
+                }
                 Write-Host "Effective: $($alertStart.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $InfoColor
                 Write-Host "Expires: $($alertEnd.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $InfoColor
             } else {
-                # Terse mode: label + Expires on same line only (red then blue)
                 Write-Host -NoNewline "*** $alertEvent *** " -ForegroundColor $AlertColor
                 Write-Host "Expires: $($alertEnd.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $InfoColor
             }
-            
-            # Only add blank line if this is not the last alert
-            if ($i -lt $alertsData.features.Count - 1) {
+
+            $alertIndex++
+            if ($alertIndex -lt $displayableAlerts.Count) {
                 Write-Host ""
             }
+        } catch {
+            $skipEvent = if ($alertProps -and $alertProps.event) { $alertProps.event } else { 'unknown' }
+            Write-Verbose "Skipping alert display ($skipEvent): $($_.Exception.Message)"
         }
     }
 }
@@ -5508,7 +5717,7 @@ function Show-FullWeatherReport {
         }
         # Compute solar irradiance when we have coords, timezone, and DateTime (current + peak at solar noon)
         $solarStr = Get-SolarIrradianceSummary -Latitude $Lat -Longitude $Lon -CurrentTimeDateTime $CurrentTimeDateTime -TimeZoneId $TimeZone
-        Show-CurrentConditions -City $City -State $State -WeatherIcon $WeatherIcon -CurrentConditions $CurrentConditions -CurrentTemp $CurrentTemp -TempColor $TempColor -CurrentTempTrend $CurrentTempTrend -CurrentWind $CurrentWind -WindColor $WindColor -CurrentWindDir $CurrentWindDir -WindGust $WindGust -CurrentHumidity $CurrentHumidity -CurrentDewPoint $CurrentDewPoint -CurrentPrecipProb $CurrentPrecipProb -CurrentTimeLocal $CurrentTimeLocal -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $DefaultColor -AlertColor $AlertColor -TitleColor $TitleColor -InfoColor $InfoColor -MoonPhase $MoonPhase -MoonEmoji $MoonEmoji -IsFullMoon $IsFullMoon -NextFullMoonDate $NextFullMoonDate -IsNewMoon $IsNewMoon -ShowNextFullMoon $ShowNextFullMoon -ShowNextNewMoon $ShowNextNewMoon -NextNewMoonDate $NextNewMoonDate -SolarIrradiance $solarStr -Latitude $Lat -Longitude $Lon -TimeZoneId $TimeZone -ObservationDateTime $CurrentTimeDateTime -SunriseDateTime $SunriseTime -SunsetDateTime $SunsetTime -IsPolarNight $IsPolarNight -IsPolarDay $IsPolarDay -IsTerseMode $IsTerseMode -ShowAqi $ShowAqi -AqiCategoryName $AqiCategoryName -AqiCategoryNumber $AqiCategoryNumber -O3AQI $O3AQI -O3CategoryNumber $O3CategoryNumber -PM25AQI $PM25AQI -PM25CategoryNumber $PM25CategoryNumber
+        Show-CurrentConditions -City $City -State $State -WeatherIcon $WeatherIcon -CurrentConditions $CurrentConditions -CurrentTemp $CurrentTemp -TempColor $TempColor -CurrentTempTrend $CurrentTempTrend -CurrentWind $CurrentWind -WindColor $WindColor -CurrentWindDir $CurrentWindDir -WindGust $WindGust -CurrentHumidity $CurrentHumidity -CurrentDewPoint $CurrentDewPoint -CurrentPrecipProb $CurrentPrecipProb -CurrentTimeLocal $CurrentTimeLocal -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $DefaultColor -AlertColor $AlertColor -TitleColor $TitleColor -InfoColor $InfoColor -MoonPhase $MoonPhase -MoonEmoji $MoonEmoji -IsFullMoon $IsFullMoon -NextFullMoonDate $NextFullMoonDate -IsNewMoon $IsNewMoon -ShowNextFullMoon $ShowNextFullMoon -ShowNextNewMoon $ShowNextNewMoon -NextNewMoonDate $NextNewMoonDate -SolarIrradiance $solarStr -Latitude $Lat -Longitude $Lon -TimeZoneId $TimeZone -ObservationDateTime $CurrentTimeDateTime -SunriseDateTime $SunriseTime -SunsetDateTime $SunsetTime -IsPolarNight $IsPolarNight -IsPolarDay $IsPolarDay -IsTerseMode $IsTerseMode -ShowAqi $ShowAqi -AqiCategoryName $AqiCategoryName -AqiCategoryNumber $AqiCategoryNumber -O3AQI $O3AQI -O3CategoryNumber $O3CategoryNumber -PM25AQI $PM25AQI -PM25CategoryNumber $PM25CategoryNumber -AlertsData $AlertsData
     }
 
     if ($ShowTodayForecast) {

@@ -4,7 +4,7 @@
 
 **Author:** Kreft&Cursor
 **Date:** 2025-01-27
-**Version:** 2.1
+**Version:** 2.2
 
 ---
 
@@ -537,6 +537,13 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 - **Seamless Integration:** Fits naturally into existing weather display
 - **No Dependencies:** Self-contained calculation requiring no external services
 - **Cultural Relevance:** Moon phases have cultural and practical significance worldwide
+
+### Recent Enhancements (v2.2)
+
+- **Unknown CLI Options:** Unrecognized switches (e.g. accidental `-c`) print a yellow warning and are ignored instead of failing parameter binding; known options unchanged.
+- **NWS Test Alert Suppression:** Filters test/monitoring-only alerts to match `forecast/js/display.js` (`isSuppressedAlert` / `getDisplayableAlerts`).
+- **Alert Header Prefix:** Current conditions title shows `⚠️` when displayable alerts exist and `🌡` when an active heat alert is in effect (matches web `displayCurrentConditions`).
+- **Alert Display Robustness:** Treats `features` as an array when JSON deserializes a lone feature; shows the alerts section only for displayable alerts; skips malformed entries with verbose logging.
 
 ### Recent Enhancements (v2.1)
 
