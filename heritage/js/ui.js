@@ -67,13 +67,14 @@
         const total = trees.length;
         const found = trees.reduce((n, t) => n + (t.found ? 1 : 0), 0);
         const removed = trees.reduce((n, t) => n + (t.removed != null ? 1 : 0), 0);
-        const lastSync = await HeritageDB.getMeta('lastSyncAt');
+        // sourceVersion stores trees.json scrapedAt from the last snapshot merge.
+        const scrapedAt = await HeritageDB.getMeta('sourceVersion');
 
         const setText = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
         setText('statTotal',   String(total));
         setText('statFound',   String(found));
         setText('statRemoved', String(removed));
-        setText('statLastSync', lastSync ? formatLocalDate(lastSync) : 'never');
+        setText('statLastSync', scrapedAt ? formatLocalDate(scrapedAt) : 'never');
     }
 
     function formatLocalDate(iso) {
