@@ -1,283 +1,292 @@
 # RC - Run Continuously (Go Edition)
 
 ## Overview
-A cross-platform command-line utility written in Go that executes a given command string in a loop at a specified interval. It is a direct port of the `rc.ps1` PowerShell script, designed to be a lightweight, dependency-free executable that works on Windows, Linux, and macOS.
+
+Cross-platform `rc` binary that runs a shell command string on a repeating interval until **Ctrl+C**, **`-limit`**, or an expect-based **failure limit** exits the process. Behavior matches the PowerShell reference implementation in `ps/rc/rc.ps1`.
+
+**Source:** `go/rc/main.go`  
+**Build:** `go/rc/build.ps1` → `go/rc/bin/` (Windows x86/x64, Linux x86/amd64)  
+**Help:** `rc -help` (aliases `-h`)
+
+**Argument parsing:** Manual loop over `os.Args` (not the `flag` package) so switches may appear **before or after** the command and period. Non-flag tokens: first = command; additional tokens scanned for the first valid period string.
+
+**Execution:** `cmd /C` on Windows, `sh -c` elsewhere. Stdout/stderr piped through. Non-zero exit prints yellow warning; loop continues.
+
+---
+
+## Flags and positional arguments
+
+| Flag | Aliases | Value | Default | Description |
+|------|---------|-------|---------|-------------|
+| (positional) | — | string | (prompt) | Command string. Quote if it contains spaces. |
+| (positional) | — | string | `5` | Period (see format below). |
+| `-precision` | `-p` | — | off | Grid-aligned scheduling from process start. |
+| `-silent` | `-s` | — | off | Suppress status lines; command output and warnings remain. |
+| `-clear` | `-c` | — | off | Clear screen at startup (if set) and before each run. |
+| `-skip` | `-Skip` | int | `0` | Loop iterations that skip command execution but still wait. If flag **present** and value `0`, treated as `1`. |
+| `-limit` | `-Limit` | int | `0` | Max actual command runs (skips do not count). `0` = unlimited. |
+| `-expect` | `-e`, `-Expect` | period | — | Minimum runtime for a successful run. |
+| `-replace` | `-r`, `-Replace` | string | — | Replace every literal `^*` in the command before each run. |
+| `-fail` | `-f`, `-Fail` | int | `0` | Exit after N failed runs (&lt; expect). Requires `-expect`. |
+| `-failtime` | `-ft`, `-FailTime` | period | — | Exit when cumulative failure cost reaches cap. Requires `-expect`. |
+| `-help` | `-h` | — | — | Print usage (`printUsage`) and exit. |
+
+**Constants:** `replaceMarker = "^*"` (package-level in `main.go`)
+
+---
 
 ## Features
 
-### 🔄 Continuous Execution
-- **Infinite Loop**: Runs any command string that can be executed by the system's shell in an infinite loop until manually stopped
-- **Configurable Interval**: The time between executions can be easily set with support for suffixes: 's' for seconds, 'm' for minutes (optional), 'h' for hours. Integers without suffix default to minutes
-- **Interactive Mode**: If run without parameters, the application will prompt for the command and interval
-- **Manual Stop**: Press Ctrl+C to stop the application at any time
-- **Cross-Platform**: Compiles to native executables for Windows and Linux with no external dependencies
+### Standard scheduling (default)
+After each loop iteration (including skip-only iterations), `time.Sleep(periodDuration)` for the full configured period.
 
-### ⚙️ Execution Modes
+### Precision mode (`-p` / `-precision`)
+- `scriptStartTime` set when precision is enabled (at loop entry, after banners).
+- Next boundary:  
+  `nextTarget = scriptStart + (floor(elapsedMinutes / periodMinutes) + 1) * periodDuration`
+- Positive sleep → status line `Runtime: … Waiting: … Next Run: …` plus expect summary.
+- Non-positive sleep → yellow overrun warning, immediate next iteration.
 
-#### Standard Mode (Default)
-- After a command finishes, the application waits for the specified interval before the next run
-- Simple but can lead to timing "drift" if the command's execution time varies
-- Timer starts after the command completes
+### Silent mode (`-silent` / `-s`)
+No banners, execute line, wait lines, expect summary, or limit messages. `executeCommand` output and `color.Yellow` warnings still appear.
 
-#### Precision Mode (`-p` or `-precision`)
-- Establishes a fixed-interval "grid" based on the application's start time
-- Accounts for the command's execution time to ensure each new run starts at a predictable, precise moment (e.g., exactly every 10 minutes at :00, :10, :20, etc.)
-- If a command runs longer than its interval, the application will immediately start the next iteration to get back on schedule
-- Prevents timing drift by aligning to a grid
+### Clear mode (`-clear` / `-c`)
+- Windows: `cmd /C cls`
+- Unix: ANSI `\033[2J\033[H`
 
-#### Silent Mode (`-s` or `-silent`)
-- Suppresses status output messages such as execution timing and wait periods
-- Still displays the actual command output and any errors
-- Ideal for logging or when you only want to see the command results
+Clears before startup output (once) and before each command. Expect/fail config is repeated on the `Executing command...` line because startup text is cleared each run.
 
-#### Clear Mode (`-c` or `-clear`)
-- Clears the screen before executing the command in each iteration
-- Provides a clean output display for each run
-- Uses platform-specific methods: `cls` command on Windows, ANSI escape sequences on Unix-like systems
-- Useful for monitoring scenarios where you want to see only the current command output
+### Skip mode (`-skip`)
+- `executionCount` increments every loop; command runs when `executionCount > skip`.
+- Skipped iterations still run precision/standard sleep.
+- Yellow skip status unless silent.
 
-#### Skip Mode (`-skip`)
-- Allows you to skip a specified number of initial executions before starting to run the command
-- If `-skip 0` is specified, it defaults to 1 (skips the first execution)
-- If `-skip` is not specified at all, no executions are skipped (default is 0)
-- Timing schedule is maintained during skipped executions
-- User feedback is provided during skipped executions (unless Silent mode is enabled)
+### Limit mode (`-limit`)
+- `actualExecutionCount` counts only real runs.
+- Green exit message when limit reached.
 
-#### Limit Mode (`-limit`)
-- Limits the total number of executions to perform
-- Skipped executions do not count toward this limit
-- If `-limit` is not specified or set to 0, there is no limit (default is 0)
-- Useful for running a command a specific number of times and then exiting
-- Displays a message when the limit is reached
+### Expect mode (`-expect` / `-e`)
+- `expectState` holds threshold, display string, success counters, runtimes, last completion time.
+- **Success:** `commandDuration >= expect.threshold`
+- **Failure:** below threshold when expect is set.
+- **Summary** (standard + precision waits, and before fail-limit exit):
 
-#### Period Suffixes
-- Support for time unit suffixes on period input: 's' for seconds, 'm' for minutes (optional), 'h' for hours
-- Integers without suffix default to minutes
-- Examples: `5` = 5 minutes, `15s` = 15 seconds, `5m` = 5 minutes, `1h` = 1 hour
+  ```
+  Last Success: HH:mm:ss (successes/total)
+  Total Runtime: HH:mm:ss.cs (last success runtime or N/A)
+  ```
 
-## Technical Details
+- Timestamps: same day → `15:04:05`; else `010206@15:04:05`.
 
-### Parameters
-- **Command** [string] (Positional: 0)
-  - The command string to execute on each iteration
-  - If the command contains spaces, it must be enclosed in quotes
-  - Required (will be prompted for if not provided)
+### Replace mode (`-replace` / `-r`)
+- `applyReplace()` at startup: `strings.ReplaceAll(commandStr, "^*", replaceValue)`
+- Marker works in double-quoted commands (no shell `$` issues on Unix; no PS `$` expansion on Windows when using `cmd /C` with a quoted string).
+- Soft warning if `-replace` set but marker missing (unless silent).
 
-- **Period** [string] (Positional: 1, or use `-period`)
-  - The time to wait between command executions. Accepts suffixes: 's' for seconds, 'm' for minutes (optional), 'h' for hours
-  - Integers without suffix default to minutes. Examples: 5, 15s, 5m, 1h
-  - Default value is 5 (5 minutes)
+### Failure limits (`-fail` / `-f`, `-failtime` / `-ft`)
+**Require `-expect`.** Without expect: yellow warning, limits ignored.
 
-- **-p** or **-precision** [switch]
-  - Enables "Precision Mode"
-  - Uses a fixed-interval schedule to prevent timing drift
+| Limit | Exit when |
+|-------|-----------|
+| `-fail N` | `failedExecutionCount >= N` |
+| `-failtime` | `failedRetryTime >=` parsed duration |
 
-- **-s** or **-silent** [switch]
-  - Enables "Silent Mode"
-  - Suppresses status output messages while preserving command output and errors
+- Each failure adds **`periodDuration`** (configured interval), not precision sleep.
+- Both set → **either** limit ends the loop first.
+- Exit path: `printExpectSummary` then red failure message.
 
-- **-c** or **-clear** [switch]
-  - Enables "Clear Mode"
-  - Clears the screen before executing the command in each iteration
+### Period format (`parsePeriod`)
+| Input | Result |
+|-------|--------|
+| empty | 5 minutes |
+| `15s`, `5m`, `1h` | suffixed duration + display string |
+| `5` (no suffix) | minutes |
+| parse error | 5 minutes (fallback) |
 
-- **-skip** <number>
-  - The number of initial executions to skip before starting to run the command
-  - If `-skip 0` is specified, it defaults to 1 (skips the first execution)
-  - If `-skip` is not specified at all, no executions are skipped (default is 0)
-  - For example, `-skip 2` will skip the first and second executions, then start executing from the third iteration onwards
+Used for period, `-expect`, and `-failtime`.
 
-- **-limit** <number>
-  - The maximum number of executions to perform. Skipped executions do not count toward this limit
-  - If `-limit` is not specified or set to 0, there is no limit (default is 0)
-  - For example, `-limit 5` will execute the command 5 times, then exit
+---
 
-### Platform Support
-- **Windows**: Uses `cmd.exe` for command execution and `cls` command for screen clearing
-- **Linux/macOS**: Uses `sh` for command execution and ANSI escape sequences (`\033[2J\033[H`) for screen clearing
+## Types and functions
 
-### Go Features
-- **Version**: Requires Go 1.16+ (for building from source)
-- **Dependencies**: Uses `github.com/fatih/color` for colorized output
-- **Error Handling**: Graceful error handling with try-catch equivalent behavior
-- **Screen Clearing**: Platform-specific implementation using `os/exec` for Windows or ANSI sequences for Unix
-- **Timing**: Uses Go's `time` package for interval management and precision timing
+| Symbol | Purpose |
+|--------|---------|
+| `expectState` | Threshold, display, success/fail accounting fields |
+| `parsePeriod` | Parse `s`/`m`/`h` → `time.Duration` + display |
+| `formatCompactDuration` | Precision status line durations |
+| `formatDateAwareTimestamp` | Next run / last success timestamps |
+| `formatSuccessRuntime` | `HH:mm:ss.cs` for summary lines |
+| `formatExpectConfigDetails` | `Expect: … \| Fail: … \| FailTime: …` |
+| `printExpectSummary` | Success summary when expect set and `executionCount > skip` |
+| `applyReplace` | `^*` substitution + warning |
+| `clearScreen` | Platform-specific clear |
+| `executeCommand` | `cmd /C` or `sh -c` |
+| `printUsage` | Colored help text |
 
-## Usage Examples
+---
 
-### Basic Execution
-```sh
-./rc "go run main.go" 1
+## Main loop structure
+
 ```
-Runs 'go run main.go' every 1 minute.
-
-### Running Another Script
-```sh
-./rc "gw Portland" 10
+for {
+  executionCount++
+  if executionCount <= skip {
+    // skip message
+  } else {
+    actualExecutionCount++
+    clearScreen if -clear
+    "Executing command..." [+ expect config]
+    executeCommand
+    measure duration; update expect success/fail
+    check -limit → break
+    check -fail → summary + break
+    check -failtime → summary + break
+  }
+  if precision { grid sleep + status + summary }
+  else { wait message + summary; sleep(period) }
+}
 ```
-Runs the `gw` script with its own parameter "Portland" every 10 minutes.
 
-### High-Precision Logging
-```sh
-./rc -p -period 10 "./my-data-logger.sh"
-```
-Runs './my-data-logger.sh' on a fixed 10-minute schedule. If the script starts at 10:00:00 and the logger takes 20 seconds to run, `rc` will calculate the remaining time and sleep, ensuring the next run starts at exactly 10:10:00.
+**Failure accounting:** `failedExecutionCount`, `failedRetryTime` — only when `expect != nil`.
 
-### Silent Mode
-```sh
-./rc -s -period 1 "date"
-```
-Runs 'date' every minute in silent mode, suppressing status messages while still showing the date output.
+---
 
-### Clear Mode
-```sh
-./rc -c -period 1 "date"
-```
-Runs 'date' every minute with the screen cleared before each execution, providing a clean output display for monitoring.
+## Startup output (non-silent)
 
-### Combined Modes
-```sh
-./rc -p -s -period 5 "./my-monitor.sh"
-```
-Runs './my-monitor.sh' every 5 minutes with both precision timing and silent output, ideal for background monitoring tasks.
+1. `Running "<command>" every <period>. Press Ctrl+C to stop.`
+2. Magenta `expectConfigDetails` line (if any)
+3. Yellow skip banner (if `skip > 0`)
+4. Cyan limit banner (if `limit > 0`)
+5. Cyan precision grid start (if `-p`)
 
-### Skip Mode
-```sh
-./rc -skip 2 -period 5 "Get-Process"
-```
-Runs 'Get-Process' every 5 minutes, but skips the first 2 executions. Execution will begin on the 3rd iteration. The timing schedule is maintained during skipped executions.
+---
 
-### Skip with Default (Skip 1)
-```sh
-./rc -skip 0 -period 1 "date"
-```
-Runs 'date' every minute, but skips the first execution. Since `-skip 0` was specified, it defaults to 1. Execution will begin on the 2nd iteration.
+## Color scheme (`github.com/fatih/color`)
 
-### Period with Suffixes
-```sh
-./rc "Get-Process" 15s
-```
-Runs 'Get-Process' every 15 seconds.
+| Color | Usage |
+|-------|--------|
+| Yellow | Interactive title, skip, command-failure warnings, soft warnings |
+| Cyan | Limit banner, precision mode |
+| Magenta | Expect / fail config line |
+| Green | Execution limit reached |
+| Red | Failure limit / failure time exit |
+| White | Execute line, runtime/wait status, Ctrl+C hint |
 
-### Period with Hours
-```sh
-./rc ".\backup.sh" 1h
-```
-Runs 'backup.sh' every 1 hour.
+---
 
-### Limit Mode
-```sh
-./rc "Get-Process" 5 -limit 3
-```
-Runs 'Get-Process' every 5 minutes, but only executes 3 times total, then exits.
+## Usage examples
 
-### Combined Skip and Limit
 ```sh
+# Basic
+./rc "date" 1m
+
+# Flags anywhere
+./rc -p -s "my-monitor.sh" 5m
+
+# Period suffix, skip, limit
 ./rc "date" 30s -skip 2 -limit 5
+
+# Expect
+./rc "echo test" 3s -e 1s -limit 2
+
+# Replace (^* marker)
+./rc "gf -x ^*" 5m -r pdx
+
+# Failure limits
+./rc "date" 5m -e 30s -fail 3
+./rc "date" 5s -e 1s -failtime 30s
+
+# Help
+./rc -help
 ```
-Runs 'date' every 30 seconds, skips the first 2 executions, then executes 5 times before exiting.
 
-### Interactive Mode
-```sh
-./rc
+---
+
+## Interactive mode
+
+When no command in argv after parsing:
+
+1. Command  
+2. Period (default 5)  
+3. Precision y/n  
+4. Clear y/n  
+5. Skip (empty = 0 no skip; `0` entered → defaults to 1)  
+6. Limit (0 = none)
+
+Does **not** prompt for `-expect`, `-replace`, `-fail`, or `-failtime` — pass on command line.
+
+---
+
+## Building and distribution
+
+```powershell
+cd go/rc
+.\build.ps1          # requires Go + windres (MinGW) for Windows icon embed
+.\build.ps1 -upx     # optional UPX compression
 ```
-When run without parameters, the application will prompt for:
-- Command to execute
-- Period (e.g., 5, 15s, 5m, 1h) (default: 5)
-- Precision Mode (y/n, default: n)
-- Clear Mode (y/n, default: n)
-- Skip initial executions (enter number, or 0 for default skip 1, default: 0)
-- Limit executions (enter number, or 0 for no limit, default: 0)
 
-## Technical Implementation
+Outputs under `go/rc/bin/`:
+- `win/x86/rc.exe`, `win/x64/rc.exe`
+- `linux/x86/rc`, `linux/amd64/rc`
 
-### Precision Mode Algorithm
-- Calculates total elapsed minutes since application start
-- Determines number of intervals completed using floor division
-- Calculates next target time based on grid alignment
-- Adjusts sleep time to account for command execution duration
+**Dependencies (build time):** Go module `github.com/fatih/color`, `golang.org/x/sys` (transitive). Compiled binaries have no runtime deps beyond libc/OS.
 
-### Clear Mode Implementation
-- **Windows**: Executes `cmd /C cls` command to clear the screen
-- **Unix/Linux/macOS**: Outputs ANSI escape sequence `\033[2J\033[H` to clear and reset cursor
-- Executed conditionally when `-c` or `-clear` flag is present
-- Provides clean output for each iteration
+**Resources:** `rc.rc`, `cli_rc_icon.ico` embedded on Windows via `windres`.
 
-### Skip Mode Implementation
-- Tracks execution count using an incrementing counter
-- Compares execution count against skip threshold before command execution
-- Provides user feedback during skipped executions (unless Silent mode is enabled)
-- Maintains timing schedule during skipped executions to ensure consistent intervals
-- If `-skip 0` is specified, automatically defaults to 1
-- In precision mode, accounts for skipped executions in timing calculations
+---
 
-### Limit Mode Implementation
-- Tracks actual execution count (excluding skipped executions)
-- Checks limit after each actual execution
-- Displays message when limit is reached and exits gracefully
-- Only counts executions that actually run (skipped executions don't count)
+## Platform notes
 
-### Period Suffix Parsing
-- Parses period string to detect suffixes: 's' (seconds), 'm' (minutes, optional), 'h' (hours)
-- Converts to `time.Duration` for internal calculations
-- Generates human-readable display strings (e.g., "15 seconds", "1 hour", "5 minutes")
-- Integers without suffix default to minutes for backward compatibility
+| OS | Command | Clear |
+|----|---------|-------|
+| Windows | `cmd /C <command>` | `cmd /C cls` |
+| Linux / macOS | `sh -c <command>` | ANSI escape |
 
-### Error Handling
-- Commands are executed with error handling
-- Errors are displayed as warnings without stopping the loop
-- Application continues running even if individual commands fail
+macOS is supported by the Unix code paths; release binaries are built for Windows and Linux per `build.ps1`.
 
-## Color Scheme
+---
 
-| Color | Usage | Example |
-|-------|-------|---------|
-| `Yellow` | Titles, warnings, skip messages | "*** Run Continuously v1 ***", error messages, "Skipping execution X of Y..." |
-| `Cyan` | Precision mode messages, limit messages | Precision mode status messages, "Limited to X execution(s)" |
-| `Green` | Limit reached message | "Reached execution limit of X. Exiting." |
-| `White` | Status messages | Execution timing, wait periods |
+## Parity with PowerShell edition
+
+| Area | Notes |
+|------|--------|
+| Period / expect / failtime parsing | Equivalent rules; Go uses `time.Duration`, PS uses minutes → `TimeSpan` |
+| Replace marker | `^*` both editions |
+| Fail limits | Same require-expect, either-limit-wins, period-based failtime |
+| Config display | Startup line + execute-line bracket |
+| Interactive | Go prompts skip; PS does not prompt skip in interactive mode |
+| Command execution | PS `Invoke-Expression`; Go shell wrapper |
+| Help | PS inline here-string + `Get-Help`; Go `printUsage()` |
+
+Reference: `ps/rc/GEMINI.md`, `ps/rc/rc.ps1`
+
+---
+
+## Related files
+
+| Path | Role |
+|------|------|
+| `go/rc/main.go` | Implementation |
+| `go/rc/README.txt` | User README |
+| `go/rc/build.ps1` | Cross-compile + strip |
+| `ps/rc/rc.ps1` | PowerShell reference |
+| `rc/index.html` | Project landing page |
+
+---
+
+## Version history
+
+| Version | Changes |
+|---------|---------|
+| **Current** | `-expect`, `-replace` (`^*`), `-fail`, `-failtime`, `-help`, expect config on execute line, summary on fail-limit exit, consolidated startup config line |
+| **v1.4** | `-limit`, period suffixes, `-skip` |
+| **v1.3** | `-clear` |
+| **v1.0** | Core loop, precision, silent, cross-platform build |
+
+---
 
 ## Requirements
 
-- Go 1.16+ (for building from source)
-- No additional dependencies for compiled executables
-- Windows or Linux/macOS operating system
-- No API keys required
-
-## Building
-
-Use the included `build.ps1` script to compile native executables:
-```powershell
-.\build.ps1
-```
-
-This will create executables in the `bin/` directory for:
-- Windows (x64 and x86)
-- Linux (amd64 and x86)
-
-## Use Cases
-
-- **Process Monitoring**: Continuously monitor processes or services
-- **Logging**: Run logging scripts at regular intervals
-- **Data Collection**: Collect data from systems at fixed intervals
-- **Cleanup Tasks**: Run cleanup commands periodically
-- **System Checks**: Perform system health checks on a schedule
-- **Display Updates**: Show updated information with clean screen display
-
-## Notes
-
-- To stop the application, press `Ctrl+C` in the terminal window where it is running
-- Precision mode ensures accurate scheduling but may run immediately if a command exceeds its interval
-- Clear mode provides a clean display but may not be suitable for logging scenarios where you need to see history
-- Silent mode suppresses all status messages but still shows command output and errors
-- Skip mode maintains the timing schedule during skipped executions, so the first actual execution will occur at the correct interval
-- If `-skip 0` is specified, it automatically defaults to 1 to skip the first execution
-- Limit mode only counts actual executions (skipped executions don't count toward the limit)
-- Period suffixes allow flexible time unit specification: 's' for seconds, 'm' for minutes (optional), 'h' for hours
-- The compiled executable is platform-specific - use the appropriate binary for your operating system
-
-## Version History
-
-- **v1.4**: Added Limit Mode (`-limit` parameter) and Period Suffixes (s, m, h) support. Added Skip Mode (`-skip` parameter) to allow skipping initial executions before starting command execution
-- **v1.3**: Added Clear Mode (`-c` and `-clear` flags) for screen clearing functionality before each command execution
-- **v1.0**: Initial release with continuous execution, precision mode, and silent mode
-
+- Go 1.16+ to build from source  
+- Compiled binary: no Go runtime required  
+- Stopping: **Ctrl+C** (no expect summary on interrupt — not implemented)

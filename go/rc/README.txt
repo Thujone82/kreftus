@@ -21,7 +21,7 @@ The application can run in two modes: a standard mode that waits for a fixed dur
 - **Skip Mode (`-skip`):** Allows you to skip a specified number of initial executions before starting to run the command. If `-skip 0` is specified, it defaults to 1 (skips the first execution). Useful for delaying the start of command execution while maintaining the timing schedule.
 - **Limit Mode (`-limit`):** Limits the total number of executions to perform. Skipped executions do not count toward this limit. Useful for running a command a specific number of times and then exiting.
 - **Expected Runtime Tracking (`-e`/`-expect`):** Sets a minimum expected command runtime using period format. Runs below the threshold are failures; success metrics print after each run in standard and precision modes.
-- **Command Marker Replace (`-r`/`-replace`):** Replaces every literal `$^` marker in the command with a supplied value before execution.
+- **Command Marker Replace (`-r`/`-replace`):** Replaces every literal `^*` marker in the command with a supplied value before execution.
 - **Failure Limits (`-f`/`-fail`, `-ft`/`-failtime`):** Exit after a set number of failed runs or cumulative failure time (failed runs × retry interval). Requires `-expect`. Warns and ignores limits if used without `-expect`.
 - **Period Suffixes:** Support for time unit suffixes on period input: 's' for seconds, 'm' for minutes (optional), 'h' for hours. Integers without suffix default to minutes.
 - **Interactive Mode:** If run without any arguments, `rc` will interactively prompt you for the command, period, and timing mode.
@@ -73,8 +73,8 @@ The application can run in two modes: a standard mode that waits for a fixed dur
   - Minimum expected command runtime (period format). Prints success summary after each run.
 
 - `-r`, `-replace <string>`
-  - Replaces every literal `$^` marker in the command with this value.
-  - Soft warning if `-replace` is set but the command has no `$^` marker.
+  - Replaces every literal `^*` marker in the command with this value.
+  - Soft warning if `-replace` is set but the command has no `^*` marker.
 
 - `-f`, `-fail <number>`
   - Exit after this many failed runs (duration below `-expect`). Requires `-expect`. `0` = unlimited.
@@ -154,9 +154,9 @@ Runs 'date' every 30 seconds, skips the first 2 executions, then executes 5 time
 
 ### Example 13: Command Marker Replace
 ```sh
-./rc 'gf -x $^' 5 -r pdx
+./rc "gf -x ^*" 5 -r pdx
 ```
-Runs `gf -x pdx` every 5 minutes by substituting `pdx` for the `$^` marker.
+Runs `gf -x pdx` every 5 minutes by substituting `pdx` for the `^*` marker.
 
 ### Example 14: Expected Runtime (standard mode)
 ```sh

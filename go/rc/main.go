@@ -14,6 +14,8 @@ import (
 	"github.com/fatih/color"
 )
 
+const replaceMarker = "^*"
+
 // parsePeriod parses a period string with optional suffix (s, m, h) and returns
 // the duration and a human-readable display string.
 // Examples: "5" -> 5 minutes, "15s" -> 15 seconds, "1h" -> 1 hour
@@ -168,10 +170,10 @@ func applyReplace(commandStr, replaceValue string, replaceSet, silent bool) stri
 	if !replaceSet {
 		return commandStr
 	}
-	if !strings.Contains(commandStr, "$^") && !silent {
-		color.Yellow("WARNING: -replace was specified but command does not contain the $^ marker.")
+	if !strings.Contains(commandStr, replaceMarker) && !silent {
+		color.Yellow("WARNING: -replace was specified but command does not contain the %s marker.", replaceMarker)
 	}
-	return strings.ReplaceAll(commandStr, "$^", replaceValue)
+	return strings.ReplaceAll(commandStr, replaceMarker, replaceValue)
 }
 
 // clearScreen clears the terminal screen using platform-specific commands or ANSI escape sequences.
@@ -258,8 +260,8 @@ func printUsage() {
 	fmt.Println("    Prints success summary after each run in standard and precision modes.")
 	fmt.Println()
 	color.Cyan("  -r, -replace <string>")
-	fmt.Println("    Optional. Replaces every literal $^ marker in the command with this value.")
-	fmt.Println("    Emits a soft warning if -replace is set but the command has no $^ marker.")
+	fmt.Println("    Optional. Replaces every literal ^* marker in the command with this value.")
+	fmt.Println("    Emits a soft warning if -replace is set but the command has no ^* marker.")
 	fmt.Println()
 	color.Cyan("  -f, -fail <number>")
 	fmt.Println("    Optional. Exit after this many failed runs (duration below -expect). Requires -expect. 0 = unlimited.")
@@ -298,8 +300,8 @@ func printUsage() {
 	color.Green("    rc \"date\" 1h -skip 1 -limit 3")
 	fmt.Println("    Runs 'date' every hour, skips the first execution, then executes 3 times before exiting.")
 	fmt.Println()
-	color.Green("    rc 'gf -x $^' 5 -r pdx")
-	fmt.Println("    Runs 'gf -x pdx' every 5 minutes by substituting pdx for the $^ marker.")
+	color.Green(`    rc "gf -x ^*" 5 -r pdx`)
+	fmt.Println("    Runs 'gf -x pdx' every 5 minutes by substituting pdx for the ^* marker.")
 	fmt.Println()
 	color.Green("    rc \"date\" 5s -e 1s")
 	fmt.Println("    Runs every 5 seconds and tracks successful runs where duration is at least 1 second.")

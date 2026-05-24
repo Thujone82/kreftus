@@ -58,7 +58,7 @@
     Alias: -e
 
 .PARAMETER Replace
-    Replaces every literal $^ marker in -Command with this string before execution.
+    Replaces every literal ^* marker in -Command with this string before execution.
     Alias: -r
 
 .PARAMETER Fail
@@ -123,9 +123,9 @@
     Runs every 5 seconds and tracks successful runs where command duration is at least 1 second.
 
 .EXAMPLE
-    .\rc.ps1 'gf -x $^' 5 -r pdx
+    .\rc.ps1 "gf -x ^*" 5 -r pdx
 
-    Runs 'gf -x pdx' every 5 minutes by substituting pdx for the $^ marker in the command.
+    Runs 'gf -x pdx' every 5 minutes by substituting pdx for the ^* marker in the command.
 
 .EXAMPLE
     .\rc.ps1 "Get-Date" 5m -Expect 30s -Fail 3
@@ -171,7 +171,7 @@ param(
     [Alias('e')]
     [string]$Expect,
 
-    [Parameter(Mandatory=$false, HelpMessage='Replaces every literal $^ marker in -Command with this string.')]
+    [Parameter(Mandatory=$false, HelpMessage='Replaces every literal ^* marker in -Command with this string.')]
     [Alias('r')]
     [string]$Replace,
 
@@ -183,6 +183,8 @@ param(
     [Alias('ft')]
     [string]$FailTime
 )
+
+$ReplaceMarker = '^*'
 
 if ($Help.IsPresent) {
     $banner = 'Run Continuously (rc.ps1) - CLI reference'
@@ -230,8 +232,8 @@ PARAMETERS
       Prints success summary after each run in standard and precision modes.
 
   -Replace string     Alias: -r
-      Replaces every literal $^ marker in -Command with this value before execution.
-      Emits a soft warning if -Replace is set but the command has no $^ marker.
+      Replaces every literal ^* marker in -Command with this value before execution.
+      Emits a soft warning if -Replace is set but the command has no ^* marker.
 
   -Fail int           Alias: -f
       Exit after this many failed runs (duration below -Expect). Requires -Expect. 0 = unlimited.
@@ -262,7 +264,7 @@ EXAMPLES
   .\rc.ps1 ".\my-script.ps1" 10 -Precision -Silent
   .\rc.ps1 "Get-Process" 15s -Limit 5
   .\rc.ps1 "Invoke-WebRequest https://example.com" 5s -Expect 1s
-  .\rc.ps1 'gf -x $^' 5 -r pdx
+  .\rc.ps1 "gf -x ^*" 5 -r pdx
   .\rc.ps1 "Get-Date" 5m -e 30s -fail 3
   .\rc.ps1 -Help
 
@@ -459,10 +461,10 @@ if ($PSBoundParameters.ContainsKey('Skip') -and $Skip -eq 0) {
 }
 
 if ($PSBoundParameters.ContainsKey('Replace')) {
-    if ($Command -notlike '*$^*' -and -not $Silent.IsPresent) {
-        Write-Warning '-Replace was specified but command does not contain the $^ marker.'
+    if (-not $Command.Contains($ReplaceMarker) -and -not $Silent.IsPresent) {
+        Write-Warning "-Replace was specified but command does not contain the $ReplaceMarker marker."
     }
-    $Command = $Command.Replace('$^', $Replace)
+    $Command = $Command.Replace($ReplaceMarker, $Replace)
 }
 
 if (-not $Command) {

@@ -1,263 +1,260 @@
-# RC.PS1 - Run Continuously Script
+# RC.PS1 - Run Continuously (PowerShell Edition)
 
 ## Overview
-A flexible PowerShell utility designed to execute a given command repeatedly at a specified interval. It is ideal for simple, recurring tasks, monitoring, or any scenario where a command needs to be run in a loop without the complexity of setting up a formal scheduled task.
+
+`rc.ps1` executes a PowerShell command string on a repeating interval until stopped with **Ctrl+C**, a **`-Limit`** is reached, or an expect-based **failure limit** triggers exit. It is the reference implementation; a cross-platform Go port lives in `go/rc/` with matching behavior.
+
+**Entry points:**
+- `.\rc.ps1 [[-Command] string] [[-Period] string] [switches…]`
+- `.\rc.ps1 -Help` (aliases `-h`, `-?`) — inline CLI reference, then exit
+- No `-Command` — interactive prompts for command, period, precision, clear, and limit
+
+**Execution model:** `Invoke-Expression` on the command string each iteration (after optional `-Replace` substitution). Errors are caught per iteration; the loop continues unless a limit exits the script.
+
+---
+
+## Parameters
+
+| Parameter | Alias | Type | Default | Description |
+|-----------|-------|------|---------|-------------|
+| `Command` | (positional 0) | string | (prompt) | Expression run each iteration. Quote if it contains spaces. |
+| `Period` | (positional 1) | string | `5` | Wait between iterations. Period format (see below). |
+| `Precision` | `p` | switch | off | Grid-aligned scheduling from script start. |
+| `Silent` | `s` | switch | off | Suppress status lines; command output and warnings still show. |
+| `Clear` | `c`, `cl` | switch | off | `Clear-Host` at startup (if set) and before each run. |
+| `Skip` | — | int | `0` | Loop iterations that skip `Invoke-Expression` but still wait. If `-Skip` is **bound** and value is `0`, treated as `1`. |
+| `Limit` | — | int | `0` | Max **actual** command runs (skipped iterations do not count). `0` = unlimited. |
+| `Expect` | `e` | string | — | Minimum runtime for a **successful** run (period format). Enables success tracking and fail limits. |
+| `Replace` | `r` | string | — | Replace every literal `^*` in `-Command` with this value before each run. |
+| `Fail` | `f` | int | `0` | Exit after this many **failed** runs (duration &lt; `-Expect`). Requires `-Expect`. `0` = off. |
+| `FailTime` | `ft` | string | — | Exit when cumulative failure cost reaches cap (period format). Requires `-Expect`. |
+| `Help` | `h`, `?` | switch | — | Print full CLI reference and exit. |
+
+Comment-based help: `Get-Help .\rc.ps1 -Full`
+
+---
 
 ## Features
 
-### 🔄 Continuous Execution
-- **Infinite Loop**: Runs any valid PowerShell command string in an infinite loop until manually stopped
-- **Configurable Interval**: The time between executions can be easily set with support for suffixes: 's' for seconds, 'm' for minutes (optional), 'h' for hours. Integers without suffix default to minutes
-- **Interactive Mode**: If run without parameters, the script will prompt for the command and interval
-- **Manual Stop**: Press Ctrl+C to stop the script at any time
+### Standard scheduling (default)
+After each loop iteration (including skip-only iterations), sleeps for the full **Period** (`Start-Sleep` using `$PeriodMinutes * 60`). Simple; timing drifts if command duration varies.
 
-### ⚙️ Execution Modes
+### Precision mode (`-Precision` / `-p`)
+- Records `$scriptStartTime` at loop entry.
+- After each iteration, computes the next grid boundary:  
+  `nextTarget = scriptStart + (floor(elapsedMinutes / periodMinutes) + 1) * periodMinutes`
+- Sleeps until `nextTarget` if positive; otherwise warns and runs immediately (overrun recovery).
+- Status line: `Runtime: … Waiting: … Next Run: …` (compact duration format).
 
-#### Standard Mode (Default)
-- After a command finishes, the script waits for the specified interval before the next run
-- Simple but can lead to timing "drift" if the command's execution time varies
-- Timer starts after the command completes
+### Silent mode (`-Silent` / `-s`)
+Suppresses banners, timestamps, wait lines, expect summary, and limit messages. Command output and `Write-Warning` (command errors, soft warnings) still appear.
 
-#### Precision Mode (`-p`)
-- Establishes a fixed-interval "grid" based on the script's start time
-- Accounts for the command's execution time to ensure each new run starts at a predictable, precise moment (e.g., exactly every 10 minutes at :00, :10, :20, etc.)
-- If a command runs longer than its interval, the script will immediately start the next iteration to get back on schedule
-- Prevents timing drift by aligning to a grid
+### Clear mode (`-Clear` / `-c` / `-cl`)
+`Clear-Host` once before startup output (if not silent) and again before each command execution. **Note:** startup banners (including expect/fail config) are cleared on each run; active expect/fail settings are repeated on the `Executing command...` line.
 
-#### Silent Mode (`-s`)
-- Suppresses status output messages such as execution timing and wait periods
-- Still displays the actual command output and any errors
-- Ideal for logging or when you only want to see the command results
+### Skip mode (`-Skip`)
+- `$executionCount` increments every loop; command runs only when `$executionCount > $Skip`.
+- Skipped iterations still execute the wait/precision sleep path (schedule preserved).
+- Yellow skip status unless silent.
 
-#### Clear Mode (`-c`)
-- Clears the screen before executing the command in each iteration
-- Provides a clean output display for each run
-- Useful for monitoring scenarios where you want to see only the current command output
+### Limit mode (`-Limit`)
+- `$actualExecutionCount` increments only on real runs.
+- Green exit message when `$actualExecutionCount -ge $Limit`.
 
-#### Skip Mode (`-Skip`)
-- Allows you to skip a specified number of initial executions before starting to run the command
-- If `-Skip 0` is specified, it defaults to 1 (skips the first execution)
-- If `-Skip` is not specified at all, no executions are skipped (default is 0)
-- Timing schedule is maintained during skipped executions
-- User feedback is provided during skipped executions (unless Silent mode is enabled)
+### Expect mode (`-Expect` / `-e`)
+- Parses threshold via `Convert-Period` → `[TimeSpan]::FromMinutes(...)`.
+- **Success:** `commandDuration >= expectThreshold` (measured loop start → end, including failed `Invoke-Expression` that still returns).
+- **Failure:** duration below threshold (when `-Expect` is set).
+- Tracks: `$successfulExecutionCount`, `$actualExecutionCount` (for ratio), `$totalSuccessfulRuntime`, `$lastSuccessfulRuntime`, `$lastSuccessfulCompletionTime`.
+- **Summary** (after each wait in standard/precision mode, and before fail-limit exit):
 
-#### Limit Mode (`-Limit`)
-- Limits the total number of executions to perform
-- Skipped executions do not count toward this limit
-- If `-Limit` is not specified or set to 0, there is no limit (default is 0)
-- Useful for running a command a specific number of times and then exiting
-- Displays a message when the limit is reached
+  ```
+  Last Success: HH:mm:ss (successes/total)
+  Total Runtime: HH:mm:ss.cs (last success runtime or N/A)
+  ```
 
-#### Period Suffixes
-- Support for time unit suffixes on period input: 's' for seconds, 'm' for minutes (optional), 'h' for hours
-- Integers without suffix default to minutes
-- Examples: `5` = 5 minutes, `15s` = 15 seconds, `5m` = 5 minutes, `1h` = 1 hour
+- Timestamps: today → `HH:mm:ss`; other days → `MMddyy@HH:mm:ss`.
 
-## Technical Details
+### Replace mode (`-Replace` / `-r`)
+- Script constant: `$ReplaceMarker = '^*'`
+- Applied once at startup: `$Command = $Command.Replace($ReplaceMarker, $Replace)`
+- Marker is safe inside **double-quoted** commands (no `$` expansion issue).
+- Soft warning if `-Replace` set but command does not contain `^*` (unless silent).
 
-### Parameters
-- **Command** [string] (Positional: 0)
-  - The PowerShell command to execute on each iteration
-  - If the command contains spaces, it must be enclosed in quotes
-  - Required (will be prompted for if not provided)
+### Failure limits (`-Fail` / `-f`, `-FailTime` / `-ft`)
+**Require `-Expect`.** If set without `-Expect`, soft warning and limits ignored.
 
-- **Period** [string] (Positional: 1)
-  - The time to wait between command executions. Accepts suffixes: 's' for seconds, 'm' for minutes (optional), 'h' for hours
-  - Integers without suffix default to minutes. Examples: 5, 15s, 5m, 1h
-  - Default value is 5 (5 minutes)
+| Limit | Behavior |
+|-------|----------|
+| `-Fail N` | Exit when `$failedExecutionCount >= N` |
+| `-FailTime` | Exit when `$failedRetryTime >=` parsed threshold |
 
-- **-Precision** or **-p** [switch]
-  - Enables "Precision Mode"
-  - Uses a fixed-interval schedule to prevent timing drift
+- Each failure adds **one configured Period** (`$periodInterval`) to `$failedRetryTime`, not precision-mode computed sleep.
+- If **both** are set, **either** limit ends the loop (whichever is hit first).
+- On exit: prints expect summary, then red message (`Reached failure limit…` / `Reached failure time limit…`).
 
-- **-Silent** or **-s** [switch]
-  - Enables "Silent Mode"
-  - Suppresses status output messages while preserving command output and errors
+### Period format (`Convert-Period`)
+| Input | Meaning |
+|-------|---------|
+| (none) / blank | 5 minutes |
+| `15s` | seconds → internal minutes |
+| `5` or `5m` | minutes |
+| `1h` | hours |
+| invalid | 5 minutes |
 
-- **-Clear** or **-c** [switch]
-  - Enables "Clear Mode"
-  - Clears the screen before executing the command in each iteration
+Returns hashtable: `@{ Minutes = [double]; Display = "human string" }`
 
-- **-Skip** [int]
-  - The number of initial executions to skip before starting to run the command
-  - If `-Skip 0` is specified, it defaults to 1 (skips the first execution)
-  - If `-Skip` is not specified at all, no executions are skipped (default is 0)
-  - For example, `-Skip 2` will skip the first and second executions, then start executing from the third iteration onwards
+Used for `-Period`, `-Expect`, and `-FailTime`.
 
-- **-Limit** [int]
-  - The maximum number of executions to perform. Skipped executions do not count toward this limit
-  - If `-Limit` is not specified or set to 0, there is no limit (default is 0)
-  - For example, `-Limit 5` will execute the command 5 times, then exit
+---
 
-### PowerShell Features
-- **Version**: PowerShell 5.1+ compatible
-- **Execution Policy**: Bypass recommended
-- **Error Handling**: Try-catch blocks for command execution errors
-- **Screen Clearing**: Uses `Clear-Host` cmdlet for screen clearing functionality
-- **Timing**: Uses `Get-Date` and `Start-Sleep` for interval management
+## Helper functions
 
-## Usage Examples
+| Function | Purpose |
+|----------|---------|
+| `Convert-Period` | Parse period strings with `s`/`m`/`h` suffixes |
+| `Format-CompactDuration` | `HH:mm:ss`, `mm:ss`, or fractional seconds for precision status |
+| `Format-DateAwareTimestamp` | Today vs other-day timestamp for Next Run / Last Success |
+| `Format-ExpectConfigDetails` | Build `Expect: … \| Fail: … \| FailTime: …` for banners and execute line |
+| `Write-ExpectSummaryIfNeeded` | Print success summary when `-Expect` set and `$executionCount > $Skip` |
 
-### Basic Execution
-```powershell
-.\rc.ps1 "Get-Process -Name 'chrome' | Stop-Process -Force" 1
+---
+
+## Main loop structure
+
 ```
-This command will attempt to stop all 'chrome' processes every 1 minute.
-
-### Running Another Script
-```powershell
-.\rc.ps1 "gw Portland" 10
+while ($true) {
+  $executionCount++
+  if ($executionCount <= $Skip) {
+    # skip message (optional)
+  } else {
+    $actualExecutionCount++
+    Clear-Host if -Clear
+    "Executing command..." [+ expect config bracket]
+    try { Invoke-Expression } catch { warning; still record duration }
+    update success/fail counters if -Expect
+    check -Limit → break
+    check -Fail → summary + break
+    check -FailTime → summary + break
+  }
+  if (-Precision) { grid sleep + runtime line + expect summary }
+  else { "Waiting …" + expect summary; full period sleep }
+}
 ```
-Runs the `gw.ps1` script with its own parameter "Portland" every 10 minutes.
 
-### High-Precision Logging
-```powershell
-.\rc.ps1 ".\my-data-logger.ps1" 10 -Precision
-```
-Runs 'my-data-logger.ps1' on a fixed 10-minute schedule. If the script starts at 10:00:00 and the logger takes 20 seconds to run, `rc.ps1` will calculate the remaining time and sleep, ensuring the next run starts at exactly 10:10:00.
+**Counters:**
+- `$executionCount` — every loop iteration (including skips)
+- `$actualExecutionCount` — command invocations only
+- `$failedExecutionCount` / `$failedRetryTime` — only when `-Expect` active
 
-### Silent Mode
-```powershell
-.\rc.ps1 "Get-Date" 1 -Silent
-```
-Runs 'Get-Date' every minute in silent mode, suppressing status messages while still showing the date output.
+---
 
-### Clear Mode
-```powershell
-.\rc.ps1 "Get-Date" 1 -Clear
-```
-Runs 'Get-Date' every minute with the screen cleared before each execution, providing a clean output display for monitoring.
+## Startup output (non-silent)
 
-### Combined Modes
-```powershell
-.\rc.ps1 ".\my-monitor.ps1" 5 -Precision -Silent
-```
-Runs 'my-monitor.ps1' every 5 minutes with both precision timing and silent output, ideal for background monitoring tasks.
+1. `Running "<command>" every <period>. Press Ctrl+C to stop.`
+2. Magenta expect config line (if any of Expect / Fail / FailTime active)
+3. Yellow skip banner (if `$Skip > 0`)
+4. Cyan limit banner (if `$Limit > 0`)
+5. Cyan precision grid start time (if `-Precision`)
 
-### Skip Mode
-```powershell
-.\rc.ps1 "Get-Process" 5 -Skip 2
-```
-Runs 'Get-Process' every 5 minutes, but skips the first 2 executions. Execution will begin on the 3rd iteration. The timing schedule is maintained during skipped executions.
+---
 
-### Skip with Default (Skip 1)
-```powershell
-.\rc.ps1 "Get-Date" 1 -Skip 0
-```
-Runs 'Get-Date' every minute, but skips the first execution. Since `-Skip 0` was specified, it defaults to 1. Execution will begin on the 2nd iteration.
+## Color scheme
 
-### Period with Suffixes
-```powershell
-.\rc.ps1 "Get-Process" 15s
-```
-Runs 'Get-Process' every 15 seconds.
+| Color | Usage |
+|-------|--------|
+| Yellow | Interactive title, skip messages |
+| Cyan | Limit banner, precision mode |
+| Magenta | Expect / fail config line |
+| Green | Execution limit reached |
+| Red | Failure limit / failure time limit exit |
+| Default | Execute line, wait messages |
+| Warning | Command errors, soft warnings (replace marker, fail without expect) |
 
-### Period with Hours
-```powershell
-.\rc.ps1 ".\backup.ps1" 1h
-```
-Runs 'backup.ps1' every 1 hour.
+---
 
-### Limit Mode
-```powershell
-.\rc.ps1 "Get-Process" 5 -Limit 3
-```
-Runs 'Get-Process' every 5 minutes, but only executes 3 times total, then exits.
+## Usage examples
 
-### Combined Skip and Limit
 ```powershell
+# Basic
+.\rc.ps1 "Get-Date" 1m
+
+# Precision + silent
+.\rc.ps1 ".\my-monitor.ps1" 10m -p -s
+
+# Skip, limit, period suffix
 .\rc.ps1 "Get-Date" 30s -Skip 2 -Limit 5
+
+# Expect tracking
+.\rc.ps1 "Invoke-WebRequest https://example.com" 5s -e 1s
+
+# Replace marker (double-quoted)
+.\rc.ps1 "gf -x ^*" 5m -r pdx
+
+# Failure limits (require -e)
+.\rc.ps1 ".\task.ps1" 5m -e 30s -fail 3
+.\rc.ps1 ".\task.ps1" 5s -e 1s -failtime 30s
+
+# Help
+.\rc.ps1 -Help
 ```
-Runs 'Get-Date' every 30 seconds, skips the first 2 executions, then executes 5 times before exiting.
 
-### Interactive Mode
-```powershell
-.\rc.ps1
-```
-When run without parameters, the script will prompt for:
-- Command to execute
-- Period (e.g., 5, 15s, 5m, 1h) (default: 5)
-- Precision Mode (y/n, default: n)
-- Clear Mode (y/n, default: n)
-- Skip initial executions (enter number, or 0 for default skip 1, default: 0)
-- Limit executions (enter number, or 0 for no limit, default: 0)
+---
 
-## Technical Implementation
+## Interactive mode
 
-### Precision Mode Algorithm
-- Calculates total elapsed minutes since script start
-- Determines number of intervals completed using floor division
-- Calculates next target time based on grid alignment
-- Adjusts sleep time to account for command execution duration
+When `-Command` is omitted after parameter parsing:
 
-### Clear Mode Implementation
-- Uses PowerShell's `Clear-Host` cmdlet before each command execution
-- Executed conditionally when `-Clear` switch is present
-- Provides clean output for each iteration
+1. Command (Read-Host)
+2. Period (default 5)
+3. Precision y/n
+4. Clear y/n
+5. Limit (0 = none)
 
-### Skip Mode Implementation
-- Tracks execution count using an incrementing counter
-- Compares execution count against skip threshold before command execution
-- Provides user feedback during skipped executions (unless Silent mode is enabled)
-- Maintains timing schedule during skipped executions to ensure consistent intervals
-- If `-Skip 0` is specified, automatically defaults to 1
+Does **not** prompt for Expect, Replace, Fail, FailTime, or Skip — pass those on the command line.
 
-### Limit Mode Implementation
-- Tracks actual execution count (excluding skipped executions)
-- Checks limit after each actual execution
-- Displays message when limit is reached and exits gracefully
-- Only counts executions that actually run (skipped executions don't count)
+---
 
-### Period Suffix Parsing
-- Parses period string to detect suffixes: 's' (seconds), 'm' (minutes, optional), 'h' (hours)
-- Converts to minutes for internal calculations (PowerShell) or time.Duration (Go)
-- Generates human-readable display strings (e.g., "15 seconds", "1 hour", "5 minutes")
-- Integers without suffix default to minutes for backward compatibility
+## Error handling
 
-### Error Handling
-- Commands are executed in try-catch blocks
-- Errors are displayed as warnings without stopping the loop
-- Script continues running even if individual commands fail
+- `Invoke-Expression` wrapped in `try/catch`; failures become warnings with duration still recorded.
+- Invalid period strings fall back to 5 minutes.
+- Script does not exit on command failure unless a limit triggers.
 
-## Color Scheme
+---
 
-| Color | Usage | Example |
-|-------|-------|---------|
-| `Yellow` | Script title, skip messages | "*** Run Continuously v1 ***", "Skipping execution X of Y..." |
-| `Cyan` | Precision mode messages, limit messages | Precision mode status messages, "Limited to X execution(s)" |
-| `Green` | Limit reached message | "Reached execution limit of X. Exiting." |
-| Default | Status messages | Execution timing, wait periods |
+## Parity and related files
+
+| Path | Role |
+|------|------|
+| `ps/rc/rc.ps1` | This script |
+| `ps/rc/README.txt` | User-facing README |
+| `go/rc/main.go` | Go port (flags anywhere in argv; `cmd`/`sh` execution) |
+| `go/rc/build.ps1` | Cross-compile Windows/Linux binaries to `go/rc/bin/` |
+| `rc/index.html` | Project landing page |
+
+Go edition uses the same `^*` replace marker, expect summary, fail limits, and config display patterns. Flag names are lowercase with leading `-` (e.g. `-fail`, `-failtime`).
+
+---
+
+## Version history
+
+| Version | Changes |
+|---------|---------|
+| **Current** | `-Expect`, `-Replace` (`^*` marker), `-Fail`, `-FailTime`, `-Help`, expect config on execute line, expect summary on fail-limit exit, consolidated expect/fail startup line |
+| **v1.4** | `-Limit`, period suffixes (`s`/`m`/`h`), `-Skip` |
+| **v1.3** | `-Clear` |
+| **v1.0** | Core loop, `-Precision`, `-Silent` |
+
+---
 
 ## Requirements
 
-- PowerShell 5.1 or later
-- Windows operating system
-- No additional dependencies
-- No API keys required
+- PowerShell 5.1+
+- Windows (primary target; script uses `Clear-Host`, `Invoke-Expression`)
+- No external modules
 
-## Use Cases
+## Stopping
 
-- **Process Monitoring**: Continuously monitor processes or services
-- **Logging**: Run logging scripts at regular intervals
-- **Data Collection**: Collect data from systems at fixed intervals
-- **Cleanup Tasks**: Run cleanup commands periodically
-- **System Checks**: Perform system health checks on a schedule
-- **Display Updates**: Show updated information with clean screen display
-
-## Notes
-
-- To stop the script, press `Ctrl+C` in the terminal window where it is running
-- Precision mode ensures accurate scheduling but may run immediately if a command exceeds its interval
-- Clear mode provides a clean display but may not be suitable for logging scenarios where you need to see history
-- Silent mode suppresses all status messages but still shows command output and errors
-- Skip mode maintains the timing schedule during skipped executions, so the first actual execution will occur at the correct interval
-- If `-Skip 0` is specified, it automatically defaults to 1 to skip the first execution
-- Limit mode only counts actual executions (skipped executions don't count toward the limit)
-- Period suffixes allow flexible time unit specification: 's' for seconds, 'm' for minutes (optional), 'h' for hours
-
-## Version History
-
-- **v1.4**: Added Limit Mode (`-Limit` parameter) and Period Suffixes (s, m, h) support. Added Skip Mode (`-Skip` parameter) to allow skipping initial executions before starting command execution
-- **v1.3**: Added Clear Mode (`-c` switch) for screen clearing functionality before each command execution
-- **v1.0**: Initial release with continuous execution, precision mode, and silent mode
-
+- **Ctrl+C** — immediate process stop; no expect summary on interrupt (not implemented).
+- **`-Limit`** — green message, no expect summary unless `-Expect` also set (summary only printed during wait / fail-limit paths today).
