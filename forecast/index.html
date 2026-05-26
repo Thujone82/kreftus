@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#008B8B">
     <title>Forecast</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="css/style.css?v=1.11.7">
+    <link rel="stylesheet" href="css/style.css?v=1.11.8">
     <link rel="icon" type="image/png" href="icons/light-icon-192.png">
 </head>
 <body>
@@ -19,7 +19,7 @@
             </h1>
         </div>
         <div class="header-right">
-            <input type="text" id="locationInput" placeholder="Zip Code or City, State" autocomplete="off" aria-label="Location: zip code or city, state">
+            <input type="search" id="locationInput" name="location" placeholder="Zip Code or City, State" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-form-type="other" data-lpignore="true" data-1p-ignore data-bwignore aria-label="Location: zip code or city, state">
             <button id="searchBtn" class="btn btn-primary" aria-label="Load weather for entered location">Load</button>
         </div>
     </header>
@@ -139,7 +139,7 @@
                 <div id="aqiApiKeyContainer" class="config-option hidden">
                     <label for="aqiApiKeyInput">AirNow API Key:</label>
                     <div class="api-key-inline-row">
-                        <input type="password" id="aqiApiKeyInput" class="config-api-key-input" aria-label="AirNow API Key">
+                        <input type="password" id="aqiApiKeyInput" class="config-api-key-input" name="aqi-api-key" autocomplete="off" data-form-type="other" data-lpignore="true" data-1p-ignore data-bwignore aria-label="AirNow API Key">
                         <span id="aqiApiKeyStatus" class="api-key-status" aria-live="polite"></span>
                     </div>
                     <div id="aqiApiKeyHelpBlock" class="aqi-api-key-help-block">
@@ -175,11 +175,11 @@
         </div>
     </div>
 
-    <script src="js/utils.js?v=1.11.7"></script>
-    <script src="js/api.js?v=1.11.7"></script>
-    <script src="js/weather.js?v=1.11.7"></script>
-    <script src="js/display.js?v=1.11.7"></script>
-    <script src="js/app.js?v=1.11.7"></script>
+    <script src="js/utils.js?v=1.11.8"></script>
+    <script src="js/api.js?v=1.11.8"></script>
+    <script src="js/weather.js?v=1.11.8"></script>
+    <script src="js/display.js?v=1.11.8"></script>
+    <script src="js/app.js?v=1.11.8"></script>
 </body>
 </html>
 
