@@ -2079,10 +2079,21 @@ function handleLocationButtonEdit(locationBtn) {
     
     // Create input field
     const input = document.createElement('input');
-    input.type = 'text';
+    input.type = 'search';
+    input.name = 'favorite-name';
     input.className = 'location-btn-edit';
     input.value = currentName;
     input.maxLength = 50; // Reasonable limit for button text
+    // Suppress password-manager autofill/save prompts (Chrome heuristically pairs
+    // this with the AirNow API password field elsewhere on the page).
+    input.autocomplete = 'off';
+    input.autocorrect = 'off';
+    input.autocapitalize = 'off';
+    input.spellcheck = false;
+    input.setAttribute('data-form-type', 'other');
+    input.setAttribute('data-lpignore', 'true');
+    input.setAttribute('data-1p-ignore', '');
+    input.setAttribute('data-bwignore', '');
     
     // Store original button content and replace with input
     const originalContent = locationBtn.innerHTML;
