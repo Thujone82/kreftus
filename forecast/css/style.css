@@ -681,6 +681,17 @@ body.ui-density-normal .config-modal-content {
     box-sizing: border-box;
 }
 
+/* Mask the AirNow API key visually without using <input type="password">,
+   which Chrome's password manager pairs with the location/rename fields
+   and prompts to save credentials on submit. */
+.config-api-key-masked {
+    -webkit-text-security: disc;
+    -moz-text-security: disc;
+    text-security: disc;
+    font-family: text-security-disc, monospace;
+    letter-spacing: 0.1em;
+}
+
 .api-key-status {
     min-width: 1em;
     font-weight: bold;
