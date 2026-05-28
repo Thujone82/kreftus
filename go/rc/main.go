@@ -124,16 +124,55 @@ type expectState struct {
 	hasLastSuccess         bool
 }
 
-func formatExpectConfigDetails(expect *expectState, failLimitActive int, failTimeDisplay string, failTimeThreshold time.Duration) string {
+func formatCompactPeriodLabel(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	totalSec := int(math.Round(d.Seconds()))
+	if totalSec >= 3600 {
+		h := totalSec / 3600
+		rem := totalSec % 3600
+		if rem == 0 {
+			return fmt.Sprintf("%dH", h)
+		}
+		m := rem / 60
+		if m > 0 {
+			return fmt.Sprintf("%dH%dM", h, m)
+		}
+		return fmt.Sprintf("%dH", h)
+	}
+	if totalSec >= 60 {
+		return fmt.Sprintf("%dM", totalSec/60)
+	}
+	if totalSec <= 0 {
+		return "0S"
+	}
+	return fmt.Sprintf("%dS", totalSec)
+}
+
+func formatExpectConfigDetails(expect *expectState, failLimitActive int, failTimeThreshold time.Duration, failedExecutionCount int, failedRetryTime time.Duration) string {
 	var parts []string
 	if expect != nil {
-		parts = append(parts, fmt.Sprintf("Expect: %s", expect.display))
+		parts = append(parts, fmt.Sprintf("Expect: %s", formatCompactPeriodLabel(expect.threshold)))
 	}
 	if failLimitActive > 0 {
-		parts = append(parts, fmt.Sprintf("Fail: %d", failLimitActive))
+		if failedExecutionCount > 0 {
+			parts = append(parts, fmt.Sprintf("Fail: %d/%d", failedExecutionCount, failLimitActive))
+		} else {
+			parts = append(parts, fmt.Sprintf("Fail: %d", failLimitActive))
+		}
 	}
 	if failTimeThreshold > 0 {
-		parts = append(parts, fmt.Sprintf("FailTime: %s", failTimeDisplay))
+		totalLabel := formatCompactPeriodLabel(failTimeThreshold)
+		if failedRetryTime > 0 {
+			remaining := failTimeThreshold - failedRetryTime
+			if remaining < 0 {
+				remaining = 0
+			}
+			parts = append(parts, fmt.Sprintf("FailTime: %s / %s", formatCompactPeriodLabel(remaining), totalLabel))
+		} else {
+			parts = append(parts, fmt.Sprintf("FailTime: %s", totalLabel))
+		}
 	}
 	if len(parts) == 0 {
 		return ""
@@ -311,6 +350,15 @@ func printUsage() {
 	fmt.Println()
 }
 
+func warnDuplicateFlag(seen map[string]bool, label string) bool {
+	if seen[label] {
+		color.Yellow("WARNING: Flag -%s specified more than once; using the first value.", label)
+		return true
+	}
+	seen[label] = true
+	return false
+}
+
 func main() {
 	// Manual argument parsing is used to allow flags to be placed anywhere in the command.
 	// The standard `flag` package stops parsing at the first non-flag argument.
@@ -332,17 +380,38 @@ func main() {
 	var nonFlagArgs []string
 	skipFlagFound := false
 
+	seenFlags := make(map[string]bool)
+
 	args := os.Args[1:]
+	skipValue := func(i int) int {
+		if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+			return 2
+		}
+		return 1
+	}
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		switch arg {
 		case "-p", "-precision":
+			if warnDuplicateFlag(seenFlags, "precision") {
+				continue
+			}
 			precision = true
 		case "-s", "-silent":
+			if warnDuplicateFlag(seenFlags, "silent") {
+				continue
+			}
 			silent = true
 		case "-c", "-clear":
+			if warnDuplicateFlag(seenFlags, "clear") {
+				continue
+			}
 			clear = true
 		case "-skip", "-Skip":
+			if warnDuplicateFlag(seenFlags, "skip") {
+				i += skipValue(i)
+				continue
+			}
 			skipFlagFound = true
 			if i+1 < len(args) {
 				if s, err := strconv.Atoi(args[i+1]); err == nil {
@@ -351,6 +420,10 @@ func main() {
 				}
 			}
 		case "-limit", "-Limit":
+			if warnDuplicateFlag(seenFlags, "limit") {
+				i += skipValue(i)
+				continue
+			}
 			if i+1 < len(args) {
 				if l, err := strconv.Atoi(args[i+1]); err == nil && l >= 0 {
 					limit = l
@@ -358,18 +431,30 @@ func main() {
 				}
 			}
 		case "-e", "-expect", "-Expect":
+			if warnDuplicateFlag(seenFlags, "expect") {
+				i += skipValue(i)
+				continue
+			}
 			expectSet = true
 			if i+1 < len(args) {
 				expectStr = args[i+1]
 				i++
 			}
 		case "-r", "-replace", "-Replace":
+			if warnDuplicateFlag(seenFlags, "replace") {
+				i += skipValue(i)
+				continue
+			}
 			replaceSet = true
 			if i+1 < len(args) {
 				replaceValue = args[i+1]
 				i++
 			}
 		case "-f", "-fail", "-Fail":
+			if warnDuplicateFlag(seenFlags, "fail") {
+				i += skipValue(i)
+				continue
+			}
 			failSet = true
 			if i+1 < len(args) {
 				if f, err := strconv.Atoi(args[i+1]); err == nil {
@@ -378,12 +463,19 @@ func main() {
 				}
 			}
 		case "-ft", "-failtime", "-FailTime":
+			if warnDuplicateFlag(seenFlags, "failtime") {
+				i += skipValue(i)
+				continue
+			}
 			failTimeSet = true
 			if i+1 < len(args) {
 				failTimeStr = args[i+1]
 				i++
 			}
 		case "-h", "-help":
+			if warnDuplicateFlag(seenFlags, "help") {
+				continue
+			}
 			printUsage()
 			os.Exit(0)
 		default:
@@ -523,7 +615,7 @@ func main() {
 
 	failedExecutionCount := 0
 	var failedRetryTime time.Duration
-	expectConfigDetails := formatExpectConfigDetails(expect, failLimitActive, failTimeDisplay, failTimeThreshold)
+	expectConfigDetails := formatExpectConfigDetails(expect, failLimitActive, failTimeThreshold, 0, 0)
 
 	// --- Initial Output ---
 	if clear {
@@ -569,8 +661,9 @@ func main() {
 			}
 			if !silent {
 				executeMessage := fmt.Sprintf("(%s) Executing command...", loopStartTime.Format("15:04:05"))
-				if expectConfigDetails != "" {
-					executeMessage += fmt.Sprintf(" [%s]", expectConfigDetails)
+				executeConfigDetails := formatExpectConfigDetails(expect, failLimitActive, failTimeThreshold, failedExecutionCount, failedRetryTime)
+				if executeConfigDetails != "" {
+					executeMessage += fmt.Sprintf(" [%s]", executeConfigDetails)
 				}
 				color.White(executeMessage)
 			}

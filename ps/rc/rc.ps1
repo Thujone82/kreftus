@@ -138,55 +138,214 @@
 .NOTES
     To stop the script, press Ctrl+C in the terminal window where it is running.
 #>
-param(
-    [Parameter(Mandatory=$false, HelpMessage="Show full CLI reference and exit.")]
-    [Alias('h', '?')]
-    [switch]$Help,
-
-    [Parameter(Position=0)]
-    [string]$Command,
-
-    [Parameter(Position=1)]
-    [string]$Period = "5",
-
-    [Parameter(Mandatory=$false, HelpMessage="Enables precision mode to account for command execution time.")]
-    [Alias('p')]
-    [switch]$Precision,
-
-    [Parameter(Mandatory=$false, HelpMessage="Enables silent mode to suppress status output messages.")]
-    [Alias('s')]
-    [switch]$Silent,
-
-    [Parameter(Mandatory=$false, HelpMessage="Clears the screen before executing the command in each iteration.")]
-    [Alias('cl', 'c')]
-    [switch]$Clear,
-
-    [Parameter(Mandatory=$false, HelpMessage="Number of initial executions to skip before starting to run the command. If -Skip is used without a value (or with value 0), it defaults to 1.")]
-    [int]$Skip = 0,
-
-    [Parameter(Mandatory=$false, HelpMessage="Maximum number of executions to perform. Skipped executions do not count. 0 = no limit.")]
-    [int]$Limit = 0,
-
-    [Parameter(Mandatory=$false, HelpMessage="Minimum expected command runtime. Accepts period format (s/m/h). Runs below this threshold are treated as failures.")]
-    [Alias('e')]
-    [string]$Expect,
-
-    [Parameter(Mandatory=$false, HelpMessage='Replaces every literal ^* marker in -Command with this string.')]
-    [Alias('r')]
-    [string]$Replace,
-
-    [Parameter(Mandatory=$false, HelpMessage="Maximum failed runs before exit. Requires -Expect. 0 = no limit.")]
-    [Alias('f')]
-    [int]$Fail = 0,
-
-    [Parameter(Mandatory=$false, HelpMessage="Maximum cumulative failure time before exit. Requires -Expect. Period format.")]
-    [Alias('ft')]
-    [string]$FailTime
-)
+param()
 
 $ReplaceMarker = '^*'
 
-if ($Help.IsPresent) {
+# Function to parse period string with suffixes (s, m, h) and convert to minutes
+function Convert-Period {
+    param([string]$PeriodStr)
+    
+    $PeriodStr = $PeriodStr.Trim()
+    if ([string]::IsNullOrWhiteSpace($PeriodStr)) {
+        return @{ Minutes = 5; Display = "5 minutes" }
+    }
+    
+    # Check for suffix
+    $suffix = $PeriodStr.Substring($PeriodStr.Length - 1).ToLower()
+    $numberStr = $PeriodStr.Substring(0, $PeriodStr.Length - 1)
+    
+    if ($suffix -eq 's' -or $suffix -eq 'm' -or $suffix -eq 'h') {
+        # Has suffix, extract number
+        if ([double]::TryParse($numberStr, [ref]$null)) {
+            $number = [double]$numberStr
+        } else {
+            # Invalid format, default to 5 minutes
+            return @{ Minutes = 5; Display = "5 minutes" }
+        }
+    } else {
+        # No suffix, treat entire string as number (minutes)
+        if ([double]::TryParse($PeriodStr, [ref]$null)) {
+            $number = [double]$PeriodStr
+            $suffix = 'm'
+        } else {
+            # Invalid format, default to 5 minutes
+            return @{ Minutes = 5; Display = "5 minutes" }
+        }
+    }
+    
+    # Convert to minutes based on suffix
+    $minutes = switch ($suffix) {
+        's' { $number / 60.0 }
+        'm' { $number }
+        'h' { $number * 60.0 }
+        default { 5 }
+    }
+    
+    # Generate display string
+    $display = switch ($suffix) {
+        's' { 
+            if ($number -eq 1) { "1 second" } 
+            else { "$number seconds" }
+        }
+        'm' { 
+            if ($number -eq 1) { "1 minute" } 
+            else { "$number minutes" }
+        }
+        'h' { 
+            if ($number -eq 1) { "1 hour" } 
+            else { "$number hours" }
+        }
+    }
+    
+    return @{ Minutes = $minutes; Display = $display }
+}
+
+function Parse-RcCliArgs {
+    param(
+        [string[]]$ArgumentList,
+        [switch]$QuietWarnings
+    )
+
+    $switchMap = @{
+        'p' = 'Precision'; 'precision' = 'Precision'
+        's' = 'Silent'; 'silent' = 'Silent'
+        'c' = 'Clear'; 'cl' = 'Clear'; 'clear' = 'Clear'
+        'h' = 'Help'; '?' = 'Help'; 'help' = 'Help'
+    }
+    $valueMap = @{
+        'skip' = 'Skip'; 'limit' = 'Limit'
+        'e' = 'Expect'; 'expect' = 'Expect'
+        'r' = 'Replace'; 'replace' = 'Replace'
+        'f' = 'Fail'; 'fail' = 'Fail'
+        'ft' = 'FailTime'; 'failtime' = 'FailTime'
+    }
+
+    $result = @{
+        Help        = $false
+        Command     = $null
+        Period      = '5'
+        Precision   = $false
+        Silent      = $false
+        Clear       = $false
+        Skip        = 0
+        Limit       = 0
+        Expect      = $null
+        Replace     = $null
+        Fail        = 0
+        FailTime    = $null
+        Bound       = @{}
+        SkipFlagFound = $false
+    }
+    $seen = @{}
+
+    $warnDuplicate = {
+        param([string]$FlagLabel)
+        if ($seen.ContainsKey($FlagLabel)) {
+            if (-not $QuietWarnings) {
+                Write-Warning "Flag -$FlagLabel specified more than once; using the first value."
+            }
+            return $true
+        }
+        $seen[$FlagLabel] = $true
+        return $false
+    }
+
+    $nonFlags = [System.Collections.Generic.List[string]]::new()
+    $i = 0
+    while ($i -lt $ArgumentList.Count) {
+        $arg = $ArgumentList[$i]
+        if ($arg -match '^-{1,2}(.+)$') {
+            $flagName = $Matches[1].ToLower()
+            if ($switchMap.ContainsKey($flagName)) {
+                $key = $switchMap[$flagName]
+                if (& $warnDuplicate $flagName) {
+                    $i++
+                    continue
+                }
+                $result[$key] = $true
+                $result.Bound[$key] = $true
+                $i++
+                continue
+            }
+            if ($valueMap.ContainsKey($flagName)) {
+                $key = $valueMap[$flagName]
+                if (& $warnDuplicate $flagName) {
+                    if ($i + 1 -lt $ArgumentList.Count -and $ArgumentList[$i + 1] -notmatch '^-') {
+                        $i += 2
+                    } else {
+                        $i++
+                    }
+                    continue
+                }
+                if ($i + 1 -lt $ArgumentList.Count -and $ArgumentList[$i + 1] -notmatch '^-') {
+                    $value = $ArgumentList[$i + 1]
+                    if ($key -eq 'Skip') {
+                        if ([int]::TryParse($value, [ref]$null)) {
+                            $result.Skip = [int]$value
+                            $result.SkipFlagFound = $true
+                        }
+                    } elseif ($key -eq 'Limit') {
+                        if ([int]::TryParse($value, [ref]$null)) {
+                            $result.Limit = [int]$value
+                        }
+                    } elseif ($key -eq 'Fail') {
+                        if ([int]::TryParse($value, [ref]$null)) {
+                            $result.Fail = [int]$value
+                        }
+                    } else {
+                        $result[$key] = $value
+                    }
+                    $result.Bound[$key] = $true
+                    $i += 2
+                    continue
+                }
+                $result.Bound[$key] = $true
+                $i++
+                continue
+            }
+            $nonFlags.Add($arg)
+            $i++
+            continue
+        }
+        $nonFlags.Add($arg)
+        $i++
+    }
+
+    if ($nonFlags.Count -gt 0) {
+        $result.Command = $nonFlags[0]
+    }
+    if ($nonFlags.Count -gt 1) {
+        for ($j = 1; $j -lt $nonFlags.Count; $j++) {
+            $candidate = $nonFlags[$j]
+            $periodTest = Convert-Period $candidate
+            if ($periodTest) {
+                $result.Period = $candidate
+                break
+            }
+        }
+    }
+
+    return $result
+}
+
+$cli = Parse-RcCliArgs -ArgumentList $args
+$Help = [bool]$cli.Help
+$Command = $cli.Command
+$Period = $cli.Period
+$Precision = [bool]$cli.Precision
+$Silent = [bool]$cli.Silent
+$Clear = [bool]$cli.Clear
+$Skip = [int]$cli.Skip
+$Limit = [int]$cli.Limit
+$Expect = $cli.Expect
+$Replace = $cli.Replace
+$Fail = [int]$cli.Fail
+$FailTime = $cli.FailTime
+$rcBound = $cli.Bound
+$skipFlagFound = [bool]$cli.SkipFlagFound
+
+if ($Help) {
     $banner = 'Run Continuously (rc.ps1) - CLI reference'
     Write-Host $banner -ForegroundColor Cyan
     Write-Host ('=' * $banner.Length) -ForegroundColor DarkGray
@@ -274,65 +433,6 @@ For comment-based help: Get-Help .\rc.ps1 -Full
     exit 0
 }
 
-# Function to parse period string with suffixes (s, m, h) and convert to minutes
-function Convert-Period {
-    param([string]$PeriodStr)
-    
-    $PeriodStr = $PeriodStr.Trim()
-    if ([string]::IsNullOrWhiteSpace($PeriodStr)) {
-        return @{ Minutes = 5; Display = "5 minutes" }
-    }
-    
-    # Check for suffix
-    $suffix = $PeriodStr.Substring($PeriodStr.Length - 1).ToLower()
-    $numberStr = $PeriodStr.Substring(0, $PeriodStr.Length - 1)
-    
-    if ($suffix -eq 's' -or $suffix -eq 'm' -or $suffix -eq 'h') {
-        # Has suffix, extract number
-        if ([double]::TryParse($numberStr, [ref]$null)) {
-            $number = [double]$numberStr
-        } else {
-            # Invalid format, default to 5 minutes
-            return @{ Minutes = 5; Display = "5 minutes" }
-        }
-    } else {
-        # No suffix, treat entire string as number (minutes)
-        if ([double]::TryParse($PeriodStr, [ref]$null)) {
-            $number = [double]$PeriodStr
-            $suffix = 'm'
-        } else {
-            # Invalid format, default to 5 minutes
-            return @{ Minutes = 5; Display = "5 minutes" }
-        }
-    }
-    
-    # Convert to minutes based on suffix
-    $minutes = switch ($suffix) {
-        's' { $number / 60.0 }
-        'm' { $number }
-        'h' { $number * 60.0 }
-        default { 5 }
-    }
-    
-    # Generate display string
-    $display = switch ($suffix) {
-        's' { 
-            if ($number -eq 1) { "1 second" } 
-            else { "$number seconds" }
-        }
-        'm' { 
-            if ($number -eq 1) { "1 minute" } 
-            else { "$number minutes" }
-        }
-        'h' { 
-            if ($number -eq 1) { "1 hour" } 
-            else { "$number hours" }
-        }
-    }
-    
-    return @{ Minutes = $minutes; Display = $display }
-}
-
 function Format-CompactDuration {
     param(
         [TimeSpan]$Span,
@@ -364,24 +464,62 @@ function Format-DateAwareTimestamp {
     return $Timestamp.ToString('MMddyy@HH:mm:ss')
 }
 
+function Format-CompactPeriodLabel {
+    param([TimeSpan]$Span)
+
+    $totalSec = [int][math]::Round([math]::Max(0, $Span.TotalSeconds))
+    if ($totalSec -ge 3600) {
+        $h = [math]::Floor($totalSec / 3600)
+        $rem = $totalSec % 3600
+        if ($rem -eq 0) {
+            return "${h}H"
+        }
+        $m = [math]::Floor($rem / 60)
+        if ($m -gt 0) {
+            return "${h}H${m}M"
+        }
+        return "${h}H"
+    }
+    if ($totalSec -ge 60) {
+        return "$([math]::Floor($totalSec / 60))M"
+    }
+    if ($totalSec -le 0) {
+        return '0S'
+    }
+    return "${totalSec}S"
+}
+
 function Format-ExpectConfigDetails {
     param(
-        $ExpectDisplay,
-        [int]$FailLimit,
-        $FailTimeDisplay,
         $ExpectThreshold,
-        $FailTimeThreshold
+        [int]$FailLimit,
+        $FailTimeThreshold,
+        [int]$FailedExecutionCount = 0,
+        [TimeSpan]$FailedRetryTime = [TimeSpan]::Zero
     )
 
     $parts = @()
     if ($ExpectThreshold) {
-        $parts += "Expect: $ExpectDisplay"
+        $parts += "Expect: $(Format-CompactPeriodLabel $ExpectThreshold)"
     }
     if ($FailLimit -gt 0) {
-        $parts += "Fail: $FailLimit"
+        if ($FailedExecutionCount -gt 0) {
+            $parts += "Fail: $FailedExecutionCount/$FailLimit"
+        } else {
+            $parts += "Fail: $FailLimit"
+        }
     }
     if ($FailTimeThreshold) {
-        $parts += "FailTime: $FailTimeDisplay"
+        $totalLabel = Format-CompactPeriodLabel $FailTimeThreshold
+        if ($FailedRetryTime.TotalSeconds -gt 0) {
+            $remaining = $FailTimeThreshold - $FailedRetryTime
+            if ($remaining.TotalSeconds -lt 0) {
+                $remaining = [TimeSpan]::Zero
+            }
+            $parts += "FailTime: $(Format-CompactPeriodLabel $remaining) / $totalLabel"
+        } else {
+            $parts += "FailTime: $totalLabel"
+        }
     }
 
     if ($parts.Count -eq 0) {
@@ -423,7 +561,7 @@ $PeriodDisplay = $periodInfo.Display
 $expectThreshold = $null
 $expectDisplay = $null
 
-if ($PSBoundParameters.ContainsKey('Expect')) {
+if ($rcBound.ContainsKey('Expect')) {
     $expectInfo = Convert-Period $Expect
     $expectThreshold = [TimeSpan]::FromMinutes($expectInfo.Minutes)
     $expectDisplay = $expectInfo.Display
@@ -432,12 +570,12 @@ if ($PSBoundParameters.ContainsKey('Expect')) {
 $failLimit = 0
 $failTimeThreshold = $null
 $failTimeDisplay = $null
-$failLimitRequested = $PSBoundParameters.ContainsKey('Fail') -and $Fail -gt 0
-$failTimeRequested = $PSBoundParameters.ContainsKey('FailTime')
+$failLimitRequested = $rcBound.ContainsKey('Fail') -and $Fail -gt 0
+$failTimeRequested = $rcBound.ContainsKey('FailTime')
 
 if ($failLimitRequested -or $failTimeRequested) {
     if (-not $expectThreshold) {
-        if (-not $Silent.IsPresent) {
+        if (-not $Silent) {
             Write-Warning '-Fail and -FailTime require -Expect (-e) and were ignored.'
         }
     } else {
@@ -456,12 +594,12 @@ $periodInterval = [TimeSpan]::FromMinutes($PeriodMinutes)
 
 # If -Skip parameter was explicitly provided but value is 0, default to 1
 # This allows -Skip to default to skipping 1 execution when used without a value
-if ($PSBoundParameters.ContainsKey('Skip') -and $Skip -eq 0) {
+if ($skipFlagFound -and $Skip -eq 0) {
     $Skip = 1
 }
 
-if ($PSBoundParameters.ContainsKey('Replace')) {
-    if (-not $Command.Contains($ReplaceMarker) -and -not $Silent.IsPresent) {
+if ($rcBound.ContainsKey('Replace')) {
+    if (-not $Command.Contains($ReplaceMarker) -and -not $Silent) {
         Write-Warning "-Replace was specified but command does not contain the $ReplaceMarker marker."
     }
     $Command = $Command.Replace($ReplaceMarker, $Replace)
@@ -496,13 +634,13 @@ if (-not $Command) {
 }
 
 # Clear screen if requested - must be done before any output
-if ($Clear.IsPresent) {
+if ($Clear) {
     Clear-Host
 }
 
-$expectConfigDetails = Format-ExpectConfigDetails -ExpectDisplay $expectDisplay -FailLimit $failLimit -FailTimeDisplay $failTimeDisplay -ExpectThreshold $expectThreshold -FailTimeThreshold $failTimeThreshold
+$expectConfigDetails = Format-ExpectConfigDetails -ExpectThreshold $expectThreshold -FailLimit $failLimit -FailTimeThreshold $failTimeThreshold
 
-if (-not $Silent.IsPresent) {
+if (-not $Silent) {
     Write-Host "Running `"$Command`" every $PeriodDisplay. Press Ctrl+C to stop.`n"
     if ($expectConfigDetails) {
         Write-Host $expectConfigDetails -ForegroundColor Magenta
@@ -515,7 +653,7 @@ if (-not $Silent.IsPresent) {
     }
 }
 $scriptStartTime = Get-Date
-if ($Precision.IsPresent -and -not $Silent.IsPresent) {
+if ($Precision -and -not $Silent) {
     Write-Host "Precision mode is enabled. Aligning to grid starting at $($scriptStartTime.ToString('HH:mm:ss'))." -ForegroundColor Cyan
 }
 
@@ -537,20 +675,21 @@ while ($true) {
     # Skip execution if we haven't reached the skip threshold yet
     # User feedback is provided unless Silent mode is enabled
     if ($executionCount -le $Skip) {
-        if (-not $Silent.IsPresent) {
+        if (-not $Silent) {
             Write-Host "($(Get-Date -Format 'HH:mm:ss')) Skipping execution $executionCount of $Skip..." -ForegroundColor Yellow
         }
     } else {
         # Execute the command once we've passed the skip threshold
         $actualExecutionCount++
         try {
-            if ($Clear.IsPresent) {
+            if ($Clear) {
                 Clear-Host
             }
-            if (-not $Silent.IsPresent) {
+            if (-not $Silent) {
                 $executeMessage = "($(Get-Date -Format 'HH:mm:ss')) Executing command..."
-                if ($expectConfigDetails) {
-                    $executeMessage += " [$expectConfigDetails]"
+                $executeConfigDetails = Format-ExpectConfigDetails -ExpectThreshold $expectThreshold -FailLimit $failLimit -FailTimeThreshold $failTimeThreshold -FailedExecutionCount $failedExecutionCount -FailedRetryTime $failedRetryTime
+                if ($executeConfigDetails) {
+                    $executeMessage += " [$executeConfigDetails]"
                 }
                 Write-Host $executeMessage
             }
@@ -576,14 +715,14 @@ while ($true) {
 
         # Check if limit reached
         if ($Limit -gt 0 -and $actualExecutionCount -ge $Limit) {
-            if (-not $Silent.IsPresent) {
+            if (-not $Silent) {
                 Write-Host "`nReached execution limit of $Limit. Exiting." -ForegroundColor Green
             }
             break
         }
 
         if ($failLimit -gt 0 -and $failedExecutionCount -ge $failLimit) {
-            if (-not $Silent.IsPresent) {
+            if (-not $Silent) {
                 Write-ExpectSummaryIfNeeded -ExpectThreshold $expectThreshold -ExecutionCount $executionCount -Skip $Skip -LastSuccessfulCompletionTime $lastSuccessfulCompletionTime -SuccessfulExecutionCount $successfulExecutionCount -ActualExecutionCount $actualExecutionCount -TotalSuccessfulRuntime $totalSuccessfulRuntime -LastSuccessfulRuntime $lastSuccessfulRuntime
                 Write-Host "`nReached failure limit of $failLimit. Exiting." -ForegroundColor Red
             }
@@ -591,7 +730,7 @@ while ($true) {
         }
 
         if ($failTimeThreshold -and $failedRetryTime -ge $failTimeThreshold) {
-            if (-not $Silent.IsPresent) {
+            if (-not $Silent) {
                 Write-ExpectSummaryIfNeeded -ExpectThreshold $expectThreshold -ExecutionCount $executionCount -Skip $Skip -LastSuccessfulCompletionTime $lastSuccessfulCompletionTime -SuccessfulExecutionCount $successfulExecutionCount -ActualExecutionCount $actualExecutionCount -TotalSuccessfulRuntime $totalSuccessfulRuntime -LastSuccessfulRuntime $lastSuccessfulRuntime
                 Write-Host "`nReached failure time limit of $failTimeDisplay. Exiting." -ForegroundColor Red
             }
@@ -599,7 +738,7 @@ while ($true) {
         }
     }
 
-    if ($Precision.IsPresent) {
+    if ($Precision) {
         $currentTime = Get-Date
         if (-not $commandDuration) {
             $commandDuration = $currentTime - $loopStartTime
@@ -613,7 +752,7 @@ while ($true) {
         $sleepTimeSpan = $nextTargetTime - $currentTime
 
         if ($sleepTimeSpan.TotalSeconds -gt 0) {
-            if (-not $Silent.IsPresent) {
+            if (-not $Silent) {
                 $runtimeDisplay = Format-CompactDuration -Span $commandDuration -ShowFractionWhenUnderMinute
                 $waitingDisplay = Format-CompactDuration -Span $sleepTimeSpan
                 $nextRunDisplay = Format-DateAwareTimestamp $nextTargetTime
@@ -623,14 +762,14 @@ while ($true) {
             }
             Start-Sleep -Seconds $sleepTimeSpan.TotalSeconds
         } else {
-            if (-not $Silent.IsPresent) {
+            if (-not $Silent) {
                 Write-Warning "Command execution time ($($commandDuration.TotalSeconds.ToString('F2'))s) overran its schedule. Running next iteration immediately."
             }
         }
     } else {
         # Standard mode: wait for the specified period after command execution
         # Note: This wait period also applies during skipped executions to maintain timing
-        if (-not $Silent.IsPresent) {
+        if (-not $Silent) {
             if ($expectThreshold -and $executionCount -gt $Skip) {
                 Write-Host "Waiting $PeriodDisplay."
                 Write-ExpectSummaryIfNeeded -ExpectThreshold $expectThreshold -ExecutionCount $executionCount -Skip $Skip -LastSuccessfulCompletionTime $lastSuccessfulCompletionTime -SuccessfulExecutionCount $successfulExecutionCount -ActualExecutionCount $actualExecutionCount -TotalSuccessfulRuntime $totalSuccessfulRuntime -LastSuccessfulRuntime $lastSuccessfulRuntime
