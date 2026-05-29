@@ -1976,6 +1976,10 @@ function setupEventListeners() {
 
     // Config modal
     setupConfigModal();
+
+    document.addEventListener('keydown', (e) => {
+        handleLocationHotkeyFromEvent(e);
+    });
 }
 
 // Handle favorite toggle
@@ -2802,6 +2806,49 @@ function migrateFavorites() {
 }
 
 // Favorites management functions
+function getLocationHotkeyFavoriteIndex(event) {
+    if (event.ctrlKey || event.altKey || event.metaKey) return -1;
+    const match = /^Digit([0-9])$/.exec(event.code);
+    if (!match) return -1;
+    const digit = parseInt(match[1], 10);
+    const slot = digit === 0 ? 10 : digit;
+    return event.shiftKey ? slot - 1 + 10 : slot - 1;
+}
+
+function shouldIgnoreLocationHotkey() {
+    const el = document.activeElement;
+    if (!el) return false;
+    const tag = el.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    if (el.isContentEditable) return true;
+    if (elements.configModal && !elements.configModal.classList.contains('hidden')) return true;
+    if (elements.locationButtons && elements.locationButtons.querySelector('.location-btn-edit')) return true;
+    return false;
+}
+
+function getLocationHotkeyLabel(index) {
+    if (index < 0 || index >= 20) return '';
+    if (index < 9) return String(index + 1);
+    if (index === 9) return '0';
+    if (index < 19) return `Shift+${index - 9}`;
+    return 'Shift+0';
+}
+
+function handleLocationHotkeyFromEvent(event) {
+    if (shouldIgnoreLocationHotkey()) return false;
+    const index = getLocationHotkeyFavoriteIndex(event);
+    if (index < 0 || index >= 20) return false;
+    const favorites = getFavorites();
+    const favorite = favorites[index];
+    if (!favorite) return false;
+    const uid = favorite.uid || favorite.key;
+    if (!uid) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    handleLocationButtonClick(uid);
+    return true;
+}
+
 function getFavorites() {
     try {
         const favorites = localStorage.getItem('forecastFavorites');
@@ -3720,7 +3767,9 @@ function renderLocationButtons(activeUID = null) {
         const activeClass = isActive ? ' active' : '';
         // Use UID as the primary identifier in data attribute (should always exist now)
         const uid = favorite.uid || favorite.key; // Fallback to key for old favorites without UID
-        html += `<button type="button" class="location-btn${activeClass}" data-location-uid="${uid}" data-location-key="${favorite.key || ''}" data-custom-name="${favorite.customName || ''}" data-index="${index}" draggable="true">${truncatedName}</button>`;
+        const hotkey = getLocationHotkeyLabel(index);
+        const titleAttr = hotkey ? ` title="Load location (${hotkey})"` : '';
+        html += `<button type="button" class="location-btn${activeClass}" data-location-uid="${uid}" data-location-key="${favorite.key || ''}" data-custom-name="${favorite.customName || ''}" data-index="${index}" draggable="true"${titleAttr}>${truncatedName}</button>`;
     });
     
     elements.locationButtons.innerHTML = html;
