@@ -551,7 +551,8 @@ function Write-ExpectSummaryIfNeeded {
     } else {
         'N/A'
     }
-    Write-Host "Last Success: $lastSuccessDisplay ($SuccessfulExecutionCount/$ActualExecutionCount)`nTotal Runtime: $totalSuccessDisplay ($lastSuccessRuntimeDisplay)"
+    Write-Host "Last Success: $lastSuccessDisplay ($SuccessfulExecutionCount/$ActualExecutionCount)"
+    Write-Host "Total Runtime: $totalSuccessDisplay ($lastSuccessRuntimeDisplay)"
 }
 
 # Parse period string
@@ -666,6 +667,8 @@ $failedRetryTime = [TimeSpan]::Zero
 $totalSuccessfulRuntime = [TimeSpan]::Zero
 $lastSuccessfulRuntime = $null
 $lastSuccessfulCompletionTime = $null
+$pendingExitMessage = $null
+$pendingExitColor = $null
 while ($true) {
     $executionCount++
     $loopStartTime = Get-Date
@@ -715,27 +718,19 @@ while ($true) {
 
         # Check if limit reached
         if ($Limit -gt 0 -and $actualExecutionCount -ge $Limit) {
-            if (-not $Silent) {
-                Write-Host "`nReached execution limit of $Limit. Exiting." -ForegroundColor Green
-            }
-            break
+            $pendingExitMessage = "Reached execution limit of $Limit. Exiting."
+            $pendingExitColor = 'Green'
+        } elseif ($failLimit -gt 0 -and $failedExecutionCount -ge $failLimit) {
+            $pendingExitMessage = "Reached failure limit of $failLimit. Exiting."
+            $pendingExitColor = 'Red'
+        } elseif ($failTimeThreshold -and $failedRetryTime -ge $failTimeThreshold) {
+            $pendingExitMessage = "Reached failure time limit of $failTimeDisplay. Exiting."
+            $pendingExitColor = 'Red'
         }
+    }
 
-        if ($failLimit -gt 0 -and $failedExecutionCount -ge $failLimit) {
-            if (-not $Silent) {
-                Write-ExpectSummaryIfNeeded -ExpectThreshold $expectThreshold -ExecutionCount $executionCount -Skip $Skip -LastSuccessfulCompletionTime $lastSuccessfulCompletionTime -SuccessfulExecutionCount $successfulExecutionCount -ActualExecutionCount $actualExecutionCount -TotalSuccessfulRuntime $totalSuccessfulRuntime -LastSuccessfulRuntime $lastSuccessfulRuntime
-                Write-Host "`nReached failure limit of $failLimit. Exiting." -ForegroundColor Red
-            }
-            break
-        }
-
-        if ($failTimeThreshold -and $failedRetryTime -ge $failTimeThreshold) {
-            if (-not $Silent) {
-                Write-ExpectSummaryIfNeeded -ExpectThreshold $expectThreshold -ExecutionCount $executionCount -Skip $Skip -LastSuccessfulCompletionTime $lastSuccessfulCompletionTime -SuccessfulExecutionCount $successfulExecutionCount -ActualExecutionCount $actualExecutionCount -TotalSuccessfulRuntime $totalSuccessfulRuntime -LastSuccessfulRuntime $lastSuccessfulRuntime
-                Write-Host "`nReached failure time limit of $failTimeDisplay. Exiting." -ForegroundColor Red
-            }
-            break
-        }
+    if ($pendingExitMessage) {
+        break
     }
 
     if ($Precision) {
@@ -780,4 +775,9 @@ while ($true) {
         }
         Start-Sleep -Seconds ($PeriodMinutes * 60)
     }
+}
+
+if ($pendingExitMessage -and -not $Silent) {
+    Write-ExpectSummaryIfNeeded -ExpectThreshold $expectThreshold -ExecutionCount $executionCount -Skip $Skip -LastSuccessfulCompletionTime $lastSuccessfulCompletionTime -SuccessfulExecutionCount $successfulExecutionCount -ActualExecutionCount $actualExecutionCount -TotalSuccessfulRuntime $totalSuccessfulRuntime -LastSuccessfulRuntime $lastSuccessfulRuntime
+    Write-Host "`n$pendingExitMessage" -ForegroundColor $pendingExitColor
 }

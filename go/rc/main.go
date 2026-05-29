@@ -200,9 +200,8 @@ func printExpectSummary(expect *expectState, executionCount, skip int, silent bo
 	if expect.hasLastSuccess {
 		lastSuccessRuntimeDisplay = formatSuccessRuntime(expect.lastSuccessfulRuntime)
 	}
-	fmt.Printf("Last Success: %s (%d/%d)\nTotal Runtime: %s (%s)\n",
-		lastSuccessDisplay, expect.successCount, expect.actualCount,
-		totalSuccessDisplay, lastSuccessRuntimeDisplay)
+	fmt.Printf("Last Success: %s (%d/%d)\n", lastSuccessDisplay, expect.successCount, expect.actualCount)
+	fmt.Printf("Total Runtime: %s (%s)\n", totalSuccessDisplay, lastSuccessRuntimeDisplay)
 }
 
 func applyReplace(commandStr, replaceValue string, replaceSet, silent bool) string {
@@ -644,6 +643,8 @@ func main() {
 	// --- Main Execution Loop ---
 	executionCount := 0
 	actualExecutionCount := 0
+	var pendingExitMsg string
+	var pendingExitGreen bool
 	for {
 		executionCount++
 		loopStartTime := time.Now()
@@ -687,27 +688,19 @@ func main() {
 			}
 
 			if limit > 0 && actualExecutionCount >= limit {
-				if !silent {
-					color.Green("\nReached execution limit of %d. Exiting.", limit)
-				}
-				break
+				pendingExitMsg = fmt.Sprintf("Reached execution limit of %d. Exiting.", limit)
+				pendingExitGreen = true
+			} else if failLimitActive > 0 && failedExecutionCount >= failLimitActive {
+				pendingExitMsg = fmt.Sprintf("Reached failure limit of %d. Exiting.", failLimitActive)
+				pendingExitGreen = false
+			} else if failTimeThreshold > 0 && failedRetryTime >= failTimeThreshold {
+				pendingExitMsg = fmt.Sprintf("Reached failure time limit of %s. Exiting.", failTimeDisplay)
+				pendingExitGreen = false
 			}
+		}
 
-			if failLimitActive > 0 && failedExecutionCount >= failLimitActive {
-				if !silent {
-					printExpectSummary(expect, executionCount, skip, silent)
-					color.Red("\nReached failure limit of %d. Exiting.", failLimitActive)
-				}
-				break
-			}
-
-			if failTimeThreshold > 0 && failedRetryTime >= failTimeThreshold {
-				if !silent {
-					printExpectSummary(expect, executionCount, skip, silent)
-					color.Red("\nReached failure time limit of %s. Exiting.", failTimeDisplay)
-				}
-				break
-			}
+		if pendingExitMsg != "" {
+			break
 		}
 
 		if precision {
@@ -746,6 +739,15 @@ func main() {
 				}
 			}
 			time.Sleep(periodDuration)
+		}
+	}
+
+	if pendingExitMsg != "" && !silent {
+		printExpectSummary(expect, executionCount, skip, silent)
+		if pendingExitGreen {
+			color.Green("\n%s", pendingExitMsg)
+		} else {
+			color.Red("\n%s", pendingExitMsg)
 		}
 	}
 }
