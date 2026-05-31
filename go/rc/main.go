@@ -150,10 +150,37 @@ func formatCompactPeriodLabel(d time.Duration) string {
 	return fmt.Sprintf("%dS", totalSec)
 }
 
-func formatExpectConfigDetails(expect *expectState, failLimitActive int, failTimeThreshold time.Duration, failedExecutionCount int, failedRetryTime time.Duration) string {
+func formatExpectConfigDetails(
+	expect *expectState,
+	successLimitActive int,
+	successTimeThreshold time.Duration,
+	failLimitActive int,
+	failTimeThreshold time.Duration,
+	failedExecutionCount int,
+	failedRetryTime time.Duration,
+) string {
 	var parts []string
 	if expect != nil {
 		parts = append(parts, fmt.Sprintf("Expect: %s", formatCompactPeriodLabel(expect.threshold)))
+	}
+	if successLimitActive > 0 {
+		if expect != nil && expect.successCount > 0 {
+			parts = append(parts, fmt.Sprintf("Success: %d/%d", expect.successCount, successLimitActive))
+		} else {
+			parts = append(parts, fmt.Sprintf("Success: %d", successLimitActive))
+		}
+	}
+	if successTimeThreshold > 0 {
+		totalLabel := formatCompactPeriodLabel(successTimeThreshold)
+		if expect != nil && expect.totalSuccessfulRuntime > 0 {
+			remaining := successTimeThreshold - expect.totalSuccessfulRuntime
+			if remaining < 0 {
+				remaining = 0
+			}
+			parts = append(parts, fmt.Sprintf("SuccessTime: %s / %s", formatCompactPeriodLabel(remaining), totalLabel))
+		} else {
+			parts = append(parts, fmt.Sprintf("SuccessTime: %s", totalLabel))
+		}
 	}
 	if failLimitActive > 0 {
 		if failedExecutionCount > 0 {
@@ -262,8 +289,8 @@ func printUsage() {
 	fmt.Println()
 
 	color.Yellow("USAGE")
-	fmt.Println("    rc \"<command>\" [period] [-p] [-s] [-c] [-skip <number>] [-limit <number>]")
-	fmt.Println("       [-e <period>] [-r <string>] [-f <number>] [-ft <period>]")
+	fmt.Println("    rc \"<command>\" [period] [-p] [-q] [-c] [-skip <number>] [-limit <number>]")
+	fmt.Println("       [-e <period>] [-r <string>] [-f <number>] [-ft <period>] [-s <number>] [-st <period>]")
 	fmt.Println()
 
 	color.Yellow("PARAMETERS")
@@ -278,7 +305,7 @@ func printUsage() {
 	color.Cyan("  -p, -precision")
 	fmt.Println("    Optional. Enables precision mode to prevent timing drift.")
 	fmt.Println()
-	color.Cyan("  -s, -silent")
+	color.Cyan("  -q, -quiet")
 	fmt.Println("    Optional. Enables silent mode to suppress status output messages.")
 	fmt.Println()
 	color.Cyan("  -c, -clear")
@@ -307,6 +334,12 @@ func printUsage() {
 	color.Cyan("  -ft, -failtime <period>")
 	fmt.Println("    Optional. Exit when failed runs times retry interval reaches this cap. Period format. Requires -expect.")
 	fmt.Println()
+	color.Cyan("  -s, -success <number>")
+	fmt.Println("    Optional. Exit after this many successful runs (duration at or above -expect). Requires -expect. 0 = unlimited.")
+	fmt.Println()
+	color.Cyan("  -st, -successtime <period>")
+	fmt.Println("    Optional. Exit when accumulated successful run time reaches this cap. Period format. Requires -expect.")
+	fmt.Println()
 
 	color.Yellow("EXAMPLES")
 	color.Green("    rc \"go run main.go\" 1")
@@ -315,10 +348,10 @@ func printUsage() {
 	color.Green("    rc \"gw Portland\" 10 -p")
 	fmt.Println("    Runs the 'gw' command on a fixed 10-minute schedule.")
 	fmt.Println()
-	color.Green("    rc \"date\" 1 -s")
+	color.Green("    rc \"date\" 1 -q")
 	fmt.Println("    Runs 'date' every minute in silent mode, suppressing status messages.")
 	fmt.Println()
-	color.Green("    rc \"my-script.sh\" 5 -p -s")
+	color.Green("    rc \"my-script.sh\" 5 -p -q")
 	fmt.Println("    Runs 'my-script.sh' every 5 minutes with precision timing and silent output.")
 	fmt.Println()
 	color.Green("    rc \"date\" 1 -c")
@@ -346,6 +379,9 @@ func printUsage() {
 	fmt.Println()
 	color.Green("    rc \"date\" 5m -e 30s -fail 3")
 	fmt.Println("    Exits after 3 runs that finish faster than the 30 second expected minimum.")
+	fmt.Println()
+	color.Green("    rc \"date\" 5m -e 30s -success 5")
+	fmt.Println("    Exits after 5 runs that meet the 30 second expected minimum.")
 	fmt.Println()
 }
 
@@ -376,6 +412,10 @@ func main() {
 	var failSet bool
 	var failTimeStr string
 	var failTimeSet bool
+	var successLimit int
+	var successSet bool
+	var successTimeStr string
+	var successTimeSet bool
 	var nonFlagArgs []string
 	skipFlagFound := false
 
@@ -396,8 +436,8 @@ func main() {
 				continue
 			}
 			precision = true
-		case "-s", "-silent":
-			if warnDuplicateFlag(seenFlags, "silent") {
+		case "-q", "-quiet":
+			if warnDuplicateFlag(seenFlags, "quiet") {
 				continue
 			}
 			silent = true
@@ -469,6 +509,28 @@ func main() {
 			failTimeSet = true
 			if i+1 < len(args) {
 				failTimeStr = args[i+1]
+				i++
+			}
+		case "-s", "-success", "-Success":
+			if warnDuplicateFlag(seenFlags, "success") {
+				i += skipValue(i)
+				continue
+			}
+			successSet = true
+			if i+1 < len(args) {
+				if s, err := strconv.Atoi(args[i+1]); err == nil {
+					successLimit = s
+					i++
+				}
+			}
+		case "-st", "-successtime", "-SuccessTime":
+			if warnDuplicateFlag(seenFlags, "successtime") {
+				i += skipValue(i)
+				continue
+			}
+			successTimeSet = true
+			if i+1 < len(args) {
+				successTimeStr = args[i+1]
 				i++
 			}
 		case "-h", "-help":
@@ -592,11 +654,16 @@ func main() {
 	var failTimeDisplay string
 	failLimitRequested := failSet && failLimit > 0
 	failTimeRequested := failTimeSet
+	successLimitActive := 0
+	var successTimeThreshold time.Duration
+	var successTimeDisplay string
+	successLimitRequested := successSet && successLimit > 0
+	successTimeRequested := successTimeSet
 
-	if failLimitRequested || failTimeRequested {
+	if failLimitRequested || failTimeRequested || successLimitRequested || successTimeRequested {
 		if expect == nil {
 			if !silent {
-				color.Yellow("WARNING: -fail and -failtime require -expect (-e) and were ignored.")
+				color.Yellow("WARNING: -fail, -failtime, -success, and -successtime require -expect (-e) and were ignored.")
 			}
 		} else {
 			if failLimitRequested {
@@ -609,12 +676,22 @@ func main() {
 					failTimeDisplay = ftDisplay
 				}
 			}
+			if successLimitRequested {
+				successLimitActive = successLimit
+			}
+			if successTimeRequested {
+				stDuration, stDisplay, parseErr := parsePeriod(successTimeStr)
+				if parseErr == nil && stDuration > 0 {
+					successTimeThreshold = stDuration
+					successTimeDisplay = stDisplay
+				}
+			}
 		}
 	}
 
 	failedExecutionCount := 0
 	var failedRetryTime time.Duration
-	expectConfigDetails := formatExpectConfigDetails(expect, failLimitActive, failTimeThreshold, 0, 0)
+	expectConfigDetails := formatExpectConfigDetails(expect, successLimitActive, successTimeThreshold, failLimitActive, failTimeThreshold, 0, 0)
 
 	// --- Initial Output ---
 	if clear {
@@ -662,7 +739,7 @@ func main() {
 			}
 			if !silent {
 				executeMessage := fmt.Sprintf("(%s) Executing command...", loopStartTime.Format("15:04:05"))
-				executeConfigDetails := formatExpectConfigDetails(expect, failLimitActive, failTimeThreshold, failedExecutionCount, failedRetryTime)
+				executeConfigDetails := formatExpectConfigDetails(expect, successLimitActive, successTimeThreshold, failLimitActive, failTimeThreshold, failedExecutionCount, failedRetryTime)
 				if executeConfigDetails != "" {
 					executeMessage += fmt.Sprintf(" [%s]", executeConfigDetails)
 				}
@@ -696,6 +773,12 @@ func main() {
 			} else if failTimeThreshold > 0 && failedRetryTime >= failTimeThreshold {
 				pendingExitMsg = fmt.Sprintf("Reached failure time limit of %s. Exiting.", failTimeDisplay)
 				pendingExitGreen = false
+			} else if successLimitActive > 0 && expect != nil && expect.successCount >= successLimitActive {
+				pendingExitMsg = fmt.Sprintf("Reached success limit of %d. Exiting.", successLimitActive)
+				pendingExitGreen = true
+			} else if successTimeThreshold > 0 && expect != nil && expect.totalSuccessfulRuntime >= successTimeThreshold {
+				pendingExitMsg = fmt.Sprintf("Reached success time limit of %s. Exiting.", successTimeDisplay)
+				pendingExitGreen = true
 			}
 		}
 

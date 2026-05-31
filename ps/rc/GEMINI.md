@@ -20,7 +20,7 @@
 | `Command` | (positional 0) | string | (prompt) | Expression run each iteration. Quote if it contains spaces. |
 | `Period` | (positional 1) | string | `5` | Wait between iterations. Period format (see below). |
 | `Precision` | `p` | switch | off | Grid-aligned scheduling from script start. |
-| `Silent` | `s` | switch | off | Suppress status lines; command output and warnings still show. |
+| `Silent` | `q`, `quiet` | switch | off | Suppress status lines; command output and warnings still show. |
 | `Clear` | `c`, `cl` | switch | off | `Clear-Host` at startup (if set) and before each run. |
 | `Skip` | — | int | `0` | Loop iterations that skip `Invoke-Expression` but still wait. If `-Skip` is **bound** and value is `0`, treated as `1`. |
 | `Limit` | — | int | `0` | Max **actual** command runs (skipped iterations do not count). `0` = unlimited. |
@@ -28,6 +28,8 @@
 | `Replace` | `r` | string | — | Replace every literal `^*` in `-Command` with this value before each run. |
 | `Fail` | `f` | int | `0` | Exit after this many **failed** runs (duration &lt; `-Expect`). Requires `-Expect`. `0` = off. |
 | `FailTime` | `ft` | string | — | Exit when cumulative failure cost reaches cap (period format). Requires `-Expect`. |
+| `Success` | `s` | int | `0` | Exit after this many **successful** runs (duration &gt;= `-Expect`). Requires `-Expect`. `0` = off. |
+| `SuccessTime` | `st` | string | — | Exit when accumulated successful run time reaches cap (period format). Requires `-Expect`. |
 | `Help` | `h`, `?` | switch | — | Print full CLI reference and exit. |
 
 Comment-based help: `Get-Help .\rc.ps1 -Full`
@@ -46,7 +48,7 @@ After each loop iteration (including skip-only iterations), sleeps for the full 
 - Sleeps until `nextTarget` if positive; otherwise warns and runs immediately (overrun recovery).
 - Status line: `Runtime: … Waiting: … Next Run: …` (compact duration format).
 
-### Silent mode (`-Silent` / `-s`)
+### Silent mode (`-Silent` / `-q` / `-quiet`)
 Suppresses banners, timestamps, wait lines, expect summary, and limit messages. Command output and `Write-Warning` (command errors, soft warnings) still appear.
 
 ### Clear mode (`-Clear` / `-c` / `-cl`)
@@ -93,6 +95,18 @@ Suppresses banners, timestamps, wait lines, expect summary, and limit messages. 
 - If **both** are set, **either** limit ends the loop (whichever is hit first).
 - On exit: prints expect summary, then red message (`Reached failure limit…` / `Reached failure time limit…`).
 
+### Success limits (`-Success` / `-s`, `-SuccessTime` / `-st`)
+**Require `-Expect`.** If set without `-Expect`, soft warning and limits ignored.
+
+| Limit | Behavior |
+|-------|----------|
+| `-Success N` | Exit when `$successfulExecutionCount >= N` |
+| `-SuccessTime` | Exit when `$totalSuccessfulRuntime >=` parsed threshold |
+
+- Each success adds **actual command duration** to `$totalSuccessfulRuntime` (not Period interval).
+- If **both** are set, **either** limit ends the loop (whichever is hit first).
+- On exit: prints expect summary, then green message (`Reached success limit…` / `Reached success time limit…`).
+
 ### Period format (`Convert-Period`)
 | Input | Meaning |
 |-------|---------|
@@ -104,7 +118,7 @@ Suppresses banners, timestamps, wait lines, expect summary, and limit messages. 
 
 Returns hashtable: `@{ Minutes = [double]; Display = "human string" }`
 
-Used for `-Period`, `-Expect`, and `-FailTime`.
+Used for `-Period`, `-Expect`, `-FailTime`, and `-SuccessTime`.
 
 ---
 
@@ -115,7 +129,7 @@ Used for `-Period`, `-Expect`, and `-FailTime`.
 | `Convert-Period` | Parse period strings with `s`/`m`/`h` suffixes |
 | `Format-CompactDuration` | `HH:mm:ss`, `mm:ss`, or fractional seconds for precision status |
 | `Format-DateAwareTimestamp` | Today vs other-day timestamp for Next Run / Last Success |
-| `Format-ExpectConfigDetails` | Build `Expect: … \| Fail: … \| FailTime: …` for banners and execute line |
+| `Format-ExpectConfigDetails` | Build `Expect: … \| Success: … \| SuccessTime: … \| Fail: … \| FailTime: …` for banners and execute line |
 | `Write-ExpectSummaryIfNeeded` | Print success summary when `-Expect` set and `$executionCount > $Skip` |
 
 ---
@@ -136,6 +150,8 @@ while ($true) {
     check -Limit → break
     check -Fail → summary + break
     check -FailTime → summary + break
+    check -Success → summary + break
+    check -SuccessTime → summary + break
   }
   if (-Precision) { grid sleep + runtime line + expect summary }
   else { "Waiting …" + expect summary; full period sleep }
@@ -152,7 +168,7 @@ while ($true) {
 ## Startup output (non-silent)
 
 1. `Running "<command>" every <period>. Press Ctrl+C to stop.`
-2. Magenta expect config line (if any of Expect / Fail / FailTime active)
+2. Magenta expect config line (if any of Expect / Success / SuccessTime / Fail / FailTime active)
 3. Yellow skip banner (if `$Skip > 0`)
 4. Cyan limit banner (if `$Limit > 0`)
 5. Cyan precision grid start time (if `-Precision`)
@@ -165,8 +181,8 @@ while ($true) {
 |-------|--------|
 | Yellow | Interactive title, skip messages |
 | Cyan | Limit banner, precision mode |
-| Magenta | Expect / fail config line |
-| Green | Execution limit reached |
+| Magenta | Expect / success / fail config line |
+| Green | Execution limit reached; success limit / success time limit exit |
 | Red | Failure limit / failure time limit exit |
 | Default | Execute line, wait messages |
 | Warning | Command errors, soft warnings (replace marker, fail without expect) |
@@ -180,7 +196,7 @@ while ($true) {
 .\rc.ps1 "Get-Date" 1m
 
 # Precision + silent
-.\rc.ps1 ".\my-monitor.ps1" 10m -p -s
+.\rc.ps1 ".\my-monitor.ps1" 10m -p -q
 
 # Skip, limit, period suffix
 .\rc.ps1 "Get-Date" 30s -Skip 2 -Limit 5
@@ -194,6 +210,10 @@ while ($true) {
 # Failure limits (require -e)
 .\rc.ps1 ".\task.ps1" 5m -e 30s -fail 3
 .\rc.ps1 ".\task.ps1" 5s -e 1s -failtime 30s
+
+# Success limits (require -e)
+.\rc.ps1 ".\task.ps1" 5m -e 30s -success 2
+.\rc.ps1 ".\task.ps1" 5s -e 1s -successtime 30s
 
 # Help
 .\rc.ps1 -Help
@@ -211,7 +231,7 @@ When `-Command` is omitted after parameter parsing:
 4. Clear y/n
 5. Limit (0 = none)
 
-Does **not** prompt for Expect, Replace, Fail, FailTime, or Skip — pass those on the command line.
+Does **not** prompt for Expect, Replace, Fail, FailTime, Success, SuccessTime, or Skip — pass those on the command line.
 
 ---
 
@@ -233,7 +253,7 @@ Does **not** prompt for Expect, Replace, Fail, FailTime, or Skip — pass those 
 | `go/rc/build.ps1` | Cross-compile Windows/Linux binaries to `go/rc/bin/` |
 | `rc/index.html` | Project landing page |
 
-Go edition uses the same `^*` replace marker, expect summary, fail limits, and config display patterns. Flag names are lowercase with leading `-` (e.g. `-fail`, `-failtime`).
+Go edition uses the same `^*` replace marker, expect summary, fail/success limits, and config display patterns. Flag names are lowercase with leading `-` (e.g. `-fail`, `-success`, `-q` for silent).
 
 ---
 
@@ -241,7 +261,7 @@ Go edition uses the same `^*` replace marker, expect summary, fail limits, and c
 
 | Version | Changes |
 |---------|---------|
-| **Current** | `-Expect`, `-Replace` (`^*` marker), `-Fail`, `-FailTime`, `-Help`, expect config on execute line, expect summary on fail-limit exit, consolidated expect/fail startup line |
+| **Current** | `-Expect`, `-Replace` (`^*` marker), `-Fail`, `-FailTime`, `-Success`, `-SuccessTime`, `-Help`, Silent alias `-q`, expect config on execute line, expect summary on limit exit, consolidated expect/fail/success startup line |
 | **v1.4** | `-Limit`, period suffixes (`s`/`m`/`h`), `-Skip` |
 | **v1.3** | `-Clear` |
 | **v1.0** | Core loop, `-Precision`, `-Silent` |

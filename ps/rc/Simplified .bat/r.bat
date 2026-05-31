@@ -30,14 +30,15 @@ set /p "inputPeriod=Period (5, 15s, 5m, 1h) [default: 5]: "
 if not "!inputPeriod!"=="" (
     for /f "delims=" %%t in ("!inputPeriod!") do set "Period=%%t"
 )
-set /p "inputFlags=Flags [-c -s -limit N -debug] (optional): "
+set /p "inputFlags=Flags [-c -q -limit N -debug] (optional): "
 if not "!inputFlags!"=="" call :parseFlagArgs !inputFlags!
 goto argsDone
 
 :parseFlags
 if "%~1"=="" goto argsDone
 if /I "%~1"=="-c" set "ClearMode=1" & shift & goto parseFlags
-if /I "%~1"=="-s" set "SilentMode=1" & shift & goto parseFlags
+if /I "%~1"=="-q" set "SilentMode=1" & shift & goto parseFlags
+if /I "%~1"=="-quiet" set "SilentMode=1" & shift & goto parseFlags
 if /I "%~1"=="-debug" set "DebugMode=1" & shift & goto parseFlags
 if /I "%~1"=="-limit" goto parseFlagsLimit
 echo Warning: Ignoring unknown option "%~1"
@@ -56,7 +57,8 @@ goto argsDone
 :parseFlagArgs
 if "%~1"=="" exit /b 0
 if /I "%~1"=="-c" set "ClearMode=1" & shift & goto parseFlagArgs
-if /I "%~1"=="-s" set "SilentMode=1" & shift & goto parseFlagArgs
+if /I "%~1"=="-q" set "SilentMode=1" & shift & goto parseFlagArgs
+if /I "%~1"=="-quiet" set "SilentMode=1" & shift & goto parseFlagArgs
 if /I "%~1"=="-debug" set "DebugMode=1" & shift & goto parseFlagArgs
 if /I "%~1"=="-limit" goto parseFlagArgsLimit
 echo Warning: Ignoring unknown option "%~1"

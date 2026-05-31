@@ -19,13 +19,14 @@ The script offers two modes for scheduling: a simple delay mode and a high-preci
 - **Interactive Mode:** If run without parameters, the script will prompt for the command and interval.
 - **Standard Mode (Default):** After a command finishes, the script waits for the specified interval before the next run. This is simple but can lead to timing "drift" if the command's execution time varies.
 - **Precision Mode (`-p`):** This mode establishes a fixed-interval "grid" based on the script's start time. It accounts for the command's execution time to ensure each new run starts at a predictable, precise moment (e.g., exactly every 10 minutes at :00, :10, :20, etc.). If a command runs longer than its interval, the script will immediately start the next iteration to get back on schedule.
-- **Silent Mode (`-s`):** Suppresses status output messages such as execution timing and wait periods, while still displaying the actual command output and any errors. Ideal for logging or when you only want to see the command results.
+- **Silent Mode (`-q`):** Suppresses status output messages such as execution timing and wait periods, while still displaying the actual command output and any errors. Ideal for logging or when you only want to see the command results.
 - **Clear Mode (`-c`):** Clears the screen before executing the command in each iteration, providing a clean output display for each run. Useful for monitoring scenarios where you want to see only the current command output.
 - **Skip Mode (`-Skip`):** Allows you to skip a specified number of initial executions before starting to run the command. If `-Skip 0` is specified, it defaults to 1 (skips the first execution). Useful for delaying the start of command execution while maintaining the timing schedule.
 - **Limit Mode (`-Limit`):** Limits the total number of executions to perform. Skipped executions do not count toward this limit. Useful for running a command a specific number of times and then exiting.
 - **Expected Runtime Tracking (`-Expect`/`-e`):** Sets a minimum expected command runtime using period format (`s`/`m`/`h`). Runs below the threshold are treated as failures, and success metrics are tracked and reported.
 - **Command Marker Replace (`-Replace`/`-r`):** Replaces every literal `^*` marker in the command string with a supplied value before execution (e.g. `gf -x ^*` with `-r pdx` runs as `gf -x pdx`). Safe inside double-quoted commands.
 - **Failure Limits (`-Fail`/`-f`, `-FailTime`/`-ft`):** Exit after a set number of failed runs or cumulative failure time (failed runs × retry interval). Requires `-Expect`. Warns and ignores limits if used without `-Expect`.
+- **Success Limits (`-Success`/`-s`, `-SuccessTime`/`-st`):** Exit after a set number of successful runs or accumulated successful run time. Requires `-Expect`. Green exit messages.
 - **Period Suffixes:** Support for time unit suffixes on period input: 's' for seconds, 'm' for minutes (optional), 'h' for hours. Integers without suffix default to minutes.
 
 ## Requirements
@@ -53,7 +54,7 @@ The script offers two modes for scheduling: a simple delay mode and a high-preci
   - A switch to enable "Precision Mode".
   - When enabled, the script uses a fixed-interval schedule to prevent timing drift.
 
-- `-Silent` or `-s` [switch]
+- `-Silent` or `-q` [switch]
   - A switch to enable "Silent Mode".
   - When enabled, suppresses status output messages while preserving command output and errors.
 
@@ -96,6 +97,15 @@ The script offers two modes for scheduling: a simple delay mode and a high-preci
   - Maximum cumulative failure time before exiting. Each failure adds one retry interval (`Period`).
   - Uses period format (`s`, `m`, `h`). Requires `-Expect`. `0` or omitted = no failure-time limit.
   - If both `-Fail` and `-FailTime` are set, rc exits when either limit is reached first.
+
+- `-Success` or `-s` [int]
+  - Number of successful runs (duration at or above `-Expect`) before exiting.
+  - Requires `-Expect`. `0` or omitted = no success-count limit.
+
+- `-SuccessTime` or `-st` [string]
+  - Maximum accumulated successful run time before exiting (actual duration of each success).
+  - Uses period format (`s`, `m`, `h`). Requires `-Expect`.
+  - If both `-Success` and `-SuccessTime` are set, rc exits when either limit is reached first.
 
 ## Examples
 
@@ -200,6 +210,18 @@ Exits after 3 runs that finish faster than the 30 second expected minimum.
 .\rc.ps1 "Get-Date" 5s -e 1s -failtime 30s
 ```
 Exits when cumulative failure time reaches 30 seconds (6 failures at a 5 second period).
+
+### Example 18: Success Count Limit
+```powershell
+.\rc.ps1 "Get-Date" 5m -e 30s -success 2
+```
+Exits after 2 runs that finish at or above the 30 second expected minimum.
+
+### Example 19: Success Time Limit
+```powershell
+.\rc.ps1 "Get-Date" 5s -e 1s -successtime 30s
+```
+Exits when accumulated successful run time reaches 30 seconds.
 
 ## Notes
 - To stop the script at any time, press `Ctrl+C` in the terminal window where it is running.

@@ -232,9 +232,10 @@
                                 <li><b>Expected Runtime (-e / -expect):</b> Sets a minimum duration for a successful run. Tracks last success time, successes vs total runs, and cumulative successful runtime. Summary prints in both standard and precision modes.</li>
                                 <li><b>Command Marker Replace (-r / -replace):</b> Replaces every literal <code>^*</code> in the command with a supplied value before execution (e.g. <code>gf -x ^*</code> with <code>-r pdx</code> runs as <code>gf -x pdx</code>). Works in double-quoted commands. Warns softly if <code>-r</code> is set but the command has no marker.</li>
                                 <li><b>Failure Limits (-f / -fail, -ft / -failtime):</b> Exit after N failed runs or when cumulative failure time (failures × retry interval) reaches a cap. Requires <code>-e</code>. Either limit ends the loop when reached first.</li>
+                                <li><b>Success Limits (-s / -success, -st / -successtime):</b> Exit after N successful runs or when accumulated successful run time reaches a cap. Requires <code>-e</code>. Green exit messages. Either limit ends the loop when reached first.</li>
                                 <li><b>Skip Mode (-skip):</b> Skip initial loop iterations before running the command. <code>-skip 0</code> defaults to skipping one execution.</li>
                                 <li><b>Limit Mode (-limit):</b> Stop after a set number of command executions (skipped iterations do not count).</li>
-                                <li><b>Silent Mode (-s):</b> Suppresses status lines; command output and errors still show.</li>
+                                <li><b>Silent Mode (-q / -quiet):</b> Suppresses status lines; command output and errors still show.</li>
                                 <li><b>Clear Mode (-c):</b> Clears the screen before each run for a clean display.</li>
                             </ul>
                             <p>
@@ -246,6 +247,8 @@
                                 <li><code>rc ".\task.ps1" 10m -e 30s -limit 5</code> — require at least 30s per run, exit after 5 executions</li>
                                 <li><code>rc ".\task.ps1" 5m -e 30s -fail 3</code> — exit after 3 runs below the 30s threshold</li>
                                 <li><code>rc ".\task.ps1" 5s -e 1s -failtime 30s</code> — exit when failure cost reaches 30s (6×5s period)</li>
+                                <li><code>rc ".\task.ps1" 5m -e 30s -success 2</code> — exit after 2 runs at or above the 30s threshold</li>
+                                <li><code>rc ".\task.ps1" 5s -e 1s -successtime 30s</code> — exit when accumulated success runtime reaches 30s</li>
                             </ul>
                             <p>
                                 Run <code>rc -help</code> (Go) or <code>.\rc.ps1 -Help</code> (PowerShell) for the full CLI reference.

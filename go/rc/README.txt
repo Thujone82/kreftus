@@ -16,13 +16,14 @@ The application can run in two modes: a standard mode that waits for a fixed dur
 - **Two Timing Modes:**
   - **Standard Mode (Default):** Waits for the full period *after* the command has finished executing. Simple and straightforward.
   - **Precision Mode (`-p`):** Accounts for the command's execution time to ensure each new run starts on a fixed, predictable schedule. Ideal for tasks requiring consistent timing.
-- **Silent Mode (`-s`):** Suppresses status output messages such as execution timing and wait periods, while still displaying the actual command output and any errors. Perfect for logging scenarios.
+- **Silent Mode (`-q`/`-quiet`):** Suppresses status output messages such as execution timing and wait periods, while still displaying the actual command output and any errors. Perfect for logging scenarios.
 - **Clear Mode (`-c`):** Clears the screen before executing the command in each iteration, providing a clean output display for each run. Useful for monitoring scenarios where you want to see only the current command output.
 - **Skip Mode (`-skip`):** Allows you to skip a specified number of initial executions before starting to run the command. If `-skip 0` is specified, it defaults to 1 (skips the first execution). Useful for delaying the start of command execution while maintaining the timing schedule.
 - **Limit Mode (`-limit`):** Limits the total number of executions to perform. Skipped executions do not count toward this limit. Useful for running a command a specific number of times and then exiting.
 - **Expected Runtime Tracking (`-e`/`-expect`):** Sets a minimum expected command runtime using period format. Runs below the threshold are failures; success metrics print after each run in standard and precision modes.
 - **Command Marker Replace (`-r`/`-replace`):** Replaces every literal `^*` marker in the command with a supplied value before execution.
 - **Failure Limits (`-f`/`-fail`, `-ft`/`-failtime`):** Exit after a set number of failed runs or cumulative failure time (failed runs × retry interval). Requires `-expect`. Warns and ignores limits if used without `-expect`.
+- **Success Limits (`-s`/`-success`, `-st`/`-successtime`):** Exit after a set number of successful runs or accumulated successful run time. Requires `-expect`. Green exit messages.
 - **Period Suffixes:** Support for time unit suffixes on period input: 's' for seconds, 'm' for minutes (optional), 'h' for hours. Integers without suffix default to minutes.
 - **Interactive Mode:** If run without any arguments, `rc` will interactively prompt you for the command, period, and timing mode.
 - **Cross-Platform:** The included `build.ps1` script compiles native executables for both Windows and Linux.
@@ -51,7 +52,7 @@ The application can run in two modes: a standard mode that waits for a fixed dur
 - `-p`, `-precision`
   - A switch to enable "Precision Mode".
 
-- `-s`, `-silent`
+- `-q`, `-quiet`
   - A switch to enable "Silent Mode".
 
 - `-c`, `-clear`
@@ -83,6 +84,13 @@ The application can run in two modes: a standard mode that waits for a fixed dur
   - Exit when failed runs times retry interval reaches this cap. Period format. Requires `-expect`.
   - If both `-fail` and `-failtime` are set, rc exits when either limit is reached first.
 
+- `-s`, `-success <number>`
+  - Exit after this many successful runs (duration at or above `-expect`). Requires `-expect`. `0` = unlimited.
+
+- `-st`, `-successtime <period>`
+  - Exit when accumulated successful run time reaches this cap. Period format. Requires `-expect`.
+  - If both `-success` and `-successtime` are set, rc exits when either limit is reached first.
+
 ## Examples
 
 ### Example 1: Run a command every 10 minutes
@@ -97,12 +105,12 @@ The application can run in two modes: a standard mode that waits for a fixed dur
 
 ### Example 3: Run in silent mode
 ```sh
-./rc -s -period 1 "date"
+./rc -q -period 1 "date"
 ```
 
 ### Example 4: Combined precision and silent modes
 ```sh
-./rc -p -s -period 5 "my-monitor.sh"
+./rc -p -q -period 5 "my-monitor.sh"
 ```
 
 ### Example 5: Run with clear mode
@@ -175,3 +183,15 @@ Exits after 3 runs that finish faster than the 30 second expected minimum.
 ./rc "date" 5s -e 1s -failtime 30s
 ```
 Exits when cumulative failure time reaches 30 seconds (6 failures at a 5 second period).
+
+### Example 17: Success Count Limit
+```sh
+./rc "date" 5m -e 30s -success 2
+```
+Exits after 2 runs that finish at or above the 30 second expected minimum.
+
+### Example 18: Success Time Limit
+```sh
+./rc "date" 5s -e 1s -successtime 30s
+```
+Exits when accumulated successful run time reaches 30 seconds.

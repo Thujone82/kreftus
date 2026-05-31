@@ -21,7 +21,7 @@ Cross-platform `rc` binary that runs a shell command string on a repeating inter
 | (positional) | — | string | (prompt) | Command string. Quote if it contains spaces. |
 | (positional) | — | string | `5` | Period (see format below). |
 | `-precision` | `-p` | — | off | Grid-aligned scheduling from process start. |
-| `-silent` | `-s` | — | off | Suppress status lines; command output and warnings remain. |
+| `-silent` | `-q`, `-quiet` | — | off | Suppress status lines; command output and warnings remain. |
 | `-clear` | `-c` | — | off | Clear screen at startup (if set) and before each run. |
 | `-skip` | `-Skip` | int | `0` | Loop iterations that skip command execution but still wait. If flag **present** and value `0`, treated as `1`. |
 | `-limit` | `-Limit` | int | `0` | Max actual command runs (skips do not count). `0` = unlimited. |
@@ -29,6 +29,8 @@ Cross-platform `rc` binary that runs a shell command string on a repeating inter
 | `-replace` | `-r`, `-Replace` | string | — | Replace every literal `^*` in the command before each run. |
 | `-fail` | `-f`, `-Fail` | int | `0` | Exit after N failed runs (&lt; expect). Requires `-expect`. |
 | `-failtime` | `-ft`, `-FailTime` | period | — | Exit when cumulative failure cost reaches cap. Requires `-expect`. |
+| `-success` | `-s`, `-Success` | int | `0` | Exit after N successful runs (&gt;= expect). Requires `-expect`. |
+| `-successtime` | `-st`, `-SuccessTime` | period | — | Exit when accumulated successful run time reaches cap. Requires `-expect`. |
 | `-help` | `-h` | — | — | Print usage (`printUsage`) and exit. |
 
 **Constants:** `replaceMarker = "^*"` (package-level in `main.go`)
@@ -47,7 +49,7 @@ After each loop iteration (including skip-only iterations), `time.Sleep(periodDu
 - Positive sleep → status line `Runtime: … Waiting: … Next Run: …` plus expect summary.
 - Non-positive sleep → yellow overrun warning, immediate next iteration.
 
-### Silent mode (`-silent` / `-s`)
+### Silent mode (`-silent` / `-q` / `-quiet`)
 No banners, execute line, wait lines, expect summary, or limit messages. `executeCommand` output and `color.Yellow` warnings still appear.
 
 ### Clear mode (`-clear` / `-c`)
@@ -95,6 +97,18 @@ Clears before startup output (once) and before each command. Expect/fail config 
 - Both set → **either** limit ends the loop first.
 - Exit path: `printExpectSummary` then red failure message.
 
+### Success limits (`-success` / `-s`, `-successtime` / `-st`)
+**Require `-expect`.** Without expect: yellow warning, limits ignored.
+
+| Limit | Exit when |
+|-------|-----------|
+| `-success N` | `expect.successCount >= N` |
+| `-successtime` | `expect.totalSuccessfulRuntime >=` parsed duration |
+
+- Each success adds **actual command duration** to `totalSuccessfulRuntime` (not Period interval).
+- Both set → **either** limit ends the loop first.
+- Exit path: `printExpectSummary` then green success message.
+
 ### Period format (`parsePeriod`)
 | Input | Result |
 |-------|--------|
@@ -103,7 +117,7 @@ Clears before startup output (once) and before each command. Expect/fail config 
 | `5` (no suffix) | minutes |
 | parse error | 5 minutes (fallback) |
 
-Used for period, `-expect`, and `-failtime`.
+Used for period, `-expect`, `-failtime`, and `-successtime`.
 
 ---
 
@@ -116,7 +130,7 @@ Used for period, `-expect`, and `-failtime`.
 | `formatCompactDuration` | Precision status line durations |
 | `formatDateAwareTimestamp` | Next run / last success timestamps |
 | `formatSuccessRuntime` | `HH:mm:ss.cs` for summary lines |
-| `formatExpectConfigDetails` | `Expect: … \| Fail: … \| FailTime: …` |
+| `formatExpectConfigDetails` | `Expect: … \| Success: … \| SuccessTime: … \| Fail: … \| FailTime: …` |
 | `printExpectSummary` | Success summary when expect set and `executionCount > skip` |
 | `applyReplace` | `^*` substitution + warning |
 | `clearScreen` | Platform-specific clear |
@@ -141,6 +155,8 @@ for {
     check -limit → break
     check -fail → summary + break
     check -failtime → summary + break
+    check -success → summary + break
+    check -successtime → summary + break
   }
   if precision { grid sleep + status + summary }
   else { wait message + summary; sleep(period) }
@@ -167,8 +183,8 @@ for {
 |-------|--------|
 | Yellow | Interactive title, skip, command-failure warnings, soft warnings |
 | Cyan | Limit banner, precision mode |
-| Magenta | Expect / fail config line |
-| Green | Execution limit reached |
+| Magenta | Expect / success / fail config line |
+| Green | Execution limit reached; success limit / success time exit |
 | Red | Failure limit / failure time exit |
 | White | Execute line, runtime/wait status, Ctrl+C hint |
 
@@ -181,7 +197,7 @@ for {
 ./rc "date" 1m
 
 # Flags anywhere
-./rc -p -s "my-monitor.sh" 5m
+./rc -p -q "my-monitor.sh" 5m
 
 # Period suffix, skip, limit
 ./rc "date" 30s -skip 2 -limit 5
@@ -195,6 +211,10 @@ for {
 # Failure limits
 ./rc "date" 5m -e 30s -fail 3
 ./rc "date" 5s -e 1s -failtime 30s
+
+# Success limits
+./rc "date" 5m -e 30s -success 2
+./rc "date" 5s -e 1s -successtime 30s
 
 # Help
 ./rc -help
@@ -253,6 +273,8 @@ macOS is supported by the Unix code paths; release binaries are built for Window
 | Period / expect / failtime parsing | Equivalent rules; Go uses `time.Duration`, PS uses minutes → `TimeSpan` |
 | Replace marker | `^*` both editions |
 | Fail limits | Same require-expect, either-limit-wins, period-based failtime |
+| Success limits | Same require-expect, either-limit-wins; success time uses actual run duration |
+| Silent alias | `-q` / `-quiet` (breaking: `-s` is now success limit) |
 | Config display | Startup line + execute-line bracket |
 | Interactive | Go prompts skip; PS does not prompt skip in interactive mode |
 | Command execution | PS `Invoke-Expression`; Go shell wrapper |
@@ -278,7 +300,7 @@ Reference: `ps/rc/GEMINI.md`, `ps/rc/rc.ps1`
 
 | Version | Changes |
 |---------|---------|
-| **Current** | `-expect`, `-replace` (`^*`), `-fail`, `-failtime`, `-help`, expect config on execute line, summary on fail-limit exit, consolidated startup config line |
+| **Current** | `-expect`, `-replace` (`^*`), `-fail`, `-failtime`, `-success`, `-successtime`, `-help`, Silent alias `-q`, expect config on execute line, summary on limit exit, consolidated startup config line |
 | **v1.4** | `-limit`, period suffixes, `-skip` |
 | **v1.3** | `-clear` |
 | **v1.0** | Core loop, precision, silent, cross-platform build |

@@ -32,7 +32,7 @@
     A switch to enable "Silent Mode". When enabled, the script suppresses status
     output messages such as execution timing and wait periods, while still
     displaying the actual command output and any errors.
-    Alias: -s
+    Alias: -q
 
 .PARAMETER Clear
     A switch to enable "Clear Mode". When enabled, the script clears the screen
@@ -69,6 +69,14 @@
     Maximum cumulative failure time (failed runs times retry interval) before exiting. Requires -Expect.
     Uses period format (s/m/h). Alias: -ft
 
+.PARAMETER Success
+    Number of successful runs (meeting -Expect threshold) before exiting. Requires -Expect.
+    Alias: -s
+
+.PARAMETER SuccessTime
+    Maximum accumulated successful run time before exiting. Requires -Expect.
+    Uses period format (s/m/h). Alias: -st
+
 .EXAMPLE
     .\rc.ps1 "Get-Process -Name 'chrome' | Stop-Process -Force" 1
     
@@ -87,7 +95,7 @@
     If a run takes 11 minutes, it will finish late, and the script will immediately start the next run to get back on schedule.
 
 .EXAMPLE
-    .\rc.ps1 "Get-Date" 1 -Silent
+    .\rc.ps1 "Get-Date" 1 -Quiet
 
     Runs 'Get-Date' every minute in silent mode, suppressing status messages while still showing the date output.
 
@@ -131,6 +139,11 @@
     .\rc.ps1 "Get-Date" 5m -Expect 30s -Fail 3
 
     Exits after 3 runs that finish faster than the 30 second expected minimum.
+
+.EXAMPLE
+    .\rc.ps1 "Get-Date" 5m -Expect 30s -Success 5
+
+    Exits after 5 runs that meet the 30 second expected minimum.
 
 .PARAMETER Help
     Displays full command-line reference (arguments, period format, scheduling behavior) and exits.
@@ -209,7 +222,7 @@ function Parse-RcCliArgs {
 
     $switchMap = @{
         'p' = 'Precision'; 'precision' = 'Precision'
-        's' = 'Silent'; 'silent' = 'Silent'
+        'q' = 'Silent'; 'quiet' = 'Silent'
         'c' = 'Clear'; 'cl' = 'Clear'; 'clear' = 'Clear'
         'h' = 'Help'; '?' = 'Help'; 'help' = 'Help'
     }
@@ -219,6 +232,8 @@ function Parse-RcCliArgs {
         'r' = 'Replace'; 'replace' = 'Replace'
         'f' = 'Fail'; 'fail' = 'Fail'
         'ft' = 'FailTime'; 'failtime' = 'FailTime'
+        's' = 'Success'; 'success' = 'Success'
+        'st' = 'SuccessTime'; 'successtime' = 'SuccessTime'
     }
 
     $result = @{
@@ -234,6 +249,8 @@ function Parse-RcCliArgs {
         Replace     = $null
         Fail        = 0
         FailTime    = $null
+        Success     = 0
+        SuccessTime = $null
         Bound       = @{}
         SkipFlagFound = $false
     }
@@ -293,6 +310,10 @@ function Parse-RcCliArgs {
                         if ([int]::TryParse($value, [ref]$null)) {
                             $result.Fail = [int]$value
                         }
+                    } elseif ($key -eq 'Success') {
+                        if ([int]::TryParse($value, [ref]$null)) {
+                            $result.Success = [int]$value
+                        }
                     } else {
                         $result[$key] = $value
                     }
@@ -342,6 +363,8 @@ $Expect = $cli.Expect
 $Replace = $cli.Replace
 $Fail = [int]$cli.Fail
 $FailTime = $cli.FailTime
+$Success = [int]$cli.Success
+$SuccessTime = $cli.SuccessTime
 $rcBound = $cli.Bound
 $skipFlagFound = [bool]$cli.SkipFlagFound
 
@@ -356,7 +379,8 @@ SYNOPSIS
 
 USAGE
   .\rc.ps1 [[-Command] string] [[-Period] string] [-Precision] [-Silent] [-Clear]
-           [-Skip int] [-Limit int] [-Expect string] [-Replace string] [-Fail int] [-FailTime string] [-Help]
+           [-Skip int] [-Limit int] [-Expect string] [-Replace string]
+           [-Fail int] [-FailTime string] [-Success int] [-SuccessTime string] [-Help]
 
   With no -Command, the script prompts for command, period, precision, clear, and limit.
 
@@ -372,7 +396,7 @@ PARAMETERS
       Grid-aligned scheduling from script start time. Sleep fills the gap to the next interval boundary;
       if a run exceeds its slot, the next iteration starts immediately to recover.
 
-  -Silent             Alias: -s
+  -Silent             Alias: -q
       Suppresses status lines (timestamps, waits, skip/limit banners). Command output and errors still show.
 
   -Clear              Aliases: -c, -cl
@@ -400,6 +424,12 @@ PARAMETERS
   -FailTime string    Alias: -ft
       Exit when failed runs times retry interval reaches this cap. Period format. Requires -Expect.
 
+  -Success int         Alias: -s
+      Exit after this many successful runs (duration at or above -Expect). Requires -Expect. 0 = unlimited.
+
+  -SuccessTime string  Alias: -st
+      Exit when accumulated successful run time reaches this cap. Period format. Requires -Expect.
+
   -Help               Aliases: -h, -?
       Show this reference and exit.
 
@@ -420,11 +450,12 @@ STOPPING
 
 EXAMPLES
   .\rc.ps1 "Get-Date" 1
-  .\rc.ps1 ".\my-script.ps1" 10 -Precision -Silent
+  .\rc.ps1 ".\my-script.ps1" 10 -Precision -Quiet
   .\rc.ps1 "Get-Process" 15s -Limit 5
   .\rc.ps1 "Invoke-WebRequest https://example.com" 5s -Expect 1s
   .\rc.ps1 "gf -x ^*" 5 -r pdx
   .\rc.ps1 "Get-Date" 5m -e 30s -fail 3
+  .\rc.ps1 "Get-Date" 5m -e 30s -success 5
   .\rc.ps1 -Help
 
 For comment-based help: Get-Help .\rc.ps1 -Full
@@ -492,6 +523,10 @@ function Format-CompactPeriodLabel {
 function Format-ExpectConfigDetails {
     param(
         $ExpectThreshold,
+        [int]$SuccessLimit,
+        $SuccessTimeThreshold,
+        [int]$SuccessfulExecutionCount = 0,
+        [TimeSpan]$TotalSuccessfulRuntime = [TimeSpan]::Zero,
         [int]$FailLimit,
         $FailTimeThreshold,
         [int]$FailedExecutionCount = 0,
@@ -501,6 +536,25 @@ function Format-ExpectConfigDetails {
     $parts = @()
     if ($ExpectThreshold) {
         $parts += "Expect: $(Format-CompactPeriodLabel $ExpectThreshold)"
+    }
+    if ($SuccessLimit -gt 0) {
+        if ($SuccessfulExecutionCount -gt 0) {
+            $parts += "Success: $SuccessfulExecutionCount/$SuccessLimit"
+        } else {
+            $parts += "Success: $SuccessLimit"
+        }
+    }
+    if ($SuccessTimeThreshold) {
+        $totalLabel = Format-CompactPeriodLabel $SuccessTimeThreshold
+        if ($TotalSuccessfulRuntime.TotalSeconds -gt 0) {
+            $remaining = $SuccessTimeThreshold - $TotalSuccessfulRuntime
+            if ($remaining.TotalSeconds -lt 0) {
+                $remaining = [TimeSpan]::Zero
+            }
+            $parts += "SuccessTime: $(Format-CompactPeriodLabel $remaining) / $totalLabel"
+        } else {
+            $parts += "SuccessTime: $totalLabel"
+        }
     }
     if ($FailLimit -gt 0) {
         if ($FailedExecutionCount -gt 0) {
@@ -573,11 +627,16 @@ $failTimeThreshold = $null
 $failTimeDisplay = $null
 $failLimitRequested = $rcBound.ContainsKey('Fail') -and $Fail -gt 0
 $failTimeRequested = $rcBound.ContainsKey('FailTime')
+$successLimit = 0
+$successTimeThreshold = $null
+$successTimeDisplay = $null
+$successLimitRequested = $rcBound.ContainsKey('Success') -and $Success -gt 0
+$successTimeRequested = $rcBound.ContainsKey('SuccessTime')
 
-if ($failLimitRequested -or $failTimeRequested) {
+if ($failLimitRequested -or $failTimeRequested -or $successLimitRequested -or $successTimeRequested) {
     if (-not $expectThreshold) {
         if (-not $Silent) {
-            Write-Warning '-Fail and -FailTime require -Expect (-e) and were ignored.'
+            Write-Warning '-Fail, -FailTime, -Success, and -SuccessTime require -Expect (-e) and were ignored.'
         }
     } else {
         if ($failLimitRequested) {
@@ -587,6 +646,14 @@ if ($failLimitRequested -or $failTimeRequested) {
             $failTimeInfo = Convert-Period $FailTime
             $failTimeThreshold = [TimeSpan]::FromMinutes($failTimeInfo.Minutes)
             $failTimeDisplay = $failTimeInfo.Display
+        }
+        if ($successLimitRequested) {
+            $successLimit = $Success
+        }
+        if ($successTimeRequested) {
+            $successTimeInfo = Convert-Period $SuccessTime
+            $successTimeThreshold = [TimeSpan]::FromMinutes($successTimeInfo.Minutes)
+            $successTimeDisplay = $successTimeInfo.Display
         }
     }
 }
@@ -639,7 +706,7 @@ if ($Clear) {
     Clear-Host
 }
 
-$expectConfigDetails = Format-ExpectConfigDetails -ExpectThreshold $expectThreshold -FailLimit $failLimit -FailTimeThreshold $failTimeThreshold
+$expectConfigDetails = Format-ExpectConfigDetails -ExpectThreshold $expectThreshold -SuccessLimit $successLimit -SuccessTimeThreshold $successTimeThreshold -FailLimit $failLimit -FailTimeThreshold $failTimeThreshold
 
 if (-not $Silent) {
     Write-Host "Running `"$Command`" every $PeriodDisplay. Press Ctrl+C to stop.`n"
@@ -690,7 +757,7 @@ while ($true) {
             }
             if (-not $Silent) {
                 $executeMessage = "($(Get-Date -Format 'HH:mm:ss')) Executing command..."
-                $executeConfigDetails = Format-ExpectConfigDetails -ExpectThreshold $expectThreshold -FailLimit $failLimit -FailTimeThreshold $failTimeThreshold -FailedExecutionCount $failedExecutionCount -FailedRetryTime $failedRetryTime
+                $executeConfigDetails = Format-ExpectConfigDetails -ExpectThreshold $expectThreshold -SuccessLimit $successLimit -SuccessTimeThreshold $successTimeThreshold -SuccessfulExecutionCount $successfulExecutionCount -TotalSuccessfulRuntime $totalSuccessfulRuntime -FailLimit $failLimit -FailTimeThreshold $failTimeThreshold -FailedExecutionCount $failedExecutionCount -FailedRetryTime $failedRetryTime
                 if ($executeConfigDetails) {
                     $executeMessage += " [$executeConfigDetails]"
                 }
@@ -726,6 +793,12 @@ while ($true) {
         } elseif ($failTimeThreshold -and $failedRetryTime -ge $failTimeThreshold) {
             $pendingExitMessage = "Reached failure time limit of $failTimeDisplay. Exiting."
             $pendingExitColor = 'Red'
+        } elseif ($successLimit -gt 0 -and $successfulExecutionCount -ge $successLimit) {
+            $pendingExitMessage = "Reached success limit of $successLimit. Exiting."
+            $pendingExitColor = 'Green'
+        } elseif ($successTimeThreshold -and $totalSuccessfulRuntime -ge $successTimeThreshold) {
+            $pendingExitMessage = "Reached success time limit of $successTimeDisplay. Exiting."
+            $pendingExitColor = 'Green'
         }
     }
 

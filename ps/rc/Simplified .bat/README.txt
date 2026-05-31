@@ -16,7 +16,7 @@ Timing is simple: after each command finishes, the script waits for the configur
 - **Configurable interval:** Period accepts `s`, `m`, or `h` suffixes; a bare number means minutes (e.g. `5`, `15s`, `5m`, `1h`). Default: 5 minutes.
 - **Interactive mode:** Run `r.bat` with no arguments to be prompted for command, period, and optional flags.
 - **Clear mode (`-c`):** Clears the screen before each run.
-- **Silent mode (`-s`):** Suppresses status lines; command output still appears.
+- **Silent mode (`-q` / `-quiet`):** Suppresses status lines; command output still appears.
 - **Limit mode (`-limit N`):** Stops after N completed runs (0 = unlimited).
 - **Debug mode (`-debug`):** Prints `[DEBUG]` lines and appends to `%TEMP%\rc-r-debug.log` (period parsing, run count, errors).
 
@@ -41,7 +41,7 @@ Timing is simple: after each command finishes, the script waits for the configur
 
 ### Flags (any order after period)
 - **-c** — Clear screen before each run.
-- **-s** — Silent mode (minimal status output).
+- **-q** / **-quiet** — Silent mode (minimal status output).
 - **-limit N** — Exit after N runs. `0` or omitted = unlimited.
 - **-debug** — Enable debug output and log file.
 
@@ -63,7 +63,7 @@ Unknown flags print a warning and are ignored.
 
   Command: echo yes
   Period (5, 15s, 5m, 1h) [default: 5]: 10s
-  Flags [-c -s -limit N -debug] (optional): -debug
+  Flags [-c -q -limit N -debug] (optional): -debug
 
 ## Debug log
 When `-debug` is set:
