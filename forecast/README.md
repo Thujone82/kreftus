@@ -62,11 +62,29 @@ On the Hourly table, the **Time** column header includes the calendar day(s) for
 
 ## Setup
 
-1. **PWA Icons**: Place icon files in the `icons/` directory (e.g. 192×192 and 512×512 PNG). The app references `light-icon-192.png` and `light-icon-512.png` in the HTML; the manifest may reference `dark-icon-*` or the same—ensure the paths in `manifest.json` and `index.html` match your files.
+Install Forecast as an app for a home-screen or dock icon, faster launch, and offline support. The site must be served over **HTTPS** (or opened on **localhost** during development).
 
-2. **Deploy**: Static web app; serve from any web server. HTTPS is required in production for PWA features (service worker, install prompt).
+### iPhone and iPad (iOS)
 
-3. **Version + cache busting (recommended)**: Run `.\forecast\version.ps1 <newVersion>` from the repo root (or run without args to be prompted). It updates `service-worker.js`, `manifest.json`, and `index.html` asset query versions in one step while preserving UTF-8 BOM in `index.html`. If prompt input is blank, the script cancels with: `Version must not be blank, update cancelled`.
+1. Open Forecast in **Safari**. Other iOS browsers cannot install PWAs.
+2. Tap **Share**, then **Add to Home Screen**.
+3. Tap **Add**. Launch Forecast from your home screen like a native app.
+
+If you are on iPhone and not already installed, open **Settings** (gear button)—the app shows a short install reminder there.
+
+### Android
+
+1. Open Forecast in **Chrome** (recommended), **Edge**, or **Samsung Internet**.
+2. Tap **Settings** (gear button). If **Install Forecast** appears, tap it and confirm.
+3. If that button is not shown, use the browser menu (**⋮**) and choose **Install app** or **Add to Home screen**, or tap the install icon in the address bar when Chrome offers it.
+
+### PC and Mac
+
+1. Open Forecast in a supported browser (**Chrome** or **Edge** on Windows, Mac, or Linux; **Safari** on Mac).
+2. **Chrome / Edge**: Open **Settings** (gear button) and use **Install Forecast** when it appears, or click the install control in the address bar, or use the browser menu (**⋮** or **…**) → **Install Forecast** / **Install app**.
+3. **Safari (Mac)**: Use **File → Add to Dock** (macOS Sonoma or later), or **Share → Add to Dock**.
+
+Desktop **Firefox** has limited PWA support; use Chrome or Edge for the full install experience.
 
 ## Usage
 
