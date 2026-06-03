@@ -59,8 +59,55 @@ entirely offline from your browser's IndexedDB.
 
 ## Setup
 
+The recommended way to use PDX Heritage Trees is to **install it as a PWA**
+(home-screen or dock icon, faster launch, and offline use after the first visit).
+The app must be served over **HTTPS** (or opened on **localhost** during
+development).
+
+### iPhone and iPad (iOS)
+
+1. Open the app in **Safari**. Other iOS browsers cannot install PWAs.
+2. Tap **Share**, then **Add to Home Screen**.
+3. Tap **Add**. Launch PDX Heritage Trees from your home screen like a native app.
+
+If you are on iPhone and not already installed, open **Settings** (gear button)
+&mdash; the app shows a short install reminder there.
+
+### Android
+
+1. Open the app in **Chrome** (recommended), **Edge**, or **Samsung Internet**.
+2. Tap **Settings** (gear button). If **Install PDX Heritage Trees** appears,
+   tap it and confirm.
+3. If that button is not shown, use the browser menu (**⋮**) and choose
+   **Install app** or **Add to Home screen**, or tap the install icon in the
+   address bar when Chrome offers it.
+
+### PC and Mac
+
+1. Open the app in a supported browser (**Chrome** or **Edge** on Windows, Mac,
+   or Linux; **Safari** on Mac).
+2. **Chrome / Edge**: Open **Settings** (gear button) and use **Install PDX
+   Heritage Trees** when it appears, or click the install control in the address
+   bar, or use the browser menu (**⋮** or **…**) → **Install PDX Heritage Trees**
+   / **Install app**.
+3. **Safari (Mac)**: Use **File → Add to Dock** (macOS Sonoma or later), or
+   **Share → Add to Dock**.
+
+Desktop **Firefox** has limited PWA support; use Chrome or Edge for the full
+install experience.
+
+You can also use the app **without installing**: open it once in a modern
+browser (same HTTPS or localhost requirement). That works for a quick look, but
+you miss the dedicated icon and the most reliable offline behavior.
+
+### Self-hosting
+
+Everything below is for **running your own copy** of the app (local files,
+a private server, or deploying under your site). End users who only visit a
+public install do not need these steps.
+
 Open `heritage/index.html` in a browser, or deploy the entire `heritage/`
-folder to your site at `/heritage/`. That's the whole setup.
+folder to your site at `/heritage/` (typically `https://yoursite.example/heritage/`).
 
 On first launch the app:
 
