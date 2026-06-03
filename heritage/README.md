@@ -25,17 +25,28 @@ entirely offline from your browser's IndexedDB.
   - Amber: trees not yet found
   - Gray: trees removed from the registry
 - **Tap-to-inspect** &mdash; click a marker for an info card with the species
-  (linked to Wikipedia), the address, a **Mark as found** button, and a
-  **Notes** field.
+  (linked to Wikipedia), the address, **Navigate** (Google Maps walking
+  directions), **Mark as found**, and a **Notes** field.
 - **Nearby** &mdash; lists the 10 closest trees to your current location and
   launches walking directions in Google Maps (https deep link that works on
   iOS, Android, Windows, and desktop browsers alike).
+- **Search** &mdash; live search across tree #, species / common name, City
+  address, geocoded address, notes, year, removed year, and coordinates. Use
+  `#15` (or `#015`) to match by Tree #; other tokens match anywhere in the
+  indexed fields. Matching fields appear as clickable tags on each row; tap a
+  tag to narrow results to trees that matched that field. Results use the same
+  row layout as Nearby (distance when mappable, **Navigate**, tap row to focus
+  on the map).
+- **Found** &mdash; after you mark at least one tree, a **Found** button appears
+  on the bottom bar with a sortable table of Tree #, name, and find date; tap a
+  row to jump to that tree on the map.
 - **Check for app update** &mdash; a single action in Settings that refreshes
   the tree database from `data/trees.json` *and* asks the service worker to
   look for a new app shell. New/removed trees are diff-merged **without**
   touching your found marks or notes.
 - **Installable PWA** &mdash; runs offline after first load; the service worker
-  keeps the app shell fresh without wiping your data on upgrade.
+  keeps the app shell fresh without wiping your data on upgrade. **Settings
+  &rarr; App** offers one-tap install where the browser supports it.
 
 ## Requirements
 
@@ -85,15 +96,34 @@ because the heavy lifting happened offline inside `heritage.ps1`.
 - **Tap a marker** &mdash; the info card opens with:
   - The **species** (italic) linked to a Wikipedia search
   - The **common name**, tree #, year added, and location
+  - **Navigate** &mdash; opens walking directions in Google Maps (same deep link
+    as Nearby / Search).
   - **Mark as found** &rarr; records the current timestamp. Found trees turn
     green. An **Undo** button appears with a localized find timestamp.
   - **Notes** &mdash; type freely; notes autosave when you leave the field.
-- **Nearby** &mdash; bottom bar button. Shows the 10 closest trees with
-  walking distance. Tapping Navigate opens walking directions in Google Maps.
+- **Bottom bar** &mdash; **Nearby** (10 closest with walking distance),
+  **Found** (hidden until you have at least one find), **Recenter**, and
+  **Search**.
+- **Nearby** &mdash; shows the 10 closest trees. Tapping a row focuses the map;
+  **Navigate** opens walking directions in Google Maps.
+- **Search** &mdash; type in the modal; results update as you type. Combine
+  plain words with `#` tree-number tokens; use match-field tags to filter. Tap a
+  row to close Search and focus that tree on the map.
+- **Found** &mdash; table of every tree you have marked found, newest first by
+  default; tap a row to focus it on the map.
 - **Recenter** &mdash; re-runs the camera logic (user within 20 mi of Portland
   vs. fit-all).
-- **Settings (gear icon)** &mdash; view basemap attribution and data stats
-  (total / found / removed / last updated).
+- **Settings (gear icon)** &mdash;
+  - **Map** &mdash; basemap attribution; **Zoom out** / **Zoom in** toggles the
+    viewport between "you + nearest unfound" (when geolocation is available) and
+    all mapped trees (enabled once more than 50 trees have coordinates).
+  - **Data** &mdash; total / found / removed counts, plus **Last updated**:
+    the `scrapedAt` timestamp from the bundled `trees.json` snapshot last merged
+    into IndexedDB (not the time you last tapped **Check for app update**).
+  - **App** &mdash; version and service-worker status; **Install PDX Heritage
+    Trees** when the browser offers install; **Check for app update** (see
+    below). On iOS Safari, a short hint explains Add to Home Screen when install
+    is not available.
 - **Check for app update** (Settings &rarr; App) &mdash; one tap does two
   things:
   1. Refreshes `data/trees.json` from the network and diff-merges it into the
@@ -123,6 +153,14 @@ The bundled `data/trees.json` is produced by `heritage/heritage.ps1`, which
 3. Re-uses coordinates from the previous `data/trees.json` for any tree whose
    ID and location haven't changed &mdash; re-runs only touch new/changed
    entries.
+4. Normalizes each tree **name** to title case on scrape (botanical rank
+   abbreviations such as `ssp.` stay lower-case).
+5. When the live City registry text for **name**, **location**, or **year**
+   differs from the last snapshot, interactive runs pause and ask whether to
+   keep the snapshot value or take the City's text. Choosing **keep** stores
+   that field in `manualKeep` on the tree row so the same prompt is not shown
+   again. `-NoInteractive` always applies the City text for those listing
+   deltas without prompting.
 
 From the repository root:
 
@@ -244,9 +282,9 @@ From the edit menu you can:
 | `g` | Re-geocode (asks for an address; `!` prefix to bypass the Portland viewbox for rare out-of-metro trees) |
 | `c` | Enter `lat`/`lng` directly (blank keeps, `-` clears)                   |
 | `a` | Edit the stored `geocodeAddress` string                                |
-| `l` | Edit `location` (the City-listed address)                              |
-| `n` | Edit `name` (`"Genus species - common name"`)                          |
-| `y` | Edit the registry `year`                                               |
+| `l` | Edit `location` (the City-listed address; sets `manualKeep.location`)  |
+| `n` | Edit `name` (`"Genus species - common name"`; sets `manualKeep.name`)  |
+| `y` | Edit the registry `year` (sets `manualKeep.year`)                      |
 | `r` | Set or clear the `removed` year (setting it also marks `skipped-removed`) |
 | `x` | Clear all geocoding (coords &rarr; null, status &rarr; `pending`)      |
 | `s` | Save and pick another tree                                             |
@@ -276,12 +314,20 @@ afterwards to pick up the new position.
       "removed": null,
       "lat": 45.5421, "lng": -122.6458,
       "geocodeStatus": "ok",
-      "geocodeAddress": "1234 NE Example St, Portland, OR" }
+      "geocodeAddress": "1234 NE Example St, Portland, OR" },
+    { "id": "366", "year": 2010,
+      "name": "Acer Macrophyllum - Big Leaf Maple",
+      "location": "123 SW Example Ave",
+      "manualKeep": { "location": true },
+      "lat": 45.51, "lng": -122.68,
+      "geocodeStatus": "ok" }
   ]
 }
 ```
 
-Tree `id` is the Tree # zero-padded to 3 digits (`"001"`). The script's closing
+Tree `id` is the Tree # zero-padded to 3 digits (`"001"`). Optional
+`manualKeep` (`name`, `location`, `year` booleans) records fields you chose to
+keep during a listing-delta prompt or hand-edited in `-Update` mode. The script's closing
 summary reports how many were cached vs. newly geocoded vs. failed.
 
 > The PWA itself does **not** scrape portland.gov directly: the City's page is
@@ -300,8 +346,8 @@ silently drifting.
 
 There are two independent "update" concepts:
 
-1. **Tree list updates** (the data) &mdash; driven by the **Check for
-   updates** button. Only canonical fields (`year`, `name`, `location`,
+1. **Tree list updates** (the data) &mdash; driven by **Settings &rarr; Check
+   for app update**. Only canonical fields (`year`, `name`, `location`,
    `removed`) can be overwritten. `found`, `foundDate`, `notes`, and existing
    `lat`/`lng` are only changed if a tree's address text changes (in which
    case a re-geocode is queued but your found/notes still survive).
@@ -316,12 +362,13 @@ There are two independent "update" concepts:
 
 ```
 heritage/
-  index.html                 # PWA shell (map, nav, settings modal)
+  index.html                 # PWA shell (map, action bar, modals, panels)
   manifest.json              # PWA manifest (start_url /heritage/)
   service-worker.js          # NF shell, SWR assets, NF data, cache-first tiles
   heritage.ps1               # scraper + geocoder -> data/trees.json
   version.ps1                # bumps the app version across files
   README.md                  # this file
+  README.html                # in-browser markdown viewer (same content as README.md)
   css/
     styles.css               # PNW woodsy theme
   js/
@@ -330,8 +377,10 @@ heritage/
     sync.js                  # fetch trees.json, diff-merge preserving user data
     geocode.js               # fallback Nominatim queue (rarely runs in browser)
     map.js                   # Leaflet map, markers, popup, camera logic
-    nearby.js                # 10-nearest list + Google Maps navigate links
-    ui.js                    # progress bar, toast, modal helpers
+    nearby.js                # 10-nearest list + shared row renderer + Navigate links
+    search.js                # Search modal: tokenized query, #id, field tags/filters
+    found.js                 # Found-trees table modal
+    ui.js                    # progress bar, toast, modal helpers, settings stats
     sw-register.js           # service worker + update banner
     app.js                   # boot & glue
   data/
@@ -339,6 +388,9 @@ heritage/
   icons/
     icon-192.png / icon-512.png (PWA / favicon / Apple touch)
 ```
+
+From the site root, `index.html` links to `heritage/README.html` for this
+documentation in the browser.
 
 ## Troubleshooting
 
@@ -384,9 +436,11 @@ behavior, UI changes the user should see immediately, etc.).
 ### `version.ps1` &mdash; one-shot version bumper
 
 `version.ps1` rewrites all four locations atomically and preserves each
-file's original UTF-8 BOM state. If any target file is missing or its
-version marker can't be found, the script throws and exits non-zero without
-writing partial updates.
+file's original UTF-8 BOM state. File writes retry on transient locks (for
+example when `index.html` is open in an editor); if a later step fails, files
+already touched in that run are rolled back from in-memory snapshots. If any
+target file is missing or its version marker can't be found, the script throws
+and exits non-zero without writing partial updates.
 
 ```powershell
 # Interactive: prints current version, prompts for the new value.
