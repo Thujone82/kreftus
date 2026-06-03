@@ -2839,6 +2839,12 @@ function handleModeHotkeyFromEvent(event) {
     else if (letter === 'r') mode = 'rain';
     else if (letter === 'w') mode = 'wind';
     else if (letter === 'h') mode = appState.currentMode === 'hourly' ? 'history' : 'hourly';
+    else if (letter === 'l') {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleLocationsDrawer();
+        return true;
+    }
     else return false;
     event.preventDefault();
     event.stopPropagation();
