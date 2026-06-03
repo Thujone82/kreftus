@@ -21,6 +21,7 @@ const appState = {
     updateAllInFlight: false, // prevents overlapping Update All sweeps
     lastFetchTime: null,
     hourlyScrollIndex: 0,
+    hourlyNavStep: 0,
     loading: false,
     loadingRequestCount: 0, // keep spinner visible while any network call is in flight
     error: null,
@@ -1978,6 +1979,7 @@ function setupEventListeners() {
     setupConfigModal();
 
     document.addEventListener('keydown', (e) => {
+        if (handleModeSectionHotkeyFromEvent(e)) return;
         if (handleModeHotkeyFromEvent(e)) return;
         handleLocationHotkeyFromEvent(e);
     });
@@ -2825,6 +2827,228 @@ function shouldIgnoreLocationHotkey() {
     if (elements.configModal && !elements.configModal.classList.contains('hidden')) return true;
     if (elements.locationButtons && elements.locationButtons.querySelector('.location-btn-edit')) return true;
     return false;
+}
+
+const MODES_WITH_SECTION_NAV = ['full', 'daily', 'history', 'rain', 'wind', 'hourly'];
+
+function getModeSectionAnchors() {
+    if (!elements.weatherContent) return [];
+    return Array.from(elements.weatherContent.querySelectorAll('.forecast-section-anchor'));
+}
+
+function getModeSectionScrollOffset() {
+    return 0;
+}
+
+function getActiveModeSectionAnchorIndex(anchors) {
+    if (!anchors.length) return -1;
+    const offset = getModeSectionScrollOffset();
+    const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+    const reference = scrollTop + offset;
+    let active = 0;
+    for (let i = 0; i < anchors.length; i++) {
+        const top = anchors[i].getBoundingClientRect().top + scrollTop;
+        if (top <= reference + 1) active = i;
+        else break;
+    }
+    return active;
+}
+
+function scrollToModeSectionPageTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const topAnchor = document.getElementById('forecast-anchor-top');
+    if (topAnchor) {
+        try {
+            topAnchor.focus({ preventScroll: true });
+        } catch (e) { /* ignore */ }
+    }
+    return true;
+}
+
+function scrollToModeSectionAnchor(index) {
+    const anchors = getModeSectionAnchors();
+    if (!anchors.length || index < 0 || index >= anchors.length) return false;
+    const target = anchors[index];
+    const offset = getModeSectionScrollOffset();
+    const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+    const top = target.getBoundingClientRect().top + scrollTop - offset;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    try {
+        target.focus({ preventScroll: true });
+    } catch (e) { /* ignore */ }
+    return true;
+}
+
+function getHourlyDisplayMeta() {
+    const hourly = appState.weatherData?.hourly;
+    if (!hourly?.periods?.length) return null;
+    const maxHours = 12;
+    const totalHours = Math.min(hourly.periods.length, 48);
+    const maxStartIndex = totalHours <= maxHours ? 0 : totalHours - maxHours;
+    const pageIndex = Math.floor(appState.hourlyScrollIndex / maxHours);
+    const maxPageIndex = Math.floor(maxStartIndex / maxHours);
+    return { maxHours, totalHours, maxStartIndex, pageIndex, maxPageIndex };
+}
+
+function setHourlyPageIndex(pageIndex) {
+    const meta = getHourlyDisplayMeta();
+    if (!meta) return;
+    appState.hourlyScrollIndex = Math.max(0, Math.min(pageIndex * meta.maxHours, meta.maxStartIndex));
+}
+
+function scrollToHourlyHoursAnchorAfterRender() {
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            const hoursAnchor = document.getElementById('forecast-anchor-hourly-hours');
+            if (!hoursAnchor) return;
+            const anchors = getModeSectionAnchors();
+            const index = anchors.indexOf(hoursAnchor);
+            if (index >= 0) scrollToModeSectionAnchor(index);
+        });
+    });
+}
+
+function isPageVerticallyScrollable() {
+    return (document.documentElement.scrollHeight - window.innerHeight) > 8;
+}
+
+function setHourlyNavStep(step) {
+    appState.hourlyNavStep = Math.max(0, step);
+}
+
+function changeHourlyPage(delta) {
+    const meta = getHourlyDisplayMeta();
+    if (!meta) return false;
+    const nextPage = meta.pageIndex + delta;
+    if (nextPage < 0 || nextPage > meta.maxPageIndex) return false;
+    setHourlyPageIndex(nextPage);
+    renderCurrentMode();
+    setHourlyNavStep(2 + getHourlyDisplayMeta().pageIndex);
+    if (isPageVerticallyScrollable()) {
+        scrollToHourlyHoursAnchorAfterRender();
+    }
+    return true;
+}
+
+function getModeSectionAnchorIndexById(anchorId) {
+    const anchors = getModeSectionAnchors();
+    const index = anchors.findIndex(anchor => anchor.id === anchorId);
+    return index >= 0 ? index : null;
+}
+
+function handleHourlyModeSectionHotkeyCompact(direction) {
+    const meta = getHourlyDisplayMeta();
+    if (!meta) return false;
+    const step = appState.hourlyNavStep || 0;
+
+    if (direction === 1) {
+        if (step <= 1) {
+            if (step === 0) {
+                setHourlyNavStep(1);
+                return true;
+            }
+            if (meta.pageIndex !== 0) {
+                setHourlyPageIndex(0);
+                renderCurrentMode();
+            }
+            setHourlyNavStep(2);
+            return true;
+        }
+        if (meta.pageIndex < meta.maxPageIndex) {
+            changeHourlyPage(1);
+        }
+        return true;
+    }
+
+    if (step >= 2 && meta.pageIndex > 0) {
+        changeHourlyPage(-1);
+        return true;
+    }
+    if (step >= 2) {
+        setHourlyNavStep(1);
+        return true;
+    }
+    if (step === 1) {
+        setHourlyNavStep(0);
+        return true;
+    }
+    return true;
+}
+
+function ensureHourlyCompactNavStep() {
+    if (!isPageVerticallyScrollable() && (appState.hourlyNavStep || 0) <= 1) {
+        const meta = getHourlyDisplayMeta();
+        if (meta) setHourlyNavStep(2 + meta.pageIndex);
+    }
+}
+
+function handleHourlyModeSectionHotkey(direction) {
+    if (!isPageVerticallyScrollable()) {
+        return handleHourlyModeSectionHotkeyCompact(direction);
+    }
+
+    const anchors = getModeSectionAnchors();
+    if (!anchors.length || !getHourlyDisplayMeta()) return false;
+    const current = getActiveModeSectionAnchorIndex(anchors);
+    const meta = getHourlyDisplayMeta();
+    const headerIndex = getModeSectionAnchorIndexById('forecast-anchor-hourly-header');
+    const hoursIndex = getModeSectionAnchorIndexById('forecast-anchor-hourly-hours');
+
+    if (direction === 1) {
+        if (current === 0) {
+            if (headerIndex != null) scrollToModeSectionAnchor(headerIndex);
+            setHourlyNavStep(1);
+            return true;
+        }
+        if (hoursIndex != null && current < hoursIndex) {
+            scrollToModeSectionAnchor(hoursIndex);
+            setHourlyNavStep(2 + meta.pageIndex);
+            return true;
+        }
+        if (meta.pageIndex < meta.maxPageIndex) {
+            changeHourlyPage(1);
+        }
+        return true;
+    }
+
+    if (meta.pageIndex > 0) {
+        changeHourlyPage(-1);
+        return true;
+    }
+    if (hoursIndex != null && current >= hoursIndex) {
+        if (headerIndex != null) scrollToModeSectionAnchor(headerIndex);
+        setHourlyNavStep(1);
+        return true;
+    }
+    scrollToModeSectionPageTop();
+    setHourlyNavStep(0);
+    return true;
+}
+
+function handleModeSectionHotkeyFromEvent(event) {
+    if (shouldIgnoreLocationHotkey()) return false;
+    if (!MODES_WITH_SECTION_NAV.includes(appState.currentMode)) return false;
+    if (event.ctrlKey || event.altKey || event.metaKey) return false;
+    const key = event.key;
+    let direction = null;
+    if (key === '.' || event.code === 'Period') direction = 1;
+    else if (key === ',' || event.code === 'Comma') direction = -1;
+    else return false;
+    const anchors = getModeSectionAnchors();
+    if (!anchors.length) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    if (appState.currentMode === 'hourly') {
+        return handleHourlyModeSectionHotkey(direction);
+    }
+    const current = getActiveModeSectionAnchorIndex(anchors);
+    if (direction === -1 && current <= 1) {
+        scrollToModeSectionPageTop();
+        return true;
+    }
+    const nextIndex = Math.max(0, Math.min(anchors.length - 1, current + direction));
+    scrollToModeSectionAnchor(nextIndex);
+    return true;
 }
 
 function handleModeHotkeyFromEvent(event) {
@@ -4671,6 +4895,7 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         appState.lastFetchTime = nwsFetchTime;
         console.log('Set lastFetchTime from NWS API fetch:', nwsFetchTime.toISOString());
         appState.hourlyScrollIndex = 0;
+        appState.hourlyNavStep = 0;
         
         // Update location in input field
         const locationText = formatLocationDisplayName(weatherData.location.city, weatherData.location.state);
@@ -4887,6 +5112,9 @@ async function handleRefresh() {
 // Switch display mode
 function switchMode(mode) {
     appState.currentMode = mode;
+    if (mode === 'hourly') {
+        appState.hourlyNavStep = 0;
+    }
     
     // Save mode to localStorage for PWA state persistence
     try {
@@ -4978,7 +5206,7 @@ function _renderCurrentModeImpl() {
                     (loc.state || '').trim().toUpperCase() === ref.state;
                 const observationsList = locationMatch ? getObservationsDisplayList(appState.observationsData) : [];
                 if (observationsList && observationsList.length > 0) {
-                    html = displayObservations(observationsList, appState.location);
+                    html = renderModeTopAnchor() + displayObservations(observationsList, appState.location);
                 } else {
                     html = '<div class="history-banner history-banner-error">No historical observations available.</div>';
                 }
@@ -4986,16 +5214,16 @@ function _renderCurrentModeImpl() {
             break;
         }
         case 'hourly':
-            html = displayHourlyForecast(appState.weatherData, appState.location, appState.hourlyScrollIndex, 12);
+            html = renderModeTopAnchor() + displayHourlyForecast(appState.weatherData, appState.location, appState.hourlyScrollIndex, 12, true, 'forecast-anchor-hourly-header');
             break;
         case 'daily':
-            html = displaySevenDayForecast(appState.weatherData, appState.location, true);
+            html = renderModeTopAnchor() + displaySevenDayForecast(appState.weatherData, appState.location, true, 'forecast-anchor-daily-header');
             break;
         case 'rain':
-            html = displayRainForecast(appState.weatherData, appState.location);
+            html = renderModeTopAnchor() + displayRainForecast(appState.weatherData, appState.location);
             break;
         case 'wind':
-            html = displayWindForecast(appState.weatherData, appState.location);
+            html = renderModeTopAnchor() + displayWindForecast(appState.weatherData, appState.location);
             break;
         default:
             html = displayFullWeatherReport(appState.weatherData, appState.location, locationDisplayName);
@@ -5003,17 +5231,22 @@ function _renderCurrentModeImpl() {
     
     elements.weatherContent.innerHTML = html;
     
+    if (appState.currentMode === 'hourly') {
+        requestAnimationFrame(() => ensureHourlyCompactNavStep());
+    }
+    
     // Set up hourly navigation handlers after rendering (only if in hourly mode)
     // Deferred to requestIdleCallback for better performance - not critical for initial render
     if (appState.currentMode === 'hourly') {
         if (typeof requestIdleCallback !== 'undefined') {
             requestIdleCallback(() => {
                 setupHourlyNavigation();
+                ensureHourlyCompactNavStep();
             }, { timeout: 500 });
         } else {
-            // Fallback for browsers without requestIdleCallback
             setTimeout(() => {
                 setupHourlyNavigation();
+                ensureHourlyCompactNavStep();
             }, 0);
         }
     }
@@ -5041,33 +5274,15 @@ function setupHourlyNavigation() {
         console.log('Hourly navigation button clicked:', button.dataset.action);
         
         const action = button.dataset.action;
-        if (!appState.weatherData || !appState.weatherData.hourly) {
+        if (!getHourlyDisplayMeta()) {
             console.error('No weather data available');
             return;
         }
         
-        const { hourly } = appState.weatherData;
-        const periods = hourly.periods;
-        const totalHours = Math.min(periods.length, 48);
-        const maxHours = 12;
-        
-        console.log('Current scroll index:', appState.hourlyScrollIndex, 'Total hours:', totalHours);
-        
         if (action === 'scroll-up') {
-            // Scroll up by 12 hours
-            const newIndex = Math.max(0, appState.hourlyScrollIndex - maxHours);
-            console.log('Scrolling up to index:', newIndex);
-            appState.hourlyScrollIndex = newIndex;
-            renderCurrentMode();
+            changeHourlyPage(-1);
         } else if (action === 'scroll-down') {
-            // Scroll down by 12 hours
-            const newIndex = Math.min(
-                totalHours - maxHours,
-                appState.hourlyScrollIndex + maxHours
-            );
-            console.log('Scrolling down to index:', newIndex);
-            appState.hourlyScrollIndex = newIndex;
-            renderCurrentMode();
+            changeHourlyPage(1);
         }
     };
     

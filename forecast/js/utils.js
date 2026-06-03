@@ -557,6 +557,49 @@ function formatDate(date) {
     return `${month}/${day}/${year}`;
 }
 
+function formatOrdinalDayOfMonth(day) {
+    const n = parseInt(day, 10);
+    if (isNaN(n)) return String(day);
+    const mod100 = n % 100;
+    if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+    switch (n % 10) {
+        case 1: return `${n}st`;
+        case 2: return `${n}nd`;
+        case 3: return `${n}rd`;
+        default: return `${n}th`;
+    }
+}
+
+function formatHourlyTimeColumnHeader(periods, startIndex, endIndex, timeZoneId) {
+    if (!periods?.length || startIndex >= endIndex) return 'Time';
+    const dayOrdinals = [];
+    const seen = new Set();
+    for (let i = startIndex; i < endIndex; i++) {
+        const periodTime = new Date(periods[i].startTime);
+        let dayKey;
+        let dayNum;
+        if (timeZoneId) {
+            dayKey = new Intl.DateTimeFormat('en-CA', {
+                timeZone: timeZoneId,
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+            }).format(periodTime);
+            dayNum = parseInt(dayKey.split('-')[2], 10);
+        } else {
+            dayKey = `${periodTime.getFullYear()}-${periodTime.getMonth()}-${periodTime.getDate()}`;
+            dayNum = periodTime.getDate();
+        }
+        if (!seen.has(dayKey)) {
+            seen.add(dayKey);
+            dayOrdinals.push(formatOrdinalDayOfMonth(dayNum));
+        }
+    }
+    if (!dayOrdinals.length) return 'Time';
+    if (dayOrdinals.length === 1) return `Time (${dayOrdinals[0]})`;
+    return `Time (${dayOrdinals.join('-')})`;
+}
+
 // Extract numeric wind speed from wind speed string
 function getWindSpeed(windString) {
     if (!windString) return 0;

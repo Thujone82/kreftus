@@ -1,5 +1,16 @@
 // Display mode rendering functions
 
+function renderSectionHeader(text, anchorId) {
+    if (anchorId) {
+        return `<div id="${anchorId}" class="forecast-section-anchor section-header" tabindex="-1">${text}</div>`;
+    }
+    return `<div class="section-header">${text}</div>`;
+}
+
+function renderModeTopAnchor() {
+    return '<div id="forecast-anchor-top" class="forecast-section-anchor forecast-section-anchor-top" tabindex="-1" aria-hidden="true"></div>';
+}
+
 // Unit formatting (uses appState.useMetric and utils conversion helpers)
 function formatTemp(f) {
     if (f == null || isNaN(Number(f))) return '';
@@ -187,7 +198,7 @@ function getAlertHeaderEmojiSuffix(alerts, now = new Date()) {
     return hasActiveHeatAlert ? '🌡' : '';
 }
 
-function displayCurrentConditions(weather, location, optionalDisplayName) {
+function displayCurrentConditions(weather, location, optionalDisplayName, sectionAnchorId) {
     const { current, location: loc } = weather;
     const { sunrise, sunset, moonPhase } = loc;
 
@@ -198,7 +209,7 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
     const alertEmojiSuffix = hasActiveAlerts ? getAlertHeaderEmojiSuffix(displayableAlerts) : '';
     const alertPrefix = hasActiveAlerts ? `⚠️${alertEmojiSuffix} ` : '';
     const headerText = alertPrefix + locationDisplayName + ' Current Conditions';
-    html += `<div class="section-header">${headerText}</div>`;
+    html += renderSectionHeader(headerText, sectionAnchorId);
     
     html += '<div class="condition-row">';
     html += `<span class="condition-label">Currently:</span>`;
@@ -388,22 +399,22 @@ function displayCurrentConditions(weather, location, optionalDisplayName) {
 }
 
 // Display forecast text (normalized to one paragraph; wrapping handled by CSS)
-function displayForecastText(title, text) {
+function displayForecastText(title, text, sectionAnchorId) {
     const normalized = (text == null ? '' : String(text)).replace(/\s+/g, ' ').trim();
-    let html = `<div class="section-header">${title}</div>`;
+    let html = renderSectionHeader(title, sectionAnchorId);
     html += `<div class="forecast-period-text forecast-text">${normalized}</div>`;
     return html;
 }
 
 // Display hourly forecast
-function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12, showNavigation = true) {
+function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12, showNavigation = true, sectionAnchorId) {
     const { hourly } = weather;
     const periods = hourly.periods;
     const totalHours = Math.min(periods.length, 48);
     const endIndex = Math.min(startIndex + maxHours, totalHours);
     
     const cityName = truncateCityName(location.city, 20);
-    let html = `<div class="section-header">${cityName} Hourly</div>`;
+    let html = renderSectionHeader(`${cityName} Hourly`, sectionAnchorId);
     
     // Only show navigation buttons if showNavigation is true (for hourly mode)
     if (showNavigation) {
@@ -413,12 +424,13 @@ function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12,
         if (endIndex < totalHours) {
             html += '<button class="hourly-nav-btn" data-action="scroll-down" style="color: yellow; margin-bottom: 0.5rem; background: none; border: none; cursor: pointer; text-decoration: underline; padding: 0;">↓ More hours available</button>';
         }
-        html += `<div style="color: cyan; margin-bottom: 1rem;">Showing hours ${startIndex + 1}-${endIndex} of ${totalHours}</div>`;
+        html += `<div class="hourly-range-label" style="color: cyan; margin-bottom: 1rem;">Showing hours ${startIndex + 1}-${endIndex} of ${totalHours}</div>`;
     }
     
-    html += '<div class="hourly-forecast">';
+    html += '<div class="hourly-forecast forecast-section-anchor" id="forecast-anchor-hourly-hours" tabindex="-1">';
     html += '<table class="hourly-table">';
-    html += '<thead><tr><th>Time</th><th>Temp</th><th>Wind</th><th>Precip</th><th>Forecast</th></tr></thead>';
+    const timeColumnHeader = formatHourlyTimeColumnHeader(periods, startIndex, endIndex, location.timeZone);
+    html += `<thead><tr><th>${timeColumnHeader}</th><th>Temp</th><th>Wind</th><th>Precip</th><th>Forecast</th></tr></thead>`;
     html += '<tbody>';
     
     // Get sunrise/sunset from location for hour label color coding
@@ -537,12 +549,12 @@ function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12,
 }
 
 // Display 7-day forecast
-function displaySevenDayForecast(weather, location, enhanced = false) {
+function displaySevenDayForecast(weather, location, enhanced = false, sectionAnchorId) {
     const { forecast } = weather;
     const periods = forecast.periods;
     const cityName = truncateCityName(location.city, 20);
     
-    let html = `<div class="section-header">${cityName} ${enhanced ? '7-Day Forecast' : '7-Day Summary'}</div>`;
+    let html = renderSectionHeader(`${cityName} ${enhanced ? '7-Day Forecast' : '7-Day Summary'}`, sectionAnchorId);
     if (!enhanced) {
         html += '<div class="hourly-forecast">';
         html += '<table class="hourly-table seven-day-summary-table">';
@@ -597,7 +609,7 @@ function displaySevenDayForecast(weather, location, enhanced = false) {
         }
         
         if (enhanced) {
-            html += '<div class="daily-item">';
+            html += `<div class="daily-item forecast-section-anchor" id="forecast-anchor-daily-${dayCount}" tabindex="-1">`;
             // Enhanced mode
             const windSpeed = getWindSpeed(period.windSpeed);
             const windColor = windSpeed >= 16 ? "wind-strong" : "";
@@ -813,7 +825,7 @@ function displayRainForecast(weather, location) {
     const totalHours = Math.min(periods.length, 96);
     const cityName = truncateCityName(location.city, 20);
     
-    let html = `<div class="section-header">${cityName} <span class="section-header-forecast">Forecast</span> Rain Outlook</div>`;
+    let html = renderSectionHeader(`${cityName} <span class="section-header-forecast">Forecast</span> Rain Outlook`, 'forecast-anchor-rain-header');
     
     // Add hour header row
     html += '<div class="rain-day">';
@@ -861,7 +873,7 @@ function displayRainForecast(weather, location) {
                             maxRainPercent <= 44 ? "humidity-normal" :
                             maxRainPercent <= 80 ? "precip-medium" : "precip-high";
         
-        html += '<div class="rain-day">';
+        html += `<div class="rain-day forecast-section-anchor" id="forecast-anchor-rain-${dayCount}" tabindex="-1">`;
         html += `<div class="rain-day-header">${dayName} <span class="rain-percent ${maxRainColor}">${maxRainPercent < 10 ? ' ' : ''}${maxRainPercent}%</span></div>`;
         html += '<div class="rain-grid">';
         
@@ -901,7 +913,7 @@ function displayWindForecast(weather, location) {
     const totalHours = Math.min(periods.length, 96);
     const cityName = truncateCityName(location.city, 20);
     
-    let html = `<div class="section-header">${cityName} <span class="section-header-forecast">Forecast</span> Wind Outlook</div>`;
+    let html = renderSectionHeader(`${cityName} <span class="section-header-forecast">Forecast</span> Wind Outlook`, 'forecast-anchor-wind-header');
     
     // Add hour header row
     html += '<div class="wind-day">';
@@ -945,7 +957,7 @@ function displayWindForecast(weather, location) {
                             maxWindSpeed <= 9 ? "wind-light" :
                             maxWindSpeed <= 14 ? "wind-moderate" : "wind-strong";
         
-        html += '<div class="wind-day">';
+        html += `<div class="wind-day forecast-section-anchor" id="forecast-anchor-wind-${dayCount}" tabindex="-1">`;
         html += `<div class="wind-day-header">${dayName} <span class="wind-speed ${maxWindColor}">${formatWindSpeed(maxWindSpeed)}</span></div>`;
         html += '<span class="wind-grid">';
         
@@ -976,7 +988,7 @@ function displayWindForecast(weather, location) {
 }
 
 // Display weather alerts
-function displayWeatherAlerts(alerts, showDetails = true, timeZoneId = null) {
+function displayWeatherAlerts(alerts, showDetails = true, timeZoneId = null, sectionAnchorId) {
     if (!alerts || alerts.length === 0) {
         return '';
     }
@@ -988,7 +1000,7 @@ function displayWeatherAlerts(alerts, showDetails = true, timeZoneId = null) {
         return '';
     }
     
-    let html = '<div class="section-header">Active Weather Alerts</div>';
+    let html = renderSectionHeader('Active Weather Alerts', sectionAnchorId);
     
     filteredAlerts.forEach((alert, index) => {
         const props = alert.properties;
@@ -1078,9 +1090,9 @@ function getUtcOffsetString(timeZoneId) {
 }
 
 // Display location information
-function displayLocationInfo(location, noaaStation = null) {
+function displayLocationInfo(location, noaaStation = null, sectionAnchorId) {
     let html = '<div class="location-info">';
-    html += '<div class="section-header">Location Information</div>';
+    html += renderSectionHeader('Location Information', sectionAnchorId);
     
     const utcOffsetStr = getUtcOffsetString(location.timeZone);
     html += `<div class="location-info-item">Time Zone: ${location.timeZone}${utcOffsetStr}</div>`;
@@ -1172,14 +1184,14 @@ function displayLocationInfo(location, noaaStation = null) {
 }
 
 /** NWS ridge loop GIF (same URL as NWS Resources → Radar). Shown in Full mode when setting enabled. */
-function displayRadarSection(location) {
+function displayRadarSection(location, sectionAnchorId) {
     if (!location || !location.radarStation) return '';
     if (typeof localStorage !== 'undefined' && localStorage.getItem('forecastShowRadar') !== 'true') return '';
     const radarUrl = `https://radar.weather.gov/ridge/standard/${location.radarStation}_loop.gif`;
     const bust = (typeof appState !== 'undefined' && appState.radarGifBust != null) ? appState.radarGifBust : Date.now();
     const imgSrc = `${radarUrl}?_=${bust}`;
     let html = '<div class="radar-section">';
-    html += '<div class="section-header">Radar</div>';
+    html += renderSectionHeader('Radar', sectionAnchorId);
     html += `<a href="${radarUrl}" target="_blank" rel="noopener noreferrer" class="radar-section-link" aria-label="Open NWS radar loop in new tab">`;
     html += `<img src="${imgSrc}" alt="NWS radar loop for ${location.radarStation}" class="radar-section-img" loading="eager">`;
     html += '</a>';
@@ -1191,16 +1203,17 @@ function displayRadarSection(location) {
 // optionalLocationDisplayName: when provided (e.g. favorite custom name), used for Current Conditions header
 function displayFullWeatherReport(weather, location, optionalLocationDisplayName) {
     let html = '';
-    html += displayCurrentConditions(weather, location, optionalLocationDisplayName);
-    html += displayForecastText(weather.forecast.today.name, weather.forecast.today.text);
+    html += '<div id="forecast-anchor-top" class="forecast-section-anchor forecast-section-anchor-top" tabindex="-1" aria-hidden="true"></div>';
+    html += displayCurrentConditions(weather, location, optionalLocationDisplayName, 'forecast-anchor-current');
+    html += displayForecastText(weather.forecast.today.name, weather.forecast.today.text, 'forecast-anchor-today');
     if (weather.forecast.tomorrow.text) {
-        html += displayForecastText(weather.forecast.tomorrow.name, weather.forecast.tomorrow.text);
+        html += displayForecastText(weather.forecast.tomorrow.name, weather.forecast.tomorrow.text, 'forecast-anchor-tomorrow');
     }
-    html += displayRadarSection(location);
-    html += displayHourlyForecast(weather, location, 0, 12, false);
-    html += displaySevenDayForecast(weather, location, false);
-    html += displayWeatherAlerts(weather.alerts, true, location.timeZone);
-    html += displayLocationInfo(location, weather.noaaStation);
+    html += displayRadarSection(location, 'forecast-anchor-radar');
+    html += displayHourlyForecast(weather, location, 0, 12, false, 'forecast-anchor-hourly');
+    html += displaySevenDayForecast(weather, location, false, 'forecast-anchor-daily');
+    html += displayWeatherAlerts(weather.alerts, true, location.timeZone, 'forecast-anchor-alerts');
+    html += displayLocationInfo(location, weather.noaaStation, 'forecast-anchor-location');
     return html;
 }
 
@@ -1211,12 +1224,12 @@ function displayObservations(observationsData, location) {
     }
     
     const cityName = truncateCityName(location.city, 20);
-    let html = `<div class="section-header">${cityName} Observations</div>`;
+    let html = renderSectionHeader(`${cityName} Observations`, 'forecast-anchor-history-header');
     
     // Reverse the array so most recent observations appear first
     const reversedData = [...observationsData].reverse();
     
-    reversedData.forEach(dayData => {
+    reversedData.forEach((dayData, dayIndex) => {
         // Parse the date string (format: "yyyy-MM-dd") which represents a date in the location's timezone
         const [year, month, day] = dayData.date.split('-').map(Number);
         const dateStr = `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`;
@@ -1276,7 +1289,7 @@ function displayObservations(observationsData, location) {
         const moonPhaseInfo = calculateMoonPhase(date);
         const moonEmoji = moonPhaseInfo.emoji;
         
-        html += '<div class="daily-item">';
+        html += `<div class="daily-item forecast-section-anchor" id="forecast-anchor-history-${dayIndex}" tabindex="-1">`;
         html += `<div class="daily-header">${dayName} (${dateStr}):</div>`;
         
         // Calculate sunrise/sunset for this specific observation date (use date only, not time)

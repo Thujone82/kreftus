@@ -8,8 +8,8 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 - **Optional AQI (AirNow)**: Add your own AirNow API key in Settings to display an AQI line in Current Conditions using official AQI category colors; categories 5/6 are emphasized with white text on colored badges and white borders for contrast
 - **Multiple Display Modes**: Full, Daily, Hourly, Rain, Wind, and History
 - **PWA Support**: Installable as a web app with offline support and update detection
-- **Saved Locations**: Save favorite locations and switch between them; locations bar open/closed state is remembered. Number hotkeys load the first 20 favorites in drawer order: `1`–`0` for slots 1–10, `Shift+1`–`Shift+0` for slots 11–20 (ignored while typing or when Settings is open).
-- **Keyboard shortcuts** (global; ignored while typing in a field, renaming a favorite, or when Settings is open): **F** Full, **D** Daily, **R** Rain, **W** Wind, **H** Hourly (when Hourly is already active, **H** switches to History), **L** toggle Locations bar.
+- **Saved Locations**: Save favorite locations and switch between them; locations bar open/closed state is remembered. Number hotkeys load the first 20 favorites in drawer order: `1`–`0` for slots 1–10, `Shift+1`–`Shift+0` for slots 11–20 (ignored while typing, renaming a favorite, or when Settings is open).
+- **Keyboard shortcuts** (global; same ignore rules as location hotkeys): mode keys **F** Full, **D** Daily, **R** Rain, **W** Wind, **H** Hourly (**H** again while Hourly is active switches to History), **L** toggle Locations bar; section navigation **.** next / **,** previous (see [Section navigation](#section-navigation) below).
 - **Settings (gear or double-click header icon)**: Accent colors (primary/secondary), Reset Colors, Standard/Metric units, AM/PM or 24-hour time, Compact/Normal density, Feels-Like vs **WBGT** (optional estimated wet-bulb globe temperature when warm—see below), Auto-Update Data, optional AQI (Enable AQI + AirNow API key with inline validation), Extras (Enable Radar—off by default: NWS ridge loop GIF in Full mode above hourly, cached by the service worker for offline; Enable Solar Irradiance; Enable Magic Hours; Enable per Location Colors); Reset Forecast clears all data and settings to defaults
 - **Control Bar**: Favorite (save location), current location (pin), Locations (open/close saved locations), Refresh, Share (copy or share URL), Settings (gear)
 - **Share**: Copy shareable link or use Web Share API when available; URL can include location and mode
@@ -21,7 +21,44 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 - **Weather Calculations**: Wind chill, NWS heat index (default warm “feels like”), optional **estimated WBGT** when you enable the Feels-Like → WBGT toggle (not instrument-grade: Stull wet-bulb plus a simplified globe term using clear-sky solar × a **forecast-text** cloud heuristic); sunrise/sunset, moon phase, and optional Magic Hours timing for photography
 - **Sunrise/Sunset/Day Length**: Shown for each day in Daily and History (astronomical calculation)
 - **NOAA Tide Stations**: When a station is within 100 miles, shows station name, distance (mi/km), cardinal direction, links to Tide Prediction/Datums/Levels, and last/next tide (height in ft or m, time)
-- **Accessibility**: ARIA labels and dialog roles for screen readers; keyboard support (Escape closes Settings; mode and location shortcuts as above)
+- **Accessibility**: ARIA labels and dialog roles for screen readers; keyboard support (Escape closes Settings; mode, location, and section shortcuts as above)
+
+## Keyboard shortcuts
+
+Shortcuts are ignored while focus is in an input, textarea, or select; while renaming a favorite inline; or while the Settings dialog is open.
+
+| Key | Action |
+|-----|--------|
+| **F** | Full mode |
+| **D** | Daily mode |
+| **R** | Rain mode |
+| **W** | Wind mode |
+| **H** | Hourly mode (press again while Hourly is active to switch to History) |
+| **L** | Open or close the Locations drawer |
+| **1**–**0** | Load favorites 1–10 (drawer order) |
+| **Shift+1**–**Shift+0** | Load favorites 11–20 |
+| **.** | Next section (see below) |
+| **,** | Previous section (see below) |
+
+Mode buttons show their key in the tooltip (e.g. Full (**F**)). The first 20 location buttons in the drawer show number hints in their tooltips.
+
+### Section navigation
+
+**`.`** and **,** scroll the page so the target lands flush with the top of the viewport. Works in **Full**, **Daily**, **Hourly**, **Rain**, **Wind**, and **History**.
+
+Forward (**`.`**): page top (header + controls) → mode title → each content anchor in order.
+
+Backward (**`,`**): the reverse. From the first content anchor, one more **,** returns to page top.
+
+| Mode | Anchors (in order after page top) |
+|------|-----------------------------------|
+| **Full** | Current Conditions → Today → Tomorrow (if shown) → Radar (if enabled) → Hourly table → 7-Day Summary → Alerts (if any) → Location Information |
+| **Daily** | 7-Day Forecast title → each day block |
+| **History** | Observations title → each day block |
+| **Rain** / **Wind** | Outlook title → each day row (not the hour legend row) |
+| **Hourly** | Hourly title → each 12-hour table page (up to 48 hours). **`.`** on the last page does nothing further. On short pages that fit without scrolling, **.** / **,** change hour pages directly. **,** from the first hour page goes to the Hourly title, then page top |
+
+On the Hourly table, the **Time** column header includes the calendar day(s) for the visible rows in the location’s timezone, e.g. `Time (3rd)` or `Time (3rd-4th)` when hours span midnight. Use **Refresh** if cached data is stale and the dates look wrong.
 
 ## Setup
 
@@ -35,7 +72,7 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 
 1. Open the app in a modern browser.
 2. Enter a location (zip or "City, State") and click **Load**, or click the **pin** button to use your current location.
-3. Use the **mode** buttons (Full, Daily, Hourly, Rain, Wind, History) to switch views, or press **F**, **D**, **H**, **R**, or **W** ( **H** toggles Hourly/History when Hourly is active). Press **L** to open or close the Locations bar.
+3. Use the **mode** buttons (Full, Daily, Hourly, Rain, Wind, History) to switch views, or press **F**, **D**, **H**, **R**, or **W** ( **H** toggles Hourly/History when Hourly is active). Press **L** to open or close the Locations bar. Press **.** and **,** to move between page top, the mode title, and each section or day—or between 12-hour pages in Hourly mode (see [Section navigation](#section-navigation)).
 4. **Star** saves the current location to the Locations bar; **Locations** opens/closes the saved locations list.
 5. **Refresh** updates weather data; **Share** copies or shares the current page URL (with location and mode).
 6. **Gear** (or double-click the header icon) opens **Settings**: accent colors, Reset Colors, Standard/Metric, AM/PM vs 24H, Compact/Normal density, Feels-Like vs WBGT, Auto-Update Data, optional AQI setup, Extras (Enable Radar for Full-mode NWS loop with offline cache; Enable Solar Irradiance; Enable Magic Hours; Enable per Location Colors). **Reset Forecast** clears all favorites, cache, and settings and reloads.
@@ -57,12 +94,12 @@ A full reset clears everything and restores defaults:
 
 ## Display Modes
 
-- **Full**: Current conditions (header shows ⚠️ before "Current Conditions" when the location has active NWS alerts), optional AQI line (when enabled and key is valid) with official AQI colors and high-contrast category 5/6 badges, forecast text, optional **Radar** section when **Enable Radar** is on (same NWS ridge loop as the Location Information “Radar” link; image is not scaled above its native size; the GIF is treated as stale on the same cadence as weather data—refreshed after weather fetches, on a background timer, and when the tab becomes visible, with cache-busted requests so the loop updates while offline fallback still uses the last cached frame), hourly table, 7-day summary, alerts, location info (elevation, NWS/NOAA links, tides when available).
-- **Daily**: 7-day forecast with sunrise/sunset/day length per day, high/low temps, wind, precipitation chance, detailed text.
-- **Hourly**: Scrollable hourly table (time, temp, wind, precip %, forecast); nav to earlier/later hours.
-- **Rain**: Rain outlook with likelihood over the next ~96 hours (up to 5 days).
-- **Wind**: Wind direction/speed over the same period.
-- **History**: Historical observations by day with sunrise/sunset/day length. Per day: high/low temp (with wind chill, or estimated WBGT, or heat index when applicable—matching the Feels-Like/WBGT setting), wind (avg/gust or max), pressure (inHg or hPa), precip (in or mm), humidity, conditions, clouds (amount and base height in ft or m per units). Cloud codes: SKC, FEW, SCT, BKN, OVC. Rows omitted when data is not available.
+- **Full**: Current conditions (header shows ⚠️ before "Current Conditions" when the location has active NWS alerts), optional AQI line (when enabled and key is valid) with official AQI colors and high-contrast category 5/6 badges, forecast text, optional **Radar** section when **Enable Radar** is on (same NWS ridge loop as the Location Information “Radar” link; image is not scaled above its native size; the GIF is treated as stale on the same cadence as weather data—refreshed after weather fetches, on a background timer, and when the tab becomes visible, with cache-busted requests so the loop updates while offline fallback still uses the last cached frame), hourly table, 7-day summary, alerts, location info (elevation, NWS/NOAA links, tides when available). Use **.** / **,** to jump between sections (see [Section navigation](#section-navigation)).
+- **Daily**: 7-day forecast with sunrise/sunset/day length per day, high/low temps, wind, precipitation chance, detailed text. **.** / **,** step through each day.
+- **Hourly**: Hourly table in 12-hour pages (up to 48 hours total) with ↑/↓ links or **.** / **,** to change pages. The **Time** column header shows the calendar day(s) for the visible rows (e.g. `Time (3rd)` or `Time (3rd-4th)`). Other columns: temp, wind, precip %, forecast.
+- **Rain**: Rain outlook with likelihood over the next ~96 hours (up to 5 days). **.** / **,** step through each day row.
+- **Wind**: Wind direction/speed over the same period. **.** / **,** step through each day row.
+- **History**: Historical observations by day with sunrise/sunset/day length. Per day: high/low temp (with wind chill, or estimated WBGT, or heat index when applicable—matching the Feels-Like/WBGT setting), wind (avg/gust or max), pressure (inHg or hPa), precip (in or mm), humidity, conditions, clouds (amount and base height in ft or m per units). Cloud codes: SKC, FEW, SCT, BKN, OVC. Rows omitted when data is not available. **.** / **,** step through each day.
 
 All numeric values (temp, wind, pressure, elevation, distance, tide height, precip depth) follow the **Standard** or **Metric** setting. Times follow **AM/PM** or **24H**.
 
@@ -122,7 +159,7 @@ The app checks for new versions (e.g. via `manifest.json` version and service wo
 - **Precipitation chance**: Red (>50%), Yellow (21–50%), default (≤20%).
 - **Humidity / Dew point**: Ranges with cyan, yellow, red as appropriate.
 - **Pressure (History)**: Color by value for inHg (metric uses same logic on converted hPa).
-- **Hour labels (Hourly)**: Yellow for hours mostly in daytime (sunrise–sunset), default otherwise.
+- **Hour labels (Hourly)**: Yellow for hours mostly in daytime (sunrise–sunset), default otherwise. **Time** column header includes ordinal calendar day(s) for the visible page (location timezone).
 
 ## File Structure
 

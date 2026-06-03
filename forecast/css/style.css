@@ -867,6 +867,18 @@ body.ui-density-normal .weather-content {
     margin-bottom: 0.25rem;
 }
 
+.forecast-section-anchor:focus {
+    outline: none;
+}
+
+.forecast-section-anchor-top {
+    height: 0;
+    margin: 0;
+    padding: 0;
+    border: none;
+    overflow: hidden;
+}
+
 .section-header-forecast {
     white-space: pre;
 }
