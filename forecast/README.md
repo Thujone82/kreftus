@@ -9,6 +9,7 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 - **Multiple Display Modes**: Full, Daily, Hourly, Rain, Wind, and History
 - **PWA Support**: Installable as a web app with offline support and update detection
 - **Saved Locations**: Save favorite locations and switch between them; locations bar open/closed state is remembered. Number hotkeys load the first 20 favorites in drawer order: `1`–`0` for slots 1–10, `Shift+1`–`Shift+0` for slots 11–20 (ignored while typing or when Settings is open).
+- **Keyboard shortcuts** (global; ignored while typing in a field, renaming a favorite, or when Settings is open): **F** Full, **D** Daily, **R** Rain, **W** Wind, **H** Hourly (when Hourly is already active, **H** switches to History).
 - **Settings (gear or double-click header icon)**: Accent colors (primary/secondary), Reset Colors, Standard/Metric units, AM/PM or 24-hour time, Compact/Normal density, Feels-Like vs **WBGT** (optional estimated wet-bulb globe temperature when warm—see below), Auto-Update Data, optional AQI (Enable AQI + AirNow API key with inline validation), Extras (Enable Radar—off by default: NWS ridge loop GIF in Full mode above hourly, cached by the service worker for offline; Enable Solar Irradiance; Enable Magic Hours; Enable per Location Colors); Reset Forecast clears all data and settings to defaults
 - **Control Bar**: Favorite (save location), current location (pin), Locations (open/close saved locations), Refresh, Share (copy or share URL), Settings (gear)
 - **Share**: Copy shareable link or use Web Share API when available; URL can include location and mode
@@ -20,7 +21,7 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 - **Weather Calculations**: Wind chill, NWS heat index (default warm “feels like”), optional **estimated WBGT** when you enable the Feels-Like → WBGT toggle (not instrument-grade: Stull wet-bulb plus a simplified globe term using clear-sky solar × a **forecast-text** cloud heuristic); sunrise/sunset, moon phase, and optional Magic Hours timing for photography
 - **Sunrise/Sunset/Day Length**: Shown for each day in Daily and History (astronomical calculation)
 - **NOAA Tide Stations**: When a station is within 100 miles, shows station name, distance (mi/km), cardinal direction, links to Tide Prediction/Datums/Levels, and last/next tide (height in ft or m, time)
-- **Accessibility**: ARIA labels and dialog roles for screen readers; keyboard support (Escape closes Settings)
+- **Accessibility**: ARIA labels and dialog roles for screen readers; keyboard support (Escape closes Settings; mode and location shortcuts as above)
 
 ## Setup
 
@@ -34,7 +35,7 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 
 1. Open the app in a modern browser.
 2. Enter a location (zip or "City, State") and click **Load**, or click the **pin** button to use your current location.
-3. Use the **mode** buttons (Full, Daily, Hourly, Rain, Wind, History) to switch views.
+3. Use the **mode** buttons (Full, Daily, Hourly, Rain, Wind, History) to switch views, or press **F**, **D**, **H**, **R**, or **W** ( **H** toggles Hourly/History when Hourly is active).
 4. **Star** saves the current location to the Locations bar; **Locations** opens/closes the saved locations list.
 5. **Refresh** updates weather data; **Share** copies or shares the current page URL (with location and mode).
 6. **Gear** (or double-click the header icon) opens **Settings**: accent colors, Reset Colors, Standard/Metric, AM/PM vs 24H, Compact/Normal density, Feels-Like vs WBGT, Auto-Update Data, optional AQI setup, Extras (Enable Radar for Full-mode NWS loop with offline cache; Enable Solar Irradiance; Enable Magic Hours; Enable per Location Colors). **Reset Forecast** clears all favorites, cache, and settings and reloads.

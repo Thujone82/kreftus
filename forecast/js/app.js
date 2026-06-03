@@ -1978,6 +1978,7 @@ function setupEventListeners() {
     setupConfigModal();
 
     document.addEventListener('keydown', (e) => {
+        if (handleModeHotkeyFromEvent(e)) return;
         handleLocationHotkeyFromEvent(e);
     });
 }
@@ -2824,6 +2825,25 @@ function shouldIgnoreLocationHotkey() {
     if (elements.configModal && !elements.configModal.classList.contains('hidden')) return true;
     if (elements.locationButtons && elements.locationButtons.querySelector('.location-btn-edit')) return true;
     return false;
+}
+
+function handleModeHotkeyFromEvent(event) {
+    if (shouldIgnoreLocationHotkey()) return false;
+    if (event.ctrlKey || event.altKey || event.metaKey) return false;
+    const key = event.key;
+    if (!key || key.length !== 1) return false;
+    const letter = key.toLowerCase();
+    let mode = null;
+    if (letter === 'f') mode = 'full';
+    else if (letter === 'd') mode = 'daily';
+    else if (letter === 'r') mode = 'rain';
+    else if (letter === 'w') mode = 'wind';
+    else if (letter === 'h') mode = appState.currentMode === 'hourly' ? 'history' : 'hourly';
+    else return false;
+    event.preventDefault();
+    event.stopPropagation();
+    switchMode(mode);
+    return true;
 }
 
 function getLocationHotkeyLabel(index) {
