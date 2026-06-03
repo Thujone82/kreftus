@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forecast Documentation</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.1/github-markdown.min.css" crossorigin="anonymous">
+    <style>
+        body {
+            background: #fff;
+            margin: 0;
+        }
+
+        .doc-nav {
+            max-width: 920px;
+            margin: 0 auto;
+            padding: 1rem 1.5rem 0;
+            font-family: system-ui, sans-serif;
+            font-size: 0.95rem;
+        }
+
+        .doc-nav a {
+            color: #0066cc;
+        }
+
+        .markdown-body {
+            box-sizing: border-box;
+            min-width: 200px;
+            max-width: 920px;
+            margin: 0 auto;
+            padding: 1rem 1.5rem 2rem;
+        }
+    </style>
+</head>
+<body>
+    <p class="doc-nav"><a href="./">Open Forecast app</a> &middot; <a href="../">Projects home</a></p>
+    <article class="markdown-body" id="readme">Loading documentation&hellip;</article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js" crossorigin="anonymous"></script>
+    <script>
+        fetch('README.md', { cache: 'no-cache' })
+            .then(function (response) {
+                if (!response.ok) throw new Error('README.md not found');
+                return response.text();
+            })
+            .then(function (markdown) {
+                document.getElementById('readme').innerHTML = marked.parse(markdown);
+            })
+            .catch(function (error) {
+                document.getElementById('readme').textContent = 'Could not load README.md: ' + error.message;
+            });
+    </script>
+</body>
+</html>

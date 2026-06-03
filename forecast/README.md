@@ -165,20 +165,20 @@ The app checks for new versions (e.g. via `manifest.json` version and service wo
 
 ```
 forecast/
-├── index.html           # Main HTML
-├── manifest.json        # PWA manifest (version, icons, start_url)
-├── service-worker.js    # Cache and update (VERSION)
-├── CACHE_VERIFICATION.md
-├── css/
-│   └── style.css
-├── js/
-│   ├── app.js           # App logic, state, UI, Settings
-│   ├── api.js           # NWS, geocoding, NOAA, IP
-│   ├── weather.js       # Data parsing and aggregation
-│   ├── display.js       # Per-mode rendering and unit formatting
-│   └── utils.js         # Conversions, time, sun/moon
-├── version.ps1            # Release helper: updates versions in service-worker.js, manifest.json, and index.html
-└── icons/               # PWA icons (e.g. 192px, 512px)
+|-- index.html           # Main HTML
+|-- manifest.json        # PWA manifest (version, icons, start_url)
+|-- service-worker.js    # Cache and update (VERSION)
+|-- CACHE_VERIFICATION.md
+|-- css/
+|   `-- style.css
+|-- js/
+|   |-- app.js           # App logic, state, UI, Settings
+|   |-- api.js           # NWS, geocoding, NOAA, IP
+|   |-- weather.js       # Data parsing and aggregation
+|   |-- display.js       # Per-mode rendering and unit formatting
+|   `-- utils.js         # Conversions, time, sun/moon
+|-- version.ps1          # Release helper: updates versions in service-worker.js, manifest.json, and index.html
+`-- icons/               # PWA icons (e.g. 192px, 512px)
 ```
 
 ## License
