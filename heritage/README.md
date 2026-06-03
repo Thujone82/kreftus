@@ -225,7 +225,7 @@ complete in a few seconds.
 | ----------------- | --------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | `-Url`            | `string`  | `https://www.portland.gov/trees/heritage/heritage-trees-year`           | Page to scrape. Override only if the City moves the registry.                                 |
 | `-Output`         | `string`  | `<script dir>\data\trees.json`                                          | Destination snapshot path. Parent directories are created as needed.                          |
-| `-UserAgent`      | `string`  | `PDXHeritageTreesScraper (https://github.com/kreftus/kreftus)`          | Value sent to Nominatim. Per OSM policy, include an email or URL that identifies you.         |
+| `-UserAgent`      | `string`  | `PDXHeritageTreesScraper (https://kreft.us/heritage)`                     | Value sent to Nominatim. Per OSM policy, include an email or URL that identifies you.         |
 | `-DelayMs`        | `int`     | `1100`                                                                  | Milliseconds to wait between Nominatim calls. Raise if you hit rate limits.                   |
 | `-NoInteractive`  | `switch`  | off                                                                     | Never prompt on failures. Failing trees are marked `failed` so a later run can retry them.    |
 | `-Force`          | `switch`  | off                                                                     | Re-geocode every tree even if the previous snapshot had usable coordinates.                   |

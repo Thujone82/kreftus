@@ -50,7 +50,7 @@
 param(
     [string]$Url       = 'https://www.portland.gov/trees/heritage/heritage-trees-year',
     [string]$Output    = '',
-    [string]$UserAgent = 'PDXHeritageTreesScraper (https://github.com/kreftus/kreftus)',
+    [string]$UserAgent = 'PDXHeritageTreesScraper (https://kreft.us/heritage)',
     [int]   $DelayMs   = 1100,
     [switch]$NoInteractive,
     [switch]$Force,
