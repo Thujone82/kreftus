@@ -1,7 +1,6 @@
-# gf - Get Forecast (NWS Edition)
+# gf — Get Forecast (NWS Edition)
 
-## Author
-Kreft&Cursor
+**Author:** Kreft&Cursor
 
 ## Description
 `gf.ps1` is a PowerShell script that retrieves and displays detailed weather information for a specified location using the National Weather Service API. It can accept a US zip code or a "City, State" string as input.
@@ -90,19 +89,18 @@ The script first uses a geocoding service to determine the latitude and longitud
   - Displays appropriate emoji for each phase: 🌑🌒🌓🌔🌕🌖🌗🌘
   - Shows "Next Full Moon: MM/DD/YYYY" only when not currently a full moon
   - Appears in gray color after sunset information
-- **Interactive Mode:** When run interactively, provides keyboard shortcuts to switch between different display modes:
-     - **[H]** - Switch to hourly forecast only
-   - **[D]** - Switch to 7-day forecast only  
-   - **[T]** - Switch to terse mode (current conditions + today's forecast)
-   - **[R]** - Switch to rain forecast mode (sparklines)
-   - **[W]** - Switch to wind forecast mode (direction glyphs)
-   - **[O]** - Switch to observations mode (historical weather data)
-   - **[G]** - Refresh weather data (auto-refreshes every 10 minutes)
-   - **[U]** - Toggle automatic updates on/off
-   - **[B]** - Toggle control bar on/off
-   - **[F]** - Return to full display
-   - **[Enter]** or **[Esc]** - Exit the script
-   - **Ctrl+C** will also exit the script
+- **Interactive mode:** When run interactively, keyboard shortcuts switch display modes:
+  - **H** — Hourly forecast only
+  - **D** — 7-day forecast only
+  - **T** — Terse mode (current conditions + today's forecast)
+  - **R** — Rain forecast mode (sparklines)
+  - **W** — Wind forecast mode (direction glyphs)
+  - **O** — Observations mode (historical weather data)
+  - **G** — Refresh weather data (auto-refreshes every 10 minutes)
+  - **U** — Toggle automatic updates on/off
+  - **B** — Toggle control bar on/off
+  - **F** — Return to full display
+  - **Enter** or **Esc** — Exit the script (**Ctrl+C** also exits)
 
 ## Requirements
 - PowerShell
@@ -111,11 +109,11 @@ The script first uses a geocoding service to determine the latitude and longitud
 - **AQI (optional):** If you want the AirNow AQI line, set the **User** environment variable **`AirNowAPI`** to your key from https://docs.airnowapi.org/account/request/ or run **`.\gf.ps1 -aqi`**.
 
 ## How to Run
-1.  Open a PowerShell terminal.
-2.  Navigate to the directory where `gw.ps1` is located.
-3.  Run the script using one of the formats below.
+1. Open a PowerShell terminal.
+2. Navigate to the directory where `gf.ps1` is located.
+3. Run the script using one of the formats below.
 
-*Note: To run PowerShell scripts, you may need to adjust your execution policy. You can do this by running `Set-ExecutionPolicy Bypass` from an administrator PowerShell prompt.*
+> **Note:** To run PowerShell scripts, you may need to adjust your execution policy (e.g. `Set-ExecutionPolicy Bypass` from an administrator PowerShell prompt).
 
 ## Configuration
 The script uses a user agent string "GetForecast/1.0 (081625PDX)" for API requests. This is hardcoded in the script and does not require a configuration file.
@@ -138,19 +136,39 @@ To change the font in Windows Terminal:
 4. In the Font face dropdown, select a font like Cascadia Code PL or a Nerd Font.
 
 
-#### 2. Change Console Encoding to UTF-8 [Note: The script attempts to do this for you]
-Emojis are complex Unicode characters (often outside the Basic Multilingual Plane) that require UTF-8 encoding. While modern Windows Terminal handles this well, you can explicitly set the output encoding in your PowerShell profile script to prevent issues, especially when redirecting output.
+#### 2. Change console encoding to UTF-8
 
-Execute In PowerShell 
+Emojis require UTF-8 encoding. The script attempts to set this automatically; you can also add the following to your PowerShell profile:
 
+```powershell
 # Set console output encoding to UTF-8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Set PowerShell output encoding for cmdlets
 $OutputEncoding = [System.Text.Encoding]::UTF8
-
+```
 
 ## Parameters
+
+| Parameter | Alias | Description |
+|-----------|-------|-------------|
+| `Location` | — | US zip or `City, State`. Prompted if omitted. |
+| `-Help` | — | Show detailed help and exit. |
+| `-Verbose` | — | Debug output for API calls, AQI diagnostics, suppression reasons. |
+| `-AqiSetup` | `-aqi` | AQI setup screen only; stores key in User env `AirNowAPI`. [Request a key](https://docs.airnowapi.org/account/request/) |
+| `-Terse` | `-t` | Current conditions + today's forecast (+ alerts). |
+| `-Hourly` | `-h` | 12-hour hourly forecast. |
+| `-SevenDay` | `-7` | 7-day forecast summary. |
+| `-Daily` | `-d` | Enhanced 7-day forecast with wind, indices, wrapped text. |
+| `-Rain` | `-r` | Rain likelihood sparklines (96 hours). |
+| `-Wind` | `-w` | Wind outlook glyphs (96 hours). |
+| `-Observations` | `-o` | Historical observations (7 days). |
+| `-NoAutoUpdate` | `-u` | Start with auto-update disabled (10-minute default). |
+| `-Magic` | `-m` | Golden/Blue hour lines before `Updated:`. |
+| `-NoInteractive` | `-x` | Display once and exit (scripting). |
+| `-Noaa` | — | Override NOAA tide station ID (ignores 100-mile limit). |
+
+### Parameter details
 
 - `Location` [string] (Positional: 0)
   - The location for which to retrieve weather. Can be a 5-digit US zip code or a "City, State" string.
@@ -399,16 +417,16 @@ When you run the script by double-clicking it or from a non-terminal environment
 1. **Run the script interactively** (double-click the .ps1 file or run from Windows Explorer)
 2. **Wait for the weather data to load** and display
 3. **Use keyboard shortcuts** to switch between views:
-       - **H** - Switch to hourly forecast only (12-hour view)
-    - **D** - Switch to 7-day forecast only (weekly view)
-    - **T** - Switch to terse mode (current conditions + today's forecast)
-    - **R** - Switch to rain forecast mode (sparklines)
-    - **W** - Switch to wind forecast mode (direction glyphs)
-    - **O** - Switch to observations mode (historical weather data)
-    - **G** - Refresh weather data (auto-refreshes every 10 minutes)
-    - **U** - Toggle automatic updates on/off
-    - **F** - Return to full display (all information)
-    - **Enter** - Exit the script
+   - **H** — Hourly forecast only (12-hour view)
+   - **D** — 7-day forecast only
+   - **T** — Terse mode (current + today)
+   - **R** — Rain forecast (sparklines)
+   - **W** — Wind forecast (glyphs)
+   - **O** — Observations (historical data)
+   - **G** — Refresh weather data
+   - **U** — Toggle automatic updates
+   - **F** — Full display
+   - **Enter** — Exit the script
 
 ### Interactive Mode Benefits:
 

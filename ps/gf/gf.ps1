@@ -247,7 +247,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host "  -o, -Observations    Show historical weather observations" -ForegroundColor Cyan
     Write-Host "  -aqi, -AqiSetup     AirNow API key setup (User env var AirNowAPI); exits after setup" -ForegroundColor Cyan
     Write-Host "                • Request a key: https://docs.airnowapi.org/account/request/" -ForegroundColor Gray
-    Write-Host "                • Optional AQI in weather requires AirNowAPI; see README.txt" -ForegroundColor Gray
+    Write-Host "                • Optional AQI in weather requires AirNowAPI; see README.md" -ForegroundColor Gray
     Write-Host "                • Clouds on same line as Conditions when available (SKC=clear, FEW=few, SCT=scattered, BKN=broken, OVC=overcast, VV=vertical visibility)" -ForegroundColor Gray
     Write-Host "                • Pressure (inHg): Cyan (<29.50), White (29.50-30.20), Yellow (>30.20), Red (extreme <29.0 or >30.5)" -ForegroundColor Gray
     Write-Host "  -u, -NoAutoUpdate Start with automatic updates disabled" -ForegroundColor Cyan
