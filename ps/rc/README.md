@@ -139,7 +139,7 @@ Skips the first two iterations, then runs every 5 minutes.
 ### Expected runtime threshold
 
 ```powershell
-.\rc.ps1 "Invoke-WebRequest https://example.com" 5s -Expect 1s
+.\rc.ps1 "Invoke-WebRequest https://kreft.us" 5s -Expect 1s
 .\rc.ps1 "Get-Date" 1m -e 1s
 ```
 

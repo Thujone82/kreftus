@@ -61,7 +61,7 @@ entirely offline from your browser's IndexedDB.
 
 The recommended way to use PDX Heritage Trees is to **install it as a PWA**
 (home-screen or dock icon, faster launch, and offline use after the first visit).
-The app must be served over **HTTPS** (or opened on **localhost** during
+The live app is at [https://kreft.us/heritage/](https://kreft.us/heritage/) and must be served over **HTTPS** (or opened on **localhost** during
 development).
 
 ### iPhone and iPad (iOS)
@@ -102,12 +102,9 @@ you miss the dedicated icon and the most reliable offline behavior.
 
 ### Self-hosting
 
-Everything below is for **running your own copy** of the app (local files,
-a private server, or deploying under your site). End users who only visit a
-public install do not need these steps.
+Everything below is for **running your own copy** of the app (local files or a private server). End users who visit the [live app](https://kreft.us/heritage/) do not need these steps.
 
-Open `heritage/index.html` in a browser, or deploy the entire `heritage/`
-folder to your site at `/heritage/` (typically `https://yoursite.example/heritage/`).
+Open `heritage/index.html` in a browser, or use the live copy at [https://kreft.us/heritage/](https://kreft.us/heritage/). To self-host elsewhere, deploy the entire `heritage/` folder at `/heritage/` (same layout as kreft.us).
 
 On first launch the app:
 
@@ -246,7 +243,7 @@ pwsh -File heritage/heritage.ps1 -NoInteractive
 pwsh -File heritage/heritage.ps1 -Force -DelayMs 2000
 
 # Be a good OSM citizen on a hosted runner.
-pwsh -File heritage/heritage.ps1 -UserAgent "PDXHeritageTrees (me@example.com)"
+pwsh -File heritage/heritage.ps1 -UserAgent "PDXHeritageTrees (https://kreft.us/heritage)"
 
 # Open update mode and jump straight to tree #366.
 pwsh -File heritage/heritage.ps1 -Update 366

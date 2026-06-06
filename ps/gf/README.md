@@ -265,8 +265,8 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
   - When specified, uses the given station ID regardless of distance (ignores 100-mile limit).
   - Still calculates and displays distance from location to the specified station.
   - Useful for accessing specific tide stations or stations beyond the normal 100-mile radius.
-  - Example: `-Noaa 9440357` for TEMCO Kalama Terminal station.
-  - **Tip — finding a station ID:** Open the [NOAA Tides & Currents map](https://tidesandcurrents.noaa.gov/map/), pan/zoom to your area, and click a station marker. The popup shows the numeric **Station ID** (e.g. `9440357`); use that value with `-Noaa`. You can also open the station’s detail page from the map — the ID appears in the page URL as `id=9440357`.
+  - Example: `-Noaa 9440083` for Vancouver, WA station.
+  - **Tip — finding a station ID:** Open the [NOAA Tides & Currents map](https://tidesandcurrents.noaa.gov/map/), pan/zoom to your area, and click a station marker. The popup shows the numeric **Station ID** (e.g. `9440083`); use that value with `-Noaa`. You can also open the station’s detail page from the map — the ID appears in the page URL as `id=9440083`.
 
 ## Examples
 
@@ -357,7 +357,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 ### Example 17: Use specific NOAA station by ID
 ```powershell
-.\gf.ps1 "Portland, OR" -Noaa 9440357
+.\gf.ps1 "Vancouver, WA" -Noaa 9440083
 ```
 
 > **Tip:** Locate station IDs on the [NOAA Tides & Currents map](https://tidesandcurrents.noaa.gov/map/) — click a marker to see the ID in the popup, or in the station page URL (`id=…`).

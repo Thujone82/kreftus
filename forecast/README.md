@@ -62,7 +62,7 @@ On the Hourly table, the **Time** column header includes the calendar day(s) for
 
 ## Setup
 
-Install Forecast as an app for a home-screen or dock icon, faster launch, and offline support. The site must be served over **HTTPS** (or opened on **localhost** during development).
+Install Forecast as an app for a home-screen or dock icon, faster launch, and offline support. The live app is at [https://kreft.us/forecast/](https://kreft.us/forecast/) and must be served over **HTTPS** (or opened on **localhost** during development).
 
 ### iPhone and iPad (iOS)
 
@@ -88,7 +88,7 @@ Desktop **Firefox** has limited PWA support; use Chrome or Edge for the full ins
 
 ## Usage
 
-1. Open the app in a modern browser.
+1. Open the app at [https://kreft.us/forecast/](https://kreft.us/forecast/) in a modern browser.
 2. Enter a location (zip or "City, State") and click **Load**, or click the **pin** button to use your current location.
 3. Use the **mode** buttons (Full, Daily, Hourly, Rain, Wind, History) to switch views, or press **F**, **D**, **H**, **R**, or **W** ( **H** toggles Hourly/History when Hourly is active). Press **L** to open or close the Locations bar. Press **.** and **,** to move between page top, the mode title, and each section or day—or between 12-hour pages in Hourly mode (see [Section navigation](#section-navigation)).
 4. **Star** saves the current location to the Locations bar; **Locations** opens/closes the saved locations list.
@@ -100,7 +100,7 @@ Desktop **Firefox** has limited PWA support; use Chrome or Edge for the full ins
 
 A full reset clears everything and restores defaults:
 
-1. In Settings, click **Reset Forecast** and confirm, or add `?reset=true` to the URL (e.g. `https://yoursite.com/forecast/?reset=true`).
+1. In Settings, click **Reset Forecast** and confirm, or add `?reset=true` to the URL (e.g. `https://kreft.us/forecast/?reset=true`).
 2. The app will:
    - Clear all saved locations (favorites)
    - Clear all cached weather and NOAA data
