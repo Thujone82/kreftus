@@ -600,15 +600,6 @@ These messages provide clear feedback about the script's progress and help users
 - This script also uses the AirNow API endpoint for AQI:
   - `https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude={lat}&longitude={lon}&distance=25&API_KEY={key}`
 
-## Features Removed from Original OpenWeatherMap Version
-Due to differences in the National Weather Service API, the following features from the legacy OpenWeatherMap edition are not available:
-- UV Index data
-- Moonrise/Moonset times
-- Detailed weather overview reports
-- Rain/Snow precipitation amounts
-
-**Note:** Moon phase and temperature trend indicators are available in this NWS edition (see [Features](#features)).
-
 ## Features Added/Enhanced
 - **Sunrise/Sunset Times:** Calculated using NOAA astronomical algorithms based on location coordinates and time zone. During polar night or polar day, sun times use `MM/dd HH:mm` format. All displayed times (hourly forecasts, sunrise, sunset, update times) are shown in the destination location's local timezone, not your system's timezone.
 - **Solar Irradiance:** Clear-sky global horizontal irradiance (GHI) in W/m² at the current time plus peak at location solar noon with time, displayed as "Irradiance: XW/m2 [Peak YW/m2 @ h:mm]" in white when available (including terse mode). Estimate only (NWS does not provide irradiance).
