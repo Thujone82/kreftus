@@ -5,7 +5,7 @@
 ## Description
 `gf.ps1` is a PowerShell script that retrieves and displays detailed weather information for a specified location using the National Weather Service API. It can accept a US zip code or a "City, State" string as input.
 
-The script first uses a geocoding service to determine the latitude and longitude of the location, then fetches the current weather, daily forecasts, and weather alerts from the National Weather Service.
+The script first uses OpenStreetMap Nominatim to geocode the location, then fetches current weather, forecasts, alerts, and optional AirNow AQI from the National Weather Service and related APIs.
 
 ## Features
 - **Flexible Location Input:** Accepts 5-digit zip codes, city/state names (e.g., "Portland, OR"), or "here" for automatic location detection.
@@ -13,11 +13,12 @@ The script first uses a geocoding service to determine the latitude and longitud
 - **Interactive Prompt:** If no location is provided, the script displays a welcome screen and prompts for input.
 - **Comprehensive Weather Data:** Displays a wide range of information, including:
   - Current temperature and conditions.
-  - Wind chill and heat index calculations (using NWS formulas).
+  - Wind chill and heat index calculations (NWS formulas), or estimated outdoor WBGT with `-wbgt` (aligned with the forecast web app).
+  - Temperature trend indicators (↗️ rising, ↘️ falling, → steady) when observation data supports them.
   - Detailed daily and tomorrow forecasts.
   - Wind speed and direction.
   - Sunrise and sunset times (calculated astronomically).
-  - Solar irradiance (clear-sky GHI in W/m² at current time plus peak at solar noon with time) after sunset, in white, in both full and terse views.
+  - Solar irradiance (clear-sky GHI in W/m² at current time plus peak at solar noon with time), displayed in white when available (full and terse views).
   - Optional Magic Hours lines (`-m` / `-Magic`) in Current Conditions immediately before `Updated:`:
     - `Golden Hour:` / `Next Golden Hour:`
     - `Blue Hour:` / `Next Blue Hour:`
@@ -31,11 +32,12 @@ The script first uses a geocoding service to determine the latitude and longitud
 - **Smart Color-Coding:** Important metrics are color-coded for quick assessment:
   - **Temperature:** Turns blue if below 33°F and red if above 89°F.
   - **Wind Chill:** Displayed in blue when temperature <= 50°F and difference > 1°F.
-  - **Heat Index:** Displayed in red when temperature >= 80°F and difference > 1°F.
-  - **Wind:** Turns red if wind speed is 16 mph or greater.
+  - **Heat Index / WBGT:** Heat index in alert color when temp ≥ 80°F and difference > 1°F; with `-wbgt`, estimated outdoor WBGT bracket uses the same temperature color bands as dry-bulb (including warm band from 75°F).
+  - **Wind (current conditions):** Wind speed and direction glyph colored by intensity — White (≤5 mph), Yellow (6–9), Red (10–14), Magenta (15+). Gust parenthetical uses alert color when present.
+  - **Alert header:** When active alerts apply, the current-conditions title is prefixed with ⚠️ (and 🌡 for heat-related alerts), matching the forecast web app.
   - **Hour Labels:** Hour labels in the hourly forecast (e.g., "08:00", "09:00") are colored yellow when the majority of that hour is during daytime, otherwise displayed in white. This helps quickly identify daytime vs nighttime hours at a glance.
-  - **Rain Likelihood:** Color-coded sparklines show rain probability at a glance (white for very low, cyan for low, green for light, yellow for medium, red for high).
-  - **Wind Outlook:** Color-coded directional glyphs show wind patterns and intensity, with peak wind hours highlighted using inverted colors.
+  - **Rain Likelihood:** Color-coded sparklines — White (0–10%), Cyan (11–33%), Green (34–44%), Yellow (45–80%), Red (81%+).
+  - **Wind Outlook:** Color-coded directional glyphs — White (≤5 mph), Yellow (6–9), Red (10–14), Magenta (15+); peak wind hours highlighted with inverted colors.
   - **Humidity:** Color-coded based on comfort levels:
     - Cyan: Very dry (<30%)
     - White: Comfortable (30-60%)
@@ -46,8 +48,8 @@ The script first uses a geocoding service to determine the latitude and longitud
     - White: Comfortable, pleasant (40-54°F)
     - Yellow: Getting sticky/muggy (55-64°F)
     - Red: Oppressive, very uncomfortable (≥65°F)
-  - **Pressure (Observations only):** Barometric pressure in inHg: Cyan (<29.50), White (29.50-30.20), Yellow (>30.20), Alert (extreme)
-  - **Clouds (Observations only):** When data is available, "Clouds:" is shown on the same line as Conditions (white label, gray data). Codes: SKC (clear), FEW (few), SCT (scattered), BKN (broken), OVC (overcast). Omitted when not available
+  - **Pressure (Observations only):** Barometric pressure in inHg: Cyan (<29.50), White (29.50–30.20), Yellow (>30.20), Red (extreme: <29.0 or >30.5)
+  - **Clouds (Observations only):** When data is available, "Clouds:" is shown on the same line as Conditions (white label, gray data). Codes: SKC (clear), FEW (few), SCT (scattered), BKN (broken), OVC (overcast), VV (vertical visibility). Omitted when not available
   - **AQI (Current conditions):**
     - `AQI:` label is always White.
     - `CategoryName` color uses highest category number from O3/PM2.5:
@@ -61,7 +63,7 @@ The script first uses a geocoding service to determine the latitude and longitud
     - `O3[...]` and `PM2.5[...]` are each colored from their own category numbers.
     - In terse mode, AQI is shown only when highest category is 2-6; otherwise suppressed.
 - **Robust Error Handling:** Implements exponential backoff retry logic for service unavailability, automatically retrying up to 10 times with increasing delays (1s to 512s) before gracefully exiting with a clear error message.
-- **Weather Alerts:** Automatically displays any active weather alerts (e.g., warnings, watches) for the location.
+- **Weather Alerts:** Automatically displays any active weather alerts (e.g., warnings, watches) for the location. Test/monitoring-only alerts are filtered out (v2.2).
 - **NWS Resources:** Provides clickable links to official NWS resources:
   - **Forecast:** Direct link to weather.gov forecast map for the location
   - **Graph:** Direct link to NWS graphical forecast with detailed charts
@@ -76,13 +78,14 @@ The script first uses a geocoding service to determine the latitude and longitud
   - **Adjacent Day Fetching:** Automatically fetches tomorrow's predictions if no "next" tide found for today, and yesterday's predictions if no "last" tide found for today, ensuring complete tide information is always available
 - **Enhanced Daily Mode:** Comprehensive 7-day forecast with detailed information:
   - Sunrise, sunset, and day length for each day (calculated astronomically)
-  - Wind speed and direction with color coding (red for high wind)
-  - Windchill and Heat Index calculations when applicable
+  - Wind speed and direction with color-coded intensity (same bands as wind outlook)
+  - Windchill, heat index, or estimated WBGT (with `-wbgt`) when applicable
   - Precipitation probability with "Precip" label for clarity
   - Word-wrapped detailed forecasts for both day and night periods
   - Smart day/night period detection for single-period days
   - Consistent gray color for all detailed forecast text
-- **Smart Exit:** If run from an environment other than a standard command prompt (like by double-clicking), it will pause and wait for user input before closing the window.
+- **Interactive control bar:** On-screen hotkey hints (toggle with **B** or start hidden with `-b`). Use `-x` for one-shot output without the control bar loop.
+- **CLI tolerance:** Unrecognized switches (e.g. accidental `-c`) produce a yellow warning and the script continues (v2.2).
 - **Moon Phase Information:** Displays current moon phase with emoji and next full moon date:
   - Shows 8 moon phases: New Moon, Waxing Crescent, First Quarter, Waxing Gibbous, Full Moon, Waning Gibbous, Last Quarter, Waning Crescent
   - Uses astronomical calculation based on known new moon reference (January 6, 2000)
@@ -90,7 +93,7 @@ The script first uses a geocoding service to determine the latitude and longitud
   - Shows "Next Full Moon: MM/DD/YYYY" only when not currently a full moon
   - Appears in gray color after sunset information
 - **Interactive mode:** When run interactively, keyboard shortcuts switch display modes:
-  - **H** — Hourly forecast only
+  - **H** — Hourly forecast (12-hour page; **↑**/**↓** scroll through up to 48 hours)
   - **D** — 7-day forecast only
   - **T** — Terse mode (current conditions + today's forecast)
   - **R** — Rain forecast mode (sparklines)
@@ -157,15 +160,16 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 | `-Verbose` | — | Debug output for API calls, AQI diagnostics, suppression reasons. |
 | `-AqiSetup` | `-aqi` | AQI setup screen only; stores key in User env `AirNowAPI`. [Request a key](https://docs.airnowapi.org/account/request/) |
 | `-Terse` | `-t` | Current conditions + today's forecast (+ alerts). |
-| `-Hourly` | `-h` | 12-hour hourly forecast. |
-| `-SevenDay` | `-7` | 7-day forecast summary. |
-| `-Daily` | `-d` | Enhanced 7-day forecast with wind, indices, wrapped text. |
+| `-Hourly` | `-h` | 12-hour hourly forecast (scroll up to 48h in interactive mode). |
+| `-Daily` | `-d` | Enhanced 7-day forecast with wind, indices, and wrapped text. |
 | `-Rain` | `-r` | Rain likelihood sparklines (96 hours). |
 | `-Wind` | `-w` | Wind outlook glyphs (96 hours). |
 | `-Observations` | `-o` | Historical observations (7 days). |
 | `-NoAutoUpdate` | `-u` | Start with auto-update disabled (10-minute default). |
 | `-Magic` | `-m` | Golden/Blue hour lines before `Updated:`. |
 | `-NoInteractive` | `-x` | Display once and exit (scripting). |
+| `-NoBar` | `-b` | Start with the interactive control bar hidden. |
+| `-UseWbgt` | `-wbgt` | Use estimated outdoor WBGT instead of heat index (warm band from 75°F). |
 | `-Noaa` | — | Override NOAA tide station ID (ignores 100-mile limit). |
 
 ### Parameter details
@@ -197,15 +201,13 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
   - Provides a streamlined, focused view for quick weather checks.
 
 - `-Hourly` or `-h` [switch]
-  - Shows only the 12-hour hourly forecast.
+  - Shows only the 12-hour hourly forecast on first display.
+  - In interactive mode, **↑** and **↓** scroll through up to 48 hours in 12-hour pages.
+  - Enters interactive mode after display (use `-x` to exit immediately).
   - Perfect for planning activities throughout the day.
 
-- `-SevenDay` or `-7` [switch]
-  - Shows only the 7-day forecast summary.
-  - Great for weekly planning.
-
 - `-Daily` or `-d` [switch]
-  - Shows enhanced 7-day forecast with detailed wind information, windchill/heat index, and word-wrapped detailed forecasts.
+  - Shows enhanced 7-day forecast with detailed wind information, windchill/heat index/WBGT (with `-wbgt`), and word-wrapped detailed forecasts.
   - Displays 3 lines per day: summary line with wind info, day detailed forecast, and night detailed forecast.
   - Includes color-coded wind speeds, precipitation percentages, and temperature indices.
   - Enters interactive mode after display (use -x to exit immediately).
@@ -228,8 +230,8 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 - `-Observations` or `-o` [switch]
   - Shows historical weather observations for the last 7 days.
-  - Displays daily aggregates including high/low temperatures, average and maximum wind speeds, wind direction, barometric pressure (inHg) with color coding, humidity, total precipitation, general conditions, and cloud summary (Clouds:) on the same line as Conditions when the station provides cloud data (white label, gray data; omitted when not). Cloud codes: SKC=clear, FEW=few, SCT=scattered, BKN=broken, OVC=overcast.
-  - Includes moon phase information and windchill/heat index calculations when applicable.
+  - Displays daily aggregates including high/low temperatures, average and maximum wind speeds, wind direction, barometric pressure (inHg) with color coding, humidity, total precipitation, general conditions, and cloud summary (Clouds:) on the same line as Conditions when the station provides cloud data (white label, gray data; omitted when not). Cloud codes: SKC, FEW, SCT, BKN, OVC, VV.
+  - Includes moon phase information and windchill/heat index/WBGT (with `-wbgt`) when applicable.
   - Only shows days that have actual observation data available.
   - Enters interactive mode after display (use -x to exit immediately).
   - Perfect for reviewing recent weather patterns and historical conditions.
@@ -245,9 +247,18 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
   - Labels are `Golden Hour` / `Blue Hour` while active, otherwise `Next Golden Hour` / `Next Blue Hour`.
 
 - `-NoInteractive` or `-x` [switch]
-  - Exits immediately after displaying weather data (no interactive mode).
+  - Exits immediately after displaying weather data (no interactive mode or control bar).
   - Perfect for scripting and automation scenarios.
   - Can be combined with other display flags (e.g., `-h -x` for hourly view then exit).
+
+- `-NoBar` or `-b` [switch]
+  - Starts with the interactive control bar hidden.
+  - Toggle visibility anytime in interactive mode with the **B** key.
+
+- `-UseWbgt` or `-wbgt` [switch]
+  - Uses estimated outdoor WBGT instead of heat index for the feels-like bracket when temp > 50°F.
+  - Bracket color follows the same temperature bands as dry-bulb (Blue <33°F / default / alert >89°F), with web-app rules including a warm band from 75°F.
+  - Applies in current conditions, hourly, daily, and observations displays.
 
 - `-Noaa` [string]
   - Overrides automatic NOAA station selection with a specific station ID.
@@ -255,6 +266,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
   - Still calculates and displays distance from location to the specified station.
   - Useful for accessing specific tide stations or stations beyond the normal 100-mile radius.
   - Example: `-Noaa 9440357` for TEMCO Kalama Terminal station.
+  - **Tip — finding a station ID:** Open the [NOAA Tides & Currents map](https://tidesandcurrents.noaa.gov/map/), pan/zoom to your area, and click a station marker. The popup shows the numeric **Station ID** (e.g. `9440357`); use that value with `-Noaa`. You can also open the station’s detail page from the map — the ID appears in the page URL as `id=9440357`.
 
 ## Examples
 
@@ -283,12 +295,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 .\gf.ps1 -h "Portland, OR"
 ```
 
-### Example 6: Get 7-day forecast only
-```powershell
-.\gf.ps1 -7 "Portland, OR"
-```
-
-### Example 6a: Get enhanced 7-day forecast with detailed information
+### Example 6: Get enhanced 7-day forecast (daily mode)
 ```powershell
 .\gf.ps1 -d "Portland, OR"
 ```
@@ -353,10 +360,31 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 .\gf.ps1 "Portland, OR" -Noaa 9440357
 ```
 
+> **Tip:** Locate station IDs on the [NOAA Tides & Currents map](https://tidesandcurrents.noaa.gov/map/) — click a marker to see the ID in the popup, or in the station page URL (`id=…`).
+
 ### Example 18: Enable Magic Hours in Current Conditions
 ```powershell
 .\gf.ps1 "Portland, OR" -m
 ```
+
+### Example 19: Use WBGT instead of heat index
+```powershell
+.\gf.ps1 "Portland, OR" -wbgt
+```
+
+## Full Display Mode
+
+When no display-mode flag is set (`-t`, `-h`, `-d`, `-r`, `-w`, or `-o`), the script shows the **full report**:
+
+- Current conditions (with optional Magic Hours, moon phase, irradiance, AQI)
+- Today's and tomorrow's detailed forecast text
+- 12-hour hourly forecast table
+- 7-day forecast summary (compact; use **D** or `-d` for the enhanced daily view)
+- Active weather alerts (with details)
+- Location metadata (timezone, coordinates, elevation, radar station)
+- Clickable NWS forecast/graph/radar links and NOAA tide resources when available
+
+Unless `-x` is passed, the script then enters interactive mode with the control bar so you can switch views with hotkeys.
 
 ## Observations Mode
 
@@ -366,9 +394,9 @@ The observations mode (`-o` or `-observations`) provides historical weather data
 
 - **Historical Data:** Shows weather observations from the last 7 days
 - **Sunrise/Sunset/Day Length:** Displays sunrise time, sunset time, and day length for each observation day (calculated astronomically)
-- **Daily Aggregates:** Displays high/low temperatures, average and maximum wind speeds, wind direction, barometric pressure (inHg) after wind with color coding, humidity, total precipitation, general conditions, and cloud summary (Clouds:) on the same line as Conditions when available (white label, gray data; omitted when not). Cloud codes: SKC, FEW, SCT, BKN, OVC
+- **Daily Aggregates:** Displays high/low temperatures, average and maximum wind speeds, wind direction, barometric pressure (inHg) after wind with color coding, humidity, total precipitation, general conditions, and cloud summary (Clouds:) on the same line as Conditions when available (white label, gray data; omitted when not). Cloud codes: SKC, FEW, SCT, BKN, OVC, VV
 - **Moon Phase Information:** Includes moon phase emoji and information for each day
-- **Windchill/Heat Index:** Calculates and displays windchill (≤50°F) and heat index (≥80°F) when applicable
+- **Windchill/Heat Index/WBGT:** Calculates windchill (≤50°F), heat index (≥80°F), or estimated WBGT (with `-wbgt`) when applicable
 - **Data Filtering:** Only displays days that have actual observation data (skips days with no data)
 - **Color Coding:** Uses the same color coding rules as other modes (temperature, wind speed, etc.)
 - **Interactive Mode:** Enters interactive mode after display (use -x to exit immediately)
@@ -397,7 +425,7 @@ Each day shows:
 - **Precipitation:** Total precipitation for the day in inches (if any), accurately converted from millimeters
 - **Humidity:** Average relative humidity percentage
 - **Conditions:** Most common weather condition description for the day
-- **Clouds:** Cloud summary on the same line as Conditions when the station provides cloud data (e.g. "Conditions: Cloudy Clouds: BKN 2,400 ft, OVC 3,900 ft"); omitted when not available. Codes: SKC (clear), FEW (few), SCT (scattered), BKN (broken), OVC (overcast)
+- **Clouds:** Cloud summary on the same line as Conditions when the station provides cloud data (e.g. "Conditions: Cloudy Clouds: BKN 2,400 ft, OVC 3,900 ft"); omitted when not available. Codes: SKC (clear), FEW (few), SCT (scattered), BKN (broken), OVC (overcast), VV (vertical visibility)
 - **Moon Phase:** Moon phase emoji and information
 
 ### Observations Mode Use Cases:
@@ -410,23 +438,26 @@ Each day shows:
 
 ## Interactive Mode
 
-When you run the script by double-clicking it or from a non-terminal environment, it enters **Interactive Mode**. This mode allows you to switch between different display views using keyboard shortcuts without having to restart the script.
+By default, after weather data is displayed, the script enters **interactive mode** when the console supports keyboard input (PowerShell, cmd, Windows Terminal, and similar). Use `-x` to skip this and exit immediately.
+
+Interactive mode shows a control bar with hotkey hints (hide with **B** or start hidden with `-b`) and lets you switch views without restarting.
 
 ### How to Use Interactive Mode:
 
-1. **Run the script interactively** (double-click the .ps1 file or run from Windows Explorer)
+1. **Run the script** (with or without a location; omit `-x` unless scripting)
 2. **Wait for the weather data to load** and display
 3. **Use keyboard shortcuts** to switch between views:
-   - **H** — Hourly forecast only (12-hour view)
-   - **D** — 7-day forecast only
+   - **H** — Hourly forecast (12-hour page; **↑**/**↓** scroll up to 48 hours)
+   - **D** — Enhanced 7-day forecast
    - **T** — Terse mode (current + today)
    - **R** — Rain forecast (sparklines)
    - **W** — Wind forecast (glyphs)
    - **O** — Observations (historical data)
    - **G** — Refresh weather data
    - **U** — Toggle automatic updates
+   - **B** — Toggle control bar on/off
    - **F** — Full display
-   - **Enter** — Exit the script
+   - **Enter**, **Esc**, or **Ctrl+C** — Exit the script
 
 ### Interactive Mode Benefits:
 
@@ -434,18 +465,15 @@ When you run the script by double-clicking it or from a non-terminal environment
 - **Efficient Planning:** Switch between hourly and daily views for different planning needs
 - **Focused Information:** Get exactly the weather data you need without scrolling through everything
 - **Auto-Refresh:** Weather data automatically refreshes every 10 minutes to keep information current
-- **Manual Refresh:** Press 'G' to manually refresh data at any time
-- **User-Friendly:** Perfect for users who prefer mouse/keyboard interaction over command-line options
+- **Manual Refresh:** Press **G** to manually refresh data at any time
+- **Hourly Scrolling:** In hourly view, **↑**/**↓** move through 12-hour pages covering up to 48 hours
 
-### When Interactive Mode Activates:
+### When Interactive Mode Is Skipped:
 
-Interactive mode automatically activates when the script detects it's not running from a standard terminal environment (PowerShell, Command Prompt, or Windows Terminal). This typically happens when:
-- Double-clicking the .ps1 file
-- Running from Windows Explorer
-- Running from a GUI application
-- Running from certain development environments
+- Pass `-x` or `-NoInteractive` for one-shot/scripting use
+- Console key input is unavailable (redirected stdin, unsupported host) — the script exits after the initial display
 
-**Note:** Interactive mode can be disabled using the `-x` or `-NoInteractive` flag, which is useful for scripting and automation scenarios.
+**Note:** Rain (`-r`), wind (`-w`), and hourly (`-h`) modes also enter interactive mode unless `-x` is set.
 
 ## Rain Forecast Mode
 
@@ -459,12 +487,12 @@ The rain forecast mode (`-r` or `-rain`) provides a unique visual representation
   - **White** ( ): No rain likelihood (0%)
   - **White** (▁): Very low rain likelihood (1-10%)
   - **Cyan** (▂): Low rain likelihood (11-33%)
-  - **Green** (▃): Light rain likelihood (34-40%)
-  - **Yellow** (▄▅): Medium rain likelihood (41-80%)
+  - **Green** (▃): Light rain likelihood (34–44%)
+  - **Yellow** (▄▅): Medium rain likelihood (45–80%)
   - **Red** (▇): High rain likelihood (81%+)
 - **Day-by-Day Display:** Up to 5 days shown with abbreviated day names
 - **Hourly Precision:** Each sparkline character represents one hour (00:00 to 23:00)
-- **Automatic Exit:** No interactive mode - displays data and exits immediately
+- **Interactive Mode:** Enters interactive mode after display (use `-x` to exit immediately)
 
 ### Rain Forecast Usage:
 
@@ -502,14 +530,14 @@ The wind forecast mode (`-w` or `-wind`) provides a unique visual representation
 - **96-Hour Coverage:** Shows wind direction and speed for the next 4 days (96 hours)
 - **Visual Direction Glyphs:** Each character represents one hour of wind direction and speed
 - **Color-Coded Intensity:**
-  - **White**: Calm conditions (≤5mph)
-  - **Yellow**: Light breeze (>5mph and ≤9mph)
-  - **Red**: Moderate wind (>9mph and ≤14mph)
-  - **Magenta**: Strong wind (>14mph)
+  - **White**: Calm (≤5 mph)
+  - **Yellow**: Light breeze (6–9 mph)
+  - **Red**: Moderate wind (10–14 mph)
+  - **Magenta**: Strong wind (15+ mph)
 - **Day-by-Day Display:** Up to 5 days shown with abbreviated day names
 - **Hourly Precision:** Each glyph represents one hour (00:00 to 23:00)
 - **Peak Wind Highlighting:** Hours with the highest wind speed for each day are displayed with inverted colors (black text on colored background)
-- **Automatic Exit:** No interactive mode - displays data and exits immediately
+- **Interactive Mode:** Enters interactive mode after display (use `-x` to exit immediately)
 
 ### Wind Forecast Usage:
 
@@ -561,6 +589,7 @@ These messages provide clear feedback about the script's progress and help users
 - The National Weather Service API is free and requires no API key.
 - The API is limited to locations within the United States.
 - Precipitation values are automatically converted from millimeters (NWS API standard) to inches for display.
+- This script uses OpenStreetMap Nominatim for geocoding (US locations).
 - This script uses the National Weather Service API endpoints:
   - `/points/{lat},{lon}` - Get metadata for a location
   - `/gridpoints/{office}/{gridX},{gridY}/forecast` - Get forecast data
@@ -572,21 +601,25 @@ These messages provide clear feedback about the script's progress and help users
   - `https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude={lat}&longitude={lon}&distance=25&API_KEY={key}`
 
 ## Features Removed from Original OpenWeatherMap Version
-Due to differences in the National Weather Service API, the following features are not available:
+Due to differences in the National Weather Service API, the following features from the legacy OpenWeatherMap edition are not available:
 - UV Index data
 - Moonrise/Moonset times
-- Moon phase information
-- Temperature trend indicators (rising/falling)
 - Detailed weather overview reports
 - Rain/Snow precipitation amounts
 
+**Note:** Moon phase and temperature trend indicators are available in this NWS edition (see [Features](#features)).
+
 ## Features Added/Enhanced
-- **Sunrise/Sunset Times:** Calculated using NOAA astronomical algorithms based on location coordinates and time zone. All displayed times (hourly forecasts, sunrise, sunset, update times) are shown in the destination location's local timezone, not your system's timezone.
-- **Solar Irradiance:** Clear-sky global horizontal irradiance (GHI) in W/m² at the current time plus peak at location solar noon with time, displayed after Sunset as "Irradiance: XW/m2 [Peak YW/m2 @ h:mm]" in white. Hidden in terse mode. Estimate only (NWS does not provide irradiance).
+- **Sunrise/Sunset Times:** Calculated using NOAA astronomical algorithms based on location coordinates and time zone. During polar night or polar day, sun times use `MM/dd HH:mm` format. All displayed times (hourly forecasts, sunrise, sunset, update times) are shown in the destination location's local timezone, not your system's timezone.
+- **Solar Irradiance:** Clear-sky global horizontal irradiance (GHI) in W/m² at the current time plus peak at location solar noon with time, displayed as "Irradiance: XW/m2 [Peak YW/m2 @ h:mm]" in white when available (including terse mode). Estimate only (NWS does not provide irradiance).
+- **Temperature Trend:** Rising/falling/steady icons on the current temperature line when supported by observation data.
+- **Estimated WBGT:** Optional `-wbgt` feels-like bracket using Stull wet-bulb + simplified globe term (matches forecast web heuristic).
+- **Alert Header Icons:** ⚠️ and 🌡 prefixes on the current-conditions title when relevant alerts are in effect (v2.2).
 - **Humidity Data:** Available in current conditions display
 
 ## API Information
-- **Base URL:** https://api.weather.gov/
+- **NWS Base URL:** https://api.weather.gov/
+- **Geocoding:** OpenStreetMap Nominatim (https://nominatim.openstreetmap.org/) — no API key required
 - **User Agent:** GetForecast/1.0 (081625PDX)
 - **Format:** GeoJSON
 - **Rate Limits:** None specified, but please be respectful of the service
