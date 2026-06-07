@@ -305,7 +305,7 @@ func printUsage() {
 	color.Cyan("  -p, -precision")
 	fmt.Println("    Optional. Enables precision mode to prevent timing drift.")
 	fmt.Println()
-	color.Cyan("  -q, -quiet")
+	color.Cyan("  -q, -quiet, -silent")
 	fmt.Println("    Optional. Enables silent mode to suppress status output messages.")
 	fmt.Println()
 	color.Cyan("  -c, -clear")
@@ -436,8 +436,8 @@ func main() {
 				continue
 			}
 			precision = true
-		case "-q", "-quiet":
-			if warnDuplicateFlag(seenFlags, "quiet") {
+		case "-q", "-quiet", "-silent", "-Silent":
+			if warnDuplicateFlag(seenFlags, "silent") {
 				continue
 			}
 			silent = true

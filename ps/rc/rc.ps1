@@ -32,7 +32,7 @@
     A switch to enable "Silent Mode". When enabled, the script suppresses status
     output messages such as execution timing and wait periods, while still
     displaying the actual command output and any errors.
-    Alias: -q
+    Aliases: -q, -quiet
 
 .PARAMETER Clear
     A switch to enable "Clear Mode". When enabled, the script clears the screen
@@ -222,7 +222,7 @@ function Parse-RcCliArgs {
 
     $switchMap = @{
         'p' = 'Precision'; 'precision' = 'Precision'
-        'q' = 'Silent'; 'quiet' = 'Silent'
+        'q' = 'Silent'; 'quiet' = 'Silent'; 'silent' = 'Silent'
         'c' = 'Clear'; 'cl' = 'Clear'; 'clear' = 'Clear'
         'h' = 'Help'; '?' = 'Help'; 'help' = 'Help'
     }
@@ -396,7 +396,7 @@ PARAMETERS
       Grid-aligned scheduling from script start time. Sleep fills the gap to the next interval boundary;
       if a run exceeds its slot, the next iteration starts immediately to recover.
 
-  -Silent             Alias: -q
+  -Silent             Aliases: -q, -quiet
       Suppresses status lines (timestamps, waits, skip/limit banners). Command output and errors still show.
 
   -Clear              Aliases: -c, -cl

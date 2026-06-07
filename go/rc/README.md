@@ -16,7 +16,7 @@ Two timing modes are available: standard (wait the full period after each run) a
 - **Configurable interval** — Period suffixes: `s`, `m` (optional), `h`; bare integers default to minutes.
 - **Standard mode (default)** — Waits the full period after the command finishes.
 - **Precision mode (`-p`)** — Accounts for execution time so each run starts on a fixed schedule.
-- **Silent mode (`-q` / `-quiet`)** — Suppresses status lines; command output and errors remain.
+- **Silent mode (`-silent` / `-q` / `-quiet`)** — Suppresses status lines; command output and errors remain.
 - **Clear mode (`-c`)** — Clears the screen before each run.
 - **Skip mode (`-skip`)** — Skip initial iterations before running the command. `-skip 0` defaults to skipping one.
 - **Limit mode (`-limit`)** — Stop after a set number of executions. Skipped iterations do not count.
@@ -46,7 +46,7 @@ Two timing modes are available: standard (wait the full period after each run) a
 | `[command]` | Command string to execute (usually last argument). Quote if it contains spaces. |
 | `[period]` or `-period <value>` | Interval between runs. Default: `5` (minutes). Examples: `5`, `15s`, `5m`, `1h`. |
 | `-p`, `-precision` | Precision grid scheduling. |
-| `-q`, `-quiet` | Silent mode. |
+| `-silent`, `-q`, `-quiet` | Silent mode. |
 | `-c`, `-clear` | Clear screen before each run. |
 | `-skip <n>` | Skip initial iterations. `-skip 0` → skip 1. Default: 0. |
 | `-limit <n>` | Max executions; skipped runs don't count. `0` = unlimited. |

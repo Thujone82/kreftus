@@ -17,7 +17,7 @@ The script offers two modes for scheduling: a simple delay mode and a high-preci
 - **Interactive mode** — Prompts for command and interval when run without parameters.
 - **Standard mode (default)** — Waits for the full period after the command finishes. Simple, but timing can drift if run duration varies.
 - **Precision mode (`-p`)** — Fixed-interval grid from start time; accounts for execution time so runs align to predictable moments (e.g. every 10 minutes at :00, :10, :20). Overlong runs trigger an immediate next iteration to catch up.
-- **Silent mode (`-q`)** — Suppresses status lines; command output and errors still show.
+- **Silent mode (`-Silent` / `-q` / `-quiet`)** — Suppresses status lines; command output and errors still show.
 - **Clear mode (`-c`)** — Clears the screen before each run.
 - **Skip mode (`-Skip`)** — Skip initial loop iterations before running the command. `-Skip 0` defaults to skipping one execution.
 - **Limit mode (`-Limit`)** — Stop after a set number of executions. Skipped iterations do not count.
@@ -44,7 +44,7 @@ The script offers two modes for scheduling: a simple delay mode and a high-preci
 | `Command` | string (positional 0) | PowerShell command each iteration. Quote if it contains spaces. Prompted if omitted. |
 | `Period` | string (positional 1) | Wait between runs: `s`, `m`, `h`, or bare minutes. Default: `5`. Examples: `5`, `15s`, `5m`, `1h`. |
 | `-Precision` / `-p` | switch | Enable precision grid scheduling. |
-| `-Silent` / `-q` | switch | Suppress status output. |
+| `-Silent` / `-q` / `-quiet` | switch | Suppress status output. |
 | `-Clear` / `-c` | switch | Clear screen before each run. |
 | `-Skip` | int | Skip this many initial iterations before running the command. `-Skip 0` → skip 1. Default: 0 (skip none). |
 | `-Limit` | int | Max executions; skipped runs don't count. `0` = unlimited. |
