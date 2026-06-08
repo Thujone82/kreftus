@@ -548,6 +548,43 @@ function displayHourlyForecast(weather, location, startIndex = 0, maxHours = 12,
     return html;
 }
 
+function isPeriodDaytime(period) {
+    const periodTime = new Date(period.startTime);
+    return period.isDaytime !== undefined
+        ? !!period.isDaytime
+        : (periodTime.getHours() >= 6 && periodTime.getHours() < 18);
+}
+
+function getDayHighLowPeriods(periods, periodTime) {
+    const currentDay = formatDate(periodTime);
+    let daytimePeriod = null;
+    let nighttimePeriod = null;
+    for (const p of periods) {
+        const t = new Date(p.startTime);
+        if (formatDate(t) !== currentDay) continue;
+        if (isPeriodDaytime(p)) {
+            if (!daytimePeriod) daytimePeriod = p;
+        } else if (!nighttimePeriod) {
+            nighttimePeriod = p;
+        }
+    }
+    return { daytimePeriod, nighttimePeriod };
+}
+
+function formatSevenDayHighLowTempHtml(daytimePeriod, nighttimePeriod) {
+    let html = '';
+    if (daytimePeriod) {
+        const high = daytimePeriod.temperature;
+        html += `<span class="${getTempColor(high)}">H:${formatTemp(high)}</span>`;
+    }
+    if (nighttimePeriod) {
+        const low = nighttimePeriod.temperature;
+        if (daytimePeriod) html += ' ';
+        html += `<span class="${getTempColor(low)}">L:${formatTemp(low)}</span>`;
+    }
+    return html;
+}
+
 // Display 7-day forecast
 function displaySevenDayForecast(weather, location, enhanced = false, sectionAnchorId) {
     const { forecast } = weather;
@@ -580,40 +617,23 @@ function displaySevenDayForecast(weather, location, enhanced = false, sectionAnc
         
         // Skip if we've already processed this day
         if (processedDays[dayName]) continue;
-        
-        const temp = period.temperature;
-        const shortForecast = period.shortForecast;
-        const precipProb = period.probabilityOfPrecipitation?.value || 0;
-        const periodIcon = getWeatherIcon(period.icon, true, precipProb);
-        const isPrimaryDaytime = period.isDaytime !== undefined
-            ? !!period.isDaytime
-            : (periodTime.getHours() >= 6 && periodTime.getHours() < 18);
-        const primaryTempLabel = isPrimaryDaytime ? 'H' : 'L';
-        
-        // Find night period for same day
-        const currentDay = formatDate(periodTime);
-        let nightTemp = null;
-        let nightDetailedForecast = null;
-        let nightPeriodTime = null;
-        
-        for (const nightPeriod of periods) {
-            const nightTime = new Date(nightPeriod.startTime);
-            const nightDay = formatDate(nightTime);
-            
-            if (nightDay === currentDay && nightTime > periodTime) {
-                nightTemp = nightPeriod.temperature;
-                nightDetailedForecast = nightPeriod.detailedForecast;
-                nightPeriodTime = nightTime;
-                break;
-            }
-        }
+
+        const { daytimePeriod, nighttimePeriod } = getDayHighLowPeriods(periods, periodTime);
+        const displayPeriod = daytimePeriod || period;
+        const temp = displayPeriod.temperature;
+        const shortForecast = displayPeriod.shortForecast;
+        const precipProb = displayPeriod.probabilityOfPrecipitation?.value || 0;
+        const periodIcon = getWeatherIcon(displayPeriod.icon, true, precipProb);
+        const dayDetailedForecast = daytimePeriod?.detailedForecast || null;
+        const nightDetailedForecast = nighttimePeriod?.detailedForecast || null;
+        const nightPeriodTime = nighttimePeriod ? new Date(nighttimePeriod.startTime) : null;
         
         if (enhanced) {
             html += `<div class="daily-item forecast-section-anchor" id="forecast-anchor-daily-${dayCount}" tabindex="-1">`;
             // Enhanced mode
-            const windSpeed = getWindSpeed(period.windSpeed);
+            const windSpeed = getWindSpeed(displayPeriod.windSpeed);
             const windColor = windSpeed >= 16 ? "wind-strong" : "";
-            const windDisplay = appState.useMetric ? (typeof mphToMps !== 'undefined' ? mphToMps(windSpeed) + ' m/s' : period.windSpeed) : period.windSpeed.replace(/\s+mph/, 'mph');
+            const windDisplay = appState.useMetric ? (typeof mphToMps !== 'undefined' ? mphToMps(windSpeed) + ' m/s' : displayPeriod.windSpeed) : displayPeriod.windSpeed.replace(/\s+mph/, 'mph');
             
             const tempNum = parseFloat(temp);
             let windChillHeatIndex = "";
@@ -648,10 +668,11 @@ function displaySevenDayForecast(weather, location, enhanced = false, sectionAnc
                 }
             }
 
-            let isWbgtPeriodDaytime =
-                period.isDaytime !== undefined
+            let isWbgtPeriodDaytime = daytimePeriod
+                ? true
+                : (period.isDaytime !== undefined
                     ? period.isDaytime
-                    : periodTime.getHours() >= 6 && periodTime.getHours() < 18;
+                    : periodTime.getHours() >= 6 && periodTime.getHours() < 18);
             if (
                 daySunTimes &&
                 daySunTimes.sunrise &&
@@ -674,7 +695,7 @@ function displaySevenDayForecast(weather, location, enhanced = false, sectionAnc
                     windChillHeatIndex = ` <span class="temp-cold">[${formatTemp(windChill)}]</span>`;
                 }
             } else if (wbgtFeelsLikeEnabled()) {
-                const humidityNum = period.relativeHumidity?.value || 0;
+                const humidityNum = displayPeriod.relativeHumidity?.value || 0;
                 // Peak WBGT for the day: solar term uses clear-sky GHI at solar noon (location calendar day), not period start
                 let wbgtAtDate = periodTime;
                 let wbgtIsDaytime = isWbgtPeriodDaytime;
@@ -707,7 +728,7 @@ function displaySevenDayForecast(weather, location, enhanced = false, sectionAnc
                     windChillHeatIndex = ` <span class="${wbgtDisplayColorClass(wbgtVal)}">[${formatTemp(wbgtVal)}]</span>`;
                 }
             } else if (tempNum >= 80) {
-                const humidityNum = period.relativeHumidity?.value || 0;
+                const humidityNum = displayPeriod.relativeHumidity?.value || 0;
                 const heatIndex = calculateHeatIndex(tempNum, humidityNum);
                 if (heatIndex && Math.abs(heatIndex - tempNum) > 1) {
                     windChillHeatIndex = ` <span class="${getTempColor(heatIndex)}">[${formatTemp(heatIndex)}]</span>`;
@@ -733,33 +754,31 @@ function displaySevenDayForecast(weather, location, enhanced = false, sectionAnc
                 html += '<div></div>'; // Line feed after day length (or sunrise/sunset)
             }
             
+            const highLowTempHtml = formatSevenDayHighLowTempHtml(daytimePeriod, nighttimePeriod);
+
             // Temperature and info row (combined) - day name only if no sunrise/sunset
             if (sunriseStr && sunsetStr && dayLengthStr) {
                 // No day name here, it's on the sunrise line
-                html += `<div class="daily-temp-row"> <span class="${getTempColor(temp)}">${primaryTempLabel}:${formatTemp(temp)}</span>${windChillHeatIndex || ' '}`;
+                html += `<div class="daily-temp-row"> ${highLowTempHtml}${windChillHeatIndex || ' '}`;
             } else {
                 // If no sunrise/sunset, show day name on temperature line
-                html += `<div class="daily-temp-row">${dayNameWithDate}:<span class="${getTempColor(temp)}">${primaryTempLabel}:${formatTemp(temp)}</span>${windChillHeatIndex || ' '}`;
+                html += `<div class="daily-temp-row">${dayNameWithDate}:${highLowTempHtml}${windChillHeatIndex || ' '}`;
                 html += '<div></div>'; // Line feed after day label for narrow mode
             }
-            if (nightTemp) {
-                html += `<span class="${getTempColor(nightTemp)}">L:${formatTemp(nightTemp)}</span>`;
-            }
-            html += ` <span class="${windColor}">${windDisplay} ${period.windDirection}</span>`;
+            html += ` <span class="${windColor}">${windDisplay} ${displayPeriod.windDirection}</span>`;
             if (precipProb > 0) {
                 html += ` <span class="${getPrecipColor(precipProb)}">${precipProb}%☔️</span>`;
             }
             html += '</div>';
             
             // Day and night detailed forecasts
-            if (nightDetailedForecast) {
-                const dayForecastText = (period.detailedForecast || "No detailed forecast available").replace(/\s+/g, ' ').trim();
-                const nightForecastNormalized = (nightDetailedForecast || '').replace(/\s+/g, ' ').trim();
+            if (dayDetailedForecast && nightDetailedForecast) {
+                const dayForecastText = dayDetailedForecast.replace(/\s+/g, ' ').trim();
+                const nightForecastNormalized = nightDetailedForecast.replace(/\s+/g, ' ').trim();
                 
                 html += `<div class="daily-details forecast-period-text">${periodIcon} Day: ${dayForecastText}</div>`;
                 
                 // Calculate moon phase for the night period's date
-                // Use the night period's date if available, otherwise use the day period's date
                 const nightDate = nightPeriodTime || periodTime;
                 const moonPhaseInfo = calculateMoonPhase(nightDate);
                 
@@ -794,10 +813,7 @@ function displaySevenDayForecast(weather, location, enhanced = false, sectionAnc
             html += '</div>';
         } else {
             // Standard mode: table row (Day | Temp | Precip | Forecast)
-            let tempCell = `${periodIcon} <span class="${getTempColor(temp)}">${primaryTempLabel}:${formatTemp(temp)}</span>`;
-            if (nightTemp) {
-                tempCell += ` <span class="${getTempColor(nightTemp)}">L:${formatTemp(nightTemp)}</span>`;
-            }
+            const tempCell = `${periodIcon} ${formatSevenDayHighLowTempHtml(daytimePeriod, nighttimePeriod)}`;
             const precipDisplay = precipProb > 0 ? `${precipProb}%` : '';
             html += '<tr>';
             html += `<td>${dayName}</td>`;

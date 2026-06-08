@@ -4003,6 +4003,76 @@ function Format-DateWithOrdinal {
     return "$month $day$suffix`:"
 }
 
+function Test-PeriodDaytime {
+    param(
+        [object]$Period,
+        [datetime]$PeriodTime
+    )
+    if ($Period.PSObject.Properties['isDaytime']) {
+        return [bool]$Period.isDaytime
+    }
+    return ($PeriodTime.Hour -ge 6 -and $PeriodTime.Hour -lt 18)
+}
+
+function Get-DayHighLowForecastPeriods {
+    param(
+        [object[]]$ForecastPeriods,
+        [datetime]$PeriodTime
+    )
+    $currentDay = $PeriodTime.ToString('yyyy-MM-dd')
+    $daytimePeriod = $null
+    $nighttimePeriod = $null
+    foreach ($p in $ForecastPeriods) {
+        if (-not $p.startTime) { continue }
+        try {
+            $t = [DateTime]::Parse($p.startTime)
+        } catch {
+            continue
+        }
+        if ($t.ToString('yyyy-MM-dd') -ne $currentDay) { continue }
+        if (Test-PeriodDaytime -Period $p -PeriodTime $t) {
+            if (-not $daytimePeriod) { $daytimePeriod = $p }
+        } elseif (-not $nighttimePeriod) {
+            $nighttimePeriod = $p
+        }
+    }
+    return [PSCustomObject]@{
+        DaytimePeriod   = $daytimePeriod
+        NighttimePeriod = $nighttimePeriod
+    }
+}
+
+function Get-SevenDayHighLowTempText {
+    param(
+        [object]$DaytimePeriod,
+        [object]$NighttimePeriod
+    )
+    $parts = @()
+    if ($DaytimePeriod) { $parts += "H:$($DaytimePeriod.temperature)°F" }
+    if ($NighttimePeriod) { $parts += "L:$($NighttimePeriod.temperature)°F" }
+    if ($parts.Count -eq 0) { return '' }
+    return ' ' + ($parts -join ' ')
+}
+
+function Write-SevenDayHighLowTemps {
+    param(
+        [object]$DaytimePeriod,
+        [object]$NighttimePeriod,
+        [string]$DefaultColor,
+        [string]$AlertColor
+    )
+    if ($DaytimePeriod) {
+        $high = $DaytimePeriod.temperature
+        $highColor = Get-TempBandForegroundColor -TempFahrenheit ([double]$high) -DefaultColor $DefaultColor -AlertColor $AlertColor
+        Write-Host " H:${high}°F" -ForegroundColor $highColor -NoNewline
+    }
+    if ($NighttimePeriod) {
+        $low = $NighttimePeriod.temperature
+        $lowColor = Get-TempBandForegroundColor -TempFahrenheit ([double]$low) -DefaultColor $DefaultColor -AlertColor $AlertColor
+        Write-Host " L:${low}°F" -ForegroundColor $lowColor -NoNewline
+    }
+}
+
 # Function to display 7-day forecast
 function Show-SevenDayForecast {
     param(
@@ -4054,69 +4124,39 @@ function Show-SevenDayForecast {
         
         # Skip if we've already processed this day
         if ($processedDays.ContainsKey($dayName)) { continue }
-        
-        $temp = $period.temperature
-        $shortForecast = $period.shortForecast
-        $precipProb = $period.probabilityOfPrecipitation.value
+
+        $dayPair = Get-DayHighLowForecastPeriods -ForecastPeriods $forecastPeriods -PeriodTime $periodTime
+        $daytimePeriod = $dayPair.DaytimePeriod
+        $nighttimePeriod = $dayPair.NighttimePeriod
+        $displayPeriod = if ($daytimePeriod) { $daytimePeriod } else { $period }
+        $currentPeriodTime = $periodTime
+
+        $temp = $displayPeriod.temperature
+        $shortForecast = $displayPeriod.shortForecast
+        $precipProb = $displayPeriod.probabilityOfPrecipitation.value
         
         # For daily forecast, always use daytime icons regardless of actual time
-        # This ensures consistent daytime icons in the 7-day summary
-        $periodIcon = Get-WeatherIcon $period.icon $true $precipProb
+        $periodIcon = Get-WeatherIcon $displayPeriod.icon $true $precipProb
         
         # Calculate moon phase for this specific day (current time + day offset)
         $moonPhaseInfo = Get-MoonPhase -Date (Get-Date).AddDays($dayCount)
         $moonEmoji = $moonPhaseInfo.Emoji
         
-        # Find the corresponding night period for high/low and detailed forecast
-        $nightTemp = $null
-        $nightDetailedForecast = $null
-        
-        # Get the current period's start time to find the next period for the same day
-        $currentPeriodTime = $periodTime  # Use already parsed periodTime
-        $currentDay = $currentPeriodTime.ToString("yyyy-MM-dd")
-        
-        # Debug: Check the period structure
-        
-        # Look for the next period on the same day (which should be the night period)
-        foreach ($nightPeriod in $forecastPeriods) {
-            if (-not $nightPeriod.startTime) { continue }
-            try {
-                $nightTime = [DateTime]::Parse($nightPeriod.startTime)
-            } catch {
-                Write-Verbose "Failed to parse night period startTime: $($nightPeriod.startTime)"
-                continue
-            }
-            $nightDay = $nightTime.ToString("yyyy-MM-dd")
-            
-            # Check if this is the next period on the same day
-            if ($nightDay -eq $currentDay -and $nightTime -gt $currentPeriodTime) {
-                $nightTemp = $nightPeriod.temperature
-                $nightDetailedForecast = $nightPeriod.detailedForecast
-                break
-            }
-        }
-        
-        # Color-code primary (H or L) and night companion temps independently
-        $primaryTempColor = Get-TempBandForegroundColor -TempFahrenheit ([double]$temp) -DefaultColor $DefaultColor -AlertColor $AlertColor
-        $nightTempColor = if ($null -ne $nightTemp -and "$nightTemp" -ne '') {
-            Get-TempBandForegroundColor -TempFahrenheit ([double]$nightTemp) -DefaultColor $DefaultColor -AlertColor $AlertColor
-        } else {
-            $null
-        }
+        $dayDetailedForecast = if ($daytimePeriod) { $daytimePeriod.detailedForecast } else { $null }
+        $nightDetailedForecast = if ($nighttimePeriod) { $nighttimePeriod.detailedForecast } else { $null }
         
         if ($IsEnhancedMode) {
             # Enhanced Daily mode display
             # Extract wind information
-            $windSpeed = Get-WindSpeed $period.windSpeed
+            $windSpeed = Get-WindSpeed $displayPeriod.windSpeed
             $windColor = if ($windSpeed -ge $script:WIND_ALERT_THRESHOLD) { $AlertColor } else { $DefaultColor }
-            $windDisplay = $period.windSpeed -replace '\s+mph', 'mph'
+            $windDisplay = $displayPeriod.windSpeed -replace '\s+mph', 'mph'
             
             # Calculate windchill, heat index, or estimated WBGT (-wbgt)
             $tempNum = [double]$temp
             $windChillHeatIndex = ""
             $windChillHeatIndexColor = ""
-            $isPeriodDaytime = if ($period.PSObject.Properties['isDaytime']) { [bool]$period.isDaytime } else { ($periodTime.Hour -ge 6 -and $periodTime.Hour -lt 18) }
-            $primaryTempLabel = if ($isPeriodDaytime) { 'H' } else { 'L' }
+            $isPeriodDaytime = if ($daytimePeriod) { $true } else { Test-PeriodDaytime -Period $period -PeriodTime $periodTime }
             if ($tempNum -le 50) {
                 $windChill = Get-WindChill $tempNum $windSpeed
                 if ($null -ne $windChill -and ([Math]::Abs($tempNum - $windChill) -gt 1)) {
@@ -4124,7 +4164,7 @@ function Show-SevenDayForecast {
                     $windChillHeatIndexColor = "Blue"
                 }
             } elseif ($script:useWbgtFeelsLike -and $tempNum -gt 50) {
-                $humidityNum = [double]$period.relativeHumidity.value
+                $humidityNum = [double]$displayPeriod.relativeHumidity.value
                 $wbgt = Get-EstimatedWBGT -TempF $tempNum -HumidityPct $humidityNum -WindMph $windSpeed -Lat $Latitude -Lon $Longitude -AtDate $periodTime -IsDaytime $isPeriodDaytime -SkyText $shortForecast -TimeZoneId $TimeZone
                 if ($null -ne $wbgt -and (Test-ShouldShowEstimatedWBGTBracket -TempF $tempNum -WbgtF $wbgt)) {
                     $wbgtDisp = Format-WbgtDisplayValue -WbgtF $wbgt
@@ -4132,7 +4172,7 @@ function Show-SevenDayForecast {
                     $windChillHeatIndexColor = Get-TempBandForegroundColor -TempFahrenheit $wbgt -DefaultColor $DefaultColor -AlertColor $AlertColor
                 }
             } elseif ($tempNum -ge 80) {
-                $humidityNum = [double]$period.relativeHumidity.value
+                $humidityNum = [double]$displayPeriod.relativeHumidity.value
                 $heatIndex = Get-HeatIndex $tempNum $humidityNum
                 if ($null -ne $heatIndex -and ([Math]::Abs($heatIndex - $tempNum) -gt 1)) {
                     $windChillHeatIndex = " [$heatIndex°F]"
@@ -4213,14 +4253,11 @@ function Show-SevenDayForecast {
             # Display date in white, then padding, then temperature
             Write-Host $dateStr -ForegroundColor White -NoNewline
             Write-Host $datePadding -ForegroundColor White -NoNewline
-            Write-Host "${primaryTempLabel}:$temp°F" -ForegroundColor $primaryTempColor -NoNewline
+            Write-SevenDayHighLowTemps -DaytimePeriod $daytimePeriod -NighttimePeriod $nighttimePeriod -DefaultColor $DefaultColor -AlertColor $AlertColor
             if ($windChillHeatIndex) {
                 Write-Host $windChillHeatIndex -ForegroundColor $windChillHeatIndexColor -NoNewline
             }
-            if ($nightTemp) {
-                Write-Host " L:$nightTemp°F" -ForegroundColor $nightTempColor -NoNewline
-            }
-            Write-Host " $windDisplay $($period.windDirection)" -ForegroundColor $windColor -NoNewline
+            Write-Host " $windDisplay $($displayPeriod.windDirection)" -ForegroundColor $windColor -NoNewline
             if ($precipProb -gt 0) {
                 Write-Host " ($precipProb%☔️)" -ForegroundColor $precipColor -NoNewline
             }
@@ -4245,10 +4282,10 @@ function Show-SevenDayForecast {
             }
             
             # If we have both day and night periods, show both
-            if ($nightDetailedForecast) {
+            if ($dayDetailedForecast -and $nightDetailedForecast) {
                 # Day detailed forecast with wrapping
                 $dayLabel = "$periodIcon Day:   "
-                $dayForecastText = if ($period.detailedForecast) { $period.detailedForecast } else { "No detailed forecast available" }
+                $dayForecastText = if ($dayDetailedForecast) { $dayDetailedForecast } else { "No detailed forecast available" }
                 
                 $wrappedDayForecast = Format-TextWrap -Text $dayForecastText -Width ([Math]::Max(20, $terminalWidth - (Get-StringDisplayWidth $dayLabel)))
                 
@@ -4273,7 +4310,7 @@ function Show-SevenDayForecast {
             } else {
                 # Only one period available - determine if it's day or night
                 $singlePeriodLabel = if ($isCurrentPeriodNight) { "$moonEmoji Night: " } else { "$periodIcon Day:   " }
-                $singlePeriodText = if ($period.detailedForecast) { $period.detailedForecast } else { "No detailed forecast available" }
+                $singlePeriodText = if ($displayPeriod.detailedForecast) { $displayPeriod.detailedForecast } else { "No detailed forecast available" }
                 
                 $wrappedSingleForecast = Format-TextWrap -Text $singlePeriodText -Width ([Math]::Max(20, $terminalWidth - (Get-StringDisplayWidth $singlePeriodLabel)))
                 
@@ -4287,19 +4324,16 @@ function Show-SevenDayForecast {
             }
         } else {
             # Standard Full mode display
-            $isPrimaryDaytime = if ($period.PSObject.Properties['isDaytime']) { [bool]$period.isDaytime } else { ($periodTime.Hour -ge 6 -and $periodTime.Hour -lt 18) }
-            $primaryTempLabel = if ($isPrimaryDaytime) { 'H' } else { 'L' }
-            $formattedLine = Format-DailyLine -DayName $dayName -Icon $periodIcon -Temp $temp -NightTemp $nightTemp -Forecast $shortForecast -PrecipProb $precipProb -PrimaryTempLabel $primaryTempLabel
+            $highTemp = if ($daytimePeriod) { $daytimePeriod.temperature } else { $null }
+            $lowTemp = if ($nighttimePeriod) { $nighttimePeriod.temperature } else { $null }
+            $tempPartText = Get-SevenDayHighLowTempText -DaytimePeriod $daytimePeriod -NighttimePeriod $nighttimePeriod
+            $formattedLine = Format-DailyLine -DayName $dayName -Icon $periodIcon -HighTemp $highTemp -LowTemp $lowTemp -Forecast $shortForecast -PrecipProb $precipProb
         
         # Split the line into parts for color coding
-        $primaryTempToken = " ${primaryTempLabel}:$temp°F"
-        $tempStart = $formattedLine.IndexOf($primaryTempToken)
+        $tempStart = if ($tempPartText) { $formattedLine.IndexOf($tempPartText) } else { -1 }
         if ($tempStart -lt 0) {
-            $tempStart = $formattedLine.IndexOf(" H:$temp°F")
-            if ($tempStart -lt 0) { $tempStart = $formattedLine.IndexOf(" L:$temp°F") }
-        }
-        if ($tempStart -lt 0) {
-            $tempStart = $formattedLine.IndexOf(" $temp°F")
+            $tempStart = $formattedLine.IndexOf(" H:$highTemp°F")
+            if ($tempStart -lt 0) { $tempStart = $formattedLine.IndexOf(" L:$lowTemp°F") }
         }
         
         if ($tempStart -ge 0) {
@@ -4312,16 +4346,10 @@ function Show-SevenDayForecast {
                 Write-Host $formattedLine.Substring(0, $tempStart) -ForegroundColor $DefaultColor -NoNewline
             }
             
-            # Write temperature with separate colors for primary vs companion (e.g. H vs L)
-            if ($nightTemp) {
-                Write-Host " ${primaryTempLabel}:$temp°F" -ForegroundColor $primaryTempColor -NoNewline
-                Write-Host " L:$nightTemp°F" -ForegroundColor $nightTempColor -NoNewline
-            } else {
-                Write-Host " ${primaryTempLabel}:$temp°F" -ForegroundColor $primaryTempColor -NoNewline
-            }
+            Write-SevenDayHighLowTemps -DaytimePeriod $daytimePeriod -NighttimePeriod $nighttimePeriod -DefaultColor $DefaultColor -AlertColor $AlertColor
             
             # Write everything after temperature with proper precipitation color coding
-            $tempEnd = if ($nightTemp) { " ${primaryTempLabel}:$temp°F L:$nightTemp°F".Length } else { " ${primaryTempLabel}:$temp°F".Length }
+            $tempEnd = if ($tempPartText) { $tempPartText.Length } else { 0 }
             $afterTemp = $formattedLine.Substring($tempStart + $tempEnd)
             
             # Check if there's precipitation data and apply color coding
@@ -6009,17 +6037,18 @@ function Format-DailyLine {
     param(
         [string]$DayName,
         [string]$Icon,
-        [string]$Temp,
-        [string]$NightTemp,
+        $HighTemp,
+        $LowTemp,
         [string]$Forecast,
-        [int]$PrecipProb,
-        [string]$PrimaryTempLabel = 'H'
+        [int]$PrecipProb
     )
     
     # Build the line components
     $dayPart = "$DayName`: "
     $iconPart = "$Icon"
-    $tempPart = if ($NightTemp) { " ${PrimaryTempLabel}:$Temp°F L:$NightTemp°F" } else { " ${PrimaryTempLabel}:$Temp°F" }
+    $tempPart = ''
+    if ($null -ne $HighTemp -and "$HighTemp" -ne '') { $tempPart += " H:${HighTemp}°F" }
+    if ($null -ne $LowTemp -and "$LowTemp" -ne '') { $tempPart += " L:${LowTemp}°F" }
     $forecastPart = " - $Forecast"
     $precipPart = if ($PrecipProb -gt 0) { " ($PrecipProb%☔️)" } else { "" }
     
