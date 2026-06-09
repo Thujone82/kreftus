@@ -54,8 +54,8 @@ Based on sparkline range (max − min of the last 14 prices):
 | ----------- | ------------- |
 | Under $10 | White |
 | $10 – $49.99 | Green |
-| $50 – $99.99 | Red |
-| $100 – $249.99 | Green |
+| $50 – $99.99 | Yellow |
+| $100 – $249.99 | Red |
 | $250 or more | Magenta |
 
 Window coloring requires both the sparkline and window coloring to be enabled. Press `w` to toggle window coloring; press `h` to toggle the sparkline. Cyan always wins during an API fetch.

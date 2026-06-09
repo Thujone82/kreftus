@@ -124,8 +124,9 @@ if ($Help.IsPresent) {
     
     Write-Host "SPINNER COLORS (window coloring, go/golong/k modes, sparkline active):" -ForegroundColor Magenta
     Write-Host "    White - " -NoNewline -ForegroundColor White; Write-Host "Sparkline range under `$10" -ForegroundColor Gray
-    Write-Host "    Green - " -NoNewline -ForegroundColor Green; Write-Host "Range `$10–`$49.99 or `$100–`$249.99" -ForegroundColor Gray
-    Write-Host "    Red - " -NoNewline -ForegroundColor Red; Write-Host "Range `$50–`$99.99" -ForegroundColor Gray
+    Write-Host "    Green - " -NoNewline -ForegroundColor Green; Write-Host "Range `$10–`$49.99" -ForegroundColor Gray
+    Write-Host "    Yellow - " -NoNewline -ForegroundColor Yellow; Write-Host "Range `$50–`$99.99" -ForegroundColor Gray
+    Write-Host "    Red - " -NoNewline -ForegroundColor Red; Write-Host "Range `$100–`$249.99" -ForegroundColor Gray
     Write-Host "    Magenta - " -NoNewline -ForegroundColor Magenta; Write-Host "Range `$250 or more" -ForegroundColor Gray
     Write-Host "    Cyan - " -NoNewline -ForegroundColor Cyan; Write-Host "API fetch in progress (overrides range color)" -ForegroundColor Gray
     Write-Host ""
@@ -462,8 +463,8 @@ function Get-RangeSpinnerColor {
     param([double]$Range)
     if ($Range -lt 10) { return 'White' }
     if ($Range -lt 50) { return 'Green' }
-    if ($Range -lt 100) { return 'Red' }
-    if ($Range -lt 250) { return 'Green' }
+    if ($Range -lt 100) { return 'Yellow' }
+    if ($Range -lt 250) { return 'Red' }
     return 'Magenta'
 }
 

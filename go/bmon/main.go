@@ -617,10 +617,10 @@ func rangeSpinnerColorCode(d float64) string {
 		return "2"
 	}
 	if d < 100 {
-		return "1"
+		return "11"
 	}
 	if d < 250 {
-		return "2"
+		return "1"
 	}
 	return "5"
 }
@@ -792,9 +792,11 @@ func printHelp() {
 	white.Print("    White - ")
 	gray.Println("Sparkline range under $10")
 	color.Green("    Green - ")
-	gray.Println("Range $10–$49.99 or $100–$249.99")
-	color.Red("    Red - ")
+	gray.Println("Range $10–$49.99")
+	color.Yellow("    Yellow - ")
 	gray.Println("Range $50–$99.99")
+	color.Red("    Red - ")
+	gray.Println("Range $100–$249.99")
 	color.Magenta("    Magenta - ")
 	gray.Println("Range $250 or more")
 	color.Cyan("    Cyan - ")

@@ -31,8 +31,8 @@ Gated by `tuiModel.rangeSpinnerEnabled && sparklineEnabled`. Precedence: retry d
 | --------------------- | --------------- | ---------- |
 | < 10                  | 15              | White      |
 | 10 – 49.99            | 2               | Green      |
-| 50 – 99.99            | 1               | Red        |
-| 100 – 249.99          | 2               | Green      |
+| 50 – 99.99            | 11              | Yellow     |
+| 100 – 249.99          | 1               | Red        |
 | ≥ 250                 | 5               | Magenta    |
 
 Visible in go/golong/k single-line `View()` only (interactive mode has no spinner).

@@ -39,8 +39,8 @@ Applies only when `$rangeSpinnerEnabled` is true **and** the sparkline is visibl
 | --------------------- | ------------- |
 | < 10                  | White         |
 | 10 – 49.99            | Green         |
-| 50 – 99.99            | Red           |
-| 100 – 249.99          | Green         |
+| 50 – 99.99            | Yellow        |
+| 100 – 249.99          | Red           |
 | ≥ 250                 | Magenta       |
 
 Key helpers in `bmon.ps1`: `Get-SparklineRange`, `Get-RangeSpinnerColor`, `Get-SpinnerForegroundColor`.
