@@ -13,38 +13,57 @@
 `bmon` is a lightweight, command-line based Bitcoin price monitor written in PowerShell. It is a spinoff of the `vBTC` trading simulator, focusing on providing fast, real-time price data with minimal overhead. The script features an automatic one-time setup for API key configuration and can fall back to using the `vbtc.ini` file if available, making it seamless for existing `vBTC` users.
 
 The tool operates in several modes:
-1.  **Interactive Mode:** A full-screen interface where users can manually start and stop monitoring sessions.
-2.  **Go Mode (`-go`):** A non-interactive, "fire-and-forget" mode that displays a single updating line of price data for 5 minutes.
-3.  **Long Go Mode (`-golong`):** An extended version of Go Mode for 24-hour, low-intensity monitoring.
-4.  **Conversion Mode:** A set of command-line switches for quick currency conversions between BTC, USD, and Satoshis.
+
+1. **Interactive Mode:** A full-screen interface where users can manually start and stop 5-minute monitoring sessions.
+2. **Go Mode (`-go` / `-g`):** A non-interactive single-line mode that monitors for 15 minutes with 5-second updates.
+3. **Long Go Mode (`-golong` / `-gl`):** Extended single-line monitoring for 24 hours with 20-second updates.
+4. **K Mode (`-k`):** 30-minute single-line monitoring with 4-second updates, sparkline enabled, and window coloring (range-colored spinner) enabled by default.
+5. **Conversion Mode:** Command-line switches for quick currency conversions between BTC, USD, and Satoshis.
 
 ### Key Functionality
 
-- **API Key Management:** Automatically prompts for a LiveCoinWatch API key on first run and saves it to `bmon.ini`. It can also read the key from `vbtc.ini` if present. Use `-config` to open the configuration menu: if settings exist, the current config file and a masked API key are shown; you can enter a new key to save or press Enter to exit without changes.
-- **Multiple Monitoring Modes:** Supports interactive, short-term (`-go`), and long-term (`-golong`) monitoring.
-- **Dynamic Controls:** In all modes, users can reset the price baseline (`r`), toggle sound alerts (`s`), and toggle a price history sparkline (`h`). In `-go`/`-golong` modes, users can also switch between them (`m`).
-- **Visual & Audible Alerts:** Uses color-coding (green for price up, red for down) and optional beeps to indicate price changes. Sound (`-s`) and the history sparkline (`-h`) can be enabled from launch.
-- **Currency Conversion:** Provides direct command-line arguments for converting between USD, BTC, and Satoshis (e.g., `-bu`, `-ub`, `-us`, `-su`).
-- **Error Handling:** Includes retry logic with exponential backoff for API calls to handle network instability.
+- **API Key Management:** Automatically prompts for a LiveCoinWatch API key on first run and saves it to `bmon.ini`. It can also read the key from `vbtc.ini` if present. Use `-config` to open the configuration menu.
+- **Multiple Monitoring Modes:** Interactive, Go, GoLong, and K modes with runtime switching via keyboard.
+- **Dynamic Controls:** Reset baseline (`r` / Right arrow), extend timer (`e` / Left arrow), toggle go/golong (`m` / Down arrow), switch to K mode (`k` / Up arrow), return to interactive (`i`), toggle sound (`s`), toggle sparkline (`h`), toggle window coloring (`w`).
+- **Window Coloring:** When the sparkline is active in go/golong/k single-line modes, the spinner color reflects sparkline volatility (`max − min` of the last 14 prices). Enable at launch with `-range` / `-r`, auto-enabled with `-k`, or toggle at runtime with `w`.
+- **Visual & Audible Alerts:** Color-coded price changes (green/red), optional beeps, and inverted flash on significant moves.
+- **Sparkline History:** Unicode mini-chart of the last 14 price samples; toggled with `h` or enabled at launch with `-h`.
+- **Currency Conversion:** Direct arguments `-bu`, `-ub`, `-us`, `-su`.
+- **Compact Retry Indicator:** During API failures in go/golong/k modes, the spinner is replaced briefly by a colored retry digit (yellow 1–4, red 5).
+
+### Window Coloring (Spinner)
+
+Applies only when `$rangeSpinnerEnabled` is true **and** the sparkline is visible **and** at least 2 history points exist. Cyan overrides all range colors during an API fetch.
+
+| Sparkline range (USD) | Spinner color |
+| --------------------- | ------------- |
+| < 10                  | White         |
+| 10 – 49.99            | Green         |
+| 50 – 99.99            | Red           |
+| 100 – 249.99          | Green         |
+| ≥ 250                 | Magenta       |
+
+Key helpers in `bmon.ps1`: `Get-SparklineRange`, `Get-RangeSpinnerColor`, `Get-SpinnerForegroundColor`.
 
 ### How to Run
 
-The script is executed from a PowerShell terminal.
-
 **Configuration:**
-- **Config Menu:** `.\bmon.ps1 -config` — Opens the configuration menu. If an API key is already set, the current config file and a masked API key are displayed. Enter a new API key to save to `bmon.ini`, or press Enter to exit without changes.
+- **Config Menu:** `.\bmon.ps1 -config`
 
 **Monitoring:**
-- **Interactive:** `.\bmon.ps1`
-- **Go Mode (5 mins):** `.\bmon.ps1 -go` or `.\bmon.ps1 -g`
-- **Long Go Mode (24 hrs):** `.\bmon.ps1 -golong` or `.\bmon.ps1 -gl`
-- **With Options:** Any monitoring mode can be started with sound (`-s`) and/or the history sparkline (`-h`) enabled. Example: `.\bmon.ps1 -go -s -h` or `.\bmon.ps1 -g -s -h`
+- **Interactive:** `.\bmon.ps1 [-s] [-h] [-range]`
+- **Go Mode (15 min):** `.\bmon.ps1 -go` or `.\bmon.ps1 -g`
+- **Long Go Mode (24 hr):** `.\bmon.ps1 -golong` or `.\bmon.ps1 -gl`
+- **K Mode (30 min):** `.\bmon.ps1 -k`
+- **With options:** `.\bmon.ps1 -go -s -h -range` (sound, sparkline, window coloring)
 
 **Conversion:**
 - **BTC to USD:** `.\bmon.ps1 -bu <amount>`
 - **USD to BTC:** `.\bmon.ps1 -ub <amount>`
 - **USD to Sats:** `.\bmon.ps1 -us <amount>`
 - **Sats to USD:** `.\bmon.ps1 -su <amount>`
+
+**Help:** `.\bmon.ps1 -Help`
 
 ### Dependencies
 
@@ -57,4 +76,6 @@ The script is executed from a PowerShell terminal.
 - `bmon.ps1`: The main executable script.
 - `bmon.exe`: A compiled executable of the script.
 - `bmon.ini`: Configuration file for storing the API key (auto-generated).
-- `README.txt`: Detailed user documentation.
+- `README.md`: Detailed user documentation.
+- `README.html`: In-browser markdown viewer.
+- `GEMINI.md`: Internal project reference for AI assistants.

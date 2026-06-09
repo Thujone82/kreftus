@@ -213,13 +213,14 @@
                         <div>
                             <h2>Bmon v1.5</h2>
                             <p>
-                                <b>Bmon</b> is a lightweight, real-time Bitcoin price monitor that runs in the command line. It features multiple monitoring modes, including an interactive mode with start/pause functionality, a 5-minute quick-glance mode (-go), and a 24-hour long-duration single-line mode (-golong).
+                                <b>Bmon</b> is a lightweight, real-time Bitcoin price monitor that runs in the command line. It features multiple monitoring modes: interactive (start/pause), 15-minute Go mode (<code>-go</code>), 24-hour Long Go mode (<code>-golong</code>), and 30-minute K mode (<code>-k</code>) with a faster update interval and sparkline.
                             </p>
                             <p>
                                 Key features include:
                                 <ul>
                                     <li>Real-time price updates with configurable refresh intervals</li>
-                                    <li>Visual sparkline chart showing price trends</li>
+                                    <li>Visual sparkline chart showing the last 14 price samples</li>
+                                    <li>Window coloring: spinner tint reflects sparkline volatility (max − min); toggle with <code>W</code> or enable with <code>-range</code> / <code>-k</code></li>
                                     <li>Audible price-change alerts</li>
                                     <li>On-demand currency conversions (BTC ↔ USD ↔ Satoshis)</li>
                                     <li>Color-coded price changes for intuitive monitoring</li>
@@ -235,9 +236,9 @@
 
                             <h3>Downloads</h3>
                             <p><b>GO Edition:</b> PC [ <a href="../go/bmon/bin/win/x86/bmon.exe">x86</a> / <a href="../go/bmon/bin/win/x64/bmon.exe">x64</a> ] Linux [ <a href="../go/bmon/bin/linux/x86/bmon">x86</a> / <a href="../go/bmon/bin/linux/amd64/bmon">amd64</a> ]</p>
-                            <p class="readme-link">↳ <a href="../go/bmon/README.txt">README</a></p>
+                            <p class="readme-link">↳ <a href="../go/bmon/README.html">README</a></p>
                             <p><b>PowerShell Edition:</b> [ <a href="../ps/bmon/bmon.ps1">ps1</a> / <a href="../ps/bmon/bmon.exe">exe</a> ]</p>
-                            <p class="readme-link">↳ <a href="../ps/bmon/README.txt">README</a></p>
+                            <p class="readme-link">↳ <a href="../ps/bmon/README.html">README</a></p>
                         </div>
                     </td>
                 </tr>

@@ -20,6 +20,7 @@ import (
 	bspinner "github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/fatih/color"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
@@ -58,6 +59,7 @@ type Args struct {
 	kMode          bool
 	sound          bool
 	sparkline      bool
+	rangeSpinner   bool
 	help           bool
 	config         bool
 	conversionMode string
@@ -140,6 +142,8 @@ func parseArgs() Args {
 			args.sound = true
 		case "-h":
 			args.sparkline = true
+		case "-range", "-r":
+			args.rangeSpinner = true
 		case "-help":
 			args.help = true
 		case "-config":
@@ -588,6 +592,66 @@ func getSparkline(history []float64) string {
 	return sparkline
 }
 
+func getSparklineRange(history []float64) float64 {
+	if len(history) < 2 {
+		return 0
+	}
+	minPrice := history[0]
+	maxPrice := history[0]
+	for _, price := range history {
+		if price < minPrice {
+			minPrice = price
+		}
+		if price > maxPrice {
+			maxPrice = price
+		}
+	}
+	return maxPrice - minPrice
+}
+
+func rangeSpinnerColorCode(d float64) string {
+	if d < 10 {
+		return "15"
+	}
+	if d < 50 {
+		return "2"
+	}
+	if d < 100 {
+		return "1"
+	}
+	if d < 250 {
+		return "2"
+	}
+	return "5"
+}
+
+func spinnerColorCode(m tuiModel) string {
+	if m.fetchingNow {
+		return "6"
+	}
+	if !m.rangeSpinnerEnabled || !m.sparklineEnabled {
+		return "15"
+	}
+	return rangeSpinnerColorCode(getSparklineRange(m.history))
+}
+
+func syncSpinnerStyle(m tuiModel) tuiModel {
+	m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(spinnerColorCode(m)))
+	return m
+}
+
+func (m tuiModel) renderSpinnerChar() string {
+	active, digit, retryColor := getRetryIndicator()
+	if active && digit != "" {
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(retryColor)).Render(digit)
+	}
+	glyph := ansi.Strip(m.spinner.View())
+	if glyph == "" || glyph == "(error)" {
+		glyph = " "
+	}
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(spinnerColorCode(m))).Render(glyph)
+}
+
 // getSparkChars selects characters for the sparkline that the current
 // terminal can reliably render. Falls back to CP437 shading on classic conhost.
 func getSparkChars() []rune {
@@ -676,6 +740,12 @@ func printHelp() {
 	gray.Println("# Enable sound alerts")
 	white.Print("    ./bmon -h           ")
 	gray.Println("# Enable history sparkline")
+	white.Print("    ./bmon -range       ")
+	gray.Println("# Enable range-colored spinner")
+	white.Print("    ./bmon -r           ")
+	gray.Println("# Enable range-colored spinner (alias)")
+	white.Print("    ./bmon -k           ")
+	gray.Println("# K mode (30 min, sparkline + range coloring)")
 	white.Print("    ./bmon -config      ")
 	gray.Println("# Open configuration menu")
 	white.Print("    ./bmon -bu 0.5      ")
@@ -695,17 +765,40 @@ func printHelp() {
 	gray.Println("15-minute monitoring with 5-second updates")
 	white.Print("    Go Long Mode: ")
 	gray.Println("24-hour monitoring with 20-second updates")
+	white.Print("    K Mode: ")
+	gray.Println("30-minute monitoring with 4-second updates, sparkline and range coloring")
 	fmt.Println()
 
 	color.Magenta("CONTROLS (during monitoring):")
 	white.Print("    R - ")
 	gray.Println("Reset baseline price and timer")
+	white.Print("    E - ")
+	gray.Println("Extend session timer (keep baseline)")
 	white.Print("    M - ")
 	gray.Println("Switch between go/golong modes")
+	white.Print("    K - ")
+	gray.Println("Switch to K mode (30 min, sparkline + range coloring)")
+	white.Print("    I - ")
+	gray.Println("Switch back to interactive mode")
 	white.Print("    S - ")
 	gray.Println("Toggle sound alerts")
 	white.Print("    H - ")
 	gray.Println("Toggle history sparkline")
+	white.Print("    W - ")
+	gray.Println("Toggle window coloring (range-colored spinner)")
+	fmt.Println()
+
+	color.Magenta("SPINNER COLORS (window coloring, go/golong/k modes, sparkline active):")
+	white.Print("    White - ")
+	gray.Println("Sparkline range under $10")
+	color.Green("    Green - ")
+	gray.Println("Range $10–$49.99 or $100–$249.99")
+	color.Red("    Red - ")
+	gray.Println("Range $50–$99.99")
+	color.Magenta("    Magenta - ")
+	gray.Println("Range $250 or more")
+	color.Cyan("    Cyan - ")
+	gray.Println("API fetch in progress (overrides range color)")
 	fmt.Println()
 
 	color.Blue("FEATURES:")
@@ -720,6 +813,8 @@ func printHelp() {
 	gray.Println("Sound alerts for price movements")
 	yellow.Print("    • ")
 	gray.Println("Historical price sparkline")
+	yellow.Print("    • ")
+	gray.Println("Range-colored spinner (window coloring)")
 	yellow.Print("    • ")
 	gray.Println("BTC/USD conversion tools")
 	yellow.Print("    • ")
@@ -780,11 +875,12 @@ type tuiModel struct {
 	previousPrice     float64
 	previousColor     string
 	flashUntil        time.Time
-	fetchingNow       bool
-	soundEnabled      bool
-	sparklineEnabled  bool
-	history           []float64
-	fetchError        error // Track fetch errors to display on exit
+	fetchingNow         bool
+	soundEnabled        bool
+	sparklineEnabled    bool
+	rangeSpinnerEnabled bool
+	history             []float64
+	fetchError          error // Track fetch errors to display on exit
 }
 
 func newTUIModel(args Args) tuiModel {
@@ -794,9 +890,10 @@ func newTUIModel(args Args) tuiModel {
 	m := tuiModel{
 		args:             args,
 		spinner:          sp,
-		soundEnabled:     args.sound,
-		sparklineEnabled: args.sparkline || args.kMode, // Enable sparkline when -k is used
-		history:          []float64{},
+		soundEnabled:        args.sound,
+		sparklineEnabled:    args.sparkline || args.kMode, // Enable sparkline when -k is used
+		rangeSpinnerEnabled: args.rangeSpinner || args.kMode,
+		history:             []float64{},
 		previousColor:    "White",
 	}
 	// choose start mode (prioritize k, then golong, then go) and set spinner accordingly
@@ -906,7 +1003,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc":
-			return m, tea.Quit
+			return syncSpinnerStyle(m), tea.Quit
 		case "left":
 			// Left arrow is alias for E (extend session timer)
 			if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeK || m.mode == modeInteractive {
@@ -925,6 +1022,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.mode == modeGo || m.mode == modeGoLong {
 				m.mode = modeK
 				m.sparklineEnabled = true
+				m.rangeSpinnerEnabled = true
 				m.sessionStartTime = time.Now()
 				m.monitorStartPrice = currentBtcPrice
 				// Update spinner for k mode
@@ -990,11 +1088,12 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.monitorStartPrice = currentBtcPrice
 				m.sessionStartTime = time.Now()
 			}
-		case "k":
+		case "k", "K":
 			// Switch to k mode from go/golong modes
 			if m.mode == modeGo || m.mode == modeGoLong {
 				m.mode = modeK
 				m.sparklineEnabled = true
+				m.rangeSpinnerEnabled = true
 				m.sessionStartTime = time.Now()
 				m.monitorStartPrice = currentBtcPrice
 				// Update spinner for k mode
@@ -1024,6 +1123,10 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "h":
 			m.sparklineEnabled = !m.sparklineEnabled
+		case "w", "W":
+			if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeK || m.mode == modeInteractive {
+				m.rangeSpinnerEnabled = !m.rangeSpinnerEnabled
+			}
 		case "i":
 			if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeK {
 				m.mode = modeInteractive
@@ -1042,7 +1145,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// return to landing after 5 minutes
 				m.mode = modeLanding
 			case modeK, modeGo, modeGoLong:
-				return m, tea.Quit
+				return syncSpinnerStyle(m), tea.Quit
 			}
 		}
 		// schedule next UI tick
@@ -1059,7 +1162,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.fetchError = msg.err
 			clearRetryIndicator()
 			// Exit TUI - error will be displayed after exit
-			return m, tea.Quit
+			return syncSpinnerStyle(m), tea.Quit
 		}
 		if msg.price > 0 {
 			newPrice := msg.price
@@ -1103,7 +1206,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.fetchingNow = false
 	}
 
-	return m, tea.Batch(cmds...)
+	return syncSpinnerStyle(m), tea.Batch(cmds...)
 }
 
 func (m tuiModel) View() string {
@@ -1187,22 +1290,7 @@ func (m tuiModel) View() string {
 		left = " Bitcoin (USD):"
 	}
 
-	// spinner char or retry indicator
-	spinnerChar := ""
-	// If a retry is active, show the indicator digit in color; else show spinner
-	active, digit, colorCode := getRetryIndicator()
-	if active && digit != "" {
-		// map retry colors: "11" (yellow) or "1" (red). Only replace the spinner glyph itself.
-		spinnerChar = lipgloss.NewStyle().Foreground(lipgloss.Color(colorCode)).Render(digit)
-	} else {
-		// spinner color: white by default; cyan only on fetch ticks
-		if m.fetchingNow {
-			m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
-		} else {
-			m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
-		}
-		spinnerChar = m.spinner.View()
-	}
+	spinnerChar := m.renderSpinnerChar()
 
 	rest := fmt.Sprintf("%s $%s%s", left, formatUSD(currentBtcPrice), changeString)
 
