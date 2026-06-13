@@ -29,9 +29,10 @@ import (
 )
 
 const (
-	startingCapital = 1000.00
-	iniFilePath     = "vbtc.ini"
-	ledgerFilePath  = "ledger.csv"
+	startingCapital     = 1000.00
+	iniFilePath         = "vbtc.ini"
+	ledgerFilePath      = "ledger.csv"
+	tradeRetryDebounce  = 2 * time.Second
 )
 
 var (
@@ -2538,6 +2539,7 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 
 	// Confirmation Loop
 	offerExpired := false
+	var lastRetryTime time.Time
 
 	// --- Raw Terminal Input Setup ---
 	// Get the file descriptor for standard input.
@@ -2854,6 +2856,10 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 					}
 					return apiData // Exit trade loop regardless of success or failure
 				} else if input == "r" {
+					if time.Since(lastRetryTime) < tradeRetryDebounce {
+						continue EventLoop
+					}
+					lastRetryTime = time.Now()
 					// User is manually refreshing, so the offer isn't "expired" in a way that requires a warning.
 					offerExpired = false
 					ticker.Stop()

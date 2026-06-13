@@ -1357,6 +1357,8 @@ function Invoke-Trade {
     # --- Confirmation Loop with Timeout ---
     $offerExpiredMessageNeeded = $false
     $tradeApiData = $CurrentApiData # Use a local variable for the loop
+    $retryDebounceSeconds = 2
+    $lastRetryTime = [DateTime]::MinValue
 
     :OuterTradeLoop while ($true) {
         # Update the local tradeApiData object, skipping the historical call for speed.
@@ -1495,6 +1497,12 @@ function Invoke-Trade {
                         continue InnerInputLoop # Redraw the screen
                     }
                 }
+                if ($tradeinput.ToLower() -eq 'r') {
+                    if (((Get-Date) - $lastRetryTime).TotalSeconds -lt $retryDebounceSeconds) {
+                        $tradeinput = $null
+                        continue InnerInputLoop
+                    }
+                }
                 # If we reach here, the input is valid for the current state, so break the loop to process it.
                 break InnerInputLoop
             }
@@ -1576,6 +1584,7 @@ function Invoke-Trade {
         elseif ($tradeinput.ToLower() -eq 'r') {
             # User is manually refreshing, so the offer isn't "expired".
             # The loop will naturally get a new price by continuing the outer loop.
+            $lastRetryTime = Get-Date
             continue OuterTradeLoop
         }
         
