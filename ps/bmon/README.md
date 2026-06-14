@@ -1,6 +1,6 @@
 # bmon — Lightweight Bitcoin Monitor
 
-**Version:** 1.5 · **Author:** Kreft&Gemini[Gemini 2.5 Pro (preview)] · **Date:** 2025-08-07
+**Version:** 1.6 · **Author:** Kreft&Gemini[Gemini 2.5 Pro (preview)] · **Date:** 2025-08-07
 
 ## Description
 
@@ -19,18 +19,18 @@ The script has two primary modes of operation: real-time monitoring and on-deman
 - **Interactive Mode:** A full-screen display that shows the current price. Users can start and pause a 5-minute monitoring session with the space bar. The `r` key (or Right arrow) resets the session baseline. Press `G` to jump directly into Go mode from the landing screen. Left arrow extends the session timer (same as E).
 - **Go Mode:** A non-interactive mode (`-go` switch) that displays a single, updating line of price data for 15 minutes before automatically exiting. Ideal for quick glances or integration into other displays.
 - **Long Go Mode:** A variation of Go Mode (`-golong` switch) for extended, low-intensity monitoring over 24 hours with a 20-second update interval.
-- **K Mode:** Use the `-k` switch for 30-minute monitoring with 4-second updates, the history sparkline enabled, and window coloring (range-colored spinner) enabled automatically. Press `K` or Up arrow (in go/golong) to switch into K mode.
-- **K Long Run (`-kl`):** Starts like K mode (30 minutes, sparkline, window coloring). When the K session ends, monitoring continues in golong mode for 24 hours instead of exiting. This K→golong handoff repeats whenever K mode ends for the rest of the session (including after switching back to K with `K` or Up arrow).
+- **K Mode:** Use the `-k` switch for 30-minute monitoring with 4-second updates, the history sparkline enabled, and volatility coloring (volatility-colored spinner) enabled automatically. Press `K` or Up arrow (in go/golong) to switch into K mode.
+- **K Long Run (`-kl`):** Starts like K mode (30 minutes, sparkline, volatility coloring). When the K session ends, monitoring continues in golong mode for 24 hours instead of exiting. This K→golong handoff repeats whenever K mode ends for the rest of the session (including after switching back to K with `K` or Up arrow).
 - **Currency Conversion:** Perform quick conversions directly from the command line. The script outputs only the resulting value, making it easy to use in other scripts.
 - **Live Price Tracking:** During a monitoring session, the script tracks the price change from the moment monitoring began.
-- **Dynamic Mode Toggling:** While in `-go` or `-golong` mode, press `m` or **Down arrow** to toggle between the two modes, resetting the duration timer. Press `K` or **Up arrow** to switch to K mode (sparkline + range coloring). Press `I` to switch back to interactive mode.
+- **Dynamic Mode Toggling:** While in `-go` or `-golong` mode, press `m` or **Down arrow** to toggle between the two modes, resetting the duration timer. Press `K` or **Up arrow** to switch to K mode (sparkline + volatility coloring). Press `I` to switch back to interactive mode.
 - **Audible Alerts:** Optionally enable sound with the `s` key to get high/low tones for every price change of at least $0.01.
 - **Sparkline History:** Toggle a mini-chart with the `h` key to visualize the last 14 price samples.
-- **Window Coloring:** In go/golong/k single-line modes, when the sparkline is active, the spinner color reflects sparkline volatility (max − min of recent prices). Enable at launch with `-range` / `-r`, auto-enabled with `-k`, or toggle during monitoring with `w`.
-- **Command-line Toggles:** Start with sound (`-s`), sparkline history (`-h`), or range-colored spinner (`-range` / `-r`) enabled from the command line.
+- **Volatility Coloring:** In go/golong/k single-line modes, when the sparkline is active, the spinner color reflects sparkline volatility (max − min of recent prices). Enable at launch with `-volatility` / `-vl`, auto-enabled with `-k`, or toggle during monitoring with `v`.
+- **Command-line Toggles:** Start with sound (`-s`), sparkline history (`-h`), or volatility-colored spinner (`-volatility` / `-vl`) enabled from the command line.
 - **Configuration Menu:** Use the `-config` switch to open the configuration menu. If settings already exist, the current config file path and a masked API key are displayed. You can enter a new LiveCoinWatch API key (validated and saved to `bmon.ini`) or press Enter to keep the current setting and exit.
 - **vBTC Integration:** Can seamlessly use the API key configured in `vbtc.ini` if `bmon.ini` is not present, requiring no extra setup for existing vBTC users.
-- **Compact Retry Indicator:** In go/golong/k modes, temporary API/network failures no longer print long warnings. Instead, the spinner position shows a single digit for each retry: yellow `1`, `2`, `3`, `4`, and a red `5` on the final attempt. On a successful fetch, the spinner returns to normal immediately, keeping the display clean.
+- **Compact Retry Indicator:** In go/golong/k modes, temporary API/network failures no longer print long warnings. Instead, the spinner position shows a single digit for each retry: yellow `1`, `2`, `3`, `4`, and a red `5` on the final attempt. When volatility coloring is enabled, the volatility tier appears as the digit background during backoff (yellow/red); active retry fetches use the same inverted cyan-background treatment as the spinner. On a successful fetch, the spinner returns to normal immediately, keeping the display clean.
 
 ## Color Coding
 
@@ -45,21 +45,21 @@ The application uses colors to provide quick visual feedback during a monitoring
 ### UI and fetch
 
 - **Yellow:** Titles and prompts.
-- **Cyan:** UI key hints and API fetch in progress (spinner turns cyan during fetch, overriding window coloring).
+- **Cyan:** UI key hints and API fetch in progress (spinner uses cyan background during fetch; when volatility coloring is on, the volatility tier appears as the spinner foreground).
 
-### Spinner window coloring (go/golong/k modes, sparkline active)
+### Spinner volatility coloring (go/golong/k modes, sparkline active)
 
-Based on sparkline range (max − min of the last 14 prices):
+Based on sparkline volatility (max − min of the last 14 prices):
 
-| Range (USD) | Spinner color |
-| ----------- | ------------- |
+| Volatility (USD) | Spinner color |
+| -------------- | ------------- |
 | Under $10 | White |
 | $10 – $49.99 | Green |
 | $50 – $99.99 | Yellow |
 | $100 – $249.99 | Red |
 | $250 or more | Magenta |
 
-Window coloring requires both the sparkline and window coloring to be enabled. Press `w` to toggle window coloring; press `h` to toggle the sparkline. Cyan always wins during an API fetch.
+Volatility coloring requires both the sparkline and volatility coloring to be enabled. Press `v` to toggle volatility coloring; press `h` to toggle the sparkline. During an API fetch the spinner background is always cyan; the volatility tier colors the foreground when enabled.
 
 ## Requirements
 
@@ -100,9 +100,9 @@ Opens the configuration menu. If an API key is already configured, the current c
 **Interactive mode:**
 
 ```powershell
-.\bmon.ps1 [-s] [-h] [-range]
+.\bmon.ps1 [-s] [-h] [-volatility]
 # or
-bmon.exe [-s] [-h] [-range]
+bmon.exe [-s] [-h] [-volatility]
 ```
 
 - Press **Spacebar** to start/pause monitoring.
@@ -110,22 +110,22 @@ bmon.exe [-s] [-h] [-range]
 - Press **r** or **Right arrow** to reset the session baseline.
 - Press **e** or **Left arrow** to extend the session timer (same as E).
 - Press **h** to toggle the price history sparkline.
-- Press **w** to toggle window coloring (stored for go/golong/k; no spinner in interactive view).
+- Press **v** to toggle volatility coloring (stored for go/golong/k; no spinner in interactive view).
 - Press **s** to toggle sound alerts on/off.
 - Press **Ctrl+C** or **Esc** to exit.
 
 **Go / GoLong / K modes (non-interactive):**
 
 ```powershell
-.\bmon.ps1 -go [-s] [-h] [-range]    # 15-minute session, 5-second updates
-.\bmon.ps1 -g [-s] [-h] [-range]     # alias
+.\bmon.ps1 -go [-s] [-h] [-volatility]    # 15-minute session, 5-second updates
+.\bmon.ps1 -g [-s] [-h] [-volatility]     # alias
 
-.\bmon.ps1 -golong [-s] [-h] [-range]   # 24-hour session, 20-second updates
-.\bmon.ps1 -gl [-s] [-h] [-range]       # alias
+.\bmon.ps1 -golong [-s] [-h] [-volatility]   # 24-hour session, 20-second updates
+.\bmon.ps1 -gl [-s] [-h] [-volatility]       # alias
 
-.\bmon.ps1 -k [-s]                   # 30-minute session; sparkline + range coloring
+.\bmon.ps1 -k [-s]                   # 30-minute session; sparkline + volatility coloring
 .\bmon.ps1 -kl [-s]                  # 30-minute K, then 24-hour golong
-.\bmon.ps1 -go -h -range             # 15-minute with sparkline and window coloring
+.\bmon.ps1 -go -h -volatility             # 15-minute with sparkline and volatility coloring
 ```
 
 The script will run for the specified duration and then exit.
@@ -133,10 +133,10 @@ The script will run for the specified duration and then exit.
 - Press **r** or **Right arrow** to reset the session baseline to the current price.
 - Press **e** or **Left arrow** to extend the current session timeout (15 min, 24 hr, or 30 min depending on mode) without changing the comparison baseline.
 - Press **m** or **Down arrow** to toggle between `-go` and `-golong` modes.
-- Press **k** or **Up arrow** to switch to K mode (30 min, sparkline + range coloring).
+- Press **k** or **Up arrow** to switch to K mode (30 min, sparkline + volatility coloring).
 - Press **I** to switch back to interactive mode.
 - Press **h** to toggle the price history sparkline.
-- Press **w** to toggle window coloring (range-colored spinner).
+- Press **v** to toggle volatility coloring (volatility-colored spinner).
 - Press **s** to toggle sound alerts on/off.
 - Press **Ctrl+C** or **Esc** to exit early.
 

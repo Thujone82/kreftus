@@ -10,19 +10,19 @@
     - Interactive Mode: The main screen displays the current price. Press the space bar to start/pause monitoring.
     - Go Mode (`-go`): Monitors the price immediately for 15 minutes and then exits.
     - Long Go Mode (`-golong`): Monitors for 24 hours with a longer update interval.
-    - K Mode (`-k`): Monitors for 30 minutes with 4-second updates, sparkline and range-colored spinner enabled.
+    - K Mode (`-k`): Monitors for 30 minutes with 4-second updates, sparkline and volatility-colored spinner enabled.
     - K Long Run (`-kl`): Same as K for 30 minutes, then continues in golong for 24 hours instead of exiting.
 
-    Sound (`-s`), the history sparkline (`-h`), and window coloring (`-range` / `-r`) can be enabled from the command line for any monitoring mode. K mode enables sparkline and window coloring automatically.
+    Sound (`-s`), the history sparkline (`-h`), and volatility coloring (`-volatility` / `-vl`) can be enabled from the command line for any monitoring mode. K mode enables sparkline and volatility coloring automatically.
  
-    In go/golong/k single-line modes, window coloring tints the spinner by sparkline volatility (max − min of recent prices). Press `w` during monitoring to toggle. Cyan indicates an API fetch in progress.
+    In go/golong/k single-line modes, volatility coloring tints the spinner by sparkline volatility (max − min of recent prices). Press `v` during monitoring to toggle. During an API fetch the spinner inverts: cyan background with the volatility tier as foreground (white foreground when volatility coloring is off).
  
     In monitoring modes, the price line will flash with an inverted color for 500ms to draw attention to significant price movements. This flash occurs when the price color changes (e.g., from neutral to green) or when the price continues to move in an already established direction (e.g., ticking up again while green).
  
 .NOTES
     Author: Kreft&Gemini[Gemini 2.5 Pro (preview)]
     Date: 2025-08-07@1430
-    Version: 1.5
+    Version: 1.6
 #>
 
 [CmdletBinding(DefaultParameterSetName='Monitor')]
@@ -50,8 +50,8 @@ param (
     [switch]$kl,
 
     [Parameter(ParameterSetName='Monitor')]
-    [Alias('r')]
-    [switch]$range,
+    [Alias('vl')]
+    [switch]$volatility,
 
     [Parameter(ParameterSetName='Monitor')]
     [switch]$Help,
@@ -86,7 +86,7 @@ param (
 
 # Show help if requested
 if ($Help.IsPresent) {
-    Write-Host "Bitcoin Monitor (bmon) - Version 1.5" -ForegroundColor Yellow
+    Write-Host "Bitcoin Monitor (bmon) - Version 1.6" -ForegroundColor Yellow
     Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor DarkGray
     Write-Host ""
     
@@ -98,9 +98,9 @@ if ($Help.IsPresent) {
     Write-Host "    .\bmon.ps1 -gl          " -NoNewline -ForegroundColor White; Write-Host "# Monitor for 24 hours (alias)" -ForegroundColor Gray
     Write-Host "    .\bmon.ps1 -s           " -NoNewline -ForegroundColor White; Write-Host "# Enable sound alerts" -ForegroundColor Gray
     Write-Host "    .\bmon.ps1 -h           " -NoNewline -ForegroundColor White; Write-Host "# Enable history sparkline" -ForegroundColor Gray
-    Write-Host "    .\bmon.ps1 -range       " -NoNewline -ForegroundColor White; Write-Host "# Enable range-colored spinner" -ForegroundColor Gray
-    Write-Host "    .\bmon.ps1 -r           " -NoNewline -ForegroundColor White; Write-Host "# Enable range-colored spinner (alias)" -ForegroundColor Gray
-    Write-Host "    .\bmon.ps1 -k           " -NoNewline -ForegroundColor White; Write-Host "# K mode (30 min, sparkline + range coloring)" -ForegroundColor Gray
+    Write-Host "    .\bmon.ps1 -volatility  " -NoNewline -ForegroundColor White; Write-Host "# Enable volatility-colored spinner" -ForegroundColor Gray
+    Write-Host "    .\bmon.ps1 -vl          " -NoNewline -ForegroundColor White; Write-Host "# Enable volatility-colored spinner (alias)" -ForegroundColor Gray
+    Write-Host "    .\bmon.ps1 -k           " -NoNewline -ForegroundColor White; Write-Host "# K mode (30 min, sparkline + volatility coloring)" -ForegroundColor Gray
     Write-Host "    .\bmon.ps1 -kl          " -NoNewline -ForegroundColor White; Write-Host "# K long run (30 min K, then 24 hr golong)" -ForegroundColor Gray
     Write-Host "    .\bmon.ps1 -config      " -NoNewline -ForegroundColor White; Write-Host "# Open configuration menu" -ForegroundColor Gray
     Write-Host "    .\bmon.ps1 -bu 0.5      " -NoNewline -ForegroundColor White; Write-Host "# 0.5 BTC to USD" -ForegroundColor Gray
@@ -113,7 +113,7 @@ if ($Help.IsPresent) {
     Write-Host "    Interactive: " -NoNewline -ForegroundColor White; Write-Host "Press Space to start/pause, R to reset, Ctrl+C to exit" -ForegroundColor Gray
     Write-Host "    Go Mode: " -NoNewline -ForegroundColor White; Write-Host "15-minute monitoring with 5-second updates" -ForegroundColor Gray
     Write-Host "    Long Go Mode: " -NoNewline -ForegroundColor White; Write-Host "24-hour monitoring with 20-second updates" -ForegroundColor Gray
-    Write-Host "    K Mode: " -NoNewline -ForegroundColor White; Write-Host "30-minute monitoring with 4-second updates, sparkline and range coloring" -ForegroundColor Gray
+    Write-Host "    K Mode: " -NoNewline -ForegroundColor White; Write-Host "30-minute monitoring with 4-second updates, sparkline and volatility coloring" -ForegroundColor Gray
     Write-Host "    K Long Run (-kl): " -NoNewline -ForegroundColor White; Write-Host "K mode for 30 minutes, then continues in golong for 24 hours" -ForegroundColor Gray
     Write-Host ""
     
@@ -121,20 +121,20 @@ if ($Help.IsPresent) {
     Write-Host "    R - " -NoNewline -ForegroundColor White; Write-Host "Reset baseline price and timer" -ForegroundColor Gray
     Write-Host "    E - " -NoNewline -ForegroundColor White; Write-Host "Extend session timer (keep baseline)" -ForegroundColor Gray
     Write-Host "    M - " -NoNewline -ForegroundColor White; Write-Host "Switch between go/golong modes" -ForegroundColor Gray
-    Write-Host "    K - " -NoNewline -ForegroundColor White; Write-Host "Switch to K mode (30 min, sparkline + range coloring)" -ForegroundColor Gray
+    Write-Host "    K - " -NoNewline -ForegroundColor White; Write-Host "Switch to K mode (30 min, sparkline + volatility coloring)" -ForegroundColor Gray
     Write-Host "    I - " -NoNewline -ForegroundColor White; Write-Host "Switch back to interactive mode" -ForegroundColor Gray
     Write-Host "    S - " -NoNewline -ForegroundColor White; Write-Host "Toggle sound alerts" -ForegroundColor Gray
     Write-Host "    H - " -NoNewline -ForegroundColor White; Write-Host "Toggle history sparkline" -ForegroundColor Gray
-    Write-Host "    W - " -NoNewline -ForegroundColor White; Write-Host "Toggle window coloring (range-colored spinner)" -ForegroundColor Gray
+    Write-Host "    V - " -NoNewline -ForegroundColor White; Write-Host "Toggle volatility coloring (volatility-colored spinner)" -ForegroundColor Gray
     Write-Host ""
     
-    Write-Host "SPINNER COLORS (window coloring, go/golong/k modes, sparkline active):" -ForegroundColor Magenta
-    Write-Host "    White - " -NoNewline -ForegroundColor White; Write-Host "Sparkline range under `$10" -ForegroundColor Gray
-    Write-Host "    Green - " -NoNewline -ForegroundColor Green; Write-Host "Range `$10–`$49.99" -ForegroundColor Gray
-    Write-Host "    Yellow - " -NoNewline -ForegroundColor Yellow; Write-Host "Range `$50–`$99.99" -ForegroundColor Gray
-    Write-Host "    Red - " -NoNewline -ForegroundColor Red; Write-Host "Range `$100–`$249.99" -ForegroundColor Gray
-    Write-Host "    Magenta - " -NoNewline -ForegroundColor Magenta; Write-Host "Range `$250 or more" -ForegroundColor Gray
-    Write-Host "    Cyan - " -NoNewline -ForegroundColor Cyan; Write-Host "API fetch in progress (overrides range color)" -ForegroundColor Gray
+    Write-Host "SPINNER COLORS (volatility coloring, go/golong/k modes, sparkline active):" -ForegroundColor Magenta
+    Write-Host "    White - " -NoNewline -ForegroundColor White; Write-Host "Volatility under `$10" -ForegroundColor Gray
+    Write-Host "    Green - " -NoNewline -ForegroundColor Green; Write-Host "Volatility `$10–`$49.99" -ForegroundColor Gray
+    Write-Host "    Yellow - " -NoNewline -ForegroundColor Yellow; Write-Host "Volatility `$50–`$99.99" -ForegroundColor Gray
+    Write-Host "    Red - " -NoNewline -ForegroundColor Red; Write-Host "Volatility `$100–`$249.99" -ForegroundColor Gray
+    Write-Host "    Magenta - " -NoNewline -ForegroundColor Magenta; Write-Host "Volatility `$250 or more" -ForegroundColor Gray
+    Write-Host "    Cyan - " -NoNewline -ForegroundColor Cyan; Write-Host "API fetch in progress (cyan background; volatility tier as foreground when enabled)" -ForegroundColor Gray
     Write-Host ""
     
     Write-Host "FEATURES:" -ForegroundColor Blue
@@ -143,7 +143,7 @@ if ($Help.IsPresent) {
     Write-Host "    • " -NoNewline -ForegroundColor Yellow; Write-Host "Visual price flash alerts" -ForegroundColor Gray
     Write-Host "    • " -NoNewline -ForegroundColor Yellow; Write-Host "Sound alerts for price movements" -ForegroundColor Gray
     Write-Host "    • " -NoNewline -ForegroundColor Yellow; Write-Host "Historical price sparkline" -ForegroundColor Gray
-    Write-Host "    • " -NoNewline -ForegroundColor Yellow; Write-Host "Range-colored spinner (window coloring)" -ForegroundColor Gray
+    Write-Host "    • " -NoNewline -ForegroundColor Yellow; Write-Host "Volatility-colored spinner (volatility coloring)" -ForegroundColor Gray
     Write-Host "    • " -NoNewline -ForegroundColor Yellow; Write-Host "BTC/USD conversion tools" -ForegroundColor Gray
     Write-Host "    • " -NoNewline -ForegroundColor Yellow; Write-Host "Satoshi conversion tools" -ForegroundColor Gray
     Write-Host "    • " -NoNewline -ForegroundColor Yellow; Write-Host "Automatic API key management" -ForegroundColor Gray
@@ -221,6 +221,20 @@ function Set-IniConfiguration {
 
 # Tracks whether the previous operation printed a one-line warning/retry message
 $script:WarningLineShown = $false
+$script:RetryVolatilityEnabled = $false
+$script:RetrySparklineEnabled = $false
+$script:RetryPriceHistory = $null
+
+function Set-RetryVolatilityContext {
+    param(
+        [bool]$VolatilityEnabled,
+        [bool]$SparklineEnabled,
+        [System.Collections.Generic.List[double]]$History
+    )
+    $script:RetryVolatilityEnabled = $VolatilityEnabled
+    $script:RetrySparklineEnabled = $SparklineEnabled
+    $script:RetryPriceHistory = $History
+}
 
 function Write-RetryIndicator {
     param(
@@ -228,14 +242,33 @@ function Write-RetryIndicator {
         [switch]$Final,
         [switch]$Fetching
     )
-    # Color logic: Cyan when fetching (like spinner), Red on final failure, Yellow during wait
-    $fg = if ($Fetching) { 'Cyan' } elseif ($Final) { 'Red' } else { 'Yellow' }
+    # Fetching: inverted spinner (cyan background, volatility foreground). Wait/final: status foreground, volatility background.
     $digit = [string]$Attempt
+    $fg = $null
+    $bg = $null
+    if ($Fetching) {
+        $bg = 'Cyan'
+        $fg = 'White'
+        if ($script:RetryVolatilityEnabled -and $script:RetrySparklineEnabled -and $null -ne $script:RetryPriceHistory) {
+            $fg = Get-VolatilitySpinnerColor (Get-SparklineRange -History $script:RetryPriceHistory)
+        }
+    }
+    else {
+        $fg = if ($Final) { 'Red' } else { 'Yellow' }
+        if ($script:RetryVolatilityEnabled -and $script:RetrySparklineEnabled -and $null -ne $script:RetryPriceHistory) {
+            $bg = Get-VolatilitySpinnerColor (Get-SparklineRange -History $script:RetryPriceHistory)
+        }
+    }
     try {
         # Move to column 0, write the colored digit only, then return to column 0.
         # Do NOT pad the rest of the line; leave existing content intact.
         Write-Host -NoNewline "`r"
-        Write-Host -NoNewline -ForegroundColor $fg $digit
+        if ($bg) {
+            Write-Host -NoNewline -ForegroundColor $fg -BackgroundColor $bg $digit
+        }
+        else {
+            Write-Host -NoNewline -ForegroundColor $fg $digit
+        }
         Write-Host -NoNewline "`r"
     } catch {
         Write-Host -NoNewline "`r$digit"
@@ -465,7 +498,7 @@ function Get-SparklineRange {
     return $maxPrice - $minPrice
 }
 
-function Get-RangeSpinnerColor {
+function Get-VolatilitySpinnerColor {
     param([double]$Range)
     if ($Range -lt 10) { return 'White' }
     if ($Range -lt 50) { return 'Green' }
@@ -474,16 +507,37 @@ function Get-RangeSpinnerColor {
     return 'Magenta'
 }
 
-function Get-SpinnerForegroundColor {
+function Get-SpinnerColors {
     param(
-        [bool]$RangeEnabled,
+        [bool]$VolatilityEnabled,
         [bool]$SparklineEnabled,
         [bool]$Fetching,
         [System.Collections.Generic.List[double]]$History
     )
-    if ($Fetching) { return 'Cyan' }
-    if (-not $RangeEnabled -or -not $SparklineEnabled) { return 'White' }
-    return Get-RangeSpinnerColor (Get-SparklineRange -History $History)
+    if ($Fetching) {
+        $colors = @{ Foreground = 'White'; Background = 'Cyan' }
+        if ($VolatilityEnabled -and $SparklineEnabled) {
+            $colors.Foreground = Get-VolatilitySpinnerColor (Get-SparklineRange -History $History)
+        }
+        return $colors
+    }
+    if (-not $VolatilityEnabled -or -not $SparklineEnabled) {
+        return @{ Foreground = 'White'; Background = $null }
+    }
+    return @{ Foreground = (Get-VolatilitySpinnerColor (Get-SparklineRange -History $History)); Background = $null }
+}
+
+function Write-SpinnerChar {
+    param(
+        [string]$Char,
+        [hashtable]$Colors
+    )
+    if ($Colors.Background) {
+        Write-Host -NoNewline -ForegroundColor $Colors.Foreground -BackgroundColor $Colors.Background $Char
+    }
+    else {
+        Write-Host -NoNewline -ForegroundColor $Colors.Foreground $Char
+    }
 }
 
 function Get-ConsoleWidth {
@@ -658,7 +712,7 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent -or $kl.IsPresent) {
     $monitorStartTime = Get-Date
     $soundEnabled = $s.IsPresent
     $sparklineEnabled = $h.IsPresent -or $k.IsPresent -or $kl.IsPresent
-    $rangeSpinnerEnabled = $range.IsPresent -or $k.IsPresent -or $kl.IsPresent
+    $volatilitySpinnerEnabled = $volatility.IsPresent -or $k.IsPresent -or $kl.IsPresent
     $priceHistory = [System.Collections.Generic.List[double]]::new()
     $priceHistory.Add($currentBtcPrice)
 
@@ -736,8 +790,8 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent -or $kl.IsPresent) {
                     Write-Host -NoNewline -BackgroundColor $priceColor -ForegroundColor Black "$paddedLine`r"
                 }
                 else {
-                    $spinnerColor = Get-SpinnerForegroundColor -RangeEnabled $rangeSpinnerEnabled -SparklineEnabled $sparklineEnabled -Fetching $false -History $priceHistory
-                    Write-Host -NoNewline -ForegroundColor $spinnerColor $spinnerChar
+                    $spinnerColors = Get-SpinnerColors -VolatilityEnabled $volatilitySpinnerEnabled -SparklineEnabled $sparklineEnabled -Fetching $false -History $priceHistory
+                    Write-SpinnerChar -Char $spinnerChar -Colors $spinnerColors
                     Write-Host -NoNewline -ForegroundColor $priceColor $restOfLine
                     $paddingSize = [System.Console]::WindowWidth - $fullLine.Length
                     if ($paddingSize -gt 0) {
@@ -777,7 +831,7 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent -or $kl.IsPresent) {
                         # Up arrow is alias for K
                         $currentMode = 'k'
                         $sparklineEnabled = $true
-                        $rangeSpinnerEnabled = $true
+                        $volatilitySpinnerEnabled = $true
                         $monitorStartTime = Get-Date
                         $monitorStartPrice = $currentBtcPrice
                         $modeSwitched = $true
@@ -836,7 +890,7 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent -or $kl.IsPresent) {
                     if ($keyInfo.KeyChar -eq 'k' -or $keyInfo.KeyChar -eq 'K') {
                         $currentMode = 'k'
                         $sparklineEnabled = $true
-                        $rangeSpinnerEnabled = $true
+                        $volatilitySpinnerEnabled = $true
                         $monitorStartTime = Get-Date
                         $monitorStartPrice = $currentBtcPrice
                         $modeSwitched = $true
@@ -861,8 +915,8 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent -or $kl.IsPresent) {
                     if ($keyInfo.KeyChar -eq 'h') {
                         $sparklineEnabled = -not $sparklineEnabled
                     }
-                    if ($keyInfo.KeyChar -eq 'w' -or $keyInfo.KeyChar -eq 'W') {
-                        $rangeSpinnerEnabled = -not $rangeSpinnerEnabled
+                    if ($keyInfo.KeyChar -eq 'v' -or $keyInfo.KeyChar -eq 'V') {
+                        $volatilitySpinnerEnabled = -not $volatilitySpinnerEnabled
                     }
                 }
                 Start-Sleep -Milliseconds 500
@@ -877,8 +931,8 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent -or $kl.IsPresent) {
             $sparklineString = if ($sparklineEnabled) { " $(Get-Sparkline -History $priceHistory)" } else { " Bitcoin (USD):" }
             $restOfLine = "$sparklineString $($currentBtcPrice.ToString("C2"))$changeString"
             
-            $fetchSpinnerColor = Get-SpinnerForegroundColor -RangeEnabled $rangeSpinnerEnabled -SparklineEnabled $sparklineEnabled -Fetching $true -History $priceHistory
-            Write-Host -NoNewline -ForegroundColor $fetchSpinnerColor $spinnerChar
+            $spinnerColors = Get-SpinnerColors -VolatilityEnabled $volatilitySpinnerEnabled -SparklineEnabled $sparklineEnabled -Fetching $true -History $priceHistory
+            Write-SpinnerChar -Char $spinnerChar -Colors $spinnerColors
             Write-Host -NoNewline -ForegroundColor $priceColor $restOfLine
             $fullLine = "$spinnerChar$restOfLine"
             $paddingSize = [System.Console]::WindowWidth - $fullLine.Length
@@ -887,6 +941,7 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent -or $kl.IsPresent) {
             }
             Write-Host -NoNewline "`r"
 
+            Set-RetryVolatilityContext -VolatilityEnabled $volatilitySpinnerEnabled -SparklineEnabled $sparklineEnabled -History $priceHistory
             $newPrice = Get-BtcPrice -ApiKey $apiKey
             if ($null -ne $newPrice) {
                 if ($soundEnabled) {
@@ -917,7 +972,7 @@ else {
     # Interactive Mode (original behavior)
     $soundEnabled = $s.IsPresent
     $sparklineEnabled = $h.IsPresent
-    $rangeSpinnerEnabled = $range.IsPresent -or $k.IsPresent -or $kl.IsPresent
+    $volatilitySpinnerEnabled = $volatility.IsPresent -or $k.IsPresent -or $kl.IsPresent
     while ($true) {
         Clear-Host
         Write-Host "*** BTC Monitor ***" -ForegroundColor DarkYellow
@@ -1069,8 +1124,8 @@ else {
                         $sparklineEnabled = -not $sparklineEnabled
                         & $drawScreen -InvertColors $false -ChangeString $changeString -PriceColor $priceColor
                     }
-                    if ($keyInfo.KeyChar -eq 'w' -or $keyInfo.KeyChar -eq 'W') {
-                        $rangeSpinnerEnabled = -not $rangeSpinnerEnabled
+                    if ($keyInfo.KeyChar -eq 'v' -or $keyInfo.KeyChar -eq 'V') {
+                        $volatilitySpinnerEnabled = -not $volatilitySpinnerEnabled
                     }
                 }
                 Start-Sleep -Milliseconds 100

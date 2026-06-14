@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	version = "1.5"
+	version = "1.6"
 	date    = "2025-08-07@1430"
 )
 
@@ -60,7 +60,7 @@ type Args struct {
 	klMode         bool
 	sound          bool
 	sparkline      bool
-	rangeSpinner   bool
+	volatilitySpinner   bool
 	help           bool
 	config         bool
 	conversionMode string
@@ -145,8 +145,8 @@ func parseArgs() Args {
 			args.sound = true
 		case "-h":
 			args.sparkline = true
-		case "-range", "-r":
-			args.rangeSpinner = true
+		case "-volatility", "-vl":
+			args.volatilitySpinner = true
 		case "-help":
 			args.help = true
 		case "-config":
@@ -612,7 +612,7 @@ func getSparklineRange(history []float64) float64 {
 	return maxPrice - minPrice
 }
 
-func rangeSpinnerColorCode(d float64) string {
+func volatilitySpinnerColorCode(d float64) string {
 	if d < 10 {
 		return "15"
 	}
@@ -628,31 +628,56 @@ func rangeSpinnerColorCode(d float64) string {
 	return "5"
 }
 
-func spinnerColorCode(m tuiModel) string {
+func (m tuiModel) volatilityForegroundColor() lipgloss.Color {
+	if m.volatilitySpinnerEnabled && m.sparklineEnabled {
+		return lipgloss.Color(volatilitySpinnerColorCode(getSparklineRange(m.history)))
+	}
+	return lipgloss.Color("15")
+}
+
+func (m tuiModel) applyVolatilityBackground(style lipgloss.Style) lipgloss.Style {
+	if m.volatilitySpinnerEnabled && m.sparklineEnabled {
+		return style.Background(lipgloss.Color(volatilitySpinnerColorCode(getSparklineRange(m.history))))
+	}
+	return style
+}
+
+func (m tuiModel) fetchSpinnerStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Background(lipgloss.Color("6")).
+		Foreground(m.volatilityForegroundColor())
+}
+
+func spinnerStyle(m tuiModel) lipgloss.Style {
 	if m.fetchingNow {
-		return "6"
+		return m.fetchSpinnerStyle()
 	}
-	if !m.rangeSpinnerEnabled || !m.sparklineEnabled {
-		return "15"
+	style := lipgloss.NewStyle()
+	if !m.volatilitySpinnerEnabled || !m.sparklineEnabled {
+		return style.Foreground(lipgloss.Color("15"))
 	}
-	return rangeSpinnerColorCode(getSparklineRange(m.history))
+	return style.Foreground(lipgloss.Color(volatilitySpinnerColorCode(getSparklineRange(m.history))))
 }
 
 func syncSpinnerStyle(m tuiModel) tuiModel {
-	m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(spinnerColorCode(m)))
+	m.spinner.Style = spinnerStyle(m)
 	return m
 }
 
 func (m tuiModel) renderSpinnerChar() string {
 	active, digit, retryColor := getRetryIndicator()
 	if active && digit != "" {
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(retryColor)).Render(digit)
+		if retryColor == "6" {
+			return m.fetchSpinnerStyle().Render(digit)
+		}
+		style := lipgloss.NewStyle().Foreground(lipgloss.Color(retryColor))
+		return m.applyVolatilityBackground(style).Render(digit)
 	}
 	glyph := ansi.Strip(m.spinner.View())
 	if glyph == "" || glyph == "(error)" {
 		glyph = " "
 	}
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(spinnerColorCode(m))).Render(glyph)
+	return spinnerStyle(m).Render(glyph)
 }
 
 // getSparkChars selects characters for the sparkline that the current
@@ -743,12 +768,12 @@ func printHelp() {
 	gray.Println("# Enable sound alerts")
 	white.Print("    ./bmon -h           ")
 	gray.Println("# Enable history sparkline")
-	white.Print("    ./bmon -range       ")
-	gray.Println("# Enable range-colored spinner")
-	white.Print("    ./bmon -r           ")
-	gray.Println("# Enable range-colored spinner (alias)")
+	white.Print("    ./bmon -volatility    ")
+	gray.Println("# Enable volatility-colored spinner")
+	white.Print("    ./bmon -vl          ")
+	gray.Println("# Enable volatility-colored spinner (alias)")
 	white.Print("    ./bmon -k           ")
-	gray.Println("# K mode (30 min, sparkline + range coloring)")
+	gray.Println("# K mode (30 min, sparkline + volatility coloring)")
 	white.Print("    ./bmon -kl          ")
 	gray.Println("# K long run (30 min K, then 24 hr golong)")
 	white.Print("    ./bmon -config      ")
@@ -771,7 +796,7 @@ func printHelp() {
 	white.Print("    Go Long Mode: ")
 	gray.Println("24-hour monitoring with 20-second updates")
 	white.Print("    K Mode: ")
-	gray.Println("30-minute monitoring with 4-second updates, sparkline and range coloring")
+	gray.Println("30-minute monitoring with 4-second updates, sparkline and volatility coloring")
 	white.Print("    K Long Run (-kl): ")
 	gray.Println("K mode for 30 minutes, then continues in golong for 24 hours")
 	fmt.Println()
@@ -784,30 +809,30 @@ func printHelp() {
 	white.Print("    M - ")
 	gray.Println("Switch between go/golong modes")
 	white.Print("    K - ")
-	gray.Println("Switch to K mode (30 min, sparkline + range coloring)")
+	gray.Println("Switch to K mode (30 min, sparkline + volatility coloring)")
 	white.Print("    I - ")
 	gray.Println("Switch back to interactive mode")
 	white.Print("    S - ")
 	gray.Println("Toggle sound alerts")
 	white.Print("    H - ")
 	gray.Println("Toggle history sparkline")
-	white.Print("    W - ")
-	gray.Println("Toggle window coloring (range-colored spinner)")
+	white.Print("    V - ")
+	gray.Println("Toggle volatility coloring (volatility-colored spinner)")
 	fmt.Println()
 
-	color.Magenta("SPINNER COLORS (window coloring, go/golong/k modes, sparkline active):")
+	color.Magenta("SPINNER COLORS (volatility coloring, go/golong/k modes, sparkline active):")
 	white.Print("    White - ")
-	gray.Println("Sparkline range under $10")
+	gray.Println("Volatility under $10")
 	color.Green("    Green - ")
-	gray.Println("Range $10–$49.99")
+	gray.Println("Volatility $10–$49.99")
 	color.Yellow("    Yellow - ")
-	gray.Println("Range $50–$99.99")
+	gray.Println("Volatility $50–$99.99")
 	color.Red("    Red - ")
-	gray.Println("Range $100–$249.99")
+	gray.Println("Volatility $100–$249.99")
 	color.Magenta("    Magenta - ")
-	gray.Println("Range $250 or more")
+	gray.Println("Volatility $250 or more")
 	color.Cyan("    Cyan - ")
-	gray.Println("API fetch in progress (overrides range color)")
+	gray.Println("API fetch in progress (cyan background; volatility tier as foreground when enabled)")
 	fmt.Println()
 
 	color.Blue("FEATURES:")
@@ -823,7 +848,7 @@ func printHelp() {
 	yellow.Print("    • ")
 	gray.Println("Historical price sparkline")
 	yellow.Print("    • ")
-	gray.Println("Range-colored spinner (window coloring)")
+	gray.Println("Volatility-colored spinner (volatility coloring)")
 	yellow.Print("    • ")
 	gray.Println("BTC/USD conversion tools")
 	yellow.Print("    • ")
@@ -887,7 +912,7 @@ type tuiModel struct {
 	fetchingNow         bool
 	soundEnabled        bool
 	sparklineEnabled    bool
-	rangeSpinnerEnabled bool
+	volatilitySpinnerEnabled bool
 	klLongRun           bool
 	history             []float64
 	fetchError          error // Track fetch errors to display on exit
@@ -902,7 +927,7 @@ func newTUIModel(args Args) tuiModel {
 		spinner:          sp,
 		soundEnabled:        args.sound,
 		sparklineEnabled:    args.sparkline || args.kMode || args.klMode,
-		rangeSpinnerEnabled: args.rangeSpinner || args.kMode || args.klMode,
+		volatilitySpinnerEnabled: args.volatilitySpinner || args.kMode || args.klMode,
 		klLongRun:           args.klMode,
 		history:             []float64{},
 		previousColor:    "White",
@@ -1033,7 +1058,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.mode == modeGo || m.mode == modeGoLong {
 				m.mode = modeK
 				m.sparklineEnabled = true
-				m.rangeSpinnerEnabled = true
+				m.volatilitySpinnerEnabled = true
 				m.sessionStartTime = time.Now()
 				m.monitorStartPrice = currentBtcPrice
 				// Update spinner for k mode
@@ -1104,7 +1129,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.mode == modeGo || m.mode == modeGoLong {
 				m.mode = modeK
 				m.sparklineEnabled = true
-				m.rangeSpinnerEnabled = true
+				m.volatilitySpinnerEnabled = true
 				m.sessionStartTime = time.Now()
 				m.monitorStartPrice = currentBtcPrice
 				// Update spinner for k mode
@@ -1134,9 +1159,9 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "h":
 			m.sparklineEnabled = !m.sparklineEnabled
-		case "w", "W":
+		case "v", "V":
 			if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeK || m.mode == modeInteractive {
-				m.rangeSpinnerEnabled = !m.rangeSpinnerEnabled
+				m.volatilitySpinnerEnabled = !m.volatilitySpinnerEnabled
 			}
 		case "i":
 			if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeK {

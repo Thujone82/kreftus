@@ -1,6 +1,6 @@
 # bmon — Bitcoin Monitor (Go Edition)
 
-**Version:** 1.5 · **Author:** Kreft&Gemini · **Date:** 2025-08-07
+**Version:** 1.6 · **Author:** Kreft&Gemini · **Date:** 2025-08-07
 
 ## Description
 
@@ -15,19 +15,19 @@ The application can run in several modes: interactive monitoring with keyboard c
   - **Interactive Mode:** Press Space to start/pause, R to reset, Ctrl+C or Esc to exit. Press G on the landing screen to jump directly into Go mode.
   - **Go Mode:** 15-minute monitoring with 5-second updates
   - **Long Go Mode:** 24-hour monitoring with 20-second updates
-  - **K Mode (`-k`):** 30-minute monitoring with 4-second updates; sparkline and range coloring enabled by default
+  - **K Mode (`-k`):** 30-minute monitoring with 4-second updates; sparkline and volatility coloring enabled by default
   - **K Long Run (`-kl`):** K mode for 30 minutes, then continues in golong for 24 hours; this K→golong handoff persists for the session whenever K mode ends again
 - **Visual Indicators:** Color-coded price changes (green for gains, red for losses)
 - **Price Flash Alerts:** Visual flashing when significant price movements occur
 - **Sound Alerts:** Optional audio notifications for price movements
 - **Historical Sparkline:** Visual price trend display using Unicode characters (last 14 samples)
-- **Window Coloring:** In go/golong/k single-line modes, the spinner color reflects sparkline volatility (max − min). Enable with `-range` / `-r`, auto-on with `-k`, toggle with `W` during monitoring
+- **Volatility Coloring:** In go/golong/k single-line modes, the spinner color reflects sparkline volatility (max − min). Enable with `-volatility` / `-vl`, auto-on with `-k`, toggle with `V` during monitoring
 - **Conversion Tools:** BTC to USD, USD to BTC, USD to satoshis, satoshis to USD
 - **API Key Management:** Automatic setup and configuration file handling
 - **Configuration Menu:** Use the `-config` flag to open the configuration menu. If settings already exist, the current config file path and a masked API key are displayed. You can enter a new API key (validated and saved to `bmon.ini`) or press Enter to keep the current setting and exit.
 - **Cross-Platform:** Native executables for Windows and Linux
 - **Color-coded Output:** Clear, colorized feedback for all operations
-- **Compact Retry Indicator:** During temporary network/API hiccups in go/golong/k modes, the spinner is briefly replaced with a single digit to indicate retries: yellow `1`, `2`, `3`, `4`, and a red `5` on the final attempt. On the next successful fetch the indicator disappears and the normal spinner resumes.
+- **Compact Retry Indicator:** During temporary network/API hiccups in go/golong/k modes, the spinner is briefly replaced with a single digit to indicate retries: yellow `1`, `2`, `3`, `4`, and a red `5` on the final attempt. When volatility coloring is enabled, the volatility tier appears as the digit background during backoff (yellow/red); active retry fetches use the same inverted cyan-background treatment as the spinner. On the next successful fetch the indicator disappears and the normal spinner resumes.
 
 ## Color Coding
 
@@ -40,21 +40,21 @@ The application can run in several modes: interactive monitoring with keyboard c
 ### UI and fetch
 
 - **Yellow:** Titles and prompts.
-- **Cyan:** UI key hints and API fetch in progress (spinner turns cyan during fetch, overriding window coloring).
+- **Cyan:** UI key hints and API fetch in progress (spinner uses cyan background during fetch; when volatility coloring is on, the volatility tier appears as the spinner foreground).
 
-### Spinner window coloring (go/golong/k modes, sparkline active)
+### Spinner volatility coloring (go/golong/k modes, sparkline active)
 
-Based on sparkline range (max − min of the last 14 prices):
+Based on sparkline volatility (max − min of the last 14 prices):
 
-| Range (USD) | Spinner color |
-| ----------- | ------------- |
+| Volatility (USD) | Spinner color |
+| -------------- | ------------- |
 | Under $10 | White |
 | $10 – $49.99 | Green |
 | $50 – $99.99 | Yellow |
 | $100 – $249.99 | Red |
 | $250 or more | Magenta |
 
-Window coloring requires both the sparkline and window coloring to be enabled. Press `W` to toggle window coloring; press `H` to toggle the sparkline.
+Volatility coloring requires both the sparkline and volatility coloring to be enabled. Press `V` to toggle volatility coloring; press `H` to toggle the sparkline. During an API fetch the spinner background is always cyan; the volatility tier colors the foreground when enabled.
 
 ## Requirements
 
@@ -76,9 +76,9 @@ Window coloring requires both the sparkline and window coloring to be enabled. P
 | ---- | ----------- |
 | `-go` or `-g` | Monitor for 15 minutes with 5-second updates |
 | `-golong` or `-gl` | Monitor for 24 hours with 20-second updates |
-| `-k` | K mode: 30-minute monitoring; sparkline and range coloring enabled |
+| `-k` | K mode: 30-minute monitoring; sparkline and volatility coloring enabled |
 | `-kl` | K long run: 30-minute K, then 24-hour golong |
-| `-range` or `-r` | Enable range-colored spinner (window coloring) |
+| `-volatility` or `-vl` | Enable volatility-colored spinner (volatility coloring) |
 | `-s` | Enable sound alerts |
 | `-h` | Enable history sparkline |
 
@@ -108,11 +108,11 @@ Letter keys and arrow-key aliases:
 | `R` or **Right arrow** | Reset baseline price and timer |
 | `E` or **Left arrow** | Extend session timeout without changing comparison baseline |
 | `M` or **Down arrow** | Switch between go/golong modes |
-| `K` or **Up arrow** | Switch to K mode (30 min, sparkline + range coloring) |
+| `K` or **Up arrow** | Switch to K mode (30 min, sparkline + volatility coloring) |
 | `I` | Switch back to interactive mode (from go/golong/k) |
 | `S` | Toggle sound alerts |
 | `H` | Toggle history sparkline |
-| `W` | Toggle window coloring (go/golong/k single-line modes) |
+| `V` | Toggle volatility coloring (go/golong/k single-line modes) |
 | `Esc` or `Ctrl+C` | Quit |
 
 ## Examples
@@ -131,7 +131,7 @@ Letter keys and arrow-key aliases:
 ./bmon -g -s
 ```
 
-### K mode with default sparkline and window coloring
+### K mode with default sparkline and volatility coloring
 
 ```sh
 ./bmon -k
@@ -143,10 +143,10 @@ Letter keys and arrow-key aliases:
 ./bmon -kl
 ```
 
-### Go mode with sparkline and window coloring
+### Go mode with sparkline and volatility coloring
 
 ```sh
-./bmon -go -h -range
+./bmon -go -h -volatility
 ```
 
 ### Convert 0.5 BTC to USD

@@ -31,7 +31,7 @@ This repository represents a unique approach to software development that levera
 
 ### Bitcoin & Finance Tools
 - **[vBTC v1.5](vbtc/)** - Command-line Bitcoin trading simulator with real-time market data, virtual portfolio management, transaction ledger, and 1-Hour SMA analysis
-- **[Bmon v1.5](bmon/)** - Lightweight real-time Bitcoin price monitor with multiple modes, visual sparkline charts, audible alerts, and currency conversion. Available in Go and PowerShell
+- **[Bmon v1.6](bmon/)** - Lightweight real-time Bitcoin price monitor with multiple modes, visual sparkline charts, audible alerts, and currency conversion. Available in Go and PowerShell
 - **[BTC v2.2](psbtc/)** - CLI version of BTC Track, a PowerShell script for Bitcoin price tracking and portfolio monitoring with real-time data, historical metrics, profit/loss calculation, and CSV logging
 
 ### Weather & Utility Tools
