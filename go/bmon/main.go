@@ -450,8 +450,6 @@ func getBtcPriceWithContext(isInitialFetch bool) (float64, error) {
 
 			time.Sleep(sleepTime)
 
-			// Change to cyan before retry attempt (like spinner does before fetch)
-			setRetryIndicator(strconv.Itoa(attempt), "6", true)
 			continue
 		}
 
@@ -477,7 +475,7 @@ func getBtcPriceWithContext(isInitialFetch bool) (float64, error) {
 			backoff := time.Duration(math.Pow(2, float64(attempt-1))) * baseDelay
 			jitter := time.Duration(time.Now().UnixNano()%1000) * time.Millisecond
 			time.Sleep(backoff + jitter)
-			setRetryIndicator(strconv.Itoa(attempt), "6", true)
+			setRetryIndicator(strconv.Itoa(attempt), "11", true)
 			continue
 		}
 
@@ -497,8 +495,6 @@ func getBtcPriceWithContext(isInitialFetch bool) (float64, error) {
 			jitter := time.Duration(time.Now().UnixNano()%1000) * time.Millisecond
 			time.Sleep(backoff + jitter)
 
-			// Change to cyan before retry attempt (like spinner does before fetch)
-			setRetryIndicator(strconv.Itoa(attempt), "6", true)
 			continue
 		}
 
@@ -667,9 +663,6 @@ func syncSpinnerStyle(m tuiModel) tuiModel {
 func (m tuiModel) renderSpinnerChar() string {
 	active, digit, retryColor := getRetryIndicator()
 	if active && digit != "" {
-		if retryColor == "6" {
-			return m.fetchSpinnerStyle().Render(digit)
-		}
 		style := lipgloss.NewStyle().Foreground(lipgloss.Color(retryColor))
 		return m.applyVolatilityBackground(style).Render(digit)
 	}

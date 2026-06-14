@@ -25,7 +25,7 @@ This project is the Go port of `bmon.ps1`, a lightweight command-line Bitcoin pr
 
 ### Volatility Coloring (Spinner)
 
-Gated by `tuiModel.volatilitySpinnerEnabled && sparklineEnabled`. Precedence: retry digit (inverted cyan bg during active fetch; volatility bg during backoff) → inverted fetch spinner (cyan bg, volatility fg) → volatility foreground → white.
+Gated by `tuiModel.volatilitySpinnerEnabled && sparklineEnabled`. Precedence: retry digit (yellow/red fg, volatility bg when enabled) → inverted fetch spinner (cyan bg, volatility fg) → volatility foreground → white.
 
 | Sparkline volatility (USD) | ANSI color code | Appearance |
 | -------------------------- | --------------- | ---------- |

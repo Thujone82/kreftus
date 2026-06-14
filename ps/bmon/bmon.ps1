@@ -239,25 +239,14 @@ function Set-RetryVolatilityContext {
 function Write-RetryIndicator {
     param(
         [int]$Attempt,
-        [switch]$Final,
-        [switch]$Fetching
+        [switch]$Final
     )
-    # Fetching: inverted spinner (cyan background, volatility foreground). Wait/final: status foreground, volatility background.
+    # Yellow for retries 1–4, red for final failure; volatility background when -volatility is enabled.
+    $fg = if ($Final) { 'Red' } else { 'Yellow' }
     $digit = [string]$Attempt
-    $fg = $null
     $bg = $null
-    if ($Fetching) {
-        $bg = 'Cyan'
-        $fg = 'White'
-        if ($script:RetryVolatilityEnabled -and $script:RetrySparklineEnabled -and $null -ne $script:RetryPriceHistory) {
-            $fg = Get-VolatilitySpinnerColor (Get-SparklineRange -History $script:RetryPriceHistory)
-        }
-    }
-    else {
-        $fg = if ($Final) { 'Red' } else { 'Yellow' }
-        if ($script:RetryVolatilityEnabled -and $script:RetrySparklineEnabled -and $null -ne $script:RetryPriceHistory) {
-            $bg = Get-VolatilitySpinnerColor (Get-SparklineRange -History $script:RetryPriceHistory)
-        }
+    if ($script:RetryVolatilityEnabled -and $script:RetrySparklineEnabled -and $null -ne $script:RetryPriceHistory) {
+        $bg = Get-VolatilitySpinnerColor (Get-SparklineRange -History $script:RetryPriceHistory)
     }
     try {
         # Move to column 0, write the colored digit only, then return to column 0.
@@ -442,9 +431,6 @@ function Get-BtcPrice {
             Write-RetryIndicator -Attempt $attempt
             $script:WarningLineShown = $true
             Start-Sleep -Milliseconds $sleepDurationMs
-            
-            # Change to cyan before retry attempt (like spinner does before fetch)
-            Write-RetryIndicator -Attempt $attempt -Fetching
         }
     }
     return $null

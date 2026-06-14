@@ -34,7 +34,7 @@ The tool operates in several modes:
 
 ### Volatility Coloring (Spinner)
 
-Applies only when `$volatilitySpinnerEnabled` is true **and** the sparkline is visible **and** at least 2 history points exist. During an API fetch the spinner inverts: cyan background with the volatility tier as foreground (white foreground when volatility coloring is off). Retry digits during active fetch use the same inversion; backoff digits keep status foreground with volatility background.
+Applies only when `$volatilitySpinnerEnabled` is true **and** the sparkline is visible **and** at least 2 history points exist. During an API fetch the spinner inverts: cyan background with the volatility tier as foreground (white foreground when volatility coloring is off). Retry digits keep yellow (or red on final failure) foreground; volatility tier is the background when enabled, default background when off.
 
 | Sparkline volatility (USD) | Spinner color |
 | -------------------------- | ------------- |
