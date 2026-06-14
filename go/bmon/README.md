@@ -16,7 +16,7 @@ The application can run in several modes: interactive monitoring with keyboard c
   - **Go Mode:** 15-minute monitoring with 5-second updates
   - **Long Go Mode:** 24-hour monitoring with 20-second updates
   - **K Mode (`-k`):** 30-minute monitoring with 4-second updates; sparkline and range coloring enabled by default
-  - **K Long Run (`-kl`):** K mode for 30 minutes, then continues in golong for 24 hours
+  - **K Long Run (`-kl`):** K mode for 30 minutes, then continues in golong for 24 hours; this K→golong handoff persists for the session whenever K mode ends again
 - **Visual Indicators:** Color-coded price changes (green for gains, red for losses)
 - **Price Flash Alerts:** Visual flashing when significant price movements occur
 - **Sound Alerts:** Optional audio notifications for price movements

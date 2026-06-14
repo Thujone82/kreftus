@@ -1158,7 +1158,6 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case modeK:
 				if m.klLongRun {
 					m.mode = modeGoLong
-					m.klLongRun = false
 					m.sessionStartTime = time.Now()
 					m.monitorStartPrice = currentBtcPrice
 					m.spinner.Spinner = bspinner.Spinner{Frames: []string{"▚", "▚", "▚", "▚", "▚", "▚", "▞", "▞", "▞", "▞", "▞", "▞"}, FPS: 500 * time.Millisecond}

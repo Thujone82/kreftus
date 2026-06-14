@@ -687,7 +687,6 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent -or $kl.IsPresent) {
             if (((Get-Date) - $monitorStartTime).TotalSeconds -ge $monitorDurationSeconds) {
                 if ($currentMode -eq 'k' -and $klLongRun) {
                     $currentMode = 'golong'
-                    $klLongRun = $false
                     $monitorStartTime = Get-Date
                     $monitorStartPrice = $currentBtcPrice
                     $spinnerIndex = 0
