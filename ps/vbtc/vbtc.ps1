@@ -8,7 +8,7 @@
 .NOTES
     Author: Kreft&Gemini[Gemini 2.5 Pro (preview)]
     Date: 2025-07-28
-    Version: 1.5
+    Version: 1.6
 #>
 
 [CmdletBinding()]
@@ -38,7 +38,7 @@ if ($Help.IsPresent) {
     # Define the help function inline to avoid dependency issues
     function Show-HelpScreen {
         Clear-Host
-        Write-Host "Virtual Bitcoin Trader (vBTC) - Version 1.5" -ForegroundColor Yellow
+        Write-Host "Virtual Bitcoin Trader (vBTC) - Version 1.6" -ForegroundColor Yellow
         Write-Host "===============================================================" -ForegroundColor DarkGray
         Write-Host ""
         
@@ -577,7 +577,7 @@ function Show-MainScreen {
         }
 
         $volDisplay = "$($ApiData.volume.ToString("C0"))"
-        # Time: shows when the (historical) API data was fetched, not when the main modal was loaded.
+        # Updated: shows when the (historical) API data was fetched, not when the main modal was loaded.
         $timeDisplay = if ($ApiData.PSObject.Properties['HistoricalDataFetchTime'] -and $ApiData.HistoricalDataFetchTime) {
             $ApiData.HistoricalDataFetchTime.ToLocalTime().ToString("MMddyy@HHmmss")
         } else {
@@ -651,7 +651,7 @@ function Show-MainScreen {
         }
     }
     Write-AlignedLine -Label "24H Volume:" -Value $volDisplay
-    Write-AlignedLine -Label "Time:" -Value $timeDisplay -ValueColor "Cyan"
+    Write-AlignedLine -Label "Updated:" -Value $timeDisplay -ValueColor "Cyan"
 
     Write-Host ""
     Write-Host "*** Portfolio ***" -ForegroundColor Yellow
@@ -1419,9 +1419,12 @@ function Invoke-Trade {
                 # Display the offer details (same as before)
                 $usdAmount = if ($Type -eq "Buy") { $tradeAmount } else { [math]::Floor(($tradeAmount * $tradeApiData.rate) * 100) / 100 }
                 $btcAmount = if ($Type -eq "Sell") { $tradeAmount } else { [math]::Floor(($tradeAmount / $tradeApiData.rate) * 100000000) / 100000000 }
-                $rate24hAgo = if ($tradeApiData.PSObject.Properties['rate24hAgo']) { $tradeApiData.rate24hAgo } else { $tradeApiData.rate }
-                $priceDiff = $tradeApiData.rate - $rate24hAgo
-                $priceColor = if ($priceDiff -gt 0) { "Green" } elseif ($priceDiff -lt 0) { "Red" } else { "White" }
+                $sma1h = if ($tradeApiData.PSObject.Properties['sma1h'] -and $tradeApiData.sma1h -gt 0) { $tradeApiData.sma1h } else { $null }
+                $priceColor = "White"
+                if ($null -ne $sma1h) {
+                    if ($tradeApiData.rate -gt $sma1h) { $priceColor = "Green" }
+                    elseif ($tradeApiData.rate -lt $sma1h) { $priceColor = "Red" }
+                }
                 $confirmPrompt = if ($Type -eq "Buy") { "Purchase $($btcAmount.ToString("F8")) BTC for $($usdAmount.ToString("C2"))? " } else { "Sell $($btcAmount.ToString("F8")) BTC for $($usdAmount.ToString("C2"))? " }
 
                 Write-Host "`n$timeLeftMessage" -ForegroundColor $timeLeftColor
@@ -1598,7 +1601,7 @@ function Invoke-Trade {
 
 function Show-HelpScreen {
     Clear-Host
-    Write-Host "Virtual Bitcoin Trader (vBTC) - Version 1.5" -ForegroundColor Yellow
+    Write-Host "Virtual Bitcoin Trader (vBTC) - Version 1.6" -ForegroundColor Yellow
     Write-Host "===============================================================" -ForegroundColor DarkGray
     Write-Host ""
     

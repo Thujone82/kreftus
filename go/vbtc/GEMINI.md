@@ -104,6 +104,8 @@ The application provides comprehensive trading statistics across all historical 
 - **Red**: Negative values, sell-related statistics, net losses
 - **White**: Neutral values (zero or informational counts)
 - **Yellow**: Section headers
+- **Updated**: Cyan timestamp on the main screen showing when market data was last fetched
+- **Market Rate (trade confirmation)**: Green if current price is above 1H SMA, red if below, white if SMA is unavailable
 
 ### Velocity telemetry (technical)
 

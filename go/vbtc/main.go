@@ -434,12 +434,12 @@ func showMainScreen() {
 			}
 		}
 		writeAlignedLine("24H Volume:", fmt.Sprintf("$%s", formatFloat(apiData.Volume, 0)), color.New(color.FgWhite))
-		// Time: shows when the (historical) API data was fetched, not when the main modal was loaded.
+		// Updated: shows when the (historical) API data was fetched, not when the main modal was loaded.
 		dataTime := apiData.FetchTime
 		if !apiData.HistoricalDataFetchTime.IsZero() {
 			dataTime = apiData.HistoricalDataFetchTime
 		}
-		writeAlignedLine("Time:", dataTime.Local().Format("010206@150405"), color.New(color.FgCyan))
+		writeAlignedLine("Updated:", dataTime.Local().Format("010206@150405"), color.New(color.FgCyan))
 	}
 
 	// Portfolio
@@ -726,7 +726,7 @@ func handleConfigChoice(choice string, reader *bufio.Reader) bool {
 
 func showHelpScreen(reader *bufio.Reader) {
 	clearScreen()
-	color.Yellow("Virtual Bitcoin Trader (vBTC) - Version 1.5")
+	color.Yellow("Virtual Bitcoin Trader (vBTC) - Version 1.6")
 	color.New(color.FgHiBlack).Println("═══════════════════════════════════════════════════════════════")
 	fmt.Println()
 
@@ -2640,10 +2640,12 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 		}
 
 		priceColor := color.New(color.FgWhite)
-		if apiData.Rate > apiData.Rate24hAgo {
-			priceColor = color.New(color.FgGreen)
-		} else if apiData.Rate < apiData.Rate24hAgo {
-			priceColor = color.New(color.FgRed)
+		if apiData.Sma1h > 0 {
+			if apiData.Rate > apiData.Sma1h {
+				priceColor = color.New(color.FgGreen)
+			} else if apiData.Rate < apiData.Sma1h {
+				priceColor = color.New(color.FgRed)
+			}
 		}
 
 		fmt.Println("\nYou have 2 minutes to accept this offer.")
@@ -2915,10 +2917,12 @@ func redrawTradeScreen(txType string, offerExpired bool, apiData *ApiDataRespons
 	}
 
 	priceColor := color.New(color.FgWhite)
-	if apiData.Rate > apiData.Rate24hAgo {
-		priceColor = color.New(color.FgGreen)
-	} else if apiData.Rate < apiData.Rate24hAgo {
-		priceColor = color.New(color.FgRed)
+	if apiData.Sma1h > 0 {
+		if apiData.Rate > apiData.Sma1h {
+			priceColor = color.New(color.FgGreen)
+		} else if apiData.Rate < apiData.Sma1h {
+			priceColor = color.New(color.FgRed)
+		}
 	}
 
 	fmt.Println()

@@ -9,7 +9,7 @@ Set-Location $PSScriptRoot
 $useUpx = $args -contains '-upx'
 
 # Define the version number in one place for easy updates.
-$Version = "1.4"
+$Version = "1.6"
 
 # --- Build Helper Tool ---
 # Capture the host's Go environment settings to ensure our helper tool is always
@@ -154,7 +154,7 @@ $infoPlistContent = @"
     
         # Compress using the custom zipper to preserve executable permissions.
         $zipPath = "bin/mac/$($_.arch)/vbtc.zip"
-        $readmePath = "README.txt"
+        $readmePath = "README.md"
         Write-Host "    - Compressing to $zipPath..."
         # Execute the custom zipper tool. The paths are relative to the script's location.
         # Use the call operator (&) for robust execution of the helper tool.

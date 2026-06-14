@@ -9,5 +9,5 @@ Invoke-ps2exe "vbtc.ps1" "vbtc.exe" `
     -product "vBTC" `
     -company "kreft.us" `
     -copyright "Copyright (c) 2025" `
-    -version "1.5.0.0"
+    -version "1.6.0.0"
 Write-Host "vbtc.ps1 -> vbtc.exe..." -ForegroundColor Cyan

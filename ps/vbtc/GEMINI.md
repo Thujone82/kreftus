@@ -66,7 +66,7 @@ If the application exits with "403 Encountered: Ensure API Key Configured and En
 -   `ledger.csv`: Logs all buy and sell transactions.
 -   `vBTC - Ledger_*.csv`: Archived ledger files.
 -   `vBTC - Ledger_Merged.csv`: Combined ledger file created when merging archives.
--   `README.txt`: Detailed user documentation.
+-   `README.md`: Detailed user documentation.
 -   `build.ps1`: Script to compile the PowerShell script into an executable.
 
 ### Ledger Summary Features
@@ -95,6 +95,8 @@ The application provides comprehensive trading statistics across all historical 
 - **Red**: Negative values, sell-related statistics, net losses
 - **White**: Neutral values (zero or informational counts)
 - **Yellow**: Section headers
+- **Updated**: Cyan timestamp on the main screen showing when market data was last fetched
+- **Market Rate (trade confirmation)**: Green if current price is above 1H SMA, red if below, white if SMA is unavailable
 
 ### Velocity telemetry (technical)
 
