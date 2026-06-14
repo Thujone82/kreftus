@@ -29,7 +29,7 @@ The application uses colors to provide quick visual feedback:
 - **Red:** Negative change (price down, loss) or a Sell transaction. Volatility is red if the market is less volatile
 - **Volatility line:** Displays as `Volatility: X.XX% [N]` where the bracketed value is velocity (see Tips)
 - **White:** Neutral or unchanged value
-- **Yellow / Cyan / Blue / HiBlack:** UI elements like titles and command prompts
+- **Yellow / Cyan / Blue / Gray:** UI elements like titles and command prompts
 - **Updated:** Cyan timestamp showing when market data was last fetched
 - **Market Rate (trade confirmation):** Green if current price is above 1H SMA, red if below, white if SMA is unavailable
 
