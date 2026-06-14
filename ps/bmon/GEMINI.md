@@ -18,7 +18,8 @@ The tool operates in several modes:
 2. **Go Mode (`-go` / `-g`):** A non-interactive single-line mode that monitors for 15 minutes with 5-second updates.
 3. **Long Go Mode (`-golong` / `-gl`):** Extended single-line monitoring for 24 hours with 20-second updates.
 4. **K Mode (`-k`):** 30-minute single-line monitoring with 4-second updates, sparkline enabled, and window coloring (range-colored spinner) enabled by default.
-5. **Conversion Mode:** Command-line switches for quick currency conversions between BTC, USD, and Satoshis.
+5. **K Long Run (`-kl`):** Same as K mode for 30 minutes, then automatically continues in golong for 24 hours.
+6. **Conversion Mode:** Command-line switches for quick currency conversions between BTC, USD, and Satoshis.
 
 ### Key Functionality
 
@@ -55,6 +56,7 @@ Key helpers in `bmon.ps1`: `Get-SparklineRange`, `Get-RangeSpinnerColor`, `Get-S
 - **Go Mode (15 min):** `.\bmon.ps1 -go` or `.\bmon.ps1 -g`
 - **Long Go Mode (24 hr):** `.\bmon.ps1 -golong` or `.\bmon.ps1 -gl`
 - **K Mode (30 min):** `.\bmon.ps1 -k`
+- **K Long Run (30 min K + 24 hr golong):** `.\bmon.ps1 -kl`
 - **With options:** `.\bmon.ps1 -go -s -h -range` (sound, sparkline, window coloring)
 
 **Conversion:**

@@ -57,6 +57,7 @@ type Args struct {
 	goMode         bool
 	golongMode     bool
 	kMode          bool
+	klMode         bool
 	sound          bool
 	sparkline      bool
 	rangeSpinner   bool
@@ -108,7 +109,7 @@ func main() {
 	}
 
 	// Get initial price - show appropriate message based on mode
-	if args.goMode || args.golongMode || args.kMode {
+	if args.goMode || args.golongMode || args.kMode || args.klMode {
 		clearScreen()
 		fmt.Print("\r")
 		color.Cyan("Fetching initial price...")
@@ -138,6 +139,8 @@ func parseArgs() Args {
 			args.golongMode = true
 		case "-k":
 			args.kMode = true
+		case "-kl":
+			args.klMode = true
 		case "-s":
 			args.sound = true
 		case "-h":
@@ -746,6 +749,8 @@ func printHelp() {
 	gray.Println("# Enable range-colored spinner (alias)")
 	white.Print("    ./bmon -k           ")
 	gray.Println("# K mode (30 min, sparkline + range coloring)")
+	white.Print("    ./bmon -kl          ")
+	gray.Println("# K long run (30 min K, then 24 hr golong)")
 	white.Print("    ./bmon -config      ")
 	gray.Println("# Open configuration menu")
 	white.Print("    ./bmon -bu 0.5      ")
@@ -767,6 +772,8 @@ func printHelp() {
 	gray.Println("24-hour monitoring with 20-second updates")
 	white.Print("    K Mode: ")
 	gray.Println("30-minute monitoring with 4-second updates, sparkline and range coloring")
+	white.Print("    K Long Run (-kl): ")
+	gray.Println("K mode for 30 minutes, then continues in golong for 24 hours")
 	fmt.Println()
 
 	color.Magenta("CONTROLS (during monitoring):")
@@ -881,6 +888,7 @@ type tuiModel struct {
 	soundEnabled        bool
 	sparklineEnabled    bool
 	rangeSpinnerEnabled bool
+	klLongRun           bool
 	history             []float64
 	fetchError          error // Track fetch errors to display on exit
 }
@@ -893,13 +901,14 @@ func newTUIModel(args Args) tuiModel {
 		args:             args,
 		spinner:          sp,
 		soundEnabled:        args.sound,
-		sparklineEnabled:    args.sparkline || args.kMode, // Enable sparkline when -k is used
-		rangeSpinnerEnabled: args.rangeSpinner || args.kMode,
+		sparklineEnabled:    args.sparkline || args.kMode || args.klMode,
+		rangeSpinnerEnabled: args.rangeSpinner || args.kMode || args.klMode,
+		klLongRun:           args.klMode,
 		history:             []float64{},
 		previousColor:    "White",
 	}
-	// choose start mode (prioritize k, then golong, then go) and set spinner accordingly
-	if args.kMode {
+	// choose start mode (prioritize k/kl, then golong, then go) and set spinner accordingly
+	if args.kMode || args.klMode {
 		m.mode = modeK
 		sp.Spinner = bspinner.Spinner{Frames: []string{"▏", "▎", "▍", "▌", "▋", "▊", "▉", "█", "▉", "▊", "▋", "▌", "▍", "▎"}, FPS: 500 * time.Millisecond}
 	} else if args.golongMode {
@@ -1146,7 +1155,18 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case modeInteractive:
 				// return to landing after 5 minutes
 				m.mode = modeLanding
-			case modeK, modeGo, modeGoLong:
+			case modeK:
+				if m.klLongRun {
+					m.mode = modeGoLong
+					m.klLongRun = false
+					m.sessionStartTime = time.Now()
+					m.monitorStartPrice = currentBtcPrice
+					m.spinner.Spinner = bspinner.Spinner{Frames: []string{"▚", "▚", "▚", "▚", "▚", "▚", "▞", "▞", "▞", "▞", "▞", "▞"}, FPS: 500 * time.Millisecond}
+					cmds = append(cmds, m.spinner.Tick)
+				} else {
+					return syncSpinnerStyle(m), tea.Quit
+				}
+			case modeGo, modeGoLong:
 				return syncSpinnerStyle(m), tea.Quit
 			}
 		}

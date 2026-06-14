@@ -16,6 +16,7 @@ The application can run in several modes: interactive monitoring with keyboard c
   - **Go Mode:** 15-minute monitoring with 5-second updates
   - **Long Go Mode:** 24-hour monitoring with 20-second updates
   - **K Mode (`-k`):** 30-minute monitoring with 4-second updates; sparkline and range coloring enabled by default
+  - **K Long Run (`-kl`):** K mode for 30 minutes, then continues in golong for 24 hours
 - **Visual Indicators:** Color-coded price changes (green for gains, red for losses)
 - **Price Flash Alerts:** Visual flashing when significant price movements occur
 - **Sound Alerts:** Optional audio notifications for price movements
@@ -76,6 +77,7 @@ Window coloring requires both the sparkline and window coloring to be enabled. P
 | `-go` or `-g` | Monitor for 15 minutes with 5-second updates |
 | `-golong` or `-gl` | Monitor for 24 hours with 20-second updates |
 | `-k` | K mode: 30-minute monitoring; sparkline and range coloring enabled |
+| `-kl` | K long run: 30-minute K, then 24-hour golong |
 | `-range` or `-r` | Enable range-colored spinner (window coloring) |
 | `-s` | Enable sound alerts |
 | `-h` | Enable history sparkline |
@@ -133,6 +135,12 @@ Letter keys and arrow-key aliases:
 
 ```sh
 ./bmon -k
+```
+
+### K long run (K then golong)
+
+```sh
+./bmon -kl
 ```
 
 ### Go mode with sparkline and window coloring

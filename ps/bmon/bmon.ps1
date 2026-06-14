@@ -11,6 +11,7 @@
     - Go Mode (`-go`): Monitors the price immediately for 15 minutes and then exits.
     - Long Go Mode (`-golong`): Monitors for 24 hours with a longer update interval.
     - K Mode (`-k`): Monitors for 30 minutes with 4-second updates, sparkline and range-colored spinner enabled.
+    - K Long Run (`-kl`): Same as K for 30 minutes, then continues in golong for 24 hours instead of exiting.
 
     Sound (`-s`), the history sparkline (`-h`), and window coloring (`-range` / `-r`) can be enabled from the command line for any monitoring mode. K mode enables sparkline and window coloring automatically.
  
@@ -44,6 +45,9 @@ param (
 
     [Parameter(ParameterSetName='Monitor')]
     [switch]$k,
+
+    [Parameter(ParameterSetName='Monitor')]
+    [switch]$kl,
 
     [Parameter(ParameterSetName='Monitor')]
     [Alias('r')]
@@ -97,6 +101,7 @@ if ($Help.IsPresent) {
     Write-Host "    .\bmon.ps1 -range       " -NoNewline -ForegroundColor White; Write-Host "# Enable range-colored spinner" -ForegroundColor Gray
     Write-Host "    .\bmon.ps1 -r           " -NoNewline -ForegroundColor White; Write-Host "# Enable range-colored spinner (alias)" -ForegroundColor Gray
     Write-Host "    .\bmon.ps1 -k           " -NoNewline -ForegroundColor White; Write-Host "# K mode (30 min, sparkline + range coloring)" -ForegroundColor Gray
+    Write-Host "    .\bmon.ps1 -kl          " -NoNewline -ForegroundColor White; Write-Host "# K long run (30 min K, then 24 hr golong)" -ForegroundColor Gray
     Write-Host "    .\bmon.ps1 -config      " -NoNewline -ForegroundColor White; Write-Host "# Open configuration menu" -ForegroundColor Gray
     Write-Host "    .\bmon.ps1 -bu 0.5      " -NoNewline -ForegroundColor White; Write-Host "# 0.5 BTC to USD" -ForegroundColor Gray
     Write-Host "    .\bmon.ps1 -ub 50000    " -NoNewline -ForegroundColor White; Write-Host "# `$50,000 to BTC" -ForegroundColor Gray
@@ -109,6 +114,7 @@ if ($Help.IsPresent) {
     Write-Host "    Go Mode: " -NoNewline -ForegroundColor White; Write-Host "15-minute monitoring with 5-second updates" -ForegroundColor Gray
     Write-Host "    Long Go Mode: " -NoNewline -ForegroundColor White; Write-Host "24-hour monitoring with 20-second updates" -ForegroundColor Gray
     Write-Host "    K Mode: " -NoNewline -ForegroundColor White; Write-Host "30-minute monitoring with 4-second updates, sparkline and range coloring" -ForegroundColor Gray
+    Write-Host "    K Long Run (-kl): " -NoNewline -ForegroundColor White; Write-Host "K mode for 30 minutes, then continues in golong for 24 hours" -ForegroundColor Gray
     Write-Host ""
     
     Write-Host "CONTROLS (during monitoring):" -ForegroundColor Magenta
@@ -620,7 +626,7 @@ if ($PSCmdlet.ParameterSetName -ne 'Monitor') {
 
 
 # Initial Price Fetch for monitor modes
-if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent) {
+if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent -or $kl.IsPresent) {
     Clear-Host
     Write-Host -NoNewline "Fetching initial price...`r" -ForegroundColor Cyan
 } else {
@@ -634,7 +640,7 @@ if ($null -eq $currentBtcPrice) {
 
 # --- Main Logic Branch ---
 
-if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent) {
+if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent -or $kl.IsPresent) {
     # --- Mode Configuration ---
     # Spinner chars via Unicode code points for older PowerShell/encoding compatibility
     $modeSettings = @{
@@ -642,7 +648,8 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent) {
         'golong' = @{ duration = 86400; interval = 20; spinner = @([char]0x259A, [char]0x259A, [char]0x259A, [char]0x259A, [char]0x259A, [char]0x259A, [char]0x259E, [char]0x259E, [char]0x259E, [char]0x259E, [char]0x259E, [char]0x259E) }
         'k'      = @{ duration = 1800;   interval = 4;  spinner = @([char]0x258F, [char]0x258E, [char]0x258D, [char]0x258C, [char]0x258B, [char]0x258A, [char]0x2589, [char]0x2588, [char]0x2589, [char]0x258A, [char]0x258B, [char]0x258C, [char]0x258D, [char]0x258E) }
     }
-    $currentMode = if ($k.IsPresent) { 'k' } elseif ($golong.IsPresent) { 'golong' } else { 'go' }
+    $currentMode = if ($k.IsPresent -or $kl.IsPresent) { 'k' } elseif ($golong.IsPresent) { 'golong' } else { 'go' }
+    $klLongRun = $kl.IsPresent
 
     # --- Initial State Setup ---
     $monitorStartPrice = $currentBtcPrice
@@ -650,8 +657,8 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent) {
     $previousPriceColor = "White"
     $monitorStartTime = Get-Date
     $soundEnabled = $s.IsPresent
-    $sparklineEnabled = $h.IsPresent -or $k.IsPresent
-    $rangeSpinnerEnabled = $range.IsPresent -or $k.IsPresent
+    $sparklineEnabled = $h.IsPresent -or $k.IsPresent -or $kl.IsPresent
+    $rangeSpinnerEnabled = $range.IsPresent -or $k.IsPresent -or $kl.IsPresent
     $priceHistory = [System.Collections.Generic.List[double]]::new()
     $priceHistory.Add($currentBtcPrice)
 
@@ -677,7 +684,17 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent) {
         while ($true) {
             # Set mode-specific variables and immediately check for termination.
             $monitorDurationSeconds = $modeSettings[$currentMode].duration
-            if (((Get-Date) - $monitorStartTime).TotalSeconds -ge $monitorDurationSeconds) { break }
+            if (((Get-Date) - $monitorStartTime).TotalSeconds -ge $monitorDurationSeconds) {
+                if ($currentMode -eq 'k' -and $klLongRun) {
+                    $currentMode = 'golong'
+                    $klLongRun = $false
+                    $monitorStartTime = Get-Date
+                    $monitorStartPrice = $currentBtcPrice
+                    $spinnerIndex = 0
+                    continue
+                }
+                break
+            }
 
             $waitIntervalSeconds = $modeSettings[$currentMode].interval
             $spinner = $modeSettings[$currentMode].spinner
@@ -901,7 +918,7 @@ else {
     # Interactive Mode (original behavior)
     $soundEnabled = $s.IsPresent
     $sparklineEnabled = $h.IsPresent
-    $rangeSpinnerEnabled = $range.IsPresent -or $k.IsPresent
+    $rangeSpinnerEnabled = $range.IsPresent -or $k.IsPresent -or $kl.IsPresent
     while ($true) {
         Clear-Host
         Write-Host "*** BTC Monitor ***" -ForegroundColor DarkYellow

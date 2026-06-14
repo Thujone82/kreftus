@@ -20,6 +20,7 @@ The script has two primary modes of operation: real-time monitoring and on-deman
 - **Go Mode:** A non-interactive mode (`-go` switch) that displays a single, updating line of price data for 15 minutes before automatically exiting. Ideal for quick glances or integration into other displays.
 - **Long Go Mode:** A variation of Go Mode (`-golong` switch) for extended, low-intensity monitoring over 24 hours with a 20-second update interval.
 - **K Mode:** Use the `-k` switch for 30-minute monitoring with 4-second updates, the history sparkline enabled, and window coloring (range-colored spinner) enabled automatically. Press `K` or Up arrow (in go/golong) to switch into K mode.
+- **K Long Run (`-kl`):** Starts like K mode (30 minutes, sparkline, window coloring). When the K session ends, monitoring continues in golong mode for 24 hours instead of exiting.
 - **Currency Conversion:** Perform quick conversions directly from the command line. The script outputs only the resulting value, making it easy to use in other scripts.
 - **Live Price Tracking:** During a monitoring session, the script tracks the price change from the moment monitoring began.
 - **Dynamic Mode Toggling:** While in `-go` or `-golong` mode, press `m` or **Down arrow** to toggle between the two modes, resetting the duration timer. Press `K` or **Up arrow** to switch to K mode (sparkline + range coloring). Press `I` to switch back to interactive mode.
@@ -123,6 +124,7 @@ bmon.exe [-s] [-h] [-range]
 .\bmon.ps1 -gl [-s] [-h] [-range]       # alias
 
 .\bmon.ps1 -k [-s]                   # 30-minute session; sparkline + range coloring
+.\bmon.ps1 -kl [-s]                  # 30-minute K, then 24-hour golong
 .\bmon.ps1 -go -h -range             # 15-minute with sparkline and window coloring
 ```
 

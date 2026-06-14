@@ -15,7 +15,7 @@ This project is the Go port of `bmon.ps1`, a lightweight command-line Bitcoin pr
 ### Key Functionality
 
 - **Cross-Platform:** Compiled Go binary; no runtime dependencies beyond the executable.
-- **Multiple Monitoring Modes:** Landing/interactive, Go (15 min), GoLong (24 hr), and K (30 min) via `-go`, `-golong`, `-k`, or keyboard.
+- **Multiple Monitoring Modes:** Landing/interactive, Go (15 min), GoLong (24 hr), K (30 min), and K Long Run (`-kl`: K then GoLong) via `-go`, `-golong`, `-k`, `-kl`, or keyboard.
 - **Bubble Tea TUI:** Single-line spinner display for go/golong/k; multi-line interactive view; spinner animation via Charm bubbles.
 - **Window Coloring:** Range-colored spinner encodes sparkline volatility (`max − min` of up to 14 history points). Flag `-range` / `-r`, auto-on with `-k`, runtime toggle `w` / `W`. Logic in `getSparklineRange`, `rangeSpinnerColorCode`, `spinnerColorCode`.
 - **Dynamic Controls:** Same keyboard map as the PowerShell edition (R, E, M, K, I, S, H, W, arrow aliases).
@@ -44,6 +44,7 @@ Visible in go/golong/k single-line `View()` only (interactive mode has no spinne
    - Interactive: `./bmon`
    - Go: `./bmon -go -s -h -range`
    - K mode: `./bmon -k`
+   - K long run: `./bmon -kl`
    - Help: `./bmon -help`
    - Config: `./bmon -config`
 
