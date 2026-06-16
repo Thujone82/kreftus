@@ -31,6 +31,17 @@ def normalize_mac(mac: str) -> str:
     return cleaned
 
 
+def filter_devices(
+    devices: dict[str, str],
+    filter_text: str | None,
+) -> list[tuple[str, str]]:
+    """Return devices whose display name contains filter_text (case-insensitive)."""
+    if not filter_text:
+        return list(devices.items())
+    needle = filter_text.casefold()
+    return [(mac, name) for mac, name in devices.items() if needle in name.casefold()]
+
+
 def default_device_name(mac: str, *, bluetooth_name: str | None = None) -> str:
     """Default display name from BLE advertisement, else last MAC byte."""
     if bluetooth_name and bluetooth_name.strip():

@@ -1,18 +1,21 @@
-"""GF-style temperature and humidity color bands."""
+"""Indoor temperature and humidity color bands."""
 
 from __future__ import annotations
 
-# Textual/Rich color names matching ps/gf/README.md bands
-TEMP_COLD_THRESHOLD = 33
-TEMP_HOT_THRESHOLD = 89
-
 
 def temp_color(temp_f: float) -> str:
-    if temp_f < TEMP_COLD_THRESHOLD:
-        return "blue"
-    if temp_f > TEMP_HOT_THRESHOLD:
+    """Indoor °F bands for current values and sparkline glyphs."""
+    if temp_f < 55:
+        return "cyan"
+    if temp_f < 65:
+        return "green"
+    if temp_f < 72:
+        return "white"
+    if temp_f < 78:
+        return "yellow"
+    if temp_f < 82:
         return "red"
-    return "white"
+    return "magenta"
 
 
 def humidity_color(humidity_pct: float) -> str:

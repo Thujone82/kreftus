@@ -80,11 +80,20 @@ class TPApp(App):
         "options": OptionsScreen,
     }
 
-    def __init__(self, config: AppConfig | None = None, *, debug_enabled: bool = False) -> None:
+    def __init__(
+        self,
+        config: AppConfig | None = None,
+        *,
+        debug_enabled: bool = False,
+        poll_enabled: bool = True,
+        device_filter: str | None = None,
+    ) -> None:
         super().__init__()
         self.config = config or load_config()
         self.history = DeviceHistory()
         self.debug_enabled = debug_enabled
+        self.poll_enabled = poll_enabled
+        self.device_filter = device_filter
         if debug_enabled:
             set_debug_enabled(self.config, True)
         load_readings_from_log(self.history, self.config)
@@ -132,6 +141,17 @@ class TPApp(App):
         return await scan_devices()
 
 
-def run_app(config: AppConfig | None = None, *, debug_enabled: bool = False) -> None:
-    app = TPApp(config=config, debug_enabled=debug_enabled)
+def run_app(
+    config: AppConfig | None = None,
+    *,
+    debug_enabled: bool = False,
+    poll_enabled: bool = True,
+    device_filter: str | None = None,
+) -> None:
+    app = TPApp(
+        config=config,
+        debug_enabled=debug_enabled,
+        poll_enabled=poll_enabled,
+        device_filter=device_filter,
+    )
     app.run()

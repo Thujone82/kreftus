@@ -22,6 +22,24 @@ On first run, `tp.ini` is created beside the launcher (`tp.py`, `tp.exe`, or `tp
 
 **Startup:** If devices are configured, the app opens the monitoring dashboard. If none are configured, it opens Manage Devices and starts a discovery scan.
 
+## Command-line options
+
+| Flag | Description |
+|------|-------------|
+| `-debug` | Enable session `debug.log` in the configured log directory (Options **B** toggles during a session) |
+| `-x` | Print one snapshot from saved log/history data and exit (no UI, no BLE) |
+| `-nopoll` | Interactive mode without automatic poll scheduling; **G** still fetches manually |
+| `-f` / `-filter` *TEXT* | View filter — only show devices whose name contains *TEXT* (case-insensitive). Works with interactive mode and `-x`. Polling and manual fetch still run for all managed devices; only the dashboard display is filtered. |
+
+Examples:
+
+```bash
+python tp.py -x                    # snapshot of all devices from log
+python tp.py -x -f cab             # snapshot: only names matching "cab" (e.g. Plant Cabinet)
+python tp.py -nopoll -filter office
+./tp.exe -debug -f guest
+```
+
 ## Build (Windows)
 
 From `python/tp/`:
@@ -60,20 +78,20 @@ Place `tp.ini` and `tp.log` in the same folder as the launcher. The build script
 Each tracked device shows 5 rows:
 
 1. Device name (left) and `updated HH:MM` (right-aligned)
-2. Temperature cur / min / max (°F)
+2. Temperature cur / min / max (°F) — each value color-banded to match sparkline glyphs
 3. 24-character temperature sparkline (1 hour per glyph)
-4. Humidity cur / min / max (%)
+4. Humidity cur / min / max (%) — each value color-banded to match sparkline glyphs
 5. 24-character humidity sparkline
 
 **Updated time colors:** green = fresh (within 5 minutes), yellow = stale. Stale rows also dim stats and sparklines.
 
-**Header:** DEBUG / next poll / fetch progress (left); **🌡 TemPy** centered when room; clock (right).
+**Header:** DEBUG / filter / next poll or “Polling off” / fetch progress (left); **🌡 TemPy** centered when room; clock (right).
 
 **Footer:** Keybinding shortcuts only.
 
 ### Polling and retries
 
-- **Scheduled polls** run on 5-minute clock boundaries (`:00`, `:05`, `:10`, …). Devices are fetched one at a time per cycle.
+- **Scheduled polls** run on 5-minute clock boundaries (`:00`, `:05`, `:10`, …). Devices are fetched one at a time per cycle. Use `-nopoll` to disable scheduling and rely on manual **G** fetch.
 - **Startup:** Log preload runs first. If every device already has a fresh reading for the current 5-minute chunk, the initial BLE fetch is skipped.
 - **Minute retries:** Devices that miss a poll in the current chunk are retried every 60 seconds until the next boundary.
 - Press **G** to force an immediate full fetch.
@@ -149,9 +167,9 @@ Log out and back in after adding the `bluetooth` group. See also [childs.be TP35
 
 ## Color bands
 
-Temperature and humidity sparklines and current values use the same comfort bands as [ps/gf](../../ps/gf/README.md):
+Temperature and humidity sparklines and cur/min/max values use indoor comfort bands:
 
-- **Temp °F:** Blue &lt;33, White 33–89, Red &gt;89
+- **Temp °F:** Cyan &lt;55, Green 55–64, White 65–71, Yellow 72–77, Red 78–81, Magenta ≥82
 - **Humidity %:** Cyan &lt;30, White 30–60, Yellow 61–70, Red &gt;70
 
 ## Notes

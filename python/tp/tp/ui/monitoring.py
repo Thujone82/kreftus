@@ -27,6 +27,7 @@ from tp.scheduler import (
     stale_macs_for_chunk,
 )
 from tp.sparkline import build_sparkline, colored_sparkline_markup, format_sparkline_row
+from tp.config import filter_devices
 from tp.ui.helpers import format_device_label_row, format_stats_row
 
 SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
@@ -202,15 +203,28 @@ class MonitoringScreen(Screen):
         )
         yield Footer()
 
+    def _visible_devices(self) -> list[tuple[str, str]]:
+        return filter_devices(
+            self.app.config.devices,
+            getattr(self.app, "device_filter", None),
+        )
+
+    def _poll_scheduling_enabled(self) -> bool:
+        return getattr(self.app, "poll_enabled", True)
+
     async def on_mount(self) -> None:
         self.sync_from_config()
         load_readings_from_log(self.app.history, self.app.config)
         self._chunk_start = floor_to_boundary(datetime.now())
         self._note_last_fetch_time()
-        self._set_phase(PHASE_WAITING, wait_seconds=0)
+        if self._poll_scheduling_enabled():
+            self._set_phase(PHASE_WAITING, wait_seconds=0)
+        else:
+            self._set_phase(PHASE_IDLE)
         self.refresh_display()
         self._stop_event.clear()
-        self._worker_task = asyncio.create_task(self._poll_worker())
+        if self._poll_scheduling_enabled():
+            self._worker_task = asyncio.create_task(self._poll_worker())
         self.set_interval(0.12, self._animate_spinner, name="fetch-spinner")
         self.set_interval(1.0, self._tick_header, name="header-status")
 
@@ -219,6 +233,9 @@ class MonitoringScreen(Screen):
         self.sync_from_config()
         load_readings_from_log(self.app.history, self.app.config)
         self._note_last_fetch_time()
+        if not self._poll_scheduling_enabled():
+            self.refresh_display()
+            return
         if self._needs_worker_restart or self.devices_changed_since_worker_start():
             self._needs_worker_restart = False
             self.request_worker_restart()
@@ -236,6 +253,14 @@ class MonitoringScreen(Screen):
 
     def request_worker_restart(self) -> None:
         """Cancel in-flight fetch and restart from current config."""
+        if not self._poll_scheduling_enabled():
+            if not self.is_mounted:
+                return
+            self.sync_from_config()
+            load_readings_from_log(self.app.history, self.app.config)
+            self._note_last_fetch_time()
+            self.refresh_display()
+            return
         if not self.is_mounted:
             self._needs_worker_restart = True
             return
@@ -267,6 +292,8 @@ class MonitoringScreen(Screen):
         self._worker_task = asyncio.create_task(self._poll_worker())
 
     def _ensure_worker(self) -> None:
+        if not self._poll_scheduling_enabled():
+            return
         if self._worker_task is None or self._worker_task.done():
             self._stop_event.clear()
             self._worker_task = asyncio.create_task(self._poll_worker())
@@ -506,6 +533,10 @@ class MonitoringScreen(Screen):
         if getattr(self.app, "debug_enabled", False) or debug_log_enabled():
             parts.append("[magenta]DEBUG[/]")
 
+        device_filter = getattr(self.app, "device_filter", None)
+        if device_filter:
+            parts.append(f"[dim]Filter: {device_filter}[/]")
+
         if self._fetch_in_progress():
             spinner = SPINNER_FRAMES[self._spinner_index]
             bar = _progress_bar(self._fetch_index, self._fetch_total, width=12)
@@ -518,11 +549,14 @@ class MonitoringScreen(Screen):
             device = self._status_device_label()
             parts.append(f"[bold]{spinner}[/] {label} {device} {bar}")
         elif self.app.config.devices:
-            boundary, _, _, stale_count = self._next_event_info()
-            self._next_poll_at = boundary
-            self._stale_count = stale_count
-            poll_at = boundary.strftime("%H:%M")
-            parts.append(f"[dim]Next poll: {poll_at}[/]")
+            if self._poll_scheduling_enabled():
+                boundary, _, _, stale_count = self._next_event_info()
+                self._next_poll_at = boundary
+                self._stale_count = stale_count
+                poll_at = boundary.strftime("%H:%M")
+                parts.append(f"[dim]Next poll: {poll_at}[/]")
+            else:
+                parts.append("[dim]Polling off[/]")
 
         return "  ".join(parts)
 
@@ -556,11 +590,16 @@ class MonitoringScreen(Screen):
         if not self.app.config.devices:
             body.update("[dim]No devices configured.[/]")
         else:
-            blocks: list[str] = []
-            for mac, name in self.app.config.devices.items():
-                blocks.extend(self._device_block(mac, name, width))
-                blocks.append("")
-            body.update("\n".join(blocks).rstrip())
+            visible = self._visible_devices()
+            if not visible:
+                filt = getattr(self.app, "device_filter", None) or ""
+                body.update(f"[dim]No devices match filter '{filt}'.[/]")
+            else:
+                blocks: list[str] = []
+                for mac, name in visible:
+                    blocks.extend(self._device_block(mac, name, width))
+                    blocks.append("")
+                body.update("\n".join(blocks).rstrip())
 
         self._refresh_header()
 
@@ -594,6 +633,7 @@ class MonitoringScreen(Screen):
             temp_spark.min_value,
             temp_spark.max_value,
             "°F",
+            color_fn=temp_color,
         )
         humid_stats = format_stats_row(
             "Humid %",
@@ -601,22 +641,8 @@ class MonitoringScreen(Screen):
             humid_spark.min_value,
             humid_spark.max_value,
             "%",
+            color_fn=humidity_color,
         )
-
-        if temp_cur is not None:
-            cur_color = temp_color(temp_cur)
-            temp_stats = temp_stats.replace(
-                f"cur {temp_cur:.1f}",
-                f"[{cur_color}]cur {temp_cur:.1f}[/]",
-                1,
-            )
-        if humid_cur is not None:
-            cur_color = humidity_color(humid_cur)
-            humid_stats = humid_stats.replace(
-                f"cur {int(humid_cur)}",
-                f"[{cur_color}]cur {int(humid_cur)}[/]",
-                1,
-            )
 
         if is_active and not self.app.history.has_data(mac):
             temp_stats = f"[dim]{temp_stats}[/]"

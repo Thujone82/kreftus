@@ -2,22 +2,49 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 UPDATED_COL_WIDTH = len("updated HH:MM")
-FETCHING_SUFFIX = "  ◀ fetching"
+FETCHING_SUFFIX = "  ◀"
 STATUS_COL_WIDTH = UPDATED_COL_WIDTH + len(FETCHING_SUFFIX)
 
 
-def format_stats_row(label: str, cur: float | None, min_v: float | None, max_v: float | None, unit: str) -> str:
+def _format_stat_field(
+    label: str,
+    value: float,
+    unit: str,
+    color_fn: Callable[[float], str] | None,
+) -> str:
+    if unit == "°F":
+        text = f"{label} {value:.1f}"
+    else:
+        text = f"{label} {int(value)}"
+    if color_fn is None:
+        return text
+    return f"[{color_fn(value)}]{text}[/]"
+
+
+def format_stats_row(
+    label: str,
+    cur: float | None,
+    min_v: float | None,
+    max_v: float | None,
+    unit: str,
+    *,
+    color_fn: Callable[[float], str] | None = None,
+) -> str:
     if cur is None:
         values = "cur —   min —   max —"
+    elif min_v is not None and max_v is not None:
+        values = "   ".join(
+            (
+                _format_stat_field("cur", cur, unit, color_fn),
+                _format_stat_field("min", min_v, unit, color_fn),
+                _format_stat_field("max", max_v, unit, color_fn),
+            )
+        )
     else:
-        if unit == "°F":
-            values = f"cur {cur:.1f}   min {min_v:.1f}   max {max_v:.1f}" if min_v is not None and max_v is not None else f"cur {cur:.1f}"
-        else:
-            cur_i = int(cur)
-            min_i = int(min_v) if min_v is not None else None
-            max_i = int(max_v) if max_v is not None else None
-            values = f"cur {cur_i}   min {min_i}   max {max_i}" if min_i is not None and max_i is not None else f"cur {cur_i}"
+        values = _format_stat_field("cur", cur, unit, color_fn)
     return f"{label:<10}{values}"
 
 
@@ -41,7 +68,7 @@ def format_device_label_row(
     else:
         updated_markup = f"[green]{updated_core}[/]"
 
-    fetching_markup = "  [bold cyan]◀ fetching[/]" if fetching else ""
+    fetching_markup = "  [bold cyan]◀[/]" if fetching else ""
     status_plain_len = UPDATED_COL_WIDTH + (len(FETCHING_SUFFIX) if fetching else 0)
     status_left_pad = STATUS_COL_WIDTH - status_plain_len
     status_markup = (" " * status_left_pad) + updated_markup + fetching_markup

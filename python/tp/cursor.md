@@ -4,7 +4,7 @@
 
 **Author:** Kreft&Cursor  
 **Date:** 2026-06-15  
-**Version:** 1.1.0
+**Version:** 1.2.0
 
 ---
 
@@ -19,12 +19,13 @@ Built with **Textual** (UI) and **bleak** (BLE). Live-read protocol logic ported
 ### Key Functionality
 
 - **Startup:** Main menu always on stack; push Monitoring if devices exist, else Manage Devices with auto-scan
-- **Monitoring:** 5 rows per device; green/yellow `updated HH:MM`; parallel BLE fetch
+- **Monitoring:** 5 rows per device; green/yellow `updated HH:MM`; sequential BLE fetch (one device at a time)
 - **Scheduler:** 5-minute grid (`:00`, `:05`, …); minute retries for devices missing the current chunk
 - **Startup fetch skip:** After log preload, fetch only devices stale for the current chunk (skip all if log is fresh)
 - **Sparklines:** 24-bin windows — 4H/24H/72H on device status modal; 24H on dashboard (1 hour per glyph)
 - **CSV logging:** Optional append-only log; 24h preload on mount/resume
 - **Build:** `build.ps1` → `tp.exe` + `tp.pyz`; optional `-upx` — see **Build** section
+- **CLI:** `-debug`, `-x` snapshot, `-nopoll`, `-f`/`-filter` device view filter — see **Command line**
 
 ---
 
@@ -86,13 +87,13 @@ Append after each fetch cycle (including partial retry cycles). UTF-8, `\n` line
 
 **Monitoring layout (per device):**
 
-1. Label row: name (yellow, left); `updated HH:MM` right-aligned in fixed column — **green** if fresh (≤5 min), **yellow** if stale; cyan `▶`/`◀ fetching` when active
-2. Temp stats: `cur` / `min` / `max` (cur color-banded; dim when stale)
+1. Label row: name (yellow, left); `updated HH:MM` right-aligned in fixed column — **green** if fresh (≤5 min), **yellow** if stale; cyan `▶` / `◀` when actively fetching
+2. Temp stats: `cur` / `min` / `max` (all color-banded; dim when stale)
 3. Temp sparkline: 24 glyphs, 1 hour per bin (24H window)
-4. Humidity stats: `cur` / `min` / `max`
+4. Humidity stats: `cur` / `min` / `max` (all color-banded; dim when stale)
 5. Humidity sparkline: 24 glyphs
 
-Blank line between devices. Header shows status (left), **🌡 TemPy** (center when room), clock (right). Footer = keybindings only.
+Blank line between devices. Header shows status (DEBUG, filter, next poll / polling off, fetch progress) left, **🌡 TemPy** (center when room), clock (right). Footer = keybindings only.
 
 **Device status modal (I):** Log preload stats, last fetch, memory count, 4H/24H/72H temp and humidity sparklines.
 
@@ -108,9 +109,12 @@ Blank line between devices. Header shows status (left), **🌡 TemPy** (center w
 
 | Metric | Condition | Color |
 |--------|-----------|-------|
-| Temp °F | &lt; 33 | blue |
-| Temp °F | 33–89 | white |
-| Temp °F | &gt; 89 | red |
+| Temp °F | &lt; 55 | cyan |
+| Temp °F | 55–64 | green |
+| Temp °F | 65–71 | white |
+| Temp °F | 72–77 | yellow |
+| Temp °F | 78–81 | red |
+| Temp °F | ≥ 82 | magenta |
 | Humidity % | &lt; 30 | cyan |
 | Humidity % | 30–60 | white |
 | Humidity % | 61–70 | yellow |
@@ -150,8 +154,8 @@ Sparkline glyph **color** = band at bin average. Glyph **height** = normalized t
 
 | Module | Role |
 |--------|------|
-| `tp.py` | Entry point |
-| `tp/config.py` | INI load/save, `application_dir()`, log path resolution |
+| `tp.py` | Entry point, `-x` snapshot renderer, CLI argument parsing |
+| `tp/config.py` | INI load/save, `application_dir()`, log path resolution, `filter_devices()` |
 | `tp/ble.py` | bleak scan, `read_now` |
 | `tp/history.py` | In-memory readings, log preload, CSV append, fetch status |
 | `tp/scheduler.py` | 5-minute boundaries, stale/retry helpers |
@@ -277,6 +281,23 @@ Python 3.11+. PyInstaller installed on demand by `build.ps1`.
 
 ---
 
+### Command line (`tp.py`)
+
+Parsed in `tp.py` `parse_args()`; passed to `run_app()` or `_render_snapshot()`.
+
+| Flag | Effect |
+|------|--------|
+| `-debug` / `--debug` | Session `debug.log` beside resolved log directory; Options **B** toggles at runtime |
+| `-x` | Load config + log preload, print Rich snapshot to terminal, exit (no Textual UI, no BLE) |
+| `-nopoll` | Interactive Textual UI with poll/retry worker disabled; **G** manual fetch still works; header shows “Polling off” |
+| `-f` / `-filter` *TEXT* | View filter: monitoring dashboard and `-x` output show only devices whose display name contains *TEXT* (case-insensitive substring). Polling, retries, and **G** still target all managed devices. |
+
+Examples: `python tp.py -x -f cab`, `tp.exe -nopoll -filter guest`, `python tp.py -debug`.
+
+`-x` with a filter that matches no devices prints `No devices match filter '…'.` and exits.
+
+---
+
 ### How to Run
 
 **From source:**
@@ -285,6 +306,8 @@ Python 3.11+. PyInstaller installed on demand by `build.ps1`.
 cd python/tp
 pip install -r requirements.txt
 python tp.py
+python tp.py -x -f office    # one-shot snapshot, filtered
+python tp.py -nopoll         # UI only, no scheduled polls
 ```
 
 **From build outputs** (after `./build.ps1`):
@@ -336,5 +359,6 @@ python/tp/
 
 ### Changelog
 
+- **v1.2.0** — Indoor temp color bands; cur/min/max stat coloring; CLI `-x` snapshot; `-nopoll`; `-f`/`-filter` device view filter; header layout (status / title / clock); 4H/24H/72H status sparklines; per-device 60s read timeout; BLE connect optimizations.
 - **v1.1.0** — Parallel fetch; minute retries; stale UI (green/yellow); log preload skip on startup; device status 1H/8H/24H sparklines; launcher-relative paths; build.ps1; removed BLE day-history/bootstrap; startup routing and navigation fixes.
 - **v1.0.0** — Initial release: Textual TUI, bleak BLE, 5-row monitoring layout, CSV logging, device management.
