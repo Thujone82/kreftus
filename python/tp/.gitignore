@@ -1,0 +1,12 @@
+# PyInstaller / zipapp staging (keep build/thermo.ico)
+build/pyinstaller/
+build/zipapp/
+build/thermo-embedded.ico
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Local config and test logs
+tp.ini
+tp.log
