@@ -19,6 +19,7 @@ from tp.ble import format_ble_error
 from tp.fetch import START_MARKER, run_fetch_cycle
 from tp.history import PollResult, load_readings_from_log
 from tp.scheduler import (
+    POLL_INTERVAL,
     chunk_end,
     floor_to_boundary,
     is_measurement_stale,
@@ -212,6 +213,14 @@ class MonitoringScreen(Screen):
     def _poll_scheduling_enabled(self) -> bool:
         return getattr(self.app, "poll_enabled", True)
 
+    def _reload_log_from_disk(self) -> None:
+        """Re-import CSV log to pick up rows written by another TemPy instance."""
+        if not self.is_mounted or self._fetch_in_progress():
+            return
+        load_readings_from_log(self.app.history, self.app.config)
+        self._note_last_fetch_time()
+        self.refresh_display()
+
     async def on_mount(self) -> None:
         self.sync_from_config()
         load_readings_from_log(self.app.history, self.app.config)
@@ -225,6 +234,12 @@ class MonitoringScreen(Screen):
         self._stop_event.clear()
         if self._poll_scheduling_enabled():
             self._worker_task = asyncio.create_task(self._poll_worker())
+        else:
+            self.set_interval(
+                POLL_INTERVAL.total_seconds(),
+                self._reload_log_from_disk,
+                name="nopoll-log-refresh",
+            )
         self.set_interval(0.12, self._animate_spinner, name="fetch-spinner")
         self.set_interval(1.0, self._tick_header, name="header-status")
 

@@ -289,7 +289,7 @@ Parsed in `tp.py` `parse_args()`; passed to `run_app()` or `_render_snapshot()`.
 |------|--------|
 | `-debug` / `--debug` | Session `debug.log` beside resolved log directory; Options **B** toggles at runtime |
 | `-x` | Load config + log preload, print Rich snapshot to terminal, exit (no Textual UI, no BLE) |
-| `-nopoll` | Interactive Textual UI with poll/retry worker disabled; **G** manual fetch still works; header shows “Polling off” |
+| `-nopoll` | Interactive Textual UI with poll/retry worker disabled; **G** manual fetch still works; header shows “Polling off”; CSV log reloaded every 5 minutes for multi-instance viewing |
 | `-f` / `-filter` *TEXT* | View filter: monitoring dashboard and `-x` output show only devices whose display name contains *TEXT* (case-insensitive substring). Polling, retries, and **G** still target all managed devices. |
 
 Examples: `python tp.py -x -f cab`, `tp.exe -nopoll -filter guest`, `python tp.py -debug`.

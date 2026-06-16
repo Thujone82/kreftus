@@ -28,7 +28,7 @@ On first run, `tp.ini` is created beside the launcher (`tp.py`, `tp.exe`, or `tp
 |------|-------------|
 | `-debug` | Enable session `debug.log` in the configured log directory (Options **B** toggles during a session) |
 | `-x` | Print one snapshot from saved log/history data and exit (no UI, no BLE) |
-| `-nopoll` | Interactive mode without automatic poll scheduling; **G** still fetches manually |
+| `-nopoll` | Interactive mode without automatic poll scheduling; **G** still fetches manually; reloads the CSV log every 5 minutes for multi-instance viewing |
 | `-f` / `-filter` *TEXT* | View filter — only show devices whose name contains *TEXT* (case-insensitive). Works with interactive mode and `-x`. Polling and manual fetch still run for all managed devices; only the dashboard display is filtered. |
 
 Examples:
@@ -91,7 +91,7 @@ Each tracked device shows 5 rows:
 
 ### Polling and retries
 
-- **Scheduled polls** run on 5-minute clock boundaries (`:00`, `:05`, `:10`, …). Devices are fetched one at a time per cycle. Use `-nopoll` to disable scheduling and rely on manual **G** fetch.
+- **Scheduled polls** run on 5-minute clock boundaries (`:00`, `:05`, `:10`, …). Devices are fetched one at a time per cycle. Use `-nopoll` to disable BLE scheduling; the dashboard still reloads `tp.log` every 5 minutes so a second viewer can follow a polling instance.
 - **Startup:** Log preload runs first. If every device already has a fresh reading for the current 5-minute chunk, the initial BLE fetch is skipped.
 - **Minute retries:** Devices that miss a poll in the current chunk are retried every 60 seconds until the next boundary.
 - Press **G** to force an immediate full fetch.
