@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+
+Disallow: /trimps/
+Disallow: /python/tp/build/
+Disallow: /habit/
+Disallow: /map/
+Disallow: /ps/
+Disallow: /go/
+Disallow: /btc/test/
+
+Sitemap: https://kreft.us/sitemap.xml

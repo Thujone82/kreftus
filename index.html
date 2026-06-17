@@ -6,8 +6,8 @@
     <title>KREFT.US PROJECTS</title>
     
     <!-- SEO Meta Tags -->
-    <meta name="description" content="KREFT.US - A collection of innovative web applications and CLI tools including Snake VS, nfo2go, SpiroGen, BTC Track with optional OpenRouter AI insights, GENE, Conway's Game of Life, Double Pendulum, PDX Heritage Trees, and various command-line utilities for Bitcoin monitoring, weather forecasting, file management, and more.">
-    <meta name="keywords" content="web applications, CLI tools, Bitcoin tracker, weather forecast, Conway's Game of Life, double pendulum, snake game, spirograph, genetic algorithm, terminal games, PowerShell scripts, local file upsate tool,Go applications">
+    <meta name="description" content="KREFT.US — web apps and CLI tools: Forecast &amp; GetForecast weather, TemPy ThermoPro BLE monitor, PDX Heritage Trees, Snake VS, SpiroGen, BTC Track, GENE, Game of Life, Double Pendulum, nfo2go, and terminal utilities for Bitcoin, polling, and file updates.">
+    <meta name="keywords" content="web applications, CLI tools, TemPy, ThermoPro, Bitcoin tracker, weather forecast, GetForecast, Conway's Game of Life, double pendulum, snake game, spirograph, genetic algorithm, terminal games, PowerShell scripts, local file update tool, Go applications">
     <meta name="author" content="Thujone82">
     <meta name="robots" content="index, follow">
     <meta name="language" content="English">
@@ -15,16 +15,18 @@
     
     <!-- Open Graph Meta Tags for Social Media -->
     <meta property="og:title" content="KREFT.US PROJECTS">
-    <meta property="og:description" content="A collection of innovative web applications and CLI tools including games, Bitcoin trackers, weather utilities, and interactive simulations.">
+    <meta property="og:description" content="Web apps and CLI tools: Forecast &amp; GetForecast weather, TemPy ThermoPro monitor, Heritage Trees, games, Bitcoin trackers, and interactive simulations.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://kreft.us">
     <meta property="og:site_name" content="KREFT.US">
     <meta property="og:locale" content="en_US">
+    <meta property="og:image" content="https://kreft.us/forecast/icons/dark-icon-512.png">
     
     <!-- Twitter Card Meta Tags -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="KREFT.US PROJECTS">
-    <meta name="twitter:description" content="A collection of innovative web applications and CLI tools including games, Bitcoin trackers, weather utilities, and interactive simulations.">
+    <meta name="twitter:description" content="Web apps and CLI tools: Forecast &amp; GetForecast weather, TemPy ThermoPro monitor, Heritage Trees, games, Bitcoin trackers, and interactive simulations.">
+    <meta name="twitter:image" content="https://kreft.us/forecast/icons/dark-icon-512.png">
     
     <!-- Additional SEO Meta Tags -->
     <meta name="theme-color" content="#333333">
@@ -266,7 +268,7 @@
         "@type": "WebSite",
         "name": "KREFT.US PROJECTS",
         "url": "https://kreft.us",
-        "description": "A collection of innovative web applications and CLI tools including games, Bitcoin trackers, weather utilities, and interactive simulations.",
+        "description": "Web apps and CLI tools: Forecast and GetForecast weather, TemPy ThermoPro monitor, PDX Heritage Trees, games, Bitcoin trackers, and interactive simulations.",
         "author": {
             "@type": "Person",
             "name": "Thujone82"
@@ -341,17 +343,24 @@
                 },
                 {
                     "@type": "SoftwareApplication",
-                    "name": "Larry",
-                    "description": "Terminal-based Frogger-like game written in Go with persistent Top-10 scoreboard, multiple levels, and color themes.",
-                    "url": "https://kreft.us/larry/",
-                    "applicationCategory": "Game"
-                },
-                {
-                    "@type": "SoftwareApplication",
                     "name": "GetForecast",
                     "description": "PowerShell script for detailed weather information using National Weather Service API. Features geocoding, temperature trends, wind gusts, and interactive display modes.",
                     "url": "https://kreft.us/gf/",
                     "applicationCategory": "WeatherApplication"
+                },
+                {
+                    "@type": "SoftwareApplication",
+                    "name": "TemPy",
+                    "description": "Cross-platform Python TUI for ThermoPro TP35x Bluetooth hygrometers. BLE polling, 24-hour sparklines, device management, CSV logging, and multi-column monitoring dashboard.",
+                    "url": "https://kreft.us/tp/",
+                    "applicationCategory": "UtilityApplication"
+                },
+                {
+                    "@type": "SoftwareApplication",
+                    "name": "Larry",
+                    "description": "Terminal-based Frogger-like game written in Go with persistent Top-10 scoreboard, multiple levels, and color themes.",
+                    "url": "https://kreft.us/larry/",
+                    "applicationCategory": "Game"
                 },
                 {
                     "@type": "SoftwareApplication",
@@ -572,21 +581,6 @@
         <h2 style="text-align: center; margin-top: 3rem; border-bottom: 1px solid #ccc; padding-bottom: 0.5rem;">CLI Applications</h2>
         <table>
             <tbody>
-                <tr class="project-row" onclick="window.location.href='./larry/';">
-                    <td class="project-image-cell">
-                        <a href="./larry/" tabindex="-1">
-                            <img src="./images/larry.png" alt="Larry terminal game screenshot showing retro-style traffic and character" loading="lazy">
-                        </a>
-                    </td>
-                    <td class="project-text-cell">
-                        <a href="./larry/" tabindex="-1">
-                            <div>
-                                <h2>Larry v1.1</h2>
-                                <p><b>Larry</b> is a terminal Frogger-like game written in Go with tcell. Guide a green '@' across traffic with WASD/Arrows, Space to pause, Esc to quit. Levels change color themes, add vehicles, and increase speed; safe shoulders and gaps help you through. Includes a persistent Top-10 scoreboard with name entry. Downloads and README on the project page.</p>
-                            </div>
-                        </a>
-                    </td>
-                </tr>
                 <tr class="project-row" onclick="window.location.href='./gf/';">
                     <td class="project-image-cell">
                         <a href="./gf/" tabindex="-1">
@@ -598,6 +592,36 @@
                             <div>
                                 <h2>GetForecast</h2>
                                 <p><b>GetForecast</b> is a PowerShell script that retrieves and displays detailed weather information for a specified location using the National Weather Service API. It accepts US zip codes or "City, State" strings, and provides current conditions, hourly forecasts, daily forecasts, weather alerts, and more with smart color-coding and interactive display modes. Features include geocoding via OpenStreetMap Nominatim API, temperature trend detection, wind gust information, dew point calculations, and an interactive mode with keyboard controls. When a NOAA tide station is found within 100 miles, displays NOAA Station information with clickable links to tide predictions, datums, and water level data. No API registration required.</p>
+                            </div>
+                        </a>
+                    </td>
+                </tr>
+                <tr class="project-row" onclick="window.location.href='./tp/';">
+                    <td class="project-image-cell">
+                        <a href="./tp/" tabindex="-1">
+                            <img src="./images/tp.png" alt="TemPy ThermoPro monitoring dashboard with temperature and humidity sparklines" loading="lazy">
+                        </a>
+                    </td>
+                    <td class="project-text-cell">
+                        <a href="./tp/" tabindex="-1">
+                            <div>
+                                <h2>TemPy v1.3</h2>
+                                <p><b>TemPy</b> is a cross-platform Python terminal UI for ThermoPro TP357/TP358/TP359 Bluetooth hygrometers. It polls sensors over BLE on a 5-minute schedule, shows a live dashboard with 24-hour temperature and humidity sparklines, and logs readings to CSV. Features include device discovery and management, indoor comfort color bands, multi-column layout on wide terminals, digit hotkeys for quick device info, and CLI modes for log snapshots, view filtering, and manual-only polling. Downloads and README on the project page.</p>
+                            </div>
+                        </a>
+                    </td>
+                </tr>
+                <tr class="project-row" onclick="window.location.href='./larry/';">
+                    <td class="project-image-cell">
+                        <a href="./larry/" tabindex="-1">
+                            <img src="./images/larry.png" alt="Larry terminal game screenshot showing retro-style traffic and character" loading="lazy">
+                        </a>
+                    </td>
+                    <td class="project-text-cell">
+                        <a href="./larry/" tabindex="-1">
+                            <div>
+                                <h2>Larry v1.1</h2>
+                                <p><b>Larry</b> is a terminal Frogger-like game written in Go with tcell. Guide a green '@' across traffic with WASD/Arrows, Space to pause, Esc to quit. Levels change color themes, add vehicles, and increase speed; safe shoulders and gaps help you through. Includes a persistent Top-10 scoreboard with name entry. Downloads and README on the project page.</p>
                             </div>
                         </a>
                     </td>
