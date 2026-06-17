@@ -973,19 +973,33 @@ function Get-AirNowObservationUrl {
     param(
         [double]$Lat,
         [double]$Lon,
-        [string]$ApiKey,
-        [int]$DistanceMiles = 25
+        [string]$ApiKey
     )
     $latStr = ($Lat -as [string])
     $lonStr = ($Lon -as [string])
-    return "https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=$latStr&longitude=$lonStr&distance=$DistanceMiles&API_KEY=$ApiKey"
+    return "https://www.airnowapi.org/aq/observation/current/ziplatLong?format=application/json&latitude=$latStr&longitude=$lonStr&api_key=$ApiKey"
 }
 
 function Get-AirNowUrlVerboseLog {
     param([double]$Lat, [double]$Lon)
     $latStr = ($Lat -as [string])
     $lonStr = ($Lon -as [string])
-    return "https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=$latStr&longitude=$lonStr&distance=25&API_KEY=(redacted)"
+    return "https://www.airnowapi.org/aq/observation/current/ziplatLong?format=application/json&latitude=$latStr&longitude=$lonStr&api_key=(redacted)"
+}
+
+function Get-AqiCategoryNumberFromName {
+    param([string]$CategoryName)
+    if ([string]::IsNullOrWhiteSpace($CategoryName)) { return $null }
+    switch ($CategoryName.Trim()) {
+        'Good' { return 1 }
+        'Moderate' { return 2 }
+        'Unhealthy for Sensitive Groups' { return 3 }
+        'Unhealthy' { return 4 }
+        'Very Unhealthy' { return 5 }
+        'Hazardous' { return 6 }
+        'Unavailable' { return 7 }
+        default { return $null }
+    }
 }
 
 # Fixed lat/lon for AirNow API key validation (-aqi setup only; not shown to the user)
@@ -1168,32 +1182,29 @@ function Get-AirNowAqiData {
     foreach ($entry in $entries) {
         if ($null -eq $entry) { continue }
 
-        $parameterName = [string]$entry.ParameterName
-        $aqiValue = $null
-        $categoryNumber = $null
-        $categoryName = $null
+        if (-not ($entry.PSObject.Properties['parameterName'] -and $entry.parameterName)) { continue }
+        $parameterKey = ([string]$entry.parameterName).ToUpperInvariant()
 
-        if ($entry.PSObject.Properties['AQI'] -and $null -ne $entry.AQI) {
-            try { $aqiValue = [int]$entry.AQI } catch { $aqiValue = $null }
+        $aqiValue = $null
+        if ($entry.PSObject.Properties['nowcastAQI'] -and $null -ne $entry.nowcastAQI) {
+            try { $aqiValue = [int]$entry.nowcastAQI } catch { $aqiValue = $null }
         }
 
-        if ($entry.PSObject.Properties['Category'] -and $null -ne $entry.Category) {
-            if ($entry.Category.PSObject.Properties['Number'] -and $null -ne $entry.Category.Number) {
-                try { $categoryNumber = [int]$entry.Category.Number } catch { $categoryNumber = $null }
-            }
-            if ($entry.Category.PSObject.Properties['Name'] -and $entry.Category.Name) {
-                $categoryName = [string]$entry.Category.Name
-            }
+        $categoryNumber = $null
+        $categoryName = $null
+        if ($entry.PSObject.Properties['aqiCategoryName'] -and $entry.aqiCategoryName) {
+            $categoryName = [string]$entry.aqiCategoryName
+            $categoryNumber = Get-AqiCategoryNumberFromName -CategoryName $categoryName
         }
 
         if ($null -ne $categoryNumber -and $categoryName) {
             $categoryNameByNumber[$categoryNumber] = $categoryName
         }
 
-        if ($parameterName -eq "O3") {
+        if ($parameterKey -eq 'OZONE') {
             $result.O3AQI = $aqiValue
             $result.O3CategoryNumber = $categoryNumber
-        } elseif ($parameterName -eq "PM2.5") {
+        } elseif ($parameterKey -eq 'PM2.5') {
             $result.PM25AQI = $aqiValue
             $result.PM25CategoryNumber = $categoryNumber
         }

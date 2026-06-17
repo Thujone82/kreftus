@@ -5,7 +5,7 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 ## Features
 
 - **No API Key Required**: Uses free National Weather Service API
-- **Optional AQI (AirNow)**: Add your own AirNow API key in Settings to display an AQI line in Current Conditions using official AQI category colors; categories 5/6 are emphasized with white text on colored badges and white borders for contrast
+- **Optional AQI (AirNow)**: Add your own AirNow API key in Settings to display an AQI line in Current Conditions using official AQI category colors; categories 5/6 are emphasized with white text on colored badges and white borders for contrast. Uses AirNow [Current Observations by Zip Code or Lat/Long](https://docs.airnowapi.org/webservices) (`/aq/observation/current/ziplatLong`); rate limit is 500 requests per hour per key.
 - **Multiple Display Modes**: Full, Daily, Hourly, Rain, Wind, and History
 - **PWA Support**: Installable as a web app with offline support and update detection
 - **Saved Locations**: Save favorite locations and switch between them; locations bar open/closed state is remembered. Number hotkeys load the first 20 favorites in drawer order: `1`–`0` for slots 1–10, `Shift+1`–`Shift+0` for slots 11–20 (ignored while typing, renaming a favorite, or when Settings is open).
@@ -94,7 +94,7 @@ Desktop **Firefox** has limited PWA support; use Chrome or Edge for the full ins
 4. **Star** saves the current location to the Locations bar; **Locations** opens/closes the saved locations list.
 5. **Refresh** updates weather data; **Share** copies or shares the current page URL (with location and mode).
 6. Click the **gear** button in the control bar to open **Settings**: accent colors, Reset Colors, Standard/Metric, AM/PM vs 24H, Compact/Normal density, Feels-Like vs WBGT, Auto-Update Data, optional AQI setup, Extras (Enable Radar for Full-mode NWS loop with offline cache; Enable Solar Irradiance; Enable Magic Hours; Enable per Location Colors). **Reset Forecast** clears all favorites, cache, and settings and reloads. Alternatively, double-click the header icon to open Settings.
-7. To enable AQI, toggle **Enable AQI**, paste your **AirNow API Key**, and wait for a green check mark after validation. Register a key at [Request an AirNow API Key](https://docs.airnowapi.org/account/request/).
+7. To enable AQI, toggle **Enable AQI**, paste your **AirNow API Key**, and wait for a green check mark after validation. Register a key at [Request an AirNow API Key](https://docs.airnowapi.org/account/request/). AQI uses AirNow’s current observations API (`/aq/observation/current/ziplatLong`); each key is limited to **500 requests per hour** (see [AirNow Web Services](https://docs.airnowapi.org/webservices)).
 
 ## Reset Feature
 

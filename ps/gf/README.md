@@ -192,7 +192,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 - `-aqi` (alias) or `-AqiSetup` [switch]
   - Opens the **AQI Setup** screen only, then exits (no weather fetch).
   - Stores your key in the **User** environment variable **`AirNowAPI`** using `[Environment]::SetEnvironmentVariable(..., 'User')` so **new PowerShell sessions** keep the key (not session-only).
-  - Validates the key with a test request to AirNow at fixed coordinates (Portland, OR area: 45.5202471, -122.674194).
+  - Validates the key with a test request to AirNow at fixed coordinates (Portland, OR area: 45.5202471, -122.674194). AirNow limits each key to **500 requests per hour**.
   - Request an AirNow key: https://docs.airnowapi.org/account/request/
 
 - `-Terse` or `-t` [switch]
@@ -598,7 +598,8 @@ These messages provide clear feedback about the script's progress and help users
   - `/points/{lat},{lon}/stations` - Get observation stations for a location
   - `/stations/{stationId}/observations` - Get historical observations from a station
 - This script also uses the AirNow API endpoint for AQI:
-  - `https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude={lat}&longitude={lon}&distance=25&API_KEY={key}`
+  - `https://www.airnowapi.org/aq/observation/current/ziplatLong?format=application/json&latitude={lat}&longitude={lon}&api_key={key}`
+  - Rate limit: **500 requests per hour** per key.
 
 ## Features Added/Enhanced
 - **Sunrise/Sunset Times:** Calculated using NOAA astronomical algorithms based on location coordinates and time zone. During polar night or polar day, sun times use `MM/dd HH:mm` format. All displayed times (hourly forecasts, sunrise, sunset, update times) are shown in the destination location's local timezone, not your system's timezone.
@@ -614,4 +615,4 @@ These messages provide clear feedback about the script's progress and help users
 - **User Agent:** GetForecast/1.0 (081625PDX)
 - **Format:** GeoJSON
 - **Rate Limits:** None specified, but please be respectful of the service
-- **AirNow (optional AQI):** `https://www.airnowapi.org/aq/observation/latLong/current/` — requires your own API key in the **`AirNowAPI`** User environment variable; the script never embeds a key.
+- **AirNow (optional AQI):** `https://www.airnowapi.org/aq/observation/current/ziplatLong` — requires your own API key in the **`AirNowAPI`** User environment variable; the script never embeds a key. Rate limit: 500 requests/hour per key.

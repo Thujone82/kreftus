@@ -1108,11 +1108,10 @@ function logAirNowConsole(level, message, detail) {
 
 /** URL safe for logs (never prints the API key). */
 function redactAirNowUrl(url) {
-    return String(url).replace(/([?&])API_KEY=[^&]*/i, '$1API_KEY=(redacted)');
+    return String(url).replace(/([?&])api_key=[^&]*/i, '$1api_key=(redacted)');
 }
 
-// Fetch all weather data for a location
-async function fetchAirNowAqi(lat, lon, apiKey, distanceMiles = 25) {
+async function fetchAirNowAqi(lat, lon, apiKey) {
     const abortController = new AbortController();
     const timeoutId = setTimeout(() => {
         abortController.abort();
@@ -1137,12 +1136,11 @@ async function fetchAirNowAqi(lat, lon, apiKey, distanceMiles = 25) {
             logAirNowConsole('warn', 'request skipped: invalid coordinates', { lat, lon });
             return null;
         }
-        const url = `https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude=${encodeURIComponent(latNum)}&longitude=${encodeURIComponent(lonNum)}&distance=${encodeURIComponent(distanceMiles)}&API_KEY=${encodeURIComponent(key)}`;
+        const url = `https://www.airnowapi.org/aq/observation/current/ziplatLong?format=application/json&latitude=${encodeURIComponent(latNum)}&longitude=${encodeURIComponent(lonNum)}&api_key=${encodeURIComponent(key)}`;
         logAirNowConsole('info', 'request start', {
             url: redactAirNowUrl(url),
             latitude: latNum,
             longitude: lonNum,
-            distanceMiles,
             apiKeyLength: key.length,
             timeoutMs: AIRNOW_FETCH_TIMEOUT_MS
         });

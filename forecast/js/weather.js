@@ -1,17 +1,32 @@
 // Weather data processing and calculations
 
+function getAqiCategoryNumberFromName(categoryName) {
+    const name = String(categoryName || '').trim();
+    switch (name) {
+        case 'Good': return 1;
+        case 'Moderate': return 2;
+        case 'Unhealthy for Sensitive Groups': return 3;
+        case 'Unhealthy': return 4;
+        case 'Very Unhealthy': return 5;
+        case 'Hazardous': return 6;
+        case 'Unavailable': return 7;
+        default: return null;
+    }
+}
+
 function normalizeAirNowAqi(aqiRows) {
     if (!Array.isArray(aqiRows) || aqiRows.length === 0) {
         return { show: false };
     }
 
-    const getPollutant = (name) => {
-        const row = aqiRows.find(r => String(r?.ParameterName || '').toUpperCase() === name);
-        if (!row || row.AQI == null) return null;
-        const aqi = Number(row.AQI);
+    const getPollutant = (parameterName) => {
+        const wanted = String(parameterName).toUpperCase();
+        const row = aqiRows.find(r => String(r?.parameterName || '').toUpperCase() === wanted);
+        if (!row || row.nowcastAQI == null) return null;
+        const aqi = Number(row.nowcastAQI);
         if (!Number.isFinite(aqi)) return null;
-        const categoryNumber = Number(row?.Category?.Number);
-        const categoryName = row?.Category?.Name || '';
+        const categoryName = row.aqiCategoryName || '';
+        const categoryNumber = getAqiCategoryNumberFromName(categoryName);
         return {
             aqi: Math.round(aqi),
             categoryNumber: Number.isFinite(categoryNumber) ? categoryNumber : null,
@@ -19,7 +34,7 @@ function normalizeAirNowAqi(aqiRows) {
         };
     };
 
-    const o3 = getPollutant('O3');
+    const o3 = getPollutant('OZONE');
     const pm25 = getPollutant('PM2.5');
     const available = [o3, pm25].filter(Boolean);
     if (available.length === 0) return { show: false };

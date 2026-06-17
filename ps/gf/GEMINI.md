@@ -84,7 +84,7 @@ The script follows a multi-step process:
 - **Forecast:** `https://api.weather.gov/gridpoints/{office}/{gridX},{gridY}/forecast`
 - **Hourly:** `https://api.weather.gov/gridpoints/{office}/{gridX},{gridY}/forecast/hourly`
 - **Alerts:** `https://api.weather.gov/alerts/active?point={lat},{lon}`
-- **AirNow AQI (optional):** `https://www.airnowapi.org/aq/observation/latLong/current/?format=application/json&latitude={lat}&longitude={lon}&distance=25&API_KEY={key}` — `{key}` comes only from the **`AirNowAPI`** environment variable (User scope preferred); no key ships with the script.
+- **AirNow AQI (optional):** `https://www.airnowapi.org/aq/observation/current/ziplatLong?format=application/json&latitude={lat}&longitude={lon}&api_key={key}` — `{key}` comes only from the **`AirNowAPI`** environment variable (User scope preferred); no key ships with the script. Rate limit: 500 requests/hour per key.
 - **Observation Stations:** `https://api.weather.gov/points/{lat},{lon}/stations`
 - **Observations:** `https://api.weather.gov/stations/{stationId}/observations?start={startTime}&end={endTime}&limit=500`
 
@@ -92,7 +92,7 @@ The script follows a multi-step process:
 
 When running with `-Verbose`, AQI-specific diagnostics are emitted to help troubleshoot display behavior:
 
-- Logs the AirNow request line (`GET: ...`) with **`API_KEY=(redacted)`** in both initial load and refresh paths (never logs the secret).
+- Logs the AirNow request line (`GET: ...`) with **`api_key=(redacted)`** in both initial load and refresh paths (never logs the secret).
 - Logs row counts returned by AirNow and parsed values for category/O3/PM2.5.
 - Logs explicit suppression reasons, including:
   - null or empty AirNow payload,
