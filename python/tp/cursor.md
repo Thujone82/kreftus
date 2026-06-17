@@ -19,7 +19,7 @@ Built with **Textual** (UI) and **bleak** (BLE). Live-read protocol logic ported
 ### Key Functionality
 
 - **Startup:** Main menu always on stack; push Monitoring if devices exist, else Manage Devices with auto-scan
-- **Monitoring:** 5 rows per device; green/yellow `updated HH:MM`; sequential BLE fetch (one device at a time)
+- **Monitoring:** 5 rows per device; green/yellow device name by freshness; sequential BLE fetch (one device at a time)
 - **Scheduler:** 5-minute grid (`:00`, `:05`, …); minute retries for devices missing the current chunk
 - **Startup fetch skip:** After log preload, fetch only devices stale for the current chunk (skip all if log is fresh)
 - **Sparklines:** 24-bin windows — 4H/24H/72H on device status modal; 24H on dashboard (1 hour per glyph)
@@ -87,7 +87,7 @@ Append after each fetch cycle (including partial retry cycles). UTF-8, `\n` line
 
 **Monitoring layout (per device):**
 
-1. Label row: name (yellow, left); `updated HH:MM` right-aligned in fixed column — **green** if fresh (≤5 min), **yellow** if stale; cyan `▶` / `◀` when actively fetching
+1. Label row: device name — **green** if fresh (≤5 min), **yellow** if stale; cyan `▶` / `◀` when actively fetching
 2. Temp stats: `cur` / `min` / `max` (all color-banded; dim when stale)
 3. Temp sparkline: 24 glyphs, 1 hour per bin (24H window)
 4. Humidity stats: `cur` / `min` / `max` (all color-banded; dim when stale)

@@ -576,8 +576,11 @@ class MonitoringScreen(Screen):
         return "  ".join(parts)
 
     def _status_device_label(self) -> str:
-        if self._fetch_in_progress() and len(self._active_macs) > 1:
-            return f"{len(self._active_macs)} sensors"
+        if self._fetch_in_progress() and self._active_macs:
+            if len(self._active_macs) > 1:
+                return f"{len(self._active_macs)} sensors"
+            mac = next(iter(self._active_macs))
+            return self.app.config.devices.get(mac, mac)
         if self._active_name:
             return self._active_name
         if self._active_mac:
@@ -621,13 +624,10 @@ class MonitoringScreen(Screen):
     def _device_block(self, mac: str, name: str, width: int) -> list[str]:
         is_active = mac in self._active_macs and self._fetch_in_progress()
         updated_dt = self.app.history.last_updated(mac)
-        updated = updated_dt.strftime("%H:%M") if updated_dt else None
         stale = is_measurement_stale(updated_dt)
 
         label = format_device_label_row(
             name,
-            width,
-            updated=updated,
             stale=stale,
             fetching=is_active,
         )

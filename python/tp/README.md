@@ -77,13 +77,13 @@ Place `tp.ini` and `tp.log` in the same folder as the launcher. The build script
 
 Each tracked device shows 5 rows:
 
-1. Device name (left) and `updated HH:MM` (right-aligned)
+1. Device name — **green** if fresh (within 5 minutes), **yellow** if stale; cyan `▶` / `◀` when actively fetching
 2. Temperature cur / min / max (°F) — each value color-banded to match sparkline glyphs
 3. 24-character temperature sparkline (1 hour per glyph)
 4. Humidity cur / min / max (%) — each value color-banded to match sparkline glyphs
 5. 24-character humidity sparkline
 
-**Updated time colors:** green = fresh (within 5 minutes), yellow = stale. Stale rows also dim stats and sparklines.
+**Updated time colors:** removed from the label row (see device status **I**). Stale rows still dim stats and sparklines.
 
 **Header:** DEBUG / filter / next poll or “Polling off” / fetch progress (left); **🌡 TemPy** centered when room; clock (right).
 

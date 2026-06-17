@@ -32,13 +32,10 @@ def _render_snapshot(config, *, device_filter: str | None = None) -> str:
     lines: list[str] = []
     for mac, name in visible:
         updated_dt = history.last_updated(mac)
-        updated = updated_dt.strftime("%H:%M") if updated_dt else None
         stale = is_measurement_stale(updated_dt)
         lines.append(
             format_device_label_row(
                 name,
-                width,
-                updated=updated,
                 stale=stale,
                 fetching=False,
             )
