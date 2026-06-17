@@ -7,9 +7,13 @@ from dataclasses import dataclass
 
 from tp.ble import DayHistoryProgress, read_day_history
 from tp.config import AppConfig, normalize_mac
-from tp.history import DeviceHistory, apply_day_history
+from tp.history import DeviceHistory, apply_day_history, device_needs_sparkline_bootstrap
 
 HistoryFetchProgressCallback = Callable[[DayHistoryProgress], Awaitable[None] | None]
+HistoryBootstrapStartCallback = Callable[
+    [str, str, int, int], Awaitable[None] | None
+]
+StopRequestedCallback = Callable[[], bool]
 
 
 @dataclass
@@ -108,3 +112,45 @@ async def fetch_day_history_for_device(
         memory_only=memory_only,
         log_replaced=not memory_only,
     )
+
+
+async def bootstrap_sparklines_from_ble(
+    config: AppConfig,
+    history: DeviceHistory,
+    *,
+    on_device_start: HistoryBootstrapStartCallback | None = None,
+    progress_cb: HistoryFetchProgressCallback | None = None,
+    stop_requested: StopRequestedCallback | None = None,
+) -> list[str]:
+    """Pull 24H BLE history for devices missing sparkline data when logging is off."""
+    if config.settings.logging_enabled:
+        return []
+
+    targets = [
+        (mac, name)
+        for mac, name in config.devices.items()
+        if device_needs_sparkline_bootstrap(history, mac)
+    ]
+    if not targets:
+        return []
+
+    errors: list[str] = []
+    total = len(targets)
+    for index, (mac, name) in enumerate(targets):
+        if stop_requested and stop_requested():
+            break
+        if on_device_start is not None:
+            maybe = on_device_start(mac, name, index, total)
+            if maybe is not None:
+                await maybe
+        result = await fetch_day_history_for_device(
+            config,
+            history,
+            mac,
+            name,
+            progress_cb,
+        )
+        if not result.ok:
+            message = result.error or "24H history fetch failed"
+            errors.append(f"{name}: {message}")
+    return errors

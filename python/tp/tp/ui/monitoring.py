@@ -20,6 +20,7 @@ from tp.debug_log import is_enabled as debug_log_enabled
 from tp.ble import NOW_READ_CONNECTING, format_ble_error
 from tp.fetch import START_MARKER, run_fetch_cycle
 from tp.history import PollResult, load_readings_from_log
+from tp.history_fetch import bootstrap_sparklines_from_ble
 from tp.scheduler import (
     POLL_INTERVAL,
     chunk_end,
@@ -47,6 +48,7 @@ SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 PHASE_IDLE = "idle"
 PHASE_FETCHING = "fetching"
 PHASE_COMMIT = "commit"
+PHASE_HISTORY = "history"
 PHASE_WAITING = "waiting"
 
 _HEADER_CLOCK_WIDTH = 10
@@ -197,6 +199,7 @@ class MonitoringScreen(Screen):
         self._fetch_macs: frozenset[str] = frozenset()
         self._last_fetch_at: datetime | None = None
         self._active_fetch_step: str | None = None
+        self._history_bootstrap_done = False
         self._fetch_lock: asyncio.Lock | None = None
 
     def _get_fetch_lock(self) -> asyncio.Lock:
@@ -206,10 +209,14 @@ class MonitoringScreen(Screen):
 
     def _fetch_in_progress(self) -> bool:
         """True while a fetch cycle holds the lock or the UI phase is active."""
-        if self._phase in {PHASE_FETCHING, PHASE_COMMIT}:
+        if self._phase in {PHASE_FETCHING, PHASE_COMMIT, PHASE_HISTORY}:
             return True
         lock = self._fetch_lock
         return lock is not None and lock.locked()
+
+    def _device_activity_in_progress(self) -> bool:
+        """True while a device is actively shown as busy on the dashboard."""
+        return self._fetch_in_progress()
 
     def compose(self) -> ComposeResult:
         yield MonitoringHeader(show_clock=True)
@@ -284,6 +291,11 @@ class MonitoringScreen(Screen):
                 POLL_INTERVAL.total_seconds(),
                 self._reload_log_from_disk,
                 name="nopoll-log-refresh",
+            )
+            self.run_worker(
+                self._run_history_bootstrap_if_needed,
+                name="history-bootstrap",
+                exclusive=True,
             )
         self.set_interval(0.12, self._animate_spinner, name="fetch-spinner")
         self.set_interval(1.0, self._tick_header, name="header-status")
@@ -475,6 +487,48 @@ class MonitoringScreen(Screen):
         self._last_retry_at = None
         await self._run_cycle()
 
+    async def _run_history_bootstrap_if_needed(self) -> None:
+        """When logging is off, import 24H BLE history so dashboard sparklines populate."""
+        if self._history_bootstrap_done or self.app.config.settings.logging_enabled:
+            return
+        if not self.app.config.devices:
+            return
+
+        self._history_bootstrap_done = True
+
+        async def on_device_start(mac: str, name: str, index: int, total: int) -> None:
+            self._active_macs = {mac}
+            self._active_mac = mac
+            self._active_name = name
+            self._active_fetch_step = NOW_READ_CONNECTING
+            self._set_phase(
+                PHASE_HISTORY,
+                index=index,
+                total=total,
+                mac=mac,
+                name=name,
+            )
+            self.refresh_display()
+
+        errors = await bootstrap_sparklines_from_ble(
+            self.app.config,
+            self.app.history,
+            on_device_start=on_device_start,
+            stop_requested=self._stop_event.is_set,
+        )
+        self._active_macs = set()
+        self._active_mac = None
+        self._active_name = None
+        self._active_fetch_step = None
+        if errors:
+            self._errors = [*self._errors, *errors]
+        if self.is_mounted and self._phase == PHASE_HISTORY:
+            if self._poll_scheduling_enabled():
+                self._set_phase(PHASE_WAITING, wait_seconds=0)
+            else:
+                self._set_phase(PHASE_IDLE)
+            self.refresh_display()
+
     async def _poll_worker(self) -> None:
         self._worker_macs = frozenset(self.app.config.devices)
         if not self.app.config.devices:
@@ -486,6 +540,8 @@ class MonitoringScreen(Screen):
         self._chunk_start = floor_to_boundary(datetime.now())
 
         try:
+            if not self._stop_event.is_set():
+                await self._run_history_bootstrap_if_needed()
             if not self._stop_event.is_set():
                 await self._run_startup_cycle()
 
@@ -655,6 +711,8 @@ class MonitoringScreen(Screen):
             bar = _progress_bar(self._fetch_index, self._fetch_total, width=12)
             if self._phase == PHASE_COMMIT:
                 label = "Saving"
+            elif self._phase == PHASE_HISTORY:
+                label = "24H"
             elif self._is_retry_cycle:
                 label = "Retry"
             else:
@@ -726,7 +784,7 @@ class MonitoringScreen(Screen):
         self._refresh_footer()
 
     def _device_block(self, mac: str, name: str) -> list[str]:
-        is_active = mac in self._active_macs and self._fetch_in_progress()
+        is_active = mac in self._active_macs and self._device_activity_in_progress()
         updated_dt = self.app.history.last_updated(mac)
         stale = is_measurement_stale(updated_dt)
 

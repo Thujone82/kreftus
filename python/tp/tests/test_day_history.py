@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import asyncio
 import tempfile
 import unittest
 from datetime import datetime, timedelta
@@ -20,12 +21,15 @@ from tp.config import AppConfig, Settings
 from tp.history import (
     CSV_HEADER,
     LOG_TIMESTAMP_FORMAT,
+    SPARKLINE_BOOTSTRAP_MIN_BINS,
     DeviceHistory,
     Reading,
     apply_day_history,
+    device_needs_sparkline_bootstrap,
     replace_device_log_window,
     replace_device_memory_window,
 )
+from tp.history_fetch import bootstrap_sparklines_from_ble
 
 
 def _sample_packet(
@@ -244,6 +248,41 @@ class DayHistoryMergeTests(unittest.TestCase):
         self.assertEqual(imported, 0)
         self.assertIsNotNone(error)
         self.assertFalse(history.has_data(self.office))
+
+
+class SparklineBootstrapTests(unittest.TestCase):
+    office = "E0:A4:4B:A4:53:0D"
+
+    def test_device_needs_bootstrap_when_empty(self) -> None:
+        history = DeviceHistory()
+        self.assertTrue(device_needs_sparkline_bootstrap(history, self.office))
+
+    def test_device_skips_bootstrap_when_bins_filled(self) -> None:
+        history = DeviceHistory()
+        now = datetime.now().replace(minute=0, second=0, microsecond=0)
+        for hour in range(SPARKLINE_BOOTSTRAP_MIN_BINS):
+            history.add_reading(
+                self.office,
+                Reading(
+                    timestamp=now - timedelta(hours=hour),
+                    temp_f=70.0,
+                    humidity_pct=40,
+                ),
+            )
+        self.assertFalse(device_needs_sparkline_bootstrap(history, self.office))
+
+    def test_bootstrap_skipped_when_logging_enabled(self) -> None:
+        async def run() -> list[str]:
+            history = DeviceHistory()
+            config = AppConfig(
+                ini_path=Path("tp.ini"),
+                settings=Settings(logging_enabled=True),
+                devices={self.office: "Office"},
+            )
+            return await bootstrap_sparklines_from_ble(config, history)
+
+        errors = asyncio.run(run())
+        self.assertEqual(errors, [])
 
 
 if __name__ == "__main__":

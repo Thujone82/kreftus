@@ -15,6 +15,7 @@ CSV_HEADER = ["timestamp", "device", "temp_f", "humidity_pct", "mac"]
 LOG_TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
 LOG_HISTORY_HOURS = 24
 MIN_DAY_HISTORY_SAMPLES = 100
+SPARKLINE_BOOTSTRAP_MIN_BINS = 8
 
 
 @dataclass
@@ -244,6 +245,14 @@ def load_readings_from_log(history: DeviceHistory, config: AppConfig) -> int:
     for mac in managed:
         history.seed_fetch_status_from_readings(mac)
     return loaded
+
+
+def device_needs_sparkline_bootstrap(history: DeviceHistory, mac: str) -> bool:
+    """True when the 24H dashboard sparkline has too few hourly bins to display."""
+    from tp.sparkline import populated_hour_bin_count
+
+    hour_bins = populated_hour_bin_count(history.temp_points(mac))
+    return hour_bins < SPARKLINE_BOOTSTRAP_MIN_BINS
 
 
 def append_poll_results_to_log(
