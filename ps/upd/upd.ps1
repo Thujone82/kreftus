@@ -155,11 +155,19 @@ function Read-SingleKey {
     return $key.Character.ToString().ToLower()
 }
 
-# Returns @{ Char = character; Shift = $true if Shift held }. Use for main/Jobs modal when job 1-20 keys matter.
+# Returns @{ Char; Shift; VirtualKeyCode }. Uses VK codes for digits so Shift+1 works (Character is '!' not '1').
 function Read-KeyWithModifiers {
-    $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    $modifierVKs = 16, 17, 18, 160, 161, 162, 163, 164, 165
+    do {
+        $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    } while ($key.VirtualKeyCode -in $modifierVKs)
+
     $shift = ($key.ControlKeyState -band [System.Management.Automation.Host.ControlKeyStates]::ShiftPressed) -ne 0
-    return @{ Char = $key.Character.ToString().ToLower(); Shift = $shift }
+    return @{
+        Char = $key.Character.ToString().ToLower()
+        Shift = $shift
+        VirtualKeyCode = $key.VirtualKeyCode
+    }
 }
 
 function Show-Header {
@@ -559,16 +567,18 @@ function Show-UpdateScreen {
         # Handle input (support 1-9, 0→10, Shift+1..0→11-20)
         $keyInfo = Read-KeyWithModifiers
         $key = $keyInfo.Char
-        
-        switch ($key) {
-        { $_ -match '^[0-9]$' } {
-            $digit = if ($_ -eq '0') { 10 } else { [int]$_ }
+        $vk = $keyInfo.VirtualKeyCode
+
+        if ($vk -ge 48 -and $vk -le 57) {
+            $digit = if ($vk -eq 48) { 10 } else { $vk - 48 }
             $index = if ($keyInfo.Shift) { $digit + 9 } else { $digit - 1 }
             if ($index -ge 0 -and $index -lt $script:Jobs.Count) {
                 Set-JobSelection $index
-                continue
             }
+            continue
         }
+
+        switch ($key) {
             'a' {
                 Select-AllJobs
                 continue
@@ -596,29 +606,30 @@ function Show-UpdateScreen {
                     continue
                 }
             }
-            { $_ -eq [char]13 } {  # Enter key
-                if ($script:SelectedJobs.Count -gt 0) {
-                    $confirm = Read-Host "Execute $($script:SelectedJobs.Count) selected job(s)? (y/N)"
-                    if ($confirm -eq 'y' -or $confirm -eq 'Y') {
-                        Start-SelectedJobs
-                        Write-Host "Press any key to continue..." -ForegroundColor Yellow
-                        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-                        continue
-                    }
-                    else {
-                        continue
-                    }
+        }
+
+        if ($vk -eq 13) {  # Enter
+            if ($script:SelectedJobs.Count -gt 0) {
+                $confirm = Read-Host "Execute $($script:SelectedJobs.Count) selected job(s)? (y/N)"
+                if ($confirm -eq 'y' -or $confirm -eq 'Y') {
+                    Start-SelectedJobs
+                    Write-Host "Press any key to continue..." -ForegroundColor Yellow
+                    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+                    continue
                 }
                 else {
-                    Write-Red "No jobs selected."
-                    Start-Sleep -Seconds 1
                     continue
                 }
             }
-            { $_ -eq [char]27 } {  # Esc key
-                Write-White "Exiting..."
-                return
+            else {
+                Write-Red "No jobs selected."
+                Start-Sleep -Seconds 1
+                continue
             }
+        }
+        elseif ($vk -eq 27) {  # Esc
+            Write-White "Exiting..."
+            return
         }
     }
 }
@@ -657,18 +668,21 @@ function Show-JobsScreen {
     # Handle input (support 1-9, 0→10, Shift+1..0→11-20)
     $keyInfo = Read-KeyWithModifiers
     $key = $keyInfo.Char
-    
-    switch ($key) {
-        { $_ -match '^[0-9]$' } {
-            $digit = if ($_ -eq '0') { 10 } else { [int]$_ }
-            $index = if ($keyInfo.Shift) { $digit + 9 } else { $digit - 1 }
-            if ($index -ge 0 -and $index -lt $script:Jobs.Count) {
-                Edit-Job $index
-                Write-Host "Press any key to continue..."
-                $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-                Show-JobsScreen
-            }
+    $vk = $keyInfo.VirtualKeyCode
+
+    if ($vk -ge 48 -and $vk -le 57) {
+        $digit = if ($vk -eq 48) { 10 } else { $vk - 48 }
+        $index = if ($keyInfo.Shift) { $digit + 9 } else { $digit - 1 }
+        if ($index -ge 0 -and $index -lt $script:Jobs.Count) {
+            Edit-Job $index
+            Write-Host "Press any key to continue..."
+            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            Show-JobsScreen
         }
+        return
+    }
+
+    switch ($key) {
         'n' {
             New-Job
             Write-Host "Press any key to continue..."
@@ -678,11 +692,13 @@ function Show-JobsScreen {
         'd' {
             Show-UpdateScreen
         }
-        { $_ -eq [char]27 -or $_ -eq [char]13 } {  # Esc or Enter
-            Show-UpdateScreen
-        }
         default {
-            Show-JobsScreen
+            if ($vk -eq 27 -or $vk -eq 13) {  # Esc or Enter
+                Show-UpdateScreen
+            }
+            else {
+                Show-JobsScreen
+            }
         }
     }
 }
