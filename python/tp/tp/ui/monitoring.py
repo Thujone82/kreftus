@@ -451,7 +451,9 @@ class MonitoringScreen(Screen):
     def _begin_fetch_ui(self, macs: frozenset[str]) -> None:
         """Show fetching state immediately (before BLE work starts)."""
         self._fetch_macs = macs
-        self._active_macs = set(macs)
+        self._active_macs = set()
+        self._active_mac = None
+        self._active_name = None
         self._fetch_total = len(macs)
         self._fetch_index = 0
         self._is_retry_cycle = False
@@ -574,13 +576,15 @@ class MonitoringScreen(Screen):
         self, index: int, total: int, name: str, mac: str
     ) -> None:
         if name == START_MARKER:
-            self._active_macs = set(self._fetch_macs)
+            self._active_macs = set()
             self._set_phase(PHASE_FETCHING, index=0, total=total)
         elif name == "Saving results":
             self._active_macs = set()
+            self._active_mac = None
+            self._active_name = None
             self._set_phase(PHASE_COMMIT, index=index, total=total)
         else:
-            self._active_macs.discard(mac)
+            self._active_macs = {mac} if mac else set()
             self._set_phase(
                 PHASE_FETCHING,
                 index=index,
@@ -656,15 +660,10 @@ class MonitoringScreen(Screen):
         return "  ".join(parts)
 
     def _status_device_label(self) -> str:
-        if self._fetch_in_progress() and self._active_macs:
-            if len(self._active_macs) > 1:
-                return f"{len(self._active_macs)} sensors"
-            mac = next(iter(self._active_macs))
-            return self.app.config.devices.get(mac, mac)
         if self._active_name:
             return self._active_name
         if self._active_mac:
-            return self._active_mac
+            return self.app.config.devices.get(self._active_mac, self._active_mac)
         return "…"
 
     def _refresh_header(self) -> None:

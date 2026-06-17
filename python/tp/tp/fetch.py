@@ -86,6 +86,10 @@ async def run_fetch_cycle(
             await maybe
 
     for index, (mac, name) in enumerate(devices, start=1):
+        if progress:
+            maybe = progress(index - 1, total, name, mac)
+            if asyncio.iscoroutine(maybe):
+                await maybe
         result = await _fetch_one_device(mac, name, config=config)
         history.record_fetch_result(result)
         if result.reading is not None:
@@ -93,10 +97,6 @@ async def run_fetch_cycle(
         batch.append(result)
         if result.error:
             errors.append(f"{name}: {result.error}")
-        if progress:
-            maybe = progress(index, total, name, mac)
-            if asyncio.iscoroutine(maybe):
-                await maybe
         if on_result:
             maybe = on_result(result)
             if asyncio.iscoroutine(maybe):

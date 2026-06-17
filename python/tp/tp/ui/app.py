@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar
 
@@ -20,6 +21,25 @@ from tp.ui.monitoring import MonitoringScreen
 from tp.ui.options import OptionsScreen
 
 T = TypeVar("T")
+
+WINDOW_TITLE = "TemPy"
+
+
+def set_terminal_window_title(title: str = WINDOW_TITLE) -> None:
+    """Set the host terminal tab/window title (not the in-app header)."""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            ctypes.windll.kernel32.SetConsoleTitleW(title)
+        except (AttributeError, OSError):
+            pass
+    try:
+        from rich.console import Console
+
+        Console().set_window_title(title)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def reload_app_config(app: "TPApp") -> None:
@@ -99,6 +119,7 @@ class TPApp(App):
         load_readings_from_log(self.history, self.config)
 
     def on_mount(self) -> None:
+        self.console.set_window_title(WINDOW_TITLE)
         self.push_screen("main")
         if self.config.devices:
             self.push_screen("monitoring")
@@ -148,6 +169,7 @@ def run_app(
     poll_enabled: bool = True,
     device_filter: str | None = None,
 ) -> None:
+    set_terminal_window_title()
     app = TPApp(
         config=config,
         debug_enabled=debug_enabled,
