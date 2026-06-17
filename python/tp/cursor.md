@@ -4,7 +4,7 @@
 
 **Author:** Kreft&Cursor  
 **Date:** 2026-06-15  
-**Version:** 1.2.0
+**Version:** 1.3.0
 
 ---
 
@@ -19,13 +19,13 @@ Built with **Textual** (UI) and **bleak** (BLE). Live-read protocol logic ported
 ### Key Functionality
 
 - **Startup:** Main menu always on stack; push Monitoring if devices exist, else Manage Devices with auto-scan
-- **Monitoring:** 5 rows per device; green/yellow device name by freshness; sequential BLE fetch (one device at a time)
+- **Monitoring:** 5 rows per device; green/yellow device name by freshness; sequential BLE fetch (one device at a time, 60 s timeout); optional multi-column layout (**C**)
 - **Scheduler:** 5-minute grid (`:00`, `:05`, …); minute retries for devices missing the current chunk
 - **Startup fetch skip:** After log preload, fetch only devices stale for the current chunk (skip all if log is fresh)
 - **Sparklines:** 24-bin windows — 4H/24H/72H on device status modal; 24H on dashboard (1 hour per glyph)
 - **CSV logging:** Optional append-only log; 24h preload on mount/resume
-- **Build:** `build.ps1` → `tp.exe` + `tp.pyz`; optional `-upx` — see **Build** section
-- **CLI:** `-debug`, `-x` snapshot, `-nopoll`, `-f`/`-filter` device view filter — see **Command line**
+- **Build:** `build.ps1` → `tp.pyz` then `tp.exe`; optional `-upx` — see **Build** section
+- **CLI:** `-debug`, `-x` snapshot, `-nopoll`/`-np`, `-f`/`-filter` device view filter — see **Command line**
 
 ---
 
@@ -81,9 +81,9 @@ Append after each fetch cycle (including partial retry cycles). UTF-8, `\n` line
 | Screen | Keys | Purpose |
 |--------|------|---------|
 | Main | 1–4, q | Route to sub-screens; q exits |
-| Monitoring | M/Esc, G, q | Dashboard; G = full fetch; header = status left, 🌡 TemPy center, clock right |
+| Monitoring | M/Esc, G, C, q | Dashboard; G = full fetch; C = cycle columns when wide enough; header = status left, 🌡 TemPy center, clock right |
 | Devices | D, A, I, E, R, W, S, ↑/↓, M, q | Discover/add/status/edit/remove/reorder |
-| Options | L, D, F, M, q | Logging toggle, path edits |
+| Options | L, B, D, F, M, q | Logging toggle, debug log toggle, path edits |
 
 **Monitoring layout (per device):**
 
@@ -93,9 +93,11 @@ Append after each fetch cycle (including partial retry cycles). UTF-8, `\n` line
 4. Humidity stats: `cur` / `min` / `max` (all color-banded; dim when stale)
 5. Humidity sparkline: 24 glyphs
 
-Blank line between devices. Header shows status (DEBUG, filter, next poll / polling off, fetch progress) left, **🌡 TemPy** (center when room), clock (right). Footer = keybindings only.
+Blank line between single-column device blocks; multi-column rows are separated by a blank line. Header shows status (DEBUG, filter, next poll / polling off, fetch progress) left, **🌡 TemPy** (center when room), clock (right). Footer shows `m` / `g` / `c` Columns (when terminal width supports 2+ columns).
 
-**Device status modal (I):** Log preload stats, last fetch, memory count, 4H/24H/72H temp and humidity sparklines.
+**Multi-column layout (`helpers.py` + `monitoring.py`):** Default 1 column. When `area_width // (block_width + 4) ≥ 2`, footer offers **c Columns** and **C** cycles `1 … max`. Row-major order. `block_width` = max plain-text line width across visible devices; 2-char pad each side per column. View filter affects visible devices only; polling always targets all managed devices.
+
+**Device status modal (I):** Log preload stats, last fetch (with timestamp), memory count, 4H/24H/72H temp and humidity sparklines.
 
 ---
 
@@ -126,7 +128,7 @@ Sparkline glyph **color** = band at bin average. Glyph **height** = normalized t
 
 ### Fetch Cycle and Scheduling
 
-**Sequential collect:** One device at a time via `read_now`; global BLE session lock prevents overlapping GATT connections. Fetch cycles are serialized with `asyncio.Lock` so the poll worker, minute retries, and **G** cannot overlap.
+**Sequential collect:** One device at a time via `read_now` (60 s `DEVICE_READ_TIMEOUT` per device); global BLE session lock prevents overlapping GATT connections. Fetch cycles are serialized with `asyncio.Lock` so the poll worker, minute retries, and **G** cannot overlap.
 
 **Full cycle:** All managed devices at each 5-minute boundary.
 
@@ -134,11 +136,13 @@ Sparkline glyph **color** = band at bin average. Glyph **height** = normalized t
 
 **Chunk stale:** Device with no successful reading since `floor_to_boundary(now)` for the current 5-minute chunk.
 
-**Measurement stale (UI):** No reading within `STALE_AFTER` (5 minutes) — yellow timestamp, dimmed stats.
+**Measurement stale (UI):** No reading within `STALE_AFTER` (5 minutes) — yellow device name, dimmed stats/sparklines.
 
 **Retry timing:** `next_retry_time()` — 60s after last retry or after cycle end, unless chunk boundary comes first.
 
-**Footer states:** Last fetch · next poll · retry countdown · fetch spinner/progress · logging on/off.
+**Header states:** DEBUG · filter · next poll / polling off · fetch/retry spinner with active device name · progress bar.
+
+**`-nopoll` / `-np` mode:** Poll/retry worker disabled; **G** still fetches; `tp.log` reloaded every 5 minutes (`POLL_INTERVAL`).
 
 ---
 
@@ -160,15 +164,15 @@ Sparkline glyph **color** = band at bin average. Glyph **height** = normalized t
 | `tp/history.py` | In-memory readings, log preload, CSV append, fetch status |
 | `tp/scheduler.py` | 5-minute boundaries, stale/retry helpers |
 | `tp/sparkline.py` | Multi-window binning, glyphs, Rich markup |
-| `tp/colors.py` | GF band colors |
-| `tp/fetch.py` | Parallel fetch cycle orchestration |
+| `tp/colors.py` | Indoor temp/humidity band colors |
+| `tp/fetch.py` | Sequential fetch cycle orchestration |
 | `tp/ui/app.py` | Textual App root, CSS, startup routing |
 | `tp/ui/menus.py` | Main menu |
 | `tp/ui/monitoring.py` | Dashboard + poll/retry worker |
 | `tp/ui/devices.py` | Device management + status modal |
 | `tp/ui/device_status.py` | Status/sparkline formatting |
 | `tp/ui/options.py` | Logging options |
-| `tp/ui/helpers.py` | Label/stats formatting, aligned device rows |
+| `tp/ui/helpers.py` | Label/stats formatting, multi-column layout (`layout_device_blocks`, `max_columns_for_width`, …) |
 | `build.ps1` | Windows build script — see **Build** section below |
 | `prepare_icon.py` | ICO prep/reapply helper used by `build.ps1` |
 
@@ -179,7 +183,7 @@ Sparkline glyph **color** = band at bin average. Glyph **height** = normalized t
 Windows PowerShell build script in `python/tp/`. Produces two distributable artifacts from the same source tree. Run from `python/tp/`:
 
 ```powershell
-./build.ps1        # tp.exe + tp.pyz
+./build.ps1        # tp.pyz, then tp.exe
 ./build.ps1 -upx   # optional UPX compression of tp.exe
 ```
 
@@ -205,25 +209,27 @@ PyInstaller is **not** pre-installed — the script runs `pip install pyinstalle
 
 2. **Dependencies** — `pip install -r requirements.txt`
 
-3. **PyInstaller check** — Install PyInstaller if missing
+3. **Output 1: `tp.pyz`** (compressed Python zipapp)
+   - Stage `build/zipapp/`: copy `tp.py` → `__main__.py`, copy `tp/` package
+   - Strip `__pycache__` from staging tree
+   - `python -m zipapp build/zipapp -o tp.pyz -p . -c`
+   - **Does not bundle** bleak/textual — target machine needs `pip install -r requirements.txt`
+   - Prints `tp.pyz build complete.`
 
-4. **Output 1: `tp.exe`** (standalone Windows executable)
+4. **PyInstaller check** — Install PyInstaller if missing
+
+5. **Output 2: `tp.exe`** (standalone Windows executable)
    - Run `prepare_icon.py build/thermo.ico build/thermo-embedded.ico` — strips PNG-compressed ICO entries so Explorer shows the custom icon (see below)
    - PyInstaller `--onefile` with absolute path to prepared icon
    - `--noupx` on PyInstaller (UPX is opt-in via script flag, not automatic)
    - Bundles `bleak`, `textual`, and winrt backends via `--hidden-import` / `--collect-submodules`
    - Writes `tp.exe` to `python/tp/`; work files under `build/pyinstaller/`
+   - Prints `tp.exe build complete.`
 
-5. **Optional UPX** (only with `-upx`)
+6. **Optional UPX** (only with `-upx`)
    - `upx --best --lzma tp.exe`
    - Re-applies icon via `prepare_icon.py reapply tp.exe build/thermo-embedded.ico` (UPX can strip resources)
    - Skipped with a message if UPX is not in `PATH`
-
-6. **Output 2: `tp.pyz`** (compressed Python zipapp)
-   - Stage `build/zipapp/`: copy `tp.py` → `__main__.py`, copy `tp/` package
-   - Strip `__pycache__` from staging tree
-   - `python -m zipapp build/zipapp -o tp.pyz -p . -c`
-   - **Does not bundle** bleak/textual — target machine needs `pip install -r requirements.txt`
 
 #### Outputs
 
@@ -289,10 +295,10 @@ Parsed in `tp.py` `parse_args()`; passed to `run_app()` or `_render_snapshot()`.
 |------|--------|
 | `-debug` / `--debug` | Session `debug.log` beside resolved log directory; Options **B** toggles at runtime |
 | `-x` | Load config + log preload, print Rich snapshot to terminal, exit (no Textual UI, no BLE) |
-| `-nopoll` | Interactive Textual UI with poll/retry worker disabled; **G** manual fetch still works; header shows “Polling off”; CSV log reloaded every 5 minutes for multi-instance viewing |
+| `-nopoll` / `-np` | Interactive Textual UI with poll/retry worker disabled; **G** manual fetch still works; header shows “Polling off”; CSV log reloaded every 5 minutes for multi-instance viewing |
 | `-f` / `-filter` *TEXT* | View filter: monitoring dashboard and `-x` output show only devices whose display name contains *TEXT* (case-insensitive substring). Polling, retries, and **G** still target all managed devices. |
 
-Examples: `python tp.py -x -f cab`, `tp.exe -nopoll -filter guest`, `python tp.py -debug`.
+Examples: `python tp.py -x -f cab`, `tp.exe -np -filter guest`, `python tp.py -debug`.
 
 `-x` with a filter that matches no devices prints `No devices match filter '…'.` and exits.
 
@@ -307,7 +313,7 @@ cd python/tp
 pip install -r requirements.txt
 python tp.py
 python tp.py -x -f office    # one-shot snapshot, filtered
-python tp.py -nopoll         # UI only, no scheduled polls
+python tp.py -np              # UI only, no scheduled polls
 ```
 
 **From build outputs** (after `./build.ps1`):
@@ -359,6 +365,7 @@ python/tp/
 
 ### Changelog
 
+- **v1.3.0** — Multi-column monitoring dashboard (**C**); `-np` alias for `-nopoll`; device label freshness colors (no `updated` on row); header fetch device name fix; `build.ps1` builds `tp.pyz` before `tp.exe` with per-artifact completion messages.
 - **v1.2.0** — Indoor temp color bands; cur/min/max stat coloring; CLI `-x` snapshot; `-nopoll`; `-f`/`-filter` device view filter; header layout (status / title / clock); 4H/24H/72H status sparklines; per-device 60s read timeout; BLE connect optimizations.
 - **v1.1.0** — Parallel fetch; minute retries; stale UI (green/yellow); log preload skip on startup; device status 1H/8H/24H sparklines; launcher-relative paths; build.ps1; removed BLE day-history/bootstrap; startup routing and navigation fixes.
 - **v1.0.0** — Initial release: Textual TUI, bleak BLE, 5-row monitoring layout, CSV logging, device management.

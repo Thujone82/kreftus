@@ -93,7 +93,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "-nopoll",
+        "-np",
         action="store_true",
+        dest="nopoll",
         help="Interactive mode without automatic poll scheduling (G still fetches manually)",
     )
     parser.add_argument(

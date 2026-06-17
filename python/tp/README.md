@@ -28,7 +28,7 @@ On first run, `tp.ini` is created beside the launcher (`tp.py`, `tp.exe`, or `tp
 |------|-------------|
 | `-debug` | Enable session `debug.log` in the configured log directory (Options **B** toggles during a session) |
 | `-x` | Print one snapshot from saved log/history data and exit (no UI, no BLE) |
-| `-nopoll` | Interactive mode without automatic poll scheduling; **G** still fetches manually; reloads the CSV log every 5 minutes for multi-instance viewing |
+| `-nopoll` / `-np` | Interactive mode without automatic poll scheduling; **G** still fetches manually; reloads the CSV log every 5 minutes for multi-instance viewing |
 | `-f` / `-filter` *TEXT* | View filter — only show devices whose name contains *TEXT* (case-insensitive). Works with interactive mode and `-x`. Polling and manual fetch still run for all managed devices; only the dashboard display is filtered. |
 
 Examples:
@@ -36,7 +36,7 @@ Examples:
 ```bash
 python tp.py -x                    # snapshot of all devices from log
 python tp.py -x -f cab             # snapshot: only names matching "cab" (e.g. Plant Cabinet)
-python tp.py -nopoll -filter office
+python tp.py -np -filter office
 ./tp.exe -debug -f guest
 ```
 
@@ -45,7 +45,7 @@ python tp.py -nopoll -filter office
 From `python/tp/`:
 
 ```powershell
-./build.ps1        # tp.exe + tp.pyz
+./build.ps1        # tp.pyz, then tp.exe
 ./build.ps1 -upx   # optional UPX compression of tp.exe
 ```
 
@@ -63,6 +63,7 @@ Place `tp.ini` and `tp.log` in the same folder as the launcher. The build script
 | **Q** | Anywhere | Back one level; exit from main menu |
 | **M** / Esc | Sub-screens | Main menu |
 | **G** | Monitoring | Fetch all devices now |
+| **C** | Monitoring | Cycle column layout (shown only when the terminal is wide enough for 2+ columns) |
 
 ## Main menu
 
@@ -87,11 +88,17 @@ Each tracked device shows 5 rows:
 
 **Header:** DEBUG / filter / next poll or “Polling off” / fetch progress (left); **🌡 TemPy** centered when room; clock (right).
 
-**Footer:** Keybinding shortcuts only.
+**Footer:** `m` Menu, `g` Fetch now, and `c` Columns when multi-column layout is available.
+
+### Multi-column layout
+
+When the terminal is wide enough to fit two or more device blocks side by side (content width plus 2-character padding on each side), **c Columns** appears in the footer. Press **C** to cycle `1 → 2 → … → max → 1`. Devices fill row-major (`1 2` / `3 4` / …). Default is a single column. Narrowing the window clamps the active column count automatically.
+
+The view filter (`-f`) only affects which devices are shown; column layout applies to the filtered set.
 
 ### Polling and retries
 
-- **Scheduled polls** run on 5-minute clock boundaries (`:00`, `:05`, `:10`, …). Devices are fetched one at a time per cycle. Use `-nopoll` to disable BLE scheduling; the dashboard still reloads `tp.log` every 5 minutes so a second viewer can follow a polling instance.
+- **Scheduled polls** run on 5-minute clock boundaries (`:00`, `:05`, `:10`, …). Devices are fetched one at a time per cycle (60 s timeout per device). Use `-nopoll` / `-np` to disable BLE scheduling; the dashboard still reloads `tp.log` every 5 minutes so a second viewer can follow a polling instance.
 - **Startup:** Log preload runs first. If every device already has a fresh reading for the current 5-minute chunk, the initial BLE fetch is skipped.
 - **Minute retries:** Devices that miss a poll in the current chunk are retried every 60 seconds until the next boundary.
 - Press **G** to force an immediate full fetch.
@@ -115,6 +122,7 @@ Each tracked device shows 5 rows:
 | Key | Action |
 |-----|--------|
 | L | Toggle CSV logging |
+| B | Toggle session debug log |
 | D | Edit log directory |
 | F | Edit log filename |
 | M / Esc | Main menu |
@@ -177,4 +185,5 @@ Temperature and humidity sparklines and cur/min/max values use indoor comfort ba
 - Sensors must be powered and in range; GATT live reads do not require phone-app pairing
 - Sparkline height reflects trend within the window; glyph color reflects the band at each bin average
 - Distant sensors may miss scheduled polls; minute retries and manual **G** fetch help recover them
+- Last-updated time is on the device status screen (**I**), not on the dashboard label row
 - Technical reference for AI assistants: [cursor.md](cursor.md)

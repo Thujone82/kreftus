@@ -2,8 +2,8 @@
     Build script for TemPy (tp.py).
 
     Produces two distributable outputs:
-      1. tp.exe  — standalone Windows executable (PyInstaller)
-      2. tp.pyz  — compressed Python zipapp (run with: python tp.pyz)
+      1. tp.pyz  — compressed Python zipapp (run with: python tp.pyz)
+      2. tp.exe  — standalone Windows executable (PyInstaller)
 
     Requires Python 3.11+ in PATH. Installs PyInstaller automatically when missing.
 
@@ -55,6 +55,33 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+# --- 1. tp.pyz (zipapp) ---
+Write-Host "tp.py -> tp.pyz..." -ForegroundColor Cyan
+$zipappDir = Join-Path $buildRoot "zipapp"
+New-Item -Path $zipappDir -ItemType Directory -Force | Out-Null
+
+Copy-Item -Path ".\tp.py" -Destination (Join-Path $zipappDir "__main__.py")
+Copy-Item -Path ".\tp" -Destination (Join-Path $zipappDir "tp") -Recurse -Force
+
+Get-ChildItem -Path $zipappDir -Recurse -Directory -Filter "__pycache__" -ErrorAction SilentlyContinue |
+    Remove-Item -Recurse -Force
+
+python -m zipapp $zipappDir -o ".\tp.pyz" -p "." -c
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "zipapp build failed."
+    exit 1
+}
+
+if (-not (Test-Path ".\tp.pyz")) {
+    Write-Error "zipapp finished but tp.pyz was not created."
+    exit 1
+}
+
+Write-Host "tp.pyz build complete." -ForegroundColor Green
+Write-Host "  Run with: python tp.pyz" -ForegroundColor DarkGray
+
+# --- 2. tp.exe (PyInstaller) ---
 Write-Host "Checking for PyInstaller..."
 python -c "import PyInstaller" 2>$null
 if ($LASTEXITCODE -ne 0) {
@@ -66,7 +93,6 @@ if ($LASTEXITCODE -ne 0) {
     }
 }
 
-# --- 1. tp.exe (PyInstaller) ---
 Write-Host "tp.py -> tp.exe..." -ForegroundColor Cyan
 if (-not (Test-Path $iconPath)) {
     Write-Error "Icon not found: $iconPath"
@@ -133,31 +159,5 @@ if ($useUpx) {
     Write-Host "UPX compression disabled by default. Pass -upx to enable." -ForegroundColor DarkGray
 }
 
-Write-Host "Embedded icon from build/thermo.ico" -ForegroundColor DarkGray
-
-# --- 2. tp.pyz (zipapp) ---
-Write-Host "tp.py -> tp.pyz..." -ForegroundColor Cyan
-$zipappDir = Join-Path $buildRoot "zipapp"
-New-Item -Path $zipappDir -ItemType Directory -Force | Out-Null
-
-Copy-Item -Path ".\tp.py" -Destination (Join-Path $zipappDir "__main__.py")
-Copy-Item -Path ".\tp" -Destination (Join-Path $zipappDir "tp") -Recurse -Force
-
-Get-ChildItem -Path $zipappDir -Recurse -Directory -Filter "__pycache__" -ErrorAction SilentlyContinue |
-    Remove-Item -Recurse -Force
-
-python -m zipapp $zipappDir -o ".\tp.pyz" -p "." -c
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "zipapp build failed."
-    exit 1
-}
-
-if (-not (Test-Path ".\tp.pyz")) {
-    Write-Error "zipapp finished but tp.pyz was not created."
-    exit 1
-}
-
-Write-Host "Build complete!" -ForegroundColor Green
-Write-Host "  tp.exe  — standalone executable" -ForegroundColor DarkGray
-Write-Host "  tp.pyz  — run with: python tp.pyz" -ForegroundColor DarkGray
+Write-Host "tp.exe build complete." -ForegroundColor Green
+Write-Host "  Standalone executable (icon: build/thermo.ico)" -ForegroundColor DarkGray

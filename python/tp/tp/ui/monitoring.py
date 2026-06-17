@@ -7,11 +7,12 @@ import re
 from datetime import datetime
 
 from textual import work
+from textual.binding import Binding
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widget import Widget
-from textual.widgets import Footer, Static
+from textual.widgets import Static
 
 from tp.colors import humidity_color, temp_color
 from tp.debug_log import is_enabled as debug_log_enabled
@@ -29,7 +30,14 @@ from tp.scheduler import (
 )
 from tp.sparkline import build_sparkline, colored_sparkline_markup, format_sparkline_row
 from tp.config import filter_devices
-from tp.ui.helpers import format_device_label_row, format_stats_row
+from tp.ui.helpers import (
+    format_device_label_row,
+    format_stats_row,
+    layout_device_blocks,
+    max_columns_for_width,
+    measure_blocks_column_width,
+    plain_markup_len,
+)
 
 SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 PHASE_IDLE = "idle"
@@ -43,7 +51,7 @@ _RICH_TAG = re.compile(r"\[[^\]]*\]")
 
 
 def _plain_text_len(markup: str) -> int:
-    return len(_RICH_TAG.sub("", markup))
+    return plain_markup_len(markup)
 
 
 class MonitoringHeader(Widget):
@@ -154,12 +162,15 @@ def _progress_bar(current: int, total: int, width: int = 24) -> str:
 
 class MonitoringScreen(Screen):
     BINDINGS = [
-        ("m", "menu", "Menu"),
-        ("g", "fetch_now", "Fetch now"),
+        Binding("m", "menu", "Menu"),
+        Binding("g", "fetch_now", "Fetch now"),
+        Binding("c", "toggle_columns", "Columns", show=False),
     ]
 
     def __init__(self) -> None:
         super().__init__()
+        self._display_columns = 1
+        self._cached_max_columns = 1
         self._worker_task: asyncio.Task | None = None
         self._stop_event = asyncio.Event()
         self._errors: list[str] = []
@@ -202,7 +213,19 @@ class MonitoringScreen(Screen):
             id="monitor-scroll",
             can_focus=False,
         )
-        yield Footer()
+        yield Static("", id="monitor-footer")
+
+    def _footer_text(self) -> str:
+        parts = ["[dim]m[/] Menu", "[dim]g[/] Fetch now"]
+        if self._cached_max_columns >= 2:
+            parts.append("[dim]c[/] Columns")
+        return "  ".join(parts)
+
+    def _refresh_footer(self) -> None:
+        try:
+            self.query_one("#monitor-footer", Static).update(self._footer_text())
+        except Exception:  # noqa: BLE001
+            pass
 
     def _visible_devices(self) -> list[tuple[str, str]]:
         return filter_devices(
@@ -242,6 +265,7 @@ class MonitoringScreen(Screen):
             )
         self.set_interval(0.12, self._animate_spinner, name="fetch-spinner")
         self.set_interval(1.0, self._tick_header, name="header-status")
+        self.call_after_refresh(self.refresh_display)
 
     def on_screen_resume(self) -> None:
         """Re-entering monitoring after Manage Devices — reload names and refresh."""
@@ -369,6 +393,39 @@ class MonitoringScreen(Screen):
 
     def action_menu(self) -> None:
         self.app.pop_or_main_menu()
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "toggle_columns":
+            return True
+        return super().check_action(action, parameters)
+
+    def _content_area_width(self) -> int | None:
+        """Usable body width; None until the scroll area has been laid out."""
+        try:
+            scroll = self.query_one("#monitor-scroll")
+            if scroll.size.width > 0:
+                return scroll.size.width
+            body = self.query_one("#monitor-body", Static)
+            if body.size.width > 0:
+                return body.size.width
+        except Exception:  # noqa: BLE001
+            pass
+        if self.size.width > 0:
+            return max(40, self.size.width - 4)
+        return None
+
+    def _clamp_display_columns(self) -> None:
+        if self._cached_max_columns < 2:
+            self._display_columns = 1
+        elif self._display_columns > self._cached_max_columns:
+            self._display_columns = self._cached_max_columns
+
+    def action_toggle_columns(self) -> None:
+        if self._cached_max_columns < 2:
+            self._display_columns = 1
+            return
+        self._display_columns = (self._display_columns % self._cached_max_columns) + 1
+        self.refresh_display()
 
     def _begin_fetch_ui(self, macs: frozenset[str]) -> None:
         """Show fetching state immediately (before BLE work starts)."""
@@ -603,7 +660,6 @@ class MonitoringScreen(Screen):
         if not self.is_mounted:
             return
         body = self.query_one("#monitor-body", Static)
-        width = max(40, self.app.size.width - 4)
 
         if not self.app.config.devices:
             body.update("[dim]No devices configured.[/]")
@@ -613,15 +669,27 @@ class MonitoringScreen(Screen):
                 filt = getattr(self.app, "device_filter", None) or ""
                 body.update(f"[dim]No devices match filter '{filt}'.[/]")
             else:
-                blocks: list[str] = []
-                for mac, name in visible:
-                    blocks.extend(self._device_block(mac, name, width))
-                    blocks.append("")
-                body.update("\n".join(blocks).rstrip())
+                blocks = [self._device_block(mac, name) for mac, name in visible]
+                column_width = measure_blocks_column_width(blocks)
+                area_width = self._content_area_width()
+                if area_width is not None:
+                    self._cached_max_columns = max_columns_for_width(
+                        area_width,
+                        column_width,
+                    )
+                self._clamp_display_columns()
+                body.update(
+                    layout_device_blocks(
+                        blocks,
+                        column_width=column_width,
+                        columns=self._display_columns,
+                    )
+                )
 
         self._refresh_header()
+        self._refresh_footer()
 
-    def _device_block(self, mac: str, name: str, width: int) -> list[str]:
+    def _device_block(self, mac: str, name: str) -> list[str]:
         is_active = mac in self._active_macs and self._fetch_in_progress()
         updated_dt = self.app.history.last_updated(mac)
         stale = is_measurement_stale(updated_dt)
