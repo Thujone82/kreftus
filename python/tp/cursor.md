@@ -81,7 +81,7 @@ Append after each fetch cycle (including partial retry cycles). UTF-8, `\n` line
 | Screen | Keys | Purpose |
 |--------|------|---------|
 | Main | 1–4, q | Route to sub-screens; q exits |
-| Monitoring | M/Esc, G, C, q | Dashboard; G = full fetch; C = cycle columns when wide enough; header = status left, 🌡 TemPy center, clock right |
+| Monitoring | M/Esc, G, 1–9/0, C, q | Dashboard; G = full fetch; digit keys = device info; C = cycle columns when wide enough; header = status left, 🌡 TemPy center, clock right |
 | Devices | D, A, I, E, R, W, S, ↑/↓, M, q | Discover/add/status/edit/remove/reorder |
 | Options | L, B, D, F, M, q | Logging toggle, debug log toggle, path edits |
 
@@ -93,7 +93,9 @@ Append after each fetch cycle (including partial retry cycles). UTF-8, `\n` line
 4. Humidity stats: `cur` / `min` / `max` (all color-banded; dim when stale)
 5. Humidity sparkline: 24 glyphs
 
-Blank line between single-column device blocks; multi-column rows are separated by a blank line. Header shows status (DEBUG, filter, next poll / polling off, fetch progress) left, **🌡 TemPy** (center when room), clock (right). Footer shows `m` / `g` / `c` Columns (when terminal width supports 2+ columns).
+Blank line between single-column device blocks; multi-column rows are separated by a blank line. Header shows status (DEBUG, filter, next poll / polling off, fetch progress) left, **🌡 TemPy** (center when room), clock (right). Footer shows `m` / `g` / `1-x info` (first 10 visible devices; `0` = 10th) / `c` Columns (when terminal width supports 2+ columns).
+
+**Device info from monitoring:** Keys **1**–**9** and **0** open `DeviceStatusModal` for the corresponding visible device (respects `-f` filter). **Q** dismisses the modal back to monitoring (same as Manage Devices **I** status).
 
 **Multi-column layout (`helpers.py` + `monitoring.py`):** Default 1 column. When `area_width // (block_width + 4) ≥ 2`, footer offers **c Columns** and **C** cycles `1 … max`. Row-major order. `block_width` = max plain-text line width across visible devices; 2-char pad each side per column. View filter affects visible devices only; polling always targets all managed devices.
 
@@ -172,7 +174,7 @@ Sparkline glyph **color** = band at bin average. Glyph **height** = normalized t
 | `tp/ui/devices.py` | Device management + status modal |
 | `tp/ui/device_status.py` | Status/sparkline formatting |
 | `tp/ui/options.py` | Logging options |
-| `tp/ui/helpers.py` | Label/stats formatting, multi-column layout (`layout_device_blocks`, `max_columns_for_width`, …) |
+| `tp/ui/helpers.py` | Label/stats formatting, multi-column layout, info hotkey helpers |
 | `build.ps1` | Windows build script — see **Build** section below |
 | `prepare_icon.py` | ICO prep/reapply helper used by `build.ps1` |
 

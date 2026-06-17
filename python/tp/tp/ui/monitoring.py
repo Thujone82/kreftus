@@ -8,6 +8,7 @@ from datetime import datetime
 
 from textual import work
 from textual.binding import Binding
+from textual.events import Key
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
 from textual.screen import Screen
@@ -30,9 +31,12 @@ from tp.scheduler import (
 )
 from tp.sparkline import build_sparkline, colored_sparkline_markup, format_sparkline_row
 from tp.config import filter_devices
+from tp.ui.devices import DeviceStatusModal
 from tp.ui.helpers import (
     format_device_label_row,
     format_stats_row,
+    info_hotkey_footer_label,
+    info_hotkey_index,
     layout_device_blocks,
     max_columns_for_width,
     measure_blocks_column_width,
@@ -217,9 +221,24 @@ class MonitoringScreen(Screen):
 
     def _footer_text(self) -> str:
         parts = ["[dim]m[/] Menu", "[dim]g[/] Fetch now"]
+        info_hint = info_hotkey_footer_label(len(self._visible_devices()))
+        if info_hint:
+            parts.append(info_hint)
         if self._cached_max_columns >= 2:
             parts.append("[dim]c[/] Columns")
         return "  ".join(parts)
+
+    def on_key(self, event: Key) -> None:
+        idx = info_hotkey_index(event.key)
+        if idx is None:
+            return
+        visible = self._visible_devices()
+        if idx >= min(len(visible), 10):
+            return
+        mac, name = visible[idx]
+        event.prevent_default()
+        event.stop()
+        self.app.push_screen(DeviceStatusModal(mac, name))
 
     def _refresh_footer(self) -> None:
         try:

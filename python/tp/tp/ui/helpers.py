@@ -7,6 +7,26 @@ from collections.abc import Callable
 
 _RICH_TAG = re.compile(r"\[[^\]]*\]")
 COLUMN_PAD = 2
+INFO_HOTKEYS = "1234567890"
+MAX_INFO_HOTKEYS = 10
+
+
+def info_hotkey_index(key: str) -> int | None:
+    """Map footer digit keys 1–9,0 to zero-based device index (0–9)."""
+    if len(key) != 1 or key not in INFO_HOTKEYS:
+        return None
+    return 9 if key == "0" else int(key) - 1
+
+
+def info_hotkey_footer_label(device_count: int) -> str:
+    """Rich markup for the monitoring footer info hint (1 info / 1-5 info / 1-0 info)."""
+    count = min(device_count, MAX_INFO_HOTKEYS)
+    if count <= 0:
+        return ""
+    if count == 1:
+        return "[dim]1[/] info"
+    high = "0" if count == 10 else str(count)
+    return f"[dim]1-{high}[/] info"
 
 
 def plain_markup_len(markup: str) -> int:

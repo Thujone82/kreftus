@@ -63,6 +63,7 @@ Place `tp.ini` and `tp.log` in the same folder as the launcher. The build script
 | **Q** | Anywhere | Back one level; exit from main menu |
 | **M** / Esc | Sub-screens | Main menu |
 | **G** | Monitoring | Fetch all devices now |
+| **1**–**9**, **0** | Monitoring | Open device info for visible device 1–10 (**Q** closes back to monitoring) |
 | **C** | Monitoring | Cycle column layout (shown only when the terminal is wide enough for 2+ columns) |
 
 ## Main menu
@@ -88,7 +89,7 @@ Each tracked device shows 5 rows:
 
 **Header:** DEBUG / filter / next poll or “Polling off” / fetch progress (left); **🌡 TemPy** centered when room; clock (right).
 
-**Footer:** `m` Menu, `g` Fetch now, and `c` Columns when multi-column layout is available.
+**Footer:** `m` Menu, `g` Fetch now, `1`–`x` info (first 10 visible devices; `x` is `0` when all ten slots are mapped), and `c` Columns when multi-column layout is available.
 
 ### Multi-column layout
 
