@@ -5,7 +5,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
+import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Any
 
 from bleak import BleakClient, BleakScanner
@@ -15,26 +18,108 @@ from bleak.backends.scanner import AdvertisementData
 from tp.config import normalize_mac
 from tp.debug_log import write as debug_write
 from tp.debug_log import write_exception as debug_write_exception
+from tp.history import Reading
 
 UUID_READ = "00010203-0405-0607-0809-0a0b0c0d2b10"
+UUID_WRITE = "00010203-0405-0607-0809-0a0b0c0d2b11"
 
 CONNECT_TIMEOUT = 45.0
-DEVICE_SCAN_TIMEOUT = 10.0
-POST_RESOLVE_DELAY = 1.0
+DEVICE_SCAN_TIMEOUT = 5.0
+DEVICE_SCAN_TIMEOUT_EXTENDED = 10.0
+POST_RESOLVE_DELAY = 0.35
+POST_RESOLVE_DELAY_CACHED = 0.0
 INTER_STRATEGY_DELAY = 2.0
 NOTIFY_TIMEOUT = 30.0
-GATT_SETTLE_DELAY = 2.0
+NOW_SYNC_NOTIFY_TIMEOUT = 10.0
+NOW_PASSIVE_NOTIFY_TIMEOUT = NOTIFY_TIMEOUT
+GATT_SETTLE_DELAY = 1.0
 GATT_DISCOVERY_RETRIES = 8
 READ_RETRIES = 3
 READ_RETRY_DELAY = 3.0
+RESOLVE_CACHE_TTL = 120.0
 
 DEVICE_READ_TIMEOUT = 60.0
+DAY_READ_TIMEOUT = 180.0
+DAY_STREAM_IDLE_SECONDS = 3.0
+DAY_CMD_RESPONSE_SECONDS = 12.0
 
 NOW_OPCODE = 194
+NOW_READ_CONNECTING = "connecting"
+NOW_READ_SYNC = "sync"
+NOW_READ_PASSIVE = "passive"
+DAY_OPCODE = 0xA7
+DAY_CMD_PRIMARY = bytes([DAY_OPCODE, 0x01, 0x00, 0x7A])
+DAY_CMD_FALLBACK = bytes([DAY_OPCODE, 0x00, 0x00, 0x00, 0x00, 0x7A])
+
+DATETIME_SYNC_OPCODE = 0xA5
+STREAM_MAGIC_PREFIX = b"\xcc\xcc"
+STREAM_MAGIC_SUFFIX = b"\x66\x66"
+DAY_STREAM_RECORD_COUNT = 2880
+DAY_STREAM_CMD_DELAY = 0.2
+DATETIME_SYNC_DELAY = 1.0
+
+DayHistoryProgressCallback = Callable[["DayHistoryProgress"], Awaitable[None] | None]
+NowReadPhaseCallback = Callable[[str], Awaitable[None] | None]
 
 # WinRT / BlueZ adapters handle one active GATT session reliably.
 _ble_session_lock: asyncio.Lock | None = None
 _bleak_log_handler: logging.Handler | None = None
+
+
+@dataclass
+class _DeviceCacheEntry:
+    device: BLEDevice
+    cached_at: float
+    preferred_strategy: str | None = None
+
+
+_device_cache: dict[str, _DeviceCacheEntry] = {}
+
+
+def _cache_mac(address: str) -> str:
+    return normalize_mac(address)
+
+
+def _loop_time() -> float:
+    return time.monotonic()
+
+
+def get_cached_ble_device(address: str) -> BLEDevice | None:
+    """Return a recently resolved BLEDevice, if still within TTL."""
+    entry = _device_cache.get(_cache_mac(address))
+    if entry is None:
+        return None
+    if _loop_time() - entry.cached_at > RESOLVE_CACHE_TTL:
+        _device_cache.pop(_cache_mac(address), None)
+        return None
+    return entry.device
+
+
+def _preferred_strategy_name(address: str) -> str | None:
+    entry = _device_cache.get(_cache_mac(address))
+    if entry is None:
+        return None
+    return entry.preferred_strategy
+
+
+def _remember_ble_device(
+    address: str,
+    device: BLEDevice,
+    *,
+    strategy: str | None = None,
+) -> None:
+    mac = _cache_mac(address)
+    previous = _device_cache.get(mac)
+    preferred = strategy or (previous.preferred_strategy if previous else None)
+    _device_cache[mac] = _DeviceCacheEntry(
+        device=device,
+        cached_at=_loop_time(),
+        preferred_strategy=preferred,
+    )
+
+
+def _invalidate_ble_device_cache(address: str) -> None:
+    _device_cache.pop(_cache_mac(address), None)
 
 
 def _get_ble_session_lock() -> asyncio.Lock:
@@ -72,6 +157,21 @@ def _connect_strategies() -> list[_ConnectStrategy]:
     ]
 
 
+def _connect_strategies_for(address: str | None = None) -> list[_ConnectStrategy]:
+    """Prefer the last successful WinRT strategy for repeat connects."""
+    strategies = _connect_strategies()
+    if not address:
+        return strategies
+    preferred_name = _preferred_strategy_name(address)
+    if not preferred_name:
+        return strategies
+    preferred = next((item for item in strategies if item.name == preferred_name), None)
+    if preferred is None:
+        return strategies
+    rest = [item for item in strategies if item.name != preferred_name]
+    return [preferred, *rest]
+
+
 def configure_bleak_debug_logging(enabled: bool, log_path) -> None:
     """Mirror bleak backend logs into debug.log when troubleshooting."""
     global _bleak_log_handler
@@ -101,6 +201,14 @@ class ScannedDevice:
 class NowReading:
     temp_f: float
     humidity_pct: int
+
+
+@dataclass
+class DayHistoryProgress:
+    phase: str
+    packets: int = 0
+    samples: int = 0
+    message: str = ""
 
 
 def _celsius_to_fahrenheit(celsius: float) -> float:
@@ -134,12 +242,16 @@ def _address_matches(device: BLEDevice, target_mac: str) -> bool:
     return normalize_mac(device.address) == normalize_mac(target_mac)
 
 
-async def _resolve_device(address: str) -> BLEDevice:
+async def _resolve_device(
+    address: str,
+    *,
+    timeout: float = DEVICE_SCAN_TIMEOUT,
+) -> BLEDevice:
     """Find a BLE device record before connecting (required on Windows WinRT)."""
     target = normalize_mac(address)
-    debug_write(f"ble: resolving device {target}")
+    debug_write(f"ble: resolving device {target} (timeout={timeout:.0f}s)")
 
-    device = await BleakScanner.find_device_by_address(target, timeout=DEVICE_SCAN_TIMEOUT)
+    device = await BleakScanner.find_device_by_address(target, timeout=timeout)
     if device is not None:
         debug_write(f"ble: found by address {device.address} name={device.name!r}")
         return device
@@ -147,14 +259,27 @@ async def _resolve_device(address: str) -> BLEDevice:
     debug_write(f"ble: address lookup failed, scanning with filter for {target}")
     device = await BleakScanner.find_device_by_filter(
         lambda d, _adv: _address_matches(d, target),
-        timeout=DEVICE_SCAN_TIMEOUT,
+        timeout=timeout,
     )
     if device is not None:
         debug_write(f"ble: found by filter {device.address} name={device.name!r}")
         return device
 
-    debug_write(f"ble: device not found after scan ({DEVICE_SCAN_TIMEOUT}s)")
+    debug_write(f"ble: device not found after scan ({timeout:.0f}s)")
     raise RuntimeError(f"Device with address {target} was not found")
+
+
+async def prefetch_ble_device(address: str) -> None:
+    """Warm the resolution cache during idle gaps between device reads."""
+    if get_cached_ble_device(address) is not None:
+        debug_write(f"ble: prefetch skip (cached) {_cache_mac(address)}")
+        return
+    try:
+        device = await _resolve_device(address, timeout=DEVICE_SCAN_TIMEOUT)
+        _remember_ble_device(address, device)
+        debug_write(f"ble: prefetch cached {device.address}")
+    except Exception as exc:  # noqa: BLE001
+        debug_write_exception(f"ble: prefetch failed {_cache_mac(address)}", exc)
 
 
 async def scan_devices(timeout: float = 10.0) -> list[ScannedDevice]:
@@ -252,13 +377,170 @@ def _is_transient_ble_error(exc: Exception) -> bool:
     )
 
 
-def _raise_if_past_deadline(deadline: float | None, address: str) -> None:
+def _raise_if_past_deadline(
+    deadline: float | None,
+    address: str,
+    *,
+    label: str = "read",
+    timeout: float = DEVICE_READ_TIMEOUT,
+) -> None:
     if deadline is None:
         return
     if asyncio.get_running_loop().time() >= deadline:
-        raise TimeoutError(
-            f"read_now({address}) timed out ({DEVICE_READ_TIMEOUT:.0f}s per device)"
+        raise TimeoutError(f"{label}({address}) timed out ({timeout:.0f}s)")
+
+
+async def _emit_day_progress(
+    progress: DayHistoryProgressCallback | None,
+    update: DayHistoryProgress,
+) -> None:
+    if progress is None:
+        return
+    maybe = progress(update)
+    if asyncio.iscoroutine(maybe):
+        await maybe
+
+
+async def _emit_now_phase(
+    progress: NowReadPhaseCallback | None,
+    phase: str,
+) -> None:
+    if progress is None:
+        return
+    maybe = progress(phase)
+    if asyncio.iscoroutine(maybe):
+        await maybe
+
+
+def _day_history_t0(now: datetime | None = None) -> datetime:
+    anchor = now or datetime.now()
+    return anchor - timedelta(days=1) + timedelta(minutes=1)
+
+
+def _parse_day_packet(data: list[int], t0: datetime) -> list[Reading]:
+    if len(data) < 4 or data[0] != DAY_OPCODE:
+        return []
+    packet_index = data[1] + data[2] * 256
+    readings: list[Reading] = []
+    for sample_offset in range(5):
+        ofs = 4 + sample_offset * 3
+        if ofs + 2 >= len(data):
+            break
+        temp_raw = data[ofs] + data[ofs + 1] * 256
+        humidity = data[ofs + 2]
+        if temp_raw == 0xFFFF or (data[ofs] == 0xFF and data[ofs + 1] == 0xFF):
+            continue
+        if temp_raw > 1024 or humidity > 100 or humidity == 0xFF:
+            continue
+        minute_index = 5 * (packet_index - 1) + sample_offset
+        readings.append(
+            Reading(
+                timestamp=t0 + timedelta(minutes=minute_index),
+                temp_f=_raw_temp_to_fahrenheit(temp_raw),
+                humidity_pct=int(humidity),
+            )
         )
+    return readings
+
+
+def _parse_day_packets(packets: list[list[int]], *, t0: datetime | None = None) -> list[Reading]:
+    anchor = t0 or _day_history_t0()
+    merged: dict[datetime, Reading] = {}
+    for packet in packets:
+        for reading in _parse_day_packet(packet, anchor):
+            merged[reading.timestamp] = reading
+    return sorted(merged.values(), key=lambda item: item.timestamp)
+
+
+def _make_datetime_sync_cmd(now: datetime | None = None) -> bytes:
+    """TP357S/TP359 datetime handshake (required before stream history)."""
+    anchor = now or datetime.now()
+    payload = bytes(
+        [
+            DATETIME_SYNC_OPCODE,
+            anchor.year % 100,
+            anchor.month,
+            anchor.day,
+            anchor.hour,
+            anchor.minute,
+            anchor.second,
+            anchor.weekday() + 1,
+        ]
+    )
+    return payload + bytes([sum(payload) & 0xFF])
+
+
+def _make_stream_history_cmds(
+    count: int,
+    now: datetime | None = None,
+) -> tuple[bytes, bytes, bytes]:
+    """TP357S/TP359 three-command history request sequence."""
+    anchor = now or datetime.now()
+    lo = count & 0xFF
+    hi = (count >> 8) & 0xFF
+    cmd1 = bytes.fromhex("cccc0201000001046666")
+    cmd2 = bytes.fromhex("cccc04000000046666")
+    body = bytes(
+        [
+            0x01,
+            0x09,
+            0x00,
+            0x00,
+            0x00,
+            anchor.year % 100,
+            anchor.month,
+            anchor.day,
+            anchor.hour,
+            anchor.minute,
+            anchor.second,
+            lo,
+            hi,
+        ]
+    )
+    checksum = sum(body) & 0xFF
+    cmd3 = STREAM_MAGIC_PREFIX + body + bytes([checksum]) + STREAM_MAGIC_SUFFIX
+    return cmd1, cmd2, cmd3
+
+
+def _decode_stream_history_chunks(chunks: list[bytes]) -> list[tuple[float, int]]:
+    """Decode TP357S/TP359 stream chunks into (temp_c, humidity) pairs."""
+    buffer = b"".join(chunks)
+    if not buffer.startswith(STREAM_MAGIC_PREFIX):
+        return []
+    buffer = buffer[2:]
+    if buffer.endswith(STREAM_MAGIC_SUFFIX):
+        buffer = buffer[:-2]
+    if len(buffer) < 6:
+        return []
+    pairs_raw = buffer[5:-1]
+    readings: list[tuple[float, int]] = []
+    for index in range(len(pairs_raw) // 3):
+        raw = pairs_raw[index * 3 : index * 3 + 3]
+        temp_c = int.from_bytes(raw[0:2], "little", signed=True) / 10.0
+        humidity = raw[2]
+        if humidity > 100:
+            continue
+        readings.append((temp_c, int(humidity)))
+    return readings
+
+
+def _stream_history_to_readings(
+    pairs: list[tuple[float, int]],
+    fetch_time: datetime | None = None,
+) -> list[Reading]:
+    """Assign minute timestamps to stream history (most-recent-first input)."""
+    if not pairs:
+        return []
+    anchor = (fetch_time or datetime.now()).replace(second=0, microsecond=0)
+    merged: dict[datetime, Reading] = {}
+    for index, (temp_c, humidity) in enumerate(pairs):
+        timestamp = anchor - timedelta(minutes=index)
+        merged[timestamp] = Reading(
+            timestamp=timestamp,
+            temp_f=round(_celsius_to_fahrenheit(temp_c), 1),
+            humidity_pct=humidity,
+        )
+    return sorted(merged.values(), key=lambda item: item.timestamp)
 
 
 async def _retry_ble(
@@ -310,12 +592,23 @@ def format_ble_error(exc: Exception) -> str:
 def _parse_now_buffer(buffer: list[int]) -> NowReading:
     if len(buffer) < 6:
         raise RuntimeError(f"Incomplete reading from sensor ({len(buffer)} bytes)")
-    temp_raw = buffer[3] + buffer[4] * 256
+    temp_c = int.from_bytes(bytes(buffer[3:5]), "little", signed=True) / 10.0
     humidity = buffer[5]
-    return NowReading(temp_f=_raw_temp_to_fahrenheit(temp_raw), humidity_pct=int(humidity))
+    return NowReading(
+        temp_f=round(_celsius_to_fahrenheit(temp_c), 1),
+        humidity_pct=int(humidity),
+    )
 
 
-async def _read_now_on_client(client: BleakClient, read_char) -> NowReading:
+async def _collect_live_notify(
+    client: BleakClient,
+    read_char,
+    *,
+    trigger: Callable[[], Awaitable[None]] | None = None,
+    timeout: float,
+    label: str,
+) -> list[int]:
+    """Subscribe on the read characteristic and wait for a 0xC2 live packet."""
     loop = asyncio.get_running_loop()
     done = loop.create_future()
     buffer: list[int] = []
@@ -323,27 +616,102 @@ async def _read_now_on_client(client: BleakClient, read_char) -> NowReading:
     def handler(_handle: int, data: bytearray) -> None:
         if not data:
             return
-        debug_write(f"ble: notify {data.hex()}")
+        debug_write(f"ble: notify ({label}) {data.hex()}")
         if data[0] == NOW_OPCODE:
+            buffer.clear()
             buffer.extend(data)
             if not done.done():
                 done.set_result(None)
 
-    debug_write("ble: starting notify for live reading")
+    debug_write(f"ble: starting notify for live reading ({label})")
     await client.start_notify(read_char, handler)
     try:
-        await asyncio.wait_for(done, timeout=NOTIFY_TIMEOUT)
+        if trigger is not None:
+            await trigger()
+        await asyncio.wait_for(done, timeout=timeout)
     finally:
         await client.stop_notify(read_char)
+    return buffer
+
+
+async def _read_now_passive_on_client(
+    client: BleakClient,
+    read_char,
+    *,
+    progress: NowReadPhaseCallback | None = None,
+) -> NowReading:
+    """Legacy passive live read: subscribe and wait for an unsolicited 0xC2 notify."""
+    await _emit_now_phase(progress, NOW_READ_PASSIVE)
+    buffer = await _collect_live_notify(
+        client,
+        read_char,
+        timeout=NOW_PASSIVE_NOTIFY_TIMEOUT,
+        label="passive",
+    )
     reading = _parse_now_buffer(buffer)
-    debug_write(f"ble: reading temp={reading.temp_f}F humidity={reading.humidity_pct}%")
+    debug_write(
+        f"ble: reading temp={reading.temp_f}F humidity={reading.humidity_pct}% (passive)"
+    )
     return reading
+
+
+async def _read_now_sync_on_client(
+    client: BleakClient,
+    read_char,
+    write_char,
+    *,
+    progress: NowReadPhaseCallback | None = None,
+) -> NowReading:
+    """Fast live read: datetime sync write prompts an immediate 0xC2 (TP357S/TP359)."""
+    await _emit_now_phase(progress, NOW_READ_SYNC)
+
+    async def trigger() -> None:
+        sync_cmd = _make_datetime_sync_cmd()
+        debug_write(f"ble: live datetime sync {sync_cmd.hex()}")
+        await client.write_gatt_char(write_char, sync_cmd, response=False)
+
+    buffer = await _collect_live_notify(
+        client,
+        read_char,
+        trigger=trigger,
+        timeout=NOW_SYNC_NOTIFY_TIMEOUT,
+        label="sync",
+    )
+    reading = _parse_now_buffer(buffer)
+    debug_write(
+        f"ble: reading temp={reading.temp_f}F humidity={reading.humidity_pct}% (sync)"
+    )
+    return reading
+
+
+async def _read_now_on_client(
+    client: BleakClient,
+    read_char,
+    write_char,
+    *,
+    progress: NowReadPhaseCallback | None = None,
+) -> NowReading:
+    """Try sync-prompted live read first; fall back to passive notify for legacy sensors."""
+    try:
+        return await _read_now_sync_on_client(
+            client,
+            read_char,
+            write_char,
+            progress=progress,
+        )
+    except TimeoutError:
+        debug_write("ble: sync live read timed out; falling back to passive notify")
+    except Exception as exc:  # noqa: BLE001
+        debug_write_exception("ble: sync live read failed; falling back to passive notify", exc)
+    return await _read_now_passive_on_client(client, read_char, progress=progress)
 
 
 async def _connect_and_read(
     address: str,
     device: BLEDevice | None,
     strategy: _ConnectStrategy,
+    *,
+    progress: NowReadPhaseCallback | None = None,
 ) -> NowReading:
     if strategy.use_scanned_device:
         if device is None:
@@ -357,12 +725,28 @@ async def _connect_and_read(
         debug_write(f"ble: connected [{strategy.name}] is_connected={client.is_connected}")
         await _wait_for_gatt_services(client)
         read_char = await _find_characteristic(client, UUID_READ)
-        return await _read_now_on_client(client, read_char)
+        write_char = await _find_characteristic(client, UUID_WRITE)
+        return await _read_now_on_client(client, read_char, write_char, progress=progress)
 
 
 async def _prepare_device(address: str) -> BLEDevice:
-    """Resolve a BLEDevice and pause before connect."""
-    device = await _resolve_device(address)
+    """Resolve a BLEDevice and pause briefly before connect."""
+    cached = get_cached_ble_device(address)
+    if cached is not None:
+        debug_write(f"ble: using cached device {cached.address}")
+        if POST_RESOLVE_DELAY_CACHED:
+            await asyncio.sleep(POST_RESOLVE_DELAY_CACHED)
+        return cached
+
+    try:
+        device = await _resolve_device(address, timeout=DEVICE_SCAN_TIMEOUT)
+    except RuntimeError:
+        debug_write(
+            f"ble: quick scan missed {_cache_mac(address)}; "
+            f"retrying ({DEVICE_SCAN_TIMEOUT_EXTENDED:.0f}s)"
+        )
+        device = await _resolve_device(address, timeout=DEVICE_SCAN_TIMEOUT_EXTENDED)
+    _remember_ble_device(address, device)
     debug_write(
         f"ble: resolved {device.address} name={device.name!r}; "
         f"waiting {POST_RESOLVE_DELAY}s before connect"
@@ -371,19 +755,31 @@ async def _prepare_device(address: str) -> BLEDevice:
     return device
 
 
-async def _read_now_session(address: str, *, deadline: float | None = None) -> NowReading:
-    strategies = _connect_strategies()
+async def _run_now_connect_strategies(
+    address: str,
+    device: BLEDevice | None,
+    *,
+    deadline: float | None,
+    progress: NowReadPhaseCallback | None,
+    allow_reprepare: bool = True,
+) -> NowReading:
+    strategies = _connect_strategies_for(address)
     last_exc: Exception | None = None
-    device: BLEDevice | None = None
-    if strategies[0].use_scanned_device:
-        _raise_if_past_deadline(deadline, address)
-        device = await _prepare_device(address)
+    current_device = device
 
     for index, strategy in enumerate(strategies):
         _raise_if_past_deadline(deadline, address)
         try:
-            connect_device = device if strategy.use_scanned_device else None
-            return await _connect_and_read(address, connect_device, strategy)
+            connect_device = current_device if strategy.use_scanned_device else None
+            reading = await _connect_and_read(
+                address,
+                connect_device,
+                strategy,
+                progress=progress,
+            )
+            if connect_device is not None:
+                _remember_ble_device(address, connect_device, strategy=strategy.name)
+            return reading
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # noqa: BLE001
@@ -393,16 +789,440 @@ async def _read_now_session(address: str, *, deadline: float | None = None) -> N
                 break
             _raise_if_past_deadline(deadline, address)
             await asyncio.sleep(INTER_STRATEGY_DELAY)
+            if not allow_reprepare:
+                break
             next_strategy = strategies[index + 1]
             if next_strategy.use_scanned_device:
-                device = await _prepare_device(address)
+                _invalidate_ble_device_cache(address)
+                await _emit_now_phase(progress, NOW_READ_CONNECTING)
+                current_device = await _prepare_device(address)
+            else:
+                await _emit_now_phase(progress, NOW_READ_CONNECTING)
 
     if last_exc is not None:
         raise last_exc
     raise RuntimeError(f"read_now({address}) failed")
 
 
-async def read_now(address: str) -> NowReading:
+async def _read_now_session(
+    address: str,
+    *,
+    deadline: float | None = None,
+    progress: NowReadPhaseCallback | None = None,
+) -> NowReading:
+    await _emit_now_phase(progress, NOW_READ_CONNECTING)
+
+    cached = get_cached_ble_device(address)
+    if cached is not None:
+        try:
+            return await _run_now_connect_strategies(
+                address,
+                cached,
+                deadline=deadline,
+                progress=progress,
+                allow_reprepare=False,
+            )
+        except Exception as exc:  # noqa: BLE001
+            if not _is_transient_ble_error(exc):
+                raise
+            debug_write(f"ble: cached device connect failed for {address}; re-resolving")
+            _invalidate_ble_device_cache(address)
+
+    strategies = _connect_strategies_for(address)
+    device: BLEDevice | None = None
+    if strategies[0].use_scanned_device:
+        _raise_if_past_deadline(deadline, address)
+        device = await _prepare_device(address)
+
+    return await _run_now_connect_strategies(
+        address,
+        device,
+        deadline=deadline,
+        progress=progress,
+    )
+
+
+async def _read_day_stream_on_client(
+    client: BleakClient,
+    read_char,
+    write_char,
+    *,
+    progress: DayHistoryProgressCallback | None = None,
+    deadline: float | None = None,
+    address: str = "",
+) -> list[Reading]:
+    """Read day history via TP357S/TP359 stream protocol (pytp357s-compatible)."""
+    loop = asyncio.get_running_loop()
+    stream_done = loop.create_future()
+    chunks: list[bytes] = []
+
+    def maybe_finish() -> None:
+        if chunks and not stream_done.done():
+            stream_done.set_result(None)
+
+    def handler(_handle: int, data: bytearray) -> None:
+        if not data:
+            return
+        packet = bytes(data)
+        debug_write(f"ble: day stream notify {packet.hex()}")
+        if packet.startswith(STREAM_MAGIC_PREFIX):
+            chunks.clear()
+            chunks.append(packet)
+        elif chunks:
+            chunks.append(packet)
+        if chunks and chunks[-1].endswith(STREAM_MAGIC_SUFFIX):
+            maybe_finish()
+
+    await _emit_day_progress(
+        progress,
+        DayHistoryProgress(phase="receiving", message="Syncing device clock…"),
+    )
+    sync_cmd = _make_datetime_sync_cmd()
+    debug_write(f"ble: day stream datetime sync {sync_cmd.hex()}")
+    await client.write_gatt_char(write_char, sync_cmd, response=False)
+    await asyncio.sleep(DATETIME_SYNC_DELAY)
+
+    await client.start_notify(read_char, handler)
+    try:
+        history_cmds = _make_stream_history_cmds(DAY_STREAM_RECORD_COUNT)
+        await _emit_day_progress(
+            progress,
+            DayHistoryProgress(
+                phase="receiving",
+                message=f"Requesting up to {DAY_STREAM_RECORD_COUNT} records…",
+            ),
+        )
+        for cmd_index, cmd in enumerate(history_cmds):
+            debug_write(f"ble: day stream write cmd[{cmd_index}] {cmd.hex()}")
+            await client.write_gatt_char(write_char, cmd, response=False)
+            if cmd_index + 1 < len(history_cmds):
+                await asyncio.sleep(DAY_STREAM_CMD_DELAY)
+
+        while not stream_done.done():
+            _raise_if_past_deadline(
+                deadline,
+                address,
+                label="read_day_history",
+                timeout=DAY_READ_TIMEOUT,
+            )
+            decoded = _decode_stream_history_chunks(chunks)
+            await _emit_day_progress(
+                progress,
+                DayHistoryProgress(
+                    phase="receiving",
+                    packets=len(chunks),
+                    samples=len(decoded),
+                    message=f"Receiving history ({len(decoded)} samples)",
+                ),
+            )
+            try:
+                await asyncio.wait_for(asyncio.shield(stream_done), timeout=0.25)
+                break
+            except TimeoutError:
+                continue
+    finally:
+        await client.stop_notify(read_char)
+
+    fetch_time = datetime.now().replace(second=0, microsecond=0)
+    pairs = _decode_stream_history_chunks(chunks)
+    readings = _stream_history_to_readings(pairs, fetch_time)
+    debug_write(
+        f"ble: day stream decoded {len(readings)} sample(s) from {len(chunks)} chunk(s)"
+    )
+    return readings
+
+
+async def _read_day_legacy_on_client(
+    client: BleakClient,
+    read_char,
+    write_char,
+    *,
+    progress: DayHistoryProgressCallback | None = None,
+    deadline: float | None = None,
+    address: str = "",
+) -> list[list[int]]:
+    loop = asyncio.get_running_loop()
+    stream_done = loop.create_future()
+    packets: list[list[int]] = []
+    last_packet_at = loop.time()
+
+    def maybe_finish() -> None:
+        if packets and not stream_done.done():
+            stream_done.set_result(None)
+
+    def handler(_handle: int, data: bytearray) -> None:
+        nonlocal last_packet_at
+        if not data:
+            return
+        last_packet_at = loop.time()
+        debug_write(f"ble: day notify {data.hex()}")
+        if data[0] == DAY_OPCODE:
+            packets.append(list(data))
+            return
+        if data[0] == NOW_OPCODE:
+            maybe_finish()
+            return
+        if packets:
+            maybe_finish()
+
+    await _emit_day_progress(
+        progress,
+        DayHistoryProgress(phase="receiving", message="Requesting 24H history…"),
+    )
+    await client.start_notify(read_char, handler)
+    await asyncio.sleep(GATT_SETTLE_DELAY)
+    try:
+        for cmd_index, day_cmd in enumerate((DAY_CMD_PRIMARY, DAY_CMD_FALLBACK)):
+            packets.clear()
+            stream_done = loop.create_future()
+            cmd_started_at = loop.time()
+            last_packet_at = cmd_started_at
+            debug_write(f"ble: day write cmd[{cmd_index}] {day_cmd.hex()}")
+            await client.write_gatt_char(write_char, day_cmd, response=False)
+            while not stream_done.done():
+                _raise_if_past_deadline(
+                    deadline,
+                    address,
+                    label="read_day_history",
+                    timeout=DAY_READ_TIMEOUT,
+                )
+                if (
+                    not packets
+                    and loop.time() - cmd_started_at >= DAY_CMD_RESPONSE_SECONDS
+                ):
+                    debug_write(
+                        f"ble: day cmd[{cmd_index}] no packets after "
+                        f"{DAY_CMD_RESPONSE_SECONDS:.0f}s"
+                    )
+                    break
+                if packets and loop.time() - last_packet_at >= DAY_STREAM_IDLE_SECONDS:
+                    maybe_finish()
+                parsed = _parse_day_packets(packets)
+                await _emit_day_progress(
+                    progress,
+                    DayHistoryProgress(
+                        phase="receiving",
+                        packets=len(packets),
+                        samples=len(parsed),
+                        message=f"Receiving history ({len(packets)} packets)",
+                    ),
+                )
+                try:
+                    await asyncio.wait_for(asyncio.shield(stream_done), timeout=0.25)
+                    break
+                except TimeoutError:
+                    continue
+            if packets:
+                break
+            debug_write(f"ble: day cmd[{cmd_index}] returned no packets")
+        if not packets:
+            raise RuntimeError("No day-history packets received from sensor")
+    finally:
+        await client.stop_notify(read_char)
+    return packets
+
+
+async def _connect_and_read_day(
+    address: str,
+    device: BLEDevice | None,
+    strategy: _ConnectStrategy,
+    *,
+    progress: DayHistoryProgressCallback | None = None,
+    deadline: float | None = None,
+) -> list[Reading]:
+    if strategy.use_scanned_device:
+        if device is None:
+            raise RuntimeError("Missing BLEDevice for device connect strategy")
+        target: str | BLEDevice = device
+    else:
+        target = normalize_mac(address)
+    target_label = target.address if isinstance(target, BLEDevice) else target
+    debug_write(f"ble: day connect [{strategy.name}] -> {target_label}")
+    async with BleakClient(target, timeout=CONNECT_TIMEOUT, **strategy.client_kwargs) as client:
+        debug_write(f"ble: day connected [{strategy.name}] is_connected={client.is_connected}")
+        await _wait_for_gatt_services(client)
+        read_char = await _find_characteristic(client, UUID_READ)
+        write_char = await _find_characteristic(client, UUID_WRITE)
+        readings = await _read_day_stream_on_client(
+            client,
+            read_char,
+            write_char,
+            progress=progress,
+            deadline=deadline,
+            address=address,
+        )
+        if readings:
+            await _emit_day_progress(
+                progress,
+                DayHistoryProgress(
+                    phase="parsing",
+                    packets=0,
+                    samples=len(readings),
+                    message="History stream complete",
+                ),
+            )
+            return readings
+
+        debug_write("ble: day stream empty; falling back to legacy 0xA7 protocol")
+        packets = await _read_day_legacy_on_client(
+            client,
+            read_char,
+            write_char,
+            progress=progress,
+            deadline=deadline,
+            address=address,
+        )
+        await _emit_day_progress(
+            progress,
+            DayHistoryProgress(
+                phase="parsing",
+                packets=len(packets),
+                message="Parsing legacy history packets…",
+            ),
+        )
+        readings = _parse_day_packets(packets)
+        debug_write(f"ble: day parsed {len(readings)} sample(s) from {len(packets)} packet(s)")
+        return readings
+
+
+async def _read_day_session(
+    address: str,
+    *,
+    progress: DayHistoryProgressCallback | None = None,
+    deadline: float | None = None,
+) -> list[Reading]:
+    await _emit_day_progress(
+        progress,
+        DayHistoryProgress(phase="connecting", message="Connecting to sensor…"),
+    )
+
+    cached = get_cached_ble_device(address)
+    if cached is not None:
+        try:
+            return await _run_day_connect_strategies(
+                address,
+                cached,
+                progress=progress,
+                deadline=deadline,
+                allow_reprepare=False,
+            )
+        except Exception as exc:  # noqa: BLE001
+            if not _is_transient_ble_error(exc):
+                raise
+            debug_write(f"ble: cached day connect failed for {address}; re-resolving")
+            _invalidate_ble_device_cache(address)
+
+    strategies = _connect_strategies_for(address)
+    device: BLEDevice | None = None
+    if strategies[0].use_scanned_device:
+        _raise_if_past_deadline(
+            deadline,
+            address,
+            label="read_day_history",
+            timeout=DAY_READ_TIMEOUT,
+        )
+        device = await _prepare_device(address)
+
+    return await _run_day_connect_strategies(
+        address,
+        device,
+        progress=progress,
+        deadline=deadline,
+    )
+
+
+async def _run_day_connect_strategies(
+    address: str,
+    device: BLEDevice | None,
+    *,
+    progress: DayHistoryProgressCallback | None = None,
+    deadline: float | None = None,
+    allow_reprepare: bool = True,
+) -> list[Reading]:
+    strategies = _connect_strategies_for(address)
+    last_exc: Exception | None = None
+    current_device = device
+
+    for index, strategy in enumerate(strategies):
+        _raise_if_past_deadline(
+            deadline,
+            address,
+            label="read_day_history",
+            timeout=DAY_READ_TIMEOUT,
+        )
+        try:
+            connect_device = current_device if strategy.use_scanned_device else None
+            readings = await _connect_and_read_day(
+                address,
+                connect_device,
+                strategy,
+                progress=progress,
+                deadline=deadline,
+            )
+            if connect_device is not None:
+                _remember_ble_device(address, connect_device, strategy=strategy.name)
+            return readings
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            debug_write_exception(f"ble: day strategy {strategy.name} failed", exc)
+            if not _is_transient_ble_error(exc) or index + 1 >= len(strategies):
+                break
+            _raise_if_past_deadline(
+                deadline,
+                address,
+                label="read_day_history",
+                timeout=DAY_READ_TIMEOUT,
+            )
+            await asyncio.sleep(INTER_STRATEGY_DELAY)
+            if not allow_reprepare:
+                break
+            next_strategy = strategies[index + 1]
+            if next_strategy.use_scanned_device:
+                _invalidate_ble_device_cache(address)
+                current_device = await _prepare_device(address)
+
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError(f"read_day_history({address}) failed")
+
+
+async def read_day_history(
+    address: str,
+    *,
+    progress: DayHistoryProgressCallback | None = None,
+) -> list[Reading]:
+    """Connect and read minute-resolution 24H history from the sensor."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + DAY_READ_TIMEOUT
+    async with _get_ble_session_lock():
+        try:
+            return await asyncio.wait_for(
+                _retry_ble(
+                    lambda: _read_day_session(
+                        address,
+                        progress=progress,
+                        deadline=deadline,
+                    ),
+                    label=f"read_day_history({address})",
+                    deadline=deadline,
+                    address=address,
+                ),
+                timeout=DAY_READ_TIMEOUT,
+            )
+        except TimeoutError:
+            debug_write(
+                f"ble: read_day_history({address}) timed out after {DAY_READ_TIMEOUT:.0f}s"
+            )
+            raise
+
+
+async def read_now(
+    address: str,
+    *,
+    progress: NowReadPhaseCallback | None = None,
+) -> NowReading:
     """Connect and read current temperature/humidity."""
     loop = asyncio.get_running_loop()
     deadline = loop.time() + DEVICE_READ_TIMEOUT
@@ -410,7 +1230,11 @@ async def read_now(address: str) -> NowReading:
         try:
             return await asyncio.wait_for(
                 _retry_ble(
-                    lambda: _read_now_session(address, deadline=deadline),
+                    lambda: _read_now_session(
+                        address,
+                        deadline=deadline,
+                        progress=progress,
+                    ),
                     label=f"read_now({address})",
                     deadline=deadline,
                     address=address,

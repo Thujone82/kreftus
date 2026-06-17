@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import shutil
 import sys
 from datetime import datetime
@@ -106,6 +107,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="View filter: only show devices whose name contains TEXT (case-insensitive)",
     )
+    parser.add_argument(
+        "--history-day",
+        metavar="MAC",
+        default=None,
+        help="Fetch 24H BLE day history for MAC and exit (dev/test)",
+    )
     return parser.parse_args(argv)
 
 
@@ -115,6 +122,44 @@ def main(argv: list[str] | None = None) -> None:
     config = load_config(ini_path)
     if not ini_path.exists():
         save_config(config)
+    if args.history_day:
+        from tp.config import normalize_mac
+        from tp.debug_log import set_debug_enabled
+        from tp.history import DeviceHistory
+        from tp.history_fetch import DayHistoryResult, fetch_day_history_for_device
+
+        if args.debug:
+            set_debug_enabled(config, True)
+
+        mac = normalize_mac(args.history_day)
+        name = config.devices.get(mac, mac)
+
+        async def progress(update) -> None:
+            print(
+                f"{update.phase}: {update.message} "
+                f"(packets={update.packets}, samples={update.samples})"
+            )
+
+        async def run_fetch() -> DayHistoryResult:
+            history = DeviceHistory()
+            return await fetch_day_history_for_device(
+                config,
+                history,
+                mac,
+                name,
+                progress,
+            )
+
+        result = asyncio.run(run_fetch())
+        if result.ok:
+            print(
+                f"Imported {result.imported} sample(s) from {result.sample_count} received "
+                f"({'memory only' if result.memory_only else 'log replaced'})."
+            )
+        else:
+            print(f"Failed: {result.error}")
+            raise SystemExit(1)
+        return
     if args.x:
         if not config.devices:
             print("No managed devices configured.")

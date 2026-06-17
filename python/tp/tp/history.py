@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import csv
+import os
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from pathlib import Path
 
-from tp.config import AppConfig, probe_log_path, resolved_log_path
+from tp.config import AppConfig, normalize_mac, probe_log_path, resolved_log_path
 
 CSV_HEADER = ["timestamp", "device", "temp_f", "humidity_pct", "mac"]
 LOG_TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
 LOG_HISTORY_HOURS = 24
+MIN_DAY_HISTORY_SAMPLES = 100
 
 
 @dataclass
@@ -282,3 +286,187 @@ def append_poll_results_to_log(
     except OSError as exc:
         return f"Cannot write to {log_path}: {exc}"
     return None
+
+
+def _history_window_cutoff(*, hours: float = LOG_HISTORY_HOURS) -> datetime:
+    return datetime.now() - timedelta(hours=hours)
+
+
+def _received_history_window(
+    readings: list[Reading],
+    *,
+    hours: float = LOG_HISTORY_HOURS,
+) -> tuple[list[Reading], datetime, datetime] | None:
+    """Return in-window readings and the inclusive replace span [start, end]."""
+    cutoff = _history_window_cutoff(hours=hours)
+    in_window = [r for r in readings if r.timestamp >= cutoff]
+    if not in_window:
+        return None
+    replace_start = min(r.timestamp for r in in_window)
+    replace_end = max(r.timestamp for r in in_window)
+    return in_window, replace_start, replace_end
+
+
+def replace_device_memory_window(
+    history: DeviceHistory,
+    mac: str,
+    readings: list[Reading],
+    *,
+    hours: float = LOG_HISTORY_HOURS,
+) -> int:
+    """Replace in-memory readings for mac only within the received data span."""
+    window = _received_history_window(readings, hours=hours)
+    if window is None:
+        return 0
+    in_window, replace_start, replace_end = window
+
+    if mac not in history._readings:
+        history._readings[mac] = []
+    cutoff = _history_window_cutoff(hours=hours)
+    kept = [
+        r
+        for r in history.get_readings(mac)
+        if r.timestamp < cutoff
+        or r.timestamp < replace_start
+        or r.timestamp > replace_end
+    ]
+    merged = {r.timestamp: r for r in kept}
+    for reading in in_window:
+        merged[reading.timestamp] = reading
+    history._readings[mac] = sorted(merged.values(), key=lambda item: item.timestamp)
+    if history._readings[mac]:
+        history._last_updated[mac] = history._readings[mac][-1].timestamp
+    else:
+        history._last_updated.pop(mac, None)
+    history.prune_old(mac)
+    history.seed_fetch_status_from_readings(mac)
+    return len(in_window)
+
+
+def replace_device_log_window(
+    config: AppConfig,
+    mac: str,
+    device_name: str,
+    readings: list[Reading],
+    *,
+    hours: float = LOG_HISTORY_HOURS,
+) -> str | None:
+    """Rewrite CSV log, replacing this device's rows only in the received span."""
+    window = _received_history_window(readings, hours=hours)
+    if window is None:
+        return None
+    in_window, replace_start, replace_end = window
+
+    log_path = resolved_log_path(config)
+    _, probe_error = probe_log_path(
+        config.settings.log_directory,
+        config.settings.log_file_name,
+    )
+    if probe_error:
+        return probe_error
+
+    cutoff = _history_window_cutoff(hours=hours)
+    target_mac = normalize_mac(mac)
+    kept_rows: list[list[str]] = []
+    had_header = False
+
+    if log_path.is_file():
+        try:
+            with log_path.open("r", encoding="utf-8", newline="") as handle:
+                reader = csv.DictReader(handle)
+                if reader.fieldnames:
+                    had_header = True
+                for row in reader:
+                    mac_raw = row.get("mac", "")
+                    if not mac_raw:
+                        continue
+                    row_mac = normalize_mac(mac_raw)
+                    ts_raw = row.get("timestamp", "").strip()
+                    try:
+                        timestamp = datetime.strptime(ts_raw, LOG_TIMESTAMP_FORMAT)
+                    except ValueError:
+                        kept_rows.append(
+                            [
+                                ts_raw,
+                                row.get("device", ""),
+                                row.get("temp_f", ""),
+                                row.get("humidity_pct", ""),
+                                mac_raw,
+                            ]
+                        )
+                        continue
+                    if (
+                        row_mac == target_mac
+                        and replace_start <= timestamp <= replace_end
+                    ):
+                        continue
+                    kept_rows.append(
+                        [
+                            timestamp.strftime(LOG_TIMESTAMP_FORMAT),
+                            row.get("device", ""),
+                            row.get("temp_f", ""),
+                            row.get("humidity_pct", ""),
+                            mac_raw,
+                        ]
+                    )
+        except OSError as exc:
+            return f"Cannot read {log_path}: {exc}"
+
+    new_rows = [
+        [
+            reading.timestamp.strftime(LOG_TIMESTAMP_FORMAT),
+            device_name,
+            f"{reading.temp_f:.1f}",
+            reading.humidity_pct,
+            target_mac,
+        ]
+        for reading in sorted(in_window, key=lambda item: item.timestamp)
+    ]
+    combined = kept_rows + new_rows
+    combined.sort(key=lambda row: row[0])
+
+    try:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        fd, temp_name = tempfile.mkstemp(
+            prefix=f"{log_path.name}.",
+            suffix=".tmp",
+            dir=log_path.parent,
+        )
+        os.close(fd)
+        temp_path = Path(temp_name)
+        try:
+            with temp_path.open("w", encoding="utf-8", newline="\n") as handle:
+                writer = csv.writer(handle, lineterminator="\n")
+                writer.writerow(CSV_HEADER)
+                for row in combined:
+                    writer.writerow(row)
+            os.replace(temp_path, log_path)
+        finally:
+            if temp_path.exists():
+                temp_path.unlink(missing_ok=True)
+    except OSError as exc:
+        return f"Cannot write to {log_path}: {exc}"
+
+    if not had_header and not combined:
+        return None
+    return None
+
+
+def apply_day_history(
+    history: DeviceHistory,
+    config: AppConfig,
+    mac: str,
+    device_name: str,
+    readings: list[Reading],
+) -> tuple[int, str | None]:
+    """Merge day-history readings into memory and optionally replace log window."""
+    if len(readings) < MIN_DAY_HISTORY_SAMPLES:
+        return (
+            0,
+            f"Too few samples ({len(readings)}); need at least {MIN_DAY_HISTORY_SAMPLES}.",
+        )
+    imported = replace_device_memory_window(history, mac, readings)
+    log_error: str | None = None
+    if config.settings.logging_enabled:
+        log_error = replace_device_log_window(config, mac, device_name, readings)
+    return imported, log_error

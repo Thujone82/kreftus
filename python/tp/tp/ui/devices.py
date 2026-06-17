@@ -2,20 +2,26 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from textual import work
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
 from textual.screen import ModalScreen, Screen
 from textual.widgets import Header, Input, Label, Static
 
+from tp.ble import DayHistoryProgress
 from tp.config import default_device_name
+from tp.history_fetch import DayHistoryResult, fetch_day_history_for_device
 from tp.ui.device_status import format_device_status
+from tp.ui.history_fetch_status import format_history_fetch_status
 
 _IDLE_FOOTER = (
-    "[dim]D discover · A add · I status · E edit · R remove · "
+    "[dim]D discover · A add · I status · H 24H fetch · E edit · R remove · "
     "W up · S down · M menu[/]"
 )
 _BUSY_FOOTER = "[dim]Please wait — scan in progress[/]"
+_BUSY_HISTORY_FOOTER = "[dim]Please wait — 24H fetch in progress[/]"
 
 
 class NameInputModal(ModalScreen[str | None]):
@@ -51,6 +57,51 @@ class NameInputModal(ModalScreen[str | None]):
     def on_input_submitted(self, _event: Input.Submitted) -> None:
         value = self.query_one("#name-input", Input).value.strip()
         self.dismiss(value or None)
+
+
+class HistoryLoadPromptModal(ModalScreen[bool]):
+    """Ask whether to load 24H BLE history when adding a device."""
+
+    DEFAULT_CSS = """
+    HistoryLoadPromptModal {
+        align: center middle;
+    }
+    #history-prompt-dialog {
+        width: 70;
+        height: auto;
+        border: thick $primary;
+        background: $surface;
+        padding: 1 2;
+    }
+    """
+
+    BINDINGS = [
+        ("y", "choose_yes", "Yes"),
+        ("n", "choose_no", "No"),
+    ]
+
+    def __init__(self, device_name: str) -> None:
+        super().__init__()
+        self.device_name = device_name
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="history-prompt-dialog"):
+            yield Label(f"Load 24H BLE history for {self.device_name}?")
+            yield Static(
+                "[dim]Backfills sparklines from the sensor. "
+                "May take up to a few minutes.[/]",
+                id="history-prompt-body",
+            )
+            yield Static("[dim]Y yes · N no · Q skip[/]", id="history-prompt-hint")
+
+    def action_choose_yes(self) -> None:
+        self.dismiss(True)
+
+    def action_choose_no(self) -> None:
+        self.dismiss(False)
+
+    def action_quit_or_back(self) -> None:
+        self.dismiss(False)
 
 
 class DeviceStatusModal(ModalScreen[None]):
@@ -92,6 +143,92 @@ class DeviceStatusModal(ModalScreen[None]):
         )
 
 
+class DeviceHistoryFetchModal(ModalScreen[None]):
+    """Fetch 24H BLE history for a managed device."""
+
+    DEFAULT_CSS = """
+    DeviceHistoryFetchModal {
+        align: center middle;
+    }
+    #history-fetch-dialog {
+        width: 80;
+        height: auto;
+        max-height: 90%;
+        border: thick $primary;
+        background: $surface;
+        padding: 1 2;
+    }
+    """
+
+    def __init__(self, mac: str, device_name: str) -> None:
+        super().__init__()
+        self.device_mac = mac
+        self.device_name = device_name
+        self._started_at = datetime.now()
+        self._progress: DayHistoryProgress | None = None
+        self._result: DayHistoryResult | None = None
+        self._active = True
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="history-fetch-dialog"):
+            yield VerticalScroll(Static("", id="history-fetch-body"), id="history-fetch-scroll")
+            hint = "[dim]Q to close[/]" if not self._active else "[dim]Fetching — please wait…[/]"
+            yield Static(hint, id="history-fetch-hint")
+
+    def on_mount(self) -> None:
+        self._refresh_body()
+        self._run_fetch()
+
+    def _refresh_body(self) -> None:
+        body = self.query_one("#history-fetch-body", Static)
+        body.update(
+            format_history_fetch_status(
+                self.device_name,
+                self.device_mac,
+                progress=self._progress,
+                result=self._result,
+                started_at=self._started_at,
+            )
+        )
+        hint = self.query_one("#history-fetch-hint", Static)
+        if self._active:
+            hint.update("[dim]Fetching — please wait…[/]")
+        else:
+            hint.update("[dim]Q to close[/]")
+
+    @work
+    async def _run_fetch(self) -> None:
+        async def progress(update: DayHistoryProgress) -> None:
+            self._progress = update
+            self._refresh_body()
+
+        try:
+            result = await fetch_day_history_for_device(
+                self.app.config,
+                self.app.history,
+                self.device_mac,
+                self.device_name,
+                progress,
+            )
+        except Exception as exc:  # noqa: BLE001
+            self._progress = None
+            self._result = DayHistoryResult(ok=False, error=str(exc) or exc.__class__.__name__)
+        else:
+            self._progress = None
+            self._result = result
+            if result.ok:
+                self.app.refresh_monitoring()
+        finally:
+            self._active = False
+            self._refresh_body()
+
+    def action_quit_or_back(self) -> None:
+        if self._active:
+            self.notify("Wait for 24H fetch to complete.", severity="warning", timeout=4)
+            return
+        self.dismiss(None)
+
+
 class DevicesScreen(Screen):
     """Discover and manage TP35x devices."""
 
@@ -101,6 +238,7 @@ class DevicesScreen(Screen):
         ("e", "edit", "Edit"),
         ("r", "remove", "Remove"),
         ("i", "status", "Status"),
+        ("h", "history_fetch", "24H Fetch"),
         ("w", "move_up", "Up"),
         ("s", "move_down", "Down"),
         ("m", "menu", "Menu"),
@@ -111,6 +249,7 @@ class DevicesScreen(Screen):
         self.discovered: list[tuple[str, str]] = []
         self.selected_index = 0
         self._scanning = False
+        self._history_fetching = False
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -135,6 +274,9 @@ class DevicesScreen(Screen):
         self.action_discover()
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if self._history_fetching and action in {"history_fetch", "add"}:
+            self.notify("Busy — 24H fetch in progress", severity="warning", timeout=4)
+            return False
         if not self._scanning:
             return True
         self.notify("Busy — scanning for devices", severity="warning", timeout=4)
@@ -142,7 +284,12 @@ class DevicesScreen(Screen):
 
     def _refresh_footer(self) -> None:
         footer = self.query_one("#devices-footer", Static)
-        footer.update(_BUSY_FOOTER if self._scanning else _IDLE_FOOTER)
+        if self._scanning:
+            footer.update(_BUSY_FOOTER)
+        elif self._history_fetching:
+            footer.update(_BUSY_HISTORY_FOOTER)
+        else:
+            footer.update(_IDLE_FOOTER)
 
     def refresh_view(self) -> None:
         body = self.query_one("#devices-body", Static)
@@ -202,8 +349,29 @@ class DevicesScreen(Screen):
         self.selected_index = len(self.app.config.devices)
         self.refresh_view()
 
+    def _open_history_fetch(self, mac: str, name: str) -> None:
+        def on_close(_result: None) -> None:
+            self._history_fetching = False
+            self._refresh_footer()
+
+        self._history_fetching = True
+        self._refresh_footer()
+        self.app.push_screen(DeviceHistoryFetchModal(mac, name), on_close)
+
+    def _commit_added_device(self, mac: str, name: str, *, load_history: bool) -> None:
+        self.app.config.devices[mac] = name
+        self.app.save_config()
+        self.app.refresh_monitoring(restart_worker=True)
+        self.discovered = [entry for entry in self.discovered if entry[0] != mac]
+        self.selected_index = min(
+            self.selected_index, max(0, len(self._all_entries()) - 1)
+        )
+        self.refresh_view()
+        if load_history:
+            self._open_history_fetch(mac, name)
+
     def action_add(self) -> None:
-        if self._scanning or not self.discovered:
+        if self._scanning or self._history_fetching or not self.discovered:
             return
         base = len(self.app.config.devices)
         offset = self.selected_index - base
@@ -211,24 +379,21 @@ class DevicesScreen(Screen):
             return
         mac, discovered_name = self.discovered[offset]
 
-        def finish(name: str | None) -> None:
+        def finish_name(name: str | None) -> None:
             if not name:
                 return
-            self.app.config.devices[mac] = name
-            self.app.save_config()
-            self.app.refresh_monitoring(restart_worker=True)
-            self.discovered = [entry for entry in self.discovered if entry[0] != mac]
-            self.selected_index = min(
-                self.selected_index, max(0, len(self._all_entries()) - 1)
-            )
-            self.refresh_view()
+
+            def finish_history_prompt(load_history: bool) -> None:
+                self._commit_added_device(mac, name, load_history=load_history)
+
+            self.app.push_screen(HistoryLoadPromptModal(name), finish_history_prompt)
 
         self.app.push_screen(
             NameInputModal(
                 "Device name:",
                 default=default_device_name(mac, bluetooth_name=discovered_name),
             ),
-            finish,
+            finish_name,
         )
 
     def _managed_device_count(self) -> int:
@@ -291,6 +456,16 @@ class DevicesScreen(Screen):
             return
         mac, name = entries[self.selected_index]
         self.app.push_screen(DeviceStatusModal(mac, name))
+
+    def action_history_fetch(self) -> None:
+        if self._scanning or self._history_fetching:
+            return
+        entries = list(self.app.config.devices.items())
+        if self.selected_index >= len(entries):
+            self.notify("Select a managed device for 24H fetch.", severity="warning")
+            return
+        mac, name = entries[self.selected_index]
+        self._open_history_fetch(mac, name)
 
     def action_remove(self) -> None:
         if self._scanning:

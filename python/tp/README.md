@@ -1,5 +1,7 @@
 # TemPy — ThermoPro TP35x Monitor
 
+**Version 1.4.0**
+
 Cross-platform Python TUI (**TemPy**) for ThermoPro TP357/TP358/TP359 Bluetooth hygrometer/thermometer units.
 
 **Author:** Kreft&Cursor
@@ -30,6 +32,7 @@ On first run, `tp.ini` is created beside the launcher (`tp.py`, `tp.exe`, or `tp
 | `-x` | Print one snapshot from saved log/history data and exit (no UI, no BLE) |
 | `-nopoll` / `-np` | Interactive mode without automatic poll scheduling; **G** still fetches manually; reloads the CSV log every 5 minutes for multi-instance viewing |
 | `-f` / `-filter` *TEXT* | View filter — only show devices whose name contains *TEXT* (case-insensitive). Works with interactive mode and `-x`. Polling and manual fetch still run for all managed devices; only the dashboard display is filtered. |
+| `--history-day` *MAC* | Fetch 24H BLE day history for *MAC* and exit (dev/test; no UI) |
 
 Examples:
 
@@ -79,7 +82,7 @@ Place `tp.ini` and `tp.log` in the same folder as the launcher. The build script
 
 Each tracked device shows 5 rows:
 
-1. Device name — **green** if fresh (within 5 minutes), **yellow** if stale; cyan `▶` / `◀` when actively fetching
+1. Device name — **green** if fresh (within 5 minutes), **yellow** if stale. While that device is being fetched, `▶` / `◀` show the BLE step: **cyan** connecting, **green** fast live read (datetime sync), **yellow** passive fallback (legacy sensors)
 2. Temperature cur / min / max (°F) — each value color-banded to match sparkline glyphs
 3. 24-character temperature sparkline (1 hour per glyph)
 4. Humidity cur / min / max (%) — each value color-banded to match sparkline glyphs
@@ -109,8 +112,9 @@ The view filter (`-f`) only affects which devices are shown; column layout appli
 | Key | Action |
 |-----|--------|
 | D | Discover nearby TP35x devices (10 s scan) |
-| A | Add selected discovered device (name prompt starts empty) |
+| A | Add selected discovered device (name prompt, then optional 24H history load) |
 | I | Status — log preload, last fetch, 4H/24H/72H sparklines |
+| H | 24H fetch — pull minute history over BLE; merges only the received timestamp span (preserves older polled/log data outside that range); log rows in the same span replaced only when logging is enabled |
 | E | Rename selected managed device |
 | R | Remove selected managed device |
 | W | Move selected managed device up |
@@ -118,6 +122,20 @@ The view filter (`-f`) only affects which devices are shown; column layout appli
 | ↑/↓ | Change selection |
 | **Q** | Back one level |
 | **M** | Main menu |
+
+## 24H BLE history
+
+TemPy can pull minute-resolution history stored on the sensor over BLE to backfill sparklines without waiting a full day.
+
+| How | Action |
+|-----|--------|
+| Manage Devices **H** | Fetch 24H history for the selected managed device (progress modal) |
+| Add device **A** | After naming, **Y** loads history immediately; **N** or **Q** skips |
+| CLI `--history-day` *MAC* | Headless fetch for testing (no UI) |
+
+**Merge behavior:** Only timestamps covered by the received BLE data are replaced in memory (and in the CSV log when logging is enabled). Older polled or log data outside that span is kept — useful when the sensor has less than 24h on board after a reboot.
+
+**Protocols:** TP358/TP359 and TP357S use the stream protocol (datetime sync + history request). Original TP357 uses the legacy `0xA7` packet stream when the stream protocol returns no data.
 
 ## Options
 
@@ -190,3 +208,15 @@ Temperature and humidity sparklines and cur/min/max values use indoor comfort ba
 - Distant sensors may miss scheduled polls; minute retries and manual **G** fetch help recover them
 - Last-updated time is on the device status screen (**I**), not on the dashboard label row
 - Technical reference for AI assistants: [cursor.md](cursor.md)
+
+## Credits
+
+TemPy’s BLE protocol work builds on [pasky/tp357](https://github.com/pasky/tp357) (`tp357tool.py`), which was a starting point for this project.
+
+## Changelog
+
+- **v1.4.0** — 24H BLE history fetch (**H**, optional on add); TP357S/TP359 stream protocol; partial-span merge; `--history-day` CLI.
+- **v1.3.0** — Multi-column dashboard (**C**); `-np` alias; device freshness label colors; build script improvements.
+- **v1.2.0** — Indoor color bands; `-x` snapshot; `-nopoll`; `-f` filter; 4H/24H/72H status sparklines.
+- **v1.1.0** — Minute retries; stale UI; log preload; launcher-relative paths; `build.ps1`.
+- **v1.0.0** — Initial Textual TUI release.

@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 
+from tp.ble import NOW_READ_CONNECTING, NOW_READ_PASSIVE, NOW_READ_SYNC
+
 _RICH_TAG = re.compile(r"\[[^\]]*\]")
 COLUMN_PAD = 2
 INFO_HOTKEYS = "1234567890"
@@ -134,14 +136,28 @@ def format_stats_row(
     return f"{label:<10}{values}"
 
 
+def _fetch_arrow_color(fetch_step: str | None) -> str:
+    if fetch_step == NOW_READ_SYNC:
+        return "green"
+    if fetch_step == NOW_READ_PASSIVE:
+        return "yellow"
+    return "cyan"
+
+
 def format_device_label_row(
     name: str,
     *,
     stale: bool = False,
     fetching: bool = False,
+    fetch_step: str | None = None,
 ) -> str:
-    """Device name colored by freshness; cyan ▶/◀ when actively fetching."""
-    prefix = "[bold cyan]▶[/] " if fetching else ""
-    suffix = " [bold cyan]◀[/]" if fetching else ""
+    """Device name colored by freshness; fetch arrows show BLE step (connect/sync/passive)."""
+    if fetching:
+        arrow_color = _fetch_arrow_color(fetch_step or NOW_READ_CONNECTING)
+        prefix = f"[bold {arrow_color}]▶[/] "
+        suffix = f" [bold {arrow_color}]◀[/]"
+    else:
+        prefix = ""
+        suffix = ""
     color = "yellow" if stale else "green"
     return f"{prefix}[{color}]{name}[/]{suffix}"

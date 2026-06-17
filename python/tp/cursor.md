@@ -4,7 +4,7 @@
 
 **Author:** Kreft&Cursor  
 **Date:** 2026-06-15  
-**Version:** 1.3.0
+**Version:** 1.4.0
 
 ---
 
@@ -12,7 +12,7 @@
 
 `tp` (**TemPy**) is a cross-platform Python TUI for monitoring ThermoPro TP35x (TP357/TP358/TP359) Bluetooth temperature/humidity sensors. It discovers devices, maintains a managed device list in `tp.ini`, polls readings every 5 minutes on clock-aligned boundaries, retries stale devices every minute within each chunk, displays 24-hour color-coded sparklines, preloads history from CSV, and optionally logs readings to CSV.
 
-Built with **Textual** (UI) and **bleak** (BLE). Live-read protocol logic ported from [pasky/tp357 tp357tool.py](https://github.com/pasky/tp357). **No BLE day-history or bootstrap** — history comes from live polls plus log preload only.
+Built with **Textual** (UI) and **bleak** (BLE). Live reads use the TP35x GATT notify path; **24H BLE day-history** uses the TP357S/TP359 stream protocol (with legacy TP357 `0xA7` fallback). Fetch via **H** on Manage Devices or when adding a device; merges only the received timestamp span so older polled/log data is preserved.
 
 ---
 
@@ -24,8 +24,9 @@ Built with **Textual** (UI) and **bleak** (BLE). Live-read protocol logic ported
 - **Startup fetch skip:** After log preload, fetch only devices stale for the current chunk (skip all if log is fresh)
 - **Sparklines:** 24-bin windows — 4H/24H/72H on device status modal; 24H on dashboard (1 hour per glyph)
 - **CSV logging:** Optional append-only log; 24h preload on mount/resume
+- **24H fetch:** Manage Devices **H** — BLE minute history for selected device; replaces only the received timestamp span in memory/log (older polled/log data outside that span is preserved); CSV last-24h rows for that MAC in the same span replaced only when `LoggingEnabled=true`
 - **Build:** `build.ps1` → `tp.pyz` then `tp.exe`; optional `-upx` — see **Build** section
-- **CLI:** `-debug`, `-x` snapshot, `-nopoll`/`-np`, `-f`/`-filter` device view filter — see **Command line**
+- **CLI:** `-debug`, `-x` snapshot, `-nopoll`/`-np`, `-f`/`-filter` device view filter, `--history-day MAC` — see **Command line**
 
 ---
 
@@ -36,7 +37,15 @@ Built with **Textual** (UI) and **bleak** (BLE). Live-read protocol logic ported
 | `00010203-0405-0607-0809-0a0b0c0d2b11` | Write characteristic |
 | `00010203-0405-0607-0809-0a0b0c0d2b10` | Read/notify characteristic |
 
-**`read_now` only:** Start notify on read char; wait for packet with `data[0] == 194`. Parse temp from bytes 3–4 (raw/10 → °C → °F), humidity from byte 5.
+**`read_now`:** Start notify on read char; wait for packet with `data[0] == 194`. Parse temp from bytes 3–4 (raw/10 → °C → °F), humidity from byte 5.
+
+**`read_day_history`:** Two protocols on the same GATT UUIDs:
+
+1. **TP357S / TP358 / TP359 (stream):** Write datetime sync `0xA5 YY MM DD HH MM SS DOW CS` (checksum = sum of body bytes mod 256), then three `0xCCCC…` commands (session init, offset placeholder, data request with 16-bit LE record count). Collect notify chunks from `cc cc` through trailing `66 66`; each record is 3 bytes (signed LE temp×10, humidity). Timestamps: most-recent = fetch minute, step back 1 minute per record. Reference: [pytp357s PROTOCOL.md](https://github.com/giovannipizzi/pytp357s/blob/main/PROTOCOL.md). Legacy `0xA7` on these models only echoes live `0xC2` readings.
+
+2. **Original TP357 (legacy):** Write `[0xA7, 0x01, 0x00, 0x7A]` (fallback: 6-byte tpy357 variant). Collect packets while `data[0] == 0xA7`; five samples per packet; tpy357 timestamps. Used only when stream protocol returns no data.
+
+Timeout ~180s. Uses `_ble_session_lock`. Minimum 100 valid samples before merge.
 
 **Scan filter:** Device name starts with `TP35`. Uses `BleakScanner.discover(return_adv=True)` (bleak 3.x) for RSSI and `local_name` from `AdvertisementData`.
 
@@ -82,7 +91,7 @@ Append after each fetch cycle (including partial retry cycles). UTF-8, `\n` line
 |--------|------|---------|
 | Main | 1–4, q | Route to sub-screens; q exits |
 | Monitoring | M/Esc, G, 1–9/0, C, q | Dashboard; G = full fetch; digit keys = device info; C = cycle columns when wide enough; header = status left, 🌡 TemPy center, clock right |
-| Devices | D, A, I, E, R, W, S, ↑/↓, M, q | Discover/add/status/edit/remove/reorder |
+| Devices | D, A, I, H, E, R, W, S, ↑/↓, M, q | Discover/add/status/24H fetch/edit/remove/reorder |
 | Options | L, B, D, F, M, q | Logging toggle, debug log toggle, path edits |
 
 **Monitoring layout (per device):**
@@ -100,6 +109,10 @@ Blank line between single-column device blocks; multi-column rows are separated 
 **Multi-column layout (`helpers.py` + `monitoring.py`):** Default 1 column. When `area_width // (block_width + 4) ≥ 2`, footer offers **c Columns** and **C** cycles `1 … max`. Row-major order. `block_width` = max plain-text line width across visible devices; 2-char pad each side per column. View filter affects visible devices only; polling always targets all managed devices.
 
 **Device status modal (I):** Log preload stats, last fetch (with timestamp), memory count, 4H/24H/72H temp and humidity sparklines.
+
+**Add discovered device (A):** Name prompt, then optional **Y/N** prompt to load 24H BLE history (opens the same progress modal as **H**).
+
+**24H history fetch modal (H):** Progress modal while BLE day-history streams; shows phase, packet/sample counts, elapsed time. On success merges only the received timestamp span into memory and optionally rewrites matching CSV rows for that device when logging is enabled. **Q** blocked until complete.
 
 ---
 
@@ -162,8 +175,9 @@ Sparkline glyph **color** = band at bin average. Glyph **height** = normalized t
 |--------|------|
 | `tp.py` | Entry point, `-x` snapshot renderer, CLI argument parsing |
 | `tp/config.py` | INI load/save, `application_dir()`, log path resolution, `filter_devices()` |
-| `tp/ble.py` | bleak scan, `read_now` |
-| `tp/history.py` | In-memory readings, log preload, CSV append, fetch status |
+| `tp/ble.py` | bleak scan, `read_now`, `read_day_history` |
+| `tp/history.py` | In-memory readings, log preload, CSV append, fetch status, day-history merge |
+| `tp/history_fetch.py` | Orchestrate 24H BLE fetch + history merge for UI/CLI |
 | `tp/scheduler.py` | 5-minute boundaries, stale/retry helpers |
 | `tp/sparkline.py` | Multi-window binning, glyphs, Rich markup |
 | `tp/colors.py` | Indoor temp/humidity band colors |
@@ -171,7 +185,8 @@ Sparkline glyph **color** = band at bin average. Glyph **height** = normalized t
 | `tp/ui/app.py` | Textual App root, CSS, startup routing |
 | `tp/ui/menus.py` | Main menu |
 | `tp/ui/monitoring.py` | Dashboard + poll/retry worker |
-| `tp/ui/devices.py` | Device management + status modal |
+| `tp/ui/devices.py` | Device management, add flow, history fetch modal |
+| `tp/ui/history_fetch_status.py` | 24H fetch progress modal formatting |
 | `tp/ui/device_status.py` | Status/sparkline formatting |
 | `tp/ui/options.py` | Logging options |
 | `tp/ui/helpers.py` | Label/stats formatting, multi-column layout, info hotkey helpers |
@@ -351,6 +366,7 @@ python/tp/
     colors.py
     sparkline.py
     history.py
+    history_fetch.py
     scheduler.py
     fetch.py
     ui/
@@ -358,6 +374,7 @@ python/tp/
       menus.py
       monitoring.py
       devices.py
+      history_fetch_status.py
       device_status.py
       options.py
       helpers.py
@@ -367,6 +384,7 @@ python/tp/
 
 ### Changelog
 
+- **v1.4.0** — **24H BLE history fetch** (**H** progress modal; optional **Y/N** when adding a device); TP357S/TP359 stream protocol (`0xA5` datetime sync + `0xCCCC` history commands) with legacy TP357 `0xA7` fallback; partial-span merge preserves polled/log data outside the received window; `--history-day` CLI; unit tests for stream/legacy parsers and log merge.
 - **v1.3.0** — Multi-column monitoring dashboard (**C**); `-np` alias for `-nopoll`; device label freshness colors (no `updated` on row); header fetch device name fix; `build.ps1` builds `tp.pyz` before `tp.exe` with per-artifact completion messages.
 - **v1.2.0** — Indoor temp color bands; cur/min/max stat coloring; CLI `-x` snapshot; `-nopoll`; `-f`/`-filter` device view filter; header layout (status / title / clock); 4H/24H/72H status sparklines; per-device 60s read timeout; BLE connect optimizations.
 - **v1.1.0** — Parallel fetch; minute retries; stale UI (green/yellow); log preload skip on startup; device status 1H/8H/24H sparklines; launcher-relative paths; build.ps1; removed BLE day-history/bootstrap; startup routing and navigation fixes.

@@ -17,7 +17,7 @@ from textual.widgets import Static
 
 from tp.colors import humidity_color, temp_color
 from tp.debug_log import is_enabled as debug_log_enabled
-from tp.ble import format_ble_error
+from tp.ble import NOW_READ_CONNECTING, format_ble_error
 from tp.fetch import START_MARKER, run_fetch_cycle
 from tp.history import PollResult, load_readings_from_log
 from tp.scheduler import (
@@ -196,6 +196,7 @@ class MonitoringScreen(Screen):
         self._is_retry_cycle = False
         self._fetch_macs: frozenset[str] = frozenset()
         self._last_fetch_at: datetime | None = None
+        self._active_fetch_step: str | None = None
         self._fetch_lock: asyncio.Lock | None = None
 
     def _get_fetch_lock(self) -> asyncio.Lock:
@@ -454,6 +455,7 @@ class MonitoringScreen(Screen):
         self._active_macs = set()
         self._active_mac = None
         self._active_name = None
+        self._active_fetch_step = None
         self._fetch_total = len(macs)
         self._fetch_index = 0
         self._is_retry_cycle = False
@@ -572,19 +574,29 @@ class MonitoringScreen(Screen):
                 self.refresh_display()
             await asyncio.sleep(min(1.0, remaining))
 
+    async def _set_now_read_phase(self, mac: str, name: str, phase: str) -> None:
+        self._active_macs = {mac}
+        self._active_mac = mac
+        self._active_name = name
+        self._active_fetch_step = phase
+        self.refresh_display()
+
     async def _set_fetch_status(
         self, index: int, total: int, name: str, mac: str
     ) -> None:
         if name == START_MARKER:
             self._active_macs = set()
+            self._active_fetch_step = None
             self._set_phase(PHASE_FETCHING, index=0, total=total)
         elif name == "Saving results":
             self._active_macs = set()
             self._active_mac = None
             self._active_name = None
+            self._active_fetch_step = None
             self._set_phase(PHASE_COMMIT, index=index, total=total)
         else:
             self._active_macs = {mac} if mac else set()
+            self._active_fetch_step = NOW_READ_CONNECTING
             self._set_phase(
                 PHASE_FETCHING,
                 index=index,
@@ -611,10 +623,12 @@ class MonitoringScreen(Screen):
                 self.app.history,
                 only_macs=only_macs,
                 progress=self._set_fetch_status,
+                on_now_phase=self._set_now_read_phase,
                 on_result=self._on_device_result,
             )
             self._errors = fetch_errors
             self._active_macs = set()
+            self._active_fetch_step = None
             now = datetime.now()
             if only_macs is None:
                 self._chunk_start = floor_to_boundary(now)
@@ -720,6 +734,7 @@ class MonitoringScreen(Screen):
             name,
             stale=stale,
             fetching=is_active,
+            fetch_step=self._active_fetch_step if is_active else None,
         )
 
         temp_points = self.app.history.temp_points(mac)

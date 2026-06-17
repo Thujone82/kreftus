@@ -35,6 +35,7 @@ This repository represents a unique approach to software development that levera
 - **[BTC v2.2](psbtc/)** - CLI version of BTC Track, a PowerShell script for Bitcoin price tracking and portfolio monitoring with real-time data, historical metrics, profit/loss calculation, and CSV logging
 
 ### Weather & Utility Tools
+- **[TemPy v1.4](tp/)** — Cross-platform Python TUI for ThermoPro TP357/TP358/TP359 Bluetooth hygrometers. Live 24h sparklines, scheduled BLE polling, **24H history fetch** from on-sensor memory (**H** or optional when adding a device), device management, and CSV logging. [README](python/tp/README.md)
 - **[GetForecast](gf/)** - PowerShell script for detailed weather information using National Weather Service API. Features geocoding, temperature trends, wind gusts, interactive display modes, and NOAA tide station integration. No API registration required
 - **[GetWeather CLI](gw/)** - Command-line utility for retrieving weather information using OpenWeatherMap API. Available as PowerShell script and native Go application. Note: Superseded by GetForecast
 - **[rc (Run Continuously) v1.4](rc/)** - Command execution scheduler with precision timing, period suffixes (s/m/h), skip mode, limit mode, silent mode, and clear mode. Available in native Go and PowerShell versions

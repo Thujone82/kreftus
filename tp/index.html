@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="TemPy — cross-platform Python TUI for ThermoPro TP357/TP358/TP359 Bluetooth hygrometers. Live 24h sparklines, scheduled BLE polling, device management, and CSV logging.">
-    <title>tp - TemPy</title>
+    <meta name="description" content="TemPy v1.4 — cross-platform Python TUI for ThermoPro TP357/TP358/TP359 Bluetooth hygrometers. Live 24h sparklines, 24H BLE history fetch, scheduled polling, device management, and CSV logging.">
+    <title>TemPy v1.4 — tp</title>
     <link rel="canonical" href="https://kreft.us/tp/">
-    <meta property="og:title" content="tp - TemPy">
-    <meta property="og:description" content="TemPy — cross-platform Python TUI for ThermoPro TP357/TP358/TP359 Bluetooth hygrometers. Live 24h sparklines, scheduled BLE polling, device management, and CSV logging.">
+    <meta property="og:title" content="TemPy v1.4 — tp">
+    <meta property="og:description" content="TemPy v1.4 — cross-platform Python TUI for ThermoPro TP357/TP358/TP359 Bluetooth hygrometers. Live 24h sparklines, 24H BLE history fetch, scheduled polling, device management, and CSV logging.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://kreft.us/tp/">
     <meta property="og:image" content="https://kreft.us/images/tp.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="tp - TemPy">
-    <meta name="twitter:description" content="TemPy — cross-platform Python TUI for ThermoPro TP357/TP358/TP359 Bluetooth hygrometers. Live 24h sparklines, scheduled BLE polling, device management, and CSV logging.">
+    <meta name="twitter:description" content="TemPy v1.4 — cross-platform Python TUI for ThermoPro TP357/TP358/TP359 Bluetooth hygrometers. Live 24h sparklines, 24H BLE history fetch, scheduled polling, device management, and CSV logging.">
     <meta name="twitter:image" content="https://kreft.us/images/tp.png">
     <style>
         body {
@@ -217,7 +217,7 @@
         <a href="https://github.com/Thujone82/kreftus" target="_blank" rel="noopener noreferrer" class="github-link" title="View on GitHub">
             <img src="../images/github-mark-white.png" alt="GitHub">
         </a>
-        <h1>tp - TemPy</h1>
+        <h1>TemPy v1.4 — tp</h1>
     </header>
 
     <div class="container">
@@ -229,7 +229,7 @@
                     </td>
                     <td class="project-text-cell">
                         <div>
-                            <h2>TemPy v1.3</h2>
+                            <h2>TemPy v1.4</h2>
                             <p>
                                 <b>TemPy</b> is a cross-platform Python terminal UI for ThermoPro TP357/TP358/TP359 Bluetooth hygrometer/thermometer units. It polls sensors over BLE on a 5-minute schedule, shows a live monitoring dashboard with 24-hour temperature and humidity sparklines, and logs readings to CSV. Built with <b>Textual</b> and <b>bleak</b> for Windows and Linux.
                             </p>
@@ -237,6 +237,7 @@
                                 <b>Features:</b>
                             </p>
                             <ul>
+                                <li><b>24H BLE history:</b> Pull minute-level history from the sensor to backfill sparklines — <b>H</b> on Manage Devices, optional <b>Y/N</b> when adding a device, or <code>--history-day</code> on the CLI. Merges only the received time span so older polled/log data is preserved after a sensor reboot.</li>
                                 <li><b>Monitoring dashboard:</b> Five rows per device — name, temp stats, temp sparkline, humidity stats, humidity sparkline — with indoor comfort color bands on values and glyphs.</li>
                                 <li><b>Device management:</b> Discover nearby TP35x units, add/rename/remove/reorder sensors, and open per-device status with 4H/24H/72H history sparklines.</li>
                                 <li><b>Scheduled polling:</b> Fetches on clock boundaries (<code>:00</code>, <code>:05</code>, …) with per-device retries and manual <b>G</b> fetch; sequential reads with a 60 s timeout per sensor.</li>
