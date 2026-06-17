@@ -220,7 +220,9 @@ class MonitoringScreen(Screen):
         yield Static("", id="monitor-footer")
 
     def _footer_text(self) -> str:
-        parts = ["[dim]m[/] Menu", "[dim]g[/] Fetch now"]
+        parts = ["[dim]m[/] Menu"]
+        if not self._fetch_in_progress():
+            parts.append("[dim]g[/] Fetch now")
         info_hint = info_hotkey_footer_label(len(self._visible_devices()))
         if info_hint:
             parts.append(info_hint)
@@ -461,10 +463,12 @@ class MonitoringScreen(Screen):
         if self._fetch_in_progress():
             self.notify("Fetch already in progress.", severity="warning")
             return
+        stale = self._stale_macs()
+        if stale:
+            await self._run_cycle(only_macs=stale)
+            return
         self._chunk_start = floor_to_boundary(datetime.now())
         self._last_retry_at = None
-        macs = frozenset(self.app.config.devices)
-        self._begin_fetch_ui(macs)
         await self._run_cycle()
 
     async def _poll_worker(self) -> None:

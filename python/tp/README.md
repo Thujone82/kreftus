@@ -62,7 +62,7 @@ Place `tp.ini` and `tp.log` in the same folder as the launcher. The build script
 |-----|---------|--------|
 | **Q** | Anywhere | Back one level (sub-screens and modals); exit from main menu |
 | **M** | Sub-screens | Main menu |
-| **G** | Monitoring | Fetch all devices now |
+| **G** | Monitoring | Fetch stale devices only; full poll if none are stale |
 | **1**–**9**, **0** | Monitoring | Open device info for visible device 1–10 (**Q** closes back to monitoring) |
 | **C** | Monitoring | Cycle column layout (shown only when the terminal is wide enough for 2+ columns) |
 
@@ -89,7 +89,7 @@ Each tracked device shows 5 rows:
 
 **Header:** DEBUG / filter / next poll or “Polling off” / fetch progress (left); **🌡 TemPy** centered when room; clock (right).
 
-**Footer:** `m` Menu, `g` Fetch now, `1`–`x` info (first 10 visible devices; `x` is `0` when all ten slots are mapped), and `c` Columns when multi-column layout is available.
+**Footer:** `m` Menu, `g` Fetch now (hidden while a fetch is active), `1`–`x` info (first 10 visible devices; `x` is `0` when all ten slots are mapped), and `c` Columns when multi-column layout is available.
 
 ### Multi-column layout
 
@@ -102,7 +102,7 @@ The view filter (`-f`) only affects which devices are shown; column layout appli
 - **Scheduled polls** run on 5-minute clock boundaries (`:00`, `:05`, `:10`, …). Devices are fetched one at a time per cycle (60 s timeout per device). Use `-nopoll` / `-np` to disable BLE scheduling; the dashboard still reloads `tp.log` every 5 minutes so a second viewer can follow a polling instance.
 - **Startup:** Log preload runs first. If every device already has a fresh reading for the current 5-minute chunk, the initial BLE fetch is skipped.
 - **Minute retries:** Devices that miss a poll in the current chunk are retried every 60 seconds until the next boundary.
-- Press **G** to force an immediate full fetch.
+- Press **G** to fetch stale devices for the current chunk, or run a full poll when all devices are fresh.
 
 ## Manage Devices
 
