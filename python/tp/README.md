@@ -60,8 +60,8 @@ Place `tp.ini` and `tp.log` in the same folder as the launcher. The build script
 
 | Key | Context | Action |
 |-----|---------|--------|
-| **Q** | Anywhere | Back one level; exit from main menu |
-| **M** / Esc | Sub-screens | Main menu |
+| **Q** | Anywhere | Back one level (sub-screens and modals); exit from main menu |
+| **M** | Sub-screens | Main menu |
 | **G** | Monitoring | Fetch all devices now |
 | **1**–**9**, **0** | Monitoring | Open device info for visible device 1–10 (**Q** closes back to monitoring) |
 | **C** | Monitoring | Cycle column layout (shown only when the terminal is wide enough for 2+ columns) |
@@ -116,7 +116,8 @@ The view filter (`-f`) only affects which devices are shown; column layout appli
 | W | Move selected managed device up |
 | S | Move selected managed device down |
 | ↑/↓ | Change selection |
-| M / Esc | Main menu |
+| **Q** | Back one level |
+| **M** | Main menu |
 
 ## Options
 
@@ -126,7 +127,8 @@ The view filter (`-f`) only affects which devices are shown; column layout appli
 | B | Toggle session debug log |
 | D | Edit log directory |
 | F | Edit log filename |
-| M / Esc | Main menu |
+| **Q** | Back one level |
+| **M** | Main menu |
 
 Default log path: `tp.log` beside the launcher (when `LogDirectory=.`).
 
