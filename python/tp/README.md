@@ -1,6 +1,6 @@
 # TemPy — ThermoPro TP35x Monitor
 
-**Version 1.4.0**
+**Version 1.5.0**
 
 Cross-platform Python TUI (**TemPy**) for ThermoPro TP357/TP358/TP359 Bluetooth hygrometer/thermometer units.
 
@@ -104,6 +104,7 @@ The view filter (`-f`) only affects which devices are shown; column layout appli
 
 - **Scheduled polls** run on 5-minute clock boundaries (`:00`, `:05`, `:10`, …). Devices are fetched one at a time per cycle (60 s timeout per device). Use `-nopoll` / `-np` to disable BLE scheduling; the dashboard still reloads `tp.log` every 5 minutes so a second viewer can follow a polling instance.
 - **Startup:** Log preload runs first. If every device already has a fresh reading for the current 5-minute chunk, the initial BLE fetch is skipped.
+- **Logging off:** On startup, TemPy automatically pulls 24H history from each sensor over BLE (when sparklines are still empty) so the dashboard fills in without a CSV log. Header shows **24H** while this runs.
 - **Minute retries:** Devices that miss a poll in the current chunk are retried every 60 seconds until the next boundary.
 - Press **G** to fetch stale devices for the current chunk, or run a full poll when all devices are fresh.
 
@@ -206,6 +207,7 @@ Temperature and humidity sparklines and cur/min/max values use indoor comfort ba
 - Sensors must be powered and in range; GATT live reads do not require phone-app pairing
 - Sparkline height reflects trend within the window; glyph color reflects the band at each bin average
 - Distant sensors may miss scheduled polls; minute retries and manual **G** fetch help recover them
+- If Windows reports Bluetooth is off after sleep, TemPy tries to turn the radio off and back on automatically, then retries the read
 - Last-updated time is on the device status screen (**I**), not on the dashboard label row
 - Technical reference for AI assistants: [cursor.md](cursor.md)
 
@@ -215,6 +217,7 @@ TemPy’s BLE protocol work builds on [pasky/tp357](https://github.com/pasky/tp3
 
 ## Changelog
 
+- **v1.5.0** — Faster live reads; colored fetch-step arrows; automatic 24H history on startup when logging is off; Bluetooth auto-recovery when the radio is off; quicker reconnects between polls.
 - **v1.4.0** — 24H BLE history fetch (**H**, optional on add); TP357S/TP359 stream protocol; partial-span merge; `--history-day` CLI.
 - **v1.3.0** — Multi-column dashboard (**C**); `-np` alias; device freshness label colors; build script improvements.
 - **v1.2.0** — Indoor color bands; `-x` snapshot; `-nopoll`; `-f` filter; 4H/24H/72H status sparklines.

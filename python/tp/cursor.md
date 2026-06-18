@@ -4,7 +4,7 @@
 
 **Author:** Kreft&Cursor  
 **Date:** 2026-06-15  
-**Version:** 1.4.0
+**Version:** 1.5.0
 
 ---
 
@@ -19,12 +19,15 @@ Built with **Textual** (UI) and **bleak** (BLE). Live reads use the TP35x GATT n
 ### Key Functionality
 
 - **Startup:** Main menu always on stack; push Monitoring if devices exist, else Manage Devices with auto-scan
-- **Monitoring:** 5 rows per device; green/yellow device name by freshness; sequential BLE fetch (one device at a time, 60 s timeout); optional multi-column layout (**C**)
+- **Monitoring:** 5 rows per device; green/yellow device name by freshness; fetch arrows show BLE step (cyan connect / green sync read / yellow passive); sequential BLE fetch (one device at a time, 60 s timeout); optional multi-column layout (**C**)
 - **Scheduler:** 5-minute grid (`:00`, `:05`, …); minute retries for devices missing the current chunk
 - **Startup fetch skip:** After log preload, fetch only devices stale for the current chunk (skip all if log is fresh)
+- **Sparkline bootstrap:** When `LoggingEnabled=false`, pull 24H BLE history on monitoring mount for devices with sparse sparklines (before live polling)
 - **Sparklines:** 24-bin windows — 4H/24H/72H on device status modal; 24H on dashboard (1 hour per glyph)
 - **CSV logging:** Optional append-only log; 24h preload on mount/resume
 - **24H fetch:** Manage Devices **H** — BLE minute history for selected device; replaces only the received timestamp span in memory/log (older polled/log data outside that span is preserved); CSV last-24h rows for that MAC in the same span replaced only when `LoggingEnabled=true`
+- **BLE recovery:** Auto power-cycle Bluetooth radio when bleak reports `POWERED_OFF` (`ble_radio.py`); 90 s cooldown
+- **BLE connect cache:** 120 s `BLEDevice` resolution cache, preferred WinRT connect strategy, inter-device prefetch (`ble.py`)
 - **Build:** `build.ps1` → `tp.pyz` then `tp.exe`; optional `-upx` — see **Build** section
 - **CLI:** `-debug`, `-x` snapshot, `-nopoll`/`-np`, `-f`/`-filter` device view filter, `--history-day MAC` — see **Command line**
 
@@ -37,7 +40,12 @@ Built with **Textual** (UI) and **bleak** (BLE). Live reads use the TP35x GATT n
 | `00010203-0405-0607-0809-0a0b0c0d2b11` | Write characteristic |
 | `00010203-0405-0607-0809-0a0b0c0d2b10` | Read/notify characteristic |
 
-**`read_now`:** Start notify on read char; wait for packet with `data[0] == 194`. Parse temp from bytes 3–4 (raw/10 → °C → °F), humidity from byte 5.
+**`read_now`:** Two-step live read on the same GATT UUIDs:
+
+1. **Fast path (TP357S/TP358/TP359):** `start_notify` → write datetime sync `0xA5` (same body as history) → wait for `0xC2` (`NOW_OPCODE` 194) within 10 s. Temp: signed LE bytes 3–4, tenths °C → °F; humidity byte 5.
+2. **Passive fallback (legacy TP357):** `start_notify` only → wait for unsolicited `0xC2` within 30 s.
+
+Connect path caches resolved `BLEDevice` for 120 s, prefetches the next device during the 2 s inter-device gap, and retries with extended scan (10 s) after a quick scan (5 s) miss. On `BleakBluetoothNotAvailableReason.POWERED_OFF`, `ble_radio.restart_bluetooth_radio()` toggles the system radio off/on (WinRT on Windows; `rfkill` / `bluetoothctl` on Linux) once per 90 s, then retries.
 
 **`read_day_history`:** Two protocols on the same GATT UUIDs:
 
@@ -96,7 +104,7 @@ Append after each fetch cycle (including partial retry cycles). UTF-8, `\n` line
 
 **Monitoring layout (per device):**
 
-1. Label row: device name — **green** if fresh (≤5 min), **yellow** if stale; cyan `▶` / `◀` when actively fetching
+1. Label row: device name — **green** if fresh (≤5 min), **yellow** if stale; while fetching, `▶` / `◀` show BLE step — **cyan** connecting, **green** sync live read, **yellow** passive fallback
 2. Temp stats: `cur` / `min` / `max` (all color-banded; dim when stale)
 3. Temp sparkline: 24 glyphs, 1 hour per bin (24H window)
 4. Humidity stats: `cur` / `min` / `max` (all color-banded; dim when stale)
@@ -113,6 +121,8 @@ Blank line between single-column device blocks; multi-column rows are separated 
 **Add discovered device (A):** Name prompt, then optional **Y/N** prompt to load 24H BLE history (opens the same progress modal as **H**).
 
 **24H history fetch modal (H):** Progress modal while BLE day-history streams; shows phase, packet/sample counts, elapsed time. On success merges only the received timestamp span into memory and optionally rewrites matching CSV rows for that device when logging is enabled. **Q** blocked until complete.
+
+**Startup sparkline bootstrap (`monitoring.py` + `history_fetch.bootstrap_sparklines_from_ble`):** When `LoggingEnabled=false`, before the poll worker’s first live fetch, sequentially pull 24H BLE history for each device with fewer than 8 populated hourly bins. Header shows **24H** progress; uses same merge rules as **H**. Skipped when logging is on or bins are already filled (e.g. from log preload). Runs once per monitoring mount; also triggered on `-nopoll` mount via background worker.
 
 ---
 
@@ -155,7 +165,7 @@ Sparkline glyph **color** = band at bin average. Glyph **height** = normalized t
 
 **Retry timing:** `next_retry_time()` — 60s after last retry or after cycle end, unless chunk boundary comes first.
 
-**Header states:** DEBUG · filter · next poll / polling off · fetch/retry spinner with active device name · progress bar.
+**Header states:** DEBUG · filter · next poll / polling off · fetch / retry / **24H** (startup bootstrap) / saving spinner with active device name · progress bar.
 
 **`-nopoll` / `-np` mode:** Poll/retry worker disabled; **G** still fetches; `tp.log` reloaded every 5 minutes (`POLL_INTERVAL`).
 
@@ -175,9 +185,10 @@ Sparkline glyph **color** = band at bin average. Glyph **height** = normalized t
 |--------|------|
 | `tp.py` | Entry point, `-x` snapshot renderer, CLI argument parsing |
 | `tp/config.py` | INI load/save, `application_dir()`, log path resolution, `filter_devices()` |
-| `tp/ble.py` | bleak scan, `read_now`, `read_day_history` |
-| `tp/history.py` | In-memory readings, log preload, CSV append, fetch status, day-history merge |
-| `tp/history_fetch.py` | Orchestrate 24H BLE fetch + history merge for UI/CLI |
+| `tp/ble.py` | bleak scan, `read_now`, `read_day_history`, device cache, radio-recovery hooks |
+| `tp/ble_radio.py` | Detect Bluetooth powered off; WinRT/Linux radio power-cycle |
+| `tp/history.py` | In-memory readings, log preload, CSV append, fetch status, day-history merge, sparkline bootstrap gate |
+| `tp/history_fetch.py` | Orchestrate 24H BLE fetch + history merge; startup `bootstrap_sparklines_from_ble` |
 | `tp/scheduler.py` | 5-minute boundaries, stale/retry helpers |
 | `tp/sparkline.py` | Multi-window binning, glyphs, Rich markup |
 | `tp/colors.py` | Indoor temp/humidity band colors |
@@ -367,6 +378,7 @@ python/tp/
     sparkline.py
     history.py
     history_fetch.py
+    ble_radio.py
     scheduler.py
     fetch.py
     ui/
@@ -384,6 +396,7 @@ python/tp/
 
 ### Changelog
 
+- **v1.5.0** — **Fast live read** (datetime sync `0xA5` then `0xC2`, passive fallback); **fetch step arrows** (cyan/green/yellow); **BLE connect cache** + inter-device prefetch; **startup 24H bootstrap** when logging off; **Bluetooth radio auto-restart** on powered-off errors (`ble_radio.py`); unit tests for radio detection and bootstrap gating.
 - **v1.4.0** — **24H BLE history fetch** (**H** progress modal; optional **Y/N** when adding a device); TP357S/TP359 stream protocol (`0xA5` datetime sync + `0xCCCC` history commands) with legacy TP357 `0xA7` fallback; partial-span merge preserves polled/log data outside the received window; `--history-day` CLI; unit tests for stream/legacy parsers and log merge.
 - **v1.3.0** — Multi-column monitoring dashboard (**C**); `-np` alias for `-nopoll`; device label freshness colors (no `updated` on row); header fetch device name fix; `build.ps1` builds `tp.pyz` before `tp.exe` with per-artifact completion messages.
 - **v1.2.0** — Indoor temp color bands; cur/min/max stat coloring; CLI `-x` snapshot; `-nopoll`; `-f`/`-filter` device view filter; header layout (status / title / clock); 4H/24H/72H status sparklines; per-device 60s read timeout; BLE connect optimizations.

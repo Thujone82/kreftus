@@ -18,6 +18,7 @@ from bleak.backends.scanner import AdvertisementData
 from tp.config import normalize_mac
 from tp.debug_log import write as debug_write
 from tp.debug_log import write_exception as debug_write_exception
+from tp.ble_radio import is_bluetooth_powered_off_error, maybe_restart_bluetooth_radio
 from tp.history import Reading
 
 UUID_READ = "00010203-0405-0607-0809-0a0b0c0d2b10"
@@ -242,6 +243,18 @@ def _address_matches(device: BLEDevice, target_mac: str) -> bool:
     return normalize_mac(device.address) == normalize_mac(target_mac)
 
 
+async def _await_with_radio_recovery(operation):
+    """Run a scan operation; power-cycle Bluetooth once if the radio is off."""
+    try:
+        return await operation()
+    except Exception as exc:  # noqa: BLE001
+        if await maybe_restart_bluetooth_radio(exc):
+            _device_cache.clear()
+            debug_write("ble: retrying scan after Bluetooth radio restart")
+            return await operation()
+        raise
+
+
 async def _resolve_device(
     address: str,
     *,
@@ -251,16 +264,23 @@ async def _resolve_device(
     target = normalize_mac(address)
     debug_write(f"ble: resolving device {target} (timeout={timeout:.0f}s)")
 
-    device = await BleakScanner.find_device_by_address(target, timeout=timeout)
+    async def find_by_address() -> BLEDevice | None:
+        return await BleakScanner.find_device_by_address(target, timeout=timeout)
+
+    device = await _await_with_radio_recovery(find_by_address)
     if device is not None:
         debug_write(f"ble: found by address {device.address} name={device.name!r}")
         return device
 
     debug_write(f"ble: address lookup failed, scanning with filter for {target}")
-    device = await BleakScanner.find_device_by_filter(
-        lambda d, _adv: _address_matches(d, target),
-        timeout=timeout,
-    )
+
+    async def find_by_filter() -> BLEDevice | None:
+        return await BleakScanner.find_device_by_filter(
+            lambda d, _adv: _address_matches(d, target),
+            timeout=timeout,
+        )
+
+    device = await _await_with_radio_recovery(find_by_filter)
     if device is not None:
         debug_write(f"ble: found by filter {device.address} name={device.name!r}")
         return device
@@ -284,7 +304,11 @@ async def prefetch_ble_device(address: str) -> None:
 
 async def scan_devices(timeout: float = 10.0) -> list[ScannedDevice]:
     debug_write(f"ble: scan_devices timeout={timeout}s")
-    discovered = await BleakScanner.discover(timeout=timeout, return_adv=True)
+
+    async def discover() -> dict:
+        return await BleakScanner.discover(timeout=timeout, return_adv=True)
+
+    discovered = await _await_with_radio_recovery(discover)
     debug_write(f"ble: scan_devices saw {len(discovered)} advertisement(s)")
     results: list[ScannedDevice] = []
     seen: set[str] = set()
@@ -562,6 +586,12 @@ async def _retry_ble(
         except Exception as exc:  # noqa: BLE001
             last_exc = exc
             debug_write_exception(f"ble: {label} failed", exc)
+            if is_bluetooth_powered_off_error(exc):
+                if await maybe_restart_bluetooth_radio(exc):
+                    _device_cache.clear()
+                    debug_write(f"ble: {label} retrying after Bluetooth radio restart")
+                    _raise_if_past_deadline(deadline, address)
+                    continue
             if attempt + 1 >= attempts or not _is_transient_ble_error(exc):
                 raise
             _raise_if_past_deadline(deadline, address)
@@ -575,6 +605,8 @@ def format_ble_error(exc: Exception) -> str:
     """Human-readable BLE/GATT error for the TUI."""
     if isinstance(exc, TimeoutError):
         return "Read timed out"
+    if is_bluetooth_powered_off_error(exc):
+        return "Bluetooth is off — enable Bluetooth in system settings"
     text = str(exc).strip()
     if "Unreachable" in text:
         return "BLE unreachable (try moving sensor closer or removing it from Windows Bluetooth settings)"
