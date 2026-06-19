@@ -200,6 +200,7 @@ class MonitoringScreen(Screen):
         self._last_fetch_at: datetime | None = None
         self._active_fetch_step: str | None = None
         self._history_bootstrap_done = False
+        self._had_fetch_success = False
         self._fetch_lock: asyncio.Lock | None = None
 
     def _get_fetch_lock(self) -> asyncio.Lock:
@@ -217,6 +218,15 @@ class MonitoringScreen(Screen):
     def _device_activity_in_progress(self) -> bool:
         """True while a device is actively shown as busy on the dashboard."""
         return self._fetch_in_progress()
+
+    def _seed_fetch_success_from_history(self) -> None:
+        """Treat recent successful fetches as proof polling worked before an outage."""
+        if not self.app.config.devices:
+            self._had_fetch_success = False
+            return
+        self._had_fetch_success = any(
+            self.app.history.fetch_status(mac).ok for mac in self.app.config.devices
+        )
 
     def compose(self) -> ComposeResult:
         yield MonitoringHeader(show_clock=True)
@@ -276,6 +286,7 @@ class MonitoringScreen(Screen):
     async def on_mount(self) -> None:
         self.sync_from_config()
         load_readings_from_log(self.app.history, self.app.config)
+        self._seed_fetch_success_from_history()
         self._chunk_start = floor_to_boundary(datetime.now())
         self._note_last_fetch_time()
         if self._poll_scheduling_enabled():
@@ -674,14 +685,17 @@ class MonitoringScreen(Screen):
                 self._begin_fetch_ui(macs)
             self._is_retry_cycle = only_macs is not None
             self._fetch_macs = macs
-            _, fetch_errors = await run_fetch_cycle(
+            batch, fetch_errors = await run_fetch_cycle(
                 self.app.config,
                 self.app.history,
                 only_macs=only_macs,
                 progress=self._set_fetch_status,
                 on_now_phase=self._set_now_read_phase,
                 on_result=self._on_device_result,
+                had_prior_success=self._had_fetch_success,
             )
+            if any(result.reading is not None for result in batch):
+                self._had_fetch_success = True
             self._errors = fetch_errors
             self._active_macs = set()
             self._active_fetch_step = None

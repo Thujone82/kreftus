@@ -144,29 +144,39 @@ async def restart_bluetooth_radio() -> bool:
     return False
 
 
-async def maybe_restart_bluetooth_radio(exc: Exception) -> bool:
-    """Toggle Bluetooth off/on once when the radio is off, with cooldown."""
+async def _restart_bluetooth_with_cooldown(reason: str) -> bool:
+    """Power-cycle Bluetooth if outside cooldown. Returns True when radio is back on."""
     global _last_radio_restart_at
-
-    if not is_bluetooth_powered_off_error(exc):
-        return False
 
     now = time.monotonic()
     if _last_radio_restart_at is not None and now - _last_radio_restart_at < BT_RADIO_RESTART_COOLDOWN:
-        debug_write("ble: radio restart skipped (cooldown)")
+        debug_write(f"ble: radio restart skipped (cooldown, {reason})")
         return False
 
     lock = _get_radio_restart_lock()
     async with lock:
         now = time.monotonic()
         if _last_radio_restart_at is not None and now - _last_radio_restart_at < BT_RADIO_RESTART_COOLDOWN:
-            debug_write("ble: radio restart skipped (cooldown)")
+            debug_write(f"ble: radio restart skipped (cooldown, {reason})")
             return False
         try:
             restarted = await restart_bluetooth_radio()
         except Exception as restart_exc:  # noqa: BLE001
-            debug_write_exception("ble: radio restart failed", restart_exc)
+            debug_write_exception(f"ble: radio restart failed ({reason})", restart_exc)
             return False
         if restarted:
             _last_radio_restart_at = time.monotonic()
+            debug_write(f"ble: radio restart complete ({reason})")
         return restarted
+
+
+async def maybe_restart_bluetooth_radio(exc: Exception) -> bool:
+    """Toggle Bluetooth off/on once when the radio is off, with cooldown."""
+    if not is_bluetooth_powered_off_error(exc):
+        return False
+    return await _restart_bluetooth_with_cooldown("powered off")
+
+
+async def maybe_restart_bluetooth_radio_after_total_failure() -> bool:
+    """Power-cycle Bluetooth when an entire fetch cycle failed but polling worked recently."""
+    return await _restart_bluetooth_with_cooldown("total fetch failure")

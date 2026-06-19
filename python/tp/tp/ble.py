@@ -123,6 +123,11 @@ def _invalidate_ble_device_cache(address: str) -> None:
     _device_cache.pop(_cache_mac(address), None)
 
 
+def clear_ble_device_cache() -> None:
+    """Drop all cached BLEDevice records (e.g. after radio restart)."""
+    _device_cache.clear()
+
+
 def _get_ble_session_lock() -> asyncio.Lock:
     global _ble_session_lock
     if _ble_session_lock is None:

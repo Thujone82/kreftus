@@ -9,11 +9,13 @@ from typing import Awaitable, Callable
 from tp.ble import (
     DEVICE_READ_TIMEOUT,
     NOW_READ_CONNECTING,
+    clear_ble_device_cache,
     format_ble_error,
     inter_device_delay_seconds,
     prefetch_ble_device,
     read_now,
 )
+from tp.ble_radio import maybe_restart_bluetooth_radio_after_total_failure
 from tp.config import AppConfig
 from tp.debug_log import write as debug_write
 from tp.debug_log import write_exception as debug_write_exception
@@ -24,6 +26,24 @@ NowReadPhaseCallback = Callable[[str, str, str], Awaitable[None] | None]
 ResultCallback = Callable[[PollResult], Awaitable[None] | None]
 
 START_MARKER = "__start__"
+
+
+def _whole_fleet_cycle_failed(
+    config: AppConfig,
+    *,
+    only_macs: frozenset[str] | None,
+    total: int,
+    ok: int,
+) -> bool:
+    """True when every device in the cycle failed and the cycle covered the full fleet."""
+    if ok > 0 or total == 0:
+        return False
+    fleet_size = len(config.devices)
+    if fleet_size == 0:
+        return False
+    if only_macs is None:
+        return total == fleet_size
+    return total == fleet_size and len(only_macs) == fleet_size
 
 
 async def _fetch_one_device(
@@ -88,8 +108,59 @@ async def run_fetch_cycle(
     progress: ProgressCallback | None = None,
     on_now_phase: NowReadPhaseCallback | None = None,
     on_result: ResultCallback | None = None,
+    had_prior_success: bool = False,
+    allow_radio_recovery: bool = True,
 ) -> tuple[list[PollResult], list[str]]:
     """Collect live readings from managed devices (all or a subset)."""
+    batch, errors = await _run_fetch_cycle_once(
+        config,
+        history,
+        only_macs=only_macs,
+        progress=progress,
+        on_now_phase=on_now_phase,
+        on_result=on_result,
+    )
+
+    ok = sum(1 for result in batch if result.reading is not None)
+    total = len(batch)
+    if (
+        allow_radio_recovery
+        and had_prior_success
+        and _whole_fleet_cycle_failed(config, only_macs=only_macs, total=total, ok=ok)
+    ):
+        debug_write(
+            f"fetch: entire fleet failed ({ok}/{total}); attempting Bluetooth radio restart",
+            config=config,
+        )
+        if await maybe_restart_bluetooth_radio_after_total_failure():
+            clear_ble_device_cache()
+            batch, errors = await _run_fetch_cycle_once(
+                config,
+                history,
+                only_macs=only_macs,
+                progress=progress,
+                on_now_phase=on_now_phase,
+                on_result=on_result,
+            )
+            retry_ok = sum(1 for result in batch if result.reading is not None)
+            debug_write(
+                f"fetch: post-restart cycle ({retry_ok}/{len(batch)} ok)",
+                config=config,
+            )
+
+    return batch, errors
+
+
+async def _run_fetch_cycle_once(
+    config: AppConfig,
+    history: DeviceHistory,
+    *,
+    only_macs: frozenset[str] | None = None,
+    progress: ProgressCallback | None = None,
+    on_now_phase: NowReadPhaseCallback | None = None,
+    on_result: ResultCallback | None = None,
+) -> tuple[list[PollResult], list[str]]:
+    """Single pass over managed devices (no fleet-failure radio recovery)."""
     devices = [
         (mac, name)
         for mac, name in config.devices.items()
