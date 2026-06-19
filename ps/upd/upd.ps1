@@ -255,7 +255,7 @@ function Invoke-UpdateJob {
         # Ensure local directory exists
         if (-not (Test-Path $local)) {
             Write-Verbose "Creating local directory: $local"
-            New-Item -ItemType Directory -Path $local -Force | Out-Null
+            New-Item -ItemType Directory -Path $local -Force -ErrorAction Stop | Out-Null
         }
         
         # Determine if remote is URL or local path
@@ -263,7 +263,7 @@ function Invoke-UpdateJob {
             # Download from URL
             Write-Verbose "Detected URL, downloading from: $remote"
             Write-White "Downloading from: $remote"
-            $response = Invoke-WebRequest -Uri $remote -UseBasicParsing
+            $response = Invoke-WebRequest -Uri $remote -UseBasicParsing -ErrorAction Stop
             $fileName = Split-Path $remote -Leaf
             if ([string]::IsNullOrEmpty($fileName)) {
                 $fileName = "downloaded_file"
@@ -282,11 +282,8 @@ function Invoke-UpdateJob {
                 $localPath = Join-Path $local $fileName
                 Write-Verbose "Copying to: $localPath"
                 
-                # Get file size before copying
-                $fileInfo = Get-Item $remote
-                $bytesTransferred = $fileInfo.Length
-                
-                Copy-Item -Path $remote -Destination $localPath -Force
+                Copy-Item -Path $remote -Destination $localPath -Force -ErrorAction Stop
+                $bytesTransferred = (Get-Item $remote).Length
                 Write-White "Source: $remote"
                 Write-White "Destination: $localPath"
             }
@@ -374,7 +371,17 @@ function Start-SelectedJobs {
         Write-Yellow "Transfer: $sizeStr in $durationStr ($speedStr)"
     }
     
-    Write-Green "Completed: $successCount of $($script:SelectedJobs.Count) jobs successful"
+    $jobCount = $script:SelectedJobs.Count
+    $summary = "Completed: $successCount of $jobCount jobs successful"
+    if ($successCount -eq $jobCount) {
+        Write-Green $summary
+    }
+    elseif ($successCount -gt 0) {
+        Write-Yellow $summary
+    }
+    else {
+        Write-Red $summary
+    }
 }
 
 # Function to validate job names (no spaces or special characters)
