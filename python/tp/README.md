@@ -207,7 +207,7 @@ Temperature and humidity sparklines and cur/min/max values use indoor comfort ba
 - Sensors must be powered and in range; GATT live reads do not require phone-app pairing
 - Sparkline height reflects trend within the window; glyph color reflects the band at each bin average
 - Distant sensors may miss scheduled polls; minute retries and manual **G** fetch help recover them
-- If Windows reports Bluetooth is off after sleep, TemPy tries to turn the radio off and back on automatically, then retries the read
+- If Bluetooth is off, TemPy prompts **Y/N** before enabling it (e.g. after sleep). A whole-fleet poll failure still auto-restarts the adapter without asking
 - Last-updated time is on the device status screen (**I**), not on the dashboard label row
 - Technical reference for AI assistants: [cursor.md](cursor.md)
 

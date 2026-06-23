@@ -14,7 +14,12 @@ from textual.screen import ModalScreen
 from tp.ble import scan_devices
 from tp.config import AppConfig, load_config, save_config
 from tp.debug_log import set_debug_enabled
+from tp.ble_radio import (
+    BluetoothPermissionRequest,
+    set_bluetooth_permission_callback,
+)
 from tp.history import DeviceHistory, load_readings_from_log
+from tp.ui.bluetooth_prompt import BluetoothPermissionModal
 from tp.ui.devices import DevicesScreen
 from tp.ui.menus import MainMenuScreen
 from tp.ui.monitoring import MonitoringScreen
@@ -120,12 +125,22 @@ class TPApp(App):
 
     def on_mount(self) -> None:
         self.console.set_window_title(WINDOW_TITLE)
+        set_bluetooth_permission_callback(self._ask_bluetooth_permission)
         self.push_screen("main")
         if self.config.devices:
             self.push_screen("monitoring")
             self.refresh_monitoring()
         else:
             self.push_screen("devices")
+
+    async def _ask_bluetooth_permission(
+        self,
+        request: BluetoothPermissionRequest,
+    ) -> bool:
+        result = await self.push_screen_wait(
+            BluetoothPermissionModal(request.title, request.body)
+        )
+        return bool(result)
 
     def pop_or_main_menu(self) -> None:
         """Pop a sub-screen, or open main menu if it is the only screen."""
@@ -138,6 +153,9 @@ class TPApp(App):
         """Q: dismiss modal, pop sub-screen, or exit from main menu."""
         screen = self.screen
         if isinstance(screen, ModalScreen):
+            if "action_quit_or_back" in type(screen).__dict__:
+                screen.action_quit_or_back()
+                return
             screen.dismiss(None)
             return
         if isinstance(screen, MainMenuScreen):

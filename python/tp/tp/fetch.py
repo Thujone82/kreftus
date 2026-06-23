@@ -15,7 +15,10 @@ from tp.ble import (
     prefetch_ble_device,
     read_now,
 )
-from tp.ble_radio import maybe_restart_bluetooth_radio_after_total_failure
+from tp.ble_radio import (
+    ensure_bluetooth_enabled_for_polling,
+    maybe_restart_bluetooth_radio_after_total_failure,
+)
 from tp.config import AppConfig
 from tp.debug_log import write as debug_write
 from tp.debug_log import write_exception as debug_write_exception
@@ -176,6 +179,14 @@ async def _run_fetch_cycle_once(
 
     scope = "all" if only_macs is None else f"{len(only_macs)} selected"
     debug_write(f"fetch: cycle start ({total} device(s), {scope})", config=config)
+
+    if not await ensure_bluetooth_enabled_for_polling():
+        message = "Bluetooth is off — enable Bluetooth to poll sensors"
+        debug_write(f"fetch: cycle aborted ({message})", config=config)
+        return [
+            PollResult(mac=mac, device_name=name, reading=None, error=message)
+            for mac, name in devices
+        ], [message]
 
     if progress:
         maybe = progress(0, total, START_MARKER, "")

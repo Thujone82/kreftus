@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 
 from textual import work
@@ -172,7 +173,7 @@ class DeviceHistoryFetchModal(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="history-fetch-dialog"):
             yield VerticalScroll(Static("", id="history-fetch-body"), id="history-fetch-scroll")
-            hint = "[dim]Q to close[/]" if not self._active else "[dim]Fetching — please wait…[/]"
+            hint = "[dim]Q cancel[/]" if self._active else "[dim]Q to close[/]"
             yield Static(hint, id="history-fetch-hint")
 
     def on_mount(self) -> None:
@@ -180,6 +181,8 @@ class DeviceHistoryFetchModal(ModalScreen[None]):
         self._run_fetch()
 
     def _refresh_body(self) -> None:
+        if not self.is_mounted:
+            return
         body = self.query_one("#history-fetch-body", Static)
         body.update(
             format_history_fetch_status(
@@ -192,7 +195,7 @@ class DeviceHistoryFetchModal(ModalScreen[None]):
         )
         hint = self.query_one("#history-fetch-hint", Static)
         if self._active:
-            hint.update("[dim]Fetching — please wait…[/]")
+            hint.update("[dim]Q cancel[/]")
         else:
             hint.update("[dim]Q to close[/]")
 
@@ -200,7 +203,8 @@ class DeviceHistoryFetchModal(ModalScreen[None]):
     async def _run_fetch(self) -> None:
         async def progress(update: DayHistoryProgress) -> None:
             self._progress = update
-            self._refresh_body()
+            if self.is_mounted:
+                self._refresh_body()
 
         try:
             result = await fetch_day_history_for_device(
@@ -210,6 +214,8 @@ class DeviceHistoryFetchModal(ModalScreen[None]):
                 self.device_name,
                 progress,
             )
+        except asyncio.CancelledError:
+            raise
         except Exception as exc:  # noqa: BLE001
             self._progress = None
             self._result = DayHistoryResult(ok=False, error=str(exc) or exc.__class__.__name__)
@@ -220,12 +226,10 @@ class DeviceHistoryFetchModal(ModalScreen[None]):
                 self.app.refresh_monitoring()
         finally:
             self._active = False
-            self._refresh_body()
+            if self.is_mounted:
+                self._refresh_body()
 
     def action_quit_or_back(self) -> None:
-        if self._active:
-            self.notify("Wait for 24H fetch to complete.", severity="warning", timeout=4)
-            return
         self.dismiss(None)
 
 

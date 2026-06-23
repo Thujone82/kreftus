@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import sys
 import time
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 
 from tp.debug_log import write as debug_write
 from tp.debug_log import write_exception as debug_write_exception
@@ -12,9 +14,38 @@ from tp.debug_log import write_exception as debug_write_exception
 BT_RADIO_OFF_SETTLE = 2.0
 BT_RADIO_ON_SETTLE = 4.0
 BT_RADIO_RESTART_COOLDOWN = 90.0
+BT_PERMISSION_DENIED_COOLDOWN = 300.0
 
 _radio_restart_lock: asyncio.Lock | None = None
 _last_radio_restart_at: float | None = None
+_last_permission_denied_at: float | None = None
+_permission_callback: BluetoothPermissionCallback | None = None
+
+
+@dataclass(frozen=True)
+class BluetoothPermissionRequest:
+    title: str
+    body: str
+    action: str
+
+
+BluetoothPermissionCallback = Callable[
+    [BluetoothPermissionRequest], Awaitable[bool] | bool
+]
+
+BT_DISABLED_REQUEST = BluetoothPermissionRequest(
+    title="Bluetooth is turned off",
+    body="Enable Bluetooth so TemPy can discover and poll your sensors?",
+    action="enable",
+)
+
+
+def set_bluetooth_permission_callback(
+    callback: BluetoothPermissionCallback | None,
+) -> None:
+    """Register a UI handler that asks the user before changing Bluetooth state."""
+    global _permission_callback
+    _permission_callback = callback
 
 
 def _get_radio_restart_lock() -> asyncio.Lock:
@@ -51,8 +82,158 @@ def is_bluetooth_powered_off_error(exc: Exception) -> bool:
     )
 
 
-async def _winrt_restart_bluetooth_radio() -> bool:
+async def is_bluetooth_radio_disabled() -> bool:
+    """True when the system Bluetooth radio is currently off."""
+    if sys.platform == "win32":
+        try:
+            from winrt.windows.devices.radios import Radio, RadioKind, RadioState
+
+            radios = await Radio.get_radios_async()
+            bt_radio = next(
+                (radio for radio in radios if radio.kind == RadioKind.BLUETOOTH),
+                None,
+            )
+            if bt_radio is None:
+                return False
+            return bt_radio.state != RadioState.ON
+        except Exception as exc:  # noqa: BLE001
+            debug_write_exception("ble: radio state check failed", exc)
+            return False
+
+    if sys.platform == "linux":
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "bluetoothctl",
+                "show",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            stdout, _stderr = await proc.communicate()
+            if proc.returncode != 0:
+                return False
+            text = stdout.decode("utf-8", errors="ignore").lower()
+            return "powered: no" in text
+        except FileNotFoundError:
+            return False
+        except Exception as exc:  # noqa: BLE001
+            debug_write_exception("ble: radio state check failed", exc)
+            return False
+
+    return False
+
+
+async def _request_bluetooth_permission(
+    request: BluetoothPermissionRequest,
+) -> bool:
+    """Ask the registered UI callback; returns False when declined or unavailable."""
+    global _last_permission_denied_at
+
+    now = time.monotonic()
+    if (
+        _last_permission_denied_at is not None
+        and now - _last_permission_denied_at < BT_PERMISSION_DENIED_COOLDOWN
+    ):
+        debug_write(
+            f"ble: Bluetooth {request.action} skipped (permission recently declined)"
+        )
+        return False
+
+    if _permission_callback is None:
+        debug_write(f"ble: Bluetooth {request.action} skipped (no permission handler)")
+        return False
+
+    maybe = _permission_callback(request)
+    approved = await maybe if asyncio.iscoroutine(maybe) else bool(maybe)
+    if approved:
+        debug_write(f"ble: user approved Bluetooth {request.action}")
+        return True
+
+    _last_permission_denied_at = time.monotonic()
+    debug_write(f"ble: user declined Bluetooth {request.action}")
+    return False
+
+
+async def _winrt_set_bluetooth_enabled(enabled: bool) -> bool:
     from winrt.windows.devices.radios import Radio, RadioAccessStatus, RadioKind, RadioState
+
+    radios = await Radio.get_radios_async()
+    bt_radio = next((radio for radio in radios if radio.kind == RadioKind.BLUETOOTH), None)
+    if bt_radio is None:
+        debug_write("ble: Bluetooth radio not found")
+        return False
+
+    target = RadioState.ON if enabled else RadioState.OFF
+    if bt_radio.state == target:
+        return enabled
+
+    result = await bt_radio.set_state_async(target)
+    if result != RadioAccessStatus.ALLOWED:
+        debug_write(f"ble: set Bluetooth {target.name} denied ({result.name})")
+        return False
+
+    if enabled:
+        await asyncio.sleep(BT_RADIO_ON_SETTLE)
+    else:
+        await asyncio.sleep(BT_RADIO_OFF_SETTLE)
+
+    radios = await Radio.get_radios_async()
+    bt_radio = next((radio for radio in radios if radio.kind == RadioKind.BLUETOOTH), None)
+    ready = bt_radio is not None and bt_radio.state == target
+    debug_write(
+        f"ble: set Bluetooth {target.name} "
+        f"{'ok' if ready else 'failed'} "
+        f"(state={bt_radio.state.name if bt_radio else 'missing'})"
+    )
+    return ready
+
+
+async def _linux_set_bluetooth_enabled(enabled: bool) -> bool:
+    command = "on" if enabled else "off"
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "bluetoothctl",
+            "power",
+            command,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        await proc.wait()
+        if proc.returncode != 0:
+            debug_write(f"ble: bluetoothctl power {command} failed")
+            return False
+        await asyncio.sleep(BT_RADIO_ON_SETTLE if enabled else BT_RADIO_OFF_SETTLE)
+        return not await is_bluetooth_radio_disabled() if enabled else True
+    except FileNotFoundError:
+        if not enabled:
+            return False
+        try:
+            block = await asyncio.create_subprocess_exec(
+                "rfkill",
+                "unblock",
+                "bluetooth",
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await block.wait()
+            await asyncio.sleep(BT_RADIO_ON_SETTLE)
+            return block.returncode == 0
+        except FileNotFoundError:
+            debug_write("ble: enable Bluetooth unsupported on this Linux system")
+            return False
+
+
+async def enable_bluetooth_radio() -> bool:
+    """Turn the Bluetooth radio on."""
+    if sys.platform == "win32":
+        return await _winrt_set_bluetooth_enabled(True)
+    if sys.platform == "linux":
+        return await _linux_set_bluetooth_enabled(True)
+    debug_write("ble: enable Bluetooth unsupported on this platform")
+    return False
+
+
+async def _winrt_restart_bluetooth_radio() -> bool:
+    from winrt.windows.devices.radios import Radio, RadioKind, RadioState
 
     radios = await Radio.get_radios_async()
     bt_radio = next((radio for radio in radios if radio.kind == RadioKind.BLUETOOTH), None)
@@ -63,27 +244,16 @@ async def _winrt_restart_bluetooth_radio() -> bool:
     debug_write(f"ble: radio restart start (state={bt_radio.state.name})")
 
     if bt_radio.state == RadioState.ON:
-        result = await bt_radio.set_state_async(RadioState.OFF)
-        if result != RadioAccessStatus.ALLOWED:
-            debug_write(f"ble: radio power off denied ({result.name})")
+        if not await _winrt_set_bluetooth_enabled(False):
             return False
-        await asyncio.sleep(BT_RADIO_OFF_SETTLE)
-
-    result = await bt_radio.set_state_async(RadioState.ON)
-    if result != RadioAccessStatus.ALLOWED:
-        debug_write(f"ble: radio power on denied ({result.name})")
-        return False
-    await asyncio.sleep(BT_RADIO_ON_SETTLE)
-
-    radios = await Radio.get_radios_async()
-    bt_radio = next((radio for radio in radios if radio.kind == RadioKind.BLUETOOTH), None)
-    ready = bt_radio is not None and bt_radio.state == RadioState.ON
-    debug_write(f"ble: radio restart {'ok' if ready else 'failed'} (state={bt_radio.state.name if bt_radio else 'missing'})")
-    return ready
+    return await _winrt_set_bluetooth_enabled(True)
 
 
 async def _linux_restart_bluetooth_radio() -> bool:
     """Best-effort Bluetooth toggle via rfkill or bluetoothctl."""
+    if await _linux_set_bluetooth_enabled(False):
+        return await _linux_set_bluetooth_enabled(True)
+
     try:
         off = await asyncio.create_subprocess_exec(
             "rfkill",
@@ -109,29 +279,8 @@ async def _linux_restart_bluetooth_radio() -> bool:
     except FileNotFoundError:
         pass
 
-    try:
-        for args in (
-            ("bluetoothctl", "power", "off"),
-            ("bluetoothctl", "power", "on"),
-        ):
-            proc = await asyncio.create_subprocess_exec(
-                *args,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            await proc.wait()
-            if proc.returncode != 0:
-                debug_write(f"ble: radio restart failed ({' '.join(args)})")
-                return False
-            if args[-1] == "off":
-                await asyncio.sleep(BT_RADIO_OFF_SETTLE)
-            else:
-                await asyncio.sleep(BT_RADIO_ON_SETTLE)
-        debug_write("ble: radio restart ok (bluetoothctl)")
-        return True
-    except FileNotFoundError:
-        debug_write("ble: radio restart unsupported on this Linux system")
-        return False
+    debug_write("ble: radio restart unsupported on this Linux system")
+    return False
 
 
 async def restart_bluetooth_radio() -> bool:
@@ -142,6 +291,31 @@ async def restart_bluetooth_radio() -> bool:
         return await _linux_restart_bluetooth_radio()
     debug_write("ble: radio restart unsupported on this platform")
     return False
+
+
+async def _enable_with_cooldown() -> bool:
+    global _last_radio_restart_at
+
+    now = time.monotonic()
+    if _last_radio_restart_at is not None and now - _last_radio_restart_at < BT_RADIO_RESTART_COOLDOWN:
+        debug_write("ble: Bluetooth enable skipped (cooldown)")
+        return False
+
+    lock = _get_radio_restart_lock()
+    async with lock:
+        now = time.monotonic()
+        if _last_radio_restart_at is not None and now - _last_radio_restart_at < BT_RADIO_RESTART_COOLDOWN:
+            debug_write("ble: Bluetooth enable skipped (cooldown)")
+            return False
+        try:
+            enabled = await enable_bluetooth_radio()
+        except Exception as exc:  # noqa: BLE001
+            debug_write_exception("ble: Bluetooth enable failed", exc)
+            return False
+        if enabled:
+            _last_radio_restart_at = time.monotonic()
+            debug_write("ble: Bluetooth enabled")
+        return enabled
 
 
 async def _restart_bluetooth_with_cooldown(reason: str) -> bool:
@@ -170,13 +344,24 @@ async def _restart_bluetooth_with_cooldown(reason: str) -> bool:
         return restarted
 
 
-async def maybe_restart_bluetooth_radio(exc: Exception) -> bool:
-    """Toggle Bluetooth off/on once when the radio is off, with cooldown."""
-    if not is_bluetooth_powered_off_error(exc):
+async def ensure_bluetooth_enabled_for_polling() -> bool:
+    """If Bluetooth is off, ask permission and enable it before BLE work."""
+    if not await is_bluetooth_radio_disabled():
+        return True
+    if not await _request_bluetooth_permission(BT_DISABLED_REQUEST):
         return False
-    return await _restart_bluetooth_with_cooldown("powered off")
+    return await _enable_with_cooldown()
+
+
+async def maybe_restart_bluetooth_radio(exc: Exception) -> bool:
+    """Enable Bluetooth when the radio is off, after user approval."""
+    if not is_bluetooth_powered_off_error(exc) and not await is_bluetooth_radio_disabled():
+        return False
+    if not await _request_bluetooth_permission(BT_DISABLED_REQUEST):
+        return False
+    return await _enable_with_cooldown()
 
 
 async def maybe_restart_bluetooth_radio_after_total_failure() -> bool:
-    """Power-cycle Bluetooth when an entire fetch cycle failed but polling worked recently."""
+    """Power-cycle Bluetooth after fleet-wide failure (no permission prompt)."""
     return await _restart_bluetooth_with_cooldown("total fetch failure")

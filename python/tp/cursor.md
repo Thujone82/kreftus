@@ -26,7 +26,7 @@ Built with **Textual** (UI) and **bleak** (BLE). Live reads use the TP35x GATT n
 - **Sparklines:** 24-bin windows — 4H/24H/72H on device status modal; 24H on dashboard (1 hour per glyph)
 - **CSV logging:** Optional append-only log; 24h preload on mount/resume
 - **24H fetch:** Manage Devices **H** — BLE minute history for selected device; replaces only the received timestamp span in memory/log (older polled/log data outside that span is preserved); CSV last-24h rows for that MAC in the same span replaced only when `LoggingEnabled=true`
-- **BLE recovery:** Auto power-cycle Bluetooth radio when bleak reports `POWERED_OFF` (`ble_radio.py`); 90 s cooldown
+- **BLE recovery:** Prompt before enabling Bluetooth when the radio is off (`ble_radio.py` + `BluetoothPermissionModal`); auto power-cycle after entire fetch cycle fails; 90 s action cooldown, 5 min re-prompt cooldown after decline
 - **BLE connect cache:** 120 s `BLEDevice` resolution cache, preferred WinRT connect strategy, inter-device prefetch (`ble.py`)
 - **Build:** `build.ps1` → `tp.pyz` then `tp.exe`; optional `-upx` — see **Build** section
 - **CLI:** `-debug`, `-x` snapshot, `-nopoll`/`-np`, `-f`/`-filter` device view filter, `--history-day MAC` — see **Command line**
@@ -45,7 +45,7 @@ Built with **Textual** (UI) and **bleak** (BLE). Live reads use the TP35x GATT n
 1. **Fast path (TP357S/TP358/TP359):** `start_notify` → write datetime sync `0xA5` (same body as history) → wait for `0xC2` (`NOW_OPCODE` 194) within 10 s. Temp: signed LE bytes 3–4, tenths °C → °F; humidity byte 5.
 2. **Passive fallback (legacy TP357):** `start_notify` only → wait for unsolicited `0xC2` within 30 s.
 
-Connect path caches resolved `BLEDevice` for 120 s, prefetches the next device during the 2 s inter-device gap, and retries with extended scan (10 s) after a quick scan (5 s) miss. On `BleakBluetoothNotAvailableReason.POWERED_OFF`, `ble_radio.restart_bluetooth_radio()` toggles the system radio off/on (WinRT on Windows; `rfkill` / `bluetoothctl` on Linux) once per 90 s, then retries.
+Connect path caches resolved `BLEDevice` for 120 s, prefetches the next device during the 2 s inter-device gap, and retries with extended scan (10 s) after a quick scan (5 s) miss. When Bluetooth is disabled, `is_bluetooth_radio_disabled()` detects the state and `ensure_bluetooth_enabled_for_polling()` shows `BluetoothPermissionModal` (Y/N) before `enable_bluetooth_radio()`. On `BleakBluetoothNotAvailableReason.POWERED_OFF` or scan/read errors, the same enable prompt is used. After a whole-fleet failure, `restart_bluetooth_radio()` power-cycles the adapter automatically (no prompt).
 
 **`read_day_history`:** Two protocols on the same GATT UUIDs:
 
@@ -186,7 +186,7 @@ Sparkline glyph **color** = band at bin average. Glyph **height** = normalized t
 | `tp.py` | Entry point, `-x` snapshot renderer, CLI argument parsing |
 | `tp/config.py` | INI load/save, `application_dir()`, log path resolution, `filter_devices()` |
 | `tp/ble.py` | bleak scan, `read_now`, `read_day_history`, device cache, radio-recovery hooks |
-| `tp/ble_radio.py` | Detect Bluetooth powered off; WinRT/Linux radio power-cycle |
+| `tp/ble_radio.py` | Detect Bluetooth powered off; permission callback for enable; WinRT/Linux enable + restart |
 | `tp/history.py` | In-memory readings, log preload, CSV append, fetch status, day-history merge, sparkline bootstrap gate |
 | `tp/history_fetch.py` | Orchestrate 24H BLE fetch + history merge; startup `bootstrap_sparklines_from_ble` |
 | `tp/scheduler.py` | 5-minute boundaries, stale/retry helpers |
@@ -200,6 +200,7 @@ Sparkline glyph **color** = band at bin average. Glyph **height** = normalized t
 | `tp/ui/history_fetch_status.py` | 24H fetch progress modal formatting |
 | `tp/ui/device_status.py` | Status/sparkline formatting |
 | `tp/ui/options.py` | Logging options |
+| `tp/ui/bluetooth_prompt.py` | Y/N modal before enabling Bluetooth |
 | `tp/ui/helpers.py` | Label/stats formatting, multi-column layout, info hotkey helpers |
 | `build.ps1` | Windows build script — see **Build** section below |
 | `prepare_icon.py` | ICO prep/reapply helper used by `build.ps1` |
