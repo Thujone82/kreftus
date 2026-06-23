@@ -122,7 +122,7 @@ Due to differences between the OpenWeatherMap and National Weather Service APIs,
 
 - UV Index data
 - Moonrise/Moonset times
-- ~~Temperature trend indicators (rising/falling)~~ **RE-IMPLEMENTED:** Temperature trend indicators now calculated from hourly forecast data comparing current temperature to next hour's predicted temperature (future-looking trend). API's temperatureTrend field used as fallback for small changes (<0.67°F difference) before defaulting to steady.
+- **Temperature trend indicators (rising/falling/steady):** Time-aligned hourly comparison with grid-divergence handling when station observation drives current conditions; `temperatureTrend` API fallback for small changes.
 - Detailed weather overview reports
 - Rain/Snow precipitation amounts
 
@@ -561,7 +561,7 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 - **Auto-Update Toggle:** Added 'U' key to toggle automatic updates on/off during interactive mode
 - **Command Line Control:** Added `-u` flag to start with automatic updates disabled
 - **Manual Refresh Control:** Added 'G' key for manual data refresh while preserving current view mode
-- **Temperature Trend Indicators:** Re-implemented temperature trend calculation using future-looking prediction (comparing current temperature to next hour's predicted temperature). For significant changes (≥0.67°F or ≤-0.67°F), uses calculated trend. For small changes, uses API's temperatureTrend field as fallback before defaulting to "steady", providing both future prediction and historical context
+- **Temperature Trend Indicators:** Time-aligned next-hour comparison; when observation diverges from grid by ≥2°F, uses grid hour-to-hour direction; 1°F threshold; `temperatureTrend` fallback for small changes
 - **Display Title Optimization:** Hourly, 7-Day Summary, Rain Outlook, and Wind Outlook sections now use as many words from city names as fit within 20 characters (default, configurable) to prevent title wrapping and maintain consistent formatting across all display modes. Example: "Salt Lake City" (16 chars) displays fully, "Portland International Airport" (31 chars) becomes "Portland" (8 chars)
 - **Update Consistency Fix:** Fixed `Update-WeatherData` to use URLs directly from Points API response (same as initial load) and removed timeout-based `Wait-Job` to match initial load behavior, ensuring consistent behavior between initial load and refresh operations
 - **Dynamic Period Names:** Forecast sections now use actual NWS period names instead of hardcoded labels
@@ -668,7 +668,13 @@ Updated: just now [NWS: 24 minutes ago]
 
 #### Temperature trend
 
-When observation drives current conditions, trend compares obs temp to hourly `periods[1]` (future-looking), matching the forecast web app.
+`Get-TemperatureTrend` time-aligns hourly periods to the observation timestamp (or now for grid-only mode), then:
+
+1. Compare current temp to the next hourly period (1°F threshold for rising/falling).
+2. When observation drives current conditions and obs diverges from the aligned grid hour by **≥ 2°F**, use **grid hour-to-hour** direction (`gridNow` → `gridNext`) instead of obs → `gridNext`.
+3. For smaller changes, fall back to the hourly period’s `temperatureTrend` when present; otherwise **steady**.
+
+Matches the forecast web app (`resolveTemperatureTrend` in `forecast/js/utils.js`).
 
 ### Auto-Refresh Technical Implementation
 
@@ -1139,54 +1145,15 @@ This implementation provides users with accurate "feels like" temperature inform
 
 ### Temperature Trend Detection
 
-The script implements intelligent temperature trend detection that combines future predictions with historical context:
+`Get-TemperatureTrend` (with `Get-HourlyPeriodIndexForTime`) implements trend for Current Conditions:
 
-**Calculation Method:**
-- **Future-Looking Trend:** Primary method compares current temperature to next hour's predicted temperature
-- **Threshold:** Significant changes (≥0.67°F rise or ≤-0.67°F fall) use calculated future-looking trend
-- **API Fallback:** For small changes (<0.67°F difference), uses API's `temperatureTrend` field if available before defaulting to "steady"
-- **Rationale:** API's `temperatureTrend` represents past trend (how temperature has changed), while calculated trend represents future prediction (how temperature will change)
+**Calculation method:**
+- Resolve hourly period index `i` for observation time (or now when grid-only).
+- `gridNext` = `periods[i + 1].temperature`; significant change threshold = **1°F**.
+- **Aligned** (obs within 2°F of `periods[i]`): trend from **current temp → gridNext**.
+- **Diverged** (obs ≥ 2°F from grid current hour): trend from **gridNow → gridNext** so a warm observation is not compared blindly to a cooler next-hour forecast.
+- **Small change:** use hourly `temperatureTrend` when present; else **steady**.
 
-**Display Icons:**
-- **Rising** (↗️): Temperature increasing (next hour warmer)
-- **Falling** (↘️): Temperature decreasing (next hour cooler)
-- **Steady** (→): Temperature remaining constant or small change with no clear trend
+**Display icons:** ↗️ rising, ↘️ falling, → steady
 
-**Technical Implementation:**
-```powershell
-# Calculate trend by comparing current temp to next hour temp
-$tempDiff = [double]$nextHourTemp - [double]$currentTemp
-
-if ($tempDiff -ge 0.67) {
-    $currentTempTrend = "rising"  # Significant increase
-}
-elseif ($tempDiff -le -0.67) {
-    $currentTempTrend = "falling"  # Significant decrease
-}
-else {
-    # Small change - use API's temperatureTrend as fallback
-    $apiTempTrend = $currentPeriod.temperatureTrend
-    if ($apiTempTrend -and ($apiTempTrend -eq "rising" -or $apiTempTrend -eq "falling")) {
-        $currentTempTrend = $apiTempTrend  # Use historical trend
-    } else {
-        $currentTempTrend = "steady"  # Default for no clear trend
-    }
-}
-```
-
-**Function Location:** Around line 1197 in main script
-**Data Sources:**
-- Current temperature: `$currentTemp` (from NWS API hourly data, first period)
-- Next hour temperature: `$hourlyData.properties.periods[1].temperature`
-- API trend: `$currentPeriod.temperatureTrend` (from NWS API, fallback only)
-
-**Benefits:**
-- **Predictive Value:** Shows expected temperature direction (useful for planning)
-- **Historical Context:** API fallback provides context for small movements
-- **User Expectations:** Trend arrow aligns with hourly forecast display
-- **Accurate Representation:** Distinguishes between past trends and future predictions
-
-**Error Handling:**
-- Graceful fallback to "steady" if insufficient hourly data available
-- Handles missing API temperatureTrend field
-- No display when calculation cannot be performed
+**Functions:** `Get-HourlyPeriodIndexForTime`, `Get-TrendFromTempDiff`, `Get-TemperatureTrend` — called from `Set-CurrentConditionsFromHourly` and `Merge-LatestObservationIntoCurrentConditions`.

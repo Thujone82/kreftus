@@ -196,6 +196,10 @@ Updated: just now [NWS: 24 minutes ago]
 
 Without station data: `Updated: 2 minutes ago` (no NWS suffix).
 
+### Temperature trend
+
+The trend arrow (↗️ ↘️ →) compares the current temperature to the **time-aligned next hourly period**. When station observation temp diverges from the grid current hour by **≥ 2°F**, the arrow uses the **grid hour-to-hour** direction instead of obs vs next hour (avoids false “falling” when obs is warmer than the lagging forecast). Small changes fall back to the hourly period’s `temperatureTrend` when available.
+
 ### Station ID cache
 
 Nearest `stationId` is cached per location (`city,state`) for **24 hours** in `localStorage` (`forecastStationCache`). History mode reuses it to avoid a duplicate `observationStations` call shortly after load.

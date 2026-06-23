@@ -137,8 +137,12 @@ function applyLatestObservationToCurrent(current, parsed, hourlyPeriods, locatio
     updated.observationTime = parsed.observationTime;
     updated.time = parsed.observationTime;
 
-    const nextHourTemp = hourlyPeriods?.[1]?.temperature ?? updated.temp;
-    updated.trend = calculateTemperatureTrend(updated.temp, nextHourTemp);
+    updated.trend = resolveTemperatureTrend({
+        currentTemp: updated.temp,
+        hourlyPeriods,
+        referenceTime: parsed.observationTime,
+        usesObservation: true
+    });
 
     const tempNum = parseFloat(updated.temp);
     const windSpeedNum = getWindSpeed(updated.wind);
@@ -192,7 +196,6 @@ function processWeatherData(weatherData) {
     
     // Extract current conditions from first hourly period
     const currentPeriod = hourly.properties.periods[0];
-    const nextHourPeriod = hourly.properties.periods[1];
     
     const currentTemp = currentPeriod.temperature;
     const currentConditions = currentPeriod.shortForecast;
@@ -210,8 +213,14 @@ function processWeatherData(weatherData) {
     }
     
     // Calculate temperature trend
-    const nextHourTemp = nextHourPeriod ? nextHourPeriod.temperature : currentTemp;
-    const currentTempTrend = calculateTemperatureTrend(currentTemp, nextHourTemp);
+    const trendReferenceTime = weatherData.fetchTime ? new Date(weatherData.fetchTime) : new Date();
+    const currentTempTrend = resolveTemperatureTrend({
+        currentTemp,
+        hourlyPeriods: hourly.properties.periods,
+        referenceTime: trendReferenceTime,
+        usesObservation: false,
+        apiTemperatureTrend: currentPeriod.temperatureTrend
+    });
     
     // Extract wind gust information
     let windGust = null;

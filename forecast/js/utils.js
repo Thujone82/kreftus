@@ -1242,13 +1242,78 @@ function getHourLabelColor(periodTime, sunrise, sunset, timeZone) {
     return "hour-label-nighttime";
 }
 
-// Calculate temperature trend
+const TEMP_TREND_THRESHOLD_F = 1;
+const TEMP_GRID_DIVERGENCE_F = 2;
+
+function findHourlyPeriodIndexForTime(periods, referenceTime) {
+    if (!periods || periods.length === 0) return 0;
+    const ref = referenceTime instanceof Date ? referenceTime.getTime() : new Date(referenceTime).getTime();
+    if (isNaN(ref)) return 0;
+
+    for (let i = 0; i < periods.length; i++) {
+        const start = new Date(periods[i].startTime).getTime();
+        if (isNaN(start)) continue;
+        let end;
+        if (periods[i].endTime) {
+            end = new Date(periods[i].endTime).getTime();
+        } else if (i + 1 < periods.length) {
+            end = new Date(periods[i + 1].startTime).getTime();
+        } else {
+            end = start + 3600000;
+        }
+        if (!isNaN(end) && ref >= start && ref < end) return i;
+    }
+
+    let lastBefore = 0;
+    for (let i = 0; i < periods.length; i++) {
+        const start = new Date(periods[i].startTime).getTime();
+        if (!isNaN(start) && start <= ref) lastBefore = i;
+    }
+    return lastBefore;
+}
+
+function trendFromTempDiff(tempDiff, apiTemperatureTrend) {
+    if (tempDiff >= TEMP_TREND_THRESHOLD_F) return 'rising';
+    if (tempDiff <= -TEMP_TREND_THRESHOLD_F) return 'falling';
+    if (apiTemperatureTrend === 'rising' || apiTemperatureTrend === 'falling') {
+        return apiTemperatureTrend;
+    }
+    return 'steady';
+}
+
+function resolveTemperatureTrend({
+    currentTemp,
+    hourlyPeriods,
+    referenceTime,
+    usesObservation = false,
+    apiTemperatureTrend = null
+}) {
+    if (!hourlyPeriods || hourlyPeriods.length === 0) return 'steady';
+
+    const current = parseFloat(currentTemp);
+    if (isNaN(current)) return 'steady';
+
+    const refTime = referenceTime instanceof Date ? referenceTime : new Date(referenceTime);
+    const i = findHourlyPeriodIndexForTime(hourlyPeriods, refTime);
+    const next = i + 1;
+    if (next >= hourlyPeriods.length) return 'steady';
+
+    const gridNow = parseFloat(hourlyPeriods[i].temperature);
+    const gridNext = parseFloat(hourlyPeriods[next].temperature);
+    if (isNaN(gridNow) || isNaN(gridNext)) return 'steady';
+
+    const periodTrend = hourlyPeriods[i].temperatureTrend || apiTemperatureTrend;
+    const diverged = usesObservation && Math.abs(current - gridNow) >= TEMP_GRID_DIVERGENCE_F;
+    const fromTemp = diverged ? gridNow : current;
+    return trendFromTempDiff(gridNext - fromTemp, periodTrend);
+}
+
+// Calculate temperature trend (simple two-value comparison; prefer resolveTemperatureTrend)
 function calculateTemperatureTrend(currentTemp, nextHourTemp) {
-    const tempDiff = nextHourTemp - currentTemp;
-    
-    if (tempDiff > 0.1) return "rising";
-    if (tempDiff < -0.1) return "falling";
-    return "steady";
+    const current = parseFloat(currentTemp);
+    const next = parseFloat(nextHourTemp);
+    if (isNaN(current) || isNaN(next)) return 'steady';
+    return trendFromTempDiff(next - current, null);
 }
 
 // Get trend icon

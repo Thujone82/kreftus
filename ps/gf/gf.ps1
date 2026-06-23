@@ -1064,6 +1064,79 @@ function Convert-LatestObservation {
     }
 }
 
+$script:TempTrendThresholdF = 1
+$script:TempGridDivergenceF = 2
+
+function Get-HourlyPeriodIndexForTime {
+    param(
+        [object[]]$Periods,
+        [DateTime]$ReferenceTime
+    )
+
+    if (-not $Periods -or $Periods.Count -eq 0) { return 0 }
+
+    $ref = $ReferenceTime.ToUniversalTime()
+    for ($i = 0; $i -lt $Periods.Count; $i++) {
+        $start = [DateTimeOffset]::Parse($Periods[$i].startTime).UtcDateTime
+        if ($Periods[$i].endTime) {
+            $end = [DateTimeOffset]::Parse($Periods[$i].endTime).UtcDateTime
+        } elseif ($i + 1 -lt $Periods.Count) {
+            $end = [DateTimeOffset]::Parse($Periods[$i + 1].startTime).UtcDateTime
+        } else {
+            $end = $start.AddHours(1)
+        }
+        if ($ref -ge $start -and $ref -lt $end) { return $i }
+    }
+
+    $lastBefore = 0
+    for ($i = 0; $i -lt $Periods.Count; $i++) {
+        $start = [DateTimeOffset]::Parse($Periods[$i].startTime).UtcDateTime
+        if ($ref -ge $start) { $lastBefore = $i }
+    }
+    return $lastBefore
+}
+
+function Get-TrendFromTempDiff {
+    param(
+        [double]$TempDiff,
+        [string]$ApiTemperatureTrend
+    )
+
+    if ($TempDiff -ge $script:TempTrendThresholdF) { return 'rising' }
+    if ($TempDiff -le -$script:TempTrendThresholdF) { return 'falling' }
+    if ($ApiTemperatureTrend -eq 'rising' -or $ApiTemperatureTrend -eq 'falling') {
+        return $ApiTemperatureTrend
+    }
+    return 'steady'
+}
+
+function Get-TemperatureTrend {
+    param(
+        [double]$CurrentTemp,
+        [object[]]$HourlyPeriods,
+        [DateTime]$ReferenceTime,
+        [bool]$UsesObservation = $false,
+        [string]$ApiTemperatureTrend = $null
+    )
+
+    if (-not $HourlyPeriods -or $HourlyPeriods.Count -eq 0) { return 'steady' }
+
+    $i = Get-HourlyPeriodIndexForTime -Periods $HourlyPeriods -ReferenceTime $ReferenceTime
+    $next = $i + 1
+    if ($next -ge $HourlyPeriods.Count) { return 'steady' }
+
+    $gridNow = [double]$HourlyPeriods[$i].temperature
+    $gridNext = [double]$HourlyPeriods[$next].temperature
+    $periodTrend = $ApiTemperatureTrend
+    if ([string]::IsNullOrWhiteSpace($periodTrend) -and $HourlyPeriods[$i].PSObject.Properties['temperatureTrend']) {
+        $periodTrend = [string]$HourlyPeriods[$i].temperatureTrend
+    }
+
+    $diverged = $UsesObservation -and ([Math]::Abs($CurrentTemp - $gridNow) -ge $script:TempGridDivergenceF)
+    $fromTemp = if ($diverged) { $gridNow } else { $CurrentTemp }
+    return Get-TrendFromTempDiff -TempDiff ($gridNext - $fromTemp) -ApiTemperatureTrend $periodTrend
+}
+
 function Set-CurrentConditionsFromHourly {
     param([object]$HourlyData)
 
@@ -1088,17 +1161,13 @@ function Set-CurrentConditionsFromHourly {
         }
     }
 
-    $script:currentTempTrend = $null
     $hourlyPeriods = $HourlyData.properties.periods
-    if ($hourlyPeriods.Count -gt 1) {
-        $nextHourTemp = $hourlyPeriods[1].temperature
-        $tempDiff = [double]$nextHourTemp - [double]$script:currentTemp
-        if ($tempDiff -gt 0.1) { $script:currentTempTrend = "rising" }
-        elseif ($tempDiff -lt -0.1) { $script:currentTempTrend = "falling" }
-        else { $script:currentTempTrend = "steady" }
-    } else {
-        $script:currentTempTrend = "steady"
-    }
+    $script:currentTempTrend = Get-TemperatureTrend `
+        -CurrentTemp ([double]$script:currentTemp) `
+        -HourlyPeriods @($hourlyPeriods) `
+        -ReferenceTime (Get-Date) `
+        -UsesObservation $false `
+        -ApiTemperatureTrend $(if ($currentPeriod.PSObject.Properties['temperatureTrend']) { [string]$currentPeriod.temperatureTrend } else { $null })
 
     $script:windGust = $null
     if ($script:currentWind -match "(\d+)\s*to\s*(\d+)\s*mph") {
@@ -1142,13 +1211,12 @@ function Merge-LatestObservationIntoCurrentConditions {
         $script:currentTimeLocal = $parsed.ObservationTime
     }
 
-    if ($HourlyData -and $HourlyData.properties.periods.Count -gt 1) {
-        $nextHourTemp = $HourlyData.properties.periods[1].temperature
-        $tempDiff = [double]$nextHourTemp - [double]$script:currentTemp
-        if ($tempDiff -gt 0.1) { $script:currentTempTrend = "rising" }
-        elseif ($tempDiff -lt -0.1) { $script:currentTempTrend = "falling" }
-        else { $script:currentTempTrend = "steady" }
-    }
+    $hourlyPeriods = if ($HourlyData) { $HourlyData.properties.periods } else { @() }
+    $script:currentTempTrend = Get-TemperatureTrend `
+        -CurrentTemp ([double]$script:currentTemp) `
+        -HourlyPeriods @($hourlyPeriods) `
+        -ReferenceTime $parsed.ObservationTime `
+        -UsesObservation $true
 
     Write-Verbose "Merged latest observation (temp $($parsed.TempF)F at $($parsed.ObservationTime))"
     return $true
