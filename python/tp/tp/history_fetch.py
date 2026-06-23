@@ -49,6 +49,11 @@ async def fetch_day_history_for_device(
     target_mac = normalize_mac(mac)
     packet_count = 0
 
+    await _emit_progress(
+        progress_cb,
+        DayHistoryProgress(phase="connecting", message="Connecting to sensor…"),
+    )
+
     async def ble_progress(update: DayHistoryProgress) -> None:
         nonlocal packet_count
         if update.packets:

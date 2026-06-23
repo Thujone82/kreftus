@@ -8,10 +8,12 @@ from datetime import datetime
 from textual import work
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
+from textual.css.query import NoMatches
 from textual.screen import ModalScreen, Screen
 from textual.widgets import Header, Input, Label, Static
 
 from tp.ble import DayHistoryProgress
+from tp.ble_radio import ensure_bluetooth_enabled_for_polling
 from tp.config import default_device_name
 from tp.history_fetch import DayHistoryResult, fetch_day_history_for_device
 from tp.ui.device_status import format_device_status
@@ -183,7 +185,10 @@ class DeviceHistoryFetchModal(ModalScreen[None]):
     def _refresh_body(self) -> None:
         if not self.is_mounted:
             return
-        body = self.query_one("#history-fetch-body", Static)
+        try:
+            body = self.query_one("#history-fetch-body", Static)
+        except NoMatches:
+            return
         body.update(
             format_history_fetch_status(
                 self.device_name,
@@ -193,7 +198,10 @@ class DeviceHistoryFetchModal(ModalScreen[None]):
                 started_at=self._started_at,
             )
         )
-        hint = self.query_one("#history-fetch-hint", Static)
+        try:
+            hint = self.query_one("#history-fetch-hint", Static)
+        except NoMatches:
+            return
         if self._active:
             hint.update("[dim]Q cancel[/]")
         else:
@@ -215,7 +223,7 @@ class DeviceHistoryFetchModal(ModalScreen[None]):
                 progress,
             )
         except asyncio.CancelledError:
-            raise
+            return
         except Exception as exc:  # noqa: BLE001
             self._progress = None
             self._result = DayHistoryResult(ok=False, error=str(exc) or exc.__class__.__name__)
@@ -461,7 +469,8 @@ class DevicesScreen(Screen):
         mac, name = entries[self.selected_index]
         self.app.push_screen(DeviceStatusModal(mac, name))
 
-    def action_history_fetch(self) -> None:
+    @work
+    async def action_history_fetch(self) -> None:
         if self._scanning or self._history_fetching:
             return
         entries = list(self.app.config.devices.items())
@@ -469,6 +478,13 @@ class DevicesScreen(Screen):
             self.notify("Select a managed device for 24H fetch.", severity="warning")
             return
         mac, name = entries[self.selected_index]
+        if not await ensure_bluetooth_enabled_for_polling():
+            self.notify(
+                "Bluetooth is off — enable Bluetooth to fetch history.",
+                severity="warning",
+                timeout=5,
+            )
+            return
         self._open_history_fetch(mac, name)
 
     def action_remove(self) -> None:

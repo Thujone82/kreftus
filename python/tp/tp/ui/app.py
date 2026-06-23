@@ -20,7 +20,7 @@ from tp.ble_radio import (
 )
 from tp.history import DeviceHistory, load_readings_from_log
 from tp.ui.bluetooth_prompt import BluetoothPermissionModal
-from tp.ui.devices import DevicesScreen
+from tp.ui.devices import DeviceHistoryFetchModal, DevicesScreen
 from tp.ui.menus import MainMenuScreen
 from tp.ui.monitoring import MonitoringScreen
 from tp.ui.options import OptionsScreen
@@ -137,10 +137,21 @@ class TPApp(App):
         self,
         request: BluetoothPermissionRequest,
     ) -> bool:
-        result = await self.push_screen_wait(
-            BluetoothPermissionModal(request.title, request.body)
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[bool] = loop.create_future()
+        parent = self.screen
+
+        def on_dismiss(value: bool | None) -> None:
+            if not future.done():
+                future.set_result(bool(value))
+            if isinstance(parent, DeviceHistoryFetchModal) and parent.is_mounted:
+                parent._refresh_body()
+
+        self.push_screen(
+            BluetoothPermissionModal(request.title, request.body),
+            on_dismiss,
         )
-        return bool(result)
+        return await future
 
     def pop_or_main_menu(self) -> None:
         """Pop a sub-screen, or open main menu if it is the only screen."""

@@ -354,8 +354,13 @@ async def ensure_bluetooth_enabled_for_polling() -> bool:
 
 
 async def maybe_restart_bluetooth_radio(exc: Exception) -> bool:
-    """Enable Bluetooth when the radio is off, after user approval."""
-    if not is_bluetooth_powered_off_error(exc) and not await is_bluetooth_radio_disabled():
+    """Enable Bluetooth when the OS radio is off, after user approval."""
+    disabled = await is_bluetooth_radio_disabled()
+    if not disabled:
+        if is_bluetooth_powered_off_error(exc):
+            debug_write(
+                "ble: bleak reports powered off but radio is on; retrying without enable"
+            )
         return False
     if not await _request_bluetooth_permission(BT_DISABLED_REQUEST):
         return False

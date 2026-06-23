@@ -84,13 +84,42 @@ class BluetoothPermissionTests(unittest.IsolatedAsyncioTestCase):
             return True
 
         set_bluetooth_permission_callback(_approve)
-        with patch(
-            "tp.ble_radio.enable_bluetooth_radio",
-            new=AsyncMock(return_value=True),
+        with (
+            patch(
+                "tp.ble_radio.is_bluetooth_radio_disabled",
+                new=AsyncMock(return_value=True),
+            ),
+            patch(
+                "tp.ble_radio.enable_bluetooth_radio",
+                new=AsyncMock(return_value=True),
+            ),
         ):
             exc = RuntimeError("Bluetooth radio is not powered on. Turn on Bluetooth.")
             self.assertTrue(await maybe_restart_bluetooth_radio(exc))
         self.assertEqual(approved, [BT_DISABLED_REQUEST])
+
+    async def test_powered_off_error_skips_prompt_when_radio_on(self) -> None:
+        approved: list[BluetoothPermissionRequest] = []
+
+        def _approve(request: BluetoothPermissionRequest) -> bool:
+            approved.append(request)
+            return True
+
+        set_bluetooth_permission_callback(_approve)
+        with (
+            patch(
+                "tp.ble_radio.is_bluetooth_radio_disabled",
+                new=AsyncMock(return_value=False),
+            ),
+            patch(
+                "tp.ble_radio.enable_bluetooth_radio",
+                new=AsyncMock(return_value=True),
+            ) as enable_mock,
+        ):
+            exc = RuntimeError("Bluetooth radio is not powered on. Turn on Bluetooth.")
+            self.assertFalse(await maybe_restart_bluetooth_radio(exc))
+            enable_mock.assert_not_called()
+        self.assertEqual(approved, [])
 
     async def test_total_failure_restart_without_permission(self) -> None:
         with patch(
