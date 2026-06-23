@@ -60,6 +60,132 @@ function normalizeAirNowAqi(aqiRows) {
     };
 }
 
+const LATEST_OBSERVATION_MAX_AGE_MS = 120 * 60 * 1000;
+
+function parseLatestObservation(feature, timeZone) {
+    if (!feature || !feature.properties) return null;
+    const props = feature.properties;
+    if (props.temperature?.value == null || props.temperature?.value === undefined) return null;
+    if (!props.timestamp) return null;
+
+    const obsTime = new Date(props.timestamp);
+    if (isNaN(obsTime.getTime())) return null;
+    if (Date.now() - obsTime.getTime() > LATEST_OBSERVATION_MAX_AGE_MS) return null;
+
+    const tempF = Math.round((props.temperature.value * 9 / 5) + 32);
+
+    let windMph = null;
+    if (props.windSpeed?.value != null && props.windSpeed?.value !== undefined) {
+        const mph = props.windSpeed.value * 0.621371;
+        if (mph <= 200) windMph = Math.round(mph);
+    }
+
+    let windGustMph = null;
+    if (props.windGust?.value != null && props.windGust?.value !== undefined) {
+        windGustMph = Math.round(props.windGust.value * 0.621371);
+    }
+
+    const windDir = (props.windDirection?.value != null && props.windDirection?.value !== undefined)
+        ? getCardinalDirection(props.windDirection.value)
+        : null;
+
+    const humidity = (props.relativeHumidity?.value != null && props.relativeHumidity?.value !== undefined)
+        ? Math.round(props.relativeHumidity.value)
+        : null;
+
+    let dewPointF = null;
+    if (props.dewpoint?.value != null && props.dewpoint?.value !== undefined) {
+        dewPointF = Math.round(props.dewpoint.value * 9 / 5 + 32 * 10) / 10;
+    }
+
+    return {
+        tempF,
+        windMph,
+        windGustMph,
+        windDir,
+        humidity,
+        dewPointF,
+        conditions: props.textDescription || null,
+        iconUrl: props.icon || null,
+        observationTime: obsTime
+    };
+}
+
+function applyLatestObservationToCurrent(current, parsed, hourlyPeriods, location, fetchTime) {
+    if (!parsed) return current;
+
+    const updated = { ...current };
+    updated.temp = parsed.tempF;
+    if (parsed.conditions) updated.conditions = parsed.conditions;
+    if (parsed.windMph != null) {
+        updated.wind = `${parsed.windMph} mph`;
+        updated.windGust = parsed.windGustMph != null ? String(parsed.windGustMph) : null;
+    }
+    if (parsed.windDir) updated.windDir = parsed.windDir;
+    if (parsed.humidity != null) updated.humidity = parsed.humidity;
+    if (parsed.dewPointF != null) updated.dewPoint = parsed.dewPointF;
+
+    const hourlyPeriod = hourlyPeriods?.[0];
+    const isDaytime = hourlyPeriod?.isDaytime !== undefined
+        ? hourlyPeriod.isDaytime
+        : (new Date().getHours() >= 6 && new Date().getHours() < 18);
+    if (parsed.iconUrl) {
+        updated.icon = getWeatherIcon(parsed.iconUrl, isDaytime, updated.precipProb);
+    }
+
+    updated.usesObservation = true;
+    updated.observationTime = parsed.observationTime;
+    updated.time = parsed.observationTime;
+
+    const nextHourTemp = hourlyPeriods?.[1]?.temperature ?? updated.temp;
+    updated.trend = calculateTemperatureTrend(updated.temp, nextHourTemp);
+
+    const tempNum = parseFloat(updated.temp);
+    const windSpeedNum = getWindSpeed(updated.wind);
+    let windChill = null;
+    let heatIndex = null;
+
+    if (tempNum <= 50) {
+        windChill = calculateWindChill(tempNum, windSpeedNum);
+        if (windChill && Math.abs(tempNum - windChill) <= 1) windChill = null;
+    } else if (tempNum >= 80) {
+        heatIndex = calculateHeatIndex(tempNum, updated.humidity);
+        if (heatIndex && Math.abs(heatIndex - tempNum) <= 1) heatIndex = null;
+    }
+    updated.windChill = windChill;
+    updated.heatIndex = heatIndex;
+
+    if (tempNum > 50 && location) {
+        const fetchAt = fetchTime ? new Date(fetchTime) : new Date();
+        updated.wbgt = calculateEstimatedWBGT(
+            tempNum,
+            updated.humidity,
+            windSpeedNum,
+            location.lat,
+            location.lon,
+            fetchAt,
+            isDaytime,
+            updated.conditions
+        );
+    }
+
+    return updated;
+}
+
+function mergeLatestObservationIntoProcessedWeather(processedWeather, latestFeature, fetchTime) {
+    if (!latestFeature || !processedWeather) return processedWeather;
+    const parsed = parseLatestObservation(latestFeature, processedWeather.location?.timeZone);
+    if (!parsed) return processedWeather;
+    processedWeather.current = applyLatestObservationToCurrent(
+        processedWeather.current,
+        parsed,
+        processedWeather.hourly?.periods,
+        processedWeather.location,
+        fetchTime
+    );
+    return processedWeather;
+}
+
 // Process weather data from API responses
 function processWeatherData(weatherData) {
     const { location, forecast, hourly, alerts } = weatherData;
@@ -165,7 +291,7 @@ function processWeatherData(weatherData) {
     const tomorrowForecast = tomorrowPeriod ? tomorrowPeriod.detailedForecast : "";
     const tomorrowPeriodName = tomorrowPeriod ? tomorrowPeriod.name : "";
     
-    return {
+    let result = {
         current: {
             temp: currentTemp,
             conditions: currentConditions,
@@ -207,8 +333,14 @@ function processWeatherData(weatherData) {
             moonPhase: moonPhaseInfo
         },
         noaaStation: weatherData.noaaStation || null,
-        noaaOutOfRange: weatherData.noaaOutOfRange || false
+        noaaOutOfRange: weatherData.noaaOutOfRange || false,
+        stationId: weatherData.stationId || null
     };
+
+    if (weatherData.latestObservation) {
+        result = mergeLatestObservationIntoProcessedWeather(result, weatherData.latestObservation, weatherData.fetchTime);
+    }
+    return result;
 }
 
 // Group hourly periods by day (converting to location timezone)

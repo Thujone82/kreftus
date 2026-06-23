@@ -845,6 +845,369 @@ function Get-AllObservationsWithPagination {
     }
 }
 
+# Function to convert wind direction degrees to cardinal direction
+function Get-CardinalDirection {
+    param([double]$Degrees)
+    
+    $directions = @("N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW")
+    $index = [Math]::Round($Degrees / 22.5) % 16
+    return $directions[$index]
+}
+
+$script:stationCacheTtlSeconds = 86400
+$script:latestObservationMaxAgeMinutes = 120
+
+function Get-StationCachePath {
+    $dir = Join-Path $env:LOCALAPPDATA "gf"
+    if (-not (Test-Path $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+    return Join-Path $dir "station-cache.json"
+}
+
+function Get-LocationKeyFromCityState {
+    param(
+        [string]$City,
+        [string]$State,
+        [string]$Lat,
+        [string]$Lon
+    )
+    $c = ($City -replace '[^a-zA-Z0-9\s]', '').Trim()
+    $s = ($State -replace '[^a-zA-Z0-9]', '').Trim().ToUpper()
+    if ($c -and $s) { return "$c,$s" }
+    if ($Lat -and $Lon) {
+        return ("{0:N4},{1:N4}" -f [double]$Lat, [double]$Lon)
+    }
+    return $null
+}
+
+function Get-CachedStationId {
+    param([string]$LocationKey)
+    if ([string]::IsNullOrWhiteSpace($LocationKey)) { return $null }
+    try {
+        $path = Get-StationCachePath
+        if (-not (Test-Path $path)) { return $null }
+        $map = Get-Content $path -Raw | ConvertFrom-Json
+        $entry = $map.$LocationKey
+        if (-not $entry -or -not $entry.stationId -or -not $entry.cachedAt) { return $null }
+        $cachedAt = [DateTimeOffset]::FromUnixTimeMilliseconds([long]$entry.cachedAt).UtcDateTime
+        if (((Get-Date).ToUniversalTime() - $cachedAt).TotalSeconds -gt $script:stationCacheTtlSeconds) { return $null }
+        Write-Verbose "[Station cache] hit for $LocationKey -> $($entry.stationId)"
+        return [string]$entry.stationId
+    } catch {
+        Write-Verbose "Failed to read station cache: $($_.Exception.Message)"
+        return $null
+    }
+}
+
+function Set-CachedStationId {
+    param(
+        [string]$LocationKey,
+        [string]$StationId
+    )
+    if ([string]::IsNullOrWhiteSpace($LocationKey) -or [string]::IsNullOrWhiteSpace($StationId)) { return }
+    try {
+        $path = Get-StationCachePath
+        $map = @{}
+        if (Test-Path $path) {
+            $existing = Get-Content $path -Raw | ConvertFrom-Json
+            if ($existing) {
+                $existing.PSObject.Properties | ForEach-Object { $map[$_.Name] = $_.Value }
+            }
+        }
+        $map[$LocationKey] = @{
+            stationId = $StationId
+            cachedAt = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+        }
+        $map | ConvertTo-Json -Depth 4 | Set-Content -Path $path -Encoding UTF8
+        Write-Verbose "[Station cache] stored $LocationKey -> $StationId"
+    } catch {
+        Write-Verbose "Failed to write station cache: $($_.Exception.Message)"
+    }
+}
+
+function Get-NWSLatestObservation {
+    param(
+        [string]$StationId,
+        [hashtable]$Headers
+    )
+    if ([string]::IsNullOrWhiteSpace($StationId)) { return $null }
+    try {
+        $url = "https://api.weather.gov/stations/$StationId/observations/latest"
+        Write-Verbose "GET: $url"
+        $job = Start-ApiJob -Url $url -Headers $Headers -JobName "LatestObservation"
+        Wait-Job -Job $job | Out-Null
+        if ($job.State -ne 'Completed') {
+            Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+            return $null
+        }
+        $json = $job | Receive-Job
+        Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+        if ([string]::IsNullOrWhiteSpace($json)) { return $null }
+        $data = $json | ConvertFrom-Json
+        if ($data.type -eq 'Feature') { return $data }
+        if ($data.features -and $data.features.Count -gt 0) { return $data.features[0] }
+        return $null
+    } catch {
+        Write-Verbose "Latest observation fetch failed: $($_.Exception.Message)"
+        return $null
+    }
+}
+
+function Convert-LatestObservation {
+    param(
+        [object]$Feature,
+        [string]$TimeZone
+    )
+    if ($null -eq $Feature -or $null -eq $Feature.properties) { return $null }
+    $props = $Feature.properties
+    if ($null -eq $props.temperature -or $null -eq $props.temperature.value) { return $null }
+    if ([string]::IsNullOrWhiteSpace($props.timestamp)) { return $null }
+
+    try {
+        $obsTime = [DateTime]::Parse($props.timestamp, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
+    } catch {
+        return $null
+    }
+    $ageMinutes = ((Get-Date).ToUniversalTime() - $obsTime.ToUniversalTime()).TotalMinutes
+    if ($ageMinutes -gt $script:latestObservationMaxAgeMinutes) { return $null }
+
+    $tempF = [math]::Round(($props.temperature.value * 9 / 5) + 32)
+
+    $windMph = $null
+    if ($null -ne $props.windSpeed -and $null -ne $props.windSpeed.value) {
+        $mph = $props.windSpeed.value * 0.621371
+        if ($mph -le 200) { $windMph = [math]::Round($mph) }
+    }
+
+    $windGustMph = $null
+    if ($null -ne $props.windGust -and $null -ne $props.windGust.value) {
+        $windGustMph = [math]::Round($props.windGust.value * 0.621371)
+    }
+
+    $windDir = $null
+    if ($null -ne $props.windDirection -and $null -ne $props.windDirection.value) {
+        $windDir = Get-CardinalDirection -Degrees $props.windDirection.value
+    }
+
+    $humidity = $null
+    if ($null -ne $props.relativeHumidity -and $null -ne $props.relativeHumidity.value) {
+        $humidity = [math]::Round($props.relativeHumidity.value)
+    }
+
+    $dewPointF = $null
+    if ($null -ne $props.dewpoint -and $null -ne $props.dewpoint.value) {
+        $dewPointF = [math]::Round(($props.dewpoint.value * 9 / 5) + 32, 1)
+    }
+
+    return [pscustomobject]@{
+        TempF = $tempF
+        WindMph = $windMph
+        WindGustMph = $windGustMph
+        WindDir = $windDir
+        Humidity = $humidity
+        DewPointF = $dewPointF
+        Conditions = $props.textDescription
+        IconUrl = $props.icon
+        ObservationTime = $obsTime
+    }
+}
+
+function Set-CurrentConditionsFromHourly {
+    param([object]$HourlyData)
+
+    if (-not $HourlyData) { return }
+    $script:currentPeriod = $HourlyData.properties.periods[0]
+    $currentPeriod = $script:currentPeriod
+    $script:currentTemp = $currentPeriod.temperature
+    $script:currentConditions = $currentPeriod.shortForecast
+    $script:currentWind = $currentPeriod.windSpeed
+    $script:currentWindDir = $currentPeriod.windDirection
+    $script:currentHumidity = $currentPeriod.relativeHumidity.value
+    $script:currentPrecipProb = $currentPeriod.probabilityOfPrecipitation.value
+    $script:currentIcon = $currentPeriod.icon
+    $script:usesObservation = $false
+
+    $script:currentDewPoint = $null
+    if ($currentPeriod.PSObject.Properties['dewpoint'] -and $null -ne $currentPeriod.dewpoint.value) {
+        try {
+            $script:currentDewPoint = [math]::Round(($currentPeriod.dewpoint.value * 9 / 5) + 32, 1)
+        } catch {
+            $script:currentDewPoint = $null
+        }
+    }
+
+    $script:currentTempTrend = $null
+    $hourlyPeriods = $HourlyData.properties.periods
+    if ($hourlyPeriods.Count -gt 1) {
+        $nextHourTemp = $hourlyPeriods[1].temperature
+        $tempDiff = [double]$nextHourTemp - [double]$script:currentTemp
+        if ($tempDiff -gt 0.1) { $script:currentTempTrend = "rising" }
+        elseif ($tempDiff -lt -0.1) { $script:currentTempTrend = "falling" }
+        else { $script:currentTempTrend = "steady" }
+    } else {
+        $script:currentTempTrend = "steady"
+    }
+
+    $script:windGust = $null
+    if ($script:currentWind -match "(\d+)\s*to\s*(\d+)\s*mph") {
+        $script:windGust = $matches[2]
+        $script:currentWind = "$($matches[1]) mph"
+    }
+}
+
+function Merge-LatestObservationIntoCurrentConditions {
+    param(
+        [object]$Feature,
+        [string]$TimeZone,
+        [object]$HourlyData
+    )
+
+    $parsed = Convert-LatestObservation -Feature $Feature -TimeZone $TimeZone
+    if ($null -eq $parsed) { return $false }
+
+    $script:currentTemp = $parsed.TempF
+    if ($parsed.Conditions) { $script:currentConditions = $parsed.Conditions }
+    if ($null -ne $parsed.WindMph) {
+        $script:currentWind = "$($parsed.WindMph) mph"
+        $script:windGust = if ($null -ne $parsed.WindGustMph) { [string]$parsed.WindGustMph } else { $null }
+    }
+    if ($parsed.WindDir) { $script:currentWindDir = $parsed.WindDir }
+    if ($null -ne $parsed.Humidity) { $script:currentHumidity = $parsed.Humidity }
+    if ($null -ne $parsed.DewPointF) { $script:currentDewPoint = $parsed.DewPointF }
+    if ($parsed.IconUrl) { $script:currentIcon = $parsed.IconUrl }
+
+    $script:usesObservation = $true
+    $script:currentObservationTime = $parsed.ObservationTime
+    if ($TimeZone) {
+        try {
+            $tzInfo = Get-ResolvedTimeZoneInfo -TimeZoneId $TimeZone
+            $script:currentTimeLocal = [System.TimeZoneInfo]::ConvertTime($parsed.ObservationTime, $tzInfo)
+        } catch {
+            $script:currentTimeLocal = $parsed.ObservationTime
+        }
+    } else {
+        $script:currentTimeLocal = $parsed.ObservationTime
+    }
+
+    if ($HourlyData -and $HourlyData.properties.periods.Count -gt 1) {
+        $nextHourTemp = $HourlyData.properties.periods[1].temperature
+        $tempDiff = [double]$nextHourTemp - [double]$script:currentTemp
+        if ($tempDiff -gt 0.1) { $script:currentTempTrend = "rising" }
+        elseif ($tempDiff -lt -0.1) { $script:currentTempTrend = "falling" }
+        else { $script:currentTempTrend = "steady" }
+    }
+
+    Write-Verbose "Merged latest observation (temp $($parsed.TempF)F at $($parsed.ObservationTime))"
+    return $true
+}
+
+function Resolve-StationIdForLocation {
+    param(
+        [object]$PointsData,
+        [hashtable]$Headers,
+        [string]$LocationKey,
+        [object]$StationsJob = $null
+    )
+
+    $cached = Get-CachedStationId -LocationKey $LocationKey
+    if ($cached) {
+        $script:observationStationId = $cached
+        return $cached
+    }
+
+    if ($StationsJob) {
+        if ($StationsJob.State -eq 'Completed') {
+            $stationsJson = $StationsJob | Receive-Job
+            Remove-Job -Job $StationsJob -Force -ErrorAction SilentlyContinue
+            if (-not [string]::IsNullOrWhiteSpace($stationsJson)) {
+                $stationsData = $stationsJson | ConvertFrom-Json
+                if ($stationsData.features.Count -gt 0) {
+                    $stationId = $stationsData.features[0].properties.stationIdentifier
+                    $script:observationStationId = $stationId
+                    if ($LocationKey) { Set-CachedStationId -LocationKey $LocationKey -StationId $stationId }
+                    return $stationId
+                }
+            }
+        } else {
+            Remove-Job -Job $StationsJob -Force -ErrorAction SilentlyContinue
+        }
+        return $null
+    }
+
+    if ($PointsData -and $PointsData.properties.observationStations) {
+        $url = $PointsData.properties.observationStations
+        $job = Start-ApiJob -Url $url -Headers $Headers -JobName "ObservationStationsResolve"
+        Wait-Job -Job $job | Out-Null
+        if ($job.State -eq 'Completed') {
+            $stationsJson = $job | Receive-Job
+            Remove-Job -Job $job -Force
+            if (-not [string]::IsNullOrWhiteSpace($stationsJson)) {
+                $stationsData = $stationsJson | ConvertFrom-Json
+                if ($stationsData.features.Count -gt 0) {
+                    $stationId = $stationsData.features[0].properties.stationIdentifier
+                    $script:observationStationId = $stationId
+                    if ($LocationKey) { Set-CachedStationId -LocationKey $LocationKey -StationId $stationId }
+                    return $stationId
+                }
+            }
+        } else {
+            Remove-Job -Job $job -Force
+        }
+    }
+    return $null
+}
+
+function Update-CurrentObservationOnly {
+    param(
+        [string]$Lat,
+        [string]$Lon,
+        [hashtable]$Headers,
+        [string]$TimeZone,
+        [string]$LocationKey
+    )
+
+    try {
+        Write-Verbose "Light refresh: latest observation only"
+        $stationId = Get-CachedStationId -LocationKey $LocationKey
+        if (-not $stationId) { $stationId = $script:observationStationId }
+        if (-not $stationId) {
+            $pointsUrl = "https://api.weather.gov/points/$Lat,$Lon"
+            $pointsJob = Start-ApiJob -Url $pointsUrl -Headers $Headers -JobName "PointsForObsOnly"
+            Wait-Job -Job $pointsJob | Out-Null
+            if ($pointsJob.State -ne 'Completed') {
+                Remove-Job -Job $pointsJob -Force
+                return $false
+            }
+            $pointsJson = $pointsJob | Receive-Job
+            Remove-Job -Job $pointsJob -Force
+            $pointsData = $pointsJson | ConvertFrom-Json
+            $stationId = Resolve-StationIdForLocation -PointsData $pointsData -Headers $Headers -LocationKey $LocationKey
+        }
+        if (-not $stationId) { return $false }
+
+        $feature = Get-NWSLatestObservation -StationId $stationId -Headers $Headers
+        if ($null -eq $feature) { return $false }
+
+        $merged = Merge-LatestObservationIntoCurrentConditions -Feature $feature -TimeZone $TimeZone -HourlyData $script:hourlyData
+        if ($merged) {
+            $currentTemp = $script:currentTemp
+            $currentConditions = $script:currentConditions
+            $currentWind = $script:currentWind
+            $currentWindDir = $script:currentWindDir
+            $windGust = $script:windGust
+            $currentHumidity = $script:currentHumidity
+            $currentDewPoint = $script:currentDewPoint
+            $currentTempTrend = $script:currentTempTrend
+            $currentTimeLocal = $script:currentTimeLocal
+        }
+        return $merged
+    } catch {
+        Write-Verbose "Update-CurrentObservationOnly failed: $($_.Exception.Message)"
+        return $false
+    }
+}
+
 # Function to fetch NWS observations (kept for backward compatibility, but now uses async pattern in Update-WeatherData)
 function Get-NWSObservations {
     param(
@@ -854,40 +1217,55 @@ function Get-NWSObservations {
     )
     
     try {
-        # Get observation stations from points data
-        $observationStationsUrl = $PointsData.properties.observationStations
-        if (-not $observationStationsUrl) {
-            Write-Verbose "No observation stations URL found in points data"
-            return $null
+        $locationKey = $script:locationKey
+        if (-not $locationKey -and $PointsData) {
+            $locationKey = Get-LocationKeyFromCityState -Lat $PointsData.geometry.coordinates[1] -Lon $PointsData.geometry.coordinates[0]
+        }
+        $stationId = $null
+        if ($locationKey) {
+            $stationId = Get-CachedStationId -LocationKey $locationKey
+        }
+        if (-not $stationId) { $stationId = $script:observationStationId }
+        if (-not $stationId) {
+            # Get observation stations from points data
+            $observationStationsUrl = $PointsData.properties.observationStations
+            if (-not $observationStationsUrl) {
+                Write-Verbose "No observation stations URL found in points data"
+                return $null
+            }
+            
+            Write-Verbose "Fetching observation stations from: $observationStationsUrl"
+            $stationsJob = Start-ApiJob -Url $observationStationsUrl -Headers $Headers -JobName "ObservationStations"
+            Wait-Job -Job $stationsJob | Out-Null
+            
+            if ($stationsJob.State -ne 'Completed') {
+                Write-Verbose "Failed to fetch observation stations: $($stationsJob | Receive-Job)"
+                Remove-Job -Job $stationsJob -Force
+                return $null
+            }
+            
+            $stationsJson = $stationsJob | Receive-Job
+            Remove-Job -Job $stationsJob
+            
+            if ([string]::IsNullOrWhiteSpace($stationsJson)) {
+                Write-Verbose "Empty response from observation stations API"
+                return $null
+            }
+            
+            $stationsData = $stationsJson | ConvertFrom-Json
+            
+            if ($stationsData.features.Count -eq 0) {
+                Write-Verbose "No observation stations found"
+                return $null
+            }
+            
+            $stationId = $stationsData.features[0].properties.stationIdentifier
+            $script:observationStationId = $stationId
+            if ($locationKey) { Set-CachedStationId -LocationKey $locationKey -StationId $stationId }
+        } else {
+            Write-Verbose "Using cached station ID for history: $stationId"
         }
         
-        Write-Verbose "Fetching observation stations from: $observationStationsUrl"
-        $stationsJob = Start-ApiJob -Url $observationStationsUrl -Headers $Headers -JobName "ObservationStations"
-        Wait-Job -Job $stationsJob | Out-Null
-        
-        if ($stationsJob.State -ne 'Completed') {
-            Write-Verbose "Failed to fetch observation stations: $($stationsJob | Receive-Job)"
-            Remove-Job -Job $stationsJob -Force
-            return $null
-        }
-        
-        $stationsJson = $stationsJob | Receive-Job
-        Remove-Job -Job $stationsJob
-        
-        if ([string]::IsNullOrWhiteSpace($stationsJson)) {
-            Write-Verbose "Empty response from observation stations API"
-            return $null
-        }
-        
-        $stationsData = $stationsJson | ConvertFrom-Json
-        
-        # Get the first station ID
-        if ($stationsData.features.Count -eq 0) {
-            Write-Verbose "No observation stations found"
-            return $null
-        }
-        
-        $stationId = $stationsData.features[0].properties.stationIdentifier
         Write-Verbose "Using observation station: $stationId"
         
         # Calculate time range (last 7 days for observations)
@@ -1348,9 +1726,28 @@ function Update-WeatherData {
         Write-Verbose "GET: $alertsUrl"
         $alertsJob = Start-ApiJob -Url $alertsUrl -Headers $headers -JobName "AlertsData"
         
-        # Start observations stations job in parallel if timezone is provided
+        $locationKeyForObs = $script:locationKey
+        if (-not $locationKeyForObs) {
+            $locationKeyForObs = Get-LocationKeyFromCityState -City $city -State $state -Lat $lat -Lon $lon
+            if ($locationKeyForObs) { $script:locationKey = $locationKeyForObs }
+        }
+        $cachedStationForLatest = $null
+        if ($locationKeyForObs) {
+            $cachedStationForLatest = Get-CachedStationId -LocationKey $locationKeyForObs
+        }
+        if (-not $cachedStationForLatest) { $cachedStationForLatest = $script:observationStationId }
+
+        $refreshLatestObsJob = $null
+        if ($cachedStationForLatest) {
+            $script:observationStationId = $cachedStationForLatest
+            $latestObsUrl = "https://api.weather.gov/stations/$cachedStationForLatest/observations/latest"
+            Write-Verbose "GET: $latestObsUrl (parallel latest obs)"
+            $refreshLatestObsJob = Start-ApiJob -Url $latestObsUrl -Headers $headers -JobName "LatestObservationRefresh"
+        }
+
+        # Start observations stations job in parallel if timezone is provided (history preload; skipped when resolving latest from cache only)
         $stationsJob = $null
-        if ($TimeZone -and $pointsData.properties.observationStations) {
+        if ($TimeZone -and $pointsData.properties.observationStations -and -not $cachedStationForLatest) {
             $observationStationsUrl = $pointsData.properties.observationStations
             Write-Verbose "Fetching observation stations from: $observationStationsUrl"
             $stationsJob = Start-ApiJob -Url $observationStationsUrl -Headers $headers -JobName "ObservationStations"
@@ -1360,6 +1757,9 @@ function Update-WeatherData {
         if ($aqiJob) { $jobsToWaitFor += $aqiJob }
         if ($stationsJob) {
             $jobsToWaitFor += $stationsJob
+        }
+        if ($refreshLatestObsJob) {
+            $jobsToWaitFor += $refreshLatestObsJob
         }
         
         # Wait for jobs (same as initial load - wait indefinitely, no timeout)
@@ -1606,6 +2006,10 @@ function Update-WeatherData {
                         if ($stationsData.features.Count -gt 0) {
                             $stationId = $stationsData.features[0].properties.stationIdentifier
                             Write-Verbose "Using observation station: $stationId"
+                            $script:observationStationId = $stationId
+                            if ($locationKeyForObs) {
+                                Set-CachedStationId -LocationKey $locationKeyForObs -StationId $stationId
+                            }
                             
                             # Calculate time range (last 7 days for observations)
                             $endTime = Get-Date
@@ -1703,30 +2107,48 @@ function Update-WeatherData {
             }
         }
         
+        # When station ID is cached, still preload history without re-listing stations
+        if ($null -eq $stationId -and $cachedStationForLatest -and $TimeZone) {
+            $stationId = $cachedStationForLatest
+            $endTime = Get-Date
+            $startTime = $endTime.AddDays(-7)
+            $startTimeStr = $startTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            $endTimeStr = $endTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            $observationsUrl = "https://api.weather.gov/stations/$stationId/observations?start=$startTimeStr&end=$endTimeStr"
+            Write-Verbose "GET: $observationsUrl (cached station history preload)"
+            $observationsData = Get-AllObservationsWithPagination -ObservationsUrl $observationsUrl -Headers $headers
+            if ($null -ne $observationsData) {
+                $script:observationsData = Convert-ObservationsData -ObservationsData $observationsData -TimeZone $TimeZone
+            }
+        }
+
+        $latestObservationFeature = $null
+        if ($refreshLatestObsJob) {
+            if ($refreshLatestObsJob.State -eq 'Completed') {
+                $latestJson = $refreshLatestObsJob | Receive-Job
+                if (-not [string]::IsNullOrWhiteSpace($latestJson)) {
+                    try {
+                        $latestData = $latestJson | ConvertFrom-Json
+                        if ($latestData.type -eq 'Feature') {
+                            $latestObservationFeature = $latestData
+                        } elseif ($latestData.features -and $latestData.features.Count -gt 0) {
+                            $latestObservationFeature = $latestData.features[0]
+                        }
+                    } catch {
+                        Write-Verbose "Failed to parse latest observation on refresh: $($_.Exception.Message)"
+                    }
+                }
+            }
+            Remove-Job -Job $refreshLatestObsJob -Force -ErrorAction SilentlyContinue
+        } elseif ($stationId) {
+            $latestObservationFeature = Get-NWSLatestObservation -StationId $stationId -Headers $headers
+        }
+        
         # Update current conditions (only if hourly data is available)
         if ($hourlyData) {
-            $script:currentPeriod = $hourlyData.properties.periods[0]
-            $script:currentTemp = $currentPeriod.temperature
-            $script:currentConditions = $currentPeriod.shortForecast
-            $script:currentWind = $currentPeriod.windSpeed
-            $script:currentWindDir = $currentPeriod.windDirection
-            $script:currentTime = $script:dataFetchTime
-            $script:currentTimeLocal = $script:dataFetchTime
-            $script:currentHumidity = $currentPeriod.relativeHumidity.value
-            $script:currentPrecipProb = $currentPeriod.probabilityOfPrecipitation.value
-            $script:currentIcon = $currentPeriod.icon
-            # Recalculate rising/falling trend from current vs next hour
-            $script:currentTempTrend = $null
-            $hourlyPeriods = $hourlyData.properties.periods
-            if ($hourlyPeriods.Count -gt 1) {
-                $nextHourPeriod = $hourlyPeriods[1]
-                $nextHourTemp = $nextHourPeriod.temperature
-                $tempDiff = [double]$nextHourTemp - [double]$script:currentTemp
-                if ($tempDiff -gt 0.1) { $script:currentTempTrend = "rising" }
-                elseif ($tempDiff -lt -0.1) { $script:currentTempTrend = "falling" }
-                else { $script:currentTempTrend = "steady" }
-            } else {
-                $script:currentTempTrend = "steady"
+            Set-CurrentConditionsFromHourly -HourlyData $hourlyData
+            if ($latestObservationFeature) {
+                Merge-LatestObservationIntoCurrentConditions -Feature $latestObservationFeature -TimeZone $TimeZone -HourlyData $hourlyData | Out-Null
             }
         }
 
@@ -1761,6 +2183,9 @@ function Update-WeatherData {
         
         # Update fetch time
         $script:dataFetchTime = Get-Date
+        if ($hourlyData -and -not $script:usesObservation) {
+            $script:currentTimeLocal = $script:dataFetchTime
+        }
         
         # Refresh NOAA station data in parallel (non-blocking, don't fail if it errors)
         try {
@@ -2200,6 +2625,28 @@ Write-Verbose "Grid info: Office=$office (CWA), GridX=$gridX, GridY=$gridY"
 Write-Verbose "Location info: TimeZone=$timeZone, RadarStation=$radarStation"
 Write-Verbose "Forecast URLs extracted from Points API response"
 
+$script:locationKey = Get-LocationKeyFromCityState -City $city -State $state -Lat $lat -Lon $lon
+$script:observationStationId = $null
+$cachedStationForObs = $null
+if ($script:locationKey) {
+    $cachedStationForObs = Get-CachedStationId -LocationKey $script:locationKey
+    if ($cachedStationForObs) {
+        $script:observationStationId = $cachedStationForObs
+        Write-Verbose "Using cached station for latest obs: $cachedStationForObs"
+    }
+}
+
+$latestObsJob = $null
+$stationsForLatestJob = $null
+if ($cachedStationForObs) {
+    $latestObsUrl = "https://api.weather.gov/stations/$cachedStationForObs/observations/latest"
+    Write-Verbose "GET: $latestObsUrl"
+    $latestObsJob = Start-ApiJob -Url $latestObsUrl -Headers $headers -JobName "LatestObservation"
+} elseif ($pointsData.properties.observationStations) {
+    Write-Verbose "GET: $($pointsData.properties.observationStations) (for latest obs)"
+    $stationsForLatestJob = Start-ApiJob -Url $pointsData.properties.observationStations -Headers $headers -JobName "ObservationStationsForLatest"
+}
+
 # --- CONCURRENTLY FETCH FORECAST AND HOURLY DATA ---
 Write-Verbose "Starting API calls for forecast data."
 Write-Verbose "GET: $forecastUrl"
@@ -2231,6 +2678,8 @@ Write-Host "Loading $locationDisplay Data..." -ForegroundColor Yellow
 
 $jobsToWaitFor = @($forecastJob, $hourlyJob)
 if ($aqiJob) { $jobsToWaitFor += $aqiJob }
+if ($latestObsJob) { $jobsToWaitFor += $latestObsJob }
+if ($stationsForLatestJob) { $jobsToWaitFor += $stationsForLatestJob }
 Wait-Job -Job $jobsToWaitFor | Out-Null
 
 # --- COLLECT RESULTS AND HANDLE ERRORS ---
@@ -2277,6 +2726,31 @@ Write-Verbose "Hourly data retrieved successfully"
 # Set script-scoped variable for refresh operations
 $script:hourlyData = $hourlyData
 Remove-Job -Job @($forecastJob, $hourlyJob)
+
+$latestObservationFeature = $null
+if ($latestObsJob) {
+    if ($latestObsJob.State -eq 'Completed') {
+        $latestJson = $latestObsJob | Receive-Job
+        if (-not [string]::IsNullOrWhiteSpace($latestJson)) {
+            try {
+                $latestData = $latestJson | ConvertFrom-Json
+                if ($latestData.type -eq 'Feature') {
+                    $latestObservationFeature = $latestData
+                } elseif ($latestData.features -and $latestData.features.Count -gt 0) {
+                    $latestObservationFeature = $latestData.features[0]
+                }
+            } catch {
+                Write-Verbose "Failed to parse latest observation: $($_.Exception.Message)"
+            }
+        }
+    }
+    Remove-Job -Job $latestObsJob -Force -ErrorAction SilentlyContinue
+} elseif ($stationsForLatestJob) {
+    $resolvedStationId = Resolve-StationIdForLocation -PointsData $pointsData -Headers $headers -LocationKey $script:locationKey -StationsJob $stationsForLatestJob
+    if ($resolvedStationId) {
+        $latestObservationFeature = Get-NWSLatestObservation -StationId $resolvedStationId -Headers $headers
+    }
+}
 
 # --- COLLECT AQI DATA (NON-FATAL) ---
 $aqiData = @{
@@ -3018,32 +3492,31 @@ function Get-MoonPhase {
     }
 }
 
-# Extract current weather conditions from the first period of hourly data
-# This represents the most recent weather observation
-$currentPeriod = $hourlyData.properties.periods[0]
-$currentTemp = $currentPeriod.temperature
-$currentConditions = $currentPeriod.shortForecast
-$currentWind = $currentPeriod.windSpeed
-$currentWindDir = $currentPeriod.windDirection
-# Use our API call time for the observation timestamp (when we fetched the data)
-$currentTime = $dataFetchTime
-$currentHumidity = $currentPeriod.relativeHumidity.value
-
-# Extract dew point if available in API response
-$currentDewPoint = $null
-if ($currentPeriod.PSObject.Properties['dewpoint'] -and $null -ne $currentPeriod.dewpoint.value) {
-    try {
-        $currentDewPoint = [double]$currentPeriod.dewpoint.value
-        Write-Verbose "Successfully extracted dew point: $currentDewPoint°C"
-    }
-    catch {
-        Write-Verbose "Invalid dew point value: $($currentPeriod.dewpoint.value)"
-        $currentDewPoint = $null
-    }
+# Build current conditions from hourly forecast, then merge latest station observation when fresh
+Set-CurrentConditionsFromHourly -HourlyData $hourlyData
+if ($latestObservationFeature) {
+    Merge-LatestObservationIntoCurrentConditions -Feature $latestObservationFeature -TimeZone $timeZone -HourlyData $hourlyData | Out-Null
 }
 
-$currentPrecipProb = $currentPeriod.probabilityOfPrecipitation.value
-$currentIcon = $currentPeriod.icon
+$currentPeriod = $script:currentPeriod
+$currentTemp = $script:currentTemp
+$currentConditions = $script:currentConditions
+$currentWind = $script:currentWind
+$currentWindDir = $script:currentWindDir
+$currentTime = $dataFetchTime
+$currentHumidity = $script:currentHumidity
+$currentDewPoint = $script:currentDewPoint
+$currentPrecipProb = $script:currentPrecipProb
+$currentIcon = $script:currentIcon
+$currentTempTrend = $script:currentTempTrend
+$windGust = $script:windGust
+if ($script:usesObservation -and $script:currentTimeLocal) {
+    $currentTimeLocal = $script:currentTimeLocal
+} else {
+    $currentTimeLocal = $dataFetchTime
+    $script:currentTimeLocal = $dataFetchTime
+}
+
 $aqiShow = $false
 $aqiCategoryName = $null
 $aqiCategoryNumber = $null
@@ -3067,46 +3540,6 @@ $script:o3Aqi = $o3Aqi
 $script:o3CategoryNumber = $o3CategoryNumber
 $script:pm25Aqi = $pm25Aqi
 $script:pm25CategoryNumber = $pm25CategoryNumber
-
-# --- Temperature Trend Detection ---
-# Calculate trend by comparing current temp to next hour temp (future-looking trend)
-# Always use the actual calculated difference - never trust API's temperatureTrend when it contradicts the data
-$currentTempTrend = $null
-$hourlyPeriods = $hourlyData.properties.periods
-if ($hourlyPeriods.Count -gt 1) {
-    $nextHourPeriod = $hourlyPeriods[1]
-    $nextHourTemp = $nextHourPeriod.temperature
-    
-    $tempDiff = [double]$nextHourTemp - [double]$currentTemp
-    Write-Verbose "Temperature trend calculation: Current=$currentTemp°F, Next=$nextHourTemp°F, Diff=$tempDiff°F"
-    
-    # Always check the sign of the actual temperature difference first
-    if ($tempDiff -gt 0.1) {
-        # Next hour is warmer - temperature is rising
-        $currentTempTrend = "rising"
-        Write-Verbose "Calculated temperature trend (future-looking): $currentTempTrend"
-    }
-    elseif ($tempDiff -lt -0.1) {
-        # Next hour is cooler - temperature is falling
-        $currentTempTrend = "falling"
-        Write-Verbose "Calculated temperature trend (future-looking): $currentTempTrend"
-    }
-    else {
-        # Very small change (within 0.1 degrees) - temperature is steady
-        $currentTempTrend = "steady"
-        Write-Verbose "Small change detected ($tempDiff°F). Temperature is steady."
-    }
-} else {
-    $currentTempTrend = "steady"
-    Write-Verbose "Insufficient hourly data for trend calculation"
-}
-
-# Extract wind gust information from wind speed string
-$windGust = $null
-if ($currentWind -match "(\d+)\s*to\s*(\d+)\s*mph") {
-    $windGust = $matches[2]
-    $currentWind = "$($matches[1]) mph"
-}
 
 # Extract today's detailed forecast (first period in forecast data)
 $todayPeriod = $forecastData.properties.periods[0]
@@ -4397,15 +4830,6 @@ function Show-SevenDayForecast {
         $processedDays[$dayName] = $true
         $dayCount++
     }
-}
-
-# Function to convert wind direction degrees to cardinal direction
-function Get-CardinalDirection {
-    param([double]$Degrees)
-    
-    $directions = @("N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW")
-    $index = [Math]::Round($Degrees / 22.5) % 16
-    return $directions[$index]
 }
 
 # Function to display historical weather observations
@@ -6577,7 +7001,9 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         $currentWind = $script:currentWind
                         $currentWindDir = $script:currentWindDir
                         $currentHumidity = $script:currentHumidity
+                        $currentDewPoint = $script:currentDewPoint
                         $currentPrecipProb = $script:currentPrecipProb
+                        $windGust = $script:windGust
                         $todayForecast = $script:todayForecast
                         $todayPeriodName = $script:todayPeriodName
                         $tomorrowForecast = $script:tomorrowForecast
@@ -6622,7 +7048,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                                 "N/A" 
                             }
                             $solarStr = Get-SolarIrradianceSummary -Latitude $lat -Longitude $lon -CurrentTimeDateTime $script:dataFetchTime -TimeZoneId $timeZone
-                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $solarStr -Latitude $lat -Longitude $lon -TimeZoneId $timeZone -ObservationDateTime $script:dataFetchTime -SunriseDateTime $script:sunriseTime -SunsetDateTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -IsTerseMode $isTerseMode
+                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:currentTimeLocal -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $solarStr -Latitude $lat -Longitude $lon -TimeZoneId $timeZone -ObservationDateTime $script:dataFetchTime -SunriseDateTime $script:sunriseTime -SunsetDateTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -IsTerseMode $isTerseMode
                             Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                             Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false -TimeZone $timeZone
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
@@ -6675,13 +7101,13 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                                 "N/A" 
                             }
                             $solarStr = Get-SolarIrradianceSummary -Latitude $lat -Longitude $lon -CurrentTimeDateTime $script:dataFetchTime -TimeZoneId $timeZone
-                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $solarStr -Latitude $lat -Longitude $lon -TimeZoneId $timeZone -ObservationDateTime $script:dataFetchTime -SunriseDateTime $script:sunriseTime -SunsetDateTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -IsTerseMode $isTerseMode
+                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:currentTimeLocal -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $solarStr -Latitude $lat -Longitude $lon -TimeZoneId $timeZone -ObservationDateTime $script:dataFetchTime -SunriseDateTime $script:sunriseTime -SunsetDateTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -IsTerseMode $isTerseMode
                             Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                             Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false -TimeZone $timeZone
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $false
                         } else {
                             # Default to full weather report if no specific mode is set
-                            Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $script:sunriseTime -SunsetTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -CurrentTimeDateTime $script:dataFetchTime
+                            Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:currentTimeLocal -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $script:sunriseTime -SunsetTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -CurrentTimeDateTime $script:dataFetchTime
                                 Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                             }
                         }
@@ -6744,7 +7170,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         "N/A" 
                     }
                     $solarStr = Get-SolarIrradianceSummary -Latitude $lat -Longitude $lon -CurrentTimeDateTime $script:dataFetchTime -TimeZoneId $timeZone
-                    Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $solarStr -Latitude $lat -Longitude $lon -TimeZoneId $timeZone -ObservationDateTime $script:dataFetchTime -SunriseDateTime $script:sunriseTime -SunsetDateTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -IsTerseMode $true
+                    Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:currentTimeLocal -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $solarStr -Latitude $lat -Longitude $lon -TimeZoneId $timeZone -ObservationDateTime $script:dataFetchTime -SunriseDateTime $script:sunriseTime -SunsetDateTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -IsTerseMode $true
                     Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                     Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false -TimeZone $timeZone
                     Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
@@ -6757,7 +7183,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isTerseMode = $false
                     $isDailyMode = $false
                     $isObservationsMode = $false
-                    Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $script:sunriseTime -SunsetTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -CurrentTimeDateTime $script:dataFetchTime
+                    Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:currentTimeLocal -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $script:sunriseTime -SunsetTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -CurrentTimeDateTime $script:dataFetchTime
                     Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                 }
                 'r' { # R key - Switch to rain forecast mode
@@ -6824,12 +7250,12 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                                 "N/A" 
                             }
                             $solarStr = Get-SolarIrradianceSummary -Latitude $lat -Longitude $lon -CurrentTimeDateTime $script:dataFetchTime -TimeZoneId $timeZone
-                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $solarStr -Latitude $lat -Longitude $lon -TimeZoneId $timeZone -ObservationDateTime $script:dataFetchTime -SunriseDateTime $script:sunriseTime -SunsetDateTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -IsTerseMode $isTerseMode
+                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:currentTimeLocal -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $solarStr -Latitude $lat -Longitude $lon -TimeZoneId $timeZone -ObservationDateTime $script:dataFetchTime -SunriseDateTime $script:sunriseTime -SunsetDateTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -IsTerseMode $isTerseMode
                             Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                             Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false -TimeZone $timeZone
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } else {
-                            Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $sunriseTime -SunsetTime $sunsetTime -CurrentTimeDateTime $script:dataFetchTime
+                            Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:currentTimeLocal -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $sunriseTime -SunsetTime $sunsetTime -CurrentTimeDateTime $script:dataFetchTime
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         }
                     }
@@ -6894,13 +7320,13 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                                 "N/A" 
                             }
                             $solarStr = Get-SolarIrradianceSummary -Latitude $lat -Longitude $lon -CurrentTimeDateTime $script:dataFetchTime -TimeZoneId $timeZone
-                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $solarStr -Latitude $lat -Longitude $lon -TimeZoneId $timeZone -ObservationDateTime $script:dataFetchTime -SunriseDateTime $script:sunriseTime -SunsetDateTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -IsTerseMode $isTerseMode
+                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:currentTimeLocal -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $solarStr -Latitude $lat -Longitude $lon -TimeZoneId $timeZone -ObservationDateTime $script:dataFetchTime -SunriseDateTime $script:sunriseTime -SunsetDateTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -IsTerseMode $isTerseMode
                             Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                             Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false -TimeZone $timeZone
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } else {
                             # Full mode - all mode flags are false
-                            Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $script:sunriseTime -SunsetTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -CurrentTimeDateTime $script:dataFetchTime
+                            Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:currentTimeLocal -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $script:sunriseTime -SunsetTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -CurrentTimeDateTime $script:dataFetchTime
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         }
                     }
@@ -7012,7 +7438,14 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                 }
                 'g' { # G key - Refresh weather data
-                    $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers -TimeZone $timeZone -UseRetryLogic $true
+                    $timeSinceLastFetch = (Get-Date) - $script:dataFetchTime
+                    if ($timeSinceLastFetch.TotalSeconds -le $dataStaleThreshold) {
+                        Write-Verbose "G key: forecast fresh — light refresh (latest observation only)"
+                        $refreshSuccess = Update-CurrentObservationOnly -Lat $lat -Lon $lon -Headers $headers -TimeZone $timeZone -LocationKey $script:locationKey
+                    } else {
+                        Write-Verbose "G key: forecast stale — full refresh"
+                        $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers -TimeZone $timeZone -UseRetryLogic $true
+                    }
                     if ($refreshSuccess) {
                         # Recalculate moon phase and sunrise/sunset for current time (using location's date)
                         $moonPhaseInfo = Get-MoonPhase -Date (Get-Date)
@@ -7032,7 +7465,9 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         $currentWind = $script:currentWind
                         $currentWindDir = $script:currentWindDir
                         $currentHumidity = $script:currentHumidity
+                        $currentDewPoint = $script:currentDewPoint
                         $currentPrecipProb = $script:currentPrecipProb
+                        $windGust = $script:windGust
                         $todayForecast = $script:todayForecast
                         $todayPeriodName = $script:todayPeriodName
                         $tomorrowForecast = $script:tomorrowForecast
@@ -7076,7 +7511,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                                 "N/A" 
                             }
                             $solarStr = Get-SolarIrradianceSummary -Latitude $lat -Longitude $lon -CurrentTimeDateTime $script:dataFetchTime -TimeZoneId $timeZone
-                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $solarStr -Latitude $lat -Longitude $lon -TimeZoneId $timeZone -ObservationDateTime $script:dataFetchTime -SunriseDateTime $script:sunriseTime -SunsetDateTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -IsTerseMode $isTerseMode
+                            Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:currentTimeLocal -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $solarStr -Latitude $lat -Longitude $lon -TimeZoneId $timeZone -ObservationDateTime $script:dataFetchTime -SunriseDateTime $script:sunriseTime -SunsetDateTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -IsTerseMode $isTerseMode
                             Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
                             Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false -TimeZone $timeZone
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
@@ -7092,7 +7527,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             }
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         } else {
-                            Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:dataFetchTime -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $sunriseTime -SunsetTime $sunsetTime -CurrentTimeDateTime $script:dataFetchTime
+                            Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $script:currentTimeLocal -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $sunriseTime -SunsetTime $sunsetTime -CurrentTimeDateTime $script:dataFetchTime
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         }
                     }

@@ -99,7 +99,7 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
   - **R** — Rain forecast mode (sparklines)
   - **W** — Wind forecast mode (direction glyphs)
   - **O** — Observations mode (historical weather data)
-  - **G** — Refresh weather data (auto-refreshes every 10 minutes)
+  - **G** — Refresh weather data (auto-refreshes every 10 minutes). Within 10 minutes of the last full fetch, **G** updates only the latest station observation; otherwise it refetches forecast and hourly data too.
   - **U** — Toggle automatic updates on/off
   - **B** — Toggle control bar on/off
   - **F** — Return to full display
@@ -465,7 +465,8 @@ Interactive mode shows a control bar with hotkey hints (hide with **B** or start
 - **Efficient Planning:** Switch between hourly and daily views for different planning needs
 - **Focused Information:** Get exactly the weather data you need without scrolling through everything
 - **Auto-Refresh:** Weather data automatically refreshes every 10 minutes to keep information current
-- **Manual Refresh:** Press **G** to manually refresh data at any time
+- **Manual Refresh:** Press **G** to manually refresh data at any time (observation-only when forecast is still fresh)
+- **Observed current conditions:** Current Conditions uses the nearest NWS station’s latest observation when fresh; the hourly table stays forecast-based. **Updated:** shows the observation time when station data drives current conditions.
 - **Hourly Scrolling:** In hourly view, **↑**/**↓** move through 12-hour pages covering up to 48 hours
 
 ### When Interactive Mode Is Skipped:

@@ -470,6 +470,106 @@ async function fetchNWSObservationStations(pointsData) {
     }
 }
 
+const STATION_CACHE_STORAGE_KEY = 'forecastStationCache';
+const STATION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+function buildLocationKeyFromParts(city, state) {
+    const c = (city || '').trim().replace(/[^a-zA-Z0-9\s]/g, '');
+    const s = (state || '').trim().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    if (!c || !s) return null;
+    return `${c},${s}`;
+}
+
+function loadStationCacheMap() {
+    try {
+        const raw = localStorage.getItem(STATION_CACHE_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : {};
+    } catch (error) {
+        console.warn('Failed to load station cache:', error);
+        return {};
+    }
+}
+
+function getCachedStationId(locationKey) {
+    if (!locationKey) return null;
+    const map = loadStationCacheMap();
+    const entry = map[locationKey];
+    if (!entry || !entry.stationId || !entry.cachedAt) return null;
+    if (Date.now() - entry.cachedAt > STATION_CACHE_TTL_MS) return null;
+    console.log('[Station cache] hit for', locationKey, '→', entry.stationId);
+    return entry.stationId;
+}
+
+function setCachedStationId(locationKey, stationId) {
+    if (!locationKey || !stationId) return;
+    try {
+        const map = loadStationCacheMap();
+        map[locationKey] = { stationId, cachedAt: Date.now() };
+        localStorage.setItem(STATION_CACHE_STORAGE_KEY, JSON.stringify(map));
+        console.log('[Station cache] stored', locationKey, '→', stationId);
+    } catch (error) {
+        console.warn('Failed to save station cache:', error);
+    }
+}
+
+async function fetchNWSLatestObservation(stationId) {
+    if (!stationId) return null;
+    try {
+        const url = `https://api.weather.gov/stations/${stationId}/observations/latest`;
+        console.log('Fetching latest observation from:', url);
+        const response = await fetch(url, { headers: NWS_HEADERS });
+        if (!response.ok) {
+            console.warn('Latest observation fetch failed:', response.status, response.statusText);
+            return null;
+        }
+        const data = await response.json();
+        if (data && data.type === 'Feature') return data;
+        if (data && data.features && data.features.length > 0) return data.features[0];
+        return null;
+    } catch (error) {
+        console.warn('Error fetching latest observation:', error);
+        return null;
+    }
+}
+
+async function resolveStationId(pointsData, locationKey) {
+    const cached = getCachedStationId(locationKey);
+    if (cached) return cached;
+    const stationId = await fetchNWSObservationStations(pointsData);
+    if (stationId) setCachedStationId(locationKey, stationId);
+    return stationId;
+}
+
+async function fetchLatestObservationForLocation(pointsData, locationKey) {
+    try {
+        if (!locationKey) return { feature: null, stationId: null };
+        const stationId = await resolveStationId(pointsData, locationKey);
+        if (!stationId) return { feature: null, stationId: null };
+        const feature = await fetchNWSLatestObservation(stationId);
+        return { feature, stationId };
+    } catch (error) {
+        console.warn('fetchLatestObservationForLocation failed:', error);
+        return { feature: null, stationId: null };
+    }
+}
+
+async function refreshLatestObservationForLocation(locationKey, pointsData) {
+    try {
+        if (!locationKey) return { feature: null, stationId: null };
+        let stationId = getCachedStationId(locationKey);
+        if (!stationId) {
+            if (!pointsData) return { feature: null, stationId: null };
+            stationId = await resolveStationId(pointsData, locationKey);
+        }
+        if (!stationId) return { feature: null, stationId: null };
+        const feature = await fetchNWSLatestObservation(stationId);
+        return { feature, stationId };
+    } catch (error) {
+        console.warn('refreshLatestObservationForLocation failed:', error);
+        return { feature: null, stationId: null };
+    }
+}
+
 // Fetch NWS observations
 async function fetchNWSObservations(stationId, timeZone) {
     try {
@@ -1231,13 +1331,19 @@ async function fetchWeatherData(location, options = {}) {
     const timeZone = pointsData.properties.timeZone;
     const radarStation = pointsData.properties.radarStation;
     
+    const locationKey = buildLocationKeyFromParts(city, state);
+    const latestObsPromise = locationKey
+        ? fetchLatestObservationForLocation(pointsData, locationKey)
+        : Promise.resolve({ feature: null, stationId: null });
+
     // Fetch forecast and hourly data concurrently (main NWS API calls)
-    const [forecastData, hourlyData, alertsData, preFetchedStations, aqiRows] = await Promise.all([
+    const [forecastData, hourlyData, alertsData, preFetchedStations, aqiRows, latestObsResult] = await Promise.all([
         fetchNWSForecast(forecastUrl),
         fetchNWSHourly(hourlyUrl),
         fetchNWSAlerts(lat, lon),
         noaaStationsPromise,  // NOAA stations fetch in parallel
-        includeAqi ? fetchAirNowAqi(lat, lon, airNowApiKey) : Promise.resolve(null)
+        includeAqi ? fetchAirNowAqi(lat, lon, airNowApiKey) : Promise.resolve(null),
+        latestObsPromise
     ]);
     
     // Extract elevation from forecast data
@@ -1282,7 +1388,10 @@ async function fetchWeatherData(location, options = {}) {
         aqiRows: aqiRows,
         noaaStation: noaaStation,
         noaaOutOfRange: noaaOutOfRange,
-        fetchTime: nwsFetchStartTime  // Use the timestamp from when NWS API calls started
+        fetchTime: nwsFetchStartTime,  // Use the timestamp from when NWS API calls started
+        latestObservation: latestObsResult.feature,
+        stationId: latestObsResult.stationId,
+        locationKey: locationKey
     };
 }
 

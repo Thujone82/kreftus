@@ -2432,8 +2432,15 @@ async function checkObservationsAvailability(pointsData, timeZone) {
             renderCurrentMode();
         }
         try {
-        // Try to fetch observation stations
-        const stationId = await fetchNWSObservationStations(pointsData);
+        // Try to fetch observation stations (reuse 24h-cached stationId when available)
+        const locationKey = appState.currentLocationKey || (appState.location ? generateLocationKey(appState.location) : null);
+        let stationId = (locationKey ? getCachedStationId(locationKey) : null) || appState.observationStationId;
+        if (!stationId) {
+            stationId = await fetchNWSObservationStations(pointsData);
+            if (stationId && locationKey) setCachedStationId(locationKey, stationId);
+        } else {
+            console.log('Using cached station ID for history:', stationId);
+        }
         if (!stationId) {
             // Only clear observations if we don't have existing cached data to preserve
             if (!existingObservationsData) {
@@ -3500,7 +3507,13 @@ async function refreshObservationsForCachedLocation({ cacheKey, weatherData }) {
     const locObj = weatherData?.location;
     if (!pointsData || !timeZone || !locObj || locObj.city == null || locObj.state == null) return false;
 
-    const stationId = await fetchNWSObservationStations(pointsData);
+    const locationKey = cacheKey.startsWith('uid_') ? null : cacheKey;
+    const resolvedKey = locationKey || generateLocationKey(locObj);
+    let stationId = (resolvedKey ? getCachedStationId(resolvedKey) : null) || weatherData.stationId;
+    if (!stationId) {
+        stationId = await fetchNWSObservationStations(pointsData);
+        if (stationId && resolvedKey) setCachedStationId(resolvedKey, stationId);
+    }
     if (!stationId) return false;
     const observationsData = await fetchNWSObservations(stationId, timeZone);
     if (!observationsData || !observationsData.features || observationsData.features.length === 0) return false;
@@ -3610,7 +3623,12 @@ async function runUpdateAllObservationsSweep() {
             if (!pointsData || !timeZone || !locObj || locObj.city == null || locObj.state == null) continue;
 
             try {
-                const stationId = await fetchNWSObservationStations(pointsData);
+                const resolvedKey = cacheKey.startsWith('uid_') ? generateLocationKey(locObj) : cacheKey;
+                let stationId = (resolvedKey ? getCachedStationId(resolvedKey) : null) || weatherData.stationId;
+                if (!stationId) {
+                    stationId = await fetchNWSObservationStations(pointsData);
+                    if (stationId && resolvedKey) setCachedStationId(resolvedKey, stationId);
+                }
                 if (!stationId) continue;
                 const observationsData = await fetchNWSObservations(stationId, timeZone);
                 if (!observationsData || !observationsData.features || observationsData.features.length === 0) continue;
@@ -4143,10 +4161,12 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
         appState.lastFetchTime = cacheTimestamp;
         console.log('Loaded cache timestamp (NWS fetch time):', cacheTimestamp.toISOString(), 'Age:', Math.round((Date.now() - cacheTimestamp.getTime()) / 1000), 'seconds');
         
-        // Ensure current.time matches the cache timestamp (the actual fetch time)
-        // This ensures the "Updated:" field shows the correct time, not the current time
-        if (restoredWeatherData && restoredWeatherData.current) {
+        // Ensure current.time matches the cache timestamp when not driven by station observation
+        if (restoredWeatherData && restoredWeatherData.current && !restoredWeatherData.current.usesObservation) {
             restoredWeatherData.current.time = cacheTimestamp;
+        }
+        if (restoredWeatherData?.stationId) {
+            appState.observationStationId = restoredWeatherData.stationId;
         }
         
         // Restore app state from cache (always set observations from THIS cache so each favorite shows its own history)
@@ -4768,6 +4788,11 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             airNowApiKey: appState.airNowApiKey || ''
         });
         const processedWeather = processWeatherData(weatherData);
+        if (weatherData.points) processedWeather.points = weatherData.points;
+        if (weatherData.stationId) {
+            processedWeather.stationId = weatherData.stationId;
+            appState.observationStationId = weatherData.stationId;
+        }
         
         appState.weatherData = processedWeather;
         appState.location = weatherData.location;
@@ -5051,6 +5076,33 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
 // Handle refresh
 // Refreshes only the currently selected/displayed location.
 // Does not mutate timestamps for other favorites.
+async function refreshCurrentObservationOnly() {
+    if (!appState.weatherData || !appState.location) return false;
+
+    const locationKey = appState.currentLocationKey || generateLocationKey(appState.location);
+    const pointsData = appState.weatherData.points;
+    const { feature, stationId } = await refreshLatestObservationForLocation(locationKey, pointsData);
+    if (!feature) return false;
+
+    if (stationId) {
+        appState.observationStationId = stationId;
+        appState.weatherData.stationId = stationId;
+    }
+
+    const preserveTimestamp = appState.lastFetchTime;
+    const merged = mergeLatestObservationIntoProcessedWeather(
+        appState.weatherData,
+        feature,
+        preserveTimestamp
+    );
+    if (pointsData) merged.points = pointsData;
+    appState.weatherData = merged;
+
+    saveWeatherDataToCache(merged, appState.location, preserveTimestamp);
+    console.log('Light refresh: merged latest observation without updating forecast fetch time');
+    return true;
+}
+
 async function handleRefresh() {
     console.log('Refresh button clicked - loading cached data first, then refreshing');
     // Force full refetch including history (observations) so locations that previously failed get a retry
@@ -5097,6 +5149,22 @@ async function handleRefresh() {
     }
     
     try {
+        const forecastFresh = appState.lastFetchTime && appState.weatherData
+            && !isCacheStale(appState.lastFetchTime)
+            && !appState.observationsNeedRefresh;
+
+        if (forecastFresh) {
+            console.log('Forecast fresh — light refresh (latest observation only)');
+            setLoading(true, false);
+            const refreshed = await refreshCurrentObservationOnly();
+            setLoading(false, false);
+            if (refreshed) {
+                renderCurrentMode();
+                return;
+            }
+            console.log('Light refresh failed or no fresh observation — falling back to full refresh');
+        }
+
         console.log('Fetching fresh data for location:', locationToRefresh);
         
         // Now fetch fresh data for the current location (this will update the display and save to the correct cache key)
