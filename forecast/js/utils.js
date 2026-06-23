@@ -889,6 +889,28 @@ function formatTimeForDisplay(date, timeZoneId) {
     return use24h ? formatTime24(date, timeZoneId) : formatTime(date, timeZoneId);
 }
 
+// When current conditions use a station observation, Updated reflects observation time (location TZ).
+function getUpdatedDisplayTime() {
+    if (typeof appState === 'undefined') return null;
+    const current = appState.weatherData?.current;
+    if (current?.usesObservation && current.observationTime) {
+        const t = current.observationTime instanceof Date
+            ? current.observationTime
+            : new Date(current.observationTime);
+        if (!isNaN(t.getTime())) return t;
+    }
+    return appState.lastFetchTime || null;
+}
+
+function getUpdatedDisplayTimeZone() {
+    if (typeof appState === 'undefined') return null;
+    const current = appState.weatherData?.current;
+    if (current?.usesObservation && appState.weatherData?.location?.timeZone) {
+        return appState.weatherData.location.timeZone;
+    }
+    return null;
+}
+
 // Format date+time according to user preference (AM/PM or 24H)
 function formatDateTimeForDisplay(date, timeZoneId) {
     const use24h = typeof appState !== 'undefined' && appState.use24h;

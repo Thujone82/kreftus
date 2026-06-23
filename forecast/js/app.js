@@ -4069,6 +4069,9 @@ function restoreDatesFromCache(weatherData) {
     if (weatherData.current && weatherData.current.time) {
         weatherData.current.time = new Date(weatherData.current.time);
     }
+    if (weatherData.current && weatherData.current.observationTime) {
+        weatherData.current.observationTime = new Date(weatherData.current.observationTime);
+    }
     
     // Restore location.sunrise and location.sunset (Date objects)
     if (weatherData.location) {
@@ -5160,6 +5163,7 @@ async function handleRefresh() {
             setLoading(false, false);
             if (refreshed) {
                 renderCurrentMode();
+                updateLastUpdateTime();
                 return;
             }
             console.log('Light refresh failed or no fresh observation — falling back to full refresh');
@@ -5590,16 +5594,18 @@ function hideError() {
 
 // Update last update time
 function updateLastUpdateTime() {
-    if (appState.lastFetchTime) {
-        const timeAgo = getTimeAgo(appState.lastFetchTime);
-        elements.lastUpdate.textContent = `Last updated: ${timeAgo}`;
+    const displayTime = typeof getUpdatedDisplayTime === 'function' ? getUpdatedDisplayTime() : appState.lastFetchTime;
+    if (displayTime) {
+        const timeAgo = getTimeAgo(displayTime);
+        if (appState.lastFetchTime) {
+            elements.lastUpdate.textContent = `Last updated: ${timeAgo}`;
+        }
         
         // Also update the "[X minutes ago]" portion in the display
         const updatedTimestampElement = document.querySelector('.updated-timestamp');
         if (updatedTimestampElement) {
-            // Check if data is stale (>10 minutes)
             const now = new Date();
-            const diff = now - appState.lastFetchTime;
+            const diff = now - displayTime;
             const isStale = diff > DATA_STALE_THRESHOLD;
             
             updatedTimestampElement.textContent = `[${timeAgo}]`;

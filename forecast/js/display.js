@@ -370,19 +370,17 @@ function displayCurrentConditions(weather, location, optionalDisplayName, sectio
     let timeAgoHtml = '';
     let updatedTimeHtml = '';
     
-    if (typeof appState !== 'undefined' && (appState.lastFetchTime || (current.usesObservation && current.observationTime))) {
-        const fetchTime = (current.usesObservation && current.observationTime)
-            ? new Date(current.observationTime)
-            : appState.lastFetchTime;
-        const timeAgo = getTimeAgo(fetchTime);
+    if (typeof appState !== 'undefined' && (getUpdatedDisplayTime() || appState.lastFetchTime)) {
+        const displayTime = getUpdatedDisplayTime();
+        const timeAgo = getTimeAgo(displayTime);
         
         const now = new Date();
-        const diff = now - fetchTime;
+        const diff = now - displayTime;
         const isStale = diff > 600000; // 10 minutes in milliseconds
         const staleClass = isStale ? 'stale-data' : '';
         timeAgoHtml = ` <span class="updated-timestamp ${staleClass}">[${timeAgo}]</span>`;
         
-        updatedTimeHtml = formatDateTimeForDisplay(fetchTime, null);
+        updatedTimeHtml = formatDateTimeForDisplay(displayTime, getUpdatedDisplayTimeZone());
     } else if (current.time) {
         // Fallback to current.time if lastFetchTime not available (shouldn't happen, but safety)
         // Still format in viewer's local timezone
