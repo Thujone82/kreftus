@@ -412,13 +412,13 @@ Light refresh does **not** reset the forecast fetch timestamp. Full refresh upda
 The **Updated:** row shows **when you last fetched**, plus station age when observation data is in use:
 
 ```
-Updated: just now [NWS update: 24 minutes ago]
+Updated: just now [NWS: 24 minutes ago]
 ```
 
 | Part | Meaning |
 |------|---------|
 | First value | Time since last **full** weather fetch. Stale styling (> 10 min) applies here. |
-| `[NWS update: …]` | Shown only when `$script:usesObservation` is true. Time since the station’s observation `timestamp`. |
+| `[NWS: …]` | Shown only when `$script:usesObservation` is true. Time since the station’s observation `timestamp`. |
 
 Without station data: `Updated: 2 minutes ago` (no NWS suffix).
 

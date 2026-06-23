@@ -1000,7 +1000,7 @@ function Write-UpdatedConditionsLine {
     }
     $line = "Updated: $(Get-TimeAgoLabel -DateTime $script:dataFetchTime)"
     if ($script:usesObservation -and $null -ne $script:currentTimeLocal) {
-        $line += " [NWS update: $(Get-TimeAgoLabel -DateTime $script:currentTimeLocal)]"
+        $line += " [NWS: $(Get-TimeAgoLabel -DateTime $script:currentTimeLocal)]"
     }
     Write-Host $line -ForegroundColor $InfoColor
 }

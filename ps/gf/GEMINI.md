@@ -660,11 +660,11 @@ Light refresh updates current conditions from the station but does **not** reset
 `Write-UpdatedConditionsLine` formats:
 
 ```
-Updated: just now [NWS update: 24 minutes ago]
+Updated: just now [NWS: 24 minutes ago]
 ```
 
 - **First segment:** `Get-TimeAgoLabel` from `$script:dataFetchTime` (last full fetch). Stale styling (> 10 min) applies here.
-- **`[NWS update: …]`:** Only when `$script:usesObservation` is true; age from observation `timestamp`.
+- **`[NWS: …]`:** Only when `$script:usesObservation` is true; age from observation `timestamp`.
 
 #### Temperature trend
 

@@ -5618,7 +5618,7 @@ function updateLastUpdateTime() {
             ? getObservationDisplayTime()
             : null;
         if (obsTime) {
-            nwsEl.textContent = `[NWS update: ${getTimeAgo(obsTime)}]`;
+            nwsEl.textContent = `[NWS: ${getTimeAgo(obsTime)}]`;
             nwsEl.hidden = false;
         } else {
             nwsEl.hidden = true;

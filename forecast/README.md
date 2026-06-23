@@ -186,13 +186,13 @@ Light refresh does **not** change the forecast fetch timestamp. Full refresh upd
 The **Updated:** row in Current Conditions shows **when you last fetched**, not only when the station last reported:
 
 ```
-Updated: just now [NWS update: 24 minutes ago]
+Updated: just now [NWS: 24 minutes ago]
 ```
 
 | Part | Meaning |
 |------|---------|
 | First value (`just now`, `2 minutes ago`, …) | Time since the last **full** weather fetch (`lastFetchTime`). Stale styling (> 10 min) applies here. |
-| `[NWS update: …]` | Shown only when station observation drives current conditions. Time since the station’s `timestamp`. |
+| `[NWS: …]` | Shown only when station observation drives current conditions. Time since the station’s `timestamp`. |
 
 Without station data: `Updated: 2 minutes ago` (no NWS suffix).
 

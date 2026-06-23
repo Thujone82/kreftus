@@ -889,7 +889,7 @@ function formatTimeForDisplay(date, timeZoneId) {
     return use24h ? formatTime24(date, timeZoneId) : formatTime(date, timeZoneId);
 }
 
-// Observation time when station data drives current conditions (for NWS update suffix).
+// Observation time when station data drives current conditions (for NWS suffix).
 function getObservationDisplayTime() {
     if (typeof appState === 'undefined') return null;
     const current = appState.weatherData?.current;
@@ -914,7 +914,7 @@ function buildUpdatedConditionsHtml() {
     let html = `<span class="updated-fetch-time ${staleClass}">${fetchAgo}</span>`;
     const obsTime = getObservationDisplayTime();
     if (obsTime) {
-        html += ` <span class="updated-nws-time">[NWS update: ${getTimeAgo(obsTime)}]</span>`;
+        html += ` <span class="updated-nws-time">[NWS: ${getTimeAgo(obsTime)}]</span>`;
     }
     return html;
 }
