@@ -86,6 +86,7 @@ The script follows a multi-step process:
 - **Alerts:** `https://api.weather.gov/alerts/active?point={lat},{lon}`
 - **AirNow AQI (optional):** `https://www.airnowapi.org/aq/observation/current/ziplatLong?format=application/json&latitude={lat}&longitude={lon}&api_key={key}` — `{key}` comes only from the **`AirNowAPI`** environment variable (User scope preferred); no key ships with the script. Rate limit: 500 requests/hour per key.
 - **Observation Stations:** `https://api.weather.gov/points/{lat},{lon}/stations`
+- **Latest Observation:** `https://api.weather.gov/stations/{stationId}/observations/latest`
 - **Observations:** `https://api.weather.gov/stations/{stationId}/observations?start={startTime}&end={endTime}&limit=500`
 
 ### AQI Verbose Logging
@@ -632,6 +633,43 @@ The solar irradiance feature displays estimated clear-sky global horizontal irra
 - NWS API does not provide irradiance; this is a clear-sky estimate only (no clouds, aerosols, or observed sky condition).
 - Formula `1000 × cos(zenith)` approximates typical clear-sky GHI; real conditions vary.
 
+### Observed Current Conditions
+
+Current Conditions prefer the nearest NWS station’s **latest observation** when it is fresh; otherwise they use the hourly forecast grid (`periods[0]`). The hourly table always stays forecast-based.
+
+#### Data flow
+
+1. **Station lookup:** `/points/{lat},{lon}/stations` returns nearby stations; nearest `stationId` is cached per location for 24 hours in `%LOCALAPPDATA%\gf\station-cache.json`.
+2. **Latest observation:** `GET /stations/{stationId}/observations/latest` returns one GeoJSON feature.
+3. **Merge:** `Parse-LatestObservation` + merge into current conditions when observation has temperature and `timestamp` is within ~2 hours.
+4. **Fallback:** Hourly `periods[0]` when observation is missing, stale, or has no temperature.
+
+#### Two-tier refresh
+
+Forecast data is fresh for **10 minutes** after a full load (`$script:dataFetchTime`).
+
+| Trigger | Forecast fresh | Forecast stale |
+|---------|----------------|----------------|
+| **G** key | `Update-CurrentObservationOnly` | `Update-WeatherData` (full) |
+| Auto-refresh (10 min) | Same logic | Full refetch |
+
+Light refresh updates current conditions from the station but does **not** reset `$script:dataFetchTime`.
+
+#### Updated line
+
+`Write-UpdatedConditionsLine` formats:
+
+```
+Updated: just now [NWS update: 24 minutes ago]
+```
+
+- **First segment:** `Get-TimeAgoLabel` from `$script:dataFetchTime` (last full fetch). Stale styling (> 10 min) applies here.
+- **`[NWS update: …]`:** Only when `$script:usesObservation` is true; age from observation `timestamp`.
+
+#### Temperature trend
+
+When observation drives current conditions, trend compares obs temp to hourly `periods[1]` (future-looking), matching the forecast web app.
+
 ### Auto-Refresh Technical Implementation
 
 The auto-refresh functionality provides seamless data updates in interactive mode:
@@ -639,7 +677,7 @@ The auto-refresh functionality provides seamless data updates in interactive mod
 #### Key Components:
 - **Timer Tracking:** Uses `$dataFetchTime` to track when data was last fetched
 - **Staleness Detection:** Checks if current time exceeds 10-minute threshold (`$dataStaleThreshold = 600`)
-- **Refresh Function:** `Update-WeatherData` re-fetches all API endpoints and updates global variables
+- **Refresh Function:** `Update-WeatherData` re-fetches all API endpoints and updates global variables; `Update-CurrentObservationOnly` fetches only `observations/latest` when forecast is still fresh
 - **View Preservation:** Maintains current display mode (hourly/daily/terse/rain/wind/full) during refresh
 - **Error Handling:** Graceful fallback to existing data if refresh fails
 

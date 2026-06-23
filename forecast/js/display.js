@@ -362,32 +362,15 @@ function displayCurrentConditions(weather, location, optionalDisplayName, sectio
     
     html += '<div class="condition-row">';
     html += `<span class="condition-label">Updated:</span>`;
-    
-    // Get time ago and check if stale
-    // Access appState from the global scope (it's defined in app.js)
-    // Use appState.lastFetchTime (when data was actually fetched) instead of current.time
-    // Format in viewer's local timezone, not destination timezone
-    let timeAgoHtml = '';
-    let updatedTimeHtml = '';
-    
-    if (typeof appState !== 'undefined' && (getUpdatedDisplayTime() || appState.lastFetchTime)) {
-        const displayTime = getUpdatedDisplayTime();
-        const timeAgo = getTimeAgo(displayTime);
-        
-        const now = new Date();
-        const diff = now - displayTime;
-        const isStale = diff > 600000; // 10 minutes in milliseconds
-        const staleClass = isStale ? 'stale-data' : '';
-        timeAgoHtml = ` <span class="updated-timestamp ${staleClass}">[${timeAgo}]</span>`;
-        
-        updatedTimeHtml = formatDateTimeForDisplay(displayTime, getUpdatedDisplayTimeZone());
-    } else if (current.time) {
-        // Fallback to current.time if lastFetchTime not available (shouldn't happen, but safety)
-        // Still format in viewer's local timezone
-        updatedTimeHtml = formatDateTimeForDisplay(current.time, null);
+
+    let updatedValueHtml = '';
+    if (typeof buildUpdatedConditionsHtml === 'function') {
+        updatedValueHtml = buildUpdatedConditionsHtml();
+    } else if (typeof appState !== 'undefined' && appState.lastFetchTime) {
+        updatedValueHtml = `<span class="updated-fetch-time">${getTimeAgo(appState.lastFetchTime)}</span>`;
     }
-    
-    html += `<span class="condition-value">${updatedTimeHtml}${timeAgoHtml}</span>`;
+
+    html += `<span class="condition-value updated-conditions-line">${updatedValueHtml}</span>`;
     html += '</div>';
     
     html += '</div>';

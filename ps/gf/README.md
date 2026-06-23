@@ -386,6 +386,46 @@ When no display-mode flag is set (`-t`, `-h`, `-d`, `-r`, `-w`, or `-o`), the sc
 
 Unless `-x` is passed, the script then enters interactive mode with the control bar so you can switch views with hotkeys.
 
+## Observed current conditions
+
+Current Conditions (temperature, wind, humidity, dew point, and conditions text) use the **nearest NWS observation station** when a fresh latest observation is available. Otherwise they fall back to the **hourly forecast grid** (`periods[0]`).
+
+### Data source
+
+- **Station observation:** `GET /stations/{stationId}/observations/latest`.
+- **Fallback:** Hourly forecast when observation is missing, has no temperature, or is older than ~2 hours.
+- **Hourly table:** Always forecast-based; it may differ from Current Conditions when station and grid disagree.
+
+### Two-tier refresh
+
+Forecast data is considered fresh for **10 minutes** after a full load.
+
+| Situation | **G** / auto-refresh behavior |
+|-----------|------------------------------|
+| Forecast **fresh** (< 10 min) | Observation only (`Update-CurrentObservationOnly`) |
+| Forecast **stale** (> 10 min) | Full refetch plus latest observation merge |
+
+Light refresh does **not** reset the forecast fetch timestamp. Full refresh updates `$script:dataFetchTime`.
+
+### Updated line
+
+The **Updated:** row shows **when you last fetched**, plus station age when observation data is in use:
+
+```
+Updated: just now [NWS update: 24 minutes ago]
+```
+
+| Part | Meaning |
+|------|---------|
+| First value | Time since last **full** weather fetch. Stale styling (> 10 min) applies here. |
+| `[NWS update: …]` | Shown only when `$script:usesObservation` is true. Time since the station’s observation `timestamp`. |
+
+Without station data: `Updated: 2 minutes ago` (no NWS suffix).
+
+### Station ID cache
+
+Nearest `stationId` is cached per location for **24 hours** in `%LOCALAPPDATA%\gf\station-cache.json`. Observations mode reuses the cached station when available.
+
 ## Observations Mode
 
 The observations mode (`-o` or `-observations`) provides historical weather data from the National Weather Service observation stations API. This mode displays daily aggregates of weather conditions for the last 7 days, showing only days that have actual observation data available.
@@ -466,7 +506,7 @@ Interactive mode shows a control bar with hotkey hints (hide with **B** or start
 - **Focused Information:** Get exactly the weather data you need without scrolling through everything
 - **Auto-Refresh:** Weather data automatically refreshes every 10 minutes to keep information current
 - **Manual Refresh:** Press **G** to manually refresh data at any time (observation-only when forecast is still fresh)
-- **Observed current conditions:** Current Conditions uses the nearest NWS station’s latest observation when fresh; the hourly table stays forecast-based. **Updated:** shows the observation time when station data drives current conditions.
+- **Observed current conditions:** See [Observed current conditions](#observed-current-conditions).
 - **Hourly Scrolling:** In hourly view, **↑**/**↓** move through 12-hour pages covering up to 48 hours
 
 ### When Interactive Mode Is Skipped:
@@ -598,6 +638,7 @@ These messages provide clear feedback about the script's progress and help users
   - `/alerts/active` - Get active weather alerts
   - `/points/{lat},{lon}/stations` - Get observation stations for a location
   - `/stations/{stationId}/observations` - Get historical observations from a station
+  - `/stations/{stationId}/observations/latest` - Get latest observation for current conditions merge
 - This script also uses the AirNow API endpoint for AQI:
   - `https://www.airnowapi.org/aq/observation/current/ziplatLong?format=application/json&latitude={lat}&longitude={lon}&api_key={key}`
   - Rate limit: **500 requests per hour** per key.
@@ -606,6 +647,7 @@ These messages provide clear feedback about the script's progress and help users
 - **Sunrise/Sunset Times:** Calculated using NOAA astronomical algorithms based on location coordinates and time zone. During polar night or polar day, sun times use `MM/dd HH:mm` format. All displayed times (hourly forecasts, sunrise, sunset, update times) are shown in the destination location's local timezone, not your system's timezone.
 - **Solar Irradiance:** Clear-sky global horizontal irradiance (GHI) in W/m² at the current time plus peak at location solar noon with time, displayed as "Irradiance: XW/m2 [Peak YW/m2 @ h:mm]" in white when available (including terse mode). Estimate only (NWS does not provide irradiance).
 - **Temperature Trend:** Rising/falling/steady icons on the current temperature line when supported by observation data.
+- **Observed current conditions:** Current Conditions prefer the nearest NWS station’s latest observation when fresh; see [Observed current conditions](#observed-current-conditions).
 - **Estimated WBGT:** Optional `-wbgt` feels-like bracket using Stull wet-bulb + simplified globe term (matches forecast web heuristic).
 - **Alert Header Icons:** ⚠️ and 🌡 prefixes on the current-conditions title when relevant alerts are in effect (v2.2).
 - **Humidity Data:** Available in current conditions display

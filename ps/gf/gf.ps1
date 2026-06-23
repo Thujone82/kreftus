@@ -972,6 +972,39 @@ function Get-CurrentConditionsUpdatedDateTime {
     return $script:dataFetchTime
 }
 
+function Get-TimeAgoLabel {
+    param([DateTime]$DateTime)
+    if ($null -eq $DateTime) { return "N/A" }
+    $diff = (Get-Date) - $DateTime
+    $seconds = [math]::Floor($diff.TotalSeconds)
+    if ($seconds -lt 0) { $seconds = 0 }
+    $minutes = [math]::Floor($seconds / 60)
+    $hours = [math]::Floor($minutes / 60)
+    if ($seconds -lt 60) { return "just now" }
+    if ($minutes -lt 60) {
+        $label = if ($minutes -eq 1) { "minute" } else { "minutes" }
+        return "$minutes $label ago"
+    }
+    if ($hours -lt 24) {
+        $label = if ($hours -eq 1) { "hour" } else { "hours" }
+        return "$hours $label ago"
+    }
+    return $DateTime.ToString('g')
+}
+
+function Write-UpdatedConditionsLine {
+    param([string]$InfoColor = "Blue")
+    if ($null -eq $script:dataFetchTime) {
+        Write-Host "Updated: N/A" -ForegroundColor $InfoColor
+        return
+    }
+    $line = "Updated: $(Get-TimeAgoLabel -DateTime $script:dataFetchTime)"
+    if ($script:usesObservation -and $null -ne $script:currentTimeLocal) {
+        $line += " [NWS update: $(Get-TimeAgoLabel -DateTime $script:currentTimeLocal)]"
+    }
+    Write-Host $line -ForegroundColor $InfoColor
+}
+
 function Convert-LatestObservation {
     param(
         [object]$Feature,
@@ -4193,19 +4226,9 @@ function Show-CurrentConditions {
         }
     }
 
-    # Safely display API update time with validation
+    # Display when we last fetched vs when NWS station last reported (when observation-driven)
     try {
-        if ($currentTimeLocal -and ($currentTimeLocal -is [DateTime] -or $currentTimeLocal -is [string])) {
-            if ($currentTimeLocal -is [string]) {
-                # If it's a string, try to parse it again
-                $parsedTime = [DateTime]::Parse($currentTimeLocal)
-                Write-Host "Updated: $($parsedTime.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $InfoColor
-            } else {
-                Write-Host "Updated: $($currentTimeLocal.ToString('MM/dd/yyyy HH:mm'))" -ForegroundColor $InfoColor
-            }
-        } else {
-            Write-Host "Updated: N/A" -ForegroundColor $InfoColor
-        }
+        Write-UpdatedConditionsLine -InfoColor $InfoColor
     }
     catch {
         Write-Host "Updated: N/A" -ForegroundColor $InfoColor

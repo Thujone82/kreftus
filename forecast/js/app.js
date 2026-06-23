@@ -5594,26 +5594,34 @@ function hideError() {
 
 // Update last update time
 function updateLastUpdateTime() {
-    const displayTime = typeof getUpdatedDisplayTime === 'function' ? getUpdatedDisplayTime() : appState.lastFetchTime;
-    if (displayTime) {
-        const timeAgo = getTimeAgo(displayTime);
-        if (appState.lastFetchTime) {
-            elements.lastUpdate.textContent = `Last updated: ${timeAgo}`;
-        }
-        
-        // Also update the "[X minutes ago]" portion in the display
-        const updatedTimestampElement = document.querySelector('.updated-timestamp');
-        if (updatedTimestampElement) {
-            const now = new Date();
-            const diff = now - displayTime;
-            const isStale = diff > DATA_STALE_THRESHOLD;
-            
-            updatedTimestampElement.textContent = `[${timeAgo}]`;
-            if (isStale) {
-                updatedTimestampElement.classList.add('stale-data');
-            } else {
-                updatedTimestampElement.classList.remove('stale-data');
-            }
+    if (!appState.lastFetchTime) return;
+
+    const fetchTime = appState.lastFetchTime instanceof Date
+        ? appState.lastFetchTime
+        : new Date(appState.lastFetchTime);
+    const fetchAgo = getTimeAgo(fetchTime);
+
+    if (elements.lastUpdate) {
+        elements.lastUpdate.textContent = `Last updated: ${fetchAgo}`;
+    }
+
+    const fetchEl = document.querySelector('.updated-fetch-time');
+    if (fetchEl) {
+        const isStale = (Date.now() - fetchTime) > DATA_STALE_THRESHOLD;
+        fetchEl.textContent = fetchAgo;
+        fetchEl.classList.toggle('stale-data', isStale);
+    }
+
+    const nwsEl = document.querySelector('.updated-nws-time');
+    if (nwsEl) {
+        const obsTime = typeof getObservationDisplayTime === 'function'
+            ? getObservationDisplayTime()
+            : null;
+        if (obsTime) {
+            nwsEl.textContent = `[NWS update: ${getTimeAgo(obsTime)}]`;
+            nwsEl.hidden = false;
+        } else {
+            nwsEl.hidden = true;
         }
     }
 }

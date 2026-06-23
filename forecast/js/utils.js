@@ -889,26 +889,34 @@ function formatTimeForDisplay(date, timeZoneId) {
     return use24h ? formatTime24(date, timeZoneId) : formatTime(date, timeZoneId);
 }
 
-// When current conditions use a station observation, Updated reflects observation time (location TZ).
-function getUpdatedDisplayTime() {
+// Observation time when station data drives current conditions (for NWS update suffix).
+function getObservationDisplayTime() {
     if (typeof appState === 'undefined') return null;
     const current = appState.weatherData?.current;
-    if (current?.usesObservation && current.observationTime) {
-        const t = current.observationTime instanceof Date
-            ? current.observationTime
-            : new Date(current.observationTime);
-        if (!isNaN(t.getTime())) return t;
-    }
-    return appState.lastFetchTime || null;
+    if (!current?.usesObservation || !current.observationTime) return null;
+    const t = current.observationTime instanceof Date
+        ? current.observationTime
+        : new Date(current.observationTime);
+    return isNaN(t.getTime()) ? null : t;
 }
 
-function getUpdatedDisplayTimeZone() {
-    if (typeof appState === 'undefined') return null;
-    const current = appState.weatherData?.current;
-    if (current?.usesObservation && appState.weatherData?.location?.timeZone) {
-        return appState.weatherData.location.timeZone;
+function buildUpdatedConditionsHtml() {
+    if (typeof appState === 'undefined' || !appState.lastFetchTime) {
+        return '';
     }
-    return null;
+    const fetchTime = appState.lastFetchTime instanceof Date
+        ? appState.lastFetchTime
+        : new Date(appState.lastFetchTime);
+    const fetchAgo = getTimeAgo(fetchTime);
+    const isStale = (Date.now() - fetchTime) > 600000;
+    const staleClass = isStale ? 'stale-data' : '';
+
+    let html = `<span class="updated-fetch-time ${staleClass}">${fetchAgo}</span>`;
+    const obsTime = getObservationDisplayTime();
+    if (obsTime) {
+        html += ` <span class="updated-nws-time">[NWS update: ${getTimeAgo(obsTime)}]</span>`;
+    }
+    return html;
 }
 
 // Format date+time according to user preference (AM/PM or 24H)
