@@ -9,7 +9,7 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 - **Multiple Display Modes**: Full, Daily, Hourly, Rain, Wind, and History
 - **PWA Support**: Installable as a web app with offline support and update detection
 - **Saved Locations**: Save favorite locations and switch between them; locations bar open/closed state is remembered. Number hotkeys load the first 20 favorites in drawer order: `1`–`0` for slots 1–10, `Shift+1`–`Shift+0` for slots 11–20 (ignored while typing, renaming a favorite, or when Settings is open).
-- **Keyboard shortcuts** (global; same ignore rules as location hotkeys): mode keys **F** Full, **D** Daily, **R** Rain, **W** Wind, **H** Hourly (**H** again while Hourly is active switches to History), **L** toggle Locations bar; section navigation **.** next / **,** previous (see [Section navigation](#section-navigation) below).
+- **Keyboard shortcuts** (global; same ignore rules as location hotkeys): mode keys **F** Full, **D** Daily, **R** Rain, **W** Wind, **H** Hourly (**H** again while Hourly is active switches to History), **L** toggle Locations bar, **G** refresh weather data; section navigation **.** next / **,** previous (see [Section navigation](#section-navigation) below).
 - **Settings (gear button)**: Accent colors (primary/secondary), Reset Colors, Standard/Metric units, AM/PM or 24-hour time, Compact/Normal density, Feels-Like vs **WBGT** (optional estimated wet-bulb globe temperature when warm—see below), Auto-Update Data, optional AQI (Enable AQI + AirNow API key with inline validation), Extras (Enable Radar—off by default: NWS ridge loop GIF in Full mode above hourly, cached by the service worker for offline; Enable Solar Irradiance; Enable Magic Hours; Enable per Location Colors); Reset Forecast clears all data and settings to defaults. You can also double-click the header icon to open Settings.
 - **Control Bar**: Favorite (save location), current location (pin), Locations (open/close saved locations), Refresh, Share (copy or share URL), Settings (gear)
 - **Observed current conditions**: Current Conditions prefer the nearest NWS station’s latest observation when fresh; see [Observed current conditions](#observed-current-conditions).
@@ -36,6 +36,7 @@ Shortcuts are ignored while focus is in an input, textarea, or select; while ren
 | **W** | Wind mode |
 | **H** | Hourly mode (press again while Hourly is active to switch to History) |
 | **L** | Open or close the Locations drawer |
+| **G** | Refresh weather data (same as **Refresh** button; observation-only when forecast is fresh) |
 | **1**–**0** | Load favorites 1–10 (drawer order) |
 | **Shift+1**–**Shift+0** | Load favorites 11–20 |
 | **.** | Next section (see below) |
@@ -93,7 +94,7 @@ Desktop **Firefox** has limited PWA support; use Chrome or Edge for the full ins
 2. Enter a location (zip or "City, State") and click **Load**, or click the **pin** button to use your current location.
 3. Use the **mode** buttons (Full, Daily, Hourly, Rain, Wind, History) to switch views, or press **F**, **D**, **H**, **R**, or **W** ( **H** toggles Hourly/History when Hourly is active). Press **L** to open or close the Locations bar. Press **.** and **,** to move between page top, the mode title, and each section or day—or between 12-hour pages in Hourly mode (see [Section navigation](#section-navigation)).
 4. **Star** saves the current location to the Locations bar; **Locations** opens/closes the saved locations list.
-5. **Refresh** updates weather data. Within 10 minutes of the last full forecast fetch, **Refresh** pulls only the latest station observation (temp, wind, humidity, and so on) without refetching forecast or hourly data. See [Observed current conditions](#observed-current-conditions).
+5. **Refresh** (or **G**) updates weather data. Within 10 minutes of the last full forecast fetch, **Refresh** pulls only the latest station observation (temp, wind, humidity, and so on) without refetching forecast or hourly data. See [Observed current conditions](#observed-current-conditions).
 6. **Share** copies or shares the current page URL (with location and mode).
 7. Click the **gear** button in the control bar to open **Settings**: accent colors, Reset Colors, Standard/Metric, AM/PM vs 24H, Compact/Normal density, Feels-Like vs WBGT, Auto-Update Data, optional AQI setup, Extras (Enable Radar for Full-mode NWS loop with offline cache; Enable Solar Irradiance; Enable Magic Hours; Enable per Location Colors). **Reset Forecast** clears all favorites, cache, and settings and reloads. Alternatively, double-click the header icon to open Settings. To enable AQI, toggle **Enable AQI**, paste your **AirNow API Key**, and wait for a green check mark after validation. Register a key at [Request an AirNow API Key](https://docs.airnowapi.org/account/request/). AQI uses AirNow’s current observations API (`/aq/observation/current/ziplatLong`); each key is limited to **500 requests per hour** (see [AirNow Web Services](https://docs.airnowapi.org/webservices)).
 

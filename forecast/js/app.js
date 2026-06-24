@@ -1980,6 +1980,7 @@ function setupEventListeners() {
 
     document.addEventListener('keydown', (e) => {
         if (handleModeSectionHotkeyFromEvent(e)) return;
+        if (handleRefreshHotkeyFromEvent(e)) return;
         if (handleModeHotkeyFromEvent(e)) return;
         handleLocationHotkeyFromEvent(e);
     });
@@ -3055,6 +3056,16 @@ function handleModeSectionHotkeyFromEvent(event) {
     }
     const nextIndex = Math.max(0, Math.min(anchors.length - 1, current + direction));
     scrollToModeSectionAnchor(nextIndex);
+    return true;
+}
+
+function handleRefreshHotkeyFromEvent(event) {
+    if (shouldIgnoreLocationHotkey()) return false;
+    if (event.ctrlKey || event.altKey || event.metaKey) return false;
+    if (event.key.toLowerCase() !== 'g') return false;
+    event.preventDefault();
+    event.stopPropagation();
+    handleRefresh();
     return true;
 }
 
