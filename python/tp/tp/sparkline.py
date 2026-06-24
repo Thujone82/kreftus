@@ -95,10 +95,20 @@ def populated_hour_bin_count(
     points: list[tuple[datetime, float]],
     end_time: datetime | None = None,
 ) -> int:
-    """Count hourly bins that contain at least one sample."""
+    """Count populated 1-hour bins in the default 24H dashboard window."""
+    return populated_bin_count(points, end_time=end_time, hours=24)
+
+
+def populated_bin_count(
+    points: list[tuple[datetime, float]],
+    end_time: datetime | None = None,
+    *,
+    hours: float = 24,
+) -> int:
+    """Count sparkline bins with at least one sample in the given window."""
     if not points:
         return 0
-    result = build_sparkline(points, end_time=end_time)
+    result = build_sparkline(points, end_time=end_time, hours=hours)
     return sum(1 for value in result.binned_values if value is not None)
 
 

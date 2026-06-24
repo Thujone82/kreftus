@@ -58,7 +58,7 @@ def _format_log_load_section(status: LogLoadStatus) -> list[str]:
         )
     )
     lines.append(
-        f"  1H bins from log: [white]{status.last_load_hour_bins}/{BIN_COUNT}[/]"
+        f"  72H bins from log: [white]{status.last_load_hour_bins}/{BIN_COUNT}[/]"
     )
     return lines
 

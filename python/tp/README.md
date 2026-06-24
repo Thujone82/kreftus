@@ -174,7 +174,7 @@ timestamp,device,temp_f,humidity_pct,mac
 2026-06-15 14:05:00,Living Room,72.4,48,AA:BB:CC:DD:EE:FF
 ```
 
-Rows are appended after each fetch cycle when logging is enabled. On startup, readings from the last 24 hours are preloaded into memory for sparklines and freshness checks.
+Rows are appended after each fetch cycle when logging is enabled. On startup, readings from the last 72 hours are preloaded into memory for sparklines and freshness checks.
 
 ## Platform setup
 

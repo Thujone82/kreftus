@@ -13,7 +13,11 @@ from tp.config import AppConfig, normalize_mac, probe_log_path, resolved_log_pat
 
 CSV_HEADER = ["timestamp", "device", "temp_f", "humidity_pct", "mac"]
 LOG_TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
+from tp.sparkline import SPARKLINE_WINDOWS
+
 LOG_HISTORY_HOURS = 24
+MEMORY_HISTORY_HOURS = max(hours for _, hours in SPARKLINE_WINDOWS)
+MEMORY_KEEP_HOURS = MEMORY_HISTORY_HOURS + 1
 MIN_DAY_HISTORY_SAMPLES = 100
 SPARKLINE_BOOTSTRAP_MIN_BINS = 8
 
@@ -52,7 +56,7 @@ class LogLoadStatus:
 
 
 class DeviceHistory:
-    """In-memory 24h+ reading store per device."""
+    """In-memory reading store per device (retained for status sparklines)."""
 
     def __init__(self) -> None:
         self._readings: dict[str, list[Reading]] = {}
@@ -108,7 +112,7 @@ class DeviceHistory:
             error=result.error or "Unknown fetch error",
         )
 
-    def prune_old(self, mac: str, *, keep_hours: int = 25) -> None:
+    def prune_old(self, mac: str, *, keep_hours: int = MEMORY_KEEP_HOURS) -> None:
         cutoff = datetime.now() - timedelta(hours=keep_hours)
         readings = self._readings.get(mac, [])
         self._readings[mac] = [r for r in readings if r.timestamp >= cutoff]
@@ -167,9 +171,9 @@ class DeviceHistory:
 
 
 def load_readings_from_log(history: DeviceHistory, config: AppConfig) -> int:
-    """Import CSV log rows from the last 24 hours into in-memory history."""
+    """Import CSV log rows from the last 72 hours into in-memory history."""
     from tp.config import normalize_mac
-    from tp.sparkline import populated_hour_bin_count
+    from tp.sparkline import populated_bin_count
 
     log_path = resolved_log_path(config)
     if not log_path.is_file():
@@ -179,7 +183,7 @@ def load_readings_from_log(history: DeviceHistory, config: AppConfig) -> int:
     if not managed:
         return 0
 
-    cutoff = datetime.now() - timedelta(hours=LOG_HISTORY_HOURS)
+    cutoff = datetime.now() - timedelta(hours=MEMORY_HISTORY_HOURS)
     pending: dict[str, list[Reading]] = {mac: [] for mac in managed}
     loaded = 0
     log_path_text = str(log_path)
@@ -231,10 +235,12 @@ def load_readings_from_log(history: DeviceHistory, config: AppConfig) -> int:
         ]
         if not new_readings:
             continue
-        points = [(r.timestamp, r.temp_f) for r in new_readings]
-        hour_bins = populated_hour_bin_count(points)
         added = history.import_readings(mac, new_readings)
         if added:
+            hour_bins = populated_bin_count(
+                history.temp_points(mac),
+                hours=MEMORY_HISTORY_HOURS,
+            )
             history.record_log_load(
                 mac,
                 added=added,
