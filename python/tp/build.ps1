@@ -7,11 +7,23 @@
 
     Requires Python 3.11+ in PATH. Installs PyInstaller automatically when missing.
 
-    Optional: pass -upx to compress tp.exe with UPX after PyInstaller finishes.
+    Usage:
+      ./build.ps1           # both tp.pyz and tp.exe
+      ./build.ps1 -pyz      # tp.pyz only
+      ./build.ps1 -exe      # tp.exe only
+      ./build.ps1 -exe -upx # tp.exe with optional UPX compression
 #>
 
 $ErrorActionPreference = "Stop"
+
+$buildPyz = $args -contains '-pyz'
+$buildExe = $args -contains '-exe'
 $useUpx = $args -contains '-upx'
+
+if (-not $buildPyz -and -not $buildExe) {
+    $buildPyz = $true
+    $buildExe = $true
+}
 
 Write-Host "Starting build process for tp..." -ForegroundColor Cyan
 
@@ -27,20 +39,20 @@ if (-not (Test-Path "tp.py")) {
     exit 1
 }
 
-# --- Cleanup (clear previous outputs before building) ---
 $buildRoot = ".\build"
 $iconPath = Join-Path $buildRoot "thermo.ico"
 $preparedIconPath = Join-Path $buildRoot "thermo-embedded.ico"
 
+# --- Cleanup (only outputs being rebuilt) ---
 Write-Host "Cleaning previous build outputs..." -ForegroundColor DarkGray
-$outputPaths = @(
-    ".\tp.exe",
-    ".\tp.pyz",
-    $preparedIconPath,
-    "$buildRoot\pyinstaller",
-    "$buildRoot\zipapp"
-)
-foreach ($path in $outputPaths) {
+$cleanupPaths = @()
+if ($buildPyz) {
+    $cleanupPaths += ".\tp.pyz", "$buildRoot\zipapp"
+}
+if ($buildExe) {
+    $cleanupPaths += ".\tp.exe", $preparedIconPath, "$buildRoot\pyinstaller"
+}
+foreach ($path in $cleanupPaths) {
     if (Test-Path $path) {
         Remove-Item -Path $path -Recurse -Force
     }
@@ -55,33 +67,37 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# --- 1. tp.pyz (zipapp) ---
-Write-Host "tp.py -> tp.pyz..." -ForegroundColor Cyan
-$zipappDir = Join-Path $buildRoot "zipapp"
-New-Item -Path $zipappDir -ItemType Directory -Force | Out-Null
+if ($buildPyz) {
+    Write-Host "tp.py -> tp.pyz..." -ForegroundColor Cyan
+    $zipappDir = Join-Path $buildRoot "zipapp"
+    New-Item -Path $zipappDir -ItemType Directory -Force | Out-Null
 
-Copy-Item -Path ".\tp.py" -Destination (Join-Path $zipappDir "__main__.py")
-Copy-Item -Path ".\tp" -Destination (Join-Path $zipappDir "tp") -Recurse -Force
+    Copy-Item -Path ".\tp.py" -Destination (Join-Path $zipappDir "__main__.py")
+    Copy-Item -Path ".\tp" -Destination (Join-Path $zipappDir "tp") -Recurse -Force
 
-Get-ChildItem -Path $zipappDir -Recurse -Directory -Filter "__pycache__" -ErrorAction SilentlyContinue |
-    Remove-Item -Recurse -Force
+    Get-ChildItem -Path $zipappDir -Recurse -Directory -Filter "__pycache__" -ErrorAction SilentlyContinue |
+        Remove-Item -Recurse -Force
 
-python -m zipapp $zipappDir -o ".\tp.pyz" -p "." -c
+    python -m zipapp $zipappDir -o ".\tp.pyz" -p "." -c
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "zipapp build failed."
-    exit 1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "zipapp build failed."
+        exit 1
+    }
+
+    if (-not (Test-Path ".\tp.pyz")) {
+        Write-Error "zipapp finished but tp.pyz was not created."
+        exit 1
+    }
+
+    Write-Host "tp.pyz build complete." -ForegroundColor Green
+    Write-Host "  Run with: python tp.pyz" -ForegroundColor DarkGray
 }
 
-if (-not (Test-Path ".\tp.pyz")) {
-    Write-Error "zipapp finished but tp.pyz was not created."
-    exit 1
+if (-not $buildExe) {
+    exit 0
 }
 
-Write-Host "tp.pyz build complete." -ForegroundColor Green
-Write-Host "  Run with: python tp.pyz" -ForegroundColor DarkGray
-
-# --- 2. tp.exe (PyInstaller) ---
 Write-Host "Checking for PyInstaller..."
 python -c "import PyInstaller" 2>$null
 if ($LASTEXITCODE -ne 0) {

@@ -13,6 +13,12 @@ SPARKLINE_WINDOWS: tuple[tuple[str, float], ...] = (
     ("24H", 24),
     ("72H", 72),
 )
+DASHBOARD_SPARKLINE_WINDOWS: tuple[tuple[str, float], ...] = (
+    ("24H", 24),
+    ("72H", 72),
+    ("4H", 4),
+)
+DEFAULT_DASHBOARD_SPARKLINE_HOURS = 24.0
 
 
 @dataclass
@@ -23,6 +29,51 @@ class SparklineResult:
     max_value: float | None
     current: float | None
     bin_count: int = BIN_COUNT
+
+
+def next_dashboard_sparkline_window(
+    hours: float = DEFAULT_DASHBOARD_SPARKLINE_HOURS,
+) -> tuple[str, float]:
+    """Return the next dashboard sparkline window (24H → 72H → 4H → 24H)."""
+    windows = DASHBOARD_SPARKLINE_WINDOWS
+    for index, (_label, window_hours) in enumerate(windows):
+        if window_hours == hours:
+            return windows[(index + 1) % len(windows)]
+    return windows[0]
+
+
+def dashboard_sparkline_label(hours: float = DEFAULT_DASHBOARD_SPARKLINE_HOURS) -> str:
+    """Label for the active dashboard sparkline window."""
+    for label, window_hours in DASHBOARD_SPARKLINE_WINDOWS:
+        if window_hours == hours:
+            return label
+    return DASHBOARD_SPARKLINE_WINDOWS[0][0]
+
+
+def _points_in_window(
+    points: list[tuple[datetime, float]],
+    end_time: datetime | None,
+    hours: float,
+) -> list[tuple[datetime, float]]:
+    end = end_time or datetime.now()
+    window_start = end - timedelta(hours=hours)
+    return [point for point in points if window_start <= point[0] < end]
+
+
+def window_value_extremes(
+    points: list[tuple[datetime, float]],
+    end_time: datetime | None = None,
+    *,
+    hours: float = 24,
+    value_getter: Callable[[tuple[datetime, float]], float] | None = None,
+) -> tuple[float | None, float | None]:
+    """Minimum and maximum raw sample values in a sparkline time window."""
+    if value_getter is None:
+        value_getter = lambda item: item[1]
+    values = [value_getter(point) for point in _points_in_window(points, end_time, hours)]
+    if not values:
+        return None, None
+    return min(values), max(values)
 
 
 def build_sparkline(
@@ -43,8 +94,7 @@ def build_sparkline(
         value_getter = lambda item: item[1]
 
     end = end_time or datetime.now()
-    window_start = end - timedelta(hours=hours)
-    in_window = [p for p in points if window_start <= p[0] < end]
+    in_window = _points_in_window(points, end_time, hours)
 
     bin_size = timedelta(hours=hours / bin_count)
     binned: list[float | None] = []

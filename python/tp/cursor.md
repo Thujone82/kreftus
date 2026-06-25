@@ -19,16 +19,16 @@ Built with **Textual** (UI) and **bleak** (BLE). Live reads use the TP35x GATT n
 ### Key Functionality
 
 - **Startup:** Main menu always on stack; push Monitoring if devices exist, else Manage Devices with auto-scan
-- **Monitoring:** 5 rows per device; green/yellow device name by freshness; fetch arrows show BLE step (cyan connect / green sync read / yellow passive); sequential BLE fetch (one device at a time, 60 s timeout); optional multi-column layout (**C**)
+- **Monitoring:** 5 rows per device; green/yellow device name by freshness; fetch arrows show BLE step (cyan connect / green sync read / yellow passive); sequential BLE fetch (one device at a time, 60 s timeout); optional multi-column layout (**C**); **T** cycles dashboard sparkline window (24H → 72H → 4H)
 - **Scheduler:** 5-minute grid (`:00`, `:05`, …); minute retries for devices missing the current chunk
 - **Startup fetch skip:** After log preload, fetch only devices stale for the current chunk (skip all if log is fresh)
 - **Sparkline bootstrap:** When `LoggingEnabled=false`, pull 24H BLE history on monitoring mount for devices with sparse sparklines (before live polling)
-- **Sparklines:** 24-bin windows — 4H/24H/72H on device status modal; 24H on dashboard (1 hour per glyph)
+- **Sparklines:** 24-bin windows — 4H/24H/72H on device status modal; dashboard defaults to 24H (**T** cycles 24H → 72H → 4H)
 - **CSV logging:** Optional append-only log; 72h preload on mount/resume
 - **24H fetch:** Manage Devices **H** — BLE minute history for selected device; replaces only the received timestamp span in memory/log (older polled/log data outside that span is preserved); CSV last-24h rows for that MAC in the same span replaced only when `LoggingEnabled=true`
 - **BLE recovery:** Prompt before enabling Bluetooth when the radio is off (`ble_radio.py` + `BluetoothPermissionModal`); auto power-cycle after entire fetch cycle fails; 90 s action cooldown, 5 min re-prompt cooldown after decline
 - **BLE connect cache:** 120 s `BLEDevice` resolution cache, preferred WinRT connect strategy, inter-device prefetch (`ble.py`)
-- **Build:** `build.ps1` → `tp.pyz` then `tp.exe`; optional `-upx` — see **Build** section
+- **Build:** `build.ps1` → `tp.pyz` then `tp.exe` (or `-pyz` / `-exe` alone); optional `-upx` — see **Build** section
 - **CLI:** `-debug`, `-x` snapshot, `-nopoll`/`-np`, `-f`/`-filter` device view filter, `--history-day MAC` — see **Command line**
 
 ---
@@ -98,7 +98,7 @@ Append after each fetch cycle (including partial retry cycles). UTF-8, `\n` line
 | Screen | Keys | Purpose |
 |--------|------|---------|
 | Main | 1–4, q | Route to sub-screens; q exits |
-| Monitoring | M/Esc, G, 1–9/0, C, q | Dashboard; G = full fetch; digit keys = device info; C = cycle columns when wide enough; header = status left, 🌡 TemPy center, clock right |
+| Monitoring | M/Esc, G, T, 1–9/0, C, q | Dashboard; G = full fetch; T = cycle sparkline window; digit keys = device info; C = cycle columns when wide enough; header = status left, 🌡 TemPy center, clock right |
 | Devices | D, A, I, H, E, R, W, S, ↑/↓, M, q | Discover/add/status/24H fetch/edit/remove/reorder |
 | Options | L, B, D, F, M, q | Logging toggle, debug log toggle, path edits |
 
@@ -106,7 +106,7 @@ Append after each fetch cycle (including partial retry cycles). UTF-8, `\n` line
 
 1. Label row: device name — **green** if fresh (≤5 min), **yellow** if stale; while fetching, `▶` / `◀` show BLE step — **cyan** connecting, **green** sync live read, **yellow** passive fallback
 2. Temp stats: `cur` / `min` / `max` (all color-banded; dim when stale)
-3. Temp sparkline: 24 glyphs, 1 hour per bin (24H window)
+3. Temp sparkline: 24 glyphs (default 24H window; **T** cycles 24H → 72H → 4H)
 4. Humidity stats: `cur` / `min` / `max` (all color-banded; dim when stale)
 5. Humidity sparkline: 24 glyphs
 
@@ -128,7 +128,7 @@ Blank line between single-column device blocks; multi-column rows are separated 
 
 ### Sparklines and Colors
 
-**Dashboard binning (`sparkline.py`):** 24 bins × 1 hour = 24H window ending at `datetime.now()`.
+**Dashboard binning (`sparkline.py`):** 24 bins per row; window length set by **T** — 4H (10 min/bin), 24H (1 h/bin, default), 72H (3 h/bin).
 
 **Status modal windows:** Same 24 glyphs per row; bin width scales — 4H (10 min/bin), 24H (1 h/bin), 72H (3 h/bin).
 
@@ -212,8 +212,10 @@ Sparkline glyph **color** = band at bin average. Glyph **height** = normalized t
 Windows PowerShell build script in `python/tp/`. Produces two distributable artifacts from the same source tree. Run from `python/tp/`:
 
 ```powershell
-./build.ps1        # tp.pyz, then tp.exe
-./build.ps1 -upx   # optional UPX compression of tp.exe
+./build.ps1           # tp.pyz, then tp.exe
+./build.ps1 -pyz      # tp.pyz only
+./build.ps1 -exe      # tp.exe only
+./build.ps1 -exe -upx # optional UPX compression of tp.exe
 ```
 
 #### Prerequisites
@@ -229,12 +231,11 @@ PyInstaller is **not** pre-installed — the script runs `pip install pyinstalle
 
 #### Build flow
 
-1. **Cleanup** — Removes prior outputs before building:
-   - `tp.exe`, `tp.pyz`
-   - `build/pyinstaller/` (PyInstaller cache/spec/work)
-   - `build/zipapp/` (zipapp staging)
-   - `build/thermo-embedded.ico` (generated icon)
-   - Preserves `build/thermo.ico`
+1. **Cleanup** — Removes prior outputs for the target(s) being built:
+   - `-pyz`: `tp.pyz`, `build/zipapp/`
+   - `-exe`: `tp.exe`, `build/pyinstaller/`, `build/thermo-embedded.ico`
+   - no flags (both): all of the above
+   - Preserves `build/thermo.ico` and the artifact not being rebuilt
 
 2. **Dependencies** — `pip install -r requirements.txt`
 

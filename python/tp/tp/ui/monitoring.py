@@ -30,7 +30,15 @@ from tp.scheduler import (
     seconds_until,
     stale_macs_for_chunk,
 )
-from tp.sparkline import build_sparkline, colored_sparkline_markup, format_sparkline_row
+from tp.sparkline import (
+    DEFAULT_DASHBOARD_SPARKLINE_HOURS,
+    build_sparkline,
+    colored_sparkline_markup,
+    dashboard_sparkline_label,
+    format_sparkline_row,
+    next_dashboard_sparkline_window,
+    window_value_extremes,
+)
 from tp.config import filter_devices
 from tp.ui.devices import DeviceStatusModal
 from tp.ui.helpers import (
@@ -170,6 +178,7 @@ class MonitoringScreen(Screen):
     BINDINGS = [
         Binding("m", "menu", "Menu"),
         Binding("g", "fetch_now", "Fetch now"),
+        Binding("t", "toggle_sparkline_time", "Time", show=False),
         Binding("c", "toggle_columns", "Columns", show=False),
     ]
 
@@ -202,6 +211,7 @@ class MonitoringScreen(Screen):
         self._history_bootstrap_done = False
         self._had_fetch_success = False
         self._fetch_lock: asyncio.Lock | None = None
+        self._sparkline_hours = DEFAULT_DASHBOARD_SPARKLINE_HOURS
 
     def _get_fetch_lock(self) -> asyncio.Lock:
         if self._fetch_lock is None:
@@ -246,6 +256,9 @@ class MonitoringScreen(Screen):
             parts.append(info_hint)
         if self._cached_max_columns >= 2:
             parts.append("[dim]c[/] Columns")
+        parts.append(
+            f"[dim]t[/] Time ({dashboard_sparkline_label(self._sparkline_hours)})"
+        )
         return "  ".join(parts)
 
     def on_key(self, event: Key) -> None:
@@ -470,6 +483,12 @@ class MonitoringScreen(Screen):
             self._display_columns = 1
             return
         self._display_columns = (self._display_columns % self._cached_max_columns) + 1
+        self.refresh_display()
+
+    def action_toggle_sparkline_time(self) -> None:
+        _label, self._sparkline_hours = next_dashboard_sparkline_window(
+            self._sparkline_hours
+        )
         self.refresh_display()
 
     def _begin_fetch_ui(self, macs: frozenset[str]) -> None:
@@ -811,8 +830,12 @@ class MonitoringScreen(Screen):
 
         temp_points = self.app.history.temp_points(mac)
         humid_points = self.app.history.humidity_points(mac)
-        temp_spark = build_sparkline(temp_points)
-        humid_spark = build_sparkline(humid_points)
+        sparkline_hours = self._sparkline_hours
+        sparkline_label = dashboard_sparkline_label(sparkline_hours)
+        temp_spark = build_sparkline(temp_points, hours=sparkline_hours)
+        humid_spark = build_sparkline(humid_points, hours=sparkline_hours)
+        temp_min, temp_max = window_value_extremes(temp_points, hours=sparkline_hours)
+        humid_min, humid_max = window_value_extremes(humid_points, hours=sparkline_hours)
 
         readings = self.app.history.get_readings(mac)
         latest = readings[-1] if readings else None
@@ -822,16 +845,16 @@ class MonitoringScreen(Screen):
         temp_stats = format_stats_row(
             "Temp °F",
             temp_cur,
-            temp_spark.min_value,
-            temp_spark.max_value,
+            temp_min,
+            temp_max,
             "°F",
             color_fn=temp_color,
         )
         humid_stats = format_stats_row(
             "Humid %",
             humid_cur,
-            humid_spark.min_value,
-            humid_spark.max_value,
+            humid_min,
+            humid_max,
             "%",
             color_fn=humidity_color,
         )
@@ -851,8 +874,16 @@ class MonitoringScreen(Screen):
         elif stale:
             temp_core = f"[dim]{temp_core}[/]"
             humid_core = f"[dim]{humid_core}[/]"
-        temp_line = format_sparkline_row(temp_core)
-        humid_line = format_sparkline_row(humid_core)
+        temp_line = format_sparkline_row(
+            temp_core,
+            hours_label=sparkline_label,
+            fixed_label=True,
+        )
+        humid_line = format_sparkline_row(
+            humid_core,
+            hours_label=sparkline_label,
+            fixed_label=True,
+        )
 
         return [label, temp_stats, temp_line, humid_stats, humid_line]
 
