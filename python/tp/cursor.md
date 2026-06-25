@@ -61,6 +61,8 @@ Timeout ~180s for full 72H fetch. Stream fetch requests **4320** records (72 h a
 
 **Temperature units:** GATT raw values are tenths of °C; converted to °F for display, sparklines, and CSV (`temp_f`).
 
+**False sentinel filter (`history.py`):** Consecutive runs of exactly **32.0 °F** and **10%** humidity (two or more in a row) are treated as bogus sensor errors — dropped before memory merge and CSV logging. A single isolated 32/10 reading is kept.
+
 ---
 
 ### Configuration (`tp.ini`)

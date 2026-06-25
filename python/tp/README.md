@@ -216,6 +216,7 @@ Temperature and humidity sparklines and cur/min/max values use indoor comfort ba
 ## Notes
 
 - Sensors must be powered and in range; GATT live reads do not require phone-app pairing
+- Consecutive **32.0 °F / 10%** readings (a known sensor error pattern) are discarded and not logged when two or more arrive in a row
 - Sparkline height reflects trend within the window; glyph color reflects the band at each bin average
 - Distant sensors may miss scheduled polls; minute retries and manual **G** fetch help recover them
 - If Bluetooth is off at the OS level, TemPy prompts **Y/N** before enabling it (e.g. after sleep). Stale bleak errors after you already turned Bluetooth back on do not re-prompt; a whole-fleet poll failure still auto-restarts the adapter without asking

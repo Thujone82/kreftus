@@ -25,7 +25,7 @@ from tp.ble_radio import (
 from tp.config import AppConfig
 from tp.debug_log import write as debug_write
 from tp.debug_log import write_exception as debug_write_exception
-from tp.history import DeviceHistory, PollResult, Reading, append_poll_results_to_log
+from tp.history import DeviceHistory, PollResult, Reading, append_poll_results_to_log, sanitize_poll_result
 from tp.poll import incremental_history_record_count, uses_incremental_history
 
 ProgressCallback = Callable[[int, int, str, str], Awaitable[None] | None]
@@ -316,12 +316,15 @@ async def _run_fetch_cycle_once(
             maybe = on_now_phase(mac, name, NOW_READ_CONNECTING)
             if asyncio.iscoroutine(maybe):
                 await maybe
-        result = await _fetch_one_device(
-            mac,
-            name,
-            config=config,
-            history=history,
-            on_now_phase=on_now_phase,
+        result = sanitize_poll_result(
+            history,
+            await _fetch_one_device(
+                mac,
+                name,
+                config=config,
+                history=history,
+                on_now_phase=on_now_phase,
+            ),
         )
         history.record_fetch_result(result)
         if result.readings:

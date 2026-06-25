@@ -20,6 +20,8 @@ MEMORY_HISTORY_HOURS = max(hours for _, hours in SPARKLINE_WINDOWS)
 MEMORY_KEEP_HOURS = MEMORY_HISTORY_HOURS + 1
 MIN_DAY_HISTORY_SAMPLES = 100
 SPARKLINE_BOOTSTRAP_MIN_BINS = 8
+FALSE_SENTINEL_TEMP_F = 32.0
+FALSE_SENTINEL_HUMIDITY_PCT = 10
 
 
 @dataclass
@@ -43,6 +45,49 @@ class PollResult:
         if self.reading is not None:
             return [self.reading]
         return []
+
+
+def is_false_sentinel_reading(reading: Reading) -> bool:
+    """True for the known bogus 32.0 °F / 10% sensor error pattern."""
+    return (
+        round(reading.temp_f, 1) == FALSE_SENTINEL_TEMP_F
+        and reading.humidity_pct == FALSE_SENTINEL_HUMIDITY_PCT
+    )
+
+
+def filter_false_sentinel_runs(
+    readings: list[Reading],
+    *,
+    prior: Reading | None = None,
+) -> list[Reading]:
+    """Drop consecutive runs of two or more false sentinel readings."""
+    if not readings:
+        return []
+    ordered = sorted(readings, key=lambda item: item.timestamp)
+    chain: list[Reading | None] = ([prior] if prior is not None else []) + ordered
+    drop = [False] * len(chain)
+    index = 0
+    while index < len(chain):
+        item = chain[index]
+        if item is None or not is_false_sentinel_reading(item):
+            index += 1
+            continue
+        run_end = index
+        while run_end < len(chain):
+            run_item = chain[run_end]
+            if run_item is None or not is_false_sentinel_reading(run_item):
+                break
+            run_end += 1
+        if run_end - index >= 2:
+            for drop_index in range(index, run_end):
+                drop[drop_index] = True
+        index = run_end
+    offset = 1 if prior is not None else 0
+    return [
+        reading
+        for reading_index, reading in enumerate(ordered)
+        if not drop[reading_index + offset]
+    ]
 
 
 @dataclass
@@ -125,23 +170,34 @@ class DeviceHistory:
         readings = self._readings.get(mac, [])
         self._readings[mac] = [r for r in readings if r.timestamp >= cutoff]
 
-    def add_reading(self, mac: str, reading: Reading) -> None:
+    def _store_reading(self, mac: str, reading: Reading) -> None:
         if mac not in self._readings:
             self._readings[mac] = []
         self._readings[mac].append(reading)
         self._last_updated[mac] = reading.timestamp
         self.prune_old(mac)
 
+    def add_reading(self, mac: str, reading: Reading) -> None:
+        prior = self.get_readings(mac)
+        prior_last = prior[-1] if prior else None
+        accepted = filter_false_sentinel_runs([reading], prior=prior_last)
+        if not accepted:
+            return
+        self._store_reading(mac, accepted[0])
+
     def import_readings(self, mac: str, readings: list[Reading]) -> int:
         """Merge readings for a device, skipping duplicate timestamps."""
         if not readings:
             return 0
+        prior = self.get_readings(mac)
+        prior_last = prior[-1] if prior else None
+        filtered = filter_false_sentinel_runs(readings, prior=prior_last)
         existing = {r.timestamp for r in self.get_readings(mac)}
         added = 0
-        for reading in sorted(readings, key=lambda item: item.timestamp):
+        for reading in sorted(filtered, key=lambda item: item.timestamp):
             if reading.timestamp in existing:
                 continue
-            self.add_reading(mac, reading)
+            self._store_reading(mac, reading)
             existing.add(reading.timestamp)
             added += 1
         return added
@@ -481,6 +537,9 @@ def apply_day_history(
     readings: list[Reading],
 ) -> tuple[int, str | None]:
     """Merge day-history readings into memory and optionally replace log window."""
+    prior = history.get_readings(mac)
+    prior_last = prior[-1] if prior else None
+    readings = filter_false_sentinel_runs(readings, prior=prior_last)
     if len(readings) < MIN_DAY_HISTORY_SAMPLES:
         return (
             0,
@@ -491,3 +550,43 @@ def apply_day_history(
     if config.settings.logging_enabled:
         log_error = replace_device_log_window(config, mac, device_name, readings)
     return imported, log_error
+
+
+def prior_reading_for_filter(history: DeviceHistory, mac: str) -> Reading | None:
+    readings = history.get_readings(mac)
+    return readings[-1] if readings else None
+
+
+def sanitize_poll_result(history: DeviceHistory, result: PollResult) -> PollResult:
+    """Remove false sentinel runs before history merge and CSV logging."""
+    prior = prior_reading_for_filter(history, result.mac)
+    if result.readings:
+        filtered = filter_false_sentinel_runs(result.readings, prior=prior)
+        if not filtered:
+            return PollResult(
+                mac=result.mac,
+                device_name=result.device_name,
+                reading=None,
+                readings=None,
+                error=result.error,
+            )
+        latest = max(filtered, key=lambda item: item.timestamp)
+        return PollResult(
+            mac=result.mac,
+            device_name=result.device_name,
+            reading=latest,
+            readings=filtered,
+            error=result.error,
+        )
+    if result.reading is None:
+        return result
+    filtered = filter_false_sentinel_runs([result.reading], prior=prior)
+    if not filtered:
+        return PollResult(
+            mac=result.mac,
+            device_name=result.device_name,
+            reading=None,
+            readings=None,
+            error=result.error,
+        )
+    return result
