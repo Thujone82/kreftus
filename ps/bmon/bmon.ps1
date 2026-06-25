@@ -513,11 +513,21 @@ function Get-SpinnerColors {
     return @{ Foreground = (Get-VolatilitySpinnerColor (Get-SparklineRange -History $History)); Background = $null }
 }
 
+function Get-FetchSpinnerGlyph {
+    param([string]$Char)
+    # Full block leaves no cell background visible during inverted fetch coloring.
+    if ($Char -eq [char]0x2588) { return [char]0x2589 }
+    return $Char
+}
+
 function Write-SpinnerChar {
     param(
         [string]$Char,
         [hashtable]$Colors
     )
+    if ($Colors.Background -eq 'Cyan') {
+        $Char = Get-FetchSpinnerGlyph -Char $Char
+    }
     if ($Colors.Background) {
         Write-Host -NoNewline -ForegroundColor $Colors.Foreground -BackgroundColor $Colors.Background $Char
     }

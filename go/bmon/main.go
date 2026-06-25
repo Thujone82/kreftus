@@ -660,6 +660,13 @@ func syncSpinnerStyle(m tuiModel) tuiModel {
 	return m
 }
 
+func fetchSpinnerGlyph(glyph string) string {
+	if glyph == "█" {
+		return "▉"
+	}
+	return glyph
+}
+
 func (m tuiModel) renderSpinnerChar() string {
 	active, digit, retryColor := getRetryIndicator()
 	if active && digit != "" {
@@ -669,6 +676,9 @@ func (m tuiModel) renderSpinnerChar() string {
 	glyph := ansi.Strip(m.spinner.View())
 	if glyph == "" || glyph == "(error)" {
 		glyph = " "
+	}
+	if m.fetchingNow {
+		glyph = fetchSpinnerGlyph(glyph)
 	}
 	return spinnerStyle(m).Render(glyph)
 }
