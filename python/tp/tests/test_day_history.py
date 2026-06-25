@@ -20,6 +20,7 @@ from tp.ble import (
 from tp.config import AppConfig, Settings
 from tp.history import (
     CSV_HEADER,
+    BLE_HISTORY_HOURS,
     LOG_TIMESTAMP_FORMAT,
     SPARKLINE_BOOTSTRAP_MIN_BINS,
     DeviceHistory,
@@ -117,13 +118,18 @@ class DayHistoryStreamParserTests(unittest.TestCase):
         self.assertEqual(cmd3[-5], 2000 & 0xFF)
         self.assertEqual(cmd3[-4], (2000 >> 8) & 0xFF)
 
+    def test_stream_record_count_matches_ble_history_hours(self) -> None:
+        from tp.ble import DAY_STREAM_RECORD_COUNT
+
+        self.assertEqual(DAY_STREAM_RECORD_COUNT, int(BLE_HISTORY_HOURS * 60))
+
 
 class DayHistoryMergeTests(unittest.TestCase):
     def setUp(self) -> None:
         self.office = "E0:A4:4B:A4:53:0D"
         self.other = "AA:BB:CC:DD:EE:FF"
         self.now = datetime.now().replace(second=0, microsecond=0)
-        self.cutoff = self.now - timedelta(hours=24)
+        self.cutoff = self.now - timedelta(hours=72)
 
     def _reading(self, minutes_ago: int, temp_f: float, humidity: int) -> Reading:
         return Reading(
@@ -180,7 +186,7 @@ class DayHistoryMergeTests(unittest.TestCase):
                     self.other,
                 ],
                 [
-                    (self.now - timedelta(days=2)).strftime(LOG_TIMESTAMP_FORMAT),
+                    (self.now - timedelta(days=4)).strftime(LOG_TIMESTAMP_FORMAT),
                     "Office",
                     "60.0",
                     35,

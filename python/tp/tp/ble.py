@@ -19,7 +19,7 @@ from tp.config import normalize_mac
 from tp.debug_log import write as debug_write
 from tp.debug_log import write_exception as debug_write_exception
 from tp.ble_radio import is_bluetooth_powered_off_error, maybe_restart_bluetooth_radio
-from tp.history import Reading
+from tp.history import BLE_HISTORY_HOURS, Reading
 
 UUID_READ = "00010203-0405-0607-0809-0a0b0c0d2b10"
 UUID_WRITE = "00010203-0405-0607-0809-0a0b0c0d2b11"
@@ -55,7 +55,7 @@ DAY_CMD_FALLBACK = bytes([DAY_OPCODE, 0x00, 0x00, 0x00, 0x00, 0x7A])
 DATETIME_SYNC_OPCODE = 0xA5
 STREAM_MAGIC_PREFIX = b"\xcc\xcc"
 STREAM_MAGIC_SUFFIX = b"\x66\x66"
-DAY_STREAM_RECORD_COUNT = 2880
+DAY_STREAM_RECORD_COUNT = int(BLE_HISTORY_HOURS * 60)
 DAY_STREAM_CMD_DELAY = 0.2
 DATETIME_SYNC_DELAY = 1.0
 
@@ -1004,7 +1004,7 @@ async def _read_day_legacy_on_client(
 
     await _emit_day_progress(
         progress,
-        DayHistoryProgress(phase="receiving", message="Requesting 24H history…"),
+        DayHistoryProgress(phase="receiving", message="Requesting 72H history…"),
     )
     await client.start_notify(read_char, handler)
     await asyncio.sleep(GATT_SETTLE_DELAY)
@@ -1230,7 +1230,7 @@ async def read_day_history(
     *,
     progress: DayHistoryProgressCallback | None = None,
 ) -> list[Reading]:
-    """Connect and read minute-resolution 24H history from the sensor."""
+    """Connect and read minute-resolution 72H history from the sensor."""
     loop = asyncio.get_running_loop()
     deadline = loop.time() + DAY_READ_TIMEOUT
     async with _get_ble_session_lock():

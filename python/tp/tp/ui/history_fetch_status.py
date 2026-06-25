@@ -1,4 +1,4 @@
-"""24H history fetch modal status formatting."""
+"""72H history fetch modal status formatting."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ def format_history_fetch_status(
 ) -> str:
     """Build Rich markup for the history fetch modal body."""
     lines = [
-        f"[bold yellow]24H History — {device_name}[/]",
+        f"[bold yellow]72H History — {device_name}[/]",
         f"[dim]{mac}[/]",
         "",
     ]
@@ -52,11 +52,11 @@ def format_history_fetch_status(
         if result.ok:
             lines.append("[green]Import complete[/]")
             lines.append(f"  Samples received: [white]{result.sample_count}[/]")
-            lines.append(f"  Samples in 24H window: [white]{result.imported}[/]")
+            lines.append(f"  Samples in 72H window: [white]{result.imported}[/]")
             if result.memory_only:
                 lines.append("  Log: [dim]unchanged (logging disabled)[/]")
             else:
-                lines.append("  Log: [green]last 24H rows replaced for this device[/]")
+                lines.append("  Log: [green]last 72H rows replaced for this device[/]")
             lines.append("")
             lines.append("[dim]Return to monitoring to see updated sparklines.[/]")
         else:

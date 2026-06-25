@@ -15,7 +15,7 @@ CSV_HEADER = ["timestamp", "device", "temp_f", "humidity_pct", "mac"]
 LOG_TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
 from tp.sparkline import SPARKLINE_WINDOWS
 
-LOG_HISTORY_HOURS = 24
+BLE_HISTORY_HOURS = 72
 MEMORY_HISTORY_HOURS = max(hours for _, hours in SPARKLINE_WINDOWS)
 MEMORY_KEEP_HOURS = MEMORY_HISTORY_HOURS + 1
 MIN_DAY_HISTORY_SAMPLES = 100
@@ -303,14 +303,14 @@ def append_poll_results_to_log(
     return None
 
 
-def _history_window_cutoff(*, hours: float = LOG_HISTORY_HOURS) -> datetime:
+def _history_window_cutoff(*, hours: float = BLE_HISTORY_HOURS) -> datetime:
     return datetime.now() - timedelta(hours=hours)
 
 
 def _received_history_window(
     readings: list[Reading],
     *,
-    hours: float = LOG_HISTORY_HOURS,
+    hours: float = BLE_HISTORY_HOURS,
 ) -> tuple[list[Reading], datetime, datetime] | None:
     """Return in-window readings and the inclusive replace span [start, end]."""
     cutoff = _history_window_cutoff(hours=hours)
@@ -327,7 +327,7 @@ def replace_device_memory_window(
     mac: str,
     readings: list[Reading],
     *,
-    hours: float = LOG_HISTORY_HOURS,
+    hours: float = BLE_HISTORY_HOURS,
 ) -> int:
     """Replace in-memory readings for mac only within the received data span."""
     window = _received_history_window(readings, hours=hours)
@@ -364,7 +364,7 @@ def replace_device_log_window(
     device_name: str,
     readings: list[Reading],
     *,
-    hours: float = LOG_HISTORY_HOURS,
+    hours: float = BLE_HISTORY_HOURS,
 ) -> str | None:
     """Rewrite CSV log, replacing this device's rows only in the received span."""
     window = _received_history_window(readings, hours=hours)

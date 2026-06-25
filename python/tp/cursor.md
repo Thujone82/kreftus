@@ -12,7 +12,7 @@
 
 `tp` (**TemPy**) is a cross-platform Python TUI for monitoring ThermoPro TP35x (TP357/TP358/TP359) Bluetooth temperature/humidity sensors. It discovers devices, maintains a managed device list in `tp.ini`, polls readings every 5 minutes on clock-aligned boundaries, retries stale devices every minute within each chunk, displays 24-hour color-coded sparklines, preloads history from CSV, and optionally logs readings to CSV.
 
-Built with **Textual** (UI) and **bleak** (BLE). Live reads use the TP35x GATT notify path; **24H BLE day-history** uses the TP357S/TP359 stream protocol (with legacy TP357 `0xA7` fallback). Fetch via **H** on Manage Devices or when adding a device; merges only the received timestamp span so older polled/log data is preserved.
+Built with **Textual** (UI) and **bleak** (BLE). Live reads use the TP35x GATT notify path; **72H BLE history** uses the TP357S/TP359 stream protocol (with legacy TP357 `0xA7` fallback). Fetch via **H** on Manage Devices or when adding a device; merges only the received timestamp span so older polled/log data is preserved.
 
 ---
 
@@ -22,10 +22,10 @@ Built with **Textual** (UI) and **bleak** (BLE). Live reads use the TP35x GATT n
 - **Monitoring:** 5 rows per device; green/yellow device name by freshness; fetch arrows show BLE step (cyan connect / green sync read / yellow passive); sequential BLE fetch (one device at a time, 60 s timeout); optional multi-column layout (**C**); **T** cycles dashboard sparkline window (24H → 72H → 4H)
 - **Scheduler:** 5-minute grid (`:00`, `:05`, …); minute retries for devices missing the current chunk
 - **Startup fetch skip:** After log preload, fetch only devices stale for the current chunk (skip all if log is fresh)
-- **Sparkline bootstrap:** When `LoggingEnabled=false`, pull 24H BLE history on monitoring mount for devices with sparse sparklines (before live polling)
+- **Sparkline bootstrap:** When `LoggingEnabled=false`, pull 72H BLE history on monitoring mount for devices with sparse sparklines (before live polling)
 - **Sparklines:** 24-bin windows — 4H/24H/72H on device status modal; dashboard defaults to 24H (**T** cycles 24H → 72H → 4H)
 - **CSV logging:** Optional append-only log; 72h preload on mount/resume
-- **24H fetch:** Manage Devices **H** — BLE minute history for selected device; replaces only the received timestamp span in memory/log (older polled/log data outside that span is preserved); CSV last-24h rows for that MAC in the same span replaced only when `LoggingEnabled=true`
+- **72H fetch:** Manage Devices **H** — BLE minute history for selected device; replaces only the received timestamp span in memory/log (older polled/log data outside that span is preserved); CSV rows for that MAC in the same span replaced only when `LoggingEnabled=true`
 - **BLE recovery:** Prompt before enabling Bluetooth when the radio is off (`ble_radio.py` + `BluetoothPermissionModal`); auto power-cycle after entire fetch cycle fails; 90 s action cooldown, 5 min re-prompt cooldown after decline
 - **BLE connect cache:** 120 s `BLEDevice` resolution cache, preferred WinRT connect strategy, inter-device prefetch (`ble.py`)
 - **Build:** `build.ps1` → `tp.pyz` then `tp.exe` (or `-pyz` / `-exe` alone); optional `-upx` — see **Build** section
@@ -53,7 +53,7 @@ Connect path caches resolved `BLEDevice` for 120 s, prefetches the next device d
 
 2. **Original TP357 (legacy):** Write `[0xA7, 0x01, 0x00, 0x7A]` (fallback: 6-byte tpy357 variant). Collect packets while `data[0] == 0xA7`; five samples per packet; tpy357 timestamps. Used only when stream protocol returns no data.
 
-Timeout ~180s. Uses `_ble_session_lock`. Minimum 100 valid samples before merge.
+Timeout ~180s. Stream fetch requests **4320** records (72 h at 1 min/record). Uses `_ble_session_lock`. Minimum 100 valid samples before merge. Merge window: **72 h** (`BLE_HISTORY_HOURS`).
 
 **Scan filter:** Device name starts with `TP35`. Uses `BleakScanner.discover(return_adv=True)` (bleak 3.x) for RSSI and `local_name` from `AdvertisementData`.
 
@@ -89,7 +89,7 @@ Resolved log path: `{absolute LogDirectory}/{LogFileName}`; relative `LogDirecto
 | 4 | `humidity_pct` | Integer 0–100 |
 | 5 | `mac` | Uppercase colon MAC |
 
-Append after each fetch cycle (including partial retry cycles). UTF-8, `\n` line endings. Preload last 24h on mount; seeds `last_updated` and fetch status per device.
+Append after each fetch cycle (including partial retry cycles). UTF-8, `\n` line endings. Preload last 72h on mount; seeds `last_updated` and fetch status per device.
 
 ---
 
@@ -99,7 +99,7 @@ Append after each fetch cycle (including partial retry cycles). UTF-8, `\n` line
 |--------|------|---------|
 | Main | 1–4, q | Route to sub-screens; q exits |
 | Monitoring | M/Esc, G, T, 1–9/0, C, q | Dashboard; G = full fetch; T = cycle sparkline window; digit keys = device info; C = cycle columns when wide enough; header = status left, 🌡 TemPy center, clock right |
-| Devices | D, A, I, H, E, R, W, S, ↑/↓, M, q | Discover/add/status/24H fetch/edit/remove/reorder |
+| Devices | D, A, I, H, E, R, W, S, ↑/↓, M, q | Discover/add/status/72H fetch/edit/remove/reorder |
 | Options | L, B, D, F, M, q | Logging toggle, debug log toggle, path edits |
 
 **Monitoring layout (per device):**
@@ -118,11 +118,11 @@ Blank line between single-column device blocks; multi-column rows are separated 
 
 **Device status modal (I):** Log preload stats, last fetch (with timestamp), memory count, 4H/24H/72H temp and humidity sparklines.
 
-**Add discovered device (A):** Name prompt, then optional **Y/N** prompt to load 24H BLE history (opens the same progress modal as **H**).
+**Add discovered device (A):** Name prompt, then optional **Y/N** prompt to load 72H BLE history (opens the same progress modal as **H**).
 
-**24H history fetch modal (H):** Progress modal while BLE day-history streams; shows phase, packet/sample counts, elapsed time. On success merges only the received timestamp span into memory and optionally rewrites matching CSV rows for that device when logging is enabled. **Q** blocked until complete.
+**72H history fetch modal (H):** Progress modal while BLE history streams; shows phase, packet/sample counts, elapsed time. On success merges only the received timestamp span into memory and optionally rewrites matching CSV rows for that device when logging is enabled. **Q** cancels.
 
-**Startup sparkline bootstrap (`monitoring.py` + `history_fetch.bootstrap_sparklines_from_ble`):** When `LoggingEnabled=false`, before the poll worker’s first live fetch, sequentially pull 24H BLE history for each device with fewer than 8 populated hourly bins. Header shows **24H** progress; uses same merge rules as **H**. Skipped when logging is on or bins are already filled (e.g. from log preload). Runs once per monitoring mount; also triggered on `-nopoll` mount via background worker.
+**Startup sparkline bootstrap (`monitoring.py` + `history_fetch.bootstrap_sparklines_from_ble`):** When `LoggingEnabled=false`, before the poll worker’s first live fetch, sequentially pull 72H BLE history for each device with fewer than 8 populated hourly bins. Header shows **72H** progress; uses same merge rules as **H**. Skipped when logging is on or bins are already filled (e.g. from log preload). Runs once per monitoring mount; also triggered on `-nopoll` mount via background worker.
 
 ---
 
@@ -165,7 +165,7 @@ Sparkline glyph **color** = band at bin average. Glyph **height** = normalized t
 
 **Retry timing:** `next_retry_time()` — 60s after last retry or after cycle end, unless chunk boundary comes first.
 
-**Header states:** DEBUG · filter · next poll / polling off · fetch / retry / **24H** (startup bootstrap) / saving spinner with active device name · progress bar.
+**Header states:** DEBUG · filter · next poll / polling off · fetch / retry / **72H** (startup bootstrap) / saving spinner with active device name · progress bar.
 
 **`-nopoll` / `-np` mode:** Poll/retry worker disabled; **G** still fetches; `tp.log` reloaded every 5 minutes (`POLL_INTERVAL`).
 
@@ -188,7 +188,7 @@ Sparkline glyph **color** = band at bin average. Glyph **height** = normalized t
 | `tp/ble.py` | bleak scan, `read_now`, `read_day_history`, device cache, radio-recovery hooks |
 | `tp/ble_radio.py` | Detect Bluetooth powered off; permission callback for enable; WinRT/Linux enable + restart |
 | `tp/history.py` | In-memory readings, log preload, CSV append, fetch status, day-history merge, sparkline bootstrap gate |
-| `tp/history_fetch.py` | Orchestrate 24H BLE fetch + history merge; startup `bootstrap_sparklines_from_ble` |
+| `tp/history_fetch.py` | Orchestrate 72H BLE fetch + history merge; startup `bootstrap_sparklines_from_ble` |
 | `tp/scheduler.py` | 5-minute boundaries, stale/retry helpers |
 | `tp/sparkline.py` | Multi-window binning, glyphs, Rich markup |
 | `tp/colors.py` | Indoor temp/humidity band colors |
@@ -197,7 +197,7 @@ Sparkline glyph **color** = band at bin average. Glyph **height** = normalized t
 | `tp/ui/menus.py` | Main menu |
 | `tp/ui/monitoring.py` | Dashboard + poll/retry worker |
 | `tp/ui/devices.py` | Device management, add flow, history fetch modal |
-| `tp/ui/history_fetch_status.py` | 24H fetch progress modal formatting |
+| `tp/ui/history_fetch_status.py` | 72H fetch progress modal formatting |
 | `tp/ui/device_status.py` | Status/sparkline formatting |
 | `tp/ui/options.py` | Logging options |
 | `tp/ui/bluetooth_prompt.py` | Y/N modal before enabling Bluetooth |

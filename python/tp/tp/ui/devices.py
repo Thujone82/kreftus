@@ -20,11 +20,11 @@ from tp.ui.device_status import format_device_status
 from tp.ui.history_fetch_status import format_history_fetch_status
 
 _IDLE_FOOTER = (
-    "[dim]D discover · A add · I status · H 24H fetch · E edit · R remove · "
+    "[dim]D discover · A add · I status · H 72H fetch · E edit · R remove · "
     "W up · S down · M menu[/]"
 )
 _BUSY_FOOTER = "[dim]Please wait — scan in progress[/]"
-_BUSY_HISTORY_FOOTER = "[dim]Please wait — 24H fetch in progress[/]"
+_BUSY_HISTORY_FOOTER = "[dim]Please wait — 72H fetch in progress[/]"
 
 
 class NameInputModal(ModalScreen[str | None]):
@@ -63,7 +63,7 @@ class NameInputModal(ModalScreen[str | None]):
 
 
 class HistoryLoadPromptModal(ModalScreen[bool]):
-    """Ask whether to load 24H BLE history when adding a device."""
+    """Ask whether to load 72H BLE history when adding a device."""
 
     DEFAULT_CSS = """
     HistoryLoadPromptModal {
@@ -89,7 +89,7 @@ class HistoryLoadPromptModal(ModalScreen[bool]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="history-prompt-dialog"):
-            yield Label(f"Load 24H BLE history for {self.device_name}?")
+            yield Label(f"Load 72H BLE history for {self.device_name}?")
             yield Static(
                 "[dim]Backfills sparklines from the sensor. "
                 "May take up to a few minutes.[/]",
@@ -147,7 +147,7 @@ class DeviceStatusModal(ModalScreen[None]):
 
 
 class DeviceHistoryFetchModal(ModalScreen[None]):
-    """Fetch 24H BLE history for a managed device."""
+    """Fetch 72H BLE history for a managed device."""
 
     DEFAULT_CSS = """
     DeviceHistoryFetchModal {
@@ -250,7 +250,7 @@ class DevicesScreen(Screen):
         ("e", "edit", "Edit"),
         ("r", "remove", "Remove"),
         ("i", "status", "Status"),
-        ("h", "history_fetch", "24H Fetch"),
+        ("h", "history_fetch", "72H Fetch"),
         ("w", "move_up", "Up"),
         ("s", "move_down", "Down"),
         ("m", "menu", "Menu"),
@@ -287,7 +287,7 @@ class DevicesScreen(Screen):
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if self._history_fetching and action in {"history_fetch", "add"}:
-            self.notify("Busy — 24H fetch in progress", severity="warning", timeout=4)
+            self.notify("Busy — 72H fetch in progress", severity="warning", timeout=4)
             return False
         if not self._scanning:
             return True
@@ -475,7 +475,7 @@ class DevicesScreen(Screen):
             return
         entries = list(self.app.config.devices.items())
         if self.selected_index >= len(entries):
-            self.notify("Select a managed device for 24H fetch.", severity="warning")
+            self.notify("Select a managed device for 72H fetch.", severity="warning")
             return
         mac, name = entries[self.selected_index]
         if not await ensure_bluetooth_enabled_for_polling():

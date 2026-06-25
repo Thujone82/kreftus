@@ -518,7 +518,7 @@ class MonitoringScreen(Screen):
         await self._run_cycle()
 
     async def _run_history_bootstrap_if_needed(self) -> None:
-        """When logging is off, import 24H BLE history so dashboard sparklines populate."""
+        """When logging is off, import 72H BLE history so dashboard sparklines populate."""
         if self._history_bootstrap_done or self.app.config.settings.logging_enabled:
             return
         if not self.app.config.devices:
@@ -745,7 +745,7 @@ class MonitoringScreen(Screen):
             if self._phase == PHASE_COMMIT:
                 label = "Saving"
             elif self._phase == PHASE_HISTORY:
-                label = "24H"
+                label = "72H"
             elif self._is_retry_cycle:
                 label = "Retry"
             else:

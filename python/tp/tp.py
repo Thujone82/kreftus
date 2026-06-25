@@ -111,7 +111,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--history-day",
         metavar="MAC",
         default=None,
-        help="Fetch 24H BLE day history for MAC and exit (dev/test)",
+        help="Fetch 72H BLE history for MAC and exit (dev/test)",
     )
     return parser.parse_args(argv)
 

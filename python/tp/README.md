@@ -32,7 +32,7 @@ On first run, `tp.ini` is created beside the launcher (`tp.py`, `tp.exe`, or `tp
 | `-x` | Print one snapshot from saved log/history data and exit (no UI, no BLE) |
 | `-nopoll` / `-np` | Interactive mode without automatic poll scheduling; **G** still fetches manually; reloads the CSV log every 5 minutes for multi-instance viewing |
 | `-f` / `-filter` *TEXT* | View filter — only show devices whose name contains *TEXT* (case-insensitive). Works with interactive mode and `-x`. Polling and manual fetch still run for all managed devices; only the dashboard display is filtered. |
-| `--history-day` *MAC* | Fetch 24H BLE day history for *MAC* and exit (dev/test; no UI) |
+| `--history-day` *MAC* | Fetch 72H BLE history for *MAC* and exit (dev/test; no UI) |
 
 Examples:
 
@@ -107,7 +107,7 @@ The view filter (`-f`) only affects which devices are shown; column layout appli
 
 - **Scheduled polls** run on 5-minute clock boundaries (`:00`, `:05`, `:10`, …). Devices are fetched one at a time per cycle (60 s timeout per device). Use `-nopoll` / `-np` to disable BLE scheduling; the dashboard still reloads `tp.log` every 5 minutes so a second viewer can follow a polling instance.
 - **Startup:** Log preload runs first. If every device already has a fresh reading for the current 5-minute chunk, the initial BLE fetch is skipped.
-- **Logging off:** On startup, TemPy automatically pulls 24H history from each sensor over BLE (when sparklines are still empty) so the dashboard fills in without a CSV log. Header shows **24H** while this runs.
+- **Logging off:** On startup, TemPy automatically pulls 72H history from each sensor over BLE (when sparklines are still empty) so the dashboard fills in without a CSV log. Header shows **72H** while this runs.
 - **Minute retries:** Devices that miss a poll in the current chunk are retried every 60 seconds until the next boundary.
 - Press **G** to fetch stale devices for the current chunk, or run a full poll when all devices are fresh.
 
@@ -116,9 +116,9 @@ The view filter (`-f`) only affects which devices are shown; column layout appli
 | Key | Action |
 |-----|--------|
 | D | Discover nearby TP35x devices (10 s scan) |
-| A | Add selected discovered device (name prompt, then optional 24H history load) |
+| A | Add selected discovered device (name prompt, then optional 72H history load) |
 | I | Status — log preload, last fetch, 4H/24H/72H sparklines |
-| H | 24H fetch — pull minute history over BLE; merges only the received timestamp span (preserves older polled/log data outside that range); log rows in the same span replaced only when logging is enabled |
+| H | 72H fetch — pull minute history over BLE; merges only the received timestamp span (preserves older polled/log data outside that range); log rows in the same span replaced only when logging is enabled |
 | E | Rename selected managed device |
 | R | Remove selected managed device |
 | W | Move selected managed device up |
@@ -127,17 +127,17 @@ The view filter (`-f`) only affects which devices are shown; column layout appli
 | **Q** | Back one level |
 | **M** | Main menu |
 
-## 24H BLE history
+## 72H BLE history
 
-TemPy can pull minute-resolution history stored on the sensor over BLE to backfill sparklines without waiting a full day.
+TemPy can pull minute-resolution history stored on the sensor over BLE to backfill sparklines (up to 72 hours per fetch).
 
 | How | Action |
 |-----|--------|
-| Manage Devices **H** | Fetch 24H history for the selected managed device (progress modal) |
+| Manage Devices **H** | Fetch 72H history for the selected managed device (progress modal) |
 | Add device **A** | After naming, **Y** loads history immediately; **N** or **Q** skips |
 | CLI `--history-day` *MAC* | Headless fetch for testing (no UI) |
 
-**Merge behavior:** Only timestamps covered by the received BLE data are replaced in memory (and in the CSV log when logging is enabled). Older polled or log data outside that span is kept — useful when the sensor has less than 24h on board after a reboot.
+**Merge behavior:** Only timestamps covered by the received BLE data are replaced in memory (and in the CSV log when logging is enabled). Older polled or log data outside that span is kept — useful when the sensor has less than 72h on board after a reboot.
 
 **Protocols:** TP358/TP359 and TP357S use the stream protocol (datetime sync + history request). Original TP357 uses the legacy `0xA7` packet stream when the stream protocol returns no data.
 

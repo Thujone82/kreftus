@@ -45,7 +45,7 @@ async def fetch_day_history_for_device(
     device_name: str,
     progress_cb: HistoryFetchProgressCallback | None = None,
 ) -> DayHistoryResult:
-    """Fetch 24H BLE history for one device and merge into memory/log."""
+    """Fetch 72H BLE history for one device and merge into memory/log."""
     target_mac = normalize_mac(mac)
     packet_count = 0
 
@@ -127,7 +127,7 @@ async def bootstrap_sparklines_from_ble(
     progress_cb: HistoryFetchProgressCallback | None = None,
     stop_requested: StopRequestedCallback | None = None,
 ) -> list[str]:
-    """Pull 24H BLE history for devices missing sparkline data when logging is off."""
+    """Pull 72H BLE history for devices missing sparkline data when logging is off."""
     if config.settings.logging_enabled:
         return []
 
@@ -156,6 +156,6 @@ async def bootstrap_sparklines_from_ble(
             progress_cb,
         )
         if not result.ok:
-            message = result.error or "24H history fetch failed"
+            message = result.error or "72H history fetch failed"
             errors.append(f"{name}: {message}")
     return errors
