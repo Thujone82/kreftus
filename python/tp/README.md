@@ -1,6 +1,6 @@
 # TemPy — ThermoPro TP35x Monitor
 
-**Version 1.6.0**
+**Version 1.7.0**
 
 Cross-platform Python TUI (**TemPy**) for ThermoPro TP357/TP358/TP359 Bluetooth hygrometer/thermometer units.
 
@@ -78,8 +78,9 @@ Place `tp.ini` and `tp_log.csv` in the same folder as the launcher. The build sc
 |-----|--------|
 | 1 | Monitoring — live dashboard with 24h sparklines (press **T** for 72H or 4H) |
 | 2 | Manage Devices — discover, add, rename, remove sensors |
-| 3 | Options — logging, poll mode, and log file path |
+| 3 | Options — logging, poll mode, log file path, web export |
 | 4 / q | Exit |
+| 5 | Export log to web — writes `tp_export.html` and opens it in your browser |
 
 ## Monitoring
 
@@ -149,6 +150,7 @@ TemPy can pull minute-resolution history stored on the sensor over BLE to backfi
 |-----|--------|
 | L | Toggle CSV logging |
 | P | Toggle poll mode — incremental (minute history) or live (single snapshot) |
+| E | Export log to web — interactive HTML chart (`tp_export.html`) |
 | B | Toggle session debug log |
 | D | Edit log directory |
 | F | Edit log filename (renames existing log; prompts before overwriting an existing target file) |
@@ -186,6 +188,17 @@ timestamp,device,temp_f,humidity_pct,mac
 ```
 
 In incremental poll mode, rows are minute-aligned (`:00` seconds). Multiple rows per device may be appended after each 5-minute cycle. On startup, readings from the last 72 hours are preloaded into memory for sparklines and freshness checks.
+
+## Log export to web
+
+Export the CSV log to a self-contained **`tp_export.html`** beside the launcher:
+
+| How | Action |
+|-----|--------|
+| Main menu **5** | Export log to web |
+| Options **E** | Same export |
+
+The report opens in your default browser. Pick a **device** and **timeframe** (4H, 24H, 72H, 7D, All) to filter an interactive dual-axis chart (temperature and humidity). Data is embedded in the file — no server required after export. Consecutive bogus 32 °F / 10% readings are excluded (same as the live app).
 
 ## Platform setup
 
@@ -229,6 +242,7 @@ TemPy’s BLE protocol work builds on [pasky/tp357](https://github.com/pasky/tp3
 
 ## Changelog
 
+- **v1.7.0** — **Log export to web** (main menu **5**, Options **E**): self-contained `tp_export.html` with device/timeframe controls and ECharts dual-axis chart.
 - **v1.6.0** — Incremental minute-history polling (default); Options **P** poll-mode toggle; 72H BLE fetch/bootstrap; dashboard **T** sparkline window rotation; default log `tp_log.csv`; log rename on filename change with overwrite prompt; 72h log preload.
 - **v1.5.0** — Faster live reads; colored fetch-step arrows; automatic history bootstrap on startup when logging is off; Bluetooth auto-recovery when the radio is off; quicker reconnects between polls.
 - **v1.4.0** — 24H BLE history fetch (**H**, optional on add); TP357S/TP359 stream protocol; partial-span merge; `--history-day` CLI.

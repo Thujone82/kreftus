@@ -104,6 +104,7 @@ class OptionsScreen(Screen):
         ("l", "toggle_logging", "Logging"),
         ("b", "toggle_debug", "Debug"),
         ("p", "toggle_poll_mode", "Poll"),
+        ("e", "export_log", "Export"),
         ("d", "edit_directory", "Directory"),
         ("f", "edit_filename", "Filename"),
         ("m", "menu", "Menu"),
@@ -140,6 +141,7 @@ class OptionsScreen(Screen):
                     "",
                     f"  Logging:       [cyan]{enabled}[/]  [dim](L toggle)[/]",
                     f"  Poll mode:     [cyan]{poll_mode}[/]  [dim](P toggle)[/]",
+                    "  Log export:    [dim]E export log to web (tp_export.html)[/]",
                     *debug_lines,
                     f"  Log directory: [white]{settings.log_directory}[/]  [dim](D edit)[/]",
                     f"  Log filename:  [white]{settings.log_file_name}[/]  [dim](F edit)[/]",
@@ -179,6 +181,11 @@ class OptionsScreen(Screen):
             f"Poll mode: {poll_mode_label(settings.poll_mode)}.",
             timeout=4,
         )
+
+    def action_export_log(self) -> None:
+        from tp.ui.log_export_action import export_log_to_web
+
+        export_log_to_web(self.app)
 
     def action_edit_directory(self) -> None:
         current = self.app.config.settings.log_directory

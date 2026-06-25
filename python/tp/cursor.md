@@ -4,7 +4,7 @@
 
 **Author:** Kreft&Cursor  
 **Date:** 2026-06-15  
-**Version:** 1.6.0
+**Version:** 1.7.0
 
 ---
 
@@ -26,6 +26,7 @@ Built with **Textual** (UI) and **bleak** (BLE). Default **incremental poll mode
 - **Incremental polling:** Default `PollMode=incremental` — each cycle requests missing minute history since last stored reading (`read_recent_history`); logs multiple minute rows per cycle; falls back to `read_now` on failure
 - **Live polling:** `PollMode=live` — one `read_now` snapshot per device per cycle (wall-clock timestamp)
 - **Sparklines:** 24-bin windows — 4H/24H/72H on device status modal; dashboard defaults to 24H (**T** cycles 24H → 72H → 4H)
+- **Log export to web:** Main menu **5** or Options **E** writes `tp_export.html` beside launcher; embedded CSV data; browser UI for device + timeframe (4H/24H/72H/7D/All) with ECharts dual-axis chart
 - **CSV logging:** Optional append-only log; default `tp_log.csv`; 72h preload on mount/resume; renaming log file in Options renames on disk (overwrite prompt if target exists)
 - **72H fetch:** Manage Devices **H** — BLE minute history for selected device; replaces only the received timestamp span in memory/log (older polled/log data outside that span is preserved); CSV rows for that MAC in the same span replaced only when `LoggingEnabled=true`
 - **BLE recovery:** Prompt before enabling Bluetooth when the radio is off (`ble_radio.py` + `BluetoothPermissionModal`); auto power-cycle after entire fetch cycle fails; 90 s action cooldown, 5 min re-prompt cooldown after decline
@@ -98,16 +99,18 @@ Resolved log path: `{absolute LogDirectory}/{LogFileName}`; relative `LogDirecto
 
 Append after each fetch cycle (including partial retry cycles). Incremental mode may append multiple rows per device per cycle. UTF-8, `\n` line endings. Preload last 72h on mount; seeds `last_updated` and fetch status per device.
 
+**Log export (`log_export.py` + `assets/log_export.html`):** Reads full CSV (managed devices only), applies false-sentinel filter, embeds JSON in standalone HTML. Output: `{application_dir()}/tp_export.html`. Browser controls: device select, timeframe 4H/24H/72H/7D/All. Chart: Apache ECharts (CDN) dual Y-axis.
+
 ---
 
 ### UI Screens
 
 | Screen | Keys | Purpose |
 |--------|------|---------|
-| Main | 1–4, q | Route to sub-screens; q exits |
+| Main | 1–5, q | Route to sub-screens; **5** = export log to web; q exits |
 | Monitoring | M/Esc, G, T, 1–9/0, C, q | Dashboard; G = full fetch; T = cycle sparkline window; digit keys = device info; C = cycle columns when wide enough; header = status left, 🌡 TemPy center, clock right |
 | Devices | D, A, I, H, E, R, W, S, ↑/↓, M, q | Discover/add/status/72H fetch/edit/remove/reorder |
-| Options | L, P, B, D, F, M, q | Logging toggle, poll mode toggle, debug log toggle, path edits (filename rename + overwrite prompt) |
+| Options | L, P, E, B, D, F, M, q | Logging toggle, poll mode toggle, log export, debug log toggle, path edits (filename rename + overwrite prompt) |
 
 **Monitoring layout (per device):**
 
@@ -210,13 +213,16 @@ Incremental falls back to live read on failure. Options **P** toggles modes.
 | `tp/sparkline.py` | Multi-window binning, glyphs, Rich markup |
 | `tp/colors.py` | Indoor temp/humidity band colors |
 | `tp/fetch.py` | Sequential fetch cycle (incremental or live) |
+| `tp/log_export.py` | CSV → embedded JSON → standalone `tp_export.html` |
+| `tp/assets/log_export.html` | ECharts report template (CDN) |
 | `tp/ui/app.py` | Textual App root, CSS, startup routing |
 | `tp/ui/menus.py` | Main menu |
 | `tp/ui/monitoring.py` | Dashboard + poll/retry worker |
 | `tp/ui/devices.py` | Device management, add flow, history fetch modal |
 | `tp/ui/history_fetch_status.py` | 72H fetch progress modal formatting |
 | `tp/ui/device_status.py` | Status/sparkline formatting |
-| `tp/ui/options.py` | Logging, poll mode, path edits, log rename |
+| `tp/ui/options.py` | Logging, poll mode, path edits, log rename, log export |
+| `tp/ui/log_export_action.py` | Main menu / Options export trigger + browser open |
 | `tp/ui/bluetooth_prompt.py` | Y/N modal before enabling Bluetooth |
 | `tp/ui/helpers.py` | Label/stats formatting, multi-column layout, info hotkey helpers |
 | `build.ps1` | Windows build script — see **Build** section below |
@@ -401,6 +407,9 @@ python/tp/
     scheduler.py
     fetch.py
     poll.py
+    log_export.py
+    assets/
+      log_export.html
     ui/
       app.py
       menus.py
@@ -409,6 +418,7 @@ python/tp/
       history_fetch_status.py
       device_status.py
       options.py
+      log_export_action.py
       helpers.py
 ```
 
@@ -416,6 +426,7 @@ python/tp/
 
 ### Changelog
 
+- **v1.7.0** — **Log export to web** (main menu **5**, Options **E**): self-contained **`tp_export.html`** with device/timeframe controls and ECharts dual-axis chart; `log_export.py` + `assets/log_export.html`.
 - **v1.6.0** — **Incremental minute-history polling** (default `PollMode=incremental`; Options **P** toggles live mode); **`read_recent_history`** for gap-filled minute CSV rows; **72H** BLE fetch/bootstrap (expanded from 24H); dashboard **T** sparkline window rotation (24H → 72H → 4H) with window-accurate min/max; default log **`tp_log.csv`**; **log rename** on filename change with overwrite prompt; **72h log preload**; `build.ps1` **`-pyz` / `-exe`** selective build; unit tests for poll mode, log rename, multi-row append.
 - **v1.5.0** — **Fast live read** (datetime sync `0xA5` then `0xC2`, passive fallback); **fetch step arrows** (cyan/green/yellow); **BLE connect cache** + inter-device prefetch; **startup history bootstrap** when logging off; **Bluetooth radio auto-restart** on powered-off errors (`ble_radio.py`); unit tests for radio detection and bootstrap gating.
 - **v1.4.0** — **24H BLE history fetch** (**H** progress modal; optional **Y/N** when adding a device); TP357S/TP359 stream protocol (`0xA5` datetime sync + `0xCCCC` history commands) with legacy TP357 `0xA7` fallback; partial-span merge preserves polled/log data outside the received window; `--history-day` CLI; unit tests for stream/legacy parsers and log merge.

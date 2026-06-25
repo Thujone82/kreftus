@@ -16,6 +16,7 @@ class MainMenuScreen(Screen):
         ("2", "devices", "Devices"),
         ("3", "options", "Options"),
         ("4", "quit", "Exit"),
+        ("5", "export_log", "Export"),
     ]
 
     def compose(self) -> ComposeResult:
@@ -39,8 +40,9 @@ class MainMenuScreen(Screen):
             "  [white]2[/]  Manage Devices",
             "  [white]3[/]  Options",
             "  [white]4[/]  Exit",
+            "  [white]5[/]  Export log to web",
             "",
-            "[dim]Press 1-4 · Q to quit[/]",
+            "[dim]Press 1-5 · Q to quit[/]",
         ]
         body.update("\n".join(lines))
 
@@ -56,6 +58,11 @@ class MainMenuScreen(Screen):
 
     def action_options(self) -> None:
         self.app.push_screen("options")
+
+    def action_export_log(self) -> None:
+        from tp.ui.log_export_action import export_log_to_web
+
+        export_log_to_web(self.app)
 
     def action_quit(self) -> None:
         self.app.exit()

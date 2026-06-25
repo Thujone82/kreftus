@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TemPy Log Export</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --surface: #ffffff;
+      --text: #1a2332;
+      --muted: #5c6b7a;
+      --border: #d8dee6;
+      --accent-temp: #2563eb;
+      --accent-humidity: #0d9488;
+      --shadow: 0 1px 3px rgba(26, 35, 50, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .page {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1.5rem 1.25rem 2.5rem;
+    }
+    header {
+      margin-bottom: 1.25rem;
+    }
+    header h1 {
+      margin: 0 0 0.25rem;
+      font-size: 1.65rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    header .meta {
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem 1.5rem;
+      align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+      box-shadow: var(--shadow);
+      margin-bottom: 1rem;
+    }
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .control-group label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+    select {
+      min-width: 200px;
+      padding: 0.45rem 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font: inherit;
+      background: #fff;
+    }
+    .timeframes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .timeframes button {
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      font: inherit;
+      cursor: pointer;
+    }
+    .timeframes button.active {
+      background: var(--accent-temp);
+      border-color: var(--accent-temp);
+      color: #fff;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+      box-shadow: var(--shadow);
+    }
+    .stat-card .label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin-bottom: 0.2rem;
+    }
+    .stat-card .value {
+      font-size: 1.35rem;
+      font-weight: 650;
+    }
+    .stat-card.temp .value { color: var(--accent-temp); }
+    .stat-card.humidity .value { color: var(--accent-humidity); }
+    #chart {
+      width: 100%;
+      height: 460px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+    }
+    .empty {
+      display: none;
+      margin-top: 1rem;
+      padding: 1rem;
+      border-radius: 8px;
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      color: #9a3412;
+    }
+    footer {
+      margin-top: 1.25rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>TemPy Log Export</h1>
+      <div class="meta" id="meta"></div>
+    </header>
+
+    <div class="toolbar">
+      <div class="control-group">
+        <label for="device-select">Device</label>
+        <select id="device-select"></select>
+      </div>
+      <div class="control-group">
+        <label>Timeframe</label>
+        <div class="timeframes" id="timeframes">
+          <button type="button" data-hours="4">4H</button>
+          <button type="button" data-hours="24" class="active">24H</button>
+          <button type="button" data-hours="72">72H</button>
+          <button type="button" data-hours="168">7D</button>
+          <button type="button" data-hours="all">All</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats" id="stats"></div>
+    <div id="chart"></div>
+    <div class="empty" id="empty">No readings in this timeframe.</div>
+    <footer>Offline report — data embedded at export time. Chart: Apache ECharts.</footer>
+  </div>
+
+  <script type="application/json" id="export-data">__EXPORT_DATA__</script>
+  <script>
+    const payload = JSON.parse(document.getElementById("export-data").textContent);
+    const deviceSelect = document.getElementById("device-select");
+    const statsEl = document.getElementById("stats");
+    const emptyEl = document.getElementById("empty");
+    const metaEl = document.getElementById("meta");
+    let activeHours = 24;
+    let chart = null;
+
+    metaEl.textContent = `Generated ${payload.generated_at} · Source ${payload.log_path}`;
+
+    payload.devices.forEach((device) => {
+      const option = document.createElement("option");
+      option.value = device.mac;
+      option.textContent = device.name;
+      deviceSelect.appendChild(option);
+    });
+
+    function parsePointTime(point) {
+      return new Date(point.t.replace(" ", "T"));
+    }
+
+    function filterPoints(mac) {
+      const points = payload.series[mac] || [];
+      if (activeHours === "all") {
+        return points;
+      }
+      const end = new Date();
+      const start = new Date(end.getTime() - activeHours * 60 * 60 * 1000);
+      return points.filter((point) => {
+        const ts = parsePointTime(point);
+        return ts >= start && ts < end;
+      });
+    }
+
+    function formatStat(value, suffix) {
+      return value == null ? "—" : `${value}${suffix}`;
+    }
+
+    function updateStats(points) {
+      if (!points.length) {
+        statsEl.innerHTML = "";
+        return;
+      }
+      const temps = points.map((p) => p.temp_f);
+      const humids = points.map((p) => p.humidity_pct);
+      const current = points[points.length - 1];
+      const cards = [
+        { label: "Temp now", value: `${current.temp_f.toFixed(1)}°F`, cls: "temp" },
+        { label: "Temp min", value: `${Math.min(...temps).toFixed(1)}°F`, cls: "temp" },
+        { label: "Temp max", value: `${Math.max(...temps).toFixed(1)}°F`, cls: "temp" },
+        { label: "Humidity now", value: `${current.humidity_pct}%`, cls: "humidity" },
+        { label: "Humidity min", value: `${Math.min(...humids)}%`, cls: "humidity" },
+        { label: "Humidity max", value: `${Math.max(...humids)}%`, cls: "humidity" },
+      ];
+      statsEl.innerHTML = cards.map((card) =>
+        `<div class="stat-card ${card.cls}"><div class="label">${card.label}</div><div class="value">${card.value}</div></div>`
+      ).join("");
+    }
+
+    function chartOption(points) {
+      const labels = points.map((p) => p.t.replace("T", " "));
+      const temps = points.map((p) => p.temp_f);
+      const humids = points.map((p) => p.humidity_pct);
+      return {
+        animationDuration: 350,
+        tooltip: {
+          trigger: "axis",
+          axisPointer: { type: "cross" },
+        },
+        legend: {
+          data: ["Temperature °F", "Humidity %"],
+          top: 8,
+        },
+        grid: {
+          left: 56,
+          right: 56,
+          top: 48,
+          bottom: 56,
+        },
+        xAxis: {
+          type: "category",
+          data: labels,
+          boundaryGap: false,
+          axisLabel: {
+            hideOverlap: true,
+            formatter: (value) => value.slice(5, 16),
+          },
+        },
+        yAxis: [
+          {
+            type: "value",
+            name: "°F",
+            position: "left",
+            axisLine: { show: true, lineStyle: { color: "#2563eb" } },
+            axisLabel: { formatter: "{value}" },
+          },
+          {
+            type: "value",
+            name: "%",
+            position: "right",
+            min: 0,
+            max: 100,
+            axisLine: { show: true, lineStyle: { color: "#0d9488" } },
+            splitLine: { show: false },
+          },
+        ],
+        series: [
+          {
+            name: "Temperature °F",
+            type: "line",
+            smooth: true,
+            showSymbol: false,
+            yAxisIndex: 0,
+            lineStyle: { width: 2, color: "#2563eb" },
+            itemStyle: { color: "#2563eb" },
+            areaStyle: {
+              color: {
+                type: "linear",
+                x: 0, y: 0, x2: 0, y2: 1,
+                colorStops: [
+                  { offset: 0, color: "rgba(37, 99, 235, 0.18)" },
+                  { offset: 1, color: "rgba(37, 99, 235, 0.02)" },
+                ],
+              },
+            },
+            data: temps,
+          },
+          {
+            name: "Humidity %",
+            type: "line",
+            smooth: true,
+            showSymbol: false,
+            yAxisIndex: 1,
+            lineStyle: { width: 2, color: "#0d9488" },
+            itemStyle: { color: "#0d9488" },
+            data: humids,
+          },
+        ],
+      };
+    }
+
+    function renderChart() {
+      const mac = deviceSelect.value;
+      const points = filterPoints(mac);
+      updateStats(points);
+      if (!points.length) {
+        emptyEl.style.display = "block";
+        if (chart) {
+          chart.clear();
+        }
+        return;
+      }
+      emptyEl.style.display = "none";
+      if (!chart) {
+        chart = echarts.init(document.getElementById("chart"));
+        window.addEventListener("resize", () => chart.resize());
+      }
+      chart.setOption(chartOption(points), true);
+    }
+
+    deviceSelect.addEventListener("change", renderChart);
+    document.getElementById("timeframes").addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-hours]");
+      if (!button) return;
+      document.querySelectorAll("#timeframes button").forEach((el) => el.classList.remove("active"));
+      button.classList.add("active");
+      const hours = button.dataset.hours;
+      activeHours = hours === "all" ? "all" : Number(hours);
+      renderChart();
+    });
+
+    renderChart();
+  </script>
+</body>
+</html>
