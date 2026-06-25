@@ -8,11 +8,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
+POLL_MODE_INCREMENTAL = "incremental"
+POLL_MODE_LIVE = "live"
+DEFAULT_POLL_MODE = POLL_MODE_INCREMENTAL
+VALID_POLL_MODES = frozenset({POLL_MODE_INCREMENTAL, POLL_MODE_LIVE})
+
+
 @dataclass
 class Settings:
     logging_enabled: bool = False
     log_directory: str = "."
-    log_file_name: str = "tp.log"
+    log_file_name: str = "tp_log.csv"
+    poll_mode: str = DEFAULT_POLL_MODE
 
 
 @dataclass
@@ -92,7 +99,10 @@ def load_config(ini_path: Path | None = None) -> AppConfig:
             "LoggingEnabled", fallback=False
         )
         config.settings.log_directory = section.get("LogDirectory", ".")
-        config.settings.log_file_name = section.get("LogFileName", "tp.log")
+        config.settings.log_file_name = section.get("LogFileName", "tp_log.csv")
+        poll_mode = section.get("PollMode", DEFAULT_POLL_MODE).strip().lower()
+        if poll_mode in VALID_POLL_MODES:
+            config.settings.poll_mode = poll_mode
 
     if parser.has_section("Devices"):
         for mac, name in parser.items("Devices"):
@@ -109,6 +119,7 @@ def save_config(config: AppConfig) -> None:
         "LoggingEnabled": str(config.settings.logging_enabled).lower(),
         "LogDirectory": config.settings.log_directory,
         "LogFileName": config.settings.log_file_name,
+        "PollMode": config.settings.poll_mode,
     }
     parser["Devices"] = {mac: name for mac, name in config.devices.items()}
 
@@ -129,6 +140,69 @@ def resolved_log_directory(config: AppConfig) -> Path:
 
 def resolved_log_path(config: AppConfig) -> Path:
     return resolved_log_directory(config) / config.settings.log_file_name
+
+
+def poll_mode_label(mode: str) -> str:
+    if mode == POLL_MODE_LIVE:
+        return "live (single snapshot)"
+    return "incremental (minute history)"
+
+
+def rename_log_file(
+    config: AppConfig,
+    old_filename: str,
+    new_filename: str,
+    *,
+    overwrite: bool = False,
+) -> str | None:
+    """Rename the CSV log when the filename setting changes.
+
+    Returns an error message, or ``"exists"`` when *new_filename* is taken and
+  overwrite was not requested.
+    """
+    old_name = old_filename.strip()
+    new_name = new_filename.strip()
+    if not new_name:
+        return "Log filename cannot be empty."
+    if old_name == new_name:
+        return None
+
+    old_path = resolved_log_directory(config) / old_name
+    new_path = resolved_log_directory(config) / new_name
+    if not old_path.is_file():
+        return None
+    if new_path.exists() and new_path.resolve() != old_path.resolve():
+        if not overwrite:
+            return "exists"
+        try:
+            new_path.unlink()
+        except OSError as exc:
+            return f"Cannot remove {new_path}: {exc}"
+    try:
+        old_path.rename(new_path)
+    except OSError as exc:
+        return f"Cannot rename {old_path} to {new_path}: {exc}"
+    return None
+
+
+def probe_log_directory(directory: str) -> tuple[Path | None, str | None]:
+    """Verify that a log directory exists and is writable without creating the log file."""
+    if not directory.strip():
+        return None, "Log directory cannot be empty."
+
+    dir_path = Path(directory).expanduser()
+    if not dir_path.is_absolute():
+        dir_path = application_dir() / dir_path
+    dir_path = dir_path.resolve()
+
+    try:
+        dir_path.mkdir(parents=True, exist_ok=True)
+        probe_file = dir_path / ".tp_write_probe"
+        probe_file.write_text("", encoding="utf-8")
+        probe_file.unlink()
+    except OSError as exc:
+        return dir_path, f"Cannot write to {dir_path}: {exc}"
+    return dir_path, None
 
 
 def probe_log_path(directory: str, filename: str) -> tuple[Path | None, str | None]:

@@ -34,7 +34,15 @@ class PollResult:
     mac: str
     device_name: str
     reading: Reading | None
+    readings: list[Reading] | None = None
     error: str | None = None
+
+    def all_readings(self) -> list[Reading]:
+        if self.readings:
+            return list(self.readings)
+        if self.reading is not None:
+            return [self.reading]
+        return []
 
 
 @dataclass
@@ -286,18 +294,16 @@ def append_poll_results_to_log(
             if write_header:
                 writer.writerow(CSV_HEADER)
             for result in results:
-                if result.reading is None:
-                    continue
-                r = result.reading
-                writer.writerow(
-                    [
-                        r.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-                        result.device_name,
-                        f"{r.temp_f:.1f}",
-                        r.humidity_pct,
-                        result.mac,
-                    ]
-                )
+                for reading in result.all_readings():
+                    writer.writerow(
+                        [
+                            reading.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                            result.device_name,
+                            f"{reading.temp_f:.1f}",
+                            reading.humidity_pct,
+                            result.mac,
+                        ]
+                    )
     except OSError as exc:
         return f"Cannot write to {log_path}: {exc}"
     return None

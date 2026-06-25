@@ -1,3 +1,3 @@
 """ThermoPro TP35x BLE monitor."""
 
-__version__ = "1.5.0"
+__version__ = "1.6.0"

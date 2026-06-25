@@ -10,3 +10,4 @@ __pycache__/
 # Local config and test logs
 tp.ini
 tp.log
+tp_log.csv

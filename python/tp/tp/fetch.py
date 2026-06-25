@@ -9,11 +9,14 @@ from typing import Awaitable, Callable
 from tp.ble import (
     DEVICE_READ_TIMEOUT,
     NOW_READ_CONNECTING,
+    DayHistoryProgress,
     clear_ble_device_cache,
     format_ble_error,
     inter_device_delay_seconds,
     prefetch_ble_device,
     read_now,
+    read_recent_history,
+    recent_history_timeout,
 )
 from tp.ble_radio import (
     ensure_bluetooth_enabled_for_polling,
@@ -23,6 +26,7 @@ from tp.config import AppConfig
 from tp.debug_log import write as debug_write
 from tp.debug_log import write_exception as debug_write_exception
 from tp.history import DeviceHistory, PollResult, Reading, append_poll_results_to_log
+from tp.poll import incremental_history_record_count, uses_incremental_history
 
 ProgressCallback = Callable[[int, int, str, str], Awaitable[None] | None]
 NowReadPhaseCallback = Callable[[str, str, str], Awaitable[None] | None]
@@ -49,15 +53,26 @@ def _whole_fleet_cycle_failed(
     return total == fleet_size and len(only_macs) == fleet_size
 
 
-async def _fetch_one_device(
+def _poll_result_from_readings(
+    mac: str,
+    name: str,
+    readings: list[Reading],
+) -> PollResult:
+    latest = max(readings, key=lambda item: item.timestamp)
+    return PollResult(
+        mac=mac,
+        device_name=name,
+        reading=latest,
+        readings=readings,
+    )
+
+
+async def _fetch_one_device_live(
     mac: str,
     name: str,
     *,
-    config: AppConfig,
     on_now_phase: NowReadPhaseCallback | None = None,
 ) -> PollResult:
-    debug_write(f"fetch: reading {name} ({mac})", config=config)
-
     async def phase_cb(phase: str) -> None:
         if on_now_phase is None:
             return
@@ -65,36 +80,131 @@ async def _fetch_one_device(
         if asyncio.iscoroutine(maybe):
             await maybe
 
+    now = await asyncio.wait_for(
+        read_now(mac, progress=phase_cb),
+        timeout=DEVICE_READ_TIMEOUT,
+    )
+    reading = Reading(
+        timestamp=datetime.now(),
+        temp_f=now.temp_f,
+        humidity_pct=now.humidity_pct,
+    )
+    debug_write(
+        f"fetch: ok {name} temp={reading.temp_f}F humidity={reading.humidity_pct}% (live)",
+    )
+    return PollResult(mac=mac, device_name=name, reading=reading)
+
+
+async def _fetch_one_device_incremental(
+    mac: str,
+    name: str,
+    *,
+    history: DeviceHistory,
+    on_now_phase: NowReadPhaseCallback | None = None,
+) -> PollResult:
+    record_count = incremental_history_record_count(history, mac)
+    timeout = recent_history_timeout(record_count)
+    debug_write(
+        f"fetch: incremental {name} ({mac}) requesting {record_count} minute(s)",
+    )
+
+    async def phase_cb(update: DayHistoryProgress) -> None:
+        if on_now_phase is None:
+            return
+        phase = NOW_READ_CONNECTING
+        if update.phase == "receiving":
+            phase = "history"
+        maybe = on_now_phase(mac, name, phase)
+        if asyncio.iscoroutine(maybe):
+            await maybe
+
+    readings = await asyncio.wait_for(
+        read_recent_history(mac, record_count, progress=phase_cb),
+        timeout=timeout,
+    )
+    if not readings:
+        raise RuntimeError("No history samples received from sensor")
+    debug_write(
+        f"fetch: ok {name} imported {len(readings)} minute sample(s) "
+        f"(latest {readings[-1].temp_f}F)",
+    )
+    return _poll_result_from_readings(mac, name, readings)
+
+
+async def _fetch_one_device(
+    mac: str,
+    name: str,
+    *,
+    config: AppConfig,
+    history: DeviceHistory,
+    on_now_phase: NowReadPhaseCallback | None = None,
+) -> PollResult:
+    debug_write(f"fetch: reading {name} ({mac})", config=config)
+    incremental = uses_incremental_history(config.settings.poll_mode)
+
     try:
-        now = await asyncio.wait_for(
-            read_now(mac, progress=phase_cb),
-            timeout=DEVICE_READ_TIMEOUT,
-        )
-        reading = Reading(
-            timestamp=datetime.now(),
-            temp_f=now.temp_f,
-            humidity_pct=now.humidity_pct,
-        )
-        debug_write(
-            f"fetch: ok {name} temp={reading.temp_f}F humidity={reading.humidity_pct}%",
-            config=config,
-        )
-        return PollResult(mac=mac, device_name=name, reading=reading)
+        if incremental:
+            result = await _fetch_one_device_incremental(
+                mac,
+                name,
+                history=history,
+                on_now_phase=on_now_phase,
+            )
+        else:
+            result = await _fetch_one_device_live(
+                mac,
+                name,
+                on_now_phase=on_now_phase,
+            )
+        return result
     except asyncio.CancelledError:
         raise
     except TimeoutError:
+        mode = "incremental history" if incremental else "live read"
+        limit = (
+            int(recent_history_timeout(incremental_history_record_count(history, mac)))
+            if incremental
+            else int(DEVICE_READ_TIMEOUT)
+        )
         debug_write(
-            f"fetch: timed out {name} ({mac}) after {DEVICE_READ_TIMEOUT:.0f}s",
+            f"fetch: timed out {name} ({mac}) during {mode}",
             config=config,
         )
         return PollResult(
             mac=mac,
             device_name=name,
             reading=None,
-            error=f"Read timed out ({int(DEVICE_READ_TIMEOUT)}s)",
+            error=f"Read timed out ({limit}s)",
         )
     except Exception as exc:  # noqa: BLE001
         debug_write_exception(f"fetch: failed {name} ({mac})", exc, config=config)
+        if incremental:
+            debug_write(
+                f"fetch: incremental failed for {name}; falling back to live read",
+                config=config,
+            )
+            try:
+                if on_now_phase:
+                    maybe = on_now_phase(mac, name, NOW_READ_CONNECTING)
+                    if asyncio.iscoroutine(maybe):
+                        await maybe
+                return await _fetch_one_device_live(
+                    mac,
+                    name,
+                    on_now_phase=on_now_phase,
+                )
+            except Exception as fallback_exc:  # noqa: BLE001
+                debug_write_exception(
+                    f"fetch: live fallback failed {name} ({mac})",
+                    fallback_exc,
+                    config=config,
+                )
+                return PollResult(
+                    mac=mac,
+                    device_name=name,
+                    reading=None,
+                    error=format_ble_error(fallback_exc),
+                )
         return PollResult(
             mac=mac,
             device_name=name,
@@ -114,7 +224,7 @@ async def run_fetch_cycle(
     had_prior_success: bool = False,
     allow_radio_recovery: bool = True,
 ) -> tuple[list[PollResult], list[str]]:
-    """Collect live readings from managed devices (all or a subset)."""
+    """Collect readings from managed devices (all or a subset)."""
     batch, errors = await _run_fetch_cycle_once(
         config,
         history,
@@ -178,7 +288,11 @@ async def _run_fetch_cycle_once(
         return [], errors
 
     scope = "all" if only_macs is None else f"{len(only_macs)} selected"
-    debug_write(f"fetch: cycle start ({total} device(s), {scope})", config=config)
+    poll_mode = config.settings.poll_mode
+    debug_write(
+        f"fetch: cycle start ({total} device(s), {scope}, poll={poll_mode})",
+        config=config,
+    )
 
     if not await ensure_bluetooth_enabled_for_polling():
         message = "Bluetooth is off — enable Bluetooth to poll sensors"
@@ -206,10 +320,13 @@ async def _run_fetch_cycle_once(
             mac,
             name,
             config=config,
+            history=history,
             on_now_phase=on_now_phase,
         )
         history.record_fetch_result(result)
-        if result.reading is not None:
+        if result.readings:
+            history.import_readings(result.mac, result.readings)
+        elif result.reading is not None:
             history.add_reading(result.mac, result.reading)
         batch.append(result)
         if result.error:

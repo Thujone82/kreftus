@@ -56,10 +56,22 @@ DATETIME_SYNC_OPCODE = 0xA5
 STREAM_MAGIC_PREFIX = b"\xcc\xcc"
 STREAM_MAGIC_SUFFIX = b"\x66\x66"
 DAY_STREAM_RECORD_COUNT = int(BLE_HISTORY_HOURS * 60)
+INCREMENTAL_HISTORY_MAX_RECORDS = 1440
+RECENT_HISTORY_BASE_TIMEOUT = 60.0
+RECENT_HISTORY_PER_RECORD_TIMEOUT = 0.05
+RECENT_HISTORY_MAX_TIMEOUT = 120.0
 DAY_STREAM_CMD_DELAY = 0.2
 DATETIME_SYNC_DELAY = 1.0
 
-DayHistoryProgressCallback = Callable[["DayHistoryProgress"], Awaitable[None] | None]
+def recent_history_timeout(record_count: int) -> float:
+    """BLE timeout scaled to the number of minute records requested."""
+    bounded = max(1, min(record_count, INCREMENTAL_HISTORY_MAX_RECORDS))
+    return min(
+        RECENT_HISTORY_MAX_TIMEOUT,
+        RECENT_HISTORY_BASE_TIMEOUT + bounded * RECENT_HISTORY_PER_RECORD_TIMEOUT,
+    )
+
+
 NowReadPhaseCallback = Callable[[str], Awaitable[None] | None]
 
 # WinRT / BlueZ adapters handle one active GATT session reliably.
@@ -884,6 +896,7 @@ async def _read_day_stream_on_client(
     read_char,
     write_char,
     *,
+    record_count: int = DAY_STREAM_RECORD_COUNT,
     progress: DayHistoryProgressCallback | None = None,
     deadline: float | None = None,
     address: str = "",
@@ -921,12 +934,12 @@ async def _read_day_stream_on_client(
 
     await client.start_notify(read_char, handler)
     try:
-        history_cmds = _make_stream_history_cmds(DAY_STREAM_RECORD_COUNT)
+        history_cmds = _make_stream_history_cmds(record_count)
         await _emit_day_progress(
             progress,
             DayHistoryProgress(
                 phase="receiving",
-                message=f"Requesting up to {DAY_STREAM_RECORD_COUNT} records…",
+                message=f"Requesting up to {record_count} records…",
             ),
         )
         for cmd_index, cmd in enumerate(history_cmds):
@@ -1064,6 +1077,7 @@ async def _connect_and_read_day(
     device: BLEDevice | None,
     strategy: _ConnectStrategy,
     *,
+    record_count: int = DAY_STREAM_RECORD_COUNT,
     progress: DayHistoryProgressCallback | None = None,
     deadline: float | None = None,
 ) -> list[Reading]:
@@ -1084,6 +1098,7 @@ async def _connect_and_read_day(
             client,
             read_char,
             write_char,
+            record_count=record_count,
             progress=progress,
             deadline=deadline,
             address=address,
@@ -1099,6 +1114,9 @@ async def _connect_and_read_day(
                 ),
             )
             return readings
+
+        if record_count < DAY_STREAM_RECORD_COUNT:
+            raise RuntimeError("Stream history unavailable for incremental poll")
 
         debug_write("ble: day stream empty; falling back to legacy 0xA7 protocol")
         packets = await _read_day_legacy_on_client(
@@ -1118,6 +1136,11 @@ async def _connect_and_read_day(
             ),
         )
         readings = _parse_day_packets(packets)
+        if record_count < DAY_STREAM_RECORD_COUNT:
+            cutoff = datetime.now().replace(second=0, microsecond=0) - timedelta(
+                minutes=record_count - 1
+            )
+            readings = [reading for reading in readings if reading.timestamp >= cutoff]
         debug_write(f"ble: day parsed {len(readings)} sample(s) from {len(packets)} packet(s)")
         return readings
 
@@ -1125,8 +1148,10 @@ async def _connect_and_read_day(
 async def _read_day_session(
     address: str,
     *,
+    record_count: int = DAY_STREAM_RECORD_COUNT,
     progress: DayHistoryProgressCallback | None = None,
     deadline: float | None = None,
+    timeout_label: str = "read_day_history",
 ) -> list[Reading]:
     await _emit_day_progress(
         progress,
@@ -1139,9 +1164,11 @@ async def _read_day_session(
             return await _run_day_connect_strategies(
                 address,
                 cached,
+                record_count=record_count,
                 progress=progress,
                 deadline=deadline,
                 allow_reprepare=False,
+                timeout_label=timeout_label,
             )
         except Exception as exc:  # noqa: BLE001
             if not _is_transient_ble_error(exc):
@@ -1155,7 +1182,7 @@ async def _read_day_session(
         _raise_if_past_deadline(
             deadline,
             address,
-            label="read_day_history",
+            label=timeout_label,
             timeout=DAY_READ_TIMEOUT,
         )
         device = await _prepare_device(address)
@@ -1163,8 +1190,10 @@ async def _read_day_session(
     return await _run_day_connect_strategies(
         address,
         device,
+        record_count=record_count,
         progress=progress,
         deadline=deadline,
+        timeout_label=timeout_label,
     )
 
 
@@ -1172,9 +1201,11 @@ async def _run_day_connect_strategies(
     address: str,
     device: BLEDevice | None,
     *,
+    record_count: int = DAY_STREAM_RECORD_COUNT,
     progress: DayHistoryProgressCallback | None = None,
     deadline: float | None = None,
     allow_reprepare: bool = True,
+    timeout_label: str = "read_day_history",
 ) -> list[Reading]:
     strategies = _connect_strategies_for(address)
     last_exc: Exception | None = None
@@ -1184,7 +1215,7 @@ async def _run_day_connect_strategies(
         _raise_if_past_deadline(
             deadline,
             address,
-            label="read_day_history",
+            label=timeout_label,
             timeout=DAY_READ_TIMEOUT,
         )
         try:
@@ -1193,6 +1224,7 @@ async def _run_day_connect_strategies(
                 address,
                 connect_device,
                 strategy,
+                record_count=record_count,
                 progress=progress,
                 deadline=deadline,
             )
@@ -1225,34 +1257,69 @@ async def _run_day_connect_strategies(
     raise RuntimeError(f"read_day_history({address}) failed")
 
 
-async def read_day_history(
+async def _read_history_locked(
     address: str,
     *,
+    record_count: int,
     progress: DayHistoryProgressCallback | None = None,
+    timeout: float,
+    label: str,
 ) -> list[Reading]:
-    """Connect and read minute-resolution 72H history from the sensor."""
     loop = asyncio.get_running_loop()
-    deadline = loop.time() + DAY_READ_TIMEOUT
+    deadline = loop.time() + timeout
     async with _get_ble_session_lock():
         try:
             return await asyncio.wait_for(
                 _retry_ble(
                     lambda: _read_day_session(
                         address,
+                        record_count=record_count,
                         progress=progress,
                         deadline=deadline,
+                        timeout_label=label,
                     ),
-                    label=f"read_day_history({address})",
+                    label=f"{label}({address})",
                     deadline=deadline,
                     address=address,
                 ),
-                timeout=DAY_READ_TIMEOUT,
+                timeout=timeout,
             )
         except TimeoutError:
-            debug_write(
-                f"ble: read_day_history({address}) timed out after {DAY_READ_TIMEOUT:.0f}s"
-            )
+            debug_write(f"ble: {label}({address}) timed out after {timeout:.0f}s")
             raise
+
+
+async def read_day_history(
+    address: str,
+    *,
+    progress: DayHistoryProgressCallback | None = None,
+) -> list[Reading]:
+    """Connect and read minute-resolution 72H history from the sensor."""
+    return await _read_history_locked(
+        address,
+        record_count=DAY_STREAM_RECORD_COUNT,
+        progress=progress,
+        timeout=DAY_READ_TIMEOUT,
+        label="read_day_history",
+    )
+
+
+async def read_recent_history(
+    address: str,
+    record_count: int,
+    *,
+    progress: DayHistoryProgressCallback | None = None,
+) -> list[Reading]:
+    """Read the most recent minute-resolution history records from the sensor."""
+    bounded = max(1, min(int(record_count), INCREMENTAL_HISTORY_MAX_RECORDS))
+    timeout = recent_history_timeout(bounded)
+    return await _read_history_locked(
+        address,
+        record_count=bounded,
+        progress=progress,
+        timeout=timeout,
+        label="read_recent_history",
+    )
 
 
 async def read_now(

@@ -1,6 +1,6 @@
 # TemPy — ThermoPro TP35x Monitor
 
-**Version 1.5.0**
+**Version 1.6.0**
 
 Cross-platform Python TUI (**TemPy**) for ThermoPro TP357/TP358/TP359 Bluetooth hygrometer/thermometer units.
 
@@ -59,7 +59,7 @@ From `python/tp/`:
 | `tp.exe` | Standalone executable (PyInstaller) |
 | `tp.pyz` | `python tp.pyz` — requires bleak/textual installed |
 
-Place `tp.ini` and `tp.log` in the same folder as the launcher. The build script uses `build/thermo.ico` for the executable icon.
+Place `tp.ini` and `tp_log.csv` in the same folder as the launcher. The build script uses `build/thermo.ico` for the executable icon.
 
 ## Navigation
 
@@ -78,7 +78,7 @@ Place `tp.ini` and `tp.log` in the same folder as the launcher. The build script
 |-----|--------|
 | 1 | Monitoring — live dashboard with 24h sparklines (press **T** for 72H or 4H) |
 | 2 | Manage Devices — discover, add, rename, remove sensors |
-| 3 | Options — logging toggle and log file path |
+| 3 | Options — logging, poll mode, and log file path |
 | 4 / q | Exit |
 
 ## Monitoring
@@ -105,7 +105,9 @@ The view filter (`-f`) only affects which devices are shown; column layout appli
 
 ### Polling and retries
 
-- **Scheduled polls** run on 5-minute clock boundaries (`:00`, `:05`, `:10`, …). Devices are fetched one at a time per cycle (60 s timeout per device). Use `-nopoll` / `-np` to disable BLE scheduling; the dashboard still reloads `tp.log` every 5 minutes so a second viewer can follow a polling instance.
+- **Scheduled polls** run on 5-minute clock boundaries (`:00`, `:05`, `:10`, …). Devices are fetched one at a time per cycle. Use `-nopoll` / `-np` to disable BLE scheduling; the dashboard still reloads the CSV log every 5 minutes so a second viewer can follow a polling instance.
+- **Incremental poll mode (default):** Each cycle requests missing **minute-aligned** history from the sensor since the last stored reading (up to 24 h per fetch). The CSV log gets one row per minute when logging is enabled. Falls back to a single live read if history fetch fails.
+- **Live poll mode:** Options **P** switches to the legacy behavior — one live snapshot per device per cycle (wall-clock timestamp, may include seconds).
 - **Startup:** Log preload runs first. If every device already has a fresh reading for the current 5-minute chunk, the initial BLE fetch is skipped.
 - **Logging off:** On startup, TemPy automatically pulls 72H history from each sensor over BLE (when sparklines are still empty) so the dashboard fills in without a CSV log. Header shows **72H** while this runs.
 - **Minute retries:** Devices that miss a poll in the current chunk are retried every 60 seconds until the next boundary.
@@ -146,13 +148,14 @@ TemPy can pull minute-resolution history stored on the sensor over BLE to backfi
 | Key | Action |
 |-----|--------|
 | L | Toggle CSV logging |
+| P | Toggle poll mode — incremental (minute history) or live (single snapshot) |
 | B | Toggle session debug log |
 | D | Edit log directory |
-| F | Edit log filename |
+| F | Edit log filename (renames existing log; prompts before overwriting an existing target file) |
 | **Q** | Back one level |
 | **M** | Main menu |
 
-Default log path: `tp.log` beside the launcher (when `LogDirectory=.`).
+Default log path: `tp_log.csv` beside the launcher (when `LogDirectory=.`). Existing `tp.ini` files keep their configured filename.
 
 Relative log directories (e.g. `.` or `logs`) resolve from the **launcher directory**, not the current working directory. The Options screen shows the resolved full path — verify it before enabling logging.
 
@@ -164,20 +167,25 @@ Created beside the launcher on first run:
 [Settings]
 LoggingEnabled=false
 LogDirectory=.
-LogFileName=tp.log
+LogFileName=tp_log.csv
+PollMode=incremental
 
 [Devices]
 AA:BB:CC:DD:EE:FF=Living Room
 ```
 
+`PollMode` is `incremental` (default) or `live`.
+
 ## Log file (CSV)
 
 ```csv
 timestamp,device,temp_f,humidity_pct,mac
+2026-06-15 14:03:00,Living Room,72.1,48,AA:BB:CC:DD:EE:FF
+2026-06-15 14:04:00,Living Room,72.3,48,AA:BB:CC:DD:EE:FF
 2026-06-15 14:05:00,Living Room,72.4,48,AA:BB:CC:DD:EE:FF
 ```
 
-Rows are appended after each fetch cycle when logging is enabled. On startup, readings from the last 72 hours are preloaded into memory for sparklines and freshness checks.
+In incremental poll mode, rows are minute-aligned (`:00` seconds). Multiple rows per device may be appended after each 5-minute cycle. On startup, readings from the last 72 hours are preloaded into memory for sparklines and freshness checks.
 
 ## Platform setup
 
@@ -220,7 +228,8 @@ TemPy’s BLE protocol work builds on [pasky/tp357](https://github.com/pasky/tp3
 
 ## Changelog
 
-- **v1.5.0** — Faster live reads; colored fetch-step arrows; automatic 24H history on startup when logging is off; Bluetooth auto-recovery when the radio is off; quicker reconnects between polls.
+- **v1.6.0** — Incremental minute-history polling (default); Options **P** poll-mode toggle; 72H BLE fetch/bootstrap; dashboard **T** sparkline window rotation; default log `tp_log.csv`; log rename on filename change with overwrite prompt; 72h log preload.
+- **v1.5.0** — Faster live reads; colored fetch-step arrows; automatic history bootstrap on startup when logging is off; Bluetooth auto-recovery when the radio is off; quicker reconnects between polls.
 - **v1.4.0** — 24H BLE history fetch (**H**, optional on add); TP357S/TP359 stream protocol; partial-span merge; `--history-day` CLI.
 - **v1.3.0** — Multi-column dashboard (**C**); `-np` alias; device freshness label colors; build script improvements.
 - **v1.2.0** — Indoor color bands; `-x` snapshot; `-nopoll`; `-f` filter; 4H/24H/72H status sparklines.
