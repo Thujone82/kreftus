@@ -6,7 +6,7 @@ import asyncio
 from datetime import datetime, timedelta
 
 POLL_INTERVAL = timedelta(minutes=5)
-STALE_AFTER = timedelta(minutes=5)
+STALE_AFTER = timedelta(minutes=10)
 RETRY_INTERVAL = timedelta(minutes=1)
 
 

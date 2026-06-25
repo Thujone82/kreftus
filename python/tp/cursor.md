@@ -109,7 +109,7 @@ Append after each fetch cycle (including partial retry cycles). Incremental mode
 
 **Monitoring layout (per device):**
 
-1. Label row: device name — **green** if fresh (≤5 min), **yellow** if stale; while fetching, `▶` / `◀` show BLE step — **cyan** connecting, **green** sync live read, **yellow** passive fallback
+1. Label row: device name — **green** if fresh (≤10 min), **yellow** if stale; while fetching, `▶` / `◀` show BLE step — **cyan** connecting, **green** sync live read, **yellow** passive fallback
 2. Temp stats: `cur` / `min` / `max` (all color-banded; dim when stale)
 3. Temp sparkline: 24 glyphs (default 24H window; **T** cycles 24H → 72H → 4H)
 4. Humidity stats: `cur` / `min` / `max` (all color-banded; dim when stale)
@@ -175,7 +175,7 @@ Incremental falls back to live read on failure. Options **P** toggles modes.
 
 **Chunk stale:** Device with no successful reading since `floor_to_boundary(now)` for the current 5-minute chunk.
 
-**Measurement stale (UI):** No reading within `STALE_AFTER` (5 minutes) — yellow device name, dimmed stats/sparklines.
+**Measurement stale (UI):** No reading within `STALE_AFTER` (10 minutes) — yellow device name, dimmed stats/sparklines.
 
 **Retry timing:** `next_retry_time()` — 60s after last retry or after cycle end, unless chunk boundary comes first.
 
