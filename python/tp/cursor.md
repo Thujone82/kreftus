@@ -12,7 +12,7 @@
 
 `tp` (**TemPy**) is a cross-platform Python TUI for monitoring ThermoPro TP35x (TP357/TP358/TP359) Bluetooth temperature/humidity sensors. It discovers devices, maintains a managed device list in `tp.ini`, polls readings every 5 minutes on clock-aligned boundaries, retries stale devices every minute within each chunk, displays color-coded sparklines (4H/24H/72H), preloads history from CSV, and optionally logs readings to CSV.
 
-Built with **Textual** (UI) and **bleak** (BLE). Default **incremental poll mode** pulls minute-aligned history from the sensor buffer each cycle; **live poll mode** uses a single GATT notify read. **72H BLE history** uses the TP357S/TP359 stream protocol (with legacy TP357 `0xA7` fallback). Fetch via **H** on Manage Devices or when adding a device; merges only the received timestamp span so older polled/log data is preserved.
+Built with **Textual** (UI) and **bleak** (BLE). Default **incremental poll mode** pulls minute-aligned history from the sensor buffer each cycle; **live poll mode** uses a single GATT notify read. **BLE history fetch** uses the TP357S/TP359 stream protocol (with legacy TP357 `0xA7` fallback), requesting up to **1 year** of minute records in 65535-record chunks. Fetch via **H** (History Fetch) on Manage Devices or when adding a device; merges only the received timestamp span so older polled/log data is preserved.
 
 ---
 
@@ -28,7 +28,7 @@ Built with **Textual** (UI) and **bleak** (BLE). Default **incremental poll mode
 - **Sparklines:** 24-bin windows — 4H/24H/72H on device status modal; dashboard defaults to 24H (**T** cycles 24H → 72H → 4H)
 - **Log export to web:** Main menu **5** or Options **E** writes `tp_export.html` beside launcher; embedded CSV data; browser UI for device + timeframe (4H/24H/72H/7D/All) with ECharts dual-axis chart
 - **CSV logging:** Optional append-only log; default `tp_log.csv`; 72h preload on mount/resume; renaming log file in Options renames on disk (overwrite prompt if target exists)
-- **72H fetch:** Manage Devices **H** — BLE minute history for selected device; replaces only the received timestamp span in memory/log (older polled/log data outside that span is preserved); CSV rows for that MAC in the same span replaced only when `LoggingEnabled=true`
+- **History fetch:** Manage Devices **H** — BLE minute history for selected device (up to 1 year); replaces only the received timestamp span in memory/log (older polled/log data outside that span is preserved); CSV rows for that MAC in the same span replaced only when `LoggingEnabled=true`
 - **BLE recovery:** Prompt before enabling Bluetooth when the radio is off (`ble_radio.py` + `BluetoothPermissionModal`); auto power-cycle after entire fetch cycle fails; 90 s action cooldown, 5 min re-prompt cooldown after decline
 - **BLE connect cache:** 120 s `BLEDevice` resolution cache, preferred WinRT connect strategy, inter-device prefetch (`ble.py`)
 - **Build:** `build.ps1` → `tp.pyz` then `tp.exe` (or `-pyz` / `-exe` alone); optional `-upx` — see **Build** section
@@ -56,7 +56,7 @@ Connect path caches resolved `BLEDevice` for 120 s, prefetches the next device d
 
 2. **Original TP357 (legacy):** Write `[0xA7, 0x01, 0x00, 0x7A]` (fallback: 6-byte tpy357 variant). Collect packets while `data[0] == 0xA7`; five samples per packet; tpy357 timestamps. Used only when stream protocol returns no data.
 
-Timeout ~180s for full 72H fetch. Stream fetch requests **4320** records (72 h at 1 min/record). **`read_recent_history`:** same stream path with variable record count (1–1440 per poll); shorter timeout scaled to count. Uses `_ble_session_lock`. Minimum 100 valid samples before full-day merge. Merge window: **72 h** (`BLE_HISTORY_HOURS`).
+Timeout scales with record count (`day_history_timeout`). Full history fetch requests up to **525600** records (365 days at 1 min/record) in **7-day** BLE chunks (`HISTORY_FETCH_CHUNK_RECORDS`) for faster first progress. Startup bootstrap still pulls **72H** when sparklines are empty. History fetch modal shows **waiting** status with poll/bootstrap detail when queued on `_ble_session_lock`. **`read_recent_history`:** same stream path with variable record count (1–1440 per poll); shorter timeout scaled to count. Uses `_ble_session_lock`. Minimum 100 valid samples before full-day merge. Merge window: **1 year** (`BLE_HISTORY_HOURS`).
 
 **Scan filter:** Device name starts with `TP35`. Uses `BleakScanner.discover(return_adv=True)` (bleak 3.x) for RSSI and `local_name` from `AdvertisementData`.
 
@@ -109,7 +109,7 @@ Append after each fetch cycle (including partial retry cycles). Incremental mode
 |--------|------|---------|
 | Main | 1–5, q | Route to sub-screens; **5** = export log to web; q exits |
 | Monitoring | M/Esc, G, T, 1–9/0, C, q | Dashboard; G = full fetch; T = cycle sparkline window; digit keys = device info; C = cycle columns when wide enough; header = status left, 🌡 TemPy center, clock right |
-| Devices | D, A, I, H, E, R, W, S, ↑/↓, M, q | Discover/add/status/72H fetch/edit/remove/reorder |
+| Devices | D, A, I, H, E, R, W, S, ↑/↓, M, q | Discover/add/status/history fetch/edit/remove/reorder |
 | Options | L, P, E, B, D, F, M, q | Logging toggle, poll mode toggle, log export, debug log toggle, path edits (filename rename + overwrite prompt) |
 
 **Monitoring layout (per device):**
@@ -128,11 +128,11 @@ Blank line between single-column device blocks; multi-column rows are separated 
 
 **Device status modal (I):** Log preload stats, last fetch (with timestamp), memory count, 4H/24H/72H temp and humidity sparklines.
 
-**Add discovered device (A):** Name prompt, then optional **Y/N** prompt to load 72H BLE history (opens the same progress modal as **H**).
+**Add discovered device (A):** Name prompt, then optional **Y/N** prompt to load sensor history (opens the same progress modal as **H**).
 
-**72H history fetch modal (H):** Progress modal while BLE history streams; shows phase, packet/sample counts, elapsed time. On success merges only the received timestamp span into memory and optionally rewrites matching CSV rows for that device when logging is enabled. **Q** cancels.
+**History fetch modal (H):** Progress modal while BLE history streams; shows phase, packet/sample counts, elapsed time. On success merges only the received timestamp span into memory and optionally rewrites matching CSV rows for that device when logging is enabled. **Q** cancels.
 
-**Startup sparkline bootstrap (`monitoring.py` + `history_fetch.bootstrap_sparklines_from_ble`):** When `LoggingEnabled=false`, before the poll worker’s first live fetch, sequentially pull 72H BLE history for each device with fewer than 8 populated hourly bins. Header shows **72H** progress; uses same merge rules as **H**. Skipped when logging is on or bins are already filled (e.g. from log preload). Runs once per monitoring mount; also triggered on `-nopoll` mount via background worker.
+**Startup sparkline bootstrap (`monitoring.py` + `history_fetch.bootstrap_sparklines_from_ble`):** When `LoggingEnabled=false`, before the poll worker’s first live fetch, sequentially pull **72H** BLE history for each device with fewer than 8 populated hourly bins. Header shows **History** progress; uses same merge rules as **H**. Skipped when logging is on or bins are already filled (e.g. from log preload). Runs once per monitoring mount; also triggered on `-nopoll` mount via background worker.
 
 ---
 
@@ -207,7 +207,7 @@ Incremental falls back to live read on failure. Options **P** toggles modes.
 | `tp/ble.py` | bleak scan, `read_now`, `read_day_history`, `read_recent_history`, device cache, radio-recovery hooks |
 | `tp/ble_radio.py` | Detect Bluetooth powered off; permission callback for enable; WinRT/Linux enable + restart |
 | `tp/history.py` | In-memory readings, log preload, CSV append, fetch status, day-history merge, sparkline bootstrap gate |
-| `tp/history_fetch.py` | Orchestrate 72H BLE fetch + history merge; startup `bootstrap_sparklines_from_ble` |
+| `tp/history_fetch.py` | Orchestrate BLE history fetch + history merge; startup `bootstrap_sparklines_from_ble` (72H) |
 | `tp/poll.py` | Incremental history record count; poll mode helpers |
 | `tp/scheduler.py` | 5-minute boundaries, stale/retry helpers |
 | `tp/sparkline.py` | Multi-window binning, glyphs, Rich markup |
@@ -219,7 +219,7 @@ Incremental falls back to live read on failure. Options **P** toggles modes.
 | `tp/ui/menus.py` | Main menu |
 | `tp/ui/monitoring.py` | Dashboard + poll/retry worker |
 | `tp/ui/devices.py` | Device management, add flow, history fetch modal |
-| `tp/ui/history_fetch_status.py` | 72H fetch progress modal formatting |
+| `tp/ui/history_fetch_status.py` | History fetch progress modal formatting |
 | `tp/ui/device_status.py` | Status/sparkline formatting |
 | `tp/ui/options.py` | Logging, poll mode, path edits, log rename, log export |
 | `tp/ui/log_export_action.py` | Main menu / Options export trigger + browser open |
@@ -426,6 +426,7 @@ python/tp/
 
 ### Changelog
 
+- **v1.8.0** — **History fetch** renamed from 72H fetch (**H**); manual fetch up to **1 year** (`BLE_HISTORY_MAX_RECORDS`, 65535-record BLE chunks); scaled `day_history_timeout`; startup bootstrap still **72H** (`SPARKLINE_BOOTSTRAP_HISTORY_HOURS`).
 - **v1.7.0** — **Log export to web** (main menu **5**, Options **E**): self-contained **`tp_export.html`** with device/timeframe controls and ECharts dual-axis chart; `log_export.py` + `assets/log_export.html`.
 - **v1.6.0** — **Incremental minute-history polling** (default `PollMode=incremental`; Options **P** toggles live mode); **`read_recent_history`** for gap-filled minute CSV rows; **72H** BLE fetch/bootstrap (expanded from 24H); dashboard **T** sparkline window rotation (24H → 72H → 4H) with window-accurate min/max; default log **`tp_log.csv`**; **log rename** on filename change with overwrite prompt; **72h log preload**; `build.ps1` **`-pyz` / `-exe`** selective build; unit tests for poll mode, log rename, multi-row append.
 - **v1.5.0** — **Fast live read** (datetime sync `0xA5` then `0xC2`, passive fallback); **fetch step arrows** (cyan/green/yellow); **BLE connect cache** + inter-device prefetch; **startup history bootstrap** when logging off; **Bluetooth radio auto-restart** on powered-off errors (`ble_radio.py`); unit tests for radio detection and bootstrap gating.

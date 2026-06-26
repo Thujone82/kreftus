@@ -13,6 +13,7 @@ from textual.screen import ModalScreen, Screen
 from textual.widgets import Header, Input, Label, Static
 
 from tp.ble import DayHistoryProgress
+from tp.ble import DayHistoryProgress
 from tp.ble_radio import ensure_bluetooth_enabled_for_polling
 from tp.config import default_device_name
 from tp.history_fetch import DayHistoryResult, fetch_day_history_for_device
@@ -20,11 +21,11 @@ from tp.ui.device_status import format_device_status
 from tp.ui.history_fetch_status import format_history_fetch_status
 
 _IDLE_FOOTER = (
-    "[dim]D discover · A add · I status · H 72H fetch · E edit · R remove · "
+    "[dim]D discover · A add · I status · H history fetch · E edit · R remove · "
     "W up · S down · M menu[/]"
 )
 _BUSY_FOOTER = "[dim]Please wait — scan in progress[/]"
-_BUSY_HISTORY_FOOTER = "[dim]Please wait — 72H fetch in progress[/]"
+_BUSY_HISTORY_FOOTER = "[dim]Please wait — history fetch in progress[/]"
 
 
 class NameInputModal(ModalScreen[str | None]):
@@ -63,7 +64,7 @@ class NameInputModal(ModalScreen[str | None]):
 
 
 class HistoryLoadPromptModal(ModalScreen[bool]):
-    """Ask whether to load 72H BLE history when adding a device."""
+    """Ask whether to load BLE history when adding a device."""
 
     DEFAULT_CSS = """
     HistoryLoadPromptModal {
@@ -89,10 +90,10 @@ class HistoryLoadPromptModal(ModalScreen[bool]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="history-prompt-dialog"):
-            yield Label(f"Load 72H BLE history for {self.device_name}?")
+            yield Label(f"Load sensor history for {self.device_name}?")
             yield Static(
-                "[dim]Backfills sparklines from the sensor. "
-                "May take up to a few minutes.[/]",
+                "[dim]Backfills sparklines from the sensor (up to 1 year). "
+                "May take a while.[/]",
                 id="history-prompt-body",
             )
             yield Static("[dim]Y yes · N no · Q skip[/]", id="history-prompt-hint")
@@ -147,7 +148,7 @@ class DeviceStatusModal(ModalScreen[None]):
 
 
 class DeviceHistoryFetchModal(ModalScreen[None]):
-    """Fetch 72H BLE history for a managed device."""
+    """Fetch BLE history for a managed device."""
 
     DEFAULT_CSS = """
     DeviceHistoryFetchModal {
@@ -168,19 +169,41 @@ class DeviceHistoryFetchModal(ModalScreen[None]):
         self.device_mac = mac
         self.device_name = device_name
         self._started_at = datetime.now()
-        self._progress: DayHistoryProgress | None = None
+        self._progress: DayHistoryProgress | None = DayHistoryProgress(
+            phase="preparing",
+            message="Preparing history fetch…",
+        )
         self._result: DayHistoryResult | None = None
         self._active = True
+        self._elapsed_timer = None
 
     def compose(self) -> ComposeResult:
+        body_text = format_history_fetch_status(
+            self.device_name,
+            self.device_mac,
+            progress=self._progress,
+            started_at=self._started_at,
+        )
         with Vertical(id="history-fetch-dialog"):
-            yield VerticalScroll(Static("", id="history-fetch-body"), id="history-fetch-scroll")
+            yield VerticalScroll(
+                Static(body_text, id="history-fetch-body"),
+                id="history-fetch-scroll",
+            )
             hint = "[dim]Q cancel[/]" if self._active else "[dim]Q to close[/]"
             yield Static(hint, id="history-fetch-hint")
 
     def on_mount(self) -> None:
         self._refresh_body()
+        self._elapsed_timer = self.set_interval(
+            1.0,
+            self._refresh_body,
+            name="history-fetch-elapsed",
+        )
         self._run_fetch()
+
+    def on_unmount(self) -> None:
+        if self._elapsed_timer is not None:
+            self._elapsed_timer.stop()
 
     def _refresh_body(self) -> None:
         if not self.is_mounted:
@@ -221,6 +244,7 @@ class DeviceHistoryFetchModal(ModalScreen[None]):
                 self.device_mac,
                 self.device_name,
                 progress,
+                ble_wait_detail=self.app.describe_ble_wait,
             )
         except asyncio.CancelledError:
             return
@@ -234,6 +258,8 @@ class DeviceHistoryFetchModal(ModalScreen[None]):
                 self.app.refresh_monitoring()
         finally:
             self._active = False
+            if self._elapsed_timer is not None:
+                self._elapsed_timer.stop()
             if self.is_mounted:
                 self._refresh_body()
 
@@ -250,7 +276,7 @@ class DevicesScreen(Screen):
         ("e", "edit", "Edit"),
         ("r", "remove", "Remove"),
         ("i", "status", "Status"),
-        ("h", "history_fetch", "72H Fetch"),
+        ("h", "history_fetch", "History Fetch"),
         ("w", "move_up", "Up"),
         ("s", "move_down", "Down"),
         ("m", "menu", "Menu"),
@@ -287,7 +313,7 @@ class DevicesScreen(Screen):
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if self._history_fetching and action in {"history_fetch", "add"}:
-            self.notify("Busy — 72H fetch in progress", severity="warning", timeout=4)
+            self.notify("Busy — history fetch in progress", severity="warning", timeout=4)
             return False
         if not self._scanning:
             return True
@@ -475,7 +501,7 @@ class DevicesScreen(Screen):
             return
         entries = list(self.app.config.devices.items())
         if self.selected_index >= len(entries):
-            self.notify("Select a managed device for 72H fetch.", severity="warning")
+            self.notify("Select a managed device for history fetch.", severity="warning")
             return
         mac, name = entries[self.selected_index]
         if not await ensure_bluetooth_enabled_for_polling():

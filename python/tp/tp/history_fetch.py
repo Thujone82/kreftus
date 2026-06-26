@@ -5,9 +5,14 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
-from tp.ble import DayHistoryProgress, read_day_history
+from tp.ble import BleWaitDetailCallback, DayHistoryProgress, read_day_history
 from tp.config import AppConfig, normalize_mac
-from tp.history import DeviceHistory, apply_day_history, device_needs_sparkline_bootstrap
+from tp.history import (
+    SPARKLINE_BOOTSTRAP_HISTORY_HOURS,
+    DeviceHistory,
+    apply_day_history,
+    device_needs_sparkline_bootstrap,
+)
 
 HistoryFetchProgressCallback = Callable[[DayHistoryProgress], Awaitable[None] | None]
 HistoryBootstrapStartCallback = Callable[
@@ -44,8 +49,11 @@ async def fetch_day_history_for_device(
     mac: str,
     device_name: str,
     progress_cb: HistoryFetchProgressCallback | None = None,
+    *,
+    record_count: int | None = None,
+    ble_wait_detail: BleWaitDetailCallback | None = None,
 ) -> DayHistoryResult:
-    """Fetch 72H BLE history for one device and merge into memory/log."""
+    """Fetch BLE history for one device and merge into memory/log."""
     target_mac = normalize_mac(mac)
     packet_count = 0
 
@@ -61,7 +69,12 @@ async def fetch_day_history_for_device(
         await _emit_progress(progress_cb, update)
 
     try:
-        readings = await read_day_history(target_mac, progress=ble_progress)
+        readings = await read_day_history(
+            target_mac,
+            progress=ble_progress,
+            record_count=record_count,
+            wait_detail=ble_wait_detail,
+        )
     except Exception as exc:  # noqa: BLE001
         message = str(exc) or exc.__class__.__name__
         await _emit_progress(
@@ -127,7 +140,7 @@ async def bootstrap_sparklines_from_ble(
     progress_cb: HistoryFetchProgressCallback | None = None,
     stop_requested: StopRequestedCallback | None = None,
 ) -> list[str]:
-    """Pull 72H BLE history for devices missing sparkline data when logging is off."""
+    """Pull BLE history for devices missing sparkline data when logging is off."""
     if config.settings.logging_enabled:
         return []
 
@@ -154,8 +167,9 @@ async def bootstrap_sparklines_from_ble(
             mac,
             name,
             progress_cb,
+            record_count=int(SPARKLINE_BOOTSTRAP_HISTORY_HOURS * 60),
         )
         if not result.ok:
-            message = result.error or "72H history fetch failed"
+            message = result.error or "History fetch failed"
             errors.append(f"{name}: {message}")
     return errors

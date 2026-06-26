@@ -21,6 +21,7 @@ from tp.config import AppConfig, Settings
 from tp.history import (
     CSV_HEADER,
     BLE_HISTORY_HOURS,
+    BLE_HISTORY_MAX_RECORDS,
     LOG_TIMESTAMP_FORMAT,
     SPARKLINE_BOOTSTRAP_MIN_BINS,
     DeviceHistory,
@@ -118,10 +119,46 @@ class DayHistoryStreamParserTests(unittest.TestCase):
         self.assertEqual(cmd3[-5], 2000 & 0xFF)
         self.assertEqual(cmd3[-4], (2000 >> 8) & 0xFF)
 
-    def test_stream_record_count_matches_ble_history_hours(self) -> None:
-        from tp.ble import DAY_STREAM_RECORD_COUNT
+    def test_stream_record_count_matches_ble_history_max(self) -> None:
+        from tp.ble import DAY_STREAM_RECORD_COUNT, STREAM_HISTORY_MAX_RECORDS
 
-        self.assertEqual(DAY_STREAM_RECORD_COUNT, int(BLE_HISTORY_HOURS * 60))
+        self.assertEqual(DAY_STREAM_RECORD_COUNT, BLE_HISTORY_MAX_RECORDS)
+        self.assertEqual(BLE_HISTORY_MAX_RECORDS, BLE_HISTORY_HOURS * 60)
+        self.assertEqual(STREAM_HISTORY_MAX_RECORDS, 65535)
+
+    def test_day_history_timeout_scales_with_record_count(self) -> None:
+        from tp.ble import day_history_timeout
+
+        self.assertAlmostEqual(day_history_timeout(4320), 180.0, places=0)
+        self.assertGreater(day_history_timeout(65535), day_history_timeout(4320))
+
+    def test_history_fetch_uses_seven_day_chunks(self) -> None:
+        from tp.ble import HISTORY_FETCH_CHUNK_RECORDS
+
+        self.assertEqual(HISTORY_FETCH_CHUNK_RECORDS, 7 * 24 * 60)
+
+
+class HistoryFetchStatusTests(unittest.TestCase):
+    def test_waiting_status_mentions_queue(self) -> None:
+        from tp.ble import DayHistoryProgress
+        from tp.ui.history_fetch_status import format_history_fetch_status
+
+        text = format_history_fetch_status(
+            "Office",
+            "E0:A4:4B:A4:53:0D",
+            progress=DayHistoryProgress(
+                phase="waiting",
+                message="Waiting for BLE — poll fetch on Office (1/2, connecting)",
+            ),
+        )
+        self.assertIn("Queued behind another BLE operation", text)
+        self.assertIn("poll fetch on Office", text)
+
+    def test_prepare_status_shows_before_progress(self) -> None:
+        from tp.ui.history_fetch_status import format_history_fetch_status
+
+        text = format_history_fetch_status("Office", "E0:A4:4B:A4:53:0D")
+        self.assertIn("Preparing history fetch", text)
 
 
 class DayHistoryMergeTests(unittest.TestCase):
@@ -129,7 +166,7 @@ class DayHistoryMergeTests(unittest.TestCase):
         self.office = "E0:A4:4B:A4:53:0D"
         self.other = "AA:BB:CC:DD:EE:FF"
         self.now = datetime.now().replace(second=0, microsecond=0)
-        self.cutoff = self.now - timedelta(hours=72)
+        self.cutoff = self.now - timedelta(hours=BLE_HISTORY_HOURS)
 
     def _reading(self, minutes_ago: int, temp_f: float, humidity: int) -> Reading:
         return Reading(
@@ -230,9 +267,9 @@ class DayHistoryMergeTests(unittest.TestCase):
                 for row in loaded
                 if row["mac"] == self.office and row["temp_f"] == "60.0"
             ]
-            self.assertEqual(len(office_recent), 2)
+            self.assertEqual(len(office_recent), 3)
             office_temps = {row["temp_f"] for row in office_recent}
-            self.assertEqual(office_temps, {"70.0", "75.0"})
+            self.assertEqual(office_temps, {"70.0", "75.0", "60.0"})
             self.assertEqual(len(other_recent), 1)
             self.assertEqual(len(old_office), 1)
 

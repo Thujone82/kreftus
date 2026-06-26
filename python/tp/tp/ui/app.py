@@ -183,6 +183,16 @@ class TPApp(App):
     def refresh_monitoring(self, *, restart_worker: bool = False) -> None:
         refresh_monitoring_screen(self, restart_worker=restart_worker)
 
+    def describe_ble_wait(self) -> str | None:
+        """Describe monitoring poll/bootstrap work that may hold the BLE radio."""
+        try:
+            screen = self.get_screen("monitoring")
+        except KeyError:
+            return None
+        if not isinstance(screen, MonitoringScreen):
+            return None
+        return screen.describe_active_ble_operation()
+
     async def run_ble(self, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any) -> T:
         """Run BLE coroutine on the app's asyncio loop."""
         return await func(*args, **kwargs)

@@ -225,6 +225,31 @@ class MonitoringScreen(Screen):
         lock = self._fetch_lock
         return lock is not None and lock.locked()
 
+    def describe_active_ble_operation(self) -> str | None:
+        """Human-readable label for the poll/bootstrap work holding BLE."""
+        if not self._fetch_in_progress():
+            return None
+        device = self._status_device_label()
+        if self._phase == PHASE_COMMIT:
+            return "poll fetch saving results"
+        if self._phase == PHASE_HISTORY:
+            return (
+                f"startup history bootstrap on {device} "
+                f"({self._fetch_index + 1}/{self._fetch_total})"
+            )
+        step_labels = {
+            NOW_READ_CONNECTING: "connecting",
+            "sync": "sync read",
+            "passive": "passive read",
+            "history": "minute history",
+        }
+        step = step_labels.get(
+            self._active_fetch_step or "",
+            self._active_fetch_step or "reading",
+        )
+        position = f"{min(self._fetch_index + 1, self._fetch_total)}/{self._fetch_total}"
+        return f"poll fetch on {device} ({position}, {step})"
+
     def _device_activity_in_progress(self) -> bool:
         """True while a device is actively shown as busy on the dashboard."""
         return self._fetch_in_progress()
@@ -745,7 +770,7 @@ class MonitoringScreen(Screen):
             if self._phase == PHASE_COMMIT:
                 label = "Saving"
             elif self._phase == PHASE_HISTORY:
-                label = "72H"
+                label = "History"
             elif self._is_retry_cycle:
                 label = "Retry"
             else:

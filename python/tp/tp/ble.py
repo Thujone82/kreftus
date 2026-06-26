@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
+import math
 import sys
 import time
 from collections.abc import Awaitable, Callable
@@ -19,7 +21,7 @@ from tp.config import normalize_mac
 from tp.debug_log import write as debug_write
 from tp.debug_log import write_exception as debug_write_exception
 from tp.ble_radio import is_bluetooth_powered_off_error, maybe_restart_bluetooth_radio
-from tp.history import BLE_HISTORY_HOURS, Reading
+from tp.history import BLE_HISTORY_MAX_RECORDS, Reading
 
 UUID_READ = "00010203-0405-0607-0809-0a0b0c0d2b10"
 UUID_WRITE = "00010203-0405-0607-0809-0a0b0c0d2b11"
@@ -40,7 +42,6 @@ READ_RETRY_DELAY = 3.0
 RESOLVE_CACHE_TTL = 120.0
 
 DEVICE_READ_TIMEOUT = 60.0
-DAY_READ_TIMEOUT = 180.0
 DAY_STREAM_IDLE_SECONDS = 3.0
 DAY_CMD_RESPONSE_SECONDS = 12.0
 
@@ -55,13 +56,28 @@ DAY_CMD_FALLBACK = bytes([DAY_OPCODE, 0x00, 0x00, 0x00, 0x00, 0x7A])
 DATETIME_SYNC_OPCODE = 0xA5
 STREAM_MAGIC_PREFIX = b"\xcc\xcc"
 STREAM_MAGIC_SUFFIX = b"\x66\x66"
-DAY_STREAM_RECORD_COUNT = int(BLE_HISTORY_HOURS * 60)
+STREAM_HISTORY_MAX_RECORDS = 65535
+HISTORY_FETCH_CHUNK_RECORDS = 7 * 24 * 60
+DAY_STREAM_RECORD_COUNT = BLE_HISTORY_MAX_RECORDS
 INCREMENTAL_HISTORY_MAX_RECORDS = 1440
 RECENT_HISTORY_BASE_TIMEOUT = 60.0
 RECENT_HISTORY_PER_RECORD_TIMEOUT = 0.05
 RECENT_HISTORY_MAX_TIMEOUT = 120.0
+DAY_HISTORY_BASE_TIMEOUT = 30.0
+DAY_HISTORY_PER_RECORD_TIMEOUT = 150.0 / 4320.0
+DAY_HISTORY_MAX_TIMEOUT = 7200.0
 DAY_STREAM_CMD_DELAY = 0.2
 DATETIME_SYNC_DELAY = 1.0
+
+
+def day_history_timeout(record_count: int) -> float:
+    """BLE timeout scaled to the number of minute records requested."""
+    bounded = max(1, int(record_count))
+    return min(
+        DAY_HISTORY_MAX_TIMEOUT,
+        DAY_HISTORY_BASE_TIMEOUT + bounded * DAY_HISTORY_PER_RECORD_TIMEOUT,
+    )
+
 
 def recent_history_timeout(record_count: int) -> float:
     """BLE timeout scaled to the number of minute records requested."""
@@ -76,6 +92,7 @@ NowReadPhaseCallback = Callable[[str], Awaitable[None] | None]
 
 # WinRT / BlueZ adapters handle one active GATT session reliably.
 _ble_session_lock: asyncio.Lock | None = None
+_ble_session_owner: str = ""
 _bleak_log_handler: logging.Handler | None = None
 
 
@@ -145,6 +162,59 @@ def _get_ble_session_lock() -> asyncio.Lock:
     if _ble_session_lock is None:
         _ble_session_lock = asyncio.Lock()
     return _ble_session_lock
+
+
+def ble_session_owner() -> str:
+    """Return the label of the task currently holding the BLE session lock."""
+    return _ble_session_owner
+
+
+def _format_ble_wait_message(wait_detail: BleWaitDetailCallback | None) -> str:
+    if wait_detail is not None:
+        detail = wait_detail()
+        if detail:
+            return f"Waiting for BLE — {detail}"
+    if _ble_session_owner:
+        return f"Waiting for BLE — {_ble_session_owner}"
+    return "Waiting for BLE — another operation is in progress"
+
+
+async def _acquire_ble_session_lock(
+    owner: str,
+    *,
+    progress: DayHistoryProgressCallback | None = None,
+    wait_detail: BleWaitDetailCallback | None = None,
+) -> None:
+    lock = _get_ble_session_lock()
+    acquire_task = asyncio.create_task(lock.acquire())
+    try:
+        while not acquire_task.done():
+            if lock.locked():
+                await _emit_day_progress(
+                    progress,
+                    DayHistoryProgress(
+                        phase="waiting",
+                        message=_format_ble_wait_message(wait_detail),
+                    ),
+                )
+            done, _pending = await asyncio.wait({acquire_task}, timeout=0.5)
+            if done:
+                break
+        await acquire_task
+    except BaseException:
+        if not acquire_task.done():
+            acquire_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await acquire_task
+        raise
+    global _ble_session_owner
+    _ble_session_owner = owner
+
+
+def _release_ble_session_lock() -> None:
+    global _ble_session_owner
+    _ble_session_owner = ""
+    _get_ble_session_lock().release()
 
 
 @dataclass(frozen=True)
@@ -227,6 +297,13 @@ class DayHistoryProgress:
     packets: int = 0
     samples: int = 0
     message: str = ""
+    chunk_index: int = 0
+    chunk_total: int = 0
+    bytes_received: int = 0
+
+
+BleWaitDetailCallback = Callable[[], str | None]
+DayHistoryProgressCallback = Callable[[DayHistoryProgress], Awaitable[None] | None]
 
 
 def _celsius_to_fahrenheit(celsius: float) -> float:
@@ -900,6 +977,9 @@ async def _read_day_stream_on_client(
     progress: DayHistoryProgressCallback | None = None,
     deadline: float | None = None,
     address: str = "",
+    anchor: datetime | None = None,
+    chunk_index: int = 0,
+    chunk_total: int = 0,
 ) -> list[Reading]:
     """Read day history via TP357S/TP359 stream protocol (pytp357s-compatible)."""
     loop = asyncio.get_running_loop()
@@ -934,12 +1014,14 @@ async def _read_day_stream_on_client(
 
     await client.start_notify(read_char, handler)
     try:
-        history_cmds = _make_stream_history_cmds(record_count)
+        history_cmds = _make_stream_history_cmds(record_count, anchor or datetime.now())
         await _emit_day_progress(
             progress,
             DayHistoryProgress(
                 phase="receiving",
-                message=f"Requesting up to {record_count} records…",
+                message=f"Requesting up to {record_count:,} records…",
+                chunk_index=chunk_index,
+                chunk_total=chunk_total,
             ),
         )
         for cmd_index, cmd in enumerate(history_cmds):
@@ -953,16 +1035,24 @@ async def _read_day_stream_on_client(
                 deadline,
                 address,
                 label="read_day_history",
-                timeout=DAY_READ_TIMEOUT,
             )
             decoded = _decode_stream_history_chunks(chunks)
+            bytes_received = sum(len(chunk) for chunk in chunks)
             await _emit_day_progress(
                 progress,
                 DayHistoryProgress(
                     phase="receiving",
                     packets=len(chunks),
                     samples=len(decoded),
-                    message=f"Receiving history ({len(decoded)} samples)",
+                    bytes_received=bytes_received,
+                    chunk_index=chunk_index,
+                    chunk_total=chunk_total,
+                    message=(
+                        f"Receiving history ({len(decoded):,} samples, "
+                        f"{bytes_received:,} bytes)"
+                        if bytes_received
+                        else "Waiting for sensor data…"
+                    ),
                 ),
             )
             try:
@@ -1017,7 +1107,7 @@ async def _read_day_legacy_on_client(
 
     await _emit_day_progress(
         progress,
-        DayHistoryProgress(phase="receiving", message="Requesting 72H history…"),
+        DayHistoryProgress(phase="receiving", message="Requesting history…"),
     )
     await client.start_notify(read_char, handler)
     await asyncio.sleep(GATT_SETTLE_DELAY)
@@ -1034,7 +1124,6 @@ async def _read_day_legacy_on_client(
                     deadline,
                     address,
                     label="read_day_history",
-                    timeout=DAY_READ_TIMEOUT,
                 )
                 if (
                     not packets
@@ -1080,6 +1169,10 @@ async def _connect_and_read_day(
     record_count: int = DAY_STREAM_RECORD_COUNT,
     progress: DayHistoryProgressCallback | None = None,
     deadline: float | None = None,
+    anchor: datetime | None = None,
+    allow_legacy_fallback: bool = False,
+    chunk_index: int = 0,
+    chunk_total: int = 0,
 ) -> list[Reading]:
     if strategy.use_scanned_device:
         if device is None:
@@ -1102,6 +1195,9 @@ async def _connect_and_read_day(
             progress=progress,
             deadline=deadline,
             address=address,
+            anchor=anchor,
+            chunk_index=chunk_index,
+            chunk_total=chunk_total,
         )
         if readings:
             await _emit_day_progress(
@@ -1115,8 +1211,11 @@ async def _connect_and_read_day(
             )
             return readings
 
-        if record_count < DAY_STREAM_RECORD_COUNT:
+        if record_count <= INCREMENTAL_HISTORY_MAX_RECORDS:
             raise RuntimeError("Stream history unavailable for incremental poll")
+
+        if not allow_legacy_fallback:
+            return []
 
         debug_write("ble: day stream empty; falling back to legacy 0xA7 protocol")
         packets = await _read_day_legacy_on_client(
@@ -1136,7 +1235,7 @@ async def _connect_and_read_day(
             ),
         )
         readings = _parse_day_packets(packets)
-        if record_count < DAY_STREAM_RECORD_COUNT:
+        if record_count <= INCREMENTAL_HISTORY_MAX_RECORDS:
             cutoff = datetime.now().replace(second=0, microsecond=0) - timedelta(
                 minutes=record_count - 1
             )
@@ -1152,10 +1251,25 @@ async def _read_day_session(
     progress: DayHistoryProgressCallback | None = None,
     deadline: float | None = None,
     timeout_label: str = "read_day_history",
+    anchor: datetime | None = None,
+    allow_legacy_fallback: bool = False,
+    chunk_index: int = 0,
+    chunk_total: int = 0,
 ) -> list[Reading]:
+    connect_message = "Connecting to sensor…"
+    if chunk_total > 1 and chunk_index:
+        connect_message = (
+            f"Connecting for chunk {chunk_index}/{chunk_total} "
+            f"({record_count:,} records)…"
+        )
     await _emit_day_progress(
         progress,
-        DayHistoryProgress(phase="connecting", message="Connecting to sensor…"),
+        DayHistoryProgress(
+            phase="connecting",
+            message=connect_message,
+            chunk_index=chunk_index,
+            chunk_total=chunk_total,
+        ),
     )
 
     cached = get_cached_ble_device(address)
@@ -1169,6 +1283,10 @@ async def _read_day_session(
                 deadline=deadline,
                 allow_reprepare=False,
                 timeout_label=timeout_label,
+                anchor=anchor,
+                allow_legacy_fallback=allow_legacy_fallback,
+                chunk_index=chunk_index,
+                chunk_total=chunk_total,
             )
         except Exception as exc:  # noqa: BLE001
             if not _is_transient_ble_error(exc):
@@ -1183,7 +1301,6 @@ async def _read_day_session(
             deadline,
             address,
             label=timeout_label,
-            timeout=DAY_READ_TIMEOUT,
         )
         device = await _prepare_device(address)
 
@@ -1194,6 +1311,10 @@ async def _read_day_session(
         progress=progress,
         deadline=deadline,
         timeout_label=timeout_label,
+        anchor=anchor,
+        allow_legacy_fallback=allow_legacy_fallback,
+        chunk_index=chunk_index,
+        chunk_total=chunk_total,
     )
 
 
@@ -1206,6 +1327,10 @@ async def _run_day_connect_strategies(
     deadline: float | None = None,
     allow_reprepare: bool = True,
     timeout_label: str = "read_day_history",
+    anchor: datetime | None = None,
+    allow_legacy_fallback: bool = False,
+    chunk_index: int = 0,
+    chunk_total: int = 0,
 ) -> list[Reading]:
     strategies = _connect_strategies_for(address)
     last_exc: Exception | None = None
@@ -1216,7 +1341,6 @@ async def _run_day_connect_strategies(
             deadline,
             address,
             label=timeout_label,
-            timeout=DAY_READ_TIMEOUT,
         )
         try:
             connect_device = current_device if strategy.use_scanned_device else None
@@ -1227,6 +1351,10 @@ async def _run_day_connect_strategies(
                 record_count=record_count,
                 progress=progress,
                 deadline=deadline,
+                anchor=anchor,
+                allow_legacy_fallback=allow_legacy_fallback,
+                chunk_index=chunk_index,
+                chunk_total=chunk_total,
             )
             if connect_device is not None:
                 _remember_ble_device(address, connect_device, strategy=strategy.name)
@@ -1242,7 +1370,6 @@ async def _run_day_connect_strategies(
                 deadline,
                 address,
                 label="read_day_history",
-                timeout=DAY_READ_TIMEOUT,
             )
             await asyncio.sleep(INTER_STRATEGY_DELAY)
             if not allow_reprepare:
@@ -1264,44 +1391,93 @@ async def _read_history_locked(
     progress: DayHistoryProgressCallback | None = None,
     timeout: float,
     label: str,
+    anchor: datetime | None = None,
+    allow_legacy_fallback: bool = False,
+    wait_detail: BleWaitDetailCallback | None = None,
+    chunk_index: int = 0,
+    chunk_total: int = 0,
 ) -> list[Reading]:
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
-    async with _get_ble_session_lock():
-        try:
-            return await asyncio.wait_for(
-                _retry_ble(
-                    lambda: _read_day_session(
-                        address,
-                        record_count=record_count,
-                        progress=progress,
-                        deadline=deadline,
-                        timeout_label=label,
-                    ),
-                    label=f"{label}({address})",
+    await _acquire_ble_session_lock(
+        label,
+        progress=progress,
+        wait_detail=wait_detail,
+    )
+    try:
+        return await asyncio.wait_for(
+            _retry_ble(
+                lambda: _read_day_session(
+                    address,
+                    record_count=record_count,
+                    progress=progress,
                     deadline=deadline,
-                    address=address,
+                    timeout_label=label,
+                    anchor=anchor,
+                    allow_legacy_fallback=allow_legacy_fallback,
+                    chunk_index=chunk_index,
+                    chunk_total=chunk_total,
                 ),
-                timeout=timeout,
-            )
-        except TimeoutError:
-            debug_write(f"ble: {label}({address}) timed out after {timeout:.0f}s")
-            raise
+                label=f"{label}({address})",
+                deadline=deadline,
+                address=address,
+            ),
+            timeout=timeout,
+        )
+    except TimeoutError:
+        debug_write(f"ble: {label}({address}) timed out after {timeout:.0f}s")
+        raise
+    finally:
+        _release_ble_session_lock()
 
 
 async def read_day_history(
     address: str,
     *,
     progress: DayHistoryProgressCallback | None = None,
+    record_count: int | None = None,
+    chunk_records: int | None = None,
+    wait_detail: BleWaitDetailCallback | None = None,
 ) -> list[Reading]:
-    """Connect and read minute-resolution 72H history from the sensor."""
-    return await _read_history_locked(
-        address,
-        record_count=DAY_STREAM_RECORD_COUNT,
-        progress=progress,
-        timeout=DAY_READ_TIMEOUT,
-        label="read_day_history",
-    )
+    """Connect and read minute-resolution history from the sensor (up to 1 year)."""
+    target_records = record_count if record_count is not None else DAY_STREAM_RECORD_COUNT
+    per_chunk = chunk_records if chunk_records is not None else HISTORY_FETCH_CHUNK_RECORDS
+    per_chunk = max(1, min(per_chunk, STREAM_HISTORY_MAX_RECORDS))
+    chunk_total = max(1, math.ceil(target_records / per_chunk))
+    merged: dict[datetime, Reading] = {}
+    remaining = target_records
+    anchor: datetime | None = None
+    chunk_index = 0
+
+    while remaining > 0:
+        chunk_count = min(remaining, per_chunk)
+        timeout = day_history_timeout(chunk_count)
+        label = "read_day_history" if chunk_index == 0 else "read_day_history_chunk"
+        chunk = await _read_history_locked(
+            address,
+            record_count=chunk_count,
+            progress=progress,
+            timeout=timeout,
+            label=label,
+            anchor=anchor,
+            allow_legacy_fallback=chunk_index == 0,
+            wait_detail=wait_detail if chunk_index == 0 else None,
+            chunk_index=chunk_index + 1,
+            chunk_total=chunk_total,
+        )
+        if not chunk:
+            break
+        got = len(chunk)
+        for reading in chunk:
+            merged[reading.timestamp] = reading
+        remaining -= got
+        if got < chunk_count:
+            break
+        oldest = min(reading.timestamp for reading in chunk)
+        anchor = oldest - timedelta(minutes=1)
+        chunk_index += 1
+
+    return sorted(merged.values(), key=lambda item: item.timestamp)
 
 
 async def read_recent_history(
@@ -1326,30 +1502,36 @@ async def read_now(
     address: str,
     *,
     progress: NowReadPhaseCallback | None = None,
+    wait_detail: BleWaitDetailCallback | None = None,
 ) -> NowReading:
     """Connect and read current temperature/humidity."""
     loop = asyncio.get_running_loop()
     deadline = loop.time() + DEVICE_READ_TIMEOUT
-    async with _get_ble_session_lock():
-        try:
-            return await asyncio.wait_for(
-                _retry_ble(
-                    lambda: _read_now_session(
-                        address,
-                        deadline=deadline,
-                        progress=progress,
-                    ),
-                    label=f"read_now({address})",
+    await _acquire_ble_session_lock(
+        f"live read ({address})",
+        wait_detail=wait_detail,
+    )
+    try:
+        return await asyncio.wait_for(
+            _retry_ble(
+                lambda: _read_now_session(
+                    address,
                     deadline=deadline,
-                    address=address,
+                    progress=progress,
                 ),
-                timeout=DEVICE_READ_TIMEOUT,
-            )
-        except TimeoutError:
-            debug_write(
-                f"ble: read_now({address}) timed out after {DEVICE_READ_TIMEOUT:.0f}s"
-            )
-            raise
+                label=f"read_now({address})",
+                deadline=deadline,
+                address=address,
+            ),
+            timeout=DEVICE_READ_TIMEOUT,
+        )
+    except TimeoutError:
+        debug_write(
+            f"ble: read_now({address}) timed out after {DEVICE_READ_TIMEOUT:.0f}s"
+        )
+        raise
+    finally:
+        _release_ble_session_lock()
 
 
 def inter_device_delay_seconds() -> float:

@@ -1,4 +1,4 @@
-"""72H history fetch modal status formatting."""
+"""History fetch modal status formatting."""
 
 from __future__ import annotations
 
@@ -18,6 +18,23 @@ def _format_elapsed(started_at: datetime | None) -> str:
     return f"{secs}s"
 
 
+def _phase_footer(progress: DayHistoryProgress) -> str:
+    if progress.phase == "waiting":
+        return "[dim]Queued behind another BLE operation — please wait…[/]"
+    if progress.phase == "connecting":
+        return "[dim]Opening BLE connection…[/]"
+    if progress.phase == "receiving" and progress.samples == 0 and not progress.bytes_received:
+        return (
+            "[dim]Sensor is preparing history — large exports can take several "
+            "minutes before the first samples appear.[/]"
+        )
+    if progress.phase == "receiving":
+        return "[dim]BLE read in progress — please wait…[/]"
+    if progress.phase == "merging":
+        return "[dim]Merging readings into memory and log…[/]"
+    return "[dim]Working…[/]"
+
+
 def format_history_fetch_status(
     device_name: str,
     mac: str,
@@ -29,7 +46,7 @@ def format_history_fetch_status(
 ) -> str:
     """Build Rich markup for the history fetch modal body."""
     lines = [
-        f"[bold yellow]72H History — {device_name}[/]",
+        f"[bold yellow]History Fetch — {device_name}[/]",
         f"[dim]{mac}[/]",
         "",
     ]
@@ -37,26 +54,41 @@ def format_history_fetch_status(
     if progress is not None:
         phase = progress.phase.replace("_", " ").title()
         lines.append(f"[bold]Phase:[/] {phase}")
+        if progress.chunk_total > 1 and progress.chunk_index:
+            lines.append(
+                f"  Chunk: [white]{progress.chunk_index}[/] / "
+                f"[white]{progress.chunk_total}[/]"
+            )
         if progress.message:
             lines.append(f"  {progress.message}")
-        if progress.packets or progress.samples:
-            lines.append(
-                f"  Packets: [white]{progress.packets}[/]  "
-                f"Samples: [white]{progress.samples}[/]"
-            )
+        if (
+            progress.phase == "receiving"
+            or progress.packets
+            or progress.samples
+            or progress.bytes_received
+        ):
+            detail_parts = [
+                f"Packets: [white]{progress.packets}[/]",
+                f"Samples: [white]{progress.samples:,}[/]",
+            ]
+            if progress.bytes_received:
+                detail_parts.append(f"Bytes: [white]{progress.bytes_received:,}[/]")
+            lines.append(f"  {'  '.join(detail_parts)}")
         lines.append(f"  Elapsed: [dim]{_format_elapsed(started_at)}[/]")
         lines.append("")
-        lines.append("[dim]BLE read in progress — please wait…[/]")
+        lines.append(_phase_footer(progress))
 
     if result is not None:
         if result.ok:
             lines.append("[green]Import complete[/]")
-            lines.append(f"  Samples received: [white]{result.sample_count}[/]")
-            lines.append(f"  Samples in 72H window: [white]{result.imported}[/]")
+            lines.append(f"  Samples received: [white]{result.sample_count:,}[/]")
+            lines.append(f"  Samples merged: [white]{result.imported:,}[/]")
             if result.memory_only:
                 lines.append("  Log: [dim]unchanged (logging disabled)[/]")
             else:
-                lines.append("  Log: [green]last 72H rows replaced for this device[/]")
+                lines.append(
+                    "  Log: [green]rows replaced for this device in the received span[/]"
+                )
             lines.append("")
             lines.append("[dim]Return to monitoring to see updated sparklines.[/]")
         else:
@@ -64,13 +96,15 @@ def format_history_fetch_status(
             if result.error:
                 lines.append(f"  [red]{result.error}[/]")
             if result.sample_count:
-                lines.append(f"  Samples parsed: [white]{result.sample_count}[/]")
+                lines.append(f"  Samples parsed: [white]{result.sample_count:,}[/]")
 
     if error and result is None:
         lines.append("[red]Import failed[/]")
         lines.append(f"  [red]{error}[/]")
 
     if progress is None and result is None and error is None:
-        lines.append("[dim]Starting…[/]")
+        lines.append("[dim]Preparing history fetch…[/]")
+        lines.append("")
+        lines.append("[dim]Checking BLE availability…[/]")
 
     return "\n".join(lines)
