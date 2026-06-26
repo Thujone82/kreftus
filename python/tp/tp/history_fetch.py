@@ -6,8 +6,9 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from tp.ble import BleWaitDetailCallback, DayHistoryProgress, read_day_history
-from tp.config import AppConfig, normalize_mac
+from tp.config import AppConfig, normalize_mac, resolved_log_path
 from tp.history import (
+    BLE_HISTORY_MAX_RECORDS,
     SPARKLINE_BOOTSTRAP_HISTORY_HOURS,
     DeviceHistory,
     apply_day_history,
@@ -27,8 +28,10 @@ class DayHistoryResult:
     imported: int = 0
     sample_count: int = 0
     packet_count: int = 0
+    log_rows_written: int = 0
     memory_only: bool = False
     log_replaced: bool = False
+    log_path: str | None = None
     error: str | None = None
 
 
@@ -69,10 +72,13 @@ async def fetch_day_history_for_device(
         await _emit_progress(progress_cb, update)
 
     try:
+        target_records = (
+            record_count if record_count is not None else BLE_HISTORY_MAX_RECORDS
+        )
         readings = await read_day_history(
             target_mac,
             progress=ble_progress,
-            record_count=record_count,
+            record_count=target_records,
             wait_detail=ble_wait_detail,
         )
     except Exception as exc:  # noqa: BLE001
@@ -92,7 +98,7 @@ async def fetch_day_history_for_device(
             message="Merging into history…",
         ),
     )
-    imported, merge_error = apply_day_history(
+    imported, log_rows_written, merge_error = apply_day_history(
         history,
         config,
         target_mac,
@@ -109,10 +115,12 @@ async def fetch_day_history_for_device(
             imported=0,
             sample_count=len(readings),
             packet_count=packet_count,
+            log_rows_written=0,
             error=merge_error,
         )
 
     memory_only = not config.settings.logging_enabled
+    log_path = None if memory_only else str(resolved_log_path(config))
     await _emit_progress(
         progress_cb,
         DayHistoryProgress(
@@ -127,8 +135,10 @@ async def fetch_day_history_for_device(
         imported=imported,
         sample_count=len(readings),
         packet_count=packet_count,
+        log_rows_written=log_rows_written,
         memory_only=memory_only,
-        log_replaced=not memory_only,
+        log_replaced=log_rows_written > 0,
+        log_path=log_path,
     )
 
 

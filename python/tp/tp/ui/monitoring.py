@@ -41,6 +41,7 @@ from tp.sparkline import (
 )
 from tp.config import filter_devices
 from tp.ui.devices import DeviceStatusModal
+from tp.ui.progress import format_progress_bar
 from tp.ui.helpers import (
     format_device_label_row,
     format_stats_row,
@@ -160,18 +161,6 @@ class MonitoringHeader(Widget):
         title_widget.display = has_room and title_len > 0
         if title_widget.display:
             title_widget.update(title)
-
-
-def _progress_bar(current: int, total: int, width: int = 24) -> str:
-    if total <= 0:
-        return ""
-    current = min(current, total)
-    filled = int(width * current / total) if total else 0
-    if filled >= width:
-        bar = "=" * width
-    else:
-        bar = ("=" * filled) + ">" + ("." * (width - filled - 1))
-    return f"[cyan]{bar}[/] [white]{current}/{total}[/]"
 
 
 class MonitoringScreen(Screen):
@@ -323,7 +312,6 @@ class MonitoringScreen(Screen):
 
     async def on_mount(self) -> None:
         self.sync_from_config()
-        load_readings_from_log(self.app.history, self.app.config)
         self._seed_fetch_success_from_history()
         self._chunk_start = floor_to_boundary(datetime.now())
         self._note_last_fetch_time()
@@ -766,7 +754,7 @@ class MonitoringScreen(Screen):
 
         if self._fetch_in_progress():
             spinner = SPINNER_FRAMES[self._spinner_index]
-            bar = _progress_bar(self._fetch_index, self._fetch_total, width=12)
+            bar = format_progress_bar(self._fetch_index, self._fetch_total, width=12)
             if self._phase == PHASE_COMMIT:
                 label = "Saving"
             elif self._phase == PHASE_HISTORY:

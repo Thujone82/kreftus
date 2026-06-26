@@ -13,7 +13,6 @@ from textual.screen import ModalScreen, Screen
 from textual.widgets import Header, Input, Label, Static
 
 from tp.ble import DayHistoryProgress
-from tp.ble import DayHistoryProgress
 from tp.ble_radio import ensure_bluetooth_enabled_for_polling
 from tp.config import default_device_name
 from tp.history_fetch import DayHistoryResult, fetch_day_history_for_device
@@ -238,6 +237,7 @@ class DeviceHistoryFetchModal(ModalScreen[None]):
                 self._refresh_body()
 
         try:
+            self.app.reload_config()
             result = await fetch_day_history_for_device(
                 self.app.config,
                 self.app.history,

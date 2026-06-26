@@ -4,7 +4,7 @@
 
 **Author:** Kreft&Cursor  
 **Date:** 2026-06-15  
-**Version:** 1.7.0
+**Version:** 1.8.0
 
 ---
 
@@ -12,7 +12,7 @@
 
 `tp` (**TemPy**) is a cross-platform Python TUI for monitoring ThermoPro TP35x (TP357/TP358/TP359) Bluetooth temperature/humidity sensors. It discovers devices, maintains a managed device list in `tp.ini`, polls readings every 5 minutes on clock-aligned boundaries, retries stale devices every minute within each chunk, displays color-coded sparklines (4H/24H/72H), preloads history from CSV, and optionally logs readings to CSV.
 
-Built with **Textual** (UI) and **bleak** (BLE). Default **incremental poll mode** pulls minute-aligned history from the sensor buffer each cycle; **live poll mode** uses a single GATT notify read. **BLE history fetch** uses the TP357S/TP359 stream protocol (with legacy TP357 `0xA7` fallback), requesting up to **1 year** of minute records in 65535-record chunks. Fetch via **H** (History Fetch) on Manage Devices or when adding a device; merges only the received timestamp span so older polled/log data is preserved.
+Built with **Textual** (UI) and **bleak** (BLE). Default **incremental poll mode** pulls minute-aligned history from the sensor buffer each cycle; **live poll mode** uses a single GATT notify read. **BLE history fetch** uses the TP357S/TP359 stream protocol (with legacy TP357 `0xA7` fallback), requesting up to **1 year** of minute records in **7-day** BLE chunks. Fetch via **H** (History Fetch) on Manage Devices or when adding a device; merges only the received timestamp span so older polled/log data is preserved.
 
 ---
 
@@ -426,7 +426,7 @@ python/tp/
 
 ### Changelog
 
-- **v1.8.0** — **History fetch** renamed from 72H fetch (**H**); manual fetch up to **1 year** (`BLE_HISTORY_MAX_RECORDS`, 65535-record BLE chunks); scaled `day_history_timeout`; startup bootstrap still **72H** (`SPARKLINE_BOOTSTRAP_HISTORY_HOURS`).
+- **v1.8.0** — **History fetch** renamed from 72H fetch (**H**); manual fetch up to **1 year** in **7-day** BLE chunks; **BLE queue** status when waiting on poll; immediate modal loading and byte/chunk progress; scaled `day_history_timeout`; startup bootstrap still **72H** (`SPARKLINE_BOOTSTRAP_HISTORY_HOURS`).
 - **v1.7.0** — **Log export to web** (main menu **5**, Options **E**): self-contained **`tp_export.html`** with device/timeframe controls and ECharts dual-axis chart; `log_export.py` + `assets/log_export.html`.
 - **v1.6.0** — **Incremental minute-history polling** (default `PollMode=incremental`; Options **P** toggles live mode); **`read_recent_history`** for gap-filled minute CSV rows; **72H** BLE fetch/bootstrap (expanded from 24H); dashboard **T** sparkline window rotation (24H → 72H → 4H) with window-accurate min/max; default log **`tp_log.csv`**; **log rename** on filename change with overwrite prompt; **72h log preload**; `build.ps1` **`-pyz` / `-exe`** selective build; unit tests for poll mode, log rename, multi-row append.
 - **v1.5.0** — **Fast live read** (datetime sync `0xA5` then `0xC2`, passive fallback); **fetch step arrows** (cyan/green/yellow); **BLE connect cache** + inter-device prefetch; **startup history bootstrap** when logging off; **Bluetooth radio auto-restart** on powered-off errors (`ble_radio.py`); unit tests for radio detection and bootstrap gating.

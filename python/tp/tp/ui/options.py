@@ -19,6 +19,7 @@ from tp.config import (
 )
 from tp.debug_log import log_path as debug_log_path
 from tp.debug_log import set_debug_enabled
+from tp.log_export import can_export_log
 
 
 class TextInputModal(ModalScreen[str | None]):
@@ -121,6 +122,12 @@ class OptionsScreen(Screen):
     def on_mount(self) -> None:
         self.refresh_view()
 
+    def on_screen_resume(self) -> None:
+        self.refresh_view()
+
+    def _export_available(self) -> bool:
+        return can_export_log(self.app.config)
+
     def refresh_view(self) -> None:
         settings = self.app.config.settings
         log_path = resolved_log_path(self.app.config)
@@ -133,6 +140,11 @@ class OptionsScreen(Screen):
         ]
         if self.app.debug_enabled and debug_path is not None:
             debug_lines.append(f"  Debug file:    [dim]{debug_path}[/]")
+        export_lines: list[str] = []
+        if self._export_available():
+            export_lines.append(
+                "  Log export:    [dim]E export log to web (tp_export.html)[/]"
+            )
         body = self.query_one("#options-body", Static)
         body.update(
             "\n".join(
@@ -141,7 +153,7 @@ class OptionsScreen(Screen):
                     "",
                     f"  Logging:       [cyan]{enabled}[/]  [dim](L toggle)[/]",
                     f"  Poll mode:     [cyan]{poll_mode}[/]  [dim](P toggle)[/]",
-                    "  Log export:    [dim]E export log to web (tp_export.html)[/]",
+                    *export_lines,
                     *debug_lines,
                     f"  Log directory: [white]{settings.log_directory}[/]  [dim](D edit)[/]",
                     f"  Log filename:  [white]{settings.log_file_name}[/]  [dim](F edit)[/]",
@@ -152,6 +164,19 @@ class OptionsScreen(Screen):
                 ]
             )
         )
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "export_log":
+            if getattr(self.app, "log_export_in_progress", False):
+                self.app.notify(
+                    "Log export already in progress…",
+                    severity="warning",
+                    timeout=4,
+                )
+                return False
+            if not self._export_available():
+                return False
+        return True
 
     def _sync_debug_log(self) -> None:
         set_debug_enabled(self.app.config, self.app.debug_enabled)

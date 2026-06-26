@@ -11,6 +11,7 @@ from pathlib import Path
 from tp.config import AppConfig, Settings
 from tp.log_export import (
     build_export_payload,
+    can_export_log,
     export_log_to_html,
     filter_series_for_hours,
     load_log_rows_for_export,
@@ -80,6 +81,10 @@ class LogExportTests(unittest.TestCase):
         html = render_log_export_html(payload)
         self.assertIn("echarts.min.js", html)
         self.assertIn("Office", html)
+        self.assertIn('type: "time"', html)
+        self.assertIn("dataZoom", html)
+        self.assertIn('sampling: "lttb"', html)
+        self.assertIn("Marquee zoom", html)
         embedded = html.split('id="export-data">', 1)[1].split("</script>", 1)[0]
         parsed = json.loads(embedded)
         self.assertEqual(parsed["devices"][0]["name"], "Office")
@@ -105,6 +110,22 @@ class LogExportTests(unittest.TestCase):
         output, error = export_log_to_html(self.config)
         self.assertIsNone(output)
         self.assertIn("not found", error or "")
+
+    def test_can_export_log_false_when_log_missing(self) -> None:
+        self.log_path.unlink()
+        self.assertFalse(can_export_log(self.config))
+
+    def test_can_export_log_true_when_readings_exist(self) -> None:
+        self.assertTrue(can_export_log(self.config))
+
+    def test_can_export_log_false_when_only_sentinels(self) -> None:
+        self._write_log(
+            [
+                (self.now - timedelta(minutes=2), "Office", "32.0", 10, self.mac),
+                (self.now - timedelta(minutes=1), "Office", "32.0", 10, self.mac),
+            ]
+        )
+        self.assertFalse(can_export_log(self.config))
 
 
 if __name__ == "__main__":

@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="TemPy v1.5 — cross-platform Python TUI for ThermoPro TP357/TP358/TP359 Bluetooth hygrometers. Live 24h sparklines, 24H BLE history fetch, scheduled polling, device management, and CSV logging.">
-    <title>TemPy v1.5 — tp</title>
+    <meta name="description" content="TemPy v1.8 — cross-platform Python TUI for ThermoPro TP357/TP358/TP359 Bluetooth hygrometers. History fetch up to 1 year, log export to web, incremental polling, sparklines, device management, and CSV logging.">
+    <title>TemPy v1.8 — tp</title>
     <link rel="canonical" href="https://kreft.us/tp/">
-    <meta property="og:title" content="TemPy v1.5 — tp">
-    <meta property="og:description" content="TemPy v1.5 — cross-platform Python TUI for ThermoPro TP357/TP358/TP359 Bluetooth hygrometers. Live 24h sparklines, 24H BLE history fetch, scheduled polling, device management, and CSV logging.">
+    <meta property="og:title" content="TemPy v1.8 — tp">
+    <meta property="og:description" content="TemPy v1.8 — cross-platform Python TUI for ThermoPro TP357/TP358/TP359 Bluetooth hygrometers. History fetch up to 1 year, log export to web, incremental polling, sparklines, device management, and CSV logging.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://kreft.us/tp/">
     <meta property="og:image" content="https://kreft.us/images/tp.png">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="TemPy v1.5 — tp">
-    <meta name="twitter:description" content="TemPy v1.5 — cross-platform Python TUI for ThermoPro TP357/TP358/TP359 Bluetooth hygrometers. Live 24h sparklines, 24H BLE history fetch, scheduled polling, device management, and CSV logging.">
+    <meta name="twitter:title" content="TemPy v1.8 — tp">
+    <meta name="twitter:description" content="TemPy v1.8 — cross-platform Python TUI for ThermoPro TP357/TP358/TP359 Bluetooth hygrometers. History fetch up to 1 year, log export to web, incremental polling, sparklines, device management, and CSV logging.">
     <meta name="twitter:image" content="https://kreft.us/images/tp.png">
     <style>
         body {
@@ -217,7 +217,7 @@
         <a href="https://github.com/Thujone82/kreftus" target="_blank" rel="noopener noreferrer" class="github-link" title="View on GitHub">
             <img src="../images/github-mark-white.png" alt="GitHub">
         </a>
-        <h1>TemPy v1.5 — tp</h1>
+        <h1>TemPy v1.8 — tp</h1>
     </header>
 
     <div class="container">
@@ -229,25 +229,27 @@
                     </td>
                     <td class="project-text-cell">
                         <div>
-                            <h2>TemPy v1.5</h2>
+                            <h2>TemPy v1.8</h2>
                             <p>
-                                <b>TemPy</b> is a cross-platform Python terminal UI for ThermoPro TP357/TP358/TP359 Bluetooth hygrometer/thermometer units. It polls sensors over BLE on a 5-minute schedule, shows a live monitoring dashboard with 24-hour temperature and humidity sparklines, and logs readings to CSV. Built with <b>Textual</b> and <b>bleak</b> for Windows and Linux.
+                                <b>TemPy</b> is a cross-platform Python terminal UI for ThermoPro TP357/TP358/TP359 Bluetooth hygrometer/thermometer units. It polls sensors over BLE on a 5-minute schedule, shows a live monitoring dashboard with temperature and humidity sparklines, and logs readings to CSV. Built with <b>Textual</b> and <b>bleak</b> for Windows and Linux.
                             </p>
                             <p>
                                 <b>Features:</b>
                             </p>
                             <ul>
-                                <li><b>24H BLE history:</b> Pull minute-level history from the sensor to backfill sparklines — <b>H</b> on Manage Devices, optional <b>Y/N</b> when adding a device, automatic pull on startup when logging is off, or <code>--history-day</code> on the CLI. Merges only the received time span so older polled/log data is preserved after a sensor reboot.</li>
-                                <li><b>Monitoring dashboard:</b> Five rows per device — name, temp stats, temp sparkline, humidity stats, humidity sparkline — with indoor comfort color bands on values and glyphs. Fetch arrows show connect (cyan), fast read (green), or legacy fallback (yellow).</li>
+                                <li><b>History fetch:</b> Pull up to <b>1 year</b> of minute-level history from the sensor — <b>H</b> (History Fetch) on Manage Devices, optional <b>Y/N</b> when adding a device, 72H automatic bootstrap on startup when logging is off, or <code>--history-day</code> on the CLI. Fetches in 7-day BLE chunks with queue/progress feedback when the poll loop holds the radio.</li>
+                                <li><b>Log export to web:</b> Main menu <b>5</b> or Options <b>E</b> writes <code>tp_export.html</code> with embedded CSV data and an interactive dual-axis chart (device + timeframe filters).</li>
+                                <li><b>Incremental polling:</b> Default mode requests missing minute-aligned history each cycle; Options <b>P</b> toggles live single-read mode.</li>
+                                <li><b>Monitoring dashboard:</b> Five rows per device — name, temp stats, temp sparkline, humidity stats, humidity sparkline — with indoor comfort color bands. Press <b>T</b> to cycle sparkline windows (24H → 72H → 4H).</li>
                                 <li><b>Device management:</b> Discover nearby TP35x units, add/rename/remove/reorder sensors, and open per-device status with 4H/24H/72H history sparklines.</li>
-                                <li><b>Scheduled polling:</b> Fetches on clock boundaries (<code>:00</code>, <code>:05</code>, …) with per-device retries and manual <b>G</b> fetch; sequential reads with a 60 s timeout per sensor.</li>
+                                <li><b>Scheduled polling:</b> Fetches on clock boundaries (<code>:00</code>, <code>:05</code>, …) with per-device retries and manual <b>G</b> fetch.</li>
                                 <li><b>Bluetooth recovery:</b> If the OS reports Bluetooth is off (e.g. after sleep), TemPy power-cycles the radio and retries automatically.</li>
                                 <li><b>Multi-column layout:</b> Wide terminals can show multiple devices side by side — press <b>C</b> to cycle columns.</li>
                                 <li><b>Quick device info:</b> Keys <b>1</b>–<b>9</b> and <b>0</b> open the info panel for the first ten visible devices from the monitoring screen.</li>
-                                <li><b>CLI modes:</b> <code>-x</code> prints a log snapshot and exits; <code>-nopoll</code> / <code>-np</code> disables BLE scheduling (log reload every 5 min); <code>-f</code> / <code>-filter</code> limits the dashboard view by device name.</li>
+                                <li><b>CLI modes:</b> <code>-x</code> prints a log snapshot and exits; <code>-nopoll</code> / <code>-np</code> disables BLE scheduling; <code>-f</code> / <code>-filter</code> limits the dashboard view by device name.</li>
                             </ul>
                             <p>
-                                Place <code>tp.ini</code> and <code>tp.log</code> beside the launcher (<code>tp.exe</code>, <code>tp.pyz</code>, or <code>tp.py</code>). On first run with no devices configured, TemPy opens Manage Devices and starts discovery automatically.
+                                Place <code>tp.ini</code> and your log file beside the launcher (<code>tp.exe</code>, <code>tp.pyz</code>, or <code>tp.py</code>). Default log file: <code>tp_log.csv</code>. On first run with no devices configured, TemPy opens Manage Devices and starts discovery automatically.
                             </p>
 
                             <h3>Updates</h3>

@@ -6,6 +6,7 @@ import csv
 import asyncio
 import tempfile
 import unittest
+import unittest.mock
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -137,6 +138,68 @@ class DayHistoryStreamParserTests(unittest.TestCase):
 
         self.assertEqual(HISTORY_FETCH_CHUNK_RECORDS, 7 * 24 * 60)
 
+    def test_stream_history_continuation_uses_request_anchor(self) -> None:
+        anchor = datetime(2026, 3, 1, 8, 0, 0)
+        pairs = [(20.0, 40), (21.0, 41)]
+        readings = _stream_history_to_readings(pairs, anchor)
+        self.assertEqual(readings[-1].timestamp, anchor)
+        self.assertEqual(readings[0].timestamp, anchor - timedelta(minutes=1))
+
+    def test_read_day_history_fetches_multiple_chunks(self) -> None:
+        from tp.ble import HISTORY_FETCH_CHUNK_RECORDS, read_day_history
+        from tp.history import Reading
+
+        now = datetime.now().replace(second=0, microsecond=0)
+        chunk_size = HISTORY_FETCH_CHUNK_RECORDS
+        calls: list[tuple[int, datetime | None, int]] = []
+
+        def make_chunk(end: datetime, count: int) -> list[Reading]:
+            return [
+                Reading(
+                    timestamp=end - timedelta(minutes=offset),
+                    temp_f=70.0,
+                    humidity_pct=40,
+                )
+                for offset in range(count)
+            ]
+
+        async def fake_locked(
+            address: str,
+            *,
+            record_count: int,
+            anchor: datetime | None = None,
+            chunk_index: int = 0,
+            **kwargs,
+        ) -> list[Reading]:
+            calls.append((record_count, anchor, chunk_index))
+            if chunk_index == 1:
+                return make_chunk(now, chunk_size)
+            if chunk_index == 2:
+                oldest = now - timedelta(minutes=chunk_size)
+                return make_chunk(oldest - timedelta(minutes=1), 500)
+            return []
+
+        async def run() -> list[Reading]:
+            with unittest.mock.patch(
+                "tp.ble._read_history_locked",
+                side_effect=fake_locked,
+            ):
+                return await read_day_history(
+                    "E0:A4:4B:A4:53:0D",
+                    record_count=chunk_size + 500,
+                )
+
+        readings = asyncio.run(run())
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0][0], chunk_size)
+        self.assertIsNone(calls[0][1])
+        self.assertEqual(calls[1][0], 500)
+        self.assertEqual(
+            calls[1][1],
+            now - timedelta(minutes=chunk_size),
+        )
+        self.assertEqual(len(readings), chunk_size + 500)
+
 
 class HistoryFetchStatusTests(unittest.TestCase):
     def test_waiting_status_mentions_queue(self) -> None:
@@ -159,6 +222,24 @@ class HistoryFetchStatusTests(unittest.TestCase):
 
         text = format_history_fetch_status("Office", "E0:A4:4B:A4:53:0D")
         self.assertIn("Preparing history fetch", text)
+
+    def test_receiving_status_shows_progress_bar(self) -> None:
+        from tp.ble import DayHistoryProgress
+        from tp.ui.history_fetch_status import format_history_fetch_status
+
+        text = format_history_fetch_status(
+            "Office",
+            "E0:A4:4B:A4:53:0D",
+            progress=DayHistoryProgress(
+                phase="receiving",
+                chunk_index=2,
+                chunk_total=10,
+                samples=5040,
+                message="Receiving history…",
+            ),
+        )
+        self.assertIn("Progress:", text)
+        self.assertIn("150/1000", text)
 
 
 class DayHistoryMergeTests(unittest.TestCase):
@@ -245,13 +326,14 @@ class DayHistoryMergeTests(unittest.TestCase):
                 devices={self.office: "Office", self.other: "Garage"},
             )
             new_readings = [self._reading(15, 75.0, 45)]
-            error = replace_device_log_window(
+            rows_written, error = replace_device_log_window(
                 config,
                 self.office,
                 "Office",
                 new_readings,
             )
             self.assertIsNone(error)
+            self.assertEqual(rows_written, 1)
 
             with log_path.open("r", encoding="utf-8", newline="") as handle:
                 loaded = list(csv.DictReader(handle))
@@ -281,7 +363,7 @@ class DayHistoryMergeTests(unittest.TestCase):
             devices={self.office: "Office"},
         )
         readings = [self._reading(i, 70.0, 40) for i in range(10)]
-        imported, error = apply_day_history(
+        imported, log_rows, error = apply_day_history(
             history,
             config,
             self.office,
@@ -289,6 +371,134 @@ class DayHistoryMergeTests(unittest.TestCase):
             readings,
         )
         self.assertEqual(imported, 0)
+        self.assertEqual(log_rows, 0)
+        self.assertIsNotNone(error)
+        self.assertFalse(history.has_data(self.office))
+
+    def test_apply_day_history_writes_fetched_rows_to_log(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = Path(tmp) / "tp_log.csv"
+            with log_path.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.writer(handle, lineterminator="\n")
+                writer.writerow(CSV_HEADER)
+                writer.writerow(
+                    [
+                        (self.now - timedelta(hours=2)).strftime(LOG_TIMESTAMP_FORMAT),
+                        "Office",
+                        "70.0",
+                        40,
+                        self.office,
+                    ]
+                )
+
+            history = DeviceHistory()
+            config = AppConfig(
+                ini_path=Path(tmp) / "tp.ini",
+                settings=Settings(
+                    log_directory=tmp,
+                    log_file_name="tp_log.csv",
+                    logging_enabled=True,
+                ),
+                devices={self.office: "Office"},
+            )
+            readings = [
+                self._reading(minutes, 71.0, 42)
+                for minutes in range(150, 0, -1)
+            ]
+            imported, log_rows, error = apply_day_history(
+                history,
+                config,
+                self.office,
+                "Office",
+                readings,
+            )
+            self.assertIsNone(error)
+            self.assertEqual(imported, 150)
+            self.assertEqual(log_rows, 150)
+            self.assertEqual(len(history.get_readings(self.office)), 150)
+
+            with log_path.open("r", encoding="utf-8", newline="") as handle:
+                loaded = list(csv.DictReader(handle))
+            office_rows = [row for row in loaded if row["mac"] == self.office]
+            self.assertEqual(len(office_rows), 150)
+            self.assertTrue(all(row["temp_f"] == "71.0" for row in office_rows))
+
+    def test_apply_day_history_extends_log_before_existing_oldest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = Path(tmp) / "tp_log.csv"
+            logging_started = self.now - timedelta(days=10)
+            with log_path.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.writer(handle, lineterminator="\n")
+                writer.writerow(CSV_HEADER)
+                writer.writerow(
+                    [
+                        logging_started.strftime(LOG_TIMESTAMP_FORMAT),
+                        "Office",
+                        "70.0",
+                        40,
+                        self.office,
+                    ]
+                )
+
+            history = DeviceHistory()
+            config = AppConfig(
+                ini_path=Path(tmp) / "tp.ini",
+                settings=Settings(
+                    log_directory=tmp,
+                    log_file_name="tp_log.csv",
+                    logging_enabled=True,
+                ),
+                devices={self.office: "Office"},
+            )
+            readings = [
+                self._reading(minutes, 71.0, 42)
+                for minutes in range(20 * 24 * 60, 0, -1)
+            ]
+            imported, log_rows, error = apply_day_history(
+                history,
+                config,
+                self.office,
+                "Office",
+                readings,
+            )
+            self.assertIsNone(error)
+            self.assertEqual(imported, len(readings))
+            self.assertEqual(log_rows, len(readings))
+
+            with log_path.open("r", encoding="utf-8", newline="") as handle:
+                loaded = list(csv.DictReader(handle))
+            office_rows = [row for row in loaded if row["mac"] == self.office]
+            oldest = min(row["timestamp"] for row in office_rows)
+            expected_oldest = (self.now - timedelta(minutes=20 * 24 * 60)).strftime(
+                LOG_TIMESTAMP_FORMAT
+            )
+            self.assertEqual(oldest, expected_oldest)
+            self.assertLess(oldest, logging_started.strftime(LOG_TIMESTAMP_FORMAT))
+
+    def test_apply_day_history_does_not_update_memory_when_log_write_fails(self) -> None:
+        history = DeviceHistory()
+        config = AppConfig(
+            ini_path=Path("tp.ini"),
+            settings=Settings(
+                log_directory="Z:/nonexistent/tp_log_dir",
+                log_file_name="tp_log.csv",
+                logging_enabled=True,
+            ),
+            devices={self.office: "Office"},
+        )
+        readings = [
+            self._reading(minutes, 71.0, 42)
+            for minutes in range(150, 0, -1)
+        ]
+        imported, log_rows, error = apply_day_history(
+            history,
+            config,
+            self.office,
+            "Office",
+            readings,
+        )
+        self.assertEqual(imported, 0)
+        self.assertEqual(log_rows, 0)
         self.assertIsNotNone(error)
         self.assertFalse(history.has_data(self.office))
 

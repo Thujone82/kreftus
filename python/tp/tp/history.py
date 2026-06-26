@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import os
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -14,6 +15,8 @@ from tp.config import AppConfig, normalize_mac, probe_log_path, resolved_log_pat
 CSV_HEADER = ["timestamp", "device", "temp_f", "humidity_pct", "mac"]
 LOG_TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
 from tp.sparkline import SPARKLINE_WINDOWS
+
+LogLoadProgressCallback = Callable[[str, int, int], None]
 
 BLE_HISTORY_DAYS = 365
 BLE_HISTORY_HOURS = BLE_HISTORY_DAYS * 24
@@ -205,6 +208,33 @@ class DeviceHistory:
             added += 1
         return added
 
+    def bulk_import_log_readings(self, mac: str, readings: list[Reading]) -> int:
+        """Merge a large log preload in one pass (avoids per-row prune)."""
+        if not readings:
+            return 0
+        prior = self.get_readings(mac)
+        prior_last = prior[-1] if prior else None
+        filtered = filter_false_sentinel_runs(
+            sorted(readings, key=lambda item: item.timestamp),
+            prior=prior_last,
+        )
+        if not filtered:
+            return 0
+        merged = {reading.timestamp: reading for reading in prior}
+        added = 0
+        for reading in filtered:
+            if reading.timestamp in merged:
+                continue
+            merged[reading.timestamp] = reading
+            added += 1
+        self._readings[mac] = sorted(merged.values(), key=lambda item: item.timestamp)
+        if self._readings[mac]:
+            self._last_updated[mac] = self._readings[mac][-1].timestamp
+        else:
+            self._last_updated.pop(mac, None)
+        self.prune_old(mac)
+        return added
+
     def clear_device(self, mac: str) -> None:
         self._readings.pop(mac, None)
         self._last_updated.pop(mac, None)
@@ -237,7 +267,238 @@ class DeviceHistory:
         )
 
 
-def load_readings_from_log(history: DeviceHistory, config: AppConfig) -> int:
+def _parse_log_row_timestamp(raw_line: bytes) -> datetime | None:
+    """Parse the timestamp column from one CSV log line."""
+    try:
+        text = raw_line.decode("utf-8", errors="replace").strip()
+    except AttributeError:
+        text = str(raw_line).strip()
+    if not text:
+        return None
+    try:
+        row = next(csv.reader([text]))
+    except csv.Error:
+        return None
+    if not row:
+        return None
+    ts_raw = row[0].strip()
+    if ts_raw == "timestamp":
+        return None
+    try:
+        return datetime.strptime(ts_raw, LOG_TIMESTAMP_FORMAT)
+    except ValueError:
+        return None
+
+
+def _find_log_load_start_offset(log_path: Path, cutoff: datetime) -> int:
+    """Return the byte offset of the first row with timestamp >= cutoff.
+
+    Assumes the log body is sorted ascending by timestamp (TemPy append/replace
+    writes maintain this). Falls back to reading from the header when uncertain.
+    """
+    try:
+        size = log_path.stat().st_size
+    except OSError:
+        return 0
+    if size <= 0:
+        return 0
+
+    try:
+        with log_path.open("rb") as handle:
+            header = handle.readline()
+            if not header:
+                return 0
+            header_end = handle.tell()
+
+            first_line = handle.readline()
+            if not first_line:
+                return header_end
+            first_ts = _parse_log_row_timestamp(first_line)
+            if first_ts is not None and first_ts >= cutoff:
+                return header_end
+
+            lo = header_end
+            hi = size
+            answer = size
+            while lo < hi:
+                mid = (lo + hi) // 2
+                handle.seek(mid)
+                if mid > header_end:
+                    handle.readline()
+                line_start = handle.tell()
+                line = handle.readline()
+                if not line:
+                    hi = mid
+                    continue
+                timestamp = _parse_log_row_timestamp(line)
+                if timestamp is None:
+                    lo = line_start + len(line)
+                    continue
+                if timestamp >= cutoff:
+                    answer = line_start
+                    hi = mid
+                else:
+                    lo = line_start + len(line)
+            return answer
+    except OSError:
+        return 0
+
+
+def _row_dict_from_values(values: list[str]) -> dict[str, str] | None:
+    if len(values) < len(CSV_HEADER):
+        return None
+    return {name: values[index] for index, name in enumerate(CSV_HEADER)}
+
+
+def _pending_row_from_dict(
+    row_data: dict[str, str],
+    *,
+    managed: set[str],
+    cutoff: datetime,
+    pending: dict[str, list[Reading]],
+) -> datetime | None:
+    mac_raw = row_data.get("mac", "")
+    if not mac_raw:
+        return None
+    mac = normalize_mac(mac_raw)
+    if mac not in managed:
+        return None
+    ts_raw = row_data.get("timestamp", "").strip()
+    if not ts_raw:
+        return None
+    try:
+        timestamp = datetime.strptime(ts_raw, LOG_TIMESTAMP_FORMAT)
+    except ValueError:
+        return None
+    if timestamp < cutoff:
+        return timestamp
+    try:
+        temp_f = float(row_data["temp_f"])
+        humidity_pct = int(float(row_data["humidity_pct"]))
+    except (KeyError, TypeError, ValueError):
+        return None
+    pending[mac].append(
+        Reading(
+            timestamp=timestamp,
+            temp_f=temp_f,
+            humidity_pct=humidity_pct,
+        )
+    )
+    return timestamp
+
+
+def _read_pending_from_offset(
+    log_path: Path,
+    *,
+    start_offset: int,
+    header_end: int,
+    cutoff: datetime,
+    managed: set[str],
+    progress_cb: LogLoadProgressCallback | None,
+    read_span: int,
+    skip_partial_line: bool = False,
+) -> tuple[dict[str, list[Reading]], datetime | None]:
+    pending: dict[str, list[Reading]] = {mac: [] for mac in managed}
+    oldest: datetime | None = None
+    rows_seen = 0
+    span = max(1, read_span)
+
+    try:
+        with log_path.open("r", encoding="utf-8", newline="") as handle:
+            if start_offset > header_end:
+                handle.seek(start_offset)
+                if skip_partial_line:
+                    handle.readline()
+                row_iter = csv.reader(handle)
+                use_dict = False
+            else:
+                dict_reader = csv.DictReader(handle)
+                if dict_reader.fieldnames is None or "mac" not in dict_reader.fieldnames:
+                    return pending, None
+                row_iter = dict_reader
+                use_dict = True
+
+            for row in row_iter:
+                rows_seen += 1
+                if progress_cb is not None and rows_seen % 512 == 0:
+                    try:
+                        pos = handle.tell()
+                    except OSError:
+                        pos = start_offset
+                    progress_cb(
+                        "Reading recent log…",
+                        min(99, int(100 * max(0, pos - start_offset) / span)),
+                        100,
+                    )
+
+                if use_dict:
+                    row_data = row
+                else:
+                    if not isinstance(row, list):
+                        continue
+                    row_data = _row_dict_from_values(row)
+                    if row_data is None:
+                        continue
+
+                timestamp = _pending_row_from_dict(
+                    row_data,
+                    managed=managed,
+                    cutoff=cutoff,
+                    pending=pending,
+                )
+                if timestamp is not None and (oldest is None or timestamp < oldest):
+                    oldest = timestamp
+    except OSError:
+        return pending, oldest
+
+    if progress_cb is not None:
+        progress_cb("Reading recent log…", 99, 100)
+    return pending, oldest
+
+
+def _collect_recent_log_readings(
+    log_path: Path,
+    *,
+    cutoff: datetime,
+    managed: set[str],
+    progress_cb: LogLoadProgressCallback | None,
+    file_size: int,
+) -> dict[str, list[Reading]]:
+    try:
+        with log_path.open("rb") as raw_handle:
+            header = raw_handle.readline()
+            header_end = raw_handle.tell() if header else 0
+    except OSError:
+        return {mac: [] for mac in managed}
+
+    if file_size <= header_end:
+        return {mac: [] for mac in managed}
+
+    if progress_cb is not None:
+        progress_cb("Locating recent log data…", 0, 100)
+
+    start_offset = _find_log_load_start_offset(log_path, cutoff)
+    start_offset = max(header_end, min(start_offset, file_size))
+    read_span = max(1, file_size - start_offset)
+
+    pending, _oldest = _read_pending_from_offset(
+        log_path,
+        start_offset=start_offset,
+        header_end=header_end,
+        cutoff=cutoff,
+        managed=managed,
+        progress_cb=progress_cb,
+        read_span=read_span,
+    )
+    return pending
+
+
+def load_readings_from_log(
+    history: DeviceHistory,
+    config: AppConfig,
+    *,
+    progress_cb: LogLoadProgressCallback | None = None,
+) -> int:
     """Import CSV log rows from the last 72 hours into in-memory history."""
     from tp.config import normalize_mac
     from tp.sparkline import populated_bin_count
@@ -251,58 +512,37 @@ def load_readings_from_log(history: DeviceHistory, config: AppConfig) -> int:
         return 0
 
     cutoff = datetime.now() - timedelta(hours=MEMORY_HISTORY_HOURS)
-    pending: dict[str, list[Reading]] = {mac: [] for mac in managed}
     loaded = 0
     log_path_text = str(log_path)
 
     try:
-        with log_path.open("r", encoding="utf-8", newline="") as handle:
-            reader = csv.DictReader(handle)
-            if reader.fieldnames is None or "mac" not in reader.fieldnames:
-                return 0
-            for row in reader:
-                mac_raw = row.get("mac", "")
-                if not mac_raw:
-                    continue
-                mac = normalize_mac(mac_raw)
-                if mac not in managed:
-                    continue
-                ts_raw = row.get("timestamp", "").strip()
-                if not ts_raw:
-                    continue
-                try:
-                    timestamp = datetime.strptime(ts_raw, LOG_TIMESTAMP_FORMAT)
-                except ValueError:
-                    continue
-                if timestamp < cutoff:
-                    continue
-                try:
-                    temp_f = float(row["temp_f"])
-                    humidity_pct = int(float(row["humidity_pct"]))
-                except (KeyError, TypeError, ValueError):
-                    continue
-                pending[mac].append(
-                    Reading(
-                        timestamp=timestamp,
-                        temp_f=temp_f,
-                        humidity_pct=humidity_pct,
-                    )
-                )
+        file_size = log_path.stat().st_size
     except OSError:
-        return loaded
+        file_size = 0
 
-    for mac, readings in pending.items():
+    if progress_cb is not None:
+        progress_cb("Reading log tail…", 0, 100)
+
+    pending = _collect_recent_log_readings(
+        log_path,
+        cutoff=cutoff,
+        managed=managed,
+        progress_cb=progress_cb,
+        file_size=file_size,
+    )
+
+    managed_list = sorted(managed)
+    for index, mac in enumerate(managed_list):
+        readings = pending.get(mac, [])
         if not readings:
             continue
-        existing = {r.timestamp for r in history.get_readings(mac)}
-        new_readings = [
-            reading
-            for reading in sorted(readings, key=lambda item: item.timestamp)
-            if reading.timestamp not in existing
-        ]
-        if not new_readings:
-            continue
-        added = history.import_readings(mac, new_readings)
+        if progress_cb is not None:
+            progress_cb(
+                f"Updating history ({index + 1}/{len(managed_list)})…",
+                index + 1,
+                len(managed_list),
+            )
+        added = history.bulk_import_log_readings(mac, readings)
         if added:
             hour_bins = populated_bin_count(
                 history.temp_points(mac),
@@ -375,11 +615,19 @@ def _history_window_cutoff(*, hours: float = BLE_HISTORY_HOURS) -> datetime:
 def _received_history_window(
     readings: list[Reading],
     *,
-    hours: float = BLE_HISTORY_HOURS,
+    hours: float | None = BLE_HISTORY_HOURS,
 ) -> tuple[list[Reading], datetime, datetime] | None:
-    """Return in-window readings and the inclusive replace span [start, end]."""
-    cutoff = _history_window_cutoff(hours=hours)
-    in_window = [r for r in readings if r.timestamp >= cutoff]
+    """Return in-window readings and the inclusive replace span [start, end].
+
+    When ``hours`` is ``None``, use the full received fetch span (no rolling cutoff).
+    """
+    if not readings:
+        return None
+    if hours is None:
+        in_window = list({r.timestamp: r for r in readings}.values())
+    else:
+        cutoff = _history_window_cutoff(hours=hours)
+        in_window = [r for r in readings if r.timestamp >= cutoff]
     if not in_window:
         return None
     replace_start = min(r.timestamp for r in in_window)
@@ -392,7 +640,7 @@ def replace_device_memory_window(
     mac: str,
     readings: list[Reading],
     *,
-    hours: float = BLE_HISTORY_HOURS,
+    hours: float | None = BLE_HISTORY_HOURS,
 ) -> int:
     """Replace in-memory readings for mac only within the received data span."""
     window = _received_history_window(readings, hours=hours)
@@ -402,14 +650,21 @@ def replace_device_memory_window(
 
     if mac not in history._readings:
         history._readings[mac] = []
-    cutoff = _history_window_cutoff(hours=hours)
-    kept = [
-        r
-        for r in history.get_readings(mac)
-        if r.timestamp < cutoff
-        or r.timestamp < replace_start
-        or r.timestamp > replace_end
-    ]
+    if hours is None:
+        kept = [
+            r
+            for r in history.get_readings(mac)
+            if r.timestamp < replace_start or r.timestamp > replace_end
+        ]
+    else:
+        cutoff = _history_window_cutoff(hours=hours)
+        kept = [
+            r
+            for r in history.get_readings(mac)
+            if r.timestamp < cutoff
+            or r.timestamp < replace_start
+            or r.timestamp > replace_end
+        ]
     merged = {r.timestamp: r for r in kept}
     for reading in in_window:
         merged[reading.timestamp] = reading
@@ -429,12 +684,17 @@ def replace_device_log_window(
     device_name: str,
     readings: list[Reading],
     *,
-    hours: float = BLE_HISTORY_HOURS,
-) -> str | None:
-    """Rewrite CSV log, replacing this device's rows only in the received span."""
+    hours: float | None = BLE_HISTORY_HOURS,
+) -> tuple[int, str | None]:
+    """Rewrite CSV log, replacing this device's rows only in the received span.
+
+    Returns ``(rows_written, error_message)``.
+    """
     window = _received_history_window(readings, hours=hours)
     if window is None:
-        return None
+        if readings:
+            return 0, "No readings fell within the merge window."
+        return 0, None
     in_window, replace_start, replace_end = window
 
     log_path = resolved_log_path(config)
@@ -443,19 +703,15 @@ def replace_device_log_window(
         config.settings.log_file_name,
     )
     if probe_error:
-        return probe_error
+        return 0, probe_error
 
-    cutoff = _history_window_cutoff(hours=hours)
     target_mac = normalize_mac(mac)
     kept_rows: list[list[str]] = []
-    had_header = False
 
     if log_path.is_file():
         try:
             with log_path.open("r", encoding="utf-8", newline="") as handle:
                 reader = csv.DictReader(handle)
-                if reader.fieldnames:
-                    had_header = True
                 for row in reader:
                     mac_raw = row.get("mac", "")
                     if not mac_raw:
@@ -490,7 +746,7 @@ def replace_device_log_window(
                         ]
                     )
         except OSError as exc:
-            return f"Cannot read {log_path}: {exc}"
+            return 0, f"Cannot read {log_path}: {exc}"
 
     new_rows = [
         [
@@ -525,11 +781,9 @@ def replace_device_log_window(
             if temp_path.exists():
                 temp_path.unlink(missing_ok=True)
     except OSError as exc:
-        return f"Cannot write to {log_path}: {exc}"
+        return 0, f"Cannot write to {log_path}: {exc}"
 
-    if not had_header and not combined:
-        return None
-    return None
+    return len(new_rows), None
 
 
 def apply_day_history(
@@ -538,21 +792,39 @@ def apply_day_history(
     mac: str,
     device_name: str,
     readings: list[Reading],
-) -> tuple[int, str | None]:
-    """Merge day-history readings into memory and optionally replace log window."""
+) -> tuple[int, int, str | None]:
+    """Merge day-history readings into memory and optionally replace log window.
+
+    Returns ``(imported_count, log_rows_written, error_message)``.
+    """
     prior = history.get_readings(mac)
     prior_last = prior[-1] if prior else None
     readings = filter_false_sentinel_runs(readings, prior=prior_last)
     if len(readings) < MIN_DAY_HISTORY_SAMPLES:
         return (
             0,
+            0,
             f"Too few samples ({len(readings)}); need at least {MIN_DAY_HISTORY_SAMPLES}.",
         )
-    imported = replace_device_memory_window(history, mac, readings)
-    log_error: str | None = None
+    log_rows_written = 0
     if config.settings.logging_enabled:
-        log_error = replace_device_log_window(config, mac, device_name, readings)
-    return imported, log_error
+        log_rows_written, log_error = replace_device_log_window(
+            config,
+            mac,
+            device_name,
+            readings,
+            hours=None,
+        )
+        if log_error:
+            return 0, 0, log_error
+    imported = replace_device_memory_window(history, mac, readings, hours=None)
+    if imported == 0:
+        return (
+            0,
+            log_rows_written,
+            "History fetch returned samples but none could be merged.",
+        )
+    return imported, log_rows_written, None
 
 
 def prior_reading_for_filter(history: DeviceHistory, mac: str) -> Reading | None:

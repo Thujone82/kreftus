@@ -154,7 +154,7 @@ def main(argv: list[str] | None = None) -> None:
         if result.ok:
             print(
                 f"Imported {result.imported} sample(s) from {result.sample_count} received "
-                f"({'memory only' if result.memory_only else 'log replaced'})."
+                f"({'memory only' if result.memory_only else f'{result.log_rows_written} log row(s) written'})."
             )
         else:
             print(f"Failed: {result.error}")

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from textual import work
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.screen import Screen
 from textual.widgets import Footer, Header, Static
+
+from tp.log_export import can_export_log
 
 
 class MainMenuScreen(Screen):
@@ -19,6 +22,10 @@ class MainMenuScreen(Screen):
         ("5", "export_log", "Export"),
     ]
 
+    def __init__(self) -> None:
+        super().__init__()
+        self._export_available_cached: bool | None = None
+
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         yield Vertical(
@@ -29,6 +36,24 @@ class MainMenuScreen(Screen):
 
     def on_mount(self) -> None:
         self.refresh_menu()
+        self._refresh_export_availability()
+
+    def _export_available(self) -> bool:
+        if self._export_available_cached is not None:
+            return self._export_available_cached
+        return False
+
+    @work(thread=True)
+    def _refresh_export_availability(self) -> None:
+        available = can_export_log(self.app.config)
+        self.app.call_from_thread(self._apply_export_availability, available)
+
+    def _apply_export_availability(self, available: bool) -> None:
+        if self._export_available_cached == available:
+            return
+        self._export_available_cached = available
+        if self.is_mounted:
+            self.refresh_menu()
 
     def refresh_menu(self) -> None:
         device_count = len(self.app.config.devices)
@@ -40,13 +65,31 @@ class MainMenuScreen(Screen):
             "  [white]2[/]  Manage Devices",
             "  [white]3[/]  Options",
             "  [white]4[/]  Exit",
-            "  [white]5[/]  Export log to web",
-            "",
-            "[dim]Press 1-5 · Q to quit[/]",
         ]
+        if self._export_available():
+            lines.append("  [white]5[/]  Export log to web")
+            lines.append("")
+            lines.append("[dim]Press 1-5 · Q to quit[/]")
+        else:
+            lines.append("")
+            lines.append("[dim]Press 1-4 · Q to quit[/]")
         body.update("\n".join(lines))
 
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "export_log":
+            if getattr(self.app, "log_export_in_progress", False):
+                self.app.notify(
+                    "Log export already in progress…",
+                    severity="warning",
+                    timeout=4,
+                )
+                return False
+            if not self._export_available():
+                return False
+        return True
+
     def on_screen_resume(self) -> None:
+        self._refresh_export_availability()
         self.refresh_menu()
 
     def action_monitoring(self) -> None:

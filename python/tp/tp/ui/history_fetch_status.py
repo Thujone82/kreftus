@@ -4,8 +4,31 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from tp.ble import DayHistoryProgress
+from tp.ble import DayHistoryProgress, HISTORY_FETCH_CHUNK_RECORDS
 from tp.history_fetch import DayHistoryResult
+from tp.ui.progress import format_progress_bar
+
+
+def history_fetch_progress_units(progress: DayHistoryProgress) -> tuple[int, int] | None:
+    """Return completed/total units for a history-fetch progress bar."""
+    if progress.phase == "done":
+        return 1, 1
+    if progress.phase == "merging":
+        total = max(progress.chunk_total, 1)
+        return total, total
+    if progress.chunk_total > 0:
+        total = progress.chunk_total * 100
+        completed = max(0, progress.chunk_index - 1) * 100
+        if progress.phase == "receiving" and progress.samples > 0:
+            chunk_target = max(HISTORY_FETCH_CHUNK_RECORDS, 1)
+            within = min(progress.samples, chunk_target)
+            completed += int(within * 100 / chunk_target)
+        elif progress.phase in {"connecting", "receiving"} and progress.chunk_index:
+            completed = max(completed, (progress.chunk_index - 1) * 100 + 5)
+        return min(completed, total), total
+    if progress.phase in {"preparing", "waiting", "connecting"}:
+        return 0, 100
+    return None
 
 
 def _format_elapsed(started_at: datetime | None) -> str:
@@ -61,6 +84,13 @@ def format_history_fetch_status(
             )
         if progress.message:
             lines.append(f"  {progress.message}")
+        progress_units = history_fetch_progress_units(progress)
+        if progress_units is not None:
+            completed, total = progress_units
+            lines.append(
+                "  Progress: "
+                + format_progress_bar(completed, total, width=28)
+            )
         if (
             progress.phase == "receiving"
             or progress.packets
@@ -85,10 +115,16 @@ def format_history_fetch_status(
             lines.append(f"  Samples merged: [white]{result.imported:,}[/]")
             if result.memory_only:
                 lines.append("  Log: [dim]unchanged (logging disabled)[/]")
-            else:
+            elif result.log_replaced:
                 lines.append(
-                    "  Log: [green]rows replaced for this device in the received span[/]"
+                    "  Log: [green]"
+                    f"{result.log_rows_written:,} row(s) written for this device "
+                    "in the received span[/]"
                 )
+                if result.log_path:
+                    lines.append(f"  [dim]File: {result.log_path}[/]")
+            else:
+                lines.append("  Log: [yellow]unchanged[/]")
             lines.append("")
             lines.append("[dim]Return to monitoring to see updated sparklines.[/]")
         else:

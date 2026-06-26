@@ -985,6 +985,7 @@ async def _read_day_stream_on_client(
     loop = asyncio.get_running_loop()
     stream_done = loop.create_future()
     chunks: list[bytes] = []
+    request_anchor = (anchor or datetime.now()).replace(second=0, microsecond=0)
 
     def maybe_finish() -> None:
         if chunks and not stream_done.done():
@@ -1007,14 +1008,14 @@ async def _read_day_stream_on_client(
         progress,
         DayHistoryProgress(phase="receiving", message="Syncing device clock…"),
     )
-    sync_cmd = _make_datetime_sync_cmd()
+    sync_cmd = _make_datetime_sync_cmd(request_anchor)
     debug_write(f"ble: day stream datetime sync {sync_cmd.hex()}")
     await client.write_gatt_char(write_char, sync_cmd, response=False)
     await asyncio.sleep(DATETIME_SYNC_DELAY)
 
     await client.start_notify(read_char, handler)
     try:
-        history_cmds = _make_stream_history_cmds(record_count, anchor or datetime.now())
+        history_cmds = _make_stream_history_cmds(record_count, request_anchor)
         await _emit_day_progress(
             progress,
             DayHistoryProgress(
@@ -1063,11 +1064,11 @@ async def _read_day_stream_on_client(
     finally:
         await client.stop_notify(read_char)
 
-    fetch_time = datetime.now().replace(second=0, microsecond=0)
     pairs = _decode_stream_history_chunks(chunks)
-    readings = _stream_history_to_readings(pairs, fetch_time)
+    readings = _stream_history_to_readings(pairs, request_anchor)
     debug_write(
-        f"ble: day stream decoded {len(readings)} sample(s) from {len(chunks)} chunk(s)"
+        f"ble: day stream decoded {len(readings)} sample(s) from {len(chunks)} chunk(s) "
+        f"ending {request_anchor.isoformat()}"
     )
     return readings
 
@@ -1470,11 +1471,11 @@ async def read_day_history(
         got = len(chunk)
         for reading in chunk:
             merged[reading.timestamp] = reading
-        remaining -= got
         if got < chunk_count:
             break
         oldest = min(reading.timestamp for reading in chunk)
         anchor = oldest - timedelta(minutes=1)
+        remaining -= chunk_count
         chunk_index += 1
 
     return sorted(merged.values(), key=lambda item: item.timestamp)

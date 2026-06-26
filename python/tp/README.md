@@ -1,6 +1,6 @@
 # TemPy — ThermoPro TP35x Monitor
 
-**Version 1.7.0**
+**Version 1.8**
 
 Cross-platform Python TUI (**TemPy**) for ThermoPro TP357/TP358/TP359 Bluetooth hygrometer/thermometer units.
 
@@ -132,7 +132,7 @@ The view filter (`-f`) only affects which devices are shown; column layout appli
 
 ## BLE history fetch
 
-TemPy can pull minute-resolution history stored on the sensor over BLE (up to **1 year** per fetch, in 65535-record BLE chunks).
+TemPy can pull minute-resolution history stored on the sensor over BLE (up to **1 year** per fetch, in **7-day** BLE chunks).
 
 | How | Action |
 |-----|--------|
@@ -242,7 +242,7 @@ TemPy’s BLE protocol work builds on [pasky/tp357](https://github.com/pasky/tp3
 
 ## Changelog
 
-- **v1.8.0** — **History fetch** renamed from 72H fetch (**H**); manual fetch requests up to **1 year** of minute records (65535-record BLE chunks); startup bootstrap still pulls 72H.
+- **v1.8** — **History fetch** renamed (**H** → History Fetch); manual fetch up to **1 year** in 7-day BLE chunks; BLE queue notice when poll holds the radio; improved fetch progress UI.
 - **v1.7.0** — **Log export to web** (main menu **5**, Options **E**): self-contained `tp_export.html` with device/timeframe controls and ECharts dual-axis chart.
 - **v1.6.0** — Incremental minute-history polling (default); Options **P** poll-mode toggle; 72H BLE fetch/bootstrap; dashboard **T** sparkline window rotation; default log `tp_log.csv`; log rename on filename change with overwrite prompt; 72h log preload.
 - **v1.5.0** — Faster live reads; colored fetch-step arrows; automatic history bootstrap on startup when logging is off; Bluetooth auto-recovery when the radio is off; quicker reconnects between polls.

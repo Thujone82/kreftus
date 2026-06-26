@@ -11,6 +11,7 @@ from pathlib import Path
 
 from tp.config import AppConfig, application_dir, normalize_mac, resolved_log_path
 from tp.history import (
+    CSV_HEADER,
     LOG_TIMESTAMP_FORMAT,
     Reading,
     filter_false_sentinel_runs,
@@ -18,6 +19,8 @@ from tp.history import (
 
 EXPORT_HTML_NAME = "tp_export.html"
 DATA_PLACEHOLDER = "__EXPORT_DATA__"
+CAN_EXPORT_TAIL_BYTES = 512 * 1024
+CAN_EXPORT_SMALL_FILE_BYTES = 512 * 1024
 
 
 @dataclass(frozen=True)
@@ -76,6 +79,97 @@ def load_log_rows_for_export(config: AppConfig) -> list[ExportRow]:
     except OSError:
         return []
     return rows
+
+
+def _row_dict_from_log_line(line: str) -> dict[str, str] | None:
+    if not line.strip():
+        return None
+    try:
+        values = next(csv.reader([line]))
+    except csv.Error:
+        return None
+    if not values or values[0] == "timestamp":
+        return None
+    if len(values) < len(CSV_HEADER):
+        return None
+    return {name: values[index] for index, name in enumerate(CSV_HEADER)}
+
+
+def _readings_from_log_row_dicts(
+    row_dicts: list[dict[str, str]],
+    *,
+    managed: dict[str, str],
+) -> list[ExportRow]:
+    rows: list[ExportRow] = []
+    for row in row_dicts:
+        mac_raw = row.get("mac", "")
+        if not mac_raw:
+            continue
+        mac = normalize_mac(mac_raw)
+        if mac not in managed:
+            continue
+        ts_raw = row.get("timestamp", "").strip()
+        if not ts_raw:
+            continue
+        try:
+            timestamp = datetime.strptime(ts_raw, LOG_TIMESTAMP_FORMAT)
+        except ValueError:
+            continue
+        try:
+            temp_f = float(row["temp_f"])
+            humidity_pct = int(float(row["humidity_pct"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        rows.append(
+            ExportRow(
+                timestamp=timestamp,
+                device_name=row.get("device", managed[mac]).strip() or managed[mac],
+                temp_f=temp_f,
+                humidity_pct=humidity_pct,
+                mac=mac,
+            )
+        )
+    return rows
+
+
+def _read_log_tail_row_dicts(log_path: Path, *, tail_bytes: int) -> list[dict[str, str]]:
+    try:
+        size = log_path.stat().st_size
+    except OSError:
+        return []
+    if size <= 0:
+        return []
+
+    read_start = max(0, size - tail_bytes)
+    try:
+        with log_path.open("rb") as handle:
+            handle.seek(read_start)
+            if read_start > 0:
+                handle.readline()
+            chunk = handle.read()
+    except OSError:
+        return []
+
+    rows: list[dict[str, str]] = []
+    for line in chunk.decode("utf-8", errors="replace").splitlines():
+        row_dict = _row_dict_from_log_line(line)
+        if row_dict is not None:
+            rows.append(row_dict)
+    return rows
+
+
+def _exportable_rows_from_export_rows(rows: list[ExportRow], config: AppConfig) -> bool:
+    for mac in config.devices:
+        normalized = normalize_mac(mac)
+        readings = _readings_for_mac(rows, normalized)
+        if not readings:
+            continue
+        filtered = filter_false_sentinel_runs(
+            sorted(readings, key=lambda item: item.timestamp)
+        )
+        if filtered:
+            return True
+    return False
 
 
 def _readings_for_mac(rows: list[ExportRow], mac: str) -> list[Reading]:
@@ -165,6 +259,40 @@ def render_log_export_html(payload: dict[str, object]) -> str:
 
 def default_export_path() -> Path:
     return application_dir() / EXPORT_HTML_NAME
+
+
+def can_export_log(config: AppConfig) -> bool:
+    """True when ``export_log_to_html`` would produce a report."""
+    if not config.devices:
+        return False
+    log_path = resolved_log_path(config)
+    if not log_path.is_file():
+        return False
+    try:
+        file_size = log_path.stat().st_size
+    except OSError:
+        return False
+    if file_size < 40:
+        return False
+
+    managed = {normalize_mac(mac): name for mac, name in config.devices.items()}
+    if file_size <= CAN_EXPORT_SMALL_FILE_BYTES:
+        return _exportable_rows_from_export_rows(
+            load_log_rows_for_export(config),
+            config,
+        )
+
+    tail_rows = _readings_from_log_row_dicts(
+        _read_log_tail_row_dicts(log_path, tail_bytes=CAN_EXPORT_TAIL_BYTES),
+        managed=managed,
+    )
+    if _exportable_rows_from_export_rows(tail_rows, config):
+        return True
+
+    if tail_rows and any(row.mac in managed for row in tail_rows):
+        return False
+
+    return False
 
 
 def export_log_to_html(config: AppConfig) -> tuple[Path | None, str | None]:

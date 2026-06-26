@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TemPy Log Export</title>
+  <title>🌡 TemPy Log Export</title>
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" crossorigin="anonymous"></script>
   <style>
     :root {
@@ -93,6 +93,20 @@
       border-color: var(--accent-temp);
       color: #fff;
     }
+    .zoom-hint {
+      display: none;
+      flex: 1 1 100%;
+      margin: 0;
+      padding: 0.55rem 0.75rem;
+      border-radius: 8px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e40af;
+      font-size: 0.88rem;
+    }
+    .zoom-hint.visible {
+      display: block;
+    }
     .stats {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -121,7 +135,7 @@
     .stat-card.humidity .value { color: var(--accent-humidity); }
     #chart {
       width: 100%;
-      height: 460px;
+      height: 520px;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 10px;
@@ -146,7 +160,7 @@
 <body>
   <div class="page">
     <header>
-      <h1>TemPy Log Export</h1>
+      <h1>🌡 TemPy Log Export</h1>
       <div class="meta" id="meta"></div>
     </header>
 
@@ -165,6 +179,11 @@
           <button type="button" data-hours="all">All</button>
         </div>
       </div>
+      <p class="zoom-hint" id="zoom-hint">
+        Large dataset — use the <strong>marquee zoom</strong> tool (chart toolbar, top-right)
+        to drag-select a time range, scroll to zoom, or drag the range slider below the chart.
+        Click <strong>restore</strong> to reset the view.
+      </p>
     </div>
 
     <div class="stats" id="stats"></div>
@@ -180,6 +199,8 @@
     const statsEl = document.getElementById("stats");
     const emptyEl = document.getElementById("empty");
     const metaEl = document.getElementById("meta");
+    const zoomHintEl = document.getElementById("zoom-hint");
+    const LARGE_DATASET_THRESHOLD = 3000;
     let activeHours = 24;
     let chart = null;
 
@@ -209,8 +230,18 @@
       });
     }
 
-    function formatStat(value, suffix) {
-      return value == null ? "—" : `${value}${suffix}`;
+    function minMax(points, key) {
+      if (!points.length) {
+        return [null, null];
+      }
+      let min = points[0][key];
+      let max = points[0][key];
+      for (let index = 1; index < points.length; index += 1) {
+        const value = points[index][key];
+        if (value < min) min = value;
+        if (value > max) max = value;
+      }
+      return [min, max];
     }
 
     function updateStats(points) {
@@ -218,31 +249,94 @@
         statsEl.innerHTML = "";
         return;
       }
-      const temps = points.map((p) => p.temp_f);
-      const humids = points.map((p) => p.humidity_pct);
+      const [tempMin, tempMax] = minMax(points, "temp_f");
+      const [humidMin, humidMax] = minMax(points, "humidity_pct");
       const current = points[points.length - 1];
       const cards = [
         { label: "Temp now", value: `${current.temp_f.toFixed(1)}°F`, cls: "temp" },
-        { label: "Temp min", value: `${Math.min(...temps).toFixed(1)}°F`, cls: "temp" },
-        { label: "Temp max", value: `${Math.max(...temps).toFixed(1)}°F`, cls: "temp" },
+        { label: "Temp min", value: `${tempMin.toFixed(1)}°F`, cls: "temp" },
+        { label: "Temp max", value: `${tempMax.toFixed(1)}°F`, cls: "temp" },
         { label: "Humidity now", value: `${current.humidity_pct}%`, cls: "humidity" },
-        { label: "Humidity min", value: `${Math.min(...humids)}%`, cls: "humidity" },
-        { label: "Humidity max", value: `${Math.max(...humids)}%`, cls: "humidity" },
+        { label: "Humidity min", value: `${humidMin}%`, cls: "humidity" },
+        { label: "Humidity max", value: `${humidMax}%`, cls: "humidity" },
       ];
       statsEl.innerHTML = cards.map((card) =>
         `<div class="stat-card ${card.cls}"><div class="label">${card.label}</div><div class="value">${card.value}</div></div>`
       ).join("");
     }
 
-    function chartOption(points) {
-      const labels = points.map((p) => p.t.replace("T", " "));
-      const temps = points.map((p) => p.temp_f);
-      const humids = points.map((p) => p.humidity_pct);
+    function seriesStyle(name, color, yAxisIndex, areaAlpha) {
       return {
-        animationDuration: 350,
+        name,
+        type: "line",
+        smooth: false,
+        showSymbol: false,
+        yAxisIndex,
+        lineStyle: { width: 1.5, color },
+        itemStyle: { color },
+        large: true,
+        largeThreshold: 500,
+        sampling: "lttb",
+        progressive: 4000,
+        progressiveThreshold: 8000,
+        areaStyle: areaAlpha
+          ? {
+              color: {
+                type: "linear",
+                x: 0, y: 0, x2: 0, y2: 1,
+                colorStops: [
+                  { offset: 0, color: `rgba(${areaAlpha}, 0.16)` },
+                  { offset: 1, color: `rgba(${areaAlpha}, 0.02)` },
+                ],
+              },
+            }
+          : undefined,
+      };
+    }
+
+    function chartOption(points) {
+      const isLarge = points.length >= LARGE_DATASET_THRESHOLD;
+      const tempData = points.map((p) => [parsePointTime(p).getTime(), p.temp_f]);
+      const humidData = points.map((p) => [parsePointTime(p).getTime(), p.humidity_pct]);
+      const dataZoom = [
+        {
+          type: "inside",
+          xAxisIndex: 0,
+          filterMode: "filter",
+          zoomOnMouseWheel: true,
+          moveOnMouseMove: true,
+          moveOnMouseWheel: false,
+        },
+      ];
+      if (isLarge || activeHours === "all") {
+        dataZoom.push({
+          type: "slider",
+          xAxisIndex: 0,
+          filterMode: "filter",
+          height: 22,
+          bottom: 8,
+          handleSize: "110%",
+          brushSelect: true,
+        });
+      }
+      return {
+        animation: points.length < 2000,
+        animationDuration: 250,
         tooltip: {
           trigger: "axis",
           axisPointer: { type: "cross" },
+          valueFormatter: (value) => (value == null ? "—" : value),
+        },
+        toolbox: {
+          right: 12,
+          top: 4,
+          feature: {
+            dataZoom: {
+              yAxisIndex: "none",
+              title: { zoom: "Marquee zoom", back: "Undo zoom" },
+            },
+            restore: { title: "Reset view" },
+          },
         },
         legend: {
           data: ["Temperature °F", "Humidity %"],
@@ -252,15 +346,22 @@
           left: 56,
           right: 56,
           top: 48,
-          bottom: 56,
+          bottom: isLarge || activeHours === "all" ? 72 : 56,
         },
+        dataZoom,
         xAxis: {
-          type: "category",
-          data: labels,
+          type: "time",
           boundaryGap: false,
           axisLabel: {
             hideOverlap: true,
-            formatter: (value) => value.slice(5, 16),
+            formatter: (value) => {
+              const date = new Date(value);
+              const month = String(date.getMonth() + 1).padStart(2, "0");
+              const day = String(date.getDate()).padStart(2, "0");
+              const hours = String(date.getHours()).padStart(2, "0");
+              const minutes = String(date.getMinutes()).padStart(2, "0");
+              return `${month}-${day} ${hours}:${minutes}`;
+            },
           },
         },
         yAxis: [
@@ -268,6 +369,7 @@
             type: "value",
             name: "°F",
             position: "left",
+            scale: true,
             axisLine: { show: true, lineStyle: { color: "#2563eb" } },
             axisLabel: { formatter: "{value}" },
           },
@@ -282,44 +384,26 @@
           },
         ],
         series: [
-          {
-            name: "Temperature °F",
-            type: "line",
-            smooth: true,
-            showSymbol: false,
-            yAxisIndex: 0,
-            lineStyle: { width: 2, color: "#2563eb" },
-            itemStyle: { color: "#2563eb" },
-            areaStyle: {
-              color: {
-                type: "linear",
-                x: 0, y: 0, x2: 0, y2: 1,
-                colorStops: [
-                  { offset: 0, color: "rgba(37, 99, 235, 0.18)" },
-                  { offset: 1, color: "rgba(37, 99, 235, 0.02)" },
-                ],
-              },
-            },
-            data: temps,
-          },
-          {
-            name: "Humidity %",
-            type: "line",
-            smooth: true,
-            showSymbol: false,
-            yAxisIndex: 1,
-            lineStyle: { width: 2, color: "#0d9488" },
-            itemStyle: { color: "#0d9488" },
-            data: humids,
-          },
+          Object.assign(seriesStyle("Temperature °F", "#2563eb", 0, "37, 99, 235"), {
+            data: tempData,
+          }),
+          Object.assign(seriesStyle("Humidity %", "#0d9488", 1, null), {
+            data: humidData,
+          }),
         ],
       };
+    }
+
+    function updateZoomHint(points) {
+      const show = activeHours === "all" || points.length >= LARGE_DATASET_THRESHOLD;
+      zoomHintEl.classList.toggle("visible", show);
     }
 
     function renderChart() {
       const mac = deviceSelect.value;
       const points = filterPoints(mac);
       updateStats(points);
+      updateZoomHint(points);
       if (!points.length) {
         emptyEl.style.display = "block";
         if (chart) {

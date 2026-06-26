@@ -21,6 +21,7 @@ from tp.ble_radio import (
 from tp.history import DeviceHistory, load_readings_from_log
 from tp.ui.bluetooth_prompt import BluetoothPermissionModal
 from tp.ui.devices import DeviceHistoryFetchModal, DevicesScreen
+from tp.ui.log_load import LogLoadScreen, should_show_log_preload
 from tp.ui.menus import MainMenuScreen
 from tp.ui.monitoring import MonitoringScreen
 from tp.ui.options import OptionsScreen
@@ -89,6 +90,9 @@ class TPApp(App):
     #monitor-scroll {
         padding: 1 2;
     }
+    #log-load-container {
+        padding: 2 2;
+    }
     #monitor-footer, #devices-footer {
         dock: bottom;
         padding: 0 2;
@@ -119,19 +123,33 @@ class TPApp(App):
         self.debug_enabled = debug_enabled
         self.poll_enabled = poll_enabled
         self.device_filter = device_filter
+        self.log_export_in_progress = False
+        self.log_preloaded = False
         if debug_enabled:
             set_debug_enabled(self.config, True)
-        load_readings_from_log(self.history, self.config)
+
+    def enter_main_screens(self) -> None:
+        """Open the normal menu/monitoring stack after startup log preload."""
+        if not self.log_preloaded:
+            load_readings_from_log(self.history, self.config)
+            self.log_preloaded = True
+        if not any(isinstance(screen, MainMenuScreen) for screen in self.screen_stack):
+            self.push_screen("main")
+        if self.config.devices:
+            if not any(isinstance(screen, MonitoringScreen) for screen in self.screen_stack):
+                self.push_screen("monitoring")
+            self.switch_screen("monitoring")
+            self.refresh_monitoring()
+        elif not any(isinstance(screen, DevicesScreen) for screen in self.screen_stack):
+            self.push_screen("devices")
 
     def on_mount(self) -> None:
         self.console.set_window_title(WINDOW_TITLE)
         set_bluetooth_permission_callback(self._ask_bluetooth_permission)
-        self.push_screen("main")
-        if self.config.devices:
-            self.push_screen("monitoring")
-            self.refresh_monitoring()
+        if should_show_log_preload(self.config):
+            self.push_screen(LogLoadScreen())
         else:
-            self.push_screen("devices")
+            self.enter_main_screens()
 
     async def _ask_bluetooth_permission(
         self,
