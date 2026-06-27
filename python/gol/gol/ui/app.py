@@ -38,6 +38,7 @@ class GolApp:
 
         self.game = GameOfLife(mode)
         self.running_sim = False
+        self.show_stats = True
         self.debug = debug
         self.saved: Snapshot | None = None
         self.border_hue = 0.0
@@ -424,6 +425,8 @@ class GolApp:
             pygame.draw.rect(surface, color, rect)
 
     def _draw_overlays(self, surface: pygame.Surface, canvas: pygame.Rect) -> None:
+        if not self.show_stats:
+            return
         pop = self.font.render(f"Pop: {self.game.population}", True, controls.TEXT)
         step = self.font.render(f"Step: {self.game.generation}", True, controls.TEXT)
         surface.blit(pop, (canvas.x + 8, canvas.y + 8))
@@ -495,6 +498,9 @@ class GolApp:
                 return True
             if event.key == pygame.K_r:
                 self._reset()
+                return True
+            if event.key == pygame.K_p:
+                self.show_stats = not self.show_stats
                 return True
             if event.key in (pygame.K_PLUS, pygame.K_EQUALS):
                 if not self._wrapped_run_locked():

@@ -7,8 +7,10 @@ import unittest
 from gol.engine import Cell
 from gol.ui.tui.render import (
     build_grid_markup,
+    corner_counter_markup,
     population_centroid,
     sim_delay_seconds,
+    stats_bar_markup,
     terminal_grid_dims,
     viewport_topleft,
     window_title,
@@ -55,8 +57,20 @@ class TestTuiRender(unittest.TestCase):
     def test_window_title(self) -> None:
         self.assertIn("Pop:5", window_title(10, 5, running=True))
         self.assertIn("⏸", window_title(0, 0, running=False))
-        self.assertIn("Follow:on", window_title(0, 0, running=False, infinite=True))
-        self.assertIn("Follow:off", window_title(0, 0, running=False, infinite=True, auto_follow=False))
+        self.assertIn("Follow:off", window_title(0, 0, running=False, infinite=True))
+        self.assertIn("Follow:on", window_title(0, 0, running=False, infinite=True, auto_follow=True))
+        self.assertNotIn("Pop:", window_title(10, 5, running=True, show_corner_stats=True))
+        self.assertIn("Step:", window_title(10, 5, running=False, show_corner_stats=False))
+
+    def test_corner_counter_markup(self) -> None:
+        self.assertEqual(corner_counter_markup("Pop", 42), "[bold]Pop: 42[/]")
+
+    def test_stats_bar_markup(self) -> None:
+        markup = stats_bar_markup(12, 505, 80)
+        self.assertIn("[bold on black]Pop: 12[/]", markup)
+        self.assertIn("[bold on black]Step: 505[/]", markup)
+        plain = markup.replace("[bold on black]", "").replace("[/]", "")
+        self.assertGreaterEqual(len(plain), 80)
 
 
 if __name__ == "__main__":

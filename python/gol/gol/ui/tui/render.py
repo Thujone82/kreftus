@@ -94,16 +94,33 @@ def build_grid_markup(
     return "\n".join(lines)
 
 
+def corner_counter_markup(label: str, value: int) -> str:
+    """Rich markup for a single corner stat label."""
+    return f"[bold]{label}: {value}[/]"
+
+
+def stats_bar_markup(population: int, generation: int, width: int) -> str:
+    """One-line overlay with Pop left and Step right; only text blocks the grid."""
+    left = f"Pop: {population}"
+    right = f"Step: {generation}"
+    pad = max(1, width - len(left) - len(right))
+    styled = "[bold on black]"
+    return f"{styled}{left}[/]{' ' * pad}{styled}{right}[/]"
+
+
 def window_title(
     generation: int,
     population: int,
     *,
     running: bool,
     infinite: bool = False,
-    auto_follow: bool = True,
+    auto_follow: bool = False,
+    show_corner_stats: bool = False,
 ) -> str:
     state = "▶" if running else "⏸"
-    title = f"GoLPy {state}  Pop:{population}  Step:{generation}"
+    title = f"GoLPy {state}"
+    if not show_corner_stats:
+        title += f"  Pop:{population}  Step:{generation}"
     if infinite:
         follow = "on" if auto_follow else "off"
         title += f"  Follow:{follow}"

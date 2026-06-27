@@ -52,6 +52,7 @@ python gol.py -tui --mode infinite --pattern glider
 | Mode | Toolbar **Wrapped** / **Infinite** toggle |
 | Save / Restore | **M+** / **MR** (in-memory snapshot) |
 | Speed | Toolbar speed slider |
+| Pop / Step counters | **P** toggle corner overlay (on by default) |
 
 ### Terminal UI (`-tui`)
 
@@ -68,12 +69,13 @@ Launches a Textual setup screen (mode, pattern, speed), then uses the full termi
 | Step | **N** |
 | Reset | **R** |
 | Quit simulation | **Q** (returns to setup) |
-| Pan (infinite) | Arrows or **HJKL** (paused, or while running if follow off) |
+| Pan (infinite) | Arrows or **WASD** (paused, or while running if follow off) |
 | Toggle follow (infinite) | **F** |
 | Speed (simulation) | **+** / **-** |
+| Pop / Step counters | **P** toggle corner overlay (on by default) |
 | Controls overview | **C** (setup or simulation) |
 
-Wrapped mode uses the terminal size as the toroidal grid. Infinite mode auto-follows the population while running; press **F** to toggle follow.
+Wrapped mode uses the terminal size as the toroidal grid. Infinite mode can auto-follow the population while running; press **F** to toggle follow (off by default).
 
 Run `python gol.py --help` for pygame and TUI key reference, or `python gol_tui.py --help` / `gol-tui.exe --help` for terminal-only help.
 

@@ -19,10 +19,11 @@ TUI_PLAY_CONTROLS_MARKUP = """[bold]Simulation[/]
   [cyan]Q[/]         Back to setup
   [cyan]+[/] / [cyan]-[/]     Speed (10–200)
   [cyan]C[/]         Show controls (this help)
+  [cyan]P[/]         Toggle Pop/Step corner counters
 
 [bold]Infinite mode[/]
   [cyan]F[/]         Toggle auto-follow population (on/off)
-  [cyan]↑↓←→[/] or [cyan]HJKL[/]  Pan viewport (paused, or while running if follow off)
+  [cyan]↑↓←→[/] or [cyan]WASD[/]  Pan viewport (paused, or while running if follow off)
 
 [dim]Wrapped mode uses the full terminal as a toroidal grid.
 Infinite mode follows the population while running when follow is on.[/]"""
@@ -38,6 +39,7 @@ pygame GUI (default):
   Space        Play / Pause
   N            Step
   R            Reset
+  P            Toggle Pop/Step corner counters
   Click        Toggle cell
   Drag         Pan (infinite always; wrapped when paused)
   +/- / wheel  Zoom (wrapped when paused only)
@@ -65,11 +67,12 @@ Terminal UI (-tui or gol-tui.exe):
     Q              Back to setup
     + / -          Speed
     C              Controls overview
+    P              Toggle Pop/Step corner counters
     F              Toggle population follow (infinite mode)
-    Arrows / HJKL  Pan (infinite; paused, or running with follow off)
+    Arrows / WASD  Pan (infinite; paused, or running with follow off)
 
   Wrapped: terminal size = toroidal grid.
-  Infinite: F toggles auto-follow while running (default on).
+  Infinite: F toggles auto-follow while running (default off).
 """
 
 TUI_ONLY_HELP_EPILOG = """
@@ -91,11 +94,12 @@ GoLPy terminal edition (gol-tui.exe / gol_tui.py):
     Q              Back to setup
     + / -          Speed
     C              Controls overview
+    P              Toggle Pop/Step corner counters
     F              Toggle population follow (infinite mode)
-    Arrows / HJKL  Pan (infinite; paused, or running with follow off)
+    Arrows / WASD  Pan (infinite; paused, or running with follow off)
 
   Wrapped: terminal size = toroidal grid.
-  Infinite: F toggles auto-follow while running (default on).
+  Infinite: F toggles auto-follow while running (default off).
 
   For the pygame window edition, use gol.py or gol.exe instead.
 """

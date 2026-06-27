@@ -15,6 +15,7 @@ from gol.ui.tui.render import (
     pattern_bounds,
     population_centroid,
     sim_delay_seconds,
+    stats_bar_markup,
     terminal_grid_dims,
     viewport_topleft,
     window_title,
@@ -32,25 +33,36 @@ class SimulationScreen(Screen):
         Binding("down", "pan_down", "Down", show=False),
         Binding("left", "pan_left", "Left", show=False),
         Binding("right", "pan_right", "Right", show=False),
-        Binding("k", "pan_up", "Up", show=False),
-        Binding("j", "pan_down", "Down", show=False),
-        Binding("h", "pan_left", "Left", show=False),
-        Binding("l", "pan_right", "Right", show=False),
+        Binding("w", "pan_up", "Up", show=False),
+        Binding("s", "pan_down", "Down", show=False),
+        Binding("a", "pan_left", "Left", show=False),
+        Binding("d", "pan_right", "Right", show=False),
         Binding("plus", "speed_up", "Faster", show=False),
         Binding("minus", "speed_down", "Slower", show=False),
         Binding("c", "show_controls", "Controls", show=False),
         Binding("f", "toggle_follow", "Follow", show=False),
+        Binding("p", "toggle_stats", "Stats", show=False),
     ]
 
     DEFAULT_CSS = """
     SimulationScreen {
         overflow: hidden;
+        layers: grid overlay;
     }
     #grid {
+        layer: grid;
         width: 100%;
         height: 100%;
         padding: 0;
         margin: 0;
+    }
+    #stats-bar {
+        layer: overlay;
+        dock: top;
+        width: 100%;
+        height: 1;
+        background: transparent;
+        padding: 0;
     }
     """
 
@@ -67,7 +79,8 @@ class SimulationScreen(Screen):
         self.speed = speed
         self.game = GameOfLife(mode)
         self.running = False
-        self.auto_follow = True
+        self.auto_follow = False
+        self.show_stats = True
         self.view_x = 0
         self.view_y = 0
         self._grid_cols = 1
@@ -76,6 +89,7 @@ class SimulationScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Static("", id="grid", markup=True)
+        yield Static("", id="stats-bar", markup=True)
 
     def on_mount(self) -> None:
         self._apply_terminal_size()
@@ -137,6 +151,18 @@ class SimulationScreen(Screen):
             wrapped=self.mode == "wrapped",
         )
         self.query_one("#grid", Static).update(markup)
+        stats_bar = self.query_one("#stats-bar", Static)
+        if self.show_stats:
+            stats_bar.display = True
+            stats_bar.update(
+                stats_bar_markup(
+                    self.game.population,
+                    self.game.generation,
+                    self.app.size.width,
+                )
+            )
+        else:
+            stats_bar.display = False
         self.app.console.set_window_title(
             window_title(
                 self.game.generation,
@@ -144,6 +170,7 @@ class SimulationScreen(Screen):
                 running=self.running,
                 infinite=self.mode == "infinite",
                 auto_follow=self.auto_follow,
+                show_corner_stats=self.show_stats,
             )
         )
 
@@ -173,6 +200,10 @@ class SimulationScreen(Screen):
             self._center_on_population()
         self._refresh_display()
 
+    def action_toggle_stats(self) -> None:
+        self.show_stats = not self.show_stats
+        self._refresh_display()
+
     def action_toggle_play(self) -> None:
         self.running = not self.running
         self._restart_timer()
@@ -188,7 +219,7 @@ class SimulationScreen(Screen):
 
     def action_reset(self) -> None:
         self.running = False
-        self.auto_follow = True
+        self.auto_follow = False
         self._restart_timer()
         self._load_pattern()
         self._refresh_display()
