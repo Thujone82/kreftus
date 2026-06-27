@@ -207,16 +207,17 @@
                             </p>
                             <p><b>Features:</b></p>
                             <ul>
-                                <li><b>Wrapped mode:</b> Toroidal grid sized to the window (50 cells on the shorter axis, square cells). Resize before play to change the grid shape; edges wrap like the web edition.</li>
+                                <li><b>Terminal UI:</b> <code>-tui</code> or <code>gol-tui.exe</code> — setup screen then full-terminal simulation. Press <b>C</b> for controls help.</li>
+                                <li><b>Wrapped mode:</b> Toroidal grid sized to the window (pygame) or terminal (<code>-tui</code>). Resize before play to change grid shape; edges wrap like the web edition.</li>
                                 <li><b>Infinite mode:</b> Sparse unbounded grid for spaceships, guns, and large patterns.</li>
                                 <li><b>57 patterns:</b> Gliders, oscillators, Gosper gun, methuselahs, spacefillers, and more.</li>
                                 <li><b>Playback:</b> Play/pause, single-step, reset, and adjustable speed.</li>
-                                <li><b>Navigation:</b> Pan and zoom when paused (wrapped) or anytime (infinite); click cells to toggle. Window resize and zoom are locked while a wrapped simulation is running.</li>
+                                <li><b>Navigation:</b> Pan and zoom when paused (wrapped pygame) or anytime (infinite); click cells to toggle. <code>-tui</code>: arrows/HJKL pan in infinite mode (paused, or while running with follow off via <b>F</b>).</li>
                                 <li><b>Memory:</b> M+ / MR in-memory save and restore.</li>
-                                <li><b>CLI:</b> <code>--mode</code>, <code>--pattern</code>, <code>--speed</code>, <code>-debug</code>.</li>
+                                <li><b>CLI:</b> <code>--mode</code>, <code>--pattern</code>, <code>--speed</code>, <code>-tui</code>, <code>-debug</code>. Use <code>--help</code> for key bindings (<code>gol-tui.exe --help</code> is TUI-only).</li>
                             </ul>
                             <p>
-                                Run from source with <code>python gol.py</code>, or use the standalone <code>gol.exe</code> / <code>gol.pyz</code> builds below.
+                                Run from source with <code>python gol.py</code> or <code>python gol_tui.py</code>, or use the standalone builds below.
                             </p>
 
                             <h3>Updates</h3>
@@ -226,8 +227,10 @@
 
                             <h3>Downloads</h3>
                             <p><b>Python Edition:</b> [ <a href="../python/gol/gol.pyz">pyz</a> / <a href="../python/gol/gol.exe">exe</a> / <a href="../python/gol/">py</a> ]</p>
+                            <p><b>Terminal Edition (TUI only):</b> <a href="../python/gol/gol-tui.exe">gol-tui.exe</a></p>
                             <p class="readme-link">↳ <a href="../python/gol/README.html">README</a></p>
-                            <p class="readme-link">↳ <b>py</b> links the source tree — copy the folder, then <code>pip install -r requirements.txt</code> and run <code>python gol.py</code>. <b>pyz</b> needs pygame-ce installed separately.</p>
+                            <p class="readme-link">↳ <b>py</b> links the source tree — copy the folder, then <code>pip install -r requirements.txt</code> and run <code>python gol.py</code> or <code>python gol_tui.py</code>. <b>pyz</b> needs pygame-ce and textual installed.</p>
+                            <p class="readme-link">↳ <b>exe</b> is the pygame window edition. <b>gol-tui.exe</b> is terminal-only (Textual; no pygame window).</p>
                             <p class="readme-link">↳ <b>Web edition:</b> <a href="../gol/">gol/</a></p>
                         </div>
                     </td>

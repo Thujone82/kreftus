@@ -23,8 +23,9 @@
 - **Infinite mode:** Candidate set from live cells ±1
 - **Patterns:** `gol/patterns.json` bundled via `importlib.resources`; `extract_patterns.py` regenerates from `gol/index.html`
 - **UI:** `gol/ui/app.py` main loop; `gol/ui/controls.py` toolbar, sliders, pattern overlay
-- **CLI:** `--mode`, `--pattern`, `--speed`, `-debug`
-- **Build:** `build.ps1` → `gol.pyz` + `gol.exe`; `.exe` icon from `build/icon-32.ico`, window icon from `build/32x32.png`
+- **CLI:** `--mode`, `--pattern`, `--speed`, `-tui`, `-debug`
+- **TUI:** `gol/ui/tui/` — Textual setup + full-terminal simulation (`-tui`)
+- **Build:** `build.ps1` → `gol.pyz` + `gol.exe` (pygame) + `gol-tui.exe` (textual only); icons from `build/icon-32.ico`, `build/32x32.png`
 
 ---
 
@@ -37,8 +38,13 @@
 | `gol/patterns.py` | Load JSON, `center_pattern()`, `wrapped_grid_layout()` |
 | `gol/patterns.json` | 57 patterns with labels |
 | `gol/colors.py` | HSL cell aging |
-| `gol/config.py` | `application_dir()` |
+| `gol/help_text.py` | Shared `--help` epilog and TUI control reference text |
 | `gol/ui/app.py` | pygame window, render, input |
+| `gol/ui/tui/app.py` | Textual app root, `run_tui()` |
+| `gol/ui/tui/setup.py` | Mode/pattern/speed setup screen |
+| `gol/ui/tui/sim.py` | Full-terminal simulation screen |
+| `gol/ui/tui/render.py` | Grid markup, viewport helpers |
+| `gol/ui/tui/controls_modal.py` | Simulation controls popup (C) |
 | `gol/ui/controls.py` | Buttons, sliders, pattern picker |
 | `extract_patterns.py` | Dev helper: HTML → JSON |
 
@@ -75,15 +81,17 @@ Coordinates are relative to pattern bounding box top-left, matching web `P` obje
 Run from `python/gol/`:
 
 ```powershell
-./build.ps1           # both
+./build.ps1              # gol.pyz, gol.exe, gol-tui.exe
 ./build.ps1 -pyz
-./build.ps1 -exe
+./build.ps1 -exe         # GUI only
+./build.ps1 -tui         # TUI only
 ./build.ps1 -exe -upx
 ```
 
-- **zipapp:** `gol.py` → `build/zipapp/__main__.py` + `gol/` package
+- **zipapp:** `gol.py` → `build/zipapp/__main__.py` + `gol/` package + `gol_tui.py`
 - **Icon:** `python prepare_icon.py build/icon-32.ico build/gol-embedded.ico`
-- **PyInstaller:** `--onefile --noupx --add-data gol/patterns.json;gol --hidden-import pygame --collect-submodules pygame`
+- **PyInstaller GUI:** `gol.py` → `gol.exe` with pygame (excludes textual)
+- **PyInstaller TUI:** `gol_tui.py` → `gol-tui.exe` with textual (excludes pygame)
 
 ---
 
@@ -95,7 +103,7 @@ python -m unittest discover -s tests -v
 ```
 
 - `test_engine.py` — B3/S23, blinker, glider, wrap, snapshot
-- `test_patterns.py` — JSON validity, centering
+- `test_tui_render.py` — terminal grid markup, viewport, centroid
 
 ---
 
@@ -104,6 +112,7 @@ python -m unittest discover -s tests -v
 ```
 python/gol/
   gol.py
+  gol_tui.py              # TUI-only entry (no pygame)
   gol/
     __init__.py
     engine.py
@@ -117,6 +126,12 @@ python/gol/
     ui/
       app.py
       controls.py
+      tui/
+        app.py
+        setup.py
+        sim.py
+        render.py
+        controls_modal.py
   tests/
   extract_patterns.py
   requirements.txt

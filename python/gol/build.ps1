@@ -1,28 +1,33 @@
 <#
     Build script for GoLPy (gol.py).
 
-    Produces two distributable outputs:
-      1. gol.pyz  — compressed Python zipapp (run with: python gol.pyz)
-      2. gol.exe  — standalone Windows executable (PyInstaller)
+    Produces distributable outputs:
+      1. gol.pyz      — compressed Python zipapp (run with: python gol.pyz)
+      2. gol.exe      — standalone GUI executable (PyInstaller + pygame)
+      3. gol-tui.exe  — standalone TUI executable (PyInstaller + textual, no pygame)
 
     Requires Python 3.11+ in PATH. Installs PyInstaller automatically when missing.
 
     Usage:
-      ./build.ps1           # both gol.pyz and gol.exe
-      ./build.ps1 -pyz      # gol.pyz only
-      ./build.ps1 -exe      # gol.exe only
-      ./build.ps1 -exe -upx # gol.exe with optional UPX compression
+      ./build.ps1              # gol.pyz, gol.exe, then gol-tui.exe
+      ./build.ps1 -pyz         # gol.pyz only
+      ./build.ps1 -exe         # gol.exe only
+      ./build.ps1 -tui         # gol-tui.exe only
+      ./build.ps1 -exe -upx    # gol.exe with optional UPX compression
 #>
 
 $ErrorActionPreference = "Stop"
 
 $buildPyz = $args -contains '-pyz'
-$buildExe = $args -contains '-exe'
+$buildGuiExe = $args -contains '-exe'
+$buildTuiExe = $args -contains '-tui'
 $useUpx = $args -contains '-upx'
+$explicitTarget = $buildPyz -or $buildGuiExe -or $buildTuiExe
 
-if (-not $buildPyz -and -not $buildExe) {
+if (-not $explicitTarget) {
     $buildPyz = $true
-    $buildExe = $true
+    $buildGuiExe = $true
+    $buildTuiExe = $true
 }
 
 Write-Host "Starting build process for gol..." -ForegroundColor Cyan
@@ -47,8 +52,14 @@ $cleanupPaths = @()
 if ($buildPyz) {
     $cleanupPaths += ".\gol.pyz", "$buildRoot\zipapp"
 }
-if ($buildExe) {
-    $cleanupPaths += ".\gol.exe", $preparedIconPath, "$buildRoot\pyinstaller"
+if ($buildGuiExe) {
+    $cleanupPaths += ".\gol.exe", "$buildRoot\pyinstaller-gui"
+}
+if ($buildTuiExe) {
+    $cleanupPaths += ".\gol-tui.exe", "$buildRoot\pyinstaller-tui"
+}
+if ($buildGuiExe -or $buildTuiExe) {
+    $cleanupPaths += $preparedIconPath
 }
 foreach ($path in $cleanupPaths) {
     if (Test-Path $path) {
@@ -78,6 +89,7 @@ if ($buildPyz) {
     New-Item -Path $zipappDir -ItemType Directory -Force | Out-Null
 
     Copy-Item -Path ".\gol.py" -Destination (Join-Path $zipappDir "__main__.py")
+    Copy-Item -Path ".\gol_tui.py" -Destination (Join-Path $zipappDir "gol_tui.py") -Force
     Copy-Item -Path ".\gol" -Destination (Join-Path $zipappDir "gol") -Recurse -Force
 
     Get-ChildItem -Path $zipappDir -Recurse -Directory -Filter "__pycache__" -ErrorAction SilentlyContinue |
@@ -99,7 +111,7 @@ if ($buildPyz) {
     Write-Host "  Run with: python gol.pyz" -ForegroundColor DarkGray
 }
 
-if (-not $buildExe) {
+if (-not $buildGuiExe -and -not $buildTuiExe) {
     exit 0
 }
 
@@ -114,7 +126,6 @@ if ($LASTEXITCODE -ne 0) {
     }
 }
 
-Write-Host "gol.py -> gol.exe..." -ForegroundColor Cyan
 if (-not (Test-Path $iconPath)) {
     Write-Error "Icon not found: $iconPath"
     exit 1
@@ -129,61 +140,96 @@ if ($LASTEXITCODE -ne 0) {
 $iconFile = (Resolve-Path $preparedIconPath).Path
 $patternsJson = (Resolve-Path ".\gol\patterns.json").Path
 
-$pyInstallerArgs = @(
-    "--onefile",
-    "--name", "gol",
-    "--icon", $iconFile,
-    "--clean",
-    "--noconfirm",
-    "--noupx",
-    "--distpath", ".",
-    "--workpath", "$buildRoot\pyinstaller",
-    "--specpath", "$buildRoot\pyinstaller",
-    "--hidden-import", "pygame",
-    "--collect-submodules", "pygame"
-)
-foreach ($dataSpec in @("$patternsJson;gol")) {
-    $pyInstallerArgs += "--add-data", $dataSpec
-}
-if (Test-Path $iconPngAsset) {
-    $pyInstallerArgs += "--add-data", "$(Resolve-Path $iconPngAsset);gol/assets"
-}
-$pyInstallerArgs += "gol.py"
+function Invoke-GolPyInstaller {
+    param(
+        [string]$ExeName,
+        [string]$EntryScript,
+        [string]$WorkSubdir,
+        [string[]]$HiddenImports,
+        [string[]]$CollectSubmodules,
+        [string[]]$ExcludeModules = @(),
+        [switch]$IncludeIconAsset
+    )
 
-python -m PyInstaller @pyInstallerArgs
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "PyInstaller build failed."
-    exit 1
-}
-
-if (-not (Test-Path ".\gol.exe")) {
-    Write-Error "PyInstaller finished but gol.exe was not created."
-    exit 1
-}
-
-if ($useUpx) {
-    $upxCmd = Get-Command upx -ErrorAction SilentlyContinue
-    if ($upxCmd -and $upxCmd.Path) {
-        Write-Host "Compressing gol.exe with UPX (--best --lzma)..." -ForegroundColor Yellow
-        & $upxCmd.Path --best --lzma ".\gol.exe"
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "UPX compression failed."
-            exit 1
-        }
-        Write-Host "Re-applying icon after UPX..." -ForegroundColor DarkGray
-        python prepare_icon.py reapply ".\gol.exe" $preparedIconPath
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to re-apply icon after UPX."
-            exit 1
-        }
-        Write-Host "UPX compression completed." -ForegroundColor Green
-    } else {
-        Write-Host "-upx specified but UPX not found in PATH. Skipping compression." -ForegroundColor DarkGray
+    if (-not $ExeName -or -not $EntryScript) {
+        Write-Error "Invoke-GolPyInstaller requires ExeName and EntryScript."
+        exit 1
     }
-} else {
-    Write-Host "UPX compression disabled by default. Pass -upx to enable." -ForegroundColor DarkGray
+
+    Write-Host "$EntryScript -> $ExeName..." -ForegroundColor Cyan
+
+    $pyInstallerArgs = @(
+        "--onefile",
+        "--name", $ExeName,
+        "--icon", $iconFile,
+        "--clean",
+        "--noconfirm",
+        "--noupx",
+        "--distpath", ".",
+        "--workpath", (Join-Path $buildRoot $WorkSubdir),
+        "--specpath", (Join-Path $buildRoot $WorkSubdir)
+    )
+    foreach ($module in $HiddenImports) {
+        $pyInstallerArgs += "--hidden-import", $module
+    }
+    foreach ($module in $CollectSubmodules) {
+        $pyInstallerArgs += "--collect-submodules", $module
+    }
+    foreach ($module in $ExcludeModules) {
+        $pyInstallerArgs += "--exclude-module", $module
+    }
+    $pyInstallerArgs += "--add-data", "$patternsJson;gol"
+    if ($IncludeIconAsset -and (Test-Path $iconPngAsset)) {
+        $pyInstallerArgs += "--add-data", "$(Resolve-Path $iconPngAsset);gol/assets"
+    }
+    $pyInstallerArgs += $EntryScript
+
+    python -m PyInstaller @pyInstallerArgs
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "PyInstaller build failed for $ExeName."
+        exit 1
+    }
+
+    $outputPath = Join-Path "." "$ExeName.exe"
+    if (-not (Test-Path $outputPath)) {
+        Write-Error "PyInstaller finished but $outputPath was not created."
+        exit 1
+    }
+
+    if ($useUpx -and $ExeName -eq "gol") {
+        $upxCmd = Get-Command upx -ErrorAction SilentlyContinue
+        if ($upxCmd -and $upxCmd.Path) {
+            Write-Host "Compressing $ExeName.exe with UPX (--best --lzma)..." -ForegroundColor Yellow
+            & $upxCmd.Path --best --lzma $outputPath
+            if ($LASTEXITCODE -ne 0) {
+                Write-Error "UPX compression failed."
+                exit 1
+            }
+            Write-Host "Re-applying icon after UPX..." -ForegroundColor DarkGray
+            python prepare_icon.py reapply $outputPath $preparedIconPath
+            if ($LASTEXITCODE -ne 0) {
+                Write-Error "Failed to re-apply icon after UPX."
+                exit 1
+            }
+            Write-Host "UPX compression completed." -ForegroundColor Green
+        } else {
+            Write-Host "-upx specified but UPX not found in PATH. Skipping compression." -ForegroundColor DarkGray
+        }
+    }
+
+    Write-Host "$ExeName.exe build complete." -ForegroundColor Green
 }
 
-Write-Host "gol.exe build complete." -ForegroundColor Green
-Write-Host "  Standalone executable (icons: build/icon-32.ico, build/32x32.png)" -ForegroundColor DarkGray
+if ($buildGuiExe) {
+    Invoke-GolPyInstaller -ExeName 'gol' -EntryScript 'gol.py' -WorkSubdir 'pyinstaller-gui' `
+        -HiddenImports @('pygame') -CollectSubmodules @('pygame') -ExcludeModules @('textual') -IncludeIconAsset
+    Write-Host "  GUI executable (pygame; icons: build/icon-32.ico, build/32x32.png)" -ForegroundColor DarkGray
+} elseif ($useUpx) {
+    Write-Host "UPX applies to gol.exe only; pass -exe with -upx." -ForegroundColor DarkGray
+}
+
+if ($buildTuiExe) {
+    Invoke-GolPyInstaller -ExeName 'gol-tui' -EntryScript 'gol_tui.py' -WorkSubdir 'pyinstaller-tui' `
+        -HiddenImports @('textual') -CollectSubmodules @('textual') -ExcludeModules @('pygame', 'pygame_ce')
+    Write-Host "  TUI executable (textual only; no pygame)" -ForegroundColor DarkGray
+}

@@ -9,7 +9,7 @@ Desktop Python port of the [web Game of Life](https://kreft.us/gol/) with pygame
 ## Requirements
 
 - Python 3.11+
-- Dependencies: `pip install -r requirements.txt` (`pygame-ce`)
+- Dependencies: `pip install -r requirements.txt` (`pygame-ce` for GUI, `textual` for `-tui`)
 
 ## Quick start
 
@@ -26,6 +26,7 @@ python gol.py
 | `--mode wrapped\|infinite` | Grid mode (default: `wrapped`) |
 | `--pattern` *NAME* | Load a built-in pattern on startup (e.g. `glider`, `gosper`) |
 | `--speed` *N* | Simulation speed 10–200 (default: 100) |
+| `-tui` | Terminal UI (Textual); no pygame window |
 | `-debug` | Log population and scope every 100 generations to stderr |
 
 Examples:
@@ -33,6 +34,8 @@ Examples:
 ```bash
 python gol.py --mode infinite --pattern gosper
 python gol.py --pattern pulsar --speed 150
+python gol.py -tui
+python gol.py -tui --mode infinite --pattern glider
 ```
 
 ## Controls
@@ -50,6 +53,30 @@ python gol.py --pattern pulsar --speed 150
 | Save / Restore | **M+** / **MR** (in-memory snapshot) |
 | Speed | Toolbar speed slider |
 
+### Terminal UI (`-tui`)
+
+Launches a Textual setup screen (mode, pattern, speed), then uses the full terminal as the cell grid.
+
+| Action | Input |
+|--------|-------|
+| Setup: mode | **W** wrapped / **I** infinite |
+| Setup: pattern | **↑** / **↓** |
+| Setup: speed | **←** / **→** |
+| Setup: start | **Enter** or **S** |
+| Setup: controls help | **C** |
+| Play / Pause | **Space** |
+| Step | **N** |
+| Reset | **R** |
+| Quit simulation | **Q** (returns to setup) |
+| Pan (infinite) | Arrows or **HJKL** (paused, or while running if follow off) |
+| Toggle follow (infinite) | **F** |
+| Speed (simulation) | **+** / **-** |
+| Controls overview | **C** (setup or simulation) |
+
+Wrapped mode uses the terminal size as the toroidal grid. Infinite mode auto-follows the population while running; press **F** to toggle follow.
+
+Run `python gol.py --help` for pygame and TUI key reference, or `python gol_tui.py --help` / `gol-tui.exe --help` for terminal-only help.
+
 ## Modes
 
 - **Wrapped** — Toroidal grid sized to the window aspect ratio with square cells (50 on the shorter axis; e.g. a 2:1 window is 100×50). Resizing before play recomputes the grid; window resize and zoom are disabled while running.
@@ -64,16 +91,18 @@ python gol.py --pattern pulsar --speed 150
 From `python/gol/`:
 
 ```powershell
-./build.ps1           # gol.pyz, then gol.exe
-./build.ps1 -pyz      # gol.pyz only
-./build.ps1 -exe      # gol.exe only
-./build.ps1 -exe -upx # optional UPX compression of gol.exe
+./build.ps1              # gol.pyz, gol.exe, then gol-tui.exe
+./build.ps1 -pyz         # gol.pyz only
+./build.ps1 -exe         # gol.exe only (pygame GUI)
+./build.ps1 -tui         # gol-tui.exe only (terminal, no pygame)
+./build.ps1 -exe -upx    # optional UPX compression of gol.exe
 ```
 
 | Output | Usage |
 |--------|--------|
-| `gol.exe` | Standalone executable (PyInstaller) |
-| `gol.pyz` | `python gol.pyz` — requires pygame-ce installed |
+| `gol.exe` | Standalone GUI executable (PyInstaller + pygame) |
+| `gol-tui.exe` | Standalone terminal executable (Textual only; launches TUI by default) |
+| `gol.pyz` | `python gol.pyz` — requires pygame-ce and textual installed |
 
 Icon sources: `build/icon-32.ico` (Windows `.exe` shell icon) and `build/32x32.png` (pygame window title-bar icon).
 

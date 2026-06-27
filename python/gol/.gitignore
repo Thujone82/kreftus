@@ -5,7 +5,12 @@ build/gol-embedded.ico
 
 # Build outputs
 gol.exe
+gol-tui.exe
 gol.pyz
+
+# PyInstaller staging
+build/pyinstaller-gui/
+build/pyinstaller-tui/
 
 # Python bytecode
 __pycache__/
