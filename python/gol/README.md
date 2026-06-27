@@ -1,6 +1,6 @@
 # GoLPy — Conway's Game of Life
 
-**Version 1.0**
+**Version 1.1**
 
 Desktop Python port of the [web Game of Life](https://kreft.us/gol/) with pygame.
 
@@ -107,6 +107,12 @@ From `python/gol/`:
 Icon sources: `build/icon-32.ico` (Windows `.exe` shell icon) and `build/32x32.png` (pygame window title-bar icon).
 
 ## Changelog
+
+### 1.1.0
+
+- Terminal UI (Textual): setup screen, full-terminal simulation, `gol-tui.exe` build
+- Controls help modal (**C**); infinite-mode follow toggle (**F**) and improved pan rules
+- Dynamic wrapped grid (square cells, 50 on shorter axis); click/grid alignment fixes
 
 ### 1.0.0
 

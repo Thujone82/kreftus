@@ -4,7 +4,7 @@
 
 **Author:** Kreft&Cursor  
 **Date:** 2026-06-27  
-**Version:** 1.0.0
+**Version:** 1.1.0
 
 ---
 
@@ -145,7 +145,7 @@ python/gol/
     icon-32.ico           # committed source icon for gol.exe
     32x32.png             # window title-bar icon (pygame); synced to gol/assets/
 
-golpy/index.html          # project landing page at repo root (not on main index yet)
+golpy/index.html          # project landing page at repo root (listed on main index after Larry)
 ```
 
 ---
