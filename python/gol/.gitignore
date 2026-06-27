@@ -1,0 +1,12 @@
+# PyInstaller / zipapp staging
+build/pyinstaller/
+build/zipapp/
+build/gol-embedded.ico
+
+# Build outputs
+gol.exe
+gol.pyz
+
+# Python bytecode
+__pycache__/
+*.py[cod]
