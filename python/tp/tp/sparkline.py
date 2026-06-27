@@ -192,3 +192,21 @@ def format_sparkline_row(
     else:
         prefix = f"[dim]┕ {hours_label} Ago |[/]"
     return f"{prefix}{sparkline_markup}[dim]| Now[/]"
+
+
+def format_window_sparkline_rows(
+    points: list[tuple[datetime, float]],
+    color_fn: Callable[[float], str],
+    *,
+    indent: str = "",
+    empty_bin: str = " ",
+    fixed_label: bool = True,
+) -> list[str]:
+    """Format 4H, 24H, and 72H sparkline rows for one metric."""
+    lines: list[str] = []
+    for label, hours in SPARKLINE_WINDOWS:
+        result = build_sparkline(points, hours=hours)
+        core = colored_sparkline_markup(result, color_fn, empty_bin=empty_bin)
+        row = format_sparkline_row(core, hours_label=label, fixed_label=fixed_label)
+        lines.append(f"{indent}{row}")
+    return lines

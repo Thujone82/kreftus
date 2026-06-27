@@ -7,13 +7,7 @@ from collections.abc import Callable
 from tp.colors import humidity_color, temp_color
 from tp.config import AppConfig
 from tp.history import DeviceHistory, FetchStatus, LogLoadStatus
-from tp.sparkline import (
-    BIN_COUNT,
-    SPARKLINE_WINDOWS,
-    build_sparkline,
-    colored_sparkline_markup,
-    format_sparkline_row,
-)
+from tp.sparkline import BIN_COUNT, format_window_sparkline_rows
 
 
 def _format_time(at) -> str:
@@ -70,13 +64,12 @@ def _format_metric_sparklines(
     points: list[tuple],
     color_fn: Callable[[float], str],
 ) -> list[str]:
-    lines: list[str] = []
-    for label, hours in SPARKLINE_WINDOWS:
-        result = build_sparkline(points, hours=hours)
-        core = colored_sparkline_markup(result, color_fn, empty_bin=_STATUS_EMPTY_BIN)
-        row = format_sparkline_row(core, hours_label=label, fixed_label=True)
-        lines.append(f"  {row}")
-    return lines
+    return format_window_sparkline_rows(
+        points,
+        color_fn,
+        indent="  ",
+        empty_bin=_STATUS_EMPTY_BIN,
+    )
 
 
 def format_device_status(

@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from tp.sparkline import (
     build_sparkline,
     dashboard_sparkline_label,
+    format_window_sparkline_rows,
     next_dashboard_sparkline_window,
     window_value_extremes,
 )
@@ -65,6 +66,21 @@ class WindowValueExtremesTests(unittest.TestCase):
         self.assertEqual((sample_min, sample_max), (70.0, 90.0))
         self.assertEqual(spark.min_value, spark.max_value)
         self.assertAlmostEqual(spark.min_value or 0.0, 76.666, places=2)
+
+
+class FormatWindowSparklineRowsTests(unittest.TestCase):
+    def test_emits_4h_24h_72h_in_order(self) -> None:
+        end = datetime(2026, 6, 24, 16, 0, 0)
+        points = [
+            (end - timedelta(hours=50), 68.0),
+            (end - timedelta(hours=2), 74.0),
+            (end - timedelta(minutes=30), 82.0),
+        ]
+        rows = format_window_sparkline_rows(points, lambda _value: "white")
+        self.assertEqual(len(rows), 3)
+        self.assertIn("4H Ago", rows[0])
+        self.assertIn("24H Ago", rows[1])
+        self.assertIn("72H Ago", rows[2])
 
 
 if __name__ == "__main__":

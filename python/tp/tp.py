@@ -5,9 +5,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import shutil
 import sys
-from datetime import datetime
 from pathlib import Path
 
 from rich.console import Console
@@ -17,66 +15,13 @@ _ROOT = Path(__file__).resolve().parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from tp.colors import humidity_color, temp_color
 from tp.config import default_ini_path, filter_devices, load_config, save_config
-from tp.history import DeviceHistory, load_readings_from_log
-from tp.scheduler import is_measurement_stale
-from tp.sparkline import build_sparkline, colored_sparkline_markup, format_sparkline_row
-from tp.ui.helpers import format_device_label_row, format_stats_row
+from tp.snapshot import render_snapshot
 from tp.ui.app import run_app
 
+
 def _render_snapshot(config, *, device_filter: str | None = None) -> str:
-    history = DeviceHistory()
-    load_readings_from_log(history, config)
-    width = max(60, shutil.get_terminal_size(fallback=(100, 24)).columns - 2)
-    visible = filter_devices(config.devices, device_filter)
-    lines: list[str] = []
-    for mac, name in visible:
-        updated_dt = history.last_updated(mac)
-        stale = is_measurement_stale(updated_dt)
-        lines.append(
-            format_device_label_row(
-                name,
-                stale=stale,
-                fetching=False,
-            )
-        )
-        temp_points = history.temp_points(mac)
-        humid_points = history.humidity_points(mac)
-        temp_spark = build_sparkline(temp_points)
-        humid_spark = build_sparkline(humid_points)
-        readings = history.get_readings(mac)
-        latest = readings[-1] if readings else None
-        temp_cur = latest.temp_f if latest else None
-        humid_cur = float(latest.humidity_pct) if latest else None
-        temp_stats = format_stats_row(
-            "Temp °F", temp_cur, temp_spark.min_value, temp_spark.max_value, "°F", color_fn=temp_color
-        )
-        humid_stats = format_stats_row(
-            "Humid %",
-            humid_cur,
-            humid_spark.min_value,
-            humid_spark.max_value,
-            "%",
-            color_fn=humidity_color,
-        )
-        temp_line = format_sparkline_row(colored_sparkline_markup(temp_spark, temp_color))
-        humid_line = format_sparkline_row(colored_sparkline_markup(humid_spark, humidity_color))
-        if stale:
-            temp_stats = f"[dim]{temp_stats}[/]"
-            humid_stats = f"[dim]{humid_stats}[/]"
-            temp_line = f"[dim]{temp_line}[/]"
-            humid_line = f"[dim]{humid_line}[/]"
-        lines.append(temp_stats)
-        lines.append(temp_line)
-        lines.append(humid_stats)
-        lines.append(humid_line)
-        lines.append("")
-    stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    header = f"[bold]TemPy snapshot[/] ({stamp})"
-    if device_filter:
-        header += f"  [dim]filter: {device_filter}[/]"
-    return "\n".join([header, "-" * len(header), *lines]).rstrip()
+    return render_snapshot(config, device_filter=device_filter)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
