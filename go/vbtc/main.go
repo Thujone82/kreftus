@@ -2540,6 +2540,7 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 	// Confirmation Loop
 	offerExpired := false
 	var lastRetryTime time.Time
+	var offerSnapshot portfolioSnapshot
 
 	// --- Raw Terminal Input Setup ---
 	// Get the file descriptor for standard input.
@@ -2621,6 +2622,18 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 			waitForEnter(inputChan, fd, oldState)
 			return apiData
 		}
+
+		// Snapshot portfolio from disk when the offer is presented (refreshed on each price retry).
+		snap, err := loadPortfolioSnapshot()
+		if err != nil {
+			color.Red("\nCould not read portfolio for offer verification.")
+			color.Red("Error: %v", err)
+			fmt.Println("\nPress Enter to return to the main menu.")
+			waitForEnter(inputChan, fd, oldState)
+			return apiData
+		}
+		offerSnapshot = snap
+
 		offerTimestamp := time.Now() // Record the time the offer is presented.
 
 		clearScreen()
@@ -2797,6 +2810,19 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 					currentPlayerBTC, _ := tradeCfg.Section("Portfolio").Key("PlayerBTC").Float64()
 					currentPlayerInvested, _ := tradeCfg.Section("Portfolio").Key("PlayerInvested").Float64()
 
+					currentSnapshot := portfolioSnapshot{
+						USD:      currentPlayerUSD,
+						BTC:      currentPlayerBTC,
+						Invested: currentPlayerInvested,
+					}
+					if !portfolioMatchesSnapshot(currentSnapshot, offerSnapshot) {
+						color.Red("\nTrade cancelled. Your portfolio was modified by another session while this offer was open.")
+						fmt.Println("\nPress Enter to continue.")
+						ticker.Stop()
+						waitForEnter(inputChan, fd, oldState)
+						return apiData
+					}
+
 					// Verify if the trade is still possible with the latest balance
 					if txType == "Buy" && usdAmount > currentPlayerUSD {
 						color.Red("\nTrade cancelled. Your USD balance has changed since the trade was initiated.")
@@ -2950,6 +2976,31 @@ func redrawTradeScreen(txType string, offerExpired bool, apiData *ApiDataRespons
 		color.New(color.FgRed).Print("n")
 		color.New(color.FgWhite).Println("]")
 	}
+}
+
+type portfolioSnapshot struct {
+	USD      float64
+	BTC      float64
+	Invested float64
+}
+
+func loadPortfolioSnapshot() (portfolioSnapshot, error) {
+	tradeCfg, err := ini.Load(iniFilePath)
+	if err != nil {
+		return portfolioSnapshot{}, err
+	}
+	usd, _ := tradeCfg.Section("Portfolio").Key("PlayerUSD").Float64()
+	btc, _ := tradeCfg.Section("Portfolio").Key("PlayerBTC").Float64()
+	invested, _ := tradeCfg.Section("Portfolio").Key("PlayerInvested").Float64()
+	return portfolioSnapshot{USD: usd, BTC: btc, Invested: invested}, nil
+}
+
+func portfolioMatchesSnapshot(current, snapshot portfolioSnapshot) bool {
+	const usdTol = 0.005
+	const btcTol = 1e-9
+	return math.Abs(current.USD-snapshot.USD) < usdTol &&
+		math.Abs(current.BTC-snapshot.BTC) < btcTol &&
+		math.Abs(current.Invested-snapshot.Invested) < usdTol
 }
 
 func parseTradeAmount(input string, maxAmount float64, txType string) (float64, bool) {

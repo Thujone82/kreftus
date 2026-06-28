@@ -123,6 +123,34 @@ function Set-IniConfiguration {
     }
 }
 
+function Get-PortfolioBalancesFromConfig {
+    param ([hashtable]$IniConfig)
+    $usd = 0.0
+    $btc = 0.0
+    $invested = 0.0
+    if ($IniConfig -and $IniConfig.Portfolio) {
+        $null = [double]::TryParse($IniConfig.Portfolio.PlayerUSD, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$usd)
+        $null = [double]::TryParse($IniConfig.Portfolio.PlayerBTC, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$btc)
+        $null = [double]::TryParse($IniConfig.Portfolio.PlayerInvested, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$invested)
+    }
+    return @{ USD = $usd; BTC = $btc; Invested = $invested }
+}
+
+function Test-PortfolioSnapshotMatch {
+    param (
+        [double]$CurrentUSD,
+        [double]$CurrentBTC,
+        [double]$CurrentInvested,
+        [double]$SnapshotUSD,
+        [double]$SnapshotBTC,
+        [double]$SnapshotInvested
+    )
+    $usdMatch = [math]::Abs($CurrentUSD - $SnapshotUSD) -lt 0.005
+    $btcMatch = [math]::Abs($CurrentBTC - $SnapshotBTC) -lt 0.000000005
+    $investedMatch = [math]::Abs($CurrentInvested - $SnapshotInvested) -lt 0.005
+    return $usdMatch -and $btcMatch -and $investedMatch
+}
+
 function Format-ProfitLoss {
     param(
         [double]$Value,
@@ -1374,6 +1402,16 @@ function Invoke-Trade {
             return (Get-BestApiData -Preferred $CurrentApiData)
         }
         if (-not $tradeApiData) { Read-Host "Error fetching price. Press Enter to continue."; return (Get-BestApiData -Preferred $CurrentApiData) } # return old/best on failure
+
+        # Snapshot portfolio from disk when the offer is presented (refreshed on each price retry).
+        $offerPortfolioConfig = Get-IniConfiguration -FilePath $iniFilePath
+        if (-not $offerPortfolioConfig) {
+            Write-Warning "`nCould not read portfolio for offer verification."
+            Read-Host "Press Enter to return to the main menu."
+            return (Get-BestApiData -Preferred $CurrentApiData)
+        }
+        $offerBalances = Get-PortfolioBalancesFromConfig -IniConfig $offerPortfolioConfig
+
         $offerTimestamp = Get-Date # Record the time the offer is presented.
         $timeoutSeconds = 120
         $tradeinput = $null # To store the user's choice
@@ -1539,6 +1577,13 @@ function Invoke-Trade {
             $null = [double]::TryParse($tradeConfig.Portfolio.PlayerUSD, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$currentPlayerUSD)
             $null = [double]::TryParse($tradeConfig.Portfolio.PlayerBTC, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$currentPlayerBTC)
             $null = [double]::TryParse($tradeConfig.Portfolio.PlayerInvested, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$currentPlayerInvested)
+
+            # Reject if another session modified the portfolio since this offer was presented.
+            if (-not (Test-PortfolioSnapshotMatch -CurrentUSD $currentPlayerUSD -CurrentBTC $currentPlayerBTC -CurrentInvested $currentPlayerInvested -SnapshotUSD $offerBalances.USD -SnapshotBTC $offerBalances.BTC -SnapshotInvested $offerBalances.Invested)) {
+                Write-Warning "`nTrade cancelled. Your portfolio was modified by another session while this offer was open."
+                Read-Host "Press Enter to continue."
+                return (Get-BestApiData -Preferred $tradeApiData)
+            }
 
             # Re-verify if the trade is still possible with the latest balance
             if ($Type -eq "Buy" -and $usdAmount -gt $currentPlayerUSD) {
