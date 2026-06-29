@@ -241,13 +241,21 @@ function Expand-DatePlaceholders {
     return $result
 }
 
+function Expand-UserPath {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not $Path.StartsWith('~')) {
+        return $Path
+    }
+    return $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
+}
+
 # File operations
 function Invoke-UpdateJob {
     param([hashtable]$Job)
     
     try {
-        $remote = Expand-DatePlaceholders -Path $Job.Remote
-        $local = Expand-DatePlaceholders -Path $Job.Local
+        $remote = Expand-UserPath (Expand-DatePlaceholders -Path $Job.Remote)
+        $local = Expand-UserPath (Expand-DatePlaceholders -Path $Job.Local)
         $bytesTransferred = 0
         
         Write-Verbose "Updating job '$($Job.Name)' from '$remote' to '$local'"
