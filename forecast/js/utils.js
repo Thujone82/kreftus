@@ -725,6 +725,24 @@ function calculateHeatIndex(tempF, humidity) {
     return Math.round(HI);
 }
 
+function getIsDaytimeFromIconUrl(iconUrl) {
+    if (!iconUrl) return null;
+    const match = iconUrl.match(/\/land\/(day|night)\//);
+    if (!match) return null;
+    return match[1] === 'day';
+}
+
+function resolveIsDaytimeForIcon(iconUrl, hourlyPeriods, referenceTime) {
+    const fromIcon = getIsDaytimeFromIconUrl(iconUrl);
+    if (fromIcon !== null) return fromIcon;
+
+    const periods = hourlyPeriods || [];
+    const index = referenceTime ? findHourlyPeriodIndexForTime(periods, referenceTime) : 0;
+    const period = periods[index];
+    if (period?.isDaytime !== undefined) return period.isDaytime;
+    return new Date().getHours() >= 6 && new Date().getHours() < 18;
+}
+
 // Get weather icon emoji from NWS icon URL
 function getWeatherIcon(iconUrl, isDaytime = true, precipProb = 0) {
     if (!iconUrl) return "";

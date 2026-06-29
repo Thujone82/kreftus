@@ -125,10 +125,7 @@ function applyLatestObservationToCurrent(current, parsed, hourlyPeriods, locatio
     if (parsed.humidity != null) updated.humidity = parsed.humidity;
     if (parsed.dewPointF != null) updated.dewPoint = parsed.dewPointF;
 
-    const hourlyPeriod = hourlyPeriods?.[0];
-    const isDaytime = hourlyPeriod?.isDaytime !== undefined
-        ? hourlyPeriod.isDaytime
-        : (new Date().getHours() >= 6 && new Date().getHours() < 18);
+    const isDaytime = resolveIsDaytimeForIcon(parsed.iconUrl, hourlyPeriods, parsed.observationTime);
     if (parsed.iconUrl) {
         updated.icon = getWeatherIcon(parsed.iconUrl, isDaytime, updated.precipProb);
     }
@@ -231,12 +228,8 @@ function processWeatherData(weatherData) {
         windSpeedOnly = `${windGustMatch[1]} mph`;
     }
     
-    // Determine if currently daytime
-    const isCurrentlyDaytime = currentPeriod.isDaytime !== undefined 
-        ? currentPeriod.isDaytime 
-        : (new Date().getHours() >= 6 && new Date().getHours() < 18);
-    
-    // Get weather icon
+    const trendReferenceTime = weatherData.fetchTime ? new Date(weatherData.fetchTime) : new Date();
+    const isCurrentlyDaytime = resolveIsDaytimeForIcon(currentIcon, hourly.properties.periods, trendReferenceTime);
     const weatherIcon = getWeatherIcon(currentIcon, isCurrentlyDaytime, currentPrecipProb);
     
     // Calculate sunrise and sunset

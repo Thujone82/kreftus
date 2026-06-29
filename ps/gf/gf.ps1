@@ -3682,6 +3682,59 @@ function Get-WindSpeed ($windString) {
     return 0
 }
 
+function Get-IsDaytimeFromIconUrl {
+    param([string]$IconUrl)
+    if ([string]::IsNullOrWhiteSpace($IconUrl)) { return $null }
+    if ($IconUrl -match '/land/(day|night)/') {
+        return $matches[1] -eq 'day'
+    }
+    return $null
+}
+
+function Get-CurrentConditionsWeatherIcon {
+    param(
+        [string]$IconUrl,
+        [object]$Period,
+        [int]$PrecipProb = 0
+    )
+    $isDaytime = Get-IsDaytimeFromIconUrl -IconUrl $IconUrl
+    if ($null -eq $isDaytime) {
+        $isDaytime = Test-IsDaytime -Period $Period
+    }
+    return Get-WeatherIcon -iconUrl $IconUrl -isDaytime $isDaytime -precipProb $PrecipProb
+}
+
+# Sync interactive-mode local display vars from script scope after observation merge or full refresh
+function Sync-LocalCurrentConditionsFromScript {
+    param(
+        [string]$DefaultColor,
+        [string]$AlertColor
+    )
+
+    Set-Variable -Scope 1 -Name currentTemp -Value $script:currentTemp
+    Set-Variable -Scope 1 -Name currentConditions -Value $script:currentConditions
+    Set-Variable -Scope 1 -Name currentTempTrend -Value $script:currentTempTrend
+    Set-Variable -Scope 1 -Name currentWind -Value $script:currentWind
+    Set-Variable -Scope 1 -Name currentWindDir -Value $script:currentWindDir
+    Set-Variable -Scope 1 -Name currentHumidity -Value $script:currentHumidity
+    Set-Variable -Scope 1 -Name currentDewPoint -Value $script:currentDewPoint
+    Set-Variable -Scope 1 -Name currentPrecipProb -Value $script:currentPrecipProb
+    Set-Variable -Scope 1 -Name windGust -Value $script:windGust
+    Set-Variable -Scope 1 -Name currentIcon -Value $script:currentIcon
+    Set-Variable -Scope 1 -Name currentPeriod -Value $script:currentPeriod
+
+    $isDaytime = Get-IsDaytimeFromIconUrl -IconUrl $script:currentIcon
+    if ($null -eq $isDaytime) {
+        $isDaytime = Test-IsDaytime -Period $script:currentPeriod
+    }
+    Set-Variable -Scope 1 -Name isCurrentlyDaytime -Value $isDaytime
+    Set-Variable -Scope 1 -Name weatherIcon -Value (Get-CurrentConditionsWeatherIcon -IconUrl $script:currentIcon -Period $script:currentPeriod -PrecipProb $script:currentPrecipProb)
+
+    $bands = Get-CurrentConditionsBandColors -Temperature $script:currentTemp -WindSpeedText $script:currentWind -DefaultColor $DefaultColor -AlertColor $AlertColor
+    Set-Variable -Scope 1 -Name tempColor -Value $bands.TempColor
+    Set-Variable -Scope 1 -Name windColor -Value $bands.WindColor
+}
+
 # Temperature/wind line colors for current conditions (used on first draw and after interactive refresh)
 function Get-CurrentConditionsBandColors {
     param(
@@ -6730,10 +6783,13 @@ elseif ($Observations.IsPresent) {
 }
 
 # Determine if it's currently day or night using NWS API isDaytime property
-$isCurrentlyDaytime = Test-IsDaytime $currentPeriod
+$isCurrentlyDaytime = Get-IsDaytimeFromIconUrl -IconUrl $currentIcon
+if ($null -eq $isCurrentlyDaytime) {
+    $isCurrentlyDaytime = Test-IsDaytime $currentPeriod
+}
 
 # Output the results.
-$weatherIcon = Get-WeatherIcon $currentIcon $isCurrentlyDaytime $currentPrecipProb
+$weatherIcon = Get-CurrentConditionsWeatherIcon -IconUrl $currentIcon -Period $currentPeriod -PrecipProb $currentPrecipProb
 
 # Clear loading message before displaying data
 Clear-HostWithDelay
@@ -7100,23 +7156,11 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         $sunTimes = Get-SunriseSunset -Latitude $lat -Longitude $lon -Date $locationToday -TimeZoneId $timeZone
                         $sunriseTime = $sunTimes.Sunrise
                         $sunsetTime = $sunTimes.Sunset
-                        # Sync script-scoped display vars to local so re-render uses fresh data (including currentTempTrend)
-                        $currentTemp = $script:currentTemp
-                        $currentConditions = $script:currentConditions
-                        $currentTempTrend = $script:currentTempTrend
-                        $currentWind = $script:currentWind
-                        $currentWindDir = $script:currentWindDir
-                        $currentHumidity = $script:currentHumidity
-                        $currentDewPoint = $script:currentDewPoint
-                        $currentPrecipProb = $script:currentPrecipProb
-                        $windGust = $script:windGust
+                        Sync-LocalCurrentConditionsFromScript -DefaultColor $defaultColor -AlertColor $alertColor
                         $todayForecast = $script:todayForecast
                         $todayPeriodName = $script:todayPeriodName
                         $tomorrowForecast = $script:tomorrowForecast
                         $tomorrowPeriodName = $script:tomorrowPeriodName
-                        $ccBandColors = Get-CurrentConditionsBandColors -Temperature $currentTemp -WindSpeedText $currentWind -DefaultColor $defaultColor -AlertColor $alertColor
-                        $tempColor = $ccBandColors.TempColor
-                        $windColor = $ccBandColors.WindColor
                         
                         # Re-render current view with fresh data
                         Clear-HostWithDelay
@@ -7564,23 +7608,11 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         $sunTimes = Get-SunriseSunset -Latitude $lat -Longitude $lon -Date $locationToday -TimeZoneId $timeZone
                         $sunriseTime = $sunTimes.Sunrise
                         $sunsetTime = $sunTimes.Sunset
-                        # Sync script-scoped display vars to local so re-render uses fresh data (including currentTempTrend)
-                        $currentTemp = $script:currentTemp
-                        $currentConditions = $script:currentConditions
-                        $currentTempTrend = $script:currentTempTrend
-                        $currentWind = $script:currentWind
-                        $currentWindDir = $script:currentWindDir
-                        $currentHumidity = $script:currentHumidity
-                        $currentDewPoint = $script:currentDewPoint
-                        $currentPrecipProb = $script:currentPrecipProb
-                        $windGust = $script:windGust
+                        Sync-LocalCurrentConditionsFromScript -DefaultColor $defaultColor -AlertColor $alertColor
                         $todayForecast = $script:todayForecast
                         $todayPeriodName = $script:todayPeriodName
                         $tomorrowForecast = $script:tomorrowForecast
                         $tomorrowPeriodName = $script:tomorrowPeriodName
-                        $ccBandColors = Get-CurrentConditionsBandColors -Temperature $currentTemp -WindSpeedText $currentWind -DefaultColor $defaultColor -AlertColor $alertColor
-                        $tempColor = $ccBandColors.TempColor
-                        $windColor = $ccBandColors.WindColor
                         
                         # Re-render current view with fresh data
                         Clear-HostWithDelay
