@@ -20,6 +20,14 @@ TUI_PLAY_CONTROLS_MARKUP = """[bold]Simulation[/]
   [cyan]+[/] / [cyan]-[/]     Speed (10–200)
   [cyan]C[/]         Show controls (this help)
   [cyan]P[/]         Toggle Pop/Step corner counters
+  [cyan]E[/]         Toggle edit/selection mode (pauses)
+  [cyan]T[/]         Toggle cell under cursor (edit mode)
+  [cyan],[/]         Save layout (in-memory snapshot)
+  [cyan].[/]         Restore saved layout
+
+[bold]Edit mode[/]
+  [cyan]↑↓←→[/] or [cyan]WASD[/]  Infinite: pan field under fixed center cursor
+  [cyan]↑↓←→[/] or [cyan]WASD[/]  Wrapped: move cursor on toroidal grid
 
 [bold]Infinite mode[/]
   [cyan]F[/]         Toggle auto-follow population (on/off)
@@ -68,8 +76,12 @@ Terminal UI (-tui or gol-tui.exe):
     + / -          Speed
     C              Controls overview
     P              Toggle Pop/Step corner counters
+    E              Toggle edit mode (pauses; T toggles cell under cursor)
+    ,              Save layout (M+)
+    .              Restore saved layout (MR)
     F              Toggle population follow (infinite mode)
     Arrows / WASD  Pan (infinite; paused, or running with follow off)
+                   Edit mode: infinite pans field; wrapped moves cursor
 
   Wrapped: terminal size = toroidal grid.
   Infinite: F toggles auto-follow while running (default off).
@@ -95,8 +107,12 @@ GoLPy terminal edition (gol-tui.exe / gol_tui.py):
     + / -          Speed
     C              Controls overview
     P              Toggle Pop/Step corner counters
+    E              Toggle edit mode (pauses; T toggles cell under cursor)
+    ,              Save layout (M+)
+    .              Restore saved layout (MR)
     F              Toggle population follow (infinite mode)
     Arrows / WASD  Pan (infinite; paused, or running with follow off)
+                   Edit mode: infinite pans field; wrapped moves cursor
 
   Wrapped: terminal size = toroidal grid.
   Infinite: F toggles auto-follow while running (default off).

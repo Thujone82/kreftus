@@ -10,18 +10,21 @@ from textual.events import Resize
 from textual.screen import Screen
 from textual.widgets import Static
 
-from gol.engine import GameOfLife, Mode
+from gol.engine import GameOfLife, Mode, Snapshot
 from gol.ui.tui.controls_modal import ControlsModal
 from gol.ui.tui.render import (
     apply_follow_viewport,
     build_grid_markup,
     pattern_bounds,
     population_centroid,
+    screen_center,
     sim_delay_seconds,
     stats_bar_markup,
     terminal_grid_dims,
     viewport_topleft,
     window_title,
+    world_cell_under_cursor,
+    wrap_cursor,
 )
 
 
@@ -45,6 +48,10 @@ class SimulationScreen(Screen):
         Binding("c", "show_controls", "Controls", show=False),
         Binding("f", "toggle_follow", "Follow", show=False),
         Binding("p", "toggle_stats", "Stats", show=False),
+        Binding("e", "toggle_edit", "Edit", show=False),
+        Binding("t", "toggle_cell", "Toggle cell", show=False),
+        Binding("comma", "save_layout", "Save", show=False),
+        Binding("full_stop", "restore_layout", "Restore", show=False),
     ]
 
     DEFAULT_CSS = """
@@ -82,8 +89,12 @@ class SimulationScreen(Screen):
         self.speed = speed
         self.game = GameOfLife(mode)
         self.running = False
+        self.saved: Snapshot | None = None
         self.auto_follow = False
         self.show_stats = True
+        self.edit_mode = False
+        self.cursor_col = 0
+        self.cursor_row = 0
         self.view_x = 0
         self.view_y = 0
         self._grid_cols = 1
@@ -164,6 +175,16 @@ class SimulationScreen(Screen):
             force=force,
         )
 
+    def _cursor_screen_position(self) -> tuple[int, int] | None:
+        if not self.edit_mode:
+            return None
+        if self.mode == "wrapped":
+            return self.cursor_col, self.cursor_row
+        return screen_center(self._grid_cols, self._grid_rows)
+
+    def _center_wrapped_cursor(self) -> None:
+        self.cursor_col, self.cursor_row = screen_center(self._grid_cols, self._grid_rows)
+
     def _refresh_display(self) -> None:
         markup = build_grid_markup(
             self.game.cells,
@@ -172,6 +193,7 @@ class SimulationScreen(Screen):
             view_x=self.view_x,
             view_y=self.view_y,
             wrapped=self.mode == "wrapped",
+            cursor=self._cursor_screen_position(),
         )
         self.query_one("#grid", Static).update(markup)
         stats_bar = self.query_one("#stats-bar", Static)
@@ -194,6 +216,7 @@ class SimulationScreen(Screen):
                 infinite=self.mode == "infinite",
                 auto_follow=self.auto_follow,
                 show_corner_stats=self.show_stats,
+                edit_mode=self.edit_mode,
             )
         )
 
@@ -214,6 +237,33 @@ class SimulationScreen(Screen):
         self._maybe_follow_population()
         self._refresh_display()
 
+    def action_toggle_edit(self) -> None:
+        self.edit_mode = not self.edit_mode
+        if self.edit_mode:
+            self.running = False
+            self.auto_follow = False
+            self._last_follow_at = None
+            self._restart_timer()
+            self._center_wrapped_cursor()
+        self._refresh_display()
+
+    def action_toggle_cell(self) -> None:
+        if not self.edit_mode:
+            return
+        if self.mode == "wrapped":
+            cursor_col, cursor_row = self.cursor_col, self.cursor_row
+        else:
+            cursor_col, cursor_row = screen_center(self._grid_cols, self._grid_rows)
+        gx, gy = world_cell_under_cursor(
+            wrapped=self.mode == "wrapped",
+            view_x=self.view_x,
+            view_y=self.view_y,
+            cursor_col=cursor_col,
+            cursor_row=cursor_row,
+        )
+        self.game.toggle_cell(gx, gy)
+        self._refresh_display()
+
     def action_toggle_follow(self) -> None:
         if self.mode != "infinite":
             return
@@ -226,6 +276,15 @@ class SimulationScreen(Screen):
 
     def action_toggle_stats(self) -> None:
         self.show_stats = not self.show_stats
+        self._refresh_display()
+
+    def action_save_layout(self) -> None:
+        self.saved = self.game.snapshot()
+
+    def action_restore_layout(self) -> None:
+        if self.saved is None:
+            return
+        self.game.restore(self.saved)
         self._refresh_display()
 
     def action_toggle_play(self) -> None:
@@ -243,6 +302,7 @@ class SimulationScreen(Screen):
     def action_reset(self) -> None:
         self.running = False
         self.auto_follow = False
+        self.edit_mode = False
         self._last_follow_at = None
         self._restart_timer()
         self._load_pattern()
@@ -250,6 +310,19 @@ class SimulationScreen(Screen):
 
     def action_show_controls(self) -> None:
         self.app.push_screen(ControlsModal())
+
+    def _edit_move(self, dx: int, dy: int) -> None:
+        if self.mode == "wrapped":
+            self.cursor_col, self.cursor_row = wrap_cursor(
+                self.cursor_col + dx,
+                self.cursor_row + dy,
+                self._grid_cols,
+                self._grid_rows,
+            )
+        else:
+            self.view_x += dx
+            self.view_y += dy
+        self._refresh_display()
 
     def _pan_if_allowed(self, dx: int, dy: int) -> None:
         if self.mode != "infinite":
@@ -261,16 +334,28 @@ class SimulationScreen(Screen):
         self._refresh_display()
 
     def action_pan_up(self) -> None:
-        self._pan_if_allowed(0, -1)
+        if self.edit_mode:
+            self._edit_move(0, -1)
+        else:
+            self._pan_if_allowed(0, -1)
 
     def action_pan_down(self) -> None:
-        self._pan_if_allowed(0, 1)
+        if self.edit_mode:
+            self._edit_move(0, 1)
+        else:
+            self._pan_if_allowed(0, 1)
 
     def action_pan_left(self) -> None:
-        self._pan_if_allowed(-1, 0)
+        if self.edit_mode:
+            self._edit_move(-1, 0)
+        else:
+            self._pan_if_allowed(-1, 0)
 
     def action_pan_right(self) -> None:
-        self._pan_if_allowed(1, 0)
+        if self.edit_mode:
+            self._edit_move(1, 0)
+        else:
+            self._pan_if_allowed(1, 0)
 
     def action_speed_up(self) -> None:
         self.speed = min(200, self.speed + 10)

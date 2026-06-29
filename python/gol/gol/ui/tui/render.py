@@ -66,6 +66,37 @@ def _rgb_markup(r: int, g: int, b: int, char: str) -> str:
     return f"[#{r:02x}{g:02x}{b:02x}]{char}[/]"
 
 
+def screen_center(cols: int, rows: int) -> tuple[int, int]:
+    """Screen cell at the viewport center."""
+    return cols // 2, rows // 2
+
+
+def wrap_cursor(col: int, row: int, cols: int, rows: int) -> tuple[int, int]:
+    """Move cursor on a toroidal grid with modulo wrap."""
+    return col % cols, row % rows
+
+
+def world_cell_under_cursor(
+    *,
+    wrapped: bool,
+    view_x: int,
+    view_y: int,
+    cursor_col: int,
+    cursor_row: int,
+) -> tuple[int, int]:
+    """Grid coordinates of the cell under the edit cursor."""
+    if wrapped:
+        return cursor_col, cursor_row
+    return view_x + cursor_col, view_y + cursor_row
+
+
+def cursor_char_markup(is_live: bool) -> str:
+    """High-contrast edit cursor visible on empty or live cells."""
+    if is_live:
+        return f"[bold white on #cc0000]{LIVE_CHAR}[/]"
+    return "[bold white on #444444]+[/]"
+
+
 def build_grid_markup(
     cells: dict[tuple[int, int], Cell],
     *,
@@ -74,12 +105,21 @@ def build_grid_markup(
     view_x: int = 0,
     view_y: int = 0,
     wrapped: bool,
+    cursor: tuple[int, int] | None = None,
 ) -> str:
     """Build a Rich markup string: one char per grid cell, rows separated by newlines."""
     lines: list[str] = []
     for row in range(rows):
         parts: list[str] = []
         for col in range(cols):
+            if cursor == (col, row):
+                if wrapped:
+                    gx, gy = col, row
+                else:
+                    gx = view_x + col
+                    gy = view_y + row
+                parts.append(cursor_char_markup((gx, gy) in cells))
+                continue
             if wrapped:
                 gx, gy = col, row
             else:
@@ -199,9 +239,12 @@ def window_title(
     infinite: bool = False,
     auto_follow: bool = False,
     show_corner_stats: bool = False,
+    edit_mode: bool = False,
 ) -> str:
     state = "▶" if running else "⏸"
     title = f"GoLPy {state}"
+    if edit_mode:
+        title += "  Edit"
     if not show_corner_stats:
         title += f"  Pop:{population}  Step:{generation}"
     if infinite:

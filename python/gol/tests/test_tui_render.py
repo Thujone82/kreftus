@@ -10,14 +10,18 @@ from gol.ui.tui.render import (
     build_grid_markup,
     centroid_on_screen,
     corner_counter_markup,
+    cursor_char_markup,
     follow_nudge_delta,
     population_centroid,
+    screen_center,
     should_recenter_follow,
     sim_delay_seconds,
     stats_bar_markup,
     terminal_grid_dims,
     viewport_topleft,
     window_title,
+    world_cell_under_cursor,
+    wrap_cursor,
     FOLLOW_PAN_INTERVAL_SECONDS,
 )
 
@@ -66,6 +70,40 @@ class TestTuiRender(unittest.TestCase):
         self.assertIn("Follow:on", window_title(0, 0, running=False, infinite=True, auto_follow=True))
         self.assertNotIn("Pop:", window_title(10, 5, running=True, show_corner_stats=True))
         self.assertIn("Step:", window_title(10, 5, running=False, show_corner_stats=False))
+        self.assertIn("Edit", window_title(0, 0, running=False, edit_mode=True))
+
+    def test_screen_center(self) -> None:
+        self.assertEqual(screen_center(10, 8), (5, 4))
+
+    def test_wrap_cursor(self) -> None:
+        self.assertEqual(wrap_cursor(-1, 0, 10, 8), (9, 0))
+        self.assertEqual(wrap_cursor(10, 8, 10, 8), (0, 0))
+
+    def test_world_cell_under_cursor(self) -> None:
+        self.assertEqual(
+            world_cell_under_cursor(
+                wrapped=True, view_x=0, view_y=0, cursor_col=3, cursor_row=4
+            ),
+            (3, 4),
+        )
+        self.assertEqual(
+            world_cell_under_cursor(
+                wrapped=False, view_x=10, view_y=20, cursor_col=5, cursor_row=4
+            ),
+            (15, 24),
+        )
+
+    def test_cursor_char_markup(self) -> None:
+        self.assertIn("+", cursor_char_markup(False))
+        self.assertIn("█", cursor_char_markup(True))
+
+    def test_build_grid_markup_with_cursor(self) -> None:
+        markup = build_grid_markup(
+            {}, cols=5, rows=3, wrapped=True, cursor=(2, 1)
+        )
+        lines = markup.split("\n")
+        self.assertIn("+", lines[1])
+        self.assertEqual(lines[1].count("+"), 1)
 
     def test_corner_counter_markup(self) -> None:
         self.assertEqual(corner_counter_markup("Pop", 42), "[bold]Pop: 42[/]")

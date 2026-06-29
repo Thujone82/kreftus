@@ -73,6 +73,9 @@ Launches a Textual setup screen (mode, pattern, speed), then uses the full termi
 | Toggle follow (infinite) | **F** |
 | Speed (simulation) | **+** / **-** |
 | Pop / Step counters | **P** toggle corner overlay (on by default) |
+| Edit / selection mode | **E** toggle (pauses; **T** toggles cell under cursor) |
+| Save / restore layout | **,** save (M+) / **.** restore (MR) in-memory snapshot |
+| Edit: move | Infinite — arrows/**WASD** pans field under fixed center cursor; wrapped — moves cursor on torus |
 | Controls overview | **C** (setup or simulation) |
 
 Wrapped mode uses the terminal size as the toroidal grid. Infinite follow pans one cell per 0.5s while the centroid stays on-screen, and snaps back if it leaves; press **F** to toggle (off by default).
