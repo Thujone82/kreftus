@@ -228,7 +228,6 @@ function processWeatherData(weatherData) {
         windSpeedOnly = `${windGustMatch[1]} mph`;
     }
     
-    const trendReferenceTime = weatherData.fetchTime ? new Date(weatherData.fetchTime) : new Date();
     const isCurrentlyDaytime = resolveIsDaytimeForIcon(currentIcon, hourly.properties.periods, trendReferenceTime);
     const weatherIcon = getWeatherIcon(currentIcon, isCurrentlyDaytime, currentPrecipProb);
     
