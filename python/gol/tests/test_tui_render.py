@@ -6,14 +6,19 @@ import unittest
 
 from gol.engine import Cell
 from gol.ui.tui.render import (
+    apply_follow_viewport,
     build_grid_markup,
+    centroid_on_screen,
     corner_counter_markup,
+    follow_nudge_delta,
     population_centroid,
+    should_recenter_follow,
     sim_delay_seconds,
     stats_bar_markup,
     terminal_grid_dims,
     viewport_topleft,
     window_title,
+    FOLLOW_PAN_INTERVAL_SECONDS,
 )
 
 
@@ -71,6 +76,78 @@ class TestTuiRender(unittest.TestCase):
         self.assertIn("[bold on black]Step: 505[/]", markup)
         plain = markup.replace("[bold on black]", "").replace("[/]", "")
         self.assertGreaterEqual(len(plain), 80)
+
+    def test_should_recenter_follow(self) -> None:
+        self.assertTrue(should_recenter_follow(10.0, None))
+        self.assertFalse(should_recenter_follow(10.0, 9.8))
+        self.assertTrue(should_recenter_follow(10.0, 9.5))
+        self.assertEqual(FOLLOW_PAN_INTERVAL_SECONDS, 0.5)
+
+    def test_centroid_on_screen(self) -> None:
+        self.assertTrue(
+            centroid_on_screen((5.0, 5.0), view_x=0, view_y=0, cols=10, rows=10)
+        )
+        self.assertFalse(
+            centroid_on_screen((15.0, 5.0), view_x=0, view_y=0, cols=10, rows=10)
+        )
+
+    def test_follow_nudge_delta(self) -> None:
+        # Centroid right of center -> pan view right (+1 view_x)
+        self.assertEqual(follow_nudge_delta((6.0, 5.0), view_x=0, view_y=0, cols=10, rows=10), (1, 0))
+        # Centroid above center -> pan view up (-1 view_y)
+        self.assertEqual(follow_nudge_delta((5.0, 3.0), view_x=0, view_y=0, cols=10, rows=10), (0, -1))
+        # Centered -> no move
+        self.assertEqual(follow_nudge_delta((5.0, 5.0), view_x=0, view_y=0, cols=10, rows=10), (0, 0))
+
+    def test_apply_follow_viewport_off_screen_snaps(self) -> None:
+        vx, vy, last = apply_follow_viewport(
+            (50.0, 50.0),
+            view_x=0,
+            view_y=0,
+            cols=10,
+            rows=10,
+            now=1.0,
+            last_at=None,
+        )
+        self.assertEqual((vx, vy), viewport_topleft(50.0, 50.0, 10, 10))
+        self.assertEqual(last, 1.0)
+
+    def test_apply_follow_viewport_on_screen_nudges(self) -> None:
+        vx, vy, last = apply_follow_viewport(
+            (6.0, 5.0),
+            view_x=0,
+            view_y=0,
+            cols=10,
+            rows=10,
+            now=1.0,
+            last_at=None,
+        )
+        self.assertEqual((vx, vy), (1, 0))
+        self.assertEqual(last, 1.0)
+        vx2, vy2, last2 = apply_follow_viewport(
+            (6.0, 5.0),
+            view_x=vx,
+            view_y=vy,
+            cols=10,
+            rows=10,
+            now=1.2,
+            last_at=last,
+        )
+        self.assertEqual((vx2, vy2), (1, 0))
+        self.assertEqual(last2, 1.0)
+
+    def test_apply_follow_viewport_force_recenters(self) -> None:
+        vx, vy, _ = apply_follow_viewport(
+            (6.0, 5.0),
+            view_x=0,
+            view_y=0,
+            cols=10,
+            rows=10,
+            now=1.0,
+            last_at=None,
+            force=True,
+        )
+        self.assertEqual((vx, vy), viewport_topleft(6.0, 5.0, 10, 10))
 
 
 if __name__ == "__main__":

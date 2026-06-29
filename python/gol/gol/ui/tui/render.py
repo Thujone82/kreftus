@@ -10,6 +10,7 @@ from gol.engine import Cell
 BASE_DELAY_MS = 16
 LIVE_CHAR = "█"
 WINDOW_TITLE = "GoLPy"
+FOLLOW_PAN_INTERVAL_SECONDS = 0.5  # max 2 follow viewport updates per second
 
 
 def set_terminal_window_title(title: str = WINDOW_TITLE) -> None:
@@ -92,6 +93,88 @@ def build_grid_markup(
                 parts.append(" ")
         lines.append("".join(parts))
     return "\n".join(lines)
+
+
+def centroid_on_screen(
+    centroid: tuple[float, float],
+    *,
+    view_x: int,
+    view_y: int,
+    cols: int,
+    rows: int,
+) -> bool:
+    """True when the population centroid lies inside the current viewport."""
+    cx, cy = centroid
+    return view_x <= cx < view_x + cols and view_y <= cy < view_y + rows
+
+
+def follow_nudge_delta(
+    centroid: tuple[float, float],
+    *,
+    view_x: int,
+    view_y: int,
+    cols: int,
+    rows: int,
+) -> tuple[int, int]:
+    """One orthogonal viewport step toward centering the centroid."""
+    cx, cy = centroid
+    ex = cx - (view_x + cols / 2)
+    ey = cy - (view_y + rows / 2)
+    if abs(ex) < 0.5 and abs(ey) < 0.5:
+        return 0, 0
+    if abs(ex) >= abs(ey):
+        if abs(ex) >= 0.5:
+            return (1 if ex > 0 else -1), 0
+        return 0, (1 if ey > 0 else -1)
+    if abs(ey) >= 0.5:
+        return 0, (1 if ey > 0 else -1)
+    return (1 if ex > 0 else -1), 0
+
+
+def apply_follow_viewport(
+    centroid: tuple[float, float],
+    *,
+    view_x: int,
+    view_y: int,
+    cols: int,
+    rows: int,
+    now: float,
+    last_at: float | None,
+    force: bool = False,
+    interval: float = FOLLOW_PAN_INTERVAL_SECONDS,
+) -> tuple[int, int, float | None]:
+    """Track centroid: snap if off-screen, else ≤1 orthogonal cell per interval."""
+    if force:
+        vx, vy = viewport_topleft(centroid[0], centroid[1], cols, rows)
+        return vx, vy, now
+
+    if not centroid_on_screen(
+        centroid, view_x=view_x, view_y=view_y, cols=cols, rows=rows
+    ):
+        vx, vy = viewport_topleft(centroid[0], centroid[1], cols, rows)
+        return vx, vy, now
+
+    if not should_recenter_follow(now, last_at, interval=interval):
+        return view_x, view_y, last_at
+
+    dx, dy = follow_nudge_delta(
+        centroid, view_x=view_x, view_y=view_y, cols=cols, rows=rows
+    )
+    if dx == 0 and dy == 0:
+        return view_x, view_y, now
+    return view_x + dx, view_y + dy, now
+
+
+def should_recenter_follow(
+    now: float,
+    last_at: float | None,
+    *,
+    interval: float = FOLLOW_PAN_INTERVAL_SECONDS,
+) -> bool:
+    """True when auto-follow may move the viewport (immediate if never centered)."""
+    if last_at is None:
+        return True
+    return now - last_at >= interval
 
 
 def corner_counter_markup(label: str, value: int) -> str:

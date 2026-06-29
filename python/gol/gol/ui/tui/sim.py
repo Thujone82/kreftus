@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 from textual.binding import Binding
 from textual.app import ComposeResult
 from textual.events import Resize
@@ -11,6 +13,7 @@ from textual.widgets import Static
 from gol.engine import GameOfLife, Mode
 from gol.ui.tui.controls_modal import ControlsModal
 from gol.ui.tui.render import (
+    apply_follow_viewport,
     build_grid_markup,
     pattern_bounds,
     population_centroid,
@@ -86,6 +89,7 @@ class SimulationScreen(Screen):
         self._grid_cols = 1
         self._grid_rows = 1
         self._sim_timer = None
+        self._last_follow_at: float | None = None
 
     def compose(self) -> ComposeResult:
         yield Static("", id="grid", markup=True)
@@ -141,6 +145,25 @@ class SimulationScreen(Screen):
             centroid[0], centroid[1], self._grid_cols, self._grid_rows
         )
 
+    def _maybe_follow_population(self, *, force: bool = False) -> None:
+        """Track population centroid: snap off-screen, else slow orthogonal pan."""
+        if self.mode != "infinite" or not self.auto_follow:
+            return
+        centroid = population_centroid(self.game.cells)
+        if centroid is None:
+            return
+        now = time.monotonic()
+        self.view_x, self.view_y, self._last_follow_at = apply_follow_viewport(
+            centroid,
+            view_x=self.view_x,
+            view_y=self.view_y,
+            cols=self._grid_cols,
+            rows=self._grid_rows,
+            now=now,
+            last_at=self._last_follow_at,
+            force=force,
+        )
+
     def _refresh_display(self) -> None:
         markup = build_grid_markup(
             self.game.cells,
@@ -188,8 +211,7 @@ class SimulationScreen(Screen):
 
     def _sim_tick(self) -> None:
         self.game.step()
-        if self.mode == "infinite" and self.auto_follow:
-            self._center_on_population()
+        self._maybe_follow_population()
         self._refresh_display()
 
     def action_toggle_follow(self) -> None:
@@ -197,7 +219,9 @@ class SimulationScreen(Screen):
             return
         self.auto_follow = not self.auto_follow
         if self.auto_follow:
-            self._center_on_population()
+            self._maybe_follow_population(force=True)
+        else:
+            self._last_follow_at = None
         self._refresh_display()
 
     def action_toggle_stats(self) -> None:
@@ -213,13 +237,13 @@ class SimulationScreen(Screen):
         self.running = False
         self._restart_timer()
         self.game.step()
-        if self.mode == "infinite" and self.auto_follow:
-            self._center_on_population()
+        self._maybe_follow_population(force=True)
         self._refresh_display()
 
     def action_reset(self) -> None:
         self.running = False
         self.auto_follow = False
+        self._last_follow_at = None
         self._restart_timer()
         self._load_pattern()
         self._refresh_display()

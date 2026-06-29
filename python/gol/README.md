@@ -75,7 +75,7 @@ Launches a Textual setup screen (mode, pattern, speed), then uses the full termi
 | Pop / Step counters | **P** toggle corner overlay (on by default) |
 | Controls overview | **C** (setup or simulation) |
 
-Wrapped mode uses the terminal size as the toroidal grid. Infinite mode can auto-follow the population while running; press **F** to toggle follow (off by default).
+Wrapped mode uses the terminal size as the toroidal grid. Infinite follow pans one cell per 0.5s while the centroid stays on-screen, and snaps back if it leaves; press **F** to toggle (off by default).
 
 Run `python gol.py --help` for pygame and TUI key reference, or `python gol_tui.py --help` / `gol-tui.exe --help` for terminal-only help.
 

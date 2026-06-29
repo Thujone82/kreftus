@@ -26,7 +26,7 @@ TUI_PLAY_CONTROLS_MARKUP = """[bold]Simulation[/]
   [cyan]↑↓←→[/] or [cyan]WASD[/]  Pan viewport (paused, or while running if follow off)
 
 [dim]Wrapped mode uses the full terminal as a toroidal grid.
-Infinite mode follows the population while running when follow is on.[/]"""
+Infinite follow pans one cell per 0.5s while centroid is on-screen; snaps if it leaves.[/]"""
 
 TUI_CONTROLS_MODAL_MARKUP = (
     "[bold yellow]GoLPy — Controls[/]\n\n"
