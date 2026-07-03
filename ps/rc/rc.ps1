@@ -547,11 +547,7 @@ function Format-ExpectConfigDetails {
     if ($SuccessTimeThreshold) {
         $totalLabel = Format-CompactPeriodLabel $SuccessTimeThreshold
         if ($TotalSuccessfulRuntime.TotalSeconds -gt 0) {
-            $remaining = $SuccessTimeThreshold - $TotalSuccessfulRuntime
-            if ($remaining.TotalSeconds -lt 0) {
-                $remaining = [TimeSpan]::Zero
-            }
-            $parts += "SuccessTime: $(Format-CompactPeriodLabel $remaining) / $totalLabel"
+            $parts += "SuccessTime: $(Format-CompactPeriodLabel $TotalSuccessfulRuntime) / $totalLabel"
         } else {
             $parts += "SuccessTime: $totalLabel"
         }
@@ -583,6 +579,18 @@ function Format-ExpectConfigDetails {
     return $parts -join ' | '
 }
 
+function Format-SuccessRuntime {
+    param([TimeSpan]$Span)
+
+    $totalSec = [math]::Max(0, $Span.TotalSeconds)
+    $h = [int][math]::Floor($totalSec / 3600)
+    $m = [int][math]::Floor(($totalSec % 3600) / 60)
+    $s = [int][math]::Floor($totalSec % 60)
+    $cs = [int][math]::Floor(($Span.TotalMilliseconds % 1000) / 10)
+    if ($cs -ge 100) { $cs = 99 }
+    return '{0:00}:{1:00}:{2:00}.{3:00}' -f $h, $m, $s, $cs
+}
+
 function Write-ExpectSummaryIfNeeded {
     param(
         $ExpectThreshold,
@@ -599,14 +607,18 @@ function Write-ExpectSummaryIfNeeded {
     if ($ExecutionCount -le $Skip) { return }
 
     $lastSuccessDisplay = if ($LastSuccessfulCompletionTime) { Format-DateAwareTimestamp $LastSuccessfulCompletionTime } else { 'N/A' }
-    $totalSuccessDisplay = '{0:00}:{1:00}:{2:00}.{3:00}' -f [int]$TotalSuccessfulRuntime.TotalHours, $TotalSuccessfulRuntime.Minutes, $TotalSuccessfulRuntime.Seconds, [int]([math]::Floor($TotalSuccessfulRuntime.Milliseconds / 10))
+    $totalSuccessDisplay = Format-SuccessRuntime $TotalSuccessfulRuntime
     $lastSuccessRuntimeDisplay = if ($LastSuccessfulRuntime) {
-        '{0:00}:{1:00}:{2:00}.{3:00}' -f [int]$LastSuccessfulRuntime.TotalHours, $LastSuccessfulRuntime.Minutes, $LastSuccessfulRuntime.Seconds, [int]([math]::Floor($LastSuccessfulRuntime.Milliseconds / 10))
+        Format-SuccessRuntime $LastSuccessfulRuntime
     } else {
         'N/A'
     }
     Write-Host "Last Success: $lastSuccessDisplay ($SuccessfulExecutionCount/$ActualExecutionCount)"
     Write-Host "Total Runtime: $totalSuccessDisplay ($lastSuccessRuntimeDisplay)"
+}
+
+if ($rcBound.ContainsKey('Success') -and $Success -eq 0 -and -not $Silent) {
+    Write-Warning '-s is the success-limit alias; use -q for silent mode.'
 }
 
 # Parse period string

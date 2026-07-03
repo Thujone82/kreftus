@@ -173,11 +173,7 @@ func formatExpectConfigDetails(
 	if successTimeThreshold > 0 {
 		totalLabel := formatCompactPeriodLabel(successTimeThreshold)
 		if expect != nil && expect.totalSuccessfulRuntime > 0 {
-			remaining := successTimeThreshold - expect.totalSuccessfulRuntime
-			if remaining < 0 {
-				remaining = 0
-			}
-			parts = append(parts, fmt.Sprintf("SuccessTime: %s / %s", formatCompactPeriodLabel(remaining), totalLabel))
+			parts = append(parts, fmt.Sprintf("SuccessTime: %s / %s", formatCompactPeriodLabel(expect.totalSuccessfulRuntime), totalLabel))
 		} else {
 			parts = append(parts, fmt.Sprintf("SuccessTime: %s", totalLabel))
 		}
@@ -521,7 +517,11 @@ func main() {
 				if s, err := strconv.Atoi(args[i+1]); err == nil {
 					successLimit = s
 					i++
+				} else if !silent {
+					color.Yellow("WARNING: -s is the success-limit alias; use -q for silent mode.")
 				}
+			} else if !silent {
+				color.Yellow("WARNING: -s is the success-limit alias; use -q for silent mode.")
 			}
 		case "-st", "-successtime", "-SuccessTime":
 			if warnDuplicateFlag(seenFlags, "successtime") {
