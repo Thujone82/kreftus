@@ -197,6 +197,22 @@ Updated: just now [NWS: 24 minutes ago]
 
 Without station data: `Updated: 2 minutes ago` (no NWS suffix).
 
+### NWS observation delay
+
+The `[NWS: …]` age is **how old the ground reading is**, not how long since you clicked Refresh. Forecast already calls `observations/latest`, which is the newest report NWS has for the selected station. Hitting **Refresh** or **G** again only helps if the station has transmitted a newer observation since your last fetch.
+
+Most NWS current conditions come from **ASOS/METAR** sensors at airports and similar sites. Those networks are not continuous:
+
+| Factor | Typical behavior |
+|--------|------------------|
+| **Routine reports** | About **once per hour** (often near :53–:56 local) |
+| **Between-hour updates** | **SPECI** (special) observations only when weather changes enough to trigger one (large temp/wind/visibility shifts) |
+| **Smaller AWOS sites** | Sometimes every ~20 minutes, still not real-time |
+
+So seeing **15–30+ minutes** on the NWS suffix is normal for much of the day, especially mid-hour when the last routine report is aging. That reflects sensor reporting cadence, not a delay in this app or the weather.gov API.
+
+Forecast picks the **nearest** observation station from NWS (`observationStations` list, first entry) and caches that ID for 24 hours. It does not scan multiple nearby stations for whichever reported most recently. The hourly forecast grid is a separate, model-based source and is not a fresher ground thermometer reading.
+
 ### Temperature trend
 
 The trend arrow (↗️ ↘️ →) compares the current temperature to the **time-aligned next hourly period**. When station observation temp diverges from the grid current hour by **≥ 2°F**, the arrow uses the **grid hour-to-hour** direction instead of obs vs next hour (avoids false “falling” when obs is warmer than the lagging forecast). Small changes fall back to the hourly period’s `temperatureTrend` when available.
