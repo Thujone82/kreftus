@@ -93,7 +93,14 @@ class TPApp(App):
     #log-load-container {
         padding: 2 2;
     }
-    #monitor-footer, #devices-footer {
+    #monitor-footer {
+        dock: bottom;
+        padding: 0 2;
+        height: 1;
+        background: $boost;
+        color: $text-muted;
+    }
+    #devices-footer {
         dock: bottom;
         padding: 0 2;
         height: 1;
