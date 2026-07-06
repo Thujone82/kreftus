@@ -1,0 +1,23 @@
+---
+description: When Heritage version files change, commits must name the version (user bumps via version.ps1)
+globs: heritage/**
+alwaysApply: false
+---
+
+# Heritage: version must appear in commit messages
+
+The user controls when versions change; see **heritage-version-manual**. When a commit includes changes **they** made to **any** of the following, the **commit message must explicitly state the Heritage app version** (e.g. `v1.2.8` in the subject or first line of the body):
+
+- [`heritage/service-worker.js`](heritage/service-worker.js) — `VERSION` constant (and derived cache names)
+- [`heritage/manifest.json`](heritage/manifest.json) — `version` field
+- [`heritage/js/app.js`](heritage/js/app.js) — `APP_VERSION`
+- [`heritage/index.html`](heritage/index.html) — `?v=` cache-bust query strings on CSS/JS assets
+
+**Examples (good):**
+
+- `heritage 1.2.8: fix IndexedDB boot on Windows PWA`
+- `heritage v1.3.0: search modal, README updates`
+
+**Avoid:** commits that touch those version surfaces without naming the version in the message.
+
+When bumping for a release, the user typically runs `heritage/version.ps1` so service worker, manifest, `app.js`, and `index.html` stay aligned; mirror that single version in the commit message.

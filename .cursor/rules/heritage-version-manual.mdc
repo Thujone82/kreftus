@@ -1,0 +1,30 @@
+---
+description: User controls Heritage version bumps via version.ps1; agents must not change version numbers on their own
+globs: heritage/**
+alwaysApply: false
+---
+
+# Heritage: manual version control only
+
+The user bumps PDX Heritage Trees releases with [`heritage/version.ps1`](heritage/version.ps1). **Do not** change release or cache-bust version numbers as part of routine feature work, bugfixes, or refactors unless the user **explicitly** asks you to bump or set a version (e.g. “bump to 1.2.9”, “run version.ps1”, “update the version for release”).
+
+**Do not run** `heritage/version.ps1` on your own after code changes.
+
+**Leave unchanged without explicit instruction:**
+
+- [`heritage/service-worker.js`](heritage/service-worker.js) — `VERSION` and cache names derived from it
+- [`heritage/manifest.json`](heritage/manifest.json) — `version`
+- [`heritage/js/app.js`](heritage/js/app.js) — `APP_VERSION`
+- [`heritage/index.html`](heritage/index.html) — `?v=` on CSS/JS (and any other versioned asset query strings)
+
+If new or changed scripts would not load until cache busting, **say so** and let the user run `version.ps1`; do not bump automatically.
+
+When the user **does** request a version change, they normally run:
+
+```powershell
+pwsh -File heritage/version.ps1        # interactive
+pwsh -File heritage/version.ps1 1.3.0  # explicit
+pwsh -File heritage/version.ps1 -Rev   # patch increment
+```
+
+Only run that script for them when they explicitly ask. Do not hand-edit version strings in the four files unless they ask you to set a specific version without using the script.
