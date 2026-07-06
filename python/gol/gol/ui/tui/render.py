@@ -15,7 +15,6 @@ HALF_CHAR = "▄"
 EMPTY_COLOR = "#121212"
 CURSOR_LIVE_COLOR = "#cc0000"
 CURSOR_DEAD_COLOR = "#444444"
-EMPTY_HALF_MARKUP = f"[{EMPTY_COLOR} on {EMPTY_COLOR}]{HALF_CHAR}[/]"
 _empty_line_cache: dict[int, str] = {}
 WINDOW_TITLE = "GoLPy"
 FOLLOW_PAN_INTERVAL_SECONDS = 0.5  # max 2 follow viewport updates per second
@@ -122,9 +121,34 @@ def logical_to_terminal(logical_col: int, logical_row: int) -> tuple[int, int, i
 def _empty_line(cols: int) -> str:
     line = _empty_line_cache.get(cols)
     if line is None:
-        line = EMPTY_HALF_MARKUP * cols
+        line = f"[{EMPTY_COLOR} on {EMPTY_COLOR}]{HALF_CHAR * cols}[/]"
         _empty_line_cache[cols] = line
     return line
+
+
+def _occupied_logical_rows(
+    cells: dict[tuple[int, int], Cell],
+    *,
+    cols: int,
+    rows: int,
+    view_x: int,
+    view_y: int,
+    wrapped: bool,
+) -> set[int]:
+    """Logical row indices that contain at least one live cell in the viewport."""
+    if wrapped:
+        return {
+            row
+            for col, row in cells
+            if 0 <= col < cols and 0 <= row < rows
+        }
+    occupied: set[int] = set()
+    x_max = view_x + cols
+    y_max = view_y + rows
+    for x, y in cells:
+        if view_x <= x < x_max and view_y <= y < y_max:
+            occupied.add(y - view_y)
+    return occupied
 
 
 @lru_cache(maxsize=4096)
@@ -235,31 +259,40 @@ def _build_high_density_markup(
     if cursor is not None:
         cursor_term = logical_to_terminal(cursor[0], cursor[1])
     cursor_term_row = cursor_term[1] if cursor_term is not None else None
+    occupied_rows = _occupied_logical_rows(
+        cells,
+        cols=cols,
+        rows=rows,
+        view_x=view_x,
+        view_y=view_y,
+        wrapped=wrapped,
+    )
 
     lines: list[str] = []
     for term_row in range(term_rows):
         upper_logical = term_row * 2
         lower_logical = term_row * 2 + 1
-        if term_row != cursor_term_row and not _high_density_row_has_cells(
-            cells,
-            cols=cols,
-            rows=rows,
-            upper_logical=upper_logical,
-            lower_logical=lower_logical,
-            view_x=view_x,
-            view_y=view_y,
-            wrapped=wrapped,
-        ):
+        row_has_cells = (
+            upper_logical in occupied_rows
+            or (lower_logical < rows and lower_logical in occupied_rows)
+        )
+        if term_row != cursor_term_row and not row_has_cells:
             lines.append(_empty_line(cols))
             continue
 
         parts: list[str] = []
-        cursor_col = cursor_term[0] if cursor_term is not None and term_row == cursor_term_row else None
+        cursor_col = (
+            cursor_term[0]
+            if cursor_term is not None and term_row == cursor_term_row
+            else None
+        )
         cursor_half = cursor_term[2] if cursor_col is not None else None
         for col in range(cols):
             if wrapped:
                 upper = cells.get((col, upper_logical))
-                lower = cells.get((col, lower_logical)) if lower_logical < rows else None
+                lower = (
+                    cells.get((col, lower_logical)) if lower_logical < rows else None
+                )
             else:
                 upper = cells.get((view_x + col, view_y + upper_logical))
                 lower = (
@@ -272,39 +305,13 @@ def _build_high_density_markup(
                     _half_cell_markup_fast(upper, lower, cursor_half=cursor_half)
                 )
             elif upper is None and lower is None:
-                parts.append(EMPTY_HALF_MARKUP)
+                parts.append(" ")
             else:
                 upper_hex = _cell_hex(upper)
                 lower_hex = _cell_hex(lower)
                 parts.append(f"[{lower_hex} on {upper_hex}]{HALF_CHAR}[/]")
         lines.append("".join(parts))
     return "\n".join(lines)
-
-
-def _high_density_row_has_cells(
-    cells: dict[tuple[int, int], Cell],
-    *,
-    cols: int,
-    rows: int,
-    upper_logical: int,
-    lower_logical: int,
-    view_x: int,
-    view_y: int,
-    wrapped: bool,
-) -> bool:
-    if wrapped:
-        for col in range(cols):
-            if (col, upper_logical) in cells:
-                return True
-            if lower_logical < rows and (col, lower_logical) in cells:
-                return True
-        return False
-    for col in range(cols):
-        if (view_x + col, view_y + upper_logical) in cells:
-            return True
-        if lower_logical < rows and (view_x + col, view_y + lower_logical) in cells:
-            return True
-    return False
 
 
 def _half_cell_markup_fast(

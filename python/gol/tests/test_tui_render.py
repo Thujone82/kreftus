@@ -96,6 +96,18 @@ class TestTuiRender(unittest.TestCase):
         markup = stats_bar_markup(1, 2, 60, edit_at=(10, 20))
         self.assertIn("@ 10,20", markup)
 
+    def test_build_grid_markup_high_density_compact_empty_rows(self) -> None:
+        markup = build_grid_markup(
+            {},
+            cols=80,
+            rows=80,
+            wrapped=True,
+            density="high",
+            term_rows=40,
+        )
+        self.assertLess(len(markup), 10_000)
+        self.assertIn(f"[#121212 on #121212]{HALF_CHAR * 80}[/]", markup)
+
     def test_sim_delay_matches_pygame_scale(self) -> None:
         self.assertAlmostEqual(sim_delay_seconds(100), 0.032)
         self.assertAlmostEqual(sim_delay_seconds(200), 0.016)
