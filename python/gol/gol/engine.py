@@ -134,25 +134,32 @@ class GameOfLife:
         return count
 
     def _step_wrapped(self, old: dict[tuple[int, int], Cell]) -> dict[tuple[int, int], Cell]:
+        if not old:
+            return {}
+        cols, rows = self.grid_cols, self.grid_rows
+        candidates: set[tuple[int, int]] = set()
+        for col, row in old:
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    candidates.add(((col + dx) % cols, (row + dy) % rows))
         new_cells: dict[tuple[int, int], Cell] = {}
-        for row in range(self.grid_rows):
-            for col in range(self.grid_cols):
-                live = 0
-                for dx, dy in NEIGHBOR_OFFSETS:
-                    nx = (col + dx + self.grid_cols) % self.grid_cols
-                    ny = (row + dy + self.grid_rows) % self.grid_rows
-                    if (nx, ny) in old:
-                        live += 1
-                key = (col, row)
-                current = old.get(key)
-                if current:
-                    if live in (2, 3):
-                        new_cells[key] = Cell(
-                            age=current.age + 1,
-                            initial_hue=current.initial_hue,
-                        )
-                elif live == 3:
-                    new_cells[key] = Cell(age=0, initial_hue=random.random() * 360)
+        for col, row in candidates:
+            live = 0
+            for dx, dy in NEIGHBOR_OFFSETS:
+                nx = (col + dx + cols) % cols
+                ny = (row + dy + rows) % rows
+                if (nx, ny) in old:
+                    live += 1
+            key = (col, row)
+            current = old.get(key)
+            if current:
+                if live in (2, 3):
+                    new_cells[key] = Cell(
+                        age=current.age + 1,
+                        initial_hue=current.initial_hue,
+                    )
+            elif live == 3:
+                new_cells[key] = Cell(age=0, initial_hue=random.random() * 360)
         return new_cells
 
     def _step_infinite(self, old: dict[tuple[int, int], Cell]) -> dict[tuple[int, int], Cell]:

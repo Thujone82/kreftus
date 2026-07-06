@@ -22,6 +22,7 @@ def main(argv: list[str] | None = None) -> int:
         mode=args.mode,  # type: ignore[arg-type]
         pattern=args.pattern,
         speed=speed,
+        density=args.density,  # type: ignore[arg-type]
         debug=args.debug,
     )
     return 0

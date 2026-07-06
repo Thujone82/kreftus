@@ -6,18 +6,22 @@ import unittest
 
 from gol.engine import Cell
 from gol.ui.tui.render import (
+    HALF_CHAR,
     apply_follow_viewport,
     build_grid_markup,
     centroid_on_screen,
     corner_counter_markup,
     cursor_char_markup,
     follow_nudge_delta,
+    half_cell_markup,
+    logical_to_terminal,
     population_centroid,
     screen_center,
     should_recenter_follow,
     sim_delay_seconds,
     stats_bar_markup,
     terminal_grid_dims,
+    viewport_dims,
     viewport_topleft,
     window_title,
     world_cell_under_cursor,
@@ -30,6 +34,67 @@ class TestTuiRender(unittest.TestCase):
     def test_terminal_grid_dims(self) -> None:
         self.assertEqual(terminal_grid_dims(120, 40), (120, 40))
         self.assertEqual(terminal_grid_dims(0, 0), (1, 1))
+        self.assertEqual(terminal_grid_dims(80, 40, "high"), (80, 80))
+
+    def test_viewport_dims(self) -> None:
+        self.assertEqual(viewport_dims(80, 40, "low"), (80, 40, 80, 40))
+        self.assertEqual(viewport_dims(80, 40, "high"), (80, 40, 80, 80))
+
+    def test_logical_to_terminal(self) -> None:
+        self.assertEqual(logical_to_terminal(5, 0), (5, 0, 0))
+        self.assertEqual(logical_to_terminal(5, 1), (5, 0, 1))
+        self.assertEqual(logical_to_terminal(3, 7), (3, 3, 1))
+
+    def test_half_cell_markup_cursor_halves(self) -> None:
+        plain = half_cell_markup(None, None)
+        self.assertIn(HALF_CHAR, plain)
+        upper_cursor = half_cell_markup(None, None, cursor_half=0)
+        lower_cursor = half_cell_markup(None, None, cursor_half=1)
+        self.assertNotEqual(upper_cursor, lower_cursor)
+        self.assertIn("#444444", upper_cursor)
+        self.assertIn("#444444", lower_cursor)
+
+    def test_build_grid_markup_high_density(self) -> None:
+        cells = {(1, 0): Cell(0, 0.0), (1, 1): Cell(0, 0.0)}
+        markup = build_grid_markup(
+            cells,
+            cols=3,
+            rows=4,
+            wrapped=True,
+            density="high",
+            term_rows=2,
+        )
+        lines = markup.split("\n")
+        self.assertEqual(len(lines), 2)
+        self.assertIn(HALF_CHAR, lines[0])
+        self.assertIn(" on ", lines[0])
+
+    def test_build_grid_markup_high_density_edit_cursor(self) -> None:
+        markup_upper = build_grid_markup(
+            {},
+            cols=5,
+            rows=4,
+            wrapped=True,
+            density="high",
+            term_rows=2,
+            cursor=(2, 0),
+        )
+        markup_lower = build_grid_markup(
+            {},
+            cols=5,
+            rows=4,
+            wrapped=True,
+            density="high",
+            term_rows=2,
+            cursor=(2, 1),
+        )
+        self.assertNotEqual(markup_upper, markup_lower)
+        self.assertIn("#444444", markup_upper.split("\n")[0])
+        self.assertIn("#444444", markup_lower.split("\n")[0])
+
+    def test_stats_bar_markup_edit_at(self) -> None:
+        markup = stats_bar_markup(1, 2, 60, edit_at=(10, 20))
+        self.assertIn("@ 10,20", markup)
 
     def test_sim_delay_matches_pygame_scale(self) -> None:
         self.assertAlmostEqual(sim_delay_seconds(100), 0.032)

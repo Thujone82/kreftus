@@ -26,6 +26,7 @@ python gol.py
 | `--mode wrapped\|infinite` | Grid mode (default: `wrapped`) |
 | `--pattern` *NAME* | Load a built-in pattern on startup (e.g. `glider`, `gosper`) |
 | `--speed` *N* | Simulation speed 10–200 (default: 100) |
+| `--density low\|high` | TUI cell density: low (1 char/cell) or high (2 logical rows per char via `▄`) |
 | `-tui` | Terminal UI (Textual); no pygame window |
 | `-debug` | Log population and scope every 100 generations to stderr |
 
@@ -36,6 +37,7 @@ python gol.py --mode infinite --pattern gosper
 python gol.py --pattern pulsar --speed 150
 python gol.py -tui
 python gol.py -tui --mode infinite --pattern glider
+python gol.py -tui --density high --mode infinite --pattern gosper
 ```
 
 ## Controls
@@ -63,6 +65,7 @@ Launches a Textual setup screen (mode, pattern, speed), then uses the full termi
 | Setup: mode | **W** wrapped / **I** infinite |
 | Setup: pattern | **↑** / **↓** |
 | Setup: speed | **←** / **→** |
+| Setup: density | **D** toggle Low (1 char/cell) / High (2 rows/char via `▄`) |
 | Setup: start | **Enter** or **S** |
 | Setup: controls help | **C** |
 | Play / Pause | **Space** |
@@ -76,9 +79,10 @@ Launches a Textual setup screen (mode, pattern, speed), then uses the full termi
 | Edit / selection mode | **E** toggle (pauses; **T** toggles cell under cursor) |
 | Save / restore layout | **,** save (M+) / **.** restore (MR) in-memory snapshot |
 | Edit: move | Infinite — arrows/**WASD** pans field under fixed center cursor; wrapped — moves cursor on torus |
+| Edit: coordinates | Stats bar shows `@ x,y` (logical cell) in edit mode |
 | Controls overview | **C** (setup or simulation) |
 
-Wrapped mode uses the terminal size as the toroidal grid. Infinite follow pans one cell per 0.5s while the centroid stays on-screen, and snaps back if it leaves; press **F** to toggle (off by default).
+Wrapped mode uses the terminal size as the toroidal grid. **High** density doubles logical rows (`▄`: background = upper cell, foreground = lower). Infinite follow pans one cell per 0.5s while the centroid stays on-screen, and snaps back if it leaves; press **F** to toggle (off by default).
 
 Run `python gol.py --help` for pygame and TUI key reference, or `python gol_tui.py --help` / `gol-tui.exe --help` for terminal-only help.
 

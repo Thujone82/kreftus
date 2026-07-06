@@ -8,6 +8,7 @@ TUI_SETUP_CONTROLS_MARKUP = """[bold]Setup screen[/]
   [cyan]W[/] / [cyan]I[/]     Wrapped / Infinite mode
   [cyan]↑[/] / [cyan]↓[/]     Select pattern
   [cyan]←[/] / [cyan]→[/]     Speed (10–200)
+  [cyan]D[/]         Toggle density (Low / High)
   [cyan]Enter[/] / [cyan]S[/]  Start simulation
   [cyan]C[/]         Simulation controls (this help)
   [cyan]Q[/]         Quit"""
@@ -28,6 +29,7 @@ TUI_PLAY_CONTROLS_MARKUP = """[bold]Simulation[/]
 [bold]Edit mode[/]
   [cyan]↑↓←→[/] or [cyan]WASD[/]  Infinite: pan field under fixed center cursor
   [cyan]↑↓←→[/] or [cyan]WASD[/]  Wrapped: move cursor on toroidal grid
+  [dim]High density: cursor highlights one half of ▄; stats bar shows @ x,y[/]
 
 [bold]Infinite mode[/]
   [cyan]F[/]         Toggle auto-follow population (on/off)
@@ -58,12 +60,13 @@ pygame GUI (default):
 
 TUI_HELP_EPILOG = """
 Terminal UI (-tui or gol-tui.exe):
-  gol.py -tui [--mode wrapped|infinite] [--pattern NAME] [--speed N]
+  gol.py -tui [--mode wrapped|infinite] [--pattern NAME] [--speed N] [--density low|high]
 
   Setup screen:
     W / I          Wrapped / Infinite mode
     Up / Down      Select pattern
     Left / Right   Speed (10–200)
+    D              Toggle density (Low: 1 char/cell; High: 2 rows/char via ▄)
     Enter / S      Start simulation
     C              Simulation controls overview
     Q              Quit
@@ -83,18 +86,20 @@ Terminal UI (-tui or gol-tui.exe):
     Arrows / WASD  Pan (infinite; paused, or running with follow off)
                    Edit mode: infinite pans field; wrapped moves cursor
 
-  Wrapped: terminal size = toroidal grid.
+  Wrapped: terminal size = toroidal grid (logical rows ×2 in High density).
   Infinite: F toggles auto-follow while running (default off).
+  High density stacks two logical cells per terminal row using ▄ (bg=upper, fg=lower).
 """
 
 TUI_ONLY_HELP_EPILOG = """
 GoLPy terminal edition (gol-tui.exe / gol_tui.py):
-  gol_tui [--mode wrapped|infinite] [--pattern NAME] [--speed N] [-debug]
+  gol_tui [--mode wrapped|infinite] [--pattern NAME] [--speed N] [--density low|high] [-debug]
 
   Setup screen:
     W / I          Wrapped / Infinite mode
     Up / Down      Select pattern
     Left / Right   Speed (10–200)
+    D              Toggle density (Low: 1 char/cell; High: 2 rows/char via ▄)
     Enter / S      Start simulation
     C              Simulation controls overview
     Q              Quit
@@ -114,8 +119,9 @@ GoLPy terminal edition (gol-tui.exe / gol_tui.py):
     Arrows / WASD  Pan (infinite; paused, or running with follow off)
                    Edit mode: infinite pans field; wrapped moves cursor
 
-  Wrapped: terminal size = toroidal grid.
+  Wrapped: terminal size = toroidal grid (logical rows ×2 in High density).
   Infinite: F toggles auto-follow while running (default off).
+  High density stacks two logical cells per terminal row using ▄ (bg=upper, fg=lower).
 
   For the pygame window edition, use gol.py or gol.exe instead.
 """
@@ -151,6 +157,12 @@ def build_parser(*, tui_only: bool = False) -> argparse.ArgumentParser:
         default=100,
         metavar="N",
         help="simulation speed 10–200 (default: 100)",
+    )
+    parser.add_argument(
+        "--density",
+        choices=("low", "high"),
+        default="low",
+        help="TUI cell density: low (1 char/cell) or high (2 rows/char via half-blocks)",
     )
     parser.add_argument(
         "-debug",

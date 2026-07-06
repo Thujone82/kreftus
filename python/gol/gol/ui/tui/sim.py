@@ -13,6 +13,7 @@ from textual.widgets import Static
 from gol.engine import GameOfLife, Mode, Snapshot
 from gol.ui.tui.controls_modal import ControlsModal
 from gol.ui.tui.render import (
+    Density,
     apply_follow_viewport,
     build_grid_markup,
     pattern_bounds,
@@ -20,7 +21,7 @@ from gol.ui.tui.render import (
     screen_center,
     sim_delay_seconds,
     stats_bar_markup,
-    terminal_grid_dims,
+    viewport_dims,
     viewport_topleft,
     window_title,
     world_cell_under_cursor,
@@ -82,11 +83,13 @@ class SimulationScreen(Screen):
         mode: Mode,
         pattern_key: str,
         speed: int,
+        density: Density = "low",
     ) -> None:
         super().__init__()
         self.mode = mode
         self.pattern_key = pattern_key
         self.speed = speed
+        self.density = density
         self.game = GameOfLife(mode)
         self.running = False
         self.saved: Snapshot | None = None
@@ -97,6 +100,8 @@ class SimulationScreen(Screen):
         self.cursor_row = 0
         self.view_x = 0
         self.view_y = 0
+        self._term_cols = 1
+        self._term_rows = 1
         self._grid_cols = 1
         self._grid_rows = 1
         self._sim_timer = None
@@ -131,7 +136,9 @@ class SimulationScreen(Screen):
         self._refresh_display()
 
     def _apply_terminal_size(self) -> None:
-        self._grid_cols, self._grid_rows = terminal_grid_dims(self.app.size.width, self.app.size.height)
+        self._term_cols, self._term_rows, self._grid_cols, self._grid_rows = viewport_dims(
+            self.app.size.width, self.app.size.height, self.density
+        )
         if self.mode == "wrapped":
             self.game.set_wrapped_dimensions(self._grid_cols, self._grid_rows)
 
@@ -175,7 +182,7 @@ class SimulationScreen(Screen):
             force=force,
         )
 
-    def _cursor_screen_position(self) -> tuple[int, int] | None:
+    def _logical_cursor_position(self) -> tuple[int, int] | None:
         if not self.edit_mode:
             return None
         if self.mode == "wrapped":
@@ -186,6 +193,7 @@ class SimulationScreen(Screen):
         self.cursor_col, self.cursor_row = screen_center(self._grid_cols, self._grid_rows)
 
     def _refresh_display(self) -> None:
+        logical_cursor = self._logical_cursor_position()
         markup = build_grid_markup(
             self.game.cells,
             cols=self._grid_cols,
@@ -193,10 +201,21 @@ class SimulationScreen(Screen):
             view_x=self.view_x,
             view_y=self.view_y,
             wrapped=self.mode == "wrapped",
-            cursor=self._cursor_screen_position(),
+            density=self.density,
+            term_rows=self._term_rows,
+            cursor=logical_cursor,
         )
         self.query_one("#grid", Static).update(markup)
         stats_bar = self.query_one("#stats-bar", Static)
+        edit_at = None
+        if self.edit_mode and logical_cursor is not None:
+            edit_at = world_cell_under_cursor(
+                wrapped=self.mode == "wrapped",
+                view_x=self.view_x,
+                view_y=self.view_y,
+                cursor_col=logical_cursor[0],
+                cursor_row=logical_cursor[1],
+            )
         if self.show_stats:
             stats_bar.display = True
             stats_bar.update(
@@ -204,6 +223,7 @@ class SimulationScreen(Screen):
                     self.game.population,
                     self.game.generation,
                     self.app.size.width,
+                    edit_at=edit_at,
                 )
             )
         else:

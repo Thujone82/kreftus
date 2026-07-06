@@ -7,7 +7,7 @@ from textual.binding import Binding
 from textual.screen import ModalScreen
 
 from gol.engine import Mode
-from gol.ui.tui.render import WINDOW_TITLE, set_terminal_window_title
+from gol.ui.tui.render import WINDOW_TITLE, Density, set_terminal_window_title
 from gol.ui.tui.setup import SetupScreen
 from gol.ui.tui.sim import SimulationScreen
 
@@ -32,12 +32,14 @@ class GolTuiApp(App):
         initial_mode: Mode = "wrapped",
         initial_pattern: str | None = None,
         initial_speed: int = 100,
+        initial_density: Density = "low",
         debug: bool = False,
     ) -> None:
         super().__init__()
         self.initial_mode = initial_mode
         self.initial_pattern = initial_pattern
         self.initial_speed = initial_speed
+        self.initial_density = initial_density
         self.debug_enabled = debug
 
     def on_mount(self) -> None:
@@ -48,12 +50,25 @@ class GolTuiApp(App):
                 initial_mode=self.initial_mode,
                 initial_pattern=self.initial_pattern,
                 initial_speed=self.initial_speed,
+                initial_density=self.initial_density,
             )
         )
 
-    def push_simulation(self, *, mode: Mode, pattern_key: str, speed: int) -> None:
+    def push_simulation(
+        self,
+        *,
+        mode: Mode,
+        pattern_key: str,
+        speed: int,
+        density: Density = "low",
+    ) -> None:
         self.push_screen(
-            SimulationScreen(mode=mode, pattern_key=pattern_key, speed=speed)
+            SimulationScreen(
+                mode=mode,
+                pattern_key=pattern_key,
+                speed=speed,
+                density=density,
+            )
         )
 
     def action_quit_or_back(self) -> None:
@@ -76,6 +91,7 @@ def run_tui(
     mode: Mode = "wrapped",
     pattern: str | None = None,
     speed: int = 100,
+    density: Density = "low",
     debug: bool = False,
 ) -> None:
     set_terminal_window_title()
@@ -83,6 +99,7 @@ def run_tui(
         initial_mode=mode,
         initial_pattern=pattern,
         initial_speed=speed,
+        initial_density=density,
         debug=debug,
     )
     app.run()

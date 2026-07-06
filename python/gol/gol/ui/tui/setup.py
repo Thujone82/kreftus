@@ -12,7 +12,7 @@ from textual.widgets.option_list import Option
 from gol.engine import Mode
 from gol.patterns import pattern_names
 from gol.ui.tui.controls_modal import ControlsModal
-from gol.ui.tui.render import WINDOW_TITLE, set_terminal_window_title
+from gol.ui.tui.render import WINDOW_TITLE, Density, set_terminal_window_title
 
 
 class SetupScreen(Screen):
@@ -26,6 +26,7 @@ class SetupScreen(Screen):
         Binding("down", "pattern_down", "Down", show=False),
         Binding("left", "speed_down", "Slower", show=False),
         Binding("right", "speed_up", "Faster", show=False),
+        Binding("d", "toggle_density", "Density", show=False),
         Binding("c", "show_controls", "Controls", show=False),
     ]
 
@@ -56,11 +57,13 @@ class SetupScreen(Screen):
         initial_mode: Mode = "wrapped",
         initial_pattern: str | None = None,
         initial_speed: int = 100,
+        initial_density: Density = "low",
     ) -> None:
         super().__init__()
         self.patterns = pattern_names()
         self.mode: Mode = initial_mode
         self.speed = max(10, min(200, initial_speed))
+        self.density: Density = initial_density
         self._pattern_index = 0
         if initial_pattern:
             for idx, (key, _) in enumerate(self.patterns):
@@ -82,7 +85,7 @@ class SetupScreen(Screen):
             yield OptionList(id="pattern-list")
             yield Static("", id="setup-status")
             yield Static(
-                "[dim]W/I mode · ↑↓ pattern · ←→ speed · Enter/S start · C controls · Q quit[/]",
+                "[dim]W/I mode · ↑↓ pattern · ←→ speed · D density · Enter/S start · C controls · Q quit[/]",
                 id="setup-hint",
             )
 
@@ -102,9 +105,11 @@ class SetupScreen(Screen):
 
     def _refresh(self) -> None:
         mode_label = "Wrapped" if self.mode == "wrapped" else "Infinite"
+        density_label = "High" if self.density == "high" else "Low"
         self.query_one("#setup-header", Static).update(
             f"[bold]GoLPy — Setup[/]\n\n"
-            f"Mode: [cyan]{mode_label}[/]  ·  Speed: [cyan]{self.speed}[/]"
+            f"Mode: [cyan]{mode_label}[/]  ·  Speed: [cyan]{self.speed}[/]  ·  "
+            f"Density: [cyan]{density_label}[/]"
         )
         self.query_one("#setup-status", Static).update(
             f"Pattern: [yellow]{self.selected_pattern_label}[/] [dim]({self.selected_pattern_key})[/]"
@@ -154,12 +159,17 @@ class SetupScreen(Screen):
         self.speed = max(10, self.speed - 10)
         self._refresh()
 
+    def action_toggle_density(self) -> None:
+        self.density = "high" if self.density == "low" else "low"
+        self._refresh()
+
     def action_start(self) -> None:
         self._sync_pattern_index()
         self.app.push_simulation(
             mode=self.mode,
             pattern_key=self.selected_pattern_key,
             speed=self.speed,
+            density=self.density,
         )
 
     def action_show_controls(self) -> None:

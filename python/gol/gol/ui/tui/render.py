@@ -3,14 +3,24 @@
 from __future__ import annotations
 
 import sys
+from functools import lru_cache
+from typing import Literal
 
 from gol.colors import cell_rgb
 from gol.engine import Cell
 
 BASE_DELAY_MS = 16
 LIVE_CHAR = "█"
+HALF_CHAR = "▄"
+EMPTY_COLOR = "#121212"
+CURSOR_LIVE_COLOR = "#cc0000"
+CURSOR_DEAD_COLOR = "#444444"
+EMPTY_HALF_MARKUP = f"[{EMPTY_COLOR} on {EMPTY_COLOR}]{HALF_CHAR}[/]"
+_empty_line_cache: dict[int, str] = {}
 WINDOW_TITLE = "GoLPy"
 FOLLOW_PAN_INTERVAL_SECONDS = 0.5  # max 2 follow viewport updates per second
+
+Density = Literal["low", "high"]
 
 
 def set_terminal_window_title(title: str = WINDOW_TITLE) -> None:
@@ -30,9 +40,23 @@ def set_terminal_window_title(title: str = WINDOW_TITLE) -> None:
         pass
 
 
-def terminal_grid_dims(width: int, height: int) -> tuple[int, int]:
-    """One terminal character per cell."""
-    return max(1, width), max(1, height)
+def viewport_dims(
+    term_w: int, term_h: int, density: Density = "low"
+) -> tuple[int, int, int, int]:
+    """Return term_cols, term_rows, grid_cols, grid_rows (logical cells)."""
+    term_cols = max(1, term_w)
+    term_rows = max(1, term_h)
+    if density == "high":
+        return term_cols, term_rows, term_cols, term_rows * 2
+    return term_cols, term_rows, term_cols, term_rows
+
+
+def terminal_grid_dims(
+    width: int, height: int, density: Density = "low"
+) -> tuple[int, int]:
+    """Logical grid columns and rows for the terminal size."""
+    _, _, grid_cols, grid_rows = viewport_dims(width, height, density)
+    return grid_cols, grid_rows
 
 
 def sim_delay_seconds(speed: int) -> float:
@@ -90,6 +114,53 @@ def world_cell_under_cursor(
     return view_x + cursor_col, view_y + cursor_row
 
 
+def logical_to_terminal(logical_col: int, logical_row: int) -> tuple[int, int, int]:
+    """Map a logical cell to terminal column, terminal row, and half (0=upper, 1=lower)."""
+    return logical_col, logical_row // 2, logical_row % 2
+
+
+def _empty_line(cols: int) -> str:
+    line = _empty_line_cache.get(cols)
+    if line is None:
+        line = EMPTY_HALF_MARKUP * cols
+        _empty_line_cache[cols] = line
+    return line
+
+
+@lru_cache(maxsize=4096)
+def _cached_cell_hex(age: int, hue_key: int) -> str:
+    r, g, b = cell_rgb(age, hue_key / 1000.0)
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def _cell_hex(cell: Cell | None) -> str:
+    if cell is None:
+        return EMPTY_COLOR
+    return _cached_cell_hex(cell.age, int(cell.initial_hue * 1000))
+
+
+def _cursor_half_hex(is_live: bool) -> str:
+    return CURSOR_LIVE_COLOR if is_live else CURSOR_DEAD_COLOR
+
+
+def half_cell_markup(
+    upper: Cell | None,
+    lower: Cell | None,
+    *,
+    cursor_half: int | None = None,
+) -> str:
+    """Rich markup for one high-density terminal cell (▄: bg=upper, fg=lower)."""
+    upper_hex = _cell_hex(upper)
+    lower_hex = _cell_hex(lower)
+    if cursor_half == 0:
+        active = upper
+        return f"[{lower_hex} on {_cursor_half_hex(active is not None)}]{HALF_CHAR}[/]"
+    if cursor_half == 1:
+        active = lower
+        return f"[{_cursor_half_hex(active is not None)} on {upper_hex}]{HALF_CHAR}[/]"
+    return f"[{lower_hex} on {upper_hex}]{HALF_CHAR}[/]"
+
+
 def cursor_char_markup(is_live: bool) -> str:
     """High-contrast edit cursor visible on empty or live cells."""
     if is_live:
@@ -105,9 +176,23 @@ def build_grid_markup(
     view_x: int = 0,
     view_y: int = 0,
     wrapped: bool,
+    density: Density = "low",
+    term_rows: int | None = None,
     cursor: tuple[int, int] | None = None,
 ) -> str:
-    """Build a Rich markup string: one char per grid cell, rows separated by newlines."""
+    """Build a Rich markup string for the simulation grid."""
+    if density == "high":
+        return _build_high_density_markup(
+            cells,
+            cols=cols,
+            rows=rows,
+            view_x=view_x,
+            view_y=view_y,
+            wrapped=wrapped,
+            term_rows=term_rows or max(1, rows // 2),
+            cursor=cursor,
+        )
+
     lines: list[str] = []
     for row in range(rows):
         parts: list[str] = []
@@ -133,6 +218,108 @@ def build_grid_markup(
                 parts.append(" ")
         lines.append("".join(parts))
     return "\n".join(lines)
+
+
+def _build_high_density_markup(
+    cells: dict[tuple[int, int], Cell],
+    *,
+    cols: int,
+    rows: int,
+    view_x: int,
+    view_y: int,
+    wrapped: bool,
+    term_rows: int,
+    cursor: tuple[int, int] | None,
+) -> str:
+    cursor_term: tuple[int, int, int] | None = None
+    if cursor is not None:
+        cursor_term = logical_to_terminal(cursor[0], cursor[1])
+    cursor_term_row = cursor_term[1] if cursor_term is not None else None
+
+    lines: list[str] = []
+    for term_row in range(term_rows):
+        upper_logical = term_row * 2
+        lower_logical = term_row * 2 + 1
+        if term_row != cursor_term_row and not _high_density_row_has_cells(
+            cells,
+            cols=cols,
+            rows=rows,
+            upper_logical=upper_logical,
+            lower_logical=lower_logical,
+            view_x=view_x,
+            view_y=view_y,
+            wrapped=wrapped,
+        ):
+            lines.append(_empty_line(cols))
+            continue
+
+        parts: list[str] = []
+        cursor_col = cursor_term[0] if cursor_term is not None and term_row == cursor_term_row else None
+        cursor_half = cursor_term[2] if cursor_col is not None else None
+        for col in range(cols):
+            if wrapped:
+                upper = cells.get((col, upper_logical))
+                lower = cells.get((col, lower_logical)) if lower_logical < rows else None
+            else:
+                upper = cells.get((view_x + col, view_y + upper_logical))
+                lower = (
+                    cells.get((view_x + col, view_y + lower_logical))
+                    if lower_logical < rows
+                    else None
+                )
+            if cursor_col == col and cursor_half is not None:
+                parts.append(
+                    _half_cell_markup_fast(upper, lower, cursor_half=cursor_half)
+                )
+            elif upper is None and lower is None:
+                parts.append(EMPTY_HALF_MARKUP)
+            else:
+                upper_hex = _cell_hex(upper)
+                lower_hex = _cell_hex(lower)
+                parts.append(f"[{lower_hex} on {upper_hex}]{HALF_CHAR}[/]")
+        lines.append("".join(parts))
+    return "\n".join(lines)
+
+
+def _high_density_row_has_cells(
+    cells: dict[tuple[int, int], Cell],
+    *,
+    cols: int,
+    rows: int,
+    upper_logical: int,
+    lower_logical: int,
+    view_x: int,
+    view_y: int,
+    wrapped: bool,
+) -> bool:
+    if wrapped:
+        for col in range(cols):
+            if (col, upper_logical) in cells:
+                return True
+            if lower_logical < rows and (col, lower_logical) in cells:
+                return True
+        return False
+    for col in range(cols):
+        if (view_x + col, view_y + upper_logical) in cells:
+            return True
+        if lower_logical < rows and (view_x + col, view_y + lower_logical) in cells:
+            return True
+    return False
+
+
+def _half_cell_markup_fast(
+    upper: Cell | None,
+    lower: Cell | None,
+    *,
+    cursor_half: int,
+) -> str:
+    upper_hex = _cell_hex(upper)
+    lower_hex = _cell_hex(lower)
+    if cursor_half == 0:
+        active = upper
+        return f"[{lower_hex} on {_cursor_half_hex(active is not None)}]{HALF_CHAR}[/]"
+    active = lower
+    return f"[{_cursor_half_hex(active is not None)} on {upper_hex}]{HALF_CHAR}[/]"
 
 
 def centroid_on_screen(
@@ -222,10 +409,18 @@ def corner_counter_markup(label: str, value: int) -> str:
     return f"[bold]{label}: {value}[/]"
 
 
-def stats_bar_markup(population: int, generation: int, width: int) -> str:
+def stats_bar_markup(
+    population: int,
+    generation: int,
+    width: int,
+    *,
+    edit_at: tuple[int, int] | None = None,
+) -> str:
     """One-line overlay with Pop left and Step right; only text blocks the grid."""
     left = f"Pop: {population}"
     right = f"Step: {generation}"
+    if edit_at is not None:
+        right += f"  @ {edit_at[0]},{edit_at[1]}"
     pad = max(1, width - len(left) - len(right))
     styled = "[bold on black]"
     return f"{styled}{left}[/]{' ' * pad}{styled}{right}[/]"
