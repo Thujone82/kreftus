@@ -81,10 +81,16 @@
         }
     }
 
+    let registrationPromise = null;
+
     function register() {
         if (!('serviceWorker' in navigator)) return;
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/heritage/service-worker.js').then((reg) => {
+
+        const swPath = new URL('service-worker.js', window.location.href).pathname;
+
+        const doRegister = () => {
+            if (registrationPromise) return registrationPromise;
+            registrationPromise = navigator.serviceWorker.register(swPath).then((reg) => {
                 reg.addEventListener('updatefound', () => {
                     const nw = reg.installing;
                     if (!nw) return;
@@ -95,17 +101,29 @@
                     });
                 });
                 setInterval(requestUpdateCheck, 5 * 60 * 1000);
+                return reg;
             }).catch((err) => {
+                registrationPromise = null;
+                // Harmless when a newer register() supersedes an in-flight one.
+                if (err && err.name === 'AbortError') return null;
                 console.warn('Service worker registration failed:', err);
+                return null;
             });
+            return registrationPromise;
+        };
 
-            navigator.serviceWorker.addEventListener('message', (ev) => {
-                if (ev.data && ev.data.type === 'UPDATE_AVAILABLE') show();
-            });
+        if (document.readyState === 'loading') {
+            window.addEventListener('load', doRegister, { once: true });
+        } else {
+            doRegister();
+        }
 
-            const btn = document.getElementById('updateReloadBtn');
-            if (btn) btn.addEventListener('click', reloadToNewVersion);
+        navigator.serviceWorker.addEventListener('message', (ev) => {
+            if (ev.data && ev.data.type === 'UPDATE_AVAILABLE') show();
         });
+
+        const btn = document.getElementById('updateReloadBtn');
+        if (btn) btn.addEventListener('click', reloadToNewVersion);
     }
 
     global.HeritageSW = {

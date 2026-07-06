@@ -20,10 +20,29 @@
     const STORE_META  = 'meta';
 
     let dbPromise = null;
+    let dbConn = null;
+    let openRecovered = false;
 
-    function open() {
-        if (dbPromise) return dbPromise;
-        dbPromise = new Promise((resolve, reject) => {
+    function isRecoverableOpenError(err) {
+        if (!err) return false;
+        if (err.name === 'UnknownError' || err.name === 'InvalidStateError') return true;
+        return /internal error/i.test(String(err.message || ''));
+    }
+
+    function deleteDatabase() {
+        dbConn = null;
+        return new Promise((resolve, reject) => {
+            const req = indexedDB.deleteDatabase(DB_NAME);
+            req.onblocked = () => {
+                console.warn('IndexedDB delete blocked; close other Heritage tabs and retry.');
+            };
+            req.onsuccess = () => resolve();
+            req.onerror = () => reject(req.error);
+        });
+    }
+
+    function openOnce() {
+        return new Promise((resolve, reject) => {
             const req = indexedDB.open(DB_NAME, DB_VERSION);
             req.onupgradeneeded = (ev) => {
                 const db = req.result;
@@ -39,11 +58,53 @@
                 // existing stores. User-owned fields (found, foundDate, notes)
                 // must be preserved.
             };
-            req.onsuccess = () => resolve(req.result);
+            req.onsuccess = () => {
+                dbConn = req.result;
+                dbConn.onversionchange = () => {
+                    dbConn.close();
+                    dbConn = null;
+                    dbPromise = null;
+                };
+                resolve(dbConn);
+            };
             req.onerror   = () => reject(req.error);
             req.onblocked = () => reject(new Error('IndexedDB open was blocked by another tab.'));
         });
+    }
+
+    async function open() {
+        if (dbPromise) return dbPromise;
+        dbPromise = (async () => {
+            try {
+                return await openOnce();
+            } catch (err) {
+                if (!isRecoverableOpenError(err)) throw err;
+                console.warn('IndexedDB open failed with recoverable error; rebuilding database.', err);
+                dbPromise = null;
+                await deleteDatabase();
+                openRecovered = true;
+                return openOnce();
+            }
+        })();
         return dbPromise;
+    }
+
+    function wasRecovered() {
+        return openRecovered;
+    }
+
+    function runTransaction(storeNames, mode, fn) {
+        return open().then((db) => new Promise((resolve, reject) => {
+            const t = db.transaction(storeNames, mode);
+            t.oncomplete = () => resolve();
+            t.onerror = () => reject(t.error || new Error('IndexedDB transaction failed'));
+            t.onabort = () => reject(t.error || new Error('IndexedDB transaction aborted'));
+            try {
+                fn(t);
+            } catch (err) {
+                reject(err);
+            }
+        }));
     }
 
     function tx(storeNames, mode) {
@@ -76,9 +137,19 @@
     }
 
     async function putManyTrees(trees) {
-        const t = await tx(STORE_TREES, 'readwrite');
-        const store = t.objectStore(STORE_TREES);
-        await Promise.all(trees.map((tree) => wrap(store.put(tree))));
+        // Schedule every put synchronously inside one transaction. Using async
+        // awaits between puts lets the transaction auto-commit on Windows/Edge
+        // and surfaces as UnknownError: Internal error.
+        const CHUNK = 150;
+        for (let i = 0; i < trees.length; i += CHUNK) {
+            const chunk = trees.slice(i, i + CHUNK);
+            await runTransaction(STORE_TREES, 'readwrite', (t) => {
+                const store = t.objectStore(STORE_TREES);
+                for (const tree of chunk) {
+                    store.put(tree);
+                }
+            });
+        }
         return trees.length;
     }
 
@@ -115,6 +186,7 @@
 
     global.HeritageDB = {
         open,
+        wasRecovered,
         getAllTrees,
         getTree,
         putTree,

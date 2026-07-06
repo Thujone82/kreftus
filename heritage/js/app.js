@@ -26,7 +26,7 @@
     'use strict';
 
     const LEGACY_KEY_API = 'pdxHeritageGoogleApiKey';
-    const APP_VERSION = '1.2.7';
+    const APP_VERSION = '1.2.8';
 
     const state = {
         mapReady: false,
@@ -161,6 +161,12 @@
 
     async function boot() {
         await HeritageDB.open();
+        if (HeritageDB.wasRecovered && HeritageDB.wasRecovered()) {
+            HeritageUI.toast(
+                'Local storage was reset after a database error. Found marks and notes were cleared.',
+                8000
+            );
+        }
 
         // Initial data load if DB is empty.
         const count = await HeritageDB.countTrees();
