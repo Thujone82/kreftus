@@ -1004,10 +1004,39 @@ function Get-UpdatedFetchDisplayTime {
     return $displayTime
 }
 
+function Format-UpdatedAbsoluteTime {
+    param(
+        [DateTime]$DateTime,
+        [bool]$AlreadyLocationLocal = $false
+    )
+    if ($null -eq $DateTime) { return "N/A" }
+    $dt = $DateTime
+    # $script:currentTimeLocal is already in the destination timezone; the fetch time is
+    # system-local, so convert it to the location's timezone to match the rest of the report.
+    if (-not $AlreadyLocationLocal -and -not [string]::IsNullOrWhiteSpace($script:timeZone)) {
+        try {
+            $tzInfo = Get-ResolvedTimeZoneInfo -TimeZoneId $script:timeZone
+            $dt = [System.TimeZoneInfo]::ConvertTime($DateTime, $tzInfo)
+        } catch {
+            $dt = $DateTime
+        }
+    }
+    return $dt.ToString('HH:mm')
+}
+
 function Get-UpdatedConditionsLineText {
     $displayFetchTime = Get-UpdatedFetchDisplayTime
     if ($null -eq $displayFetchTime) {
         return "Updated: N/A"
+    }
+    # In non-interactive (-x) mode the line is printed once and never re-ages, so show an
+    # absolute timestamp instead of a relative "just now" that would immediately be stale.
+    if ($script:NoInteractive -and $script:NoInteractive.IsPresent) {
+        $line = "Updated: $(Format-UpdatedAbsoluteTime -DateTime $displayFetchTime)"
+        if ($script:usesObservation -and $null -ne $script:currentTimeLocal) {
+            $line += " [NWS: $(Format-UpdatedAbsoluteTime -DateTime $script:currentTimeLocal -AlreadyLocationLocal $true)]"
+        }
+        return $line
     }
     $line = "Updated: $(Get-TimeAgoLabel -DateTime $displayFetchTime)"
     if ($script:usesObservation -and $null -ne $script:currentTimeLocal) {
