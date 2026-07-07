@@ -533,6 +533,8 @@ function Get-CurrentLocation {
 # $VerbosePreference is 'Continue' left the previous frame visible, so a refresh could
 # show two "Updated:" lines (old observation time plus the new one).
 function Clear-HostWithDelay {
+    $script:updatedLineCursorTop = $null
+    $script:nextUpdatedLineTick = $null
     Clear-Host
 }
 
@@ -992,17 +994,65 @@ function Get-TimeAgoLabel {
     return $DateTime.ToString('g')
 }
 
-function Write-UpdatedConditionsLine {
-    param([string]$InfoColor = "Blue")
-    if ($null -eq $script:dataFetchTime) {
-        Write-Host "Updated: N/A" -ForegroundColor $InfoColor
-        return
+function Get-UpdatedFetchDisplayTime {
+    $displayTime = $script:dataFetchTime
+    if ($null -ne $script:lastManualRefreshTime) {
+        if ($null -eq $displayTime -or $script:lastManualRefreshTime -gt $displayTime) {
+            $displayTime = $script:lastManualRefreshTime
+        }
     }
-    $line = "Updated: $(Get-TimeAgoLabel -DateTime $script:dataFetchTime)"
+    return $displayTime
+}
+
+function Get-UpdatedConditionsLineText {
+    $displayFetchTime = Get-UpdatedFetchDisplayTime
+    if ($null -eq $displayFetchTime) {
+        return "Updated: N/A"
+    }
+    $line = "Updated: $(Get-TimeAgoLabel -DateTime $displayFetchTime)"
     if ($script:usesObservation -and $null -ne $script:currentTimeLocal) {
         $line += " [NWS: $(Get-TimeAgoLabel -DateTime $script:currentTimeLocal)]"
     }
+    return $line
+}
+
+function Write-UpdatedConditionsLine {
+    param([string]$InfoColor = "Blue")
+    $line = Get-UpdatedConditionsLineText
     Write-Host $line -ForegroundColor $InfoColor
+    try {
+        $cursor = $Host.UI.RawUI.CursorPosition
+        $script:updatedLineCursorTop = [Math]::Max(0, $cursor.Y - 1)
+        $script:updatedLineInfoColor = $InfoColor
+        $script:nextUpdatedLineTick = (Get-Date).AddMinutes(1)
+    } catch {
+        $script:updatedLineCursorTop = $null
+        $script:nextUpdatedLineTick = $null
+    }
+}
+
+function Update-UpdatedConditionsLineInPlace {
+    param([string]$InfoColor = "Blue")
+    if ($null -eq $script:updatedLineCursorTop) { return $false }
+
+    $line = Get-UpdatedConditionsLineText
+    if ([string]::IsNullOrWhiteSpace($line)) { return $false }
+
+    try {
+        $savedPos = $Host.UI.RawUI.CursorPosition
+        $consoleWidth = [int]$Host.UI.RawUI.WindowSize.Width
+        if ($consoleWidth -lt 20) { $consoleWidth = 80 }
+        $padded = if ($line.Length -lt $consoleWidth) { $line.PadRight($consoleWidth) } else { $line }
+
+        $Host.UI.RawUI.CursorPosition = New-Object System.Management.Automation.Host.Coordinates(0, $script:updatedLineCursorTop)
+        Write-Host $padded -ForegroundColor $InfoColor -NoNewline
+        $Host.UI.RawUI.CursorPosition = $savedPos
+        return $true
+    } catch {
+        $script:updatedLineCursorTop = $null
+        $script:nextUpdatedLineTick = $null
+        return $false
+    }
 }
 
 function Convert-LatestObservation {
@@ -2949,6 +2999,10 @@ if ($Observations.IsPresent) {
 
 # --- TIMER TRACKING FOR AUTO-REFRESH ---
 $script:dataFetchTime = Get-Date
+$script:lastManualRefreshTime = $null
+$script:updatedLineCursorTop = $null
+$script:updatedLineInfoColor = "Blue"
+$script:nextUpdatedLineTick = $null
 $dataStaleThreshold = 600  # 10 minutes in seconds
 
 # --- FETCH ALERTS ---
@@ -6236,6 +6290,8 @@ function Show-InteractiveControls {
         if (-not $IsWindMode) { Write-Host "W" -ForegroundColor Cyan -NoNewline; Write-Host "ind " -ForegroundColor White -NoNewline }
         if (-not $IsObservationsMode) { Write-Host "O" -ForegroundColor Cyan -NoNewline; Write-Host "bservations " -ForegroundColor White -NoNewline }
     }
+    Write-Host "G" -ForegroundColor Cyan -NoNewline
+    Write-Host "et" -ForegroundColor White
 }
 
 # Function to display full weather report
@@ -7264,6 +7320,13 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     }
                 }
             
+            # Re-age the Updated line once per minute (fetch + NWS suffix) without a full redraw
+            if ($null -ne $script:updatedLineCursorTop -and $null -ne $script:nextUpdatedLineTick -and (Get-Date) -ge $script:nextUpdatedLineTick) {
+                $script:nextUpdatedLineTick = (Get-Date).AddMinutes(1)
+                $infoColor = if ($script:updatedLineInfoColor) { $script:updatedLineInfoColor } else { "Blue" }
+                $null = Update-UpdatedConditionsLineInPlace -InfoColor $infoColor
+            }
+            
             # Check for key input (non-blocking) - using same approach as bmon.ps1
             try {
                 # Check if console supports key input
@@ -7587,16 +7650,23 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     }
                     Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                 }
-                'g' { # G key - Refresh weather data
+                { $keyInfo.Key -eq 'G' } { # G key - Refresh weather data (case-insensitive physical key)
+                    Write-Host "`nRefreshing..." -ForegroundColor Yellow
                     $timeSinceLastFetch = (Get-Date) - $script:dataFetchTime
+                    $refreshSuccess = $false
                     if ($timeSinceLastFetch.TotalSeconds -le $dataStaleThreshold) {
                         Write-Verbose "G key: forecast fresh — light refresh (latest observation only)"
                         $refreshSuccess = Update-CurrentObservationOnly -Lat $lat -Lon $lon -Headers $headers -TimeZone $timeZone -LocationKey $script:locationKey
+                        if (-not $refreshSuccess) {
+                            Write-Verbose "G key: light refresh failed — full refresh"
+                            $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers -TimeZone $timeZone -UseRetryLogic $true
+                        }
                     } else {
                         Write-Verbose "G key: forecast stale — full refresh"
                         $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers -TimeZone $timeZone -UseRetryLogic $true
                     }
                     if ($refreshSuccess) {
+                        $script:lastManualRefreshTime = Get-Date
                         # Recalculate moon phase and sunrise/sunset for current time (using location's date)
                         $moonPhaseInfo = Get-MoonPhase -Date (Get-Date)
                         $locationToday = if ($timeZone) { 
@@ -7668,6 +7738,9 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $(Get-CurrentConditionsUpdatedDateTime) -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $showCurrentConditions -ShowTodayForecast $showTodayForecast -ShowTomorrowForecast $showTomorrowForecast -ShowHourlyForecast $showHourlyForecast -ShowSevenDayForecast $showSevenDayForecast -ShowAlerts $showAlerts -ShowAlertDetails $showAlertDetails -ShowLocationInfo $showLocationInfo -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $sunriseTime -SunsetTime $sunsetTime -CurrentTimeDateTime $(Get-CurrentConditionsUpdatedDateTime)
                             Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         }
+                    } else {
+                        Write-Host "Refresh failed." -ForegroundColor Yellow
+                        Start-Sleep -Milliseconds 800
                     }
                 }
                 { $keyInfo.Key -eq 'UpArrow' } { # Up arrow - Scroll up in hourly mode
