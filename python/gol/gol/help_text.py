@@ -20,7 +20,7 @@ TUI_PLAY_CONTROLS_MARKUP = """[bold]Simulation[/]
   [cyan]Q[/]         Back to setup
   [cyan]+[/] / [cyan]-[/]     Speed (10–200)
   [cyan]C[/]         Show controls (this help)
-  [cyan]P[/]         Toggle Pop/Step corner counters
+  [cyan]H[/]         Toggle HUD (Pop/Step counters)
   [cyan]E[/]         Toggle edit/selection mode (pauses)
   [cyan]T[/]         Toggle cell under cursor (edit mode)
   [cyan],[/]         Save layout (in-memory snapshot)
@@ -49,7 +49,7 @@ pygame GUI (default):
   Space        Play / Pause
   N            Step
   R            Reset
-  P            Toggle Pop/Step corner counters
+  H            Toggle HUD (Pop/Step counters)
   Click        Toggle cell
   Drag         Pan (infinite always; wrapped when paused)
   +/- / wheel  Zoom (wrapped when paused only)
@@ -78,7 +78,7 @@ Terminal UI (-tui or gol-tui.exe):
     Q              Back to setup
     + / -          Speed
     C              Controls overview
-    P              Toggle Pop/Step corner counters
+    H              Toggle HUD (Pop/Step counters)
     E              Toggle edit mode (pauses; T toggles cell under cursor)
     ,              Save layout (M+)
     .              Restore saved layout (MR)
@@ -111,7 +111,7 @@ GoLPy terminal edition (gol-tui.exe / gol_tui.py):
     Q              Back to setup
     + / -          Speed
     C              Controls overview
-    P              Toggle Pop/Step corner counters
+    H              Toggle HUD (Pop/Step counters)
     E              Toggle edit mode (pauses; T toggles cell under cursor)
     ,              Save layout (M+)
     .              Restore saved layout (MR)

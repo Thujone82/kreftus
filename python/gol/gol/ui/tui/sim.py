@@ -20,7 +20,8 @@ from gol.ui.tui.render import (
     population_centroid,
     screen_center,
     sim_delay_seconds,
-    stats_bar_markup,
+    hud_pop_markup,
+    hud_step_markup,
     viewport_dims,
     viewport_topleft,
     window_title,
@@ -48,7 +49,7 @@ class SimulationScreen(Screen):
         Binding("minus", "speed_down", "Slower", show=False),
         Binding("c", "show_controls", "Controls", show=False),
         Binding("f", "toggle_follow", "Follow", show=False),
-        Binding("p", "toggle_stats", "Stats", show=False),
+        Binding("h", "toggle_hud", "HUD", show=False),
         Binding("e", "toggle_edit", "Edit", show=False),
         Binding("t", "toggle_cell", "Toggle cell", show=False),
         Binding("comma", "save_layout", "Save", show=False),
@@ -67,13 +68,23 @@ class SimulationScreen(Screen):
         padding: 0;
         margin: 0;
     }
-    #stats-bar {
+    #hud-pop {
         layer: overlay;
-        dock: top;
-        width: 100%;
+        dock: left;
+        width: auto;
         height: 1;
         background: transparent;
         padding: 0;
+        margin: 0;
+    }
+    #hud-step {
+        layer: overlay;
+        dock: right;
+        width: auto;
+        height: 1;
+        background: transparent;
+        padding: 0;
+        margin: 0;
     }
     """
 
@@ -109,7 +120,8 @@ class SimulationScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Static("", id="grid", markup=True)
-        yield Static("", id="stats-bar", markup=True)
+        yield Static("", id="hud-pop", markup=True)
+        yield Static("", id="hud-step", markup=True)
 
     def on_mount(self) -> None:
         self._apply_terminal_size()
@@ -206,7 +218,8 @@ class SimulationScreen(Screen):
             cursor=logical_cursor,
         )
         self.query_one("#grid", Static).update(markup)
-        stats_bar = self.query_one("#stats-bar", Static)
+        hud_pop = self.query_one("#hud-pop", Static)
+        hud_step = self.query_one("#hud-step", Static)
         edit_at = None
         if self.edit_mode and logical_cursor is not None:
             edit_at = world_cell_under_cursor(
@@ -217,17 +230,15 @@ class SimulationScreen(Screen):
                 cursor_row=logical_cursor[1],
             )
         if self.show_stats:
-            stats_bar.display = True
-            stats_bar.update(
-                stats_bar_markup(
-                    self.game.population,
-                    self.game.generation,
-                    self.app.size.width,
-                    edit_at=edit_at,
-                )
+            hud_pop.display = True
+            hud_step.display = True
+            hud_pop.update(hud_pop_markup(self.game.population))
+            hud_step.update(
+                hud_step_markup(self.game.generation, edit_at=edit_at)
             )
         else:
-            stats_bar.display = False
+            hud_pop.display = False
+            hud_step.display = False
         self.app.console.set_window_title(
             window_title(
                 self.game.generation,
@@ -294,7 +305,7 @@ class SimulationScreen(Screen):
             self._last_follow_at = None
         self._refresh_display()
 
-    def action_toggle_stats(self) -> None:
+    def action_toggle_hud(self) -> None:
         self.show_stats = not self.show_stats
         self._refresh_display()
 

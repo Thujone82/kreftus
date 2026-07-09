@@ -416,6 +416,23 @@ def corner_counter_markup(label: str, value: int) -> str:
     return f"[bold]{label}: {value}[/]"
 
 
+def hud_pop_markup(population: int) -> str:
+    """Rich markup for the population HUD label."""
+    return f"[bold on black]Pop: {population}[/]"
+
+
+def hud_step_markup(
+    generation: int,
+    *,
+    edit_at: tuple[int, int] | None = None,
+) -> str:
+    """Rich markup for the generation HUD label."""
+    text = f"Step: {generation}"
+    if edit_at is not None:
+        text += f"  @ {edit_at[0]},{edit_at[1]}"
+    return f"[bold on black]{text}[/]"
+
+
 def stats_bar_markup(
     population: int,
     generation: int,
@@ -423,14 +440,11 @@ def stats_bar_markup(
     *,
     edit_at: tuple[int, int] | None = None,
 ) -> str:
-    """One-line overlay with Pop left and Step right; only text blocks the grid."""
-    left = f"Pop: {population}"
-    right = f"Step: {generation}"
-    if edit_at is not None:
-        right += f"  @ {edit_at[0]},{edit_at[1]}"
+    """Legacy combined markup (tests only); simulation uses corner HUD widgets."""
+    left = hud_pop_markup(population).removeprefix("[bold on black]").removesuffix("[/]")
+    right = hud_step_markup(generation, edit_at=edit_at).removeprefix("[bold on black]").removesuffix("[/]")
     pad = max(1, width - len(left) - len(right))
-    styled = "[bold on black]"
-    return f"{styled}{left}[/]{' ' * pad}{styled}{right}[/]"
+    return f"[bold on black]{left}[/]{' ' * pad}[bold on black]{right}[/]"
 
 
 def window_title(

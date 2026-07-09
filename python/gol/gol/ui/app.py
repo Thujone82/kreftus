@@ -499,7 +499,7 @@ class GolApp:
             if event.key == pygame.K_r:
                 self._reset()
                 return True
-            if event.key == pygame.K_p:
+            if event.key == pygame.K_h:
                 self.show_stats = not self.show_stats
                 return True
             if event.key in (pygame.K_PLUS, pygame.K_EQUALS):

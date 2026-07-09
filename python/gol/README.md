@@ -54,7 +54,7 @@ python gol.py -tui --density high --mode infinite --pattern gosper
 | Mode | Toolbar **Wrapped** / **Infinite** toggle |
 | Save / Restore | **M+** / **MR** (in-memory snapshot) |
 | Speed | Toolbar speed slider |
-| Pop / Step counters | **P** toggle corner overlay (on by default) |
+| HUD (Pop / Step) | **H** toggle corner overlay (on by default) |
 
 ### Terminal UI (`-tui`)
 
@@ -75,7 +75,7 @@ Launches a Textual setup screen (mode, pattern, speed), then uses the full termi
 | Pan (infinite) | Arrows or **WASD** (paused, or while running if follow off) |
 | Toggle follow (infinite) | **F** |
 | Speed (simulation) | **+** / **-** |
-| Pop / Step counters | **P** toggle corner overlay (on by default) |
+| HUD (Pop / Step) | **H** toggle corner overlay (on by default) |
 | Edit / selection mode | **E** toggle (pauses; **T** toggles cell under cursor) |
 | Save / restore layout | **,** save (M+) / **.** restore (MR) in-memory snapshot |
 | Edit: move | Infinite — arrows/**WASD** pans field under fixed center cursor; wrapped — moves cursor on torus |

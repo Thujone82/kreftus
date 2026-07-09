@@ -14,6 +14,8 @@ from gol.ui.tui.render import (
     cursor_char_markup,
     follow_nudge_delta,
     half_cell_markup,
+    hud_pop_markup,
+    hud_step_markup,
     logical_to_terminal,
     population_centroid,
     screen_center,
@@ -92,9 +94,20 @@ class TestTuiRender(unittest.TestCase):
         self.assertIn("#444444", markup_upper.split("\n")[0])
         self.assertIn("#444444", markup_lower.split("\n")[0])
 
-    def test_stats_bar_markup_edit_at(self) -> None:
-        markup = stats_bar_markup(1, 2, 60, edit_at=(10, 20))
+    def test_hud_pop_markup(self) -> None:
+        self.assertEqual(hud_pop_markup(12), "[bold on black]Pop: 12[/]")
+
+    def test_hud_step_markup_edit_at(self) -> None:
+        markup = hud_step_markup(505, edit_at=(10, 20))
+        self.assertIn("Step: 505", markup)
         self.assertIn("@ 10,20", markup)
+
+    def test_stats_bar_markup(self) -> None:
+        markup = stats_bar_markup(12, 505, 80)
+        self.assertIn("[bold on black]Pop: 12[/]", markup)
+        self.assertIn("[bold on black]Step: 505[/]", markup)
+        plain = markup.replace("[bold on black]", "").replace("[/]", "")
+        self.assertGreaterEqual(len(plain), 80)
 
     def test_build_grid_markup_high_density_compact_empty_rows(self) -> None:
         markup = build_grid_markup(
@@ -184,13 +197,6 @@ class TestTuiRender(unittest.TestCase):
 
     def test_corner_counter_markup(self) -> None:
         self.assertEqual(corner_counter_markup("Pop", 42), "[bold]Pop: 42[/]")
-
-    def test_stats_bar_markup(self) -> None:
-        markup = stats_bar_markup(12, 505, 80)
-        self.assertIn("[bold on black]Pop: 12[/]", markup)
-        self.assertIn("[bold on black]Step: 505[/]", markup)
-        plain = markup.replace("[bold on black]", "").replace("[/]", "")
-        self.assertGreaterEqual(len(plain), 80)
 
     def test_should_recenter_follow(self) -> None:
         self.assertTrue(should_recenter_follow(10.0, None))
