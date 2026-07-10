@@ -20,7 +20,8 @@
 .DESCRIPTION
     Clears the console. If btc.ini or ApiKey is missing, prompts for first-run setup.
     If -Update switch is used, prompts to update portfolio/log settings in btc.ini.
-    Then fetches detailed Bitcoin data via LiveCoinWatch API.
+    Then fetches detailed Bitcoin data via LiveCoinWatch API, showing "Loading Market..."
+    during API calls (skipped when -Verbose is used).
     Core financial data is always displayed. Use -Verbose to see step-by-step messages.
     Features:
     - Reads/Writes configuration to 'btc.ini' (ApiKey, LogPath, MyBTC, MyCOST).
@@ -358,6 +359,33 @@ function Get-Sparkline {
     return $sparkline
 }
 
+function Get-BitcoinApiData {
+    param(
+        [string]$ApiKey,
+        [string]$Currency,
+        [string]$CoinCode,
+        [string]$ApiBaseUrl,
+        [hashtable]$Headers
+    )
+    $currentDataBody = @{ currency = $Currency; code = $CoinCode; meta = $true } | ConvertTo-Json
+    $currentResponse = Invoke-RestMethodWithRetry -Uri "$($ApiBaseUrl)/coins/single" -Method Post -Headers $Headers -Body $currentDataBody
+    if ($currentResponse -and $currentResponse.PSObject.Properties.Name -contains 'IsNetworkError' -and $currentResponse.IsNetworkError) {
+        return [PSCustomObject]@{
+            IsNetworkError  = $true
+            ErrorCode       = $currentResponse.ErrorCode
+            CurrentResponse = $null
+            HistoricalStats = $null
+        }
+    }
+    Write-Verbose "Current Bitcoin data API call successful."
+    $historicalStats = Get-HistoricalData -ApiKey $ApiKey -Currency $Currency -CoinCode $CoinCode
+    return [PSCustomObject]@{
+        IsNetworkError  = $false
+        CurrentResponse = $currentResponse
+        HistoricalStats = $historicalStats
+    }
+}
+
 # --- Configuration File Path ---
 # Determine script directory - prioritize most reliable methods
 if ($PSCommandPath) {
@@ -479,25 +507,41 @@ $coinCode = "BTC"; $currency = "USD"; $apiBaseUrl = "https://api.livecoinwatch.c
 # --- Construct API Request Headers ---
 $headers = @{ "Content-Type" = "application/json"; "x-api-key" = $apiKey }
 
-# --- Make API Call for Current Data ---
+# --- Make API Calls ---
 Write-Verbose "Fetching current Bitcoin data from LiveCoinWatch..."
+$showLoadingMessage = $VerbosePreference -ne 'Continue'
+if ($showLoadingMessage) {
+    Write-Host "Loading Market..." -ForegroundColor Cyan
+}
+
 try {
-    $currentDataBody = @{ currency = $currency; code = $coinCode; meta = $true } | ConvertTo-Json
-    $currentResponse = Invoke-RestMethodWithRetry -Uri "$($apiBaseUrl)/coins/single" -Method Post -Headers $headers -Body $currentDataBody
-    if ($currentResponse -and $currentResponse.PSObject.Properties.Name -contains 'IsNetworkError' -and $currentResponse.IsNetworkError) {
-        $errorMessage = "An error occurred: Response status code does not indicate success: $($currentResponse.ErrorCode)"
-        if ($currentResponse.ErrorCode -eq 504) {
+    try {
+        $fetchResult = Get-BitcoinApiData -ApiKey $apiKey -Currency $currency -CoinCode $coinCode -ApiBaseUrl $apiBaseUrl -Headers $headers
+    }
+    finally {
+        if ($showLoadingMessage) {
+            $lineWidth = 80
+            try { $lineWidth = [Math]::Max(20, [Console]::WindowWidth) } catch {}
+            Write-Host ("`r" + (' ' * $lineWidth) + "`r") -NoNewline
+        }
+    }
+
+    if ($fetchResult.IsNetworkError) {
+        $errorMessage = "An error occurred: Response status code does not indicate success: $($fetchResult.ErrorCode)"
+        if ($fetchResult.ErrorCode -eq 504) {
             $errorMessage += " (Gateway Time-out)"
         }
         Write-Error $errorMessage
-        if ($currentResponse.ErrorCode) {
-            try { $errorDetail = "API Error Code: $($currentResponse.ErrorCode)"; Write-Error $errorDetail } catch { Write-Warning "Could not read API error." }
+        if ($fetchResult.ErrorCode) {
+            try { $errorDetail = "API Error Code: $($fetchResult.ErrorCode)"; Write-Error $errorDetail } catch { Write-Warning "Could not read API error." }
         } else {
             Write-Warning "Could not read API error."
         }
         exit 1
     }
-    Write-Verbose "Current Bitcoin data API call successful."
+
+    $currentResponse = $fetchResult.CurrentResponse
+    $historicalStats = $fetchResult.HistoricalStats
 
     if ($null -ne $currentResponse -and $currentResponse.PSObject.Properties.Name -contains "rate" -and $currentResponse.PSObject.Properties.Name -contains "allTimeHighUSD") {
         Write-Verbose "Successfully parsed current Bitcoin data."
@@ -510,9 +554,7 @@ try {
         $deltaHourPct = $currentResponse.delta.hour; $deltaWeekPct = $currentResponse.delta.week
         $deltaMonthPct = $currentResponse.delta.month; $deltaYearPct = $currentResponse.delta.year
 
-        # --- Make API Call for Historical Data (Full 24 hours) ---
         $actualBitcoinPrice24hAgo = $null; $priceDifference24h = $null
-        $historicalStats = Get-HistoricalData -ApiKey $apiKey -Currency $currency -CoinCode $coinCode
         
         if ($null -ne $historicalStats -and $historicalStats.PSObject.Properties.Name -contains 'IsNetworkError' -and $historicalStats.IsNetworkError) {
             Write-Warning "Historical data fetch failed with network error. Using fallback calculation."
