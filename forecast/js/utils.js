@@ -1,5 +1,7 @@
 // Utility functions for weather calculations and formatting
 
+const DATA_STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+
 // Unit conversion helpers for metric display (data remains in US units internally)
 function tempFtoC(f) {
     if (f == null || isNaN(f)) return null;
@@ -926,7 +928,7 @@ function buildUpdatedConditionsHtml() {
         ? appState.lastFetchTime
         : new Date(appState.lastFetchTime);
     const fetchAgo = getTimeAgo(fetchTime);
-    const isStale = (Date.now() - fetchTime) > 600000;
+    const isStale = (Date.now() - fetchTime) > DATA_STALE_THRESHOLD_MS;
     const staleClass = isStale ? 'stale-data' : '';
 
     let html = `<span class="updated-fetch-time ${staleClass}">${fetchAgo}</span>`;

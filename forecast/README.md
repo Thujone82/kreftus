@@ -94,7 +94,7 @@ Desktop **Firefox** has limited PWA support; use Chrome or Edge for the full ins
 2. Enter a location (zip or "City, State") and click **Load**, or click the **pin** button to use your current location.
 3. Use the **mode** buttons (Full, Daily, Hourly, Rain, Wind, History) to switch views, or press **F**, **D**, **H**, **R**, or **W** ( **H** toggles Hourly/History when Hourly is active). Press **L** to open or close the Locations bar. Press **.** and **,** to move between page top, the mode title, and each section or day—or between 12-hour pages in Hourly mode (see [Section navigation](#section-navigation)).
 4. **Star** saves the current location to the Locations bar; **Locations** opens/closes the saved locations list.
-5. **Refresh** (or **G**) updates weather data. Within 10 minutes of the last full forecast fetch, **Refresh** pulls only the latest station observation (temp, wind, humidity, and so on) without refetching forecast or hourly data. See [Observed current conditions](#observed-current-conditions).
+5. **Refresh** (or **G**) updates weather data. Within 5 minutes of the last full forecast fetch, **Refresh** pulls only the latest station observation (temp, wind, humidity, and so on) without refetching forecast or hourly data. See [Observed current conditions](#observed-current-conditions).
 6. **Share** copies or shares the current page URL (with location and mode).
 7. Click the **gear** button in the control bar to open **Settings**: accent colors, Reset Colors, Standard/Metric, AM/PM vs 24H, Compact/Normal density, Feels-Like vs WBGT, Auto-Update Data, optional AQI setup, Extras (Enable Radar for Full-mode NWS loop with offline cache; Enable Solar Irradiance; Enable Magic Hours; Enable per Location Colors). **Reset Forecast** clears all favorites, cache, and settings and reloads. Alternatively, double-click the header icon to open Settings. To enable AQI, toggle **Enable AQI**, paste your **AirNow API Key**, and wait for a green check mark after validation. Register a key at [Request an AirNow API Key](https://docs.airnowapi.org/account/request/). AQI uses AirNow’s current observations API (`/aq/observation/current/ziplatLong`); each key is limited to **500 requests per hour** (see [AirNow Web Services](https://docs.airnowapi.org/webservices)).
 
@@ -173,12 +173,12 @@ Current Conditions (temperature, wind, humidity, dew point, and conditions text)
 
 ### Two-tier refresh
 
-Forecast data is considered fresh for **10 minutes** after a full load.
+Forecast data is considered fresh for **5 minutes** after a full load.
 
 | Situation | **Refresh** behavior |
 |-----------|----------------------|
-| Forecast **fresh** (< 10 min) | Observation only — no points, forecast, hourly, alerts, or AQI refetch |
-| Forecast **stale** (> 10 min) | Full refetch plus latest observation merge |
+| Forecast **fresh** (< 5 min) | Observation only — no points, forecast, hourly, alerts, or AQI refetch |
+| Forecast **stale** (> 5 min) | Full refetch plus latest observation merge |
 
 Light refresh does **not** change the forecast fetch timestamp. Full refresh updates it.
 
@@ -192,7 +192,7 @@ Updated: just now [NWS: 24 minutes ago]
 
 | Part | Meaning |
 |------|---------|
-| First value (`just now`, `2 minutes ago`, …) | Time since the last **full** weather fetch (`lastFetchTime`). Stale styling (> 10 min) applies here. |
+| First value (`just now`, `2 minutes ago`, …) | Time since the last **full** weather fetch (`lastFetchTime`). Stale styling (> 5 min) applies here. |
 | `[NWS: …]` | Shown only when station observation drives current conditions. Time since the station’s `timestamp`. |
 
 Without station data: `Updated: 2 minutes ago` (no NWS suffix).

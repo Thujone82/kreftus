@@ -222,7 +222,7 @@ The script features an advanced **Interactive Mode** that activates when run fro
 - **[R]** - **Rain View:** Switch to rain forecast mode with sparklines
 - **[W]** - **Wind View:** Switch to wind forecast mode with direction glyphs
 - **[O]** - **Observations View:** Switch to observations mode with historical weather data
-- **[G]** - **Get/Refresh:** Manually refresh weather data (auto-refreshes every 10 minutes)
+- **[G]** - **Get/Refresh:** Manually refresh weather data (auto-refreshes every 5 minutes)
 - **[U]** - **Update Toggle:** Toggle automatic updates on/off
 - **[F]** - **Full View:** Return to complete weather information display
 - **[Enter]** - **Exit:** Close the script and return to the system
@@ -557,7 +557,7 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 - **Peak Wind Highlighting:** Added visual feedback mechanism that inverts colors for peak wind hours
 - **Extended Forecast Coverage:** Both rain and wind modes use 96-hour data instead of standard 12-hour limit
 - **Improved Visual Design:** Better sparkline characters and directional glyphs that don't interfere with each other
-- **Auto-Refresh Functionality:** Weather data automatically refreshes every 10 minutes in interactive mode
+- **Auto-Refresh Functionality:** Weather data automatically refreshes every 5 minutes in interactive mode
 - **Auto-Update Toggle:** Added 'U' key to toggle automatic updates on/off during interactive mode
 - **Command Line Control:** Added `-u` flag to start with automatic updates disabled
 - **Manual Refresh Control:** Added 'G' key for manual data refresh while preserving current view mode
@@ -646,12 +646,12 @@ Current Conditions prefer the nearest NWS station’s **latest observation** whe
 
 #### Two-tier refresh
 
-Forecast data is fresh for **10 minutes** after a full load (`$script:dataFetchTime`).
+Forecast data is fresh for **5 minutes** after a full load (`$script:dataFetchTime`).
 
 | Trigger | Forecast fresh | Forecast stale |
 |---------|----------------|----------------|
 | **G** key | `Update-CurrentObservationOnly` | `Update-WeatherData` (full) |
-| Auto-refresh (10 min) | Same logic | Full refetch |
+| Auto-refresh (5 min) | Same logic | Full refetch |
 
 Light refresh updates current conditions from the station but does **not** reset `$script:dataFetchTime`.
 
@@ -663,7 +663,7 @@ Light refresh updates current conditions from the station but does **not** reset
 Updated: just now [NWS: 24 minutes ago]
 ```
 
-- **First segment:** `Get-TimeAgoLabel` from `$script:dataFetchTime` (last full fetch). Stale styling (> 10 min) applies here.
+- **First segment:** `Get-TimeAgoLabel` from `$script:dataFetchTime` (last full fetch). Stale styling (> 5 min) applies here.
 - **`[NWS: …]`:** Only when `$script:usesObservation` is true; age from observation `timestamp`.
 
 #### Temperature trend
@@ -682,7 +682,7 @@ The auto-refresh functionality provides seamless data updates in interactive mod
 
 #### Key Components:
 - **Timer Tracking:** Uses `$dataFetchTime` to track when data was last fetched
-- **Staleness Detection:** Checks if current time exceeds 10-minute threshold (`$dataStaleThreshold = 600`)
+- **Staleness Detection:** Checks if current time exceeds 5-minute threshold (`$dataStaleThreshold = 300`)
 - **Refresh Function:** `Update-WeatherData` re-fetches all API endpoints and updates global variables; `Update-CurrentObservationOnly` fetches only `observations/latest` when forecast is still fresh
 - **View Preservation:** Maintains current display mode (hourly/daily/terse/rain/wind/full) during refresh
 - **Error Handling:** Graceful fallback to existing data if refresh fails

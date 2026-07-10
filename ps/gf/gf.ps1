@@ -265,7 +265,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
      Write-Host "    [R] - Switch to rain forecast mode (sparklines)" -ForegroundColor Cyan
      Write-Host "    [W] - Switch to wind forecast mode (direction glyphs)" -ForegroundColor Cyan
      Write-Host "    [O] - Switch to observations historical data" -ForegroundColor Cyan
-    Write-Host "    [G] - Refresh weather data (auto-refreshes every 10 minutes)" -ForegroundColor Cyan
+    Write-Host "    [G] - Refresh weather data (auto-refreshes every 5 minutes)" -ForegroundColor Cyan
     Write-Host "    [U] - Toggle automatic updates on/off" -ForegroundColor Cyan
     Write-Host "    [B] - Toggle control bar on/off" -ForegroundColor Cyan
     Write-Host "    [F] - Return to full display" -ForegroundColor Cyan
@@ -3032,7 +3032,7 @@ $script:lastManualRefreshTime = $null
 $script:updatedLineCursorTop = $null
 $script:updatedLineInfoColor = "Blue"
 $script:nextUpdatedLineTick = $null
-$dataStaleThreshold = 600  # 10 minutes in seconds
+$dataStaleThreshold = 300  # 5 minutes in seconds
 
 # --- FETCH ALERTS ---
 $alertsData = $null

@@ -45,10 +45,10 @@ const appState = {
 };
 
 // Constants
-const DATA_STALE_THRESHOLD = 600000; // 10 minutes in milliseconds
+const DATA_STALE_THRESHOLD = DATA_STALE_THRESHOLD_MS;
 /** Radar loop GIF refresh cadence (aligned with weather staleness). */
 const RADAR_GIF_STALE_MS = DATA_STALE_THRESHOLD;
-const AUTO_UPDATE_INTERVAL = 600000; // 10 minutes
+const AUTO_UPDATE_INTERVAL = DATA_STALE_THRESHOLD_MS;
 const UPDATE_VISUAL_SWITCH_DEBOUNCE_MS = 120;
 const UPDATE_VISUAL_MIN_VISIBLE_MS = 400;
 
@@ -2385,7 +2385,7 @@ async function handleSearch() {
 }
 
 // Check observations availability and fetch observations
-// Only fetches if not already cached and fresh (10 minutes)
+// Only fetches if not already cached and fresh (5 minutes)
 async function checkObservationsAvailability(pointsData, timeZone) {
     // Preserve existing observations data in case refresh fails (especially important in history mode)
     const existingObservationsData = appState.observationsData;

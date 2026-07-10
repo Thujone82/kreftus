@@ -99,7 +99,7 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
   - **R** — Rain forecast mode (sparklines)
   - **W** — Wind forecast mode (direction glyphs)
   - **O** — Observations mode (historical weather data)
-  - **G** — Refresh weather data (auto-refreshes every 10 minutes). Within 10 minutes of the last full fetch, **G** updates only the latest station observation; otherwise it refetches forecast and hourly data too.
+  - **G** — Refresh weather data (auto-refreshes every 5 minutes). Within 5 minutes of the last full fetch, **G** updates only the latest station observation; otherwise it refetches forecast and hourly data too.
   - **U** — Toggle automatic updates on/off
   - **B** — Toggle control bar on/off
   - **F** — Return to full display
@@ -165,7 +165,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 | `-Rain` | `-r` | Rain likelihood sparklines (96 hours). |
 | `-Wind` | `-w` | Wind outlook glyphs (96 hours). |
 | `-Observations` | `-o` | Historical observations (7 days). |
-| `-NoAutoUpdate` | `-u` | Start with auto-update disabled (10-minute default). |
+| `-NoAutoUpdate` | `-u` | Start with auto-update disabled (5-minute default). |
 | `-Magic` | `-m` | Golden/Blue hour lines before `Updated:`. |
 | `-NoInteractive` | `-x` | Display once and exit (scripting). |
 | `-NoBar` | `-b` | Start with the interactive control bar hidden. |
@@ -238,7 +238,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 - `-NoAutoUpdate` or `-u` [switch]
   - Starts with automatic updates disabled.
-  - Auto-updates are enabled by default (every 10 minutes).
+  - Auto-updates are enabled by default (every 5 minutes).
   - Can be toggled on/off during interactive mode with the 'U' key.
 
 - `-Magic` or `-m` [switch]
@@ -398,12 +398,12 @@ Current Conditions (temperature, wind, humidity, dew point, and conditions text)
 
 ### Two-tier refresh
 
-Forecast data is considered fresh for **10 minutes** after a full load.
+Forecast data is considered fresh for **5 minutes** after a full load.
 
 | Situation | **G** / auto-refresh behavior |
 |-----------|------------------------------|
-| Forecast **fresh** (< 10 min) | Observation only (`Update-CurrentObservationOnly`) |
-| Forecast **stale** (> 10 min) | Full refetch plus latest observation merge |
+| Forecast **fresh** (< 5 min) | Observation only (`Update-CurrentObservationOnly`) |
+| Forecast **stale** (> 5 min) | Full refetch plus latest observation merge |
 
 Light refresh does **not** reset the forecast fetch timestamp. Full refresh updates `$script:dataFetchTime`.
 
@@ -417,7 +417,7 @@ Updated: just now [NWS: 24 minutes ago]
 
 | Part | Meaning |
 |------|---------|
-| First value | Time since last **full** weather fetch. Stale styling (> 10 min) applies here. |
+| First value | Time since last **full** weather fetch. Stale styling (> 5 min) applies here. |
 | `[NWS: …]` | Shown only when `$script:usesObservation` is true. Time since the station’s observation `timestamp`. |
 
 Without station data: `Updated: 2 minutes ago` (no NWS suffix).
@@ -524,7 +524,7 @@ Interactive mode shows a control bar with hotkey hints (hide with **B** or start
 - **Quick View Switching:** No need to restart the script to see different data
 - **Efficient Planning:** Switch between hourly and daily views for different planning needs
 - **Focused Information:** Get exactly the weather data you need without scrolling through everything
-- **Auto-Refresh:** Weather data automatically refreshes every 10 minutes to keep information current
+- **Auto-Refresh:** Weather data automatically refreshes every 5 minutes to keep information current
 - **Manual Refresh:** Press **G** to manually refresh data at any time (observation-only when forecast is still fresh)
 - **Observed current conditions:** See [Observed current conditions](#observed-current-conditions).
 - **Hourly Scrolling:** In hourly view, **↑**/**↓** move through 12-hour pages covering up to 48 hours

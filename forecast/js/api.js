@@ -965,8 +965,8 @@ async function fetchNoaaTidePredictionsForDateRange(stationId, beginDate, endDat
     }
 }
 
-// Cache duration for tide predictions: 10 minutes (same as weather data)
-const TIDE_CACHE_DURATION_MS = 10 * 60 * 1000; // 10 minutes in milliseconds
+// Cache duration for tide predictions: 5 minutes (same as weather data)
+const TIDE_CACHE_DURATION_MS = DATA_STALE_THRESHOLD_MS;
 
 // Cache duration for water level support: 1 week (static property, rarely changes)
 const WATER_LEVEL_SUPPORT_CACHE_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
@@ -1075,7 +1075,7 @@ function saveWaterLevelSupportToCache(stationId, supportsWaterLevels) {
 }
 
 // Fetch NOAA tide predictions
-// Uses cache if available and fresh (10 minutes), otherwise fetches from API
+// Uses cache if available and fresh (5 minutes), otherwise fetches from API
 async function fetchNoaaTidePredictions(stationId, timeZone) {
     try {
         // Check cache first
