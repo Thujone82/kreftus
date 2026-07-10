@@ -3774,16 +3774,84 @@ function Get-IsDaytimeFromIconUrl {
     return $null
 }
 
+function Get-IsHourDaytimeForIcon {
+    param(
+        [DateTime]$PeriodTime,
+        [object]$Sunrise,
+        [object]$Sunset,
+        [bool]$PolarNight = $false,
+        [bool]$IsPolarDay = $false
+    )
+    if ($PolarNight) { return $false }
+    if ($IsPolarDay) { return $true }
+    if ($Sunrise -isnot [DateTime] -or $Sunset -isnot [DateTime]) {
+        return ($PeriodTime.Hour -ge 6 -and $PeriodTime.Hour -lt 18)
+    }
+
+    $sunriseDate = [DateTime]$Sunrise
+    $sunsetDate = [DateTime]$Sunset
+    $periodDate = $PeriodTime.Date
+    $normalizedSunrise = $periodDate.Add($sunriseDate.TimeOfDay)
+    $normalizedSunset = $periodDate.Add($sunsetDate.TimeOfDay)
+    $periodStart = ($PeriodTime.Hour * 60) + $PeriodTime.Minute
+    $sunriseTime = ($normalizedSunrise.Hour * 60) + $normalizedSunrise.Minute
+    $sunsetTime = ($normalizedSunset.Hour * 60) + $normalizedSunset.Minute
+    $sunriseHourStart = [Math]::Floor($sunriseTime / 60) * 60
+    $firstFullHourAfterSunset = ([Math]::Floor($sunsetTime / 60) * 60) + 60
+
+    if ($sunsetTime -lt $sunriseTime) {
+        return ($periodStart -ge $sunriseHourStart) -or ($periodStart -lt $firstFullHourAfterSunset)
+    }
+    return ($periodStart -ge $sunriseHourStart) -and ($periodStart -lt $firstFullHourAfterSunset)
+}
+
+function Get-CurrentConditionsIconReferenceTime {
+    if (-not [string]::IsNullOrWhiteSpace($script:timeZone)) {
+        try {
+            $tzInfo = Get-ResolvedTimeZoneInfo -TimeZoneId $script:timeZone
+            return [System.TimeZoneInfo]::ConvertTime((Get-Date), $tzInfo)
+        } catch {
+        }
+    }
+    return Get-Date
+}
+
 function Get-CurrentConditionsWeatherIcon {
     param(
         [string]$IconUrl,
         [object]$Period,
-        [int]$PrecipProb = 0
+        [int]$PrecipProb = 0,
+        [object]$ReferenceTime = $null,
+        [object]$SunriseTime = $null,
+        [object]$SunsetTime = $null,
+        [bool]$PolarNight = $false,
+        [bool]$IsPolarDay = $false
     )
-    $isDaytime = Get-IsDaytimeFromIconUrl -IconUrl $IconUrl
+
+    if ($null -eq $ReferenceTime -or $ReferenceTime -isnot [DateTime]) {
+        $ReferenceTime = Get-CurrentConditionsIconReferenceTime
+    }
+    if ($null -eq $SunriseTime) { $SunriseTime = $script:sunriseTime }
+    if ($null -eq $SunsetTime) { $SunsetTime = $script:sunsetTime }
+    if (-not $PolarNight) { $PolarNight = [bool]$script:isPolarNight }
+    if (-not $IsPolarDay) { $IsPolarDay = [bool]$script:isPolarDay }
+
+    $isDaytime = $null
+    if ($SunriseTime -and $SunsetTime) {
+        $isDaytime = Get-IsHourDaytimeForIcon -PeriodTime $ReferenceTime -Sunrise $SunriseTime -Sunset $SunsetTime -PolarNight $PolarNight -IsPolarDay $IsPolarDay
+    } elseif ($PolarNight) {
+        $isDaytime = $false
+    } elseif ($IsPolarDay) {
+        $isDaytime = $true
+    }
+
+    if ($null -eq $isDaytime) {
+        $isDaytime = Get-IsDaytimeFromIconUrl -IconUrl $IconUrl
+    }
     if ($null -eq $isDaytime) {
         $isDaytime = Test-IsDaytime -Period $Period
     }
+
     return Get-WeatherIcon -iconUrl $IconUrl -isDaytime $isDaytime -precipProb $PrecipProb
 }
 
@@ -3806,10 +3874,7 @@ function Sync-LocalCurrentConditionsFromScript {
     Set-Variable -Scope 1 -Name currentIcon -Value $script:currentIcon
     Set-Variable -Scope 1 -Name currentPeriod -Value $script:currentPeriod
 
-    $isDaytime = Get-IsDaytimeFromIconUrl -IconUrl $script:currentIcon
-    if ($null -eq $isDaytime) {
-        $isDaytime = Test-IsDaytime -Period $script:currentPeriod
-    }
+    $isDaytime = Get-IsHourDaytimeForIcon -PeriodTime (Get-CurrentConditionsIconReferenceTime) -Sunrise $script:sunriseTime -Sunset $script:sunsetTime -PolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay
     Set-Variable -Scope 1 -Name isCurrentlyDaytime -Value $isDaytime
     Set-Variable -Scope 1 -Name weatherIcon -Value (Get-CurrentConditionsWeatherIcon -IconUrl $script:currentIcon -Period $script:currentPeriod -PrecipProb $script:currentPrecipProb)
 
@@ -4569,9 +4634,10 @@ function Show-HourlyForecast {
         $windDir = $period.windDirection
         $precipProb = $period.probabilityOfPrecipitation.value
         
-        # Determine if this period is during day or night using astronomical calculations
+        # Determine if this period is during day or night using sunrise/sunset hour bands
         if ($SunriseTime -and $SunsetTime) {
-            $isPeriodDaytime = Test-IsDaytimeAstronomical $period $SunriseTime $SunsetTime
+            $periodTime = [DateTime]::Parse($period.startTime)
+            $isPeriodDaytime = Get-IsHourDaytimeForIcon -PeriodTime $periodTime -Sunrise $SunriseTime -Sunset $SunsetTime
         } else {
             # Fallback to NWS API isDaytime property if sunrise/sunset not available
             $isPeriodDaytime = Test-IsDaytime $period
@@ -6770,6 +6836,7 @@ $script:sunriseTime = $sunriseTime
 $script:sunsetTime = $sunsetTime
 $script:isPolarNight = $isPolarNight
 $script:isPolarDay = $isPolarDay
+$script:timeZone = $timeZone
 
 # Ensure sunrise/sunset are properly typed (can be null for polar regions)
 if ($null -ne $sunriseTime -and $sunriseTime -isnot [DateTime]) {
@@ -6867,14 +6934,8 @@ elseif ($Observations.IsPresent) {
     $showLocationInfo = $false
 }
 
-# Determine if it's currently day or night using NWS API isDaytime property
-$isCurrentlyDaytime = Get-IsDaytimeFromIconUrl -IconUrl $currentIcon
-if ($null -eq $isCurrentlyDaytime) {
-    $isCurrentlyDaytime = Test-IsDaytime $currentPeriod
-}
-
 # Output the results.
-$weatherIcon = Get-CurrentConditionsWeatherIcon -IconUrl $currentIcon -Period $currentPeriod -PrecipProb $currentPrecipProb
+$weatherIcon = Get-CurrentConditionsWeatherIcon -IconUrl $currentIcon -Period $currentPeriod -PrecipProb $currentPrecipProb -SunriseTime $sunriseTime -SunsetTime $sunsetTime -PolarNight $isPolarNight -IsPolarDay $isPolarDay
 
 # Clear loading message before displaying data
 Clear-HostWithDelay
