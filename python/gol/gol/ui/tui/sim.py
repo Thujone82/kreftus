@@ -46,6 +46,7 @@ class SimulationScreen(Screen):
         Binding("a", "pan_left", "Left", show=False),
         Binding("d", "pan_right", "Right", show=False),
         Binding("plus", "speed_up", "Faster", show=False),
+        Binding("equals", "speed_up", "Faster", show=False),
         Binding("minus", "speed_down", "Slower", show=False),
         Binding("c", "show_controls", "Controls", show=False),
         Binding("f", "toggle_follow", "Follow", show=False),

@@ -82,7 +82,7 @@ Launches a Textual setup screen (mode, pattern, speed), then uses the full termi
 | Edit: coordinates | Stats bar shows `@ x,y` (logical cell) in edit mode |
 | Controls overview | **C** (setup or simulation) |
 
-Wrapped mode uses the terminal size as the toroidal grid. **High** density doubles logical rows (`▄`: background = upper cell, foreground = lower). Infinite follow pans one cell per 0.5s while the centroid stays on-screen, and snaps back if it leaves; press **F** to toggle (off by default).
+Wrapped mode uses the terminal size as the toroidal grid. **High** density doubles logical rows (`▄`: background = upper cell, foreground = lower). Infinite follow pans one cell per 0.5s while the centroid stays on-screen, and snaps back if it leaves; press **F** to toggle (off by default). In simulation, **=** also increases speed (unshifted **+**).
 
 Run `python gol.py --help` for pygame and TUI key reference, or `python gol_tui.py --help` / `gol-tui.exe --help` for terminal-only help.
 
