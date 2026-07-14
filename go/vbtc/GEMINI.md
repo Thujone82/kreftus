@@ -90,7 +90,7 @@ The application provides comprehensive trading statistics across all historical 
 - **Average Sale**: Weighted average BTC price for all sell transactions (Ledger modal: session average in brackets)
 - **Tx Range**: Minimum and maximum Bitcoin price (USD per BTC) at the time of any transaction—not total transaction value (Ledger modal only)
 - **Session Tx Range**: Same as Tx Range but for the current session; shown on a separate line in the Ledger modal when session has transactions
-- **Time**: Span from first ledger entry to latest. Format: minutes (`M`) under 1 hour, hours (`H`) under 24h, integer days (`D`) for 24h+. Ledger modal shows total with session span in brackets (e.g. `Time: 204D [3H]`); Exit modal shows total only
+- **Time**: Span from first ledger entry to latest. Format: minutes (`M`) under 1 hour, hours (`H`) under 24h, days+hours (`D`/`H`) for under 365 days, years+days+hours (`Y`/`D`/`H`) for 365d+ (e.g. `375D13H` → `1Y10D13H`). Ledger modal shows total with session span in brackets (e.g. `Time: 204D [3H]`); Exit modal shows total only
 
 #### Archive Support
 - **Current Ledger**: Reads from `ledger.csv`

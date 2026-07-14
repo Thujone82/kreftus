@@ -3130,6 +3130,11 @@ func formatDuration(first, last time.Time) string {
 	days := int(d / (24 * time.Hour))
 	remaining := d % (24 * time.Hour)
 	hours := int(remaining / time.Hour)
+	if days >= 365 {
+		years := days / 365
+		days = days % 365
+		return fmt.Sprintf("%dY%dD%dH", years, days, hours)
+	}
 	return fmt.Sprintf("%dD%dH", days, hours)
 }
 

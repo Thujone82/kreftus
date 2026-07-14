@@ -970,6 +970,11 @@ function Format-Duration {
     }
     $days = [int][math]::Floor($duration.TotalDays)
     $hours = [int][math]::Floor(($duration.TotalDays - $days) * 24)
+    if ($days -ge 365) {
+        $years = [int][math]::Floor($days / 365)
+        $days = $days % 365
+        return "{0}Y{1}D{2}H" -f $years, $days, $hours
+    }
     return "{0}D{1}H" -f $days, $hours
 }
 
