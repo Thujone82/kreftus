@@ -21,7 +21,7 @@
     Clears the console. If btc.ini or ApiKey is missing, prompts for first-run setup.
     If -Update switch is used, prompts to update portfolio/log settings in btc.ini.
     Then fetches detailed Bitcoin data via LiveCoinWatch API, showing "Loading Market..."
-    during API calls (skipped when -Verbose is used).
+    during API calls, then clearing the console before displaying results (skipped when -Verbose is used).
     Core financial data is always displayed. Use -Verbose to see step-by-step messages.
     Features:
     - Reads/Writes configuration to 'btc.ini' (ApiKey, LogPath, MyBTC, MyCOST).
@@ -515,15 +515,9 @@ if ($showLoadingMessage) {
 }
 
 try {
-    try {
-        $fetchResult = Get-BitcoinApiData -ApiKey $apiKey -Currency $currency -CoinCode $coinCode -ApiBaseUrl $apiBaseUrl -Headers $headers
-    }
-    finally {
-        if ($showLoadingMessage) {
-            $lineWidth = 80
-            try { $lineWidth = [Math]::Max(20, [Console]::WindowWidth) } catch {}
-            Write-Host ("`r" + (' ' * $lineWidth) + "`r") -NoNewline
-        }
+    $fetchResult = Get-BitcoinApiData -ApiKey $apiKey -Currency $currency -CoinCode $coinCode -ApiBaseUrl $apiBaseUrl -Headers $headers
+    if ($showLoadingMessage) {
+        Clear-Host
     }
 
     if ($fetchResult.IsNetworkError) {
