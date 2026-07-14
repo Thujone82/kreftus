@@ -2484,6 +2484,7 @@ function Update-WeatherData {
             
             if (-not $UseRetryLogic) {
                 # For auto-refresh calls, fail fast without retries
+                Write-Host "Refresh failed: $($_.Exception.Message)" -ForegroundColor Red
                 Write-Verbose "Update-WeatherData failed (no retry): $($_.Exception.Message)"
                 return $false
             }
@@ -3032,7 +3033,9 @@ $script:lastManualRefreshTime = $null
 $script:updatedLineCursorTop = $null
 $script:updatedLineInfoColor = "Blue"
 $script:nextUpdatedLineTick = $null
+$script:autoRefreshRetryAfter = $null
 $dataStaleThreshold = 300  # 5 minutes in seconds
+$script:autoRefreshFailureCooldownSeconds = 60
 
 # --- FETCH ALERTS ---
 $alertsData = $null
@@ -7286,10 +7289,12 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
             # Check if data is stale and refresh if needed (only if auto-update is enabled and interactive mode is supported)
             if ($autoUpdateEnabled -and -not [System.Console]::IsInputRedirected) {
                 $timeSinceLastFetch = (Get-Date) - $script:dataFetchTime
-                if ($timeSinceLastFetch.TotalSeconds -gt $dataStaleThreshold) {
+                $autoRefreshCooldownActive = ($null -ne $script:autoRefreshRetryAfter -and (Get-Date) -lt $script:autoRefreshRetryAfter)
+                if ($timeSinceLastFetch.TotalSeconds -gt $dataStaleThreshold -and -not $autoRefreshCooldownActive) {
                     Write-Verbose "Auto-refresh triggered - data is stale ($([math]::Round($timeSinceLastFetch.TotalSeconds, 1)) seconds old)"
                     $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers -TimeZone $timeZone -UseRetryLogic $false
                     if ($refreshSuccess) {
+                        $script:autoRefreshRetryAfter = $null
                         # Recalculate moon phase and sunrise/sunset for current time
                         $moonPhaseInfo = Get-MoonPhase -Date (Get-Date)
                         # Use location's current date (not user's local date) for sunrise/sunset
@@ -7404,11 +7409,15 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         } else {
                             # Default to full weather report if no specific mode is set
                             Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $(Get-CurrentConditionsUpdatedDateTime) -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $script:sunriseTime -SunsetTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -CurrentTimeDateTime $(Get-CurrentConditionsUpdatedDateTime)
-                                Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
-                            }
+                            Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
                         }
+                    } else {
+                        # Keep showing prior data; cooldown stops a tight retry loop while NWS is down (e.g. HTTP 500)
+                        $script:autoRefreshRetryAfter = (Get-Date).AddSeconds($script:autoRefreshFailureCooldownSeconds)
+                        Write-Host "Auto-refresh will retry in $($script:autoRefreshFailureCooldownSeconds)s." -ForegroundColor Yellow
                     }
                 }
+            }
             
             # Re-age the Updated line once per minute (fetch + NWS suffix) without a full redraw
             if ($null -ne $script:updatedLineCursorTop -and $null -ne $script:nextUpdatedLineTick -and (Get-Date) -ge $script:nextUpdatedLineTick) {
@@ -7504,6 +7513,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     Write-Verbose "Auto-update toggled: $autoUpdateEnabled"
                     $statusMessage = if ($autoUpdateEnabled) { 
                         $script:dataFetchTime = Get-Date  # Reset timer when re-enabling
+                        $script:autoRefreshRetryAfter = $null
                         "Automatic Updates Enabled" 
                     } else { 
                         "Automatic Updates Disabled" 
@@ -7757,6 +7767,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     }
                     if ($refreshSuccess) {
                         $script:lastManualRefreshTime = Get-Date
+                        $script:autoRefreshRetryAfter = $null
                         # Recalculate moon phase and sunrise/sunset for current time (using location's date)
                         $moonPhaseInfo = Get-MoonPhase -Date (Get-Date)
                         $locationToday = if ($timeZone) { 
