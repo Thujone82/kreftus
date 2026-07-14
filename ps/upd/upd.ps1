@@ -5,24 +5,31 @@
 param(
     [string[]]$JobNames = @(),
     [alias("a")][switch]$Auto,
+    # Alias -Jobs: param name ListJobs avoids clobbering $script:Jobs
+    [alias("Jobs")][switch]$ListJobs,
+    [alias("h")][switch]$Help,
     [switch]$Verbose
 )
 
 Write-Verbose "Script started with arguments: $($args -join ', ')"
-Write-Verbose "Parameters processed - JobNames: $($JobNames -join ', '), Auto: $Auto"
+Write-Verbose "Parameters processed - JobNames: $($JobNames -join ', '), Auto: $Auto, ListJobs: $ListJobs, Help: $Help"
 
 # Enable verbose output if -Verbose flag is set
 if ($Verbose -or $VerbosePreference -eq 'Continue') {
     $VerbosePreference = 'Continue'
 }
 
-# Process any job name arguments (exclude PowerShell built-in parameters)
-$builtInParams = @('Debug', 'ErrorAction', 'WarningAction', 'InformationAction', 'ErrorVariable', 'WarningVariable', 'InformationVariable', 'OutVariable', 'OutBuffer', 'PipelineVariable', 'WhatIf', 'Confirm')
+# Process any job name arguments (exclude PowerShell built-in parameters and script switches)
+$builtInParams = @(
+    'Debug', 'ErrorAction', 'WarningAction', 'InformationAction', 'ErrorVariable', 'WarningVariable',
+    'InformationVariable', 'OutVariable', 'OutBuffer', 'PipelineVariable', 'WhatIf', 'Confirm',
+    'Verbose', 'Auto', 'a', 'Jobs', 'ListJobs', 'Help', 'h'
+)
 
 foreach ($arg in $args) {
     if ($arg -match '^-(.+)$') {
         $paramName = $matches[1]
-        # Only process if it's not a built-in PowerShell parameter
+        # Only process if it's not a built-in or script parameter
         if ($paramName -notin $builtInParams) {
             Write-Verbose "Found job argument: -$paramName"
             $JobNames += $paramName
@@ -141,7 +148,7 @@ function Export-Config {
 function Initialize-Config {
     if (-not (Test-Path $script:ConfigPath)) {
         $script:Jobs = @()
-        Export-Config
+        $null = Export-Config
     }
 }
 
@@ -718,6 +725,58 @@ function Show-JobsScreen {
     }
 }
 
+function Show-Help {
+    Write-Cyan '*** UPDate Tool - Help ***'
+    Write-Host ''
+    Write-White 'Usage:'
+    Write-Host '  .\upd.ps1                      Interactive mode'
+    Write-Host '  .\upd.ps1 -jobname             Pre-select a job by name'
+    Write-Host '  .\upd.ps1 -jobname -a          Auto-execute selected jobs'
+    Write-Host '  .\upd.ps1 -Jobs                List configured jobs as a table'
+    Write-Host '  .\upd.ps1 -Help                Show this help'
+    Write-Host '  .\upd.ps1 -Verbose             Enable debug output'
+    Write-Host ''
+    Write-White 'Switches:'
+    Write-Host '  -a, -Auto     Auto-execute pre-selected jobs (no confirmation)'
+    Write-Host '  -Jobs         Print Name / Source / Destination for all jobs'
+    Write-Host '  -h, -Help     Show help and exit'
+    Write-Host '  -Verbose      Verbose logging'
+    Write-Host ''
+    Write-White 'Interactive hotkeys (main screen):'
+    Write-Host '  1-9, 0        Toggle jobs 1-10 (0 = job 10)'
+    Write-Host '  Shift+1-0     Toggle jobs 11-20'
+    Write-Host '  A             Select all'
+    Write-Host '  J             Jobs management'
+    Write-Host '  E / Enter     Execute selected'
+    Write-Host '  Esc           Exit'
+    Write-Host ''
+    Write-White "Config:  $script:ConfigPath"
+}
+
+function Show-JobsTable {
+    if ($script:Jobs.Count -eq 0) {
+        Write-Yellow "No jobs configured."
+        Write-White "Config: $script:ConfigPath"
+        return
+    }
+
+    Write-Cyan "*** Configured Jobs ($($script:Jobs.Count)) ***"
+    Write-Host ""
+
+    $rows = for ($i = 0; $i -lt $script:Jobs.Count; $i++) {
+        $job = $script:Jobs[$i]
+        [PSCustomObject]@{
+            Num           = $i + 1
+            Name          = $job.Name
+            Source        = $job.Remote
+            Destination   = $job.Local
+        }
+    }
+
+    $rows | Format-Table -Property Num, Name, Source, Destination -AutoSize -Wrap | Out-Host
+    Write-White "Config: $script:ConfigPath"
+}
+
 # Command line argument processing
 function Test-CommandLineArgs {
     Write-Verbose "JobNames count: $($JobNames.Count)"
@@ -763,6 +822,16 @@ function Main {
     Import-Config
     
     Write-Verbose "Loaded $($script:Jobs.Count) jobs from configuration"
+
+    if ($Help) {
+        Show-Help
+        return
+    }
+
+    if ($ListJobs) {
+        Show-JobsTable
+        return
+    }
     
     # Process command line arguments
     if (Test-CommandLineArgs) {

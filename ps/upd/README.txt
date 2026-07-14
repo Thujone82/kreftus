@@ -1,5 +1,5 @@
 ================================================================================
-                              UPDate Tool v1.3
+                              UPDate Tool v1.4
                     PowerShell File Update Utility
 ================================================================================
 
@@ -15,13 +15,23 @@ FEATURES:
     - Support for local file copying and URL downloads
     - JSON-based configuration storage
     - Command-line arguments for automation
+    - List configured jobs as a formatted table (-Jobs)
+    - Built-in help (-Help / -h)
     - Verbose mode for debugging
     - Job name validation (no spaces or special characters)
     - Smart transfer size formatting (KB/MB/GB based on file size)
+    - Tilde (~) expansion in local/remote paths
 
 USAGE:
     Interactive Mode:
         .\upd.ps1
+        
+    List Jobs:
+        .\upd.ps1 -Jobs
+        
+    Help:
+        .\upd.ps1 -Help
+        .\upd.ps1 -h
         
     Pre-select Job:
         .\upd.ps1 -jobname
@@ -30,7 +40,7 @@ USAGE:
         .\upd.ps1 -jobname -a
         .\upd.ps1 -jobname -auto
         
-    Note: Auto mode (-a) now completes without requiring key press and leaves output visible
+    Note: Auto mode (-a) completes without requiring a key press and leaves output visible
         
     Verbose Mode:
         .\upd.ps1 -Verbose
@@ -107,20 +117,28 @@ DYNAMIC DATE PLACEHOLDERS:
 
 COMMAND LINE ARGUMENTS:
     -jobname        Pre-select a job by name (case-insensitive)
-    -a, -auto       Auto-execute pre-selected jobs without confirmation
+    -a, -Auto       Auto-execute pre-selected jobs without confirmation
+    -Jobs           List all configured jobs (Name, Source, Destination)
+    -h, -Help       Show help and exit
     -Verbose        Enable verbose debug output
 
 EXAMPLES:
     1. Interactive mode with job management:
         .\upd.ps1
         
-    2. Pre-select "bmon" job for manual execution:
+    2. List configured jobs:
+        .\upd.ps1 -Jobs
+        
+    3. Show help:
+        .\upd.ps1 -Help
+        
+    4. Pre-select "bmon" job for manual execution:
         .\upd.ps1 -bmon
         
-    3. Automatically execute "bmon" and "larry" jobs:
+    5. Automatically execute "bmon" and "larry" jobs:
         .\upd.ps1 -bmon -larry -a
         
-    4. Debug mode with verbose output:
+    6. Debug mode with verbose output:
         .\upd.ps1 -bmon -a -Verbose
 
 CONFIGURATION FILE:
@@ -170,6 +188,9 @@ TROUBLESHOOTING:
     Q: Command line arguments not working
     A: Ensure job names match exactly (case-insensitive)
        Use -Verbose flag to see what's being processed
+    
+    Q: ~ path fails on download
+    A: Update to a build that expands ~ before .NET file APIs (Expand-UserPath)
 
 TRANSFER SIZE FORMATTING:
     The tool automatically formats transfer sizes with appropriate units:
@@ -187,8 +208,14 @@ NOTES:
     - Copied files retain their original filename
     - Job selection persists within a session
     - Multiple jobs can be selected and executed together
+    - Paths starting with ~ are expanded to the user profile directory
 
 VERSION HISTORY:
+    v1.4 - CLI list and help
+        - Added -Jobs to print a Name / Source / Destination table
+        - Added -Help / -h for usage summary
+        - ~ path expansion for local and remote paths
+        
     v1.3 - Extended job selection keys
         - Key 0 selects job 10 (in addition to 1-9 for jobs 1-9)
         - Shift+1 through Shift+0 select jobs 11-20
@@ -219,4 +246,3 @@ LICENSE:
     See LICENSE file in project root
 
 ================================================================================
-

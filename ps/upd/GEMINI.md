@@ -129,7 +129,9 @@ Write-Host "]ll" -ForegroundColor White
    - `Show-JobsScreen`: Jobs management screen
    - `Show-Header`: Display colored headers
    - `Read-SingleKey`: Capture single key input (character only)
-   - `Read-KeyWithModifiers`: Capture key plus modifier state (returns `Char`, `Shift`) for job 1–20 selection
+   - `Read-KeyWithModifiers`: Capture key plus modifier state (returns `Char`, `Shift`, `VirtualKeyCode`) for job 1–20 selection
+   - `Show-Help`: Non-interactive CLI help (`-Help` / `-h`)
+   - `Show-JobsTable`: Non-interactive job listing (`-Jobs`)
 
 5. **Job Editing**
    - `New-Job`: Create new update job
@@ -392,6 +394,30 @@ The function includes implicit error handling through .NET's `DateTime.ToString(
 6. **Logging:** Track which placeholders were expanded and their values
 
 ## Recent Updates
+
+### v1.4 - CLI Job Listing and Help
+
+#### Requirement
+Add non-interactive CLI switches to list configured jobs and show help, without entering the modal UI.
+
+#### Technical Implementation
+
+**Parameter naming**
+- Declared `[alias("Jobs")][switch]$ListJobs` instead of `$Jobs`, because a script-level `$Jobs` param would overwrite `$script:Jobs` (same script scope).
+- Declared `[alias("h")][switch]$Help`.
+- Extended the manual `$args` exclusion list so `Jobs`, `ListJobs`, `Help`, `h`, `Auto`, and `a` are not treated as job-name preselection tokens.
+
+**Functions**
+- `Show-Help`: prints usage, switches, and interactive hotkey summary; exits without opening UI.
+- `Show-JobsTable`: builds `[PSCustomObject]` rows (`Num`, `Name`, `Source` ← Remote, `Destination` ← Local) and pipes through `Format-Table -AutoSize -Wrap`; exits without opening UI.
+- Both run after `Import-Config` in `Main`, before `Test-CommandLineArgs`.
+
+**Main ordering**
+1. `Initialize-Config` / `Import-Config`
+2. `$Help` → `Show-Help` → return
+3. `$ListJobs` → `Show-JobsTable` → return
+4. `Test-CommandLineArgs` (preselect / `-Auto`)
+5. Interactive `Show-UpdateScreen`
 
 ### v1.3 - Job Selection Key Mapping (1–20)
 
