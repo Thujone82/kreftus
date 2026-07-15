@@ -15,7 +15,13 @@ _ROOT = Path(__file__).resolve().parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from tp.config import default_ini_path, filter_devices, load_config, save_config
+from tp.config import (
+    TIME_DETAIL_MORE,
+    default_ini_path,
+    filter_devices,
+    load_config,
+    save_config,
+)
 from tp.snapshot import render_snapshot
 from tp.ui.app import run_app
 
@@ -36,6 +42,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "-x",
         action="store_true",
         help="Display one snapshot from saved log data and exit (no BLE polling)",
+    )
+    parser.add_argument(
+        "-more",
+        action="store_true",
+        help=(
+            "Session-only More time detail (90M/4/8/12/24/36/72H) for -x or interactive mode; "
+            "does not change tp.ini"
+        ),
     )
     parser.add_argument(
         "-nopoll",
@@ -67,6 +81,9 @@ def main(argv: list[str] | None = None) -> None:
     config = load_config(ini_path)
     if not ini_path.exists():
         save_config(config)
+    if args.more:
+        # In-memory only — session override for -x and interactive UI.
+        config.settings.time_detail = TIME_DETAIL_MORE
     if args.history_day:
         from tp.config import normalize_mac
         from tp.debug_log import set_debug_enabled

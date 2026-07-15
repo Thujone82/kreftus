@@ -16,6 +16,7 @@ SPARKLINE_WINDOWS_LESS: tuple[tuple[str, float], ...] = (
     ("72H", 72),
 )
 SPARKLINE_WINDOWS_MORE: tuple[tuple[str, float], ...] = (
+    ("90M", 1.5),
     ("4H", 4),
     ("8H", 8),
     ("12H", 12),
@@ -36,6 +37,7 @@ DASHBOARD_SPARKLINE_WINDOWS_MORE: tuple[tuple[str, float], ...] = (
     ("24H", 24),
     ("36H", 36),
     ("72H", 72),
+    ("90M", 1.5),
     ("4H", 4),
     ("8H", 8),
     ("12H", 12),

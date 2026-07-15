@@ -61,7 +61,7 @@ class SnapshotDeviceLinesTests(unittest.TestCase):
         self.assertIn(f"max {long_max:.1f}", temp_lines[2])
         self.assertNotEqual(temp_lines[0], temp_lines[2])
 
-    def test_more_time_detail_emits_six_windows(self) -> None:
+    def test_more_time_detail_emits_seven_windows(self) -> None:
         history = DeviceHistory()
         mac = "F7:94:C0:18:DD:7D"
         now = datetime.now().replace(second=0, microsecond=0)
@@ -81,10 +81,11 @@ class SnapshotDeviceLinesTests(unittest.TestCase):
         )
         temp_lines = [line for line in lines if "Temp °F" in line]
         sparklines = [line for line in lines if "Ago |" in line]
-        self.assertEqual(len(temp_lines), 6)
-        self.assertEqual(len(sparklines), 12)
-        self.assertIn("8H Ago", sparklines[2])
-        self.assertIn("36H Ago", sparklines[8])
+        self.assertEqual(len(temp_lines), 7)
+        self.assertEqual(len(sparklines), 14)
+        self.assertIn("90M Ago", sparklines[0])
+        self.assertIn("8H Ago", sparklines[4])
+        self.assertIn("36H Ago", sparklines[10])
 
 
 if __name__ == "__main__":

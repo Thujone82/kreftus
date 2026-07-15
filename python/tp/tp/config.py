@@ -160,7 +160,7 @@ def poll_mode_label(mode: str) -> str:
 
 def time_detail_label(mode: str) -> str:
     if mode == TIME_DETAIL_MORE:
-        return "More (4/8/12/24/36/72H)"
+        return "More (90M/4/8/12/24/36/72H)"
     return "Less (4/24/72H)"
 
 

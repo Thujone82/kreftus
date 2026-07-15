@@ -31,6 +31,14 @@ class DashboardSparklineWindowTests(unittest.TestCase):
             ("72H", 72),
         )
         self.assertEqual(
+            next_dashboard_sparkline_window(72, time_detail="more"),
+            ("90M", 1.5),
+        )
+        self.assertEqual(
+            next_dashboard_sparkline_window(1.5, time_detail="more"),
+            ("4H", 4),
+        )
+        self.assertEqual(
             next_dashboard_sparkline_window(12, time_detail="more"),
             ("24H", 24),
         )
@@ -45,6 +53,10 @@ class DashboardSparklineWindowTests(unittest.TestCase):
             dashboard_sparkline_label(8, time_detail="more"),
             "8H",
         )
+        self.assertEqual(
+            dashboard_sparkline_label(1.5, time_detail="more"),
+            "90M",
+        )
 
 
 class SparklineWindowsTests(unittest.TestCase):
@@ -55,7 +67,7 @@ class SparklineWindowsTests(unittest.TestCase):
         )
         self.assertEqual(
             [label for label, _hours in sparkline_windows("more")],
-            ["4H", "8H", "12H", "24H", "36H", "72H"],
+            ["90M", "4H", "8H", "12H", "24H", "36H", "72H"],
         )
 
 
@@ -113,7 +125,7 @@ class FormatWindowSparklineRowsTests(unittest.TestCase):
         self.assertIn("24H Ago", rows[1])
         self.assertIn("72H Ago", rows[2])
 
-    def test_more_emits_six_windows(self) -> None:
+    def test_more_emits_seven_windows(self) -> None:
         end = datetime(2026, 6, 24, 16, 0, 0)
         points = [(end - timedelta(hours=1), 70.0)]
         rows = format_window_sparkline_rows(
@@ -121,10 +133,10 @@ class FormatWindowSparklineRowsTests(unittest.TestCase):
             lambda _value: "white",
             time_detail="more",
         )
-        self.assertEqual(len(rows), 6)
-        self.assertIn("8H Ago", rows[1])
-        self.assertIn("12H Ago", rows[2])
-        self.assertIn("36H Ago", rows[4])
+        self.assertEqual(len(rows), 7)
+        self.assertIn("90M Ago", rows[0])
+        self.assertIn("8H Ago", rows[2])
+        self.assertIn("36H Ago", rows[5])
 
 
 if __name__ == "__main__":
