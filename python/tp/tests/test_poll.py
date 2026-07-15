@@ -26,6 +26,7 @@ class PollModeTests(unittest.TestCase):
     def test_defaults_to_incremental(self) -> None:
         self.assertEqual(Settings().poll_mode, POLL_MODE_INCREMENTAL)
         self.assertEqual(Settings().log_file_name, "tp_log.csv")
+        self.assertEqual(Settings().time_detail, "less")
 
     def test_uses_incremental_history(self) -> None:
         self.assertTrue(uses_incremental_history(POLL_MODE_INCREMENTAL))
@@ -34,6 +35,23 @@ class PollModeTests(unittest.TestCase):
     def test_poll_mode_label(self) -> None:
         self.assertIn("incremental", poll_mode_label(POLL_MODE_INCREMENTAL))
         self.assertIn("live", poll_mode_label(POLL_MODE_LIVE))
+
+    def test_time_detail_round_trip(self) -> None:
+        import tempfile
+
+        from tp.config import time_detail_label
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config = AppConfig(
+                ini_path=root / "tp.ini",
+                settings=Settings(time_detail="more"),
+            )
+            save_config(config)
+            loaded = load_config(root / "tp.ini")
+            self.assertEqual(loaded.settings.time_detail, "more")
+            self.assertIn("More", time_detail_label(loaded.settings.time_detail))
+            self.assertIn("Less", time_detail_label("less"))
 
 
 class IncrementalCountTests(unittest.TestCase):

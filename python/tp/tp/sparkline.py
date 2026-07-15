@@ -1,4 +1,4 @@
-"""24-hour sparkline binning (pipe.ps1 pattern)."""
+"""Multi-window sparkline binning (pipe.ps1 pattern)."""
 
 from __future__ import annotations
 
@@ -8,16 +8,39 @@ from typing import Callable
 
 SPARK_CHARS = "▁▂▃▄▅▆▇█"
 BIN_COUNT = 24
-SPARKLINE_WINDOWS: tuple[tuple[str, float], ...] = (
+
+# Status / snapshot display order (shortest → longest).
+SPARKLINE_WINDOWS_LESS: tuple[tuple[str, float], ...] = (
     ("4H", 4),
     ("24H", 24),
     ("72H", 72),
 )
-DASHBOARD_SPARKLINE_WINDOWS: tuple[tuple[str, float], ...] = (
+SPARKLINE_WINDOWS_MORE: tuple[tuple[str, float], ...] = (
+    ("4H", 4),
+    ("8H", 8),
+    ("12H", 12),
+    ("24H", 24),
+    ("36H", 36),
+    ("72H", 72),
+)
+# Default / Less set — kept as SPARKLINE_WINDOWS for callers that only need Less.
+SPARKLINE_WINDOWS = SPARKLINE_WINDOWS_LESS
+
+# Monitoring dashboard **T** cycle order.
+DASHBOARD_SPARKLINE_WINDOWS_LESS: tuple[tuple[str, float], ...] = (
     ("24H", 24),
     ("72H", 72),
     ("4H", 4),
 )
+DASHBOARD_SPARKLINE_WINDOWS_MORE: tuple[tuple[str, float], ...] = (
+    ("24H", 24),
+    ("36H", 36),
+    ("72H", 72),
+    ("4H", 4),
+    ("8H", 8),
+    ("12H", 12),
+)
+DASHBOARD_SPARKLINE_WINDOWS = DASHBOARD_SPARKLINE_WINDOWS_LESS
 DEFAULT_DASHBOARD_SPARKLINE_HOURS = 24.0
 
 
@@ -31,23 +54,52 @@ class SparklineResult:
     bin_count: int = BIN_COUNT
 
 
+def _normalized_time_detail(time_detail: str | None) -> str:
+    return "more" if (time_detail or "").strip().lower() == "more" else "less"
+
+
+def sparkline_windows(
+    time_detail: str | None = None,
+) -> tuple[tuple[str, float], ...]:
+    """Return status/snapshot window set for Less or More time detail."""
+    if _normalized_time_detail(time_detail) == "more":
+        return SPARKLINE_WINDOWS_MORE
+    return SPARKLINE_WINDOWS_LESS
+
+
+def dashboard_sparkline_windows(
+    time_detail: str | None = None,
+) -> tuple[tuple[str, float], ...]:
+    """Return monitoring **T** cycle windows for Less or More time detail."""
+    if _normalized_time_detail(time_detail) == "more":
+        return DASHBOARD_SPARKLINE_WINDOWS_MORE
+    return DASHBOARD_SPARKLINE_WINDOWS_LESS
+
+
 def next_dashboard_sparkline_window(
     hours: float = DEFAULT_DASHBOARD_SPARKLINE_HOURS,
+    *,
+    time_detail: str | None = None,
 ) -> tuple[str, float]:
-    """Return the next dashboard sparkline window (24H → 72H → 4H → 24H)."""
-    windows = DASHBOARD_SPARKLINE_WINDOWS
+    """Return the next dashboard sparkline window for the active time-detail set."""
+    windows = dashboard_sparkline_windows(time_detail)
     for index, (_label, window_hours) in enumerate(windows):
         if window_hours == hours:
             return windows[(index + 1) % len(windows)]
     return windows[0]
 
 
-def dashboard_sparkline_label(hours: float = DEFAULT_DASHBOARD_SPARKLINE_HOURS) -> str:
+def dashboard_sparkline_label(
+    hours: float = DEFAULT_DASHBOARD_SPARKLINE_HOURS,
+    *,
+    time_detail: str | None = None,
+) -> str:
     """Label for the active dashboard sparkline window."""
-    for label, window_hours in DASHBOARD_SPARKLINE_WINDOWS:
+    windows = dashboard_sparkline_windows(time_detail)
+    for label, window_hours in windows:
         if window_hours == hours:
             return label
-    return DASHBOARD_SPARKLINE_WINDOWS[0][0]
+    return windows[0][0]
 
 
 def _points_in_window(
@@ -201,10 +253,11 @@ def format_window_sparkline_rows(
     indent: str = "",
     empty_bin: str = " ",
     fixed_label: bool = True,
+    time_detail: str | None = None,
 ) -> list[str]:
-    """Format 4H, 24H, and 72H sparkline rows for one metric."""
+    """Format sparkline rows for each window in the active time-detail set."""
     lines: list[str] = []
-    for label, hours in SPARKLINE_WINDOWS:
+    for label, hours in sparkline_windows(time_detail):
         result = build_sparkline(points, hours=hours)
         core = colored_sparkline_markup(result, color_fn, empty_bin=empty_bin)
         row = format_sparkline_row(core, hours_label=label, fixed_label=fixed_label)

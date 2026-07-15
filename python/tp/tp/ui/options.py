@@ -10,12 +10,15 @@ from textual.widgets import Footer, Header, Input, Label, Static
 from tp.config import (
     POLL_MODE_INCREMENTAL,
     POLL_MODE_LIVE,
+    TIME_DETAIL_LESS,
+    TIME_DETAIL_MORE,
     poll_mode_label,
     probe_log_directory,
     probe_log_path,
     rename_log_file,
     resolved_log_directory,
     resolved_log_path,
+    time_detail_label,
 )
 from tp.debug_log import log_path as debug_log_path
 from tp.debug_log import set_debug_enabled
@@ -105,6 +108,7 @@ class OptionsScreen(Screen):
         ("l", "toggle_logging", "Logging"),
         ("b", "toggle_debug", "Debug"),
         ("p", "toggle_poll_mode", "Poll"),
+        ("w", "toggle_time_detail", "Windows"),
         ("e", "export_log", "Export"),
         ("d", "edit_directory", "Directory"),
         ("f", "edit_filename", "Filename"),
@@ -134,6 +138,7 @@ class OptionsScreen(Screen):
         enabled = "on" if settings.logging_enabled else "off"
         debug_enabled = "on" if self.app.debug_enabled else "off"
         poll_mode = poll_mode_label(settings.poll_mode)
+        time_detail = time_detail_label(settings.time_detail)
         debug_path = debug_log_path()
         debug_lines = [
             f"  Debug log:     [cyan]{debug_enabled}[/]  [dim](B toggle, session only)[/]",
@@ -153,6 +158,7 @@ class OptionsScreen(Screen):
                     "",
                     f"  Logging:       [cyan]{enabled}[/]  [dim](L toggle)[/]",
                     f"  Poll mode:     [cyan]{poll_mode}[/]  [dim](P toggle)[/]",
+                    f"  Time detail:   [cyan]{time_detail}[/]  [dim](W toggle)[/]",
                     *export_lines,
                     *debug_lines,
                     f"  Log directory: [white]{settings.log_directory}[/]  [dim](D edit)[/]",
@@ -204,6 +210,20 @@ class OptionsScreen(Screen):
         self.refresh_view()
         self.notify(
             f"Poll mode: {poll_mode_label(settings.poll_mode)}.",
+            timeout=4,
+        )
+
+    def action_toggle_time_detail(self) -> None:
+        settings = self.app.config.settings
+        if settings.time_detail == TIME_DETAIL_LESS:
+            settings.time_detail = TIME_DETAIL_MORE
+        else:
+            settings.time_detail = TIME_DETAIL_LESS
+        self.app.save_config()
+        self.refresh_view()
+        self.app.refresh_monitoring()
+        self.notify(
+            f"Time detail: {time_detail_label(settings.time_detail)}.",
             timeout=4,
         )
 

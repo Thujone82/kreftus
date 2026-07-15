@@ -1,6 +1,6 @@
 # TemPy — ThermoPro TP35x Monitor
 
-**Version 1.8**
+**Version 1.9**
 
 Cross-platform Python TUI (**TemPy**) for ThermoPro TP357/TP358/TP359 Bluetooth hygrometer/thermometer units.
 
@@ -29,7 +29,7 @@ On first run, `tp.ini` is created beside the launcher (`tp.py`, `tp.exe`, or `tp
 | Flag | Description |
 |------|-------------|
 | `-debug` | Enable session `debug.log` in the configured log directory (Options **B** toggles during a session) |
-| `-x` | Print one snapshot from saved log/history data and exit (no UI, no BLE) |
+| `-x` | Print one snapshot from saved log/history data and exit (no UI, no BLE). Windows follow Options `TimeDetail` (Less/More). |
 | `-nopoll` / `-np` | Interactive mode without automatic poll scheduling; **G** still fetches manually; reloads the CSV log every 5 minutes for multi-instance viewing |
 | `-f` / `-filter` *TEXT* | View filter — only show devices whose name contains *TEXT* (case-insensitive). Works with interactive mode and `-x`. Polling and manual fetch still run for all managed devices; only the dashboard display is filtered. |
 | `--history-day` *MAC* | Fetch up to 1 year of BLE history for *MAC* and exit (dev/test; no UI) |
@@ -68,7 +68,7 @@ Place `tp.ini` and `tp_log.csv` in the same folder as the launcher. The build sc
 | **Q** | Anywhere | Back one level (sub-screens and modals); exit from main menu |
 | **M** | Sub-screens | Main menu |
 | **G** | Monitoring | Fetch stale devices only; full poll if none are stale |
-| **T** | Monitoring | Cycle dashboard sparkline window (24H → 72H → 4H) |
+| **T** | Monitoring | Cycle dashboard sparkline window (Less: 24H → 72H → 4H; More also includes 36H / 8H / 12H) |
 | **1**–**9**, **0** | Monitoring | Open device info for visible device 1–10 (**Q** closes back to monitoring) |
 | **C** | Monitoring | Cycle column layout (shown only when the terminal is wide enough for 2+ columns) |
 
@@ -76,9 +76,9 @@ Place `tp.ini` and `tp_log.csv` in the same folder as the launcher. The build sc
 
 | Key | Action |
 |-----|--------|
-| 1 | Monitoring — live dashboard with 24h sparklines (press **T** for 72H or 4H) |
+| 1 | Monitoring — live dashboard with sparklines (press **T** to cycle windows) |
 | 2 | Manage Devices — discover, add, rename, remove sensors |
-| 3 | Options — logging, poll mode, log file path, web export |
+| 3 | Options — logging, poll mode, time detail, log file path, web export |
 | 4 / q | Exit |
 | 5 | Export log to web — writes `tp_export.html` and opens it in your browser |
 
@@ -88,7 +88,7 @@ Each tracked device shows 5 rows:
 
 1. Device name — **green** if fresh (within 10 minutes), **yellow** if stale. While that device is being fetched, `▶` / `◀` show the BLE step: **cyan** connecting, **green** fast live read (datetime sync), **yellow** passive fallback (legacy sensors)
 2. Temperature cur / min / max (°F) — cur is the latest reading; min/max are the true lows and highs within the active sparkline window
-3. 24-character temperature sparkline (default 24H window; **T** cycles 24H → 72H → 4H)
+3. 24-character temperature sparkline (default 24H window; **T** cycles windows from Options time detail — Less: 24H → 72H → 4H; More adds 36H / 8H / 12H)
 4. Humidity cur / min / max (%) — each value color-banded to match sparkline glyphs
 5. 24-character humidity sparkline
 
@@ -100,7 +100,7 @@ Each tracked device shows 5 rows:
 
 ### Multi-column layout
 
-When the terminal is wide enough to fit two or more device blocks side by side (content width plus 2-character padding on each side), **c Columns** appears in the footer. Press **C** to cycle `1 → 2 → … → max → 1`. Press **T** to cycle the sparkline time window (`24H → 72H → 4H`). Devices fill row-major (`1 2` / `3 4` / …). Default is a single column. Narrowing the window clamps the active column count automatically.
+When the terminal is wide enough to fit two or more device blocks side by side (content width plus 2-character padding on each side), **c Columns** appears in the footer. Press **C** to cycle `1 → 2 → … → max → 1`. Press **T** to cycle the sparkline time window (Less: `24H → 72H → 4H`; More also includes `36H`, `8H`, and `12H`). Devices fill row-major (`1 2` / `3 4` / …). Default is a single column. Narrowing the window clamps the active column count automatically.
 
 The view filter (`-f`) only affects which devices are shown; column layout applies to the filtered set.
 
@@ -120,7 +120,7 @@ The view filter (`-f`) only affects which devices are shown; column layout appli
 |-----|--------|
 | D | Discover nearby TP35x devices (10 s scan) |
 | A | Add selected discovered device (name prompt, then optional history load) |
-| I | Status — log preload, last fetch, 4H/24H/72H sparklines |
+| I | Status — log preload, last fetch, multi-window sparklines (Less: 4H/24H/72H; More adds 8H/12H/36H) |
 | H | History fetch — pull up to 1 year of minute history over BLE; merges only the received timestamp span (preserves older polled/log data outside that range); log rows in the same span replaced only when logging is enabled |
 | E | Rename selected managed device |
 | R | Remove selected managed device |
@@ -150,6 +150,7 @@ TemPy can pull minute-resolution history stored on the sensor over BLE (up to **
 |-----|--------|
 | L | Toggle CSV logging |
 | P | Toggle poll mode — incremental (minute history) or live (single snapshot) |
+| W | Toggle time detail — Less (4H/24H/72H) or More (adds 8H/12H/36H) for dashboard **T**, device status, and `-x` snapshot |
 | E | Export log to web — interactive HTML chart (`tp_export.html`) |
 | B | Toggle session debug log |
 | D | Edit log directory |
@@ -171,12 +172,14 @@ LoggingEnabled=false
 LogDirectory=.
 LogFileName=tp_log.csv
 PollMode=incremental
+TimeDetail=less
 
 [Devices]
 AA:BB:CC:DD:EE:FF=Living Room
 ```
 
 `PollMode` is `incremental` (default) or `live`.
+`TimeDetail` is `less` (default: 4H/24H/72H) or `more` (adds 8H/12H/36H).
 
 ## Log file (CSV)
 
@@ -242,6 +245,7 @@ TemPy’s BLE protocol work builds on [pasky/tp357](https://github.com/pasky/tp3
 
 ## Changelog
 
+- **v1.9** — Options **W** time-detail toggle: **Less** (4H/24H/72H, default) or **More** (adds 8H/12H/36H) for monitoring **T**, device status, and `-x` snapshot.
 - **v1.8** — **History fetch** renamed (**H** → History Fetch); manual fetch up to **1 year** in 7-day BLE chunks; BLE queue notice when poll holds the radio; improved fetch progress UI.
 - **v1.7.0** — **Log export to web** (main menu **5**, Options **E**): self-contained `tp_export.html` with device/timeframe controls and ECharts dual-axis chart.
 - **v1.6.0** — Incremental minute-history polling (default); Options **P** poll-mode toggle; 72H BLE fetch/bootstrap; dashboard **T** sparkline window rotation; default log `tp_log.csv`; log rename on filename change with overwrite prompt; 72h log preload.

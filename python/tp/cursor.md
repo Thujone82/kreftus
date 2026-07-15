@@ -3,14 +3,14 @@
 ## Project: tp
 
 **Author:** Kreft&Cursor  
-**Date:** 2026-06-15  
-**Version:** 1.8.0
+**Date:** 2026-07-15  
+**Version:** 1.9.0
 
 ---
 
 ### Description
 
-`tp` (**TemPy**) is a cross-platform Python TUI for monitoring ThermoPro TP35x (TP357/TP358/TP359) Bluetooth temperature/humidity sensors. It discovers devices, maintains a managed device list in `tp.ini`, polls readings every 5 minutes on clock-aligned boundaries, retries stale devices every minute within each chunk, displays color-coded sparklines (4H/24H/72H), preloads history from CSV, and optionally logs readings to CSV.
+`tp` (**TemPy**) is a cross-platform Python TUI for monitoring ThermoPro TP35x (TP357/TP358/TP359) Bluetooth temperature/humidity sensors. It discovers devices, maintains a managed device list in `tp.ini`, polls readings every 5 minutes on clock-aligned boundaries, retries stale devices every minute within each chunk, displays color-coded sparklines (Less: 4H/24H/72H; More adds 8H/12H/36H), preloads history from CSV, and optionally logs readings to CSV.
 
 Built with **Textual** (UI) and **bleak** (BLE). Default **incremental poll mode** pulls minute-aligned history from the sensor buffer each cycle; **live poll mode** uses a single GATT notify read. **BLE history fetch** uses the TP357S/TP359 stream protocol (with legacy TP357 `0xA7` fallback), requesting up to **1 year** of minute records in **7-day** BLE chunks. Fetch via **H** (History Fetch) on Manage Devices or when adding a device; merges only the received timestamp span so older polled/log data is preserved.
 
@@ -19,13 +19,14 @@ Built with **Textual** (UI) and **bleak** (BLE). Default **incremental poll mode
 ### Key Functionality
 
 - **Startup:** Main menu always on stack; push Monitoring if devices exist, else Manage Devices with auto-scan
-- **Monitoring:** 5 rows per device; green/yellow device name by freshness; fetch arrows show BLE step (cyan connect / green sync read / yellow passive); sequential BLE fetch (one device at a time, 60 s timeout); optional multi-column layout (**C**); **T** cycles dashboard sparkline window (24H → 72H → 4H)
+- **Monitoring:** 5 rows per device; green/yellow device name by freshness; fetch arrows show BLE step (cyan connect / green sync read / yellow passive); sequential BLE fetch (one device at a time, 60 s timeout); optional multi-column layout (**C**); **T** cycles dashboard sparkline window (Less: 24H → 72H → 4H; More also includes 36H / 8H / 12H)
 - **Scheduler:** 5-minute grid (`:00`, `:05`, …); minute retries for devices missing the current chunk
 - **Startup fetch skip:** After log preload, fetch only devices stale for the current chunk (skip all if log is fresh)
 - **Sparkline bootstrap:** When `LoggingEnabled=false`, pull 72H BLE history on monitoring mount for devices with sparse sparklines (before live polling)
 - **Incremental polling:** Default `PollMode=incremental` — each cycle requests missing minute history since last stored reading (`read_recent_history`); logs multiple minute rows per cycle; falls back to `read_now` on failure
 - **Live polling:** `PollMode=live` — one `read_now` snapshot per device per cycle (wall-clock timestamp)
-- **Sparklines:** 24-bin windows — 4H/24H/72H on device status modal; dashboard defaults to 24H (**T** cycles 24H → 72H → 4H)
+- **Time detail:** Options **W** / `TimeDetail=less|more` — Less (default 4H/24H/72H) or More (adds 8H/12H/36H) for dashboard **T**, device status, and `-x` snapshot
+- **Sparklines:** 24-bin windows per active time-detail set; dashboard defaults to 24H (**T** cycles the set)
 - **Log export to web:** Main menu **5** or Options **E** writes `tp_export.html` beside launcher; embedded CSV data; browser UI for device + timeframe (4H/24H/72H/7D/All) with ECharts dual-axis chart
 - **CSV logging:** Optional append-only log; default `tp_log.csv`; 72h preload on mount/resume; renaming log file in Options renames on disk (overwrite prompt if target exists)
 - **History fetch:** Manage Devices **H** — BLE minute history for selected device (up to 1 year); replaces only the received timestamp span in memory/log (older polled/log data outside that span is preserved); CSV rows for that MAC in the same span replaced only when `LoggingEnabled=true`
@@ -76,12 +77,14 @@ LoggingEnabled=false
 LogDirectory=.
 LogFileName=tp_log.csv
 PollMode=incremental
+TimeDetail=less
 
 [Devices]
 AA:BB:CC:DD:EE:FF=Living Room
 ```
 
 `PollMode`: `incremental` (default) or `live`. Existing installs keep their saved `LogFileName` if already set.
+`TimeDetail`: `less` (default: 4H/24H/72H) or `more` (adds 8H/12H/36H for dashboard **T**, device status, and `-x`).
 
 Resolved log path: `{absolute LogDirectory}/{LogFileName}`; relative `LogDirectory` is resolved from `application_dir()`. Changing `LogFileName` in Options renames the existing log file; if the target name already exists, a Y/N overwrite prompt is shown (directory writability is checked without creating the target file first).
 
@@ -108,15 +111,15 @@ Append after each fetch cycle (including partial retry cycles). Incremental mode
 | Screen | Keys | Purpose |
 |--------|------|---------|
 | Main | 1–5, q | Route to sub-screens; **5** = export log to web; q exits |
-| Monitoring | M/Esc, G, T, 1–9/0, C, q | Dashboard; G = full fetch; T = cycle sparkline window; digit keys = device info; C = cycle columns when wide enough; header = status left, 🌡 TemPy center, clock right |
-| Devices | D, A, I, H, E, R, W, S, ↑/↓, M, q | Discover/add/status/history fetch/edit/remove/reorder |
-| Options | L, P, E, B, D, F, M, q | Logging toggle, poll mode toggle, log export, debug log toggle, path edits (filename rename + overwrite prompt) |
+| Monitoring | M/Esc, G, T, 1–9/0, C, q | Dashboard; G = full fetch; T = cycle sparkline window (set by TimeDetail); digit keys = device info; C = cycle columns when wide enough; header = status left, 🌡 TemPy center, clock right |
+| Manage Devices | D, A, I, H, E, R, W, S, ↑/↓, M, q | Discover/add/status/history fetch/edit/remove/reorder |
+| Options | L, P, W, E, B, D, F, M, q | Logging toggle, poll mode, time detail (Less/More), log export, debug log toggle, path edits (filename rename + overwrite prompt) |
 
 **Monitoring layout (per device):**
 
 1. Label row: device name — **green** if fresh (≤10 min), **yellow** if stale; while fetching, `▶` / `◀` show BLE step — **cyan** connecting, **green** sync live read, **yellow** passive fallback
 2. Temp stats: `cur` / `min` / `max` (all color-banded; dim when stale)
-3. Temp sparkline: 24 glyphs (default 24H window; **T** cycles 24H → 72H → 4H)
+3. Temp sparkline: 24 glyphs (default 24H window; **T** cycles Less or More set from Options **W**)
 4. Humidity stats: `cur` / `min` / `max` (all color-banded; dim when stale)
 5. Humidity sparkline: 24 glyphs
 
@@ -126,7 +129,7 @@ Blank line between single-column device blocks; multi-column rows are separated 
 
 **Multi-column layout (`helpers.py` + `monitoring.py`):** Default 1 column. When `area_width // (block_width + 4) ≥ 2`, footer offers **c Columns** and **C** cycles `1 … max`. Row-major order. `block_width` = max plain-text line width across visible devices; 2-char pad each side per column. View filter affects visible devices only; polling always targets all managed devices.
 
-**Device status modal (I):** Log preload stats, last fetch (with timestamp), memory count, 4H/24H/72H temp and humidity sparklines.
+**Device status modal (I):** Log preload stats, last fetch (with timestamp), memory count, multi-window temp and humidity sparklines (Less: 4H/24H/72H; More adds 8H/12H/36H).
 
 **Add discovered device (A):** Name prompt, then optional **Y/N** prompt to load sensor history (opens the same progress modal as **H**).
 
@@ -138,9 +141,9 @@ Blank line between single-column device blocks; multi-column rows are separated 
 
 ### Sparklines and Colors
 
-**Dashboard binning (`sparkline.py`):** 24 bins per row; window length set by **T** — 4H (10 min/bin), 24H (1 h/bin, default), 72H (3 h/bin).
+**Dashboard binning (`sparkline.py`):** 24 bins per row; window length set by **T** using Options `TimeDetail` — Less: 4H (10 min/bin), 24H (1 h/bin, default), 72H (3 h/bin); More also includes 8H / 12H / 36H.
 
-**Status modal windows:** Same 24 glyphs per row; bin width scales — 4H (10 min/bin), 24H (1 h/bin), 72H (3 h/bin).
+**Status modal / `-x` windows:** Same 24 glyphs per row for each window in the active time-detail set.
 
 **Colors (`colors.py`):**
 
@@ -426,6 +429,7 @@ python/tp/
 
 ### Changelog
 
+- **v1.9.0** — Options **W** / `TimeDetail=less|more`: Less (default 4H/24H/72H) or More (adds 8H/12H/36H) for monitoring **T**, device status, and `-x` snapshot.
 - **v1.8.0** — **History fetch** renamed from 72H fetch (**H**); manual fetch up to **1 year** in **7-day** BLE chunks; **BLE queue** status when waiting on poll; immediate modal loading and byte/chunk progress; scaled `day_history_timeout`; startup bootstrap still **72H** (`SPARKLINE_BOOTSTRAP_HISTORY_HOURS`).
 - **v1.7.0** — **Log export to web** (main menu **5**, Options **E**): self-contained **`tp_export.html`** with device/timeframe controls and ECharts dual-axis chart; `log_export.py` + `assets/log_export.html`.
 - **v1.6.0** — **Incremental minute-history polling** (default `PollMode=incremental`; Options **P** toggles live mode); **`read_recent_history`** for gap-filled minute CSV rows; **72H** BLE fetch/bootstrap (expanded from 24H); dashboard **T** sparkline window rotation (24H → 72H → 4H) with window-accurate min/max; default log **`tp_log.csv`**; **log rename** on filename change with overwrite prompt; **72h log preload**; `build.ps1` **`-pyz` / `-exe`** selective build; unit tests for poll mode, log rename, multi-row append.

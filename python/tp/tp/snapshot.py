@@ -9,10 +9,10 @@ from tp.config import AppConfig, filter_devices
 from tp.history import DeviceHistory, load_readings_from_log
 from tp.scheduler import is_measurement_stale
 from tp.sparkline import (
-    SPARKLINE_WINDOWS,
     build_sparkline,
     colored_sparkline_markup,
     format_sparkline_row,
+    sparkline_windows,
     window_value_extremes,
 )
 from tp.ui.helpers import format_device_label_row, format_stats_row
@@ -22,6 +22,8 @@ def snapshot_device_lines(
     history: DeviceHistory,
     mac: str,
     name: str,
+    *,
+    time_detail: str | None = None,
 ) -> list[str]:
     updated_dt = history.last_updated(mac)
     stale = is_measurement_stale(updated_dt)
@@ -39,7 +41,7 @@ def snapshot_device_lines(
     temp_cur = latest.temp_f if latest else None
     humid_cur = float(latest.humidity_pct) if latest else None
 
-    for label, hours in SPARKLINE_WINDOWS:
+    for label, hours in sparkline_windows(time_detail):
         temp_min, temp_max = window_value_extremes(temp_points, hours=hours)
         humid_min, humid_max = window_value_extremes(humid_points, hours=hours)
         temp_spark = build_sparkline(temp_points, hours=hours)
@@ -85,9 +87,17 @@ def render_snapshot(config: AppConfig, *, device_filter: str | None = None) -> s
     history = DeviceHistory()
     load_readings_from_log(history, config)
     visible = filter_devices(config.devices, device_filter)
+    time_detail = getattr(config.settings, "time_detail", "less")
     lines: list[str] = []
     for mac, name in visible:
-        lines.extend(snapshot_device_lines(history, mac, name))
+        lines.extend(
+            snapshot_device_lines(
+                history,
+                mac,
+                name,
+                time_detail=time_detail,
+            )
+        )
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     header = f"[bold]TemPy snapshot[/] ({stamp})"
     if device_filter:

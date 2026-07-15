@@ -13,6 +13,11 @@ POLL_MODE_LIVE = "live"
 DEFAULT_POLL_MODE = POLL_MODE_INCREMENTAL
 VALID_POLL_MODES = frozenset({POLL_MODE_INCREMENTAL, POLL_MODE_LIVE})
 
+TIME_DETAIL_LESS = "less"
+TIME_DETAIL_MORE = "more"
+DEFAULT_TIME_DETAIL = TIME_DETAIL_LESS
+VALID_TIME_DETAILS = frozenset({TIME_DETAIL_LESS, TIME_DETAIL_MORE})
+
 
 @dataclass
 class Settings:
@@ -20,6 +25,7 @@ class Settings:
     log_directory: str = "."
     log_file_name: str = "tp_log.csv"
     poll_mode: str = DEFAULT_POLL_MODE
+    time_detail: str = DEFAULT_TIME_DETAIL
 
 
 @dataclass
@@ -103,6 +109,9 @@ def load_config(ini_path: Path | None = None) -> AppConfig:
         poll_mode = section.get("PollMode", DEFAULT_POLL_MODE).strip().lower()
         if poll_mode in VALID_POLL_MODES:
             config.settings.poll_mode = poll_mode
+        time_detail = section.get("TimeDetail", DEFAULT_TIME_DETAIL).strip().lower()
+        if time_detail in VALID_TIME_DETAILS:
+            config.settings.time_detail = time_detail
 
     if parser.has_section("Devices"):
         for mac, name in parser.items("Devices"):
@@ -120,6 +129,7 @@ def save_config(config: AppConfig) -> None:
         "LogDirectory": config.settings.log_directory,
         "LogFileName": config.settings.log_file_name,
         "PollMode": config.settings.poll_mode,
+        "TimeDetail": config.settings.time_detail,
     }
     parser["Devices"] = {mac: name for mac, name in config.devices.items()}
 
@@ -146,6 +156,12 @@ def poll_mode_label(mode: str) -> str:
     if mode == POLL_MODE_LIVE:
         return "live (single snapshot)"
     return "incremental (minute history)"
+
+
+def time_detail_label(mode: str) -> str:
+    if mode == TIME_DETAIL_MORE:
+        return "More (4/8/12/24/36/72H)"
+    return "Less (4/24/72H)"
 
 
 def rename_log_file(

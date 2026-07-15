@@ -35,6 +35,7 @@ from tp.sparkline import (
     build_sparkline,
     colored_sparkline_markup,
     dashboard_sparkline_label,
+    dashboard_sparkline_windows,
     format_sparkline_row,
     next_dashboard_sparkline_window,
     window_value_extremes,
@@ -271,7 +272,7 @@ class MonitoringScreen(Screen):
         if self._cached_max_columns >= 2:
             parts.append("[dim]c[/] Columns")
         parts.append(
-            f"[dim]t[/] Time ({dashboard_sparkline_label(self._sparkline_hours)})"
+            f"[dim]t[/] Time ({dashboard_sparkline_label(self._active_sparkline_hours(), time_detail=self._time_detail())})"
         )
         return "  ".join(parts)
 
@@ -498,9 +499,21 @@ class MonitoringScreen(Screen):
         self._display_columns = (self._display_columns % self._cached_max_columns) + 1
         self.refresh_display()
 
+    def _time_detail(self) -> str:
+        return getattr(self.app.config.settings, "time_detail", "less")
+
+    def _active_sparkline_hours(self) -> float:
+        """Return dashboard hours, clamping if TimeDetail no longer includes it."""
+        windows = dashboard_sparkline_windows(self._time_detail())
+        allowed = {hours for _label, hours in windows}
+        if self._sparkline_hours not in allowed:
+            self._sparkline_hours = DEFAULT_DASHBOARD_SPARKLINE_HOURS
+        return self._sparkline_hours
+
     def action_toggle_sparkline_time(self) -> None:
         _label, self._sparkline_hours = next_dashboard_sparkline_window(
-            self._sparkline_hours
+            self._active_sparkline_hours(),
+            time_detail=self._time_detail(),
         )
         self.refresh_display()
 
@@ -843,8 +856,11 @@ class MonitoringScreen(Screen):
 
         temp_points = self.app.history.temp_points(mac)
         humid_points = self.app.history.humidity_points(mac)
-        sparkline_hours = self._sparkline_hours
-        sparkline_label = dashboard_sparkline_label(sparkline_hours)
+        sparkline_hours = self._active_sparkline_hours()
+        sparkline_label = dashboard_sparkline_label(
+            sparkline_hours,
+            time_detail=self._time_detail(),
+        )
         temp_spark = build_sparkline(temp_points, hours=sparkline_hours)
         humid_spark = build_sparkline(humid_points, hours=sparkline_hours)
         temp_min, temp_max = window_value_extremes(temp_points, hours=sparkline_hours)

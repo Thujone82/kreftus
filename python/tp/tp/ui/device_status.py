@@ -63,12 +63,15 @@ _STATUS_EMPTY_BIN = "[dim] [/]"
 def _format_metric_sparklines(
     points: list[tuple],
     color_fn: Callable[[float], str],
+    *,
+    time_detail: str | None = None,
 ) -> list[str]:
     return format_window_sparkline_rows(
         points,
         color_fn,
         indent="  ",
         empty_bin=_STATUS_EMPTY_BIN,
+        time_detail=time_detail,
     )
 
 
@@ -84,6 +87,7 @@ def format_device_status(
     reading_count = len(history.get_readings(mac))
     temp_points = history.temp_points(mac)
     humid_points = history.humidity_points(mac)
+    time_detail = getattr(config.settings, "time_detail", "less")
 
     lines = [
         f"[bold yellow]{name}[/]",
@@ -94,10 +98,10 @@ def format_device_status(
         *_format_fetch_section(fetch),
         "",
         "[bold]Temperature[/]",
-        *_format_metric_sparklines(temp_points, temp_color),
+        *_format_metric_sparklines(temp_points, temp_color, time_detail=time_detail),
         "",
         "[bold]Humidity[/]",
-        *_format_metric_sparklines(humid_points, humidity_color),
+        *_format_metric_sparklines(humid_points, humidity_color, time_detail=time_detail),
         "",
         "[bold]Memory[/]",
         f"  Readings stored: [white]{reading_count}[/]",

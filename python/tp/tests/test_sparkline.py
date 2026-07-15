@@ -10,15 +10,30 @@ from tp.sparkline import (
     dashboard_sparkline_label,
     format_window_sparkline_rows,
     next_dashboard_sparkline_window,
+    sparkline_windows,
     window_value_extremes,
 )
 
 
 class DashboardSparklineWindowTests(unittest.TestCase):
-    def test_rotates_24h_72h_4h(self) -> None:
+    def test_rotates_24h_72h_4h_for_less(self) -> None:
         self.assertEqual(next_dashboard_sparkline_window(24), ("72H", 72))
         self.assertEqual(next_dashboard_sparkline_window(72), ("4H", 4))
         self.assertEqual(next_dashboard_sparkline_window(4), ("24H", 24))
+
+    def test_rotates_more_windows(self) -> None:
+        self.assertEqual(
+            next_dashboard_sparkline_window(24, time_detail="more"),
+            ("36H", 36),
+        )
+        self.assertEqual(
+            next_dashboard_sparkline_window(36, time_detail="more"),
+            ("72H", 72),
+        )
+        self.assertEqual(
+            next_dashboard_sparkline_window(12, time_detail="more"),
+            ("24H", 24),
+        )
 
     def test_unknown_hours_reset_to_default(self) -> None:
         self.assertEqual(next_dashboard_sparkline_window(12), ("24H", 24))
@@ -26,6 +41,22 @@ class DashboardSparklineWindowTests(unittest.TestCase):
     def test_dashboard_label(self) -> None:
         self.assertEqual(dashboard_sparkline_label(72), "72H")
         self.assertEqual(dashboard_sparkline_label(99), "24H")
+        self.assertEqual(
+            dashboard_sparkline_label(8, time_detail="more"),
+            "8H",
+        )
+
+
+class SparklineWindowsTests(unittest.TestCase):
+    def test_less_and_more_sets(self) -> None:
+        self.assertEqual(
+            [label for label, _hours in sparkline_windows("less")],
+            ["4H", "24H", "72H"],
+        )
+        self.assertEqual(
+            [label for label, _hours in sparkline_windows("more")],
+            ["4H", "8H", "12H", "24H", "36H", "72H"],
+        )
 
 
 class WindowValueExtremesTests(unittest.TestCase):
@@ -81,6 +112,19 @@ class FormatWindowSparklineRowsTests(unittest.TestCase):
         self.assertIn("4H Ago", rows[0])
         self.assertIn("24H Ago", rows[1])
         self.assertIn("72H Ago", rows[2])
+
+    def test_more_emits_six_windows(self) -> None:
+        end = datetime(2026, 6, 24, 16, 0, 0)
+        points = [(end - timedelta(hours=1), 70.0)]
+        rows = format_window_sparkline_rows(
+            points,
+            lambda _value: "white",
+            time_detail="more",
+        )
+        self.assertEqual(len(rows), 6)
+        self.assertIn("8H Ago", rows[1])
+        self.assertIn("12H Ago", rows[2])
+        self.assertIn("36H Ago", rows[4])
 
 
 if __name__ == "__main__":
