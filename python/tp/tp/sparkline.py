@@ -78,17 +78,35 @@ def dashboard_sparkline_windows(
     return DASHBOARD_SPARKLINE_WINDOWS_LESS
 
 
+def _step_dashboard_sparkline_window(
+    hours: float,
+    *,
+    time_detail: str | None,
+    step: int,
+) -> tuple[str, float]:
+    windows = dashboard_sparkline_windows(time_detail)
+    for index, (_label, window_hours) in enumerate(windows):
+        if window_hours == hours:
+            return windows[(index + step) % len(windows)]
+    return windows[0]
+
+
 def next_dashboard_sparkline_window(
     hours: float = DEFAULT_DASHBOARD_SPARKLINE_HOURS,
     *,
     time_detail: str | None = None,
 ) -> tuple[str, float]:
     """Return the next dashboard sparkline window for the active time-detail set."""
-    windows = dashboard_sparkline_windows(time_detail)
-    for index, (_label, window_hours) in enumerate(windows):
-        if window_hours == hours:
-            return windows[(index + 1) % len(windows)]
-    return windows[0]
+    return _step_dashboard_sparkline_window(hours, time_detail=time_detail, step=1)
+
+
+def prev_dashboard_sparkline_window(
+    hours: float = DEFAULT_DASHBOARD_SPARKLINE_HOURS,
+    *,
+    time_detail: str | None = None,
+) -> tuple[str, float]:
+    """Return the previous dashboard sparkline window for the active time-detail set."""
+    return _step_dashboard_sparkline_window(hours, time_detail=time_detail, step=-1)
 
 
 def dashboard_sparkline_label(

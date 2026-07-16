@@ -38,6 +38,7 @@ from tp.sparkline import (
     dashboard_sparkline_windows,
     format_sparkline_row,
     next_dashboard_sparkline_window,
+    prev_dashboard_sparkline_window,
     window_value_extremes,
 )
 from tp.config import filter_devices
@@ -169,6 +170,8 @@ class MonitoringScreen(Screen):
         Binding("m", "menu", "Menu"),
         Binding("g", "fetch_now", "Fetch now"),
         Binding("t", "toggle_sparkline_time", "Time", show=False),
+        # Terminals usually emit uppercase "T" for Shift+T, not "shift+t".
+        Binding("T,shift+t", "toggle_sparkline_time_prev", "Time reverse", show=False),
         Binding("c", "toggle_columns", "Columns", show=False),
     ]
 
@@ -512,6 +515,13 @@ class MonitoringScreen(Screen):
 
     def action_toggle_sparkline_time(self) -> None:
         _label, self._sparkline_hours = next_dashboard_sparkline_window(
+            self._active_sparkline_hours(),
+            time_detail=self._time_detail(),
+        )
+        self.refresh_display()
+
+    def action_toggle_sparkline_time_prev(self) -> None:
+        _label, self._sparkline_hours = prev_dashboard_sparkline_window(
             self._active_sparkline_hours(),
             time_detail=self._time_detail(),
         )

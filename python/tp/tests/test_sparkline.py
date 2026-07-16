@@ -10,6 +10,7 @@ from tp.sparkline import (
     dashboard_sparkline_label,
     format_window_sparkline_rows,
     next_dashboard_sparkline_window,
+    prev_dashboard_sparkline_window,
     sparkline_windows,
     window_value_extremes,
 )
@@ -20,6 +21,11 @@ class DashboardSparklineWindowTests(unittest.TestCase):
         self.assertEqual(next_dashboard_sparkline_window(24), ("72H", 72))
         self.assertEqual(next_dashboard_sparkline_window(72), ("4H", 4))
         self.assertEqual(next_dashboard_sparkline_window(4), ("24H", 24))
+
+    def test_rotates_prev_for_less(self) -> None:
+        self.assertEqual(prev_dashboard_sparkline_window(24), ("4H", 4))
+        self.assertEqual(prev_dashboard_sparkline_window(4), ("72H", 72))
+        self.assertEqual(prev_dashboard_sparkline_window(72), ("24H", 24))
 
     def test_rotates_more_windows(self) -> None:
         self.assertEqual(
@@ -43,8 +49,23 @@ class DashboardSparklineWindowTests(unittest.TestCase):
             ("24H", 24),
         )
 
+    def test_rotates_prev_for_more(self) -> None:
+        self.assertEqual(
+            prev_dashboard_sparkline_window(24, time_detail="more"),
+            ("12H", 12),
+        )
+        self.assertEqual(
+            prev_dashboard_sparkline_window(1.5, time_detail="more"),
+            ("72H", 72),
+        )
+        self.assertEqual(
+            prev_dashboard_sparkline_window(4, time_detail="more"),
+            ("90M", 1.5),
+        )
+
     def test_unknown_hours_reset_to_default(self) -> None:
         self.assertEqual(next_dashboard_sparkline_window(12), ("24H", 24))
+        self.assertEqual(prev_dashboard_sparkline_window(12), ("24H", 24))
 
     def test_dashboard_label(self) -> None:
         self.assertEqual(dashboard_sparkline_label(72), "72H")

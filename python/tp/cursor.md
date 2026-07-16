@@ -19,7 +19,7 @@ Built with **Textual** (UI) and **bleak** (BLE). Default **incremental poll mode
 ### Key Functionality
 
 - **Startup:** Main menu always on stack; push Monitoring if devices exist, else Manage Devices with auto-scan
-- **Monitoring:** 5 rows per device; green/yellow device name by freshness; fetch arrows show BLE step (cyan connect / green sync read / yellow passive); sequential BLE fetch (one device at a time, 60 s timeout); optional multi-column layout (**C**); **T** cycles dashboard sparkline window (Less: 24H → 72H → 4H; More: 24H → 36H → 72H → 90M → 4H → 8H → 12H)
+- **Monitoring:** 5 rows per device; green/yellow device name by freshness; fetch arrows show BLE step (cyan connect / green sync read / yellow passive); sequential BLE fetch (one device at a time, 60 s timeout); optional multi-column layout (**C**); **T** / **Shift+T** cycle dashboard sparkline window forward / reverse (Less: 24H → 72H → 4H; More: 24H → 36H → 72H → 90M → 4H → 8H → 12H)
 - **Scheduler:** 5-minute grid (`:00`, `:05`, …); minute retries for devices missing the current chunk
 - **Startup fetch skip:** After log preload, fetch only devices stale for the current chunk (skip all if log is fresh)
 - **Sparkline bootstrap:** When `LoggingEnabled=false`, pull 72H BLE history on monitoring mount for devices with sparse sparklines (before live polling)
@@ -111,7 +111,7 @@ Append after each fetch cycle (including partial retry cycles). Incremental mode
 | Screen | Keys | Purpose |
 |--------|------|---------|
 | Main | 1–5, q | Route to sub-screens; **5** = export log to web; q exits |
-| Monitoring | M/Esc, G, T, 1–9/0, C, q | Dashboard; G = full fetch; T = cycle sparkline window (set by TimeDetail); digit keys = device info; C = cycle columns when wide enough; header = status left, 🌡 TemPy center, clock right |
+| Monitoring | M/Esc, G, T / Shift+T, 1–9/0, C, q | Dashboard; G = full fetch; T / Shift+T = cycle sparkline window forward / reverse (set by TimeDetail); digit keys = device info; C = cycle columns when wide enough; header = status left, 🌡 TemPy center, clock right |
 | Manage Devices | D, A, I, H, E, R, W, S, ↑/↓, M, q | Discover/add/status/history fetch/edit/remove/reorder |
 | Options | L, P, W, E, B, D, F, M, q | Logging toggle, poll mode, time detail (Less/More), log export, debug log toggle, path edits (filename rename + overwrite prompt) |
 
@@ -119,7 +119,7 @@ Append after each fetch cycle (including partial retry cycles). Incremental mode
 
 1. Label row: device name — **green** if fresh (≤10 min), **yellow** if stale; while fetching, `▶` / `◀` show BLE step — **cyan** connecting, **green** sync live read, **yellow** passive fallback
 2. Temp stats: `cur` / `min` / `max` (all color-banded; dim when stale)
-3. Temp sparkline: 24 glyphs (default 24H window; **T** cycles Less or More set from Options **W**)
+3. Temp sparkline: 24 glyphs (default 24H window; **T** / **Shift+T** cycle Less or More set forward / reverse from Options **W**)
 4. Humidity stats: `cur` / `min` / `max` (all color-banded; dim when stale)
 5. Humidity sparkline: 24 glyphs
 

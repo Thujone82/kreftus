@@ -71,7 +71,7 @@ Place `tp.ini` and `tp_log.csv` in the same folder as the launcher. The build sc
 | **Q** | Anywhere | Back one level (sub-screens and modals); exit from main menu |
 | **M** | Sub-screens | Main menu |
 | **G** | Monitoring | Fetch stale devices only; full poll if none are stale |
-| **T** | Monitoring | Cycle dashboard sparkline window (Less: 24H → 72H → 4H; More: 24H → 36H → 72H → 90M → 4H → 8H → 12H) |
+| **T** / **Shift+T** | Monitoring | Cycle dashboard sparkline window forward / reverse (Less: 24H → 72H → 4H; More: 24H → 36H → 72H → 90M → 4H → 8H → 12H) |
 | **1**–**9**, **0** | Monitoring | Open device info for visible device 1–10 (**Q** closes back to monitoring) |
 | **C** | Monitoring | Cycle column layout (shown only when the terminal is wide enough for 2+ columns) |
 
@@ -91,7 +91,7 @@ Each tracked device shows 5 rows:
 
 1. Device name — **green** if fresh (within 10 minutes), **yellow** if stale. While that device is being fetched, `▶` / `◀` show the BLE step: **cyan** connecting, **green** fast live read (datetime sync), **yellow** passive fallback (legacy sensors)
 2. Temperature cur / min / max (°F) — cur is the latest reading; min/max are the true lows and highs within the active sparkline window
-3. 24-character temperature sparkline (default 24H window; **T** cycles windows from Options time detail — Less: 24H → 72H → 4H; More: 24H → 36H → 72H → 90M → 4H → 8H → 12H)
+3. 24-character temperature sparkline (default 24H window; **T** / **Shift+T** cycle windows forward / reverse from Options time detail — Less: 24H → 72H → 4H; More: 24H → 36H → 72H → 90M → 4H → 8H → 12H)
 4. Humidity cur / min / max (%) — each value color-banded to match sparkline glyphs
 5. 24-character humidity sparkline
 
@@ -103,7 +103,7 @@ Each tracked device shows 5 rows:
 
 ### Multi-column layout
 
-When the terminal is wide enough to fit two or more device blocks side by side (content width plus 2-character padding on each side), **c Columns** appears in the footer. Press **C** to cycle `1 → 2 → … → max → 1`. Press **T** to cycle the sparkline time window (Less: `24H → 72H → 4H`; More: `24H → 36H → 72H → 90M → 4H → 8H → 12H`). Devices fill row-major (`1 2` / `3 4` / …). Default is a single column. Narrowing the window clamps the active column count automatically.
+When the terminal is wide enough to fit two or more device blocks side by side (content width plus 2-character padding on each side), **c Columns** appears in the footer. Press **C** to cycle `1 → 2 → … → max → 1`. Press **T** / **Shift+T** to cycle the sparkline time window forward / reverse (Less: `24H → 72H → 4H`; More: `24H → 36H → 72H → 90M → 4H → 8H → 12H`). Devices fill row-major (`1 2` / `3 4` / …). Default is a single column. Narrowing the window clamps the active column count automatically.
 
 The view filter (`-f`) only affects which devices are shown; column layout applies to the filtered set.
 
