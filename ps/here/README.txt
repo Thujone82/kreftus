@@ -21,6 +21,7 @@ FEATURES:
     - Clean ASCII-based formatting for universal compatibility
     - Astronomical calculations (sunrise, sunset, moon phase)
     - Day length, solar noon, and solar irradiance (clear-sky GHI in W/m²) calculations
+    - Optional Golden Hour / Blue Hour lines via -Magic (-m)
     - Timezone-aware local time display
     - Polar day/night handling for extreme latitudes
 
@@ -32,7 +33,10 @@ REQUIREMENTS:
 USAGE:
     .\here.ps1
     .\here.ps1 -Verbose
+    .\here.ps1 -Magic
+    .\here.ps1 -m
     .\here.ps1 1.1.1.1 -Verbose
+    .\here.ps1 1.1.1.1 -Magic
     
     Or from any directory:
     PowerShell -ExecutionPolicy Bypass -File "C:\path\to\here.ps1"
@@ -63,6 +67,10 @@ INFORMATION DISPLAYED:
     Solar Noon - Time when sun reaches highest point
     Irradiance  - Clear-sky solar irradiance at current time (W/m²)
     Moon Phase - Current moon phase (text description)
+    Golden/Blue Hour (with -Magic / -m only):
+      Golden Hour / Next Golden - Active until, or next start-end window
+      Blue Hour / Next Blue     - Active until, or next start-end window
+      (Same elevation bands as GetForecast: Golden -4°..6°, Blue -8°..-4°)
 
 ACCURACY NOTE:
     Location accuracy is based on your ISP's IP address assignment, not GPS.
@@ -159,16 +167,20 @@ ASTRONOMICAL CALCULATIONS:
     - Sunrise and sunset times calculated using NOAA algorithms
     - Solar irradiance (clear-sky GHI) at current time in W/m² (simple zenith-angle model)
     - Moon phase calculated using astronomical method (reference date: Jan 6, 2000)
+    - Optional Magic Hours (-Magic / -m): Golden Hour (sun elevation -4° to 6°) and
+      Blue Hour (sun elevation -8° to -4°), matching GetForecast (gf.ps1)
     - All calculations performed locally using coordinates (no additional APIs)
     - Automatic timezone resolution (IANA to Windows timezone conversion)
     - Handles edge cases: polar day/night scenarios
 
-VERSION: 1.3
+VERSION: 1.4
 AUTHOR:  Generated for kreftus project
 DATE:    Current
 LICENSE: See project LICENSE file
 
 CHANGELOG:
+    v1.4 - Added -Magic (-m) to append Golden Hour / Blue Hour lines after moon
+           phase data (same solar-elevation bands as GetForecast)
     v1.3 - Added multi-provider geolocation fallback chain:
            ip-api.com -> ipwho.is -> ipapi.co
            Added provider-level verbose diagnostics and request status reporting
