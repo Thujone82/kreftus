@@ -40,6 +40,11 @@ type theme struct {
 	goal       tcell.Color
 }
 
+const (
+	startMenu   = 0
+	startScores = 1
+)
+
 type game struct {
 	screen tcell.Screen
 	width  int
@@ -76,6 +81,8 @@ type game struct {
 	nameBuffer   string
 	// Start screen
 	showStartScreen bool
+	startView       int // startMenu | startScores
+	menuIndex       int // 0 Start, 1 High Scores, 2 Quit
 }
 
 type scoreEntry struct {
@@ -133,6 +140,8 @@ func main() {
 		g.historyTop = g.highScores[0].Score
 	}
 	g.showStartScreen = true
+	g.startView = startMenu
+	g.menuIndex = 0
 	g.initLevel(1)
 
 	events := make(chan tcell.Event, 64)
@@ -153,10 +162,12 @@ func main() {
 			case *tcell.EventResize:
 				g.resize()
 			case *tcell.EventKey:
-				if handleQuit(e) {
+				if g.handleQuit(e) {
 					return
 				}
-				g.handleInput(e)
+				if g.handleInput(e) {
+					return
+				}
 			}
 		case <-tick.C:
 			g.update()
@@ -352,41 +363,39 @@ func (g *game) createLanes() {
 	}
 }
 
-func (g *game) handleInput(e *tcell.EventKey) {
+func (g *game) handleInput(e *tcell.EventKey) bool {
 	// Handle start screen
 	if g.showStartScreen {
-		// Any key press starts the game
-		g.showStartScreen = false
-		return
+		return g.handleStartInput(e)
 	}
 	// ignore inputs for a brief period after death/gameover to prevent buffered arrows into name field
 	if time.Now().Before(g.acceptInputAfter) {
-		return
+		return false
 	}
 	if g.enteringName {
 		// Simple name input handler
 		switch e.Key() {
 		case tcell.KeyEnter:
 			g.commitScoreName()
-			return
+			return false
 		case tcell.KeyEscape:
 			g.enteringName = false
-			return
+			return false
 		case tcell.KeyUp, tcell.KeyDown, tcell.KeyLeft, tcell.KeyRight:
-			return
+			return false
 		case tcell.KeyBackspace, tcell.KeyBackspace2:
 			if len(g.nameBuffer) > 0 {
 				g.nameBuffer = g.nameBuffer[:len(g.nameBuffer)-1]
 			}
-			return
+			return false
 		case tcell.KeyRune:
 			r := e.Rune()
 			if r >= 32 && r <= 126 && len(g.nameBuffer) < 8 {
 				g.nameBuffer += string(r)
 			}
-			return
+			return false
 		default:
-			return
+			return false
 		}
 	}
 	// Toggle pause on Space
@@ -401,10 +410,10 @@ func (g *game) handleInput(e *tcell.EventKey) {
 			// pausing
 			g.paused = true
 		}
-		return
+		return false
 	}
 	if g.paused {
-		return
+		return false
 	}
 	moved := false
 	switch e.Key() {
@@ -455,6 +464,69 @@ func (g *game) handleInput(e *tcell.EventKey) {
 		g.scoreTimerActive = true
 		g.nextScoreDecrement = time.Now().Add(time.Second)
 	}
+	return false
+}
+
+func (g *game) handleStartInput(e *tcell.EventKey) bool {
+	if g.startView == startScores {
+		switch e.Key() {
+		case tcell.KeyEscape, tcell.KeyEnter:
+			g.startView = startMenu
+			return false
+		case tcell.KeyRune:
+			if e.Rune() == ' ' {
+				g.startView = startMenu
+			}
+		}
+		return false
+	}
+
+	const menuCount = 3
+	switch e.Key() {
+	case tcell.KeyUp:
+		g.menuIndex = (g.menuIndex - 1 + menuCount) % menuCount
+		return false
+	case tcell.KeyDown:
+		g.menuIndex = (g.menuIndex + 1) % menuCount
+		return false
+	case tcell.KeyEnter:
+		return g.activateMenuItem()
+	case tcell.KeyRune:
+		r := e.Rune()
+		switch r {
+		case ' ', '\n', '\r':
+			return g.activateMenuItem()
+		case 'w', 'W':
+			g.menuIndex = (g.menuIndex - 1 + menuCount) % menuCount
+		case 's', 'S':
+			g.menuIndex = (g.menuIndex + 1) % menuCount
+		case '1':
+			g.menuIndex = 0
+			return g.activateMenuItem()
+		case 'h', 'H', '2':
+			g.menuIndex = 1
+			return g.activateMenuItem()
+		case 'q', 'Q', '3':
+			g.menuIndex = 2
+			return g.activateMenuItem()
+		}
+	}
+	return false
+}
+
+func (g *game) activateMenuItem() bool {
+	switch g.menuIndex {
+	case 0: // Start
+		g.showStartScreen = false
+		g.startView = startMenu
+		return false
+	case 1: // High Scores
+		g.startView = startScores
+		return false
+	case 2: // Quit
+		return true
+	}
+	return false
 }
 
 func (g *game) clampFrog() {
@@ -473,6 +545,9 @@ func (g *game) clampFrog() {
 }
 
 func (g *game) update() {
+	if g.showStartScreen {
+		return
+	}
 	if g.paused {
 		return
 	}
@@ -689,6 +764,8 @@ func (g *game) resetGame() {
 	g.highestY = g.frogY
 	g.gameOver = false
 	g.showStartScreen = true
+	g.startView = startMenu
+	g.menuIndex = 0
 	g.acceptInputAfter = time.Now().Add(200 * time.Millisecond)
 	// fresh start: no decay until first move
 	g.scoreTimerActive = false
@@ -742,8 +819,15 @@ func (g *game) flushInput() {
 	}
 }
 
-func handleQuit(e *tcell.EventKey) bool {
-	if e.Key() == tcell.KeyEscape || e.Key() == tcell.KeyCtrlC {
+func (g *game) handleQuit(e *tcell.EventKey) bool {
+	if e.Key() == tcell.KeyCtrlC {
+		return true
+	}
+	if e.Key() == tcell.KeyEscape {
+		// Esc from high scores returns to the menu (handled in handleStartInput)
+		if g.showStartScreen && g.startView == startScores {
+			return false
+		}
 		return true
 	}
 	return false
@@ -964,12 +1048,18 @@ func (g *game) drawStartScreen() {
 		}
 	}
 
-	// Get ASCII art
+	if g.startView == startScores {
+		g.drawStartHighScores()
+		return
+	}
+
 	ascii := getLarryASCII()
 	asciiHeight := len(ascii)
-	startY := h/2 - asciiHeight/2 - 3
+	startY := h/2 - asciiHeight/2 - 5
+	if startY < 0 {
+		startY = 0
+	}
 
-	// Draw ASCII art
 	titleStyle := tcell.StyleDefault.Foreground(g.theme.frog).Bold(true)
 	for i, line := range ascii {
 		y := startY + i
@@ -978,33 +1068,98 @@ func (g *game) drawStartScreen() {
 		}
 	}
 
-	// Draw high score with player name and date
-	highScoreY := startY + asciiHeight + 2
+	subY := startY + asciiHeight + 1
+	if subY >= 0 && subY < h {
+		subStyle := tcell.StyleDefault.Foreground(tcell.ColorLightGray)
+		drawCentered(g.screen, w/2, subY, "Terminal Frogger", subStyle)
+	}
+
+	highScoreY := subY + 2
 	if highScoreY >= 0 && highScoreY < h {
 		var highScoreText string
 		if len(g.highScores) > 0 {
 			topScore := g.highScores[0]
-			highScoreText = fmt.Sprintf("High Score: %d by %s (%s)", topScore.Score, topScore.Name, topScore.Date)
+			highScoreText = fmt.Sprintf("Champion: %d by %s (%s)", topScore.Score, topScore.Name, topScore.Date)
 		} else {
-			highScoreText = "High Score: 0"
+			highScoreText = "Champion: —"
 		}
 		scoreStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Bold(true)
 		drawCentered(g.screen, w/2, highScoreY, highScoreText, scoreStyle)
 	}
 
-	// Draw start prompt
-	promptY := highScoreY + 3
-	if promptY >= 0 && promptY < h {
-		promptText := "Press any key to start"
-		promptStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite).Bold(true)
-		drawCentered(g.screen, w/2, promptY, promptText, promptStyle)
+	menuItems := []string{"Start", "High Scores", "Quit"}
+	menuY := highScoreY + 3
+	blinkOn := (time.Now().UnixNano()/int64(time.Millisecond)/400)%2 == 0
+	normalStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite)
+	selectedStyle := tcell.StyleDefault.Background(g.theme.frog).Foreground(tcell.ColorBlack).Bold(true)
+
+	for i, label := range menuItems {
+		y := menuY + i
+		if y < 0 || y >= h {
+			continue
+		}
+		cursor := "  "
+		style := normalStyle
+		if i == g.menuIndex {
+			style = selectedStyle
+			if blinkOn {
+				cursor = "> "
+			} else {
+				cursor = "  "
+			}
+		}
+		drawCentered(g.screen, w/2, y, cursor+label+"  ", style)
 	}
 
-	// Draw controls help
-	helpY := promptY + 2
+	helpY := menuY + len(menuItems) + 2
 	if helpY >= 0 && helpY < h {
-		helpText := "Use arrow keys or WASD to move"
 		helpStyle := tcell.StyleDefault.Foreground(tcell.ColorLightGray)
-		drawCentered(g.screen, w/2, helpY, helpText, helpStyle)
+		drawCentered(g.screen, w/2, helpY, "↑↓ Select   Enter Confirm", helpStyle)
 	}
+	hintY := helpY + 1
+	if hintY >= 0 && hintY < h {
+		hintStyle := tcell.StyleDefault.Foreground(tcell.ColorDarkGray)
+		drawCentered(g.screen, w/2, hintY, "Arrows or WASD to move in game", hintStyle)
+	}
+}
+
+func (g *game) drawStartHighScores() {
+	w, h := g.width, g.height
+	if w <= 0 || h <= 0 {
+		return
+	}
+	title := "HIGH SCORES"
+	// title + gap + 10 scores + gap + footer + padding
+	const maxScores = 10
+	panelH := 17
+	if panelH > h {
+		panelH = h
+	}
+	y0 := h/2 - panelH/2
+	if y0 < 0 {
+		y0 = 0
+	}
+	if y0+panelH > h {
+		y0 = max(0, h-panelH)
+	}
+	st := tcell.StyleDefault.Background(g.theme.frog).Foreground(tcell.ColorBlack).Bold(true)
+	for dy := 0; dy < panelH; dy++ {
+		drawText(g.screen, 0, y0+dy, spaces(w), st)
+	}
+	drawCentered(g.screen, w/2, y0+1, title, st)
+	if len(g.highScores) == 0 {
+		drawCentered(g.screen, w/2, y0+panelH/2, "No scores yet — be the first!", st)
+	} else {
+		show := maxScores
+		// Leave room for title (y0+1), score start (y0+3), and footer (y0+panelH-2)
+		room := (y0 + panelH - 2) - (y0 + 3)
+		if room < show {
+			show = room
+			if show < 1 {
+				show = 1
+			}
+		}
+		g.drawHighScoreListAt(w/2, y0+3, st, g.highScores, show)
+	}
+	drawCentered(g.screen, w/2, y0+panelH-2, "Esc or Enter to return", st)
 }

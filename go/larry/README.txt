@@ -25,9 +25,13 @@ Kreft & GPT-5
 - Top-10 scoreboard with name entry and saved history (MMDDYY date)
 
 ## Controls
+- Start menu: ↑↓ or W/S to select, Enter/Space to confirm
+  - Start — begin a new game
+  - High Scores — view the top-10 list (Esc or Enter returns to the menu)
+  - Quit — exit the game
 - Move: Arrow keys or WASD
 - Pause: Space
-- Quit: Esc
+- Quit: Esc (from the high scores list, Esc returns to the start menu)
 
 ## Scoring
 - +10 for each new upward row reached within a level
