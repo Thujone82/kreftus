@@ -4008,6 +4008,9 @@ function renderLocationButtons(activeUID = null) {
     // Get current location UID to determine which button should be active
     // Use provided activeUID if available; then appState.currentLocationKey (retain restored PWA state); then derive from appState.location
     let currentUID = activeUID;
+    if (currentUID && String(currentUID).startsWith('uid_')) {
+        currentUID = String(currentUID).replace(/^uid_/, '');
+    }
     if (!currentUID && appState.currentLocationKey) {
         const raw = appState.currentLocationKey;
         currentUID = raw.startsWith('uid_') ? raw.replace(/^uid_/, '') : raw;
@@ -4053,18 +4056,16 @@ function renderLocationButtons(activeUID = null) {
     
     elements.locationButtons.innerHTML = html;
     
-    // CRITICAL: If no favorite button is active, ensure star button is disabled
-    // This ensures the converse: no favorite selected = star button disabled (can add favorite)
-    // Check DOM after insertion to see if any button has the 'active' class
+    // If no favorite button is active, disable the star — but do not clear currentLocationKey
+    // when it still names a favorite (rematch/highlight can lag during Refresh).
     const hasActiveFavoriteButton = elements.locationButtons.querySelector('.location-btn.active');
     if (!hasActiveFavoriteButton && elements.favoriteBtn) {
-        // No favorite button is active, so star button should be disabled
-        // Only disable if the current location is not a favorite (double-check)
         const currentIsFavorite = appState.currentLocationKey && isFavorite(appState.currentLocationKey);
         if (!currentIsFavorite) {
             elements.favoriteBtn.classList.remove('active');
-            // Clear currentLocationKey since no favorite is selected
-            appState.currentLocationKey = null;
+        } else if (currentUID) {
+            // Favorite key is valid but no button highlighted — keep key and theme; caller can re-render
+            console.warn('renderLocationButtons: favorite key present but no active button for UID:', currentUID);
         }
     }
 
@@ -4909,7 +4910,8 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         }
         
         // Use the favorite's UID for cache key if found (more stable than location key)
-        // Otherwise use generated key
+        // Otherwise use generated key — but if we were already on a selected favorite and rematch
+        // failed (geocode city/state drift), keep that favorite key so Refresh does not unselect it.
         if (matchingFavoriteAfterFetch && matchingFavoriteAfterFetch.uid) {
             // Use UID-based cache key for favorites (more stable, avoids US vs AK issues)
             appState.currentLocationKey = `uid_${matchingFavoriteAfterFetch.uid}`;
@@ -4919,7 +4921,12 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             appState.currentLocationKey = matchingFavoriteAfterFetch.key;
             console.log('Found matching favorite after fetch, using location key:', matchingFavoriteAfterFetch.key, 'instead of generated key:', generatedKey);
         } else {
-            appState.currentLocationKey = generatedKey;
+            const existingKey = appState.currentLocationKey;
+            if (existingKey && isFavorite(existingKey)) {
+                console.log('Rematch failed after fetch; preserving selected favorite key:', existingKey, '(would have used:', generatedKey + ')');
+            } else {
+                appState.currentLocationKey = generatedKey;
+            }
         }
         
         // Use the actual NWS API fetch time (from weatherData.fetchTime) as the cache timestamp
@@ -5117,23 +5124,46 @@ async function refreshCurrentObservationOnly() {
     return true;
 }
 
+function reassertActiveFavoriteSelection(favoriteUID = null) {
+    const uid = favoriteUID || getActiveFavoriteIdentifier();
+    if (!uid) return false;
+    const favorite = getFavoriteByUID(uid) || getFavoriteByKey(uid);
+    if (!favorite) return false;
+
+    const preferredUID = favorite.uid || favorite.key || uid;
+    updateFavoriteButtonState(preferredUID);
+    if (elements.favoriteBtn && !elements.favoriteBtn.classList.contains('active')) {
+        elements.favoriteBtn.classList.add('active');
+    }
+    appState.currentLocationKey = favorite.uid ? `uid_${favorite.uid}` : (favorite.key || preferredUID);
+    renderLocationButtons(preferredUID);
+    appState.isCurrentLocationActive = false;
+    updateCurrentLocationButtonState(false);
+    applyThemeForCurrentLocation();
+    return true;
+}
+
 async function handleRefresh() {
     console.log('Refresh button clicked - loading cached data first, then refreshing');
     // Force full refetch including history (observations) so locations that previously failed get a retry
     appState.observationsNeedRefresh = true;
+
+    // Preserve the selected favorite across rematch/geocode differences so bar highlight and
+    // per-location colors are not cleared after refresh.
+    const activeFavoriteUID = getActiveFavoriteIdentifier();
     
-    // Use current location from state when available so we refresh the displayed location, not a different one
+    // Prefer the favorite's searchQuery (zip/custom) over "City, ST" so rematch stays stable
     const locationFromInput = elements.locationInput.value.trim() || 'here';
-    const locationToRefresh = (appState.location && appState.location.city != null && appState.location.state != null)
-        ? `${appState.location.city}, ${appState.location.state}`
-        : locationFromInput;
+    const locationToRefresh = getLocationForRefresh() || locationFromInput;
     
     let cacheKeyToUse = appState.currentLocationKey || null;
     let cacheToUse = cacheKeyToUse ? loadWeatherDataFromCache(cacheKeyToUse) : null;
     
     if (!cacheToUse || !cacheToUse.data) {
         const favorites = getFavorites();
-        const matchingFavorite = favorites.find(fav => {
+        const matchingFavorite = (activeFavoriteUID
+            ? (getFavoriteByUID(activeFavoriteUID) || getFavoriteByKey(activeFavoriteUID))
+            : null) || favorites.find(fav => {
             if (!fav.searchQuery) return false;
             const favSearchQuery = fav.searchQuery.toLowerCase().trim();
             const favDisplayName = (fav.name || '').toLowerCase().trim();
@@ -5157,6 +5187,9 @@ async function handleRefresh() {
         console.log('Loading cached data first for current location before refresh');
         const cachedLoaded = loadCachedWeatherData(cacheKeyToUse, locationToRefresh);
         if (cachedLoaded) {
+            if (activeFavoriteUID) {
+                reassertActiveFavoriteSelection(activeFavoriteUID);
+            }
             renderCurrentMode();
             setLoading(false, false);
         }
@@ -5173,6 +5206,9 @@ async function handleRefresh() {
             const refreshed = await refreshCurrentObservationOnly();
             setLoading(false, false);
             if (refreshed) {
+                if (activeFavoriteUID) {
+                    reassertActiveFavoriteSelection(activeFavoriteUID);
+                }
                 renderCurrentMode();
                 updateLastUpdateTime();
                 return;
@@ -5184,10 +5220,17 @@ async function handleRefresh() {
         
         // Now fetch fresh data for the current location (this will update the display and save to the correct cache key)
         await loadWeatherData(locationToRefresh, false, false); // Don't use background mode for manual refresh - show loading
+        // Mirror location-button click: re-select the favorite after fetch rematch
+        if (activeFavoriteUID) {
+            reassertActiveFavoriteSelection(activeFavoriteUID);
+        }
     } catch (error) {
         console.error('Error during refresh:', error);
         // If refresh fails, cached data should still be displayed (loaded above)
         // Just update the UI to show we're not loading anymore
+        if (activeFavoriteUID) {
+            reassertActiveFavoriteSelection(activeFavoriteUID);
+        }
         setLoading(false, false);
     }
 }
