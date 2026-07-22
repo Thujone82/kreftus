@@ -3,20 +3,33 @@
     Converts a string between ASCII and its binary representation.
 
 .DESCRIPTION
-    This script can be run in two modes:
-    1. Direct Mode: Provide a string as an argument to the script for a one-off conversion.
-    2. Interactive Mode: Run the script without arguments to enter a loop where you can convert multiple strings.
+    This script can be run in three modes:
+    1. Direct Mode: Provide a string as an argument for a one-off conversion.
+    2. Pipeline Mode: Pipe strings into the script (one conversion per input object).
+    3. Interactive Mode: Run with no arguments to enter a loop and convert multiple strings.
 
-    The script automatically detects whether the input is ASCII or binary.
+    By default the script auto-detects whether the input is ASCII or binary.
     - ASCII to Binary: 'Hi' -> '01001000 01101001'
     - Binary to ASCII: '01001000 01101001' -> 'Hi'
 
-    Binary input can contain spaces, which will be ignored. Binary output is always formatted in 8-bit chunks.
-    If binary input is provided that does not have a length that is a multiple of 8 (after removing spaces),
-    it will be considered unexpected input.
+    Strings that contain only 0, 1, and whitespace are treated as binary in auto mode.
+    Use -ToBinary to force ASCII-to-binary for those inputs (e.g. "01").
+
+    Binary input may contain spaces (ignored). Binary output is formatted in 8-bit chunks.
+    Invalid input (non-ASCII characters, binary length not a multiple of 8, empty after
+    cleaning) prints a short red message. Direct and pipeline modes exit with code 1 on failure.
 
 .PARAMETER InputString
-    The string to be converted. If omitted, the script enters interactive mode.
+    The string to convert. If omitted (and nothing is piped), the script enters interactive mode.
+
+.PARAMETER ToBinary
+    Force ASCII-to-binary conversion, even when the string looks like binary.
+
+.PARAMETER ToAscii
+    Force binary-to-ASCII conversion.
+
+.PARAMETER Help
+    Show this help text and exit.
 
 .EXAMPLE
     .\a2b.ps1 "Hello World"
@@ -27,94 +40,195 @@
     Converts the binary string "01001000 01101001" to "Hi".
 
 .EXAMPLE
+    .\a2b.ps1 "01" -ToBinary
+    Forces ASCII-to-binary for the characters '0' and '1'.
+
+.EXAMPLE
+    "Hi" | .\a2b.ps1
+    Converts piped input from ASCII to binary.
+
+.EXAMPLE
     .\a2b.ps1
-    Starts the interactive conversion mode.
+    Starts interactive conversion mode.
+
+.EXAMPLE
+    .\a2b.ps1 -Help
+    Shows help for the script.
 #>
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName = 'Auto')]
 param (
-    [string]$InputString
+    [Parameter(Position = 0, ValueFromPipeline, ParameterSetName = 'Auto')]
+    [Parameter(Position = 0, ValueFromPipeline, ParameterSetName = 'ToBinary')]
+    [Parameter(Position = 0, ValueFromPipeline, ParameterSetName = 'ToAscii')]
+    [string]$InputString,
+
+    [Parameter(ParameterSetName = 'ToBinary')]
+    [switch]$ToBinary,
+
+    [Parameter(ParameterSetName = 'ToAscii')]
+    [switch]$ToAscii,
+
+    [Parameter(ParameterSetName = 'Help')]
+    [Alias('h')]
+    [switch]$Help
 )
 
-function Convert-ToBinary {
-    param (
-        [Parameter(Mandatory)]
-        [string]$AsciiString
-    )
-    # Ensure the input string contains only valid ASCII characters (0-127).
-    # Otherwise, it's not a true ASCII string and should be considered unexpected.
-    if ($AsciiString -match '[^\x00-\x7F]') {
-        return "Unexpected Input"
+begin {
+    Set-StrictMode -Version Latest
+
+    $script:HadInput = $false
+    $script:HadFailure = $false
+    $script:ShowHelpOnly = $false
+
+    if ($Help) {
+        Get-Help -Name $PSCommandPath -Detailed
+        $script:ShowHelpOnly = $true
+        return
     }
 
-    $bytes = [System.Text.Encoding]::ASCII.GetBytes($AsciiString)
-    $binaryChunks = foreach ($byte in $bytes) {
-        [System.Convert]::ToString($byte, 2).PadLeft(8, '0')
-    }
-    return $binaryChunks -join ' '
-}
+    function ConvertTo-Binary {
+        param (
+            [Parameter(Mandatory)]
+            [AllowEmptyString()]
+            [string]$AsciiString
+        )
 
-function Convert-ToAscii {
-    param (
-        [Parameter(Mandatory)]
-        [string]$BinaryString
-    )
-    try {
-        # Remove all spaces and validate
-        $cleanedBinary = $BinaryString -replace '\s'
-        if ($cleanedBinary.Length % 8 -ne 0) {
-            return "Unexpected Input"
+        if ([string]::IsNullOrWhiteSpace($AsciiString)) {
+            throw 'Unexpected Input: empty or whitespace-only string.'
         }
 
-        # The -split operator with a capture group '(.{8})' splits the string by 8-character chunks
-        # and includes the delimiters (the chunks themselves) in the result.
-        # The Where-Object then filters out the empty strings that result from the split.
-        $binaryChunks = $cleanedBinary -split '(.{8})' | Where-Object { $_ }
+        if ($AsciiString -match '[^\x00-\x7F]') {
+            throw 'Unexpected Input: non-ASCII characters are not supported.'
+        }
 
-        $bytes = foreach ($chunk in $binaryChunks) {
-            [System.Convert]::ToByte($chunk, 2)
+        $bytes = [System.Text.Encoding]::ASCII.GetBytes($AsciiString)
+        $binaryChunks = foreach ($byte in $bytes) {
+            [System.Convert]::ToString($byte, 2).PadLeft(8, '0')
+        }
+        return ($binaryChunks -join ' ')
+    }
+
+    function ConvertTo-Ascii {
+        param (
+            [Parameter(Mandatory)]
+            [AllowEmptyString()]
+            [string]$BinaryString
+        )
+
+        $cleanedBinary = $BinaryString -replace '\s'
+        if ([string]::IsNullOrEmpty($cleanedBinary)) {
+            throw 'Unexpected Input: empty or whitespace-only binary string.'
+        }
+
+        if ($cleanedBinary -notmatch '^[01]+$') {
+            throw 'Unexpected Input: binary strings may contain only 0, 1, and whitespace.'
+        }
+
+        if ($cleanedBinary.Length % 8 -ne 0) {
+            throw 'Unexpected Input: binary length must be a multiple of 8 after removing spaces.'
+        }
+
+        $bytes = for ($i = 0; $i -lt $cleanedBinary.Length; $i += 8) {
+            [System.Convert]::ToByte($cleanedBinary.Substring($i, 8), 2)
         }
 
         return [System.Text.Encoding]::ASCII.GetString($bytes)
     }
-    catch {
-        return "Unexpected Input"
+
+    function Invoke-Conversion {
+        param (
+            [Parameter(Mandatory)]
+            [AllowEmptyString()]
+            [string]$StringToConvert,
+
+            [ValidateSet('Auto', 'ToBinary', 'ToAscii')]
+            [string]$Mode = 'Auto'
+        )
+
+        switch ($Mode) {
+            'ToBinary' { return ConvertTo-Binary -AsciiString $StringToConvert }
+            'ToAscii'  { return ConvertTo-Ascii -BinaryString $StringToConvert }
+            default {
+                if ($StringToConvert -match '^[01\s]+$') {
+                    return ConvertTo-Ascii -BinaryString $StringToConvert
+                }
+                return ConvertTo-Binary -AsciiString $StringToConvert
+            }
+        }
+    }
+
+    function Get-ConversionMode {
+        if ($ToBinary) { return 'ToBinary' }
+        if ($ToAscii) { return 'ToAscii' }
+        return 'Auto'
+    }
+
+    function Write-ConversionResult {
+        param (
+            [Parameter(Mandatory)]
+            [AllowEmptyString()]
+            [string]$StringToConvert,
+
+            [Parameter(Mandatory)]
+            [ValidateSet('Auto', 'ToBinary', 'ToAscii')]
+            [string]$Mode,
+
+            [switch]$AsHostOutput
+        )
+
+        try {
+            $result = Invoke-Conversion -StringToConvert $StringToConvert -Mode $Mode
+            if ($AsHostOutput) {
+                Write-Host $result
+            }
+            else {
+                Write-Output $result
+            }
+        }
+        catch {
+            $script:HadFailure = $true
+            Write-Host $_.Exception.Message -ForegroundColor Red
+        }
+    }
+
+    $script:ConversionMode = Get-ConversionMode
+}
+
+process {
+    if ($script:ShowHelpOnly) {
+        return
+    }
+
+    if ($PSBoundParameters.ContainsKey('InputString')) {
+        $script:HadInput = $true
+        Write-ConversionResult -StringToConvert $InputString -Mode $script:ConversionMode
     }
 }
 
-function Invoke-Conversion {
-    param (
-        [Parameter(Mandatory)]
-        [string]$StringToConvert
-    )
-
-    # Check if the string consists only of 0, 1, and spaces.
-    if ($StringToConvert -match '^[01\s]+$') {
-        # It looks like binary, try to convert to ASCII.
-        # The conversion function will handle validation (e.g., length % 8).
-        return Convert-ToAscii -BinaryString $StringToConvert
+end {
+    if ($script:ShowHelpOnly) {
+        return
     }
-    else {
-        # It's not purely binary characters, so treat as ASCII.
-        return Convert-ToBinary -AsciiString $StringToConvert
+
+    if ($script:HadInput) {
+        if ($script:HadFailure) {
+            exit 1
+        }
+        return
     }
-}
 
-# --- Main Script Logic ---
-
-if (-not [string]::IsNullOrEmpty($InputString)) {
-    # Direct mode: an input string was provided as a parameter
-    Invoke-Conversion -StringToConvert $InputString
-}
-else {
     # Interactive mode
-    Write-Host "ASCII 2 BINARY" -ForegroundColor Yellow
+    Write-Host 'ASCII 2 BINARY' -ForegroundColor Yellow
+    Write-Host 'Enter a string to convert. Empty line, q, quit, or exit to leave.' -ForegroundColor DarkGray
+
     while ($true) {
-        $userInput = Read-Host "Convert string:"
+        $userInput = Read-Host 'Convert string'
         if ([string]::IsNullOrEmpty($userInput)) {
-            # Exit on empty input
             break
         }
-        $result = Invoke-Conversion -StringToConvert $userInput
-        Write-Host $result
+        if ($userInput -match '^(?i)(q|quit|exit)$') {
+            break
+        }
+        Write-ConversionResult -StringToConvert $userInput -Mode $script:ConversionMode -AsHostOutput
     }
 }
