@@ -9,7 +9,7 @@
 
       1. Realtek Bluetooth Adapter (PnP disable/enable) - most important
       2. Microsoft Bluetooth LE Enumerator (PnP disable/enable)
-      3. Restart bthserv (30s stop timeout, then force-kill pid if stuck)
+      3. Restart bthserv (10s stop timeout, then force-kill pid if stuck)
       4. Optional: restart RmSvc (often blocked while in use)
 
     Run this script in an elevated (Administrator) PowerShell window.
@@ -28,7 +28,7 @@ function Test-Admin {
 
 function Restart-BthSupportService {
     param(
-        [int]$StopTimeoutSeconds = 30
+        [int]$StopTimeoutSeconds = 10
     )
     $name = 'bthserv'
     $svc = Get-Service -Name $name -ErrorAction SilentlyContinue
@@ -40,13 +40,14 @@ function Restart-BthSupportService {
     Write-Host "  restart $name ($($svc.DisplayName))" -ForegroundColor Cyan
 
     if ($svc.Status -in @('Running', 'StopPending', 'StartPending')) {
-        Write-Host "  stop $name (wait up to ${StopTimeoutSeconds}s)" -ForegroundColor Cyan
-        try {
-            Stop-Service -Name $name -Force -ErrorAction SilentlyContinue
-        }
-        catch {
-            Write-Host "  warn: Stop-Service $name - $($_.Exception.Message)" -ForegroundColor Yellow
-        }
+        # Capture pid before stop - needed if we must force-kill a hung service.
+        $processId = (Get-CimInstance Win32_Service -Filter "Name='$name'" -ErrorAction SilentlyContinue).ProcessId
+
+        # Do NOT use Stop-Service: it blocks and prints "Waiting for service..." until SCM
+        # gives up (often far longer than our timeout), so taskkill never runs on hung bthserv.
+        # sc.exe stop returns immediately after requesting the stop.
+        Write-Host "  stop $name (wait up to ${StopTimeoutSeconds}s, then force-kill if needed)" -ForegroundColor Cyan
+        & sc.exe stop $name 2>$null | Out-Null
 
         $deadline = (Get-Date).AddSeconds($StopTimeoutSeconds)
         do {
@@ -59,11 +60,39 @@ function Restart-BthSupportService {
 
         $status = (Get-Service -Name $name).Status
         if ($status -ne 'Stopped') {
-            $processId = (Get-CimInstance Win32_Service -Filter "Name='$name'" -ErrorAction SilentlyContinue).ProcessId
+            if (-not ($processId -and [int]$processId -gt 0)) {
+                $processId = (Get-CimInstance Win32_Service -Filter "Name='$name'" -ErrorAction SilentlyContinue).ProcessId
+            }
             if ($processId -and [int]$processId -gt 0) {
                 Write-Host "  force kill $name pid $processId (stop timed out)" -ForegroundColor Yellow
-                & taskkill.exe /F /PID $processId 2>$null | Out-Null
-                Start-Sleep -Seconds 2
+                $killOutput = (& taskkill.exe /F /PID $processId 2>&1) -join ' '
+                $killExit = $LASTEXITCODE
+
+                # Wait for the killed process to actually disappear before judging the result.
+                $killDeadline = (Get-Date).AddSeconds(5)
+                do {
+                    $stillAlive = [bool](Get-Process -Id $processId -ErrorAction SilentlyContinue)
+                    if (-not $stillAlive) {
+                        break
+                    }
+                    Start-Sleep -Milliseconds 500
+                } while ((Get-Date) -lt $killDeadline)
+
+                $postStatus = (Get-Service -Name $name).Status
+                $postPid = (Get-CimInstance Win32_Service -Filter "Name='$name'" -ErrorAction SilentlyContinue).ProcessId
+
+                if ($stillAlive) {
+                    Write-Host "  FAILED: pid $processId still alive after taskkill (exit $killExit) - $name is $postStatus" -ForegroundColor Red
+                    if ($killOutput) {
+                        Write-Host "    taskkill: $killOutput" -ForegroundColor DarkGray
+                    }
+                }
+                elseif ($postPid -and [int]$postPid -gt 0 -and [int]$postPid -ne [int]$processId) {
+                    Write-Host "  killed pid $processId OK - Windows auto-restarted $name as pid $postPid ($postStatus)" -ForegroundColor Green
+                }
+                else {
+                    Write-Host "  killed pid $processId OK - $name is now $postStatus" -ForegroundColor Green
+                }
             }
             else {
                 Write-Host "  warn: $name still $status and no service pid to kill" -ForegroundColor Yellow
@@ -84,7 +113,13 @@ function Restart-BthSupportService {
     }
 
     $finalStatus = (Get-Service -Name $name).Status
-    Write-Host "  ok $name ($finalStatus)" -ForegroundColor DarkGray
+    $finalPid = (Get-CimInstance Win32_Service -Filter "Name='$name'" -ErrorAction SilentlyContinue).ProcessId
+    if ($finalPid -and [int]$finalPid -gt 0) {
+        Write-Host "  ok $name ($finalStatus, pid $finalPid)" -ForegroundColor DarkGray
+    }
+    else {
+        Write-Host "  ok $name ($finalStatus)" -ForegroundColor DarkGray
+    }
     return ($finalStatus -eq 'Running')
 }
 
@@ -156,7 +191,7 @@ $leOk = Reset-PnpDeviceSafe -FriendlyName 'Microsoft Bluetooth LE Enumerator'
 
 Write-Host ""
 Write-Host "[3/4] Restart services (best effort)" -ForegroundColor Yellow
-Restart-BthSupportService -StopTimeoutSeconds 30 | Out-Null
+Restart-BthSupportService -StopTimeoutSeconds 10 | Out-Null
 Restart-ServiceSafe -Name 'RmSvc' | Out-Null
 Start-Sleep -Seconds 3
 
