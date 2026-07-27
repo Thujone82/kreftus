@@ -280,7 +280,7 @@ if ($Help -or (($Terse.IsPresent -or $Hourly.IsPresent -or $Daily.IsPresent -or 
     Write-Host ' • Wind Chill (Blue when temp <= 50°F and difference > 1°F)' -ForegroundColor Cyan
     Write-Host ' • Heat Index (Red when temp >= 80°F and difference > 1°F), or WBGT with -wbgt (bracket uses same temp colors as dry bulb; web bracket rules from 75°F)' -ForegroundColor Cyan
     Write-Host " • Humidity" -ForegroundColor Cyan
-    Write-Host ' • Wind (with gust if available; red if wind speed >=16 mph)' -ForegroundColor Cyan
+    Write-Host ' • Wind (glyph by speed: White ≤5 / Yellow 6–9 / Red 10–14 / Magenta 15+; gusts use the same bands from gust mph)' -ForegroundColor Cyan
     Write-Host " • Sunrise and Sunset times (calculated astronomically)" -ForegroundColor Cyan
     Write-Host ' • Solar irradiance (clear-sky GHI in W/m² at current time + peak at solar noon; hidden in terse mode)' -ForegroundColor Cyan
     Write-Host ' • Magic Hours (Golden/Blue) before Updated when -m is enabled' -ForegroundColor Cyan
@@ -4396,7 +4396,10 @@ function Show-CurrentConditions {
     Write-Host "Wind: $currentWind $currentWindDir " -ForegroundColor $windGlyphData.Color -NoNewline
     Write-Host $windGlyphData.Char -ForegroundColor $windGlyphData.Color -NoNewline
     if ($windGust) {
-        Write-Host " (gusts to $windGust mph)" -ForegroundColor $AlertColor -NoNewline
+        # Color gusts by the same speed bands as sustained wind (White/Yellow/Red/Magenta)
+        $gustMph = Get-WindSpeed "$windGust"
+        $gustColor = (Get-WindGlyph -WindDirection $currentWindDir -WindSpeed $gustMph).Color
+        Write-Host " (gusts to $windGust mph)" -ForegroundColor $gustColor -NoNewline
     }
     Write-Host ""
 

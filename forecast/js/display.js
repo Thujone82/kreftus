@@ -244,7 +244,10 @@ function displayCurrentConditions(weather, location, optionalDisplayName, sectio
     const windGlyphData = getWindGlyph(current.windDir, windSpeedNum);
     html += `<span class="condition-value" style="color:${windGlyphData.color}">${formatWindSpeed(windSpeedNum)} ${current.windDir} ${windGlyphData.char}</span>`;
     if (current.windGust) {
-        html += ` <span class="wind-strong">(gusts to ${formatWindSpeed(current.windGust)})</span>`;
+        const gustSpeedNum = typeof current.windGust === 'number'
+            ? current.windGust
+            : getWindSpeed(String(current.windGust));
+        html += ` <span class="${getWindColor(gustSpeedNum)}">(gusts to ${formatWindSpeed(current.windGust)})</span>`;
     }
     html += '</div>';
 

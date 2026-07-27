@@ -33,7 +33,7 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
   - **Temperature:** Turns blue if below 33°F and red if above 89°F.
   - **Wind Chill:** Displayed in blue when temperature <= 50°F and difference > 1°F.
   - **Heat Index / WBGT:** Heat index in alert color when temp ≥ 80°F and difference > 1°F; with `-wbgt`, estimated outdoor WBGT bracket uses the same temperature color bands as dry-bulb (including warm band from 75°F).
-  - **Wind (current conditions):** Wind speed and direction glyph colored by intensity — White (≤5 mph), Yellow (6–9), Red (10–14), Magenta (15+). Gust parenthetical uses alert color when present.
+  - **Wind (current conditions):** Wind speed and direction glyph colored by intensity — White (≤5 mph), Yellow (6–9), Red (10–14), Magenta (15+). Gust parenthetical uses the same bands from the gust mph value (independent of sustained wind color).
   - **Alert header:** When active alerts apply, the current-conditions title is prefixed with ⚠️ (and 🌡 for heat-related alerts), matching the forecast web app.
   - **Hour Labels:** Hour labels in the hourly forecast (e.g., "08:00", "09:00") are colored yellow when the majority of that hour is during daytime, otherwise displayed in white. This helps quickly identify daytime vs nighttime hours at a glance.
   - **Rain Likelihood:** Color-coded sparklines — White (0–10%), Cyan (11–33%), Green (34–44%), Yellow (45–80%), Red (81%+).
