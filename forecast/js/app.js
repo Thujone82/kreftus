@@ -2371,6 +2371,25 @@ async function handleSearch() {
         showError('Please enter a location');
         return;
     }
+
+    // If a favorite is selected and this search is for a different place, clear selection
+    // immediately so the star targets the searched location (not the old favorite).
+    const activeUID = getActiveFavoriteIdentifier();
+    const activeFav = activeUID
+        ? (getFavoriteByUID(activeUID) || getFavoriteByKey(activeUID))
+        : null;
+    if (activeFav && !doesLocationQueryMatchFavorite(location, activeFav)) {
+        appState.currentLocationKey = null;
+        appState.isCurrentLocationActive = location.toLowerCase() === 'here';
+        updateCurrentLocationButtonState(appState.isCurrentLocationActive);
+        if (elements.favoriteBtn) {
+            elements.favoriteBtn.classList.remove('active');
+        }
+        renderLocationButtons(false);
+        applyThemeForCurrentLocation();
+    } else if (location.toLowerCase() === 'here') {
+        appState.isCurrentLocationActive = true;
+    }
     
     // Check if this is a different location than what's cached
     const cache = loadWeatherDataFromCache();
@@ -4006,16 +4025,18 @@ function renderLocationButtons(activeUID = null) {
     }
     
     // Get current location UID to determine which button should be active
-    // Use provided activeUID if available; then appState.currentLocationKey (retain restored PWA state); then derive from appState.location
-    let currentUID = activeUID;
-    if (currentUID && String(currentUID).startsWith('uid_')) {
+    // activeUID === false forces no selection (e.g. user searched a non-favorite while one was selected)
+    // Otherwise: provided activeUID, then currentLocationKey, then derive from appState.location
+    const forceNoSelection = activeUID === false;
+    let currentUID = forceNoSelection ? null : activeUID;
+    if (!forceNoSelection && currentUID && String(currentUID).startsWith('uid_')) {
         currentUID = String(currentUID).replace(/^uid_/, '');
     }
-    if (!currentUID && appState.currentLocationKey) {
+    if (!forceNoSelection && !currentUID && appState.currentLocationKey) {
         const raw = appState.currentLocationKey;
         currentUID = raw.startsWith('uid_') ? raw.replace(/^uid_/, '') : raw;
     }
-    if (!currentUID && appState.location) {
+    if (!forceNoSelection && !currentUID && appState.location) {
         // Prefer matching a favorite by city/state (more stable than coordinates) to determine active button
         const favorites = getFavorites();
         const currentCity = (appState.location.city || '').trim().toLowerCase();
@@ -4909,9 +4930,10 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             });
         }
         
-        // Use the favorite's UID for cache key if found (more stable than location key)
-        // Otherwise use generated key — but if we were already on a selected favorite and rematch
-        // failed (geocode city/state drift), keep that favorite key so Refresh does not unselect it.
+        // Use the favorite's UID for cache key if found (more stable than location key).
+        // On rematch miss: preserve the selected favorite only when this fetch was for that
+        // favorite (Refresh/auto-update). A new search for a different place must clear it
+        // so the star can favorite the searched location.
         if (matchingFavoriteAfterFetch && matchingFavoriteAfterFetch.uid) {
             // Use UID-based cache key for favorites (more stable, avoids US vs AK issues)
             appState.currentLocationKey = `uid_${matchingFavoriteAfterFetch.uid}`;
@@ -4920,13 +4942,10 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             // Fallback to location key if no UID
             appState.currentLocationKey = matchingFavoriteAfterFetch.key;
             console.log('Found matching favorite after fetch, using location key:', matchingFavoriteAfterFetch.key, 'instead of generated key:', generatedKey);
+        } else if (shouldPreserveFavoriteKeyOnRematchMiss(location)) {
+            console.log('Rematch failed after fetch; preserving selected favorite key:', appState.currentLocationKey, '(would have used:', generatedKey + ')');
         } else {
-            const existingKey = appState.currentLocationKey;
-            if (existingKey && isFavorite(existingKey)) {
-                console.log('Rematch failed after fetch; preserving selected favorite key:', existingKey, '(would have used:', generatedKey + ')');
-            } else {
-                appState.currentLocationKey = generatedKey;
-            }
+            appState.currentLocationKey = generatedKey;
         }
         
         // Use the actual NWS API fetch time (from weatherData.fetchTime) as the cache timestamp
@@ -5755,6 +5774,31 @@ function getActiveFavoriteIdentifier() {
         if (uid && getFavoriteByUID(uid)) return uid;
     }
     return null;
+}
+
+/** True when locationQuery refers to this favorite (searchQuery, name, or City, ST). */
+function doesLocationQueryMatchFavorite(locationQuery, favorite) {
+    if (!locationQuery || !favorite) return false;
+    const locationLower = String(locationQuery).toLowerCase().trim();
+    if (!locationLower || locationLower === 'here') return false;
+    const candidates = [
+        (favorite.searchQuery || '').toLowerCase().trim(),
+        (favorite.name || '').toLowerCase().trim(),
+        (favorite.customName || '').toLowerCase().trim(),
+        favorite.location
+            ? formatLocationDisplayName(favorite.location.city, favorite.location.state).toLowerCase().trim()
+            : ''
+    ].filter(Boolean);
+    return candidates.some(c => c === locationLower);
+}
+
+/** Keep favorite key on rematch miss only when this fetch was for that favorite (refresh), not a new search. */
+function shouldPreserveFavoriteKeyOnRematchMiss(locationQuery) {
+    const key = appState.currentLocationKey;
+    if (!key || !isFavorite(key)) return false;
+    const uid = String(key).startsWith('uid_') ? key.replace(/^uid_/, '') : key;
+    const fav = getFavoriteByUID(uid) || getFavoriteByKey(key);
+    return doesLocationQueryMatchFavorite(locationQuery, fav);
 }
 
 function orderFavoritesByActiveFirst(favorites) {
