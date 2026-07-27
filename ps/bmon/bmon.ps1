@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     A lightweight, real-time Bitcoin price monitor.
 
@@ -15,7 +15,7 @@
 
     Sound (`-s`), the history sparkline (`-h`), and volatility coloring (`-volatility` / `-vl`) can be enabled from the command line for any monitoring mode. K mode enables sparkline and volatility coloring automatically.
  
-    In go/golong/k single-line modes, volatility coloring tints the spinner by sparkline volatility (max − min of recent prices). Press `v` during monitoring to toggle. During an API fetch the spinner inverts: cyan background with the volatility tier as foreground (white foreground when volatility coloring is off).
+    In go/golong/k single-line modes, volatility coloring tints the spinner by sparkline volatility (max - min of recent prices). Press `v` during monitoring to toggle. During an API fetch the spinner inverts: cyan background with the volatility tier as foreground (white foreground when volatility coloring is off).
  
     In monitoring modes, the price line will flash with an inverted color for 500ms to draw attention to significant price movements. This flash occurs when the price color changes (e.g., from neutral to green) or when the price continues to move in an already established direction (e.g., ticking up again while green).
  
@@ -130,9 +130,9 @@ if ($Help.IsPresent) {
     
     Write-Host "SPINNER COLORS (volatility coloring, go/golong/k modes, sparkline active):" -ForegroundColor Magenta
     Write-Host "    White - " -NoNewline -ForegroundColor White; Write-Host "Volatility under `$10" -ForegroundColor Gray
-    Write-Host "    Green - " -NoNewline -ForegroundColor Green; Write-Host "Volatility `$10–`$49.99" -ForegroundColor Gray
-    Write-Host "    Yellow - " -NoNewline -ForegroundColor Yellow; Write-Host "Volatility `$50–`$99.99" -ForegroundColor Gray
-    Write-Host "    Red - " -NoNewline -ForegroundColor Red; Write-Host "Volatility `$100–`$249.99" -ForegroundColor Gray
+    Write-Host "    Green - " -NoNewline -ForegroundColor Green; Write-Host "Volatility `$10-`$49.99" -ForegroundColor Gray
+    Write-Host "    Yellow - " -NoNewline -ForegroundColor Yellow; Write-Host "Volatility `$50-`$99.99" -ForegroundColor Gray
+    Write-Host "    Red - " -NoNewline -ForegroundColor Red; Write-Host "Volatility `$100-`$249.99" -ForegroundColor Gray
     Write-Host "    Magenta - " -NoNewline -ForegroundColor Magenta; Write-Host "Volatility `$250 or more" -ForegroundColor Gray
     Write-Host "    Cyan - " -NoNewline -ForegroundColor Cyan; Write-Host "API fetch in progress (cyan background; volatility tier as foreground when enabled)" -ForegroundColor Gray
     Write-Host ""
@@ -241,7 +241,7 @@ function Write-RetryIndicator {
         [int]$Attempt,
         [switch]$Final
     )
-    # Yellow for retries 1–4, red for final failure; volatility background when -volatility is enabled.
+    # Yellow for retries 1-4, red for final failure; volatility background when -volatility is enabled.
     $fg = if ($Final) { 'Red' } else { 'Yellow' }
     $digit = [string]$Attempt
     $bg = $null
