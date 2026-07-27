@@ -7057,6 +7057,19 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
         Show-InteractiveControls -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode -IsFullMode $(-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and -not $isTerseMode -and -not $isDailyMode -and -not $isObservationsMode)
     }
     
+    # Soft Ctrl+C: treat as console input so PowerShell's HandleBreak path is never used
+    # (that path can throw ObjectDisposedException on CancellationTokenSource). Exit when
+    # Ctrl+C is read in the key loop, same as Enter/Esc.
+    $previousTreatControlCAsInput = $false
+    try {
+        $previousTreatControlCAsInput = [System.Console]::TreatControlCAsInput
+        [System.Console]::TreatControlCAsInput = $true
+        Write-Verbose "TreatControlCAsInput enabled for soft Ctrl+C exit"
+    } catch {
+        Write-Verbose "TreatControlCAsInput unavailable: $($_.Exception.Message)"
+    }
+
+    try {
     while ($true) {
         try {
             # Remove any orphaned completed/failed jobs to prevent memory growth over long runs
@@ -7434,6 +7447,16 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                 # Check if console supports key input
                 if (-not [System.Console]::IsInputRedirected -and [System.Console]::KeyAvailable) {
                     $keyInfo = [System.Console]::ReadKey($true)
+
+                # Ctrl+C arrives as input while TreatControlCAsInput is on (KeyChar 3 / Ctrl+C)
+                $isCtrlC = ([int][char]$keyInfo.KeyChar -eq 3) -or (
+                    $keyInfo.Key -eq [System.ConsoleKey]::C -and
+                    ($keyInfo.Modifiers -band [System.ConsoleModifiers]::Control)
+                )
+                if ($isCtrlC) {
+                    Write-Host "`nExiting..." -ForegroundColor Yellow
+                    break
+                }
                 
                 # Handle keyboard input for interactive mode
                 switch ($keyInfo.KeyChar) {
@@ -7901,5 +7924,24 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
             Write-Host "Interactive mode not supported in this environment. Exiting..." -ForegroundColor Yellow
             return
         }
+    }
+    } finally {
+        try {
+            [System.Console]::TreatControlCAsInput = $previousTreatControlCAsInput
+        } catch {
+        }
+        # Soft-stop known background jobs so Ctrl+C / Enter exit does not leave orphans
+        foreach ($bgJob in @($script:observationsPreloadJob, $script:noaaStationsJob)) {
+            if ($null -eq $bgJob) { continue }
+            try {
+                if ($bgJob.State -eq 'Running') {
+                    Stop-Job -Job $bgJob -ErrorAction SilentlyContinue
+                }
+                Remove-Job -Job $bgJob -Force -ErrorAction SilentlyContinue
+            } catch {
+            }
+        }
+        $script:observationsPreloadJob = $null
+        $script:noaaStationsJob = $null
     }
 }
