@@ -4489,7 +4489,16 @@ function Show-CurrentConditions {
     }
 
     if ($ShowMagicHours -and $Latitude -ne 0 -and $Longitude -ne 0 -and $TimeZoneId) {
-        $magicRef = if ($ObservationDateTime -is [DateTime]) { [DateTime]$ObservationDateTime } else { Get-Date }
+        # Use location-local wall clock — not NWS observation time (can be 15–30+ min stale)
+        # and would keep Golden Hour "active" after it has already ended.
+        $magicRef = Get-Date
+        if (-not [string]::IsNullOrWhiteSpace($TimeZoneId)) {
+            try {
+                $tzInfo = Get-ResolvedTimeZoneInfo -TimeZoneId $TimeZoneId
+                $magicRef = [System.TimeZoneInfo]::ConvertTime((Get-Date), $tzInfo)
+            } catch {
+            }
+        }
         $magicHours = Get-MagicHoursSummary -Latitude $Latitude -Longitude $Longitude -NowDateTime $magicRef
         if ($magicHours) {
             $goldenActive = ($magicHours.Golden.IsActive -and $null -ne $magicHours.Golden.ActiveUntil)
