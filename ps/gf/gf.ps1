@@ -533,8 +533,7 @@ function Get-CurrentLocation {
 # $VerbosePreference is 'Continue' left the previous frame visible, so a refresh could
 # show two "Updated:" lines (old observation time plus the new one).
 function Clear-HostWithDelay {
-    $script:updatedLineCursorTop = $null
-    $script:nextUpdatedLineTick = $null
+    Clear-UpdatedConditionsLineCursor
     Clear-Host
 }
 
@@ -1060,9 +1059,37 @@ function Write-UpdatedConditionsLine {
     }
 }
 
+function Clear-UpdatedConditionsLineCursor {
+    $script:updatedLineCursorTop = $null
+    $script:nextUpdatedLineTick = $null
+}
+
+function Test-UpdatedConditionsLineAtCursor {
+    param([int]$CursorTop)
+    try {
+        $width = [int]$Host.UI.RawUI.BufferSize.Width
+        if ($width -lt 8) { $width = 80 }
+        $right = [Math]::Max(0, $width - 1)
+        $rect = New-Object System.Management.Automation.Host.Rectangle(0, $CursorTop, $right, $CursorTop)
+        $cells = $Host.UI.RawUI.GetBufferContents($rect)
+        $text = -join (@($cells) | ForEach-Object { $_.Character })
+        return ($text.TrimStart().StartsWith('Updated:'))
+    } catch {
+        return $false
+    }
+}
+
 function Update-UpdatedConditionsLineInPlace {
     param([string]$InfoColor = "Blue")
     if ($null -eq $script:updatedLineCursorTop) { return $false }
+
+    # After a tall full report scrolls the buffer, the saved Y no longer points at the
+    # Updated line (it can land under Hourly). Refuse to paint unless that row still
+    # looks like an Updated line.
+    if (-not (Test-UpdatedConditionsLineAtCursor -CursorTop $script:updatedLineCursorTop)) {
+        Clear-UpdatedConditionsLineCursor
+        return $false
+    }
 
     $line = Get-UpdatedConditionsLineText
     if ([string]::IsNullOrWhiteSpace($line)) { return $false }
@@ -1078,8 +1105,7 @@ function Update-UpdatedConditionsLineInPlace {
         $Host.UI.RawUI.CursorPosition = $savedPos
         return $true
     } catch {
-        $script:updatedLineCursorTop = $null
-        $script:nextUpdatedLineTick = $null
+        Clear-UpdatedConditionsLineCursor
         return $false
     }
 }
@@ -4555,6 +4581,9 @@ function Show-HourlyForecast {
         [double]$Longitude = 0
     )
     
+    # Further output (and console scroll) invalidates in-place Updated aging for this frame
+    Clear-UpdatedConditionsLineCursor
+
     Write-Host ""
     if ($ShowCityInTitle -and $City) {
         # Extract as many words as fit within 20 characters to keep title short
