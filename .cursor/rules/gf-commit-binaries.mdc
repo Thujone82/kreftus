@@ -1,0 +1,12 @@
+---
+description: Always include gf rebuilt executables when committing and pushing
+alwaysApply: true
+---
+
+# gf commit: include rebuilt binaries
+
+When the user asks to commit and/or push gf (`ps/gf`) changes:
+
+- Always stage and commit rebuilt executables if they are modified: `ps/gf/gf.exe`.
+- Do not exclude them as "unrelated" or "binary rebuilds" when committing gf work. The user manages rebuilds but still wants them uploaded.
+- Prefer including them in the same commit as the source/docs/tests that produced them when possible; if they were left out of a prior commit, commit and push them promptly with the related gf change.
