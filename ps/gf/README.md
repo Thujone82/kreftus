@@ -96,6 +96,8 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
   - **H** — Hourly forecast (12-hour page; **↑**/**↓** scroll through up to 48 hours)
   - **D** — 7-day forecast only
   - **T** — Terse mode (current conditions + today's forecast)
+  - **Shift+T** — TerseAlert mode (alternate with full alerts every 20s when alerts are active; not on the control bar)
+  - **A** — Alerts-only view (not on the control bar)
   - **R** — Rain forecast mode (sparklines)
   - **W** — Wind forecast mode (direction glyphs)
   - **O** — Observations mode (historical weather data)
@@ -160,6 +162,8 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 | `-Verbose` | — | Debug output for API calls, AQI diagnostics, suppression reasons. |
 | `-AqiSetup` | `-aqi` | AQI setup screen only; stores key in User env `AirNowAPI`. [Request a key](https://docs.airnowapi.org/account/request/) |
 | `-Terse` | `-t` | Current conditions + today's forecast (+ alerts). |
+| `-TerseAlert` | `-ta` | Like terse; when alerts are active, alternate with full alerts every 20s. With `-x`, print terse then alerts. |
+| `-Alerts` | `-a` | Active weather alerts only (green empty message if none). |
 | `-Hourly` | `-h` | 12-hour hourly forecast (scroll up to 48h in interactive mode). |
 | `-Daily` | `-d` | Enhanced 7-day forecast with wind, indices, and wrapped text. |
 | `-Rain` | `-r` | Rain likelihood sparklines (96 hours). |
@@ -199,6 +203,16 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
   - Shows only current conditions and today's forecast (plus alerts if they exist).
   - Combines sunrise and sunset into a single `Sunrise-Sunset: start-end` line and omits the Dew Point line for a tighter layout, while still showing irradiance when available.
   - Provides a streamlined, focused view for quick weather checks.
+
+- `-TerseAlert` or `-ta` [switch]
+  - Alternative terse mode: behaves like `-t` when there are no active alerts.
+  - When alerts are active, interactive mode alternates every 20 seconds between the terse view and a full alerts list (`*** {location} Active Weather Alerts ***`).
+  - With `-x`, prints terse output then the full alerts block in sequence (alerts only when present).
+
+- `-Alerts` or `-a` [switch]
+  - Shows only active weather alerts for the location (full detail formatting).
+  - If none: `*** {location} No Active Weather Alerts ***` in green.
+  - Enters interactive mode after display (use `-x` to exit immediately).
 
 - `-Hourly` or `-h` [switch]
   - Shows only the 12-hour hourly forecast on first display.
@@ -288,6 +302,18 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 ### Example 4: Get terse weather using automatic location detection
 ```powershell
 .\gf.ps1 here -t
+```
+
+### Example 4a: TerseAlert (alternate with full alerts when active)
+```powershell
+.\gf.ps1 -ta 97219
+.\gf.ps1 -ta -x 97219
+```
+
+### Example 4b: Alerts only
+```powershell
+.\gf.ps1 -a "Portland, OR"
+.\gf.ps1 -a -x 97219
 ```
 
 ### Example 5: Get hourly forecast only
@@ -510,6 +536,8 @@ Interactive mode shows a control bar with hotkey hints (hide with **B** or start
    - **H** — Hourly forecast (12-hour page; **↑**/**↓** scroll up to 48 hours)
    - **D** — Enhanced 7-day forecast
    - **T** — Terse mode (current + today)
+   - **Shift+T** — TerseAlert mode (alternate with full alerts; not on the control bar)
+   - **A** — Alerts-only view (not on the control bar)
    - **R** — Rain forecast (sparklines)
    - **W** — Wind forecast (glyphs)
    - **O** — Observations (historical data)
@@ -643,6 +671,7 @@ These messages provide clear feedback about the script's progress and help users
 
 ## Changelog
 
+- **v2.3** — TerseAlert mode (`-ta` / `-tersealert`): alternate terse and full alerts every 20s when alerts are active; with `-x`, print terse then alerts. Alerts-only mode (`-a` / `-alerts`) with green empty state. Interactive hotkeys **A** (alerts) and **Shift+T** (TerseAlert), not shown on the control bar.
 - **v2.2** — Soft-warn on unrecognized CLI options (e.g. accidental `-c`) and continue; suppress NWS test/monitoring-only alerts; current-conditions header shows ⚠️/🌡 when alerts are active (matches forecast web); fix alert section when API returns a single GeoJSON feature.
 - **v2.1** — Moon phase, rain/wind sparklines, observations mode, auto-refresh, solar irradiance, and related enhancements (see GEMINI.md).
 
