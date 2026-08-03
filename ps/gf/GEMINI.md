@@ -26,7 +26,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
 - **Multiple Display Modes:**
   - **Full Mode (default):** Shows all available weather information
   - **Terse Mode (`-t`):** Shows only current conditions and today's forecast (plus alerts)
-  - **TerseAlert Mode (`-ta` / `-tersealert`):** Like terse; when alerts are active, alternates every 20s with a full alerts list. With `-x`, prints terse then alerts in sequence.
+  - **TerseAlert Mode (`-ta` / `-tersealert`):** Like terse; when alerts are active, alternates every 20s with a full alerts list (Tab toggles immediately and resets the timer). With `-x`, prints terse then alerts in sequence.
   - **Alerts Mode (`-a` / `-alerts`):** Shows only active weather alerts (green empty message if none)
   - **Hourly Mode (`-h`):** Shows only the 12-hour hourly forecast
   - **7-Day Mode (`-7`):** Shows only the 7-day forecast summary
@@ -41,6 +41,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
   - **[T]** - Switch to terse mode
   - **[Shift+T]** - Switch to tersealert mode (not on control bar)
   - **[A]** - Switch to alerts-only view (not on control bar)
+  - **[Tab]** - In tersealert mode, toggle terse/alerts and reset the 20s timer (not on control bar)
   - **[R]** - Switch to rain forecast mode (sparklines)
   - **[W]** - Switch to wind forecast mode (direction glyphs)
   - **[O]** - Switch to observations mode (historical weather data)
@@ -224,6 +225,7 @@ The script features an advanced **Interactive Mode** that activates when run fro
 - **[D]** - **Daily View:** Switch to 7-day forecast summary display  
 - **[T]** - **Terse View:** Switch to streamlined view (current conditions + today's forecast)
 - **[Shift+T]** - **TerseAlert View:** Alternate terse with full alerts every 20s when alerts are active (hotkey only; not on the control bar)
+- **[Tab]** - **TerseAlert Toggle:** While in TerseAlert, flip between terse and alerts and reset the 20s timer (hotkey only; not on the control bar)
 - **[A]** - **Alerts View:** Active weather alerts only (hotkey only; not on the control bar)
 - **[R]** - **Rain View:** Switch to rain forecast mode with sparklines
 - **[W]** - **Wind View:** Switch to wind forecast mode with direction glyphs
@@ -547,9 +549,9 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 
 ### Recent Enhancements (v2.3)
 
-- **TerseAlert Mode (`-ta` / `-tersealert`):** Terse-like view; when alerts are active, interactive mode alternates every 20s with a full alerts list. With `-x`, prints terse then full alerts in sequence.
+- **TerseAlert Mode (`-ta` / `-tersealert`):** Terse-like view; when alerts are active, interactive mode alternates every 20s with a full alerts list (**Tab** toggles immediately and resets the timer). With `-x`, prints terse then full alerts in sequence.
 - **Alerts Mode (`-a` / `-alerts`):** Alerts-only display with location in the header; green empty message when none are active.
-- **Interactive Hotkeys:** **A** switches to alerts-only; **Shift+T** switches to TerseAlert (case-sensitive `KeyChar` so Shift+T is not swallowed by classic **T**). Hotkeys only — not shown on the control bar.
+- **Interactive Hotkeys:** **A** switches to alerts-only; **Shift+T** switches to TerseAlert (case-sensitive `KeyChar` so Shift+T is not swallowed by classic **T**); **Tab** in TerseAlert toggles panes and resets the 20s timer. Hotkeys only — not shown on the control bar.
 
 ### Recent Enhancements (v2.2)
 

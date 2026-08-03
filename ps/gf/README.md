@@ -98,6 +98,7 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
   - **T** — Terse mode (current conditions + today's forecast)
   - **Shift+T** — TerseAlert mode (alternate with full alerts every 20s when alerts are active; not on the control bar)
   - **A** — Alerts-only view (not on the control bar)
+  - **Tab** — In TerseAlert mode, toggle between terse and alerts and reset the 20s timer (not on the control bar)
   - **R** — Rain forecast mode (sparklines)
   - **W** — Wind forecast mode (direction glyphs)
   - **O** — Observations mode (historical weather data)
@@ -206,7 +207,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 - `-TerseAlert` or `-ta` [switch]
   - Alternative terse mode: behaves like `-t` when there are no active alerts.
-  - When alerts are active, interactive mode alternates every 20 seconds between the terse view and a full alerts list (`*** {location} Active Weather Alerts ***`).
+  - When alerts are active, interactive mode alternates every 20 seconds between the terse view and a full alerts list (`*** {location} Active Weather Alerts ***`). Press **Tab** to toggle immediately and reset the 20s timer.
   - With `-x`, prints terse output then the full alerts block in sequence (alerts only when present).
 
 - `-Alerts` or `-a` [switch]
@@ -538,6 +539,7 @@ Interactive mode shows a control bar with hotkey hints (hide with **B** or start
    - **T** — Terse mode (current + today)
    - **Shift+T** — TerseAlert mode (alternate with full alerts; not on the control bar)
    - **A** — Alerts-only view (not on the control bar)
+   - **Tab** — In TerseAlert mode, toggle terse/alerts and reset the 20s timer (not on the control bar)
    - **R** — Rain forecast (sparklines)
    - **W** — Wind forecast (glyphs)
    - **O** — Observations (historical data)

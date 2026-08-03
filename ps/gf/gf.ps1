@@ -244,6 +244,7 @@ if ($Help -or (($Terse.IsPresent -or $TerseAlert.IsPresent -or $Alerts.IsPresent
     Write-Host "Options:" -ForegroundColor Blue
     Write-Host "  -t, -Terse    Show only current conditions and today's forecast" -ForegroundColor Cyan
     Write-Host "  -ta, -TerseAlert  Terse mode; when alerts are active, alternate with full alerts every 20s" -ForegroundColor Cyan
+    Write-Host "                • Tab toggles terse/alerts and resets the 20s timer (interactive)" -ForegroundColor Gray
     Write-Host "                • With -x: print terse then full alerts in sequence (alerts only if present)" -ForegroundColor Gray
     Write-Host "  -a, -Alerts   Show only active weather alerts (green empty message if none)" -ForegroundColor Cyan
     Write-Host "  -h, -Hourly   Show only the hourly forecast (up to $($script:MAX_HOURLY_FORECAST_HOURS) hours)" -ForegroundColor Cyan
@@ -275,6 +276,7 @@ if ($Help -or (($Terse.IsPresent -or $TerseAlert.IsPresent -or $Alerts.IsPresent
      Write-Host "    [T] - Switch to terse mode (current + today)" -ForegroundColor Cyan
      Write-Host "    [Shift+T] - Switch to tersealert mode (alternate with full alerts every 20s)" -ForegroundColor Cyan
      Write-Host "    [A] - Switch to alerts-only view" -ForegroundColor Cyan
+     Write-Host "    [Tab] - In tersealert mode, toggle terse/alerts and reset the 20s timer" -ForegroundColor Cyan
      Write-Host "    [R] - Switch to rain forecast mode (sparklines)" -ForegroundColor Cyan
      Write-Host "    [W] - Switch to wind forecast mode (direction glyphs)" -ForegroundColor Cyan
      Write-Host "    [O] - Switch to observations historical data" -ForegroundColor Cyan
@@ -284,7 +286,7 @@ if ($Help -or (($Terse.IsPresent -or $TerseAlert.IsPresent -or $Alerts.IsPresent
     Write-Host "    [F] - Return to full display" -ForegroundColor Cyan
     Write-Host "    [Enter] or [Esc] - Exit the script" -ForegroundColor Cyan
      Write-Host "  In hourly mode, use [↑] and [↓] arrows to scroll through all 48 hours" -ForegroundColor Cyan
-     Write-Host '  Note: [A] and [Shift+T] are hotkeys only (not shown on the control bar)' -ForegroundColor Gray
+     Write-Host '  Note: [A], [Shift+T], and [Tab] are hotkeys only (not shown on the control bar)' -ForegroundColor Gray
      Write-Host '  Note: All times (hourly, sunrise, sunset) are displayed in the location''s timezone' -ForegroundColor Gray
     Write-Host ""
     Write-Host "This script retrieves weather info from National Weather Service API (geocoding via OpenStreetMap) and outputs:" -ForegroundColor Blue
@@ -5659,9 +5661,9 @@ function Show-WeatherAlerts {
     if ($showDetails) {
         Write-Host ""
         if ($cityName) {
-            Write-Host "*** $cityName Active Weather Alerts ***" -ForegroundColor $AlertColor
+            Write-Host "*** $cityName Active Weather Alerts ***" -ForegroundColor Yellow
         } else {
-            Write-Host "*** Active Weather Alerts ***" -ForegroundColor $AlertColor
+            Write-Host "*** Active Weather Alerts ***" -ForegroundColor Yellow
         }
     } else {
         Write-Host ""
@@ -7563,9 +7565,21 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     break
                 }
 
+                # Tab in TerseAlert: manually flip terse <-> alerts and reset the 20s auto-flip timer
+                if ($keyInfo.Key -eq [System.ConsoleKey]::Tab) {
+                    if ($isTerseAlertMode) {
+                        $taAlerts = @(Get-DisplayableNwsAlerts -AlertsData $script:alertsData)
+                        if ($taAlerts.Count -gt 0) {
+                            $terseAlertShowingAlerts = -not $terseAlertShowingAlerts
+                            $nextTerseAlertFlip = (Get-Date).AddSeconds(20)
+                            Clear-HostWithDelay
+                            Show-GfInteractiveCurrentView
+                        }
+                    }
+                }
                 # T vs Shift+T: console often reports uppercase KeyChar without Shift in Modifiers.
                 # PowerShell switch is case-insensitive, so handle T keys with -ceq before the switch.
-                if ($keyInfo.Key -eq [System.ConsoleKey]::T) {
+                elseif ($keyInfo.Key -eq [System.ConsoleKey]::T) {
                     Clear-HostWithDelay
                     $isHourlyMode = $false
                     $isRainMode = $false
