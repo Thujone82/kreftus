@@ -5721,7 +5721,7 @@ function Show-WeatherAlerts {
             }
 
             $alertIndex++
-            if ($alertIndex -lt $displayableAlerts.Count) {
+            if ($showDetails -and $alertIndex -lt $displayableAlerts.Count) {
                 Write-Host ""
             }
         } catch {
