@@ -551,9 +551,16 @@ function Get-CurrentLocation {
 # Always clear the host before a full interactive redraw. Skipping Clear-Host when
 # $VerbosePreference is 'Continue' left the previous frame visible, so a refresh could
 # show two "Updated:" lines (old observation time plus the new one).
+# Prefer [Console]::Clear() so TerseAlert pane flips do not leave a stale title line
+# (e.g. green "*** … Current Conditions ***" sitting above the alerts-only pane).
 function Clear-HostWithDelay {
     Clear-UpdatedConditionsLineCursor
-    Clear-Host
+    try {
+        [System.Console]::Clear()
+        [System.Console]::SetCursorPosition(0, 0)
+    } catch {
+        Clear-Host
+    }
 }
 
 # Function to resolve timezone ID to TimeZoneInfo object
@@ -7109,8 +7116,8 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
     $isTerseMode = $Terse.IsPresent -or $isTerseAlertMode  # State tracking for terse mode
     $isDailyMode = $Daily.IsPresent  # State tracking for daily forecast mode
     $isObservationsMode = $Observations.IsPresent  # State tracking for observations mode
-    $terseAlertShowingAlerts = $false
-    $nextTerseAlertFlip = (Get-Date).AddSeconds(20)
+    $script:terseAlertShowingAlerts = $false
+    $script:nextTerseAlertFlip = (Get-Date).AddSeconds(20)
     $autoUpdateEnabled = -not $NoAutoUpdate.IsPresent  # State tracking for auto-updates
     if (-not $autoUpdateEnabled) {
         Write-Verbose "Auto-updates disabled via command line flag"
@@ -7128,6 +7135,8 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
 
     function Show-GfInteractiveAlertsPane {
         param([bool]$ShowEmptyMessage = $false)
+        # Alerts half of -ta / -a: only the alerts header + list (never Current Conditions)
+        Clear-HostWithDelay
         Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $true -TimeZone $timeZone -City $city -ShowCityInTitle $true -ShowEmptyMessage $ShowEmptyMessage
         Show-GfInteractiveControlsBar
     }
@@ -7152,7 +7161,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
             "N/A"
         }
         $solarStr = Get-SolarIrradianceSummary -Latitude $lat -Longitude $lon -CurrentTimeDateTime $(Get-CurrentConditionsUpdatedDateTime) -TimeZoneId $timeZone
-        Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $(Get-CurrentConditionsUpdatedDateTime) -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $solarStr -Latitude $lat -Longitude $lon -TimeZoneId $timeZone -ObservationDateTime $(Get-CurrentConditionsUpdatedDateTime) -SunriseDateTime $script:sunriseTime -SunsetDateTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -IsTerseMode $true
+        Show-CurrentConditions -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $(Get-CurrentConditionsUpdatedDateTime) -SunriseTime $sunriseTimeStr -SunsetTime $sunsetTimeStr -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SolarIrradiance $solarStr -Latitude $lat -Longitude $lon -TimeZoneId $timeZone -ObservationDateTime $(Get-CurrentConditionsUpdatedDateTime) -SunriseDateTime $script:sunriseTime -SunsetDateTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -IsTerseMode $true -AlertsData $script:alertsData
         Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
         Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false -TimeZone $timeZone
         Show-GfInteractiveControlsBar
@@ -7170,7 +7179,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
             Show-GfInteractiveControlsBar
         } elseif ($isAlertsMode) {
             Show-GfInteractiveAlertsPane -ShowEmptyMessage $true
-        } elseif ($isTerseAlertMode -and $terseAlertShowingAlerts) {
+        } elseif ($isTerseAlertMode -and $script:terseAlertShowingAlerts) {
             Show-GfInteractiveAlertsPane -ShowEmptyMessage $false
         } elseif ($isTerseMode) {
             Show-GfInteractiveTersePane
@@ -7537,15 +7546,15 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
             if ($isTerseAlertMode) {
                 $taAlerts = @(Get-DisplayableNwsAlerts -AlertsData $script:alertsData)
                 if ($taAlerts.Count -eq 0) {
-                    if ($terseAlertShowingAlerts) {
-                        $terseAlertShowingAlerts = $false
+                    if ($script:terseAlertShowingAlerts) {
+                        $script:terseAlertShowingAlerts = $false
                         Clear-HostWithDelay
                         Show-GfInteractiveCurrentView
                     }
-                    $nextTerseAlertFlip = (Get-Date).AddSeconds(20)
-                } elseif ((Get-Date) -ge $nextTerseAlertFlip) {
-                    $terseAlertShowingAlerts = -not $terseAlertShowingAlerts
-                    $nextTerseAlertFlip = (Get-Date).AddSeconds(20)
+                    $script:nextTerseAlertFlip = (Get-Date).AddSeconds(20)
+                } elseif ((Get-Date) -ge $script:nextTerseAlertFlip) {
+                    $script:terseAlertShowingAlerts = -not $script:terseAlertShowingAlerts
+                    $script:nextTerseAlertFlip = (Get-Date).AddSeconds(20)
                     Clear-HostWithDelay
                     Show-GfInteractiveCurrentView
                 }
@@ -7572,8 +7581,8 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     if ($isTerseAlertMode) {
                         $taAlerts = @(Get-DisplayableNwsAlerts -AlertsData $script:alertsData)
                         if ($taAlerts.Count -gt 0) {
-                            $terseAlertShowingAlerts = -not $terseAlertShowingAlerts
-                            $nextTerseAlertFlip = (Get-Date).AddSeconds(20)
+                            $script:terseAlertShowingAlerts = -not $script:terseAlertShowingAlerts
+                            $script:nextTerseAlertFlip = (Get-Date).AddSeconds(20)
                             Clear-HostWithDelay
                             Show-GfInteractiveCurrentView
                         }
@@ -7593,14 +7602,14 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         # Shift+T - tersealert mode (alternate terse / full alerts)
                         $isTerseAlertMode = $true
                         $isTerseMode = $true
-                        $terseAlertShowingAlerts = $false
-                        $nextTerseAlertFlip = (Get-Date).AddSeconds(20)
+                        $script:terseAlertShowingAlerts = $false
+                        $script:nextTerseAlertFlip = (Get-Date).AddSeconds(20)
                         Show-GfInteractiveCurrentView
                     } else {
                         # t - classic terse
                         $isTerseMode = $true
                         $isTerseAlertMode = $false
-                        $terseAlertShowingAlerts = $false
+                        $script:terseAlertShowingAlerts = $false
                         Show-GfInteractiveTersePane
                     }
                 } else {
@@ -7615,7 +7624,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isTerseMode = $false
                     $isTerseAlertMode = $false
                     $isAlertsMode = $true
-                    $terseAlertShowingAlerts = $false
+                    $script:terseAlertShowingAlerts = $false
                     $isDailyMode = $false
                     $isObservationsMode = $false
                     Show-GfInteractiveAlertsPane -ShowEmptyMessage $true
@@ -7628,7 +7637,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isTerseMode = $false
                     $isTerseAlertMode = $false
                     $isAlertsMode = $false
-                    $terseAlertShowingAlerts = $false
+                    $script:terseAlertShowingAlerts = $false
                     $isDailyMode = $false
                     $isObservationsMode = $false
                     $hourlyScrollIndex = 0  # Reset to first 12 hours
@@ -7643,7 +7652,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isTerseMode = $false
                     $isTerseAlertMode = $false
                     $isAlertsMode = $false
-                    $terseAlertShowingAlerts = $false
+                    $script:terseAlertShowingAlerts = $false
                     $isDailyMode = $true
                     $isObservationsMode = $false
                     Show-SevenDayForecast -ForecastData $script:forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $script:sunriseTime -SunsetTime $script:sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true -Latitude $lat -Longitude $lon -TimeZone $timeZone
@@ -7657,7 +7666,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isTerseMode = $false
                     $isTerseAlertMode = $false
                     $isAlertsMode = $false
-                    $terseAlertShowingAlerts = $false
+                    $script:terseAlertShowingAlerts = $false
                     $isDailyMode = $false
                     $isObservationsMode = $false
                     Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $(Get-CurrentConditionsUpdatedDateTime) -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $script:sunriseTime -SunsetTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -CurrentTimeDateTime $(Get-CurrentConditionsUpdatedDateTime)
@@ -7671,7 +7680,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isTerseMode = $false
                     $isTerseAlertMode = $false
                     $isAlertsMode = $false
-                    $terseAlertShowingAlerts = $false
+                    $script:terseAlertShowingAlerts = $false
                     $isDailyMode = $false
                     $isObservationsMode = $false
                     Show-RainForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
@@ -7723,7 +7732,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isTerseMode = $false
                     $isTerseAlertMode = $false
                     $isAlertsMode = $false
-                    $terseAlertShowingAlerts = $false
+                    $script:terseAlertShowingAlerts = $false
                     $isDailyMode = $false
                     $isObservationsMode = $false
                     Show-WindForecast -HourlyData $script:hourlyData -TitleColor $titleColor -DefaultColor $defaultColor -City $city -TimeZone $timeZone
@@ -7737,7 +7746,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $isTerseMode = $false
                     $isTerseAlertMode = $false
                     $isAlertsMode = $false
-                    $terseAlertShowingAlerts = $false
+                    $script:terseAlertShowingAlerts = $false
                     $isDailyMode = $false
                     $isObservationsMode = $true
                     # Check if preload job is still running
