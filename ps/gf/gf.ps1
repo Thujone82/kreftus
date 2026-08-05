@@ -551,15 +551,47 @@ function Get-CurrentLocation {
 # Always clear the host before a full interactive redraw. Skipping Clear-Host when
 # $VerbosePreference is 'Continue' left the previous frame visible, so a refresh could
 # show two "Updated:" lines (old observation time plus the new one).
-# Prefer [Console]::Clear() so TerseAlert pane flips do not leave a stale title line
-# (e.g. green "*** … Current Conditions ***" sitting above the alerts-only pane).
+# TerseAlert pane flips must wipe the PowerShell host buffer (Write-Host), not only
+# System.Console — otherwise a shorter pane leaves ghost lines from the previous one
+# (e.g. alert headlines under compact terse alerts).
 function Clear-HostWithDelay {
     Clear-UpdatedConditionsLineCursor
+    $esc = [char]27
+    try {
+        Clear-Host
+    } catch {}
+    try {
+        # Windows Terminal / conhost: full clear + cursor home (syncs with Write-Host)
+        Write-Host -NoNewline ("${esc}[2J${esc}[H")
+    } catch {}
     try {
         [System.Console]::Clear()
         [System.Console]::SetCursorPosition(0, 0)
+    } catch {}
+    try {
+        $Host.UI.RawUI.CursorPosition = New-Object System.Management.Automation.Host.Coordinates(0, 0)
+    } catch {}
+}
+
+# After painting a pane shorter than the previous frame, erase from cursor to end of screen.
+function Clear-ConsoleFromCursorToEnd {
+    try {
+        $esc = [char]27
+        Write-Host -NoNewline ("${esc}[0J")
     } catch {
-        Clear-Host
+        try {
+            $pos = $Host.UI.RawUI.CursorPosition
+            $win = $Host.UI.RawUI.WindowSize
+            $winTop = [int]$Host.UI.RawUI.WindowPosition.Y
+            $bottom = $winTop + [int]$win.Height - 1
+            $width = [Math]::Max(1, [int]$win.Width)
+            $blank = ' ' * $width
+            for ($y = [int]$pos.Y; $y -le $bottom; $y++) {
+                $Host.UI.RawUI.CursorPosition = New-Object System.Management.Automation.Host.Coordinates(0, $y)
+                Write-Host -NoNewline $blank
+            }
+            $Host.UI.RawUI.CursorPosition = $pos
+        } catch {}
     }
 }
 
@@ -7139,9 +7171,12 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
         Clear-HostWithDelay
         Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $true -TimeZone $timeZone -City $city -ShowCityInTitle $true -ShowEmptyMessage $ShowEmptyMessage
         Show-GfInteractiveControlsBar
+        Clear-ConsoleFromCursorToEnd
     }
 
     function Show-GfInteractiveTersePane {
+        # Same self-clear as alerts pane so flips alerts -> terse do not leave ghost headlines
+        Clear-HostWithDelay
         $sunriseTimeStr = if ($null -ne $script:sunriseTime) {
             if ($script:isPolarNight -or $script:isPolarDay) {
                 $script:sunriseTime.ToString('MM/dd HH:mm')
@@ -7165,6 +7200,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
         Show-ForecastText -Title $todayPeriodName -ForecastText $todayForecast -TitleColor $titleColor -DefaultColor $defaultColor
         Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false -TimeZone $timeZone
         Show-GfInteractiveControlsBar
+        Clear-ConsoleFromCursorToEnd
     }
 
     function Show-GfInteractiveCurrentView {
