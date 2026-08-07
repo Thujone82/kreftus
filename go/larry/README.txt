@@ -10,7 +10,7 @@ Kreft & GPT-5
 2025-08-10
 
 ## Description
-`larry` is a fast, cross-platform terminal game written in Go using `tcell`. You guide Larry (a green `@`) from the bottom safe shoulder to the top safe shoulder while dodging traffic. Each time you reach the top, you advance to the next level, gain a life, and the color theme changes. Difficulty scales gradually by increasing lane density and speed.
+`larry` is a fast, cross-platform terminal game written in Go using `tcell`. You guide Larry (a green ⬢) from the bottom safe shoulder to the top safe shoulder while dodging traffic. Each time you reach the top, you advance to the next level, gain a life, and the color theme changes. Difficulty scales gradually by increasing lane density and speed. The UI uses UTF-8 box-drawing characters (Windows consoles are switched to CP65001 on launch).
 
 ## Features
 - Real-time input (Arrows and WASD)
@@ -18,11 +18,15 @@ Kreft & GPT-5
 - Level progression with changing themes
 - Lives, per-line progression score, and session Top score
 - Distinct vehicle classes per lane:
-  - Compact car: length 2, speeds 3–5, glyphs: `=>` (right) / `<=` (left)
-  - Regular car: length 3, speeds 2–4, glyph: `<#>`
-  - Semi trailer: length 5, speeds 1–3, glyphs: `####>` (right) / `<####` (left)
+  - Compact car: length 2, speeds 3–5, glyphs: `═▶` (right) / `◀═` (left)
+  - Regular car: length 3, speeds 2–4, glyph: `◀█▶`
+  - Semi trailer: length 5, speeds 1–3, glyphs: `████▶` (right) / `◀████` (left)
+- UTF-8 menus, overlays, and HUD separators (Windows: CP65001 + Cascadia Mono when available)
 - Resize-aware rendering
 - Top-10 scoreboard with name entry and saved history (MMDDYY date)
+
+## Notes
+For best vehicle/Larry glyph rendering (`▶` `◀` `⬢`) on Windows, use a modern console font such as **Cascadia Mono** (Windows Terminal default). Larry selects it automatically when installed.
 
 ## Controls
 - Start menu: ↑↓ or W/S to select, Enter/Space to confirm

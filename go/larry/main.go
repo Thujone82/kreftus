@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"encoding/json"
@@ -44,6 +44,16 @@ const (
 	startMenu   = 0
 	startScores = 1
 )
+
+// UTF-8 gameplay glyphs (escapes keep source encoding-safe)
+const (
+	glyphLarry = '\u2B22' // BLACK HEXAGON
+	glyphRight = '\u25B6' // BLACK RIGHT-POINTING TRIANGLE
+	glyphLeft  = '\u25C0' // BLACK LEFT-POINTING TRIANGLE
+	glyphBlock = '\u2588' // FULL BLOCK
+	glyphRail  = '\u2550' // BOX DRAWINGS DOUBLE HORIZONTAL
+)
+
 
 type game struct {
 	screen tcell.Screen
@@ -104,6 +114,8 @@ func main() {
 		}
 	}()
 
+	enableUTF8Console()
+
 	s, err := tcell.NewScreen()
 	if err != nil {
 		panic(err)
@@ -111,6 +123,7 @@ func main() {
 	if err := s.Init(); err != nil {
 		panic(err)
 	}
+	enableUTF8Console() // re-apply CP65001 + Unicode font after tcell init
 	defer s.Fini()
 	s.Clear()
 	s.HideCursor()
@@ -306,22 +319,21 @@ func (g *game) createLanes() {
 				minSpd, maxSpd = 3, 5
 				color = g.theme.carSmall
 				if dirRight {
-					glyph = []rune{'=', '>'} // carSmall '=>'
+					glyph = []rune{glyphRail, glyphRight}
 				} else {
-					glyph = []rune{'<', '='} // carSmall '<='
+					glyph = []rune{glyphLeft, glyphRail}
 				}
 			case 1: // regular
 				minSpd, maxSpd = 2, 4
 				color = g.theme.carRegular
-				// visually symmetric
-				glyph = []rune{'<', '#', '>'}
+				glyph = []rune{glyphLeft, glyphBlock, glyphRight}
 			default: // 2: semi
 				minSpd, maxSpd = 1, 3
 				color = g.theme.carSemi
 				if dirRight {
-					glyph = []rune{'#', '#', '#', '#', '>'} // carSemi '####>'
+					glyph = []rune{glyphBlock, glyphBlock, glyphBlock, glyphBlock, glyphRight}
 				} else {
-					glyph = []rune{'<', '#', '#', '#', '#'} // carSemi '<####'
+					glyph = []rune{glyphLeft, glyphBlock, glyphBlock, glyphBlock, glyphBlock}
 				}
 			}
 			length := len(glyph)
@@ -544,17 +556,7 @@ func (g *game) clampFrog() {
 	}
 }
 
-func (g *game) update() {
-	if g.showStartScreen {
-		return
-	}
-	if g.paused {
-		return
-	}
-	if g.enteringName {
-		return
-	}
-	// Advance lanes
+func (g *game) advanceLanes() {
 	for i := range g.lanes {
 		ln := &g.lanes[i]
 		ln.tickCounter++
@@ -569,6 +571,21 @@ func (g *game) update() {
 			}
 		}
 	}
+}
+
+func (g *game) update() {
+	if g.showStartScreen {
+		// Keep background traffic moving behind the menu
+		g.advanceLanes()
+		return
+	}
+	if g.paused {
+		return
+	}
+	if g.enteringName {
+		return
+	}
+	g.advanceLanes()
 
 	// Collision detection with lanes (ignore safe rows)
 	isSafe := g.frogY >= 0 && g.frogY < len(g.safeRow) && g.safeRow[g.frogY]
@@ -617,19 +634,8 @@ func (g *game) update() {
 	}
 }
 
-func (g *game) render() {
-	s := g.screen
-	s.Clear()
+func (g *game) drawPlayfieldBackground() {
 	w, h := g.width, g.height
-
-	// Show start screen if active
-	if g.showStartScreen {
-		g.drawStartScreen()
-		s.Show()
-		return
-	}
-
-	// Background fill (safe rows visually distinct)
 	for y := 0; y < h; y++ {
 		var bg tcell.Color
 		if y == g.safeTopY {
@@ -643,11 +649,13 @@ func (g *game) render() {
 		}
 		st := tcell.StyleDefault.Background(bg)
 		for x := 0; x < w; x++ {
-			s.SetContent(x, y, ' ', nil, st)
+			g.screen.SetContent(x, y, ' ', nil, st)
 		}
 	}
+}
 
-	// Draw lanes' vehicles with length and glyphs
+func (g *game) drawVehicles() {
+	w, h := g.width, g.height
 	for _, ln := range g.lanes {
 		st := tcell.StyleDefault.Foreground(ln.color)
 		for _, left := range ln.cars {
@@ -658,11 +666,27 @@ func (g *game) render() {
 					if dx < len(ln.glyph) {
 						ch = ln.glyph[dx]
 					}
-					s.SetContent(x, ln.y, ch, nil, st)
+					g.screen.SetContent(x, ln.y, ch, nil, st)
 				}
 			}
 		}
 	}
+}
+
+func (g *game) render() {
+	s := g.screen
+	s.Clear()
+
+	// Show start screen if active
+	if g.showStartScreen {
+		g.drawStartScreen()
+		s.Show()
+		return
+	}
+
+	w := g.width
+	g.drawPlayfieldBackground()
+	g.drawVehicles()
 
 	// Draw HUD - will refresh only when score changes
 	if g.score != g.lastRenderedScore {
@@ -674,9 +698,9 @@ func (g *game) render() {
 	drawText(s, 0, 0, spaces(w), hudStyle)
 	drawText(s, 0, 0, g.hudLine, hudStyle)
 
-	// Draw Larry as a green '@' for wide-compat terminals
+	// Draw Larry as a filled hexagon (UTF-8)
 	frogStyle := tcell.StyleDefault.Foreground(g.theme.frog).Bold(true)
-	s.SetContent(g.frogX, g.frogY, '@', nil, frogStyle)
+	s.SetContent(g.frogX, g.frogY, glyphLarry, nil, frogStyle)
 
 	// Ensure overlays are drawn last, on top of vehicles and frog
 	if g.enteringName {
@@ -833,15 +857,92 @@ func (g *game) handleQuit(e *tcell.EventKey) bool {
 	return false
 }
 
+// Box-drawing / section markers (single-width UTF-8)
+const (
+	boxTL       = '╔'
+	boxTR       = '╗'
+	boxBL       = '╚'
+	boxBR       = '╝'
+	boxH        = '═'
+	boxV        = '║'
+	boxML       = '╠' // middle tee left
+	boxMR       = '╣' // middle tee right
+	boxDivider  = "\x01" // sentinel: draw an ╠═══╣ section rule
+)
+
 func drawText(s tcell.Screen, x, y int, text string, st tcell.Style) {
-	for i, ch := range text {
-		s.SetContent(x+i, y, ch, nil, st)
+	col := 0
+	for _, ch := range text {
+		s.SetContent(x+col, y, ch, nil, st)
+		col++
 	}
 }
 
 func drawCentered(s tcell.Screen, cx, cy int, text string, st tcell.Style) {
 	x := cx - len([]rune(text))/2
 	drawText(s, x, cy, text, st)
+}
+
+func boxHoriz(innerWidth int, left, right rune) string {
+	var b strings.Builder
+	b.Grow(innerWidth + 2)
+	b.WriteRune(left)
+	for i := 0; i < innerWidth; i++ {
+		b.WriteRune(boxH)
+	}
+	b.WriteRune(right)
+	return b.String()
+}
+
+// drawBorderedBox draws a UTF-8 box-drawing rectangle centered on cx.
+// Pass boxDivider as a line to insert an ╠═══╣ section separator.
+func drawBorderedBox(s tcell.Screen, cx, topY, innerWidth int, borderStyle, fillStyle tcell.Style, lines []string, lineStyles []tcell.Style) {
+	w, h := s.Size()
+	if innerWidth < 1 || topY >= h {
+		return
+	}
+	boxW := innerWidth + 2
+	left := cx - boxW/2
+	if left < 0 {
+		left = 0
+	}
+	if left+boxW > w {
+		boxW = w - left
+		innerWidth = boxW - 2
+		if innerWidth < 1 {
+			return
+		}
+	}
+	drawText(s, left, topY, boxHoriz(innerWidth, boxTL, boxTR), borderStyle)
+	for i, line := range lines {
+		y := topY + 1 + i
+		if y < 0 || y >= h {
+			continue
+		}
+		if line == boxDivider {
+			drawText(s, left, y, boxHoriz(innerWidth, boxML, boxMR), borderStyle)
+			continue
+		}
+		rowStyle := fillStyle
+		if i < len(lineStyles) {
+			rowStyle = lineStyles[i]
+		}
+		// Fill inner row; keep vertical borders in borderStyle
+		inner := spaces(innerWidth)
+		drawText(s, left+1, y, inner, rowStyle)
+		s.SetContent(left, y, boxV, nil, borderStyle)
+		s.SetContent(left+boxW-1, y, boxV, nil, borderStyle)
+		runes := []rune(line)
+		if len(runes) > innerWidth {
+			runes = runes[:innerWidth]
+		}
+		pad := (innerWidth - len(runes)) / 2
+		drawText(s, left+1+pad, y, string(runes), rowStyle)
+	}
+	bottomY := topY + 1 + len(lines)
+	if bottomY >= 0 && bottomY < h {
+		drawText(s, left, bottomY, boxHoriz(innerWidth, boxBL, boxBR), borderStyle)
+	}
 }
 
 func spaces(n int) string {
@@ -856,17 +957,19 @@ func spaces(n int) string {
 }
 
 func (g *game) updateHUD() {
-	// Build the HUD string
+	// Build the HUD string with UTF-8 separators
 	w := g.width
-	left := fmt.Sprintf("Score:%d  Level:%d  Lives:%d", g.score, g.level, g.lives)
+	left := fmt.Sprintf("Score:%d  │  Level:%d  │  Lives:%d", g.score, g.level, g.lives)
 	help := "  (Space:Pause Esc:Quit)"
-	right := fmt.Sprintf("Top:%d  Best:%d", g.topScore, g.historyTop)
-	if len(left)+len(help)+len(right)+1 <= w {
+	right := fmt.Sprintf("Top:%d  ·  Best:%d", g.topScore, g.historyTop)
+	if len([]rune(left))+len(help)+len([]rune(right))+1 <= w {
 		left += help
 	}
 	hudLine := left
-	if len(left)+1+len(right) < w {
-		pad := w - len(left) - len(right)
+	leftLen := len([]rune(left))
+	rightLen := len([]rune(right))
+	if leftLen+1+rightLen < w {
+		pad := w - leftLen - rightLen
 		if pad < 1 {
 			pad = 1
 		}
@@ -880,20 +983,17 @@ func (g *game) drawPauseOverlay() {
 	if w <= 0 || h <= 0 {
 		return
 	}
-	title := "PAUSED"
-	y0 := h/2 - 1
-	if y0 < 0 {
-		y0 = 0
+	boxBg := tcell.ColorBlack
+	borderStyle := tcell.StyleDefault.Foreground(g.theme.frog).Background(boxBg).Bold(true)
+	fillStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(boxBg).Bold(true)
+	inner := 16
+	topY := h/2 - 2
+	if topY < 0 {
+		topY = 0
 	}
-	if y0+2 >= h {
-		y0 = max(0, h-3)
-	}
-	// Use Larry's color for the banner background for strong contrast
-	st := tcell.StyleDefault.Background(g.theme.frog).Foreground(tcell.ColorBlack).Bold(true)
-	for dy := 0; dy < 3; dy++ {
-		drawText(g.screen, 0, y0+dy, spaces(w), st)
-	}
-	drawCentered(g.screen, w/2, y0+1, title, st)
+	drawBorderedBox(g.screen, w/2, topY, inner, borderStyle, fillStyle,
+		[]string{"PAUSED", "Space to resume"},
+		[]tcell.Style{fillStyle, tcell.StyleDefault.Foreground(tcell.ColorAqua).Background(boxBg)})
 }
 
 func (g *game) drawNameEntryOverlay() {
@@ -901,35 +1001,61 @@ func (g *game) drawNameEntryOverlay() {
 	if w <= 0 || h <= 0 {
 		return
 	}
-	title := "NEW HIGH SCORE!"
-	// Reserve space for title + scores + prompt (up to 15 lines total)
-	y0 := h/2 - 7
-	if y0 < 0 {
-		y0 = 0
-	}
-	if y0+15 >= h {
-		y0 = max(0, h-16)
-	}
-	st := tcell.StyleDefault.Background(g.theme.frog).Foreground(tcell.ColorBlack).Bold(true)
-	for dy := 0; dy < 16; dy++ {
-		drawText(g.screen, 0, y0+dy, spaces(w), st)
-	}
-	drawCentered(g.screen, w/2, y0+1, title, st)
 	prov := g.getProvisionalScores()
-	// Show top 10 if space allows, otherwise top 3
 	maxScores := 10
-	if y0+3+maxScores+4 >= h { // title + scores + gap + prompt + cursor
+	if h < 20 {
 		maxScores = 3
 	}
-	g.drawHighScoreListAt(w/2, y0+3, st, prov, maxScores)
-	// Prompt for name below the score list
-	promptY := y0 + 3 + maxScores + 1
-	promptText := "Enter Name: "
 	name := g.nameBuffer
 	if name == "" {
 		name = "_"
 	}
-	drawCentered(g.screen, w/2, promptY, promptText+name, st)
+	lines := make([]string, 0, maxScores+5)
+	styles := make([]tcell.Style, 0, maxScores+5)
+	boxBg := tcell.ColorBlack
+	titleSt := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(boxBg).Bold(true)
+	bodySt := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(boxBg)
+	champSt := tcell.StyleDefault.Foreground(tcell.ColorBlack).Background(tcell.ColorYellow).Bold(true)
+	promptSt := tcell.StyleDefault.Foreground(tcell.ColorAqua).Background(boxBg).Bold(true)
+	borderStyle := tcell.StyleDefault.Foreground(g.theme.frog).Background(boxBg).Bold(true)
+
+	lines = append(lines, "NEW HIGH SCORE!")
+	styles = append(styles, titleSt)
+	lines = append(lines, boxDivider)
+	styles = append(styles, bodySt)
+	show := maxScores
+	if show > len(prov) {
+		show = len(prov)
+	}
+	for i := 0; i < show; i++ {
+		e := prov[i]
+		line := fmt.Sprintf("%2d. %-8s  %6d  %s", i+1, e.Name, e.Score, e.Date)
+		lines = append(lines, line)
+		if i == 0 {
+			styles = append(styles, champSt)
+		} else {
+			styles = append(styles, bodySt)
+		}
+	}
+	lines = append(lines, boxDivider)
+	styles = append(styles, bodySt)
+	lines = append(lines, "Enter Name: "+name)
+	styles = append(styles, promptSt)
+
+	inner := 32
+	for _, ln := range lines {
+		if ln == boxDivider {
+			continue
+		}
+		if n := len([]rune(ln)) + 2; n > inner {
+			inner = n
+		}
+	}
+	topY := h/2 - (len(lines)+2)/2
+	if topY < 0 {
+		topY = 0
+	}
+	drawBorderedBox(g.screen, w/2, topY, inner, borderStyle, bodySt, lines, styles)
 }
 
 func (g *game) drawScoreboardOverlay() {
@@ -937,29 +1063,46 @@ func (g *game) drawScoreboardOverlay() {
 	if w <= 0 || h <= 0 {
 		return
 	}
-	title := "GAME OVER"
-	y0 := h/2 - 6
-	if y0 < 0 {
-		y0 = 0
+	boxBg := tcell.ColorBlack
+	borderStyle := tcell.StyleDefault.Foreground(g.theme.frog).Background(boxBg).Bold(true)
+	bodySt := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(boxBg)
+	titleSt := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(boxBg).Bold(true)
+	champSt := tcell.StyleDefault.Foreground(tcell.ColorBlack).Background(tcell.ColorYellow).Bold(true)
+
+	lines := []string{"GAME OVER", boxDivider}
+	styles := []tcell.Style{titleSt, bodySt}
+	show := 10
+	if show > len(g.highScores) {
+		show = len(g.highScores)
 	}
-	if y0+12 >= h {
-		y0 = max(0, h-13)
+	for i := 0; i < show; i++ {
+		e := g.highScores[i]
+		lines = append(lines, fmt.Sprintf("%2d. %-8s  %6d  %s", i+1, e.Name, e.Score, e.Date))
+		if i == 0 {
+			styles = append(styles, champSt)
+		} else {
+			styles = append(styles, bodySt)
+		}
 	}
-	st := tcell.StyleDefault.Background(g.theme.frog).Foreground(tcell.ColorBlack).Bold(true)
-	for dy := 0; dy < 13; dy++ {
-		drawText(g.screen, 0, y0+dy, spaces(w), st)
+	lines = append(lines, boxDivider)
+	styles = append(styles, bodySt)
+	lines = append(lines, fmt.Sprintf("Your Score: %d", g.score))
+	styles = append(styles, tcell.StyleDefault.Foreground(tcell.ColorAqua).Background(boxBg).Bold(true))
+
+	inner := 32
+	for _, ln := range lines {
+		if ln == boxDivider {
+			continue
+		}
+		if n := len([]rune(ln)) + 2; n > inner {
+			inner = n
+		}
 	}
-	drawCentered(g.screen, w/2, y0+1, title, st)
-	g.drawHighScoreListAt(w/2, y0+3, st, g.highScores, 10)
-	// If player didn't make Top 10, show their score/name in the prompt area
-	if len(g.highScores) == 0 || g.score > g.highScores[len(g.highScores)-1].Score {
-		// reached only when no scores; otherwise name entry covers this path
-		// fallback to simple retry prompt
-		drawCentered(g.screen, w/2, y0+11, "Hit Return to Try Again", st)
-	} else {
-		you := fmt.Sprintf("Your Score: %d", g.score)
-		drawCentered(g.screen, w/2, y0+11, you, st)
+	topY := h/2 - (len(lines)+2)/2
+	if topY < 0 {
+		topY = 0
 	}
+	drawBorderedBox(g.screen, w/2, topY, inner, borderStyle, bodySt, lines, styles)
 }
 
 func (g *game) drawHighScoreListAt(cx, startY int, st tcell.Style, list []scoreEntry, maxScores int) {
@@ -1014,14 +1157,13 @@ func max(a, b int) int {
 }
 
 func getLarryASCII() []string {
+	// Letterforms only — outer UTF-8 box is drawn by drawStartScreen
 	return []string{
-		"+------------------------------+",
-		"| L     AAA  RRRR  RRRR  Y   Y |",
-		"| L    A   A R   R R   R  Y Y  |",
-		"| L    AAAAA RRRR  RRRR    Y   |",
-		"| L    A   A R  R  R  R    Y   |",
-		"| LLLL A   A R   R R   R   Y   |",
-		"+------------------------------+",
+		"L     AAA  RRRR  RRRR  Y   Y",
+		"L    A   A R   R R   R  Y Y ",
+		"L    AAAAA RRRR  RRRR    Y  ",
+		"L    A   A R  R  R  R    Y  ",
+		"LLLL A   A R   R R   R   Y  ",
 	}
 }
 
@@ -1031,96 +1173,89 @@ func (g *game) drawStartScreen() {
 		return
 	}
 
-	// Fill background with a nice gradient-like pattern
-	for y := 0; y < h; y++ {
-		var bg tcell.Color
-		switch y % 3 {
-		case 0:
-			bg = g.theme.road
-		case 1:
-			bg = g.theme.river
-		default:
-			bg = g.theme.safe
-		}
-		st := tcell.StyleDefault.Background(bg)
-		for x := 0; x < w; x++ {
-			g.screen.SetContent(x, y, ' ', nil, st)
-		}
-	}
+	// Animated playfield traffic behind the menu
+	g.drawPlayfieldBackground()
+	g.drawVehicles()
 
 	if g.startView == startScores {
 		g.drawStartHighScores()
 		return
 	}
 
-	ascii := getLarryASCII()
-	asciiHeight := len(ascii)
-	startY := h/2 - asciiHeight/2 - 5
-	if startY < 0 {
-		startY = 0
-	}
-
-	titleStyle := tcell.StyleDefault.Foreground(g.theme.frog).Bold(true)
-	for i, line := range ascii {
-		y := startY + i
-		if y >= 0 && y < h {
-			drawCentered(g.screen, w/2, y, line, titleStyle)
-		}
-	}
-
-	subY := startY + asciiHeight + 1
-	if subY >= 0 && subY < h {
-		subStyle := tcell.StyleDefault.Foreground(tcell.ColorLightGray)
-		drawCentered(g.screen, w/2, subY, "Terminal Frogger", subStyle)
-	}
-
-	highScoreY := subY + 2
-	if highScoreY >= 0 && highScoreY < h {
-		var highScoreText string
-		if len(g.highScores) > 0 {
-			topScore := g.highScores[0]
-			highScoreText = fmt.Sprintf("Champion: %d by %s (%s)", topScore.Score, topScore.Name, topScore.Date)
-		} else {
-			highScoreText = "Champion: —"
-		}
-		scoreStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Bold(true)
-		drawCentered(g.screen, w/2, highScoreY, highScoreText, scoreStyle)
-	}
-
-	menuItems := []string{"Start", "High Scores", "Quit"}
-	menuY := highScoreY + 3
-	blinkOn := (time.Now().UnixNano()/int64(time.Millisecond)/400)%2 == 0
-	normalStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite)
+	boxBg := tcell.ColorBlack
+	borderStyle := tcell.StyleDefault.Foreground(g.theme.frog).Background(boxBg).Bold(true)
+	fillStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(boxBg)
+	titleStyle := tcell.StyleDefault.Foreground(g.theme.frog).Background(boxBg).Bold(true)
+	subStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(boxBg)
+	champStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(boxBg).Bold(true)
+	normalStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(boxBg)
 	selectedStyle := tcell.StyleDefault.Background(g.theme.frog).Foreground(tcell.ColorBlack).Bold(true)
+	helpStyle := tcell.StyleDefault.Foreground(tcell.ColorAqua).Background(boxBg).Bold(true)
+	hintStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(boxBg)
 
+	var highScoreText string
+	if len(g.highScores) > 0 {
+		topScore := g.highScores[0]
+		highScoreText = fmt.Sprintf("Champion: %d by %s (%s)", topScore.Score, topScore.Name, topScore.Date)
+	} else {
+		highScoreText = "Champion: —"
+	}
+
+	ascii := getLarryASCII()
+	blinkOn := (time.Now().UnixNano()/int64(time.Millisecond)/400)%2 == 0
+	menuItems := []string{"Start", "High Scores", "Quit"}
+
+	lines := make([]string, 0, 20)
+	styles := make([]tcell.Style, 0, 20)
+	for _, line := range ascii {
+		lines = append(lines, line)
+		styles = append(styles, titleStyle)
+	}
+	lines = append(lines, "")
+	styles = append(styles, fillStyle)
+	lines = append(lines, "Terminal Frogger")
+	styles = append(styles, subStyle)
+	lines = append(lines, highScoreText)
+	styles = append(styles, champStyle)
+	lines = append(lines, boxDivider)
+	styles = append(styles, fillStyle)
 	for i, label := range menuItems {
-		y := menuY + i
-		if y < 0 || y >= h {
-			continue
-		}
 		cursor := "  "
-		style := normalStyle
+		st := normalStyle
 		if i == g.menuIndex {
-			style = selectedStyle
+			st = selectedStyle
 			if blinkOn {
-				cursor = "> "
-			} else {
-				cursor = "  "
+				cursor = "→ "
 			}
 		}
-		drawCentered(g.screen, w/2, y, cursor+label+"  ", style)
+		lines = append(lines, cursor+label)
+		styles = append(styles, st)
 	}
+	lines = append(lines, boxDivider)
+	styles = append(styles, fillStyle)
+	lines = append(lines, "↑↓ Select  ·  Enter Confirm")
+	styles = append(styles, helpStyle)
+	lines = append(lines, "Arrows or WASD to move in game")
+	styles = append(styles, hintStyle)
 
-	helpY := menuY + len(menuItems) + 2
-	if helpY >= 0 && helpY < h {
-		helpStyle := tcell.StyleDefault.Foreground(tcell.ColorLightGray)
-		drawCentered(g.screen, w/2, helpY, "↑↓ Select   Enter Confirm", helpStyle)
+	inner := 34
+	for _, ln := range lines {
+		if ln == boxDivider {
+			continue
+		}
+		if n := len([]rune(ln)) + 2; n > inner {
+			inner = n
+		}
 	}
-	hintY := helpY + 1
-	if hintY >= 0 && hintY < h {
-		hintStyle := tcell.StyleDefault.Foreground(tcell.ColorDarkGray)
-		drawCentered(g.screen, w/2, hintY, "Arrows or WASD to move in game", hintStyle)
+	if inner > w-2 {
+		inner = max(1, w-2)
 	}
+	topY := h/2 - (len(lines)+2)/2
+	if topY < 1 {
+		topY = 1
+	}
+	// Menu drawn last so it stays above moving traffic
+	drawBorderedBox(g.screen, w/2, topY, inner, borderStyle, fillStyle, lines, styles)
 }
 
 func (g *game) drawStartHighScores() {
@@ -1128,38 +1263,53 @@ func (g *game) drawStartHighScores() {
 	if w <= 0 || h <= 0 {
 		return
 	}
-	title := "HIGH SCORES"
-	// title + gap + 10 scores + gap + footer + padding
-	const maxScores = 10
-	panelH := 17
-	if panelH > h {
-		panelH = h
-	}
-	y0 := h/2 - panelH/2
-	if y0 < 0 {
-		y0 = 0
-	}
-	if y0+panelH > h {
-		y0 = max(0, h-panelH)
-	}
-	st := tcell.StyleDefault.Background(g.theme.frog).Foreground(tcell.ColorBlack).Bold(true)
-	for dy := 0; dy < panelH; dy++ {
-		drawText(g.screen, 0, y0+dy, spaces(w), st)
-	}
-	drawCentered(g.screen, w/2, y0+1, title, st)
+	boxBg := tcell.ColorBlack
+	borderStyle := tcell.StyleDefault.Foreground(g.theme.frog).Background(boxBg).Bold(true)
+	fillStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(boxBg)
+	titleStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(boxBg).Bold(true)
+	champStyle := tcell.StyleDefault.Foreground(tcell.ColorBlack).Background(tcell.ColorYellow).Bold(true)
+	hintStyle := tcell.StyleDefault.Foreground(tcell.ColorAqua).Background(boxBg).Bold(true)
+
+	lines := []string{"HIGH SCORES", boxDivider}
+	styles := []tcell.Style{titleStyle, fillStyle}
 	if len(g.highScores) == 0 {
-		drawCentered(g.screen, w/2, y0+panelH/2, "No scores yet — be the first!", st)
+		lines = append(lines, "No scores yet — be the first!")
+		styles = append(styles, fillStyle)
 	} else {
-		show := maxScores
-		// Leave room for title (y0+1), score start (y0+3), and footer (y0+panelH-2)
-		room := (y0 + panelH - 2) - (y0 + 3)
-		if room < show {
-			show = room
-			if show < 1 {
-				show = 1
+		show := 10
+		if show > len(g.highScores) {
+			show = len(g.highScores)
+		}
+		for i := 0; i < show; i++ {
+			e := g.highScores[i]
+			lines = append(lines, fmt.Sprintf("%2d. %-8s  %6d  %s", i+1, e.Name, e.Score, e.Date))
+			if i == 0 {
+				styles = append(styles, champStyle)
+			} else {
+				styles = append(styles, fillStyle)
 			}
 		}
-		g.drawHighScoreListAt(w/2, y0+3, st, g.highScores, show)
 	}
-	drawCentered(g.screen, w/2, y0+panelH-2, "Esc or Enter to return", st)
+	lines = append(lines, boxDivider)
+	styles = append(styles, fillStyle)
+	lines = append(lines, "Esc or Enter to return")
+	styles = append(styles, hintStyle)
+
+	inner := 32
+	for _, ln := range lines {
+		if ln == boxDivider {
+			continue
+		}
+		if n := len([]rune(ln)) + 2; n > inner {
+			inner = n
+		}
+	}
+	if inner > w-2 {
+		inner = max(1, w-2)
+	}
+	topY := h/2 - (len(lines)+2)/2
+	if topY < 1 {
+		topY = 1
+	}
+	drawBorderedBox(g.screen, w/2, topY, inner, borderStyle, fillStyle, lines, styles)
 }
