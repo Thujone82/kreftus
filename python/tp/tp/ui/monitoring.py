@@ -179,6 +179,7 @@ class MonitoringScreen(Screen):
         super().__init__()
         self._display_columns = 1
         self._cached_max_columns = 1
+        self._columns_user_set = False
         self._worker_task: asyncio.Task | None = None
         self._stop_event = asyncio.Event()
         self._errors: list[str] = []
@@ -490,6 +491,10 @@ class MonitoringScreen(Screen):
         return None
 
     def _clamp_display_columns(self) -> None:
+        """Fit column count to width; auto-pick max until the user presses C."""
+        if not self._columns_user_set:
+            self._display_columns = max(1, self._cached_max_columns)
+            return
         if self._cached_max_columns < 2:
             self._display_columns = 1
         elif self._display_columns > self._cached_max_columns:
@@ -499,6 +504,7 @@ class MonitoringScreen(Screen):
         if self._cached_max_columns < 2:
             self._display_columns = 1
             return
+        self._columns_user_set = True
         self._display_columns = (self._display_columns % self._cached_max_columns) + 1
         self.refresh_display()
 

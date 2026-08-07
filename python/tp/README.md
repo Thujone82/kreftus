@@ -62,7 +62,7 @@ From `python/tp/`:
 | `tp.exe` | Standalone executable (PyInstaller) |
 | `tp.pyz` | `python tp.pyz` — requires bleak/textual installed |
 
-Place `tp.ini` and `tp_log.csv` in the same folder as the launcher. The build script uses `build/thermo.ico` for the executable icon.
+Place `tp.ini` and `tp_log.csv` in the same folder as the launcher. The build script upgrades `pip` / packaging tools (and PyInstaller for exe builds) before installing requirements, then uses `build/thermo.ico` for the executable icon.
 
 ## Navigation
 
@@ -103,7 +103,7 @@ Each tracked device shows 5 rows:
 
 ### Multi-column layout
 
-When the terminal is wide enough to fit two or more device blocks side by side (content width plus 2-character padding on each side), **c Columns** appears in the footer. Press **C** to cycle `1 → 2 → … → max → 1`. Press **T** / **Shift+T** to cycle the sparkline time window forward / reverse (Less: `24H → 72H → 4H`; More: `24H → 36H → 72H → 90M → 4H → 8H → 12H`). Devices fill row-major (`1 2` / `3 4` / …). Default is a single column. Narrowing the window clamps the active column count automatically.
+When the terminal is wide enough to fit two or more device blocks side by side (content width plus 2-character padding on each side), **c Columns** appears in the footer. On load, TemPy picks the widest layout that fits. Press **C** to cycle `1 → 2 → … → max → 1` (manual choice is kept until you change it again). Press **T** / **Shift+T** to cycle the sparkline time window forward / reverse (Less: `24H → 72H → 4H`; More: `24H → 36H → 72H → 90M → 4H → 8H → 12H`). Devices fill row-major (`1 2` / `3 4` / …). Narrowing the window clamps the active column count automatically.
 
 The view filter (`-f`) only affects which devices are shown; column layout applies to the filtered set.
 

@@ -19,7 +19,7 @@ Built with **Textual** (UI) and **bleak** (BLE). Default **incremental poll mode
 ### Key Functionality
 
 - **Startup:** Main menu always on stack; push Monitoring if devices exist, else Manage Devices with auto-scan
-- **Monitoring:** 5 rows per device; green/yellow device name by freshness; fetch arrows show BLE step (cyan connect / green sync read / yellow passive); sequential BLE fetch (one device at a time, 60 s timeout); optional multi-column layout (**C**); **T** / **Shift+T** cycle dashboard sparkline window forward / reverse (Less: 24H → 72H → 4H; More: 24H → 36H → 72H → 90M → 4H → 8H → 12H)
+- **Monitoring:** 5 rows per device; green/yellow device name by freshness; fetch arrows show BLE step (cyan connect / green sync read / yellow passive); sequential BLE fetch (one device at a time, 60 s timeout); optional multi-column layout (**C**; auto-fits terminal width on load); **T** / **Shift+T** cycle dashboard sparkline window forward / reverse (Less: 24H → 72H → 4H; More: 24H → 36H → 72H → 90M → 4H → 8H → 12H)
 - **Scheduler:** 5-minute grid (`:00`, `:05`, …); minute retries for devices missing the current chunk
 - **Startup fetch skip:** After log preload, fetch only devices stale for the current chunk (skip all if log is fresh)
 - **Sparkline bootstrap:** When `LoggingEnabled=false`, pull 72H BLE history on monitoring mount for devices with sparse sparklines (before live polling)
@@ -111,7 +111,7 @@ Append after each fetch cycle (including partial retry cycles). Incremental mode
 | Screen | Keys | Purpose |
 |--------|------|---------|
 | Main | 1–5, q | Route to sub-screens; **5** = export log to web; q exits |
-| Monitoring | M/Esc, G, T / Shift+T, 1–9/0, C, q | Dashboard; G = full fetch; T / Shift+T = cycle sparkline window forward / reverse (set by TimeDetail); digit keys = device info; C = cycle columns when wide enough; header = status left, 🌡 TemPy center, clock right |
+| Monitoring | M/Esc, G, T / Shift+T, 1–9/0, C, q | Dashboard; G = full fetch; T / Shift+T = cycle sparkline window forward / reverse (set by TimeDetail); digit keys = device info; C = cycle columns when wide enough (auto-fits width on load); header = status left, 🌡 TemPy center, clock right |
 | Manage Devices | D, A, I, H, E, R, W, S, ↑/↓, M, q | Discover/add/status/history fetch/edit/remove/reorder |
 | Options | L, P, W, E, B, D, F, M, q | Logging toggle, poll mode, time detail (Less/More), log export, debug log toggle, path edits (filename rename + overwrite prompt) |
 
@@ -253,28 +253,29 @@ Windows PowerShell build script in `python/tp/`. Produces two distributable arti
 | `build/thermo.ico` | Source icon for the executable (committed) |
 | UPX (optional) | Only when `-upx` is passed; must be on `PATH` |
 
-PyInstaller is **not** pre-installed — the script runs `pip install pyinstaller` when import fails. Runtime deps come from `pip install -r requirements.txt` at the start of every build.
+PyInstaller is installed/upgraded on demand when building the exe. Before any install or build step, the script upgrades `pip`, `setuptools`, and `wheel` so outdated-pip notices are not buried mid-build. Runtime deps come from `pip install -r requirements.txt` after that.
 
 #### Build flow
 
-1. **Cleanup** — Removes prior outputs for the target(s) being built:
+1. **Tooling updates** — `pip install --upgrade pip setuptools wheel` (and `pyinstaller` later when building the exe)
+
+2. **Cleanup** — Removes prior outputs for the target(s) being built:
    - `-pyz`: `tp.pyz`, `build/zipapp/`
    - `-exe`: `tp.exe`, `build/pyinstaller/`, `build/thermo-embedded.ico`
    - no flags (both): all of the above
    - Preserves `build/thermo.ico` and the artifact not being rebuilt
 
-2. **Dependencies** — `pip install -r requirements.txt`
+3. **Dependencies** — `pip install -r requirements.txt`
 
-3. **Output 1: `tp.pyz`** (compressed Python zipapp)
+4. **Output 1: `tp.pyz`** (compressed Python zipapp)
    - Stage `build/zipapp/`: copy `tp.py` → `__main__.py`, copy `tp/` package
    - Strip `__pycache__` from staging tree
    - `python -m zipapp build/zipapp -o tp.pyz -p . -c`
    - **Does not bundle** bleak/textual — target machine needs `pip install -r requirements.txt`
    - Prints `tp.pyz build complete.`
 
-4. **PyInstaller check** — Install PyInstaller if missing
-
 5. **Output 2: `tp.exe`** (standalone Windows executable)
+   - Install/upgrade PyInstaller (`pip install --upgrade pyinstaller`)
    - Run `prepare_icon.py build/thermo.ico build/thermo-embedded.ico` — strips PNG-compressed ICO entries so Explorer shows the custom icon (see below)
    - PyInstaller `--onefile` with absolute path to prepared icon
    - `--noupx` on PyInstaller (UPX is opt-in via script flag, not automatic)

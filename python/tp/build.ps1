@@ -5,7 +5,9 @@
       1. tp.pyz  — compressed Python zipapp (run with: python tp.pyz)
       2. tp.exe  — standalone Windows executable (PyInstaller)
 
-    Requires Python 3.11+ in PATH. Installs PyInstaller automatically when missing.
+    Requires Python 3.11+ in PATH. Before building, upgrades pip / packaging tools
+    (and PyInstaller when building the exe) so mid-build "pip is out of date" notices
+    are not missed. Installs PyInstaller automatically when missing.
 
     Usage:
       ./build.ps1           # both tp.pyz and tp.exe
@@ -25,6 +27,22 @@ if (-not $buildPyz -and -not $buildExe) {
     $buildExe = $true
 }
 
+function Invoke-PipUpgrade {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Packages,
+        [Parameter(Mandatory = $true)]
+        [string]$Label
+    )
+    Write-Host $Label -ForegroundColor Cyan
+    Write-Host ("  packages: " + ($Packages -join ', ')) -ForegroundColor DarkGray
+    python -m pip install --upgrade @Packages | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to upgrade: $($Packages -join ', ')"
+        exit 1
+    }
+}
+
 Write-Host "Starting build process for tp..." -ForegroundColor Cyan
 
 # --- Prerequisites ---
@@ -38,6 +56,11 @@ if (-not (Test-Path "tp.py")) {
     Write-Error "tp.py not found. Run this script from python/tp/."
     exit 1
 }
+
+# --- Tooling updates (before any install/build work) ---
+# pip itself often prints "You should consider upgrading" during later installs;
+# refresh it first so the notice is acted on instead of buried in build output.
+Invoke-PipUpgrade -Packages @('pip', 'setuptools', 'wheel') -Label "Checking build tooling for updates..."
 
 $buildRoot = ".\build"
 $iconPath = Join-Path $buildRoot "thermo.ico"
@@ -98,16 +121,7 @@ if (-not $buildExe) {
     exit 0
 }
 
-Write-Host "Checking for PyInstaller..."
-python -c "import PyInstaller" 2>$null
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "PyInstaller not found. Installing..." -ForegroundColor Yellow
-    python -m pip install pyinstaller | Out-Host
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to install PyInstaller."
-        exit 1
-    }
-}
+Invoke-PipUpgrade -Packages @('pyinstaller') -Label "Ensuring PyInstaller is installed and up to date..."
 
 Write-Host "tp.py -> tp.exe..." -ForegroundColor Cyan
 if (-not (Test-Path $iconPath)) {
