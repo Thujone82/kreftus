@@ -93,6 +93,7 @@ type game struct {
 	showStartScreen bool
 	startView       int // startMenu | startScores
 	menuIndex       int // 0 Start, 1 High Scores, 2 Quit
+	confirmMenu     bool // Esc confirm: return to main menu?
 }
 
 type scoreEntry struct {
@@ -173,7 +174,7 @@ func main() {
 		case ev := <-events:
 			switch e := ev.(type) {
 			case *tcell.EventResize:
-				g.resize()
+				g.resize(e)
 			case *tcell.EventKey:
 				if g.handleQuit(e) {
 					return
@@ -192,12 +193,21 @@ func main() {
 	}
 }
 
-func (g *game) resize() {
-	// Recreate the world on resize to keep HUD/top/bottom shoulders correct
-	g.width, g.height = g.screen.Size()
-	if g.width <= 0 || g.height <= 0 {
+func (g *game) resize(e *tcell.EventResize) {
+	// Sync remaps the console buffer to the new size; without it the right/bottom
+	// edge keeps the old dimensions and stops updating after a resize.
+	g.screen.Sync()
+	w, h := 0, 0
+	if e != nil {
+		w, h = e.Size()
+	}
+	if w <= 0 || h <= 0 {
+		w, h = g.screen.Size()
+	}
+	if w <= 0 || h <= 0 {
 		return
 	}
+	g.width, g.height = w, h
 	g.hudY = 0
 	g.safeTopY = 1
 	g.safeBottomY = g.height - 1
@@ -205,7 +215,10 @@ func (g *game) resize() {
 	g.frogX = g.width / 2
 	g.frogY = g.safeBottomY
 	g.highestY = g.frogY
+	g.lastRenderedScore = -1 // force HUD redraw at new width
 	g.createLanes()
+	g.updateHUD()
+	g.render()
 }
 
 func (g *game) respawnAtStart() {
@@ -268,36 +281,41 @@ func (g *game) createLanes() {
 	}
 	g.lanes = g.lanes[:0]
 	g.safeRow = make([]bool, h)
-	// shoulders are always safe
-	if h > 0 {
-		g.safeRow[0] = true
+	// Top/bottom playfield shoulders are always safe (HUD at row 0 is not playable)
+	if g.safeTopY >= 0 && g.safeTopY < h {
+		g.safeRow[g.safeTopY] = true
 	}
-	if h > 1 {
-		g.safeRow[h-1] = true
+	if g.safeBottomY >= 0 && g.safeBottomY < h {
+		g.safeRow[g.safeBottomY] = true
 	}
-	// Generate roads: 4-6 lanes in one direction, then a safe gap of 1-3 rows, then flip direction.
+	// Generate roads: packs of lanes in one direction, then a safe gap, then flip.
 	// Playfield between safeTopY and safeBottomY; HUD is at row 0.
 	y := g.safeTopY + 1
 	dirRight := g.rng.IntN(2) == 0
 	for y < h-1 {
-		// Road segment
-		lanesThisRoad := 4 + g.rng.IntN(3) // 4..6
+		// Road pack size grows slowly with level (was 4–6 from the start)
+		minLanes, maxLanes := 3, 4
+		if g.level >= 5 {
+			minLanes, maxLanes = 3, 5
+		}
+		if g.level >= 10 {
+			minLanes, maxLanes = 4, 6
+		}
+		lanesThisRoad := minLanes + g.rng.IntN(maxLanes-minLanes+1)
 		if lanesThisRoad > 8 {
 			lanesThisRoad = 8
 		}
-		// Adjust density and speed by level
+
+		// Difficulty curve: L1 easy; former L6 intensity arrives around L10
 		var densityFactor, speedFactor float64
-		if g.level <= 5 {
-			// Original progression for levels 1-5
-			densityFactor = 0.5 + 0.05*float64(max(0, g.level-1)) // 0.5 at L1, +5% each level
-			speedFactor = 0.67 + 0.05*float64(max(0, g.level-1))  // ~33% slower at L1, +5% each level
+		if g.level <= 10 {
+			// L1 density ~0.36 (~10% easier than 0.4); L10 ~0.75 (old L6 density)
+			densityFactor = 0.36 + 0.043*float64(g.level-1)
+			// L1 speed ~0.60; L10 ~0.92 (old L6 speed)
+			speedFactor = 0.60 + 0.035*float64(g.level-1)
 		} else {
-			// New progression after level 5
-			// Speed increases each level after 5
-			speedFactor = 0.92 + 0.08*float64(g.level-5) // Start at 0.92, +8% each level after 5
-			// Density only increases every 5 levels after level 5 (at levels 10, 15, 20, etc.)
-			densityIncreases := (g.level - 5) / 5
-			densityFactor = 0.75 + 0.1*float64(densityIncreases) // Start at 0.75, +10% every 5 levels
+			densityFactor = 0.75 + 0.05*float64(g.level-10)
+			speedFactor = 0.92 + 0.04*float64(g.level-10)
 		}
 
 		// Apply caps
@@ -362,8 +380,12 @@ func (g *game) createLanes() {
 			}
 			y++
 		}
-		// Safe gap 1-3 lines
-		gap := 1 + g.rng.IntN(3)
+		// Safe gaps: wider early, tighten toward late game
+		gapMin, gapSpan := 2, 3 // 2..4
+		if g.level >= 10 {
+			gapMin, gapSpan = 1, 3 // 1..3
+		}
+		gap := gapMin + g.rng.IntN(gapSpan)
 		for gi := 0; gi < gap && y < g.safeBottomY; gi++ {
 			if y >= 0 && y < h {
 				g.safeRow[y] = true
@@ -380,6 +402,10 @@ func (g *game) handleInput(e *tcell.EventKey) bool {
 	if g.showStartScreen {
 		return g.handleStartInput(e)
 	}
+	// Return-to-menu confirmation (opened by Esc)
+	if g.confirmMenu {
+		return g.handleConfirmMenuInput(e)
+	}
 	// ignore inputs for a brief period after death/gameover to prevent buffered arrows into name field
 	if time.Now().Before(g.acceptInputAfter) {
 		return false
@@ -389,9 +415,6 @@ func (g *game) handleInput(e *tcell.EventKey) bool {
 		switch e.Key() {
 		case tcell.KeyEnter:
 			g.commitScoreName()
-			return false
-		case tcell.KeyEscape:
-			g.enteringName = false
 			return false
 		case tcell.KeyUp, tcell.KeyDown, tcell.KeyLeft, tcell.KeyRight:
 			return false
@@ -541,6 +564,31 @@ func (g *game) activateMenuItem() bool {
 	return false
 }
 
+func (g *game) handleConfirmMenuInput(e *tcell.EventKey) bool {
+	switch e.Key() {
+	case tcell.KeyEnter:
+		g.returnToMainMenu()
+		return false
+	case tcell.KeyRune:
+		switch e.Rune() {
+		case 'y', 'Y':
+			g.returnToMainMenu()
+		case 'n', 'N':
+			g.confirmMenu = false
+		}
+	}
+	return false
+}
+
+func (g *game) returnToMainMenu() {
+	g.confirmMenu = false
+	g.paused = false
+	g.enteringName = false
+	g.nameBuffer = ""
+	g.gameOver = false
+	g.resetGame()
+}
+
 func (g *game) clampFrog() {
 	if g.frogX < 0 {
 		g.frogX = 0
@@ -548,11 +596,12 @@ func (g *game) clampFrog() {
 	if g.frogX >= g.width {
 		g.frogX = max(0, g.width-1)
 	}
-	if g.frogY < 0 {
-		g.frogY = 0
+	// Cannot enter the HUD row; top of playfield is the goal shoulder
+	if g.frogY < g.safeTopY {
+		g.frogY = g.safeTopY
 	}
-	if g.frogY >= g.height {
-		g.frogY = max(0, g.height-1)
+	if g.frogY > g.safeBottomY {
+		g.frogY = g.safeBottomY
 	}
 }
 
@@ -580,6 +629,9 @@ func (g *game) update() {
 		return
 	}
 	if g.paused {
+		return
+	}
+	if g.confirmMenu {
 		return
 	}
 	if g.enteringName {
@@ -616,13 +668,14 @@ func (g *game) update() {
 		}
 	}
 
-	// Reached goal at top safe row
-	if g.frogY == g.safeTopY {
+	// Reached goal at (or above) top safe shoulder — advance level
+	if g.frogY <= g.safeTopY {
 		g.score += 100 * g.level
 		if g.score > g.topScore {
 			g.topScore = g.score
 		}
 		g.nextLevel()
+		return
 	}
 
 	// Per-second score decay while level is active
@@ -703,7 +756,9 @@ func (g *game) render() {
 	s.SetContent(g.frogX, g.frogY, glyphLarry, nil, frogStyle)
 
 	// Ensure overlays are drawn last, on top of vehicles and frog
-	if g.enteringName {
+	if g.confirmMenu {
+		g.drawConfirmMenuOverlay()
+	} else if g.enteringName {
 		g.drawNameEntryOverlay()
 	} else if g.gameOver {
 		g.drawScoreboardOverlay()
@@ -787,6 +842,8 @@ func (g *game) resetGame() {
 	g.frogY = g.safeBottomY
 	g.highestY = g.frogY
 	g.gameOver = false
+	g.confirmMenu = false
+	g.paused = false
 	g.showStartScreen = true
 	g.startView = startMenu
 	g.menuIndex = 0
@@ -847,13 +904,24 @@ func (g *game) handleQuit(e *tcell.EventKey) bool {
 	if e.Key() == tcell.KeyCtrlC {
 		return true
 	}
-	if e.Key() == tcell.KeyEscape {
-		// Esc from high scores returns to the menu (handled in handleStartInput)
-		if g.showStartScreen && g.startView == startScores {
-			return false
-		}
+	if e.Key() != tcell.KeyEscape {
+		return false
+	}
+	// Esc on high scores returns to the start menu
+	if g.showStartScreen && g.startView == startScores {
+		return false
+	}
+	// Esc on the main menu exits the app
+	if g.showStartScreen {
 		return true
 	}
+	// Esc during confirm cancels and resumes
+	if g.confirmMenu {
+		g.confirmMenu = false
+		return false
+	}
+	// Esc during play / name entry → confirm return to menu
+	g.confirmMenu = true
 	return false
 }
 
@@ -960,7 +1028,7 @@ func (g *game) updateHUD() {
 	// Build the HUD string with UTF-8 separators
 	w := g.width
 	left := fmt.Sprintf("Score:%d  │  Level:%d  │  Lives:%d", g.score, g.level, g.lives)
-	help := "  (Space:Pause Esc:Quit)"
+	help := "  (Space:Pause Esc:Menu)"
 	right := fmt.Sprintf("Top:%d  ·  Best:%d", g.topScore, g.historyTop)
 	if len([]rune(left))+len(help)+len([]rune(right))+1 <= w {
 		left += help
@@ -994,6 +1062,30 @@ func (g *game) drawPauseOverlay() {
 	drawBorderedBox(g.screen, w/2, topY, inner, borderStyle, fillStyle,
 		[]string{"PAUSED", "Space to resume"},
 		[]tcell.Style{fillStyle, tcell.StyleDefault.Foreground(tcell.ColorAqua).Background(boxBg)})
+}
+
+func (g *game) drawConfirmMenuOverlay() {
+	w, h := g.width, g.height
+	if w <= 0 || h <= 0 {
+		return
+	}
+	boxBg := tcell.ColorBlack
+	borderStyle := tcell.StyleDefault.Foreground(g.theme.frog).Background(boxBg).Bold(true)
+	fillStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(boxBg).Bold(true)
+	hintStyle := tcell.StyleDefault.Foreground(tcell.ColorAqua).Background(boxBg)
+	inner := 28
+	topY := h/2 - 3
+	if topY < 0 {
+		topY = 0
+	}
+	drawBorderedBox(g.screen, w/2, topY, inner, borderStyle, fillStyle,
+		[]string{
+			"Return to main menu?",
+			"",
+			"[Y] Yes    [N] No",
+			"Esc cancels",
+		},
+		[]tcell.Style{fillStyle, fillStyle, hintStyle, hintStyle})
 }
 
 func (g *game) drawNameEntryOverlay() {

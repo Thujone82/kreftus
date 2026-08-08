@@ -35,7 +35,10 @@ For best vehicle/Larry glyph rendering (`▶` `◀` `⬢`) on Windows, use a mod
   - Quit — exit the game
 - Move: Arrow keys or WASD
 - Pause: Space
-- Quit: Esc (from the high scores list, Esc returns to the start menu)
+- Esc during play: confirm return to main menu (Y/Enter = yes, N/Esc = no)
+- Esc on main menu: exit the game
+- Esc on high scores: return to the start menu
+- Ctrl+C: exit immediately
 
 ## Scoring
 - +10 for each new upward row reached within a level
