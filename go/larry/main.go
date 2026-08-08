@@ -47,11 +47,14 @@ const (
 
 // UTF-8 gameplay glyphs (escapes keep source encoding-safe)
 const (
-	glyphLarry = '\u2B22' // BLACK HEXAGON
-	glyphRight = '\u25B6' // BLACK RIGHT-POINTING TRIANGLE
-	glyphLeft  = '\u25C0' // BLACK LEFT-POINTING TRIANGLE
-	glyphBlock = '\u2588' // FULL BLOCK
-	glyphRail  = '\u2550' // BOX DRAWINGS DOUBLE HORIZONTAL
+	glyphLarry   = '\u2B22' // BLACK HEXAGON
+	glyphRight   = '\u25B6' // BLACK RIGHT-POINTING TRIANGLE
+	glyphLeft    = '\u25C0' // BLACK LEFT-POINTING TRIANGLE
+	glyphBlock   = '\u2588' // FULL BLOCK
+	glyphRail    = '\u2550' // BOX DRAWINGS DOUBLE HORIZONTAL
+	glyphTruck   = '\u2593' // ▓ dark shade — truck box
+	glyphBike    = '\u25A9' // ▩ crosshatch — motorcycle body
+	glyphCarBox  = '\u25D9' // ◙ inverse circle — car box
 )
 
 
@@ -251,9 +254,6 @@ func (g *game) initLevel(level int) {
 
 func (g *game) nextLevel() {
 	g.level++
-	if g.level > 9 {
-		g.level = 1
-	}
 	// Keep score/lives, reposition frog
 	g.width, g.height = g.screen.Size()
 	g.hudY = 0
@@ -328,30 +328,42 @@ func (g *game) createLanes() {
 
 		for li := 0; li < lanesThisRoad && y < h-1; li++ {
 			// Vehicle class selection per lane
-			vehType := g.rng.IntN(3) // 0 compact, 1 regular, 2 semi
+			vehType := g.rng.IntN(3) // 0 motorcycle/compact, 1 car, 2 truck/semi
 			var minSpd, maxSpd int
 			var color tcell.Color
 			var glyph []rune
 			switch vehType {
-			case 0: // compact
+			case 0: // motorcycle / compact — mix rail and ▩ bodies
 				minSpd, maxSpd = 3, 5
 				color = g.theme.carSmall
-				if dirRight {
-					glyph = []rune{glyphRail, glyphRight}
-				} else {
-					glyph = []rune{glyphLeft, glyphRail}
+				body := glyphRail
+				if g.rng.IntN(2) == 0 {
+					body = glyphBike
 				}
-			case 1: // regular
+				if dirRight {
+					glyph = []rune{body, glyphRight}
+				} else {
+					glyph = []rune{glyphLeft, body}
+				}
+			case 1: // car — mix █ and ◙ bodies
 				minSpd, maxSpd = 2, 4
 				color = g.theme.carRegular
-				glyph = []rune{glyphLeft, glyphBlock, glyphRight}
-			default: // 2: semi
+				body := glyphBlock
+				if g.rng.IntN(2) == 0 {
+					body = glyphCarBox
+				}
+				glyph = []rune{glyphLeft, body, glyphRight}
+			default: // 2: truck/semi — mix █ and ▓ boxes
 				minSpd, maxSpd = 1, 3
 				color = g.theme.carSemi
+				box := glyphBlock
+				if g.rng.IntN(2) == 0 {
+					box = glyphTruck
+				}
 				if dirRight {
-					glyph = []rune{glyphBlock, glyphBlock, glyphBlock, glyphBlock, glyphRight}
+					glyph = []rune{box, box, box, box, glyphRight}
 				} else {
-					glyph = []rune{glyphLeft, glyphBlock, glyphBlock, glyphBlock, glyphBlock}
+					glyph = []rune{glyphLeft, box, box, box, box}
 				}
 			}
 			length := len(glyph)

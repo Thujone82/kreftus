@@ -18,9 +18,9 @@ Kreft & GPT-5
 - Level progression with changing themes
 - Lives, per-line progression score, and session Top score
 - Distinct vehicle classes per lane:
-  - Compact car: length 2, speeds 3–5, glyphs: `═▶` (right) / `◀═` (left)
-  - Regular car: length 3, speeds 2–4, glyph: `◀█▶`
-  - Semi trailer: length 5, speeds 1–3, glyphs: `████▶` (right) / `◀████` (left)
+  - Motorcycle/compact: length 2, speeds 3–5, bodies `═` or `▩` with `▶`/`◀`
+  - Car: length 3, speeds 2–4, body `█` or `◙` with `◀…▶`
+  - Truck/semi: length 5, speeds 1–3, boxes `█` or `▓` with `▶`/`◀`
 - UTF-8 menus, overlays, and HUD separators (Windows: CP65001 + Cascadia Mono when available)
 - Resize-aware rendering
 - Top-10 scoreboard with name entry and saved history (MMDDYY date)
