@@ -55,6 +55,8 @@ const (
 	glyphTruck   = '\u2593' // ▓ dark shade — truck box
 	glyphBike    = '\u25A9' // ▩ crosshatch — motorcycle body
 	glyphCarBox  = '\u25D9' // ◙ inverse circle — car box
+	glyphGoalA   = '\u259A' // ▚ goal checker
+	glyphGoalB   = '\u259E' // ▞ goal checker
 )
 
 
@@ -119,6 +121,7 @@ func main() {
 	}()
 
 	enableUTF8Console()
+	resizeToPreferred()
 
 	s, err := tcell.NewScreen()
 	if err != nil {
@@ -128,6 +131,8 @@ func main() {
 		panic(err)
 	}
 	enableUTF8Console() // re-apply CP65001 + Unicode font after tcell init
+	resizeToPreferred()
+	s.Sync()
 	defer s.Fini()
 	s.Clear()
 	s.HideCursor()
@@ -702,10 +707,20 @@ func (g *game) update() {
 func (g *game) drawPlayfieldBackground() {
 	w, h := g.width, g.height
 	for y := 0; y < h; y++ {
-		var bg tcell.Color
 		if y == g.safeTopY {
-			bg = g.theme.goal
-		} else if y == g.safeBottomY || (y >= 0 && y < len(g.safeRow) && g.safeRow[y]) {
+			// Checker pattern marks the goal line clearly
+			st := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(g.theme.goal).Bold(true)
+			for x := 0; x < w; x++ {
+				ch := glyphGoalA
+				if x%2 == 1 {
+					ch = glyphGoalB
+				}
+				g.screen.SetContent(x, y, ch, nil, st)
+			}
+			continue
+		}
+		var bg tcell.Color
+		if y == g.safeBottomY || (y >= 0 && y < len(g.safeRow) && g.safeRow[y]) {
 			bg = g.theme.safe
 		} else if y%2 == 0 {
 			bg = g.theme.road

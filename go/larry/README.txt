@@ -28,6 +28,8 @@ Kreft & GPT-5
 ## Notes
 For best vehicle/Larry glyph rendering (`▶` `◀` `⬢`) on Windows, use a modern console font such as **Cascadia Mono** (Windows Terminal default). Larry selects it automatically when installed.
 
+On launch, Larry requests a **50×42** console size (the playtested layout). Windows Terminal and some hosts may ignore resize requests; set the profile size manually if needed.
+
 ## Controls
 - Start menu: ↑↓ or W/S to select, Enter/Space to confirm
   - Start — begin a new game
