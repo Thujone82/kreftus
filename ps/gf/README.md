@@ -26,7 +26,7 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
   - Moon phase information with emoji and next full moon date.
   - **All times displayed in location's timezone:** Hourly forecasts, sunrise, sunset, and update times are shown in the destination location's local timezone, not your system's timezone.
   - Weather alerts and warnings.
-  - **Wild Fire Info** (NIFC WFIGS): when wildfires are within the search radius (default **50 mi**), lists size, containment, behavior, distance/direction (same mi + cardinal notation as NOAA tide stations), and InciWeb / state map links. Terse / Current Conditions one-liner for the largest nearby fire: `Fire:` label, acres, ✅ when 100% contained (else `%`), rounded miles + cardinal, `(N)` when multiple; behavior only in the full section. Use **`-wf` / `-wildfire N`** to set radius in miles; **`-wf 0`** disables wildfire API and UI for that run.
+  - **Wild Fire Info** (NIFC WFIGS): when wildfires are within the search radius (default **50 mi**), lists size, containment, behavior, distance/direction (same mi + cardinal notation as NOAA tide stations), and InciWeb / state map links. Terse / Current Conditions one-liner for the largest nearby fire: `Fire:` label, acres, ✅ when 100% contained (else `%`), rounded miles + cardinal, `(N)` when multiple; behavior only in the full section. Use **`-wf` / `-wildfire N`** to set radius in miles; **`-wf 0`** disables wildfire API and UI for that run. See **Smart Color-Coding** below for wildfire color rules.
   - AQI line (AirNow) after Wind when configured: requires your own **AirNow API key** in the persisted Windows **User** environment variable **`AirNowAPI`** (not stored in the script). Use **`.\gf.ps1 -aqi`** to set or validate the key (see [Parameters](#parameters)). When the variable is unset, AQI is omitted.
   - Rain likelihood forecast with visual sparklines.
   - Wind outlook forecast with direction glyphs.
@@ -52,6 +52,10 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
   - **Pressure (Observations only):** Barometric pressure in inHg: Cyan (<29.50), White (29.50–30.20), Yellow (>30.20), Red (extreme: <29.0 or >30.5)
   - **Clouds (Observations only):** When data is available, "Clouds:" is shown on the same line as Conditions (white label, gray data). Codes: SKC (clear), FEW (few), SCT (scattered), BKN (broken), OVC (overcast), VV (vertical visibility). Omitted when not available
   - **Wildfire acres:** Default (<100 ac), Yellow (100–999), Red (1,000–99,999), Magenta (≥100,000) — applied to the acres value in terse and full Wild Fire Info displays
+  - **Wildfire Fire: label (terse):** Red
+  - **Wildfire fire name (full Wild Fire Info):** Yellow; distance and cardinal use the default color
+  - **Wildfire containment (full Wild Fire Info):** Green when Contained is 100%; otherwise default
+  - **Wildfire behavior (full Wild Fire Info):** Yellow when primary Behavior matches Active, Extreme, or Critical (case-insensitive); otherwise default
   - **AQI (Current conditions):**
     - `AQI:` label is always White.
     - `CategoryName` color uses highest category number from O3/PM2.5:

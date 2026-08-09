@@ -1439,7 +1439,6 @@ function normalizeNifcWildFireIncidents(apiData, lat, lon, distanceMiles = WILDF
             if (!name) continue;
 
             const acres = a.IncidentSize != null && Number.isFinite(Number(a.IncidentSize)) ? Number(a.IncidentSize) : null;
-            const discoveryAcres = a.DiscoveryAcres != null && Number.isFinite(Number(a.DiscoveryAcres)) ? Number(a.DiscoveryAcres) : null;
             const contained = a.PercentContained != null && Number.isFinite(Number(a.PercentContained)) ? Number(a.PercentContained) : null;
 
             const behaviorParts = [];
@@ -1465,7 +1464,6 @@ function normalizeNifcWildFireIncidents(apiData, lat, lon, distanceMiles = WILDF
             results.push({
                 name,
                 acres,
-                discoveryAcres,
                 contained,
                 behavior,
                 behaviorDetail,

@@ -34,7 +34,11 @@
     - Dew Point: Cyan (<40°F), White (40-54°F), Yellow (55-64°F), Red (≥65°F)
     - Pressure (Observations): Cyan (<29.50 inHg), White (29.50-30.20), Yellow (>30.20), Alert (extreme)
     - Clouds (Observations): When the station provides cloud data, "Clouds:" is shown on the same line as Conditions (label white, data gray). Codes: SKC (clear), FEW (few), SCT (scattered), BKN (broken), OVC (overcast), VV (vertical visibility; sky obscured). Omitted when not available.
-    - Wildfire acres: Default (<100 ac), Yellow (100-999), Red (1,000-99,999), Magenta (≥100,000)
+    - Wildfire acres: Default (<100 ac), Yellow (100-999), Red (1,000-99,999), Magenta (≥100,000) — acres value in terse and full Wild Fire Info
+    - Wildfire Fire: label (terse): Red
+    - Wildfire fire name (full Wild Fire Info): Yellow; distance/cardinal use default
+    - Wildfire containment (full Wild Fire Info): Green when Contained is 100%; otherwise default
+    - Wildfire behavior (full Wild Fire Info): Yellow when primary Behavior matches active, extreme, or critical (case-insensitive); otherwise default
     
 .PARAMETER Location
     The location for which to retrieve weather. Can be a 5-digit US zip code or a "City, State" string, or 'here'.
@@ -290,6 +294,8 @@ if ($Help -or (($Terse.IsPresent -or $TerseAlert.IsPresent -or $Alerts.IsPresent
     Write-Host "                • Optional AQI in weather requires AirNowAPI; see README.md" -ForegroundColor Gray
     Write-Host "  -wf, -Wildfire N  Wildfire search radius in miles (default 50). Use 0 to disable wildfire API/UI" -ForegroundColor Cyan
     Write-Host "                • Acres color: Default (<100), Yellow (100-999), Red (1,000-99,999), Magenta (≥100,000)" -ForegroundColor Gray
+    Write-Host "                • Full section: fire name Yellow; Contained 100% Green; Behavior Yellow if Active/Extreme/Critical" -ForegroundColor Gray
+    Write-Host "                • Terse Fire: label Red; acres colored as above; 100% containment shown as checkmark" -ForegroundColor Gray
     Write-Host "  -u, -NoAutoUpdate Start with automatic updates disabled" -ForegroundColor Cyan
     Write-Host "  -b, -NoBar    Start with control bar hidden" -ForegroundColor Cyan
     Write-Host "  -x, -NoInteractive Exit immediately (no interactive mode)" -ForegroundColor Cyan
@@ -6137,8 +6143,6 @@ function Get-WildFireIncidentsFromApiResponse {
 
             $acres = $null
             try { if ($null -ne $a.IncidentSize) { $acres = [double]$a.IncidentSize } } catch {}
-            $discoveryAcres = $null
-            try { if ($null -ne $a.DiscoveryAcres) { $discoveryAcres = [double]$a.DiscoveryAcres } } catch {}
             $contained = $null
             try { if ($null -ne $a.PercentContained) { $contained = [double]$a.PercentContained } } catch {}
 
@@ -6165,7 +6169,6 @@ function Get-WildFireIncidentsFromApiResponse {
             $results += [pscustomobject]@{
                 Name            = $name
                 Acres           = $acres
-                DiscoveryAcres  = $discoveryAcres
                 Contained       = $contained
                 Behavior        = $behavior
                 BehaviorDetail  = $behaviorDetail
@@ -6221,27 +6224,24 @@ function Show-WildFireInfo {
         } else {
             Write-Host "—" -ForegroundColor $DefaultColor -NoNewline
         }
-        $contPart = if ($null -ne $f.Contained) { "Contained: $([Math]::Round([double]$f.Contained, 0))%" } else { "Contained: —" }
         $behPart = if ($f.Behavior) {
             if ($f.BehaviorDetail) { "Behavior: $($f.Behavior) ($($f.BehaviorDetail))" } else { "Behavior: $($f.Behavior)" }
         } else { "Behavior: —" }
-        # Contained/Behavior stay default (or yellow for extreme behavior); do not paint the whole stats line red for <100% containment
-        $line2Color = $DefaultColor
-        if ($f.Behavior -match '(?i)active|extreme|critical') { $line2Color = "Yellow" }
-        Write-Host " · $contPart · $behPart" -ForegroundColor $line2Color
+        $contColor = $DefaultColor
+        if ($null -ne $f.Contained -and [Math]::Round([double]$f.Contained, 0) -ge 100) {
+            $contColor = "Green"
+        }
+        $behColor = $DefaultColor
+        if ($f.Behavior -match '(?i)active|extreme|critical') { $behColor = "Yellow" }
+        Write-Host " · " -ForegroundColor $DefaultColor -NoNewline
+        if ($null -ne $f.Contained) {
+            Write-Host "Contained: $([Math]::Round([double]$f.Contained, 0))%" -ForegroundColor $contColor -NoNewline
+        } else {
+            Write-Host "Contained: —" -ForegroundColor $DefaultColor -NoNewline
+        }
+        Write-Host " · $behPart" -ForegroundColor $behColor
 
         $line3Parts = @()
-        $discStr = Format-WildFireAcres -Acres $f.DiscoveryAcres
-        if ($acresStr -and $discStr -and $null -ne $f.Acres -and $null -ne $f.DiscoveryAcres -and [double]$f.Acres -gt [double]$f.DiscoveryAcres) {
-            $discColor = Get-WildFireAcresForegroundColor -Acres $f.DiscoveryAcres -DefaultColor $DefaultColor
-            Write-Host "Grown: " -ForegroundColor $DefaultColor -NoNewline
-            Write-Host "$discStr" -ForegroundColor $discColor -NoNewline
-            Write-Host "→" -ForegroundColor $DefaultColor -NoNewline
-            Write-Host "${acresStr} ac" -ForegroundColor $acresColor -NoNewline
-            $line3HasGrown = $true
-        } else {
-            $line3HasGrown = $false
-        }
         if ($f.Cause) { $line3Parts += "Cause: $($f.Cause)" }
         $place = @()
         if ($f.County) { $place += $f.County }
@@ -6252,14 +6252,8 @@ function Show-WildFireInfo {
             $place += $stCode
         }
         if ($place.Count -gt 0) { $line3Parts += ($place -join ', ') }
-        if ($line3HasGrown -or $line3Parts.Count -gt 0) {
-            if ($line3HasGrown -and $line3Parts.Count -gt 0) {
-                Write-Host (" · " + ($line3Parts -join ' · ')) -ForegroundColor $DefaultColor
-            } elseif ($line3HasGrown) {
-                Write-Host ""
-            } else {
-                Write-Host ($line3Parts -join ' · ') -ForegroundColor $DefaultColor
-            }
+        if ($line3Parts.Count -gt 0) {
+            Write-Host ($line3Parts -join ' · ') -ForegroundColor $DefaultColor
         }
         if ($f.ShortDesc) {
             Write-Host $f.ShortDesc -ForegroundColor Gray

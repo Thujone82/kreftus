@@ -1193,13 +1193,6 @@ function displayWildFireInfo(wildFires, sectionAnchorId) {
         html += `<div class="wildfire-stats">${sizeHtml} · <span class="${line2Class}">${escapeHtml(contPart)} · ${escapeHtml(behPart)}</span></div>`;
 
         const line3 = [];
-        const discStr = typeof formatWildFireAcres === 'function' ? formatWildFireAcres(f.discoveryAcres) : null;
-        const discClass = typeof getWildFireAcresClass === 'function' ? getWildFireAcresClass(f.discoveryAcres) : '';
-        let grownHtml = '';
-        if (acresStr && discStr && f.acres != null && f.discoveryAcres != null && Number(f.acres) > Number(f.discoveryAcres)) {
-            const discSpan = `<span class="wildfire-acres${discClass ? ` ${discClass}` : ''}">${escapeHtml(discStr)}</span>`;
-            grownHtml = `Grown: ${discSpan}→${acresSpan}`;
-        }
         if (f.cause) line3.push(`Cause: ${f.cause}`);
         const place = [];
         if (f.county) place.push(f.county);
@@ -1209,11 +1202,8 @@ function displayWildFireInfo(wildFires, sectionAnchorId) {
             place.push(st);
         }
         if (place.length) line3.push(place.join(', '));
-        if (grownHtml || line3.length) {
-            const metaParts = [];
-            if (grownHtml) metaParts.push(grownHtml);
-            if (line3.length) metaParts.push(escapeHtml(line3.join(' · ')));
-            html += `<div class="wildfire-meta">${metaParts.join(' · ')}</div>`;
+        if (line3.length) {
+            html += `<div class="wildfire-meta">${escapeHtml(line3.join(' · '))}</div>`;
         }
         if (f.shortDesc) {
             html += `<div class="wildfire-desc">${escapeHtml(f.shortDesc)}</div>`;
