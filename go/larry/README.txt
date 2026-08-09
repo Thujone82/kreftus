@@ -1,16 +1,16 @@
 # larry - Terminal Frogger-like Game
 
 ## Version
-1.2
+1.3
 
 ## Author
 Kreft & GPT-5
 
 ## Date
-2026-08-08
+2026-08-09
 
 ## Description
-`larry` is a fast, cross-platform terminal game written in Go using `tcell`. You guide Larry (a green ⬢) from the bottom safe shoulder to the top safe shoulder while dodging traffic. Each time you reach the top, you advance to the next level, gain a life, and the color theme changes. Difficulty scales gradually by increasing lane density and speed; from level 6 onward, impassable debris appears on mid safe gaps. The UI uses UTF-8 box-drawing and gameplay glyphs (Windows consoles switch to CP65001 and prefer Cascadia Mono on launch).
+`larry` is a fast, cross-platform terminal game written in Go using `tcell`. You guide Larry (a bright highlight ⬢) from the bottom safe shoulder to the top safe shoulder while dodging traffic. Each time you reach the top, you advance to the next level, gain a life, and the color theme changes. Difficulty scales gradually by increasing lane density and speed; from level 6 onward, impassable debris appears on mid safe gaps; from level 8, a flashing ♥ life pickup appears on a mid safe lane. The UI uses UTF-8 box-drawing and gameplay glyphs (Windows consoles switch to CP65001 and prefer Cascadia Mono on launch).
 
 ## Features
 - Start menu with Larry as the hop cursor (aligned Start / High Scores / Quit)
@@ -21,6 +21,7 @@ Kreft & GPT-5
 - Goal shoulder marked with a yellow `▚▞` checker pattern
 - Level progression with changing themes (levels continue past 9)
 - From level 6: impassable `☙` debris on mid safe gaps (1% at L6, +1%/level through L10, then +0.5%/level, cap 10%)
+- From level 8: one flashing `♥` on the center of a mid safe lane — hop on it for an extra life (HUD flashes `+1 Life`)
 - Lives, per-line progression score, and session Top score
 - Distinct vehicle classes per lane:
   - Motorcycle/compact: length 2, speeds 3–5, bodies `═` or `▩` with `▶`/`◀`
@@ -31,7 +32,7 @@ Kreft & GPT-5
 - Top-10 scoreboard with name entry and saved history (MMDDYY date)
 
 ## Notes
-For best vehicle/Larry glyph rendering (`▶` `◀` `⬢` `☙`) on Windows, use a modern console font such as **Cascadia Mono** (Windows Terminal default). Larry selects it automatically when installed.
+For best vehicle/Larry glyph rendering (`▶` `◀` `⬢` `☙` `♥`) on Windows, use a modern console font such as **Cascadia Mono** (Windows Terminal default). Larry selects it automatically when installed.
 
 On launch, Larry requests an **80×42** console size so the full HUD header fits. Windows Terminal and some hosts may ignore resize requests; set the profile size manually if needed.
 
@@ -51,6 +52,7 @@ On launch, Larry requests an **80×42** console size so the full HUD header fits
 - +10 for each new upward row reached within a level
 - +100 × level on reaching the top safe shoulder
 - An extra life is awarded each time you clear a level
+- From level 8: hopping the mid-lane `♥` grants +1 life (inverted HUD shows `+1 Life` for ~1s)
 - Session Top score is shown on the right of the status bar
 
 ## Build

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Larry v1.2 - Terminal Frogger-like Game</title>
+    <title>Larry v1.3 - Terminal Frogger-like Game</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin:0; padding:0; background:#f4f4f4; color:#333; line-height:1.6; }
         header { background:#333; color:#fff; padding:1.5rem 0; text-align:center; margin-bottom:2rem; position: relative; }
@@ -28,16 +28,16 @@
         .readme-link { padding-left:1em; margin-top:-0.5em; font-size:0.9em; margin-bottom:1rem; }
         @media (max-width:900px){ .project-image-cell, .project-text-cell{ display:block; width:100%; box-sizing:border-box; } .project-image-cell{ max-width:none; padding-right:0; padding-bottom:1rem; } .project-image-cell img{ width:auto; max-width:100%; margin:0; } }
     </style>
-    <meta name="description" content="Larry v1.2 is a fast, cross-platform terminal Frogger-like game in Go with UTF-8 graphics, start menu, high scores, safe-lane debris, and a persistent Top-10 scoreboard.">
+    <meta name="description" content="Larry v1.3 is a fast, cross-platform terminal Frogger-like game in Go with UTF-8 graphics, start menu, high scores, safe-lane debris, mid-lane ♥ life pickups, and a persistent Top-10 scoreboard.">
     <link rel="canonical" href="https://kreft.us/larry/">
-    <meta property="og:title" content="Larry v1.2 - Terminal Frogger-like Game">
-    <meta property="og:description" content="Larry v1.2 is a fast, cross-platform terminal Frogger-like game in Go with UTF-8 graphics, start menu, high scores, safe-lane debris, and a persistent Top-10 scoreboard.">
+    <meta property="og:title" content="Larry v1.3 - Terminal Frogger-like Game">
+    <meta property="og:description" content="Larry v1.3 is a fast, cross-platform terminal Frogger-like game in Go with UTF-8 graphics, start menu, high scores, safe-lane debris, mid-lane ♥ life pickups, and a persistent Top-10 scoreboard.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://kreft.us/larry/">
     <meta property="og:image" content="https://kreft.us/images/larry.png">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Larry v1.2 - Terminal Frogger-like Game">
-    <meta name="twitter:description" content="Larry v1.2 is a fast, cross-platform terminal Frogger-like game in Go with UTF-8 graphics, start menu, high scores, safe-lane debris, and a persistent Top-10 scoreboard.">
+    <meta name="twitter:title" content="Larry v1.3 - Terminal Frogger-like Game">
+    <meta name="twitter:description" content="Larry v1.3 is a fast, cross-platform terminal Frogger-like game in Go with UTF-8 graphics, start menu, high scores, safe-lane debris, mid-lane ♥ life pickups, and a persistent Top-10 scoreboard.">
     <meta name="twitter:image" content="https://kreft.us/images/larry.png">
 </head>
 <body>
@@ -49,7 +49,7 @@
         <a href="https://github.com/Thujone82/kreftus" target="_blank" rel="noopener noreferrer" class="github-link" title="View on GitHub">
             <img src="../images/github-mark-white.png" alt="GitHub">
         </a>
-        <h1>Larry v1.2 - Terminal Frogger-like Game</h1>
+        <h1>Larry v1.3 - Terminal Frogger-like Game</h1>
     </header>
 
     <div class="container">
@@ -61,9 +61,9 @@
                     </td>
                     <td class="project-text-cell">
                         <div>
-                            <h2>Larry v1.2</h2>
+                            <h2>Larry v1.3</h2>
                             <p>
-                                <b>Larry</b> is a console arcade game where you guide a green <code>⬢</code> across roads with moving traffic. Levels add a fresh color theme, more cars, and faster lanes. Safe shoulders and gaps offer breathing room; from level 6, impassable <code>☙</code> debris appears on mid safe gaps. Earn points for each row climbed and for reaching the far side (marked with a <code>▚▞</code> goal pattern).
+                                <b>Larry</b> is a console arcade game where you guide a bright highlight <code>⬢</code> across roads with moving traffic. Levels add a fresh color theme, more cars, and faster lanes. Safe shoulders and gaps offer breathing room; from level 6, impassable <code>☙</code> debris appears on mid safe gaps; from level 8, a flashing <code>♥</code> on a mid safe lane grants an extra life. Earn points for each row climbed and for reaching the far side (marked with a <code>▚▞</code> goal pattern).
                             </p>
                             <h3>Controls</h3>
                             <p>Start menu: ↑↓ hop Larry, Enter to confirm (Start / High Scores / Quit). In game: Arrows or WASD to move, Space to pause. Esc opens a confirm dialog where Larry hops between Yes and No; Esc on the main menu exits.</p>
@@ -85,6 +85,7 @@
                                 <li>UTF-8 vehicles: motorcycles (<code>═</code>/<code>▩</code>), cars (<code>█</code>/<code>◙</code>), trucks (<code>█</code>/<code>▓</code>) with <code>▶</code>/<code>◀</code></li>
                                 <li>Level-based color themes, density/speed scaling (levels continue past 9)</li>
                                 <li>From level 6: impassable <code>☙</code> debris on mid safe gaps (ramps to 10% cap)</li>
+                                <li>From level 8: flashing mid-lane <code>♥</code> life pickup with inverted HUD <code>+1 Life</code> notice</li>
                                 <li>Lives, per-row scoring, session Top, and Best from history</li>
                                 <li>Top-10 scoreboard with name entry and saved history (MMDDYY)</li>
                                 <li>Auto-requests 80×42 console size; resize-aware rendering</li>

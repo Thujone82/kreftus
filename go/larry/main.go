@@ -58,8 +58,11 @@ const (
 	glyphGoalA   = '\u259A' // ▚ goal checker
 	glyphGoalB   = '\u259E' // ▞ goal checker
 	glyphDebris  = '\u2619' // ☙ impassable safe-lane debris
+	glyphHeart   = '\u2665' // ♥ life pickup (L8+)
 )
 
+// larryHighlight is the goal-checker yellow — always distinct from vehicle hues.
+const larryHighlight = tcell.ColorYellow
 
 type game struct {
 	screen tcell.Screen
@@ -79,6 +82,10 @@ type game struct {
 	safeBottomY      int
 	safeRow          []bool
 	debris           [][]bool // impassable cells on mid safe lanes (L6+)
+	hasHeart         bool     // L8+: one ♥ on a mid safe lane
+	heartX           int
+	heartY           int
+	lifeNoticeUntil  time.Time // inverted HUD "+1 Life" flash
 	rng              *rand.Rand
 	theme            theme
 	paused           bool
@@ -270,9 +277,6 @@ func (g *game) nextLevel() {
 	g.frogX = g.width / 2
 	g.frogY = g.safeBottomY
 	g.highestY = g.frogY
-	// Clear input buffer and pause input to prevent instant death on new level
-	g.flushInput()
-	g.acceptInputAfter = time.Now().Add(200 * time.Millisecond)
 	// Reward: extra life each cleared level
 	g.lives++
 	g.theme = themeForLevel(g.level)
@@ -280,6 +284,10 @@ func (g *game) nextLevel() {
 	g.scoreTimerActive = false
 	g.updateHUD()
 	g.createLanes()
+	// Flush after setup: lag during lane gen can refill the channel under a grace
+	// window that started too early, letting held/repeat keys move Larry.
+	g.flushInput()
+	g.acceptInputAfter = time.Now().Add(300 * time.Millisecond)
 }
 
 func (g *game) createLanes() {
@@ -435,6 +443,7 @@ func (g *game) createLanes() {
 		dirRight = !dirRight
 	}
 	g.placeDebris()
+	g.placeHeart()
 }
 
 func (g *game) placeDebris() {
@@ -477,6 +486,58 @@ func debrisChancePercent(level int) float64 {
 	return pct
 }
 
+// placeHeart puts one ♥ at the center of the mid-playfield safe lane (L8+).
+func (g *game) placeHeart() {
+	g.hasHeart = false
+	w, h := g.width, g.height
+	if g.level < 8 || w <= 0 || h <= 0 {
+		return
+	}
+	mid := (g.safeTopY + g.safeBottomY) / 2
+	bestY, bestDist := -1, h+1
+	for y := 0; y < h; y++ {
+		if y == g.safeTopY || y == g.safeBottomY {
+			continue
+		}
+		if y >= len(g.safeRow) || !g.safeRow[y] {
+			continue
+		}
+		d := y - mid
+		if d < 0 {
+			d = -d
+		}
+		if d < bestDist {
+			bestDist = d
+			bestY = y
+		}
+	}
+	if bestY < 0 {
+		return
+	}
+	x := w / 2
+	g.heartX, g.heartY = x, bestY
+	g.hasHeart = true
+	// Keep the pickup cell clear of debris
+	if bestY < len(g.debris) && x < len(g.debris[bestY]) {
+		g.debris[bestY][x] = false
+	}
+}
+
+func (g *game) tryCollectHeart() {
+	if !g.hasHeart {
+		return
+	}
+	if g.frogX != g.heartX || g.frogY != g.heartY {
+		return
+	}
+	g.hasHeart = false
+	g.lives++
+	g.lifeNoticeUntil = time.Now().Add(time.Second)
+	g.updateHUD()
+	g.lastRenderedScore = -1
+}
+
+
 func (g *game) isDebris(x, y int) bool {
 	if y < 0 || y >= len(g.debris) {
 		return false
@@ -496,8 +557,10 @@ func (g *game) handleInput(e *tcell.EventKey) bool {
 	if g.confirmMenu {
 		return g.handleConfirmMenuInput(e)
 	}
-	// ignore inputs for a brief period after death/gameover to prevent buffered arrows into name field
+	// Ignore inputs briefly after death/level clear; drain any backlog (key-repeat
+	// under lag) so carried presses don't hop Larry once the gate opens.
 	if time.Now().Before(g.acceptInputAfter) {
+		g.flushInput()
 		return false
 	}
 	if g.enteringName {
@@ -592,6 +655,9 @@ func (g *game) handleInput(e *tcell.EventKey) bool {
 		g.frogX, g.frogY = prevX, prevY
 		g.highestY, g.score, g.topScore = prevHighest, prevScore, prevTop
 		moved = false
+	}
+	if moved {
+		g.tryCollectHeart()
 	}
 	if moved && !g.scoreTimerActive {
 		g.scoreTimerActive = true
@@ -879,6 +945,19 @@ func (g *game) drawDebris() {
 	}
 }
 
+func (g *game) drawHeart() {
+	if !g.hasHeart {
+		return
+	}
+	fg := tcell.ColorRed
+	// Flash white/red ~4 Hz for eye catch
+	if time.Now().UnixNano()/int64(250*time.Millisecond)%2 == 0 {
+		fg = tcell.ColorWhite
+	}
+	st := tcell.StyleDefault.Foreground(fg).Background(g.theme.safe).Bold(true)
+	g.screen.SetContent(g.heartX, g.heartY, glyphHeart, nil, st)
+}
+
 func (g *game) render() {
 	s := g.screen
 	s.Clear()
@@ -893,6 +972,7 @@ func (g *game) render() {
 	w := g.width
 	g.drawPlayfieldBackground()
 	g.drawDebris()
+	g.drawHeart()
 	g.drawVehicles()
 
 	// Draw HUD - will refresh only when score changes
@@ -900,12 +980,19 @@ func (g *game) render() {
 		g.updateHUD()
 		g.lastRenderedScore = g.score
 	}
-	// HUD uses Larry's contrasting color to clearly separate from playfield
-	hudStyle := tcell.StyleDefault.Foreground(tcell.ColorBlack).Background(g.theme.frog).Bold(true)
-	drawText(s, 0, 0, spaces(w), hudStyle)
-	drawText(s, 0, 0, g.hudLine, hudStyle)
+	if time.Now().Before(g.lifeNoticeUntil) {
+		// Invert HUD colors and center "+1 Life" as a clear pickup notice
+		invStyle := tcell.StyleDefault.Foreground(g.theme.frog).Background(tcell.ColorBlack).Bold(true)
+		drawText(s, 0, 0, spaces(w), invStyle)
+		drawCentered(s, w/2, 0, "+1 Life", invStyle)
+	} else {
+		// HUD uses Larry's highlight so it stays distinct from the playfield
+		hudStyle := tcell.StyleDefault.Foreground(tcell.ColorBlack).Background(g.theme.frog).Bold(true)
+		drawText(s, 0, 0, spaces(w), hudStyle)
+		drawText(s, 0, 0, g.hudLine, hudStyle)
+	}
 
-	// Draw Larry as a filled hexagon (UTF-8)
+	// Larry uses theme.frog (always yellow or lime highlight — never a vehicle hue)
 	frogStyle := tcell.StyleDefault.Foreground(g.theme.frog).Bold(true)
 	s.SetContent(g.frogX, g.frogY, glyphLarry, nil, frogStyle)
 
@@ -1047,7 +1134,7 @@ func (g *game) flushInput() {
 	for {
 		select {
 		case <-g.events:
-			// drop
+			// drop queued keys (and other events) so lag/key-repeat can't carry over
 		default:
 			return
 		}
@@ -1419,12 +1506,14 @@ func (g *game) getProvisionalScores() []scoreEntry {
 }
 
 func themeForLevel(level int) theme {
+	// theme.frog is UI chrome (HUD/borders); Larry on the field always uses larryHighlight
+	// so he never shares a vehicle color. Avoid green frog on green-car themes.
 	palettes := []theme{
-		{bg: tcell.ColorReset, fg: tcell.ColorWhite, road: tcell.ColorGray, river: tcell.ColorNavy, safe: tcell.ColorDarkOliveGreen, frog: tcell.ColorGreen, carSmall: tcell.ColorLightSalmon, carRegular: tcell.ColorOrangeRed, carSemi: tcell.ColorTomato, log: tcell.ColorSandyBrown, goal: tcell.ColorDarkCyan},
-		{bg: tcell.ColorBlack, fg: tcell.ColorLightCyan, road: tcell.ColorDarkSlateGray, river: tcell.ColorBlue, safe: tcell.ColorDarkGreen, frog: tcell.ColorLawnGreen, carSmall: tcell.ColorLightSkyBlue, carRegular: tcell.ColorSteelBlue, carSemi: tcell.ColorRoyalBlue, log: tcell.ColorBurlyWood, goal: tcell.ColorDarkTurquoise},
-		{bg: tcell.ColorBlack, fg: tcell.ColorWhite, road: tcell.ColorDimGray, river: tcell.ColorDarkBlue, safe: tcell.ColorDarkOliveGreen, frog: tcell.ColorChartreuse, carSmall: tcell.ColorPlum, carRegular: tcell.ColorMediumVioletRed, carSemi: tcell.ColorDeepPink, log: tcell.ColorPeru, goal: tcell.ColorTeal},
-		{bg: tcell.ColorBlack, fg: tcell.ColorSilver, road: tcell.ColorGray, river: tcell.ColorDarkSlateBlue, safe: tcell.ColorDarkGreen, frog: tcell.ColorGreenYellow, carSmall: tcell.ColorKhaki, carRegular: tcell.ColorGoldenrod, carSemi: tcell.ColorSaddleBrown, log: tcell.ColorTan, goal: tcell.ColorCadetBlue},
-		{bg: tcell.ColorBlack, fg: tcell.ColorWhite, road: tcell.ColorGray, river: tcell.ColorRoyalBlue, safe: tcell.ColorDarkOliveGreen, frog: tcell.ColorSpringGreen, carSmall: tcell.ColorLightGreen, carRegular: tcell.ColorSeaGreen, carSemi: tcell.ColorDarkGreen, log: tcell.ColorSandyBrown, goal: tcell.ColorSteelBlue},
+		{bg: tcell.ColorReset, fg: tcell.ColorWhite, road: tcell.ColorGray, river: tcell.ColorNavy, safe: tcell.ColorDarkOliveGreen, frog: larryHighlight, carSmall: tcell.ColorLightSalmon, carRegular: tcell.ColorOrangeRed, carSemi: tcell.ColorTomato, log: tcell.ColorSandyBrown, goal: tcell.ColorDarkCyan},
+		{bg: tcell.ColorBlack, fg: tcell.ColorLightCyan, road: tcell.ColorDarkSlateGray, river: tcell.ColorBlue, safe: tcell.ColorDarkGreen, frog: larryHighlight, carSmall: tcell.ColorLightSkyBlue, carRegular: tcell.ColorSteelBlue, carSemi: tcell.ColorRoyalBlue, log: tcell.ColorBurlyWood, goal: tcell.ColorDarkTurquoise},
+		{bg: tcell.ColorBlack, fg: tcell.ColorWhite, road: tcell.ColorDimGray, river: tcell.ColorDarkBlue, safe: tcell.ColorDarkOliveGreen, frog: larryHighlight, carSmall: tcell.ColorPlum, carRegular: tcell.ColorMediumVioletRed, carSemi: tcell.ColorDeepPink, log: tcell.ColorPeru, goal: tcell.ColorTeal},
+		{bg: tcell.ColorBlack, fg: tcell.ColorSilver, road: tcell.ColorGray, river: tcell.ColorDarkSlateBlue, safe: tcell.ColorDarkGreen, frog: tcell.ColorLime, carSmall: tcell.ColorKhaki, carRegular: tcell.ColorGoldenrod, carSemi: tcell.ColorSaddleBrown, log: tcell.ColorTan, goal: tcell.ColorCadetBlue},
+		{bg: tcell.ColorBlack, fg: tcell.ColorWhite, road: tcell.ColorGray, river: tcell.ColorRoyalBlue, safe: tcell.ColorDarkOliveGreen, frog: larryHighlight, carSmall: tcell.ColorLightGreen, carRegular: tcell.ColorSeaGreen, carSemi: tcell.ColorDarkGreen, log: tcell.ColorSandyBrown, goal: tcell.ColorSteelBlue},
 	}
 	return palettes[(level-1)%len(palettes)]
 }
