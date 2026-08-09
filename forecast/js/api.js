@@ -1457,8 +1457,19 @@ function normalizeNifcWildFireIncidents(apiData, lat, lon, distanceMiles = WILDF
 
             let updated = null;
             if (a.ModifiedOnDateTime_dt != null) {
-                const ms = Number(a.ModifiedOnDateTime_dt);
-                if (Number.isFinite(ms)) updated = new Date(ms);
+                const raw = a.ModifiedOnDateTime_dt;
+                // ArcGIS may return epoch ms as number or "/Date(ms)/" string
+                let ms = null;
+                if (typeof raw === 'number' && Number.isFinite(raw)) {
+                    ms = raw;
+                } else if (typeof raw === 'string') {
+                    const m = raw.match(/\/Date\((-?\d+)\)\//);
+                    ms = m ? Number(m[1]) : Number(raw);
+                }
+                if (Number.isFinite(ms)) {
+                    const d = new Date(ms);
+                    if (!Number.isNaN(d.getTime())) updated = d;
+                }
             }
 
             results.push({

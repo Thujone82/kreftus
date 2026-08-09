@@ -4255,6 +4255,16 @@ function restoreDatesFromCache(weatherData) {
             tideData.nextTide.time = new Date(tideData.nextTide.time);
         }
     }
+
+    // Restore wildfire ModifiedOn timestamps (JSON turns Date into ISO strings)
+    if (Array.isArray(weatherData.wildFires)) {
+        for (const fire of weatherData.wildFires) {
+            if (fire && fire.updated != null) {
+                const restored = new Date(fire.updated);
+                fire.updated = Number.isNaN(restored.getTime()) ? null : restored;
+            }
+        }
+    }
     
     return weatherData;
 }

@@ -1146,11 +1146,20 @@ function escapeHtml(text) {
 }
 
 function formatWildFireUpdated(dt) {
-    if (!(dt instanceof Date) || Number.isNaN(dt.getTime())) return null;
-    const mm = String(dt.getMonth() + 1).padStart(2, '0');
-    const dd = String(dt.getDate()).padStart(2, '0');
-    const hh = String(dt.getHours()).padStart(2, '0');
-    const mi = String(dt.getMinutes()).padStart(2, '0');
+    let date = null;
+    if (dt instanceof Date) {
+        date = dt;
+    } else if (typeof dt === 'number' && Number.isFinite(dt)) {
+        date = new Date(dt);
+    } else if (typeof dt === 'string' && dt.trim()) {
+        const parsed = new Date(dt);
+        if (!Number.isNaN(parsed.getTime())) date = parsed;
+    }
+    if (!date || Number.isNaN(date.getTime())) return null;
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mi = String(date.getMinutes()).padStart(2, '0');
     return `${mm}/${dd} ${hh}:${mi}`;
 }
 
