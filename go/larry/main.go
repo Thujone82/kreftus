@@ -387,12 +387,31 @@ func (g *game) createLanes() {
 			if baseGap < length+1 {
 				baseGap = length + 1
 			}
-			num := max(1, int(float64(w)/(float64(length+baseGap))))
+			// Circular pack: car starts must be at least (length+gap) apart around the ring
+			minSpacing := length + baseGap
+			if minSpacing < 1 {
+				minSpacing = 1
+			}
+			num := w / minSpacing
+			if num < 1 {
+				num = 1
+			}
 			positions := make([]int, 0, num)
-			pos := g.rng.IntN(max(1, w))
-			for k := 0; k < num; k++ {
-				positions = append(positions, pos%max(1, w))
-				pos += length + baseGap + g.rng.IntN(4)
+			if num == 1 {
+				positions = append(positions, g.rng.IntN(max(1, w)))
+			} else {
+				// Equal strides around the torus (remainder spread on early gaps)
+				stride := w / num
+				rem := w % num
+				pos := g.rng.IntN(max(1, w))
+				for k := 0; k < num; k++ {
+					positions = append(positions, pos%w)
+					step := stride
+					if k < rem {
+						step++
+					}
+					pos += step
+				}
 			}
 			g.lanes = append(g.lanes, lane{y: y, speedTicks: speed, dirRight: dirRight, cars: positions, width: w, length: length, glyph: glyph, color: color})
 			if y >= 0 && y < h {
@@ -734,7 +753,7 @@ func (g *game) update() {
 		for _, ln := range g.lanes {
 			if ln.y == g.frogY {
 				for _, cx := range ln.cars {
-					if g.frogX >= cx && g.frogX < cx+ln.length {
+					if carCoversCell(cx, ln.length, ln.width, g.frogX) {
 						// Hit! Lose a life
 						g.lives--
 						if g.lives <= 0 {
@@ -806,13 +825,37 @@ func (g *game) drawPlayfieldBackground() {
 	}
 }
 
+// carCoversCell reports whether a wrapping vehicle occupies column x.
+func carCoversCell(left, length, width, x int) bool {
+	if width <= 0 || length <= 0 {
+		return false
+	}
+	for dx := 0; dx < length; dx++ {
+		cx := (left + dx) % width
+		if cx < 0 {
+			cx += width
+		}
+		if cx == x {
+			return true
+		}
+	}
+	return false
+}
+
 func (g *game) drawVehicles() {
 	w, h := g.width, g.height
 	for _, ln := range g.lanes {
 		st := tcell.StyleDefault.Foreground(ln.color)
+		lw := ln.width
+		if lw <= 0 {
+			lw = w
+		}
 		for _, left := range ln.cars {
 			for dx := 0; dx < ln.length; dx++ {
-				x := left + dx
+				x := (left + dx) % lw
+				if x < 0 {
+					x += lw
+				}
 				if x >= 0 && x < w && ln.y >= 0 && ln.y < h {
 					ch := '>'
 					if dx < len(ln.glyph) {
@@ -1185,7 +1228,8 @@ func (g *game) drawConfirmMenuOverlay() {
 	borderStyle := tcell.StyleDefault.Foreground(g.theme.frog).Background(boxBg).Bold(true)
 	fillStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(boxBg).Bold(true)
 	hintStyle := tcell.StyleDefault.Foreground(tcell.ColorAqua).Background(boxBg)
-	larryStyle := tcell.StyleDefault.Foreground(g.theme.frog).Background(boxBg).Bold(true)
+	// Larry uses hint aqua so he stands out from Yes/No (white).
+	larryStyle := hintStyle.Bold(true)
 	inner := 28
 	topY := h/2 - 4
 	if topY < 0 {
@@ -1207,7 +1251,29 @@ func (g *game) drawConfirmMenuOverlay() {
 			"←→ hop   Enter select",
 			"Esc cancels",
 		},
-		[]tcell.Style{fillStyle, fillStyle, larryStyle, fillStyle, hintStyle, hintStyle})
+		[]tcell.Style{fillStyle, fillStyle, fillStyle, fillStyle, hintStyle, hintStyle})
+	// Repaint Larry in aqua; the choice row was drawn white for Yes/No contrast.
+	choiceRunes := []rune(choiceLine)
+	larryIdx := -1
+	for i, r := range choiceRunes {
+		if r == glyphLarry {
+			larryIdx = i
+			break
+		}
+	}
+	if larryIdx >= 0 {
+		boxW := inner + 2
+		left := w/2 - boxW/2
+		if left < 0 {
+			left = 0
+		}
+		pad := (inner - len(choiceRunes)) / 2
+		if pad < 0 {
+			pad = 0
+		}
+		choiceY := topY + 1 + 2
+		g.screen.SetContent(left+1+pad+larryIdx, choiceY, glyphLarry, nil, larryStyle)
+	}
 }
 
 func (g *game) drawNameEntryOverlay() {
