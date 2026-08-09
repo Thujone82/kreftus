@@ -6,7 +6,7 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 
 - **No API Key Required**: Uses free National Weather Service API
 - **Optional AQI (AirNow)**: Add your own AirNow API key in Settings to display an AQI line in Current Conditions using official AQI category colors; categories 5/6 are emphasized with white text on colored badges and white borders for contrast. Uses AirNow [Current Observations by Zip Code or Lat/Long](https://docs.airnowapi.org/webservices) (`/aq/observation/current/ziplatLong`); rate limit is 500 requests per hour per key.
-- **Optional Wildfire (NIFC):** Nearby wildfires in Current Conditions and a full Wild Fire Info section (enable/radius in Settings; default on at 50 mi). Acres colored by size: default (<100), yellow (100–999), red (1,000–99,999), magenta (≥100,000).
+- **Optional Wildfire (NIFC):** Nearby wildfires in a compact Current Conditions line (`Fire: NAME …ac ✅|…% …mi DIR (N)`) and a full Wild Fire Info section (enable/radius in Settings; default on at 50 mi). Acres colored by size: default (<100), yellow (100–999), red (1,000–99,999), magenta (≥100,000).
 - **Multiple Display Modes**: Full, Daily, Hourly, Rain, Wind, and History
 - **PWA Support**: Installable as a web app with offline support and update detection
 - **Saved Locations**: Save favorite locations and switch between them; locations bar open/closed state is remembered. Number hotkeys load the first 20 favorites in drawer order: `1`–`0` for slots 1–10, `Shift+1`–`Shift+0` for slots 11–20 (ignored while typing, renaming a favorite, or when Settings is open).

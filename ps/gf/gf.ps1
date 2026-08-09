@@ -6304,16 +6304,18 @@ function Show-WildFireTerseLine {
     $f = $list[0]
     $acresStr = Format-WildFireAcres -Acres $f.Acres
     $restParts = @()
-    if ($null -ne $f.Contained) { $restParts += "$([Math]::Round([double]$f.Contained, 0))%" }
-    if ($f.Behavior) { $restParts += $f.Behavior }
-    $restParts += "$($f.DistanceMi)mi $($f.Cardinal)"
-    if ($list.Count -gt 1) { $restParts += "[1/$($list.Count)]" }
-    # Keep rest at default so acres coloring stays the primary signal (no whole-line red for <100% containment)
+    if ($null -ne $f.Contained) {
+        $pct = [Math]::Round([double]$f.Contained, 0)
+        if ($pct -ge 100) { $restParts += [char]0x2705 } else { $restParts += "${pct}%" }
+    }
+    # Behavior omitted on terse line (shown in full Wild Fire Info)
+    $distMi = [Math]::Round([double]$f.DistanceMi, 0)
+    $restParts += "${distMi}mi $($f.Cardinal)"
+    if ($list.Count -gt 1) { $restParts += "($($list.Count))" }
     $restColor = $DefaultColor
-    if ($f.Behavior -match '(?i)active|extreme|critical') { $restColor = "Yellow" }
     $acresColor = Get-WildFireAcresForegroundColor -Acres $f.Acres -DefaultColor $DefaultColor
 
-    Write-Host "Wildfire: " -ForegroundColor Red -NoNewline
+    Write-Host "Fire: " -ForegroundColor Red -NoNewline
     if ($f.InciWebUrl) {
         Write-Host "$([char]27)]8;;$($f.InciWebUrl)$([char]27)\$($f.Name)$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
     } else {

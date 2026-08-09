@@ -1224,7 +1224,8 @@ function applyWildfireSettingsChange({ refetch = false } = {}) {
                 ? `${appState.location.city}, ${appState.location.state}`
                 : null);
         if (locQuery) {
-            loadWeatherData(locQuery, true, true).catch((err) => {
+            // User-initiated settings change — not a background auto-refresh (must work when Auto-Update is off)
+            loadWeatherData(locQuery, true, false).catch((err) => {
                 console.warn('Wildfire settings refresh failed:', err);
             });
             return;
@@ -3706,6 +3707,45 @@ async function refreshAqiForCachedLocation({ cacheKey, weatherData }) {
     return true;
 }
 
+// Refresh wildfire for a cached location without changing weather fetch timestamps.
+async function refreshWildfireForCachedLocation({ cacheKey, weatherData }) {
+    if (!cacheKey || !weatherData) return false;
+    if (!appState.enableWildfire) return false;
+    if (typeof fetchWildFireIncidents !== 'function') return false;
+    const lat = weatherData?.location?.lat;
+    const lon = weatherData?.location?.lon;
+    if (lat == null || lon == null) return false;
+
+    const radius = clampWildfireRadiusMiles(appState.wildfireRadiusMiles);
+    const wildFires = await fetchWildFireIncidents(lat, lon, radius);
+    const updatedWeatherData = {
+        ...weatherData,
+        wildFires: Array.isArray(wildFires) ? wildFires : []
+    };
+    const tsIso = loadCacheTimestampForKey(cacheKey);
+    const ts = tsIso ? new Date(tsIso) : (appState.lastFetchTime || null);
+
+    saveWeatherDataToCacheByKey({
+        cacheKey,
+        locationString: weatherData?.location?.city != null && weatherData?.location?.state != null
+            ? formatLocationDisplayName(weatherData.location.city, weatherData.location.state)
+            : '',
+        weatherData: updatedWeatherData,
+        timestamp: ts
+    });
+
+    const activeLoc = appState.location;
+    const activeCity = (activeLoc?.city || '').trim().toLowerCase();
+    const activeState = (activeLoc?.state || '').trim().toUpperCase();
+    const cachedCity = (weatherData?.location?.city || '').trim().toLowerCase();
+    const cachedState = (weatherData?.location?.state || '').trim().toUpperCase();
+    if (activeCity && activeState && activeCity === cachedCity && activeState === cachedState) {
+        appState.weatherData = updatedWeatherData;
+        renderCurrentMode();
+    }
+    return true;
+}
+
 let updateAllObservationsScheduled = false;
 
 // Runs phase 2 (observations) for all favorites that have cached weather with points. Call when phase 1 is complete.
@@ -4381,6 +4421,28 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
                         console.error('Background AQI-only fetch failed:', error);
                     });
                 }, 150);
+            }
+        }
+
+        // Wildfire backfill for caches that predate the feature (or were saved without wildFires).
+        // Runs even when Auto-Update is off — otherwise wildfire never appears until a manual full refresh.
+        const missingWildfireInCache = appState.enableWildfire
+            && restoredWeatherData
+            && !Array.isArray(restoredWeatherData.wildFires);
+        if (missingWildfireInCache && restoredWeatherData.location?.lat != null && restoredWeatherData.location?.lon != null) {
+            const wildfireCacheKey = locationKey
+                || appState.currentLocationKey
+                || generateLocationKey(restoredWeatherData.location);
+            if (wildfireCacheKey) {
+                console.log('Cached data missing wildfire, fetching in background...');
+                setTimeout(() => {
+                    refreshWildfireForCachedLocation({
+                        cacheKey: wildfireCacheKey,
+                        weatherData: restoredWeatherData
+                    }).catch(error => {
+                        console.error('Background wildfire-only fetch failed:', error);
+                    });
+                }, 200);
             }
         }
         

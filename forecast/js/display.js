@@ -1092,7 +1092,7 @@ function getUtcOffsetString(timeZoneId) {
     }
 }
 
-// Compact Current Conditions row for the largest nearby wildfire
+// Compact Current Conditions row for the largest nearby wildfire (terse; full details in Wild Fire Info)
 function displayWildFireCompactRow(wildFires) {
     const list = Array.isArray(wildFires) ? wildFires : [];
     if (list.length === 0) return '';
@@ -1101,37 +1101,38 @@ function displayWildFireCompactRow(wildFires) {
     const acresClass = typeof getWildFireAcresClass === 'function' ? getWildFireAcresClass(f.acres) : '';
     const restParts = [];
     if (f.contained != null && Number.isFinite(Number(f.contained))) {
-        restParts.push(`${Math.round(Number(f.contained))}%`);
+        const pct = Math.round(Number(f.contained));
+        restParts.push(pct >= 100 ? '✅' : `${pct}%`);
     }
-    if (f.behavior) restParts.push(f.behavior);
-    const distStr = typeof formatDistance === 'function' ? formatDistance(f.distanceMi) : `${f.distanceMi}mi`;
-    restParts.push(`${distStr} ${f.cardinal || ''}`.trim());
-    if (list.length > 1) restParts.push(`[1/${list.length}]`);
+    const distMi = Number(f.distanceMi);
+    if (Number.isFinite(distMi)) {
+        let distStr;
+        if (typeof appState !== 'undefined' && appState.useMetric) {
+            const km = typeof miToKm === 'function' ? miToKm(distMi) : distMi * 1.60934;
+            distStr = `${Math.round(Number(km))}km`;
+        } else {
+            distStr = `${Math.round(distMi)}mi`;
+        }
+        restParts.push(`${distStr} ${f.cardinal || ''}`.trim());
+    }
+    if (list.length > 1) restParts.push(`(${list.length})`);
 
-    // Acres coloring is the primary signal; do not paint the rest red for <100% containment
-    const valueClass = (f.behavior && /active|extreme|critical/i.test(f.behavior)) ? 'wildfire-warn' : '';
-    let html = '<div class="condition-row wildfire-compact-row">';
-    html += '<span class="wildfire-compact-primary">';
-    html += '<span class="condition-label wildfire-label">Wildfire:</span>';
-    html += '<span class="condition-value wildfire-compact-name">';
+    let html = '<div class="condition-row">';
+    html += '<span class="condition-label wildfire-label">Fire:</span>';
+    html += '<span class="condition-value">';
     if (f.inciwebUrl) {
         html += `<a href="${f.inciwebUrl}" target="_blank" rel="noopener" class="location-info-link no-margin">${escapeHtml(f.name)}</a>`;
     } else {
         html += escapeHtml(f.name);
     }
-    html += '</span></span>';
-    const detailParts = [];
     if (acresStr) {
         const cls = acresClass ? ` ${acresClass}` : '';
-        detailParts.push(`<span class="wildfire-acres${cls}">${escapeHtml(acresStr)}ac</span>`);
+        html += ` <span class="wildfire-acres${cls}">${escapeHtml(acresStr)}ac</span>`;
     }
     if (restParts.length) {
-        detailParts.push(`<span class="${valueClass}">${escapeHtml(restParts.join(' '))}</span>`);
+        html += ` ${escapeHtml(restParts.join(' '))}`;
     }
-    if (detailParts.length) {
-        html += `<span class="condition-value wildfire-compact-details">${detailParts.join(' ')}</span>`;
-    }
-    html += '</div>';
+    html += '</span></div>';
     return html;
 }
 
@@ -1170,7 +1171,7 @@ function displayWildFireInfo(wildFires, sectionAnchorId) {
     list.forEach((f, idx) => {
         const distStr = typeof formatDistance === 'function' ? formatDistance(f.distanceMi) : `${f.distanceMi}mi`;
         html += `<div class="wildfire-item${idx > 0 ? ' wildfire-item-spaced' : ''}">`;
-        html += `<div class="wildfire-name">${escapeHtml(f.name)}  ${escapeHtml(distStr)} ${escapeHtml(f.cardinal || '')}</div>`;
+        html += `<div class="wildfire-name"><span class="wildfire-name-text">${escapeHtml(f.name)}</span>  ${escapeHtml(distStr)} ${escapeHtml(f.cardinal || '')}</div>`;
 
         const acresStr = typeof formatWildFireAcres === 'function' ? formatWildFireAcres(f.acres) : null;
         const acresClass = typeof getWildFireAcresClass === 'function' ? getWildFireAcresClass(f.acres) : '';
