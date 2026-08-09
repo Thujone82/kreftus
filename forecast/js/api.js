@@ -1511,6 +1511,7 @@ async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_
     const url = buildNifcWildFireQueryUrl(lat, lon, radius);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
+    let incidents = [];
     try {
         const response = await fetch(url, { signal: controller.signal });
         if (!response.ok) {
@@ -1518,17 +1519,28 @@ async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_
             return [];
         }
         const data = await response.json();
-        const incidents = normalizeNifcWildFireIncidents(data, lat, lon, radius);
-        await Promise.all(incidents.map(async (inc) => {
-            inc.inciwebUrl = await resolveInciWebIncidentUrl(inc.unit, inc.name);
-        }));
-        return incidents;
+        incidents = normalizeNifcWildFireIncidents(data, lat, lon, radius);
     } catch (error) {
         console.warn('NIFC wildfire fetch failed:', error);
         return [];
     } finally {
         clearTimeout(timeoutId);
     }
+
+    // Soft-fail InciWeb link enrichment off the critical path. Never discard NIFC
+    // incidents if probes are slow/fail (many fires × slug candidates saturate the browser).
+    if (incidents.length > 0) {
+        void Promise.all(incidents.map(async (inc) => {
+            try {
+                inc.inciwebUrl = await resolveInciWebIncidentUrl(inc.unit, inc.name);
+            } catch (_) {
+                /* keep null */
+            }
+        })).catch((e) => {
+            console.warn('InciWeb wildfire link enrichment failed:', e);
+        });
+    }
+    return incidents;
 }
 
 // Fetch all weather data for a location
@@ -1636,6 +1648,9 @@ async function fetchWeatherData(location, options = {}) {
         alerts: alertsData,
         aqiRows: aqiRows,
         wildFires: wildFires || [],
+        // True when this fetch attempted NIFC (even if zero fires). Distinguishes
+        // "never fetched" caches from "fetched, none nearby" so backfill can retry empties.
+        wildfireFetched: !!(includeWildfire && wildfireRadiusMiles > 0),
         noaaStation: noaaStation,
         noaaOutOfRange: noaaOutOfRange,
         fetchTime: nwsFetchStartTime,  // Use the timestamp from when NWS API calls started

@@ -1214,6 +1214,7 @@ function applyWildfireSettingsChange({ refetch = false } = {}) {
     syncWildfireSettingsVisibility();
     if (!appState.enableWildfire && appState.weatherData) {
         appState.weatherData.wildFires = [];
+        appState.weatherData.wildfireFetched = false;
         renderCurrentMode();
         return;
     }
@@ -3720,7 +3721,8 @@ async function refreshWildfireForCachedLocation({ cacheKey, weatherData }) {
     const wildFires = await fetchWildFireIncidents(lat, lon, radius);
     const updatedWeatherData = {
         ...weatherData,
-        wildFires: Array.isArray(wildFires) ? wildFires : []
+        wildFires: Array.isArray(wildFires) ? wildFires : [],
+        wildfireFetched: true
     };
     const tsIso = loadCacheTimestampForKey(cacheKey);
     const ts = tsIso ? new Date(tsIso) : (appState.lastFetchTime || null);
@@ -4434,11 +4436,17 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
             }
         }
 
-        // Wildfire backfill for caches that predate the feature (or were saved without wildFires).
-        // Runs even when Auto-Update is off — otherwise wildfire never appears until a manual full refresh.
+        // Wildfire backfill when enable is on and cache has no usable wildfire payload yet.
+        // - Missing wildFires / empty [] without wildfireFetched → retry (failed InciWeb-era empties).
+        // - Non-empty wildFires (legacy) → already showable; skip.
+        // - wildfireFetched true + [] → none nearby; skip.
+        // Runs even when Auto-Update is off.
+        const hasWildfireData = Array.isArray(restoredWeatherData?.wildFires)
+            && restoredWeatherData.wildFires.length > 0;
         const missingWildfireInCache = appState.enableWildfire
             && restoredWeatherData
-            && !Array.isArray(restoredWeatherData.wildFires);
+            && !hasWildfireData
+            && restoredWeatherData.wildfireFetched !== true;
         if (missingWildfireInCache && restoredWeatherData.location?.lat != null && restoredWeatherData.location?.lon != null) {
             const wildfireCacheKey = locationKey
                 || appState.currentLocationKey
