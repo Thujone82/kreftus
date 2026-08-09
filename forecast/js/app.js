@@ -1218,15 +1218,18 @@ function applyWildfireSettingsChange({ refetch = false } = {}) {
         renderCurrentMode();
         return;
     }
-    if (refetch && appState.location && (appState.location.city || appState.location.lat != null)) {
-        const locQuery = appState.currentLocationKey
-            || (appState.isCurrentLocationActive ? 'here' : null)
-            || (appState.location.city && appState.location.state
-                ? `${appState.location.city}, ${appState.location.state}`
+    // Wildfire-only refresh — do not call loadWeatherData with currentLocationKey
+    // (uid_loc_… / uid_<uuid> are cache keys, not geocodable search strings).
+    if (refetch && appState.weatherData?.location?.lat != null && appState.weatherData?.location?.lon != null) {
+        const cacheKey = appState.currentLocationKey
+            || (typeof generateLocationKey === 'function'
+                ? generateLocationKey(appState.weatherData.location)
                 : null);
-        if (locQuery) {
-            // User-initiated settings change — not a background auto-refresh (must work when Auto-Update is off)
-            loadWeatherData(locQuery, true, false).catch((err) => {
+        if (cacheKey && typeof refreshWildfireForCachedLocation === 'function') {
+            refreshWildfireForCachedLocation({
+                cacheKey,
+                weatherData: appState.weatherData
+            }).catch((err) => {
                 console.warn('Wildfire settings refresh failed:', err);
             });
             return;
@@ -3741,7 +3744,13 @@ async function refreshWildfireForCachedLocation({ cacheKey, weatherData }) {
     const activeState = (activeLoc?.state || '').trim().toUpperCase();
     const cachedCity = (weatherData?.location?.city || '').trim().toLowerCase();
     const cachedState = (weatherData?.location?.state || '').trim().toUpperCase();
-    if (activeCity && activeState && activeCity === cachedCity && activeState === cachedState) {
+    const sameCoords = activeLoc?.lat != null && activeLoc?.lon != null
+        && Number(activeLoc.lat) === Number(weatherData?.location?.lat)
+        && Number(activeLoc.lon) === Number(weatherData?.location?.lon);
+    const isActive = appState.weatherData === weatherData
+        || sameCoords
+        || (activeCity && activeState && activeCity === cachedCity && activeState === cachedState);
+    if (isActive) {
         appState.weatherData = updatedWeatherData;
         renderCurrentMode();
     }
