@@ -1505,9 +1505,15 @@ function normalizeNifcWildFireIncidents(apiData, lat, lon, distanceMiles = WILDF
     return results;
 }
 
+/**
+ * Fetch nearby NIFC wildfire incidents.
+ * @returns {Promise<{ok: boolean, incidents: Array}>}
+ * ok:false = request/API failure — callers must NOT overwrite cached wildfires with [].
+ * ok:true + incidents:[] = successful query with none nearby.
+ */
 async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_MILES) {
     const radius = Number(distanceMiles);
-    if (!Number.isFinite(radius) || radius <= 0) return [];
+    if (!Number.isFinite(radius) || radius <= 0) return { ok: true, incidents: [] };
     const url = buildNifcWildFireQueryUrl(lat, lon, radius);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
@@ -1516,13 +1522,13 @@ async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_
         const response = await fetch(url, { signal: controller.signal });
         if (!response.ok) {
             console.warn('NIFC wildfire API HTTP', response.status);
-            return [];
+            return { ok: false, incidents: [] };
         }
         const data = await response.json();
         incidents = normalizeNifcWildFireIncidents(data, lat, lon, radius);
     } catch (error) {
         console.warn('NIFC wildfire fetch failed:', error);
-        return [];
+        return { ok: false, incidents: [] };
     } finally {
         clearTimeout(timeoutId);
     }
@@ -1540,7 +1546,7 @@ async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_
             console.warn('InciWeb wildfire link enrichment failed:', e);
         });
     }
-    return incidents;
+    return { ok: true, incidents };
 }
 
 // Fetch all weather data for a location
@@ -1595,7 +1601,7 @@ async function fetchWeatherData(location, options = {}) {
         : Promise.resolve({ feature: null, stationId: null });
 
     // Fetch forecast and hourly data concurrently (main NWS API calls)
-    const [forecastData, hourlyData, alertsData, preFetchedStations, aqiRows, latestObsResult, wildFires] = await Promise.all([
+    const [forecastData, hourlyData, alertsData, preFetchedStations, aqiRows, latestObsResult, wildfireResult] = await Promise.all([
         fetchNWSForecast(forecastUrl),
         fetchNWSHourly(hourlyUrl),
         fetchNWSAlerts(lat, lon),
@@ -1604,7 +1610,7 @@ async function fetchWeatherData(location, options = {}) {
         latestObsPromise,
         (includeWildfire && wildfireRadiusMiles > 0)
             ? fetchWildFireIncidents(lat, lon, wildfireRadiusMiles)
-            : Promise.resolve([])
+            : Promise.resolve({ ok: true, incidents: [], skipped: true })
     ]);
     
     // Extract elevation from forecast data
@@ -1639,6 +1645,13 @@ async function fetchWeatherData(location, options = {}) {
     
     // When we successfully determined no station is within 100 miles, mark so we don't re-search when loading from cache
     const noaaOutOfRange = noaaStation === null;
+
+    const wildfireRequested = !!(includeWildfire && wildfireRadiusMiles > 0);
+    const wildfireSkipped = !wildfireRequested;
+    const wildfireFetchFailed = wildfireRequested && !(wildfireResult && wildfireResult.ok);
+    const wildFires = (wildfireRequested && wildfireResult && wildfireResult.ok)
+        ? (Array.isArray(wildfireResult.incidents) ? wildfireResult.incidents : [])
+        : [];
     
     return {
         location: { lat, lon, city, state, timeZone, radarStation, elevationFeet },
@@ -1647,10 +1660,12 @@ async function fetchWeatherData(location, options = {}) {
         hourly: hourlyData,
         alerts: alertsData,
         aqiRows: aqiRows,
-        wildFires: wildFires || [],
-        // True when this fetch attempted NIFC (even if zero fires). Distinguishes
-        // "never fetched" caches from "fetched, none nearby" so backfill can retry empties.
-        wildfireFetched: !!(includeWildfire && wildfireRadiusMiles > 0),
+        wildFires,
+        // True only after a successful NIFC response (including zero fires).
+        wildfireFetched: wildfireRequested && !wildfireFetchFailed,
+        // When true/skipped, callers must preserve any previously cached wildfire list.
+        wildfireFetchFailed,
+        wildfireSkipped,
         noaaStation: noaaStation,
         noaaOutOfRange: noaaOutOfRange,
         fetchTime: nwsFetchStartTime,  // Use the timestamp from when NWS API calls started

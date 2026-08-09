@@ -1212,10 +1212,11 @@ function persistWildfireSettings() {
 function applyWildfireSettingsChange({ refetch = false } = {}) {
     persistWildfireSettings();
     syncWildfireSettingsVisibility();
-    if (!appState.enableWildfire && appState.weatherData) {
-        appState.weatherData.wildFires = [];
-        appState.weatherData.wildfireFetched = false;
-        renderCurrentMode();
+    // Do NOT clear wildFires in memory/cache when disabling — display already gates on
+    // enableWildfire. Clearing in-place let later NOAA/AQI cache saves persist [] and
+    // wipe wildfire after refresh.
+    if (!appState.enableWildfire) {
+        if (appState.weatherData) renderCurrentMode();
         return;
     }
     // Wildfire-only refresh — do not call loadWeatherData with currentLocationKey
@@ -1236,6 +1237,21 @@ function applyWildfireSettingsChange({ refetch = false } = {}) {
         }
     }
     if (appState.weatherData) renderCurrentMode();
+}
+
+/** Keep prior wildfire list when NIFC failed or wildfire was skipped (do not cache-wipe with []). */
+function preserveWildFiresIfFetchFailed(weatherData, previousWeather) {
+    if (!weatherData) return weatherData;
+    if (weatherData.wildfireFetchFailed !== true && weatherData.wildfireSkipped !== true) {
+        return weatherData;
+    }
+    const prev = previousWeather?.wildFires;
+    if (!Array.isArray(prev) || prev.length === 0) return weatherData;
+    return {
+        ...weatherData,
+        wildFires: prev,
+        wildfireFetched: previousWeather.wildfireFetched === true || prev.length > 0
+    };
 }
 
 function disableAqiRuntimeState() {
@@ -3565,8 +3581,11 @@ function saveWeatherDataToCacheByKey({ cacheKey, locationString = '', weatherDat
         let existing = null;
         try { existing = existingRaw ? JSON.parse(existingRaw) : null; } catch (e) { existing = null; }
 
+        // Never let a failed NIFC fetch overwrite a good cached wildfire list with [].
+        const weatherToStore = preserveWildFiresIfFetchFailed(weatherData, existing?.weatherData);
+
         const cacheData = {
-            weatherData,
+            weatherData: weatherToStore,
             observationsData: existing?.observationsData ?? null,
             observationsAvailable: existing?.observationsAvailable ?? false,
             observationsLocation: existing?.observationsLocation ?? null
@@ -3721,11 +3740,14 @@ async function refreshWildfireForCachedLocation({ cacheKey, weatherData }) {
     if (lat == null || lon == null) return false;
 
     const radius = clampWildfireRadiusMiles(appState.wildfireRadiusMiles);
-    const wildFires = await fetchWildFireIncidents(lat, lon, radius);
+    const result = await fetchWildFireIncidents(lat, lon, radius);
+    // Failed NIFC — leave existing wildfire data untouched (refresh must not erase it).
+    if (!result || result.ok !== true) return false;
     const updatedWeatherData = {
         ...weatherData,
-        wildFires: Array.isArray(wildFires) ? wildFires : [],
-        wildfireFetched: true
+        wildFires: Array.isArray(result.incidents) ? result.incidents : [],
+        wildfireFetched: true,
+        wildfireFetchFailed: false
     };
     const tsIso = loadCacheTimestampForKey(cacheKey);
     const ts = tsIso ? new Date(tsIso) : (appState.lastFetchTime || null);
@@ -3847,15 +3869,7 @@ function saveWeatherDataToCache(weatherData, location, timestamp = null) {
         const refCity = (ref?.city ?? '').trim().toLowerCase();
         const refState = (ref?.state ?? '').trim().toUpperCase();
         const observationsBelongToThisLocation = cacheCity && cacheState && refCity === cacheCity && refState === cacheState;
-        const cacheData = {
-            weatherData: weatherData,
-            observationsData: observationsBelongToThisLocation ? appState.observationsData : null,
-            observationsAvailable: observationsBelongToThisLocation && appState.observationsAvailable,
-            observationsLocation: (observationsBelongToThisLocation && locForObs && typeof locForObs === 'object' && locForObs.city != null && locForObs.state != null)
-                ? { city: cacheCity, state: cacheState }
-                : null
-        };
-        
+
         // Generate cache key for location-specific cache
         // CRITICAL: Prefer UID-based cache keys for favorites (more stable than location keys)
         // This avoids issues with location name formatting (e.g., US vs AK)
@@ -3934,6 +3948,25 @@ function saveWeatherDataToCache(weatherData, location, timestamp = null) {
         
         // Use cacheKey as locationKey for the rest of the function (for backward compatibility)
         const locationKey = cacheKey;
+
+        // Preserve cached wildfires when NIFC failed or wildfire was skipped for this fetch.
+        let weatherToStore = weatherData;
+        if ((weatherData?.wildfireFetchFailed === true || weatherData?.wildfireSkipped === true) && locationKey) {
+            try {
+                const existingRaw = localStorage.getItem(`forecastCachedData_${locationKey}`);
+                const existing = existingRaw ? JSON.parse(existingRaw) : null;
+                weatherToStore = preserveWildFiresIfFetchFailed(weatherData, existing?.weatherData);
+            } catch (_) { /* keep weatherData */ }
+        }
+
+        const cacheData = {
+            weatherData: weatherToStore,
+            observationsData: observationsBelongToThisLocation ? appState.observationsData : null,
+            observationsAvailable: observationsBelongToThisLocation && appState.observationsAvailable,
+            observationsLocation: (observationsBelongToThisLocation && locForObs && typeof locForObs === 'object' && locForObs.city != null && locForObs.state != null)
+                ? { city: cacheCity, state: cacheState }
+                : null
+        };
         
         // Determine timestamp to use
         // If timestamp is provided (NWS API fetch), use it
@@ -4997,13 +5030,15 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             throw new Error('fetchWeatherData function not found. Please ensure api.js is loaded.');
         }
         
+        const previousWeatherForWildfire = appState.weatherData;
         const weatherData = await fetchWeatherData(location, {
             includeAqi: !!(appState.enableAqi && appState.airNowApiKeyValid && (appState.airNowApiKey || '').trim()),
             airNowApiKey: appState.airNowApiKey || '',
             includeWildfire: !!appState.enableWildfire,
             wildfireRadiusMiles: clampWildfireRadiusMiles(appState.wildfireRadiusMiles)
         });
-        const processedWeather = processWeatherData(weatherData);
+        let processedWeather = processWeatherData(weatherData);
+        processedWeather = preserveWildFiresIfFetchFailed(processedWeather, previousWeatherForWildfire);
         if (weatherData.points) processedWeather.points = weatherData.points;
         if (weatherData.stationId) {
             processedWeather.stationId = weatherData.stationId;
@@ -6059,7 +6094,12 @@ function checkAutoRefresh() {
                         includeWildfire: !!appState.enableWildfire,
                         wildfireRadiusMiles: clampWildfireRadiusMiles(appState.wildfireRadiusMiles)
                     });
-                    const processed = processWeatherData(raw);
+                    let processed = processWeatherData(raw);
+                    // Preserve this favorite's cached wildfires if NIFC failed on refresh.
+                    try {
+                        const existingCache = loadWeatherDataFromCache(cacheKey);
+                        processed = preserveWildFiresIfFetchFailed(processed, existingCache?.data?.weatherData);
+                    } catch (_) { /* keep processed as-is */ }
                     const locStr = processed?.location && processed.location.city != null && processed.location.state != null
                         ? formatLocationDisplayName(processed.location.city, processed.location.state)
                         : (fav.name || locationQuery);

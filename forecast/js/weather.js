@@ -327,6 +327,8 @@ function processWeatherData(weatherData) {
         aqi: normalizeAirNowAqi(weatherData.aqiRows),
         wildFires: Array.isArray(weatherData.wildFires) ? weatherData.wildFires : [],
         wildfireFetched: weatherData.wildfireFetched === true,
+        wildfireFetchFailed: weatherData.wildfireFetchFailed === true,
+        wildfireSkipped: weatherData.wildfireSkipped === true,
         location: {
             ...location,
             sunrise: sunTimes.sunrise,
