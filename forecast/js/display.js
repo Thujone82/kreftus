@@ -1182,15 +1182,17 @@ function displayWildFireInfo(wildFires, sectionAnchorId) {
         const contPart = f.contained != null && Number.isFinite(Number(f.contained))
             ? `Contained: ${Math.round(Number(f.contained))}%`
             : 'Contained: —';
+        const contClass = (f.contained != null && Math.round(Number(f.contained)) >= 100)
+            ? 'wildfire-contained-full'
+            : '';
         let behPart = 'Behavior: —';
         if (f.behavior) {
             behPart = f.behaviorDetail
                 ? `Behavior: ${f.behavior} (${f.behaviorDetail})`
                 : `Behavior: ${f.behavior}`;
         }
-        // Do not paint Contained/Behavior red for <100% containment; acres color is the primary signal
-        const line2Class = (f.behavior && /active|extreme|critical/i.test(f.behavior)) ? 'wildfire-warn' : '';
-        html += `<div class="wildfire-stats">${sizeHtml} · <span class="${line2Class}">${escapeHtml(contPart)} · ${escapeHtml(behPart)}</span></div>`;
+        const behClass = (f.behavior && /active|extreme|critical/i.test(f.behavior)) ? 'wildfire-warn' : '';
+        html += `<div class="wildfire-stats">${sizeHtml} · <span class="${contClass}">${escapeHtml(contPart)}</span> · <span class="${behClass}">${escapeHtml(behPart)}</span></div>`;
 
         const line3 = [];
         if (f.cause) line3.push(`Cause: ${f.cause}`);

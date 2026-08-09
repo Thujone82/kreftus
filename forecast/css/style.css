@@ -1477,6 +1477,10 @@ body.ui-density-normal .weather-content {
     color: var(--color-warning, #e6b800);
 }
 
+.wildfire-contained-full {
+    color: var(--color-green, #00ff00);
+}
+
 .wildfire-acres-warn {
     color: var(--color-warning, #ffff00);
 }
