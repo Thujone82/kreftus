@@ -57,6 +57,7 @@ const (
 	glyphCarBox  = '\u25D9' // ◙ inverse circle — car box
 	glyphGoalA   = '\u259A' // ▚ goal checker
 	glyphGoalB   = '\u259E' // ▞ goal checker
+	glyphDebris  = '\u2619' // ☙ impassable safe-lane debris
 )
 
 
@@ -77,6 +78,7 @@ type game struct {
 	safeTopY         int
 	safeBottomY      int
 	safeRow          []bool
+	debris           [][]bool // impassable cells on mid safe lanes (L6+)
 	rng              *rand.Rand
 	theme            theme
 	paused           bool
@@ -99,6 +101,7 @@ type game struct {
 	startView       int // startMenu | startScores
 	menuIndex       int // 0 Start, 1 High Scores, 2 Quit
 	confirmMenu     bool // Esc confirm: return to main menu?
+	confirmYes      bool // true = Larry on Yes; false = Larry on No (default)
 }
 
 type scoreEntry struct {
@@ -412,6 +415,57 @@ func (g *game) createLanes() {
 		// Flip road direction
 		dirRight = !dirRight
 	}
+	g.placeDebris()
+}
+
+func (g *game) placeDebris() {
+	w, h := g.width, g.height
+	g.debris = make([][]bool, h)
+	for y := 0; y < h; y++ {
+		g.debris[y] = make([]bool, w)
+	}
+	if g.level < 6 || w <= 0 || h <= 0 {
+		return
+	}
+	chance := debrisChancePercent(g.level) / 100.0
+	for y := 0; y < h; y++ {
+		if y == g.safeTopY || y == g.safeBottomY {
+			continue
+		}
+		if y >= len(g.safeRow) || !g.safeRow[y] {
+			continue
+		}
+		for x := 0; x < w; x++ {
+			if g.rng.Float64() < chance {
+				g.debris[y][x] = true
+			}
+		}
+	}
+}
+
+// debrisChancePercent: L6–10 add 1%/level (1…5%), then +0.5%/level, capped at 10%.
+func debrisChancePercent(level int) float64 {
+	if level < 6 {
+		return 0
+	}
+	if level <= 10 {
+		return float64(level - 5) // 1,2,3,4,5
+	}
+	pct := 5.0 + 0.5*float64(level-10)
+	if pct > 10 {
+		return 10
+	}
+	return pct
+}
+
+func (g *game) isDebris(x, y int) bool {
+	if y < 0 || y >= len(g.debris) {
+		return false
+	}
+	if x < 0 || x >= len(g.debris[y]) {
+		return false
+	}
+	return g.debris[y][x]
 }
 
 func (g *game) handleInput(e *tcell.EventKey) bool {
@@ -467,6 +521,8 @@ func (g *game) handleInput(e *tcell.EventKey) bool {
 	if g.paused {
 		return false
 	}
+	prevX, prevY := g.frogX, g.frogY
+	prevHighest, prevScore, prevTop := g.highestY, g.score, g.topScore
 	moved := false
 	switch e.Key() {
 	case tcell.KeyLeft:
@@ -512,6 +568,12 @@ func (g *game) handleInput(e *tcell.EventKey) bool {
 		}
 	}
 	g.clampFrog()
+	// Impassable debris on safe gaps — stay put (and undo any score from a blocked step)
+	if moved && g.isDebris(g.frogX, g.frogY) {
+		g.frogX, g.frogY = prevX, prevY
+		g.highestY, g.score, g.topScore = prevHighest, prevScore, prevTop
+		moved = false
+	}
 	if moved && !g.scoreTimerActive {
 		g.scoreTimerActive = true
 		g.nextScoreDecrement = time.Now().Add(time.Second)
@@ -584,14 +646,24 @@ func (g *game) activateMenuItem() bool {
 func (g *game) handleConfirmMenuInput(e *tcell.EventKey) bool {
 	switch e.Key() {
 	case tcell.KeyEnter:
-		g.returnToMainMenu()
+		if g.confirmYes {
+			g.returnToMainMenu()
+		} else {
+			g.confirmMenu = false
+		}
+		return false
+	case tcell.KeyLeft:
+		g.confirmYes = true
+		return false
+	case tcell.KeyRight:
+		g.confirmYes = false
 		return false
 	case tcell.KeyRune:
 		switch e.Rune() {
-		case 'y', 'Y':
-			g.returnToMainMenu()
-		case 'n', 'N':
-			g.confirmMenu = false
+		case 'a', 'A':
+			g.confirmYes = true
+		case 'd', 'D':
+			g.confirmYes = false
 		}
 	}
 	return false
@@ -753,6 +825,17 @@ func (g *game) drawVehicles() {
 	}
 }
 
+func (g *game) drawDebris() {
+	st := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(g.theme.safe).Bold(true)
+	for y := 0; y < len(g.debris); y++ {
+		for x := 0; x < len(g.debris[y]); x++ {
+			if g.debris[y][x] {
+				g.screen.SetContent(x, y, glyphDebris, nil, st)
+			}
+		}
+	}
+}
+
 func (g *game) render() {
 	s := g.screen
 	s.Clear()
@@ -766,6 +849,7 @@ func (g *game) render() {
 
 	w := g.width
 	g.drawPlayfieldBackground()
+	g.drawDebris()
 	g.drawVehicles()
 
 	// Draw HUD - will refresh only when score changes
@@ -947,8 +1031,9 @@ func (g *game) handleQuit(e *tcell.EventKey) bool {
 		g.confirmMenu = false
 		return false
 	}
-	// Esc during play / name entry → confirm return to menu
+	// Esc during play / name entry → confirm return to menu (Larry starts on No)
 	g.confirmMenu = true
+	g.confirmYes = false
 	return false
 }
 
@@ -1100,19 +1185,29 @@ func (g *game) drawConfirmMenuOverlay() {
 	borderStyle := tcell.StyleDefault.Foreground(g.theme.frog).Background(boxBg).Bold(true)
 	fillStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(boxBg).Bold(true)
 	hintStyle := tcell.StyleDefault.Foreground(tcell.ColorAqua).Background(boxBg)
+	larryStyle := tcell.StyleDefault.Foreground(g.theme.frog).Background(boxBg).Bold(true)
 	inner := 28
-	topY := h/2 - 3
+	topY := h/2 - 4
 	if topY < 0 {
 		topY = 0
+	}
+	// Larry hops under Yes (left) or No (right); defaults to No
+	var choiceLine string
+	if g.confirmYes {
+		choiceLine = "  " + string(glyphLarry) + " Yes            No  "
+	} else {
+		choiceLine = "    Yes          " + string(glyphLarry) + " No  "
 	}
 	drawBorderedBox(g.screen, w/2, topY, inner, borderStyle, fillStyle,
 		[]string{
 			"Return to main menu?",
 			"",
-			"[Y] Yes    [N] No",
+			choiceLine,
+			"",
+			"←→ hop   Enter select",
 			"Esc cancels",
 		},
-		[]tcell.Style{fillStyle, fillStyle, hintStyle, hintStyle})
+		[]tcell.Style{fillStyle, fillStyle, larryStyle, fillStyle, hintStyle, hintStyle})
 }
 
 func (g *game) drawNameEntryOverlay() {
@@ -1294,6 +1389,7 @@ func (g *game) drawStartScreen() {
 
 	// Animated playfield traffic behind the menu
 	g.drawPlayfieldBackground()
+	g.drawDebris()
 	g.drawVehicles()
 
 	if g.startView == startScores {
@@ -1323,6 +1419,12 @@ func (g *game) drawStartScreen() {
 	ascii := getLarryASCII()
 	blinkOn := (time.Now().UnixNano()/int64(time.Millisecond)/400)%2 == 0
 	menuItems := []string{"Start", "High Scores", "Quit"}
+	maxLabel := 0
+	for _, label := range menuItems {
+		if n := len([]rune(label)); n > maxLabel {
+			maxLabel = n
+		}
+	}
 
 	lines := make([]string, 0, 20)
 	styles := make([]tcell.Style, 0, 20)
@@ -1339,20 +1441,22 @@ func (g *game) drawStartScreen() {
 	lines = append(lines, boxDivider)
 	styles = append(styles, fillStyle)
 	for i, label := range menuItems {
+		// Same-length rows so centered lines keep first letters (and Larry) aligned
+		padLabel := label + strings.Repeat(" ", maxLabel-len([]rune(label)))
 		cursor := "  "
 		st := normalStyle
 		if i == g.menuIndex {
 			st = selectedStyle
 			if blinkOn {
-				cursor = "→ "
+				cursor = string(glyphLarry) + " "
 			}
 		}
-		lines = append(lines, cursor+label)
+		lines = append(lines, cursor+padLabel)
 		styles = append(styles, st)
 	}
 	lines = append(lines, boxDivider)
 	styles = append(styles, fillStyle)
-	lines = append(lines, "↑↓ Select  ·  Enter Confirm")
+	lines = append(lines, "↑↓ hop Larry  ·  Enter Confirm")
 	styles = append(styles, helpStyle)
 	lines = append(lines, "Arrows or WASD to move in game")
 	styles = append(styles, hintStyle)
