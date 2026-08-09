@@ -1289,10 +1289,247 @@ async function fetchAirNowAqi(lat, lon, apiKey) {
     }
 }
 
+const WILDFIRE_RADIUS_MILES = 50;
+
+const INCIWEB_STATE_SLUGS = {
+    AL: 'alabama', AK: 'alaska', AZ: 'arizona', AR: 'arkansas', CA: 'california',
+    CO: 'colorado', CT: 'connecticut', DE: 'delaware', FL: 'florida', GA: 'georgia',
+    HI: 'hawaii', ID: 'idaho', IL: 'illinois', IN: 'indiana', IA: 'iowa',
+    KS: 'kansas', KY: 'kentucky', LA: 'louisiana', ME: 'maine', MD: 'maryland',
+    MA: 'massachusetts', MI: 'michigan', MN: 'minnesota', MS: 'mississippi', MO: 'missouri',
+    MT: 'montana', NE: 'nebraska', NV: 'nevada', NH: 'new-hampshire', NJ: 'new-jersey',
+    NM: 'new-mexico', NY: 'new-york', NC: 'north-carolina', ND: 'north-dakota', OH: 'ohio',
+    OK: 'oklahoma', OR: 'oregon', PA: 'pennsylvania', RI: 'rhode-island', SC: 'south-carolina',
+    SD: 'south-dakota', TN: 'tennessee', TX: 'texas', UT: 'utah', VT: 'vermont',
+    VA: 'virginia', WA: 'washington', WV: 'west-virginia', WI: 'wisconsin', WY: 'wyoming',
+    DC: 'district-of-columbia'
+};
+
+function getInciWebStateSlug(pooState) {
+    if (!pooState || typeof pooState !== 'string') return null;
+    let code = pooState.trim().toUpperCase();
+    if (code.startsWith('US-') && code.length >= 5) code = code.slice(3, 5);
+    else if (code.length > 2) code = code.slice(0, 2);
+    return INCIWEB_STATE_SLUGS[code] || null;
+}
+
+function getInciWebStateMapUrl(pooState) {
+    const slug = getInciWebStateSlug(pooState);
+    return slug ? `https://inciweb.wildfire.gov/state/${slug}` : null;
+}
+
+/** NIFC often prefixes IncidentName with a local fire number ("0433 BREWER"); InciWeb uses the name only. */
+function normalizeWildFireIncidentName(incidentName) {
+    if (!incidentName) return null;
+    const name = String(incidentName).trim();
+    const m = name.match(/^\d{3,}\s+(.+)$/);
+    if (m && m[1].trim()) return m[1].trim();
+    return name || null;
+}
+
+function slugifyInciWebName(incidentName) {
+    const normalized = normalizeWildFireIncidentName(incidentName);
+    if (!normalized) return null;
+    let name = String(normalized).trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    name = name.replace(/-{2,}/g, '-').replace(/^-|-$/g, '');
+    return name || null;
+}
+
+// InciWeb often appends "-fire" even when NIFC IncidentName omits it (HIGH LAVA -> wagpf-high-lava-fire).
+function getInciWebIncidentSlugCandidates(protectingUnit, incidentName) {
+    if (!protectingUnit || !incidentName) return [];
+    const unit = String(protectingUnit).trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    const name = slugifyInciWebName(incidentName);
+    if (!unit || !name) return [];
+    const candidates = [`${unit}-${name}`];
+    if (!/-(fire|complex|rx)$/.test(name)) {
+        candidates.push(`${unit}-${name}-fire`);
+    }
+    return candidates;
+}
+
+const inciwebSlugOkCache = new Map();
+
+async function testInciWebIncidentSlug(slug) {
+    if (!slug) return false;
+    if (inciwebSlugOkCache.has(slug)) return inciwebSlugOkCache.get(slug);
+    let ok = false;
+    try {
+        const ajaxUrl = `https://inciweb.wildfire.gov/views/ajax?view_name=incidents_page_&view_display_id=single_incident_information&view_args=${encodeURIComponent(slug)}`;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        try {
+            const response = await fetch(ajaxUrl, { signal: controller.signal });
+            if (response.ok) {
+                const body = await response.text();
+                ok = body.length > 8000 && (
+                    body.includes('phpCurrentIncidentName') ||
+                    body.includes('incident-main-info-wrapper') ||
+                    body.includes('incident-overview')
+                );
+            }
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    } catch (_) {
+        ok = false;
+    }
+    inciwebSlugOkCache.set(slug, ok);
+    return ok;
+}
+
+async function resolveInciWebIncidentUrl(protectingUnit, incidentName) {
+    const slugs = getInciWebIncidentSlugCandidates(protectingUnit, incidentName);
+    for (const slug of slugs) {
+        if (await testInciWebIncidentSlug(slug)) {
+            return `https://inciweb.wildfire.gov/incident-information/${slug}`;
+        }
+    }
+    return null;
+}
+
+function formatWildFireAcres(acres) {
+    const n = Number(acres);
+    if (!Number.isFinite(n) || n < 0) return null;
+    if (n < 10) return String(Math.round(n * 10) / 10);
+    return Math.round(n).toLocaleString('en-US');
+}
+
+/** Acres color class: default (<100), warn (100-999), alert (1k-99999), extreme (>=100000). */
+function getWildFireAcresClass(acres) {
+    const n = Number(acres);
+    if (!Number.isFinite(n) || n < 100) return '';
+    if (n < 1000) return 'wildfire-acres-warn';
+    if (n < 100000) return 'wildfire-acres-alert';
+    return 'wildfire-acres-extreme';
+}
+
+function buildNifcWildFireQueryUrl(lat, lon, distanceMiles = WILDFIRE_RADIUS_MILES) {
+    return `https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query?f=json&geometryType=esriGeometryPoint&geometry=${lon},${lat}&inSR=4326&distance=${distanceMiles}&units=esriSRUnit_StatuteMile&outFields=*&returnGeometry=true`;
+}
+
+function normalizeNifcWildFireIncidents(apiData, lat, lon, distanceMiles = WILDFIRE_RADIUS_MILES) {
+    const features = apiData?.features;
+    if (!Array.isArray(features) || features.length === 0) return [];
+    const radiusMiles = Number.isFinite(Number(distanceMiles)) ? Number(distanceMiles) : WILDFIRE_RADIUS_MILES;
+
+    const results = [];
+    for (const feature of features) {
+        try {
+            const a = feature?.attributes;
+            if (!a) continue;
+            const cat = String(a.IncidentTypeCategory || '').trim().toUpperCase();
+            if (cat && cat !== 'WF') continue;
+
+            let fireLat = null;
+            let fireLon = null;
+            if (feature.geometry && feature.geometry.y != null && feature.geometry.x != null) {
+                fireLat = Number(feature.geometry.y);
+                fireLon = Number(feature.geometry.x);
+            } else if (a.InitialLatitude != null && a.InitialLongitude != null) {
+                fireLat = Number(a.InitialLatitude);
+                fireLon = Number(a.InitialLongitude);
+            }
+            if (!Number.isFinite(fireLat) || !Number.isFinite(fireLon)) continue;
+
+            const distance = calculateDistanceMiles(lat, lon, fireLat, fireLon);
+            if (distance > radiusMiles + 0.5) continue;
+
+            const name = normalizeWildFireIncidentName(a.IncidentName);
+            if (!name) continue;
+
+            const acres = a.IncidentSize != null && Number.isFinite(Number(a.IncidentSize)) ? Number(a.IncidentSize) : null;
+            const discoveryAcres = a.DiscoveryAcres != null && Number.isFinite(Number(a.DiscoveryAcres)) ? Number(a.DiscoveryAcres) : null;
+            const contained = a.PercentContained != null && Number.isFinite(Number(a.PercentContained)) ? Number(a.PercentContained) : null;
+
+            const behaviorParts = [];
+            for (const field of ['FireBehaviorGeneral', 'FireBehaviorGeneral1', 'FireBehaviorGeneral2', 'FireBehaviorGeneral3']) {
+                const v = String(a[field] || '').trim();
+                if (v) behaviorParts.push(v);
+            }
+            const behavior = behaviorParts[0] || null;
+            const behaviorDetail = behaviorParts.length > 1 ? behaviorParts.slice(1).join(', ') : null;
+
+            const unit = String(a.POOProtectingUnit || '').trim();
+            const pooState = String(a.POOState || '').trim();
+            const bearing = calculateBearing(lat, lon, fireLat, fireLon);
+            const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+            const cardinal = dirs[Math.round(bearing / 22.5) % 16];
+
+            let updated = null;
+            if (a.ModifiedOnDateTime_dt != null) {
+                const ms = Number(a.ModifiedOnDateTime_dt);
+                if (Number.isFinite(ms)) updated = new Date(ms);
+            }
+
+            results.push({
+                name,
+                acres,
+                discoveryAcres,
+                contained,
+                behavior,
+                behaviorDetail,
+                lat: fireLat,
+                lon: fireLon,
+                distanceMi: Math.round(distance * 100) / 100,
+                cardinal,
+                unit,
+                state: pooState,
+                county: String(a.POOCounty || '').trim(),
+                shortDesc: String(a.IncidentShortDescription || '').trim(),
+                cause: String(a.FireCause || '').trim(),
+                updated,
+                inciwebUrl: null,
+                stateMapUrl: getInciWebStateMapUrl(pooState)
+            });
+        } catch (e) {
+            console.warn('Skipping wildfire feature:', e);
+        }
+    }
+
+    results.sort((a, b) => {
+        const aa = a.acres == null ? -1 : a.acres;
+        const bb = b.acres == null ? -1 : b.acres;
+        if (bb !== aa) return bb - aa;
+        return a.distanceMi - b.distanceMi;
+    });
+    return results;
+}
+
+async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_MILES) {
+    const radius = Number(distanceMiles);
+    if (!Number.isFinite(radius) || radius <= 0) return [];
+    const url = buildNifcWildFireQueryUrl(lat, lon, radius);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    try {
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) {
+            console.warn('NIFC wildfire API HTTP', response.status);
+            return [];
+        }
+        const data = await response.json();
+        const incidents = normalizeNifcWildFireIncidents(data, lat, lon, radius);
+        await Promise.all(incidents.map(async (inc) => {
+            inc.inciwebUrl = await resolveInciWebIncidentUrl(inc.unit, inc.name);
+        }));
+        return incidents;
+    } catch (error) {
+        console.warn('NIFC wildfire fetch failed:', error);
+        return [];
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
 // Fetch all weather data for a location
 async function fetchWeatherData(location, options = {}) {
     const includeAqi = !!options.includeAqi;
     const airNowApiKey = options.airNowApiKey || '';
+    const includeWildfire = options.includeWildfire !== false;
+    const wildfireRadiusMiles = Number.isFinite(Number(options.wildfireRadiusMiles))
+        ? Number(options.wildfireRadiusMiles)
+        : WILDFIRE_RADIUS_MILES;
     let lat, lon, city, state;
     
     // Geocode location or detect current location
@@ -1337,13 +1574,16 @@ async function fetchWeatherData(location, options = {}) {
         : Promise.resolve({ feature: null, stationId: null });
 
     // Fetch forecast and hourly data concurrently (main NWS API calls)
-    const [forecastData, hourlyData, alertsData, preFetchedStations, aqiRows, latestObsResult] = await Promise.all([
+    const [forecastData, hourlyData, alertsData, preFetchedStations, aqiRows, latestObsResult, wildFires] = await Promise.all([
         fetchNWSForecast(forecastUrl),
         fetchNWSHourly(hourlyUrl),
         fetchNWSAlerts(lat, lon),
         noaaStationsPromise,  // NOAA stations fetch in parallel
         includeAqi ? fetchAirNowAqi(lat, lon, airNowApiKey) : Promise.resolve(null),
-        latestObsPromise
+        latestObsPromise,
+        (includeWildfire && wildfireRadiusMiles > 0)
+            ? fetchWildFireIncidents(lat, lon, wildfireRadiusMiles)
+            : Promise.resolve([])
     ]);
     
     // Extract elevation from forecast data
@@ -1386,6 +1626,7 @@ async function fetchWeatherData(location, options = {}) {
         hourly: hourlyData,
         alerts: alertsData,
         aqiRows: aqiRows,
+        wildFires: wildFires || [],
         noaaStation: noaaStation,
         noaaOutOfRange: noaaOutOfRange,
         fetchTime: nwsFetchStartTime,  // Use the timestamp from when NWS API calls started

@@ -6,11 +6,12 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 
 - **No API Key Required**: Uses free National Weather Service API
 - **Optional AQI (AirNow)**: Add your own AirNow API key in Settings to display an AQI line in Current Conditions using official AQI category colors; categories 5/6 are emphasized with white text on colored badges and white borders for contrast. Uses AirNow [Current Observations by Zip Code or Lat/Long](https://docs.airnowapi.org/webservices) (`/aq/observation/current/ziplatLong`); rate limit is 500 requests per hour per key.
+- **Optional Wildfire (NIFC):** Nearby wildfires in Current Conditions and a full Wild Fire Info section (enable/radius in Settings; default on at 50 mi). Acres colored by size: default (<100), yellow (100–999), red (1,000–99,999), magenta (≥100,000).
 - **Multiple Display Modes**: Full, Daily, Hourly, Rain, Wind, and History
 - **PWA Support**: Installable as a web app with offline support and update detection
 - **Saved Locations**: Save favorite locations and switch between them; locations bar open/closed state is remembered. Number hotkeys load the first 20 favorites in drawer order: `1`–`0` for slots 1–10, `Shift+1`–`Shift+0` for slots 11–20 (ignored while typing, renaming a favorite, or when Settings is open).
 - **Keyboard shortcuts** (global; same ignore rules as location hotkeys): mode keys **F** Full, **D** Daily, **R** Rain, **W** Wind, **H** Hourly (**H** again while Hourly is active switches to History), **L** toggle Locations bar, **G** refresh weather data; section navigation **.** next / **,** previous (see [Section navigation](#section-navigation) below).
-- **Settings (gear button)**: Accent colors (primary/secondary), Reset Colors, Standard/Metric units, AM/PM or 24-hour time, Compact/Normal density, Feels-Like vs **WBGT** (optional estimated wet-bulb globe temperature when warm—see below), Auto-Update Data, optional AQI (Enable AQI + AirNow API key with inline validation), Extras (Enable Radar—off by default: NWS ridge loop GIF in Full mode above hourly, cached by the service worker for offline; Enable Solar Irradiance; Enable Magic Hours; Enable per Location Colors); Reset Forecast clears all data and settings to defaults. You can also double-click the header icon to open Settings.
+- **Settings (gear button)**: Accent colors (primary/secondary), Reset Colors, Standard/Metric units, AM/PM or 24-hour time, Compact/Normal density, Feels-Like vs **WBGT** (optional estimated wet-bulb globe temperature when warm—see below), Auto-Update Data, optional AQI (Enable AQI + AirNow API key with inline validation), Extras (Enable Wildfire—on by default with configurable radius, default 50 mi; Enable Radar—off by default: NWS ridge loop GIF in Full mode above hourly, cached by the service worker for offline; Enable Solar Irradiance; Enable Magic Hours; Enable per Location Colors); Reset Forecast clears all data and settings to defaults. You can also double-click the header icon to open Settings.
 - **Control Bar**: Favorite (save location), current location (pin), Locations (open/close saved locations), Refresh, Share (copy or share URL), Settings (gear)
 - **Observed current conditions**: Current Conditions prefer the nearest NWS station’s latest observation when fresh; see [Observed current conditions](#observed-current-conditions).
 - **Share**: Copy shareable link or use Web Share API when available; URL can include location and mode
@@ -18,7 +19,7 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 - **Time Format**: 12-hour (AM/PM) or 24-hour for all time displays
 - **Responsive Design**: Works on all screen sizes and aspect ratios
 - **Location Input**: Zip code, "City, State", or use the pin button for automatic current location
-- **Color-Coded Metrics**: Temperature, wind, precipitation, humidity, dew point, pressure
+- **Color-Coded Metrics**: Temperature, wind, precipitation, humidity, dew point, pressure, wildfire acres
 - **Weather Calculations**: Wind chill, NWS heat index (default warm “feels like”), optional **estimated WBGT** when you enable the Feels-Like → WBGT toggle (not instrument-grade: Stull wet-bulb plus a simplified globe term using clear-sky solar × a **forecast-text** cloud heuristic); sunrise/sunset, moon phase, and optional Magic Hours timing for photography
 - **Sunrise/Sunset/Day Length**: Shown for each day in Daily and History (astronomical calculation)
 - **NOAA Tide Stations**: When a station is within 100 miles, shows station name, distance (mi/km), cardinal direction, links to Tide Prediction/Datums/Levels, and last/next tide (height in ft or m, time)
@@ -96,7 +97,7 @@ Desktop **Firefox** has limited PWA support; use Chrome or Edge for the full ins
 4. **Star** saves the current location to the Locations bar; **Locations** opens/closes the saved locations list.
 5. **Refresh** (or **G**) updates weather data. Within 5 minutes of the last full forecast fetch, **Refresh** pulls only the latest station observation (temp, wind, humidity, and so on) without refetching forecast or hourly data. See [Observed current conditions](#observed-current-conditions).
 6. **Share** copies or shares the current page URL (with location and mode).
-7. Click the **gear** button in the control bar to open **Settings**: accent colors, Reset Colors, Standard/Metric, AM/PM vs 24H, Compact/Normal density, Feels-Like vs WBGT, Auto-Update Data, optional AQI setup, Extras (Enable Radar for Full-mode NWS loop with offline cache; Enable Solar Irradiance; Enable Magic Hours; Enable per Location Colors). **Reset Forecast** clears all favorites, cache, and settings and reloads. Alternatively, double-click the header icon to open Settings. To enable AQI, toggle **Enable AQI**, paste your **AirNow API Key**, and wait for a green check mark after validation. Register a key at [Request an AirNow API Key](https://docs.airnowapi.org/account/request/). AQI uses AirNow’s current observations API (`/aq/observation/current/ziplatLong`); each key is limited to **500 requests per hour** (see [AirNow Web Services](https://docs.airnowapi.org/webservices)).
+7. Click the **gear** button in the control bar to open **Settings**: accent colors, Reset Colors, Standard/Metric, AM/PM vs 24H, Compact/Normal density, Feels-Like vs WBGT, Auto-Update Data, optional AQI setup, Extras (Enable Wildfire—on by default, radius default 50 mi; Enable Radar for Full-mode NWS loop with offline cache; Enable Solar Irradiance; Enable Magic Hours; Enable per Location Colors). **Reset Forecast** clears all favorites, cache, and settings and reloads. Alternatively, double-click the header icon to open Settings. To enable AQI, toggle **Enable AQI**, paste your **AirNow API Key**, and wait for a green check mark after validation. Register a key at [Request an AirNow API Key](https://docs.airnowapi.org/account/request/). AQI uses AirNow’s current observations API (`/aq/observation/current/ziplatLong`); each key is limited to **500 requests per hour** (see [AirNow Web Services](https://docs.airnowapi.org/webservices)).
 
 ## Reset Feature
 
@@ -239,6 +240,7 @@ The app checks for new versions (e.g. via `manifest.json` version and service wo
 - **Precipitation chance**: Red (>50%), Yellow (21–50%), default (≤20%).
 - **Humidity / Dew point**: Ranges with cyan, yellow, red as appropriate.
 - **Pressure (History)**: Color by value for inHg (metric uses same logic on converted hPa).
+- **Wildfire acres**: Default (<100 ac), Yellow (100–999), Red (1,000–99,999), Magenta (≥100,000).
 - **Hour labels (Hourly)**: Yellow for hours mostly in daytime (sunrise–sunset), default otherwise. **Time** column header includes ordinal calendar day(s) for the visible page (location timezone).
 
 ## File Structure

@@ -4,7 +4,7 @@
 
 **Author:** Kreft&Cursor
 **Date:** 2025-01-27
-**Version:** 2.3
+**Version:** 2.4
 
 ---
 
@@ -23,6 +23,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
 - **Weather Alerts:** Automatically fetches and displays any active weather alerts (e.g., warnings, watches) from official sources.
 - **Color-Coded Metrics:** Key data points (temperature, wind speed) change color (blue for cold, red for hot) to indicate potentially hazardous conditions. Rain likelihood sparklines use color coding (white for very low, cyan for low, green for light, yellow for medium, red for high probability). Wind outlook glyphs use color coding (white for calm, yellow for light breeze, red for moderate wind, magenta for strong wind) with peak wind hours highlighted using inverted colors. **Hour Labels:** Hour labels in the hourly forecast (e.g., "08:00", "09:00") are colored yellow when the majority of that hour is during daytime (determined by checking if the hour midpoint falls between sunrise and sunset), otherwise displayed in white. This applies to both the hourly forecast in the main modal and the dedicated hourly modal. **Humidity:** Uses meteorological comfort thresholds based on relative humidity percentage. Low humidity (<30%) can cause dry skin, static electricity, and respiratory discomfort (cyan). Comfortable range (30-60%) is ideal for human comfort (white). Elevated humidity (61-70%) begins to feel muggy and can affect perceived temperature (yellow). High humidity (>70%) is oppressive, significantly increases heat index, and can be dangerous in hot weather (red). **Dew Point:** More reliable than humidity for assessing comfort as it's independent of temperature. Dew point represents the temperature at which air becomes saturated and condensation forms. Values below 40°F indicate very dry air (cyan), 40-54°F is comfortable (white), 55-64°F feels sticky and muggy (yellow), and 65°F+ is oppressive and can be dangerous when combined with high temperatures (red). Dew points above 70°F are rare but extremely uncomfortable. **Pressure (Observations):** Barometric pressure in inHg with color coding: low (<29.50 inHg) cyan, normal (29.50-30.20) white, high (30.20-30.50) yellow, extreme (<29.0 or >30.5) alert/magenta.
 - **AQI Line (AirNow):** Current conditions include an `AQI:` line immediately after `Wind:` when AirNow data is available and displayable **and** the user has configured the persisted Windows **User** environment variable **`AirNowAPI`** (your own key from AirNow; never embedded in the script). Use **`gf.ps1 -aqi`** for setup/validation, or set `AirNowAPI` manually. Format: `AQI: {CategoryName} O3[{O3AQI}] PM2.5[{PM25AQI}]`. `AQI:` is white; `CategoryName` is colored by the highest AirNow category number from O3/PM2.5 (1=Green, 2=Yellow, 3=DarkYellow, 4=Red, 5=Magenta, 6=DarkRed). `O3[...]` and `PM2.5[...]` are independently colored by each pollutant's category number. The line is suppressed when the env var is unset, data is unavailable, response is empty, highest category is 7 (Unavailable), or in terse mode unless highest category is 2-6.
+- **Wild Fire Info (NIFC WFIGS):** Soft-fail query for current wildfire incidents within the configured radius (default **50** statute miles). Full report shows a **Wild Fire Info** section after alerts (size, containment, behavior, grown acres when known, relative `mi` + cardinal like NOAA stations, InciWeb incident link after Views AJAX validation, plus state map). Terse mode adds a one-liner after AQI for the largest fire: `Wildfire: NAME …ac …% Behavior …mi DIR [1/X]`. Override with **`-wf` / `-wildfire N`**; **`-wf 0`** disables all wildfire API/UI for the run. **Acres color:** default (<100), yellow (100–999), red (1,000–99,999), magenta (≥100,000).
 - **Multiple Display Modes:**
   - **Full Mode (default):** Shows all available weather information
   - **Terse Mode (`-t`):** Shows only current conditions and today's forecast (plus alerts)
@@ -90,6 +91,7 @@ The script follows a multi-step process:
 - **Hourly:** `https://api.weather.gov/gridpoints/{office}/{gridX},{gridY}/forecast/hourly`
 - **Alerts:** `https://api.weather.gov/alerts/active?point={lat},{lon}`
 - **AirNow AQI (optional):** `https://www.airnowapi.org/aq/observation/current/ziplatLong?format=application/json&latitude={lat}&longitude={lon}&api_key={key}` — `{key}` comes only from the **`AirNowAPI`** environment variable (User scope preferred); no key ships with the script. Rate limit: 500 requests/hour per key.
+- **NIFC Wildfires:** `https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query` — point geometry + 50 mi statute radius; WF-only; soft-fail.
 - **Observation Stations:** `https://api.weather.gov/points/{lat},{lon}/stations`
 - **Latest Observation:** `https://api.weather.gov/stations/{stationId}/observations/latest`
 - **Observations:** `https://api.weather.gov/stations/{stationId}/observations?start={startTime}&end={endTime}&limit=500`
@@ -546,6 +548,10 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 - **Seamless Integration:** Fits naturally into existing weather display
 - **No Dependencies:** Self-contained calculation requiring no external services
 - **Cultural Relevance:** Moon phases have cultural and practical significance worldwide
+
+### Recent Enhancements (v2.4)
+
+- **Wild Fire Info:** When NIFC WFIGS reports wildfires within the configured radius (default 50 mi; `-wf`/`-wildfire N`), a **Wild Fire Info** section appears after alerts (size, containment, behavior, relative mi/cardinal like NOAA stations, InciWeb + state map links). Terse mode shows a dense one-liner for the largest fire (`Wildfire: NAME …ac …% … mi DIR [1/X]`). `-wf 0` disables. Acres colored by size: default (<100), yellow (100–999), red (1,000–99,999), magenta (≥100,000).
 
 ### Recent Enhancements (v2.3)
 

@@ -681,6 +681,19 @@ body.ui-density-normal .config-modal-content {
     box-sizing: border-box;
 }
 
+.config-number-input {
+    width: 5.5rem;
+    display: block;
+    margin-top: 0.25rem;
+    padding: calc(0.35rem * var(--ui-text-scale)) calc(0.5rem * var(--ui-text-scale));
+    font-size: 1em;
+    border: 1px solid var(--color-default);
+    border-radius: 4px;
+    background: var(--color-bg);
+    color: var(--color-text);
+    box-sizing: border-box;
+}
+
 /* Mask the AirNow API key visually without using <input type="password">,
    which Chrome's password manager pairs with the location/rename fields
    and prompts to save credentials on submit. */
@@ -1408,6 +1421,73 @@ body.ui-density-normal .weather-content {
 .alert-times {
     font-size: 0.9em;
     color: var(--color-text-secondary);
+}
+
+/* Wild Fire Info */
+.wildfire-info {
+    background-color: var(--color-bg-secondary);
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+}
+
+.wildfire-item-spaced {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--color-border, rgba(128, 128, 128, 0.25));
+}
+
+.wildfire-name {
+    font-weight: 600;
+    margin-bottom: 0.15rem;
+}
+
+.wildfire-stats,
+.wildfire-meta,
+.wildfire-desc,
+.wildfire-updated,
+.wildfire-links {
+    line-height: 1.35;
+    margin-bottom: 0.1rem;
+}
+
+.wildfire-desc {
+    color: var(--color-text-secondary);
+    font-size: 0.95em;
+}
+
+.wildfire-updated {
+    color: var(--color-info);
+    font-size: 0.9em;
+}
+
+.wildfire-active {
+    color: var(--color-alert);
+}
+
+.wildfire-label {
+    color: var(--color-alert);
+}
+
+.wildfire-warn {
+    color: var(--color-warning, #e6b800);
+}
+
+.wildfire-acres-warn {
+    color: var(--color-warning, #ffff00);
+}
+
+.wildfire-acres-alert {
+    color: var(--color-alert);
+}
+
+.wildfire-acres-extreme {
+    color: var(--color-magenta);
+}
+
+.wildfire-link-sep {
+    color: var(--color-text-secondary);
+    margin: 0 0.15rem;
 }
 
 /* Location Info */

@@ -34,6 +34,7 @@
     - Dew Point: Cyan (<40°F), White (40-54°F), Yellow (55-64°F), Red (≥65°F)
     - Pressure (Observations): Cyan (<29.50 inHg), White (29.50-30.20), Yellow (>30.20), Alert (extreme)
     - Clouds (Observations): When the station provides cloud data, "Clouds:" is shown on the same line as Conditions (label white, data gray). Codes: SKC (clear), FEW (few), SCT (scattered), BKN (broken), OVC (overcast), VV (vertical visibility; sky obscured). Omitted when not available.
+    - Wildfire acres: Default (<100 ac), Yellow (100-999), Red (1,000-99,999), Magenta (≥100,000)
     
 .PARAMETER Location
     The location for which to retrieve weather. Can be a 5-digit US zip code or a "City, State" string, or 'here'.
@@ -84,6 +85,7 @@ function Resolve-GfCommandLine {
         AqiSetup       = $false
         UseWbgt        = $false
         Magic          = $false
+        WildfireMiles  = $null
         Verbose        = $false
         IgnoredSwitches = [System.Collections.Generic.List[string]]::new()
     }
@@ -145,6 +147,22 @@ function Resolve-GfCommandLine {
                     if ($i -lt $ArgumentList.Count) { $i-- }
                 }
             }
+            elseif ($switchName -eq 'wildfire' -or $switchName -eq 'wf') {
+                $i++
+                if ($i -lt $ArgumentList.Count -and $ArgumentList[$i] -notmatch '^[-/]') {
+                    $milesVal = 0
+                    if ([int]::TryParse([string]$ArgumentList[$i], [ref]$milesVal) -and $milesVal -ge 0) {
+                        $parsed.WildfireMiles = $milesVal
+                    }
+                    else {
+                        $parsed.IgnoredSwitches.Add("$arg $($ArgumentList[$i])")
+                    }
+                }
+                else {
+                    $parsed.IgnoredSwitches.Add($arg)
+                    if ($i -lt $ArgumentList.Count) { $i-- }
+                }
+            }
             else {
                 $parsed.IgnoredSwitches.Add($arg)
             }
@@ -186,6 +204,14 @@ $Observations = [switch]($gfCli.Observations)
 $AqiSetup = [switch]($gfCli.AqiSetup)
 $UseWbgt = [switch]($gfCli.UseWbgt)
 $Magic = [switch]($gfCli.Magic)
+# Wildfire radius miles: default 50; -wf/-wildfire N overrides; 0 disables all wildfire API/UI for this run
+if ($null -ne $gfCli.WildfireMiles) {
+    $script:WILDFIRE_RADIUS_MILES = [int]$gfCli.WildfireMiles
+} else {
+    $script:WILDFIRE_RADIUS_MILES = 50
+}
+$script:wildFireEnabled = ($script:WILDFIRE_RADIUS_MILES -gt 0)
+$script:wildFireIncidents = @()
 
 # --- Helper Functions ---
 
@@ -257,11 +283,13 @@ if ($Help -or (($Terse.IsPresent -or $TerseAlert.IsPresent -or $Alerts.IsPresent
     Write-Host "                • White (≤5mph), Yellow (6-9mph), Red (10-14mph), Magenta (15mph+)" -ForegroundColor Gray
     Write-Host "                • Peak wind hours highlighted with inverted colors" -ForegroundColor Gray
     Write-Host "  -o, -Observations    Show historical weather observations" -ForegroundColor Cyan
+    Write-Host "                • Clouds on same line as Conditions when available (SKC=clear, FEW=few, SCT=scattered, BKN=broken, OVC=overcast, VV=vertical visibility)" -ForegroundColor Gray
+    Write-Host "                • Pressure (inHg): Cyan (<29.50), White (29.50-30.20), Yellow (>30.20), Red (extreme <29.0 or >30.5)" -ForegroundColor Gray
     Write-Host "  -aqi, -AqiSetup     AirNow API key setup (User env var AirNowAPI); exits after setup" -ForegroundColor Cyan
     Write-Host "                • Request a key: https://docs.airnowapi.org/account/request/" -ForegroundColor Gray
     Write-Host "                • Optional AQI in weather requires AirNowAPI; see README.md" -ForegroundColor Gray
-    Write-Host "                • Clouds on same line as Conditions when available (SKC=clear, FEW=few, SCT=scattered, BKN=broken, OVC=overcast, VV=vertical visibility)" -ForegroundColor Gray
-    Write-Host "                • Pressure (inHg): Cyan (<29.50), White (29.50-30.20), Yellow (>30.20), Red (extreme <29.0 or >30.5)" -ForegroundColor Gray
+    Write-Host "  -wf, -Wildfire N  Wildfire search radius in miles (default 50). Use 0 to disable wildfire API/UI" -ForegroundColor Cyan
+    Write-Host "                • Acres color: Default (<100), Yellow (100-999), Red (1,000-99,999), Magenta (≥100,000)" -ForegroundColor Gray
     Write-Host "  -u, -NoAutoUpdate Start with automatic updates disabled" -ForegroundColor Cyan
     Write-Host "  -b, -NoBar    Start with control bar hidden" -ForegroundColor Cyan
     Write-Host "  -x, -NoInteractive Exit immediately (no interactive mode)" -ForegroundColor Cyan
@@ -2008,6 +2036,16 @@ function Update-WeatherData {
         $alertsUrl = "https://api.weather.gov/alerts/active?point=$lat,$lon"
         Write-Verbose "GET: $alertsUrl"
         $alertsJob = Start-ApiJob -Url $alertsUrl -Headers $headers -JobName "AlertsData"
+
+        $wildFireJob = $null
+        if ($script:wildFireEnabled) {
+            $wildFireUrl = Get-NifcWildFireQueryUrl -Lat ([double]$lat) -Lon ([double]$lon) -DistanceMiles $script:WILDFIRE_RADIUS_MILES
+            Write-Verbose "GET: $wildFireUrl"
+            $wildFireJob = Start-ApiJob -Url $wildFireUrl -Headers @{} -JobName "WildFireData"
+        } else {
+            Write-Verbose "Wildfire disabled (-wf 0 or radius 0)"
+            $script:wildFireIncidents = @()
+        }
         
         $locationKeyForObs = $script:locationKey
         if (-not $locationKeyForObs) {
@@ -2038,6 +2076,7 @@ function Update-WeatherData {
         
         $jobsToWaitFor = @($forecastJob, $hourlyJob, $alertsJob)
         if ($aqiJob) { $jobsToWaitFor += $aqiJob }
+        if ($wildFireJob) { $jobsToWaitFor += $wildFireJob }
         if ($stationsJob) {
             $jobsToWaitFor += $stationsJob
         }
@@ -2268,6 +2307,36 @@ function Update-WeatherData {
                 } catch {
                     Write-Verbose "Failed to parse alerts data: $($_.Exception.Message)"
                 }
+            }
+        }
+
+        # Process wildfire job - non-blocking
+        $script:wildFireIncidents = @()
+        if ($wildFireJob) {
+            if ($wildFireJob.State -eq 'Completed') {
+                $wfJobErrors = @()
+                $wfJson = $wildFireJob | Receive-Job -ErrorVariable wfJobErrors -ErrorAction SilentlyContinue
+                if ($wfJobErrors -and $wfJobErrors.Count -gt 0) {
+                    $wfErrMsg = ($wfJobErrors | ForEach-Object { $_.Exception.Message } | Select-Object -Unique) -join "; "
+                    Write-Verbose "NIFC wildfire non-blocking failure details: $wfErrMsg"
+                }
+                if (-not [string]::IsNullOrWhiteSpace($wfJson)) {
+                    try {
+                        $wfData = $wfJson | ConvertFrom-Json
+                        if (-not ($wfData.PSObject.Properties.Name -contains 'Error' -and $wfData.Error)) {
+                            $script:wildFireIncidents = @(Get-WildFireIncidentsFromApiResponse -ApiData $wfData -Lat ([double]$lat) -Lon ([double]$lon) -TimeZoneId $TimeZone -ValidateInciWeb $true)
+                            Write-Verbose "Wildfire incidents within $($script:WILDFIRE_RADIUS_MILES) mi: $($script:wildFireIncidents.Count)"
+                        } else {
+                            Write-Verbose "NIFC wildfire API returned error payload"
+                        }
+                    } catch {
+                        Write-Verbose "Failed to parse NIFC wildfire data: $($_.Exception.Message)"
+                    }
+                }
+                Remove-Job -Job $wildFireJob -Force -ErrorAction SilentlyContinue
+            } else {
+                Write-Verbose "NIFC wildfire API failed - continuing without wildfire output"
+                Remove-Job -Job $wildFireJob -Force -ErrorAction SilentlyContinue
             }
         }
         
@@ -4517,6 +4586,10 @@ function Show-CurrentConditions {
         }
     }
 
+    if ($IsTerseMode -and $script:wildFireEnabled -and $script:wildFireIncidents -and @($script:wildFireIncidents).Count -gt 0) {
+        Show-WildFireTerseLine -Incidents $script:wildFireIncidents -DefaultColor $DefaultColor -AlertColor $AlertColor
+    }
+
     # Apply humidity color scheme based on comfort levels
     $humidityValue = [double]$currentHumidity
     $humidityColor = if ($humidityValue -lt 30) { "Cyan" }
@@ -5827,6 +5900,436 @@ function Get-Bearing {
     return $bearing
 }
 
+$script:WILDFIRE_RADIUS_MILES = if ($null -ne $script:WILDFIRE_RADIUS_MILES) { [int]$script:WILDFIRE_RADIUS_MILES } else { 50 }
+$script:wildFireEnabled = ($script:WILDFIRE_RADIUS_MILES -gt 0)
+$script:inciwebUrlOkCache = @{}
+
+function Get-NifcWildFireQueryUrl {
+    param(
+        [double]$Lat,
+        [double]$Lon,
+        [double]$DistanceMiles = 50
+    )
+    $latStr = ($Lat -as [string])
+    $lonStr = ($Lon -as [string])
+    $distStr = ($DistanceMiles -as [string])
+    return "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query?f=json&geometryType=esriGeometryPoint&geometry=$lonStr,$latStr&inSR=4326&distance=$distStr&units=esriSRUnit_StatuteMile&outFields=*&returnGeometry=true"
+}
+
+function Get-InciWebStateSlug {
+    param([string]$PooState)
+    if ([string]::IsNullOrWhiteSpace($PooState)) { return $null }
+    $code = $PooState.Trim().ToUpperInvariant()
+    if ($code.StartsWith('US-') -and $code.Length -ge 5) {
+        $code = $code.Substring(3, 2)
+    } elseif ($code.Length -gt 2) {
+        $code = $code.Substring(0, 2)
+    }
+    $map = @{
+        AL = 'alabama'; AK = 'alaska'; AZ = 'arizona'; AR = 'arkansas'; CA = 'california'
+        CO = 'colorado'; CT = 'connecticut'; DE = 'delaware'; FL = 'florida'; GA = 'georgia'
+        HI = 'hawaii'; ID = 'idaho'; IL = 'illinois'; IN = 'indiana'; IA = 'iowa'
+        KS = 'kansas'; KY = 'kentucky'; LA = 'louisiana'; ME = 'maine'; MD = 'maryland'
+        MA = 'massachusetts'; MI = 'michigan'; MN = 'minnesota'; MS = 'mississippi'; MO = 'missouri'
+        MT = 'montana'; NE = 'nebraska'; NV = 'nevada'; NH = 'new-hampshire'; NJ = 'new-jersey'
+        NM = 'new-mexico'; NY = 'new-york'; NC = 'north-carolina'; ND = 'north-dakota'; OH = 'ohio'
+        OK = 'oklahoma'; OR = 'oregon'; PA = 'pennsylvania'; RI = 'rhode-island'; SC = 'south-carolina'
+        SD = 'south-dakota'; TN = 'tennessee'; TX = 'texas'; UT = 'utah'; VT = 'vermont'
+        VA = 'virginia'; WA = 'washington'; WV = 'west-virginia'; WI = 'wisconsin'; WY = 'wyoming'
+        DC = 'district-of-columbia'
+    }
+    if ($map.ContainsKey($code)) { return $map[$code] }
+    return $null
+}
+
+function Get-InciWebStateMapUrl {
+    param([string]$PooState)
+    $slug = Get-InciWebStateSlug -PooState $PooState
+    if (-not $slug) { return $null }
+    return "https://inciweb.wildfire.gov/state/$slug"
+}
+
+# NIFC often prefixes IncidentName with a local fire number ("0433 BREWER"); InciWeb uses the name only.
+function Get-NormalizedWildFireIncidentName {
+    param([string]$IncidentName)
+    if ([string]::IsNullOrWhiteSpace($IncidentName)) { return $null }
+    $name = $IncidentName.Trim()
+    if ($name -match '^\d{3,}\s+(.+)$') {
+        $rest = $Matches[1].Trim()
+        if (-not [string]::IsNullOrWhiteSpace($rest)) { return $rest }
+    }
+    return $name
+}
+
+function Get-InciWebNameSlug {
+    param([string]$IncidentName)
+    if ([string]::IsNullOrWhiteSpace($IncidentName)) { return $null }
+    $normalized = Get-NormalizedWildFireIncidentName -IncidentName $IncidentName
+    if ([string]::IsNullOrWhiteSpace($normalized)) { return $null }
+    $name = ($normalized.Trim().ToLowerInvariant() -replace '\s+', '-')
+    $name = $name -replace '[^a-z0-9\-]', ''
+    $name = $name -replace '-{2,}', '-'
+    $name = $name.Trim('-')
+    if ([string]::IsNullOrWhiteSpace($name)) { return $null }
+    return $name
+}
+
+# InciWeb slugs often append "-fire" even when NIFC IncidentName omits it (e.g. HIGH LAVA -> wagpf-high-lava-fire).
+function Get-InciWebIncidentSlugCandidates {
+    param(
+        [string]$ProtectingUnit,
+        [string]$IncidentName
+    )
+    if ([string]::IsNullOrWhiteSpace($ProtectingUnit) -or [string]::IsNullOrWhiteSpace($IncidentName)) {
+        return @()
+    }
+    $unit = ($ProtectingUnit.Trim().ToLowerInvariant() -replace '\s+', '-')
+    $unit = $unit -replace '[^a-z0-9\-]', ''
+    $name = Get-InciWebNameSlug -IncidentName $IncidentName
+    if ([string]::IsNullOrWhiteSpace($unit) -or [string]::IsNullOrWhiteSpace($name)) { return @() }
+
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    $candidates.Add("$unit-$name")
+    if ($name -notmatch '-(fire|complex|rx)$') {
+        $candidates.Add("$unit-$name-fire")
+    }
+    return @($candidates)
+}
+
+# HEAD is useless: empty Drupal shells also return 200. Probe Views AJAX for real incident content.
+function Test-InciWebIncidentSlug {
+    param([string]$Slug)
+    if ([string]::IsNullOrWhiteSpace($Slug)) { return $false }
+    $cacheKey = "slug:$Slug"
+    if ($script:inciwebUrlOkCache.ContainsKey($cacheKey)) {
+        return [bool]$script:inciwebUrlOkCache[$cacheKey]
+    }
+    $ok = $false
+    try {
+        $ajaxUrl = "https://inciweb.wildfire.gov/views/ajax?view_name=incidents_page_&view_display_id=single_incident_information&view_args=$Slug"
+        $resp = Invoke-WebRequest -Uri $ajaxUrl -Method Get -TimeoutSec 8 -MaximumRedirection 5 -UseBasicParsing -ErrorAction Stop
+        $body = [string]$resp.Content
+        # Published pages embed incident payload; blank shells insert an empty wrapper (~2KB).
+        $ok = ($body.Length -gt 8000) -and (
+            $body.Contains('phpCurrentIncidentName') -or
+            $body.Contains('incident-main-info-wrapper') -or
+            $body.Contains('incident-overview')
+        )
+    } catch {
+        $ok = $false
+    }
+    $script:inciwebUrlOkCache[$cacheKey] = $ok
+    return $ok
+}
+
+function Get-InciWebIncidentUrl {
+    param(
+        [string]$ProtectingUnit,
+        [string]$IncidentName,
+        [bool]$Validate = $true
+    )
+    $slugs = @(Get-InciWebIncidentSlugCandidates -ProtectingUnit $ProtectingUnit -IncidentName $IncidentName)
+    if ($slugs.Count -eq 0) { return $null }
+
+    if (-not $Validate) {
+        # Prefer -fire candidate when present (common InciWeb naming) without probing
+        $preferred = $slugs | Where-Object { $_ -match '-fire$' } | Select-Object -First 1
+        if (-not $preferred) { $preferred = $slugs[0] }
+        return "https://inciweb.wildfire.gov/incident-information/$preferred"
+    }
+
+    foreach ($slug in $slugs) {
+        if (Test-InciWebIncidentSlug -Slug $slug) {
+            return "https://inciweb.wildfire.gov/incident-information/$slug"
+        }
+    }
+    return $null
+}
+
+function Format-WildFireAcres {
+    param($Acres)
+    if ($null -eq $Acres) { return $null }
+    try {
+        $n = [double]$Acres
+        if ($n -lt 0) { return $null }
+        if ($n -lt 10) { return ([Math]::Round($n, 1)).ToString() }
+        return ([Math]::Round($n, 0)).ToString('N0')
+    } catch {
+        return $null
+    }
+}
+
+function Get-WildFireAcresForegroundColor {
+    param(
+        $Acres,
+        [string]$DefaultColor = "White"
+    )
+    if ($null -eq $Acres) { return $DefaultColor }
+    try {
+        $n = [double]$Acres
+        if ($n -lt 100) { return $DefaultColor }
+        if ($n -lt 1000) { return "Yellow" }
+        if ($n -lt 100000) { return "Red" }
+        return "Magenta"
+    } catch {
+        return $DefaultColor
+    }
+}
+
+function Convert-NifcEpochMsToLocalDateTime {
+    param(
+        $EpochMs,
+        [string]$TimeZoneId = $null
+    )
+    if ($null -eq $EpochMs) { return $null }
+    try {
+        $ms = [long]$EpochMs
+        $dto = [DateTimeOffset]::FromUnixTimeMilliseconds($ms)
+        if ($TimeZoneId) {
+            $tz = Get-ResolvedTimeZoneInfo -TimeZoneId $TimeZoneId
+            if ($tz) {
+                return [System.TimeZoneInfo]::ConvertTime($dto, $tz)
+            }
+        }
+        return $dto.LocalDateTime
+    } catch {
+        return $null
+    }
+}
+
+function Get-WildFireIncidentsFromApiResponse {
+    param(
+        [object]$ApiData,
+        [double]$Lat,
+        [double]$Lon,
+        [string]$TimeZoneId = $null,
+        [bool]$ValidateInciWeb = $true
+    )
+    $results = @()
+    if (-not $ApiData -or -not $ApiData.features) { return $results }
+
+    $features = @($ApiData.features)
+    foreach ($feature in $features) {
+        try {
+            $a = $feature.attributes
+            if (-not $a) { continue }
+            $cat = "$($a.IncidentTypeCategory)".Trim().ToUpperInvariant()
+            if ($cat -and $cat -ne 'WF') { continue }
+
+            $fireLat = $null
+            $fireLon = $null
+            if ($feature.geometry -and $null -ne $feature.geometry.y -and $null -ne $feature.geometry.x) {
+                $fireLat = [double]$feature.geometry.y
+                $fireLon = [double]$feature.geometry.x
+            } elseif ($null -ne $a.InitialLatitude -and $null -ne $a.InitialLongitude) {
+                $fireLat = [double]$a.InitialLatitude
+                $fireLon = [double]$a.InitialLongitude
+            }
+            if ($null -eq $fireLat -or $null -eq $fireLon) { continue }
+
+            $distance = Get-DistanceMiles -Lat1 $Lat -Lon1 $Lon -Lat2 $fireLat -Lon2 $fireLon
+            if ($distance -gt ($script:WILDFIRE_RADIUS_MILES + 0.5)) { continue }
+
+            $bearing = Get-Bearing -Lat1 $Lat -Lon1 $Lon -Lat2 $fireLat -Lon2 $fireLon
+            $cardinal = Get-CardinalDirection -Degrees $bearing
+            $name = Get-NormalizedWildFireIncidentName -IncidentName "$($a.IncidentName)"
+            if ([string]::IsNullOrWhiteSpace($name)) { continue }
+
+            $acres = $null
+            try { if ($null -ne $a.IncidentSize) { $acres = [double]$a.IncidentSize } } catch {}
+            $discoveryAcres = $null
+            try { if ($null -ne $a.DiscoveryAcres) { $discoveryAcres = [double]$a.DiscoveryAcres } } catch {}
+            $contained = $null
+            try { if ($null -ne $a.PercentContained) { $contained = [double]$a.PercentContained } } catch {}
+
+            $behaviorParts = @()
+            foreach ($bField in @('FireBehaviorGeneral', 'FireBehaviorGeneral1', 'FireBehaviorGeneral2', 'FireBehaviorGeneral3')) {
+                $bv = "$($a.$bField)".Trim()
+                if ($bv) { $behaviorParts += $bv }
+            }
+            $behavior = if ($behaviorParts.Count -gt 0) { $behaviorParts[0] } else { $null }
+            $behaviorDetail = $null
+            if ($behaviorParts.Count -gt 1) {
+                $behaviorDetail = ($behaviorParts | Select-Object -Skip 1) -join ', '
+            }
+
+            $unit = "$($a.POOProtectingUnit)".Trim()
+            $pooState = "$($a.POOState)".Trim()
+            $county = "$($a.POOCounty)".Trim()
+            $shortDesc = "$($a.IncidentShortDescription)".Trim()
+            $cause = "$($a.FireCause)".Trim()
+            $inciwebUrl = Get-InciWebIncidentUrl -ProtectingUnit $unit -IncidentName $name -Validate $ValidateInciWeb
+            $stateMapUrl = Get-InciWebStateMapUrl -PooState $pooState
+            $updated = Convert-NifcEpochMsToLocalDateTime -EpochMs $a.ModifiedOnDateTime_dt -TimeZoneId $TimeZoneId
+
+            $results += [pscustomobject]@{
+                Name            = $name
+                Acres           = $acres
+                DiscoveryAcres  = $discoveryAcres
+                Contained       = $contained
+                Behavior        = $behavior
+                BehaviorDetail  = $behaviorDetail
+                Lat             = $fireLat
+                Lon             = $fireLon
+                DistanceMi      = [Math]::Round($distance, 2)
+                Cardinal        = $cardinal
+                Unit            = $unit
+                State           = $pooState
+                County          = $county
+                ShortDesc       = $shortDesc
+                Cause           = $cause
+                Updated         = $updated
+                InciWebUrl      = $inciwebUrl
+                StateMapUrl     = $stateMapUrl
+            }
+        } catch {
+            Write-Verbose "Skipping wildfire feature: $($_.Exception.Message)"
+        }
+    }
+
+    return @($results | Sort-Object -Property @{ Expression = { if ($null -eq $_.Acres) { -1 } else { $_.Acres } }; Descending = $true }, DistanceMi)
+}
+
+function Show-WildFireInfo {
+    param(
+        [object]$Incidents,
+        [string]$TitleColor = "Green",
+        [string]$DefaultColor = "White",
+        [string]$AlertColor = "Red",
+        [string]$InfoColor = "Blue"
+    )
+    $list = @($Incidents)
+    if ($list.Count -eq 0) { return }
+
+    Write-Host ""
+    if ($list.Count -gt 1) {
+        Write-Host "*** Wild Fire Info ($($list.Count)) ***" -ForegroundColor $TitleColor
+    } else {
+        Write-Host "*** Wild Fire Info ***" -ForegroundColor $TitleColor
+    }
+
+    for ($i = 0; $i -lt $list.Count; $i++) {
+        $f = $list[$i]
+        Write-Host "$($f.Name)" -ForegroundColor Yellow -NoNewline
+        Write-Host "  $($f.DistanceMi)mi $($f.Cardinal)" -ForegroundColor $DefaultColor
+
+        $acresStr = Format-WildFireAcres -Acres $f.Acres
+        $acresColor = Get-WildFireAcresForegroundColor -Acres $f.Acres -DefaultColor $DefaultColor
+        Write-Host "Size: " -ForegroundColor $DefaultColor -NoNewline
+        if ($acresStr) {
+            Write-Host "${acresStr} ac" -ForegroundColor $acresColor -NoNewline
+        } else {
+            Write-Host "—" -ForegroundColor $DefaultColor -NoNewline
+        }
+        $contPart = if ($null -ne $f.Contained) { "Contained: $([Math]::Round([double]$f.Contained, 0))%" } else { "Contained: —" }
+        $behPart = if ($f.Behavior) {
+            if ($f.BehaviorDetail) { "Behavior: $($f.Behavior) ($($f.BehaviorDetail))" } else { "Behavior: $($f.Behavior)" }
+        } else { "Behavior: —" }
+        # Contained/Behavior stay default (or yellow for extreme behavior); do not paint the whole stats line red for <100% containment
+        $line2Color = $DefaultColor
+        if ($f.Behavior -match '(?i)active|extreme|critical') { $line2Color = "Yellow" }
+        Write-Host " · $contPart · $behPart" -ForegroundColor $line2Color
+
+        $line3Parts = @()
+        $discStr = Format-WildFireAcres -Acres $f.DiscoveryAcres
+        if ($acresStr -and $discStr -and $null -ne $f.Acres -and $null -ne $f.DiscoveryAcres -and [double]$f.Acres -gt [double]$f.DiscoveryAcres) {
+            $discColor = Get-WildFireAcresForegroundColor -Acres $f.DiscoveryAcres -DefaultColor $DefaultColor
+            Write-Host "Grown: " -ForegroundColor $DefaultColor -NoNewline
+            Write-Host "$discStr" -ForegroundColor $discColor -NoNewline
+            Write-Host "→" -ForegroundColor $DefaultColor -NoNewline
+            Write-Host "${acresStr} ac" -ForegroundColor $acresColor -NoNewline
+            $line3HasGrown = $true
+        } else {
+            $line3HasGrown = $false
+        }
+        if ($f.Cause) { $line3Parts += "Cause: $($f.Cause)" }
+        $place = @()
+        if ($f.County) { $place += $f.County }
+        $stateSlug = Get-InciWebStateSlug -PooState $f.State
+        if ($f.State) {
+            $stCode = $f.State.Trim().ToUpperInvariant()
+            if ($stCode.StartsWith('US-') -and $stCode.Length -ge 5) { $stCode = $stCode.Substring(3, 2) }
+            $place += $stCode
+        }
+        if ($place.Count -gt 0) { $line3Parts += ($place -join ', ') }
+        if ($line3HasGrown -or $line3Parts.Count -gt 0) {
+            if ($line3HasGrown -and $line3Parts.Count -gt 0) {
+                Write-Host (" · " + ($line3Parts -join ' · ')) -ForegroundColor $DefaultColor
+            } elseif ($line3HasGrown) {
+                Write-Host ""
+            } else {
+                Write-Host ($line3Parts -join ' · ') -ForegroundColor $DefaultColor
+            }
+        }
+        if ($f.ShortDesc) {
+            Write-Host $f.ShortDesc -ForegroundColor Gray
+        }
+        if ($f.Updated) {
+            try {
+                Write-Host ("Updated: " + $f.Updated.ToString('MM/dd HH:mm')) -ForegroundColor $InfoColor
+            } catch {}
+        }
+
+        Write-Host "InciWeb: " -ForegroundColor $DefaultColor -NoNewline
+        $linkWritten = $false
+        if ($f.InciWebUrl) {
+            Write-Host "$([char]27)]8;;$($f.InciWebUrl)$([char]27)\$($f.Name)$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
+            $linkWritten = $true
+        }
+        if ($f.StateMapUrl) {
+            if ($linkWritten) { Write-Host " | " -ForegroundColor $DefaultColor -NoNewline }
+            $stateLabel = if ($stateSlug) { (Get-Culture).TextInfo.ToTitleCase($stateSlug.Replace('-', ' ')) } else { 'State Map' }
+            Write-Host "$([char]27)]8;;$($f.StateMapUrl)$([char]27)\State Map: $stateLabel$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
+            $linkWritten = $true
+        }
+        if (-not $linkWritten) {
+            Write-Host "—" -ForegroundColor Gray -NoNewline
+        }
+        Write-Host ""
+
+        if ($i -lt ($list.Count - 1)) {
+            Write-Host ""
+        }
+    }
+}
+
+function Show-WildFireTerseLine {
+    param(
+        [object]$Incidents,
+        [string]$DefaultColor = "White",
+        [string]$AlertColor = "Red"
+    )
+    $list = @($Incidents)
+    if ($list.Count -eq 0) { return }
+    $f = $list[0]
+    $acresStr = Format-WildFireAcres -Acres $f.Acres
+    $restParts = @()
+    if ($null -ne $f.Contained) { $restParts += "$([Math]::Round([double]$f.Contained, 0))%" }
+    if ($f.Behavior) { $restParts += $f.Behavior }
+    $restParts += "$($f.DistanceMi)mi $($f.Cardinal)"
+    if ($list.Count -gt 1) { $restParts += "[1/$($list.Count)]" }
+    # Keep rest at default so acres coloring stays the primary signal (no whole-line red for <100% containment)
+    $restColor = $DefaultColor
+    if ($f.Behavior -match '(?i)active|extreme|critical') { $restColor = "Yellow" }
+    $acresColor = Get-WildFireAcresForegroundColor -Acres $f.Acres -DefaultColor $DefaultColor
+
+    Write-Host "Wildfire: " -ForegroundColor Red -NoNewline
+    if ($f.InciWebUrl) {
+        Write-Host "$([char]27)]8;;$($f.InciWebUrl)$([char]27)\$($f.Name)$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
+    } else {
+        Write-Host "$($f.Name)" -ForegroundColor $DefaultColor -NoNewline
+    }
+    if ($acresStr) {
+        Write-Host " " -NoNewline
+        Write-Host "${acresStr}ac" -ForegroundColor $acresColor -NoNewline
+    }
+    if ($restParts.Count -gt 0) {
+        Write-Host (" " + ($restParts -join ' ')) -ForegroundColor $restColor
+    } else {
+        Write-Host ""
+    }
+}
+
 # Function to search NOAA tide stations by coordinates
 function Get-NoaaTideStation {
     param(
@@ -6637,6 +7140,10 @@ function Show-FullWeatherReport {
         Show-WeatherAlerts -AlertsData $AlertsData -AlertColor $AlertColor -DefaultColor $DefaultColor -InfoColor $InfoColor -ShowDetails $ShowAlertDetails -TimeZone $TimeZone
     }
 
+    if (-not $IsTerseMode -and $script:wildFireEnabled -and $script:wildFireIncidents -and @($script:wildFireIncidents).Count -gt 0) {
+        Show-WildFireInfo -Incidents $script:wildFireIncidents -TitleColor $TitleColor -DefaultColor $DefaultColor -AlertColor $AlertColor -InfoColor $InfoColor
+    }
+
     if ($ShowLocationInfo) {
         Show-LocationInfo -TimeZone $TimeZone -Lat $Lat -Lon $Lon -ElevationFeet $ElevationFeet -RadarStation $RadarStation -TitleColor $TitleColor -DefaultColor $DefaultColor
     }
@@ -6991,6 +7498,29 @@ if ($VerbosePreference -ne 'Continue') {
     Clear-Host
 }
 
+# --- FETCH WILDFIRES (NIFC WFIGS, soft-fail; after helpers are defined) ---
+if (-not $script:wildFireIncidents) { $script:wildFireIncidents = @() }
+if (-not $script:wildFireEnabled) {
+    $script:wildFireIncidents = @()
+    Write-Verbose "Wildfire disabled (-wf 0 or radius 0); skipping NIFC fetch"
+} else {
+    if ($VerbosePreference -ne 'Continue') {
+        Write-Host "Checking Wildfire..." -ForegroundColor Yellow
+    } else {
+        Write-Verbose "Checking Wildfire..."
+    }
+    try {
+        $wildFireUrl = Get-NifcWildFireQueryUrl -Lat ([double]$lat) -Lon ([double]$lon) -DistanceMiles $script:WILDFIRE_RADIUS_MILES
+        Write-Verbose "GET: $wildFireUrl"
+        $wildFireResponse = Invoke-RestMethod -Uri $wildFireUrl -Method Get -TimeoutSec 30 -ErrorAction Stop
+        $script:wildFireIncidents = @(Get-WildFireIncidentsFromApiResponse -ApiData $wildFireResponse -Lat ([double]$lat) -Lon ([double]$lon) -TimeZoneId $timeZone -ValidateInciWeb $true)
+        Write-Verbose "Wildfire incidents within $($script:WILDFIRE_RADIUS_MILES) mi: $($script:wildFireIncidents.Count)"
+    } catch {
+        Write-Verbose "NIFC wildfire fetch failed: $($_.Exception.Message)"
+        $script:wildFireIncidents = @()
+    }
+}
+
 # Determine which sections to display based on command-line options
 # Default: Show all sections (full weather report)
 $showCurrentConditions = $true
@@ -7071,6 +7601,7 @@ elseif ($Observations.IsPresent) {
 }
 
 # Output the results.
+
 $weatherIcon = Get-CurrentConditionsWeatherIcon -IconUrl $currentIcon -Period $currentPeriod -PrecipProb $currentPrecipProb -SunriseTime $sunriseTime -SunsetTime $sunsetTime -PolarNight $isPolarNight -IsPolarDay $isPolarDay
 
 # Clear loading message before displaying data

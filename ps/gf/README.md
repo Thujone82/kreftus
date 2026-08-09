@@ -26,6 +26,7 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
   - Moon phase information with emoji and next full moon date.
   - **All times displayed in location's timezone:** Hourly forecasts, sunrise, sunset, and update times are shown in the destination location's local timezone, not your system's timezone.
   - Weather alerts and warnings.
+  - **Wild Fire Info** (NIFC WFIGS): when wildfires are within the search radius (default **50 mi**), lists size, containment, behavior, distance/direction (same mi + cardinal notation as NOAA tide stations), and InciWeb / state map links. Terse mode shows a one-liner for the largest nearby fire. Use **`-wf` / `-wildfire N`** to set radius in miles; **`-wf 0`** disables wildfire API and UI for that run.
   - AQI line (AirNow) after Wind when configured: requires your own **AirNow API key** in the persisted Windows **User** environment variable **`AirNowAPI`** (not stored in the script). Use **`.\gf.ps1 -aqi`** to set or validate the key (see [Parameters](#parameters)). When the variable is unset, AQI is omitted.
   - Rain likelihood forecast with visual sparklines.
   - Wind outlook forecast with direction glyphs.
@@ -50,6 +51,7 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
     - Red: Oppressive, very uncomfortable (≥65°F)
   - **Pressure (Observations only):** Barometric pressure in inHg: Cyan (<29.50), White (29.50–30.20), Yellow (>30.20), Red (extreme: <29.0 or >30.5)
   - **Clouds (Observations only):** When data is available, "Clouds:" is shown on the same line as Conditions (white label, gray data). Codes: SKC (clear), FEW (few), SCT (scattered), BKN (broken), OVC (overcast), VV (vertical visibility). Omitted when not available
+  - **Wildfire acres:** Default (<100 ac), Yellow (100–999), Red (1,000–99,999), Magenta (≥100,000) — applied to the acres value in terse and full Wild Fire Info displays
   - **AQI (Current conditions):**
     - `AQI:` label is always White.
     - `CategoryName` color uses highest category number from O3/PM2.5:
@@ -673,6 +675,7 @@ These messages provide clear feedback about the script's progress and help users
 
 ## Changelog
 
+- **v2.4** — Wild Fire Info from NIFC WFIGS (50 mi default): full section after alerts with size/containment/behavior and InciWeb links; terse one-liner for the largest fire (`[1/X]` when multiple). Override radius with `-wf`/`-wildfire N` miles; `-wf 0` disables.
 - **v2.3** — TerseAlert mode (`-ta` / `-tersealert`): alternate terse and full alerts every 20s when alerts are active; with `-x`, print terse then alerts. Alerts-only mode (`-a` / `-alerts`) with green empty state. Interactive hotkeys **A** (alerts) and **Shift+T** (TerseAlert), not shown on the control bar.
 - **v2.2** — Soft-warn on unrecognized CLI options (e.g. accidental `-c`) and continue; suppress NWS test/monitoring-only alerts; current-conditions header shows ⚠️/🌡 when alerts are active (matches forecast web); fix alert section when API returns a single GeoJSON feature.
 - **v2.1** — Moon phase, rain/wind sparklines, observations mode, auto-refresh, solar irradiance, and related enhancements (see GEMINI.md).
@@ -693,6 +696,7 @@ These messages provide clear feedback about the script's progress and help users
 - This script also uses the AirNow API endpoint for AQI:
   - `https://www.airnowapi.org/aq/observation/current/ziplatLong?format=application/json&latitude={lat}&longitude={lon}&api_key={key}`
   - Rate limit: **500 requests per hour** per key.
+- **NIFC WFIGS (Wild Fire Info):** `WFIGS_Incident_Locations_Current` FeatureServer query by point + 50 statute miles; soft-fail when unreachable. InciWeb incident URLs try the NIFC name slug and a `-fire` variant (e.g. `HIGH LAVA` → `…/wagpf-high-lava-fire`), then confirm via InciWeb Views AJAX content (HEAD is unreliable because blank shells also return HTTP 200). State map links always offered.
 
 ## Features Added/Enhanced
 - **Sunrise/Sunset Times:** Calculated using NOAA astronomical algorithms based on location coordinates and time zone. During polar night or polar day, sun times use `MM/dd HH:mm` format. All displayed times (hourly forecasts, sunrise, sunset, update times) are shown in the destination location's local timezone, not your system's timezone.

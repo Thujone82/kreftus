@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
-    <meta name="description" content="Weather forecast app using National Weather Service API with optional AirNow AQI support using your own API key.">
+    <meta name="description" content="Weather forecast app using the National Weather Service API with nearby NIFC wildfire info (default 50 mi) and optional AirNow AQI using your own API key.">
     <meta name="theme-color" content="#008B8B">
     <title>Forecast</title>
     <link rel="canonical" href="https://kreft.us/forecast/">
     <meta property="og:title" content="Forecast">
-    <meta property="og:description" content="Weather forecast app using National Weather Service API with optional AirNow AQI support using your own API key.">
+    <meta property="og:description" content="Weather forecast app using the National Weather Service API with nearby NIFC wildfire info (default 50 mi) and optional AirNow AQI using your own API key.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://kreft.us/forecast/">
     <meta property="og:image" content="https://kreft.us/forecast/icons/dark-icon-512.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Forecast">
-    <meta name="twitter:description" content="Weather forecast app using National Weather Service API with optional AirNow AQI support using your own API key.">
+    <meta name="twitter:description" content="Weather forecast app using the National Weather Service API with nearby NIFC wildfire info (default 50 mi) and optional AirNow AQI using your own API key.">
     <meta name="twitter:image" content="https://kreft.us/forecast/icons/dark-icon-512.png">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="css/style.css?v=1.12.8">
+    <link rel="stylesheet" href="css/style.css?v=1.13.1">
     <link rel="icon" type="image/png" href="icons/light-icon-192.png">
 </head>
 <body>
@@ -161,6 +161,14 @@
                     <small id="aqiApiKeyDebug" class="config-api-key-debug hidden" aria-live="polite"></small>
                 </div>
                 <label class="config-checkbox-label">
+                    <input type="checkbox" id="enableWildfireToggle" checked aria-label="Enable nearby wildfire info from NIFC">
+                    <span>Enable Wildfire</span>
+                </label>
+                <div id="wildfireRadiusContainer" class="config-option">
+                    <label for="wildfireRadiusInput">Wildfire radius (mi):</label>
+                    <input type="number" id="wildfireRadiusInput" class="config-number-input" min="1" max="500" step="1" value="50" aria-label="Wildfire search radius in miles">
+                </div>
+                <label class="config-checkbox-label">
                     <input type="checkbox" id="enableRadarCheckbox" aria-label="Show NWS radar loop in Full mode and cache for offline">
                     <span>Enable Radar</span>
                 </label>
@@ -185,11 +193,11 @@
         </div>
     </div>
 
-    <script src="js/utils.js?v=1.12.8"></script>
-    <script src="js/api.js?v=1.12.8"></script>
-    <script src="js/weather.js?v=1.12.8"></script>
-    <script src="js/display.js?v=1.12.8"></script>
-    <script src="js/app.js?v=1.12.8"></script>
+    <script src="js/utils.js?v=1.13.1"></script>
+    <script src="js/api.js?v=1.13.1"></script>
+    <script src="js/weather.js?v=1.13.1"></script>
+    <script src="js/display.js?v=1.13.1"></script>
+    <script src="js/app.js?v=1.13.1"></script>
 </body>
 </html>
 

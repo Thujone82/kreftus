@@ -267,6 +267,10 @@ function displayCurrentConditions(weather, location, optionalDisplayName, sectio
         html += '</span>';
         html += '</div>';
     }
+
+    if (typeof appState === 'undefined' || appState.enableWildfire) {
+        html += displayWildFireCompactRow(weather.wildFires);
+    }
     
     html += '<div class="condition-row">';
     html += `<span class="condition-label">Humidity:</span>`;
@@ -1088,6 +1092,147 @@ function getUtcOffsetString(timeZoneId) {
     }
 }
 
+// Compact Current Conditions row for the largest nearby wildfire
+function displayWildFireCompactRow(wildFires) {
+    const list = Array.isArray(wildFires) ? wildFires : [];
+    if (list.length === 0) return '';
+    const f = list[0];
+    const acresStr = typeof formatWildFireAcres === 'function' ? formatWildFireAcres(f.acres) : null;
+    const acresClass = typeof getWildFireAcresClass === 'function' ? getWildFireAcresClass(f.acres) : '';
+    const restParts = [];
+    if (f.contained != null && Number.isFinite(Number(f.contained))) {
+        restParts.push(`${Math.round(Number(f.contained))}%`);
+    }
+    if (f.behavior) restParts.push(f.behavior);
+    const distStr = typeof formatDistance === 'function' ? formatDistance(f.distanceMi) : `${f.distanceMi}mi`;
+    restParts.push(`${distStr} ${f.cardinal || ''}`.trim());
+    if (list.length > 1) restParts.push(`[1/${list.length}]`);
+
+    // Acres coloring is the primary signal; do not paint the rest red for <100% containment
+    const valueClass = (f.behavior && /active|extreme|critical/i.test(f.behavior)) ? 'wildfire-warn' : '';
+    let html = '<div class="condition-row">';
+    html += '<span class="condition-label wildfire-label">Wildfire:</span>';
+    html += '<span class="condition-value">';
+    if (f.inciwebUrl) {
+        html += `<a href="${f.inciwebUrl}" target="_blank" rel="noopener" class="location-info-link no-margin">${escapeHtml(f.name)}</a>`;
+    } else {
+        html += escapeHtml(f.name);
+    }
+    if (acresStr) {
+        const cls = acresClass ? ` ${acresClass}` : '';
+        html += ` <span class="wildfire-acres${cls}">${escapeHtml(acresStr)}ac</span>`;
+    }
+    if (restParts.length) {
+        html += ` <span class="${valueClass}">${escapeHtml(restParts.join(' '))}</span>`;
+    }
+    html += '</span></div>';
+    return html;
+}
+
+function escapeHtml(text) {
+    if (text == null) return '';
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function formatWildFireUpdated(dt) {
+    if (!(dt instanceof Date) || Number.isNaN(dt.getTime())) return null;
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, '0');
+    const hh = String(dt.getHours()).padStart(2, '0');
+    const mi = String(dt.getMinutes()).padStart(2, '0');
+    return `${mm}/${dd} ${hh}:${mi}`;
+}
+
+function titleCaseStateSlug(slug) {
+    if (!slug) return 'State Map';
+    return slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+// Full Wild Fire Info section (only when fires within 50 mi)
+function displayWildFireInfo(wildFires, sectionAnchorId) {
+    const list = Array.isArray(wildFires) ? wildFires : [];
+    if (list.length === 0) return '';
+
+    let html = '<div class="wildfire-info">';
+    const wfTitle = list.length > 1 ? `Wild Fire Info (${list.length})` : 'Wild Fire Info';
+    html += renderSectionHeader(wfTitle, sectionAnchorId);
+
+    list.forEach((f, idx) => {
+        const distStr = typeof formatDistance === 'function' ? formatDistance(f.distanceMi) : `${f.distanceMi}mi`;
+        html += `<div class="wildfire-item${idx > 0 ? ' wildfire-item-spaced' : ''}">`;
+        html += `<div class="wildfire-name">${escapeHtml(f.name)}  ${escapeHtml(distStr)} ${escapeHtml(f.cardinal || '')}</div>`;
+
+        const acresStr = typeof formatWildFireAcres === 'function' ? formatWildFireAcres(f.acres) : null;
+        const acresClass = typeof getWildFireAcresClass === 'function' ? getWildFireAcresClass(f.acres) : '';
+        const acresSpan = acresStr
+            ? `<span class="wildfire-acres${acresClass ? ` ${acresClass}` : ''}">${escapeHtml(acresStr)} ac</span>`
+            : null;
+        const sizeHtml = acresSpan ? `Size: ${acresSpan}` : 'Size: —';
+        const contPart = f.contained != null && Number.isFinite(Number(f.contained))
+            ? `Contained: ${Math.round(Number(f.contained))}%`
+            : 'Contained: —';
+        let behPart = 'Behavior: —';
+        if (f.behavior) {
+            behPart = f.behaviorDetail
+                ? `Behavior: ${f.behavior} (${f.behaviorDetail})`
+                : `Behavior: ${f.behavior}`;
+        }
+        // Do not paint Contained/Behavior red for <100% containment; acres color is the primary signal
+        const line2Class = (f.behavior && /active|extreme|critical/i.test(f.behavior)) ? 'wildfire-warn' : '';
+        html += `<div class="wildfire-stats">${sizeHtml} · <span class="${line2Class}">${escapeHtml(contPart)} · ${escapeHtml(behPart)}</span></div>`;
+
+        const line3 = [];
+        const discStr = typeof formatWildFireAcres === 'function' ? formatWildFireAcres(f.discoveryAcres) : null;
+        const discClass = typeof getWildFireAcresClass === 'function' ? getWildFireAcresClass(f.discoveryAcres) : '';
+        let grownHtml = '';
+        if (acresStr && discStr && f.acres != null && f.discoveryAcres != null && Number(f.acres) > Number(f.discoveryAcres)) {
+            const discSpan = `<span class="wildfire-acres${discClass ? ` ${discClass}` : ''}">${escapeHtml(discStr)}</span>`;
+            grownHtml = `Grown: ${discSpan}→${acresSpan}`;
+        }
+        if (f.cause) line3.push(`Cause: ${f.cause}`);
+        const place = [];
+        if (f.county) place.push(f.county);
+        if (f.state) {
+            let st = String(f.state).trim().toUpperCase();
+            if (st.startsWith('US-') && st.length >= 5) st = st.slice(3, 5);
+            place.push(st);
+        }
+        if (place.length) line3.push(place.join(', '));
+        if (grownHtml || line3.length) {
+            const metaParts = [];
+            if (grownHtml) metaParts.push(grownHtml);
+            if (line3.length) metaParts.push(escapeHtml(line3.join(' · ')));
+            html += `<div class="wildfire-meta">${metaParts.join(' · ')}</div>`;
+        }
+        if (f.shortDesc) {
+            html += `<div class="wildfire-desc">${escapeHtml(f.shortDesc)}</div>`;
+        }
+        const updatedStr = formatWildFireUpdated(f.updated);
+        if (updatedStr) {
+            html += `<div class="wildfire-updated">Updated: ${escapeHtml(updatedStr)}</div>`;
+        }
+
+        html += '<div class="wildfire-links">InciWeb: ';
+        const links = [];
+        if (f.inciwebUrl) {
+            links.push(`<a href="${f.inciwebUrl}" target="_blank" rel="noopener" class="location-info-link">${escapeHtml(f.name)}</a>`);
+        }
+        if (f.stateMapUrl) {
+            const slug = typeof getInciWebStateSlug === 'function' ? getInciWebStateSlug(f.state) : null;
+            links.push(`<a href="${f.stateMapUrl}" target="_blank" rel="noopener" class="location-info-link">State Map: ${escapeHtml(titleCaseStateSlug(slug))}</a>`);
+        }
+        html += links.length ? links.join(' <span class="wildfire-link-sep">|</span> ') : '—';
+        html += '</div></div>';
+    });
+
+    html += '</div>';
+    return html;
+}
+
 // Display location information
 function displayLocationInfo(location, noaaStation = null, sectionAnchorId) {
     let html = '<div class="location-info">';
@@ -1212,6 +1357,9 @@ function displayFullWeatherReport(weather, location, optionalLocationDisplayName
     html += displayHourlyForecast(weather, location, 0, 12, false, 'forecast-anchor-hourly');
     html += displaySevenDayForecast(weather, location, false, 'forecast-anchor-daily');
     html += displayWeatherAlerts(weather.alerts, true, location.timeZone, 'forecast-anchor-alerts');
+    if (typeof appState === 'undefined' || appState.enableWildfire) {
+        html += displayWildFireInfo(weather.wildFires, 'forecast-anchor-wildfire');
+    }
     html += displayLocationInfo(location, weather.noaaStation, 'forecast-anchor-location');
     return html;
 }

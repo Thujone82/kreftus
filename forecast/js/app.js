@@ -17,6 +17,8 @@ const appState = {
     enableAqi: false,
     airNowApiKey: '',
     airNowApiKeyValid: false,
+    enableWildfire: true,
+    wildfireRadiusMiles: 50,
     updateAllEnabled: false, // when auto-update on: refresh all favorites' caches in background
     updateAllInFlight: false, // prevents overlapping Update All sweeps
     lastFetchTime: null,
@@ -84,6 +86,9 @@ function initializeElements() {
         aqiApiKeyStatus: document.getElementById('aqiApiKeyStatus'),
         aqiApiKeyDebug: document.getElementById('aqiApiKeyDebug'),
         aqiApiKeyHelpBlock: document.getElementById('aqiApiKeyHelpBlock'),
+        enableWildfireToggle: document.getElementById('enableWildfireToggle'),
+        wildfireRadiusContainer: document.getElementById('wildfireRadiusContainer'),
+        wildfireRadiusInput: document.getElementById('wildfireRadiusInput'),
         updateAllToggle: document.getElementById('updateAllToggle'),
         updateAllToggleContainer: document.getElementById('updateAllToggleContainer'),
         autoUpdateToggleLabel: document.querySelector('.toggle-label'),
@@ -184,6 +189,8 @@ function performFullReset() {
         localStorage.removeItem('forecastEnableAqi');
         localStorage.removeItem('forecastAirNowApiKey');
         localStorage.removeItem('forecastAirNowApiKeyValid');
+        localStorage.removeItem('forecastEnableWildfire');
+        localStorage.removeItem('forecastWildfireRadiusMiles');
         localStorage.removeItem('forecastUseMetric');
         localStorage.removeItem('forecastUse24h');
         localStorage.removeItem('forecastUiDensity');
@@ -207,6 +214,8 @@ function performFullReset() {
             appState.enableAqi = false;
             appState.airNowApiKey = '';
             appState.airNowApiKeyValid = false;
+            appState.enableWildfire = true;
+            appState.wildfireRadiusMiles = 50;
             appState.uiDensity = 'compact';
             appState.feelsLikeMode = 'classic';
         }
@@ -313,6 +322,7 @@ function runDeferredInit() {
         }
     }
     loadAqiSettings();
+    loadWildfireSettings();
 
     // Update All toggle (only meaningful when auto-update enabled)
     const storedUpdateAll = localStorage.getItem('forecastUpdateAll');
@@ -380,6 +390,7 @@ async function init() {
     loadShowMagicHours();
     loadShowRadar();
     loadAqiSettings();
+    loadWildfireSettings();
     loadUnits();
     loadTimeFormat();
     loadUiDensity();
@@ -1164,6 +1175,64 @@ function persistAqiSettings() {
     localStorage.setItem('forecastAirNowApiKeyValid', appState.airNowApiKeyValid ? 'true' : 'false');
 }
 
+function clampWildfireRadiusMiles(value) {
+    const n = parseInt(value, 10);
+    if (!Number.isFinite(n) || n < 1) return 50;
+    return Math.min(500, n);
+}
+
+function syncWildfireSettingsVisibility() {
+    if (elements.enableWildfireToggle) {
+        elements.enableWildfireToggle.checked = !!appState.enableWildfire;
+    }
+    if (elements.wildfireRadiusContainer) {
+        if (appState.enableWildfire) elements.wildfireRadiusContainer.classList.remove('hidden');
+        else elements.wildfireRadiusContainer.classList.add('hidden');
+    }
+    if (elements.wildfireRadiusInput) {
+        elements.wildfireRadiusInput.value = String(clampWildfireRadiusMiles(appState.wildfireRadiusMiles));
+    }
+}
+
+function loadWildfireSettings() {
+    // Default enabled unless explicitly stored as false
+    appState.enableWildfire = localStorage.getItem('forecastEnableWildfire') !== 'false';
+    const storedRadius = localStorage.getItem('forecastWildfireRadiusMiles');
+    appState.wildfireRadiusMiles = storedRadius == null
+        ? 50
+        : clampWildfireRadiusMiles(storedRadius);
+    syncWildfireSettingsVisibility();
+}
+
+function persistWildfireSettings() {
+    localStorage.setItem('forecastEnableWildfire', appState.enableWildfire ? 'true' : 'false');
+    localStorage.setItem('forecastWildfireRadiusMiles', String(clampWildfireRadiusMiles(appState.wildfireRadiusMiles)));
+}
+
+function applyWildfireSettingsChange({ refetch = false } = {}) {
+    persistWildfireSettings();
+    syncWildfireSettingsVisibility();
+    if (!appState.enableWildfire && appState.weatherData) {
+        appState.weatherData.wildFires = [];
+        renderCurrentMode();
+        return;
+    }
+    if (refetch && appState.location && (appState.location.city || appState.location.lat != null)) {
+        const locQuery = appState.currentLocationKey
+            || (appState.isCurrentLocationActive ? 'here' : null)
+            || (appState.location.city && appState.location.state
+                ? `${appState.location.city}, ${appState.location.state}`
+                : null);
+        if (locQuery) {
+            loadWeatherData(locQuery, true, true).catch((err) => {
+                console.warn('Wildfire settings refresh failed:', err);
+            });
+            return;
+        }
+    }
+    if (appState.weatherData) renderCurrentMode();
+}
+
 function disableAqiRuntimeState() {
     appState.enableAqi = false;
     appState.airNowApiKeyValid = false;
@@ -1560,6 +1629,26 @@ function setupConfigModal() {
                 renderCurrentMode();
             }
         });
+    }
+    if (elements.enableWildfireToggle) {
+        elements.enableWildfireToggle.addEventListener('change', (e) => {
+            appState.enableWildfire = !!e.target.checked;
+            applyWildfireSettingsChange({ refetch: appState.enableWildfire });
+        });
+    }
+    if (elements.wildfireRadiusInput) {
+        const commitWildfireRadius = () => {
+            const next = clampWildfireRadiusMiles(elements.wildfireRadiusInput.value);
+            elements.wildfireRadiusInput.value = String(next);
+            if (next === appState.wildfireRadiusMiles && appState.enableWildfire) {
+                persistWildfireSettings();
+                return;
+            }
+            appState.wildfireRadiusMiles = next;
+            applyWildfireSettingsChange({ refetch: appState.enableWildfire });
+        };
+        elements.wildfireRadiusInput.addEventListener('change', commitWildfireRadius);
+        elements.wildfireRadiusInput.addEventListener('blur', commitWildfireRadius);
     }
     if (elements.aqiApiKeyInput) {
         elements.aqiApiKeyInput.addEventListener('input', (e) => {
@@ -4821,7 +4910,9 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         
         const weatherData = await fetchWeatherData(location, {
             includeAqi: !!(appState.enableAqi && appState.airNowApiKeyValid && (appState.airNowApiKey || '').trim()),
-            airNowApiKey: appState.airNowApiKey || ''
+            airNowApiKey: appState.airNowApiKey || '',
+            includeWildfire: !!appState.enableWildfire,
+            wildfireRadiusMiles: clampWildfireRadiusMiles(appState.wildfireRadiusMiles)
         });
         const processedWeather = processWeatherData(weatherData);
         if (weatherData.points) processedWeather.points = weatherData.points;
@@ -5875,7 +5966,9 @@ function checkAutoRefresh() {
                 try {
                     const raw = await fetchWeatherData(locationQuery, {
                         includeAqi: !!(appState.enableAqi && appState.airNowApiKeyValid && (appState.airNowApiKey || '').trim()),
-                        airNowApiKey: appState.airNowApiKey || ''
+                        airNowApiKey: appState.airNowApiKey || '',
+                        includeWildfire: !!appState.enableWildfire,
+                        wildfireRadiusMiles: clampWildfireRadiusMiles(appState.wildfireRadiusMiles)
                     });
                     const processed = processWeatherData(raw);
                     const locStr = processed?.location && processed.location.city != null && processed.location.state != null
