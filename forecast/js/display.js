@@ -1110,22 +1110,28 @@ function displayWildFireCompactRow(wildFires) {
 
     // Acres coloring is the primary signal; do not paint the rest red for <100% containment
     const valueClass = (f.behavior && /active|extreme|critical/i.test(f.behavior)) ? 'wildfire-warn' : '';
-    let html = '<div class="condition-row">';
+    let html = '<div class="condition-row wildfire-compact-row">';
+    html += '<span class="wildfire-compact-primary">';
     html += '<span class="condition-label wildfire-label">Wildfire:</span>';
-    html += '<span class="condition-value">';
+    html += '<span class="condition-value wildfire-compact-name">';
     if (f.inciwebUrl) {
         html += `<a href="${f.inciwebUrl}" target="_blank" rel="noopener" class="location-info-link no-margin">${escapeHtml(f.name)}</a>`;
     } else {
         html += escapeHtml(f.name);
     }
+    html += '</span></span>';
+    const detailParts = [];
     if (acresStr) {
         const cls = acresClass ? ` ${acresClass}` : '';
-        html += ` <span class="wildfire-acres${cls}">${escapeHtml(acresStr)}ac</span>`;
+        detailParts.push(`<span class="wildfire-acres${cls}">${escapeHtml(acresStr)}ac</span>`);
     }
     if (restParts.length) {
-        html += ` <span class="${valueClass}">${escapeHtml(restParts.join(' '))}</span>`;
+        detailParts.push(`<span class="${valueClass}">${escapeHtml(restParts.join(' '))}</span>`);
     }
-    html += '</span></div>';
+    if (detailParts.length) {
+        html += `<span class="condition-value wildfire-compact-details">${detailParts.join(' ')}</span>`;
+    }
+    html += '</div>';
     return html;
 }
 

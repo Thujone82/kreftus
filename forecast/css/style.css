@@ -1469,6 +1469,21 @@ body.ui-density-normal .weather-content {
     color: var(--color-alert);
 }
 
+/* Keep "Wildfire: Name" together; wrap acres/stats onto the next line when space is tight */
+.wildfire-compact-primary {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex: 0 1 auto;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.wildfire-compact-details {
+    flex: 1 1 10rem;
+    min-width: 0;
+}
+
 .wildfire-warn {
     color: var(--color-warning, #e6b800);
 }
