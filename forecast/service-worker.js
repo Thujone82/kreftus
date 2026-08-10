@@ -1,4 +1,4 @@
-const VERSION = '1.13.12';
+const VERSION = '1.13.13';
 const CACHE_NAME = `forecast-v${VERSION}`;
 const STATIC_CACHE = `forecast-static-v${VERSION}`;
 const DATA_CACHE = `forecast-data-v${VERSION}`;
@@ -91,6 +91,13 @@ self.addEventListener('fetch', (event) => {
                     });
                 })
         );
+    } else if (
+        url.hostname.endsWith('arcgis.com') ||
+        url.hostname.endsWith('wildfire.gov') ||
+        url.hostname === 'inciweb.nwcg.gov'
+    ) {
+        // Never cache NIFC / InciWeb — radius changes must always hit the network.
+        event.respondWith(fetch(request, { cache: 'no-store' }));
     } else if (url.hostname === 'radar.weather.gov' &&
         url.pathname.includes('/ridge/standard/') &&
         url.pathname.endsWith('.gif')) {

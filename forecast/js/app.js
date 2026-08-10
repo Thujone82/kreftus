@@ -1278,8 +1278,39 @@ function commitWildfireRadiusFromSettings() {
         persistWildfireSettings();
         return;
     }
+    const previousRadius = clampWildfireRadiusMiles(appState.wildfireRadiusMiles);
     appState.wildfireRadiusMiles = next;
+    // Shrinking: filter the current list immediately so the UI matches the new radius
+    // while the network refetch runs (and so a failed refetch cannot wipe in-range fires).
+    if (next < previousRadius) {
+        applyWildfireRadiusFilterLocally(next);
+    }
     applyWildfireSettingsChange({ refetch: appState.enableWildfire });
+}
+
+/** Keep fires that fall within radiusMiles using stored lat/lon or distanceMi. */
+function applyWildfireRadiusFilterLocally(radiusMiles) {
+    const wd = appState.weatherData;
+    if (!wd || !Array.isArray(wd.wildFires) || wd.wildFires.length === 0) return;
+    const lat = Number(wd.location?.lat);
+    const lon = Number(wd.location?.lon);
+    const radius = clampWildfireRadiusMiles(radiusMiles);
+    const filtered = wd.wildFires.filter((f) => {
+        const dist = Number(f.distanceMi);
+        if (Number.isFinite(dist)) return dist <= radius + 0.5;
+        if (Number.isFinite(lat) && Number.isFinite(lon)
+            && f.lat != null && f.lon != null
+            && typeof calculateDistanceMiles === 'function') {
+            return calculateDistanceMiles(lat, lon, Number(f.lat), Number(f.lon)) <= radius + 0.5;
+        }
+        return true;
+    });
+    appState.weatherData = {
+        ...wd,
+        wildFires: filtered,
+        wildfireRadiusMiles: radius
+    };
+    renderCurrentMode();
 }
 
 /** Keep prior wildfire list when NIFC failed or wildfire was skipped (do not cache-wipe with []). */
@@ -3800,22 +3831,41 @@ async function refreshAqiForCachedLocation({ cacheKey, weatherData }) {
     return true;
 }
 
+let wildfireRefreshSeq = 0;
+
 // Refresh wildfire for a cached location without changing weather fetch timestamps.
 async function refreshWildfireForCachedLocation({ cacheKey, weatherData, forceApply = false } = {}) {
     if (!cacheKey || !weatherData) return false;
     if (!appState.enableWildfire) return false;
     if (typeof fetchWildFireIncidents !== 'function') return false;
-    const lat = weatherData?.location?.lat;
-    const lon = weatherData?.location?.lon;
-    if (lat == null || lon == null) return false;
+    const lat = Number(weatherData?.location?.lat);
+    const lon = Number(weatherData?.location?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
 
     const radius = clampWildfireRadiusMiles(appState.wildfireRadiusMiles);
+    const prevFires = Array.isArray(weatherData.wildFires) ? weatherData.wildFires : [];
+    const prevRadius = Number(weatherData.wildfireRadiusMiles);
+    const seq = ++wildfireRefreshSeq;
+
     const result = await fetchWildFireIncidents(lat, lon, radius);
+    // A newer radius/settings refresh started — ignore this response.
+    if (seq !== wildfireRefreshSeq) return false;
     // Failed NIFC — leave existing wildfire data untouched (refresh must not erase it).
     if (!result || result.ok !== true) return false;
+
+    let incidents = Array.isArray(result.incidents) ? result.incidents : [];
+    // Expanding (or same) radius but got [] while we already had fires: treat as soft failure.
+    // A true empty result after growing the search area is extremely unlikely and usually means
+    // a bad/empty API payload — do not hide wildfire until a full Refresh succeeds.
+    if (incidents.length === 0 && prevFires.length > 0
+        && (!Number.isFinite(prevRadius) || radius >= prevRadius)) {
+        console.warn('NIFC returned no fires after radius increase/same; keeping previous wildfire list');
+        return false;
+    }
+
     const updatedWeatherData = {
         ...weatherData,
-        wildFires: Array.isArray(result.incidents) ? result.incidents : [],
+        wildFires: incidents,
         wildfireFetched: true,
         wildfireFetchedAt: new Date().toISOString(),
         wildfireRadiusMiles: radius,
@@ -3839,8 +3889,8 @@ async function refreshWildfireForCachedLocation({ cacheKey, weatherData, forceAp
     const cachedCity = (weatherData?.location?.city || '').trim().toLowerCase();
     const cachedState = (weatherData?.location?.state || '').trim().toUpperCase();
     const sameCoords = activeLoc?.lat != null && activeLoc?.lon != null
-        && Number(activeLoc.lat) === Number(weatherData?.location?.lat)
-        && Number(activeLoc.lon) === Number(weatherData?.location?.lon);
+        && Number(activeLoc.lat) === lat
+        && Number(activeLoc.lon) === lon;
     const isActive = forceApply
         || appState.weatherData === weatherData
         || (cacheKey && appState.currentLocationKey === cacheKey)

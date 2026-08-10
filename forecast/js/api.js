@@ -1514,18 +1514,26 @@ function normalizeNifcWildFireIncidents(apiData, lat, lon, distanceMiles = WILDF
 async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_MILES) {
     const radius = Number(distanceMiles);
     if (!Number.isFinite(radius) || radius <= 0) return { ok: true, incidents: [] };
-    const url = buildNifcWildFireQueryUrl(lat, lon, radius);
+    const latN = Number(lat);
+    const lonN = Number(lon);
+    if (!Number.isFinite(latN) || !Number.isFinite(lonN)) return { ok: false, incidents: [] };
+    const url = buildNifcWildFireQueryUrl(latN, lonN, radius);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
     let incidents = [];
     try {
-        const response = await fetch(url, { signal: controller.signal });
+        const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
         if (!response.ok) {
             console.warn('NIFC wildfire API HTTP', response.status);
             return { ok: false, incidents: [] };
         }
         const data = await response.json();
-        incidents = normalizeNifcWildFireIncidents(data, lat, lon, radius);
+        // ArcGIS often returns HTTP 200 with an error payload and no features
+        if (data?.error) {
+            console.warn('NIFC wildfire API error payload:', data.error);
+            return { ok: false, incidents: [] };
+        }
+        incidents = normalizeNifcWildFireIncidents(data, latN, lonN, radius);
     } catch (error) {
         console.warn('NIFC wildfire fetch failed:', error);
         return { ok: false, incidents: [] };
