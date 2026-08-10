@@ -26,7 +26,7 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
   - Moon phase information with emoji and next full moon date.
   - **All times displayed in location's timezone:** Hourly forecasts, sunrise, sunset, and update times are shown in the destination location's local timezone, not your system's timezone.
   - Weather alerts and warnings.
-  - **Wild Fire Info** (NIFC WFIGS): when wildfires are within the search radius (default **50 mi**), lists size, containment, behavior, distance/direction (same mi + cardinal notation as NOAA tide stations), and InciWeb / state map links. Terse / Current Conditions one-liner for the largest nearby fire: `Fire:` label, acres, ✅ when 100% contained (else `%`), rounded miles + cardinal, `(N)` when multiple; behavior only in the full section. Use **`-wf` / `-wildfire N`** to set radius in miles; **`-wf 0`** disables wildfire API and UI for that run. See **Smart Color-Coding** below for wildfire color rules.
+  - **Wild Fire Info** (NIFC WFIGS): when wildfires are within the search radius (default **50 mi**), lists size, discovered time, estimated cost to date, containment, behavior, distance/direction (same mi + cardinal notation as NOAA tide stations), and InciWeb / state map links. Terse / Current Conditions one-liner for the largest nearby fire: `Fire:` label, acres, ✅ when 100% contained (else `%`), rounded miles + cardinal, `(N)` when multiple; behavior only in the full section. Use **`-wf` / `-wildfire N`** to set radius in miles; **`-wf 0`** disables wildfire API and UI for that run. See **Smart Color-Coding** below for wildfire color rules.
   - AQI line (AirNow) after Wind when configured: requires your own **AirNow API key** in the persisted Windows **User** environment variable **`AirNowAPI`** (not stored in the script). Use **`.\gf.ps1 -aqi`** to set or validate the key (see [Parameters](#parameters)). When the variable is unset, AQI is omitted.
   - Rain likelihood forecast with visual sparklines.
   - Wind outlook forecast with direction glyphs.
@@ -54,6 +54,9 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
   - **Wildfire acres:** Default (<100 ac), Yellow (100–999), Red (1,000–99,999), Magenta (≥100,000) — applied to the acres value in terse and full Wild Fire Info displays
   - **Wildfire Fire: label (terse):** Red
   - **Wildfire fire name (full Wild Fire Info):** Yellow; distance and cardinal use the default color
+  - **Wildfire Discovered (full Wild Fire Info):** `FireDiscoveryDateTime` as `Discovered: MM/dd HH:mm` in the default color; omitted when null
+  - **Wildfire Cost (full Wild Fire Info):** `EstimatedFinalCost` and/or `EstimatedCostToDate` as compact `$346k` / `$2M` / `$1B` / `$3T`. When both and formats differ: `Cost: $final ($toDate)`; when they match or only one is set: a single value. Color by primary (final when present): Yellow (≥$1M), Red (≥$1B), Magenta (≥$1T), default below $1M; omitted when both null
+  - **Wildfire Cause (full Wild Fire Info):** prefer `FireCauseGeneral` when populated; if `FireCause` is `Undetermined`, show that instead
   - **Wildfire containment (full Wild Fire Info):** Yellow when Contained is 0%; Green when 100%; otherwise default (omitted when null)
   - **Wildfire behavior (full Wild Fire Info):** Yellow when primary Behavior matches Active, Extreme, or Critical (case-insensitive); otherwise default
   - **AQI (Current conditions):**
@@ -700,7 +703,7 @@ These messages provide clear feedback about the script's progress and help users
 - This script also uses the AirNow API endpoint for AQI:
   - `https://www.airnowapi.org/aq/observation/current/ziplatLong?format=application/json&latitude={lat}&longitude={lon}&api_key={key}`
   - Rate limit: **500 requests per hour** per key.
-- **NIFC WFIGS (Wild Fire Info):** `WFIGS_Incident_Locations_Current` FeatureServer query by point + 50 statute miles; soft-fail when unreachable. InciWeb incident URLs try the NIFC name slug and a `-fire` variant (e.g. `HIGH LAVA` → `…/wagpf-high-lava-fire`), then confirm via InciWeb Views AJAX content (HEAD is unreliable because blank shells also return HTTP 200). State map links always offered.
+- **NIFC WFIGS (Wild Fire Info):** `WFIGS_Incident_Locations_Current` FeatureServer query by point + 50 statute miles; soft-fail when unreachable. Full section shows Size, Discovered (`FireDiscoveryDateTime`), Cost (`EstimatedFinalCost` / `EstimatedCostToDate` as `$final ($toDate)` when both), containment, and behavior. InciWeb incident URLs try the NIFC name slug and a `-fire` variant (e.g. `HIGH LAVA` → `…/wagpf-high-lava-fire`), then confirm via InciWeb Views AJAX content (HEAD is unreliable because blank shells also return HTTP 200). State map links always offered.
 
 ## Features Added/Enhanced
 - **Sunrise/Sunset Times:** Calculated using NOAA astronomical algorithms based on location coordinates and time zone. During polar night or polar day, sun times use `MM/dd HH:mm` format. All displayed times (hourly forecasts, sunrise, sunset, update times) are shown in the destination location's local timezone, not your system's timezone.

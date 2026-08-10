@@ -4475,12 +4475,17 @@ function restoreDatesFromCache(weatherData) {
         }
     }
 
-    // Restore wildfire ModifiedOn timestamps (JSON turns Date into ISO strings)
+    // Restore wildfire date fields (JSON turns Date into ISO strings)
     if (Array.isArray(weatherData.wildFires)) {
         for (const fire of weatherData.wildFires) {
-            if (fire && fire.updated != null) {
+            if (!fire) continue;
+            if (fire.updated != null) {
                 const restored = new Date(fire.updated);
                 fire.updated = Number.isNaN(restored.getTime()) ? null : restored;
+            }
+            if (fire.discovered != null) {
+                const restoredDisc = new Date(fire.discovered);
+                fire.discovered = Number.isNaN(restoredDisc.getTime()) ? null : restoredDisc;
             }
         }
     }

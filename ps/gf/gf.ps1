@@ -37,6 +37,8 @@
     - Wildfire acres: Default (<100 ac), Yellow (100-999), Red (1,000-99,999), Magenta (≥100,000) — acres value in terse and full Wild Fire Info
     - Wildfire Fire: label (terse): Red
     - Wildfire fire name (full Wild Fire Info): Yellow; distance/cardinal use default
+    - Wildfire Discovered (full Wild Fire Info): FireDiscoveryDateTime as Discovered: MM/dd HH:mm in default color; omitted when null
+    - Wildfire Cost (full Wild Fire Info): EstimatedFinalCost (EstimatedCostToDate) when both set, else whichever is present; compact $346k/$2M/$1B/$3T; Yellow (≥$1M), Red (≥$1B), Magenta (≥$1T) by primary amount; omitted when both null
     - Wildfire containment (full Wild Fire Info): Yellow when Contained is 0%; Green when 100%; otherwise default (omit when null)
     - Wildfire behavior (full Wild Fire Info): Yellow when primary Behavior matches active, extreme, or critical (case-insensitive); otherwise default
     
@@ -295,6 +297,7 @@ if ($Help -or (($Terse.IsPresent -or $TerseAlert.IsPresent -or $Alerts.IsPresent
     Write-Host "                • Optional AQI in weather requires AirNowAPI; see README.md" -ForegroundColor Gray
     Write-Host "  -wf, -Wildfire N  Wildfire search radius in miles (default 50). Use 0 to disable wildfire API/UI" -ForegroundColor Cyan
     Write-Host "                • Acres color: Default (<100), Yellow (100-999), Red (1,000-99,999), Magenta (≥100,000)" -ForegroundColor Gray
+    Write-Host "                • Full section after Size: Discovered (MM/dd HH:mm, default color); Cost (final (to-date) when both — `$346k/`$2M/`$1B/`$3T; Yellow ≥`$1M, Red ≥`$1B, Magenta ≥`$1T); omit when null" -ForegroundColor Gray
     Write-Host "                • Full section: fire name Yellow; Contained 0% Yellow / 100% Green; Behavior Yellow if Active/Extreme/Critical" -ForegroundColor Gray
     Write-Host "                • Terse Fire: label Red; acres colored as above; 100% containment shown as checkmark" -ForegroundColor Gray
     Write-Host "  -u, -NoAutoUpdate Start with automatic updates disabled" -ForegroundColor Cyan
@@ -6084,8 +6087,13 @@ function Write-VerboseWildFireSummary {
         $cont = if ($null -ne $f.Contained) { "$([Math]::Round([double]$f.Contained, 0))%" } else { 'n/a' }
         $beh = if ($f.Behavior) { $f.Behavior } else { 'n/a' }
         $link = if ($f.InciWebUrl) { $f.InciWebUrl } else { '(no InciWeb)' }
-        Write-Verbose ("  - {0}: {1} mi {2}; {3}; Contained {4}; Behavior {5}; {6}" -f `
-            $f.Name, $f.DistanceMi, $f.Cardinal, $acres, $cont, $beh, $link)
+        $disc = if ($f.Discovered) {
+            try { $f.Discovered.ToString('MM/dd HH:mm') } catch { 'n/a' }
+        } else { 'n/a' }
+        $cost = Format-WildFireCost -EstimatedCostToDate $f.EstimatedCost -EstimatedFinalCost $f.EstimatedFinalCost
+        if (-not $cost) { $cost = 'n/a' }
+        Write-Verbose ("  - {0}: {1} mi {2}; {3}; Discovered {4}; Cost {5}; Contained {6}; Behavior {7}; {8}" -f `
+            $f.Name, $f.DistanceMi, $f.Cardinal, $acres, $disc, $cost, $cont, $beh, $link)
     }
 }
 
@@ -6119,6 +6127,91 @@ function Get-WildFireAcresForegroundColor {
     }
 }
 
+# Single NIFC cost amount → $346k / $2M / $1B / $3T; null if missing.
+function Format-WildFireCostAmount {
+    param($Cost)
+    if ($null -eq $Cost) { return $null }
+    try {
+        $n = [double]$Cost
+        if ($n -lt 0) { return $null }
+        if ($n -ge 1e12) { return ('${0}T' -f [Math]::Round($n / 1e12)) }
+        if ($n -ge 1e9) { return ('${0}B' -f [Math]::Round($n / 1e9)) }
+        if ($n -ge 1e6) { return ('${0}M' -f [Math]::Round($n / 1e6)) }
+        if ($n -ge 1e3) { return ('${0}k' -f [Math]::Round($n / 1e3)) }
+        return ('${0}' -f [Math]::Round($n))
+    } catch {
+        return $null
+    }
+}
+
+# Cost line: final (to-date) when both and formats differ; omit () when they match.
+function Format-WildFireCost {
+    param(
+        $EstimatedCostToDate = $null,
+        $EstimatedFinalCost = $null
+    )
+    $toDateStr = Format-WildFireCostAmount -Cost $EstimatedCostToDate
+    $finalStr = Format-WildFireCostAmount -Cost $EstimatedFinalCost
+    if ($finalStr -and $toDateStr) {
+        if ($finalStr -eq $toDateStr) { return $finalStr }
+        return "$finalStr ($toDateStr)"
+    }
+    if ($finalStr) { return $finalStr }
+    if ($toDateStr) { return $toDateStr }
+    return $null
+}
+
+function Get-WildFireCostPrimaryAmount {
+    param(
+        $EstimatedCostToDate = $null,
+        $EstimatedFinalCost = $null
+    )
+    try {
+        if ($null -ne $EstimatedFinalCost) {
+            $n = [double]$EstimatedFinalCost
+            if ($n -ge 0) { return $n }
+        }
+    } catch {}
+    try {
+        if ($null -ne $EstimatedCostToDate) {
+            $n = [double]$EstimatedCostToDate
+            if ($n -ge 0) { return $n }
+        }
+    } catch {}
+    return $null
+}
+
+function Get-WildFireCostForegroundColor {
+    param(
+        $EstimatedCostToDate = $null,
+        $EstimatedFinalCost = $null,
+        [string]$DefaultColor = "White"
+    )
+    $n = Get-WildFireCostPrimaryAmount -EstimatedCostToDate $EstimatedCostToDate -EstimatedFinalCost $EstimatedFinalCost
+    if ($null -eq $n) { return $DefaultColor }
+    try {
+        if ($n -ge 1e12) { return "Magenta" }
+        if ($n -ge 1e9) { return "Red" }
+        if ($n -ge 1e6) { return "Yellow" }
+        return $DefaultColor
+    } catch {
+        return $DefaultColor
+    }
+}
+
+function Get-WildFireCauseDisplay {
+    param(
+        [string]$FireCause = '',
+        [string]$FireCauseGeneral = ''
+    )
+    $cause = if ($null -eq $FireCause) { '' } else { $FireCause.Trim() }
+    $general = if ($null -eq $FireCauseGeneral) { '' } else { $FireCauseGeneral.Trim() }
+    # Prefer FireCauseGeneral when populated; keep FireCause when it is Undetermined.
+    if ($cause -match '(?i)^undetermined$') { return $cause }
+    if ($general) { return $general }
+    return $cause
+}
+
 function Convert-NifcEpochMsToLocalDateTime {
     param(
         $EpochMs,
@@ -6126,7 +6219,16 @@ function Convert-NifcEpochMsToLocalDateTime {
     )
     if ($null -eq $EpochMs) { return $null }
     try {
-        $ms = [long]$EpochMs
+        $raw = $EpochMs
+        if ($raw -is [string]) {
+            $m = [regex]::Match($raw, '/Date\((-?\d+)\)/')
+            if ($m.Success) {
+                $raw = [long]$m.Groups[1].Value
+            } else {
+                $raw = [long]$raw
+            }
+        }
+        $ms = [long]$raw
         $dto = [DateTimeOffset]::FromUnixTimeMilliseconds($ms)
         if ($TimeZoneId) {
             $tz = Get-ResolvedTimeZoneInfo -TimeZoneId $TimeZoneId
@@ -6200,7 +6302,7 @@ function Get-WildFireIncidentsFromApiResponse {
             $pooState = "$($a.POOState)".Trim()
             $county = "$($a.POOCounty)".Trim()
             $shortDesc = "$($a.IncidentShortDescription)".Trim()
-            $cause = "$($a.FireCause)".Trim()
+            $cause = Get-WildFireCauseDisplay -FireCause "$($a.FireCause)" -FireCauseGeneral "$($a.FireCauseGeneral)"
             # Defer InciWeb validation to a second pass so we can show n/X progress.
             $inciwebUrl = $null
             if (-not $ValidateInciWeb) {
@@ -6208,6 +6310,15 @@ function Get-WildFireIncidentsFromApiResponse {
             }
             $stateMapUrl = Get-InciWebStateMapUrl -PooState $pooState
             $updated = Convert-NifcEpochMsToLocalDateTime -EpochMs $a.ModifiedOnDateTime_dt -TimeZoneId $TimeZoneId
+            $discovered = Convert-NifcEpochMsToLocalDateTime -EpochMs $a.FireDiscoveryDateTime -TimeZoneId $TimeZoneId
+            $estimatedCost = $null
+            try {
+                if ($null -ne $a.EstimatedCostToDate) { $estimatedCost = [double]$a.EstimatedCostToDate }
+            } catch {}
+            $estimatedFinalCost = $null
+            try {
+                if ($null -ne $a.EstimatedFinalCost) { $estimatedFinalCost = [double]$a.EstimatedFinalCost }
+            } catch {}
 
             $results += [pscustomobject]@{
                 Name            = $name
@@ -6225,6 +6336,9 @@ function Get-WildFireIncidentsFromApiResponse {
                 ShortDesc       = $shortDesc
                 Cause           = $cause
                 Updated         = $updated
+                Discovered      = $discovered
+                EstimatedCost   = $estimatedCost
+                EstimatedFinalCost = $estimatedFinalCost
                 InciWebUrl      = $inciwebUrl
                 StateMapUrl     = $stateMapUrl
             }
@@ -6287,6 +6401,18 @@ function Show-WildFireInfo {
             Write-Host "${acresStr} ac" -ForegroundColor $acresColor -NoNewline
         } else {
             Write-Host "—" -ForegroundColor $DefaultColor -NoNewline
+        }
+        if ($f.Discovered) {
+            try {
+                Write-Host " · " -ForegroundColor $DefaultColor -NoNewline
+                Write-Host ("Discovered: " + $f.Discovered.ToString('MM/dd HH:mm')) -ForegroundColor $DefaultColor -NoNewline
+            } catch {}
+        }
+        $costStr = Format-WildFireCost -EstimatedCostToDate $f.EstimatedCost -EstimatedFinalCost $f.EstimatedFinalCost
+        if ($costStr) {
+            $costColor = Get-WildFireCostForegroundColor -EstimatedCostToDate $f.EstimatedCost -EstimatedFinalCost $f.EstimatedFinalCost -DefaultColor $DefaultColor
+            Write-Host " · " -ForegroundColor $DefaultColor -NoNewline
+            Write-Host "Cost: $costStr" -ForegroundColor $costColor -NoNewline
         }
         if ($null -ne $f.Contained) {
             $contPct = [Math]::Round([double]$f.Contained, 0)

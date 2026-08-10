@@ -6,7 +6,7 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 
 - **No API Key Required**: Uses free National Weather Service API
 - **Optional AQI (AirNow)**: Add your own AirNow API key in Settings to display an AQI line in Current Conditions using official AQI category colors; categories 5/6 are emphasized with white text on colored badges and white borders for contrast. Uses AirNow [Current Observations by Zip Code or Lat/Long](https://docs.airnowapi.org/webservices) (`/aq/observation/current/ziplatLong`); rate limit is 500 requests per hour per key.
-- **Optional Wildfire (NIFC):** Nearby wildfires in a compact Current Conditions line (`Fire: NAME …ac ✅|…% …mi DIR (N)`) and a full Wild Fire Info section (enable/radius in Settings; default on at 50 mi). See [Color Coding](#color-coding) for wildfire colors.
+- **Optional Wildfire (NIFC):** Nearby wildfires in a compact Current Conditions line (`Fire: NAME …ac ✅|…% …mi DIR (N)`) and a full Wild Fire Info section (Size, Discovered, Cost, containment, behavior, links; enable/radius in Settings; default on at 50 mi). See [Color Coding](#color-coding) for wildfire colors.
 - **Multiple Display Modes**: Full, Daily, Hourly, Rain, Wind, and History
 - **PWA Support**: Installable as a web app with offline support and update detection
 - **Saved Locations**: Save favorite locations and switch between them; locations bar open/closed state is remembered. Number hotkeys load the first 20 favorites in drawer order: `1`–`0` for slots 1–10, `Shift+1`–`Shift+0` for slots 11–20 (ignored while typing, renaming a favorite, or when Settings is open).
@@ -19,7 +19,7 @@ A Progressive Web App (PWA) providing detailed weather information using the Nat
 - **Time Format**: 12-hour (AM/PM) or 24-hour for all time displays
 - **Responsive Design**: Works on all screen sizes and aspect ratios
 - **Location Input**: Zip code, "City, State", or use the pin button for automatic current location
-- **Color-Coded Metrics**: Temperature, wind, precipitation, humidity, dew point, pressure, wildfire (acres, labels, behavior)
+- **Color-Coded Metrics**: Temperature, wind, precipitation, humidity, dew point, pressure, wildfire (acres, cost, labels, behavior)
 - **Weather Calculations**: Wind chill, NWS heat index (default warm “feels like”), optional **estimated WBGT** when you enable the Feels-Like → WBGT toggle (not instrument-grade: Stull wet-bulb plus a simplified globe term using clear-sky solar × a **forecast-text** cloud heuristic); sunrise/sunset, moon phase, and optional Magic Hours timing for photography
 - **Sunrise/Sunset/Day Length**: Shown for each day in Daily and History (astronomical calculation)
 - **NOAA Tide Stations**: When a station is within 100 miles, shows station name, distance (mi/km), cardinal direction, links to Tide Prediction/Datums/Levels, and last/next tide (height in ft or m, time)
@@ -244,6 +244,9 @@ The app checks for new versions (e.g. via `manifest.json` version and service wo
   - **Acres** (compact `Fire:` line and full Wild Fire Info size): Default (<100 ac), Yellow (100–999), Red (1,000–99,999), Magenta (≥100,000).
   - **`Fire:` label** (compact Current Conditions): alert/red.
   - **Fire name** (full Wild Fire Info): secondary accent color (`--color-default`); distance/cardinal use default text color.
+  - **Discovered** (full Wild Fire Info, after Size): `FireDiscoveryDateTime` as `Discovered: MM/dd HH:mm` in the default text color; omitted when null.
+  - **Cost** (full Wild Fire Info, after Discovered): `EstimatedFinalCost` and/or `EstimatedCostToDate` as compact currency (`$346k`, `$2M`, `$1B`, `$3T`). When both are set and differ: `Cost: $final ($toDate)`; when they match (or only one is set): a single value (no parentheses). Color by the primary amount (final when present): Yellow (≥$1M), Red (≥$1B), Magenta (≥$1T), default below $1M; omitted when both null.
+  - **Cause** (full Wild Fire Info meta line): prefer `FireCauseGeneral` when populated; if `FireCause` is `Undetermined`, show that instead.
   - **Contained** (full Wild Fire Info): yellow when Contained is 0%; green when 100%; otherwise default (omitted when null).
   - **Behavior** (full Wild Fire Info): warning/yellow when primary behavior matches Active, Extreme, or Critical (case-insensitive); otherwise default.
 - **Hour labels (Hourly)**: Yellow for hours mostly in daytime (sunrise–sunset), default otherwise. **Time** column header includes ordinal calendar day(s) for the visible page (location timezone).

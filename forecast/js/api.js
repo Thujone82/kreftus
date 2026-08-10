@@ -1404,6 +1404,82 @@ function getWildFireAcresClass(acres) {
     return 'wildfire-acres-extreme';
 }
 
+/** Parse ArcGIS epoch ms (number or /Date(ms)/ string) to Date, or null. */
+function parseNifcEpochMs(raw) {
+    if (raw == null) return null;
+    let ms = null;
+    if (typeof raw === 'number' && Number.isFinite(raw)) {
+        ms = raw;
+    } else if (typeof raw === 'string') {
+        const m = raw.match(/\/Date\((-?\d+)\)\//);
+        ms = m ? Number(m[1]) : Number(raw);
+    }
+    if (!Number.isFinite(ms)) return null;
+    const d = new Date(ms);
+    return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Compact currency for a single NIFC cost field: $346k, $2M, $1B, $3T.
+ * Rounds to nearest whole unit of the chosen scale. Null/invalid → null (hide).
+ */
+function formatWildFireCostAmount(cost) {
+    const n = Number(cost);
+    if (!Number.isFinite(n) || n < 0) return null;
+    if (n >= 1e12) return `$${Math.round(n / 1e12)}T`;
+    if (n >= 1e9) return `$${Math.round(n / 1e9)}B`;
+    if (n >= 1e6) return `$${Math.round(n / 1e6)}M`;
+    if (n >= 1e3) return `$${Math.round(n / 1e3)}k`;
+    return `$${Math.round(n)}`;
+}
+
+/**
+ * Cost line value: final (to-date) when both set and formats differ; otherwise one value.
+ * Example: both different → `$2M ($346k)`; same → `$2M`; one only → that amount.
+ */
+function formatWildFireCost(estimatedCostToDate, estimatedFinalCost) {
+    // Backward compatible: single-arg calls treated as cost-to-date only
+    if (arguments.length === 1 && estimatedFinalCost === undefined) {
+        return formatWildFireCostAmount(estimatedCostToDate);
+    }
+    const toDateStr = formatWildFireCostAmount(estimatedCostToDate);
+    const finalStr = formatWildFireCostAmount(estimatedFinalCost);
+    if (finalStr && toDateStr) {
+        if (finalStr === toDateStr) return finalStr;
+        return `${finalStr} (${toDateStr})`;
+    }
+    return finalStr || toDateStr || null;
+}
+
+/** Primary cost for color bands: final when set, else cost-to-date. */
+function getWildFireCostPrimaryAmount(estimatedCostToDate, estimatedFinalCost) {
+    const finalN = Number(estimatedFinalCost);
+    if (Number.isFinite(finalN) && finalN >= 0) return finalN;
+    const toDateN = Number(estimatedCostToDate);
+    if (Number.isFinite(toDateN) && toDateN >= 0) return toDateN;
+    return null;
+}
+
+/** Cost color: magenta ≥$1T, red ≥$1B, yellow ≥$1M, default below. Uses primary amount. */
+function getWildFireCostClass(estimatedCostToDate, estimatedFinalCost) {
+    const n = arguments.length === 1
+        ? Number(estimatedCostToDate)
+        : getWildFireCostPrimaryAmount(estimatedCostToDate, estimatedFinalCost);
+    if (!Number.isFinite(n) || n < 1e6) return '';
+    if (n >= 1e12) return 'wildfire-cost-trillion';
+    if (n >= 1e9) return 'wildfire-cost-billion';
+    return 'wildfire-cost-million';
+}
+
+/** Prefer FireCauseGeneral when set; if FireCause is Undetermined, keep that instead. */
+function pickWildFireCause(fireCause, fireCauseGeneral) {
+    const cause = String(fireCause || '').trim();
+    const general = String(fireCauseGeneral || '').trim();
+    if (/^undetermined$/i.test(cause)) return cause;
+    if (general) return general;
+    return cause;
+}
+
 function buildNifcWildFireQueryUrl(lat, lon, distanceMiles = WILDFIRE_RADIUS_MILES) {
     return `https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query?f=json&geometryType=esriGeometryPoint&geometry=${lon},${lat}&inSR=4326&distance=${distanceMiles}&units=esriSRUnit_StatuteMile&outFields=*&returnGeometry=true`;
 }
@@ -1455,22 +1531,15 @@ function normalizeNifcWildFireIncidents(apiData, lat, lon, distanceMiles = WILDF
             const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
             const cardinal = dirs[Math.round(bearing / 22.5) % 16];
 
-            let updated = null;
-            if (a.ModifiedOnDateTime_dt != null) {
-                const raw = a.ModifiedOnDateTime_dt;
-                // ArcGIS may return epoch ms as number or "/Date(ms)/" string
-                let ms = null;
-                if (typeof raw === 'number' && Number.isFinite(raw)) {
-                    ms = raw;
-                } else if (typeof raw === 'string') {
-                    const m = raw.match(/\/Date\((-?\d+)\)\//);
-                    ms = m ? Number(m[1]) : Number(raw);
-                }
-                if (Number.isFinite(ms)) {
-                    const d = new Date(ms);
-                    if (!Number.isNaN(d.getTime())) updated = d;
-                }
-            }
+            // ArcGIS date fields are epoch ms (number or "/Date(ms)/" string)
+            const updated = parseNifcEpochMs(a.ModifiedOnDateTime_dt);
+            const discovered = parseNifcEpochMs(a.FireDiscoveryDateTime);
+            const estimatedCost = a.EstimatedCostToDate != null && Number.isFinite(Number(a.EstimatedCostToDate))
+                ? Number(a.EstimatedCostToDate)
+                : null;
+            const estimatedFinalCost = a.EstimatedFinalCost != null && Number.isFinite(Number(a.EstimatedFinalCost))
+                ? Number(a.EstimatedFinalCost)
+                : null;
 
             results.push({
                 name,
@@ -1486,8 +1555,11 @@ function normalizeNifcWildFireIncidents(apiData, lat, lon, distanceMiles = WILDF
                 state: pooState,
                 county: String(a.POOCounty || '').trim(),
                 shortDesc: String(a.IncidentShortDescription || '').trim(),
-                cause: String(a.FireCause || '').trim(),
+                cause: pickWildFireCause(a.FireCause, a.FireCauseGeneral),
                 updated,
+                discovered,
+                estimatedCost,
+                estimatedFinalCost,
                 inciwebUrl: null,
                 stateMapUrl: getInciWebStateMapUrl(pooState)
             });

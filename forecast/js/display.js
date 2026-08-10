@@ -1189,6 +1189,19 @@ function displayWildFireInfo(wildFires, sectionAnchorId) {
             : null;
         const sizeHtml = acresSpan ? `Size: ${acresSpan}` : 'Size: —';
         const statsParts = [sizeHtml];
+        const discoveredStr = formatWildFireUpdated(f.discovered);
+        if (discoveredStr) {
+            statsParts.push(`Discovered: ${escapeHtml(discoveredStr)}`);
+        }
+        const costStr = typeof formatWildFireCost === 'function'
+            ? formatWildFireCost(f.estimatedCost, f.estimatedFinalCost)
+            : null;
+        if (costStr) {
+            const costClass = typeof getWildFireCostClass === 'function'
+                ? getWildFireCostClass(f.estimatedCost, f.estimatedFinalCost)
+                : '';
+            statsParts.push(`<span class="${costClass}">Cost: ${escapeHtml(costStr)}</span>`);
+        }
         if (f.contained != null && Number.isFinite(Number(f.contained))) {
             const contPct = Math.round(Number(f.contained));
             const contPart = `Contained: ${contPct}%`;

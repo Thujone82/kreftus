@@ -1493,6 +1493,18 @@ body.ui-density-normal .weather-content {
     color: var(--color-magenta);
 }
 
+.wildfire-cost-million {
+    color: var(--color-warning, #ffff00);
+}
+
+.wildfire-cost-billion {
+    color: var(--color-alert);
+}
+
+.wildfire-cost-trillion {
+    color: var(--color-magenta);
+}
+
 .wildfire-link-sep {
     color: var(--color-text-secondary);
     margin: 0 0.15rem;
