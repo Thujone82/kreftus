@@ -1219,6 +1219,7 @@ function loadWildfireSettings() {
     appState.wildfireRadiusMiles = storedRadius == null
         ? 50
         : clampWildfireRadiusMiles(storedRadius);
+    console.log('Wildfire settings: enabled=', appState.enableWildfire, 'radius=', appState.wildfireRadiusMiles, 'mi');
     syncWildfireSettingsVisibility();
 }
 
@@ -1248,6 +1249,7 @@ function applyWildfireSettingsChange({ refetch = false, radiusMiles = null, prev
     // enableWildfire. Clearing in-place let later NOAA/AQI cache saves persist [] and
     // wipe wildfire after refresh.
     if (!appState.enableWildfire) {
+        console.log('Wildfire: disabled in settings (display gated; cached fires retained)');
         if (appState.weatherData) renderCurrentMode();
         return;
     }
@@ -1259,6 +1261,7 @@ function applyWildfireSettingsChange({ refetch = false, radiusMiles = null, prev
             const targetRadius = radiusMiles != null
                 ? clampWildfireRadiusMiles(radiusMiles)
                 : clampWildfireRadiusMiles(appState.wildfireRadiusMiles);
+            console.log('Wildfire: settings refetch for', targetRadius, 'mi (was', previousRadiusMiles != null ? previousRadiusMiles : 'n/a', '), cacheKey=', cacheKey);
             refreshWildfireForCachedLocation({
                 cacheKey,
                 weatherData: appState.weatherData,
@@ -1270,7 +1273,8 @@ function applyWildfireSettingsChange({ refetch = false, radiusMiles = null, prev
                 awaitInciWeb: true
             }).then((ok) => {
                 if (ok) {
-                    console.log('Wildfire radius refresh applied for', targetRadius, 'mi');
+                    const n = Array.isArray(appState.weatherData?.wildFires) ? appState.weatherData.wildFires.length : 0;
+                    console.log('Wildfire radius refresh applied for', targetRadius, 'mi →', n, 'incident(s)');
                 } else {
                     console.warn('Wildfire radius refresh did not apply new data for', targetRadius, 'mi');
                 }
@@ -1279,6 +1283,7 @@ function applyWildfireSettingsChange({ refetch = false, radiusMiles = null, prev
             });
             return;
         }
+        console.warn('Wildfire: settings refetch skipped (no cache key)');
     }
     if (appState.weatherData) renderCurrentMode();
 }
@@ -1294,6 +1299,7 @@ function commitWildfireRadiusFromSettings() {
     }
     const previousRadius = clampWildfireRadiusMiles(appState.wildfireRadiusMiles);
     appState.wildfireRadiusMiles = next;
+    console.log('Wildfire: radius changed', previousRadius, '→', next, 'mi');
     // Shrinking: filter the current list immediately so the UI matches the new radius
     // while the network refetch runs (and so a failed refetch cannot wipe in-range fires).
     if (next < previousRadius) {
@@ -1328,6 +1334,7 @@ function applyWildfireRadiusFilterLocally(radiusMiles) {
         wildFires: filtered,
         wildfireRadiusMiles: radius
     };
+    console.log('Wildfire: local filter to', radius, 'mi →', filtered.length, 'of', wd.wildFires.length, 'incident(s)');
     renderCurrentMode();
 }
 
@@ -1339,6 +1346,7 @@ function preserveWildFiresIfFetchFailed(weatherData, previousWeather) {
     }
     const prev = previousWeather?.wildFires;
     if (!Array.isArray(prev) || prev.length === 0) return weatherData;
+    console.log('Wildfire: preserving', prev.length, 'cached incident(s) after failed/skipped NIFC fetch');
     return {
         ...weatherData,
         wildFires: prev,
@@ -1375,7 +1383,12 @@ function scheduleWildfireBackfill({ cacheKey, weatherData, reason = 'backfill' }
     setTimeout(() => {
         refreshWildfireForCachedLocation({
             cacheKey,
-            weatherData
+            weatherData,
+            forceApply: true,
+            awaitInciWeb: false
+        }).then((ok) => {
+            const n = Array.isArray(appState.weatherData?.wildFires) ? appState.weatherData.wildFires.length : 0;
+            console.log('Wildfire backfill', ok ? 'applied' : 'did not apply', '→', n, 'incident(s)');
         }).catch(error => {
             console.error('Background wildfire-only fetch failed:', error);
         });
@@ -1783,6 +1796,7 @@ function setupConfigModal() {
     if (elements.enableWildfireToggle) {
         elements.enableWildfireToggle.addEventListener('change', (e) => {
             appState.enableWildfire = !!e.target.checked;
+            console.log('Wildfire: enable toggled →', appState.enableWildfire);
             applyWildfireSettingsChange({ refetch: appState.enableWildfire });
         });
     }
@@ -3876,12 +3890,19 @@ async function refreshWildfireForCachedLocation({
         ? clampWildfireRadiusMiles(previousRadiusMiles)
         : Number(weatherData.wildfireRadiusMiles);
     const seq = ++wildfireRefreshSeq;
+    console.log('Wildfire: refresh start seq=', seq, 'radius=', radius, 'mi', 'prevRadius=', Number.isFinite(prevRadius) ? prevRadius : 'n/a', 'prevFires=', prevFires.length);
 
     const result = await fetchWildFireIncidents(lat, lon, radius, { awaitInciWeb: !!awaitInciWeb });
     // A newer radius/settings refresh started — ignore this response.
-    if (seq !== wildfireRefreshSeq) return false;
+    if (seq !== wildfireRefreshSeq) {
+        console.log('Wildfire: refresh seq=', seq, 'stale (current=', wildfireRefreshSeq, '); ignoring');
+        return false;
+    }
     // Failed NIFC — leave existing wildfire data untouched (refresh must not erase it).
-    if (!result || result.ok !== true) return false;
+    if (!result || result.ok !== true) {
+        console.warn('Wildfire: refresh NIFC failed; keeping previous list (', prevFires.length, ')');
+        return false;
+    }
 
     const incidents = Array.isArray(result.incidents) ? result.incidents : [];
     // Expanding radius but got [] while we already had fires: treat as soft failure.
@@ -3892,6 +3913,7 @@ async function refreshWildfireForCachedLocation({
         return false;
     }
 
+    console.log('Wildfire: refresh seq=', seq, 'applying', incidents.length, 'incident(s) for', radius, 'mi');
     const updatedWeatherData = {
         ...weatherData,
         wildFires: incidents,

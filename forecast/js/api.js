@@ -1520,11 +1520,18 @@ async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_
         ? Math.max(0, Number(options.inciWebBudgetMs))
         : 8000;
     const radius = Number(distanceMiles);
-    if (!Number.isFinite(radius) || radius <= 0) return { ok: true, incidents: [] };
+    if (!Number.isFinite(radius) || radius <= 0) {
+        console.log('Wildfire: skipped (radius', radius, ')');
+        return { ok: true, incidents: [] };
+    }
     const latN = Number(lat);
     const lonN = Number(lon);
-    if (!Number.isFinite(latN) || !Number.isFinite(lonN)) return { ok: false, incidents: [] };
+    if (!Number.isFinite(latN) || !Number.isFinite(lonN)) {
+        console.warn('Wildfire: invalid coordinates', lat, lon);
+        return { ok: false, incidents: [] };
+    }
     const url = buildNifcWildFireQueryUrl(latN, lonN, radius);
+    console.log('Wildfire: fetching NIFC within', radius, 'mi of', latN, lonN);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
     let incidents = [];
@@ -1540,7 +1547,9 @@ async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_
             console.warn('NIFC wildfire API error payload:', data.error);
             return { ok: false, incidents: [] };
         }
+        const rawFeatureCount = Array.isArray(data?.features) ? data.features.length : 0;
         incidents = normalizeNifcWildFireIncidents(data, latN, lonN, radius);
+        console.log('Wildfire: NIFC returned', rawFeatureCount, 'feature(s);', incidents.length, 'within', radius, 'mi');
     } catch (error) {
         console.warn('NIFC wildfire fetch failed:', error);
         return { ok: false, incidents: [] };
@@ -1551,9 +1560,11 @@ async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_
     // Soft-fail InciWeb link enrichment. Settings radius changes await a short budget so
     // the UI can refresh once with links; other callers keep enrichment off the critical path.
     if (incidents.length > 0) {
+        console.log('Wildfire: enriching InciWeb links for', incidents.length, 'incident(s)', awaitInciWeb ? '(await)' : '(background)');
         const enrichPromise = Promise.all(incidents.map(async (inc) => {
             try {
                 inc.inciwebUrl = await resolveInciWebIncidentUrl(inc.unit, inc.name);
+                console.log('Wildfire: InciWeb', inc.name, inc.inciwebUrl ? '→ ' + inc.inciwebUrl : '(no match)');
             } catch (_) {
                 /* keep null */
             }
@@ -1568,6 +1579,9 @@ async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_
         } else {
             void enrichPromise;
         }
+    }
+    if (incidents.length > 0) {
+        console.log('Wildfire: incidents', incidents.map((f) => `${f.name} (${f.distanceMi}mi ${f.cardinal || ''})`.trim()).join('; '));
     }
     return { ok: true, incidents };
 }
@@ -1675,6 +1689,13 @@ async function fetchWeatherData(location, options = {}) {
     const wildFires = (wildfireRequested && wildfireResult && wildfireResult.ok)
         ? (Array.isArray(wildfireResult.incidents) ? wildfireResult.incidents : [])
         : [];
+    if (wildfireSkipped) {
+        console.log('Wildfire: omitted from weather fetch (disabled or radius 0)');
+    } else if (wildfireFetchFailed) {
+        console.warn('Wildfire: weather fetch NIFC call failed; preserving prior list if any');
+    } else {
+        console.log('Wildfire: weather fetch included', wildFires.length, 'incident(s) within', wildfireRadiusMiles, 'mi');
+    }
     
     return {
         location: { lat, lon, city, state, timeZone, radarStation, elevationFeet },

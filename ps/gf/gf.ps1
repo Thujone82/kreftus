@@ -216,6 +216,7 @@ if ($null -ne $gfCli.WildfireMiles) {
 }
 $script:wildFireEnabled = ($script:WILDFIRE_RADIUS_MILES -gt 0)
 $script:wildFireIncidents = @()
+Write-Verbose "Wildfire config: enabled=$($script:wildFireEnabled) radius=$($script:WILDFIRE_RADIUS_MILES) mi"
 
 # --- Helper Functions ---
 
@@ -2046,6 +2047,7 @@ function Update-WeatherData {
         $wildFireJob = $null
         if ($script:wildFireEnabled) {
             $wildFireUrl = Get-NifcWildFireQueryUrl -Lat ([double]$lat) -Lon ([double]$lon) -DistanceMiles $script:WILDFIRE_RADIUS_MILES
+            Write-Verbose "Wildfire: starting NIFC job (radius=$($script:WILDFIRE_RADIUS_MILES) mi)"
             Write-Verbose "GET: $wildFireUrl"
             $wildFireJob = Start-ApiJob -Url $wildFireUrl -Headers @{} -JobName "WildFireData"
         } else {
@@ -2330,8 +2332,10 @@ function Update-WeatherData {
                     try {
                         $wfData = $wfJson | ConvertFrom-Json
                         if (-not ($wfData.PSObject.Properties.Name -contains 'Error' -and $wfData.Error)) {
+                            $featureCount = if ($wfData.features) { @($wfData.features).Count } else { 0 }
+                            Write-Verbose "Wildfire: NIFC job completed with $featureCount raw feature(s)"
                             $script:wildFireIncidents = @(Get-WildFireIncidentsFromApiResponse -ApiData $wfData -Lat ([double]$lat) -Lon ([double]$lon) -TimeZoneId $TimeZone -ValidateInciWeb $true)
-                            Write-Verbose "Wildfire incidents within $($script:WILDFIRE_RADIUS_MILES) mi: $($script:wildFireIncidents.Count)"
+                            Write-VerboseWildFireSummary -Incidents $script:wildFireIncidents -Context 'Wildfire update'
                         } else {
                             Write-Verbose "NIFC wildfire API returned error payload"
                         }
@@ -3178,7 +3182,9 @@ if ($Observations.IsPresent) {
     Write-Verbose "Fetching observations data for Observations mode"
     Write-Host "Loading Historical Data..." -ForegroundColor Yellow
     $script:observationsData = Get-NWSObservations -PointsData $pointsData -Headers $headers -TimeZone $timeZone
-    Clear-HostWithDelay
+    if ($VerbosePreference -ne 'Continue') {
+        Clear-HostWithDelay
+    }
     if ($null -eq $script:observationsData) {
         Write-Verbose "Failed to fetch observations data"
     } else {
@@ -6008,11 +6014,14 @@ function Test-InciWebIncidentSlug {
     if ([string]::IsNullOrWhiteSpace($Slug)) { return $false }
     $cacheKey = "slug:$Slug"
     if ($script:inciwebUrlOkCache.ContainsKey($cacheKey)) {
-        return [bool]$script:inciwebUrlOkCache[$cacheKey]
+        $cached = [bool]$script:inciwebUrlOkCache[$cacheKey]
+        Write-Verbose "InciWeb slug cache hit: $Slug -> $cached"
+        return $cached
     }
     $ok = $false
     try {
         $ajaxUrl = "https://inciweb.wildfire.gov/views/ajax?view_name=incidents_page_&view_display_id=single_incident_information&view_args=$Slug"
+        Write-Verbose "InciWeb slug probe: $Slug"
         $resp = Invoke-WebRequest -Uri $ajaxUrl -Method Get -TimeoutSec 8 -MaximumRedirection 5 -UseBasicParsing -ErrorAction Stop
         $body = [string]$resp.Content
         # Published pages embed incident payload; blank shells insert an empty wrapper (~2KB).
@@ -6021,8 +6030,10 @@ function Test-InciWebIncidentSlug {
             $body.Contains('incident-main-info-wrapper') -or
             $body.Contains('incident-overview')
         )
+        Write-Verbose "InciWeb slug probe result: $Slug -> $ok (bodyLength=$($body.Length))"
     } catch {
         $ok = $false
+        Write-Verbose "InciWeb slug probe failed: $Slug ($($_.Exception.Message))"
     }
     $script:inciwebUrlOkCache[$cacheKey] = $ok
     return $ok
@@ -6035,21 +6046,47 @@ function Get-InciWebIncidentUrl {
         [bool]$Validate = $true
     )
     $slugs = @(Get-InciWebIncidentSlugCandidates -ProtectingUnit $ProtectingUnit -IncidentName $IncidentName)
-    if ($slugs.Count -eq 0) { return $null }
+    if ($slugs.Count -eq 0) {
+        Write-Verbose "InciWeb: no slug candidates for unit='$ProtectingUnit' name='$IncidentName'"
+        return $null
+    }
+    Write-Verbose "InciWeb: candidates for '$IncidentName': $($slugs -join ', ')"
 
     if (-not $Validate) {
         # Prefer -fire candidate when present (common InciWeb naming) without probing
         $preferred = $slugs | Where-Object { $_ -match '-fire$' } | Select-Object -First 1
         if (-not $preferred) { $preferred = $slugs[0] }
-        return "https://inciweb.wildfire.gov/incident-information/$preferred"
+        $guess = "https://inciweb.wildfire.gov/incident-information/$preferred"
+        Write-Verbose "InciWeb: unvalidated URL for '$IncidentName' -> $guess"
+        return $guess
     }
 
     foreach ($slug in $slugs) {
         if (Test-InciWebIncidentSlug -Slug $slug) {
-            return "https://inciweb.wildfire.gov/incident-information/$slug"
+            $url = "https://inciweb.wildfire.gov/incident-information/$slug"
+            Write-Verbose "InciWeb: matched '$IncidentName' -> $url"
+            return $url
         }
     }
+    Write-Verbose "InciWeb: no validated URL for '$IncidentName'"
     return $null
+}
+
+function Write-VerboseWildFireSummary {
+    param(
+        [object]$Incidents,
+        [string]$Context = 'Wildfire'
+    )
+    $list = @($Incidents)
+    Write-Verbose "$Context`: $($list.Count) incident(s) within $($script:WILDFIRE_RADIUS_MILES) mi"
+    foreach ($f in $list) {
+        $acres = if ($null -ne $f.Acres) { "$($f.Acres) ac" } else { 'n/a ac' }
+        $cont = if ($null -ne $f.Contained) { "$([Math]::Round([double]$f.Contained, 0))%" } else { 'n/a' }
+        $beh = if ($f.Behavior) { $f.Behavior } else { 'n/a' }
+        $link = if ($f.InciWebUrl) { $f.InciWebUrl } else { '(no InciWeb)' }
+        Write-Verbose ("  - {0}: {1} mi {2}; {3}; Contained {4}; Behavior {5}; {6}" -f `
+            $f.Name, $f.DistanceMi, $f.Cardinal, $acres, $cont, $beh, $link)
+    }
 }
 
 function Format-WildFireAcres {
@@ -6197,9 +6234,11 @@ function Get-WildFireIncidentsFromApiResponse {
     }
 
     $sorted = @($results | Sort-Object -Property @{ Expression = { if ($null -eq $_.Acres) { -1 } else { $_.Acres } }; Descending = $true }, DistanceMi)
+    Write-Verbose "Wildfire: normalized $($sorted.Count) incident(s) from NIFC features (radius=$($script:WILDFIRE_RADIUS_MILES) mi)"
 
     if ($ValidateInciWeb -and $sorted.Count -gt 0) {
         $total = $sorted.Count
+        Write-Verbose "Wildfire: validating InciWeb links for $total incident(s)"
         for ($i = 0; $i -lt $total; $i++) {
             $n = $i + 1
             if ($ShowLinkProgress) {
@@ -6214,6 +6253,7 @@ function Get-WildFireIncidentsFromApiResponse {
         }
     }
 
+    Write-VerboseWildFireSummary -Incidents $sorted -Context 'Wildfire parse'
     return $sorted
 }
 
@@ -7528,6 +7568,7 @@ if (-not $script:wildFireEnabled) {
     $script:wildFireIncidents = @()
     Write-Verbose "Wildfire disabled (-wf 0 or radius 0); skipping NIFC fetch"
 } else {
+    Write-Verbose "Wildfire: enabled with radius $($script:WILDFIRE_RADIUS_MILES) mi at lat=$lat lon=$lon"
     if ($VerbosePreference -ne 'Continue') {
         Write-Host "Checking Wildfire..." -ForegroundColor Yellow
     } else {
@@ -7537,8 +7578,10 @@ if (-not $script:wildFireEnabled) {
         $wildFireUrl = Get-NifcWildFireQueryUrl -Lat ([double]$lat) -Lon ([double]$lon) -DistanceMiles $script:WILDFIRE_RADIUS_MILES
         Write-Verbose "GET: $wildFireUrl"
         $wildFireResponse = Invoke-RestMethod -Uri $wildFireUrl -Method Get -TimeoutSec 30 -ErrorAction Stop
+        $featureCount = if ($wildFireResponse.features) { @($wildFireResponse.features).Count } else { 0 }
+        Write-Verbose "Wildfire: NIFC returned $featureCount raw feature(s)"
         $script:wildFireIncidents = @(Get-WildFireIncidentsFromApiResponse -ApiData $wildFireResponse -Lat ([double]$lat) -Lon ([double]$lon) -TimeZoneId $timeZone -ValidateInciWeb $true -ShowLinkProgress $true)
-        Write-Verbose "Wildfire incidents within $($script:WILDFIRE_RADIUS_MILES) mi: $($script:wildFireIncidents.Count)"
+        Write-VerboseWildFireSummary -Incidents $script:wildFireIncidents -Context 'Wildfire launch'
     } catch {
         Write-Verbose "NIFC wildfire fetch failed: $($_.Exception.Message)"
         $script:wildFireIncidents = @()
@@ -7628,8 +7671,11 @@ elseif ($Observations.IsPresent) {
 
 $weatherIcon = Get-CurrentConditionsWeatherIcon -IconUrl $currentIcon -Period $currentPeriod -PrecipProb $currentPrecipProb -SunriseTime $sunriseTime -SunsetTime $sunsetTime -PolarNight $isPolarNight -IsPolarDay $isPolarDay
 
-# Clear loading message before displaying data
-Clear-HostWithDelay
+# Clear loading message before displaying data.
+# Keep the host buffer in -Verbose so API/wildfire verbose lines stay readable.
+if ($VerbosePreference -ne 'Continue') {
+    Clear-HostWithDelay
+}
 
 # Display the weather report using the refactored function
 if ($Alerts.IsPresent) {
