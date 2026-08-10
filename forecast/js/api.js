@@ -1421,11 +1421,11 @@ function parseNifcEpochMs(raw) {
 
 /**
  * Compact currency for a single NIFC cost field: $346k, $2M, $1B, $3T.
- * Rounds to nearest whole unit of the chosen scale. Null/invalid → null (hide).
+ * Rounds to nearest whole unit of the chosen scale. Null/invalid/zero → null (hide).
  */
 function formatWildFireCostAmount(cost) {
     const n = Number(cost);
-    if (!Number.isFinite(n) || n < 0) return null;
+    if (!Number.isFinite(n) || n <= 0) return null;
     if (n >= 1e12) return `$${Math.round(n / 1e12)}T`;
     if (n >= 1e9) return `$${Math.round(n / 1e9)}B`;
     if (n >= 1e6) return `$${Math.round(n / 1e6)}M`;
@@ -1451,12 +1451,12 @@ function formatWildFireCost(estimatedCostToDate, estimatedFinalCost) {
     return finalStr || toDateStr || null;
 }
 
-/** Primary cost for color bands: final when set, else cost-to-date. */
+/** Primary cost for color bands: final when set (>0), else cost-to-date (>0). */
 function getWildFireCostPrimaryAmount(estimatedCostToDate, estimatedFinalCost) {
     const finalN = Number(estimatedFinalCost);
-    if (Number.isFinite(finalN) && finalN >= 0) return finalN;
+    if (Number.isFinite(finalN) && finalN > 0) return finalN;
     const toDateN = Number(estimatedCostToDate);
-    if (Number.isFinite(toDateN) && toDateN >= 0) return toDateN;
+    if (Number.isFinite(toDateN) && toDateN > 0) return toDateN;
     return null;
 }
 

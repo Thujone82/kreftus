@@ -245,7 +245,7 @@ The app checks for new versions (e.g. via `manifest.json` version and service wo
   - **`Fire:` label** (compact Current Conditions): alert/red.
   - **Fire name** (full Wild Fire Info): secondary accent color (`--color-default`); distance/cardinal use default text color.
   - **Discovered** (full Wild Fire Info, after Size): `FireDiscoveryDateTime` as `Discovered: MM/dd HH:mm` in the default text color; omitted when null.
-  - **Cost** (full Wild Fire Info, after Discovered): `EstimatedFinalCost` and/or `EstimatedCostToDate` as compact currency (`$346k`, `$2M`, `$1B`, `$3T`). When both are set and differ: `Cost: $final ($toDate)`; when they match (or only one is set): a single value (no parentheses). Color by the primary amount (final when present): Yellow (≥$1M), Red (≥$1B), Magenta (≥$1T), default below $1M; omitted when both null.
+  - **Cost** (full Wild Fire Info, after Discovered): `EstimatedFinalCost` and/or `EstimatedCostToDate` as compact currency (`$346k`, `$2M`, `$1B`, `$3T`). When both are set and differ: `Cost: $final ($toDate)`; when they match (or only one is set): a single value (no parentheses). Color by the primary amount (final when present): Yellow (≥$1M), Red (≥$1B), Magenta (≥$1T), default below $1M; omitted when both null or `$0`.
   - **Cause** (full Wild Fire Info meta line): prefer `FireCauseGeneral` when populated; if `FireCause` is `Undetermined`, show that instead.
   - **Contained** (full Wild Fire Info): yellow when Contained is 0%; green when 100%; otherwise default (omitted when null).
   - **Behavior** (full Wild Fire Info): warning/yellow when primary behavior matches Active, Extreme, or Critical (case-insensitive); otherwise default.

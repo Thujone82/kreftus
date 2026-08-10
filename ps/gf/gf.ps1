@@ -38,7 +38,7 @@
     - Wildfire Fire: label (terse): Red
     - Wildfire fire name (full Wild Fire Info): Yellow; distance/cardinal use default
     - Wildfire Discovered (full Wild Fire Info): FireDiscoveryDateTime as Discovered: MM/dd HH:mm in default color; omitted when null
-    - Wildfire Cost (full Wild Fire Info): EstimatedFinalCost (EstimatedCostToDate) when both set, else whichever is present; compact $346k/$2M/$1B/$3T; Yellow (≥$1M), Red (≥$1B), Magenta (≥$1T) by primary amount; omitted when both null
+    - Wildfire Cost (full Wild Fire Info): EstimatedFinalCost (EstimatedCostToDate) when both set, else whichever is present; compact $346k/$2M/$1B/$3T; Yellow (≥$1M), Red (≥$1B), Magenta (≥$1T) by primary amount; omitted when both null or $0
     - Wildfire containment (full Wild Fire Info): Yellow when Contained is 0%; Green when 100%; otherwise default (omit when null)
     - Wildfire behavior (full Wild Fire Info): Yellow when primary Behavior matches active, extreme, or critical (case-insensitive); otherwise default
     
@@ -6127,13 +6127,13 @@ function Get-WildFireAcresForegroundColor {
     }
 }
 
-# Single NIFC cost amount → $346k / $2M / $1B / $3T; null if missing.
+# Single NIFC cost amount → $346k / $2M / $1B / $3T; null if missing or $0.
 function Format-WildFireCostAmount {
     param($Cost)
     if ($null -eq $Cost) { return $null }
     try {
         $n = [double]$Cost
-        if ($n -lt 0) { return $null }
+        if ($n -le 0) { return $null }
         if ($n -ge 1e12) { return ('${0}T' -f [Math]::Round($n / 1e12)) }
         if ($n -ge 1e9) { return ('${0}B' -f [Math]::Round($n / 1e9)) }
         if ($n -ge 1e6) { return ('${0}M' -f [Math]::Round($n / 1e6)) }
@@ -6169,13 +6169,13 @@ function Get-WildFireCostPrimaryAmount {
     try {
         if ($null -ne $EstimatedFinalCost) {
             $n = [double]$EstimatedFinalCost
-            if ($n -ge 0) { return $n }
+            if ($n -gt 0) { return $n }
         }
     } catch {}
     try {
         if ($null -ne $EstimatedCostToDate) {
             $n = [double]$EstimatedCostToDate
-            if ($n -ge 0) { return $n }
+            if ($n -gt 0) { return $n }
         }
     } catch {}
     return $null
