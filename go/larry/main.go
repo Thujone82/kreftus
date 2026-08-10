@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -59,6 +60,7 @@ const (
 	glyphGoalB   = '\u259E' // ▞ goal checker
 	glyphDebris  = '\u2619' // ☙ impassable safe-lane debris
 	glyphHeart   = '\u2665' // ♥ life pickup (L8+)
+	glyphDiamond = '\u2666' // ♦ score pickup (L10+)
 )
 
 // larryHighlight is the goal-checker yellow — always distinct from vehicle hues.
@@ -82,10 +84,14 @@ type game struct {
 	safeBottomY      int
 	safeRow          []bool
 	debris           [][]bool // impassable cells on mid safe lanes (L6+)
-	hasHeart         bool     // L8+: one ♥ on a mid safe lane
+	hasHeart         bool // L8+: one ♥ on a mid safe lane
 	heartX           int
 	heartY           int
-	lifeNoticeUntil  time.Time // inverted HUD "+1 Life" flash
+	hasDiamond       bool // L10+: one ♦ on the top mid safe lane
+	diamondX         int
+	diamondY         int
+	hudNoticeUntil   time.Time // inverted HUD pickup flash
+	hudNoticeText    string    // e.g. "+1 Life" / "+1,000 Points"
 	rng              *rand.Rand
 	theme            theme
 	paused           bool
@@ -109,6 +115,7 @@ type game struct {
 	menuIndex       int // 0 Start, 1 High Scores, 2 Quit
 	confirmMenu     bool // Esc confirm: return to main menu?
 	confirmYes      bool // true = Larry on Yes; false = Larry on No (default)
+	testMode        bool // -testlvl: skip score file writes
 }
 
 type scoreEntry struct {
@@ -174,7 +181,11 @@ func main() {
 	g.showStartScreen = true
 	g.startView = startMenu
 	g.menuIndex = 0
-	g.initLevel(1)
+	if testLvl := parseTestLevel(); testLvl > 0 {
+		g.beginTestLevel(testLvl)
+	} else {
+		g.initLevel(1)
+	}
 
 	events := make(chan tcell.Event, 64)
 	go func() {
@@ -265,6 +276,71 @@ func (g *game) initLevel(level int) {
 	g.scoreTimerActive = false
 	g.updateHUD()
 	g.createLanes()
+}
+
+// beginTestLevel starts gameplay at level as if prior levels were cleared.
+func (g *game) beginTestLevel(level int) {
+	if level < 1 {
+		level = 1
+	}
+	g.testMode = true
+	g.width, g.height = g.screen.Size()
+	g.hudY = 0
+	g.safeTopY = 1
+	g.safeBottomY = g.height - 1
+	rows := g.safeBottomY - g.safeTopY
+	if rows < 1 {
+		rows = 1
+	}
+	// Simulate clears: climb bonus + clear bonus − 10 time-decay per prior level
+	score, lives := 0, 3
+	for L := 1; L < level; L++ {
+		score += rows * 10
+		score += 100 * L
+		score -= 10
+		lives++
+	}
+	if score < 0 {
+		score = 0
+	}
+	g.lives = lives
+	g.score = score
+	g.topScore = score
+	g.showStartScreen = false
+	g.startView = startMenu
+	g.menuIndex = 0
+	g.gameOver = false
+	g.paused = false
+	g.confirmMenu = false
+	g.initLevel(level)
+	g.flushInput()
+	g.acceptInputAfter = time.Now().Add(300 * time.Millisecond)
+}
+
+// parseTestLevel reads undocumented -testlvl INT (or -testlvl=INT). Returns 0 if absent.
+func parseTestLevel() int {
+	args := os.Args[1:]
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "-testlvl" {
+			if i+1 >= len(args) {
+				return 0
+			}
+			n, err := strconv.Atoi(args[i+1])
+			if err != nil || n < 1 {
+				return 0
+			}
+			return n
+		}
+		if strings.HasPrefix(a, "-testlvl=") {
+			n, err := strconv.Atoi(strings.TrimPrefix(a, "-testlvl="))
+			if err != nil || n < 1 {
+				return 0
+			}
+			return n
+		}
+	}
+	return 0
 }
 
 func (g *game) nextLevel() {
@@ -444,6 +520,7 @@ func (g *game) createLanes() {
 	}
 	g.placeDebris()
 	g.placeHeart()
+	g.placeDiamond()
 }
 
 func (g *game) placeDebris() {
@@ -532,9 +609,71 @@ func (g *game) tryCollectHeart() {
 	}
 	g.hasHeart = false
 	g.lives++
-	g.lifeNoticeUntil = time.Now().Add(time.Second)
+	g.showHUDNotice("+1 Life")
 	g.updateHUD()
 	g.lastRenderedScore = -1
+}
+
+// placeDiamond puts one ♦ at the center of the top mid safe lane (L10+).
+func (g *game) placeDiamond() {
+	g.hasDiamond = false
+	w, h := g.width, g.height
+	if g.level < 10 || w <= 0 || h <= 0 {
+		return
+	}
+	// Top mid safe lane = uppermost mid gap (closest to goal, not the goal shoulder)
+	topY := -1
+	for y := 0; y < h; y++ {
+		if y == g.safeTopY || y == g.safeBottomY {
+			continue
+		}
+		if y >= len(g.safeRow) || !g.safeRow[y] {
+			continue
+		}
+		topY = y
+		break
+	}
+	if topY < 0 {
+		return
+	}
+	x := w / 2
+	// Don't stack on the ♥ if both land on the same cell
+	if g.hasHeart && g.heartX == x && g.heartY == topY {
+		x++
+		if x >= w {
+			x = w/2 - 1
+		}
+		if x < 0 {
+			x = 0
+		}
+	}
+	g.diamondX, g.diamondY = x, topY
+	g.hasDiamond = true
+	if topY < len(g.debris) && x < len(g.debris[topY]) {
+		g.debris[topY][x] = false
+	}
+}
+
+func (g *game) tryCollectDiamond() {
+	if !g.hasDiamond {
+		return
+	}
+	if g.frogX != g.diamondX || g.frogY != g.diamondY {
+		return
+	}
+	g.hasDiamond = false
+	g.score += 1000
+	if g.score > g.topScore {
+		g.topScore = g.score
+	}
+	g.showHUDNotice("+1,000 Points")
+	g.updateHUD()
+	g.lastRenderedScore = -1
+}
+
+func (g *game) showHUDNotice(msg string) {
+	g.hudNoticeText = msg
+	g.hudNoticeUntil = time.Now().Add(time.Second)
 }
 
 
@@ -658,6 +797,7 @@ func (g *game) handleInput(e *tcell.EventKey) bool {
 	}
 	if moved {
 		g.tryCollectHeart()
+		g.tryCollectDiamond()
 	}
 	if moved && !g.scoreTimerActive {
 		g.scoreTimerActive = true
@@ -958,6 +1098,19 @@ func (g *game) drawHeart() {
 	g.screen.SetContent(g.heartX, g.heartY, glyphHeart, nil, st)
 }
 
+func (g *game) drawDiamond() {
+	if !g.hasDiamond {
+		return
+	}
+	fg := tcell.ColorAqua
+	// Flash white/cyan ~4 Hz for eye catch
+	if time.Now().UnixNano()/int64(250*time.Millisecond)%2 == 0 {
+		fg = tcell.ColorWhite
+	}
+	st := tcell.StyleDefault.Foreground(fg).Background(g.theme.safe).Bold(true)
+	g.screen.SetContent(g.diamondX, g.diamondY, glyphDiamond, nil, st)
+}
+
 func (g *game) render() {
 	s := g.screen
 	s.Clear()
@@ -973,6 +1126,7 @@ func (g *game) render() {
 	g.drawPlayfieldBackground()
 	g.drawDebris()
 	g.drawHeart()
+	g.drawDiamond()
 	g.drawVehicles()
 
 	// Draw HUD - will refresh only when score changes
@@ -980,11 +1134,15 @@ func (g *game) render() {
 		g.updateHUD()
 		g.lastRenderedScore = g.score
 	}
-	if time.Now().Before(g.lifeNoticeUntil) {
-		// Invert HUD colors and center "+1 Life" as a clear pickup notice
+	if time.Now().Before(g.hudNoticeUntil) {
+		// Invert HUD colors and center pickup notice (life / points)
 		invStyle := tcell.StyleDefault.Foreground(g.theme.frog).Background(tcell.ColorBlack).Bold(true)
 		drawText(s, 0, 0, spaces(w), invStyle)
-		drawCentered(s, w/2, 0, "+1 Life", invStyle)
+		msg := g.hudNoticeText
+		if msg == "" {
+			msg = "+1 Life"
+		}
+		drawCentered(s, w/2, 0, msg, invStyle)
 	} else {
 		// HUD uses Larry's highlight so it stays distinct from the playfield
 		hudStyle := tcell.StyleDefault.Foreground(tcell.ColorBlack).Background(g.theme.frog).Bold(true)
@@ -1050,23 +1208,25 @@ func (g *game) commitScoreName() {
 	if len(name) > 8 {
 		name = name[:8]
 	}
-	now := time.Now()
-	entry := scoreEntry{Name: name, Score: g.score, Time: now.Unix(), Date: now.Format("010206")}
-	g.highScores = append(g.highScores, entry)
-	// sort desc
-	for i := 0; i < len(g.highScores); i++ {
-		for j := i + 1; j < len(g.highScores); j++ {
-			if g.highScores[j].Score > g.highScores[i].Score {
-				g.highScores[i], g.highScores[j] = g.highScores[j], g.highScores[i]
+	if !g.testMode {
+		now := time.Now()
+		entry := scoreEntry{Name: name, Score: g.score, Time: now.Unix(), Date: now.Format("010206")}
+		g.highScores = append(g.highScores, entry)
+		// sort desc
+		for i := 0; i < len(g.highScores); i++ {
+			for j := i + 1; j < len(g.highScores); j++ {
+				if g.highScores[j].Score > g.highScores[i].Score {
+					g.highScores[i], g.highScores[j] = g.highScores[j], g.highScores[i]
+				}
 			}
 		}
-	}
-	if len(g.highScores) > 10 {
-		g.highScores = g.highScores[:10]
-	}
-	g.saveHighScores()
-	if len(g.highScores) > 0 {
-		g.historyTop = g.highScores[0].Score
+		if len(g.highScores) > 10 {
+			g.highScores = g.highScores[:10]
+		}
+		g.saveHighScores()
+		if len(g.highScores) > 0 {
+			g.historyTop = g.highScores[0].Score
+		}
 	}
 	g.enteringName = false
 	g.resetGame()
@@ -1106,6 +1266,9 @@ func (g *game) loadHighScores() {
 }
 
 func (g *game) saveHighScores() {
+	if g.testMode {
+		return
+	}
 	data, err := json.MarshalIndent(g.highScores, "", "  ")
 	if err != nil {
 		return
