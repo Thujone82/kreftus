@@ -328,6 +328,9 @@ function processWeatherData(weatherData) {
         wildFires: Array.isArray(weatherData.wildFires) ? weatherData.wildFires : [],
         wildfireFetched: weatherData.wildfireFetched === true,
         wildfireFetchedAt: weatherData.wildfireFetchedAt || null,
+        wildfireRadiusMiles: Number.isFinite(Number(weatherData.wildfireRadiusMiles))
+            ? Number(weatherData.wildfireRadiusMiles)
+            : null,
         wildfireFetchFailed: weatherData.wildfireFetchFailed === true,
         wildfireSkipped: weatherData.wildfireSkipped === true,
         location: {

@@ -881,6 +881,7 @@ function openConfigModal() {
         elements.configModal.classList.remove('hidden');
     }
     syncAqiSettingsVisibility();
+    syncWildfireSettingsVisibility();
     if (elements.uiDensityNormalCheckbox) {
         elements.uiDensityNormalCheckbox.checked = appState.uiDensity === 'normal';
     }
@@ -939,6 +940,8 @@ function requestServiceWorkerVersion() {
 }
 
 function closeConfigModal() {
+    // Number inputs may not fire change/blur when the modal is dismissed via overlay/X.
+    commitWildfireRadiusFromSettings();
     if (elements.configModal) {
         elements.configModal.classList.add('hidden');
     }
@@ -1224,6 +1227,20 @@ function persistWildfireSettings() {
     localStorage.setItem('forecastWildfireRadiusMiles', String(clampWildfireRadiusMiles(appState.wildfireRadiusMiles)));
 }
 
+function getActiveWildfireCacheKey(weatherData = appState.weatherData) {
+    if (appState.currentLocationKey) return appState.currentLocationKey;
+    if (weatherData?.location && typeof generateLocationKey === 'function') {
+        const byCityState = generateLocationKey(weatherData.location);
+        if (byCityState) return byCityState;
+    }
+    const lat = weatherData?.location?.lat;
+    const lon = weatherData?.location?.lon;
+    if (lat != null && lon != null && Number.isFinite(Number(lat)) && Number.isFinite(Number(lon))) {
+        return `uid_loc_${Number(lat).toFixed(4)}_${Number(lon).toFixed(4)}`;
+    }
+    return null;
+}
+
 function applyWildfireSettingsChange({ refetch = false } = {}) {
     persistWildfireSettings();
     syncWildfireSettingsVisibility();
@@ -1237,14 +1254,12 @@ function applyWildfireSettingsChange({ refetch = false } = {}) {
     // Wildfire-only refresh — do not call loadWeatherData with currentLocationKey
     // (uid_loc_… / uid_<uuid> are cache keys, not geocodable search strings).
     if (refetch && appState.weatherData?.location?.lat != null && appState.weatherData?.location?.lon != null) {
-        const cacheKey = appState.currentLocationKey
-            || (typeof generateLocationKey === 'function'
-                ? generateLocationKey(appState.weatherData.location)
-                : null);
+        const cacheKey = getActiveWildfireCacheKey(appState.weatherData);
         if (cacheKey && typeof refreshWildfireForCachedLocation === 'function') {
             refreshWildfireForCachedLocation({
                 cacheKey,
-                weatherData: appState.weatherData
+                weatherData: appState.weatherData,
+                forceApply: true
             }).catch((err) => {
                 console.warn('Wildfire settings refresh failed:', err);
             });
@@ -1252,6 +1267,19 @@ function applyWildfireSettingsChange({ refetch = false } = {}) {
         }
     }
     if (appState.weatherData) renderCurrentMode();
+}
+
+/** Commit radius from the settings input (change/blur/modal close). */
+function commitWildfireRadiusFromSettings() {
+    if (!elements.wildfireRadiusInput) return;
+    const next = clampWildfireRadiusMiles(elements.wildfireRadiusInput.value);
+    elements.wildfireRadiusInput.value = String(next);
+    if (next === appState.wildfireRadiusMiles) {
+        persistWildfireSettings();
+        return;
+    }
+    appState.wildfireRadiusMiles = next;
+    applyWildfireSettingsChange({ refetch: appState.enableWildfire });
 }
 
 /** Keep prior wildfire list when NIFC failed or wildfire was skipped (do not cache-wipe with []). */
@@ -1266,13 +1294,21 @@ function preserveWildFiresIfFetchFailed(weatherData, previousWeather) {
         ...weatherData,
         wildFires: prev,
         wildfireFetched: previousWeather.wildfireFetched === true || prev.length > 0,
-        wildfireFetchedAt: previousWeather.wildfireFetchedAt || weatherData.wildfireFetchedAt || null
+        wildfireFetchedAt: previousWeather.wildfireFetchedAt || weatherData.wildfireFetchedAt || null,
+        wildfireRadiusMiles: previousWeather.wildfireRadiusMiles != null
+            ? previousWeather.wildfireRadiusMiles
+            : weatherData.wildfireRadiusMiles
     };
 }
 
 /** True when wildfire is enabled but cache has no fires and no verified successful NIFC empty. */
 function cacheNeedsWildfireBackfill(weatherData) {
     if (!appState.enableWildfire || !weatherData) return false;
+    const currentRadius = clampWildfireRadiusMiles(appState.wildfireRadiusMiles);
+    const cachedRadius = weatherData.wildfireRadiusMiles;
+    // Settings radius changed since this wildfire list was fetched
+    if (cachedRadius != null && Number(cachedRadius) !== currentRadius) return true;
+
     const hasWildfireData = Array.isArray(weatherData.wildFires) && weatherData.wildFires.length > 0;
     if (hasWildfireData) return false;
     // Missing/never fetched
@@ -1702,18 +1738,8 @@ function setupConfigModal() {
         });
     }
     if (elements.wildfireRadiusInput) {
-        const commitWildfireRadius = () => {
-            const next = clampWildfireRadiusMiles(elements.wildfireRadiusInput.value);
-            elements.wildfireRadiusInput.value = String(next);
-            if (next === appState.wildfireRadiusMiles && appState.enableWildfire) {
-                persistWildfireSettings();
-                return;
-            }
-            appState.wildfireRadiusMiles = next;
-            applyWildfireSettingsChange({ refetch: appState.enableWildfire });
-        };
-        elements.wildfireRadiusInput.addEventListener('change', commitWildfireRadius);
-        elements.wildfireRadiusInput.addEventListener('blur', commitWildfireRadius);
+        elements.wildfireRadiusInput.addEventListener('change', commitWildfireRadiusFromSettings);
+        elements.wildfireRadiusInput.addEventListener('blur', commitWildfireRadiusFromSettings);
     }
     if (elements.aqiApiKeyInput) {
         elements.aqiApiKeyInput.addEventListener('input', (e) => {
@@ -3775,7 +3801,7 @@ async function refreshAqiForCachedLocation({ cacheKey, weatherData }) {
 }
 
 // Refresh wildfire for a cached location without changing weather fetch timestamps.
-async function refreshWildfireForCachedLocation({ cacheKey, weatherData }) {
+async function refreshWildfireForCachedLocation({ cacheKey, weatherData, forceApply = false } = {}) {
     if (!cacheKey || !weatherData) return false;
     if (!appState.enableWildfire) return false;
     if (typeof fetchWildFireIncidents !== 'function') return false;
@@ -3792,6 +3818,7 @@ async function refreshWildfireForCachedLocation({ cacheKey, weatherData }) {
         wildFires: Array.isArray(result.incidents) ? result.incidents : [],
         wildfireFetched: true,
         wildfireFetchedAt: new Date().toISOString(),
+        wildfireRadiusMiles: radius,
         wildfireFetchFailed: false
     };
     const tsIso = loadCacheTimestampForKey(cacheKey);
@@ -3814,7 +3841,9 @@ async function refreshWildfireForCachedLocation({ cacheKey, weatherData }) {
     const sameCoords = activeLoc?.lat != null && activeLoc?.lon != null
         && Number(activeLoc.lat) === Number(weatherData?.location?.lat)
         && Number(activeLoc.lon) === Number(weatherData?.location?.lon);
-    const isActive = appState.weatherData === weatherData
+    const isActive = forceApply
+        || appState.weatherData === weatherData
+        || (cacheKey && appState.currentLocationKey === cacheKey)
         || sameCoords
         || (activeCity && activeState && activeCity === cachedCity && activeState === cachedState);
     if (isActive) {

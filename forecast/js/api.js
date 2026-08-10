@@ -1666,6 +1666,8 @@ async function fetchWeatherData(location, options = {}) {
         // Set only on successful NIFC — empty caches without this are treated as needing backfill
         // (covers older builds that marked wildfireFetched after failed InciWeb-era empties).
         wildfireFetchedAt: (wildfireRequested && !wildfireFetchFailed) ? new Date().toISOString() : null,
+        // Radius used for this wildFires list (settings changes trigger refetch when it differs).
+        wildfireRadiusMiles: (wildfireRequested && !wildfireFetchFailed) ? wildfireRadiusMiles : null,
         // When true/skipped, callers must preserve any previously cached wildfire list.
         wildfireFetchFailed,
         wildfireSkipped,
