@@ -1188,20 +1188,23 @@ function displayWildFireInfo(wildFires, sectionAnchorId) {
             ? `<span class="wildfire-acres${acresClass ? ` ${acresClass}` : ''}">${escapeHtml(acresStr)} ac</span>`
             : null;
         const sizeHtml = acresSpan ? `Size: ${acresSpan}` : 'Size: —';
-        const contPart = f.contained != null && Number.isFinite(Number(f.contained))
-            ? `Contained: ${Math.round(Number(f.contained))}%`
-            : 'Contained: —';
-        const contClass = (f.contained != null && Math.round(Number(f.contained)) >= 100)
-            ? 'wildfire-contained-full'
-            : '';
-        let behPart = 'Behavior: —';
+        const statsParts = [sizeHtml];
+        if (f.contained != null && Number.isFinite(Number(f.contained))) {
+            const contPct = Math.round(Number(f.contained));
+            const contPart = `Contained: ${contPct}%`;
+            let contClass = '';
+            if (contPct >= 100) contClass = 'wildfire-contained-full';
+            else if (contPct === 0) contClass = 'wildfire-warn';
+            statsParts.push(`<span class="${contClass}">${escapeHtml(contPart)}</span>`);
+        }
         if (f.behavior) {
-            behPart = f.behaviorDetail
+            const behPart = f.behaviorDetail
                 ? `Behavior: ${f.behavior} (${f.behaviorDetail})`
                 : `Behavior: ${f.behavior}`;
+            const behClass = /active|extreme|critical/i.test(f.behavior) ? 'wildfire-warn' : '';
+            statsParts.push(`<span class="${behClass}">${escapeHtml(behPart)}</span>`);
         }
-        const behClass = (f.behavior && /active|extreme|critical/i.test(f.behavior)) ? 'wildfire-warn' : '';
-        html += `<div class="wildfire-stats">${sizeHtml} · <span class="${contClass}">${escapeHtml(contPart)}</span> · <span class="${behClass}">${escapeHtml(behPart)}</span></div>`;
+        html += `<div class="wildfire-stats">${statsParts.join(' · ')}</div>`;
 
         const line3 = [];
         if (f.cause) line3.push(`Cause: ${f.cause}`);

@@ -54,7 +54,7 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
   - **Wildfire acres:** Default (<100 ac), Yellow (100–999), Red (1,000–99,999), Magenta (≥100,000) — applied to the acres value in terse and full Wild Fire Info displays
   - **Wildfire Fire: label (terse):** Red
   - **Wildfire fire name (full Wild Fire Info):** Yellow; distance and cardinal use the default color
-  - **Wildfire containment (full Wild Fire Info):** Green when Contained is 100%; otherwise default
+  - **Wildfire containment (full Wild Fire Info):** Yellow when Contained is 0%; Green when 100%; otherwise default (omitted when null)
   - **Wildfire behavior (full Wild Fire Info):** Yellow when primary Behavior matches Active, Extreme, or Critical (case-insensitive); otherwise default
   - **AQI (Current conditions):**
     - `AQI:` label is always White.

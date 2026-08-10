@@ -37,7 +37,7 @@
     - Wildfire acres: Default (<100 ac), Yellow (100-999), Red (1,000-99,999), Magenta (≥100,000) — acres value in terse and full Wild Fire Info
     - Wildfire Fire: label (terse): Red
     - Wildfire fire name (full Wild Fire Info): Yellow; distance/cardinal use default
-    - Wildfire containment (full Wild Fire Info): Green when Contained is 100%; otherwise default
+    - Wildfire containment (full Wild Fire Info): Yellow when Contained is 0%; Green when 100%; otherwise default (omit when null)
     - Wildfire behavior (full Wild Fire Info): Yellow when primary Behavior matches active, extreme, or critical (case-insensitive); otherwise default
     
 .PARAMETER Location
@@ -294,7 +294,7 @@ if ($Help -or (($Terse.IsPresent -or $TerseAlert.IsPresent -or $Alerts.IsPresent
     Write-Host "                • Optional AQI in weather requires AirNowAPI; see README.md" -ForegroundColor Gray
     Write-Host "  -wf, -Wildfire N  Wildfire search radius in miles (default 50). Use 0 to disable wildfire API/UI" -ForegroundColor Cyan
     Write-Host "                • Acres color: Default (<100), Yellow (100-999), Red (1,000-99,999), Magenta (≥100,000)" -ForegroundColor Gray
-    Write-Host "                • Full section: fire name Yellow; Contained 100% Green; Behavior Yellow if Active/Extreme/Critical" -ForegroundColor Gray
+    Write-Host "                • Full section: fire name Yellow; Contained 0% Yellow / 100% Green; Behavior Yellow if Active/Extreme/Critical" -ForegroundColor Gray
     Write-Host "                • Terse Fire: label Red; acres colored as above; 100% containment shown as checkmark" -ForegroundColor Gray
     Write-Host "  -u, -NoAutoUpdate Start with automatic updates disabled" -ForegroundColor Cyan
     Write-Host "  -b, -NoBar    Start with control bar hidden" -ForegroundColor Cyan
@@ -6109,7 +6109,9 @@ function Get-WildFireIncidentsFromApiResponse {
         [double]$Lat,
         [double]$Lon,
         [string]$TimeZoneId = $null,
-        [bool]$ValidateInciWeb = $true
+        [bool]$ValidateInciWeb = $true,
+        # When validating InciWeb links at launch, show "Loading Fire n/X..." status
+        [bool]$ShowLinkProgress = $false
     )
     $results = @()
     if (-not $ApiData -or -not $ApiData.features) { return $results }
@@ -6162,7 +6164,11 @@ function Get-WildFireIncidentsFromApiResponse {
             $county = "$($a.POOCounty)".Trim()
             $shortDesc = "$($a.IncidentShortDescription)".Trim()
             $cause = "$($a.FireCause)".Trim()
-            $inciwebUrl = Get-InciWebIncidentUrl -ProtectingUnit $unit -IncidentName $name -Validate $ValidateInciWeb
+            # Defer InciWeb validation to a second pass so we can show n/X progress.
+            $inciwebUrl = $null
+            if (-not $ValidateInciWeb) {
+                $inciwebUrl = Get-InciWebIncidentUrl -ProtectingUnit $unit -IncidentName $name -Validate $false
+            }
             $stateMapUrl = Get-InciWebStateMapUrl -PooState $pooState
             $updated = Convert-NifcEpochMsToLocalDateTime -EpochMs $a.ModifiedOnDateTime_dt -TimeZoneId $TimeZoneId
 
@@ -6190,7 +6196,25 @@ function Get-WildFireIncidentsFromApiResponse {
         }
     }
 
-    return @($results | Sort-Object -Property @{ Expression = { if ($null -eq $_.Acres) { -1 } else { $_.Acres } }; Descending = $true }, DistanceMi)
+    $sorted = @($results | Sort-Object -Property @{ Expression = { if ($null -eq $_.Acres) { -1 } else { $_.Acres } }; Descending = $true }, DistanceMi)
+
+    if ($ValidateInciWeb -and $sorted.Count -gt 0) {
+        $total = $sorted.Count
+        for ($i = 0; $i -lt $total; $i++) {
+            $n = $i + 1
+            if ($ShowLinkProgress) {
+                if ($VerbosePreference -ne 'Continue') {
+                    Clear-Host
+                    Write-Host "Loading Fire $n/$total..." -ForegroundColor Yellow
+                } else {
+                    Write-Verbose "Loading Fire $n/$total..."
+                }
+            }
+            $sorted[$i].InciWebUrl = Get-InciWebIncidentUrl -ProtectingUnit $sorted[$i].Unit -IncidentName $sorted[$i].Name -Validate $true
+        }
+    }
+
+    return $sorted
 }
 
 function Show-WildFireInfo {
@@ -6224,22 +6248,26 @@ function Show-WildFireInfo {
         } else {
             Write-Host "—" -ForegroundColor $DefaultColor -NoNewline
         }
-        $behPart = if ($f.Behavior) {
-            if ($f.BehaviorDetail) { "Behavior: $($f.Behavior) ($($f.BehaviorDetail))" } else { "Behavior: $($f.Behavior)" }
-        } else { "Behavior: —" }
-        $contColor = $DefaultColor
-        if ($null -ne $f.Contained -and [Math]::Round([double]$f.Contained, 0) -ge 100) {
-            $contColor = "Green"
-        }
-        $behColor = $DefaultColor
-        if ($f.Behavior -match '(?i)active|extreme|critical') { $behColor = "Yellow" }
-        Write-Host " · " -ForegroundColor $DefaultColor -NoNewline
         if ($null -ne $f.Contained) {
-            Write-Host "Contained: $([Math]::Round([double]$f.Contained, 0))%" -ForegroundColor $contColor -NoNewline
-        } else {
-            Write-Host "Contained: —" -ForegroundColor $DefaultColor -NoNewline
+            $contPct = [Math]::Round([double]$f.Contained, 0)
+            $contColor = $DefaultColor
+            if ($contPct -ge 100) { $contColor = "Green" }
+            elseif ($contPct -eq 0) { $contColor = "Yellow" }
+            Write-Host " · " -ForegroundColor $DefaultColor -NoNewline
+            Write-Host "Contained: ${contPct}%" -ForegroundColor $contColor -NoNewline
         }
-        Write-Host " · $behPart" -ForegroundColor $behColor
+        if ($f.Behavior) {
+            $behPart = if ($f.BehaviorDetail) {
+                "Behavior: $($f.Behavior) ($($f.BehaviorDetail))"
+            } else {
+                "Behavior: $($f.Behavior)"
+            }
+            $behColor = $DefaultColor
+            if ($f.Behavior -match '(?i)active|extreme|critical') { $behColor = "Yellow" }
+            Write-Host " · " -ForegroundColor $DefaultColor -NoNewline
+            Write-Host $behPart -ForegroundColor $behColor -NoNewline
+        }
+        Write-Host ""
 
         $line3Parts = @()
         if ($f.Cause) { $line3Parts += "Cause: $($f.Cause)" }
@@ -7509,7 +7537,7 @@ if (-not $script:wildFireEnabled) {
         $wildFireUrl = Get-NifcWildFireQueryUrl -Lat ([double]$lat) -Lon ([double]$lon) -DistanceMiles $script:WILDFIRE_RADIUS_MILES
         Write-Verbose "GET: $wildFireUrl"
         $wildFireResponse = Invoke-RestMethod -Uri $wildFireUrl -Method Get -TimeoutSec 30 -ErrorAction Stop
-        $script:wildFireIncidents = @(Get-WildFireIncidentsFromApiResponse -ApiData $wildFireResponse -Lat ([double]$lat) -Lon ([double]$lon) -TimeZoneId $timeZone -ValidateInciWeb $true)
+        $script:wildFireIncidents = @(Get-WildFireIncidentsFromApiResponse -ApiData $wildFireResponse -Lat ([double]$lat) -Lon ([double]$lon) -TimeZoneId $timeZone -ValidateInciWeb $true -ShowLinkProgress $true)
         Write-Verbose "Wildfire incidents within $($script:WILDFIRE_RADIUS_MILES) mi: $($script:wildFireIncidents.Count)"
     } catch {
         Write-Verbose "NIFC wildfire fetch failed: $($_.Exception.Message)"

@@ -244,7 +244,7 @@ The app checks for new versions (e.g. via `manifest.json` version and service wo
   - **Acres** (compact `Fire:` line and full Wild Fire Info size): Default (<100 ac), Yellow (100–999), Red (1,000–99,999), Magenta (≥100,000).
   - **`Fire:` label** (compact Current Conditions): alert/red.
   - **Fire name** (full Wild Fire Info): secondary accent color (`--color-default`); distance/cardinal use default text color.
-  - **Contained** (full Wild Fire Info): green when Contained is 100%; otherwise default.
+  - **Contained** (full Wild Fire Info): yellow when Contained is 0%; green when 100%; otherwise default (omitted when null).
   - **Behavior** (full Wild Fire Info): warning/yellow when primary behavior matches Active, Extreme, or Critical (case-insensitive); otherwise default.
 - **Hour labels (Hourly)**: Yellow for hours mostly in daytime (sunrise–sunset), default otherwise. **Time** column header includes ordinal calendar day(s) for the visible page (location timezone).
 
