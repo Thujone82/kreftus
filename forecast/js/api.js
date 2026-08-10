@@ -1510,8 +1510,15 @@ function normalizeNifcWildFireIncidents(apiData, lat, lon, distanceMiles = WILDF
  * @returns {Promise<{ok: boolean, incidents: Array}>}
  * ok:false = request/API failure — callers must NOT overwrite cached wildfires with [].
  * ok:true + incidents:[] = successful query with none nearby.
+ * @param {object} [options]
+ * @param {boolean} [options.awaitInciWeb] - wait (briefly) for InciWeb link enrichment before returning
+ * @param {number} [options.inciWebBudgetMs]
  */
-async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_MILES) {
+async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_MILES, options = {}) {
+    const awaitInciWeb = !!options.awaitInciWeb;
+    const inciWebBudgetMs = Number.isFinite(Number(options.inciWebBudgetMs))
+        ? Math.max(0, Number(options.inciWebBudgetMs))
+        : 8000;
     const radius = Number(distanceMiles);
     if (!Number.isFinite(radius) || radius <= 0) return { ok: true, incidents: [] };
     const latN = Number(lat);
@@ -1541,10 +1548,10 @@ async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_
         clearTimeout(timeoutId);
     }
 
-    // Soft-fail InciWeb link enrichment off the critical path. Never discard NIFC
-    // incidents if probes are slow/fail (many fires × slug candidates saturate the browser).
+    // Soft-fail InciWeb link enrichment. Settings radius changes await a short budget so
+    // the UI can refresh once with links; other callers keep enrichment off the critical path.
     if (incidents.length > 0) {
-        void Promise.all(incidents.map(async (inc) => {
+        const enrichPromise = Promise.all(incidents.map(async (inc) => {
             try {
                 inc.inciwebUrl = await resolveInciWebIncidentUrl(inc.unit, inc.name);
             } catch (_) {
@@ -1553,6 +1560,14 @@ async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_
         })).catch((e) => {
             console.warn('InciWeb wildfire link enrichment failed:', e);
         });
+        if (awaitInciWeb) {
+            await Promise.race([
+                enrichPromise,
+                new Promise((resolve) => setTimeout(resolve, inciWebBudgetMs))
+            ]);
+        } else {
+            void enrichPromise;
+        }
     }
     return { ok: true, incidents };
 }
