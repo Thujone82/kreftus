@@ -1663,6 +1663,9 @@ async function fetchWeatherData(location, options = {}) {
         wildFires,
         // True only after a successful NIFC response (including zero fires).
         wildfireFetched: wildfireRequested && !wildfireFetchFailed,
+        // Set only on successful NIFC — empty caches without this are treated as needing backfill
+        // (covers older builds that marked wildfireFetched after failed InciWeb-era empties).
+        wildfireFetchedAt: (wildfireRequested && !wildfireFetchFailed) ? new Date().toISOString() : null,
         // When true/skipped, callers must preserve any previously cached wildfire list.
         wildfireFetchFailed,
         wildfireSkipped,

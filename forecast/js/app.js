@@ -275,6 +275,21 @@ function runDeferredInit() {
             sessionStorage.setItem(dedupeKey, String(now));
             console.log('Service worker updated, clearing cached weather data:', event.data.reason);
             clearAllCachedData();
+            // Chrome/PWA upgrades often activate a new SW and wipe weather cache. Refill wildfire
+            // for the active view immediately so users are not stuck until they toggle Settings.
+            if (appState.enableWildfire && appState.weatherData?.location?.lat != null) {
+                const wfKey = appState.currentLocationKey
+                    || (typeof generateLocationKey === 'function'
+                        ? generateLocationKey(appState.weatherData.location)
+                        : null);
+                if (wfKey) {
+                    scheduleWildfireBackfill({
+                        cacheKey: wfKey,
+                        weatherData: appState.weatherData,
+                        reason: event.data.reason || 'service-worker-cache-clear'
+                    });
+                }
+            }
             if (isPwaStandalone()) {
                 deferredInstallPrompt = null;
                 if (elements.installBtn) elements.installBtn.classList.add('hidden');
@@ -1250,8 +1265,37 @@ function preserveWildFiresIfFetchFailed(weatherData, previousWeather) {
     return {
         ...weatherData,
         wildFires: prev,
-        wildfireFetched: previousWeather.wildfireFetched === true || prev.length > 0
+        wildfireFetched: previousWeather.wildfireFetched === true || prev.length > 0,
+        wildfireFetchedAt: previousWeather.wildfireFetchedAt || weatherData.wildfireFetchedAt || null
     };
+}
+
+/** True when wildfire is enabled but cache has no fires and no verified successful NIFC empty. */
+function cacheNeedsWildfireBackfill(weatherData) {
+    if (!appState.enableWildfire || !weatherData) return false;
+    const hasWildfireData = Array.isArray(weatherData.wildFires) && weatherData.wildFires.length > 0;
+    if (hasWildfireData) return false;
+    // Missing/never fetched
+    if (weatherData.wildfireFetched !== true) return true;
+    // Empty with wildfireFetched but no timestamp = legacy/poisoned cache (failed fetch looked like success)
+    if (!weatherData.wildfireFetchedAt) return true;
+    return false;
+}
+
+function scheduleWildfireBackfill({ cacheKey, weatherData, reason = 'backfill' } = {}) {
+    if (!cacheKey || !weatherData?.location) return false;
+    if (weatherData.location.lat == null || weatherData.location.lon == null) return false;
+    if (typeof refreshWildfireForCachedLocation !== 'function') return false;
+    console.log('Scheduling wildfire backfill:', reason, cacheKey);
+    setTimeout(() => {
+        refreshWildfireForCachedLocation({
+            cacheKey,
+            weatherData
+        }).catch(error => {
+            console.error('Background wildfire-only fetch failed:', error);
+        });
+    }, 200);
+    return true;
 }
 
 function disableAqiRuntimeState() {
@@ -3747,6 +3791,7 @@ async function refreshWildfireForCachedLocation({ cacheKey, weatherData }) {
         ...weatherData,
         wildFires: Array.isArray(result.incidents) ? result.incidents : [],
         wildfireFetched: true,
+        wildfireFetchedAt: new Date().toISOString(),
         wildfireFetchFailed: false
     };
     const tsIso = loadCacheTimestampForKey(cacheKey);
@@ -4478,31 +4523,21 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
             }
         }
 
-        // Wildfire backfill when enable is on and cache has no usable wildfire payload yet.
-        // - Missing wildFires / empty [] without wildfireFetched → retry (failed InciWeb-era empties).
-        // - Non-empty wildFires (legacy) → already showable; skip.
-        // - wildfireFetched true + [] → none nearby; skip.
-        // Runs even when Auto-Update is off.
-        const hasWildfireData = Array.isArray(restoredWeatherData?.wildFires)
-            && restoredWeatherData.wildFires.length > 0;
-        const missingWildfireInCache = appState.enableWildfire
-            && restoredWeatherData
-            && !hasWildfireData
-            && restoredWeatherData.wildfireFetched !== true;
-        if (missingWildfireInCache && restoredWeatherData.location?.lat != null && restoredWeatherData.location?.lon != null) {
+        // Wildfire backfill when enable is on and cache has no usable/verified wildfire payload.
+        // Retries empties that lack wildfireFetchedAt (poisoned caches from older builds, or after
+        // Chrome/PWA upgrades). Runs even when Auto-Update is off.
+        if (cacheNeedsWildfireBackfill(restoredWeatherData)
+            && restoredWeatherData.location?.lat != null
+            && restoredWeatherData.location?.lon != null) {
             const wildfireCacheKey = locationKey
                 || appState.currentLocationKey
                 || generateLocationKey(restoredWeatherData.location);
             if (wildfireCacheKey) {
-                console.log('Cached data missing wildfire, fetching in background...');
-                setTimeout(() => {
-                    refreshWildfireForCachedLocation({
-                        cacheKey: wildfireCacheKey,
-                        weatherData: restoredWeatherData
-                    }).catch(error => {
-                        console.error('Background wildfire-only fetch failed:', error);
-                    });
-                }, 200);
+                scheduleWildfireBackfill({
+                    cacheKey: wildfireCacheKey,
+                    weatherData: restoredWeatherData,
+                    reason: 'cached-weather-missing-wildfire'
+                });
             }
         }
         
