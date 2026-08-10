@@ -353,6 +353,8 @@ func (g *game) nextLevel() {
 	g.frogX = g.width / 2
 	g.frogY = g.safeBottomY
 	g.highestY = g.frogY
+	// Drop any in-flight moves before lane gen so held keys can't ride the transition
+	g.flushInput()
 	// Reward: extra life each cleared level
 	g.lives++
 	g.theme = themeForLevel(g.level)
@@ -360,8 +362,8 @@ func (g *game) nextLevel() {
 	g.scoreTimerActive = false
 	g.updateHUD()
 	g.createLanes()
-	// Flush after setup: lag during lane gen can refill the channel under a grace
-	// window that started too early, letting held/repeat keys move Larry.
+	// Flush again after setup (lag during createLanes can refill the channel), then
+	// hold input briefly so nothing hops until the new level is on screen.
 	g.flushInput()
 	g.acceptInputAfter = time.Now().Add(300 * time.Millisecond)
 }
@@ -950,6 +952,11 @@ func (g *game) update() {
 	}
 	if g.enteringName {
 		return
+	}
+	// While the post-level / death input gate is up, keep draining the event
+	// pipeline every tick so queued moves can't fire after the gate opens.
+	if time.Now().Before(g.acceptInputAfter) {
+		g.flushInput()
 	}
 	g.advanceLanes()
 
