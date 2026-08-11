@@ -40,7 +40,7 @@
     - Wildfire Discovered (full Wild Fire Info): FireDiscoveryDateTime as Discovered: MM/dd HH:mm in default color; omitted when null
     - Wildfire Cost (full Wild Fire Info): EstimatedFinalCost (EstimatedCostToDate) when both set, else whichever is present; compact $346k/$2M/$1B/$3T; Yellow (≥$1M), Red (≥$1B), Magenta (≥$1T) by primary amount; omitted when both null or $0
     - Wildfire containment (full Wild Fire Info): Yellow when Contained is 0%; Green when 100%; otherwise default (omit when null)
-    - Wildfire behavior (full Wild Fire Info): Yellow when primary Behavior matches active, extreme, or critical (case-insensitive); otherwise default
+    - Wildfire behavior (full Wild Fire Info): Magenta when Extreme; Red when Critical; Yellow when Active (case-insensitive); otherwise default
     
 .PARAMETER Location
     The location for which to retrieve weather. Can be a 5-digit US zip code or a "City, State" string, or 'here'.
@@ -298,7 +298,7 @@ if ($Help -or (($Terse.IsPresent -or $TerseAlert.IsPresent -or $Alerts.IsPresent
     Write-Host "  -wf, -Wildfire N  Wildfire search radius in miles (default 50). Use 0 to disable wildfire API/UI" -ForegroundColor Cyan
     Write-Host "                • Acres color: Default (<100), Yellow (100-999), Red (1,000-99,999), Magenta (≥100,000)" -ForegroundColor Gray
     Write-Host "                • Full section after Size: Discovered (MM/dd HH:mm, default color); Cost (final (to-date) when both — `$346k/`$2M/`$1B/`$3T; Yellow ≥`$1M, Red ≥`$1B, Magenta ≥`$1T); omit when null" -ForegroundColor Gray
-    Write-Host "                • Full section: fire name Yellow; Contained 0% Yellow / 100% Green; Behavior Yellow if Active/Extreme/Critical" -ForegroundColor Gray
+    Write-Host "                • Full section: fire name Yellow; Contained 0% Yellow / 100% Green; Behavior Magenta if Extreme, Red if Critical, Yellow if Active" -ForegroundColor Gray
     Write-Host "                • Terse Fire: label Red; acres colored as above; 100% containment shown as checkmark" -ForegroundColor Gray
     Write-Host "  -u, -NoAutoUpdate Start with automatic updates disabled" -ForegroundColor Cyan
     Write-Host "  -b, -NoBar    Start with control bar hidden" -ForegroundColor Cyan
@@ -6429,7 +6429,9 @@ function Show-WildFireInfo {
                 "Behavior: $($f.Behavior)"
             }
             $behColor = $DefaultColor
-            if ($f.Behavior -match '(?i)active|extreme|critical') { $behColor = "Yellow" }
+            if ($f.Behavior -match '(?i)extreme') { $behColor = "Magenta" }
+            elseif ($f.Behavior -match '(?i)critical') { $behColor = "Red" }
+            elseif ($f.Behavior -match '(?i)active') { $behColor = "Yellow" }
             Write-Host " · " -ForegroundColor $DefaultColor -NoNewline
             Write-Host $behPart -ForegroundColor $behColor -NoNewline
         }

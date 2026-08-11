@@ -58,7 +58,7 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
   - **Wildfire Cost (full Wild Fire Info):** `EstimatedFinalCost` and/or `EstimatedCostToDate` as compact `$346k` / `$2M` / `$1B` / `$3T`. When both and formats differ: `Cost: $final ($toDate)`; when they match or only one is set: a single value. Color by primary (final when present): Yellow (≥$1M), Red (≥$1B), Magenta (≥$1T), default below $1M; omitted when both null or `$0`
   - **Wildfire Cause (full Wild Fire Info):** prefer `FireCauseGeneral` when populated; if `FireCause` is `Undetermined`, show that instead
   - **Wildfire containment (full Wild Fire Info):** Yellow when Contained is 0%; Green when 100%; otherwise default (omitted when null)
-  - **Wildfire behavior (full Wild Fire Info):** Yellow when primary Behavior matches Active, Extreme, or Critical (case-insensitive); otherwise default
+  - **Wildfire behavior (full Wild Fire Info):** Magenta when Extreme; Red when Critical; Yellow when Active (case-insensitive); otherwise default
   - **AQI (Current conditions):**
     - `AQI:` label is always White.
     - `CategoryName` color uses highest category number from O3/PM2.5:

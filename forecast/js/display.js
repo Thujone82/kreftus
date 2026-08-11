@@ -1214,7 +1214,10 @@ function displayWildFireInfo(wildFires, sectionAnchorId) {
             const behPart = f.behaviorDetail
                 ? `Behavior: ${f.behavior} (${f.behaviorDetail})`
                 : `Behavior: ${f.behavior}`;
-            const behClass = /active|extreme|critical/i.test(f.behavior) ? 'wildfire-warn' : '';
+            let behClass = '';
+            if (/extreme/i.test(f.behavior)) behClass = 'wildfire-behavior-extreme';
+            else if (/critical/i.test(f.behavior)) behClass = 'wildfire-behavior-critical';
+            else if (/active/i.test(f.behavior)) behClass = 'wildfire-warn';
             statsParts.push(`<span class="${behClass}">${escapeHtml(behPart)}</span>`);
         }
         html += `<div class="wildfire-stats">${statsParts.join(' · ')}</div>`;

@@ -1477,6 +1477,14 @@ body.ui-density-normal .weather-content {
     color: var(--color-warning, #e6b800);
 }
 
+.wildfire-behavior-extreme {
+    color: var(--color-magenta);
+}
+
+.wildfire-behavior-critical {
+    color: var(--color-alert);
+}
+
 .wildfire-contained-full {
     color: var(--color-green, #00ff00);
 }

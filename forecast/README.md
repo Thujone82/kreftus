@@ -248,7 +248,7 @@ The app checks for new versions (e.g. via `manifest.json` version and service wo
   - **Cost** (full Wild Fire Info, after Discovered): `EstimatedFinalCost` and/or `EstimatedCostToDate` as compact currency (`$346k`, `$2M`, `$1B`, `$3T`). When both are set and differ: `Cost: $final ($toDate)`; when they match (or only one is set): a single value (no parentheses). Color by the primary amount (final when present): Yellow (≥$1M), Red (≥$1B), Magenta (≥$1T), default below $1M; omitted when both null or `$0`.
   - **Cause** (full Wild Fire Info meta line): prefer `FireCauseGeneral` when populated; if `FireCause` is `Undetermined`, show that instead.
   - **Contained** (full Wild Fire Info): yellow when Contained is 0%; green when 100%; otherwise default (omitted when null).
-  - **Behavior** (full Wild Fire Info): warning/yellow when primary behavior matches Active, Extreme, or Critical (case-insensitive); otherwise default.
+  - **Behavior** (full Wild Fire Info): magenta when Extreme; alert/red when Critical; warning/yellow when Active (case-insensitive); otherwise default.
 - **Hour labels (Hourly)**: Yellow for hours mostly in daytime (sunrise–sunset), default otherwise. **Time** column header includes ordinal calendar day(s) for the visible page (location timezone).
 
 ## File Structure
