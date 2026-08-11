@@ -2,7 +2,7 @@
   "name": "Forecast",
   "short_name": "Forecast",
   "description": "Weather forecast app using the National Weather Service API with nearby NIFC wildfire info and optional AirNow AQI",
-  "version": "1.13.20",
+  "version": "1.13.21",
   "start_url": "/forecast/",
   "display": "standalone",
   "background_color": "#1a1a1a",

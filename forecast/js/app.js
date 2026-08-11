@@ -2459,43 +2459,18 @@ async function handleLocationButtonClick(uid) {
         // Update URL
         updateURL(favorite.searchQuery, appState.currentMode);
         
-        // CRITICAL: Ensure star button is enabled when a favorite is selected
-        // Use UID (preferred) or key as fallback - this MUST match what isFavorite expects
+        // Keep bar highlight + per-location colors even when this favorite is also "here"
+        // (background stale refresh / geocode drift must not clear selection).
         const favoriteUID = favorite.uid || favorite.key;
-        // Explicitly enable star button since we know this is a favorite
-        updateFavoriteButtonState(favoriteUID);
-        // Double-check: if star button is not active, force it active
-        if (elements.favoriteBtn && !elements.favoriteBtn.classList.contains('active')) {
-            console.warn('Star button not active after updateFavoriteButtonState, forcing active for favorite:', favoriteUID);
-            elements.favoriteBtn.classList.add('active');
-            appState.currentLocationKey = favoriteUID;
-        }
-        renderLocationButtons(favoriteUID);
-        
-        // Update current location button state (not active since we're using a favorite)
-        appState.isCurrentLocationActive = false;
-        updateCurrentLocationButtonState(false);
-        
-        // Stale cache check and background refresh is now handled by loadCachedWeatherData
+        reassertActiveFavoriteSelection(favoriteUID);
     } else {
         console.log('handleLocationButtonClick: No cache found for favorite:', favorite.name || favorite.searchQuery, 'key:', cacheKey, 'will fetch fresh data');
         // No cache, load fresh data
-        await loadWeatherData(favorite.searchQuery, false, false);
-        // CRITICAL: Ensure star button is enabled after loading fresh data
-        // Use UID (preferred) or key as fallback
         const favoriteUID = favorite.uid || favorite.key;
-        updateFavoriteButtonState(favoriteUID);
-        // Double-check: if star button is not active, force it active
-        if (elements.favoriteBtn && !elements.favoriteBtn.classList.contains('active')) {
-            console.warn('Star button not active after loadWeatherData, forcing active for favorite:', favoriteUID);
-            elements.favoriteBtn.classList.add('active');
-            appState.currentLocationKey = favoriteUID;
-        }
-        renderLocationButtons(favoriteUID);
-        
-        // Update current location button state (not active since we're using a favorite)
-        appState.isCurrentLocationActive = false;
-        updateCurrentLocationButtonState(false);
+        await loadWeatherData(favorite.searchQuery || 'here', false, false, {
+            preserveFavoriteUID: favoriteUID
+        });
+        reassertActiveFavoriteSelection(favoriteUID);
     }
 }
 
@@ -4650,8 +4625,13 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
                 locationToRefresh = cache.location || 'here';
             }
             console.log('Cache is stale, refreshing in background...');
+            const preserveUIDFromCache = (locationKey && String(locationKey).startsWith('uid_'))
+                ? String(locationKey).replace(/^uid_/, '')
+                : null;
             setTimeout(() => {
-                loadWeatherData(locationToRefresh, false, true).catch(error => {
+                loadWeatherData(locationToRefresh, false, true, {
+                    preserveFavoriteUID: preserveUIDFromCache || getActiveFavoriteIdentifier()
+                }).catch(error => {
                     console.error('Background refresh failed for cached location:', error);
                 });
             }, 100);
@@ -5027,7 +5007,8 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
 }
 
 // Load weather data
-async function loadWeatherData(location, silentOnLocationFailure = false, background = false) {
+async function loadWeatherData(location, silentOnLocationFailure = false, background = false, options = {}) {
+    const preserveFavoriteUID = options.preserveFavoriteUID || getActiveFavoriteIdentifier();
     try {
         // Hard guard: when Auto-Update Data is off, block all background-triggered fetches.
         // Manual/user-initiated actions call loadWeatherData with background=false.
@@ -5046,12 +5027,11 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             let locationMatch = false;
             
             if (location.toLowerCase() === 'here') {
-                // For 'here', only match if current location is actually 'here' (not a favorite)
-                // Check if current location is a favorite
+                // For 'here', only short-circuit when pin/"here" is the active selection (not a favorite).
+                // Prefer city/state favorite match — geo UIDs can differ slightly between geocodes.
                 const favorites = getFavorites();
-                const currentUID = generateLocationUID(appState.location);
-                const isCurrentLocationFavorite = favorites.some(fav => fav.uid === currentUID);
-                // Only match 'here' if current location is NOT a favorite and isCurrentLocationActive is true
+                const matchingFav = favorites.find(fav => favoriteMatchesWeatherLocation(fav, appState.location));
+                const isCurrentLocationFavorite = !!matchingFav;
                 locationMatch = !isCurrentLocationFavorite && appState.isCurrentLocationActive && locationText.toLowerCase() !== '';
             } else {
                 // For specific locations, require exact match
@@ -5063,10 +5043,18 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
                 console.log('Using existing fresh data for location:', location);
                 setLoading(false, background);
                 renderCurrentMode();
-                updateFavoriteButtonState();
-                renderLocationButtons();
-                // Update current location button state
-                if (location.toLowerCase() === 'here') {
+                if (preserveFavoriteUID) {
+                    reassertActiveFavoriteSelection(preserveFavoriteUID);
+                } else {
+                    const fav = getFavorites().find(f => favoriteMatchesWeatherLocation(f, appState.location));
+                    if (fav?.uid) reassertActiveFavoriteSelection(fav.uid);
+                    else {
+                        updateFavoriteButtonState();
+                        renderLocationButtons();
+                        applyThemeForCurrentLocation();
+                    }
+                }
+                if (location.toLowerCase() === 'here' && !getActiveFavoriteIdentifier()) {
                     updateCurrentLocationButtonState(true);
                 } else {
                     updateCurrentLocationButtonState(false);
@@ -5365,6 +5353,19 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             // Fallback to location key if no UID
             appState.currentLocationKey = matchingFavoriteAfterFetch.key;
             console.log('Found matching favorite after fetch, using location key:', matchingFavoriteAfterFetch.key, 'instead of generated key:', generatedKey);
+        } else if (preserveFavoriteUID) {
+            // Rematch missed (geo UID / naming drift) but caller asked to keep this favorite —
+            // common for PDX saved as "here" when coords round differently than the pin geocode.
+            const preservedFav = getFavoriteByUID(preserveFavoriteUID) || getFavoriteByKey(preserveFavoriteUID);
+            if (preservedFav && favoriteMatchesWeatherLocation(preservedFav, weatherData.location)) {
+                matchingFavoriteAfterFetch = preservedFav;
+                appState.currentLocationKey = preservedFav.uid ? `uid_${preservedFav.uid}` : preservedFav.key;
+                console.log('Rematch miss; preserving requested favorite for displayed location:', appState.currentLocationKey);
+            } else if (shouldPreserveFavoriteKeyOnRematchMiss(location)) {
+                console.log('Rematch failed after fetch; preserving selected favorite key:', appState.currentLocationKey, '(would have used:', generatedKey + ')');
+            } else {
+                appState.currentLocationKey = generatedKey;
+            }
         } else if (shouldPreserveFavoriteKeyOnRematchMiss(location)) {
             console.log('Rematch failed after fetch; preserving selected favorite key:', appState.currentLocationKey, '(would have used:', generatedKey + ')');
         } else {
@@ -5466,6 +5467,16 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             // Not 'here' and not a favorite - current location is not active
             appState.isCurrentLocationActive = false;
             updateCurrentLocationButtonState(false);
+        }
+
+        // Final reassert: background refresh / "here" geocode drift must not drop favorite bar highlight or per-location colors.
+        if (preserveFavoriteUID) {
+            const preservedFav = getFavoriteByUID(preserveFavoriteUID) || getFavoriteByKey(preserveFavoriteUID);
+            if (preservedFav && favoriteMatchesWeatherLocation(preservedFav, weatherData.location)) {
+                reassertActiveFavoriteSelection(preservedFav.uid || preservedFav.key);
+            }
+        } else if (matchingFavoriteAfterFetch?.uid) {
+            reassertActiveFavoriteSelection(matchingFavoriteAfterFetch.uid);
         }
         
         // New weather fetch → treat radar loop as stale so the GIF refetches
@@ -6199,11 +6210,15 @@ function getActiveFavoriteIdentifier() {
     return null;
 }
 
-/** True when locationQuery refers to this favorite (searchQuery, name, or City, ST). */
+/** True when locationQuery refers to this favorite (searchQuery, name, City/ST, or here→here). */
 function doesLocationQueryMatchFavorite(locationQuery, favorite) {
     if (!locationQuery || !favorite) return false;
     const locationLower = String(locationQuery).toLowerCase().trim();
-    if (!locationLower || locationLower === 'here') return false;
+    if (!locationLower) return false;
+    // Favorites created from the pin often store searchQuery "here"
+    if (locationLower === 'here') {
+        return (favorite.searchQuery || '').toLowerCase().trim() === 'here';
+    }
     const candidates = [
         (favorite.searchQuery || '').toLowerCase().trim(),
         (favorite.name || '').toLowerCase().trim(),
@@ -6213,6 +6228,19 @@ function doesLocationQueryMatchFavorite(locationQuery, favorite) {
             : ''
     ].filter(Boolean);
     return candidates.some(c => c === locationLower);
+}
+
+/** True when a favorite refers to the same place as a weather location object. */
+function favoriteMatchesWeatherLocation(favorite, locationObj) {
+    if (!favorite || !locationObj) return false;
+    const favCity = (favorite.location?.city || '').trim().toLowerCase();
+    const favState = (favorite.location?.state || '').trim().toUpperCase();
+    const city = (locationObj.city || '').trim().toLowerCase();
+    const state = (locationObj.state || '').trim().toUpperCase();
+    if (favCity && favState && city && state && favCity === city && favState === state) return true;
+    const geoUid = generateLocationUID(locationObj);
+    if (geoUid && favorite.uid === geoUid) return true;
+    return false;
 }
 
 /** Keep favorite key on rematch miss only when this fetch was for that favorite (refresh), not a new search. */
@@ -6249,7 +6277,9 @@ function checkAutoRefresh() {
     if (!appState.updateAllEnabled) {
         if (isDataStale() && appState.location) {
             const location = getLocationForRefresh() || 'here';
-            loadWeatherData(location, false, true); // Use background mode to keep content visible
+            loadWeatherData(location, false, true, {
+                preserveFavoriteUID: getActiveFavoriteIdentifier() || undefined
+            }); // Use background mode to keep content visible
         }
         return;
     }
@@ -6261,7 +6291,9 @@ function checkAutoRefresh() {
         // Nothing to update; still keep displayed location behavior for non-favorites
         if (isDataStale() && appState.location) {
             const location = getLocationForRefresh() || 'here';
-            loadWeatherData(location, false, true);
+            loadWeatherData(location, false, true, {
+                preserveFavoriteUID: getActiveFavoriteIdentifier() || undefined
+            });
         }
         return;
     }
@@ -6336,8 +6368,11 @@ function checkAutoRefresh() {
             // Keep currently displayed location updated too (same as old behavior)
             if (isDataStale() && appState.location) {
                 const location = getLocationForRefresh() || 'here';
+                const preserveUID = getActiveFavoriteIdentifier();
                 try {
-                    await loadWeatherData(location, false, true);
+                    await loadWeatherData(location, false, true, {
+                        preserveFavoriteUID: preserveUID || undefined
+                    });
                 } catch (e) {
                     console.warn('Update All: failed to refresh displayed location', e);
                 }
