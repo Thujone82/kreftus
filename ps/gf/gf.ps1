@@ -5918,6 +5918,8 @@ function Get-Bearing {
 $script:WILDFIRE_RADIUS_MILES = if ($null -ne $script:WILDFIRE_RADIUS_MILES) { [int]$script:WILDFIRE_RADIUS_MILES } else { 50 }
 $script:wildFireEnabled = ($script:WILDFIRE_RADIUS_MILES -gt 0)
 $script:inciwebUrlOkCache = @{}
+# Negative InciWeb slug probes (no page yet) expire so a later publish can be linked.
+$script:INCIWEB_NEGATIVE_CACHE_SECONDS = 3600
 
 function Get-NifcWildFireQueryUrl {
     param(
@@ -6017,9 +6019,32 @@ function Test-InciWebIncidentSlug {
     if ([string]::IsNullOrWhiteSpace($Slug)) { return $false }
     $cacheKey = "slug:$Slug"
     if ($script:inciwebUrlOkCache.ContainsKey($cacheKey)) {
-        $cached = [bool]$script:inciwebUrlOkCache[$cacheKey]
-        Write-Verbose "InciWeb slug cache hit: $Slug -> $cached"
-        return $cached
+        $entry = $script:inciwebUrlOkCache[$cacheKey]
+        $okCached = $false
+        $checkedAt = $null
+        if ($entry -is [hashtable] -or $entry -is [System.Collections.IDictionary]) {
+            $okCached = [bool]$entry['ok']
+            $checkedAt = $entry['checkedAt']
+        } else {
+            # Legacy bool cache entries from older code in the same process
+            $okCached = [bool]$entry
+            $checkedAt = Get-Date
+        }
+        if ($okCached) {
+            Write-Verbose "InciWeb slug cache hit: $Slug -> True"
+            return $true
+        }
+        if ($null -ne $checkedAt) {
+            try {
+                $ageSec = ((Get-Date) - [datetime]$checkedAt).TotalSeconds
+                if ($ageSec -lt $script:INCIWEB_NEGATIVE_CACHE_SECONDS) {
+                    Write-Verbose "InciWeb slug cache hit: $Slug -> False (age=$([Math]::Round($ageSec))s)"
+                    return $false
+                }
+            } catch {}
+        }
+        $script:inciwebUrlOkCache.Remove($cacheKey)
+        Write-Verbose "InciWeb slug negative cache expired: $Slug; re-probing"
     }
     $ok = $false
     try {
@@ -6038,7 +6063,10 @@ function Test-InciWebIncidentSlug {
         $ok = $false
         Write-Verbose "InciWeb slug probe failed: $Slug ($($_.Exception.Message))"
     }
-    $script:inciwebUrlOkCache[$cacheKey] = $ok
+    $script:inciwebUrlOkCache[$cacheKey] = @{
+        ok        = $ok
+        checkedAt = Get-Date
+    }
     return $ok
 }
 

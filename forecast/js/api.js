@@ -1348,11 +1348,18 @@ function getInciWebIncidentSlugCandidates(protectingUnit, incidentName) {
     return candidates;
 }
 
-const inciwebSlugOkCache = new Map();
+/** In-memory InciWeb slug probe cache. Misses (no page) expire after 60 minutes so later publishes can be found. Hits stay for the session. */
+const INCIWEB_NEGATIVE_CACHE_MS = 60 * 60 * 1000;
+const inciwebSlugOkCache = new Map(); // slug -> { ok: boolean, checkedAt: number }
 
 async function testInciWebIncidentSlug(slug) {
     if (!slug) return false;
-    if (inciwebSlugOkCache.has(slug)) return inciwebSlugOkCache.get(slug);
+    const cached = inciwebSlugOkCache.get(slug);
+    if (cached) {
+        if (cached.ok) return true;
+        if ((Date.now() - cached.checkedAt) < INCIWEB_NEGATIVE_CACHE_MS) return false;
+        inciwebSlugOkCache.delete(slug);
+    }
     let ok = false;
     try {
         const ajaxUrl = `https://inciweb.wildfire.gov/views/ajax?view_name=incidents_page_&view_display_id=single_incident_information&view_args=${encodeURIComponent(slug)}`;
@@ -1374,7 +1381,7 @@ async function testInciWebIncidentSlug(slug) {
     } catch (_) {
         ok = false;
     }
-    inciwebSlugOkCache.set(slug, ok);
+    inciwebSlugOkCache.set(slug, { ok, checkedAt: Date.now() });
     return ok;
 }
 
