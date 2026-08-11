@@ -66,6 +66,9 @@ const (
 // larryHighlight is the goal-checker yellow — always distinct from vehicle hues.
 const larryHighlight = tcell.ColorYellow
 
+// larryVersion is written into high-score entries (bump with releases).
+const larryVersion = "1.5"
+
 type game struct {
 	screen tcell.Screen
 	width  int
@@ -90,6 +93,8 @@ type game struct {
 	hasDiamond       bool // L10+: one ♦ on the top mid safe lane
 	diamondX         int
 	diamondY         int
+	heartsCollected  int // session ♥ pickups (saved on high score)
+	gemsCollected    int // session ♦ pickups (saved on high score)
 	hudNoticeUntil   time.Time // inverted HUD pickup flash
 	hudNoticeText    string    // e.g. "+1 Life" / "+1,000 Points"
 	rng              *rand.Rand
@@ -113,16 +118,21 @@ type game struct {
 	showStartScreen bool
 	startView       int // startMenu | startScores
 	menuIndex       int // 0 Start, 1 High Scores, 2 Quit
+	scoreIndex      int // selected row on High Scores view
 	confirmMenu     bool // Esc confirm: return to main menu?
 	confirmYes      bool // true = Larry on Yes; false = Larry on No (default)
 	testMode        bool // -testlvl: skip score file writes
 }
 
 type scoreEntry struct {
-	Name  string `json:"name"`
-	Score int    `json:"score"`
-	Time  int64  `json:"time"`
-	Date  string `json:"date,omitempty"`
+	Name    string `json:"name"`
+	Score   int    `json:"score"`
+	Time    int64  `json:"time"`
+	Date    string `json:"date,omitempty"`
+	Level   int    `json:"level"`             // level at death (0 = pre-1.5 / unknown)
+	Hearts  int    `json:"hearts"`            // ♥ collected that run
+	Gems    int    `json:"gems"`              // ♦ collected that run
+	Version string `json:"version,omitempty"` // larry version that wrote the entry
 }
 
 func main() {
@@ -295,7 +305,7 @@ func (g *game) beginTestLevel(level int) {
 	// Simulate clears: climb bonus + clear bonus − 10 time-decay per prior level
 	score, lives := 0, 3
 	for L := 1; L < level; L++ {
-		score += rows * 10
+		score += rows * climbPointsPerRow(L)
 		score += 100 * L
 		score -= 10
 		lives++
@@ -306,6 +316,8 @@ func (g *game) beginTestLevel(level int) {
 	g.lives = lives
 	g.score = score
 	g.topScore = score
+	g.heartsCollected = 0
+	g.gemsCollected = 0
 	g.showStartScreen = false
 	g.startView = startMenu
 	g.menuIndex = 0
@@ -565,6 +577,14 @@ func debrisChancePercent(level int) float64 {
 	return pct
 }
 
+// climbPointsPerRow is +10 through level 10; from level 11 the level number is the per-row bonus.
+func climbPointsPerRow(level int) int {
+	if level >= 11 {
+		return level
+	}
+	return 10
+}
+
 // placeHeart puts one ♥ at the center of the mid-playfield safe lane (L8+).
 func (g *game) placeHeart() {
 	g.hasHeart = false
@@ -611,6 +631,7 @@ func (g *game) tryCollectHeart() {
 	}
 	g.hasHeart = false
 	g.lives++
+	g.heartsCollected++
 	g.showHUDNotice("+1 Life")
 	g.updateHUD()
 	g.lastRenderedScore = -1
@@ -668,6 +689,7 @@ func (g *game) tryCollectDiamond() {
 	if g.score > g.topScore {
 		g.topScore = g.score
 	}
+	g.gemsCollected++
 	g.showHUDNotice("+1,000 Points")
 	g.updateHUD()
 	g.lastRenderedScore = -1
@@ -758,7 +780,7 @@ func (g *game) handleInput(e *tcell.EventKey) bool {
 		g.frogY--
 		moved = true
 		if g.frogY < g.highestY {
-			g.score += (g.highestY - g.frogY) * 10 // per-line bonus when advancing upward
+			g.score += (g.highestY - g.frogY) * climbPointsPerRow(g.level)
 			g.highestY = g.frogY
 			if g.score > g.topScore {
 				g.topScore = g.score
@@ -779,7 +801,7 @@ func (g *game) handleInput(e *tcell.EventKey) bool {
 			g.frogY--
 			moved = true
 			if g.frogY < g.highestY {
-				g.score += (g.highestY - g.frogY) * 10
+				g.score += (g.highestY - g.frogY) * climbPointsPerRow(g.level)
 				g.highestY = g.frogY
 				if g.score > g.topScore {
 					g.topScore = g.score
@@ -810,13 +832,33 @@ func (g *game) handleInput(e *tcell.EventKey) bool {
 
 func (g *game) handleStartInput(e *tcell.EventKey) bool {
 	if g.startView == startScores {
+		n := len(g.highScores)
 		switch e.Key() {
 		case tcell.KeyEscape, tcell.KeyEnter:
 			g.startView = startMenu
 			return false
+		case tcell.KeyUp:
+			if n > 0 {
+				g.scoreIndex = (g.scoreIndex - 1 + n) % n
+			}
+			return false
+		case tcell.KeyDown:
+			if n > 0 {
+				g.scoreIndex = (g.scoreIndex + 1) % n
+			}
+			return false
 		case tcell.KeyRune:
-			if e.Rune() == ' ' {
+			switch e.Rune() {
+			case ' ':
 				g.startView = startMenu
+			case 'w', 'W':
+				if n > 0 {
+					g.scoreIndex = (g.scoreIndex - 1 + n) % n
+				}
+			case 's', 'S':
+				if n > 0 {
+					g.scoreIndex = (g.scoreIndex + 1) % n
+				}
 			}
 		}
 		return false
@@ -863,6 +905,7 @@ func (g *game) activateMenuItem() bool {
 		return false
 	case 1: // High Scores
 		g.startView = startScores
+		g.scoreIndex = 0
 		return false
 	case 2: // Quit
 		return true
@@ -1217,7 +1260,16 @@ func (g *game) commitScoreName() {
 	}
 	if !g.testMode {
 		now := time.Now()
-		entry := scoreEntry{Name: name, Score: g.score, Time: now.Unix(), Date: now.Format("010206")}
+		entry := scoreEntry{
+			Name:    name,
+			Score:   g.score,
+			Time:    now.Unix(),
+			Date:    now.Format("010206"),
+			Level:   g.level,
+			Hearts:  g.heartsCollected,
+			Gems:    g.gemsCollected,
+			Version: larryVersion,
+		}
 		g.highScores = append(g.highScores, entry)
 		// sort desc
 		for i := 0; i < len(g.highScores); i++ {
@@ -1242,6 +1294,8 @@ func (g *game) commitScoreName() {
 func (g *game) resetGame() {
 	g.lives = 3
 	g.score = 0
+	g.heartsCollected = 0
+	g.gemsCollected = 0
 	g.lastRenderedScore = -1
 	g.level = 1
 	g.theme = themeForLevel(g.level)
@@ -1267,9 +1321,27 @@ func (g *game) loadHighScores() {
 		return
 	}
 	var list []scoreEntry
-	if json.Unmarshal(data, &list) == nil {
-		g.highScores = list
+	if json.Unmarshal(data, &list) != nil {
+		return
 	}
+	g.highScores = list
+	if migrateScoreEntries(g.highScores) {
+		g.saveHighScores()
+	}
+}
+
+// migrateScoreEntries fills missing v1.5+ fields on legacy entries.
+// Returns true if the file should be rewritten.
+func migrateScoreEntries(list []scoreEntry) bool {
+	changed := false
+	for i := range list {
+		if list[i].Version != "" {
+			continue
+		}
+		list[i].Version = "pre-1.5"
+		changed = true
+	}
+	return changed
 }
 
 func (g *game) saveHighScores() {
@@ -1661,7 +1733,16 @@ func (g *game) getProvisionalScores() []scoreEntry {
 	list := make([]scoreEntry, len(g.highScores))
 	copy(list, g.highScores)
 	now := time.Now()
-	list = append(list, scoreEntry{Name: "YOUR SCORE", Score: g.score, Time: now.Unix(), Date: now.Format("010206")})
+	list = append(list, scoreEntry{
+		Name:    "YOUR SCORE",
+		Score:   g.score,
+		Time:    now.Unix(),
+		Date:    now.Format("010206"),
+		Level:   g.level,
+		Hearts:  g.heartsCollected,
+		Gems:    g.gemsCollected,
+		Version: larryVersion,
+	})
 	for i := 0; i < len(list); i++ {
 		for j := i + 1; j < len(list); j++ {
 			if list[j].Score > list[i].Score {
@@ -1816,6 +1897,7 @@ func (g *game) drawStartHighScores() {
 	fillStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(boxBg)
 	titleStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(boxBg).Bold(true)
 	champStyle := tcell.StyleDefault.Foreground(tcell.ColorBlack).Background(tcell.ColorYellow).Bold(true)
+	detailStyle := tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(boxBg)
 	hintStyle := tcell.StyleDefault.Foreground(tcell.ColorAqua).Background(boxBg).Bold(true)
 
 	lines := []string{"HIGH SCORES", boxDivider}
@@ -1828,22 +1910,47 @@ func (g *game) drawStartHighScores() {
 		if show > len(g.highScores) {
 			show = len(g.highScores)
 		}
+		if g.scoreIndex < 0 {
+			g.scoreIndex = 0
+		}
+		if g.scoreIndex >= show {
+			g.scoreIndex = show - 1
+		}
 		for i := 0; i < show; i++ {
 			e := g.highScores[i]
-			lines = append(lines, fmt.Sprintf("%2d. %-8s  %6d  %s", i+1, e.Name, e.Score, e.Date))
-			if i == 0 {
+			cursor := "  "
+			if i == g.scoreIndex {
+				cursor = string(glyphLarry) + " "
+			}
+			lines = append(lines, fmt.Sprintf("%s%2d. %-8s  %6d  %s", cursor, i+1, e.Name, e.Score, e.Date))
+			if i == g.scoreIndex {
 				styles = append(styles, champStyle)
 			} else {
 				styles = append(styles, fillStyle)
 			}
 		}
+		// Details for the selected run — omit blank / unknown fields
+		sel := g.highScores[g.scoreIndex]
+		details := scoreDetailLines(sel)
+		if len(details) > 0 {
+			lines = append(lines, boxDivider)
+			styles = append(styles, fillStyle)
+			for _, d := range details {
+				lines = append(lines, d)
+				styles = append(styles, detailStyle)
+			}
+		}
 	}
 	lines = append(lines, boxDivider)
 	styles = append(styles, fillStyle)
-	lines = append(lines, "Esc or Enter to return")
+	if len(g.highScores) > 0 {
+		lines = append(lines, "↑↓ hop Larry   Esc/Enter return")
+	} else {
+		lines = append(lines, "Esc or Enter to return")
+	}
 	styles = append(styles, hintStyle)
 
-	inner := 32
+	inner := 34
 	for _, ln := range lines {
 		if ln == boxDivider {
 			continue
@@ -1861,3 +1968,22 @@ func (g *game) drawStartHighScores() {
 	}
 	drawBorderedBox(g.screen, w/2, topY, inner, borderStyle, fillStyle, lines, styles)
 }
+
+// scoreDetailLines returns non-blank saved metadata for a high-score entry.
+func scoreDetailLines(e scoreEntry) []string {
+	var d []string
+	if e.Version != "" && e.Version != "pre-1.5" {
+		d = append(d, "Version: "+e.Version)
+	}
+	if e.Level > 0 {
+		d = append(d, fmt.Sprintf("Level died: %d", e.Level))
+	}
+	if e.Hearts > 0 {
+		d = append(d, "Hearts: "+strings.Repeat(string(glyphHeart), e.Hearts))
+	}
+	if e.Gems > 0 {
+		d = append(d, "Gems: "+strings.Repeat(string(glyphDiamond), e.Gems))
+	}
+	return d
+}
+
