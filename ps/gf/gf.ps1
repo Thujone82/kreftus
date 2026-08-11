@@ -2048,11 +2048,18 @@ function Update-WeatherData {
         $alertsJob = Start-ApiJob -Url $alertsUrl -Headers $headers -JobName "AlertsData"
 
         $wildFireJob = $null
+        $wildFireSkippedCooldown = $false
         if ($script:wildFireEnabled) {
-            $wildFireUrl = Get-NifcWildFireQueryUrl -Lat ([double]$lat) -Lon ([double]$lon) -DistanceMiles $script:WILDFIRE_RADIUS_MILES
-            Write-Verbose "Wildfire: starting NIFC job (radius=$($script:WILDFIRE_RADIUS_MILES) mi)"
-            Write-Verbose "GET: $wildFireUrl"
-            $wildFireJob = Start-ApiJob -Url $wildFireUrl -Headers @{} -JobName "WildFireData"
+            $wfCooldownSec = Get-NifcWildfireCooldownRemainingSeconds
+            if ($wfCooldownSec -gt 0) {
+                $wildFireSkippedCooldown = $true
+                Write-Verbose "Wildfire: skipping NIFC job (rate-limit cooldown ${wfCooldownSec}s remaining); keeping previous list ($($script:wildFireIncidents.Count))"
+            } else {
+                $wildFireUrl = Get-NifcWildFireQueryUrl -Lat ([double]$lat) -Lon ([double]$lon) -DistanceMiles $script:WILDFIRE_RADIUS_MILES
+                Write-Verbose "Wildfire: starting NIFC job (radius=$($script:WILDFIRE_RADIUS_MILES) mi)"
+                Write-Verbose "GET: $wildFireUrl"
+                $wildFireJob = Start-ApiJob -Url $wildFireUrl -Headers @{} -JobName "WildFireData"
+            }
         } else {
             Write-Verbose "Wildfire disabled (-wf 0 or radius 0)"
             $script:wildFireIncidents = @()
@@ -2321,9 +2328,10 @@ function Update-WeatherData {
             }
         }
 
-        # Process wildfire job - non-blocking
-        $script:wildFireIncidents = @()
+        # Process wildfire job - non-blocking; never wipe a good prior list on NIFC failure/429.
         if ($wildFireJob) {
+            $previousWildFires = @($script:wildFireIncidents)
+            $wildFireApplied = $false
             if ($wildFireJob.State -eq 'Completed') {
                 $wfJobErrors = @()
                 $wfJson = $wildFireJob | Receive-Job -ErrorVariable wfJobErrors -ErrorAction SilentlyContinue
@@ -2334,13 +2342,21 @@ function Update-WeatherData {
                 if (-not [string]::IsNullOrWhiteSpace($wfJson)) {
                     try {
                         $wfData = $wfJson | ConvertFrom-Json
-                        if (-not ($wfData.PSObject.Properties.Name -contains 'Error' -and $wfData.Error)) {
+                        $nifcError = Get-NifcErrorObjectFromResponse -ApiData $wfData
+                        if ($nifcError) {
+                            if (Test-IsNifcRateLimited -ErrorObj $nifcError) {
+                                $retrySec = Get-NifcRetryAfterSeconds -ErrorObj $nifcError
+                                Set-NifcWildfireRateLimitCooldown -RetryAfterSec $retrySec
+                                Write-Verbose "Wildfire: refresh NIFC rate-limited; keeping previous list ($($previousWildFires.Count)); will retry after cooldown"
+                            } else {
+                                Write-Verbose "NIFC wildfire API returned error payload"
+                            }
+                        } else {
                             $featureCount = if ($wfData.features) { @($wfData.features).Count } else { 0 }
                             Write-Verbose "Wildfire: NIFC job completed with $featureCount raw feature(s)"
                             $script:wildFireIncidents = @(Get-WildFireIncidentsFromApiResponse -ApiData $wfData -Lat ([double]$lat) -Lon ([double]$lon) -TimeZoneId $TimeZone -ValidateInciWeb $true)
                             Write-VerboseWildFireSummary -Incidents $script:wildFireIncidents -Context 'Wildfire update'
-                        } else {
-                            Write-Verbose "NIFC wildfire API returned error payload"
+                            $wildFireApplied = $true
                         }
                     } catch {
                         Write-Verbose "Failed to parse NIFC wildfire data: $($_.Exception.Message)"
@@ -2348,9 +2364,14 @@ function Update-WeatherData {
                 }
                 Remove-Job -Job $wildFireJob -Force -ErrorAction SilentlyContinue
             } else {
-                Write-Verbose "NIFC wildfire API failed - continuing without wildfire output"
+                Write-Verbose "NIFC wildfire API failed - continuing without overwriting prior wildfire list"
                 Remove-Job -Job $wildFireJob -Force -ErrorAction SilentlyContinue
             }
+            if (-not $wildFireApplied) {
+                $script:wildFireIncidents = $previousWildFires
+            }
+        } elseif ($wildFireSkippedCooldown) {
+            Write-Verbose "Wildfire: left previous list intact during NIFC cooldown ($($script:wildFireIncidents.Count) incident(s))"
         }
         
         # Process stations job and fetch observations data if timezone is provided
@@ -5920,6 +5941,8 @@ $script:wildFireEnabled = ($script:WILDFIRE_RADIUS_MILES -gt 0)
 $script:inciwebUrlOkCache = @{}
 # Negative InciWeb slug probes (no page yet) expire so a later publish can be linked.
 $script:INCIWEB_NEGATIVE_CACHE_SECONDS = 3600
+# Shared NIFC cooldown after HTTP/ArcGIS 429 so launch retry / auto-refresh do not keep hammering quota.
+$script:nifcWildfireCooldownUntil = $null
 
 function Get-NifcWildFireQueryUrl {
     param(
@@ -5931,6 +5954,176 @@ function Get-NifcWildFireQueryUrl {
     $lonStr = ($Lon -as [string])
     $distStr = ($DistanceMiles -as [string])
     return "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query?f=json&geometryType=esriGeometryPoint&geometry=$lonStr,$latStr&inSR=4326&distance=$distStr&units=esriSRUnit_StatuteMile&outFields=*&returnGeometry=true"
+}
+
+function Get-NifcWildfireCooldownRemainingSeconds {
+    if ($null -eq $script:nifcWildfireCooldownUntil) { return 0 }
+    $remaining = [int][Math]::Ceiling(($script:nifcWildfireCooldownUntil - (Get-Date)).TotalSeconds)
+    if ($remaining -le 0) {
+        $script:nifcWildfireCooldownUntil = $null
+        return 0
+    }
+    return $remaining
+}
+
+function Set-NifcWildfireRateLimitCooldown {
+    param([int]$RetryAfterSec = 60)
+    $sec = [Math]::Max(15, [Math]::Min([int]$RetryAfterSec, 300))
+    $until = (Get-Date).AddSeconds($sec)
+    if ($null -eq $script:nifcWildfireCooldownUntil -or $until -gt $script:nifcWildfireCooldownUntil) {
+        $script:nifcWildfireCooldownUntil = $until
+    }
+    $left = Get-NifcWildfireCooldownRemainingSeconds
+    Write-Verbose "Wildfire: NIFC rate limited (quota). Keeping any prior fires; cooldown ~${left}s (retry after $($script:nifcWildfireCooldownUntil.ToString('HH:mm:ss')))."
+}
+
+function Get-NifcErrorObjectFromResponse {
+    param([object]$ApiData)
+    if ($null -eq $ApiData) { return $null }
+    $names = @($ApiData.PSObject.Properties.Name)
+    if ($names -contains 'error' -and $ApiData.error) { return $ApiData.error }
+    # Start-ApiJob HTTP failure shape: { Error = $true; Message; StatusCode; ... }
+    if ($names -contains 'Error' -and $ApiData.Error) { return $ApiData }
+    return $null
+}
+
+function Test-IsNifcRateLimited {
+    param(
+        [object]$ErrorObj = $null,
+        [object]$HttpStatus = $null
+    )
+    $statusNum = $null
+    if ($null -ne $HttpStatus) {
+        try { $statusNum = [int]$HttpStatus } catch {
+            try { $statusNum = [int]$HttpStatus.value__ } catch {}
+        }
+    }
+    if ($statusNum -eq 429) { return $true }
+    if ($null -eq $ErrorObj) { return $false }
+    $code = $null
+    foreach ($prop in @('code', 'Code', 'StatusCode')) {
+        if ($ErrorObj.PSObject.Properties.Name -contains $prop -and $null -ne $ErrorObj.$prop) {
+            try { $code = [int]$ErrorObj.$prop } catch {
+                try { $code = [int]$ErrorObj.$prop.value__ } catch {}
+            }
+            if ($null -ne $code) { break }
+        }
+    }
+    if ($code -eq 429) { return $true }
+    $details = ''
+    if ($ErrorObj.PSObject.Properties.Name -contains 'details' -and $ErrorObj.details) {
+        $details = @($ErrorObj.details) -join ' '
+    }
+    $message = ''
+    if ($ErrorObj.PSObject.Properties.Name -contains 'message') { $message = [string]$ErrorObj.message }
+    elseif ($ErrorObj.PSObject.Properties.Name -contains 'Message') { $message = [string]$ErrorObj.Message }
+    $blob = "$message $details".ToLowerInvariant()
+    return ($blob -match 'too many requests|quota exceeded|rate limit')
+}
+
+function Get-NifcRetryAfterSeconds {
+    param([object]$ErrorObj = $null)
+    $defaultSec = 60
+    if ($null -eq $ErrorObj) { return $defaultSec }
+    $details = ''
+    if ($ErrorObj.PSObject.Properties.Name -contains 'details' -and $ErrorObj.details) {
+        $details = @($ErrorObj.details) -join ' '
+    }
+    $message = ''
+    if ($ErrorObj.PSObject.Properties.Name -contains 'message') { $message = [string]$ErrorObj.message }
+    elseif ($ErrorObj.PSObject.Properties.Name -contains 'Message') { $message = [string]$ErrorObj.Message }
+    $blob = "$details $message"
+    if ($blob -match 'retry\s+after\s+(\d+)\s*sec') {
+        return [Math]::Max(15, [Math]::Min([int]$Matches[1], 300))
+    }
+    return $defaultSec
+}
+
+function Get-HttpStatusFromErrorRecord {
+    param($ErrorRecord)
+    if ($null -eq $ErrorRecord) { return $null }
+    try {
+        $resp = $ErrorRecord.Exception.Response
+        if ($null -eq $resp) { return $null }
+        if ($null -ne $resp.StatusCode) {
+            try { return [int]$resp.StatusCode } catch { return [int]$resp.StatusCode.value__ }
+        }
+    } catch {}
+    return $null
+}
+
+function Show-WildFireLaunchStatus {
+    param([string]$Message)
+    if ([string]::IsNullOrWhiteSpace($Message)) { return }
+    if ($VerbosePreference -ne 'Continue') {
+        Clear-Host
+        Write-Host $Message -ForegroundColor Yellow
+    } else {
+        Write-Verbose $Message
+    }
+}
+
+# Launch-time NIFC fetch: soft-fail, 429 cooldown, one wait-and-retry. On rate limit shows "Waiting to load wildfire data...".
+function Invoke-NifcWildFireLaunchFetch {
+    param(
+        [double]$Lat,
+        [double]$Lon,
+        [string]$TimeZoneId = $null
+    )
+    $maxAttempts = 2
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        $cooldownSec = Get-NifcWildfireCooldownRemainingSeconds
+        if ($cooldownSec -gt 0) {
+            Show-WildFireLaunchStatus -Message 'Waiting to load wildfire data...'
+            Start-Sleep -Seconds $cooldownSec
+        } else {
+            Show-WildFireLaunchStatus -Message 'Checking Wildfire...'
+        }
+
+        $wildFireUrl = Get-NifcWildFireQueryUrl -Lat $Lat -Lon $Lon -DistanceMiles $script:WILDFIRE_RADIUS_MILES
+        Write-Verbose "GET: $wildFireUrl"
+        try {
+            $wildFireResponse = Invoke-RestMethod -Uri $wildFireUrl -Method Get -TimeoutSec 30 -ErrorAction Stop
+            $nifcError = Get-NifcErrorObjectFromResponse -ApiData $wildFireResponse
+            if ($nifcError) {
+                if (Test-IsNifcRateLimited -ErrorObj $nifcError) {
+                    $retrySec = Get-NifcRetryAfterSeconds -ErrorObj $nifcError
+                    Set-NifcWildfireRateLimitCooldown -RetryAfterSec $retrySec
+                    Show-WildFireLaunchStatus -Message 'Waiting to load wildfire data...'
+                    if ($attempt -lt $maxAttempts) {
+                        $waitSec = Get-NifcWildfireCooldownRemainingSeconds
+                        if ($waitSec -gt 0) { Start-Sleep -Seconds $waitSec }
+                        continue
+                    }
+                    Write-Verbose 'Wildfire: NIFC still rate-limited after launch wait; continuing without wildfire data'
+                    return @()
+                }
+                Write-Verbose "NIFC wildfire API error payload: $($nifcError | ConvertTo-Json -Compress -ErrorAction SilentlyContinue)"
+                return @()
+            }
+            $featureCount = if ($wildFireResponse.features) { @($wildFireResponse.features).Count } else { 0 }
+            Write-Verbose "Wildfire: NIFC returned $featureCount raw feature(s)"
+            $incidents = @(Get-WildFireIncidentsFromApiResponse -ApiData $wildFireResponse -Lat $Lat -Lon $Lon -TimeZoneId $TimeZoneId -ValidateInciWeb $true -ShowLinkProgress $true)
+            Write-VerboseWildFireSummary -Incidents $incidents -Context 'Wildfire launch'
+            return $incidents
+        } catch {
+            $httpStatus = Get-HttpStatusFromErrorRecord -ErrorRecord $_
+            if (Test-IsNifcRateLimited -HttpStatus $httpStatus -ErrorObj @{ Message = $_.Exception.Message }) {
+                Set-NifcWildfireRateLimitCooldown -RetryAfterSec 60
+                Show-WildFireLaunchStatus -Message 'Waiting to load wildfire data...'
+                if ($attempt -lt $maxAttempts) {
+                    $waitSec = Get-NifcWildfireCooldownRemainingSeconds
+                    if ($waitSec -gt 0) { Start-Sleep -Seconds $waitSec }
+                    continue
+                }
+                Write-Verbose 'Wildfire: NIFC still rate-limited after launch wait; continuing without wildfire data'
+                return @()
+            }
+            Write-Verbose "NIFC wildfire fetch failed: $($_.Exception.Message)"
+            return @()
+        }
+    }
+    return @()
 }
 
 function Get-InciWebStateSlug {
@@ -7773,23 +7966,7 @@ if (-not $script:wildFireEnabled) {
     Write-Verbose "Wildfire disabled (-wf 0 or radius 0); skipping NIFC fetch"
 } else {
     Write-Verbose "Wildfire: enabled with radius $($script:WILDFIRE_RADIUS_MILES) mi at lat=$lat lon=$lon"
-    if ($VerbosePreference -ne 'Continue') {
-        Write-Host "Checking Wildfire..." -ForegroundColor Yellow
-    } else {
-        Write-Verbose "Checking Wildfire..."
-    }
-    try {
-        $wildFireUrl = Get-NifcWildFireQueryUrl -Lat ([double]$lat) -Lon ([double]$lon) -DistanceMiles $script:WILDFIRE_RADIUS_MILES
-        Write-Verbose "GET: $wildFireUrl"
-        $wildFireResponse = Invoke-RestMethod -Uri $wildFireUrl -Method Get -TimeoutSec 30 -ErrorAction Stop
-        $featureCount = if ($wildFireResponse.features) { @($wildFireResponse.features).Count } else { 0 }
-        Write-Verbose "Wildfire: NIFC returned $featureCount raw feature(s)"
-        $script:wildFireIncidents = @(Get-WildFireIncidentsFromApiResponse -ApiData $wildFireResponse -Lat ([double]$lat) -Lon ([double]$lon) -TimeZoneId $timeZone -ValidateInciWeb $true -ShowLinkProgress $true)
-        Write-VerboseWildFireSummary -Incidents $script:wildFireIncidents -Context 'Wildfire launch'
-    } catch {
-        Write-Verbose "NIFC wildfire fetch failed: $($_.Exception.Message)"
-        $script:wildFireIncidents = @()
-    }
+    $script:wildFireIncidents = @(Invoke-NifcWildFireLaunchFetch -Lat ([double]$lat) -Lon ([double]$lon) -TimeZoneId $timeZone)
 }
 
 # Determine which sections to display based on command-line options

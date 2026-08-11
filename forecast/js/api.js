@@ -1518,6 +1518,62 @@ function buildNifcWildFireQueryUrl(lat, lon, distanceMiles = WILDFIRE_RADIUS_MIL
     return `https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query?f=json&geometryType=esriGeometryPoint&geometry=${lon},${lat}&inSR=4326&distance=${distanceMiles}&units=esriSRUnit_StatuteMile&outFields=*&returnGeometry=true`;
 }
 
+/** Shared NIFC cooldown after HTTP/ArcGIS 429 so Update All / backfill do not keep hammering quota. */
+let nifcWildfireCooldownUntilMs = 0;
+
+function getNifcWildfireCooldownRemainingMs() {
+    return Math.max(0, nifcWildfireCooldownUntilMs - Date.now());
+}
+
+function noteNifcWildfireRateLimit(retryAfterSec = 60) {
+    const sec = Math.max(15, Math.min(Number(retryAfterSec) || 60, 300));
+    const until = Date.now() + sec * 1000;
+    if (until > nifcWildfireCooldownUntilMs) {
+        nifcWildfireCooldownUntilMs = until;
+    }
+    console.warn(
+        'Wildfire: NIFC rate limited (quota). Keeping any prior fires; will retry after ~'
+        + Math.ceil(getNifcWildfireCooldownRemainingMs() / 1000)
+        + 's (next refresh/backfill).'
+    );
+}
+
+/** Parse Retry-After from HTTP header or ArcGIS error details ("Retry after 60 sec"). */
+function parseNifcRetryAfterSeconds(errorPayload, response = null) {
+    if (response && typeof response.headers?.get === 'function') {
+        const header = response.headers.get('Retry-After');
+        const headerSec = Number(header);
+        if (Number.isFinite(headerSec) && headerSec > 0) return Math.round(headerSec);
+    }
+    const details = errorPayload?.details;
+    const detailText = Array.isArray(details)
+        ? details.join(' ')
+        : (typeof details === 'string' ? details : '');
+    const message = String(errorPayload?.message || '');
+    const blob = `${detailText} ${message}`;
+    const match = blob.match(/retry\s+after\s+(\d+)\s*sec/i);
+    if (match) {
+        const sec = Number(match[1]);
+        if (Number.isFinite(sec) && sec > 0) return Math.round(sec);
+    }
+    return 60;
+}
+
+function isNifcRateLimitError(errorPayload, httpStatus = null) {
+    if (httpStatus === 429) return true;
+    if (!errorPayload) return false;
+    const code = Number(errorPayload.code);
+    if (code === 429) return true;
+    const message = String(errorPayload.message || '');
+    const details = Array.isArray(errorPayload.details)
+        ? errorPayload.details.join(' ')
+        : String(errorPayload.details || '');
+    const blob = `${message} ${details}`.toLowerCase();
+    return blob.includes('too many requests')
+        || blob.includes('quota exceeded')
+        || blob.includes('rate limit');
+}
+
 function normalizeNifcWildFireIncidents(apiData, lat, lon, distanceMiles = WILDFIRE_RADIUS_MILES) {
     const features = apiData?.features;
     if (!Array.isArray(features) || features.length === 0) return [];
@@ -1642,6 +1698,12 @@ async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_
         console.warn('Wildfire: invalid coordinates', lat, lon);
         return { ok: false, incidents: [] };
     }
+    const cooldownMs = getNifcWildfireCooldownRemainingMs();
+    if (cooldownMs > 0) {
+        const retryAfterSec = Math.ceil(cooldownMs / 1000);
+        console.log('Wildfire: skipping NIFC (rate-limit cooldown', retryAfterSec, 's remaining)');
+        return { ok: false, incidents: [], rateLimited: true, retryAfterSec };
+    }
     const url = buildNifcWildFireQueryUrl(latN, lonN, radius);
     console.log('Wildfire: fetching NIFC within', radius, 'mi of', latN, lonN);
     const controller = new AbortController();
@@ -1650,12 +1712,22 @@ async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_
     try {
         const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
         if (!response.ok) {
+            if (isNifcRateLimitError(null, response.status)) {
+                const retryAfterSec = parseNifcRetryAfterSeconds(null, response);
+                noteNifcWildfireRateLimit(retryAfterSec);
+                return { ok: false, incidents: [], rateLimited: true, retryAfterSec };
+            }
             console.warn('NIFC wildfire API HTTP', response.status);
             return { ok: false, incidents: [] };
         }
         const data = await response.json();
         // ArcGIS often returns HTTP 200 with an error payload and no features
         if (data?.error) {
+            if (isNifcRateLimitError(data.error, response.status)) {
+                const retryAfterSec = parseNifcRetryAfterSeconds(data.error, response);
+                noteNifcWildfireRateLimit(retryAfterSec);
+                return { ok: false, incidents: [], rateLimited: true, retryAfterSec };
+            }
             console.warn('NIFC wildfire API error payload:', data.error);
             return { ok: false, incidents: [] };
         }
@@ -1828,7 +1900,13 @@ async function fetchWeatherData(location, options = {}) {
     if (wildfireSkipped) {
         console.log('Wildfire: omitted from weather fetch (disabled or radius 0)');
     } else if (wildfireFetchFailed) {
-        console.warn('Wildfire: weather fetch NIFC call failed; preserving prior list if any');
+        if (wildfireResult?.rateLimited) {
+            console.warn(
+                'Wildfire: weather fetch hit NIFC rate limit; preserving prior list if any; will retry on next refresh'
+            );
+        } else {
+            console.warn('Wildfire: weather fetch NIFC call failed; preserving prior list if any');
+        }
     } else {
         console.log('Wildfire: weather fetch included', wildFires.length, 'incident(s) within', wildfireRadiusMiles, 'mi');
     }

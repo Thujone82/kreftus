@@ -3,7 +3,7 @@
 ## Project: gf (Get Forecast) - NWS Edition
 
 **Author:** Kreft&Cursor
-**Date:** 2025-01-27
+**Date:** 2026-08-11
 **Version:** 2.4
 
 ---
@@ -19,11 +19,11 @@ The script is designed for ease of use, accepting flexible location inputs like 
 - **No API Key Required:** Uses the free National Weather Service API which requires no registration or API key.
 - **Flexible Location Input:** Can determine latitude and longitude from either a 5-digit US zip code, a "City, State" formatted string, or the "here" keyword for automatic location detection.
 - **Automatic Location Detection:** Uses a fallback provider chain (`ip-api.com` -> `ipwho.is` -> `ipapi.co`) to detect the user's current location from public IP when "here" is specified.
-- **Comprehensive Data Display:** Shows current temperature, conditions, wind chill and heat index calculations (using NWS formulas), detailed forecasts for today and tomorrow, wind information, sunrise and sunset times (calculated astronomically), solar irradiance (clear-sky GHI in W/m², displayed after sunset in white, including in terse mode), optional Magic Hours lines (`-m`/`-magic`) for Golden/Blue hour timing immediately before `Updated:` in Current Conditions, moon phase information with emoji and next full moon date, rain likelihood forecasts with visual sparklines, and wind outlook forecasts with direction glyphs. **All times (hourly forecasts, sunrise, sunset, update times) are displayed in the destination location's local timezone, not your system's timezone.** Enhanced Daily Mode and Observations Mode display sunrise, sunset, and day length for each day. Section titles (Hourly, 7-Day Summary, Rain Outlook, Wind Outlook) use as many words from the city name as fit within 20 characters to prevent title wrapping and maintain consistent formatting (e.g., "Salt Lake City" fits fully, "Portland International Airport" becomes "Portland").
-- **Weather Alerts:** Automatically fetches and displays any active weather alerts (e.g., warnings, watches) from official sources.
+- **Comprehensive Data Display:** Shows current temperature, conditions, wind chill and heat index calculations (using NWS formulas), or optional estimated outdoor **WBGT** with **`-wbgt` / `-UseWbgt`** (Stull wet-bulb + simplified globe; warm band from 75°F; bracket colors match dry-bulb Blue/default/alert — aligned with the forecast web app), detailed forecasts for today and tomorrow, wind information, sunrise and sunset times (calculated astronomically), solar irradiance (clear-sky GHI in W/m², displayed after sunset in white, including in terse mode), optional Magic Hours lines (`-m`/`-magic`) for Golden/Blue hour timing immediately before `Updated:` in Current Conditions, moon phase information with emoji and next full moon date, rain likelihood forecasts with visual sparklines, and wind outlook forecasts with direction glyphs. **All times (hourly forecasts, sunrise, sunset, update times) are displayed in the destination location's local timezone, not your system's timezone.** Enhanced Daily Mode and Observations Mode display sunrise, sunset, and day length for each day. Section titles (Hourly, 7-Day Summary, Rain Outlook, Wind Outlook) use as many words from the city name as fit within 20 characters to prevent title wrapping and maintain consistent formatting (e.g., "Salt Lake City" fits fully, "Portland International Airport" becomes "Portland").
+- **Weather Alerts:** Automatically fetches and displays any active weather alerts (e.g., warnings, watches) from official sources. Test/monitoring-only alerts are filtered (matches forecast web). Current-conditions title may show `⚠️` / `🌡` when displayable alerts / heat alerts are active.
 - **Color-Coded Metrics:** Key data points (temperature, wind speed) change color (blue for cold, red for hot) to indicate potentially hazardous conditions. Rain likelihood sparklines use color coding (white for very low, cyan for low, green for light, yellow for medium, red for high probability). Wind outlook glyphs use color coding (white for calm, yellow for light breeze, red for moderate wind, magenta for strong wind) with peak wind hours highlighted using inverted colors. **Hour Labels:** Hour labels in the hourly forecast (e.g., "08:00", "09:00") are colored yellow when the majority of that hour is during daytime (determined by checking if the hour midpoint falls between sunrise and sunset), otherwise displayed in white. This applies to both the hourly forecast in the main modal and the dedicated hourly modal. **Humidity:** Uses meteorological comfort thresholds based on relative humidity percentage. Low humidity (<30%) can cause dry skin, static electricity, and respiratory discomfort (cyan). Comfortable range (30-60%) is ideal for human comfort (white). Elevated humidity (61-70%) begins to feel muggy and can affect perceived temperature (yellow). High humidity (>70%) is oppressive, significantly increases heat index, and can be dangerous in hot weather (red). **Dew Point:** More reliable than humidity for assessing comfort as it's independent of temperature. Dew point represents the temperature at which air becomes saturated and condensation forms. Values below 40°F indicate very dry air (cyan), 40-54°F is comfortable (white), 55-64°F feels sticky and muggy (yellow), and 65°F+ is oppressive and can be dangerous when combined with high temperatures (red). Dew points above 70°F are rare but extremely uncomfortable. **Pressure (Observations):** Barometric pressure in inHg with color coding: low (<29.50 inHg) cyan, normal (29.50-30.20) white, high (30.20-30.50) yellow, extreme (<29.0 or >30.5) alert/magenta.
 - **AQI Line (AirNow):** Current conditions include an `AQI:` line immediately after `Wind:` when AirNow data is available and displayable **and** the user has configured the persisted Windows **User** environment variable **`AirNowAPI`** (your own key from AirNow; never embedded in the script). Use **`gf.ps1 -aqi`** for setup/validation, or set `AirNowAPI` manually. Format: `AQI: {CategoryName} O3[{O3AQI}] PM2.5[{PM25AQI}]`. `AQI:` is white; `CategoryName` is colored by the highest AirNow category number from O3/PM2.5 (1=Green, 2=Yellow, 3=DarkYellow, 4=Red, 5=Magenta, 6=DarkRed). `O3[...]` and `PM2.5[...]` are independently colored by each pollutant's category number. The line is suppressed when the env var is unset, data is unavailable, response is empty, highest category is 7 (Unavailable), or in terse mode unless highest category is 2-6.
-- **Wild Fire Info (NIFC WFIGS):** Soft-fail query for current wildfire incidents within the configured radius (default **50** statute miles). Full report shows a **Wild Fire Info** section after alerts (size, discovered time, estimated cost as `final (to-date)` when both NIFC cost fields are set, containment, behavior, relative `mi` + cardinal like NOAA stations, InciWeb incident link after Views AJAX validation, plus state map). Terse / Current Conditions one-liner for the largest fire: `Fire: NAME …ac ✅|…% …mi DIR (N)` — label shortened, 100% containment as ✅, no behavior (details in full section), distance rounded to whole miles, multi-fire count as `(N)`. Override with **`-wf` / `-wildfire N`**; **`-wf 0`** disables all wildfire API/UI for the run. **Colors:** acres Default (<100) / Yellow (100–999) / Red (1k–99,999) / Magenta (≥100k); full-section name Yellow; Discovered default; Cost Yellow (≥$1M) / Red (≥$1B) / Magenta (≥$1T); Contained 0% Yellow / 100% Green (omit when null); Behavior Magenta if Extreme / Red if Critical / Yellow if Active; terse `Fire:` label Red.
+- **Wild Fire Info (NIFC WFIGS):** Soft-fail query for current wildfire incidents within the configured radius (default **50** statute miles). Full report shows a **Wild Fire Info** section after alerts (size, discovered time, estimated cost as `final (to-date)` when both NIFC cost fields are set and differ, containment, behavior, cause preferring `FireCauseGeneral` unless `FireCause` is `Undetermined`, relative `mi` + cardinal like NOAA stations, InciWeb incident link after Views AJAX validation, plus state map). Stats segments (`Size` · `Discovered` · …) wrap to a new line when the next piece would wrap mid-section. Terse / Current Conditions one-liner for the largest fire: `Fire: NAME …ac ✅|…% …mi DIR (N)` — label shortened, 100% containment as ✅, no behavior (details in full section), distance rounded to whole miles, multi-fire count as `(N)`. Override with **`-wf` / `-wildfire N`**; **`-wf 0`** disables all wildfire API/UI for the run. **HTTP/ArcGIS 429 (quota):** shared cooldown; launch shows **`Waiting to load wildfire data...`**, waits Retry-After (default 60s), retries once; auto-refresh skips NIFC while cooling down and **never wipes** a prior good list on failure. See **Wildfire (NIFC) Technical Notes** below. **Colors:** acres Default (<100) / Yellow (100–999) / Red (1k–99,999) / Magenta (≥100k); full-section name Yellow; Discovered default; Cost Yellow (≥$1M) / Red (≥$1B) / Magenta (≥$1T) (omit when null/`$0`); Contained 0% Yellow / 100% Green (omit when null); Behavior Magenta if Extreme / Red if Critical / Yellow if Active; terse `Fire:` label Red.
 - **Multiple Display Modes:**
   - **Full Mode (default):** Shows all available weather information
   - **Terse Mode (`-t`):** Shows only current conditions and today's forecast (plus alerts)
@@ -34,7 +34,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
   - **Enhanced Daily Mode (`-d`):** Shows comprehensive 7-day forecast with sunrise/sunset/day length for each day, detailed wind information, windchill/heat index, and word-wrapped detailed forecasts
   - **Rain Forecast Mode (`-r` or `-rain`):** Shows rain likelihood forecast with visual sparklines for 96 hours
   - **Wind Forecast Mode (`-w` or `-wind`):** Shows wind outlook forecast with direction glyphs for 96 hours
-  - **Observations Mode (`-o` or `-observations`):** Shows historical weather observations for the last 7 days with sunrise/sunset/day length for each day, daily aggregates, barometric pressure (inHg) with color coding, and cloud summary ("Clouds:") on the same line as Conditions when the station provides cloud data (label white, data gray; omitted when unavailable). Cloud codes: SKC (clear), FEW (few), SCT (scattered), BKN (broken), OVC (overcast)
+  - **Observations Mode (`-o` or `-observations`):** Shows historical weather observations for the last 7 days with sunrise/sunset/day length for each day, daily aggregates, barometric pressure (inHg) with color coding, and cloud summary ("Clouds:") on the same line as Conditions when the station provides cloud data (label white, data gray; omitted when unavailable). Cloud codes: SKC (clear), FEW (few), SCT (scattered), BKN (broken), OVC (overcast), VV (vertical visibility; sky obscured)
   - **No-Interactive Mode (`-x`):** Exits immediately after displaying data (perfect for scripting)
 - **Interactive Mode:** When run from non-terminal environments, provides keyboard shortcuts for dynamic view switching:
   - **[H]** - Switch to hourly forecast only
@@ -56,11 +56,11 @@ The script is designed for ease of use, accepting flexible location inputs like 
 
 The script follows a multi-step process:
 
-1. **Geocoding:** Uses free services (zippopotam.us for zip codes, Nominatim for city/state) to convert location input to coordinates.
+1. **Geocoding:** Uses free services (zippopotam.us for zip codes, Nominatim for city/state) to convert location input to coordinates. **`here`** uses the IP geolocation fallback chain.
 2. **NWS Points Lookup:** Calls the NWS `/points/{lat},{lon}` endpoint to get grid metadata for the location.
-3. **Forecast Data:** Fetches both regular forecast and hourly forecast data from the NWS gridpoints endpoints.
-4. **Alerts:** Retrieves any active weather alerts for the location.
-5. **Data Processing:** Parses and formats the GeoJSON responses for display.
+3. **Forecast Data:** Fetches both regular forecast and hourly forecast data from the NWS gridpoints endpoints (parallel jobs on refresh).
+4. **Alerts / optional AQI / Wildfire:** Retrieves active alerts; optional AirNow AQI when `AirNowAPI` is set; NIFC wildfire query when enabled (soft-fail; see Wildfire technical notes).
+5. **Data Processing:** Parses and formats the GeoJSON responses for display (observation merge for current conditions when fresh).
 6. **Output:** Displays formatted weather information with color coding and text wrapping.
 
 **Color Threshold Implementation:** The script implements meteorological comfort thresholds for humidity and dew point based on established meteorological standards. Humidity thresholds are based on relative humidity percentage impact on human comfort and health. Dew point thresholds are based on the temperature at which air becomes saturated, providing a more reliable comfort indicator than humidity alone. These thresholds are applied in the Show-CurrentConditions function using conditional logic that evaluates numeric values and assigns appropriate PowerShell color names (Cyan, White, Yellow, Red) for terminal display.
@@ -91,7 +91,8 @@ The script follows a multi-step process:
 - **Hourly:** `https://api.weather.gov/gridpoints/{office}/{gridX},{gridY}/forecast/hourly`
 - **Alerts:** `https://api.weather.gov/alerts/active?point={lat},{lon}`
 - **AirNow AQI (optional):** `https://www.airnowapi.org/aq/observation/current/ziplatLong?format=application/json&latitude={lat}&longitude={lon}&api_key={key}` — `{key}` comes only from the **`AirNowAPI`** environment variable (User scope preferred); no key ships with the script. Rate limit: 500 requests/hour per key.
-- **NIFC Wildfires:** `https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query` — point geometry + 50 mi statute radius; WF-only; soft-fail.
+- **NIFC Wildfires:** `https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query` — point geometry + configurable statute radius (default 50 mi); WF-only (`IncidentTypeCategory`); soft-fail. ArcGIS may return **HTTP 200 with an `error` payload** (including code **429** quota); treat as failure, not empty success.
+- **InciWeb (wildfire links):** `https://inciweb.wildfire.gov/incident-information/{unit}-{slug}` (+ optional `-fire` slug variant); confirmed via Views AJAX `view_name=incidents_page_`. State maps: `https://inciweb.wildfire.gov/state/{slug}`.
 - **Observation Stations:** `https://api.weather.gov/points/{lat},{lon}/stations`
 - **Latest Observation:** `https://api.weather.gov/stations/{stationId}/observations/latest`
 - **Observations:** `https://api.weather.gov/stations/{stationId}/observations?start={startTime}&end={endTime}&limit=500`
@@ -113,6 +114,61 @@ When running with `-Verbose`, AQI-specific diagnostics are emitted to help troub
 
 Terminal AQI colors intentionally approximate the official EPA/AirNow palette using only standard PowerShell console color names. The web app uses hex values (`#00e400`, `#ffff00`, `#ff7e00`, `#ff0000`, `#8f3f97`, `#7e0023`), while terminal output maps to nearest named colors (`Green`, `Yellow`, `DarkYellow`, `Red`, `Magenta`, `DarkRed`) for broad compatibility across default console themes.
 
+### Wildfire (NIFC) Technical Notes
+
+Wildfire integration is soft-fail end-to-end: weather always displays even when NIFC or InciWeb is unavailable. Behavior is intentionally aligned with the Forecast web edition where practical.
+
+#### Query and normalization
+
+- **Endpoint:** `WFIGS_Incident_Locations_Current` FeatureServer `0/query` with `geometryType=esriGeometryPoint`, `distance={miles}`, `units=esriSRUnit_StatuteMile`, `outFields=*`.
+- **Filter:** Keep features with `IncidentTypeCategory` empty or `WF`; drop others.
+- **Geometry:** Prefer feature geometry `y`/`x`; else `InitialLatitude` / `InitialLongitude`. Distance via Haversine; keep within radius + 0.5 mi tolerance.
+- **Sort:** Largest acres first, then nearest.
+- **Name:** Strip leading local fire numbers (`0433 BREWER` → `BREWER`) for InciWeb slug matching (`Get-NormalizedWildFireIncidentName`).
+- **Fields shown:** Size (`IncidentSize`), Discovered (`FireDiscoveryDateTime` → `MM/dd HH:mm` local), Cost (`EstimatedFinalCost` / `EstimatedCostToDate` compact `$346k`/`$2M`/`$1B`/`$3T`; when both set and formats differ: `$final ($toDate)`; omit when both null or `$0`), Cause (prefer `FireCauseGeneral` unless `FireCause` is `Undetermined`), Contained (`PercentContained`), Behavior (`FireBehaviorGeneral*`), distance/cardinal, InciWeb + state map.
+- **Display wrap:** Full-section stats use wrap-aware separators (`Write-WildFireStatsSegments`) so a segment never splits mid-token across the console width.
+- **CLI:** `$script:WILDFIRE_RADIUS_MILES` from `-wf`/`-wildfire N` (default 50); `$script:wildFireEnabled` is false when radius is 0.
+
+#### Launch path (`Invoke-NifcWildFireLaunchFetch`)
+
+1. Status **`Checking Wildfire...`** (clears host unless `-Verbose`).
+2. `Invoke-RestMethod` NIFC query (30s timeout).
+3. On success with features: normalize, then InciWeb validation with progress **`Loading Fire n/X...`** (`ShowLinkProgress`).
+4. On **rate limit (429 / quota):** set shared cooldown; status becomes **`Waiting to load wildfire data...`**; sleep until cooldown ends; **one** retry. If still limited, continue with empty list (soft-fail).
+5. On other errors / exceptions: verbose log; empty list; continue.
+
+`-Verbose` keeps the host buffer (no `Clear-Host` for status) so NIFC/InciWeb verbose lines remain readable.
+
+#### Auto-refresh path (`Update-WeatherData`)
+
+- Before starting the NIFC background job, if cooldown remaining > 0: **skip** the job and **keep** `$script:wildFireIncidents`.
+- On job completion: parse JSON; if ArcGIS/job `error` is rate-limited → set cooldown, **restore prior list**; if other error or parse failure → **restore prior list**; only replace the list on a successful non-error payload.
+- Never clear to `@()` at the start of wildfire job processing (older builds wiped fires on every refresh failure).
+
+#### Rate-limit cooldown (shared)
+
+| Helper | Role |
+|--------|------|
+| `$script:nifcWildfireCooldownUntil` | Absolute local time when NIFC may be called again |
+| `Get-NifcWildfireCooldownRemainingSeconds` | Seconds left (0 clears expired cooldown) |
+| `Set-NifcWildfireRateLimitCooldown` | Extends cooldown; clamps Retry-After to 15–300s (default 60) |
+| `Test-IsNifcRateLimited` | HTTP 429, ArcGIS `error.code` 429, or message/details matching quota / too many requests / rate limit |
+| `Get-NifcRetryAfterSeconds` | Parses `Retry after N sec` from ArcGIS `details` / `message` |
+| `Get-NifcErrorObjectFromResponse` | ArcGIS `error` object or Start-ApiJob `{ Error = $true; ... }` shape |
+
+ArcGIS commonly returns **HTTP 200** with `{ "error": { "code": 429, "details": ["… Retry after 60 sec."] } }` — must be detected before treating missing `features` as a successful empty result.
+
+#### InciWeb link enrichment
+
+- Build candidate slugs from protecting unit + normalized name; also try a **`-fire`** suffix variant (e.g. `HIGH LAVA` → `…/wagpf-high-lava-fire`).
+- Confirm via InciWeb Views AJAX content (HEAD alone is unreliable — blank shells also return HTTP 200).
+- **`$script:inciwebUrlOkCache`:** successful probes stay cached for the session; **negative** probes expire after **`$script:INCIWEB_NEGATIVE_CACHE_SECONDS` (3600)** so a later InciWeb publish can be linked on a subsequent run/refresh.
+- State map URL always offered from `POOState` when mappable (`Get-InciWebStateMapUrl`).
+
+#### Verbose diagnostics
+
+With `-Verbose`: NIFC GET URL, raw feature counts, normalized incident summary (`Write-VerboseWildFireSummary`), InciWeb probe outcomes, rate-limit cooldown messages, and refresh skip/preserve notes. Do not clear the host during verbose wildfire status updates.
+
 ### Configuration
 
 The script uses a hardcoded user agent string "GetForecast/1.0 (081625PDX)" for API requests. No configuration file is required.
@@ -123,22 +179,37 @@ The script uses a hardcoded user agent string "GetForecast/1.0 (081625PDX)" for 
 
 **The script MUST be saved as UTF-8 with BOM.** Using UTF-8 without BOM (or another encoding) can cause script errors when PowerShell parses characters such as directional glyphs, emoji, or other non-ASCII symbols. When editing `gf.ps1`, always preserve or re-save as **UTF-8 with BOM** and never change the encoding.
 
+### Build (gf.exe)
+
+Rebuild the packaged executable after `gf.ps1` changes:
+
+```powershell
+cd ps/gf
+.\build.ps1
+```
+
+Uses PS2EXE (`Invoke-ps2exe`) to emit `gf.exe` with icon/metadata. When committing gf changes, include the rebuilt `gf.exe` if it was modified.
+
 ### Features Removed from Original Version
 
 Due to differences between the OpenWeatherMap and National Weather Service APIs, the following features are not available in this version:
 
 - UV Index data
 - Moonrise/Moonset times
-- **Temperature trend indicators (rising/falling/steady):** Time-aligned hourly comparison with grid-divergence handling when station observation drives current conditions; `temperatureTrend` API fallback for small changes.
 - Detailed weather overview reports
-- Rain/Snow precipitation amounts
+- Rain/Snow precipitation amounts (probability and sparklines are shown; quantitative precip totals come from observations when available)
 
 ### Features Added/Enhanced
 
 - **Sunrise/Sunset Times:** Calculated using NOAA astronomical algorithms based on location coordinates and time zone. All displayed times (hourly forecasts, sunrise, sunset, update times) are shown in the destination location's local timezone, not your system's timezone.
 - **Solar Irradiance:** Clear-sky global horizontal irradiance (GHI) in W/m² at the current time plus peak GHI at location solar noon with time; displayed after Sunset in white as "Irradiance: XW/m2 [Peak YW/m2 @ h:mm]" in both full and terse modes.
+- **Temperature Trend Indicators:** Time-aligned hourly comparison with grid-divergence handling when station observation drives current conditions; `temperatureTrend` API fallback for small changes.
+- **Estimated WBGT (`-wbgt`):** Optional outdoor WBGT bracket instead of heat index (aligned with forecast web heuristic).
+- **Magic Hours (`-m` / `-magic`):** Optional Golden/Blue hour lines immediately before `Updated:`.
+- **Wild Fire Info (`-wf` / `-wildfire`):** NIFC WFIGS + InciWeb; see Wildfire technical notes.
 - **Moon Phase Information:** Astronomical moon phase calculation with emoji display and next full moon date
 - **Humidity Data:** Available in current conditions display
+- **Observed Current Conditions:** Prefer nearest station latest observation when fresh; two-tier G / auto-refresh.
 
 ### Benefits of NWS API
 
@@ -202,8 +273,18 @@ Due to differences between the OpenWeatherMap and National Weather Service APIs,
 # Enable Magic Hours lines in Current Conditions
 .\gf.ps1 "Portland, OR" -m
 
+# Use estimated WBGT instead of heat index
+.\gf.ps1 "Portland, OR" -wbgt
+
+# Wildfire search radius (miles); 0 disables wildfire API/UI
+.\gf.ps1 "Portland, OR" -wf 75
+.\gf.ps1 here -wf 0
+
 # Use specific NOAA station by ID (overrides automatic selection)
 .\gf.ps1 "Portland, OR" -Noaa 9440357
+
+# AirNow AQI key setup / validation
+.\gf.ps1 -aqi
 
 # View help
 .\gf.ps1 -Help
@@ -551,7 +632,10 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 
 ### Recent Enhancements (v2.4)
 
-- **Wild Fire Info:** When NIFC WFIGS reports wildfires within the configured radius (default 50 mi; `-wf`/`-wildfire N`), a **Wild Fire Info** section appears after alerts (size, discovered time, estimated cost as `final (to-date)` when both, containment, behavior, relative mi/cardinal like NOAA stations, InciWeb + state map links). Terse one-liner for the largest fire: `Fire: NAME …ac ✅|…% …mi DIR (N)`. `-wf 0` disables. **Colors:** acres Default (<100) / Yellow (100–999) / Red (1k–99,999) / Magenta (≥100k); full-section name Yellow; Discovered default; Cost Yellow (≥$1M) / Red (≥$1B) / Magenta (≥$1T); Contained 0% Yellow / 100% Green (omit when null); Behavior Magenta if Extreme / Red if Critical / Yellow if Active; terse `Fire:` label Red.
+- **Wild Fire Info:** When NIFC WFIGS reports wildfires within the configured radius (default 50 mi; `-wf`/`-wildfire N`), a **Wild Fire Info** section appears after alerts (size, discovered time, estimated cost as `final (to-date)` when both differ, cause preferring `FireCauseGeneral` unless `Undetermined`, containment, behavior, relative mi/cardinal like NOAA stations, InciWeb + state map links). Terse one-liner for the largest fire: `Fire: NAME …ac ✅|…% …mi DIR (N)`. `-wf 0` disables. Stats wrap mid-section–aware. **Colors:** acres Default (<100) / Yellow (100–999) / Red (1k–99,999) / Magenta (≥100k); full-section name Yellow; Discovered default; Cost Yellow (≥$1M) / Red (≥$1B) / Magenta (≥$1T) (omit null/`$0`); Contained 0% Yellow / 100% Green; Behavior Magenta Extreme / Red Critical / Yellow Active; terse `Fire:` label Red.
+- **NIFC 429 / quota cooldown:** Detect ArcGIS/HTTP rate limits; shared `$script:nifcWildfireCooldownUntil`. Launch status **`Waiting to load wildfire data...`**, wait Retry-After, one retry. Auto-refresh skips NIFC during cooldown and preserves the previous incident list on failure (does not wipe to empty).
+- **InciWeb robustness:** Try name slug and `-fire` variant; confirm via Views AJAX; negative probe cache TTL **60 minutes**; successful probes session-sticky. `-Verbose` keeps wildfire status lines on-screen (no Clear-Host).
+- **Estimated WBGT (`-wbgt`)** and **Magic Hours (`-m`/`-magic`)** optional Current Conditions extras (aligned with forecast web where applicable).
 
 ### Recent Enhancements (v2.3)
 
@@ -636,7 +720,7 @@ The solar irradiance feature displays estimated clear-sky global horizontal irra
 **Display Integration:**
 - **Show-CurrentConditions:** Optional parameter `[string]$SolarIrradiance = $null`. When non-null, after the Sunset line: `Write-Host "Irradiance: $SolarIrradiance" -ForegroundColor White`.
 - **Show-FullWeatherReport:** Receives `CurrentTimeDateTime` (DateTime). When Lat, Lon, TimeZone, and `CurrentTimeDateTime` are present, computes current GHI via `Get-SolarIrradiance`, gets solar noon via `Get-SolarNoonForDate`, computes peak GHI at solar noon via `Get-SolarIrradiance` with `SolarNoonUtc`, then `$solarStr = "${solarWm2}W/m2 [Peak ${peakWm2}W/m2 @ $solarNoonLocalStr]"` and passes `-SolarIrradiance $solarStr` to `Show-CurrentConditions`.
-- **Terse mode:** All terse-mode call paths pass `-SolarIrradiance $null` (no solar computation in those branches), so the Solar line is not displayed.
+- **Terse mode:** Same irradiance string is passed when available (terse still shows Irradiance; it omits Dew Point and combines Sunrise/Sunset instead).
 
 **Edge Cases:**
 - **Polar night:** Sun never rises → GHI = 0 → "Irradiance: 0W/m2 [Peak 0W/m2 @ ...]" if solar were shown (full mode shows it).
@@ -645,9 +729,8 @@ The solar irradiance feature displays estimated clear-sky global horizontal irra
 
 **Data Flow:**
 1. Main/refresh code has Lat, Lon, TimeZone, and fetch time (`$dataFetchTime` or `$script:dataFetchTime`).
-2. Full report: `Show-FullWeatherReport` called with `-CurrentTimeDateTime $dataFetchTime`; it computes `$solarStr` and passes it to `Show-CurrentConditions`.
-3. Interactive non-terse branches: compute `$solarStr` from `Get-SolarIrradiance` with `$script:dataFetchTime` and pass to `Show-CurrentConditions`.
-4. Terse branches: pass `-SolarIrradiance $null` (no `Get-SolarIrradiance` call).
+2. Full and terse reports: compute `$solarStr` when coords/timezone/DateTime are present and pass `-SolarIrradiance $solarStr` to `Show-CurrentConditions`.
+3. Interactive branches: recompute or reuse irradiance for the active view the same way.
 
 **Notes:**
 - NWS API does not provide irradiance; this is a clear-sky estimate only (no clouds, aerosols, or observed sky condition).
@@ -722,6 +805,7 @@ The auto-refresh functionality provides seamless data updates in interactive mod
 - **User Control:** Toggle auto-updates on/off as needed with 'U' key
 - **Battery Friendly:** Disable auto-updates to save battery on mobile devices
 - **Network Conscious:** Turn off auto-updates when on limited data connections
+- **Wildfire soft-fail:** Full refresh still updates weather if NIFC is rate-limited; prior wildfire list is preserved and NIFC is retried after cooldown on a later refresh
 
 ### Auto-Update Toggle Feature (v2.1)
 
@@ -970,7 +1054,7 @@ The observations mode (`-o` or `-observations`) provides historical weather data
 - **Historical Data:** Shows weather observations from the last 7 days
 - **Daily Aggregates:** Displays high/low temperatures, average and maximum wind speeds, wind direction, humidity, total precipitation, and general conditions
 - **Barometric Pressure:** Displays sea-level pressure in inHg for each day (after wind), with color coding: low (Cyan), normal (White), high (Yellow), extreme (Alert)
-- **Cloud Summary:** When the station provides cloud layers data, "Clouds:" is shown on the same line as Conditions (label white, data gray). Codes: SKC (clear), FEW (few), SCT (scattered), BKN (broken), OVC (overcast). Omitted when not available
+- **Cloud Summary:** When the station provides cloud layers data, "Clouds:" is shown on the same line as Conditions (label white, data gray). Codes: SKC (clear), FEW (few), SCT (scattered), BKN (broken), OVC (overcast), VV (vertical visibility; sky obscured). Omitted when not available
 - **Moon Phase Information:** Includes moon phase emoji and information for each day
 - **Windchill/Heat Index:** Calculates and displays windchill (≤50°F) and heat index (≥80°F) when applicable
 - **Data Filtering:** Only displays days that have actual observation data (skips days with no data)

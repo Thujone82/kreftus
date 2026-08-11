@@ -1375,12 +1375,30 @@ function cacheNeedsWildfireBackfill(weatherData) {
     return false;
 }
 
+const pendingWildfireBackfillKeys = new Set();
+
 function scheduleWildfireBackfill({ cacheKey, weatherData, reason = 'backfill' } = {}) {
     if (!cacheKey || !weatherData?.location) return false;
     if (weatherData.location.lat == null || weatherData.location.lon == null) return false;
     if (typeof refreshWildfireForCachedLocation !== 'function') return false;
-    console.log('Scheduling wildfire backfill:', reason, cacheKey);
+    if (pendingWildfireBackfillKeys.has(cacheKey)) {
+        console.log('Wildfire backfill already scheduled for', cacheKey, '(' + reason + ')');
+        return false;
+    }
+    const cooldownMs = typeof getNifcWildfireCooldownRemainingMs === 'function'
+        ? getNifcWildfireCooldownRemainingMs()
+        : 0;
+    // Wait out NIFC rate-limit cooldown so backfill does not immediately re-hit quota.
+    const delayMs = Math.max(200, cooldownMs > 0 ? cooldownMs + 500 : 200);
+    pendingWildfireBackfillKeys.add(cacheKey);
+    console.log(
+        'Scheduling wildfire backfill:',
+        reason,
+        cacheKey,
+        cooldownMs > 0 ? `(after ${Math.ceil(delayMs / 1000)}s rate-limit cooldown)` : ''
+    );
     setTimeout(() => {
+        pendingWildfireBackfillKeys.delete(cacheKey);
         refreshWildfireForCachedLocation({
             cacheKey,
             weatherData,
@@ -1392,7 +1410,7 @@ function scheduleWildfireBackfill({ cacheKey, weatherData, reason = 'backfill' }
         }).catch(error => {
             console.error('Background wildfire-only fetch failed:', error);
         });
-    }, 200);
+    }, delayMs);
     return true;
 }
 
@@ -3910,8 +3928,25 @@ async function refreshWildfireForCachedLocation({
         return false;
     }
     // Failed NIFC — leave existing wildfire data untouched (refresh must not erase it).
+    // Rate limits (429 / ArcGIS quota) stay wildfireFetched=false so the next weather refresh
+    // and cooldown backfill retry NIFC; we never treat quota failure as a successful empty.
     if (!result || result.ok !== true) {
-        console.warn('Wildfire: refresh NIFC failed; keeping previous list (', prevFires.length, ')');
+        if (result?.rateLimited) {
+            console.warn(
+                'Wildfire: refresh NIFC rate-limited; keeping previous list (',
+                prevFires.length,
+                '); retry after cooldown or next weather refresh'
+            );
+            if (cacheNeedsWildfireBackfill(weatherData)) {
+                scheduleWildfireBackfill({
+                    cacheKey,
+                    weatherData,
+                    reason: 'nifc-rate-limit-retry'
+                });
+            }
+        } else {
+            console.warn('Wildfire: refresh NIFC failed; keeping previous list (', prevFires.length, ')');
+        }
         return false;
     }
 
