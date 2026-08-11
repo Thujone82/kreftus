@@ -3863,6 +3863,33 @@ async function refreshAqiForCachedLocation({ cacheKey, weatherData }) {
     return true;
 }
 
+/** After background InciWeb probes finish, persist URLs and redraw if still showing these fires. */
+function applyInciWebEnrichmentToActiveWeather(incidents) {
+    if (!Array.isArray(incidents) || incidents.length === 0) return;
+    if (!appState.weatherData || appState.weatherData.wildFires !== incidents) return;
+    const cacheKey = appState.currentLocationKey
+        || (appState.location ? generateLocationKey(appState.location) : null);
+    if (cacheKey) {
+        try {
+            const tsIso = loadCacheTimestampForKey(cacheKey);
+            const ts = tsIso ? new Date(tsIso) : (appState.lastFetchTime || null);
+            saveWeatherDataToCacheByKey({
+                cacheKey,
+                locationString: appState.location?.city != null && appState.location?.state != null
+                    ? formatLocationDisplayName(appState.location.city, appState.location.state)
+                    : '',
+                weatherData: appState.weatherData,
+                timestamp: ts
+            });
+        } catch (e) {
+            console.warn('Failed to persist InciWeb enrichment to cache:', e);
+        }
+    }
+    if (typeof renderCurrentMode === 'function') {
+        renderCurrentMode();
+    }
+}
+
 let wildfireRefreshSeq = 0;
 
 // Refresh wildfire for a cached location without changing weather fetch timestamps.
@@ -3892,7 +3919,16 @@ async function refreshWildfireForCachedLocation({
     const seq = ++wildfireRefreshSeq;
     console.log('Wildfire: refresh start seq=', seq, 'radius=', radius, 'mi', 'prevRadius=', Number.isFinite(prevRadius) ? prevRadius : 'n/a', 'prevFires=', prevFires.length);
 
-    const result = await fetchWildFireIncidents(lat, lon, radius, { awaitInciWeb: !!awaitInciWeb });
+    const result = await fetchWildFireIncidents(lat, lon, radius, {
+        awaitInciWeb: !!awaitInciWeb,
+        previousIncidents: prevFires,
+        onInciWebEnriched: (incidents) => {
+            // Enrichment may finish after apply; refresh UI/cache if this list is still active.
+            if (appState.weatherData && appState.weatherData.wildFires === incidents) {
+                applyInciWebEnrichmentToActiveWeather(incidents);
+            }
+        }
+    });
     // A newer radius/settings refresh started — ignore this response.
     if (seq !== wildfireRefreshSeq) {
         console.log('Wildfire: refresh seq=', seq, 'stale (current=', wildfireRefreshSeq, '); ignoring');
@@ -5205,7 +5241,9 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             includeAqi: !!(appState.enableAqi && appState.airNowApiKeyValid && (appState.airNowApiKey || '').trim()),
             airNowApiKey: appState.airNowApiKey || '',
             includeWildfire: !!appState.enableWildfire,
-            wildfireRadiusMiles: clampWildfireRadiusMiles(appState.wildfireRadiusMiles)
+            wildfireRadiusMiles: clampWildfireRadiusMiles(appState.wildfireRadiusMiles),
+            previousWildFires: previousWeatherForWildfire?.wildFires,
+            onInciWebEnriched: applyInciWebEnrichmentToActiveWeather
         });
         let processedWeather = processWeatherData(weatherData);
         processedWeather = preserveWildFiresIfFetchFailed(processedWeather, previousWeatherForWildfire);
@@ -6258,11 +6296,18 @@ function checkAutoRefresh() {
                 if (!locationQuery) continue;
 
                 try {
+                    let existingWildFires = null;
+                    try {
+                        const existingCache = loadWeatherDataFromCache(cacheKey);
+                        existingWildFires = existingCache?.data?.weatherData?.wildFires || null;
+                    } catch (_) { /* none */ }
                     const raw = await fetchWeatherData(locationQuery, {
                         includeAqi: !!(appState.enableAqi && appState.airNowApiKeyValid && (appState.airNowApiKey || '').trim()),
                         airNowApiKey: appState.airNowApiKey || '',
                         includeWildfire: !!appState.enableWildfire,
-                        wildfireRadiusMiles: clampWildfireRadiusMiles(appState.wildfireRadiusMiles)
+                        wildfireRadiusMiles: clampWildfireRadiusMiles(appState.wildfireRadiusMiles),
+                        previousWildFires: existingWildFires,
+                        onInciWebEnriched: applyInciWebEnrichmentToActiveWeather
                     });
                     let processed = processWeatherData(raw);
                     // Preserve this favorite's cached wildfires if NIFC failed on refresh.

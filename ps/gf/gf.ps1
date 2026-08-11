@@ -6399,6 +6399,52 @@ function Get-WildFireIncidentsFromApiResponse {
     return $sorted
 }
 
+function Get-ConsoleWindowWidth {
+    try {
+        $w = [int]$Host.UI.RawUI.WindowSize.Width
+        if ($w -ge 20) { return $w }
+    } catch {}
+    return 80
+}
+
+# Write Wild Fire Info stats segments; if the next piece would wrap mid-section, start a new line instead of " · ".
+function Write-WildFireStatsSegments {
+    param(
+        [object[]]$Segments,
+        [string]$DefaultColor = "White"
+    )
+    $list = @($Segments | Where-Object { $_ -and -not [string]::IsNullOrEmpty([string]$_.Text) })
+    if ($list.Count -eq 0) { return }
+
+    $width = Get-ConsoleWindowWidth
+    $col = 0
+    $first = $true
+    foreach ($seg in $list) {
+        $text = [string]$seg.Text
+        $color = if ($seg.Color) { [string]$seg.Color } else { $DefaultColor }
+        $sep = if ($first) { '' } else { ' · ' }
+        $needed = $sep.Length + $text.Length
+        # Prefer a line feed before this section over wrapping it mid-content.
+        if (-not $first -and ($col + $needed) -gt $width) {
+            Write-Host ""
+            $col = 0
+            $sep = ''
+        }
+        if ($sep) {
+            Write-Host $sep -ForegroundColor $DefaultColor -NoNewline
+            $col += $sep.Length
+        }
+        Write-Host $text -ForegroundColor $color -NoNewline
+        $col += $text.Length
+        if ($col -ge $width) {
+            # Segment itself longer than the window; terminal wrapped — track remainder.
+            $col = $col % $width
+        }
+        $first = $false
+    }
+    Write-Host ""
+}
+
 function Show-WildFireInfo {
     param(
         [object]$Incidents,
@@ -6422,33 +6468,33 @@ function Show-WildFireInfo {
         Write-Host "$($f.Name)" -ForegroundColor Yellow -NoNewline
         Write-Host "  $($f.DistanceMi)mi $($f.Cardinal)" -ForegroundColor $DefaultColor
 
+        $statsSegments = @()
         $acresStr = Format-WildFireAcres -Acres $f.Acres
         $acresColor = Get-WildFireAcresForegroundColor -Acres $f.Acres -DefaultColor $DefaultColor
-        Write-Host "Size: " -ForegroundColor $DefaultColor -NoNewline
         if ($acresStr) {
-            Write-Host "${acresStr} ac" -ForegroundColor $acresColor -NoNewline
+            $statsSegments += [pscustomobject]@{ Text = "Size: ${acresStr} ac"; Color = $acresColor }
         } else {
-            Write-Host "—" -ForegroundColor $DefaultColor -NoNewline
+            $statsSegments += [pscustomobject]@{ Text = "Size: —"; Color = $DefaultColor }
         }
         if ($f.Discovered) {
             try {
-                Write-Host " · " -ForegroundColor $DefaultColor -NoNewline
-                Write-Host ("Discovered: " + $f.Discovered.ToString('MM/dd HH:mm')) -ForegroundColor $DefaultColor -NoNewline
+                $statsSegments += [pscustomobject]@{
+                    Text  = ("Discovered: " + $f.Discovered.ToString('MM/dd HH:mm'))
+                    Color = $DefaultColor
+                }
             } catch {}
         }
         $costStr = Format-WildFireCost -EstimatedCostToDate $f.EstimatedCost -EstimatedFinalCost $f.EstimatedFinalCost
         if ($costStr) {
             $costColor = Get-WildFireCostForegroundColor -EstimatedCostToDate $f.EstimatedCost -EstimatedFinalCost $f.EstimatedFinalCost -DefaultColor $DefaultColor
-            Write-Host " · " -ForegroundColor $DefaultColor -NoNewline
-            Write-Host "Cost: $costStr" -ForegroundColor $costColor -NoNewline
+            $statsSegments += [pscustomobject]@{ Text = "Cost: $costStr"; Color = $costColor }
         }
         if ($null -ne $f.Contained) {
             $contPct = [Math]::Round([double]$f.Contained, 0)
             $contColor = $DefaultColor
             if ($contPct -ge 100) { $contColor = "Green" }
             elseif ($contPct -eq 0) { $contColor = "Yellow" }
-            Write-Host " · " -ForegroundColor $DefaultColor -NoNewline
-            Write-Host "Contained: ${contPct}%" -ForegroundColor $contColor -NoNewline
+            $statsSegments += [pscustomobject]@{ Text = "Contained: ${contPct}%"; Color = $contColor }
         }
         if ($f.Behavior) {
             $behPart = if ($f.BehaviorDetail) {
@@ -6460,10 +6506,9 @@ function Show-WildFireInfo {
             if ($f.Behavior -match '(?i)extreme') { $behColor = "Magenta" }
             elseif ($f.Behavior -match '(?i)critical') { $behColor = "Red" }
             elseif ($f.Behavior -match '(?i)active') { $behColor = "Yellow" }
-            Write-Host " · " -ForegroundColor $DefaultColor -NoNewline
-            Write-Host $behPart -ForegroundColor $behColor -NoNewline
+            $statsSegments += [pscustomobject]@{ Text = $behPart; Color = $behColor }
         }
-        Write-Host ""
+        Write-WildFireStatsSegments -Segments $statsSegments -DefaultColor $DefaultColor
 
         $line3Parts = @()
         if ($f.Cause) { $line3Parts += "Cause: $($f.Cause)" }
@@ -6477,7 +6522,10 @@ function Show-WildFireInfo {
         }
         if ($place.Count -gt 0) { $line3Parts += ($place -join ', ') }
         if ($line3Parts.Count -gt 0) {
-            Write-Host ($line3Parts -join ' · ') -ForegroundColor $DefaultColor
+            $metaSegments = @($line3Parts | ForEach-Object {
+                [pscustomobject]@{ Text = $_; Color = $DefaultColor }
+            })
+            Write-WildFireStatsSegments -Segments $metaSegments -DefaultColor $DefaultColor
         }
         if ($f.ShortDesc) {
             Write-Host $f.ShortDesc -ForegroundColor Gray

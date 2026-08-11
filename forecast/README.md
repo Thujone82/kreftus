@@ -249,7 +249,7 @@ The app checks for new versions (e.g. via `manifest.json` version and service wo
   - **Cause** (full Wild Fire Info meta line): prefer `FireCauseGeneral` when populated; if `FireCause` is `Undetermined`, show that instead.
   - **Contained** (full Wild Fire Info): yellow when Contained is 0%; green when 100%; otherwise default (omitted when null).
   - **Behavior** (full Wild Fire Info): magenta when Extreme; alert/red when Critical; warning/yellow when Active (case-insensitive); otherwise default.
-  - **InciWeb links:** Incident pages are validated via InciWeb Views AJAX. Successful probes stay cached for the session; misses (no page yet) are re-checked after **60 minutes** so a later publish can appear.
+  - **InciWeb links:** Incident pages are validated via InciWeb Views AJAX. Successful probes stay cached for the session; misses (no page yet) are re-checked after **60 minutes** so a later publish can appear. Auto-refresh carries forward known InciWeb URLs so links do not blank while probes run in the background.
 - **Hour labels (Hourly)**: Yellow for hours mostly in daytime (sunrise–sunset), default otherwise. **Time** column header includes ordinal calendar day(s) for the visible page (location timezone).
 
 ## File Structure

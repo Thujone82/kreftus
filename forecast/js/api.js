@@ -1395,6 +1395,33 @@ async function resolveInciWebIncidentUrl(protectingUnit, incidentName) {
     return null;
 }
 
+/** Stable key for matching the same NIFC incident across refreshes. */
+function wildFireIdentityKey(fire) {
+    const unit = String(fire?.unit || '').trim().toLowerCase();
+    const name = String(fire?.name || '').trim().toLowerCase();
+    return `${unit}|${name}`;
+}
+
+/**
+ * Copy previously known InciWeb URLs onto new incident objects (only where still missing).
+ * Prevents auto-refresh from blanking links while probes run in the background.
+ */
+function mergeWildFireInciWebFromPrevious(incidents, previousIncidents) {
+    if (!Array.isArray(incidents) || incidents.length === 0) return incidents;
+    if (!Array.isArray(previousIncidents) || previousIncidents.length === 0) return incidents;
+    const prevByKey = new Map();
+    for (const prev of previousIncidents) {
+        if (prev && prev.inciwebUrl) prevByKey.set(wildFireIdentityKey(prev), prev.inciwebUrl);
+    }
+    if (prevByKey.size === 0) return incidents;
+    for (const inc of incidents) {
+        if (inc.inciwebUrl) continue;
+        const url = prevByKey.get(wildFireIdentityKey(inc));
+        if (url) inc.inciwebUrl = url;
+    }
+    return incidents;
+}
+
 function formatWildFireAcres(acres) {
     const n = Number(acres);
     if (!Number.isFinite(n) || n < 0) return null;
@@ -1592,12 +1619,18 @@ function normalizeNifcWildFireIncidents(apiData, lat, lon, distanceMiles = WILDF
  * @param {object} [options]
  * @param {boolean} [options.awaitInciWeb] - wait (briefly) for InciWeb link enrichment before returning
  * @param {number} [options.inciWebBudgetMs]
+ * @param {Array} [options.previousIncidents] - prior wildfire list; InciWeb URLs are carried forward
+ * @param {function} [options.onInciWebEnriched] - called after background enrichment finishes
  */
 async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_MILES, options = {}) {
     const awaitInciWeb = !!options.awaitInciWeb;
     const inciWebBudgetMs = Number.isFinite(Number(options.inciWebBudgetMs))
         ? Math.max(0, Number(options.inciWebBudgetMs))
         : 8000;
+    const previousIncidents = Array.isArray(options.previousIncidents) ? options.previousIncidents : null;
+    const onInciWebEnriched = typeof options.onInciWebEnriched === 'function'
+        ? options.onInciWebEnriched
+        : null;
     const radius = Number(distanceMiles);
     if (!Number.isFinite(radius) || radius <= 0) {
         console.log('Wildfire: skipped (radius', radius, ')');
@@ -1636,18 +1669,33 @@ async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_
         clearTimeout(timeoutId);
     }
 
+    // Keep previously known InciWeb links while probes run (auto-refresh must not blank them).
+    mergeWildFireInciWebFromPrevious(incidents, previousIncidents);
+
     // Soft-fail InciWeb link enrichment. Settings radius changes await a short budget so
     // the UI can refresh once with links; other callers keep enrichment off the critical path.
+    // Successful probes set/upgrade URLs; failed probes never clear a carried-forward link.
     if (incidents.length > 0) {
         console.log('Wildfire: enriching InciWeb links for', incidents.length, 'incident(s)', awaitInciWeb ? '(await)' : '(background)');
         const enrichPromise = Promise.all(incidents.map(async (inc) => {
             try {
-                inc.inciwebUrl = await resolveInciWebIncidentUrl(inc.unit, inc.name);
-                console.log('Wildfire: InciWeb', inc.name, inc.inciwebUrl ? '→ ' + inc.inciwebUrl : '(no match)');
+                const urlFound = await resolveInciWebIncidentUrl(inc.unit, inc.name);
+                if (urlFound) {
+                    inc.inciwebUrl = urlFound;
+                    console.log('Wildfire: InciWeb', inc.name, '→', urlFound);
+                } else {
+                    console.log('Wildfire: InciWeb', inc.name, inc.inciwebUrl ? '(kept prior link)' : '(no match)');
+                }
             } catch (_) {
-                /* keep null */
+                /* keep prior / null */
             }
-        })).catch((e) => {
+        })).then(() => {
+            if (onInciWebEnriched) {
+                try { onInciWebEnriched(incidents); } catch (e) {
+                    console.warn('InciWeb enrichment callback failed:', e);
+                }
+            }
+        }).catch((e) => {
             console.warn('InciWeb wildfire link enrichment failed:', e);
         });
         if (awaitInciWeb) {
@@ -1655,6 +1703,8 @@ async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_
                 enrichPromise,
                 new Promise((resolve) => setTimeout(resolve, inciWebBudgetMs))
             ]);
+            // Race may end before probes finish; keep any still-known prior links.
+            mergeWildFireInciWebFromPrevious(incidents, previousIncidents);
         } else {
             void enrichPromise;
         }
@@ -1673,6 +1723,10 @@ async function fetchWeatherData(location, options = {}) {
     const wildfireRadiusMiles = Number.isFinite(Number(options.wildfireRadiusMiles))
         ? Number(options.wildfireRadiusMiles)
         : WILDFIRE_RADIUS_MILES;
+    const previousWildFires = Array.isArray(options.previousWildFires) ? options.previousWildFires : null;
+    const onInciWebEnriched = typeof options.onInciWebEnriched === 'function'
+        ? options.onInciWebEnriched
+        : null;
     let lat, lon, city, state;
     
     // Geocode location or detect current location
@@ -1725,7 +1779,10 @@ async function fetchWeatherData(location, options = {}) {
         includeAqi ? fetchAirNowAqi(lat, lon, airNowApiKey) : Promise.resolve(null),
         latestObsPromise,
         (includeWildfire && wildfireRadiusMiles > 0)
-            ? fetchWildFireIncidents(lat, lon, wildfireRadiusMiles)
+            ? fetchWildFireIncidents(lat, lon, wildfireRadiusMiles, {
+                previousIncidents: previousWildFires,
+                onInciWebEnriched
+            })
             : Promise.resolve({ ok: true, incidents: [], skipped: true })
     ]);
     
