@@ -121,7 +121,7 @@ Write-Host "]ll" -ForegroundColor White
 
 3. **File Operations**
    - `Invoke-UpdateJob`: Execute a single update job
-   - `Start-SelectedJobs`: Execute all selected jobs
+   - `Start-SelectedJobs`: Execute all selected jobs; returns `$true` only if all succeed
    - Supports both local file copy and HTTP/HTTPS downloads
 
 4. **UI Components**
@@ -418,6 +418,12 @@ Add non-interactive CLI switches to list configured jobs and show help, without 
 3. `$ListJobs` → `Show-JobsTable` → return
 4. `Test-CommandLineArgs` (preselect / `-Auto`)
 5. Interactive `Show-UpdateScreen`
+
+#### Auto Mode Exit Codes
+- `Start-SelectedJobs` returns `$true` only when every selected job succeeds; otherwise `$false`.
+- `Test-CommandLineArgs` under `-Auto` returns `@{ Handled = $true; Success = <bool> }` (also `Success = $false` when no jobs were selected).
+- `Main` calls `exit 1` when auto mode fails and `exit 0` when it succeeds, so shell chaining (`upd -a -thing && thing`) skips the second command on failure.
+- Interactive callers discard the return value with `$null = Start-SelectedJobs` to avoid leaking `$true`/`$false` to the console.
 
 ### v1.3 - Job Selection Key Mapping (1–20)
 

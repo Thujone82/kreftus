@@ -323,7 +323,7 @@ function Invoke-UpdateJob {
 function Start-SelectedJobs {
     if ($script:SelectedJobs.Count -eq 0) {
         Write-Red "No jobs selected for execution."
-        return
+        return $false
     }
     
     Write-Verbose "Starting execution of $($script:SelectedJobs.Count) selected jobs"
@@ -387,8 +387,9 @@ function Start-SelectedJobs {
     }
     
     $jobCount = $script:SelectedJobs.Count
+    $allSucceeded = ($successCount -eq $jobCount)
     $summary = "Completed: $successCount of $jobCount jobs successful"
-    if ($successCount -eq $jobCount) {
+    if ($allSucceeded) {
         Write-Green $summary
     }
     elseif ($successCount -gt 0) {
@@ -397,6 +398,8 @@ function Start-SelectedJobs {
     else {
         Write-Red $summary
     }
+
+    return $allSucceeded
 }
 
 # Function to validate job names (no spaces or special characters)
@@ -613,7 +616,7 @@ function Show-UpdateScreen {
                 if ($script:SelectedJobs.Count -gt 0) {
                     $confirm = Read-Host "Execute $($script:SelectedJobs.Count) selected job(s)? (y/N)"
                     if ($confirm -eq 'y' -or $confirm -eq 'Y') {
-                        Start-SelectedJobs
+                        $null = Start-SelectedJobs
                         Write-Host "Press any key to continue..." -ForegroundColor Yellow
                         $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
                         continue
@@ -634,7 +637,7 @@ function Show-UpdateScreen {
             if ($script:SelectedJobs.Count -gt 0) {
                 $confirm = Read-Host "Execute $($script:SelectedJobs.Count) selected job(s)? (y/N)"
                 if ($confirm -eq 'y' -or $confirm -eq 'Y') {
-                    Start-SelectedJobs
+                    $null = Start-SelectedJobs
                     Write-Host "Press any key to continue..." -ForegroundColor Yellow
                     $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
                     continue
@@ -737,7 +740,7 @@ function Show-Help {
     Write-Host '  .\upd.ps1 -Verbose             Enable debug output'
     Write-Host ''
     Write-White 'Switches:'
-    Write-Host '  -a, -Auto     Auto-execute pre-selected jobs (no confirmation)'
+    Write-Host '  -a, -Auto     Auto-execute pre-selected jobs (exit 1 if any fail)'
     Write-Host '  -Jobs         Print Name / Source / Destination for all jobs'
     Write-Host '  -h, -Help     Show help and exit'
     Write-Host '  -Verbose      Verbose logging'
@@ -804,16 +807,16 @@ function Test-CommandLineArgs {
         Write-Verbose "Auto mode enabled"
         if ($script:SelectedJobs.Count -gt 0) {
             Write-White "Auto mode: Executing selected jobs..."
-            Start-SelectedJobs
-            return $true
+            $ok = Start-SelectedJobs
+            return @{ Handled = $true; Success = [bool]$ok }
         }
         else {
             Write-Red "Auto mode: No jobs selected."
-            return $false
+            return @{ Handled = $true; Success = $false }
         }
     }
     
-    return $false
+    return @{ Handled = $false; Success = $true }
 }
 
 # Main execution
@@ -833,9 +836,13 @@ function Main {
         return
     }
     
-    # Process command line arguments
-    if (Test-CommandLineArgs) {
-        return
+    # Process command line arguments (preselect / auto-execute)
+    $cli = Test-CommandLineArgs
+    if ($cli.Handled) {
+        if (-not $cli.Success) {
+            exit 1
+        }
+        exit 0
     }
     
     # Log pre-selected jobs if any

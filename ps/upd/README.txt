@@ -40,7 +40,9 @@ USAGE:
         .\upd.ps1 -jobname -a
         .\upd.ps1 -jobname -auto
         
-    Note: Auto mode (-a) completes without requiring a key press and leaves output visible
+    Note: Auto mode (-a) completes without requiring a key press, leaves output
+    visible, and exits with code 1 if any selected job fails (so `upd -a -job && next`
+    only runs next when the update succeeds).
         
     Verbose Mode:
         .\upd.ps1 -Verbose
@@ -118,6 +120,8 @@ DYNAMIC DATE PLACEHOLDERS:
 COMMAND LINE ARGUMENTS:
     -jobname        Pre-select a job by name (case-insensitive)
     -a, -Auto       Auto-execute pre-selected jobs without confirmation
+                    Exits 0 if all selected jobs succeed; exits 1 otherwise
+                    (so chaining with && only continues on full success)
     -Jobs           List all configured jobs (Name, Source, Destination)
     -h, -Help       Show help and exit
     -Verbose        Enable verbose debug output
