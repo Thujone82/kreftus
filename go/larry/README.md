@@ -14,7 +14,7 @@ Difficulty rises with lane density and speed. Later levels add hazards and picku
 - **High Scores** — top-10 list from the menu; hop Larry to select a run and view saved details (death level, hearts, gems, version — blank fields omitted). Persistent `larry.scores.json` (MMDDYY); legacy files migrate on launch
 - **Traffic backdrop** — animated lanes behind the title screen
 - **Safe playfield** — top/bottom shoulders plus random safe gaps between road packs
-- **Goal line** — yellow `▚▞` checker on the top shoulder
+- **Goal line** — yellow `▚▞▚▞▚▞▚▞` checker on the top shoulder
 - **Themes** — palette changes each level (levels continue past 9)
 - **Debris (L6+)** — impassable `☙` on mid safe gaps (1% at L6, +1%/level through L10, then +0.5%/level, cap 10%)
 - **Heart (L8+)** — flashing mid-lane `♥`; hop for +1 life (HUD: `+1 Life`)
