@@ -160,6 +160,9 @@ func main() {
 	enableUTF8Console() // re-apply CP65001 + Unicode font after tcell init
 	resizeToPreferred()
 	s.Sync()
+	// Avoid mouse/paste floods filling the event queue while the menu sits idle
+	s.DisableMouse()
+	s.DisablePaste()
 	defer s.Fini()
 	s.Clear()
 	s.HideCursor()
@@ -200,7 +203,18 @@ func main() {
 	events := make(chan tcell.Event, 64)
 	go func() {
 		for {
-			events <- s.PollEvent()
+			ev := s.PollEvent()
+			if ev == nil {
+				return // screen finalized
+			}
+			// Only forward gameplay-relevant events. Mouse/OS noise must not
+			// block PollEvent or pile up — that causes hours-long menu idle lag.
+			switch ev.(type) {
+			case *tcell.EventKey, *tcell.EventResize:
+				events <- ev
+			default:
+				// discard
+			}
 		}
 	}()
 	g.events = events
@@ -208,21 +222,39 @@ func main() {
 	tick := time.NewTicker(time.Second / 30)
 	defer tick.Stop()
 
+	handleEv := func(ev tcell.Event) bool {
+		switch e := ev.(type) {
+		case *tcell.EventResize:
+			g.resize(e)
+		case *tcell.EventKey:
+			if g.handleQuit(e) {
+				return true
+			}
+			if g.handleInput(e) {
+				return true
+			}
+		}
+		return false
+	}
+
 	for {
 		select {
 		case ev := <-events:
-			switch e := ev.(type) {
-			case *tcell.EventResize:
-				g.resize(e)
-			case *tcell.EventKey:
-				if g.handleQuit(e) {
-					return
-				}
-				if g.handleInput(e) {
-					return
-				}
+			if handleEv(ev) {
+				return
 			}
 		case <-tick.C:
+			// Drain any input that arrived with this frame so keys don't backlog
+			for draining := true; draining; {
+				select {
+				case ev := <-events:
+					if handleEv(ev) {
+						return
+					}
+				default:
+					draining = false
+				}
+			}
 			g.update()
 			g.render()
 		case <-sigChan:
