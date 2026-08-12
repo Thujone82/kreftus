@@ -1,0 +1,14 @@
+---
+description: User owns Larry builds; do not rebuild unless testing requires it
+alwaysApply: true
+---
+
+# Larry builds: user-owned
+
+The user manages Larry builds with `go/larry/build.ps1`. Do **not** run `build.ps1`, `go build`, or other Larry binary rebuilds unless a compile is needed to verify a change during testing.
+
+When the user asks to commit and/or push Larry (`go/larry`) changes:
+
+- Stage and commit already-modified binaries if present (`go/larry/bin/**`), same as other tools — do not exclude them as unrelated.
+- Do **not** rebuild first to “refresh” binaries for the commit; use whatever the user already built.
+- Prefer including modified binaries in the same commit as the related source/docs when they are already present in the working tree.
