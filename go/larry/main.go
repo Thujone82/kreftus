@@ -207,13 +207,17 @@ func main() {
 			if ev == nil {
 				return // screen finalized
 			}
-			// Only forward gameplay-relevant events. Mouse/OS noise must not
-			// block PollEvent or pile up — that causes hours-long menu idle lag.
+			// Only forward gameplay-relevant events. Never block on send: a full
+			// channel must not stall PollEvent (that backs up tcell after idle/wake).
 			switch ev.(type) {
 			case *tcell.EventKey, *tcell.EventResize:
-				events <- ev
+				select {
+				case events <- ev:
+				default:
+					// drop; keep draining the console input queue
+				}
 			default:
-				// discard
+				// discard mouse/OS noise
 			}
 		}
 	}()
@@ -222,11 +226,16 @@ func main() {
 	tick := time.NewTicker(time.Second / 30)
 	defer tick.Stop()
 
+	lastFrame := time.Now()
+	lastInput := time.Now()
+	lastIdleDraw := time.Time{}
+
 	handleEv := func(ev tcell.Event) bool {
 		switch e := ev.(type) {
 		case *tcell.EventResize:
 			g.resize(e)
 		case *tcell.EventKey:
+			lastInput = time.Now()
 			if g.handleQuit(e) {
 				return true
 			}
@@ -255,7 +264,27 @@ func main() {
 					draining = false
 				}
 			}
+			now := time.Now()
+			// After sleep/lock or a long stall, resync console and drop stale keys
+			if now.Sub(lastFrame) > 2*time.Second {
+				g.screen.Sync()
+				g.flushInput()
+			}
+			lastFrame = now
+
 			g.update()
+
+			// Pause / confirm overlays are static — redrawing for hours thrashes the console
+			if g.paused || g.confirmMenu {
+				continue
+			}
+			// Idle start menu: keep traffic alive but throttle draws to ease console load
+			if g.showStartScreen && now.Sub(lastInput) > 5*time.Second {
+				if !lastIdleDraw.IsZero() && now.Sub(lastIdleDraw) < 500*time.Millisecond {
+					continue
+				}
+				lastIdleDraw = now
+			}
 			g.render()
 		case <-sigChan:
 			// Handle Ctrl+C and other termination signals
@@ -784,14 +813,17 @@ func (g *game) handleInput(e *tcell.EventKey) bool {
 	// Toggle pause on Space
 	if e.Key() == tcell.KeyRune && e.Rune() == ' ' {
 		if g.paused {
-			// resuming
+			// resuming — drop any key-repeat that piled up while paused
 			g.paused = false
+			g.flushInput()
+			g.screen.Sync()
 			if g.scoreTimerActive {
 				g.nextScoreDecrement = time.Now().Add(time.Second)
 			}
 		} else {
-			// pausing
+			// pausing — draw overlay once; main loop skips further redraws while paused
 			g.paused = true
+			g.render()
 		}
 		return false
 	}
@@ -1433,11 +1465,13 @@ func (g *game) handleQuit(e *tcell.EventKey) bool {
 	// Esc during confirm cancels and resumes
 	if g.confirmMenu {
 		g.confirmMenu = false
+		g.flushInput()
 		return false
 	}
 	// Esc during play / name entry → confirm return to menu (Larry starts on No)
 	g.confirmMenu = true
 	g.confirmYes = false
+	g.render() // draw once; main loop skips redraws while confirm is open
 	return false
 }
 
