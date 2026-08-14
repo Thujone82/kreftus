@@ -54,6 +54,8 @@ type game struct {
 	pendingSolved bool
 	redraw        chan struct{}
 
+	pencil bool // Tab: false = pen ✒️, true = pencil ✏️
+
 	events chan tcell.Event
 }
 
@@ -311,16 +313,19 @@ func (g *game) handlePlay(e *tcell.EventKey) bool {
 		g.view = viewConfirmExit
 		g.confirmIndex = 1
 		return false
+	case tcell.KeyTab, tcell.KeyBacktab:
+		g.pencil = !g.pencil
+		g.persistPlay()
 	case tcell.KeyLeft:
-		g.board.move(-1, 0)
+		g.movePlay(-1, 0)
 	case tcell.KeyRight:
-		g.board.move(1, 0)
+		g.movePlay(1, 0)
 	case tcell.KeyUp:
-		g.board.move(0, -1)
+		g.movePlay(0, -1)
 	case tcell.KeyDown:
-		g.board.move(0, 1)
+		g.movePlay(0, 1)
 	case tcell.KeyBackspace, tcell.KeyBackspace2, tcell.KeyDelete:
-		if g.board.clear() {
+		if g.clearPlay() {
 			g.persistPlay()
 		}
 	case tcell.KeyRune:
@@ -331,25 +336,35 @@ func (g *game) handlePlay(e *tcell.EventKey) bool {
 			g.persistPlay()
 			g.view = viewPaused
 			return false
+		case '\t':
+			g.pencil = !g.pencil
+			g.persistPlay()
 		case 'a', 'A', 'h', 'H':
-			g.board.move(-1, 0)
+			g.movePlay(-1, 0)
 		case 'd', 'D', 'l', 'L':
-			g.board.move(1, 0)
+			g.movePlay(1, 0)
 		case 'w', 'W', 'k', 'K':
-			g.board.move(0, -1)
+			g.movePlay(0, -1)
 		case 's', 'S', 'j', 'J':
-			g.board.move(0, 1)
+			g.movePlay(0, 1)
 		case '0', '.':
-			if g.board.clear() {
+			if g.clearPlay() {
 				g.persistPlay()
 			}
 		case '1', '2', '3', '4', '5', '6', '7', '8', '9':
+			if g.pencil {
+				if g.board.markPencil(byte(r)) {
+					g.rotateAccent(g.accentStep())
+					g.persistPlay()
+				}
+				break
+			}
 			if g.board.place(byte(r)) {
 				if g.board.isLocked(g.board.cursor) {
 					g.rotateAccent(1)
 					g.startFlash(true)
 				} else {
-					g.rotateAccent(-1)
+					g.rotateAccent(-8)
 					g.startFlash(false)
 				}
 				g.persistPlay()
@@ -360,6 +375,25 @@ func (g *game) handlePlay(e *tcell.EventKey) bool {
 		}
 	}
 	return false
+}
+
+func (g *game) movePlay(dx, dy int) {
+	g.board.move(dx, dy)
+	g.rotateAccent(g.accentStep())
+}
+
+func (g *game) accentStep() int {
+	if g.pencil {
+		return -1
+	}
+	return 1
+}
+
+func (g *game) clearPlay() bool {
+	if g.pencil {
+		return g.board.clearPencil()
+	}
+	return g.board.clear()
 }
 
 func (g *game) handlePaused(e *tcell.EventKey) bool {
@@ -492,6 +526,7 @@ func (g *game) persistPlay() {
 		return
 	}
 	ms := g.currentElapsed().Milliseconds()
+	top, bot, slot := g.board.pencilsString()
 	g.save.Continue = &continueGame{
 		ID:         g.puzzle.ID,
 		Difficulty: g.difficulty,
@@ -500,6 +535,10 @@ func (g *game) persistPlay() {
 		Grid:       g.board.gridString(),
 		ElapsedMs:  ms,
 		Mistakes:   g.board.mistakes,
+		Pencil:     g.pencil,
+		PencilTop:  top,
+		PencilBot:  bot,
+		PencilSlot: slot,
 	}
 	_ = g.save.write()
 }
@@ -518,6 +557,7 @@ func (g *game) startNewGame() {
 	g.rotateAccent(1)
 	g.puzzle = p
 	g.board = newBoard(p.Givens, p.Solution, p.Givens)
+	g.pencil = false
 	g.elapsed = 0
 	g.clockRunning = false
 	g.startClock()
@@ -543,6 +583,8 @@ func (g *game) resumeContinue() {
 	g.puzzle = p
 	g.board = newBoard(c.Givens, p.Solution, c.Grid)
 	g.board.mistakes = c.Mistakes
+	g.board.loadPencils(c.PencilTop, c.PencilBot, c.PencilSlot)
+	g.pencil = false
 	g.elapsed = time.Duration(c.ElapsedMs) * time.Millisecond
 	g.clockRunning = false
 	g.startClock()

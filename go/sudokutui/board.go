@@ -1,11 +1,13 @@
 ﻿package main
 
 type board struct {
-	givens   [81]byte
-	solution [81]byte
-	grid     [81]byte
-	cursor   int
-	mistakes int
+	givens     [81]byte
+	solution   [81]byte
+	grid       [81]byte
+	cursor     int
+	mistakes   int
+	pencil     [81][2]byte // '1'-'9' or 0; [0] top half, [1] bottom half
+	pencilSlot [81]byte    // next write: 0 top, 1 bottom
 }
 
 func newBoard(givens, solution, grid string) board {
@@ -57,7 +59,7 @@ func (b *board) gridString() string {
 }
 
 func (b *board) isGiven(i int) bool {
-	return b.givens[i] != '0'
+	return !emptyCell(b.givens[i])
 }
 
 func (b *board) isLocked(i int) bool {
@@ -65,12 +67,22 @@ func (b *board) isLocked(i int) bool {
 		return true
 	}
 	v := b.grid[i]
-	return v != '0' && v == b.solution[i]
+	if emptyCell(v) {
+		return false
+	}
+	return v == b.solution[i]
 }
 
 func (b *board) isWrong(i int) bool {
 	v := b.grid[i]
-	return v != '0' && v != b.solution[i]
+	if emptyCell(v) {
+		return false
+	}
+	return v != b.solution[i]
+}
+
+func emptyCell(c byte) bool {
+	return c == 0 || c == '0' || c == '.'
 }
 
 func (b *board) isComplete() bool {
@@ -80,6 +92,21 @@ func (b *board) isComplete() bool {
 		}
 	}
 	return true
+}
+
+func (b *board) completedDigits() [10]bool {
+	var count [10]int
+	for i := 0; i < 81; i++ {
+		v := b.grid[i]
+		if v >= '1' && v <= '9' && v == b.solution[i] {
+			count[v-'0']++
+		}
+	}
+	var done [10]bool
+	for d := 1; d <= 9; d++ {
+		done[d] = count[d] == 9
+	}
+	return done
 }
 
 func (b *board) place(digit byte) bool {
@@ -94,6 +121,7 @@ func (b *board) place(digit byte) bool {
 		return false
 	}
 	b.grid[i] = digit
+	b.clearPencilsAt(i)
 	if digit != b.solution[i] {
 		b.mistakes++
 	}
@@ -105,7 +133,7 @@ func (b *board) clear() bool {
 	if b.isLocked(i) {
 		return false
 	}
-	if b.grid[i] == '0' {
+	if emptyCell(b.grid[i]) {
 		return false
 	}
 	b.grid[i] = '0'
@@ -117,4 +145,84 @@ func (b *board) move(dx, dy int) {
 	x = (x + dx + 9) % 9
 	y = (y + dy + 9) % 9
 	b.cursor = y*9 + x
+}
+
+func (b *board) markPencil(digit byte) bool {
+	i := b.cursor
+	if b.isLocked(i) || !emptyCell(b.grid[i]) {
+		return false
+	}
+	if digit < '1' || digit > '9' {
+		return false
+	}
+	if b.completedDigits()[digit-'0'] {
+		return false
+	}
+	if b.pencil[i][0] == digit || b.pencil[i][1] == digit {
+		return false
+	}
+	slot := b.pencilSlot[i]
+	if slot > 1 {
+		slot = 0
+	}
+	b.pencil[i][slot] = digit
+	b.pencilSlot[i] = 1 - slot
+	return true
+}
+
+func (b *board) clearPencil() bool {
+	i := b.cursor
+	if b.isLocked(i) {
+		return false
+	}
+	if b.pencil[i][0] == 0 && b.pencil[i][1] == 0 {
+		return false
+	}
+	b.clearPencilsAt(i)
+	return true
+}
+
+func (b *board) clearPencilsAt(i int) {
+	b.pencil[i][0] = 0
+	b.pencil[i][1] = 0
+	b.pencilSlot[i] = 0
+}
+
+func (b *board) hasPencil(i int) bool {
+	return emptyCell(b.grid[i]) && (b.pencil[i][0] != 0 || b.pencil[i][1] != 0)
+}
+
+func (b *board) pencilsString() (top, bot, slot string) {
+	var t, o, s [81]byte
+	for i := 0; i < 81; i++ {
+		t[i] = pencilDigit(b.pencil[i][0])
+		o[i] = pencilDigit(b.pencil[i][1])
+		if b.pencilSlot[i] == 1 {
+			s[i] = '1'
+		} else {
+			s[i] = '0'
+		}
+	}
+	return string(t[:]), string(o[:]), string(s[:])
+}
+
+func pencilDigit(d byte) byte {
+	if d >= '1' && d <= '9' {
+		return d
+	}
+	return '0'
+}
+
+func (b *board) loadPencils(top, bot, slot string) {
+	for i := 0; i < 81; i++ {
+		if i < len(top) && top[i] >= '1' && top[i] <= '9' {
+			b.pencil[i][0] = top[i]
+		}
+		if i < len(bot) && bot[i] >= '1' && bot[i] <= '9' {
+			b.pencil[i][1] = bot[i]
+		}
+		if i < len(slot) && slot[i] == '1' {
+			b.pencilSlot[i] = 1
+		}
+	}
 }

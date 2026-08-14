@@ -102,6 +102,9 @@ func (g *game) borderStyle() tcell.Style {
 		}
 		return styleFlashBad
 	}
+	if g.pencil {
+		return styleGridPencil
+	}
 	return styleGrid
 }
 

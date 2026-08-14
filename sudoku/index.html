@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sudoku v1.0 - Terminal Puzzle Game</title>
+    <title>Sudoku v1.2 - Terminal Puzzle Game</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin:0; padding:0; background:#f4f4f4; color:#333; line-height:1.6; }
         header { background:#333; color:#fff; padding:1.5rem 0; text-align:center; margin-bottom:2rem; position: relative; }
@@ -28,16 +28,16 @@
         .readme-link { padding-left:1em; margin-top:-0.5em; font-size:0.9em; margin-bottom:1rem; }
         @media (max-width:900px){ .project-image-cell, .project-text-cell{ display:block; width:100%; box-sizing:border-box; } .project-image-cell{ max-width:none; padding-right:0; padding-bottom:1rem; } .project-image-cell img{ width:auto; max-width:100%; margin:0; } }
     </style>
-    <meta name="description" content="Sudoku v1.0 is a cross-platform terminal Sudoku game in Go with UTF-8 box drawing, colored digits, continue saves, per-difficulty stats, and puzzles from the public-domain Sudoku Exchange bank.">
+    <meta name="description" content="Sudoku v1.2 is a cross-platform terminal Sudoku game in Go with UTF-8 box drawing, colored digits, continue saves, per-difficulty stats, and puzzles from the public-domain Sudoku Exchange bank.">
     <link rel="canonical" href="https://kreft.us/sudoku/">
-    <meta property="og:title" content="Sudoku v1.0 - Terminal Puzzle Game">
-    <meta property="og:description" content="Sudoku v1.0 is a cross-platform terminal Sudoku game in Go with UTF-8 box drawing, colored digits, continue saves, per-difficulty stats, and puzzles from the public-domain Sudoku Exchange bank.">
+    <meta property="og:title" content="Sudoku v1.2 - Terminal Puzzle Game">
+    <meta property="og:description" content="Sudoku v1.2 is a cross-platform terminal Sudoku game in Go with UTF-8 box drawing, colored digits, continue saves, per-difficulty stats, and puzzles from the public-domain Sudoku Exchange bank.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://kreft.us/sudoku/">
     <meta property="og:image" content="https://kreft.us/images/sudoku.png">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Sudoku v1.0 - Terminal Puzzle Game">
-    <meta name="twitter:description" content="Sudoku v1.0 is a cross-platform terminal Sudoku game in Go with UTF-8 box drawing, colored digits, continue saves, per-difficulty stats, and puzzles from the public-domain Sudoku Exchange bank.">
+    <meta name="twitter:title" content="Sudoku v1.2 - Terminal Puzzle Game">
+    <meta name="twitter:description" content="Sudoku v1.2 is a cross-platform terminal Sudoku game in Go with UTF-8 box drawing, colored digits, continue saves, per-difficulty stats, and puzzles from the public-domain Sudoku Exchange bank.">
     <meta name="twitter:image" content="https://kreft.us/images/sudoku.png">
 </head>
 <body>
@@ -49,7 +49,7 @@
         <a href="https://github.com/Thujone82/kreftus" target="_blank" rel="noopener noreferrer" class="github-link" title="View on GitHub">
             <img src="../images/github-mark-white.png" alt="GitHub">
         </a>
-        <h1>Sudoku v1.0 - Terminal Puzzle Game</h1>
+        <h1>Sudoku v1.2 - Terminal Puzzle Game</h1>
     </header>
 
     <div class="container">
@@ -61,12 +61,12 @@
                     </td>
                     <td class="project-text-cell">
                         <div>
-                            <h2>Sudoku v1.0</h2>
+                            <h2>Sudoku v1.2</h2>
                             <p>
                                 <b>Sudoku</b> is a console puzzle game written in Go with tcell. Fill the 9×9 grid so every row, column, and 3×3 box contains the digits 1–9. Given clues are locked; a correct entry locks the same way so it cannot be changed by accident. Wrong digits stay in the cell with a red fill so you can correct them. Puzzles come from the public-domain <a href="https://github.com/grantm/sudoku-exchange-puzzle-bank">Sudoku Exchange Puzzle Bank</a> (Grant McLean): 2500 Easy, 2000 Medium, 1000 Hard, and 250 Diabolical. Solved IDs are never offered again.
                             </p>
                             <h3>Controls</h3>
-                            <p>Menu: ↑↓ select, ←→ change difficulty, Enter to Continue or start New Game. In game: Arrows or WASD to move (wraps at the edges), 1–9 to enter a digit, 0/Backspace/Delete to clear, Space to pause. Esc opens Exit (Abandon or Quit). Ctrl+C exits and keeps Continue for next launch.</p>
+                            <p>Menu: ↑↓ select, ←→ change difficulty, Enter to Continue or start New Game. In game: Arrows or WASD to move (wraps at the edges), Tab toggles ✒️ pen / ✏️ pencil, 1–9 to enter a digit or pencil mark, 0/Backspace/Delete to clear, Space to pause. Esc opens Exit (Abandon or Quit). Ctrl+C exits and keeps Continue for next launch.</p>
                             <h3>Updates</h3>
                             <div id="updates-container">
                                 <p>Loading updates...</p>
@@ -78,14 +78,15 @@
                             <h3>Features</h3>
                             <ul>
                                 <li>Start menu: Continue Game (when a save exists), New Game with inline difficulty (◀ Easy ▶), Quit</li>
-                                <li>UTF-8 box-drawn 9×9 board; each digit 1–9 has its own color; clues and locked-correct cells are bold</li>
+                                <li>UTF-8 box-drawn 9×9 board; each digit 1–9 has its own hue; a digit turns white when all nine of that number are correctly placed; clues and locked-correct cells are bold</li>
                                 <li>Wrong entries stay visible with a maroon cell; correct lock-in cannot be overwritten or cleared</li>
                                 <li>Green grid-border flash (~0.6s) on a correct lock-in; red flash on a mistake</li>
-                                <li>16-color accent wheel: random hue at launch for titles, HUD, dialogs, and cursor; steps as you play</li>
-                                <li>Play clock (top-right); Space pauses and hides the board</li>
+                                <li>16-color accent wheel: random hue at launch; +1 on menu or board movement and correct lock-in; −8 on a mistake; pencil mode reverses movement and mark rotation</li>
+                                <li>Pencil marks: Tab toggles ✒️ / ✏️; up to two candidate colors per empty cell on a ▀ glyph; saved with Continue</li>
+                                <li>Play clock (top-right); HUD shows a × per incorrect entry; Space pauses and hides the board</li>
                                 <li>Esc Exit overlay: Abandon (counts as Failed, wipes continue) or Quit (resume next launch)</li>
                                 <li>Per-difficulty Successes, Failed, fastest time, and remaining puzzle count</li>
-                                <li><code>sudoku.json</code> saves after every move (continue state + completed IDs)</li>
+                                <li><code>sudoku.json</code> saves after every move (continue state, pencil marks, completed IDs)</li>
                                 <li>Auto-requests 80×24 console; Windows UTF-8 (CP65001) and Cascadia Mono when present</li>
                             </ul>
                         </div>

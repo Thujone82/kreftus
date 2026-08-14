@@ -4,7 +4,7 @@
 
 **Author:** Kreft&Cursor  
 **Date:** 2026-08-14  
-**Version:** 1.0
+**Version:** 1.2
 
 ---
 
@@ -18,13 +18,14 @@ Puzzles are a sample of the public-domain [Sudoku Exchange Puzzle Bank](https://
 
 ### Key Functionality
 
-- **Menu:** Continue Game (only listed when a `continue` blob exists), **New Game: ◀ {Difficulty} ▶** (←→ cycles difficulty and starts a game on Enter; dimmed when the pool is empty), Quit. ←→ always changes difficulty. ↑↓←→ and starting a new game each rotate the accent wheel one step forward.
+- **Menu:** Continue Game (only listed when a `continue` blob exists), **New Game: ◀ {Difficulty} ▶** (←→ cycles difficulty and starts a game on Enter; dimmed when the pool is empty), Quit. ←→ always changes difficulty. ↑↓←→, play cursor moves, and starting a new game each rotate the accent wheel one step forward. In pencil mode, play moves and marks rotate **−1**.
+- **Pencil marks:** Tab toggles ✒️ pen / ✏️ pencil (HUD). Play always opens in pen mode (New Game and Continue). Empty unlocked cells show up to two *different* candidates on `▀` (FG = top mark color, BG = bottom). First 1–9 fills top, second fills bottom, further presses overwrite top then bottom. Duplicate of the other half is ignored. Marks for a digit that is already complete (white) are ignored. 0 / Backspace / Delete in pencil mode clears marks. Placing a pen digit clears that cell's marks. Saved in continue as `pencilTop` / `pencilBot` / `pencilSlot`.
 - **Stats panel:** Successes, Failed, Fastest (time + incorrect entries on that run), Remaining `n / total` (total is the bundled count for that difficulty).
-- **Continue:** Restores grid, elapsed ms, mistake count, difficulty. Clock resumes on load.
+- **Continue:** Restores grid, pencil marks, mode, elapsed ms, mistake count, difficulty. Clock resumes on load.
 - **New Game while a continue exists:** confirm overlay (Cancel / Abandon); Abandon records a Failure for the *in-progress* difficulty, wipes `continue`, then picks a random incomplete puzzle at the *selected* difficulty.
 - **Exit (Esc in play or pause):** overlay **Abandon** or **Quit Sudoku** (Quit selected by default). **Quit** writes continue and exits so the next launch can Continue. **Abandon** clears `continue`, increments Failed, returns to the menu (puzzle ID stays eligible). Esc on the overlay cancels back to play.
 - **Success:** `grid == solution`. Record success + fastest (tie-break: fewer mistakes), append ID to `completed[difficulty]`, clear continue, show overlay (time + incorrect entries).
-- **Incorrect entry:** compare to unique solution. Maroon cell; mistake +1 per wrong place. Grid border flashes **red** ~600ms. Accent wheel rotates **backward**. Givens and locked-correct cells cannot be changed.
+- **Incorrect entry:** compare to unique solution. Maroon cell; mistake +1 per wrong place. Grid border flashes **red** ~600ms. Accent wheel jumps **−8**. Givens and locked-correct cells cannot be changed.
 - **Correct lock-in:** cell locks (bold). Grid border flashes **green** ~600ms. Accent wheel rotates **forward**. Completing the board holds the green flash then shows Solved.
 - **Pause (Space):** freeze clock, fill screen with PAUSED (board hidden). Space resumes; Esc opens the Exit overlay.
 - **Ctrl+C / SIGTERM:** persist continue if a puzzle is in progress (same as Quit) and exit. Cleanup resets colors, shows the cursor, `Fini`s tcell, then ANSI `\033[H\033[2J` (Clear-Host) so the console is blank.
@@ -54,8 +55,8 @@ Views in `main.go`: `viewMenu`, `viewPlay`, `viewPaused`, `viewConfirmExit`, `vi
 | `main.go` | Entry, tcell loop (Larry-style event drain + 1s clock tick), input, persist, win/lose |
 | `render.go` | Menu, HUD, 37×19 box-drawn board, pause/confirm/solved overlays, digit colors |
 | `colors.go` | 16-color accent wheel, HUD/title/selection styles, 600ms grid-border flash |
-| `board.go` | 81-cell grid, cursor, place/clear, `isWrong` / `isComplete` |
-| `save.go` | `sudoku.json` load/save (BOM), stats, completed IDs |
+| `board.go` | 81-cell grid, cursor, place/clear, pencil marks, `isWrong` / `isComplete` |
+| `save.go` | `sudoku.json` load/save (BOM), stats, completed IDs, continue pencils |
 | `puzzles.go` | `go:embed puzzles.json`, incomplete pool, random pick, `ensureSolved` at play time |
 | `solver.go` | Bitmask MRV backtracker (import bake + tests) |
 | `importpuzzles.go` | `//go:build ignore` — sample Easy 2500 / Medium 2000 / Hard 1000 / Diabolical 250, verify each solves, write `puzzles.json` without solutions |
@@ -98,7 +99,7 @@ Written to the process **cwd** (same convention as Larry’s `larry.scores.json`
 
 ```json
 {
-  "version": "1.0",
+  "version": "1.2",
   "stats": {
     "easy": { "successes": 0, "failures": 0, "fastestMs": null, "fastestMistakes": null }
   },
@@ -110,7 +111,11 @@ Written to the process **cwd** (same convention as Larry’s `larry.scores.json`
     "solution": "...",
     "grid": "...",
     "elapsedMs": 45000,
-    "mistakes": 2
+    "mistakes": 2,
+    "pencil": false,
+    "pencilTop": "000...",
+    "pencilBot": "000...",
+    "pencilSlot": "000..."
   }
 }
 ```
@@ -124,21 +129,24 @@ Written to the process **cwd** (same convention as Larry’s `larry.scores.json`
 
 ### Digit colors (`render.go` `digitColor`)
 
-Error feedback is **background maroon**, not a digit hue, so 1–9 stay distinct.
+Nine hues equally spaced around the wheel. **White is reserved**: when all nine correct placements of a digit are on the board, those glyphs render white (`digitCompleteColor`). Error feedback is **background maroon**, not a digit hue.
 
 | Digit | Color |
 |-------|--------|
-| 1 | Red RGB(255,70,70) |
-| 2 | Lime green RGB(50,205,50) |
-| 3 | Gold RGB(255,215,0) |
-| 4 | Royal blue RGB(65,105,225) |
-| 5 | Hot pink RGB(255,105,180) |
-| 6 | Cyan RGB(0,220,255) |
-| 7 | White RGB(245,245,245) |
-| 8 | Dark orange RGB(255,140,0) |
-| 9 | Deep purple RGB(148,0,211) |
+| 1 | Red RGB(232,64,64) |
+| 2 | Orange RGB(255,140,32) |
+| 3 | Gold RGB(240,210,32) |
+| 4 | Green RGB(48,196,64) |
+| 5 | Teal RGB(32,204,168) |
+| 6 | Azure RGB(32,168,232) |
+| 7 | Blue RGB(72,104,255) |
+| 8 | Violet RGB(168,80,255) |
+| 9 | Magenta RGB(232,64,168) |
+| complete | White |
 
-Givens and locked-correct user entries: bold. Cursor: lime-green box border around the selected cell only (existing grid glyphs recolored; cell interior stays black, or maroon if wrong). Empty cursor: space glyph, no fill. During a 600ms flash the whole grid border is lime (correct) or red (incorrect); the cell cursor is hidden for that interval.
+HUD mistakes: one `×` (same glyph as README `9×9`) per incorrect entry, no label, clipped so it does not overwrite the clock.
+
+Givens and locked-correct user entries: bold. Cursor: lime-green box border around the selected cell only (existing grid glyphs recolored; cell interior stays black, or maroon if wrong). Empty cursor: space glyph, no fill. During a 600ms flash the whole grid border is lime (correct) or red (incorrect); the cell cursor is hidden for that interval. In pencil mode the idle grid border is light yellow (`styleGridPencil`). Play footer uses `Tab ✏️` / `Tab ✒️` (not the words Pencil/Pen).
 
 ---
 
@@ -152,14 +160,17 @@ Givens and locked-correct user entries: bold. Cursor: lime-green box border arou
 | Secondary `accent2()` | +5 | Dialog/solved panel fill, cell cursor border |
 | Tertiary `accent3()` | −5 | Destructive confirm highlight (Abandon) |
 
-Black text on primary/secondary/tertiary fills. Grid flash stays semantic lime/red (not chrome). Digit colors and wrong-cell maroon are unchanged.
+Black text on primary/secondary/tertiary fills. Grid flash stays semantic lime/red (not chrome). Digit hues stay independent of the accent wheel; completed digits go white.
 
 | Event | Wheel |
 |-------|--------|
 | Menu ↑↓←→ (and WASD aliases) | +1 |
+| Play cursor move (pen) | +1 |
+| Play cursor move (pencil) | −1 |
+| Pencil mark | −1 |
 | `startNewGame` | +1 |
 | Correct digit locked | +1 |
-| Incorrect digit placed | −1 |
+| Incorrect digit placed | −8 |
 
 Not persisted. Continue Game / Quit do not rotate except via the arrow keys used to reach them.
 
@@ -174,7 +185,7 @@ Playfield 37 columns × 19 rows, centered under a 1-row HUD.
 - Each cell is three columns: space, digit, space.
 - Cursor movement is toroidal: left from column 0 wraps to column 8, and the same for the other edges.
 
-Preferred console **80×24** (`size.go`). HUD: `SUDOKU {Difficulty}` + `Incorrect: n` left; elapsed `M:SS` or `H:MM:SS` right.
+Preferred console **80×24** (`size.go`). HUD: `SUDOKU {Difficulty}` + ✒️/✏️ mode; `×` tally for mistakes; elapsed `M:SS` or `H:MM:SS` right.
 
 ---
 
@@ -211,8 +222,8 @@ Quick check: `go test .`  ·  `go build -o Sudoku.exe .`
 ### Tests
 
 - `solver_test.go` — Wikipedia puzzle, reject short input, empty grid solves.
-- `puzzles_test.go` — bundled counts (2500/2000/1000/250) unique IDs, no baked solutions, sample solvability, incomplete pool omits completed IDs, mistake/correct/complete board behavior, toroidal cursor wrap.
-- `colors_test.go` — 16-step wheel wrap.
+- `puzzles_test.go` — bundled counts (2500/2000/1000/250) unique IDs, no baked solutions, sample solvability, incomplete pool omits completed IDs, mistake/correct/complete board behavior, digit-complete (all nine of a number), toroidal cursor wrap, pencil mark cycle/clear/save.
+- `colors_test.go` — 16-step wheel wrap; −8 incorrect jump; pencil mode −1 step; digit hues are not white.
 
 ---
 
@@ -220,7 +231,7 @@ Quick check: `go test .`  ·  `go build -o Sudoku.exe .`
 
 - Module name `sudokutui` (folder); binary name **Sudoku** (capital S).
 - Do not recycle completed IDs. Abandoned puzzles may be drawn again.
-- Space pauses/resumes in play (clears with 0 / Backspace / Delete). Cursor wraps toroidally.
+- Space pauses/resumes in play (clears with 0 / Backspace / Delete). Cursor wraps toroidally. Tab toggles pencil mode.
 - Esc in play/pause opens Exit: **Quit** (default) persists continue and leaves; **Abandon** wipes continue and increments Failed. Continue is omitted from the menu when there is no in-progress game. Any exit path (Quit, Esc on menu, Ctrl+C) Clear-Hosts after `Fini`.
 - Confirm dialogs default to No (Larry give-up / destructive-action convention).
 - Keep `puzzles.json` in git; do not download the bank at runtime.

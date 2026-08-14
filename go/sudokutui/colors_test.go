@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/gdamore/tcell/v2"
+)
 
 func TestRotateAccentWraps(t *testing.T) {
 	g := &game{accentIndex: 0}
@@ -19,6 +23,30 @@ func TestRotateAccentWraps(t *testing.T) {
 	}
 }
 
+func TestRotateAccentIncorrectJump(t *testing.T) {
+	g := &game{accentIndex: 3}
+	g.rotateAccent(-8)
+	if g.accentIndex != 11 {
+		t.Fatalf("-8 from 3: got %d want 11", g.accentIndex)
+	}
+	g.accentIndex = 0
+	g.rotateAccent(-8)
+	if g.accentIndex != 8 {
+		t.Fatalf("-8 from 0: got %d want 8", g.accentIndex)
+	}
+}
+
+func TestAccentStepReversesInPencilMode(t *testing.T) {
+	g := &game{}
+	if g.accentStep() != 1 {
+		t.Fatal("pen mode should step +1")
+	}
+	g.pencil = true
+	if g.accentStep() != -1 {
+		t.Fatal("pencil mode should step -1")
+	}
+}
+
 func TestAccentOffsets(t *testing.T) {
 	g := &game{accentIndex: 0}
 	if g.accent2() != colorWheel[5] {
@@ -33,5 +61,13 @@ func TestAccentOffsets(t *testing.T) {
 	}
 	if g.accent3() != colorWheel[9] {
 		t.Fatal("tertiary 14-5")
+	}
+}
+
+func TestDigitColorsAvoidWhite(t *testing.T) {
+	for d := 1; d <= 9; d++ {
+		if digitColor[d] == tcell.ColorWhite || digitColor[d] == digitCompleteColor {
+			t.Errorf("digit %d must not use white; white is reserved for a completed number", d)
+		}
 	}
 }

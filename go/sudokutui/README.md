@@ -1,6 +1,6 @@
 ﻿# Sudoku — Terminal Puzzle Game
 
-**Version:** 1.0 · **Author:** Kreft & Cursor · **Date:** 2026-08-14
+**Version:** 1.2 · **Author:** Kreft & Cursor · **Date:** 2026-08-14
 
 ## Description
 
@@ -13,11 +13,13 @@ On Windows, Sudoku switches the console to UTF-8 and prefers **Cascadia Mono** w
 ## Features
 
 - **Start menu** — Continue Game (only when a game is in progress), **New Game: ◀ difficulty ▶**, Quit
-- **Accent color** — random hue each launch; shifts as you move in the menu, start a game, or lock a correct digit (wrong digits shift it the other way)
+- **Accent color** — random hue each launch; shifts as you move in the menu or on the board, start a game, or lock a correct digit (wrong digits jump eight steps the other way). In **pencil** mode, movement and marks rotate the other direction
+- **Pencil marks** — Tab toggles ✒️ pen / ✏️ pencil (footer shows `Tab ✏️` / `Tab ✒️`). Play always starts in pen mode. Empty cells can hold two *different* candidate colors on a `▀` glyph (top = first mark, bottom = second). Further marks overwrite top, then bottom. A digit that is already complete (white), or already marked in the cell, is ignored. 0 clears marks. The grid border turns light yellow in pencil mode
 - **Grid flash** — green ~0.6s on a correct lock-in, red on a mistake
 - **Difficulty stats** — Successes, Failed, Fastest Completion (with incorrect-entry count), and remaining puzzles update as you change difficulty
 - **Continue Game** — progress is saved after every move
-- **Colored digits** — 1–9 each have their own color; clues are bold
+- **Colored digits** — 1–9 each have a distinct hue around the color wheel; a digit turns **white** when all nine of that number are correctly placed
+- **Mistake tally** — the HUD shows a `×` for each incorrect entry (no count label)
 - **Red cell** — incorrect entry against the solution
 - **Play clock** — elapsed time in the top-right; pause freezes it
 - **Pause** — Space hides the board and freezes the clock
@@ -31,8 +33,9 @@ On Windows, Sudoku switches the console to UTF-8 and prefers **Cascadia Mono** w
 | Menu | Enter | Continue or start New Game |
 | Menu | Esc | Quit |
 | In game | Arrows or WASD | Move cursor (wraps around the board) |
-| In game | 1–9 | Enter a digit |
-| In game | 0, Backspace, or Delete | Clear the cell |
+| In game | Tab | Toggle ✒️ pen / ✏️ pencil |
+| In game | 1–9 | Enter a digit (pen) or add a pencil mark |
+| In game | 0, Backspace, or Delete | Clear the cell (pen) or clear pencil marks |
 | In game | Space | Pause / resume |
 | In game | Esc | Exit — Abandon or Quit Sudoku |
 | Pause | Space | Resume |
@@ -62,7 +65,7 @@ When every puzzle at a difficulty is solved, New Game is disabled for that level
 
 - Per-difficulty Successes, Failed, and Fastest Completion
 - IDs of completed puzzles (so they are not shown again)
-- The in-progress board, clock, and mistake count for **Continue Game**
+- The in-progress board, pencil marks, clock, and mistake count for **Continue Game**
 
 The file is UTF-8 with BOM and is rewritten after each move.
 

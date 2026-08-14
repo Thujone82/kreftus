@@ -104,6 +104,30 @@ func TestBoardMistakeAndComplete(t *testing.T) {
 	}
 }
 
+func TestCompletedDigits(t *testing.T) {
+	givens := "530070000600195000098000060800060003400803001700020006060000280000419005000080079"
+	sol := solveSudoku(givens)
+	b := newBoard(givens, sol, givens)
+	done := b.completedDigits()
+	for d := 1; d <= 9; d++ {
+		if done[d] {
+			t.Errorf("digit %d should not be complete from givens alone", d)
+		}
+	}
+	for i := 0; i < 81; i++ {
+		if sol[i] == '5' {
+			b.grid[i] = '5'
+		}
+	}
+	done = b.completedDigits()
+	if !done[5] {
+		t.Fatal("all correct 5s should mark digit 5 complete")
+	}
+	if done[3] {
+		t.Fatal("unfinished digit 3 should not be complete")
+	}
+}
+
 func TestEnsureSolvedFillsFromGivens(t *testing.T) {
 	p := puzzleEntry{
 		ID:     "wiki",
@@ -149,5 +173,69 @@ func TestCursorWrapsToroidally(t *testing.T) {
 	b.move(0, 1)
 	if b.cursor != 0 {
 		t.Fatalf("down wrap: got %d want 0", b.cursor)
+	}
+}
+
+func TestPencilMarksCycleAndClear(t *testing.T) {
+	givens := "530070000600195000098000060800060003400803001700020006060000280000419005000080079"
+	sol := solveSudoku(givens)
+	b := newBoard(givens, sol, givens)
+	b.cursor = 2
+	if !b.markPencil('3') || b.pencil[2][0] != '3' || b.pencil[2][1] != 0 {
+		t.Fatalf("first mark top: %+v", b.pencil[2])
+	}
+	if !b.markPencil('9') || b.pencil[2][1] != '9' {
+		t.Fatalf("second mark bottom: %+v", b.pencil[2])
+	}
+	if !b.markPencil('1') || b.pencil[2][0] != '1' || b.pencil[2][1] != '9' {
+		t.Fatalf("third overwrites top: %+v", b.pencil[2])
+	}
+	if !b.markPencil('6') || b.pencil[2][1] != '6' || b.pencil[2][0] != '1' {
+		t.Fatalf("fourth overwrites bottom: %+v", b.pencil[2])
+	}
+	if b.markPencil('1') {
+		t.Fatal("should reject a mark already on the other half")
+	}
+	if b.markPencil('6') {
+		t.Fatal("should reject a mark already in this cell")
+	}
+	if !b.clearPencil() || b.pencil[2][0] != 0 || b.pencil[2][1] != 0 {
+		t.Fatal("0 should clear both marks")
+	}
+	if b.markPencil('4') && b.place('4') {
+		if b.hasPencil(2) {
+			t.Fatal("placing a digit should clear pencil marks")
+		}
+	}
+}
+
+func TestPencilSaveRoundTrip(t *testing.T) {
+	var b board
+	b.cursor = 4
+	b.markPencil('2')
+	b.markPencil('8')
+	top, bot, slot := b.pencilsString()
+	var b2 board
+	b2.loadPencils(top, bot, slot)
+	if b2.pencil[4][0] != '2' || b2.pencil[4][1] != '8' || b2.pencilSlot[4] != 0 {
+		t.Fatalf("round trip %+v slot %d", b2.pencil[4], b2.pencilSlot[4])
+	}
+}
+
+func TestPencilRejectsCompletedDigit(t *testing.T) {
+	givens := "530070000600195000098000060800060003400803001700020006060000280000419005000080079"
+	sol := solveSudoku(givens)
+	b := newBoard(givens, sol, givens)
+	for i := 0; i < 81; i++ {
+		if sol[i] == '5' {
+			b.grid[i] = '5'
+		}
+	}
+	b.cursor = 2
+	if b.markPencil('5') {
+		t.Fatal("should ignore pencil mark for a completed (white) digit")
+	}
+	if !b.markPencil('4') {
+		t.Fatal("unfinished digit should still mark")
 	}
 }

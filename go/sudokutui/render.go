@@ -5,27 +5,37 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/mattn/go-runewidth"
 )
 
 const boardCols = 37
+const mistakeMark = '×' // same glyph as README 9×9
+const pencilGlyph = '▀'
+const modePen = "✒️"
+const modePencil = "✏️"
 
+// Nine hues equally spaced around the wheel. White is reserved for a digit
+// whose nine correct placements are all on the board.
 var digitColor = [10]tcell.Color{
 	tcell.ColorDefault,
-	tcell.NewRGBColor(255, 70, 70),   // 1 red (not cyan — 6 is cyan)
-	tcell.NewRGBColor(50, 205, 50),   // 2 lime green
-	tcell.NewRGBColor(255, 215, 0),   // 3 gold
-	tcell.NewRGBColor(65, 105, 225),  // 4 royal blue
-	tcell.NewRGBColor(255, 105, 180), // 5 hot pink (not purple — 9 is indigo)
-	tcell.NewRGBColor(0, 220, 255),   // 6 cyan
-	tcell.NewRGBColor(245, 245, 245), // 7 white
-	tcell.NewRGBColor(255, 140, 0),   // 8 dark orange
-	tcell.NewRGBColor(148, 0, 211),   // 9 deep purple / indigo
+	tcell.NewRGBColor(232, 64, 64),  // 1 red
+	tcell.NewRGBColor(255, 140, 32), // 2 orange
+	tcell.NewRGBColor(240, 210, 32), // 3 gold
+	tcell.NewRGBColor(48, 196, 64),  // 4 green
+	tcell.NewRGBColor(32, 204, 168), // 5 teal
+	tcell.NewRGBColor(32, 168, 232), // 6 azure
+	tcell.NewRGBColor(72, 104, 255), // 7 blue
+	tcell.NewRGBColor(168, 80, 255), // 8 violet
+	tcell.NewRGBColor(232, 64, 168), // 9 magenta
 }
+
+var digitCompleteColor = tcell.ColorWhite
 
 var (
 	styleDefault = tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorBlack)
 	styleDim     = tcell.StyleDefault.Foreground(tcell.ColorGray).Background(tcell.ColorBlack)
-	styleGrid    = tcell.StyleDefault.Foreground(tcell.ColorSilver).Background(tcell.ColorBlack)
+	styleGrid       = tcell.StyleDefault.Foreground(tcell.ColorSilver).Background(tcell.ColorBlack)
+	styleGridPencil = tcell.StyleDefault.Foreground(tcell.NewRGBColor(255, 230, 120)).Background(tcell.ColorBlack)
 )
 
 func (g *game) render() {
@@ -116,7 +126,11 @@ func (g *game) drawPlay() {
 	oy := 2
 	g.drawBoard(ox, oy)
 	if h > 2 {
-		drawCentered(g.screen, w/2, h-2, "1-9 Enter  ·  0 Clear  ·  Space Pause  ·  Esc Exit", styleDim)
+		hint := "1-9 Enter  ·  0 Clear  ·  Tab ✏️  ·  Space Pause  ·  Esc Exit"
+		if g.pencil {
+			hint = "1-9 Mark  ·  0 Clear  ·  Tab ✒️  ·  Space Pause  ·  Esc Exit"
+		}
+		drawCentered(g.screen, w/2, h-2, hint, styleDim)
 	}
 }
 
@@ -125,23 +139,35 @@ func (g *game) drawHUD() {
 	if w < 1 {
 		return
 	}
-	left := " SUDOKU  " + difficultyLabel[g.difficulty]
+	left := " SUDOKU  " + difficultyLabel[g.difficulty] + "  " + g.modeGlyph()
 	clock := formatDuration(g.currentElapsed())
-	mistakes := fmt.Sprintf("  Incorrect: %d", g.board.mistakes)
 	fillStyle := g.hudStyle()
 	for x := 0; x < w; x++ {
 		g.screen.SetContent(x, 0, ' ', nil, fillStyle)
 	}
 	drawText(g.screen, 0, 0, left, fillStyle)
-	drawText(g.screen, len(left), 0, mistakes, fillStyle)
-	cx := w - len(clock) - 1
+	clockW := runewidth.StringWidth(clock)
+	cx := w - clockW - 1
 	if cx < 0 {
 		cx = 0
 	}
 	drawText(g.screen, cx, 0, clock, fillStyle)
+	start := runewidth.StringWidth(left) + 2
+	maxMarks := cx - start
+	if maxMarks < 0 {
+		maxMarks = 0
+	}
+	n := g.board.mistakes
+	if n > maxMarks {
+		n = maxMarks
+	}
+	for i := 0; i < n; i++ {
+		g.screen.SetContent(start+i, 0, mistakeMark, nil, fillStyle)
+	}
 }
 
 func (g *game) drawBoard(ox, oy int) {
+	done := g.board.completedDigits()
 	y := oy
 	for r := 0; r <= 9; r++ {
 		kind := 1
@@ -156,7 +182,7 @@ func (g *game) drawBoard(ox, oy int) {
 		drawHLine(g.screen, ox, y, kind, g.borderStyle())
 		y++
 		if r < 9 {
-			g.drawDigitRow(ox, y, r)
+			g.drawDigitRow(ox, y, r, done)
 			y++
 		}
 	}
@@ -198,21 +224,30 @@ func drawHLine(s tcell.Screen, ox, y, kind int, st tcell.Style) {
 	}
 }
 
-func (g *game) drawDigitRow(ox, y, row int) {
+func (g *game) drawDigitRow(ox, y, row int, done [10]bool) {
 	s := g.screen
 	bs := g.borderStyle()
 	s.SetContent(ox, y, '║', nil, bs)
 	x := ox + 1
 	for c := 0; c < 9; c++ {
 		i := row*9 + c
-		st := g.cellStyle(i)
+		pad := tcell.StyleDefault.Background(tcell.ColorBlack)
+		st := g.cellStyle(i, done)
 		ch := rune(g.board.grid[i])
 		if ch == '0' {
-			ch = ' '
+			if g.board.hasPencil(i) {
+				ch = pencilGlyph
+				st = g.pencilStyle(i, done)
+				pad = tcell.StyleDefault.Background(tcell.ColorBlack)
+			} else {
+				ch = ' '
+			}
+		} else {
+			pad = st
 		}
-		s.SetContent(x, y, ' ', nil, st)
+		s.SetContent(x, y, ' ', nil, pad)
 		s.SetContent(x+1, y, ch, nil, st)
-		s.SetContent(x+2, y, ' ', nil, st)
+		s.SetContent(x+2, y, ' ', nil, pad)
 		x += 3
 		if c < 8 {
 			sep := '│'
@@ -251,14 +286,19 @@ func recolor(s tcell.Screen, x, y int, st tcell.Style) {
 	s.SetContent(x, y, mainc, combc, st)
 }
 
-func (g *game) cellStyle(i int) tcell.Style {
+func (g *game) cellStyle(i int, done [10]bool) tcell.Style {
 	st := tcell.StyleDefault.Background(tcell.ColorBlack)
 	if g.board.isWrong(i) {
 		st = st.Background(tcell.ColorMaroon)
 	}
 	v := g.board.grid[i]
 	if v >= '1' && v <= '9' {
-		st = st.Foreground(digitColor[v-'0'])
+		d := v - '0'
+		fg := digitColor[d]
+		if done[d] {
+			fg = digitCompleteColor
+		}
+		st = st.Foreground(fg)
 		if g.board.isLocked(i) {
 			st = st.Bold(true)
 		}
@@ -266,6 +306,34 @@ func (g *game) cellStyle(i int) tcell.Style {
 		st = st.Foreground(tcell.ColorSilver)
 	}
 	return st
+}
+
+func (g *game) modeGlyph() string {
+	if g.pencil {
+		return modePencil
+	}
+	return modePen
+}
+
+func (g *game) pencilStyle(i int, done [10]bool) tcell.Style {
+	top := g.board.pencil[i][0]
+	bot := g.board.pencil[i][1]
+	fg := tcell.ColorBlack
+	bg := tcell.ColorBlack
+	if top >= '1' && top <= '9' {
+		fg = digitPaint(top-'0', done)
+	}
+	if bot >= '1' && bot <= '9' {
+		bg = digitPaint(bot-'0', done)
+	}
+	return tcell.StyleDefault.Foreground(fg).Background(bg)
+}
+
+func digitPaint(d byte, done [10]bool) tcell.Color {
+	if done[d] {
+		return digitCompleteColor
+	}
+	return digitColor[d]
 }
 
 func (g *game) drawPause() {
@@ -367,18 +435,35 @@ func (g *game) drawSolved() {
 
 func drawText(s tcell.Screen, x, y int, text string, st tcell.Style) {
 	for _, r := range text {
+		if r == '\uFE0F' || r == '\uFE0E' {
+			continue
+		}
 		s.SetContent(x, y, r, nil, st)
-		x++
+		w := runewidth.RuneWidth(r)
+		if w < 1 {
+			w = 1
+		}
+		x += w
 	}
 }
 
 func drawCentered(s tcell.Screen, cx, y int, text string, st tcell.Style) {
-	runes := []rune(text)
-	x := cx - len(runes)/2
+	w := runewidth.StringWidth(stripVS(text))
+	x := cx - w/2
 	if x < 0 {
 		x = 0
 	}
 	drawText(s, x, y, text, st)
+}
+
+func stripVS(s string) string {
+	out := make([]rune, 0, len(s))
+	for _, r := range s {
+		if r != '\uFE0F' && r != '\uFE0E' {
+			out = append(out, r)
+		}
+	}
+	return string(out)
 }
 
 func padTo(s string, n int) string {

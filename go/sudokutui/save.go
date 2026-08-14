@@ -1,4 +1,4 @@
-﻿package main
+package main
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 
 const (
 	saveFileName  = "sudoku.json"
-	sudokuVersion = "1.0"
+	sudokuVersion = "1.2"
 )
 
 var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
@@ -29,6 +29,10 @@ type continueGame struct {
 	Grid       string `json:"grid"`
 	ElapsedMs  int64  `json:"elapsedMs"`
 	Mistakes   int    `json:"mistakes"`
+	Pencil     bool   `json:"pencil,omitempty"`
+	PencilTop  string `json:"pencilTop,omitempty"`
+	PencilBot  string `json:"pencilBot,omitempty"`
+	PencilSlot string `json:"pencilSlot,omitempty"`
 }
 
 type saveData struct {
