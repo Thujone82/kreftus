@@ -62,6 +62,12 @@ func TestFinishSuccessWipesContinue(t *testing.T) {
 	if loaded.statsFor(diffEasy).Successes != 1 {
 		t.Fatalf("successes=%d", loaded.statsFor(diffEasy).Successes)
 	}
+	if loaded.statsFor(diffEasy).Perfect != 1 {
+		t.Fatalf("perfect=%d", loaded.statsFor(diffEasy).Perfect)
+	}
+	if loaded.statsFor(diffEasy).errorRate() != "0.00" {
+		t.Fatalf("error rate=%s", loaded.statsFor(diffEasy).errorRate())
+	}
 }
 
 func TestPersistPlaySkipsCompletedBoard(t *testing.T) {
@@ -136,5 +142,71 @@ func TestShouldPersistContinue(t *testing.T) {
 	g.pendingSolved = true
 	if g.shouldPersistContinue() {
 		t.Fatal("pending solved must not persist")
+	}
+}
+
+func TestRecordSuccessPerfectAndErrorRate(t *testing.T) {
+	s := newSaveData()
+	if s.statsFor(diffEasy).errorRate() != "—" {
+		t.Fatal("no successes should show em dash")
+	}
+	s.recordSuccess(diffEasy, 1000, 0)
+	s.recordSuccess(diffEasy, 2000, 2)
+	s.recordSuccess(diffEasy, 1500, 1)
+	st := s.statsFor(diffEasy)
+	if st.Perfect != 1 || st.Successes != 3 {
+		t.Fatalf("perfect=%d successes=%d", st.Perfect, st.Successes)
+	}
+	if st.errorRate() != "1.00" {
+		t.Fatalf("error rate=%s want 1.00", st.errorRate())
+	}
+	s.recordSuccess(diffEasy, 3000, 1)
+	if st.errorRate() != "1.00" {
+		t.Fatalf("error rate=%s want 1.00 after fourth", st.errorRate())
+	}
+	s.recordSuccess(diffMedium, 4000, 3)
+	s.recordSuccess(diffMedium, 5000, 2)
+	if s.statsFor(diffMedium).errorRate() != "2.50" {
+		t.Fatalf("medium error rate=%s want 2.50", s.statsFor(diffMedium).errorRate())
+	}
+	if s.statsFor(diffMedium).Perfect != 0 {
+		t.Fatal("medium should have no perfects")
+	}
+	st.RatedSuccesses = 20
+	st.MistakeSum = 21
+	if st.errorRate() != "1.05" {
+		t.Fatalf("error rate=%s want 1.05", st.errorRate())
+	}
+}
+
+func TestLegacySingleSuccessErrorRate(t *testing.T) {
+	chdirTemp(t)
+	three := 3
+	ms := int64(6008000)
+	s := newSaveData()
+	st := s.statsFor(diffEasy)
+	st.Successes = 1
+	st.FastestMs = &ms
+	st.FastestMistakes = &three
+	if st.errorRate() != "3.00" {
+		t.Fatalf("display rate=%s want 3.00", st.errorRate())
+	}
+	if err := s.write(); err != nil {
+		t.Fatal(err)
+	}
+	loaded := loadSave()
+	got := loaded.statsFor(diffEasy)
+	if got.RatedSuccesses != 1 || got.MistakeSum != 3 {
+		t.Fatalf("backfill rated=%d sum=%d", got.RatedSuccesses, got.MistakeSum)
+	}
+	if got.Perfect != 0 {
+		t.Fatalf("perfect=%d want 0", got.Perfect)
+	}
+	if got.errorRate() != "3.00" {
+		t.Fatalf("loaded rate=%s want 3.00", got.errorRate())
+	}
+	loaded.recordSuccess(diffEasy, 1000, 1)
+	if loaded.statsFor(diffEasy).errorRate() != "2.00" {
+		t.Fatalf("after next win rate=%s want 2.00", loaded.statsFor(diffEasy).errorRate())
 	}
 }

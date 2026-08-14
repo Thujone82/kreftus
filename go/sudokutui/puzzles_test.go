@@ -195,6 +195,18 @@ func TestCursorWrapsToroidally(t *testing.T) {
 	}
 }
 
+func TestSelectionMarkPos(t *testing.T) {
+	ox, oy := 4, 2
+	digitX, midY := selectionMarkPos(ox, oy, 0, 0)
+	if digitX != ox+2 || midY != oy+1 {
+		t.Fatalf("top-left marks: digitX=%d midY=%d", digitX, midY)
+	}
+	digitX, midY = selectionMarkPos(ox, oy, 8, 8)
+	if digitX != ox+8*4+2 || midY != oy+8*2+1 {
+		t.Fatalf("bottom-right marks: digitX=%d midY=%d", digitX, midY)
+	}
+}
+
 func TestPencilMarksCycleAndClear(t *testing.T) {
 	givens := "530070000600195000098000060800060003400803001700020006060000280000419005000080079"
 	sol := solveSudoku(givens)

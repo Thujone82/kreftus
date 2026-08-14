@@ -88,7 +88,29 @@ func (g *game) dangerStyle() tcell.Style {
 }
 
 func (g *game) cursorStyle() tcell.Style {
-	return tcell.StyleDefault.Foreground(g.accent2()).Background(tcell.ColorBlack).Bold(true)
+	return tcell.StyleDefault.Foreground(g.cursorColor()).Background(tcell.ColorBlack).Bold(true)
+}
+
+func (g *game) cursorColor() tcell.Color {
+	delta := 5 // same offset as accent2()
+	if g.pencil {
+		for n := 0; n < colorWheelSize; n++ {
+			idx := (g.accentIndex + delta) % colorWheelSize
+			if idx < 0 {
+				idx += colorWheelSize
+			}
+			if !pencilCursorClash(idx) {
+				break
+			}
+			delta++
+		}
+	}
+	return g.wheelColor(delta)
+}
+
+func pencilCursorClash(i int) bool {
+	// Gold and yellow sit on top of the light-yellow pencil grid.
+	return i == 3 || i == 4
 }
 
 func (g *game) flashing() bool {

@@ -3,6 +3,7 @@
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"unicode/utf8"
 )
@@ -17,6 +18,9 @@ var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 type diffStats struct {
 	Successes       int    `json:"successes"`
 	Failed          int    `json:"failures"`
+	Perfect         int    `json:"perfect"`
+	MistakeSum      int    `json:"mistakeSum"`
+	RatedSuccesses  int    `json:"ratedSuccesses"`
 	FastestMs       *int64 `json:"fastestMs"`
 	FastestMistakes *int   `json:"fastestMistakes"`
 }
@@ -82,6 +86,12 @@ func loadSave() *saveData {
 			s.Completed[d] = []string{}
 		}
 	}
+	dirty := false
+	for _, d := range difficultyOrder {
+		if s.Stats[d].backfillRatedFromFastest() {
+			dirty = true
+		}
+	}
 	if s.Continue != nil {
 		if len(s.Continue.Solution) != 81 {
 			s.Continue.Solution = solveSudoku(s.Continue.Givens)
@@ -89,8 +99,11 @@ func loadSave() *saveData {
 		if !validPuzzleStrings(s.Continue.Givens, s.Continue.Solution, s.Continue.Grid) {
 			s.Continue = nil
 		} else if s.scrubCompletedContinue() {
-			_ = s.write()
+			dirty = true
 		}
+	}
+	if dirty {
+		_ = s.write()
 	}
 	return s
 }
@@ -164,7 +177,13 @@ func (s *saveData) markCompleted(d, id string) {
 
 func (s *saveData) recordSuccess(d string, elapsedMs int64, mistakes int) {
 	st := s.statsFor(d)
+	st.backfillRatedFromFastest()
 	st.Successes++
+	st.RatedSuccesses++
+	st.MistakeSum += mistakes
+	if mistakes == 0 {
+		st.Perfect++
+	}
 	if st.FastestMs == nil || elapsedMs < *st.FastestMs || (elapsedMs == *st.FastestMs && (st.FastestMistakes == nil || mistakes < *st.FastestMistakes)) {
 		ms := elapsedMs
 		m := mistakes
@@ -173,11 +192,37 @@ func (s *saveData) recordSuccess(d string, elapsedMs int64, mistakes int) {
 	}
 }
 
+func (st *diffStats) backfillRatedFromFastest() bool {
+	if st.RatedSuccesses > 0 || st.Successes != 1 || st.FastestMistakes == nil {
+		return false
+	}
+	st.RatedSuccesses = 1
+	st.MistakeSum = *st.FastestMistakes
+	if st.MistakeSum == 0 {
+		st.Perfect = 1
+	}
+	return true
+}
+
+func (st *diffStats) errorRate() string {
+	n, sum := st.RatedSuccesses, st.MistakeSum
+	if n <= 0 && st.Successes == 1 && st.FastestMistakes != nil {
+		n, sum = 1, *st.FastestMistakes
+	}
+	if n <= 0 {
+		return "—"
+	}
+	return fmt.Sprintf("%.2f", float64(sum)/float64(n))
+}
+
 func (st *diffStats) UnmarshalJSON(b []byte) error {
 	var raw struct {
 		Successes       int    `json:"successes"`
 		Abandonments    int    `json:"abandonments"`
 		Failures        int    `json:"failures"`
+		Perfect         int    `json:"perfect"`
+		MistakeSum      int    `json:"mistakeSum"`
+		RatedSuccesses  int    `json:"ratedSuccesses"`
 		FastestMs       *int64 `json:"fastestMs"`
 		FastestMistakes *int   `json:"fastestMistakes"`
 	}
@@ -189,6 +234,9 @@ func (st *diffStats) UnmarshalJSON(b []byte) error {
 	if st.Failed == 0 && raw.Abandonments > 0 {
 		st.Failed = raw.Abandonments
 	}
+	st.Perfect = raw.Perfect
+	st.MistakeSum = raw.MistakeSum
+	st.RatedSuccesses = raw.RatedSuccesses
 	st.FastestMs = raw.FastestMs
 	st.FastestMistakes = raw.FastestMistakes
 	return nil

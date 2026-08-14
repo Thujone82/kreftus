@@ -36,6 +36,27 @@ func TestRotateAccentIncorrectJump(t *testing.T) {
 	}
 }
 
+func TestPencilCursorSkipsYellow(t *testing.T) {
+	g := &game{accentIndex: 15, pencil: true} // accent2 = 4 yellow
+	c := g.cursorColor()
+	if c == colorWheel[3] || c == colorWheel[4] {
+		t.Fatal("pencil cursor must skip yellow")
+	}
+	g.pencil = false
+	if g.cursorColor() != colorWheel[4] {
+		t.Fatal("pen cursor may use yellow")
+	}
+	g.accentIndex = 14 // accent2 = 3 gold
+	g.pencil = true
+	c = g.cursorColor()
+	if c == colorWheel[3] || c == colorWheel[4] {
+		t.Fatal("pencil cursor must skip gold and yellow")
+	}
+	if c != colorWheel[5] {
+		t.Fatalf("after gold+yellow skip want yellow-green, got %v", c)
+	}
+}
+
 func TestAccentStepReversesInPencilMode(t *testing.T) {
 	g := &game{}
 	if g.accentStep() != 1 {

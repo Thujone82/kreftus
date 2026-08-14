@@ -14,6 +14,10 @@ const mistakeMark = '×' // same glyph as README 9×9
 const pencilGlyph = '▀'
 const modePen = "✒️"
 const modePencil = "✏️"
+const markRowLeft = '▶'
+const markRowRight = '◀'
+const markColDown = '▼'
+const markColUp = '▲'
 
 // Nine hues equally spaced around the wheel. White is reserved for a digit
 // whose nine correct placements are all on the board.
@@ -33,8 +37,8 @@ var digitColor = [10]tcell.Color{
 var digitCompleteColor = tcell.ColorWhite
 
 var (
-	styleDefault = tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorBlack)
-	styleDim     = tcell.StyleDefault.Foreground(tcell.ColorGray).Background(tcell.ColorBlack)
+	styleDefault    = tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorBlack)
+	styleDim        = tcell.StyleDefault.Foreground(tcell.ColorGray).Background(tcell.ColorBlack)
 	styleGrid       = tcell.StyleDefault.Foreground(tcell.ColorSilver).Background(tcell.ColorBlack)
 	styleGridPencil = tcell.StyleDefault.Foreground(tcell.NewRGBColor(255, 230, 120)).Background(tcell.ColorBlack)
 )
@@ -90,17 +94,17 @@ func (g *game) drawMenu() {
 				st = g.selectStyle()
 			}
 			label = "▶ " + label
-		} else {
-			label = "  " + label
 		}
-		drawCentered(g.screen, w/2, startY+row, padTo(label, 46), st)
+		drawCentered(g.screen, w/2, startY+row, label, st)
 	}
 
 	st := g.save.statsFor(g.difficulty)
 	statsY := startY + len(visible) + 2
 	drawCentered(g.screen, w/2, statsY, "── "+difficultyLabel[g.difficulty]+" ──", g.titleStyle())
-	drawCentered(g.screen, w/2, statsY+1, fmt.Sprintf("Successes:  %d", st.Successes), styleDefault)
-	drawCentered(g.screen, w/2, statsY+2, fmt.Sprintf("Failed:     %d", st.Failed), styleDefault)
+	drawCentered(g.screen, w/2, statsY+1, fmt.Sprintf("Perfect:     %d", st.Perfect), styleDefault)
+	drawCentered(g.screen, w/2, statsY+2, fmt.Sprintf("Successes:   %d", st.Successes), styleDefault)
+	drawCentered(g.screen, w/2, statsY+3, fmt.Sprintf("Error Rate:  %s", st.errorRate()), styleDefault)
+	drawCentered(g.screen, w/2, statsY+4, fmt.Sprintf("Failed:      %d", st.Failed), styleDefault)
 	fast := "—"
 	if st.FastestMs != nil {
 		fast = formatDuration(time.Duration(*st.FastestMs) * time.Millisecond)
@@ -108,9 +112,9 @@ func (g *game) drawMenu() {
 			fast += fmt.Sprintf("  (%d incorrect)", *st.FastestMistakes)
 		}
 	}
-	drawCentered(g.screen, w/2, statsY+3, "Fastest:    "+fast, styleDefault)
+	drawCentered(g.screen, w/2, statsY+5, "Fastest:     "+fast, styleDefault)
 	total := len(puzzlesFor(g.difficulty))
-	drawCentered(g.screen, w/2, statsY+4, fmt.Sprintf("Remaining:  %d / %d", len(pool), total), styleDefault)
+	drawCentered(g.screen, w/2, statsY+6, fmt.Sprintf("Remaining:   %d / %d", len(pool), total), styleDefault)
 
 	if h > 2 {
 		drawCentered(g.screen, w/2, h-2, "↑↓ select  ·  ←→ difficulty  ·  Enter  ·  Esc quit", styleDim)
@@ -121,6 +125,9 @@ func (g *game) drawPlay() {
 	w, h := g.width, g.height
 	g.drawHUD()
 	ox := (w - boardCols) / 2
+	if ox < 1 && w >= boardCols+2 {
+		ox = 1
+	}
 	if ox < 0 {
 		ox = 0
 	}
@@ -193,6 +200,7 @@ func (g *game) drawBoard(ox, oy int) {
 		}
 	}
 	g.drawCursorBorder(ox, oy)
+	g.drawSelectionMarks(ox, oy)
 }
 
 func (g *game) drawActiveLine(y int) {
@@ -305,6 +313,41 @@ func (g *game) drawCursorBorder(ox, oy int) {
 	}
 	recolor(s, leftX, midY, g.cursorStyle())
 	recolor(s, rightX, midY, g.cursorStyle())
+}
+
+func (g *game) drawSelectionMarks(ox, oy int) {
+	c := g.board.cursor % 9
+	r := g.board.cursor / 9
+	digitX, midY := selectionMarkPos(ox, oy, c, r)
+	st := g.titleStyle()
+	lw := runeCols(markRowLeft)
+	g.putMarker(ox-lw, midY, markRowLeft, st)
+	g.putMarker(ox+boardCols, midY, markRowRight, st)
+	g.putMarker(digitX, oy-1, markColDown, st)
+	g.putMarker(digitX, oy+boardRows, markColUp, st)
+}
+
+func selectionMarkPos(ox, oy, col, row int) (digitX, midY int) {
+	return ox + col*4 + 2, oy + row*2 + 1
+}
+
+func runeCols(ch rune) int {
+	w := runewidth.RuneWidth(ch)
+	if w < 1 {
+		return 1
+	}
+	return w
+}
+
+func (g *game) putMarker(x, y int, ch rune, st tcell.Style) {
+	if y < 0 || y >= g.height {
+		return
+	}
+	w := runeCols(ch)
+	if x < 0 || x+w > g.width {
+		return
+	}
+	g.screen.SetContent(x, y, ch, nil, st)
 }
 
 func recolor(s tcell.Screen, x, y int, st tcell.Style) {
@@ -490,17 +533,6 @@ func stripVS(s string) string {
 		}
 	}
 	return string(out)
-}
-
-func padTo(s string, n int) string {
-	r := []rune(s)
-	if len(r) >= n {
-		return s
-	}
-	for len(r) < n {
-		r = append(r, ' ')
-	}
-	return string(r)
 }
 
 func fillRect(s tcell.Screen, x, y, w, h int, st tcell.Style) {
