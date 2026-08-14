@@ -109,12 +109,26 @@ func (b *board) completedDigits() [10]bool {
 	return done
 }
 
+func (b *board) activeDigits() []byte {
+	done := b.completedDigits()
+	out := make([]byte, 0, 9)
+	for d := byte(1); d <= 9; d++ {
+		if !done[d] {
+			out = append(out, '0'+d)
+		}
+	}
+	return out
+}
+
 func (b *board) place(digit byte) bool {
 	i := b.cursor
 	if b.isLocked(i) {
 		return false
 	}
 	if digit < '1' || digit > '9' {
+		return false
+	}
+	if b.completedDigits()[digit-'0'] {
 		return false
 	}
 	if b.grid[i] == digit {
@@ -124,6 +138,11 @@ func (b *board) place(digit byte) bool {
 	b.clearPencilsAt(i)
 	if digit != b.solution[i] {
 		b.mistakes++
+		return true
+	}
+	b.stripPencilPeers(i, digit)
+	if b.completedDigits()[digit-'0'] {
+		b.stripPencilDigit(digit)
 	}
 	return true
 }
@@ -186,6 +205,61 @@ func (b *board) clearPencilsAt(i int) {
 	b.pencil[i][0] = 0
 	b.pencil[i][1] = 0
 	b.pencilSlot[i] = 0
+}
+
+func (b *board) stripPencilDigitAt(i int, digit byte) {
+	top, bot := b.pencil[i][0], b.pencil[i][1]
+	if top != digit && bot != digit {
+		return
+	}
+	var remain byte
+	if top != 0 && top != digit {
+		remain = top
+	}
+	if bot != 0 && bot != digit {
+		remain = bot
+	}
+	if remain == 0 {
+		b.clearPencilsAt(i)
+		return
+	}
+	b.pencil[i][0] = 0
+	b.pencil[i][1] = remain
+	b.pencilSlot[i] = 0
+}
+
+func (b *board) stripPencilDigit(digit byte) {
+	for i := 0; i < 81; i++ {
+		b.stripPencilDigitAt(i, digit)
+	}
+}
+
+func (b *board) stripPencilPeers(at int, digit byte) {
+	r, c := at/9, at%9
+	br, bc := r/3*3, c/3*3
+	for i := 0; i < 9; i++ {
+		b.stripPencilDigitAt(r*9+i, digit)
+		b.stripPencilDigitAt(i*9+c, digit)
+		b.stripPencilDigitAt((br+i/3)*9+(bc+i%3), digit)
+	}
+}
+
+func (b *board) stripCompletedPencils() {
+	done := b.completedDigits()
+	for d := byte(1); d <= 9; d++ {
+		if done[d] {
+			b.stripPencilDigit('0' + d)
+		}
+	}
+}
+
+func (b *board) stripImpossiblePencils() {
+	b.stripCompletedPencils()
+	for i := 0; i < 81; i++ {
+		if b.isLocked(i) {
+			b.stripPencilPeers(i, b.grid[i])
+		}
+	}
 }
 
 func (b *board) hasPencil(i int) bool {

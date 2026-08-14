@@ -9,6 +9,7 @@ import (
 )
 
 const boardCols = 37
+const boardRows = 19
 const mistakeMark = '×' // same glyph as README 9×9
 const pencilGlyph = '▀'
 const modePen = "✒️"
@@ -125,12 +126,17 @@ func (g *game) drawPlay() {
 	}
 	oy := 2
 	g.drawBoard(ox, oy)
-	if h > 2 {
+	activeY := oy + boardRows + 1
+	if activeY < h {
+		g.drawActiveLine(activeY)
+	}
+	hintY := h - 1
+	if hintY > activeY {
 		hint := "1-9 Enter  ·  0 Clear  ·  Tab ✏️  ·  Space Pause  ·  Esc Exit"
 		if g.pencil {
 			hint = "1-9 Mark  ·  0 Clear  ·  Tab ✒️  ·  Space Pause  ·  Esc Exit"
 		}
-		drawCentered(g.screen, w/2, h-2, hint, styleDim)
+		drawCentered(g.screen, w/2, hintY, hint, styleDim)
 	}
 }
 
@@ -189,6 +195,26 @@ func (g *game) drawBoard(ox, oy int) {
 	g.drawCursorBorder(ox, oy)
 }
 
+func (g *game) drawActiveLine(y int) {
+	digits := g.board.activeDigits()
+	label := "Active:"
+	width := len(label) + 2*len(digits)
+	x := (g.width - width) / 2
+	if x < 0 {
+		x = 0
+	}
+	drawText(g.screen, x, y, label, styleDefault)
+	x += len(label)
+	for _, d := range digits {
+		drawText(g.screen, x, y, " ", styleDefault)
+		x++
+		ch := rune(d)
+		st := tcell.StyleDefault.Foreground(digitColor[d-'0']).Background(tcell.ColorBlack)
+		g.screen.SetContent(x, y, ch, nil, st)
+		x++
+	}
+}
+
 func drawHLine(s tcell.Screen, ox, y, kind int, st tcell.Style) {
 	var left, right, h, tee3, tee9 rune
 	switch kind {
@@ -237,7 +263,7 @@ func (g *game) drawDigitRow(ox, y, row int, done [10]bool) {
 		if ch == '0' {
 			if g.board.hasPencil(i) {
 				ch = pencilGlyph
-				st = g.pencilStyle(i, done)
+				st = g.pencilStyle(i)
 				pad = tcell.StyleDefault.Background(tcell.ColorBlack)
 			} else {
 				ch = ' '
@@ -315,16 +341,16 @@ func (g *game) modeGlyph() string {
 	return modePen
 }
 
-func (g *game) pencilStyle(i int, done [10]bool) tcell.Style {
+func (g *game) pencilStyle(i int) tcell.Style {
 	top := g.board.pencil[i][0]
 	bot := g.board.pencil[i][1]
 	fg := tcell.ColorBlack
 	bg := tcell.ColorBlack
 	if top >= '1' && top <= '9' {
-		fg = digitPaint(top-'0', done)
+		fg = digitColor[top-'0']
 	}
 	if bot >= '1' && bot <= '9' {
-		bg = digitPaint(bot-'0', done)
+		bg = digitColor[bot-'0']
 	}
 	return tcell.StyleDefault.Foreground(fg).Background(bg)
 }

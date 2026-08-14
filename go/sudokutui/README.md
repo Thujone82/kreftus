@@ -14,11 +14,11 @@ On Windows, Sudoku switches the console to UTF-8 and prefers **Cascadia Mono** w
 
 - **Start menu** — Continue Game (only when a game is in progress), **New Game: ◀ difficulty ▶**, Quit
 - **Accent color** — random hue each launch; shifts as you move in the menu or on the board, start a game, or lock a correct digit (wrong digits jump eight steps the other way). In **pencil** mode, movement and marks rotate the other direction
-- **Pencil marks** — Tab toggles ✒️ pen / ✏️ pencil (footer shows `Tab ✏️` / `Tab ✒️`). Play always starts in pen mode. Empty cells can hold two *different* candidate colors on a `▀` glyph (top = first mark, bottom = second). Further marks overwrite top, then bottom. A digit that is already complete (white), or already marked in the cell, is ignored. 0 clears marks. The grid border turns light yellow in pencil mode
+- **Pencil marks** — Tab toggles ✒️ pen / ✏️ pencil (footer shows `Tab ✏️` / `Tab ✒️`). Play always starts in pen mode. Empty cells can hold two *different* candidate colors on a `▀` glyph (top = first mark, bottom = second). Further marks overwrite top, then bottom. A digit that is already complete (all nine placed) is ignored in pen and pencil. A correct lock-in removes that color from pencil marks in the same row, column, and box; completing a number removes it everywhere. A leftover mark drops to the bottom half so the top is next. 0 clears marks. The grid border turns light yellow in pencil mode
 - **Grid flash** — green ~0.6s on a correct lock-in, red on a mistake
 - **Difficulty stats** — Successes, Failed, Fastest Completion (with incorrect-entry count), and remaining puzzles update as you change difficulty
 - **Continue Game** — progress is saved after every move
-- **Colored digits** — 1–9 each have a distinct hue around the color wheel; a digit turns **white** when all nine of that number are correctly placed
+- **Colored digits** — 1–9 each have a distinct hue around the color wheel; a digit turns **white** when all nine of that number are correctly placed. Under the board, **Active:** lists the numbers that are not finished yet, in those same hues
 - **Mistake tally** — the HUD shows a `×` for each incorrect entry (no count label)
 - **Red cell** — incorrect entry against the solution
 - **Play clock** — elapsed time in the top-right; pause freezes it
@@ -34,7 +34,7 @@ On Windows, Sudoku switches the console to UTF-8 and prefers **Cascadia Mono** w
 | Menu | Esc | Quit |
 | In game | Arrows or WASD | Move cursor (wraps around the board) |
 | In game | Tab | Toggle ✒️ pen / ✏️ pencil |
-| In game | 1–9 | Enter a digit (pen) or add a pencil mark |
+| In game | 1–9 | Enter a digit (pen) or add a pencil mark; completed numbers are ignored |
 | In game | 0, Backspace, or Delete | Clear the cell (pen) or clear pencil marks |
 | In game | Space | Pause / resume |
 | In game | Esc | Exit — Abandon or Quit Sudoku |
@@ -55,7 +55,7 @@ On Windows, Sudoku switches the console to UTF-8 and prefers **Cascadia Mono** w
 | Hard | 1000 | Advanced patterns |
 | Diabolical | 250 | The hardest graded puzzles in the bundled set |
 
-New Game picks a **random unsolved** puzzle at the selected difficulty. **Abandon** (from Esc while playing, or starting New Game while one is in progress) wipes the in-progress save and counts as **Failed**. **Quit** from the Esc overlay exits and keeps Continue for the next launch. Finishing counts as a **Success**. Fastest time for that difficulty is kept (ties prefer fewer incorrect entries).
+New Game picks a **random unsolved** puzzle at the selected difficulty. **Abandon** (from Esc while playing, or starting New Game while one is in progress) wipes the in-progress save and counts as **Failed**. **Quit** from the Esc overlay exits and keeps Continue for the next launch. Finishing immediately records a **Success**, writes the save, and wipes Continue so the menu will not offer that game again. Fastest time for that difficulty is kept (ties prefer fewer incorrect entries).
 
 When every puzzle at a difficulty is solved, New Game is disabled for that level.
 

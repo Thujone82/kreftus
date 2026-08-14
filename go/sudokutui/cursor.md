@@ -19,16 +19,16 @@ Puzzles are a sample of the public-domain [Sudoku Exchange Puzzle Bank](https://
 ### Key Functionality
 
 - **Menu:** Continue Game (only listed when a `continue` blob exists), **New Game: ◀ {Difficulty} ▶** (←→ cycles difficulty and starts a game on Enter; dimmed when the pool is empty), Quit. ←→ always changes difficulty. ↑↓←→, play cursor moves, and starting a new game each rotate the accent wheel one step forward. In pencil mode, play moves and marks rotate **−1**.
-- **Pencil marks:** Tab toggles ✒️ pen / ✏️ pencil (HUD). Play always opens in pen mode (New Game and Continue). Empty unlocked cells show up to two *different* candidates on `▀` (FG = top mark color, BG = bottom). First 1–9 fills top, second fills bottom, further presses overwrite top then bottom. Duplicate of the other half is ignored. Marks for a digit that is already complete (white) are ignored. 0 / Backspace / Delete in pencil mode clears marks. Placing a pen digit clears that cell's marks. Saved in continue as `pencilTop` / `pencilBot` / `pencilSlot`.
+- **Pencil marks:** Tab toggles ✒️ pen / ✏️ pencil (HUD). Play always opens in pen mode (New Game and Continue). Empty unlocked cells show up to two *different* candidates on `▀` (FG = top mark color, BG = bottom). First 1–9 fills top, second fills bottom, further presses overwrite top then bottom. Duplicate of the other half is ignored. A digit that is already complete (all nine placed) is ignored for both pen and pencil. A correct lock-in **removes** that digit from pencil marks in the same row, column, and box (`stripPencilPeers`). When the last of a digit is placed, that color is removed from **all** pencil marks (`stripPencilDigit`), not turned white. Any leftover mark in a cell moves to the **background** (bottom) and the top half becomes the next slot. Continue sanitizes with `stripImpossiblePencils` (completed digits plus peers of every locked cell, including givens). 0 / Backspace / Delete in pencil mode clears marks. Placing a pen digit clears that cell's marks. Saved in continue as `pencilTop` / `pencilBot` / `pencilSlot`.
 - **Stats panel:** Successes, Failed, Fastest (time + incorrect entries on that run), Remaining `n / total` (total is the bundled count for that difficulty).
 - **Continue:** Restores grid, pencil marks, mode, elapsed ms, mistake count, difficulty. Clock resumes on load.
 - **New Game while a continue exists:** confirm overlay (Cancel / Abandon); Abandon records a Failure for the *in-progress* difficulty, wipes `continue`, then picks a random incomplete puzzle at the *selected* difficulty.
 - **Exit (Esc in play or pause):** overlay **Abandon** or **Quit Sudoku** (Quit selected by default). **Quit** writes continue and exits so the next launch can Continue. **Abandon** clears `continue`, increments Failed, returns to the menu (puzzle ID stays eligible). Esc on the overlay cancels back to play.
-- **Success:** `grid == solution`. Record success + fastest (tie-break: fewer mistakes), append ID to `completed[difficulty]`, clear continue, show overlay (time + incorrect entries).
+- **Success:** `grid == solution`. Record success + fastest (tie-break: fewer mistakes), append ID to `completed[difficulty]`, **immediately** clear `continue` and write `sudoku.json`, then show overlay (time + incorrect entries). `persistPlay` / Quit / Ctrl+C must not rewrite a completed board as Continue. A leftover completed `continue` blob is scrubbed on load (`scrubCompletedContinue`).
 - **Incorrect entry:** compare to unique solution. Maroon cell; mistake +1 per wrong place. Grid border flashes **red** ~600ms. Accent wheel jumps **−8**. Givens and locked-correct cells cannot be changed.
 - **Correct lock-in:** cell locks (bold). Grid border flashes **green** ~600ms. Accent wheel rotates **forward**. Completing the board holds the green flash then shows Solved.
 - **Pause (Space):** freeze clock, fill screen with PAUSED (board hidden). Space resumes; Esc opens the Exit overlay.
-- **Ctrl+C / SIGTERM:** persist continue if a puzzle is in progress (same as Quit) and exit. Cleanup resets colors, shows the cursor, `Fini`s tcell, then ANSI `\033[H\033[2J` (Clear-Host) so the console is blank.
+- **Ctrl+C / SIGTERM:** persist continue if a puzzle is in progress (same as Quit) and exit. A just-solved board is not persisted as Continue (Success already written). Cleanup resets colors, shows the cursor, `Fini`s tcell, then ANSI `\033[H\033[2J` (Clear-Host) so the console is blank.
 - **Windows console:** CP65001, VT processing, Cascadia Mono preference; request 80×24.
 
 ---
@@ -53,7 +53,7 @@ Views in `main.go`: `viewMenu`, `viewPlay`, `viewPaused`, `viewConfirmExit`, `vi
 | File | Role |
 |------|------|
 | `main.go` | Entry, tcell loop (Larry-style event drain + 1s clock tick), input, persist, win/lose |
-| `render.go` | Menu, HUD, 37×19 box-drawn board, pause/confirm/solved overlays, digit colors |
+| `render.go` | Menu, HUD, 37×19 box-drawn board, Active digit strip, pause/confirm/solved overlays, digit colors |
 | `colors.go` | 16-color accent wheel, HUD/title/selection styles, 600ms grid-border flash |
 | `board.go` | 81-cell grid, cursor, place/clear, pencil marks, `isWrong` / `isComplete` |
 | `save.go` | `sudoku.json` load/save (BOM), stats, completed IDs, continue pencils |
@@ -95,7 +95,7 @@ Difficulty buckets (Sukaku Explainer): Easy &lt; 1.5, Medium &lt; 2.5, Hard &lt;
 
 ### Save file (`sudoku.json`)
 
-Written to the process **cwd** (same convention as Larry’s `larry.scores.json`). UTF-8 with BOM. Written after every place/clear, pause, resume, abandon, and solve.
+Written to the process **cwd** (same convention as Larry’s `larry.scores.json`). UTF-8 with BOM. Written after every place/clear, pause, resume, abandon, and solve. A solved board is never stored as `continue`; the completing move records Success and wipes the in-progress blob in the same write.
 
 ```json
 {
@@ -129,7 +129,7 @@ Written to the process **cwd** (same convention as Larry’s `larry.scores.json`
 
 ### Digit colors (`render.go` `digitColor`)
 
-Nine hues equally spaced around the wheel. **White is reserved**: when all nine correct placements of a digit are on the board, those glyphs render white (`digitCompleteColor`). Error feedback is **background maroon**, not a digit hue.
+Nine hues equally spaced around the wheel. **White is reserved** for placed digits when all nine of that number are on the board (`digitCompleteColor`). Pencil marks for a completed digit are stripped (`stripPencilDigit`); they do not turn white. Error feedback is **background maroon**, not a digit hue.
 
 | Digit | Color |
 |-------|--------|
@@ -178,14 +178,14 @@ Not persisted. Continue Game / Quit do not rotate except via the arrow keys used
 
 ### Board geometry
 
-Playfield 37 columns × 19 rows, centered under a 1-row HUD.
+Playfield 37 columns × 19 rows, centered under a 1-row HUD. One blank row under the board, then a centered **Active:** strip of remaining (uncompleted) digits in their hues; completed numbers are omitted (e.g. `Active: 3 6 8`). Controls hint sits on the last row so 80×24 still fits.
 
 - Double-line `╔═╗║╚╝╦╩╬╠╣` for 3×3 boxes and outer frame.
 - Single-line `─│┼` inside a box; mixed `╤╧╟╢╫╪` at box/cell joins.
 - Each cell is three columns: space, digit, space.
 - Cursor movement is toroidal: left from column 0 wraps to column 8, and the same for the other edges.
 
-Preferred console **80×24** (`size.go`). HUD: `SUDOKU {Difficulty}` + ✒️/✏️ mode; `×` tally for mistakes; elapsed `M:SS` or `H:MM:SS` right.
+Preferred console **80×24** (`size.go`). HUD: `SUDOKU {Difficulty}` + ✒️/✏️ mode; `×` tally for mistakes; elapsed `M:SS` or `H:MM:SS` right. Under the board: blank row, then centered `Active:` remaining digits; last row is the controls hint.
 
 ---
 
@@ -222,7 +222,8 @@ Quick check: `go test .`  ·  `go build -o Sudoku.exe .`
 ### Tests
 
 - `solver_test.go` — Wikipedia puzzle, reject short input, empty grid solves.
-- `puzzles_test.go` — bundled counts (2500/2000/1000/250) unique IDs, no baked solutions, sample solvability, incomplete pool omits completed IDs, mistake/correct/complete board behavior, digit-complete (all nine of a number), toroidal cursor wrap, pencil mark cycle/clear/save.
+- `puzzles_test.go` — bundled counts (2500/2000/1000/250) unique IDs, no baked solutions, sample solvability, incomplete pool omits completed IDs, mistake/correct/complete board behavior, digit-complete (all nine of a number), Active strip omits completed digits, toroidal cursor wrap, pencil mark cycle/clear/save, strip completed pencil color to background, strip peer (row/col/box) marks on correct place, pen and pencil ignore completed digits.
+- `save_test.go` — finishSuccess wipes continue and records completion immediately; persistPlay skips a completed board; load scrubs a leftover solved continue without double-counting.
 - `colors_test.go` — 16-step wheel wrap; −8 incorrect jump; pencil mode −1 step; digit hues are not white.
 
 ---
@@ -232,7 +233,7 @@ Quick check: `go test .`  ·  `go build -o Sudoku.exe .`
 - Module name `sudokutui` (folder); binary name **Sudoku** (capital S).
 - Do not recycle completed IDs. Abandoned puzzles may be drawn again.
 - Space pauses/resumes in play (clears with 0 / Backspace / Delete). Cursor wraps toroidally. Tab toggles pencil mode.
-- Esc in play/pause opens Exit: **Quit** (default) persists continue and leaves; **Abandon** wipes continue and increments Failed. Continue is omitted from the menu when there is no in-progress game. Any exit path (Quit, Esc on menu, Ctrl+C) Clear-Hosts after `Fini`.
+- Esc in play/pause opens Exit: **Quit** (default) persists continue and leaves; **Abandon** wipes continue and increments Failed. Continue is omitted from the menu when there is no in-progress game. Completing a puzzle writes Success and clears continue before the solved overlay, so the next launch cannot Continue that board. Any exit path (Quit, Esc on menu, Ctrl+C) Clear-Hosts after `Fini`.
 - Confirm dialogs default to No (Larry give-up / destructive-action convention).
 - Keep `puzzles.json` in git; do not download the bank at runtime.
 - If adding difficulties, update `difficultyOrder`, JSON keys, import list, and stats maps together.

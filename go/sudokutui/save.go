@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"bytes"
@@ -88,9 +88,24 @@ func loadSave() *saveData {
 		}
 		if !validPuzzleStrings(s.Continue.Givens, s.Continue.Solution, s.Continue.Grid) {
 			s.Continue = nil
+		} else if s.scrubCompletedContinue() {
+			_ = s.write()
 		}
 	}
 	return s
+}
+
+func (s *saveData) scrubCompletedContinue() bool {
+	c := s.Continue
+	if c == nil || len(c.Grid) != 81 || len(c.Solution) != 81 || c.Grid != c.Solution {
+		return false
+	}
+	if _, done := s.completedSet(c.Difficulty)[c.ID]; !done {
+		s.recordSuccess(c.Difficulty, c.ElapsedMs, c.Mistakes)
+		s.markCompleted(c.Difficulty, c.ID)
+	}
+	s.Continue = nil
+	return true
 }
 
 func validPuzzleStrings(givens, solution, grid string) bool {

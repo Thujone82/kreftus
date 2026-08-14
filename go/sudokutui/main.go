@@ -306,6 +306,9 @@ func (g *game) activateMenu() bool {
 }
 
 func (g *game) handlePlay(e *tcell.EventKey) bool {
+	if g.pendingSolved || g.board.isComplete() {
+		return false
+	}
 	switch e.Key() {
 	case tcell.KeyEscape:
 		g.stopClock()
@@ -367,9 +370,10 @@ func (g *game) handlePlay(e *tcell.EventKey) bool {
 					g.rotateAccent(-8)
 					g.startFlash(false)
 				}
-				g.persistPlay()
 				if g.board.isComplete() {
 					g.finishSuccess()
+				} else {
+					g.persistPlay()
 				}
 			}
 		}
@@ -512,7 +516,7 @@ func (g *game) currentElapsed() time.Duration {
 }
 
 func (g *game) persistIfPlaying() {
-	if g.puzzle.ID == "" {
+	if !g.shouldPersistContinue() {
 		return
 	}
 	if g.view == viewPlay || g.view == viewPaused || g.view == viewConfirmExit {
@@ -521,8 +525,15 @@ func (g *game) persistIfPlaying() {
 	}
 }
 
+func (g *game) shouldPersistContinue() bool {
+	if g.puzzle.ID == "" || g.pendingSolved || g.view == viewSolved {
+		return false
+	}
+	return !g.board.isComplete()
+}
+
 func (g *game) persistPlay() {
-	if g.puzzle.ID == "" {
+	if !g.shouldPersistContinue() {
 		return
 	}
 	ms := g.currentElapsed().Milliseconds()
@@ -584,11 +595,15 @@ func (g *game) resumeContinue() {
 	g.board = newBoard(c.Givens, p.Solution, c.Grid)
 	g.board.mistakes = c.Mistakes
 	g.board.loadPencils(c.PencilTop, c.PencilBot, c.PencilSlot)
+	g.board.stripImpossiblePencils()
 	g.pencil = false
 	g.elapsed = time.Duration(c.ElapsedMs) * time.Millisecond
 	g.clockRunning = false
 	g.startClock()
 	g.view = viewPlay
+	if g.board.isComplete() {
+		g.finishSuccess()
+	}
 }
 
 func (g *game) abandonContinue() {
@@ -618,6 +633,7 @@ func (g *game) finishSuccess() {
 	g.save.markCompleted(g.difficulty, g.puzzle.ID)
 	g.save.Continue = nil
 	_ = g.save.write()
+	g.puzzle = puzzleEntry{}
 	g.pendingSolved = true
 	g.maybeShowSolved()
 }

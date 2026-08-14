@@ -128,6 +128,25 @@ func TestCompletedDigits(t *testing.T) {
 	}
 }
 
+func TestActiveDigitsOmitsCompleted(t *testing.T) {
+	givens := "530070000600195000098000060800060003400803001700020006060000280000419005000080079"
+	sol := solveSudoku(givens)
+	b := newBoard(givens, sol, givens)
+	if got := string(b.activeDigits()); got != "123456789" {
+		t.Fatalf("all active: got %q", got)
+	}
+	for _, d := range []byte{'1', '2', '4', '5', '7', '9'} {
+		for i := 0; i < 81; i++ {
+			if sol[i] == d {
+				b.grid[i] = d
+			}
+		}
+	}
+	if got := string(b.activeDigits()); got != "368" {
+		t.Fatalf("remaining active: got %q want 368", got)
+	}
+}
+
 func TestEnsureSolvedFillsFromGivens(t *testing.T) {
 	p := puzzleEntry{
 		ID:     "wiki",
@@ -237,5 +256,148 @@ func TestPencilRejectsCompletedDigit(t *testing.T) {
 	}
 	if !b.markPencil('4') {
 		t.Fatal("unfinished digit should still mark")
+	}
+}
+
+func TestPlaceRejectsCompletedDigit(t *testing.T) {
+	givens := "530070000600195000098000060800060003400803001700020006060000280000419005000080079"
+	sol := solveSudoku(givens)
+	b := newBoard(givens, sol, givens)
+	for i := 0; i < 81; i++ {
+		if sol[i] == '5' {
+			b.grid[i] = '5'
+		}
+	}
+	b.cursor = 2
+	if b.place('5') {
+		t.Fatal("should ignore pen entry for a completed digit")
+	}
+	if b.grid[2] != '0' || b.mistakes != 0 {
+		t.Fatal("completed digit must not place or count as a mistake")
+	}
+	if !b.place(sol[2]) {
+		t.Fatal("unfinished digit should still place")
+	}
+}
+
+func TestStripCompletedPencilToBackground(t *testing.T) {
+	givens := "530070000600195000098000060800060003400803001700020006060000280000419005000080079"
+	sol := solveSudoku(givens)
+	b := newBoard(givens, sol, givens)
+	b.cursor = 2
+	if !b.markPencil('5') || !b.markPencil('4') {
+		t.Fatal("setup 5 top / 4 bottom")
+	}
+	only := -1
+	for i := 0; i < 81; i++ {
+		if emptyCell(b.grid[i]) && i != 2 {
+			only = i
+			break
+		}
+	}
+	if only < 0 {
+		t.Fatal("need a second empty cell")
+	}
+	b.cursor = only
+	if !b.markPencil('5') {
+		t.Fatal("setup lone 5 mark")
+	}
+	var last int
+	for i := 0; i < 81; i++ {
+		if sol[i] == '5' && b.grid[i] != '5' {
+			last = i
+		}
+	}
+	for i := 0; i < 81; i++ {
+		if sol[i] == '5' && i != last {
+			b.grid[i] = '5'
+		}
+	}
+	b.cursor = last
+	if !b.place('5') {
+		t.Fatal("place last 5")
+	}
+	if !b.completedDigits()[5] {
+		t.Fatal("5 should be complete")
+	}
+	if b.pencil[2][0] != 0 || b.pencil[2][1] != '4' || b.pencilSlot[2] != 0 {
+		t.Fatalf("remaining mark should be background, next fill top: %+v slot %d", b.pencil[2], b.pencilSlot[2])
+	}
+	if b.pencil[only][0] != 0 || b.pencil[only][1] != 0 {
+		t.Fatalf("lone completed mark should be removed: %+v", b.pencil[only])
+	}
+	b.cursor = 2
+	if !b.markPencil('3') || b.pencil[2][0] != '3' || b.pencil[2][1] != '4' {
+		t.Fatalf("next fill should be top: %+v", b.pencil[2])
+	}
+}
+
+func TestStripPencilPeersOnPlace(t *testing.T) {
+	givens := "530070000600195000098000060800060003400803001700020006060000280000419005000080079"
+	sol := solveSudoku(givens)
+	b := newBoard(givens, sol, givens)
+	rowPeer, colPeer, boxPeer, distant := 5, 38, 10, 72
+	b.cursor = rowPeer
+	if !b.markPencil('4') || !b.markPencil('2') {
+		t.Fatal("row peer 4 top / 2 bottom")
+	}
+	b.cursor = colPeer
+	if !b.markPencil('4') {
+		t.Fatal("col peer lone 4")
+	}
+	b.cursor = boxPeer
+	if !b.markPencil('4') {
+		t.Fatal("box peer lone 4")
+	}
+	b.cursor = distant
+	if !b.markPencil('4') || !b.markPencil('1') {
+		t.Fatal("distant 4 top / 1 bottom")
+	}
+	b.cursor = 2
+	if !b.place('4') {
+		t.Fatal("place 4")
+	}
+	if b.pencil[rowPeer][0] != 0 || b.pencil[rowPeer][1] != '2' || b.pencilSlot[rowPeer] != 0 {
+		t.Fatalf("row peer leftover should be background: %+v slot %d", b.pencil[rowPeer], b.pencilSlot[rowPeer])
+	}
+	if b.pencil[colPeer][0] != 0 || b.pencil[colPeer][1] != 0 {
+		t.Fatalf("col peer lone 4 should be cleared: %+v", b.pencil[colPeer])
+	}
+	if b.pencil[boxPeer][0] != 0 || b.pencil[boxPeer][1] != 0 {
+		t.Fatalf("box peer lone 4 should be cleared: %+v", b.pencil[boxPeer])
+	}
+	if b.pencil[distant][0] != '4' || b.pencil[distant][1] != '1' {
+		t.Fatalf("non-peer marks should stay: %+v", b.pencil[distant])
+	}
+}
+
+func TestWrongPlaceDoesNotStripPeers(t *testing.T) {
+	givens := "530070000600195000098000060800060003400803001700020006060000280000419005000080079"
+	sol := solveSudoku(givens)
+	b := newBoard(givens, sol, givens)
+	b.cursor = 5
+	if !b.markPencil('1') {
+		t.Fatal("mark 1 in row")
+	}
+	b.cursor = 2
+	if !b.place('1') {
+		t.Fatal("wrong 1")
+	}
+	if b.pencil[5][0] != '1' {
+		t.Fatalf("wrong place should not strip peers: %+v", b.pencil[5])
+	}
+}
+
+func TestStripImpossiblePencilsFromGivens(t *testing.T) {
+	givens := "530070000600195000098000060800060003400803001700020006060000280000419005000080079"
+	sol := solveSudoku(givens)
+	b := newBoard(givens, sol, givens)
+	b.cursor = 2
+	if !b.markPencil('5') || !b.markPencil('4') {
+		t.Fatal("mark 5 (given in row) and 4")
+	}
+	b.stripImpossiblePencils()
+	if b.pencil[2][0] != 0 || b.pencil[2][1] != '4' || b.pencilSlot[2] != 0 {
+		t.Fatalf("given 5 should strip row marks: %+v slot %d", b.pencil[2], b.pencilSlot[2])
 	}
 }
