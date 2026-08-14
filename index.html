@@ -6,8 +6,8 @@
     <title>KREFT.US PROJECTS</title>
     
     <!-- SEO Meta Tags -->
-    <meta name="description" content="KREFT.US — web apps and CLI tools: Forecast &amp; GetForecast weather, TemPy ThermoPro BLE monitor, PDX Heritage Trees, Snake VS, SpiroGen, BTC Track, GENE, Game of Life, Double Pendulum, nfo2go, and terminal utilities for Bitcoin, polling, and file updates.">
-    <meta name="keywords" content="web applications, CLI tools, TemPy, ThermoPro, Bitcoin tracker, weather forecast, GetForecast, wildfire, NIFC, Conway's Game of Life, double pendulum, snake game, spirograph, genetic algorithm, terminal games, PowerShell scripts, local file update tool, Go applications">
+    <meta name="description" content="KREFT.US — web apps and CLI tools: Forecast &amp; GetForecast weather, TemPy ThermoPro BLE monitor, PDX Heritage Trees, Sudoku TUI, Larry, Mastermind, Snake VS, SpiroGen, BTC Track, GENE, Game of Life, Double Pendulum, nfo2go, and terminal utilities for Bitcoin, polling, and file updates.">
+    <meta name="keywords" content="web applications, CLI tools, TemPy, ThermoPro, Bitcoin tracker, weather forecast, GetForecast, wildfire, NIFC, Sudoku, Larry, Mastermind, Conway's Game of Life, double pendulum, snake game, spirograph, genetic algorithm, terminal games, PowerShell scripts, local file update tool, Go applications">
     <meta name="author" content="Thujone82">
     <meta name="robots" content="index, follow">
     <meta name="language" content="English">
@@ -15,7 +15,7 @@
     
     <!-- Open Graph Meta Tags for Social Media -->
     <meta property="og:title" content="KREFT.US PROJECTS">
-    <meta property="og:description" content="Web apps and CLI tools: Forecast &amp; GetForecast weather, TemPy ThermoPro monitor, Heritage Trees, games, Bitcoin trackers, and interactive simulations.">
+    <meta property="og:description" content="Web apps and CLI tools: Forecast &amp; GetForecast weather, TemPy ThermoPro monitor, Heritage Trees, Sudoku TUI, Larry, Mastermind, games, Bitcoin trackers, and interactive simulations.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://kreft.us">
     <meta property="og:site_name" content="KREFT.US">
@@ -25,7 +25,7 @@
     <!-- Twitter Card Meta Tags -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="KREFT.US PROJECTS">
-    <meta name="twitter:description" content="Web apps and CLI tools: Forecast &amp; GetForecast weather, TemPy ThermoPro monitor, Heritage Trees, games, Bitcoin trackers, and interactive simulations.">
+    <meta name="twitter:description" content="Web apps and CLI tools: Forecast &amp; GetForecast weather, TemPy ThermoPro monitor, Heritage Trees, Sudoku TUI, Larry, Mastermind, games, Bitcoin trackers, and interactive simulations.">
     <meta name="twitter:image" content="https://kreft.us/forecast/icons/dark-icon-512.png">
     
     <!-- Additional SEO Meta Tags -->
@@ -268,7 +268,7 @@
         "@type": "WebSite",
         "name": "KREFT.US PROJECTS",
         "url": "https://kreft.us",
-        "description": "Web apps and CLI tools: Forecast and GetForecast weather, TemPy ThermoPro monitor, PDX Heritage Trees, games, Bitcoin trackers, and interactive simulations.",
+        "description": "Web apps and CLI tools: Forecast and GetForecast weather, TemPy ThermoPro monitor, PDX Heritage Trees, Sudoku TUI, Larry, Mastermind, games, Bitcoin trackers, and interactive simulations.",
         "author": {
             "@type": "Person",
             "name": "Thujone82"
@@ -368,6 +368,13 @@
                     "description": "Python desktop and terminal port of Conway's Game of Life with pygame GUI, Textual TUI (gol-tui.exe), wrapped/infinite modes, 57 patterns, pan and zoom, and colorful cell aging.",
                     "url": "https://kreft.us/golpy/",
                     "applicationCategory": "Simulation"
+                },
+                {
+                    "@type": "SoftwareApplication",
+                    "name": "Sudoku",
+                    "description": "Terminal Sudoku game in Go (v1.0) with UTF-8 box drawing, colored digits, continue saves, per-difficulty stats, and puzzles from the public-domain Sudoku Exchange bank.",
+                    "url": "https://kreft.us/sudoku/",
+                    "applicationCategory": "Game"
                 },
                 {
                     "@type": "SoftwareApplication",
@@ -645,6 +652,21 @@
                             <div>
                                 <h2>GoLPy v1.1</h2>
                                 <p><b>GoLPy</b> is a Python desktop port of the Kreft.us web Game of Life with pygame and a Textual terminal UI. Run Conway B3/S23 in wrapped or infinite mode with 57 built-in patterns, play/pause/step, pan and zoom, and colorful cell aging. <b>v1.1</b> adds full-terminal TUI (<code>-tui</code> / <code>gol-tui.exe</code>), controls help (<b>C</b>), infinite follow toggle (<b>F</b>), and dynamic wrapped grid sizing. Downloads and README on the project page.</p>
+                            </div>
+                        </a>
+                    </td>
+                </tr>
+                <tr class="project-row" onclick="window.location.href='./sudoku/';">
+                    <td class="project-image-cell">
+                        <a href="./sudoku/" tabindex="-1">
+                            <img src="./images/sudoku.png" alt="Sudoku terminal puzzle game screenshot showing a colored 9x9 board" loading="lazy">
+                        </a>
+                    </td>
+                    <td class="project-text-cell">
+                        <a href="./sudoku/" tabindex="-1">
+                            <div>
+                                <h2>Sudoku v1.0</h2>
+                                <p><b>Sudoku</b> is a terminal puzzle game written in Go with tcell. Fill the 9×9 grid; clues and correct entries lock so they cannot be changed by accident. Wrong digits stay with a red cell. Easy through Diabolical puzzles from the public-domain Sudoku Exchange bank; solved IDs are never offered again. Continue saves after every move, with per-difficulty Successes, Failed, and fastest time. Space pauses, Esc opens Abandon or Quit. Downloads and README on the project page.</p>
                             </div>
                         </a>
                     </td>
