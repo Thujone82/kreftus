@@ -74,7 +74,7 @@ func (g *game) drawMenu() {
 	canNew := len(pool) > 0
 	visible := g.visibleMenu()
 	labels := map[int]string{
-		menuContinue: "Continue Game",
+		menuContinue: continueMenuLabel(g.save.Continue),
 		menuNewGame:  "New Game: ◀ " + difficultyLabel[g.difficulty] + " ▶",
 		menuQuit:     "Quit",
 	}
@@ -113,12 +113,24 @@ func (g *game) drawMenu() {
 		}
 	}
 	drawCentered(g.screen, w/2, statsY+5, "Fastest:     "+fast, styleDefault)
+	drawCentered(g.screen, w/2, statsY+6, "Average Completion:  "+g.save.averageCompletion(g.difficulty), styleDefault)
 	total := len(puzzlesFor(g.difficulty))
-	drawCentered(g.screen, w/2, statsY+6, fmt.Sprintf("Remaining:   %d / %d", len(pool), total), styleDefault)
+	drawCentered(g.screen, w/2, statsY+7, fmt.Sprintf("Remaining:   %d / %d", len(pool), total), styleDefault)
 
 	if h > 2 {
 		drawCentered(g.screen, w/2, h-2, "↑↓ select  ·  ←→ difficulty  ·  Enter  ·  Esc quit", styleDim)
 	}
+}
+
+func continueMenuLabel(c *continueGame) string {
+	if c == nil {
+		return "Continue Game"
+	}
+	name := difficultyLabel[c.Difficulty]
+	if name == "" {
+		name = c.Difficulty
+	}
+	return "Continue Game [" + name + "]"
 }
 
 func (g *game) drawSudokuBanner(y int) {

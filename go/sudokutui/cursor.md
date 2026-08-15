@@ -12,19 +12,19 @@
 
 `sudokutui` is a cross-platform terminal Sudoku game written in Go with [`tcell`](https://github.com/gdamore/tcell). The Windows/Linux executable is named **Sudoku**. UTF-8 box-drawing frames a 9×9 board; each digit 1–9 has a distinct color. Wrong entries keep the digit and paint the cell maroon. A play clock sits on the HUD; **Space** pauses the clock and hides the board.
 
-Puzzles are a sample of the public-domain [Sudoku Exchange Puzzle Bank](https://github.com/grantm/sudoku-exchange-puzzle-bank) (Grant McLean / QQWing + Sukaku Explainer): **2500 Easy, 2000 Medium, 1000 Hard, 250 Diabolical**. `puzzles.json` stores id + givens only; the unique solution is computed at New Game / Continue with `solveSudoku`. `sudoku.json` (cwd, UTF-8 with BOM) stores continue-state, per-difficulty stats, and completed puzzle IDs. Completed IDs are never offered again; New Game draws uniformly from the incomplete pool.
+Puzzles are a sample of the public-domain [Sudoku Exchange Puzzle Bank](https://github.com/grantm/sudoku-exchange-puzzle-bank) (Grant McLean / QQWing + Sukaku Explainer): **2500 Easy, 2000 Medium, 1000 Hard, 250 Diabolical**. `puzzles.json` stores id + givens only; the unique solution is computed at New Game / Continue with `solveSudoku`. `sudoku.json` (cwd, UTF-8 with BOM) stores continue-state, per-difficulty stats, and completed puzzles (`id` + `mistakes`). Completed IDs are never offered again; New Game draws uniformly from the incomplete pool.
 
 ---
 
 ### Key Functionality
 
-- **Menu:** Continue Game (only listed when a `continue` blob exists), **New Game: ◀ {Difficulty} ▶** (←→ cycles difficulty and starts a game on Enter; dimmed when the pool is empty), Quit. ←→ always changes difficulty. ↑↓←→, play cursor moves, and starting a new game each rotate the accent wheel one step forward. In pencil mode, play moves and marks rotate **−1**.
+- **Menu:** Continue Game (only listed when a `continue` blob exists; label is **Continue Game [{Difficulty}]** from the in-progress save), **New Game: ◀ {Difficulty} ▶** (←→ cycles difficulty and starts a game on Enter; dimmed when the pool is empty), Quit. ←→ always changes difficulty. ↑↓←→, play cursor moves, and starting a new game each rotate the accent wheel one step forward. In pencil mode, play moves and marks rotate **−1**.
 - **Pencil marks:** Tab toggles ✒️ pen / ✏️ pencil (HUD). Play always opens in pen mode (New Game and Continue). Empty unlocked cells show up to two *different* candidates on `▀` (FG = top mark color, BG = bottom). First 1–9 fills top, second fills bottom, further presses overwrite top then bottom. Duplicate of the other half is ignored. A digit that is already complete (all nine placed) is ignored for both pen and pencil. A correct lock-in **removes** that digit from pencil marks in the same row, column, and box (`stripPencilPeers`). When the last of a digit is placed, that color is removed from **all** pencil marks (`stripPencilDigit`), not turned white. Any leftover mark in a cell moves to the **background** (bottom) and the top half becomes the next slot. Continue sanitizes with `stripImpossiblePencils` (completed digits plus peers of every locked cell, including givens). 0 / Backspace / Delete in pencil mode clears marks. Placing a pen digit clears that cell's marks. Saved in continue as `pencilTop` / `pencilBot` / `pencilSlot`.
-- **Stats panel:** Perfect (0-error wins), Successes, Error Rate (average incorrect entries per rated success, two decimals), Failed, Fastest (time + incorrect entries on that run), Remaining `n / total` (total is the bundled count for that difficulty). Menu items are centered (highlight is the label width, not a padded bar).
+- **Stats panel:** Perfect (0-error wins), Successes, Error Rate (average incorrect entries per rated success, two decimals), Failed, Fastest (time + incorrect entries on that run), Average Completion (mean of stored `elapsedMs` on completions), Remaining `n / total` (total is the bundled count for that difficulty). Menu items are centered (highlight is the label width, not a padded bar).
 - **Continue:** Restores grid, pencil marks, mode, elapsed ms, mistake count, difficulty. Clock resumes on load.
 - **New Game while a continue exists:** confirm overlay (Cancel / Abandon); Abandon records a Failure for the *in-progress* difficulty, wipes `continue`, then picks a random incomplete puzzle at the *selected* difficulty.
 - **Exit (Esc in play or pause):** overlay **Abandon** or **Quit Sudoku** (Quit selected by default). **Quit** writes continue and exits so the next launch can Continue. **Abandon** clears `continue`, increments Failed, returns to the menu (puzzle ID stays eligible). Esc on the overlay cancels back to play.
-- **Success:** `grid == solution`. Record success + fastest (tie-break: fewer mistakes), append ID to `completed[difficulty]`, **immediately** clear `continue` and write `sudoku.json`, then show overlay (time + incorrect entries). `persistPlay` / Quit / Ctrl+C must not rewrite a completed board as Continue. A leftover completed `continue` blob is scrubbed on load (`scrubCompletedContinue`).
+- **Success:** `grid == solution`. Record success + fastest (tie-break: fewer mistakes), append `{id, mistakes, elapsedMs}` to `completed[difficulty]`, **immediately** clear `continue` and write `sudoku.json`, then show overlay (time + incorrect entries). `persistPlay` / Quit / Ctrl+C must not rewrite a completed board as Continue. A leftover completed `continue` blob is scrubbed on load (`scrubCompletedContinue`).
 - **Incorrect entry:** compare to unique solution. Maroon cell; mistake +1 per wrong place. Grid border flashes **red** ~600ms. Accent wheel jumps **−8**. Givens and locked-correct cells cannot be changed.
 - **Correct lock-in:** cell locks (bold). Grid border flashes **green** ~600ms. Accent wheel rotates **forward**. Completing the board holds the green flash then shows Solved.
 - **Pause (Space):** freeze clock, fill screen with PAUSED (board hidden). Space resumes; Esc opens the Exit overlay.
@@ -103,7 +103,7 @@ Written to the process **cwd** (same convention as Larry’s `larry.scores.json`
   "stats": {
     "easy": { "successes": 0, "failures": 0, "perfect": 0, "mistakeSum": 0, "ratedSuccesses": 0, "fastestMs": null, "fastestMistakes": null }
   },
-  "completed": { "easy": ["abc123..."] },
+  "completed": { "easy": [{ "id": "abc123...", "mistakes": 3, "elapsedMs": 45000 }] },
   "continue": {
     "id": "...",
     "difficulty": "easy",
@@ -123,7 +123,8 @@ Written to the process **cwd** (same convention as Larry’s `larry.scores.json`
 - Missing file → empty stats, no continue.
 - Corrupt / invalid continue blob → continue dropped, stats kept if parseable.
 - `fastestMs` updated when `elapsed < fastest` OR same time with fewer mistakes.
-- `perfect` counts successes with 0 incorrect entries. `mistakeSum` / `ratedSuccesses` is **Error Rate** (`%.2f`). A legacy save with exactly one success and `fastestMistakes` is backfilled on load so Error Rate matches that run (e.g. 3 incorrect → `3.00`). Multiple unrated successes still show `—`.
+- `perfect` counts successes with 0 incorrect entries. `mistakeSum` / `ratedSuccesses` is **Error Rate** (`%.2f`).
+- `completed[difficulty]` is `{id, mistakes, elapsedMs}` per solved puzzle. IDs stay out of the New Game pool. Average Completion is the mean of `elapsedMs`.
 - `failures` (shown as **Failed**) increments on confirmed Abandon (Esc overlay or New Game while a continue exists). Legacy `abandonments` is copied into `failures` on load if `failures` is 0.
 
 ---
@@ -224,7 +225,7 @@ Quick check: `go test .`  ·  `go build -o Sudoku.exe .`
 
 - `solver_test.go` — Wikipedia puzzle, reject short input, empty grid solves.
 - `puzzles_test.go` — bundled counts (2500/2000/1000/250) unique IDs, no baked solutions, sample solvability, incomplete pool omits completed IDs, mistake/correct/complete board behavior, digit-complete (all nine of a number), Active strip omits completed digits, toroidal cursor wrap, selection-mark positions, pencil mark cycle/clear/save, strip completed pencil color to background, strip peer (row/col/box) marks on correct place, pen and pencil ignore completed digits.
-- `save_test.go` — finishSuccess wipes continue and records completion immediately; persistPlay skips a completed board; load scrubs a leftover solved continue without double-counting; Perfect and Error Rate from recorded mistakes; legacy single-success fastestMistakes backfills Error Rate.
+- `save_test.go` — finishSuccess wipes continue and records completion immediately; persistPlay skips a completed board; load scrubs a leftover solved continue without double-counting; Perfect, Error Rate, and Average Completion from stored completions.
 - `colors_test.go` — 16-step wheel wrap; −8 incorrect jump; pencil mode −1 step; digit hues are not white; pencil cursor skips gold/yellow; SUDOKU banner S is accent+5.
 
 ---

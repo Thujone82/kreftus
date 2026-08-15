@@ -68,6 +68,12 @@ func TestFinishSuccessWipesContinue(t *testing.T) {
 	if loaded.statsFor(diffEasy).errorRate() != "0.00" {
 		t.Fatalf("error rate=%s", loaded.statsFor(diffEasy).errorRate())
 	}
+	if n, ok := loaded.completedMistakes(diffEasy, testPuzzleID); !ok || n != 0 {
+		t.Fatalf("completed mistakes=%d ok=%v want 0", n, ok)
+	}
+	if loaded.averageCompletion(diffEasy) != "0:45" {
+		t.Fatalf("average=%s want 0:45", loaded.averageCompletion(diffEasy))
+	}
 }
 
 func TestPersistPlaySkipsCompletedBoard(t *testing.T) {
@@ -114,6 +120,9 @@ func TestScrubCompletedContinueOnLoad(t *testing.T) {
 	}
 	if _, ok := loaded.completedSet(diffEasy)[testPuzzleID]; !ok {
 		t.Fatal("completed id missing after scrub")
+	}
+	if n, ok := loaded.completedMistakes(diffEasy, testPuzzleID); !ok || n != 2 {
+		t.Fatalf("scrubbed continue mistakes=%d ok=%v want 2", n, ok)
 	}
 	again := loadSave()
 	if again.statsFor(diffEasy).Successes != 1 {
@@ -179,34 +188,31 @@ func TestRecordSuccessPerfectAndErrorRate(t *testing.T) {
 	}
 }
 
-func TestLegacySingleSuccessErrorRate(t *testing.T) {
-	chdirTemp(t)
-	three := 3
-	ms := int64(6008000)
+func TestMarkCompletedStoresMistakes(t *testing.T) {
 	s := newSaveData()
-	st := s.statsFor(diffEasy)
-	st.Successes = 1
-	st.FastestMs = &ms
-	st.FastestMistakes = &three
-	if st.errorRate() != "3.00" {
-		t.Fatalf("display rate=%s want 3.00", st.errorRate())
+	if s.averageCompletion(diffEasy) != "—" {
+		t.Fatal("no completions should show em dash")
 	}
-	if err := s.write(); err != nil {
-		t.Fatal(err)
+	s.markCompleted(diffEasy, "abc", 4, 60000)
+	if n, ok := s.completedMistakes(diffEasy, "abc"); !ok || n != 4 {
+		t.Fatalf("mistakes=%d ok=%v want 4", n, ok)
 	}
-	loaded := loadSave()
-	got := loaded.statsFor(diffEasy)
-	if got.RatedSuccesses != 1 || got.MistakeSum != 3 {
-		t.Fatalf("backfill rated=%d sum=%d", got.RatedSuccesses, got.MistakeSum)
+	s.markCompleted(diffEasy, "abc", 9, 90000)
+	if n, _ := s.completedMistakes(diffEasy, "abc"); n != 4 {
+		t.Fatalf("duplicate id should keep first mistakes, got %d", n)
 	}
-	if got.Perfect != 0 {
-		t.Fatalf("perfect=%d want 0", got.Perfect)
+	s.markCompleted(diffEasy, "def", 1, 120000)
+	if s.averageCompletion(diffEasy) != "1:30" {
+		t.Fatalf("average=%s want 1:30", s.averageCompletion(diffEasy))
 	}
-	if got.errorRate() != "3.00" {
-		t.Fatalf("loaded rate=%s want 3.00", got.errorRate())
+}
+
+func TestContinueMenuLabel(t *testing.T) {
+	if continueMenuLabel(nil) != "Continue Game" {
+		t.Fatal("nil continue should be Continue Game")
 	}
-	loaded.recordSuccess(diffEasy, 1000, 1)
-	if loaded.statsFor(diffEasy).errorRate() != "2.00" {
-		t.Fatalf("after next win rate=%s want 2.00", loaded.statsFor(diffEasy).errorRate())
+	c := &continueGame{Difficulty: diffMedium}
+	if continueMenuLabel(c) != "Continue Game [Medium]" {
+		t.Fatalf("got %q", continueMenuLabel(c))
 	}
 }

@@ -1,4 +1,4 @@
-﻿package main
+package main
 
 import (
 	"fmt"
@@ -630,7 +630,7 @@ func (g *game) finishSuccess() {
 	g.solvedMs = ms
 	g.solvedMistakes = g.board.mistakes
 	g.save.recordSuccess(g.difficulty, ms, g.board.mistakes)
-	g.save.markCompleted(g.difficulty, g.puzzle.ID)
+	g.save.markCompleted(g.difficulty, g.puzzle.ID, g.board.mistakes, ms)
 	g.save.Continue = nil
 	_ = g.save.write()
 	g.puzzle = puzzleEntry{}

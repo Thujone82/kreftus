@@ -12,11 +12,11 @@ On Windows, Sudoku switches the console to UTF-8 and prefers **Cascadia Mono** w
 
 ## Features
 
-- **Start menu** — Continue Game (only when a game is in progress), **New Game: ◀ difficulty ▶**, Quit
+- **Start menu** — Continue Game (only when a game is in progress; shows that save's difficulty, e.g. Continue Game [Medium]), **New Game: ◀ difficulty ▶**, Quit
 - **Accent color** — random hue each launch; shifts as you move in the menu or on the board, start a game, or lock a correct digit (wrong digits jump eight steps the other way). In **pencil** mode, movement and marks rotate the other direction
 - **Pencil marks** — Tab toggles ✒️ pen / ✏️ pencil (footer shows `Tab ✏️` / `Tab ✒️`). Play always starts in pen mode. Empty cells can hold two *different* candidate colors on a `▀` glyph (top = first mark, bottom = second). Further marks overwrite top, then bottom. A digit that is already complete (all nine placed) is ignored in pen and pencil. A correct lock-in removes that color from pencil marks in the same row, column, and box; completing a number removes it everywhere. A leftover mark drops to the bottom half so the top is next. 0 clears marks. The grid border turns light yellow in pencil mode
 - **Grid flash** — green ~0.6s on a correct lock-in, red on a mistake
-- **Difficulty stats** — Perfect (zero-error wins), Successes, Error Rate (average incorrect entries per success), Failed, Fastest Completion, and remaining puzzles update as you change difficulty
+- **Difficulty stats** — Perfect (zero-error wins), Successes, Error Rate (average incorrect entries per success), Failed, Fastest Completion, Average Completion, and remaining puzzles update as you change difficulty
 - **Continue Game** — progress is saved after every move
 - **Colored digits** — 1–9 each have a distinct hue around the color wheel; a digit turns **white** when all nine of that number are correctly placed. Under the board, **Active:** lists the numbers that are not finished yet, in those same hues. Accent-colored ▶ ◀ ▼ ▲ mark the selected row and column
 - **Mistake tally** — the HUD shows a `×` for each incorrect entry (no count label)
@@ -63,8 +63,8 @@ When every puzzle at a difficulty is solved, New Game is disabled for that level
 
 `sudoku.json` is created in the current working directory. It stores:
 
-- Per-difficulty Perfect, Successes, Error Rate, Failed, and Fastest Completion
-- IDs of completed puzzles (so they are not shown again)
+- Per-difficulty Perfect, Successes, Error Rate, Failed, Fastest, and Average Completion
+- Completed puzzles (`id`, mistake count, and elapsed time) so they are not shown again
 - The in-progress board, pencil marks, clock, and mistake count for **Continue Game**
 
 The file is UTF-8 with BOM and is rewritten after each move.

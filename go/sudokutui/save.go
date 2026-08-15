@@ -1,10 +1,11 @@
-﻿package main
+package main
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 	"unicode/utf8"
 )
 
@@ -39,22 +40,28 @@ type continueGame struct {
 	PencilSlot string `json:"pencilSlot,omitempty"`
 }
 
+type completedEntry struct {
+	ID        string `json:"id"`
+	Mistakes  int    `json:"mistakes"`
+	ElapsedMs int64  `json:"elapsedMs"`
+}
+
 type saveData struct {
-	Version   string                `json:"version"`
-	Stats     map[string]*diffStats `json:"stats"`
-	Completed map[string][]string   `json:"completed"`
-	Continue  *continueGame         `json:"continue"`
+	Version   string                      `json:"version"`
+	Stats     map[string]*diffStats       `json:"stats"`
+	Completed map[string][]completedEntry `json:"completed"`
+	Continue  *continueGame               `json:"continue"`
 }
 
 func newSaveData() *saveData {
 	s := &saveData{
 		Version:   sudokuVersion,
 		Stats:     map[string]*diffStats{},
-		Completed: map[string][]string{},
+		Completed: map[string][]completedEntry{},
 	}
 	for _, d := range difficultyOrder {
 		s.Stats[d] = &diffStats{}
-		s.Completed[d] = []string{}
+		s.Completed[d] = []completedEntry{}
 	}
 	return s
 }
@@ -76,22 +83,17 @@ func loadSave() *saveData {
 		s.Stats = map[string]*diffStats{}
 	}
 	if s.Completed == nil {
-		s.Completed = map[string][]string{}
+		s.Completed = map[string][]completedEntry{}
 	}
 	for _, d := range difficultyOrder {
 		if s.Stats[d] == nil {
 			s.Stats[d] = &diffStats{}
 		}
 		if s.Completed[d] == nil {
-			s.Completed[d] = []string{}
+			s.Completed[d] = []completedEntry{}
 		}
 	}
 	dirty := false
-	for _, d := range difficultyOrder {
-		if s.Stats[d].backfillRatedFromFastest() {
-			dirty = true
-		}
-	}
 	if s.Continue != nil {
 		if len(s.Continue.Solution) != 81 {
 			s.Continue.Solution = solveSudoku(s.Continue.Givens)
@@ -115,7 +117,7 @@ func (s *saveData) scrubCompletedContinue() bool {
 	}
 	if _, done := s.completedSet(c.Difficulty)[c.ID]; !done {
 		s.recordSuccess(c.Difficulty, c.ElapsedMs, c.Mistakes)
-		s.markCompleted(c.Difficulty, c.ID)
+		s.markCompleted(c.Difficulty, c.ID, c.Mistakes, c.ElapsedMs)
 	}
 	s.Continue = nil
 	return true
@@ -161,23 +163,46 @@ func (s *saveData) statsFor(d string) *diffStats {
 
 func (s *saveData) completedSet(d string) map[string]struct{} {
 	set := map[string]struct{}{}
-	for _, id := range s.Completed[d] {
-		set[id] = struct{}{}
+	for _, e := range s.Completed[d] {
+		set[e.ID] = struct{}{}
 	}
 	return set
 }
 
-func (s *saveData) markCompleted(d, id string) {
-	set := s.completedSet(d)
-	if _, ok := set[id]; ok {
-		return
+func (s *saveData) markCompleted(d, id string, mistakes int, elapsedMs int64) {
+	for _, e := range s.Completed[d] {
+		if e.ID == id {
+			return
+		}
 	}
-	s.Completed[d] = append(s.Completed[d], id)
+	s.Completed[d] = append(s.Completed[d], completedEntry{ID: id, Mistakes: mistakes, ElapsedMs: elapsedMs})
+}
+
+func (s *saveData) completedMistakes(d, id string) (int, bool) {
+	for _, e := range s.Completed[d] {
+		if e.ID == id {
+			return e.Mistakes, true
+		}
+	}
+	return 0, false
+}
+
+func (s *saveData) averageCompletion(d string) string {
+	var sum int64
+	n := 0
+	for _, e := range s.Completed[d] {
+		sum += e.ElapsedMs
+		n++
+	}
+	if n == 0 {
+		return "—"
+	}
+	avg := (sum + int64(n)/2) / int64(n)
+	return formatDuration(time.Duration(avg) * time.Millisecond)
 }
 
 func (s *saveData) recordSuccess(d string, elapsedMs int64, mistakes int) {
 	st := s.statsFor(d)
-	st.backfillRatedFromFastest()
 	st.Successes++
 	st.RatedSuccesses++
 	st.MistakeSum += mistakes
@@ -192,27 +217,11 @@ func (s *saveData) recordSuccess(d string, elapsedMs int64, mistakes int) {
 	}
 }
 
-func (st *diffStats) backfillRatedFromFastest() bool {
-	if st.RatedSuccesses > 0 || st.Successes != 1 || st.FastestMistakes == nil {
-		return false
-	}
-	st.RatedSuccesses = 1
-	st.MistakeSum = *st.FastestMistakes
-	if st.MistakeSum == 0 {
-		st.Perfect = 1
-	}
-	return true
-}
-
 func (st *diffStats) errorRate() string {
-	n, sum := st.RatedSuccesses, st.MistakeSum
-	if n <= 0 && st.Successes == 1 && st.FastestMistakes != nil {
-		n, sum = 1, *st.FastestMistakes
-	}
-	if n <= 0 {
+	if st.RatedSuccesses <= 0 {
 		return "—"
 	}
-	return fmt.Sprintf("%.2f", float64(sum)/float64(n))
+	return fmt.Sprintf("%.2f", float64(st.MistakeSum)/float64(st.RatedSuccesses))
 }
 
 func (st *diffStats) UnmarshalJSON(b []byte) error {

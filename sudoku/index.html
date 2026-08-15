@@ -77,7 +77,7 @@
                             <p class="readme-link">↳ <a href="../go/sudokutui/README.html">README</a></p>
                             <h3>Features</h3>
                             <ul>
-                                <li>Start menu: Continue Game (when a save exists), New Game with inline difficulty (◀ Easy ▶), Quit</li>
+                                <li>Start menu: Continue Game [difficulty] (when a save exists), New Game with inline difficulty (◀ Easy ▶), Quit</li>
                                 <li>UTF-8 box-drawn 9×9 board; each digit 1–9 has its own hue; a digit turns white when all nine of that number are correctly placed; clues and locked-correct cells are bold</li>
                                 <li>Accent-colored ▶ ◀ ▼ ▲ around the grid track the selected row and column</li>
                                 <li>Centered Active strip under the board lists unfinished numbers in their hues and drops a number once all nine are placed</li>
@@ -87,8 +87,8 @@
                                 <li>Pencil marks: Tab toggles ✒️ / ✏️; up to two candidate colors per empty cell on a ▀ glyph; a correct lock-in strips that color from the row, column, and box (completing a number strips it everywhere; leftover drops to the bottom half); saved with Continue</li>
                                 <li>Play clock (top-right); HUD shows a × per incorrect entry; Space pauses and hides the board</li>
                                 <li>Esc Exit overlay: Abandon (counts as Failed, wipes continue) or Quit (resume next launch)</li>
-                                <li>Per-difficulty Perfect, Successes, Error Rate, Failed, fastest time, and remaining puzzle count</li>
-                                <li><code>sudoku.json</code> saves after every move; finishing records Success and wipes Continue immediately so the menu will not offer that game again</li>
+                                <li>Per-difficulty Perfect, Successes, Error Rate, Failed, fastest time, Average Completion, and remaining puzzle count</li>
+                                <li><code>sudoku.json</code> saves after every move; completions store puzzle id, mistake count, and elapsed time; finishing records Success and wipes Continue immediately so the menu will not offer that game again</li>
                                 <li>Auto-requests 80×24 console; Windows UTF-8 (CP65001) and Cascadia Mono when present</li>
                             </ul>
                         </div>
