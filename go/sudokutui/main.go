@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"fmt"
@@ -596,7 +596,7 @@ func (g *game) resumeContinue() {
 	g.board.mistakes = c.Mistakes
 	g.board.loadPencils(c.PencilTop, c.PencilBot, c.PencilSlot)
 	g.board.stripImpossiblePencils()
-	g.pencil = false
+	g.pencil = c.Pencil
 	g.elapsed = time.Duration(c.ElapsedMs) * time.Millisecond
 	g.clockRunning = false
 	g.startClock()

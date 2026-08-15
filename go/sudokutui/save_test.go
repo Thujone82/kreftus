@@ -216,3 +216,20 @@ func TestContinueMenuLabel(t *testing.T) {
 		t.Fatalf("got %q", continueMenuLabel(c))
 	}
 }
+
+func TestResumeContinueRestoresPencilMode(t *testing.T) {
+	givens, sol := classicSolved()
+	g := &game{save: newSaveData()}
+	g.save.Continue = &continueGame{
+		ID: testPuzzleID, Difficulty: diffEasy, Givens: givens, Solution: sol, Grid: givens, Pencil: true,
+	}
+	g.resumeContinue()
+	if !g.pencil {
+		t.Fatal("continue with pencil true should open in pencil mode")
+	}
+	g.save.Continue.Pencil = false
+	g.resumeContinue()
+	if g.pencil {
+		t.Fatal("continue with pencil false should open in pen mode")
+	}
+}
