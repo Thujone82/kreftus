@@ -237,11 +237,14 @@ func TestPencilMarksCycleAndClear(t *testing.T) {
 	if !b.markPencil('6') || b.pencil[2][1] != '6' || b.pencil[2][0] != '1' {
 		t.Fatalf("fourth overwrites bottom: %+v", b.pencil[2])
 	}
-	if b.markPencil('1') {
-		t.Fatal("should reject a mark already on the other half")
+	if !b.markPencil('1') || b.pencil[2][0] != 0 || b.pencil[2][1] != '6' || b.pencilSlot[2] != 0 {
+		t.Fatalf("toggle 1 should free top: %+v slot %d", b.pencil[2], b.pencilSlot[2])
 	}
-	if b.markPencil('6') {
-		t.Fatal("should reject a mark already in this cell")
+	if !b.markPencil('6') || b.pencil[2][0] != 0 || b.pencil[2][1] != 0 || b.pencilSlot[2] != 0 {
+		t.Fatalf("toggle last mark should clear cell: %+v slot %d", b.pencil[2], b.pencilSlot[2])
+	}
+	if !b.markPencil('3') || !b.markPencil('9') {
+		t.Fatal("restore two marks")
 	}
 	if !b.clearPencil() || b.pencil[2][0] != 0 || b.pencil[2][1] != 0 {
 		t.Fatal("0 should clear both marks")
@@ -250,6 +253,22 @@ func TestPencilMarksCycleAndClear(t *testing.T) {
 		if b.hasPencil(2) {
 			t.Fatal("placing a digit should clear pencil marks")
 		}
+	}
+}
+
+func TestPencilToggleFreesThatSlot(t *testing.T) {
+	givens := "530070000600195000098000060800060003400803001700020006060000280000419005000080079"
+	sol := solveSudoku(givens)
+	b := newBoard(givens, sol, givens)
+	b.cursor = 2
+	if !b.markPencil('3') || !b.markPencil('9') {
+		t.Fatal("setup top 3 / bottom 9")
+	}
+	if !b.markPencil('9') || b.pencil[2][0] != '3' || b.pencil[2][1] != 0 || b.pencilSlot[2] != 1 {
+		t.Fatalf("toggle bottom should free that slot: %+v slot %d", b.pencil[2], b.pencilSlot[2])
+	}
+	if !b.markPencil('7') || b.pencil[2][0] != '3' || b.pencil[2][1] != '7' {
+		t.Fatalf("next fill should be the freed bottom: %+v", b.pencil[2])
 	}
 }
 

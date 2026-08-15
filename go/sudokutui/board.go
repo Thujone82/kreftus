@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 type board struct {
 	givens     [81]byte
@@ -188,8 +188,21 @@ func (b *board) markPencil(digit byte) bool {
 	if b.digitComplete(digit) {
 		return false
 	}
-	if b.pencil[i][0] == digit || b.pencil[i][1] == digit {
-		return false
+	if b.pencil[i][0] == digit {
+		b.pencil[i][0] = 0
+		b.pencilSlot[i] = 0
+		if b.pencil[i][1] == 0 {
+			b.clearPencilsAt(i)
+		}
+		return true
+	}
+	if b.pencil[i][1] == digit {
+		b.pencil[i][1] = 0
+		b.pencilSlot[i] = 1
+		if b.pencil[i][0] == 0 {
+			b.clearPencilsAt(i)
+		}
+		return true
 	}
 	slot := b.pencilSlot[i]
 	if slot > 1 {

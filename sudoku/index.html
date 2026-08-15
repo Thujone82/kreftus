@@ -66,7 +66,7 @@
                                 <b>Sudoku</b> is a console puzzle game written in Go with tcell. Fill the 9×9 grid so every row, column, and 3×3 box contains the digits 1–9. Given clues are locked; a correct entry locks the same way so it cannot be changed by accident. Wrong digits stay in the cell with a red fill so you can correct them. Puzzles come from the public-domain <a href="https://github.com/grantm/sudoku-exchange-puzzle-bank">Sudoku Exchange Puzzle Bank</a> (Grant McLean): 2500 Easy, 2000 Medium, 1000 Hard, and 250 Diabolical. Solved IDs are never offered again.
                             </p>
                             <h3>Controls</h3>
-                            <p>Menu: ↑↓ select, ←→ change difficulty, Enter to Continue or start New Game. In game: Arrows or WASD to move (wraps at the edges), Tab toggles ✒️ pen / ✏️ pencil, 1–9 to enter a digit or pencil mark (completed numbers are ignored), 0/Backspace/Delete to clear, Space to pause. Esc opens Exit (Abandon or Quit). Ctrl+C exits and keeps Continue for next launch.</p>
+                            <p>Menu: ↑↓ select, ←→ change difficulty, Enter to Continue or start New Game. In game: Arrows or WASD to move (wraps at the edges), Tab toggles ✒️ pen / ✏️ pencil, 1–9 to enter a digit or add/toggle a pencil mark (completed numbers are ignored), 0/Backspace/Delete to clear, Space to pause. Esc opens Exit (Abandon or Quit). Ctrl+C exits and keeps Continue for next launch.</p>
                             <h3>Updates</h3>
                             <div id="updates-container">
                                 <p>Loading updates...</p>
@@ -84,7 +84,7 @@
                                 <li>Wrong entries stay visible with a maroon cell; correct lock-in cannot be overwritten or cleared</li>
                                 <li>Green grid-border flash (~0.6s) on a correct lock-in; red flash on a mistake</li>
                                 <li>16-color accent wheel: random hue at launch; +1 on menu or board movement and correct lock-in; −8 on a mistake; pencil mode reverses movement and mark rotation</li>
-                                <li>Pencil marks: Tab toggles ✒️ / ✏️; New Game starts in pen, Continue restores the saved mode; up to two candidate colors per empty cell on a ▀ glyph; a correct lock-in strips that color from the row, column, and box (completing a number strips it everywhere; leftover drops to the bottom half); saved with Continue</li>
+                                <li>Pencil marks: Tab toggles ✒️ / ✏️; New Game starts in pen, Continue restores the saved mode; up to two candidate colors per empty cell on a ▀ glyph; pressing a marked digit toggles it off; a correct lock-in strips that color from the row, column, and box (completing a number strips it everywhere; leftover drops to the bottom half); saved with Continue</li>
                                 <li>Play clock (top-right); HUD shows a × per incorrect entry; Space pauses and hides the board</li>
                                 <li>Esc Exit overlay: Abandon (counts as Failed, wipes continue) or Quit (resume next launch)</li>
                                 <li>Per-difficulty Perfect, Successes, Error Rate, Failed, fastest time, Average Completion, and remaining puzzle count</li>
