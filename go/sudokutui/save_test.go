@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"testing"
 	"time"
@@ -231,5 +232,58 @@ func TestResumeContinueRestoresPencilMode(t *testing.T) {
 	g.resumeContinue()
 	if g.pencil {
 		t.Fatal("continue with pencil false should open in pen mode")
+	}
+}
+
+func TestPersistPlayDebouncesDisk(t *testing.T) {
+	chdirTemp(t)
+	givens, sol := classicSolved()
+	g := &game{
+		save:       newSaveData(),
+		difficulty: diffEasy,
+		puzzle:     puzzleEntry{ID: testPuzzleID, Givens: givens, Solution: sol},
+		board:      newBoard(givens, sol, givens),
+		view:       viewPlay,
+		saveFlush:  make(chan struct{}, 1),
+	}
+	g.persistPlay()
+	if g.save.Continue == nil {
+		t.Fatal("continue should be in memory immediately")
+	}
+	if _, err := os.Stat(saveFileName); !os.IsNotExist(err) {
+		t.Fatal("debounced persist should not write immediately")
+	}
+	g.flushSave()
+	if _, err := os.Stat(saveFileName); err != nil {
+		t.Fatal("flush should write the save file")
+	}
+}
+
+func TestWriteAtomicCompactJSON(t *testing.T) {
+	chdirTemp(t)
+	s := newSaveData()
+	s.markCompleted(diffEasy, "abc", 1, 1000)
+	if err := s.write(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(saveFileName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data = bytes.TrimPrefix(data, utf8BOM)
+	if bytes.Contains(data, []byte("\n  ")) {
+		t.Fatal("save should be compact JSON, not indented")
+	}
+	loaded := loadSave()
+	if n, ok := loaded.completedMistakes(diffEasy, "abc"); !ok || n != 1 {
+		t.Fatalf("round trip mistakes=%d ok=%v", n, ok)
+	}
+	s.markCompleted(diffEasy, "def", 2, 2000)
+	if err := s.write(); err != nil {
+		t.Fatal(err)
+	}
+	loaded = loadSave()
+	if _, ok := loaded.completedSet(diffEasy)["def"]; !ok {
+		t.Fatal("second atomic write should replace the file")
 	}
 }

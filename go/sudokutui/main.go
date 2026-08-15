@@ -1,4 +1,4 @@
-﻿package main
+package main
 
 import (
 	"fmt"
@@ -10,6 +10,8 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 )
+
+const saveDebounce = 300 * time.Millisecond
 
 const (
 	viewMenu = iota
@@ -56,7 +58,9 @@ type game struct {
 
 	pencil bool // Tab: false = pen ✒️, true = pencil ✏️
 
-	events chan tcell.Event
+	events    chan tcell.Event
+	saveFlush chan struct{}
+	saveTimer *time.Timer
 }
 
 func main() {
@@ -112,6 +116,7 @@ func main() {
 		save:       loadSave(),
 		rng:        rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), uint64(os.Getpid()))),
 		redraw:     make(chan struct{}, 1),
+		saveFlush:  make(chan struct{}, 1),
 	}
 	g.accentIndex = g.rng.IntN(colorWheelSize)
 	g.width, g.height = s.Size()
@@ -172,13 +177,18 @@ func main() {
 				return
 			}
 		case <-tick.C:
-			if (g.view == viewPlay && g.clockRunning) || g.flashing() {
+			if g.flashing() {
 				g.maybeShowSolved()
 				g.render()
+			} else if g.view == viewPlay && g.clockRunning {
+				g.drawHUD()
+				g.screen.Show()
 			}
 		case <-g.redraw:
 			g.maybeShowSolved()
 			g.render()
+		case <-g.saveFlush:
+			g.flushSave()
 		case <-sigChan:
 			g.persistIfPlaying()
 			return
@@ -290,7 +300,7 @@ func (g *game) activateMenu() bool {
 		}
 		g.resumeContinue()
 	case menuNewGame:
-		if len(incompletePool(g.difficulty, g.save.completedSet(g.difficulty))) == 0 {
+		if remainingCount(g.difficulty, g.save.completedSet(g.difficulty)) == 0 {
 			return false
 		}
 		if g.save.Continue != nil {
@@ -312,7 +322,7 @@ func (g *game) handlePlay(e *tcell.EventKey) bool {
 	switch e.Key() {
 	case tcell.KeyEscape:
 		g.stopClock()
-		g.persistPlay()
+		g.persistPlayNow()
 		g.view = viewConfirmExit
 		g.confirmIndex = 1
 		return false
@@ -336,7 +346,7 @@ func (g *game) handlePlay(e *tcell.EventKey) bool {
 		switch r {
 		case ' ':
 			g.stopClock()
-			g.persistPlay()
+			g.persistPlayNow()
 			g.view = viewPaused
 			return false
 		case '\t':
@@ -402,7 +412,7 @@ func (g *game) clearPlay() bool {
 
 func (g *game) handlePaused(e *tcell.EventKey) bool {
 	if e.Key() == tcell.KeyEscape {
-		g.persistPlay()
+		g.persistPlayNow()
 		g.view = viewConfirmExit
 		g.confirmIndex = 1
 		return false
@@ -410,7 +420,7 @@ func (g *game) handlePaused(e *tcell.EventKey) bool {
 	if e.Key() == tcell.KeyRune && e.Rune() == ' ' {
 		g.view = viewPlay
 		g.startClock()
-		g.persistPlay()
+		g.persistPlayNow()
 	}
 	return false
 }
@@ -476,7 +486,7 @@ func (g *game) acceptConfirm() bool {
 	// viewConfirmExit: 0 Abandon, 1 Quit
 	if g.confirmIndex == 1 {
 		g.stopClock()
-		g.persistPlay()
+		g.persistPlayNow()
 		return true
 	}
 	g.abandonInPlay()
@@ -516,12 +526,15 @@ func (g *game) currentElapsed() time.Duration {
 }
 
 func (g *game) persistIfPlaying() {
-	if !g.shouldPersistContinue() {
-		return
-	}
 	if g.view == viewPlay || g.view == viewPaused || g.view == viewConfirmExit {
 		g.stopClock()
-		g.persistPlay()
+		if g.shouldPersistContinue() {
+			g.persistPlayNow()
+			return
+		}
+	}
+	if g.saveTimer != nil {
+		g.flushSave()
 	}
 }
 
@@ -536,6 +549,19 @@ func (g *game) persistPlay() {
 	if !g.shouldPersistContinue() {
 		return
 	}
+	g.storeContinue()
+	g.scheduleSave()
+}
+
+func (g *game) persistPlayNow() {
+	if !g.shouldPersistContinue() {
+		return
+	}
+	g.storeContinue()
+	g.flushSave()
+}
+
+func (g *game) storeContinue() {
 	ms := g.currentElapsed().Milliseconds()
 	top, bot, slot := g.board.pencilsString()
 	g.save.Continue = &continueGame{
@@ -551,12 +577,37 @@ func (g *game) persistPlay() {
 		PencilBot:  bot,
 		PencilSlot: slot,
 	}
+}
+
+func (g *game) scheduleSave() {
+	if g.saveFlush == nil {
+		_ = g.save.write()
+		return
+	}
+	if g.saveTimer != nil {
+		g.saveTimer.Stop()
+	}
+	g.saveTimer = time.AfterFunc(saveDebounce, func() {
+		select {
+		case g.saveFlush <- struct{}{}:
+		default:
+		}
+	})
+}
+
+func (g *game) flushSave() {
+	if g.saveTimer != nil {
+		g.saveTimer.Stop()
+		g.saveTimer = nil
+	}
+	if g.save == nil {
+		return
+	}
 	_ = g.save.write()
 }
 
 func (g *game) startNewGame() {
-	pool := incompletePool(g.difficulty, g.save.completedSet(g.difficulty))
-	p, ok := pickRandom(pool, g.rng)
+	p, ok := pickIncomplete(g.difficulty, g.save.completedSet(g.difficulty), g.rng)
 	if !ok {
 		g.view = viewMenu
 		return
@@ -573,7 +624,7 @@ func (g *game) startNewGame() {
 	g.clockRunning = false
 	g.startClock()
 	g.view = viewPlay
-	g.persistPlay()
+	g.persistPlayNow()
 }
 
 func (g *game) resumeContinue() {
@@ -613,14 +664,14 @@ func (g *game) abandonContinue() {
 	}
 	g.save.recordFailure(c.Difficulty)
 	g.save.Continue = nil
-	_ = g.save.write()
+	g.flushSave()
 }
 
 func (g *game) abandonInPlay() {
 	g.stopClock()
 	g.save.recordFailure(g.difficulty)
 	g.save.Continue = nil
-	_ = g.save.write()
+	g.flushSave()
 	g.puzzle = puzzleEntry{}
 }
 
@@ -632,7 +683,7 @@ func (g *game) finishSuccess() {
 	g.save.recordSuccess(g.difficulty, ms, g.board.mistakes)
 	g.save.markCompleted(g.difficulty, g.puzzle.ID, g.board.mistakes, ms)
 	g.save.Continue = nil
-	_ = g.save.write()
+	g.flushSave()
 	g.puzzle = puzzleEntry{}
 	g.pendingSolved = true
 	g.maybeShowSolved()

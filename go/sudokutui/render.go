@@ -1,4 +1,4 @@
-﻿package main
+package main
 
 import (
 	"fmt"
@@ -70,8 +70,9 @@ func (g *game) drawMenu() {
 	w, h := g.width, g.height
 	g.drawSudokuBanner(1)
 
-	pool := incompletePool(g.difficulty, g.save.completedSet(g.difficulty))
-	canNew := len(pool) > 0
+	done := g.save.completedSet(g.difficulty)
+	remain := remainingCount(g.difficulty, done)
+	canNew := remain > 0
 	visible := g.visibleMenu()
 	labels := map[int]string{
 		menuContinue: continueMenuLabel(g.save.Continue),
@@ -115,7 +116,7 @@ func (g *game) drawMenu() {
 	drawCentered(g.screen, w/2, statsY+5, "Fastest:     "+fast, styleDefault)
 	drawCentered(g.screen, w/2, statsY+6, "Average Completion:  "+g.save.averageCompletion(g.difficulty), styleDefault)
 	total := len(puzzlesFor(g.difficulty))
-	drawCentered(g.screen, w/2, statsY+7, fmt.Sprintf("Remaining:   %d / %d", len(pool), total), styleDefault)
+	drawCentered(g.screen, w/2, statsY+7, fmt.Sprintf("Remaining:   %d / %d", remain, total), styleDefault)
 
 	if h > 2 {
 		drawCentered(g.screen, w/2, h-2, "↑↓ select  ·  ←→ difficulty  ·  Enter  ·  Esc quit", styleDim)
@@ -253,6 +254,23 @@ func (g *game) drawActiveLine(y int) {
 }
 
 func drawHLine(s tcell.Screen, ox, y, kind int, st tcell.Style) {
+	if kind < 0 || kind >= len(hLines) {
+		kind = 1
+	}
+	for x, r := range hLines[kind] {
+		s.SetContent(ox+x, y, r, nil, st)
+	}
+}
+
+var hLines [4][boardCols]rune
+
+func init() {
+	for kind := 0; kind < 4; kind++ {
+		hLines[kind] = buildHLine(kind)
+	}
+}
+
+func buildHLine(kind int) [boardCols]rune {
 	var left, right, h, tee3, tee9 rune
 	switch kind {
 	case 0:
@@ -264,7 +282,7 @@ func drawHLine(s tcell.Screen, ox, y, kind int, st tcell.Style) {
 	default:
 		left, right, h, tee3, tee9 = '╟', '╢', '─', '┼', '╫'
 	}
-	line := make([]rune, boardCols)
+	var line [boardCols]rune
 	line[0] = left
 	i := 1
 	for c := 0; c < 9; c++ {
@@ -282,9 +300,7 @@ func drawHLine(s tcell.Screen, ox, y, kind int, st tcell.Style) {
 		}
 	}
 	line[boardCols-1] = right
-	for x, r := range line {
-		s.SetContent(ox+x, y, r, nil, st)
-	}
+	return line
 }
 
 func (g *game) drawDigitRow(ox, y, row int, done [10]bool) {

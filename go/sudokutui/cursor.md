@@ -52,14 +52,14 @@ Views in `main.go`: `viewMenu`, `viewPlay`, `viewPaused`, `viewConfirmExit`, `vi
 
 | File | Role |
 |------|------|
-| `main.go` | Entry, tcell loop (Larry-style event drain + 1s clock tick), input, persist, win/lose |
+| `main.go` | Entry, tcell loop (Larry-style event drain + 1s HUD clock tick + debounced save flush), input, persist, win/lose |
 | `render.go` | Menu, HUD, 37×19 box-drawn board, Active digit strip, pause/confirm/solved overlays, digit colors |
 | `colors.go` | 16-color accent wheel, HUD/title/selection styles, 600ms grid-border flash |
 | `board.go` | 81-cell grid, cursor, place/clear, pencil marks, `isWrong` / `isComplete` |
 | `save.go` | `sudoku.json` load/save (BOM), stats, completed IDs, continue pencils |
-| `puzzles.go` | `go:embed puzzles.json`, incomplete pool, random pick, `ensureSolved` at play time |
+| `puzzles.go` | `go:embed puzzles.json.gz`, remaining count, `pickIncomplete`, `ensureSolved` at play time |
 | `solver.go` | Bitmask MRV backtracker (import bake + tests) |
-| `importpuzzles.go` | `//go:build ignore` — sample Easy 2500 / Medium 2000 / Hard 1000 / Diabolical 250, verify each solves, write `puzzles.json` without solutions |
+| `importpuzzles.go` | `//go:build ignore` — sample Easy 2500 / Medium 2000 / Hard 1000 / Diabolical 250, verify each solves, write `puzzles.json` and `puzzles.json.gz` without solutions |
 | `utf8_*.go` / `title_*.go` / `size_*.go` | Windows UTF-8 font/CP, title, 80×24 resize |
 | `sudoku.rc` + `sudoku.ico` | Windows executable icon (`windres` → `sudoku.syso`) |
 | `build.ps1` | win x86/x64 + linux x86/amd64 → `bin/.../Sudoku[.exe]`, optional `-upx` |
@@ -72,13 +72,13 @@ Views in `main.go`: `viewMenu`, `viewPlay`, `viewPaused`, `viewConfirmExit`, `vi
 
 **Source:** https://github.com/grantm/sudoku-exchange-puzzle-bank (public domain). Bank line format: 12-char hash, 81-char givens (`0` empty), rating.
 
-**Regenerate `puzzles.json`:**
+**Regenerate `puzzles.json` / `puzzles.json.gz`:**
 
 ```powershell
 go run importpuzzles.go solver.go
 ```
 
-Reservoir-samples Easy 2500 / Medium 2000 / Hard 1000 / Diabolical 250 from `easy.txt` / `medium.txt` / `hard.txt` / `diabolical.txt`, verifies each has a unique solution (not stored), writes UTF-8 BOM JSON:
+Reservoir-samples Easy 2500 / Medium 2000 / Hard 1000 / Diabolical 250 from `easy.txt` / `medium.txt` / `hard.txt` / `diabolical.txt`, verifies each has a unique solution (not stored), writes UTF-8 BOM JSON plus a gzip copy for `go:embed`:
 
 ```json
 {
@@ -89,13 +89,13 @@ Reservoir-samples Easy 2500 / Medium 2000 / Hard 1000 / Diabolical 250 from `eas
 
 Difficulty buckets (Sukaku Explainer): Easy &lt; 1.5, Medium &lt; 2.5, Hard &lt; 5.0, Diabolical ≥ 5.0.
 
-**Selection (`incompletePool` + `pickRandom`):** New Game uses IDs not listed in `save.Completed[difficulty]`. Empty pool → New Game disabled, menu label `all {Difficulty} complete`. No wrap/recycle.
+**Selection (`remainingCount` + `pickIncomplete`):** New Game uses IDs not listed in `save.Completed[difficulty]`. The menu Remaining line counts without copying the leftover pool. Empty pool → New Game disabled, menu label `all {Difficulty} complete`. No wrap/recycle.
 
 ---
 
 ### Save file (`sudoku.json`)
 
-Written to the process **cwd** (same convention as Larry’s `larry.scores.json`). UTF-8 with BOM. Written after every place/clear, pause, resume, abandon, and solve. A solved board is never stored as `continue`; the completing move records Success and wipes the in-progress blob in the same write.
+Written to the process **cwd** (same convention as Larry’s `larry.scores.json`). UTF-8 with BOM, compact JSON. In-memory continue updates on every place/clear/mark; disk writes are debounced (~300ms) and flushed immediately on pause, quit, abandon, and solve. Writes go to a temp file then rename (with a `.bak` swap on Windows) so a crash cannot leave a half-written save. A solved board is never stored as `continue`; the completing move records Success and wipes the in-progress blob in the same write.
 
 ```json
 {
@@ -224,8 +224,8 @@ Quick check: `go test .`  ·  `go build -o Sudoku.exe .`
 ### Tests
 
 - `solver_test.go` — Wikipedia puzzle, reject short input, empty grid solves.
-- `puzzles_test.go` — bundled counts (2500/2000/1000/250) unique IDs, no baked solutions, sample solvability, incomplete pool omits completed IDs, mistake/correct/complete board behavior, digit-complete (all nine of a number), Active strip omits completed digits, toroidal cursor wrap, selection-mark positions, pencil mark cycle/clear/save, strip completed pencil color to background, strip peer (row/col/box) marks on correct place, pen and pencil ignore completed digits.
-- `save_test.go` — finishSuccess wipes continue and records completion immediately; persistPlay skips a completed board; load scrubs a leftover solved continue without double-counting; Perfect, Error Rate, and Average Completion from stored completions; Continue restores saved pencil mode.
+- `puzzles_test.go` — bundled counts (2500/2000/1000/250) unique IDs, no baked solutions, sample solvability, incomplete pool / remainingCount / pickIncomplete omit completed IDs, mistake/correct/complete board behavior, digit-complete (all nine of a number), Active strip omits completed digits, toroidal cursor wrap, selection-mark positions, pencil mark cycle/clear/save, strip completed pencil color to background, strip peer (row/col/box) marks on correct place, pen and pencil ignore completed digits.
+- `save_test.go` — finishSuccess wipes continue and records completion immediately; persistPlay skips a completed board; load scrubs a leftover solved continue without double-counting; Perfect, Error Rate, and Average Completion from stored completions; Continue restores saved pencil mode; persistPlay debounce; compact atomic write.
 - `colors_test.go` — 16-step wheel wrap; −8 incorrect jump; pencil mode −1 step; digit hues are not white; pencil cursor skips gold/yellow; SUDOKU banner S is accent+5.
 
 ---
@@ -237,5 +237,5 @@ Quick check: `go test .`  ·  `go build -o Sudoku.exe .`
 - Space pauses/resumes in play (clears with 0 / Backspace / Delete). Cursor wraps toroidally. Tab toggles pencil mode.
 - Esc in play/pause opens Exit: **Quit** (default) persists continue and leaves; **Abandon** wipes continue and increments Failed. Continue is omitted from the menu when there is no in-progress game. Completing a puzzle writes Success and clears continue before the solved overlay, so the next launch cannot Continue that board. Any exit path (Quit, Esc on menu, Ctrl+C) Clear-Hosts after `Fini`.
 - Confirm dialogs default to No (Larry give-up / destructive-action convention).
-- Keep `puzzles.json` in git; do not download the bank at runtime.
+- Keep `puzzles.json` and `puzzles.json.gz` in git (gz is the embed); do not download the bank at runtime.
 - If adding difficulties, update `difficultyOrder`, JSON keys, import list, and stats maps together.

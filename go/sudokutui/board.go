@@ -1,4 +1,4 @@
-﻿package main
+package main
 
 type board struct {
 	givens     [81]byte
@@ -8,6 +8,7 @@ type board struct {
 	mistakes   int
 	pencil     [81][2]byte // '1'-'9' or 0; [0] top half, [1] bottom half
 	pencilSlot [81]byte    // next write: 0 top, 1 bottom
+	digitCount [10]int     // correctly placed count for digits 1–9
 }
 
 func newBoard(givens, solution, grid string) board {
@@ -25,6 +26,7 @@ func newBoard(givens, solution, grid string) board {
 		}
 	}
 	b.cursor = firstEmpty(&b)
+	b.recountCorrect()
 	return b
 }
 
@@ -94,7 +96,7 @@ func (b *board) isComplete() bool {
 	return true
 }
 
-func (b *board) completedDigits() [10]bool {
+func (b *board) recountCorrect() {
 	var count [10]int
 	for i := 0; i < 81; i++ {
 		v := b.grid[i]
@@ -102,11 +104,19 @@ func (b *board) completedDigits() [10]bool {
 			count[v-'0']++
 		}
 	}
+	b.digitCount = count
+}
+
+func (b *board) completedDigits() [10]bool {
 	var done [10]bool
 	for d := 1; d <= 9; d++ {
-		done[d] = count[d] == 9
+		done[d] = b.digitCount[d] == 9
 	}
 	return done
+}
+
+func (b *board) digitComplete(digit byte) bool {
+	return digit >= '1' && digit <= '9' && b.digitCount[digit-'0'] == 9
 }
 
 func (b *board) activeDigits() []byte {
@@ -128,7 +138,7 @@ func (b *board) place(digit byte) bool {
 	if digit < '1' || digit > '9' {
 		return false
 	}
-	if b.completedDigits()[digit-'0'] {
+	if b.digitComplete(digit) {
 		return false
 	}
 	if b.grid[i] == digit {
@@ -140,8 +150,9 @@ func (b *board) place(digit byte) bool {
 		b.mistakes++
 		return true
 	}
+	b.digitCount[digit-'0']++
 	b.stripPencilPeers(i, digit)
-	if b.completedDigits()[digit-'0'] {
+	if b.digitComplete(digit) {
 		b.stripPencilDigit(digit)
 	}
 	return true
@@ -174,7 +185,7 @@ func (b *board) markPencil(digit byte) bool {
 	if digit < '1' || digit > '9' {
 		return false
 	}
-	if b.completedDigits()[digit-'0'] {
+	if b.digitComplete(digit) {
 		return false
 	}
 	if b.pencil[i][0] == digit || b.pencil[i][1] == digit {
@@ -245,9 +256,8 @@ func (b *board) stripPencilPeers(at int, digit byte) {
 }
 
 func (b *board) stripCompletedPencils() {
-	done := b.completedDigits()
 	for d := byte(1); d <= 9; d++ {
-		if done[d] {
+		if b.digitComplete('0' + d) {
 			b.stripPencilDigit('0' + d)
 		}
 	}

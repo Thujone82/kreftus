@@ -1,6 +1,9 @@
 ﻿package main
 
-import "testing"
+import (
+	"math/rand/v2"
+	"testing"
+)
 
 func TestBankCountsAndSampleSolvable(t *testing.T) {
 	if err := loadPuzzleBank(); err != nil {
@@ -43,6 +46,14 @@ func TestIncompletePoolSkipsCompleted(t *testing.T) {
 	pool := incompletePool(diffEasy, done)
 	if len(pool) != len(all)-2 {
 		t.Fatalf("pool %d want %d", len(pool), len(all)-2)
+	}
+	if remainingCount(diffEasy, done) != len(all)-2 {
+		t.Fatalf("remaining %d want %d", remainingCount(diffEasy, done), len(all)-2)
+	}
+	rng := rand.New(rand.NewPCG(1, 2))
+	p, ok := pickIncomplete(diffEasy, done, rng)
+	if !ok || p.ID == all[0].ID || p.ID == all[1].ID {
+		t.Fatalf("pickIncomplete got %+v ok=%v", p, ok)
 	}
 	for _, p := range pool {
 		if p.ID == all[0].ID || p.ID == all[1].ID {
@@ -119,6 +130,7 @@ func TestCompletedDigits(t *testing.T) {
 			b.grid[i] = '5'
 		}
 	}
+	b.recountCorrect()
 	done = b.completedDigits()
 	if !done[5] {
 		t.Fatal("all correct 5s should mark digit 5 complete")
@@ -142,6 +154,7 @@ func TestActiveDigitsOmitsCompleted(t *testing.T) {
 			}
 		}
 	}
+	b.recountCorrect()
 	if got := string(b.activeDigits()); got != "368" {
 		t.Fatalf("remaining active: got %q want 368", got)
 	}
@@ -262,6 +275,7 @@ func TestPencilRejectsCompletedDigit(t *testing.T) {
 			b.grid[i] = '5'
 		}
 	}
+	b.recountCorrect()
 	b.cursor = 2
 	if b.markPencil('5') {
 		t.Fatal("should ignore pencil mark for a completed (white) digit")
@@ -280,6 +294,7 @@ func TestPlaceRejectsCompletedDigit(t *testing.T) {
 			b.grid[i] = '5'
 		}
 	}
+	b.recountCorrect()
 	b.cursor = 2
 	if b.place('5') {
 		t.Fatal("should ignore pen entry for a completed digit")
@@ -325,6 +340,7 @@ func TestStripCompletedPencilToBackground(t *testing.T) {
 			b.grid[i] = '5'
 		}
 	}
+	b.recountCorrect()
 	b.cursor = last
 	if !b.place('5') {
 		t.Fatal("place last 5")

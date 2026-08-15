@@ -67,7 +67,7 @@ When every puzzle at a difficulty is solved, New Game is disabled for that level
 - Completed puzzles (`id`, mistake count, and elapsed time) so they are not shown again
 - The in-progress board, pencil marks, clock, and mistake count for **Continue Game**
 
-The file is UTF-8 with BOM and is rewritten after each move.
+The file is UTF-8 with BOM. Progress is kept in memory on each move and flushed to disk shortly after, or immediately on pause, quit, or finish.
 
 ## Console notes
 

@@ -1,10 +1,12 @@
-﻿//go:build ignore
+//go:build ignore
 // +build ignore
 
 package main
 
 import (
 	"bufio"
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -83,10 +85,30 @@ func main() {
 		panic(err)
 	}
 	bom := []byte{0xEF, 0xBB, 0xBF}
-	if err := os.WriteFile("puzzles.json", append(bom, append(data, '\n')...), 0644); err != nil {
+	payload := append(append([]byte{}, data...), '\n')
+	if err := os.WriteFile("puzzles.json", append(bom, payload...), 0644); err != nil {
 		panic(err)
 	}
-	fmt.Fprintf(os.Stderr, "wrote puzzles.json\n")
+	if err := writeGzip("puzzles.json.gz", payload); err != nil {
+		panic(err)
+	}
+	fmt.Fprintf(os.Stderr, "wrote puzzles.json and puzzles.json.gz\n")
+}
+
+func writeGzip(path string, data []byte) error {
+	var buf bytes.Buffer
+	zw, err := gzip.NewWriterLevel(&buf, gzip.BestCompression)
+	if err != nil {
+		return err
+	}
+	if _, err := zw.Write(data); err != nil {
+		_ = zw.Close()
+		return err
+	}
+	if err := zw.Close(); err != nil {
+		return err
+	}
+	return os.WriteFile(path, buf.Bytes(), 0644)
 }
 
 type rawPuzzle struct {

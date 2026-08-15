@@ -1,13 +1,16 @@
-﻿package main
+package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	_ "embed"
 	"encoding/json"
+	"io"
 	"math/rand/v2"
 )
 
-//go:embed puzzles.json
-var puzzlesJSON []byte
+//go:embed puzzles.json.gz
+var puzzlesGZ []byte
 
 const (
 	diffEasy       = "easy"
@@ -50,8 +53,16 @@ type puzzleBank struct {
 var bank puzzleBank
 
 func loadPuzzleBank() error {
-	data := stripBOM(puzzlesJSON)
-	if err := json.Unmarshal(data, &bank); err != nil {
+	zr, err := gzip.NewReader(bytes.NewReader(puzzlesGZ))
+	if err != nil {
+		return err
+	}
+	defer zr.Close()
+	data, err := io.ReadAll(zr)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(stripBOM(data), &bank); err != nil {
 		return err
 	}
 	return nil
@@ -89,6 +100,34 @@ func incompletePool(d string, completed map[string]struct{}) []puzzleEntry {
 		out = append(out, p)
 	}
 	return out
+}
+
+func remainingCount(d string, completed map[string]struct{}) int {
+	n := 0
+	for _, p := range puzzlesFor(d) {
+		if _, done := completed[p.ID]; !done {
+			n++
+		}
+	}
+	return n
+}
+
+func pickIncomplete(d string, completed map[string]struct{}, rng *rand.Rand) (puzzleEntry, bool) {
+	n := remainingCount(d, completed)
+	if n == 0 {
+		return puzzleEntry{}, false
+	}
+	k := rng.IntN(n)
+	for _, p := range puzzlesFor(d) {
+		if _, done := completed[p.ID]; done {
+			continue
+		}
+		if k == 0 {
+			return p, true
+		}
+		k--
+	}
+	return puzzleEntry{}, false
 }
 
 func pickRandom(pool []puzzleEntry, rng *rand.Rand) (puzzleEntry, bool) {
