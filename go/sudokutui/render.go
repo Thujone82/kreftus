@@ -156,9 +156,9 @@ func (g *game) drawPlay() {
 	}
 	hintY := h - 1
 	if hintY > activeY {
-		hint := "1-9 Enter  ·  0 Clear  ·  Tab ✏️  ·  Space Pause  ·  Esc Exit"
+		hint := "1-9 Enter · 0 Clear · Tab ✏️ · Space Pause · Esc Exit"
 		if g.pencil {
-			hint = "1-9 Mark  ·  0 Clear  ·  Tab ✒️  ·  Space Pause  ·  Esc Exit"
+			hint = "1-9 Mark · 0 Clear · Tab ✒️ · Space Pause · Esc Exit"
 		}
 		drawCentered(g.screen, w/2, hintY, hint, styleDim)
 	}
