@@ -12,7 +12,7 @@ import (
 
 const (
 	saveFileName  = "sudoku.json"
-	sudokuVersion = "1.2"
+	sudokuVersion = "1.3"
 )
 
 var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
@@ -51,7 +51,44 @@ type saveData struct {
 	Version   string                      `json:"version"`
 	Stats     map[string]*diffStats       `json:"stats"`
 	Completed map[string][]completedEntry `json:"completed"`
-	Continue  *continueGame               `json:"continue"`
+	Continue  continueMap                 `json:"continue,omitempty"`
+}
+
+// continueMap is keyed by difficulty. A legacy save with a single continue
+// object is accepted on load and stored under that blob's difficulty.
+type continueMap map[string]*continueGame
+
+func (m *continueMap) UnmarshalJSON(b []byte) error {
+	b = bytes.TrimSpace(b)
+	if len(b) == 0 || string(b) == "null" {
+		*m = continueMap{}
+		return nil
+	}
+	var probe map[string]json.RawMessage
+	if err := json.Unmarshal(b, &probe); err != nil {
+		return err
+	}
+	if _, legacy := probe["id"]; legacy {
+		var c continueGame
+		if err := json.Unmarshal(b, &c); err != nil {
+			return err
+		}
+		d := c.Difficulty
+		if d == "" {
+			d = diffEasy
+		}
+		*m = continueMap{d: &c}
+		return nil
+	}
+	var keyed map[string]*continueGame
+	if err := json.Unmarshal(b, &keyed); err != nil {
+		return err
+	}
+	if keyed == nil {
+		keyed = map[string]*continueGame{}
+	}
+	*m = continueMap(keyed)
+	return nil
 }
 
 func newSaveData() *saveData {
@@ -59,6 +96,7 @@ func newSaveData() *saveData {
 		Version:   sudokuVersion,
 		Stats:     map[string]*diffStats{},
 		Completed: map[string][]completedEntry{},
+		Continue:  continueMap{},
 	}
 	for _, d := range difficultyOrder {
 		s.Stats[d] = &diffStats{}
@@ -94,25 +132,73 @@ func loadSave() *saveData {
 			s.Completed[d] = []completedEntry{}
 		}
 	}
-	dirty := false
-	if s.Continue != nil {
-		if len(s.Continue.Solution) != 81 {
-			s.Continue.Solution = solveSudoku(s.Continue.Givens)
-		}
-		if !validPuzzleStrings(s.Continue.Givens, s.Continue.Solution, s.Continue.Grid) {
-			s.Continue = nil
-		} else if s.scrubCompletedContinue() {
-			dirty = true
-		}
-	}
+	dirty := s.normalizeContinues()
 	if dirty {
 		_ = s.write()
 	}
 	return s
 }
 
-func (s *saveData) scrubCompletedContinue() bool {
-	c := s.Continue
+func (s *saveData) continueFor(d string) *continueGame {
+	if s == nil || s.Continue == nil {
+		return nil
+	}
+	return s.Continue[d]
+}
+
+func (s *saveData) setContinue(d string, c *continueGame) {
+	if s.Continue == nil {
+		s.Continue = continueMap{}
+	}
+	if c == nil {
+		delete(s.Continue, d)
+		return
+	}
+	c.Difficulty = d
+	s.Continue[d] = c
+}
+
+func (s *saveData) firstContinueDifficulty() string {
+	for _, d := range difficultyOrder {
+		if s.continueFor(d) != nil {
+			return d
+		}
+	}
+	return ""
+}
+
+func (s *saveData) normalizeContinues() bool {
+	if s.Continue == nil {
+		s.Continue = continueMap{}
+		return false
+	}
+	dirty := false
+	for d, c := range s.Continue {
+		if c == nil {
+			delete(s.Continue, d)
+			dirty = true
+			continue
+		}
+		if c.Difficulty == "" {
+			c.Difficulty = d
+		}
+		if len(c.Solution) != 81 {
+			c.Solution = solveSudoku(c.Givens)
+		}
+		if !validPuzzleStrings(c.Givens, c.Solution, c.Grid) {
+			delete(s.Continue, d)
+			dirty = true
+			continue
+		}
+		if s.scrubCompletedContinue(d) {
+			dirty = true
+		}
+	}
+	return dirty
+}
+
+func (s *saveData) scrubCompletedContinue(d string) bool {
+	c := s.continueFor(d)
 	if c == nil || len(c.Grid) != 81 || len(c.Solution) != 81 || c.Grid != c.Solution {
 		return false
 	}
@@ -120,7 +206,7 @@ func (s *saveData) scrubCompletedContinue() bool {
 		s.recordSuccess(c.Difficulty, c.ElapsedMs, c.Mistakes)
 		s.markCompleted(c.Difficulty, c.ID, c.Mistakes, c.ElapsedMs)
 	}
-	s.Continue = nil
+	s.setContinue(d, nil)
 	return true
 }
 

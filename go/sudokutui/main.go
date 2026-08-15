@@ -17,7 +17,6 @@ const (
 	viewMenu = iota
 	viewPlay
 	viewPaused
-	viewConfirmExit
 	viewConfirmNewGame
 	viewSolved
 )
@@ -35,7 +34,7 @@ type game struct {
 
 	view         int
 	menuIndex    int
-	confirmIndex int // exit: 0 Abandon / 1 Quit; new game: 0 Cancel / 1 Abandon
+	confirmIndex int // new game: 0 Cancel / 1 Abandon
 
 	difficulty string
 	save       *saveData
@@ -120,12 +119,9 @@ func main() {
 	}
 	g.accentIndex = g.rng.IntN(colorWheelSize)
 	g.width, g.height = s.Size()
-	if g.save.Continue != nil {
+	if d := g.save.firstContinueDifficulty(); d != "" {
+		g.difficulty = d
 		g.menuIndex = menuContinue
-		g.difficulty = g.save.Continue.Difficulty
-		if g.difficulty == "" {
-			g.difficulty = diffEasy
-		}
 	}
 
 	events := make(chan tcell.Event, 64)
@@ -216,7 +212,7 @@ func (g *game) handleInput(e *tcell.EventKey) bool {
 		return g.handlePlay(e)
 	case viewPaused:
 		return g.handlePaused(e)
-	case viewConfirmExit, viewConfirmNewGame:
+	case viewConfirmNewGame:
 		return g.handleConfirm(e)
 	case viewSolved:
 		return g.handleSolved(e)
@@ -236,9 +232,11 @@ func (g *game) handleMenu(e *tcell.EventKey) bool {
 		g.rotateAccent(1)
 	case tcell.KeyLeft:
 		g.difficulty = nextDifficulty(g.difficulty, -1)
+		g.clampMenu()
 		g.rotateAccent(1)
 	case tcell.KeyRight:
 		g.difficulty = nextDifficulty(g.difficulty, 1)
+		g.clampMenu()
 		g.rotateAccent(1)
 	case tcell.KeyEnter:
 		return g.activateMenu()
@@ -252,9 +250,11 @@ func (g *game) handleMenu(e *tcell.EventKey) bool {
 			g.rotateAccent(1)
 		case 'a', 'A', 'h', 'H':
 			g.difficulty = nextDifficulty(g.difficulty, -1)
+			g.clampMenu()
 			g.rotateAccent(1)
 		case 'd', 'D', 'l', 'L':
 			g.difficulty = nextDifficulty(g.difficulty, 1)
+			g.clampMenu()
 			g.rotateAccent(1)
 		}
 	}
@@ -263,7 +263,7 @@ func (g *game) handleMenu(e *tcell.EventKey) bool {
 
 func (g *game) visibleMenu() []int {
 	items := make([]int, 0, 4)
-	if g.save.Continue != nil {
+	if g.save.continueFor(g.difficulty) != nil {
 		items = append(items, menuContinue)
 	}
 	return append(items, menuNewGame, menuQuit)
@@ -295,7 +295,7 @@ func (g *game) clampMenu() {
 func (g *game) activateMenu() bool {
 	switch g.menuIndex {
 	case menuContinue:
-		if g.save.Continue == nil {
+		if g.save.continueFor(g.difficulty) == nil {
 			return false
 		}
 		g.resumeContinue()
@@ -303,7 +303,7 @@ func (g *game) activateMenu() bool {
 		if remainingCount(g.difficulty, g.save.completedSet(g.difficulty)) == 0 {
 			return false
 		}
-		if g.save.Continue != nil {
+		if g.save.continueFor(g.difficulty) != nil {
 			g.view = viewConfirmNewGame
 			g.confirmIndex = 0
 			return false
@@ -321,10 +321,7 @@ func (g *game) handlePlay(e *tcell.EventKey) bool {
 	}
 	switch e.Key() {
 	case tcell.KeyEscape:
-		g.stopClock()
-		g.persistPlayNow()
-		g.view = viewConfirmExit
-		g.confirmIndex = 1
+		g.returnToMenu()
 		return false
 	case tcell.KeyTab, tcell.KeyBacktab:
 		g.pencil = !g.pencil
@@ -412,9 +409,7 @@ func (g *game) clearPlay() bool {
 
 func (g *game) handlePaused(e *tcell.EventKey) bool {
 	if e.Key() == tcell.KeyEscape {
-		g.persistPlayNow()
-		g.view = viewConfirmExit
-		g.confirmIndex = 1
+		g.returnToMenu()
 		return false
 	}
 	if e.Key() == tcell.KeyRune && e.Rune() == ' ' {
@@ -442,16 +437,7 @@ func (g *game) handleConfirm(e *tcell.EventKey) bool {
 		case 'l', 'L':
 			g.confirmIndex = 1
 		case 'a', 'A':
-			if g.view == viewConfirmExit {
-				g.confirmIndex = 0
-				return g.acceptConfirm()
-			}
 			if g.view == viewConfirmNewGame {
-				g.confirmIndex = 1
-				return g.acceptConfirm()
-			}
-		case 'q', 'Q':
-			if g.view == viewConfirmExit {
 				g.confirmIndex = 1
 				return g.acceptConfirm()
 			}
@@ -465,34 +451,34 @@ func (g *game) handleConfirm(e *tcell.EventKey) bool {
 }
 
 func (g *game) cancelConfirm() {
-	if g.view == viewConfirmNewGame {
-		g.view = viewMenu
-		return
-	}
-	g.view = viewPlay
-	g.startClock()
+	g.view = viewMenu
 }
 
 func (g *game) acceptConfirm() bool {
-	if g.view == viewConfirmNewGame {
-		if g.confirmIndex == 0 {
-			g.cancelConfirm()
-			return false
-		}
-		g.abandonContinue()
-		g.startNewGame()
+	if g.view != viewConfirmNewGame {
 		return false
 	}
-	// viewConfirmExit: 0 Abandon, 1 Quit
-	if g.confirmIndex == 1 {
-		g.stopClock()
-		g.persistPlayNow()
-		return true
+	if g.confirmIndex == 0 {
+		g.cancelConfirm()
+		return false
 	}
-	g.abandonInPlay()
-	g.view = viewMenu
-	g.menuIndex = menuNewGame
+	g.abandonContinue()
+	g.startNewGame()
 	return false
+}
+
+func (g *game) returnToMenu() {
+	g.stopClock()
+	if g.shouldPersistContinue() {
+		g.persistPlayNow()
+	}
+	g.puzzle = puzzleEntry{}
+	g.view = viewMenu
+	if g.save.continueFor(g.difficulty) != nil {
+		g.menuIndex = menuContinue
+	} else {
+		g.menuIndex = menuNewGame
+	}
 }
 
 func (g *game) handleSolved(e *tcell.EventKey) bool {
@@ -526,7 +512,7 @@ func (g *game) currentElapsed() time.Duration {
 }
 
 func (g *game) persistIfPlaying() {
-	if g.view == viewPlay || g.view == viewPaused || g.view == viewConfirmExit {
+	if g.view == viewPlay || g.view == viewPaused {
 		g.stopClock()
 		if g.shouldPersistContinue() {
 			g.persistPlayNow()
@@ -564,7 +550,7 @@ func (g *game) persistPlayNow() {
 func (g *game) storeContinue() {
 	ms := g.currentElapsed().Milliseconds()
 	top, bot, slot := g.board.pencilsString()
-	g.save.Continue = &continueGame{
+	g.save.setContinue(g.difficulty, &continueGame{
 		ID:         g.puzzle.ID,
 		Difficulty: g.difficulty,
 		Givens:     g.puzzle.Givens,
@@ -576,7 +562,7 @@ func (g *game) storeContinue() {
 		PencilTop:  top,
 		PencilBot:  bot,
 		PencilSlot: slot,
-	}
+	})
 }
 
 func (g *game) scheduleSave() {
@@ -628,7 +614,7 @@ func (g *game) startNewGame() {
 }
 
 func (g *game) resumeContinue() {
-	c := g.save.Continue
+	c := g.save.continueFor(g.difficulty)
 	if c == nil {
 		return
 	}
@@ -658,21 +644,13 @@ func (g *game) resumeContinue() {
 }
 
 func (g *game) abandonContinue() {
-	c := g.save.Continue
+	c := g.save.continueFor(g.difficulty)
 	if c == nil {
 		return
 	}
 	g.save.recordFailure(c.Difficulty)
-	g.save.Continue = nil
+	g.save.setContinue(g.difficulty, nil)
 	g.flushSave()
-}
-
-func (g *game) abandonInPlay() {
-	g.stopClock()
-	g.save.recordFailure(g.difficulty)
-	g.save.Continue = nil
-	g.flushSave()
-	g.puzzle = puzzleEntry{}
 }
 
 func (g *game) finishSuccess() {
@@ -682,7 +660,7 @@ func (g *game) finishSuccess() {
 	g.solvedMistakes = g.board.mistakes
 	g.save.recordSuccess(g.difficulty, ms, g.board.mistakes)
 	g.save.markCompleted(g.difficulty, g.puzzle.ID, g.board.mistakes, ms)
-	g.save.Continue = nil
+	g.save.setContinue(g.difficulty, nil)
 	g.flushSave()
 	g.puzzle = puzzleEntry{}
 	g.pendingSolved = true

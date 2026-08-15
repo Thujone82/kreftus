@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"math/rand/v2"
 	"os"
 	"testing"
 	"time"
@@ -40,12 +42,18 @@ func TestFinishSuccessWipesContinue(t *testing.T) {
 		view:       viewPlay,
 		elapsed:    45 * time.Second,
 	}
-	g.save.Continue = &continueGame{
+	g.save.setContinue(diffEasy, &continueGame{
 		ID: testPuzzleID, Difficulty: diffEasy, Givens: givens, Solution: sol, Grid: sol,
-	}
+	})
+	g.save.setContinue(diffMedium, &continueGame{
+		ID: "otherhash12ab", Difficulty: diffMedium, Givens: givens, Solution: sol, Grid: givens,
+	})
 	g.finishSuccess()
-	if g.save.Continue != nil {
+	if g.save.continueFor(diffEasy) != nil {
 		t.Fatal("in-memory continue should be wiped")
+	}
+	if g.save.continueFor(diffMedium) == nil {
+		t.Fatal("other difficulty continue should stay")
 	}
 	if g.puzzle.ID != "" {
 		t.Fatal("puzzle identity should be cleared immediately")
@@ -54,8 +62,11 @@ func TestFinishSuccessWipesContinue(t *testing.T) {
 		t.Fatal("must not persist continue after success")
 	}
 	loaded := loadSave()
-	if loaded.Continue != nil {
+	if loaded.continueFor(diffEasy) != nil {
 		t.Fatal("save file continue should be wiped")
+	}
+	if loaded.continueFor(diffMedium) == nil {
+		t.Fatal("other difficulty continue should still be on disk")
 	}
 	if _, ok := loaded.completedSet(diffEasy)[testPuzzleID]; !ok {
 		t.Fatal("completed id missing from save")
@@ -88,7 +99,7 @@ func TestPersistPlaySkipsCompletedBoard(t *testing.T) {
 		view:       viewPlay,
 	}
 	g.persistPlay()
-	if g.save.Continue != nil {
+	if g.save.continueFor(diffEasy) != nil {
 		t.Fatal("must not write continue for a completed board")
 	}
 	if _, err := os.Stat(saveFileName); !os.IsNotExist(err) {
@@ -100,7 +111,7 @@ func TestScrubCompletedContinueOnLoad(t *testing.T) {
 	chdirTemp(t)
 	givens, sol := classicSolved()
 	s := newSaveData()
-	s.Continue = &continueGame{
+	s.setContinue(diffEasy, &continueGame{
 		ID:         testPuzzleID,
 		Difficulty: diffEasy,
 		Givens:     givens,
@@ -108,12 +119,12 @@ func TestScrubCompletedContinueOnLoad(t *testing.T) {
 		Grid:       sol,
 		ElapsedMs:  12000,
 		Mistakes:   2,
-	}
+	})
 	if err := s.write(); err != nil {
 		t.Fatal(err)
 	}
 	loaded := loadSave()
-	if loaded.Continue != nil {
+	if loaded.continueFor(diffEasy) != nil {
 		t.Fatal("load should wipe a completed continue")
 	}
 	if loaded.statsFor(diffEasy).Successes != 1 {
@@ -129,7 +140,7 @@ func TestScrubCompletedContinueOnLoad(t *testing.T) {
 	if again.statsFor(diffEasy).Successes != 1 {
 		t.Fatalf("must not double-count success, got %d", again.statsFor(diffEasy).Successes)
 	}
-	if again.Continue != nil {
+	if again.continueFor(diffEasy) != nil {
 		t.Fatal("continue must stay wiped")
 	}
 }
@@ -208,27 +219,18 @@ func TestMarkCompletedStoresMistakes(t *testing.T) {
 	}
 }
 
-func TestContinueMenuLabel(t *testing.T) {
-	if continueMenuLabel(nil) != "Continue Game" {
-		t.Fatal("nil continue should be Continue Game")
-	}
-	c := &continueGame{Difficulty: diffMedium}
-	if continueMenuLabel(c) != "Continue Game [Medium]" {
-		t.Fatalf("got %q", continueMenuLabel(c))
-	}
-}
-
 func TestResumeContinueRestoresPencilMode(t *testing.T) {
 	givens, sol := classicSolved()
 	g := &game{save: newSaveData()}
-	g.save.Continue = &continueGame{
+	g.save.setContinue(diffEasy, &continueGame{
 		ID: testPuzzleID, Difficulty: diffEasy, Givens: givens, Solution: sol, Grid: givens, Pencil: true,
-	}
+	})
+	g.difficulty = diffEasy
 	g.resumeContinue()
 	if !g.pencil {
 		t.Fatal("continue with pencil true should open in pencil mode")
 	}
-	g.save.Continue.Pencil = false
+	g.save.continueFor(diffEasy).Pencil = false
 	g.resumeContinue()
 	if g.pencil {
 		t.Fatal("continue with pencil false should open in pen mode")
@@ -247,7 +249,7 @@ func TestPersistPlayDebouncesDisk(t *testing.T) {
 		saveFlush:  make(chan struct{}, 1),
 	}
 	g.persistPlay()
-	if g.save.Continue == nil {
+	if g.save.continueFor(diffEasy) == nil {
 		t.Fatal("continue should be in memory immediately")
 	}
 	if _, err := os.Stat(saveFileName); !os.IsNotExist(err) {
@@ -285,5 +287,97 @@ func TestWriteAtomicCompactJSON(t *testing.T) {
 	loaded = loadSave()
 	if _, ok := loaded.completedSet(diffEasy)["def"]; !ok {
 		t.Fatal("second atomic write should replace the file")
+	}
+}
+
+func TestLegacyContinueObjectLoadsPerDifficulty(t *testing.T) {
+	chdirTemp(t)
+	givens, sol := classicSolved()
+	legacy := map[string]any{
+		"version": "1.2",
+		"continue": map[string]any{
+			"id": testPuzzleID, "difficulty": diffMedium,
+			"givens": givens, "solution": sol, "grid": givens,
+			"elapsedMs": 1000, "mistakes": 0,
+		},
+	}
+	data, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(saveFileName, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+	loaded := loadSave()
+	if loaded.continueFor(diffEasy) != nil {
+		t.Fatal("legacy continue should not land on easy")
+	}
+	c := loaded.continueFor(diffMedium)
+	if c == nil || c.ID != testPuzzleID {
+		t.Fatal("legacy continue should map to medium")
+	}
+}
+
+func TestReturnToMenuKeepsContinue(t *testing.T) {
+	chdirTemp(t)
+	givens, sol := classicSolved()
+	g := &game{
+		save:       newSaveData(),
+		difficulty: diffEasy,
+		puzzle:     puzzleEntry{ID: testPuzzleID, Givens: givens, Solution: sol},
+		board:      newBoard(givens, sol, givens),
+		view:       viewPlay,
+	}
+	g.returnToMenu()
+	if g.view != viewMenu {
+		t.Fatalf("view=%d want menu", g.view)
+	}
+	if g.save.continueFor(diffEasy) == nil {
+		t.Fatal("esc to menu should keep continue")
+	}
+	if g.save.statsFor(diffEasy).Failed != 0 {
+		t.Fatal("esc to menu must not count as Failed")
+	}
+	if g.menuIndex != menuContinue {
+		t.Fatal("menu should land on Continue")
+	}
+}
+
+func TestNewGamePromptsOnlyForSameDifficulty(t *testing.T) {
+	if err := loadPuzzleBank(); err != nil {
+		t.Fatal(err)
+	}
+	givens, sol := classicSolved()
+	g := &game{
+		save:       newSaveData(),
+		difficulty: diffEasy,
+		menuIndex:  menuNewGame,
+		rng:        rand.New(rand.NewPCG(1, 2)),
+	}
+	g.save.setContinue(diffMedium, &continueGame{
+		ID: "medhash12ab", Difficulty: diffMedium, Givens: givens, Solution: sol, Grid: givens,
+	})
+	if g.activateMenu() {
+		t.Fatal("new game should not quit")
+	}
+	if g.view != viewPlay {
+		t.Fatalf("view=%d want play (no prompt for another difficulty's save)", g.view)
+	}
+	if g.save.continueFor(diffMedium) == nil {
+		t.Fatal("medium continue should remain")
+	}
+
+	g2 := &game{
+		save:       newSaveData(),
+		difficulty: diffEasy,
+		menuIndex:  menuNewGame,
+		rng:        rand.New(rand.NewPCG(1, 2)),
+	}
+	g2.save.setContinue(diffEasy, &continueGame{
+		ID: testPuzzleID, Difficulty: diffEasy, Givens: givens, Solution: sol, Grid: givens,
+	})
+	g2.activateMenu()
+	if g2.view != viewConfirmNewGame {
+		t.Fatalf("view=%d want confirm new game", g2.view)
 	}
 }

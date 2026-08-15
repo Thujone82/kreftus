@@ -4,7 +4,7 @@
 
 **Author:** Kreft&Cursor  
 **Date:** 2026-08-14  
-**Version:** 1.2
+**Version:** 1.3
 
 ---
 
@@ -18,17 +18,17 @@ Puzzles are a sample of the public-domain [Sudoku Exchange Puzzle Bank](https://
 
 ### Key Functionality
 
-- **Menu:** Continue Game (only listed when a `continue` blob exists; label is **Continue Game [{Difficulty}]** from the in-progress save), **New Game: ◀ {Difficulty} ▶** (←→ cycles difficulty and starts a game on Enter; dimmed when the pool is empty), Quit. ←→ always changes difficulty. ↑↓←→, play cursor moves, and starting a new game each rotate the accent wheel one step forward. In pencil mode, play moves and marks rotate **−1**.
+- **Menu:** Under the SUDOKU banner, **── Medium ──** (or Easy / Hard / Diabolical) then **Continue** (only when that difficulty has a continue blob), **New Game**, Quit. **── Stats ──** and Remaining sit below the items; Perfect, Successes, Error Rate, Failed, Fastest, and Average Completion appear after the first success at that difficulty. ←→ cycles difficulty (footer `←→ difficulty`) and clamps the highlight if Continue disappears. Dimmed New Game when the pool is empty (`New Game  (complete)`). ↑↓←→, play cursor moves, and starting a new game each rotate the accent wheel one step forward. In pencil mode, play moves and marks rotate **−1**.
 - **Pencil marks:** Tab toggles ✒️ pen / ✏️ pencil (HUD). New Game always opens in pen mode; Continue restores saved `pencil`. Empty unlocked cells show up to two *different* candidates on `▀` (FG = top mark color, BG = bottom). First 1–9 fills top, second fills bottom, further presses overwrite top then bottom. Pressing a digit already on the cell **toggles it off** and that half is the next fill slot. A digit that is already complete (all nine placed) is ignored for both pen and pencil. A correct lock-in **removes** that digit from pencil marks in the same row, column, and box (`stripPencilPeers`). When the last of a digit is placed, that color is removed from **all** pencil marks (`stripPencilDigit`), not turned white. Any leftover mark in a cell moves to the **background** (bottom) and the top half becomes the next slot. Continue sanitizes with `stripImpossiblePencils` (completed digits plus peers of every locked cell, including givens). 0 / Backspace / Delete in pencil mode clears marks. Placing a pen digit clears that cell's marks. Saved in continue as `pencil` / `pencilTop` / `pencilBot` / `pencilSlot`.
-- **Stats panel:** Perfect (0-error wins), Successes, Error Rate (average incorrect entries per rated success, two decimals), Failed, Fastest (time + incorrect entries on that run), Average Completion (mean of stored `elapsedMs` on completions), Remaining `n / total` (total is the bundled count for that difficulty). Menu items are centered (highlight is the label width, not a padded bar).
-- **Continue:** Restores grid, pencil marks, pen/pencil mode (`pencil`), elapsed ms, mistake count, difficulty. Clock resumes on load.
-- **New Game while a continue exists:** confirm overlay (Cancel / Abandon); Abandon records a Failure for the *in-progress* difficulty, wipes `continue`, then picks a random incomplete puzzle at the *selected* difficulty.
-- **Exit (Esc in play or pause):** overlay **Abandon** or **Quit Sudoku** (Quit selected by default). **Quit** writes continue and exits so the next launch can Continue. **Abandon** clears `continue`, increments Failed, returns to the menu (puzzle ID stays eligible). Esc on the overlay cancels back to play.
-- **Success:** `grid == solution`. Record success + fastest (tie-break: fewer mistakes), append `{id, mistakes, elapsedMs}` to `completed[difficulty]`, **immediately** clear `continue` and write `sudoku.json`, then show overlay (time + incorrect entries). `persistPlay` / Quit / Ctrl+C must not rewrite a completed board as Continue. A leftover completed `continue` blob is scrubbed on load (`scrubCompletedContinue`).
+- **Stats panel:** Below the menu, header `── Stats ──` then Remaining. Full Perfect / Successes / Error Rate / Failed / Fastest / Average Completion only after at least one success at that difficulty. Labels are right-aligned so `:` shares a column, then two spaces before the value (`Perfect:  0`). The block is left-aligned as a unit so columns stay lined up. The selected item is ` ▶ Label ◀ ` (spaces included) so the accent bar is wider than the label.
+- **Continue:** One in-progress game per difficulty (`continue[easy|medium|hard|diabolical]`). Restores grid, pencil marks, pen/pencil mode (`pencil`), elapsed ms, mistake count. Clock resumes on load. A v1.2 single `continue` object is migrated into that map on load.
+- **New Game while that difficulty has a continue:** confirm overlay (Cancel / Abandon). Abandon records a Failure for **that** difficulty, wipes only that continue, then picks a random incomplete puzzle. Continues at other difficulties are left alone. Esc in play/pause does **not** abandon.
+- **Esc (play or pause):** persist that difficulty's continue and return to the menu (hint **Esc Menu**). No Abandon/Quit overlay. Quit the app from the menu (Esc / Quit) or Ctrl+C.
+- **Success:** `grid == solution`. Record success + fastest (tie-break: fewer mistakes), append `{id, mistakes, elapsedMs}` to `completed[difficulty]`, **immediately** clear **that difficulty's** continue and write `sudoku.json`, then show overlay (time + incorrect entries). `persistPlay` / Ctrl+C must not rewrite a completed board as Continue. A leftover completed continue blob is scrubbed on load (`scrubCompletedContinue`).
 - **Incorrect entry:** compare to unique solution. Maroon cell; mistake +1 per wrong place. Grid border flashes **red** ~600ms. Accent wheel jumps **−8**. Givens and locked-correct cells cannot be changed.
 - **Correct lock-in:** cell locks (bold). Grid border flashes **green** ~600ms. Accent wheel rotates **forward**. Completing the board holds the green flash then shows Solved.
-- **Pause (Space):** freeze clock, fill screen with PAUSED (board hidden). Space resumes; Esc opens the Exit overlay.
-- **Ctrl+C / SIGTERM:** persist continue if a puzzle is in progress (same as Quit) and exit. A just-solved board is not persisted as Continue (Success already written). Cleanup resets colors, shows the cursor, `Fini`s tcell, then ANSI `\033[H\033[2J` (Clear-Host) so the console is blank.
+- **Pause (Space):** freeze clock, fill screen with PAUSED (board hidden). Space resumes; Esc returns to the menu (continue saved).
+- **Ctrl+C / SIGTERM:** persist continue if a puzzle is in progress and exit. A just-solved board is not persisted as Continue (Success already written). Cleanup resets colors, shows the cursor, `Fini`s tcell, then ANSI `\033[H\033[2J` (Clear-Host) so the console is blank.
 - **Windows console:** CP65001, VT processing, Cascadia Mono preference; request 80×24.
 
 ---
@@ -38,13 +38,13 @@ Puzzles are a sample of the public-domain [Sudoku Exchange Puzzle Bank](https://
 ```
 Menu ──Continue──► Play ──Space──► Paused ──Space──► Play
   │                  │
-  │ New Game         ├─Esc──► Exit overlay
-  │                  │         ├─Quit──► exit (continue saved)
-  │                  │         └─Abandon──► Menu (+Failed, continue wiped)
-  └─Quit/Esc         └─complete──► Solved overlay ──Enter──► Menu (Success)
+  │ New Game         └─Esc──► Menu (continue saved per difficulty)
+  │   └─if that difficulty already has a continue──► Confirm (Cancel / Abandon)
+  │         Abandon──► Failed + new puzzle at that difficulty
+  └─Quit/Esc         Play ──complete──► Solved overlay ──Enter──► Menu (Success)
 ```
 
-Views in `main.go`: `viewMenu`, `viewPlay`, `viewPaused`, `viewConfirmExit`, `viewConfirmNewGame`, `viewSolved`. Exit overlay defaults to **Quit**; New Game confirm defaults to **Cancel**.
+Views in `main.go`: `viewMenu`, `viewPlay`, `viewPaused`, `viewConfirmNewGame`, `viewSolved`. New Game confirm defaults to **Cancel**.
 
 ---
 
@@ -99,23 +99,25 @@ Written to the process **cwd** (same convention as Larry’s `larry.scores.json`
 
 ```json
 {
-  "version": "1.2",
+  "version": "1.3",
   "stats": {
     "easy": { "successes": 0, "failures": 0, "perfect": 0, "mistakeSum": 0, "ratedSuccesses": 0, "fastestMs": null, "fastestMistakes": null }
   },
   "completed": { "easy": [{ "id": "abc123...", "mistakes": 3, "elapsedMs": 45000 }] },
   "continue": {
-    "id": "...",
-    "difficulty": "easy",
-    "givens": "...",
-    "solution": "...",
-    "grid": "...",
-    "elapsedMs": 45000,
-    "mistakes": 2,
-    "pencil": false,
-    "pencilTop": "000...",
-    "pencilBot": "000...",
-    "pencilSlot": "000..."
+    "easy": {
+      "id": "...",
+      "difficulty": "easy",
+      "givens": "...",
+      "solution": "...",
+      "grid": "...",
+      "elapsedMs": 45000,
+      "mistakes": 2,
+      "pencil": false,
+      "pencilTop": "000...",
+      "pencilBot": "000...",
+      "pencilSlot": "000..."
+    }
   }
 }
 ```
@@ -125,7 +127,8 @@ Written to the process **cwd** (same convention as Larry’s `larry.scores.json`
 - `fastestMs` updated when `elapsed < fastest` OR same time with fewer mistakes.
 - `perfect` counts successes with 0 incorrect entries. `mistakeSum` / `ratedSuccesses` is **Error Rate** (`%.2f`).
 - `completed[difficulty]` is `{id, mistakes, elapsedMs}` per solved puzzle. IDs stay out of the New Game pool. Average Completion is the mean of `elapsedMs`.
-- `failures` (shown as **Failed**) increments on confirmed Abandon (Esc overlay or New Game while a continue exists). Legacy `abandonments` is copied into `failures` on load if `failures` is 0.
+- `failures` (shown as **Failed**) increments on confirmed Abandon when starting New Game while that difficulty already has a continue. Legacy `abandonments` is copied into `failures` on load if `failures` is 0.
+- A v1.2 `continue` object (not keyed by difficulty) loads into `continue[difficulty]`.
 
 ---
 
@@ -225,7 +228,7 @@ Quick check: `go test .`  ·  `go build -o Sudoku.exe .`
 
 - `solver_test.go` — Wikipedia puzzle, reject short input, empty grid solves.
 - `puzzles_test.go` — bundled counts (2500/2000/1000/250) unique IDs, no baked solutions, sample solvability, incomplete pool / remainingCount / pickIncomplete omit completed IDs, mistake/correct/complete board behavior, digit-complete (all nine of a number), Active strip omits completed digits, toroidal cursor wrap, selection-mark positions, pencil mark cycle/clear/toggle/save, strip completed pencil color to background, strip peer (row/col/box) marks on correct place, pen and pencil ignore completed digits.
-- `save_test.go` — finishSuccess wipes continue and records completion immediately; persistPlay skips a completed board; load scrubs a leftover solved continue without double-counting; Perfect, Error Rate, and Average Completion from stored completions; Continue restores saved pencil mode; persistPlay debounce; compact atomic write.
+- `save_test.go` — finishSuccess wipes that difficulty's continue (others stay); persistPlay skips a completed board; load scrubs a leftover solved continue without double-counting; Perfect, Error Rate, and Average Completion from stored completions; Continue restores saved pencil mode; persistPlay debounce; compact atomic write; legacy single continue object maps per difficulty; Esc to menu keeps continue without Failed; New Game prompts only when that difficulty already has a save.
 - `colors_test.go` — 16-step wheel wrap; −8 incorrect jump; pencil mode −1 step; digit hues are not white; pencil cursor skips gold/yellow; SUDOKU banner S is accent+5.
 
 ---
@@ -235,7 +238,7 @@ Quick check: `go test .`  ·  `go build -o Sudoku.exe .`
 - Module name `sudokutui` (folder); binary name **Sudoku** (capital S).
 - Do not recycle completed IDs. Abandoned puzzles may be drawn again.
 - Space pauses/resumes in play (clears with 0 / Backspace / Delete). Cursor wraps toroidally. Tab toggles pencil mode.
-- Esc in play/pause opens Exit: **Quit** (default) persists continue and leaves; **Abandon** wipes continue and increments Failed. Continue is omitted from the menu when there is no in-progress game. Completing a puzzle writes Success and clears continue before the solved overlay, so the next launch cannot Continue that board. Any exit path (Quit, Esc on menu, Ctrl+C) Clear-Hosts after `Fini`.
+- Esc in play/pause returns to the menu and keeps that difficulty's continue. Abandon (Failed) only when starting New Game over an existing continue at the **same** difficulty. Completing a puzzle writes Success and clears that continue before the solved overlay. Any exit path (Quit, Esc on menu, Ctrl+C) Clear-Hosts after `Fini`.
 - Confirm dialogs default to No (Larry give-up / destructive-action convention).
 - Keep `puzzles.json` and `puzzles.json.gz` in git (gz is the embed); do not download the bank at runtime.
 - If adding difficulties, update `difficultyOrder`, JSON keys, import list, and stats maps together.

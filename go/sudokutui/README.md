@@ -1,6 +1,6 @@
 ﻿# Sudoku — Terminal Puzzle Game
 
-**Version:** 1.2 · **Author:** Kreft & Cursor · **Date:** 2026-08-14
+**Version:** 1.3 · **Author:** Kreft & Cursor · **Date:** 2026-08-14
 
 ## Description
 
@@ -12,12 +12,12 @@ On Windows, Sudoku switches the console to UTF-8 and prefers **Cascadia Mono** w
 
 ## Features
 
-- **Start menu** — Continue Game (only when a game is in progress; shows that save's difficulty, e.g. Continue Game [Medium]), **New Game: ◀ difficulty ▶**, Quit
+- **Start menu** — difficulty header (`── Medium ──`, etc.), then **Continue** (only when that difficulty has a save), **New Game**, Quit. **── Stats ──** below (Remaining always; Perfect through Average Completion after the first win at that difficulty). ←→ still changes difficulty
 - **Accent color** — random hue each launch; shifts as you move in the menu or on the board, start a game, or lock a correct digit (wrong digits jump eight steps the other way). In **pencil** mode, movement and marks rotate the other direction
 - **Pencil marks** — Tab toggles ✒️ pen / ✏️ pencil (footer shows `Tab ✏️` / `Tab ✒️`). New Game always starts in pen mode; Continue restores the saved mode. Empty cells can hold two *different* candidate colors on a `▀` glyph (top = first mark, bottom = second). Further marks overwrite top, then bottom. Pressing a digit already on the cell removes it and that half is filled next. A digit that is already complete (all nine placed) is ignored in pen and pencil. A correct lock-in removes that color from pencil marks in the same row, column, and box; completing a number removes it everywhere. A leftover mark drops to the bottom half so the top is next. 0 clears marks. The grid border turns light yellow in pencil mode
 - **Grid flash** — green ~0.6s on a correct lock-in, red on a mistake
 - **Difficulty stats** — Perfect (zero-error wins), Successes, Error Rate (average incorrect entries per success), Failed, Fastest Completion, Average Completion, and remaining puzzles update as you change difficulty
-- **Continue Game** — progress is saved after every move
+- **Continue Game** — one in-progress save per difficulty; progress is saved after every move
 - **Colored digits** — 1–9 each have a distinct hue around the color wheel; a digit turns **white** when all nine of that number are correctly placed. Under the board, **Active:** lists the numbers that are not finished yet, in those same hues. Accent-colored ▶ ◀ ▼ ▲ mark the selected row and column
 - **Mistake tally** — the HUD shows a `×` for each incorrect entry (no count label)
 - **Red cell** — incorrect entry against the solution
@@ -37,14 +37,14 @@ On Windows, Sudoku switches the console to UTF-8 and prefers **Cascadia Mono** w
 | In game | 1–9 | Enter a digit (pen) or add/toggle a pencil mark; completed numbers are ignored |
 | In game | 0, Backspace, or Delete | Clear the cell (pen) or clear pencil marks |
 | In game | Space | Pause / resume |
-| In game | Esc | Exit — Abandon or Quit Sudoku |
+| In game | Esc | Return to the menu (game is saved) |
 | Pause | Space | Resume |
-| Pause | Esc | Exit — Abandon or Quit Sudoku |
-| Exit overlay | ←→ | Abandon / Quit (defaults to Quit) |
-| Exit overlay | Enter, A, or Q | Confirm selection (A abandon, Q quit) |
-| Exit overlay | Esc | Back to the puzzle |
+| Pause | Esc | Return to the menu (game is saved) |
+| New Game confirm | ←→ | Cancel / Abandon (defaults to Cancel) |
+| New Game confirm | Enter, A, or C | Confirm selection (A abandon, C cancel) |
+| New Game confirm | Esc | Cancel |
 | Solved | Enter or Esc | Return to menu |
-| Anywhere | Ctrl+C | Exit (in-progress game is saved for Continue) |
+| Anywhere | Ctrl+C | Exit (in-progress games are saved for Continue) |
 
 ## Difficulties
 
@@ -55,7 +55,7 @@ On Windows, Sudoku switches the console to UTF-8 and prefers **Cascadia Mono** w
 | Hard | 1000 | Advanced patterns |
 | Diabolical | 250 | The hardest graded puzzles in the bundled set |
 
-New Game picks a **random unsolved** puzzle at the selected difficulty. **Abandon** (from Esc while playing, or starting New Game while one is in progress) wipes the in-progress save and counts as **Failed**. **Quit** from the Esc overlay exits and keeps Continue for the next launch. Finishing immediately records a **Success**, writes the save, and wipes Continue so the menu will not offer that game again. Fastest time for that difficulty is kept (ties prefer fewer incorrect entries).
+New Game picks a **random unsolved** puzzle at the selected difficulty. If that difficulty already has an in-progress game, you are asked to **Cancel** or **Abandon** (Abandon counts as **Failed** and only wipes that difficulty's save). **Esc** during play or pause returns to the menu and keeps the save. Finishing immediately records a **Success**, writes the save, and wipes that difficulty's Continue so the menu will not offer that game again. Fastest time for that difficulty is kept (ties prefer fewer incorrect entries).
 
 When every puzzle at a difficulty is solved, New Game is disabled for that level.
 
@@ -65,9 +65,9 @@ When every puzzle at a difficulty is solved, New Game is disabled for that level
 
 - Per-difficulty Perfect, Successes, Error Rate, Failed, Fastest, and Average Completion
 - Completed puzzles (`id`, mistake count, and elapsed time) so they are not shown again
-- The in-progress board, pencil marks, clock, and mistake count for **Continue Game**
+- One in-progress board per difficulty (pencil marks, clock, and mistake count) for **Continue Game**
 
-The file is UTF-8 with BOM. Progress is kept in memory on each move and flushed to disk shortly after, or immediately on pause, quit, or finish.
+The file is UTF-8 with BOM. Progress is kept in memory on each move and flushed to disk shortly after, or immediately on pause, return to menu, quit, or finish.
 
 ## Console notes
 

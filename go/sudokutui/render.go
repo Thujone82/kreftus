@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"fmt"
@@ -54,9 +54,6 @@ func (g *game) render() {
 		g.drawPlay()
 	case viewPaused:
 		g.drawPause()
-	case viewConfirmExit:
-		g.drawPlay()
-		g.drawExitConfirm()
 	case viewConfirmNewGame:
 		g.drawMenu()
 		g.drawConfirm("Abandon the current game?", "This counts as a Failure.", "Cancel", "Abandon", false)
@@ -73,65 +70,66 @@ func (g *game) drawMenu() {
 	done := g.save.completedSet(g.difficulty)
 	remain := remainingCount(g.difficulty, done)
 	canNew := remain > 0
+	st := g.save.statsFor(g.difficulty)
+	showDetail := st.Successes > 0 || len(g.save.Completed[g.difficulty]) > 0
+
+	y := 3
+	drawCentered(g.screen, w/2, y, "── "+difficultyLabel[g.difficulty]+" ──", g.titleStyle())
+	y++
+
 	visible := g.visibleMenu()
 	labels := map[int]string{
-		menuContinue: continueMenuLabel(g.save.Continue),
-		menuNewGame:  "New Game: ◀ " + difficultyLabel[g.difficulty] + " ▶",
+		menuContinue: "Continue",
+		menuNewGame:  "New Game",
 		menuQuit:     "Quit",
 	}
-	startY := 4
 	for row, id := range visible {
 		label := labels[id]
-		st := styleDefault
+		itemSt := styleDefault
 		disabled := id == menuNewGame && !canNew
 		if disabled {
-			st = styleDim
-			label = "New Game: ◀ " + difficultyLabel[g.difficulty] + " ▶  (complete)"
+			itemSt = styleDim
+			label = "New Game  (complete)"
 		}
 		if id == g.menuIndex {
 			if disabled {
-				st = styleDim.Reverse(true)
+				itemSt = styleDim.Reverse(true)
 			} else {
-				st = g.selectStyle()
+				itemSt = g.selectStyle()
 			}
-			label = "▶ " + label
+			label = " ▶ " + label + " ◀ "
 		}
-		drawCentered(g.screen, w/2, startY+row, label, st)
+		drawCentered(g.screen, w/2, y+row, label, itemSt)
 	}
+	y += len(visible) + 1
 
-	st := g.save.statsFor(g.difficulty)
-	statsY := startY + len(visible) + 2
-	drawCentered(g.screen, w/2, statsY, "── "+difficultyLabel[g.difficulty]+" ──", g.titleStyle())
-	drawCentered(g.screen, w/2, statsY+1, fmt.Sprintf("Perfect:     %d", st.Perfect), styleDefault)
-	drawCentered(g.screen, w/2, statsY+2, fmt.Sprintf("Successes:   %d", st.Successes), styleDefault)
-	drawCentered(g.screen, w/2, statsY+3, fmt.Sprintf("Error Rate:  %s", st.errorRate()), styleDefault)
-	drawCentered(g.screen, w/2, statsY+4, fmt.Sprintf("Failed:      %d", st.Failed), styleDefault)
-	fast := "—"
-	if st.FastestMs != nil {
-		fast = formatDuration(time.Duration(*st.FastestMs) * time.Millisecond)
-		if st.FastestMistakes != nil {
-			fast += fmt.Sprintf("  (%d incorrect)", *st.FastestMistakes)
+	drawCentered(g.screen, w/2, y, "── Stats ──", g.titleStyle())
+	y++
+	statRows := [][2]string{}
+	if showDetail {
+		fast := "—"
+		if st.FastestMs != nil {
+			fast = formatDuration(time.Duration(*st.FastestMs) * time.Millisecond)
+			if st.FastestMistakes != nil {
+				fast += fmt.Sprintf("  (%d incorrect)", *st.FastestMistakes)
+			}
+		}
+		statRows = [][2]string{
+			{"Perfect", fmt.Sprintf("%d", st.Perfect)},
+			{"Successes", fmt.Sprintf("%d", st.Successes)},
+			{"Error Rate", st.errorRate()},
+			{"Failed", fmt.Sprintf("%d", st.Failed)},
+			{"Fastest", fast},
+			{"Average Completion", g.save.averageCompletion(g.difficulty)},
 		}
 	}
-	drawCentered(g.screen, w/2, statsY+5, "Fastest:     "+fast, styleDefault)
-	drawCentered(g.screen, w/2, statsY+6, "Average Completion:  "+g.save.averageCompletion(g.difficulty), styleDefault)
 	total := len(puzzlesFor(g.difficulty))
-	drawCentered(g.screen, w/2, statsY+7, fmt.Sprintf("Remaining:   %d / %d", remain, total), styleDefault)
+	statRows = append(statRows, [2]string{"Remaining", fmt.Sprintf("%d / %d", remain, total)})
+	drawStatBlock(g.screen, w/2, y, formatStatLines(statRows), styleDefault)
 
 	if h > 2 {
-		drawCentered(g.screen, w/2, h-2, "↑↓ select  ·  ←→ difficulty  ·  Enter  ·  Esc quit", styleDim)
+		drawCentered(g.screen, w/2, h-2, "↑↓ select · ←→ difficulty · Enter · Esc quit", styleDim)
 	}
-}
-
-func continueMenuLabel(c *continueGame) string {
-	if c == nil {
-		return "Continue Game"
-	}
-	name := difficultyLabel[c.Difficulty]
-	if name == "" {
-		name = c.Difficulty
-	}
-	return "Continue Game [" + name + "]"
 }
 
 func (g *game) drawSudokuBanner(y int) {
@@ -169,9 +167,9 @@ func (g *game) drawPlay() {
 	}
 	hintY := h - 1
 	if hintY > activeY {
-		hint := "1-9 Enter · 0 Clear · Tab ✏️ · Space Pause · Esc Exit"
+		hint := "1-9 Enter · 0 Clear · Tab ✏️ · Space Pause · Esc Menu"
 		if g.pencil {
-			hint = "1-9 Mark · 0 Clear · Tab ✒️ · Space Pause · Esc Exit"
+			hint = "1-9 Mark · 0 Clear · Tab ✒️ · Space Pause · Esc Menu"
 		}
 		drawCentered(g.screen, w/2, hintY, hint, styleDim)
 	}
@@ -456,28 +454,7 @@ func (g *game) drawPause() {
 	cy := h / 2
 	drawCentered(g.screen, w/2, cy-2, "PAUSED", g.titleStyle())
 	drawCentered(g.screen, w/2, cy, formatDuration(g.currentElapsed()), styleDefault)
-	drawCentered(g.screen, w/2, cy+2, "Space to resume  ·  Esc exit", styleDim)
-}
-
-func (g *game) drawExitConfirm() {
-	w, h := g.width, g.height
-	boxW := 52
-	boxH := 9
-	x := (w - boxW) / 2
-	y := (h - boxH) / 2
-	if x < 0 {
-		x = 0
-	}
-	if y < 0 {
-		y = 0
-	}
-	ov := g.overlayStyle()
-	fillRect(g.screen, x, y, boxW, boxH, ov)
-	drawCentered(g.screen, w/2, y+1, "Exit", g.overlayTitleStyle())
-	drawCentered(g.screen, w/2, y+3, "Abandon this puzzle, or quit Sudoku?", ov)
-	drawCentered(g.screen, w/2, y+4, "Abandon counts as Failed. Quit can Continue later.", ov)
-	g.drawChoiceButtons(x, y+6, boxW, "Abandon", "Quit", true)
-	drawCentered(g.screen, w/2, y+7, "← →  Enter  ·  Esc back", ov)
+	drawCentered(g.screen, w/2, cy+2, "Space to resume  ·  Esc menu", styleDim)
 }
 
 func (g *game) drawConfirm(title, sub, left, right string, leftDestructive bool) {
@@ -558,6 +535,36 @@ func drawText(s tcell.Screen, x, y int, text string, st tcell.Style) {
 			w = 1
 		}
 		x += w
+	}
+}
+
+func formatStatLines(rows [][2]string) []string {
+	labelW := 0
+	for _, row := range rows {
+		if n := runewidth.StringWidth(row[0]); n > labelW {
+			labelW = n
+		}
+	}
+	lines := make([]string, len(rows))
+	for i, row := range rows {
+		lines[i] = fmt.Sprintf("%*s:  %s", labelW, row[0], row[1])
+	}
+	return lines
+}
+
+func drawStatBlock(s tcell.Screen, cx, y int, lines []string, st tcell.Style) {
+	maxW := 0
+	for _, line := range lines {
+		if n := runewidth.StringWidth(line); n > maxW {
+			maxW = n
+		}
+	}
+	x := cx - maxW/2
+	if x < 0 {
+		x = 0
+	}
+	for i, line := range lines {
+		drawText(s, x, y+i, line, st)
 	}
 }
 
