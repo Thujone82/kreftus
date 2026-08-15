@@ -68,7 +68,7 @@ func (g *game) render() {
 
 func (g *game) drawMenu() {
 	w, h := g.width, g.height
-	drawCentered(g.screen, w/2, 1, " S U D O K U ", g.titleStyle())
+	g.drawSudokuBanner(1)
 
 	pool := incompletePool(g.difficulty, g.save.completedSet(g.difficulty))
 	canNew := len(pool) > 0
@@ -118,6 +118,23 @@ func (g *game) drawMenu() {
 
 	if h > 2 {
 		drawCentered(g.screen, w/2, h-2, "↑↓ select  ·  ←→ difficulty  ·  Enter  ·  Esc quit", styleDim)
+	}
+}
+
+func (g *game) drawSudokuBanner(y int) {
+	letters := []rune("SUDOKU")
+	width := len(letters)*2 - 1
+	x := g.width/2 - width/2
+	if x < 0 {
+		x = 0
+	}
+	for i, ch := range letters {
+		if i > 0 {
+			x++
+		}
+		st := tcell.StyleDefault.Foreground(g.wheelColor(5 + i)).Background(tcell.ColorBlack).Bold(true)
+		g.screen.SetContent(x, y, ch, nil, st)
+		x++
 	}
 }
 

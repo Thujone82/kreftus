@@ -85,6 +85,18 @@ func TestAccentOffsets(t *testing.T) {
 	}
 }
 
+func TestSudokuBannerLetterOffsets(t *testing.T) {
+	g := &game{accentIndex: 0}
+	if g.wheelColor(5) != g.accent2() {
+		t.Fatal("S should use accent+5")
+	}
+	for i := 1; i < 6; i++ {
+		if g.wheelColor(5+i) != colorWheel[5+i] {
+			t.Fatalf("letter %d offset: want wheel %d", i, 5+i)
+		}
+	}
+}
+
 func TestDigitColorsAvoidWhite(t *testing.T) {
 	for d := 1; d <= 9; d++ {
 		if digitColor[d] == tcell.ColorWhite || digitColor[d] == digitCompleteColor {

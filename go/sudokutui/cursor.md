@@ -157,8 +157,8 @@ Givens and locked-correct user entries: bold. Cursor: `accent2()` box border aro
 
 | Role | Wheel offset | Uses |
 |------|----------------|------|
-| Primary `accent()` | 0 | Menu title, selection bar, stats header, pause title, HUD bar, overlay titles, safe confirm highlight, row/column selection arrows |
-| Secondary `accent2()` | +5 | Dialog/solved panel fill, cell cursor border (pencil mode skips gold/yellow, wheel 3–4) |
+| Primary `accent()` | 0 | Selection bar, stats header, pause title, HUD bar, overlay titles, safe confirm highlight, row/column selection arrows |
+| Secondary `accent2()` | +5 | Dialog/solved panel fill, cell cursor border (pencil mode skips gold/yellow, wheel 3–4); menu **S** in SUDOKU (U–U then +1 per letter) |
 | Tertiary `accent3()` | −5 | Destructive confirm highlight (Abandon) |
 
 Black text on primary/secondary/tertiary fills. Grid flash stays semantic lime/red (not chrome). Digit hues stay independent of the accent wheel; completed digits go white.
@@ -225,7 +225,7 @@ Quick check: `go test .`  ·  `go build -o Sudoku.exe .`
 - `solver_test.go` — Wikipedia puzzle, reject short input, empty grid solves.
 - `puzzles_test.go` — bundled counts (2500/2000/1000/250) unique IDs, no baked solutions, sample solvability, incomplete pool omits completed IDs, mistake/correct/complete board behavior, digit-complete (all nine of a number), Active strip omits completed digits, toroidal cursor wrap, selection-mark positions, pencil mark cycle/clear/save, strip completed pencil color to background, strip peer (row/col/box) marks on correct place, pen and pencil ignore completed digits.
 - `save_test.go` — finishSuccess wipes continue and records completion immediately; persistPlay skips a completed board; load scrubs a leftover solved continue without double-counting; Perfect and Error Rate from recorded mistakes; legacy single-success fastestMistakes backfills Error Rate.
-- `colors_test.go` — 16-step wheel wrap; −8 incorrect jump; pencil mode −1 step; digit hues are not white; pencil cursor skips gold/yellow.
+- `colors_test.go` — 16-step wheel wrap; −8 incorrect jump; pencil mode −1 step; digit hues are not white; pencil cursor skips gold/yellow; SUDOKU banner S is accent+5.
 
 ---
 
