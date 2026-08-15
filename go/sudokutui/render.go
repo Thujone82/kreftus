@@ -451,6 +451,7 @@ func digitPaint(d byte, done [10]bool) tcell.Color {
 func (g *game) drawPause() {
 	w, h := g.width, g.height
 	g.screen.Fill(' ', styleDefault)
+	g.drawSudokuBanner(1)
 	cy := h / 2
 	drawCentered(g.screen, w/2, cy-2, "PAUSED", g.titleStyle())
 	drawCentered(g.screen, w/2, cy, formatDuration(g.currentElapsed()), styleDefault)

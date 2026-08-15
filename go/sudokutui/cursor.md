@@ -27,7 +27,7 @@ Puzzles are a sample of the public-domain [Sudoku Exchange Puzzle Bank](https://
 - **Success:** `grid == solution`. Record success + fastest (tie-break: fewer mistakes), append `{id, mistakes, elapsedMs}` to `completed[difficulty]`, **immediately** clear **that difficulty's** continue and write `sudoku.json`, then show overlay (time + incorrect entries). `persistPlay` / Ctrl+C must not rewrite a completed board as Continue. A leftover completed continue blob is scrubbed on load (`scrubCompletedContinue`).
 - **Incorrect entry:** compare to unique solution. Maroon cell; mistake +1 per wrong place. Grid border flashes **red** ~600ms. Accent wheel jumps **−8**. Givens and locked-correct cells cannot be changed.
 - **Correct lock-in:** cell locks (bold). Grid border flashes **green** ~600ms. Accent wheel rotates **forward**. Completing the board holds the green flash then shows Solved.
-- **Pause (Space):** freeze clock, fill screen with PAUSED (board hidden). Space resumes; Esc returns to the menu (continue saved).
+- **Pause (Space):** freeze clock, hide the board. Same rainbow SUDOKU banner as the menu (S = accent+5, then +1 per letter). PAUSED + elapsed time stay centered. Space resumes; Esc returns to the menu (continue saved).
 - **Ctrl+C / SIGTERM:** persist continue if a puzzle is in progress and exit. A just-solved board is not persisted as Continue (Success already written). Cleanup resets colors, shows the cursor, `Fini`s tcell, then ANSI `\033[H\033[2J` (Clear-Host) so the console is blank.
 - **Windows console:** CP65001, VT processing, Cascadia Mono preference; request 80×24.
 
@@ -162,7 +162,7 @@ Givens and locked-correct user entries: bold. Cursor: `accent2()` box border aro
 | Role | Wheel offset | Uses |
 |------|----------------|------|
 | Primary `accent()` | 0 | Selection bar, stats header, pause title, HUD bar, overlay titles, safe confirm highlight, row/column selection arrows |
-| Secondary `accent2()` | +5 | Dialog/solved panel fill, cell cursor border (pencil mode skips gold/yellow, wheel 3–4); menu **S** in SUDOKU (U–U then +1 per letter) |
+| Secondary `accent2()` | +5 | Dialog/solved panel fill, cell cursor border (pencil mode skips gold/yellow, wheel 3–4); menu/pause **S** in SUDOKU (U–U then +1 per letter) |
 | Tertiary `accent3()` | −5 | Destructive confirm highlight (Abandon) |
 
 Black text on primary/secondary/tertiary fills. Grid flash stays semantic lime/red (not chrome). Digit hues stay independent of the accent wheel; completed digits go white.
