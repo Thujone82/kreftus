@@ -264,6 +264,11 @@ $script:MEDIUM_PRECIP_THRESHOLD = 20
 $script:USER_AGENT = "GetForecast/1.0 (081625PDX)"
 $script:MAX_HOURLY_FORECAST_HOURS = 12  # Max 96 available in API
 $script:MAX_DAILY_FORECAST_DAYS = 7
+# Retain at most this many hourly periods in memory (rain/wind outlooks use up to 96).
+$script:RETAINED_HOURLY_PERIODS = 96
+# Skip 7-day observation history re-fetch while fresher than this (latest obs still refreshes).
+$script:OBSERVATIONS_STALE_SECONDS = 3600
+$script:observationsLastFetchTime = $null
 
 # Define User-Agent for NWS API requests
 $userAgent = $script:USER_AGENT
@@ -870,6 +875,124 @@ function Convert-ObservationsData {
     }
 }
 
+# True when 7-day observation history is missing or older than OBSERVATIONS_STALE_SECONDS.
+function Test-ShouldFetchHistoricalObservations {
+    if ($null -eq $script:observationsData) { return $true }
+    if ($script:observationsData -is [Array] -and $script:observationsData.Count -eq 0 -and $null -eq $script:observationsLastFetchTime) {
+        return $true
+    }
+    if ($null -eq $script:observationsLastFetchTime) { return $true }
+    try {
+        $ageSec = ((Get-Date) - [datetime]$script:observationsLastFetchTime).TotalSeconds
+        return ($ageSec -ge [double]$script:OBSERVATIONS_STALE_SECONDS)
+    } catch {
+        return $true
+    }
+}
+
+# Drop large temporary references and optionally force a GC pass after heavy API work.
+function Clear-LargeTransientMemory {
+    param([switch]$ForceCollect)
+    if ($ForceCollect) {
+        [GC]::Collect()
+        [GC]::WaitForPendingFinalizers()
+    }
+}
+
+# Keep only the hourly fields/periods the UI uses (rain/wind need up to 96 hours).
+function Optimize-NwsHourlyData {
+    param([object]$HourlyData)
+    if (-not $HourlyData -or -not $HourlyData.properties -or -not $HourlyData.properties.periods) {
+        return $HourlyData
+    }
+    $periods = @($HourlyData.properties.periods)
+    $maxKeep = [int]$script:RETAINED_HOURLY_PERIODS
+    if ($maxKeep -lt 1) { $maxKeep = 96 }
+    if ($periods.Count -gt $maxKeep) {
+        $periods = $periods[0..($maxKeep - 1)]
+    }
+    $trimmed = foreach ($p in $periods) {
+        [pscustomobject]@{
+            startTime                     = $p.startTime
+            endTime                       = $p.endTime
+            isDaytime                     = $p.isDaytime
+            temperature                   = $p.temperature
+            temperatureUnit               = $p.temperatureUnit
+            temperatureTrend              = $p.temperatureTrend
+            shortForecast                 = $p.shortForecast
+            windSpeed                     = $p.windSpeed
+            windDirection                 = $p.windDirection
+            icon                          = $p.icon
+            probabilityOfPrecipitation    = $p.probabilityOfPrecipitation
+            relativeHumidity              = $p.relativeHumidity
+            dewpoint                      = $p.dewpoint
+        }
+    }
+    $HourlyData.properties.periods = @($trimmed)
+    Write-Verbose "Hourly payload trimmed to $($trimmed.Count) period(s) (cap=$maxKeep)"
+    return $HourlyData
+}
+
+# Keep only daily-forecast fields used by Full/Daily modes.
+function Optimize-NwsForecastData {
+    param([object]$ForecastData)
+    if (-not $ForecastData -or -not $ForecastData.properties -or -not $ForecastData.properties.periods) {
+        return $ForecastData
+    }
+    $trimmed = foreach ($p in @($ForecastData.properties.periods)) {
+        [pscustomobject]@{
+            name                          = $p.name
+            startTime                     = $p.startTime
+            endTime                       = $p.endTime
+            isDaytime                     = $p.isDaytime
+            temperature                   = $p.temperature
+            temperatureUnit               = $p.temperatureUnit
+            shortForecast                 = $p.shortForecast
+            detailedForecast              = $p.detailedForecast
+            windSpeed                     = $p.windSpeed
+            windDirection                 = $p.windDirection
+            icon                          = $p.icon
+            probabilityOfPrecipitation    = $p.probabilityOfPrecipitation
+        }
+    }
+    $ForecastData.properties.periods = @($trimmed)
+    Write-Verbose "Forecast payload trimmed to $($trimmed.Count) period(s)"
+    return $ForecastData
+}
+
+# Keep only alert properties needed for display / heat-header emoji.
+function Optimize-NwsAlertsData {
+    param([object]$AlertsData)
+    if (-not $AlertsData) { return $AlertsData }
+    $features = @()
+    if ($null -ne $AlertsData.features) {
+        $features = @($AlertsData.features)
+    } elseif ($AlertsData -is [System.Array]) {
+        $features = @($AlertsData)
+    }
+    if ($features.Count -eq 0) {
+        return [pscustomobject]@{ features = @() }
+    }
+    $slim = foreach ($f in $features) {
+        $p = $null
+        if ($null -ne $f.properties) { $p = $f.properties }
+        elseif ($null -ne $f.PSObject.Properties['event']) { $p = $f }
+        if (-not $p) { continue }
+        [pscustomobject]@{
+            properties = [pscustomobject]@{
+                event       = $p.event
+                headline    = $p.headline
+                description = $p.description
+                effective   = $p.effective
+                ends        = $p.ends
+                expires     = $p.expires
+            }
+        }
+    }
+    Write-Verbose "Alerts payload trimmed to $((@($slim)).Count) feature(s)"
+    return [pscustomobject]@{ features = @($slim) }
+}
+
 # Helper function to fetch all observations with pagination support
 function Get-AllObservationsWithPagination {
     param(
@@ -906,6 +1029,7 @@ function Get-AllObservationsWithPagination {
             }
             
             $observationsData = $observationsJson | ConvertFrom-Json
+            $observationsJson = $null
             
             # Add features from this page to our collection
             if ($observationsData.features) {
@@ -919,6 +1043,7 @@ function Get-AllObservationsWithPagination {
                 $currentUrl = $observationsData.pagination.next
                 Write-Verbose "Found pagination link for next page"
             }
+            $observationsData = $null
         }
         
         if ($allFeatures.Count -eq 0) {
@@ -1610,7 +1735,13 @@ function Get-NWSObservations {
         }
         
         # Use Convert-ObservationsData to process the observations
-        return Convert-ObservationsData -ObservationsData $observationsData -TimeZone $TimeZone
+        $converted = Convert-ObservationsData -ObservationsData $observationsData -TimeZone $TimeZone
+        $observationsData = $null
+        Clear-LargeTransientMemory -ForceCollect
+        if ($null -ne $converted) {
+            $script:observationsLastFetchTime = Get-Date
+        }
+        return $converted
     }
     catch {
         Write-Verbose "Error fetching observations: $($_.Exception.Message)"
@@ -2086,6 +2217,14 @@ function Update-WeatherData {
 
         # Start observations stations job in parallel if timezone is provided (history preload; skipped when resolving latest from cache only)
         $stationsJob = $null
+        $needHistoricalObservations = Test-ShouldFetchHistoricalObservations
+        if (-not $needHistoricalObservations) {
+            $ageMin = $null
+            try {
+                $ageMin = [Math]::Round(((Get-Date) - [datetime]$script:observationsLastFetchTime).TotalMinutes, 1)
+            } catch {}
+            Write-Verbose "Historical observations fresh (age=${ageMin}m, stale after $($script:OBSERVATIONS_STALE_SECONDS)s); skipping 7-day re-fetch"
+        }
         if ($TimeZone -and $pointsData.properties.observationStations -and -not $cachedStationForLatest) {
             $observationStationsUrl = $pointsData.properties.observationStations
             Write-Verbose "Fetching observation stations from: $observationStationsUrl"
@@ -2200,6 +2339,7 @@ function Update-WeatherData {
                 $forecastFailed = $true
             } else {
                 $forecastData = $forecastJson | ConvertFrom-Json
+                $forecastJson = $null
                 Write-Verbose "Forecast data retrieved successfully"
                 
                 # Extract elevation from forecast data
@@ -2303,6 +2443,7 @@ function Update-WeatherData {
                 $hourlyFailed = $true
             } else {
                 $hourlyData = $hourlyJson | ConvertFrom-Json
+                $hourlyJson = $null
                 Write-Verbose "Hourly data retrieved successfully"
             }
         }
@@ -2321,6 +2462,7 @@ function Update-WeatherData {
             if (-not [string]::IsNullOrWhiteSpace($alertsJson)) {
                 try {
                     $alertsData = $alertsJson | ConvertFrom-Json
+                    $alertsJson = $null
                     Write-Verbose "Alerts data retrieved successfully"
                 } catch {
                     Write-Verbose "Failed to parse alerts data: $($_.Exception.Message)"
@@ -2357,6 +2499,9 @@ function Update-WeatherData {
                             $script:wildFireIncidents = @(Get-WildFireIncidentsFromApiResponse -ApiData $wfData -Lat ([double]$lat) -Lon ([double]$lon) -TimeZoneId $TimeZone -ValidateInciWeb $true)
                             Write-VerboseWildFireSummary -Incidents $script:wildFireIncidents -Context 'Wildfire update'
                             $wildFireApplied = $true
+                            $wfData = $null
+                            $wfJson = $null
+                            Clear-LargeTransientMemory
                         }
                     } catch {
                         Write-Verbose "Failed to parse NIFC wildfire data: $($_.Exception.Message)"
@@ -2397,33 +2542,37 @@ function Update-WeatherData {
                                 Set-CachedStationId -LocationKey $locationKeyForObs -StationId $stationId
                             }
                             
-                            # Calculate time range (last 7 days for observations)
-                            $endTime = Get-Date
-                            $startTime = $endTime.AddDays(-7)
-                            
-                            # Format times in ISO 8601 format for API
-                            $startTimeStr = $startTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-                            $endTimeStr = $endTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-                            
-                            # Fetch observations with pagination support
-                            $observationsUrl = "https://api.weather.gov/stations/$stationId/observations?start=$startTimeStr&end=$endTimeStr"
-                            Write-Verbose "GET: $observationsUrl"
-                            Write-Verbose "Fetching historical observations from NWS observation stations API"
-                            
-                            # Use helper function to fetch all observations with pagination
-                            $observationsData = Get-AllObservationsWithPagination -ObservationsUrl $observationsUrl -Headers $headers
-                            
-                            if ($null -ne $observationsData) {
-                                Write-Verbose "Processing $($observationsData.features.Count) observations"
-                                $script:observationsData = Convert-ObservationsData -ObservationsData $observationsData -TimeZone $TimeZone
-                                if ($null -ne $script:observationsData) {
-                                    Write-Verbose "Observations data processed successfully"
-                                } else {
-                                    Write-Verbose "Observations data processing returned null"
-                                }
+                            # Fetch observations with pagination support (honors 1-hour history stale window)
+                            if (-not $needHistoricalObservations) {
+                                Write-Verbose "Skipping historical observations fetch (still within stale window)"
                             } else {
-                                Write-Verbose "No observations data collected"
-                                $script:observationsData = $null
+                                # Calculate time range (last 7 days for observations)
+                                $endTime = Get-Date
+                                $startTime = $endTime.AddDays(-7)
+                                $startTimeStr = $startTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+                                $endTimeStr = $endTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+                                $observationsUrl = "https://api.weather.gov/stations/$stationId/observations?start=$startTimeStr&end=$endTimeStr"
+                                Write-Verbose "GET: $observationsUrl"
+                                Write-Verbose "Fetching historical observations from NWS observation stations API"
+                                
+                                # Use helper function to fetch all observations with pagination
+                                $observationsData = Get-AllObservationsWithPagination -ObservationsUrl $observationsUrl -Headers $headers
+                                
+                                if ($null -ne $observationsData) {
+                                    Write-Verbose "Processing $($observationsData.features.Count) observations"
+                                    $script:observationsData = Convert-ObservationsData -ObservationsData $observationsData -TimeZone $TimeZone
+                                    $observationsData = $null
+                                    Clear-LargeTransientMemory -ForceCollect
+                                    if ($null -ne $script:observationsData) {
+                                        $script:observationsLastFetchTime = Get-Date
+                                        Write-Verbose "Observations data processed successfully"
+                                    } else {
+                                        Write-Verbose "Observations data processing returned null"
+                                    }
+                                } else {
+                                    Write-Verbose "No observations data collected"
+                                    $script:observationsData = $null
+                                }
                             }
                             
                             # Observations processed inline with pagination support
@@ -2446,12 +2595,16 @@ function Update-WeatherData {
         
         # Update global variables (only if data is available)
         if ($forecastData) {
-            $script:forecastData = $forecastData
+            $script:forecastData = Optimize-NwsForecastData -ForecastData $forecastData
         }
         if ($hourlyData) {
-            $script:hourlyData = $hourlyData
+            $script:hourlyData = Optimize-NwsHourlyData -HourlyData $hourlyData
         }
-        $script:alertsData = $alertsData
+        if ($alertsData) {
+            $script:alertsData = Optimize-NwsAlertsData -AlertsData $alertsData
+        } else {
+            $script:alertsData = $alertsData
+        }
 
         # Process AQI job - non-fatal on errors
         $script:aqiData = @{
@@ -2493,8 +2646,8 @@ function Update-WeatherData {
             }
         }
         
-        # When station ID is cached, still preload history without re-listing stations
-        if ($null -eq $stationId -and $cachedStationForLatest -and $TimeZone) {
+        # When station ID is cached, still preload history without re-listing stations (respect 1-hour stale window)
+        if ($needHistoricalObservations -and $null -eq $stationId -and $cachedStationForLatest -and $TimeZone) {
             $stationId = $cachedStationForLatest
             $endTime = Get-Date
             $startTime = $endTime.AddDays(-7)
@@ -2505,7 +2658,14 @@ function Update-WeatherData {
             $observationsData = Get-AllObservationsWithPagination -ObservationsUrl $observationsUrl -Headers $headers
             if ($null -ne $observationsData) {
                 $script:observationsData = Convert-ObservationsData -ObservationsData $observationsData -TimeZone $TimeZone
+                $observationsData = $null
+                Clear-LargeTransientMemory -ForceCollect
+                if ($null -ne $script:observationsData) {
+                    $script:observationsLastFetchTime = Get-Date
+                }
             }
+        } elseif (-not $needHistoricalObservations -and $cachedStationForLatest) {
+            Write-Verbose "Cached-station history preload skipped (observations still fresh)"
         }
 
         $latestObservationFeature = $null
@@ -2625,6 +2785,7 @@ function Update-WeatherData {
                             Write-Verbose "Error refreshing tide predictions: $($_.Exception.Message)"
                         }
                     }
+                    Clear-LargeTransientMemory -ForceCollect
                 }
             } else {
                 # Job still running - remove any previous stored job to avoid leak, then store new reference
@@ -3084,6 +3245,8 @@ if ([string]::IsNullOrWhiteSpace($forecastJson)) {
 }
 
 $forecastData = $forecastJson | ConvertFrom-Json
+$forecastJson = $null
+$forecastData = Optimize-NwsForecastData -ForecastData $forecastData
 Write-Verbose "Forecast data retrieved successfully"
 
 # Set script-scoped variable for refresh operations
@@ -3108,11 +3271,14 @@ if ([string]::IsNullOrWhiteSpace($hourlyJson)) {
 }
 
 $hourlyData = $hourlyJson | ConvertFrom-Json
+$hourlyJson = $null
+$hourlyData = Optimize-NwsHourlyData -HourlyData $hourlyData
 Write-Verbose "Hourly data retrieved successfully"
 
 # Set script-scoped variable for refresh operations
 $script:hourlyData = $hourlyData
 Remove-Job -Job @($forecastJob, $hourlyJob)
+Clear-LargeTransientMemory
 
 $latestObservationFeature = $null
 if ($latestObsJob) {
@@ -3196,6 +3362,7 @@ if ($noaaJobResult) {
     if ($script:noaaStationsData -and $script:noaaStationsData.Success) {
         Write-Verbose "NOAA stations data loaded from initial fetch"
     }
+    Clear-LargeTransientMemory -ForceCollect
 } else {
     Remove-Job -Job $noaaStationsJob -Force
     Write-Verbose "NOAA stations initial job timed out or failed; will fetch on demand if needed"
@@ -3238,6 +3405,9 @@ try {
 }
 catch {
     Write-Verbose "No alerts found or error fetching alerts: $($_.Exception.Message)"
+}
+if ($alertsData) {
+    $alertsData = Optimize-NwsAlertsData -AlertsData $alertsData
 }
 $script:alertsData = $alertsData
 
@@ -5953,7 +6123,30 @@ function Get-NifcWildFireQueryUrl {
     $latStr = ($Lat -as [string])
     $lonStr = ($Lon -as [string])
     $distStr = ($DistanceMiles -as [string])
-    return "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query?f=json&geometryType=esriGeometryPoint&geometry=$lonStr,$latStr&inSR=4326&distance=$distStr&units=esriSRUnit_StatuteMile&outFields=*&returnGeometry=true"
+    # Explicit attributes only — avoids shipping the full WFIGS schema into memory.
+    $outFields = @(
+        'IncidentTypeCategory',
+        'IncidentName',
+        'IncidentSize',
+        'PercentContained',
+        'FireBehaviorGeneral',
+        'FireBehaviorGeneral1',
+        'FireBehaviorGeneral2',
+        'FireBehaviorGeneral3',
+        'POOProtectingUnit',
+        'POOState',
+        'POOCounty',
+        'IncidentShortDescription',
+        'FireCause',
+        'FireCauseGeneral',
+        'ModifiedOnDateTime_dt',
+        'FireDiscoveryDateTime',
+        'EstimatedCostToDate',
+        'EstimatedFinalCost',
+        'InitialLatitude',
+        'InitialLongitude'
+    ) -join ','
+    return "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query?f=json&geometryType=esriGeometryPoint&geometry=$lonStr,$latStr&inSR=4326&distance=$distStr&units=esriSRUnit_StatuteMile&outFields=$outFields&returnGeometry=true"
 }
 
 function Get-NifcWildfireCooldownRemainingSeconds {
@@ -6105,6 +6298,8 @@ function Invoke-NifcWildFireLaunchFetch {
             Write-Verbose "Wildfire: NIFC returned $featureCount raw feature(s)"
             $incidents = @(Get-WildFireIncidentsFromApiResponse -ApiData $wildFireResponse -Lat $Lat -Lon $Lon -TimeZoneId $TimeZoneId -ValidateInciWeb $true -ShowLinkProgress $true)
             Write-VerboseWildFireSummary -Incidents $incidents -Context 'Wildfire launch'
+            $wildFireResponse = $null
+            Clear-LargeTransientMemory
             return $incidents
         } catch {
             $httpStatus = Get-HttpStatusFromErrorRecord -ErrorRecord $_
@@ -6240,6 +6435,8 @@ function Test-InciWebIncidentSlug {
         Write-Verbose "InciWeb slug negative cache expired: $Slug; re-probing"
     }
     $ok = $false
+    $resp = $null
+    $body = $null
     try {
         $ajaxUrl = "https://inciweb.wildfire.gov/views/ajax?view_name=incidents_page_&view_display_id=single_incident_information&view_args=$Slug"
         Write-Verbose "InciWeb slug probe: $Slug"
@@ -6255,6 +6452,9 @@ function Test-InciWebIncidentSlug {
     } catch {
         $ok = $false
         Write-Verbose "InciWeb slug probe failed: $Slug ($($_.Exception.Message))"
+    } finally {
+        $body = $null
+        $resp = $null
     }
     $script:inciwebUrlOkCache[$cacheKey] = @{
         ok        = $ok
@@ -8469,7 +8669,12 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                                         if ($preloadJson.Data) {
                                             $observationsData = $preloadJson.Data | ConvertFrom-Json
                                             $script:observationsData = Convert-ObservationsData -ObservationsData $observationsData -TimeZone $script:timeZoneForObservations
+                                            $observationsData = $null
+                                            $preloadJson = $null
+                                            $preloadResult = $null
+                                            Clear-LargeTransientMemory -ForceCollect
                                     if ($null -ne $script:observationsData) {
+                                        $script:observationsLastFetchTime = Get-Date
                                         Write-Verbose "Observations data preloaded and processed successfully: $($script:observationsData.Count) days"
                                         if ($preloadJson.ErrorInfo) {
                                             $errorInfo = $preloadJson.ErrorInfo

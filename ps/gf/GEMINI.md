@@ -3,7 +3,7 @@
 ## Project: gf (Get Forecast) - NWS Edition
 
 **Author:** Kreft&Cursor
-**Date:** 2026-08-11
+**Date:** 2026-08-16
 **Version:** 2.4
 
 ---
@@ -120,7 +120,7 @@ Wildfire integration is soft-fail end-to-end: weather always displays even when 
 
 #### Query and normalization
 
-- **Endpoint:** `WFIGS_Incident_Locations_Current` FeatureServer `0/query` with `geometryType=esriGeometryPoint`, `distance={miles}`, `units=esriSRUnit_StatuteMile`, `outFields=*`.
+- **Endpoint:** `WFIGS_Incident_Locations_Current` FeatureServer `0/query` with `geometryType=esriGeometryPoint`, `distance={miles}`, `units=esriSRUnit_StatuteMile`, explicit `outFields` (incident identity, size, containment, behavior, POO/unit/state/county, cause, discovery/modified times, cost fields, initial lat/lon) — not `outFields=*`.
 - **Filter:** Keep features with `IncidentTypeCategory` empty or `WF`; drop others.
 - **Geometry:** Prefer feature geometry `y`/`x`; else `InitialLatitude` / `InitialLongitude`. Distance via Haversine; keep within radius + 0.5 mi tolerance.
 - **Sort:** Largest acres first, then nearest.
@@ -162,6 +162,7 @@ ArcGIS commonly returns **HTTP 200** with `{ "error": { "code": 429, "details": 
 
 - Build candidate slugs from protecting unit + normalized name; also try a **`-fire`** suffix variant (e.g. `HIGH LAVA` → `…/wagpf-high-lava-fire`).
 - Confirm via InciWeb Views AJAX content (HEAD alone is unreliable — blank shells also return HTTP 200).
+- Probe response body is checked for length/markers then discarded (`$body`/`$resp` nulled in `finally`) to avoid retaining large HTML in memory.
 - **`$script:inciwebUrlOkCache`:** successful probes stay cached for the session; **negative** probes expire after **`$script:INCIWEB_NEGATIVE_CACHE_SECONDS` (3600)** so a later InciWeb publish can be linked on a subsequent run/refresh.
 - State map URL always offered from `POOState` when mappable (`Get-InciWebStateMapUrl`).
 
@@ -332,6 +333,7 @@ The interactive mode uses PowerShell's `$Host.UI.RawUI.ReadKey()` method to capt
 - Monitors for specific virtual key codes (H=72, D=68, T=84, F=70, Enter=13)
 - Dynamically re-renders the display based on the selected mode
 - Maintains all weather data in memory for instant switching
+- **Memory hygiene:** hourly/forecast/alerts payloads are trimmed after fetch; 7-day observation history is re-fetched at most once per hour (`OBSERVATIONS_STALE_SECONDS`); large temporary API objects are nulled and optionally GC'd after processing
 - Provides clear visual feedback about available options
 
 #### Use Cases:
@@ -631,11 +633,12 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 - **Cultural Relevance:** Moon phases have cultural and practical significance worldwide
 
 ### Recent Enhancements (v2.4)
-
+- **WBGT (`-wbgt` / `-UseWbgt`):** Estimated outdoor wet-bulb globe temperature option aligned with the forecast web app.
+- **Magic Hours (`-m` / `-magic`):** Golden/Blue hour lines in Current Conditions.
 - **Wild Fire Info:** When NIFC WFIGS reports wildfires within the configured radius (default 50 mi; `-wf`/`-wildfire N`), a **Wild Fire Info** section appears after alerts (size, discovered time, estimated cost as `final (to-date)` when both differ, cause preferring `FireCauseGeneral` unless `Undetermined`, containment, behavior, relative mi/cardinal like NOAA stations, InciWeb + state map links). Terse one-liner for the largest fire: `Fire: NAME …ac ✅|…% …mi DIR (N)`. `-wf 0` disables. Stats wrap mid-section–aware. **Colors:** acres Default (<100) / Yellow (100–999) / Red (1k–99,999) / Magenta (≥100k); full-section name Yellow; Discovered default; Cost Yellow (≥$1M) / Red (≥$1B) / Magenta (≥$1T) (omit null/`$0`); Contained 0% Yellow / 100% Green; Behavior Magenta Extreme / Red Critical / Yellow Active; terse `Fire:` label Red.
-- **NIFC 429 / quota cooldown:** Detect ArcGIS/HTTP rate limits; shared `$script:nifcWildfireCooldownUntil`. Launch status **`Waiting to load wildfire data...`**, wait Retry-After, one retry. Auto-refresh skips NIFC during cooldown and preserves the previous incident list on failure (does not wipe to empty).
-- **InciWeb robustness:** Try name slug and `-fire` variant; confirm via Views AJAX; negative probe cache TTL **60 minutes**; successful probes session-sticky. `-Verbose` keeps wildfire status lines on-screen (no Clear-Host).
-- **Estimated WBGT (`-wbgt`)** and **Magic Hours (`-m`/`-magic`)** optional Current Conditions extras (aligned with forecast web where applicable).
+- **NIFC 429 / quota cooldown:** Detect ArcGIS/HTTP rate limits; shared `$script:nifcWildfireCooldownUntil`. Launch status **`Waiting to load wildfire data...`**, wait Retry-After, one retry. Auto-refresh skips NIFC during cooldown and preserves the previous incident list on failure (does not wipe to empty). Explicit NIFC `outFields` (not `*`).
+- **InciWeb robustness:** Try name slug and `-fire` variant; confirm via Views AJAX; negative probe cache TTL **60 minutes**; successful probes session-sticky. Probe HTML bodies discarded after validation. `-Verbose` keeps wildfire status lines on-screen (no Clear-Host).
+- **Memory (interactive):** 1-hour stale gate on 7-day observation history re-fetch (`$script:OBSERVATIONS_STALE_SECONDS`); trim retained hourly (≤96 periods + used fields), forecast periods, and alert properties; `Clear-LargeTransientMemory` after heavy observation/NOAA/wildfire work.
 
 ### Recent Enhancements (v2.3)
 
@@ -1124,18 +1127,19 @@ The observations mode uses a multi-step process to fetch and process historical 
 - **Loading States:** Prevents multiple simultaneous API calls with loading flag
 
 **Performance Considerations:**
-- **API Limit:** Uses limit=500 to fetch up to 500 observations per request
+- **History stale window:** `$script:OBSERVATIONS_STALE_SECONDS` (**3600** / 1 hour). `Update-WeatherData` skips the 7-day observation pagination re-fetch while `$script:observationsData` is present and `$script:observationsLastFetchTime` is within that window. Latest observation (`observations/latest`) still refreshes with weather. First load / preload / `-o` always fetch when history is missing.
+- **API Limit:** Uses limit=500 to fetch up to 500 observations per request (documented; pagination still walks `pagination.next` up to 50 pages)
 - **Pagination Handling:** Automatically fetches all pages of observation data (up to 50 pages maximum) to ensure complete data collection
 - **Efficient Grouping:** Groups observations by date using hashtable for O(1) lookups
 - **Single Calculation:** Daily aggregates calculated once per day
-- **Memory Efficient:** Minimal memory footprint for observation data
+- **Memory Efficient:** Retained form is daily aggregates (~7 hashtables), not raw FeatureCollections; raw pages/JSON nulled after `Convert-ObservationsData` with optional `Clear-LargeTransientMemory -ForceCollect`
 - **Precipitation Conversion:** Accurately converts precipitation from millimeters (NWS API standard) to inches using conversion factor 0.0393701 (1 mm = 0.0393701 inches)
 
 **Integration Points:**
 - **Command Line:** `-o` or `-observations` flag triggers observations mode
 - **Interactive Mode:** 'O' key switches to observations mode
 - **Control Bar:** Shows "Observations" with 'O' highlighted as trigger key
-- **Auto-Refresh:** Observations data can be refreshed manually with 'G' key
+- **Auto-Refresh / G:** Weather refresh does **not** re-pull 7-day history more often than the 1-hour stale window; open Observations uses whatever is already loaded (or preload)
 
 **API Endpoints:**
 - **Observation Stations:** `/points/{lat},{lon}/stations` - Get available observation stations
