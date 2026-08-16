@@ -291,6 +291,11 @@ function processWeatherData(weatherData) {
     const todayPeriodName = todayPeriod.name;
     const tomorrowForecast = tomorrowPeriod ? tomorrowPeriod.detailedForecast : "";
     const tomorrowPeriodName = tomorrowPeriod ? tomorrowPeriod.name : "";
+
+    // Trim retained API payloads (memory + localStorage): only fields the UI uses.
+    const trimmedHourlyPeriods = trimNwsHourlyPeriods(hourly.properties.periods);
+    const trimmedForecastPeriods = trimNwsForecastPeriods(forecast.properties.periods);
+    const trimmedAlerts = trimNwsAlertFeatures(alerts?.features || []);
     
     let result = {
         current: {
@@ -318,12 +323,12 @@ function processWeatherData(weatherData) {
                 name: tomorrowPeriodName,
                 text: tomorrowForecast
             },
-            periods: forecast.properties.periods
+            periods: trimmedForecastPeriods
         },
         hourly: {
-            periods: hourly.properties.periods
+            periods: trimmedHourlyPeriods
         },
-        alerts: alerts?.features || [],
+        alerts: trimmedAlerts,
         aqi: normalizeAirNowAqi(weatherData.aqiRows),
         wildFires: Array.isArray(weatherData.wildFires) ? weatherData.wildFires : [],
         wildfireFetched: weatherData.wildfireFetched === true,
@@ -350,6 +355,66 @@ function processWeatherData(weatherData) {
         result = mergeLatestObservationIntoProcessedWeather(result, weatherData.latestObservation, weatherData.fetchTime);
     }
     return result;
+}
+
+/** Keep ≤96 hourly periods and only fields used by Full/Hourly/Rain/Wind. */
+function trimNwsHourlyPeriods(periods) {
+    if (!Array.isArray(periods) || periods.length === 0) return [];
+    const maxKeep = (typeof RETAINED_HOURLY_PERIODS === 'number' && RETAINED_HOURLY_PERIODS > 0)
+        ? RETAINED_HOURLY_PERIODS
+        : 96;
+    return periods.slice(0, maxKeep).map((p) => ({
+        startTime: p.startTime,
+        endTime: p.endTime,
+        isDaytime: p.isDaytime,
+        temperature: p.temperature,
+        temperatureUnit: p.temperatureUnit,
+        temperatureTrend: p.temperatureTrend,
+        shortForecast: p.shortForecast,
+        windSpeed: p.windSpeed,
+        windDirection: p.windDirection,
+        icon: p.icon,
+        probabilityOfPrecipitation: p.probabilityOfPrecipitation,
+        relativeHumidity: p.relativeHumidity,
+        dewpoint: p.dewpoint
+    }));
+}
+
+/** Keep only daily-forecast fields used by Full/Daily modes. */
+function trimNwsForecastPeriods(periods) {
+    if (!Array.isArray(periods) || periods.length === 0) return [];
+    return periods.map((p) => ({
+        name: p.name,
+        startTime: p.startTime,
+        endTime: p.endTime,
+        isDaytime: p.isDaytime,
+        temperature: p.temperature,
+        temperatureUnit: p.temperatureUnit,
+        shortForecast: p.shortForecast,
+        detailedForecast: p.detailedForecast,
+        windSpeed: p.windSpeed,
+        windDirection: p.windDirection,
+        icon: p.icon,
+        probabilityOfPrecipitation: p.probabilityOfPrecipitation
+    }));
+}
+
+/** Keep only alert properties needed for display / heat-header emoji. */
+function trimNwsAlertFeatures(features) {
+    if (!Array.isArray(features) || features.length === 0) return [];
+    return features.map((f) => {
+        const p = f?.properties || f || {};
+        return {
+            properties: {
+                event: p.event,
+                headline: p.headline,
+                description: p.description,
+                effective: p.effective,
+                ends: p.ends,
+                expires: p.expires
+            }
+        };
+    });
 }
 
 // Group hourly periods by day (converting to location timezone)

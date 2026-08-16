@@ -16,6 +16,8 @@ const appState = {
     observationsAvailable: false,
     observationsNeedRefresh: false, // set when cached observations are incomplete; cleared after successful fetch
     observationsLoading: false,     // true while fetching observations (for History tab loading banner)
+    /** When 7-day history was last successfully fetched (independent of weather lastFetchTime). */
+    observationsLastFetchTime: null,
     autoUpdateEnabled: true,
     enableAqi: false,
     airNowApiKey: '',
@@ -51,6 +53,7 @@ const appState = {
 
 // Constants
 const DATA_STALE_THRESHOLD = DATA_STALE_THRESHOLD_MS;
+const OBSERVATIONS_STALE_THRESHOLD = OBSERVATIONS_STALE_MS;
 /** Radar loop GIF refresh cadence (aligned with weather staleness). */
 const RADAR_GIF_STALE_MS = DATA_STALE_THRESHOLD;
 const AUTO_UPDATE_INTERVAL = DATA_STALE_THRESHOLD_MS;
@@ -213,6 +216,7 @@ function performFullReset() {
             appState.observationsData = null;
             appState.observationsLocationKey = null;
             appState.observationsLocationRef = null;
+            appState.observationsLastFetchTime = null;
             appState.lastFetchTime = null;
             appState.enableAqi = false;
             appState.airNowApiKey = '';
@@ -2687,8 +2691,9 @@ async function handleSearch() {
     });
 }
 
-// Check observations availability and fetch observations
-// Only fetches if not already cached and fresh (5 minutes)
+// Check observations availability and fetch observations.
+// History uses a 1-hour stale window (OBSERVATIONS_STALE_THRESHOLD), independent of weather freshness.
+// observationsNeedRefresh forces a re-fetch (manual G / incomplete cache).
 async function checkObservationsAvailability(pointsData, timeZone) {
     // Preserve existing observations data in case refresh fails (especially important in history mode)
     const existingObservationsData = appState.observationsData;
@@ -2696,13 +2701,16 @@ async function checkObservationsAvailability(pointsData, timeZone) {
     
     try {
         // Check if we already have fresh observations in appState
-        if (appState.observationsData && appState.observationsAvailable && appState.lastFetchTime) {
-            if (!isCacheStale(appState.lastFetchTime)) {
+        if (appState.observationsData && appState.observationsAvailable && !appState.observationsNeedRefresh) {
+            if (!isObservationsHistoryStale(appState.observationsLastFetchTime)) {
                 // Also check if observations are complete (cover full week including today)
                 // If incomplete, we need to refetch even if timestamp is fresh
                 const observationsComplete = observationsCoverFullWeek(getObservationsDisplayList(appState.observationsData));
                 if (observationsComplete) {
-                    console.log('Using existing fresh observations data (age:', Math.round((Date.now() - appState.lastFetchTime) / 1000), 'seconds)');
+                    const ageSec = appState.observationsLastFetchTime
+                        ? Math.round((Date.now() - new Date(appState.observationsLastFetchTime).getTime()) / 1000)
+                        : '?';
+                    console.log('Using existing fresh observations data (age:', ageSec, 'seconds; stale after', OBSERVATIONS_STALE_THRESHOLD / 1000, 's)');
                     return true;
                 } else {
                     console.log('Existing observations are incomplete (missing today or recent days), will refresh');
@@ -2711,10 +2719,11 @@ async function checkObservationsAvailability(pointsData, timeZone) {
                     appState.observationsAvailable = false;
                     appState.observationsLocationKey = null;
                     appState.observationsLocationRef = null;
+                    appState.observationsLastFetchTime = null;
                     // Continue to fetch fresh observations below
                 }
             } else {
-                console.log('Existing observations are stale, will refresh');
+                console.log('Existing observations are stale (>1h), will refresh');
             }
         }
         
@@ -2725,6 +2734,7 @@ async function checkObservationsAvailability(pointsData, timeZone) {
                 appState.observationsData = null;
                 appState.observationsLocationKey = null;
                 appState.observationsLocationRef = null;
+                appState.observationsLastFetchTime = null;
             } else {
                 console.log('No observation stations available, preserving existing cached observations data');
             }
@@ -2752,6 +2762,7 @@ async function checkObservationsAvailability(pointsData, timeZone) {
                 appState.observationsData = null;
                 appState.observationsLocationKey = null;
                 appState.observationsLocationRef = null;
+                appState.observationsLastFetchTime = null;
             } else {
                 console.log('No observation station found, preserving existing cached observations data');
             }
@@ -2767,6 +2778,7 @@ async function checkObservationsAvailability(pointsData, timeZone) {
                 appState.observationsData = null;
                 appState.observationsLocationKey = null;
                 appState.observationsLocationRef = null;
+                appState.observationsLastFetchTime = null;
             } else {
                 console.log('No observations data returned, preserving existing cached observations data');
             }
@@ -2785,6 +2797,7 @@ async function checkObservationsAvailability(pointsData, timeZone) {
                 appState.observationsData = null;
                 appState.observationsLocationKey = null;
                 appState.observationsLocationRef = null;
+                appState.observationsLastFetchTime = null;
             } else {
                 console.log('Processed observations empty, preserving existing cached observations data');
             }
@@ -2793,6 +2806,7 @@ async function checkObservationsAvailability(pointsData, timeZone) {
         
         appState.observationsData = processedObservations;
         appState.observationsLocationKey = appState.currentLocationKey;
+        appState.observationsLastFetchTime = new Date();
         if (appState.location?.city != null && appState.location?.state != null) {
             appState.observationsLocationRef = {
                 city: (appState.location.city || '').trim().toLowerCase(),
@@ -2814,6 +2828,7 @@ async function checkObservationsAvailability(pointsData, timeZone) {
             appState.observationsData = null;
             appState.observationsLocationKey = null;
             appState.observationsLocationRef = null;
+            appState.observationsLastFetchTime = null;
         } else {
             console.log('Error fetching observations, preserving existing cached observations data');
         }
@@ -3735,6 +3750,14 @@ function isCacheTimestampStale(timestampIso) {
     return (Date.now() - ts.getTime()) > DATA_STALE_THRESHOLD;
 }
 
+/** True when 7-day observation history is missing or older than OBSERVATIONS_STALE_THRESHOLD. */
+function isObservationsHistoryStale(fetchedAt = appState.observationsLastFetchTime) {
+    if (!fetchedAt) return true;
+    const ts = fetchedAt instanceof Date ? fetchedAt : new Date(fetchedAt);
+    if (Number.isNaN(ts.getTime())) return true;
+    return (Date.now() - ts.getTime()) > OBSERVATIONS_STALE_THRESHOLD;
+}
+
 function loadCacheTimestampForKey(cacheKey) {
     if (!cacheKey) return null;
     try {
@@ -3762,7 +3785,8 @@ function saveWeatherDataToCacheByKey({ cacheKey, locationString = '', weatherDat
             weatherData: weatherToStore,
             observationsData: existing?.observationsData ?? null,
             observationsAvailable: existing?.observationsAvailable ?? false,
-            observationsLocation: existing?.observationsLocation ?? null
+            observationsLocation: existing?.observationsLocation ?? null,
+            observationsFetchedAt: existing?.observationsFetchedAt ?? null
         };
 
         const timestampIso = (timestamp instanceof Date) ? timestamp.toISOString() : (timestamp || new Date().toISOString());
@@ -3785,7 +3809,7 @@ function saveWeatherDataToCacheByKey({ cacheKey, locationString = '', weatherDat
     }
 }
 
-function saveObservationsToCacheByKey({ cacheKey, observationsData, observationsAvailable, observationsLocation }) {
+function saveObservationsToCacheByKey({ cacheKey, observationsData, observationsAvailable, observationsLocation, observationsFetchedAt = null }) {
     if (!cacheKey) return false;
     try {
         const dataKey = `forecastCachedData_${cacheKey}`;
@@ -3793,11 +3817,16 @@ function saveObservationsToCacheByKey({ cacheKey, observationsData, observations
         let existing = null;
         try { existing = existingRaw ? JSON.parse(existingRaw) : null; } catch (e) { existing = null; }
 
+        const fetchedAtIso = observationsFetchedAt
+            ? ((observationsFetchedAt instanceof Date) ? observationsFetchedAt.toISOString() : String(observationsFetchedAt))
+            : (new Date()).toISOString();
+
         const merged = {
             weatherData: existing?.weatherData ?? null,
             observationsData: observationsData ?? null,
             observationsAvailable: !!observationsAvailable,
-            observationsLocation: observationsLocation ?? null
+            observationsLocation: observationsLocation ?? null,
+            observationsFetchedAt: fetchedAtIso
         };
 
         localStorage.setItem(dataKey, JSON.stringify(merged));
@@ -3835,6 +3864,7 @@ async function refreshObservationsForCachedLocation({ cacheKey, weatherData }) {
     const observationsData = await fetchNWSObservations(stationId, timeZone);
     if (!observationsData || !observationsData.features || observationsData.features.length === 0) return false;
     const processed = processObservationsData(observationsData, timeZone);
+    const fetchedAt = new Date();
     const observationsLocation = {
         city: (locObj.city || '').trim().toLowerCase(),
         state: (locObj.state || '').trim().toUpperCase()
@@ -3843,7 +3873,8 @@ async function refreshObservationsForCachedLocation({ cacheKey, weatherData }) {
         cacheKey,
         observationsData: processed,
         observationsAvailable: true,
-        observationsLocation
+        observationsLocation,
+        observationsFetchedAt: fetchedAt
     });
 
     // If the same location is still on screen, update in-memory observations state only.
@@ -3855,6 +3886,7 @@ async function refreshObservationsForCachedLocation({ cacheKey, weatherData }) {
         appState.observationsAvailable = true;
         appState.observationsLocationKey = cacheKey;
         appState.observationsLocationRef = observationsLocation;
+        appState.observationsLastFetchTime = fetchedAt;
         appState.observationsNeedRefresh = false;
         updateHistoryButtonState();
         if (appState.currentMode === 'history') {
@@ -4073,8 +4105,8 @@ async function runUpdateAllObservationsSweep() {
             } catch (e) { cached = null; }
 
             const hasObs = !!cached?.observationsAvailable && cached?.observationsData != null;
-            const tsIso = loadCacheTimestampForKey(cacheKey);
-            const shouldRefreshObs = !hasObs || isCacheTimestampStale(tsIso);
+            const obsFetchedAt = cached?.observationsFetchedAt || null;
+            const shouldRefreshObs = !hasObs || isObservationsHistoryStale(obsFetchedAt);
             if (!shouldRefreshObs) continue;
 
             const weatherData = cached?.weatherData;
@@ -4095,12 +4127,19 @@ async function runUpdateAllObservationsSweep() {
                 if (!observationsData || !observationsData.features || observationsData.features.length === 0) continue;
                 const processed = processObservationsData(observationsData, timeZone);
                 const observationsLocation = { city: (locObj.city || '').trim().toLowerCase(), state: (locObj.state || '').trim().toUpperCase() };
+                const fetchedAt = new Date();
                 saveObservationsToCacheByKey({
                     cacheKey,
                     observationsData: processed,
                     observationsAvailable: true,
-                    observationsLocation
+                    observationsLocation,
+                    observationsFetchedAt: fetchedAt
                 });
+                if (appState.currentLocationKey === cacheKey || (appState.location &&
+                    (appState.location.city || '').trim().toLowerCase() === observationsLocation.city &&
+                    (appState.location.state || '').trim().toUpperCase() === observationsLocation.state)) {
+                    appState.observationsLastFetchTime = fetchedAt;
+                }
             } catch (e) {
                 console.warn('Update All: failed to refresh observations for', fav.name || fav.searchQuery || cacheKey, e);
             }
@@ -4234,6 +4273,11 @@ function saveWeatherDataToCache(weatherData, location, timestamp = null) {
             observationsAvailable: observationsBelongToThisLocation && appState.observationsAvailable,
             observationsLocation: (observationsBelongToThisLocation && locForObs && typeof locForObs === 'object' && locForObs.city != null && locForObs.state != null)
                 ? { city: cacheCity, state: cacheState }
+                : null,
+            observationsFetchedAt: observationsBelongToThisLocation && appState.observationsLastFetchTime
+                ? (appState.observationsLastFetchTime instanceof Date
+                    ? appState.observationsLastFetchTime.toISOString()
+                    : appState.observationsLastFetchTime)
                 : null
         };
         
@@ -4689,6 +4733,13 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
             appState.observationsLocationRef = null;
         }
         appState.observationsAvailable = rawObservations != null && (cache.data.observationsAvailable || false);
+        if (rawObservations != null && cache.data.observationsFetchedAt) {
+            const fetched = new Date(cache.data.observationsFetchedAt);
+            appState.observationsLastFetchTime = Number.isNaN(fetched.getTime()) ? null : fetched;
+        } else {
+            // Legacy caches without observationsFetchedAt: unknown history age — refresh once to stamp it
+            appState.observationsLastFetchTime = null;
+        }
         
         // Find matching favorite UID (declare at function scope so it's accessible in requestAnimationFrame)
         let matchingFavoriteUID = null;
@@ -4952,6 +5003,7 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
                     appState.observationsAvailable = false;
                     appState.observationsLocationKey = null;
                     appState.observationsLocationRef = null;
+                    appState.observationsLastFetchTime = null;
                     updateHistoryButtonState();
                     if (appState.currentMode === 'history') {
                         renderCurrentMode();
@@ -5374,6 +5426,7 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
                 appState.observationsData = null;
                 appState.observationsLocationKey = null;
                 appState.observationsLocationRef = null;
+                appState.observationsLastFetchTime = null;
             }
         }
         

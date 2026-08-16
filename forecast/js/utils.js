@@ -1,6 +1,10 @@
 // Utility functions for weather calculations and formatting
 
 const DATA_STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+/** Skip re-fetching 7-day observation history while fresher than this (weather still uses DATA_STALE_THRESHOLD_MS). */
+const OBSERVATIONS_STALE_MS = 60 * 60 * 1000; // 1 hour
+/** Max hourly periods retained in processed weather (rain/wind outlooks use up to 96). */
+const RETAINED_HOURLY_PERIODS = 96;
 
 // Unit conversion helpers for metric display (data remains in US units internally)
 function tempFtoC(f) {

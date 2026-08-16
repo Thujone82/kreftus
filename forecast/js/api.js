@@ -614,7 +614,7 @@ async function fetchNWSObservations(stationId, timeZone) {
                 console.log(`Collected ${observationsData.features.length} observations from page ${pageCount} (total: ${allFeatures.length})`);
             }
             
-            // Check for next page
+            // Check for next page before dropping the page object
             currentUrl = null;
             if (observationsData.pagination && observationsData.pagination.next) {
                 currentUrl = observationsData.pagination.next;
@@ -1368,12 +1368,13 @@ async function testInciWebIncidentSlug(slug) {
         try {
             const response = await fetch(ajaxUrl, { signal: controller.signal });
             if (response.ok) {
-                const body = await response.text();
+                let body = await response.text();
                 ok = body.length > 8000 && (
                     body.includes('phpCurrentIncidentName') ||
                     body.includes('incident-main-info-wrapper') ||
                     body.includes('incident-overview')
                 );
+                body = null;
             }
         } finally {
             clearTimeout(timeoutId);
@@ -1515,7 +1516,30 @@ function pickWildFireCause(fireCause, fireCauseGeneral) {
 }
 
 function buildNifcWildFireQueryUrl(lat, lon, distanceMiles = WILDFIRE_RADIUS_MILES) {
-    return `https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query?f=json&geometryType=esriGeometryPoint&geometry=${lon},${lat}&inSR=4326&distance=${distanceMiles}&units=esriSRUnit_StatuteMile&outFields=*&returnGeometry=true`;
+    // Explicit attributes only — avoids shipping the full WFIGS schema into memory.
+    const outFields = [
+        'IncidentTypeCategory',
+        'IncidentName',
+        'IncidentSize',
+        'PercentContained',
+        'FireBehaviorGeneral',
+        'FireBehaviorGeneral1',
+        'FireBehaviorGeneral2',
+        'FireBehaviorGeneral3',
+        'POOProtectingUnit',
+        'POOState',
+        'POOCounty',
+        'IncidentShortDescription',
+        'FireCause',
+        'FireCauseGeneral',
+        'ModifiedOnDateTime_dt',
+        'FireDiscoveryDateTime',
+        'EstimatedCostToDate',
+        'EstimatedFinalCost',
+        'InitialLatitude',
+        'InitialLongitude'
+    ].join(',');
+    return `https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query?f=json&geometryType=esriGeometryPoint&geometry=${lon},${lat}&inSR=4326&distance=${distanceMiles}&units=esriSRUnit_StatuteMile&outFields=${outFields}&returnGeometry=true`;
 }
 
 /** Shared NIFC cooldown after HTTP/ArcGIS 429 so Update All / backfill do not keep hammering quota. */
