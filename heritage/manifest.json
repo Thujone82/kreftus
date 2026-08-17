@@ -1,14 +1,16 @@
 {
   "name": "PDX Heritage Trees",
   "short_name": "PDX Trees",
-  "description": "A local, offline-friendly field guide to Portland's registered Heritage Trees. Track which trees you've found, take notes, and navigate to nearby trees.",
-  "version": "1.3.1",
+  "description": "Find Portland Heritage Trees and PDX Heritage Trees on an offline map of Oregon's City of Portland registered Heritage Tree registry. Search, mark found, take notes, navigate nearby, and export or import settings.",
+  "version": "1.3.2",
   "start_url": "/heritage/",
   "scope": "/heritage/",
   "display": "standalone",
   "background_color": "#1f3b2a",
   "theme_color": "#1f3b2a",
   "orientation": "any",
+  "categories": ["lifestyle", "navigation", "utilities"],
+  "lang": "en-US",
   "icons": [
     {
       "src": "icons/icon-192.png",
@@ -28,7 +30,7 @@
       "src": "icons/PDXTrees.png",
       "sizes": "931x738",
       "type": "image/png",
-      "label": "PDX Heritage Trees",
+      "label": "PDX Heritage Trees map of Portland registered heritage trees",
       "form_factor": "wide"
     }
   ]

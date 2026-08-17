@@ -1,9 +1,12 @@
 # PDX Heritage Trees
 
-A small, installable PWA field guide to Portland's registered **Heritage Trees**.
-It keeps a local database of every tree on the City registry, plots them on an
+A small, installable PWA field guide to **Portland Heritage Trees** (also called
+**PDX Heritage Trees** or **Heritage Trees** in Oregon). It keeps a local
+database of every tree on the City of Portland registry, plots them on an
 OpenStreetMap-backed map, and lets you mark which ones you've found, timestamp
-the find, and take notes &mdash; all stored privately in your browser.
+the find, and take notes &mdash; all stored privately in your browser. **Search**,
+**Nearby**, and **Found** help you work in the field; **Export / Import Settings**
+moves your marks between devices.
 
 **No API keys required.** The basemap uses [Leaflet](https://leafletjs.com/)
 with the [CARTO Voyager](https://carto.com/basemaps/) tile style (OpenStreetMap
@@ -40,6 +43,11 @@ entirely offline from your browser's IndexedDB.
 - **Found** &mdash; after you mark at least one tree, a **Found** button appears
   on the bottom bar with a sortable table of Tree #, name, and find date; tap a
   row to jump to that tree on the map.
+- **Export / Import Settings** &mdash; under **Settings &rarr; Data**, save or
+  share a JSON backup of your found marks, find dates, and notes, then restore
+  it on another device. Import offers **Merge** (keep the union of found marks)
+  or **Overwrite** (replace local found/notes), with a preview of how many
+  Found each option would leave.
 - **Check for app update** &mdash; a single action in Settings that refreshes
   the tree database from `data/trees.json` *and* asks the service worker to
   look for a new app shell. New/removed trees are diff-merged **without**
@@ -398,9 +406,9 @@ silently drifting.
 
 ## Updates and your data
 
-There are two independent "update" concepts:
+There are three independent ways your data moves:
 
-1. **Tree list updates** (the data) &mdash; driven by **Settings &rarr; Check
+1. **Tree list updates** (the registry) &mdash; driven by **Settings &rarr; Check
    for app update**. Only canonical fields (`year`, `name`, `location`,
    `removed`) can be overwritten. `found`, `foundDate`, `notes`, and existing
    `lat`/`lng` are only changed if a tree's address text changes (in which
@@ -411,6 +419,11 @@ There are two independent "update" concepts:
    worker and reloads the page. All user data lives in IndexedDB, which is
    **never** touched by the service worker lifecycle, so your found marks and
    notes survive app upgrades.
+3. **Export / Import Settings** (your marks) &mdash; **Settings &rarr; Data**
+   writes a portable JSON backup of found marks, find dates, and notes. Import
+   can **Merge** with what is already on the device or **Overwrite** it. Use
+   this to move progress to another phone or recover after clearing site data.
+   The registry snapshot (`data/trees.json`) is not part of that backup.
 
 ## File structure
 
@@ -434,7 +447,7 @@ heritage/
     nearby.js                # 10-nearest list + shared row renderer + Navigate links
     search.js                # Search modal: tokenized query, #id, field tags/filters
     found.js                 # Found-trees table modal
-    backup.js                # Export / import found marks & notes
+    backup.js                # Export / Import Settings (merge or overwrite)
     ui.js                    # progress bar, toast, modal helpers, settings stats
     sw-register.js           # service worker + update banner
     app.js                   # boot & glue
@@ -454,17 +467,22 @@ documentation in the browser.
   (uBlock, Brave Shields, etc.) or corporate filter may be blocking the tile
   host. Whitelisting `basemaps.cartocdn.com` and `unpkg.com` fixes it.
 - **Tiles load but markers don't** &mdash; open DevTools &rarr; Application
-  &rarr; IndexedDB and confirm `heritage-db` / `trees` has rows. If it's
+  &rarr; IndexedDB and confirm `pdxHeritage` / `trees` has rows. If it's
   empty, delete it and reload; the app will repopulate from `data/trees.json`.
+  If you previously used **Export Settings**, restore your marks afterward with
+  **Import Settings**.
+- **Lost found marks after clearing site data** &mdash; found marks and notes
+  live only in the browser. Use **Export Settings** before clearing storage or
+  switching devices, then **Import Settings** (Merge or Overwrite) to restore.
 - **Marker missing for a tree** &mdash; some addresses ("Removed from list in
   2024", or a non-addressable reference like "NW Corner of SW Park &amp; Main
   (right-of-way)") won't resolve. Re-run `heritage/heritage.ps1`: when it gets
   to that tree it prints the details and research links and lets you enter a
-  better address. The edit is persisted in `trees.json` and picked up by the
-  app the next time you tap **Settings &rarr; Check for app update**. A
-  silent browser-side Nominatim fallback also runs on boot for any tree
-  still missing coordinates, so a stuck marker usually self-heals within a
-  minute of the next launch.
+  better address or paste a **`lat, lng`** pair. The edit is persisted in
+  `trees.json` and picked up by the app the next time you tap
+  **Settings &rarr; Check for app update**. A silent browser-side Nominatim
+  fallback also runs on boot for any tree still missing coordinates, so a stuck
+  marker usually self-heals within a minute of the next launch.
 - **Nominatim 403 / 429 / "blocked"** &mdash; OpenStreetMap rate-limits the
   free tier aggressively. Pass `-UserAgent "PDXHeritageTrees (your@email)"`
   so they can reach you, and consider raising `-DelayMs` or running the

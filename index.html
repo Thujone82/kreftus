@@ -7,7 +7,7 @@
     
     <!-- SEO Meta Tags -->
     <meta name="description" content="KREFT.US — web apps and CLI tools: Forecast &amp; GetForecast weather, TemPy ThermoPro BLE monitor, PDX Heritage Trees, Sudoku TUI, Larry, Mastermind, Snake VS, SpiroGen, BTC Track, GENE, Game of Life, Double Pendulum, nfo2go, and terminal utilities for Bitcoin, polling, and file updates.">
-    <meta name="keywords" content="web applications, CLI tools, TemPy, ThermoPro, Bitcoin tracker, weather forecast, GetForecast, wildfire, NIFC, Sudoku, Larry, Mastermind, Conway's Game of Life, double pendulum, snake game, spirograph, genetic algorithm, terminal games, PowerShell scripts, local file update tool, Go applications">
+    <meta name="keywords" content="web applications, CLI tools, TemPy, ThermoPro, Bitcoin tracker, weather forecast, GetForecast, wildfire, NIFC, Sudoku, Larry, Mastermind, Conway's Game of Life, double pendulum, snake game, spirograph, genetic algorithm, terminal games, PowerShell scripts, local file update tool, Go applications, Portland Heritage Trees, PDX Heritage Trees, Heritage Trees Oregon, Heritage Trees Portland">
     <meta name="author" content="Thujone82">
     <meta name="robots" content="index, follow">
     <meta name="language" content="English">
@@ -288,9 +288,16 @@
                 {
                     "@type": "SoftwareApplication",
                     "name": "PDX Heritage Trees",
-                    "description": "Local, offline-friendly field guide to Portland's registered Heritage Trees. Track which trees you have found, take notes, and navigate to nearby trees on an interactive map.",
+                    "alternateName": [
+                        "Portland Heritage Trees",
+                        "Heritage Trees Portland",
+                        "Heritage Trees Oregon",
+                        "PDX Trees"
+                    ],
+                    "description": "Find Portland Heritage Trees and PDX Heritage Trees on an offline map of Oregon's City of Portland registered Heritage Tree registry. Search, mark found, take notes, navigate nearby, and export or import settings.",
                     "url": "https://kreft.us/heritage/",
-                    "applicationCategory": "LifestyleApplication"
+                    "applicationCategory": "LifestyleApplication",
+                    "keywords": "Portland Heritage Trees, PDX Heritage Trees, Heritage Trees, Heritage Trees Oregon, Heritage Trees Portland"
                 },
                 {
                     "@type": "SoftwareApplication",
@@ -482,7 +489,14 @@
                     <td class="project-text-cell">
                         <div>
                             <h2>PDX Heritage Trees</h2>
-                            <p><b>PDX Heritage Trees</b> - A local, offline-friendly field guide to Portland's registered Heritage Trees. Browse trees on an interactive map, mark which ones you have found, add notes, and navigate to nearby trees. Installable as a PWA for quick access in the field. Your <em>Found</em> marks and notes live in your browser's IndexedDB and are preserved across app updates. Official registry: <a href="https://www.portland.gov/trees/heritage" target="_blank" rel="noopener">portland.gov/trees/heritage</a>.</p>
+                            <p class="project-intro"><b>PDX Heritage Trees</b> (also known as Portland Heritage Trees) is a local, offline-friendly field guide to Oregon's City of Portland registered Heritage Tree registry. Installable as a PWA for quick access in the field. Official registry: <a href="https://www.portland.gov/trees/heritage" target="_blank" rel="noopener" onclick="event.stopPropagation()">portland.gov/trees/heritage</a>.</p>
+                            <ul class="project-details">
+                                <li><b>Map:</b> Interactive Leaflet map of every registry tree; mark found, add notes, and open walking directions.</li>
+                                <li><b>Nearby &amp; Search:</b> Ten closest trees from your location, plus live search by name, address, notes, coordinates, or <b>#</b> tree number.</li>
+                                <li><b>Found:</b> Bottom-bar list of trees you have marked found, with find dates.</li>
+                                <li><b>Export / Import Settings:</b> Backup found marks and notes to a JSON file; merge or overwrite when restoring on another device.</li>
+                                <li><b>Updates:</b> Check for app update refreshes the tree list without wiping your marks; data stays in your browser.</li>
+                            </ul>
                             <p class="project-readme-link"><a href="./heritage/README.html" onclick="event.stopPropagation()">Full documentation (README)</a></p>
                         </div>
                     </td>

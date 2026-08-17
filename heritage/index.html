@@ -3,21 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
-    <meta name="description" content="PDX Heritage Trees: a local, offline-friendly field guide to Portland's registered Heritage Trees. Track which trees you have found, take notes, and navigate to nearby trees.">
+    <title>PDX Heritage Trees | Portland, Oregon Heritage Tree Map &amp; Field Guide</title>
+    <meta name="description" content="Find Portland Heritage Trees and PDX Heritage Trees on an offline map of Oregon's City of Portland registered Heritage Tree registry. Search by name or address, mark trees found, take notes, navigate nearby, and export or import your settings.">
+    <meta name="keywords" content="Portland Heritage Trees, PDX Heritage Trees, Heritage Trees, Heritage Trees Oregon, Heritage Trees Portland, Portland Oregon trees, City of Portland Heritage Trees, Portland heritage tree registry, heritage tree map Portland, PDX trees, Oregon heritage trees, portland.gov trees heritage">
+    <meta name="author" content="kreft.us">
+    <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#1f3b2a">
-    <title>PDX Heritage Trees</title>
     <link rel="canonical" href="https://kreft.us/heritage/">
-    <meta property="og:title" content="PDX Heritage Trees">
-    <meta property="og:description" content="PDX Heritage Trees: a local, offline-friendly field guide to Portland's registered Heritage Trees. Track which trees you have found, take notes, and navigate to nearby trees.">
+    <meta property="og:site_name" content="kreft.us">
+    <meta property="og:title" content="PDX Heritage Trees | Portland, Oregon Heritage Tree Map">
+    <meta property="og:description" content="Offline field guide to Portland Heritage Trees (PDX / Oregon). Search the City registry map, mark found, take notes, navigate nearby, and move your settings between devices.">
     <meta property="og:type" content="website">
+    <meta property="og:locale" content="en_US">
     <meta property="og:url" content="https://kreft.us/heritage/">
     <meta property="og:image" content="https://kreft.us/heritage/icons/icon-512.png">
+    <meta property="og:image:alt" content="PDX Heritage Trees — map of Portland registered heritage trees">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="PDX Heritage Trees">
-    <meta name="twitter:description" content="PDX Heritage Trees: a local, offline-friendly field guide to Portland's registered Heritage Trees. Track which trees you have found, take notes, and navigate to nearby trees.">
+    <meta name="twitter:title" content="PDX Heritage Trees | Portland, Oregon Heritage Tree Map">
+    <meta name="twitter:description" content="Find Portland Heritage Trees and PDX Heritage Trees. Offline Oregon registry map with search, found marks, notes, and nearby navigation.">
     <meta name="twitter:image" content="https://kreft.us/heritage/icons/icon-512.png">
+    <meta name="twitter:image:alt" content="PDX Heritage Trees — map of Portland registered heritage trees">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "PDX Heritage Trees",
+        "alternateName": [
+            "Portland Heritage Trees",
+            "PDX Trees",
+            "Heritage Trees Portland",
+            "Heritage Trees Oregon",
+            "Portland Oregon Heritage Trees",
+            "City of Portland Heritage Trees"
+        ],
+        "description": "Offline field guide to Portland's registered Heritage Trees (PDX / Oregon). Search and map the City of Portland Heritage Tree registry, mark trees found, take notes, navigate nearby, and export or import settings between devices.",
+        "url": "https://kreft.us/heritage/",
+        "image": "https://kreft.us/heritage/icons/icon-512.png",
+        "applicationCategory": "LifestyleApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires a modern browser with IndexedDB and service worker support.",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "keywords": [
+            "Portland Heritage Trees",
+            "PDX Heritage Trees",
+            "Heritage Trees",
+            "Heritage Trees Oregon",
+            "Heritage Trees Portland",
+            "Portland Oregon trees",
+            "City of Portland Heritage Trees",
+            "heritage tree map",
+            "Portland heritage tree registry"
+        ],
+        "about": {
+            "@type": "Thing",
+            "name": "City of Portland Heritage Tree Program",
+            "sameAs": "https://www.portland.gov/trees/heritage"
+        },
+        "isAccessibleForFree": true,
+        "inLanguage": "en-US"
+    }
+    </script>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="css/styles.css?v=1.3.1">
+    <link rel="stylesheet" href="css/styles.css?v=1.3.2">
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -27,7 +78,7 @@
 </head>
 <body>
     <!-- Map canvas (full viewport background) -->
-    <div id="map" aria-label="Map of Portland heritage trees"></div>
+        <div id="map" aria-label="Interactive map of Portland Heritage Trees, PDX Heritage Trees, and Oregon City of Portland registered heritage trees"></div>
 
     <!-- Top progress bar (shown during sync / geocoding / updates) -->
     <div id="progressBar" class="progress-bar hidden" role="progressbar" aria-live="polite">
@@ -239,17 +290,17 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
             integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
             crossorigin="anonymous"></script>
-    <script src="js/db.js?v=1.3.1"></script>
-    <script src="js/wiki.js?v=1.3.1"></script>
-    <script src="js/sync.js?v=1.3.1"></script>
-    <script src="js/geocode.js?v=1.3.1"></script>
-    <script src="js/map.js?v=1.3.1"></script>
-    <script src="js/nearby.js?v=1.3.1"></script>
-    <script src="js/search.js?v=1.3.1"></script>
-    <script src="js/found.js?v=1.3.1"></script>
-    <script src="js/backup.js?v=1.3.1"></script>
-    <script src="js/ui.js?v=1.3.1"></script>
-    <script src="js/sw-register.js?v=1.3.1"></script>
-    <script src="js/app.js?v=1.3.1"></script>
+    <script src="js/db.js?v=1.3.2"></script>
+    <script src="js/wiki.js?v=1.3.2"></script>
+    <script src="js/sync.js?v=1.3.2"></script>
+    <script src="js/geocode.js?v=1.3.2"></script>
+    <script src="js/map.js?v=1.3.2"></script>
+    <script src="js/nearby.js?v=1.3.2"></script>
+    <script src="js/search.js?v=1.3.2"></script>
+    <script src="js/found.js?v=1.3.2"></script>
+    <script src="js/backup.js?v=1.3.2"></script>
+    <script src="js/ui.js?v=1.3.2"></script>
+    <script src="js/sw-register.js?v=1.3.2"></script>
+    <script src="js/app.js?v=1.3.2"></script>
 </body>
 </html>
