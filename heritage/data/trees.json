@@ -1,6 +1,6 @@
 {
   "sourceUrl": "https://www.portland.gov/trees/heritage/heritage-trees-year",
-  "scrapedAt": "2026-08-17T16:52:08Z",
+  "scrapedAt": "2026-08-17T17:30:58Z",
   "count": 408,
   "trees": [
     {
@@ -4377,8 +4377,8 @@
       "name": "Metasequoia Glyptostroboides - Dawn Redwood",
       "location": "SW Bary Ln (PP&R, Hoyt Arboretum)",
       "removed": null,
-      "lat": 45.5164269,
-      "lng": -122.7152183,
+      "lat": 45.51799066481742,
+      "lng": -122.71658573653347,
       "geocodeStatus": "ok",
       "geocodeAddress": "45.51637436640272, -122.71523385769159",
       "geocodeFormatted": "Oak Trail, Sylvan-Highlands, Portland, Multnomah County, Oregon, 97210, United States",
