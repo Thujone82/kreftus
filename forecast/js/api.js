@@ -1537,27 +1537,62 @@ function buildNifcWildFireQueryUrl(lat, lon, distanceMiles = WILDFIRE_RADIUS_MIL
         'EstimatedCostToDate',
         'EstimatedFinalCost',
         'InitialLatitude',
-        'InitialLongitude'
+        'InitialLongitude',
+        'UniqueFireIdentifier',
+        'IrwinID'
     ].join(',');
     return `https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query?f=json&geometryType=esriGeometryPoint&geometry=${lon},${lat}&inSR=4326&distance=${distanceMiles}&units=esriSRUnit_StatuteMile&outFields=${outFields}&returnGeometry=true`;
 }
 
-/** Shared NIFC cooldown after HTTP/ArcGIS 429 so Update All / backfill do not keep hammering quota. */
-let nifcWildfireCooldownUntilMs = 0;
-
-function getNifcWildfireCooldownRemainingMs() {
-    return Math.max(0, nifcWildfireCooldownUntilMs - Date.now());
+/**
+ * Esri Living Atlas current incidents, fed straight from IRWIN.
+ * Leaner schema than WFIGS (no cost/behavior/short description) but updates when WFIGS publication stalls.
+ */
+function buildIrwinWildFireQueryUrl(lat, lon, distanceMiles = WILDFIRE_RADIUS_MILES) {
+    const outFields = [
+        'IncidentTypeCategory',
+        'IncidentName',
+        'DailyAcres',
+        'CalculatedAcres',
+        'PercentContained',
+        'POOState',
+        'POOCounty',
+        'FireCause',
+        'FireCauseGeneral',
+        'ModifiedOnDateTime',
+        'FireDiscoveryDateTime',
+        'UniqueFireIdentifier',
+        'IrwinID'
+    ].join(',');
+    return `https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/USA_Wildfires_v1/FeatureServer/0/query?f=json&geometryType=esriGeometryPoint&geometry=${lon},${lat}&inSR=4326&distance=${distanceMiles}&units=esriSRUnit_StatuteMile&outFields=${outFields}&returnGeometry=true`;
 }
 
-function noteNifcWildfireRateLimit(retryAfterSec = 60) {
+const WILDFIRE_SOURCE_WFIGS = 'wfigs';
+const WILDFIRE_SOURCE_IRWIN = 'irwin';
+
+/** Per-source cooldown after HTTP/ArcGIS 429 so Update All / backfill do not keep hammering quota. */
+const wildfireSourceCooldownUntilMs = {
+    [WILDFIRE_SOURCE_WFIGS]: 0,
+    [WILDFIRE_SOURCE_IRWIN]: 0
+};
+
+/** Remaining cooldown for one source, or the longest across sources when called without one. */
+function getNifcWildfireCooldownRemainingMs(source = null) {
+    const until = source
+        ? (wildfireSourceCooldownUntilMs[source] || 0)
+        : Math.max(...Object.values(wildfireSourceCooldownUntilMs));
+    return Math.max(0, until - Date.now());
+}
+
+function noteNifcWildfireRateLimit(retryAfterSec = 60, source = WILDFIRE_SOURCE_WFIGS) {
     const sec = Math.max(15, Math.min(Number(retryAfterSec) || 60, 300));
     const until = Date.now() + sec * 1000;
-    if (until > nifcWildfireCooldownUntilMs) {
-        nifcWildfireCooldownUntilMs = until;
+    if (until > (wildfireSourceCooldownUntilMs[source] || 0)) {
+        wildfireSourceCooldownUntilMs[source] = until;
     }
     console.warn(
-        'Wildfire: NIFC rate limited (quota). Keeping any prior fires; will retry after ~'
-        + Math.ceil(getNifcWildfireCooldownRemainingMs() / 1000)
+        `Wildfire: ${source.toUpperCase()} rate limited (quota). Keeping any prior fires; will retry after ~`
+        + Math.ceil(getNifcWildfireCooldownRemainingMs(source) / 1000)
         + 's (next refresh/backfill).'
     );
 }
@@ -1674,6 +1709,8 @@ function normalizeNifcWildFireIncidents(apiData, lat, lon, distanceMiles = WILDF
                 discovered,
                 estimatedCost,
                 estimatedFinalCost,
+                fireId: normalizeWildFireSourceId(a.UniqueFireIdentifier),
+                irwinId: normalizeWildFireSourceId(a.IrwinID),
                 inciwebUrl: null,
                 stateMapUrl: getInciWebStateMapUrl(pooState)
             });
@@ -1689,6 +1726,201 @@ function normalizeNifcWildFireIncidents(apiData, lat, lon, distanceMiles = WILDF
         return a.distanceMi - b.distanceMi;
     });
     return results;
+}
+
+/** WFIGS wraps IrwinID in braces and uppercases it; IRWIN publishes it bare and lowercase. */
+function normalizeWildFireSourceId(rawId) {
+    return String(rawId || '').replace(/[{}]/g, '').trim().toLowerCase() || null;
+}
+
+/** IRWIN omits POOProtectingUnit, but UniqueFireIdentifier encodes it: 2026-ORMHF-000688 -> ORMHF. */
+function deriveProtectingUnitFromFireId(fireId) {
+    const match = String(fireId || '').trim().match(/^\d{4}-([A-Za-z0-9]{2,12})-/);
+    return match ? match[1].toUpperCase() : '';
+}
+
+/** Cross-source identity: prefer UniqueFireIdentifier, then IrwinID, then unit|name. */
+function wildFireSourceKey(fire) {
+    if (fire?.fireId) return `ufi:${fire.fireId}`;
+    if (fire?.irwinId) return `irwin:${fire.irwinId}`;
+    return `name:${wildFireIdentityKey(fire)}`;
+}
+
+function wildFireUpdatedMs(fire) {
+    const raw = fire?.updated;
+    if (!raw) return NaN;
+    const ms = raw instanceof Date ? raw.getTime() : new Date(raw).getTime();
+    return Number.isFinite(ms) ? ms : NaN;
+}
+
+function normalizeIrwinWildFireIncidents(apiData, lat, lon, distanceMiles = WILDFIRE_RADIUS_MILES) {
+    const features = apiData?.features;
+    if (!Array.isArray(features) || features.length === 0) return [];
+    const radiusMiles = Number.isFinite(Number(distanceMiles)) ? Number(distanceMiles) : WILDFIRE_RADIUS_MILES;
+
+    const results = [];
+    for (const feature of features) {
+        try {
+            const a = feature?.attributes;
+            if (!a) continue;
+            const cat = String(a.IncidentTypeCategory || '').trim().toUpperCase();
+            if (cat && cat !== 'WF') continue;
+            if (!feature.geometry || feature.geometry.y == null || feature.geometry.x == null) continue;
+
+            const fireLat = Number(feature.geometry.y);
+            const fireLon = Number(feature.geometry.x);
+            if (!Number.isFinite(fireLat) || !Number.isFinite(fireLon)) continue;
+
+            const distance = calculateDistanceMiles(lat, lon, fireLat, fireLon);
+            if (distance > radiusMiles + 0.5) continue;
+
+            const name = normalizeWildFireIncidentName(a.IncidentName);
+            if (!name) continue;
+
+            const acresRaw = a.DailyAcres != null ? a.DailyAcres : a.CalculatedAcres;
+            const acres = acresRaw != null && Number.isFinite(Number(acresRaw)) ? Number(acresRaw) : null;
+            const contained = a.PercentContained != null && Number.isFinite(Number(a.PercentContained))
+                ? Number(a.PercentContained)
+                : null;
+
+            const pooState = String(a.POOState || '').trim();
+            const bearing = calculateBearing(lat, lon, fireLat, fireLon);
+            const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+            const fireId = String(a.UniqueFireIdentifier || '').trim();
+
+            results.push({
+                name,
+                acres,
+                contained,
+                behavior: null,
+                behaviorDetail: null,
+                lat: fireLat,
+                lon: fireLon,
+                distanceMi: Math.round(distance * 100) / 100,
+                cardinal: dirs[Math.round(bearing / 22.5) % 16],
+                unit: deriveProtectingUnitFromFireId(fireId),
+                state: pooState,
+                county: String(a.POOCounty || '').trim(),
+                shortDesc: '',
+                cause: pickWildFireCause(a.FireCause, a.FireCauseGeneral),
+                updated: parseNifcEpochMs(a.ModifiedOnDateTime),
+                discovered: parseNifcEpochMs(a.FireDiscoveryDateTime),
+                estimatedCost: null,
+                estimatedFinalCost: null,
+                fireId: normalizeWildFireSourceId(fireId),
+                irwinId: normalizeWildFireSourceId(a.IrwinID),
+                inciwebUrl: null,
+                stateMapUrl: getInciWebStateMapUrl(pooState)
+            });
+        } catch (e) {
+            console.warn('Skipping IRWIN wildfire feature:', e);
+        }
+    }
+    return results;
+}
+
+function sortWildFireIncidents(incidents) {
+    incidents.sort((a, b) => {
+        const aa = a.acres == null ? -1 : a.acres;
+        const bb = b.acres == null ? -1 : b.acres;
+        if (bb !== aa) return bb - aa;
+        return a.distanceMi - b.distanceMi;
+    });
+    return incidents;
+}
+
+/** Overlay the fresher IRWIN measurements onto a WFIGS record, keeping WFIGS-only attributes. */
+function applyFresherWildFireValues(base, live) {
+    const baseMs = wildFireUpdatedMs(base);
+    const liveMs = wildFireUpdatedMs(live);
+    const liveIsNewer = Number.isFinite(liveMs) && (!Number.isFinite(baseMs) || liveMs > baseMs);
+    const merged = { ...base };
+    if (!base.cause && live.cause) merged.cause = live.cause;
+    if (!base.county && live.county) merged.county = live.county;
+    if (!base.discovered && live.discovered) merged.discovered = live.discovered;
+    if (!liveIsNewer) return merged;
+    if (live.acres != null) merged.acres = live.acres;
+    if (live.contained != null) merged.contained = live.contained;
+    if (live.cause) merged.cause = live.cause;
+    merged.updated = live.updated;
+    return merged;
+}
+
+/**
+ * Merge the two feeds: WFIGS supplies the rich attributes (cost, behavior, location description),
+ * IRWIN supplies current size/containment plus incidents WFIGS has not published yet.
+ * Incidents only WFIGS knows about are kept — IRWIN filters some non-statistical records.
+ */
+function mergeWildFireIncidentSources(wfigsIncidents, irwinIncidents) {
+    const merged = (Array.isArray(wfigsIncidents) ? wfigsIncidents : []).map((f) => ({ ...f }));
+    const live = Array.isArray(irwinIncidents) ? irwinIncidents : [];
+    if (live.length === 0) return sortWildFireIncidents(merged);
+    if (merged.length === 0) return sortWildFireIncidents(live.map((f) => ({ ...f })));
+
+    const indexByKey = new Map();
+    merged.forEach((fire, i) => indexByKey.set(wildFireSourceKey(fire), i));
+
+    let refreshed = 0;
+    let added = 0;
+    for (const liveFire of live) {
+        const idx = indexByKey.get(wildFireSourceKey(liveFire));
+        if (idx == null) {
+            merged.push({ ...liveFire });
+            added++;
+            continue;
+        }
+        const before = merged[idx];
+        merged[idx] = applyFresherWildFireValues(before, liveFire);
+        if (merged[idx].acres !== before.acres || merged[idx].contained !== before.contained) refreshed++;
+    }
+    if (refreshed || added) {
+        console.log('Wildfire: IRWIN overlay refreshed', refreshed, 'incident(s) and added', added, 'not yet in WFIGS');
+    }
+    return sortWildFireIncidents(merged);
+}
+
+/**
+ * Query one ArcGIS wildfire layer, mapping rate limits and error payloads to a uniform result.
+ * @returns {Promise<{ok: boolean, data: object|null, rateLimited?: boolean, retryAfterSec?: number}>}
+ */
+async function fetchArcgisWildFireLayer(url, label, source) {
+    const cooldownMs = getNifcWildfireCooldownRemainingMs(source);
+    if (cooldownMs > 0) {
+        const retryAfterSec = Math.ceil(cooldownMs / 1000);
+        console.log(`Wildfire: skipping ${label} (rate-limit cooldown`, retryAfterSec, 's remaining)');
+        return { ok: false, data: null, rateLimited: true, retryAfterSec };
+    }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    try {
+        const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+        if (!response.ok) {
+            if (isNifcRateLimitError(null, response.status)) {
+                const retryAfterSec = parseNifcRetryAfterSeconds(null, response);
+                noteNifcWildfireRateLimit(retryAfterSec, source);
+                return { ok: false, data: null, rateLimited: true, retryAfterSec };
+            }
+            console.warn(`${label} wildfire API HTTP`, response.status);
+            return { ok: false, data: null };
+        }
+        const data = await response.json();
+        // ArcGIS often returns HTTP 200 with an error payload and no features
+        if (data?.error) {
+            if (isNifcRateLimitError(data.error, response.status)) {
+                const retryAfterSec = parseNifcRetryAfterSeconds(data.error, response);
+                noteNifcWildfireRateLimit(retryAfterSec, source);
+                return { ok: false, data: null, rateLimited: true, retryAfterSec };
+            }
+            console.warn(`${label} wildfire API error payload:`, data.error);
+            return { ok: false, data: null };
+        }
+        return { ok: true, data };
+    } catch (error) {
+        console.warn(`${label} wildfire fetch failed:`, error);
+        return { ok: false, data: null };
+    } finally {
+        clearTimeout(timeoutId);
+    }
 }
 
 /**
@@ -1722,48 +1954,26 @@ async function fetchWildFireIncidents(lat, lon, distanceMiles = WILDFIRE_RADIUS_
         console.warn('Wildfire: invalid coordinates', lat, lon);
         return { ok: false, incidents: [] };
     }
-    const cooldownMs = getNifcWildfireCooldownRemainingMs();
-    if (cooldownMs > 0) {
-        const retryAfterSec = Math.ceil(cooldownMs / 1000);
-        console.log('Wildfire: skipping NIFC (rate-limit cooldown', retryAfterSec, 's remaining)');
-        return { ok: false, incidents: [], rateLimited: true, retryAfterSec };
+    console.log('Wildfire: fetching WFIGS + IRWIN within', radius, 'mi of', latN, lonN);
+    const [wfigsResult, irwinResult] = await Promise.all([
+        fetchArcgisWildFireLayer(buildNifcWildFireQueryUrl(latN, lonN, radius), 'WFIGS', WILDFIRE_SOURCE_WFIGS),
+        fetchArcgisWildFireLayer(buildIrwinWildFireQueryUrl(latN, lonN, radius), 'IRWIN', WILDFIRE_SOURCE_IRWIN)
+    ]);
+    if (!wfigsResult.ok && !irwinResult.ok) {
+        const rateLimited = !!(wfigsResult.rateLimited || irwinResult.rateLimited);
+        const retryAfterSec = Math.max(wfigsResult.retryAfterSec || 0, irwinResult.retryAfterSec || 0) || undefined;
+        return { ok: false, incidents: [], rateLimited, retryAfterSec };
     }
-    const url = buildNifcWildFireQueryUrl(latN, lonN, radius);
-    console.log('Wildfire: fetching NIFC within', radius, 'mi of', latN, lonN);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
-    let incidents = [];
-    try {
-        const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
-        if (!response.ok) {
-            if (isNifcRateLimitError(null, response.status)) {
-                const retryAfterSec = parseNifcRetryAfterSeconds(null, response);
-                noteNifcWildfireRateLimit(retryAfterSec);
-                return { ok: false, incidents: [], rateLimited: true, retryAfterSec };
-            }
-            console.warn('NIFC wildfire API HTTP', response.status);
-            return { ok: false, incidents: [] };
-        }
-        const data = await response.json();
-        // ArcGIS often returns HTTP 200 with an error payload and no features
-        if (data?.error) {
-            if (isNifcRateLimitError(data.error, response.status)) {
-                const retryAfterSec = parseNifcRetryAfterSeconds(data.error, response);
-                noteNifcWildfireRateLimit(retryAfterSec);
-                return { ok: false, incidents: [], rateLimited: true, retryAfterSec };
-            }
-            console.warn('NIFC wildfire API error payload:', data.error);
-            return { ok: false, incidents: [] };
-        }
-        const rawFeatureCount = Array.isArray(data?.features) ? data.features.length : 0;
-        incidents = normalizeNifcWildFireIncidents(data, latN, lonN, radius);
-        console.log('Wildfire: NIFC returned', rawFeatureCount, 'feature(s);', incidents.length, 'within', radius, 'mi');
-    } catch (error) {
-        console.warn('NIFC wildfire fetch failed:', error);
-        return { ok: false, incidents: [] };
-    } finally {
-        clearTimeout(timeoutId);
-    }
+
+    const wfigsIncidents = wfigsResult.ok ? normalizeNifcWildFireIncidents(wfigsResult.data, latN, lonN, radius) : [];
+    const irwinIncidents = irwinResult.ok ? normalizeIrwinWildFireIncidents(irwinResult.data, latN, lonN, radius) : [];
+    console.log(
+        'Wildfire: WFIGS',
+        wfigsResult.ok ? `${wfigsIncidents.length} in range` : 'unavailable',
+        '| IRWIN',
+        irwinResult.ok ? `${irwinIncidents.length} in range` : 'unavailable'
+    );
+    const incidents = mergeWildFireIncidentSources(wfigsIncidents, irwinIncidents);
 
     // Keep previously known InciWeb links while probes run (auto-refresh must not blank them).
     mergeWildFireInciWebFromPrevious(incidents, previousIncidents);

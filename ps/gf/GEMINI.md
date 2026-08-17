@@ -3,7 +3,7 @@
 ## Project: gf (Get Forecast) - NWS Edition
 
 **Author:** Kreft&Cursor
-**Date:** 2026-08-16
+**Date:** 2026-08-17
 **Version:** 2.4
 
 ---
@@ -23,7 +23,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
 - **Weather Alerts:** Automatically fetches and displays any active weather alerts (e.g., warnings, watches) from official sources. Test/monitoring-only alerts are filtered (matches forecast web). Current-conditions title may show `⚠️` / `🌡` when displayable alerts / heat alerts are active.
 - **Color-Coded Metrics:** Key data points (temperature, wind speed) change color (blue for cold, red for hot) to indicate potentially hazardous conditions. Rain likelihood sparklines use color coding (white for very low, cyan for low, green for light, yellow for medium, red for high probability). Wind outlook glyphs use color coding (white for calm, yellow for light breeze, red for moderate wind, magenta for strong wind) with peak wind hours highlighted using inverted colors. **Hour Labels:** Hour labels in the hourly forecast (e.g., "08:00", "09:00") are colored yellow when the majority of that hour is during daytime (determined by checking if the hour midpoint falls between sunrise and sunset), otherwise displayed in white. This applies to both the hourly forecast in the main modal and the dedicated hourly modal. **Humidity:** Uses meteorological comfort thresholds based on relative humidity percentage. Low humidity (<30%) can cause dry skin, static electricity, and respiratory discomfort (cyan). Comfortable range (30-60%) is ideal for human comfort (white). Elevated humidity (61-70%) begins to feel muggy and can affect perceived temperature (yellow). High humidity (>70%) is oppressive, significantly increases heat index, and can be dangerous in hot weather (red). **Dew Point:** More reliable than humidity for assessing comfort as it's independent of temperature. Dew point represents the temperature at which air becomes saturated and condensation forms. Values below 40°F indicate very dry air (cyan), 40-54°F is comfortable (white), 55-64°F feels sticky and muggy (yellow), and 65°F+ is oppressive and can be dangerous when combined with high temperatures (red). Dew points above 70°F are rare but extremely uncomfortable. **Pressure (Observations):** Barometric pressure in inHg with color coding: low (<29.50 inHg) cyan, normal (29.50-30.20) white, high (30.20-30.50) yellow, extreme (<29.0 or >30.5) alert/magenta.
 - **AQI Line (AirNow):** Current conditions include an `AQI:` line immediately after `Wind:` when AirNow data is available and displayable **and** the user has configured the persisted Windows **User** environment variable **`AirNowAPI`** (your own key from AirNow; never embedded in the script). Use **`gf.ps1 -aqi`** for setup/validation, or set `AirNowAPI` manually. Format: `AQI: {CategoryName} O3[{O3AQI}] PM2.5[{PM25AQI}]`. `AQI:` is white; `CategoryName` is colored by the highest AirNow category number from O3/PM2.5 (1=Green, 2=Yellow, 3=DarkYellow, 4=Red, 5=Magenta, 6=DarkRed). `O3[...]` and `PM2.5[...]` are independently colored by each pollutant's category number. The line is suppressed when the env var is unset, data is unavailable, response is empty, highest category is 7 (Unavailable), or in terse mode unless highest category is 2-6.
-- **Wild Fire Info (NIFC WFIGS):** Soft-fail query for current wildfire incidents within the configured radius (default **50** statute miles). Full report shows a **Wild Fire Info** section after alerts (size, discovered time, estimated cost as `final (to-date)` when both NIFC cost fields are set and differ, containment, behavior, cause preferring `FireCauseGeneral` unless `FireCause` is `Undetermined`, relative `mi` + cardinal like NOAA stations, InciWeb incident link after Views AJAX validation, plus state map). Stats segments (`Size` · `Discovered` · …) wrap to a new line when the next piece would wrap mid-section. Terse / Current Conditions one-liner for the largest fire: `Fire: NAME …ac ✅|…% …mi DIR (N)` — label shortened, 100% containment as ✅, no behavior (details in full section), distance rounded to whole miles, multi-fire count as `(N)`. Override with **`-wf` / `-wildfire N`**; **`-wf 0`** disables all wildfire API/UI for the run. **HTTP/ArcGIS 429 (quota):** shared cooldown; launch shows **`Waiting to load wildfire data...`**, waits Retry-After (default 60s), retries once; auto-refresh skips NIFC while cooling down and **never wipes** a prior good list on failure. See **Wildfire (NIFC) Technical Notes** below. **Colors:** acres Default (<100) / Yellow (100–999) / Red (1k–99,999) / Magenta (≥100k); full-section name Yellow; Discovered default; Cost Yellow (≥$1M) / Red (≥$1B) / Magenta (≥$1T) (omit when null/`$0`); Contained 0% Yellow / 100% Green (omit when null); Behavior Magenta if Extreme / Red if Critical / Yellow if Active; terse `Fire:` label Red.
+- **Wild Fire Info (NIFC WFIGS + IRWIN):** Soft-fail query for current wildfire incidents within the configured radius (default **50** statute miles). Both feeds are queried and merged so stalled WFIGS publication cannot freeze sizes/containment or hide new fires. Full report shows a **Wild Fire Info** section after alerts (size, discovered time, estimated cost as `final (to-date)` when both NIFC cost fields are set and differ, containment, behavior, cause preferring `FireCauseGeneral` unless `FireCause` is `Undetermined`, relative `mi` + cardinal like NOAA stations, InciWeb incident link after Views AJAX validation, plus state map). Stats segments (`Size` · `Discovered` · …) wrap to a new line when the next piece would wrap mid-section. Terse / Current Conditions one-liner for the largest fire: `Fire: NAME …ac ✅|…% …mi DIR (N)` — label shortened, 100% containment as ✅, no behavior (details in full section), distance rounded to whole miles, multi-fire count as `(N)`. Override with **`-wf` / `-wildfire N`**; **`-wf 0`** disables all wildfire API/UI for the run. **HTTP/ArcGIS 429 (quota):** shared cooldown; launch shows **`Waiting to load wildfire data...`**, waits Retry-After (default 60s), retries once; auto-refresh skips NIFC while cooling down and **never wipes** a prior good list on failure. See **Wildfire (NIFC) Technical Notes** below. **Colors:** acres Default (<100) / Yellow (100–999) / Red (1k–99,999) / Magenta (≥100k); full-section name Yellow; Discovered default; Cost Yellow (≥$1M) / Red (≥$1B) / Magenta (≥$1T) (omit when null/`$0`); Contained 0% Yellow / 100% Green (omit when null); Behavior Magenta if Extreme / Red if Critical / Yellow if Active; terse `Fire:` label Red.
 - **Multiple Display Modes:**
   - **Full Mode (default):** Shows all available weather information
   - **Terse Mode (`-t`):** Shows only current conditions and today's forecast (plus alerts)
@@ -91,7 +91,8 @@ The script follows a multi-step process:
 - **Hourly:** `https://api.weather.gov/gridpoints/{office}/{gridX},{gridY}/forecast/hourly`
 - **Alerts:** `https://api.weather.gov/alerts/active?point={lat},{lon}`
 - **AirNow AQI (optional):** `https://www.airnowapi.org/aq/observation/current/ziplatLong?format=application/json&latitude={lat}&longitude={lon}&api_key={key}` — `{key}` comes only from the **`AirNowAPI`** environment variable (User scope preferred); no key ships with the script. Rate limit: 500 requests/hour per key.
-- **NIFC Wildfires:** `https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query` — point geometry + configurable statute radius (default 50 mi); WF-only (`IncidentTypeCategory`); soft-fail. ArcGIS may return **HTTP 200 with an `error` payload** (including code **429** quota); treat as failure, not empty success.
+- **NIFC Wildfires (WFIGS, rich attributes):** `https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query` — point geometry + configurable statute radius (default 50 mi); WF-only (`IncidentTypeCategory`); soft-fail. ArcGIS may return **HTTP 200 with an `error` payload** (including code **429** quota); treat as failure, not empty success.
+- **IRWIN Wildfires (Esri Living Atlas, current measurements):** `https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/USA_Wildfires_v1/FeatureServer/0/query` — same spatial parameters. Fed straight from IRWIN, so it keeps updating when WFIGS publication stalls. Leaner schema: acreage is `DailyAcres` / `CalculatedAcres`, modified time is `ModifiedOnDateTime` (no `_dt` suffix), and there is **no** cost, fire behavior, `POOProtectingUnit`, or `IncidentShortDescription`.
 - **InciWeb (wildfire links):** `https://inciweb.wildfire.gov/incident-information/{unit}-{slug}` (+ optional `-fire` slug variant); confirmed via Views AJAX `view_name=incidents_page_`. State maps: `https://inciweb.wildfire.gov/state/{slug}`.
 - **Observation Stations:** `https://api.weather.gov/points/{lat},{lon}/stations`
 - **Latest Observation:** `https://api.weather.gov/stations/{stationId}/observations/latest`
@@ -118,9 +119,33 @@ Terminal AQI colors intentionally approximate the official EPA/AirNow palette us
 
 Wildfire integration is soft-fail end-to-end: weather always displays even when NIFC or InciWeb is unavailable. Behavior is intentionally aligned with the Forecast web edition where practical.
 
+#### Dual-source merge (WFIGS + IRWIN)
+
+WFIGS publication can stall for days while incidents keep growing — on 2026-08-16 every WFIGS layer froze at the same `ModifiedOnDateTime_dt` (02:15 UTC) and `WFIGS_Incident_Locations_Last24h` returned **zero** rows, even though `lastEditDate` kept advancing. Both feeds are therefore queried every fetch and merged:
+
+- **WFIGS is the base record** — it owns cost, fire behavior, `POOProtectingUnit`, and `IncidentShortDescription`, which IRWIN does not publish.
+- **IRWIN overlays current measurements** — when its `ModifiedOnDateTime` is newer, it replaces `Acres`, `Contained`, `Updated`, and `Cause`; blank `Cause` / `County` / `Discovered` are filled regardless of age.
+- **IRWIN-only incidents are added** — new fires reach IRWIN before WFIGS publishes them.
+- **WFIGS-only incidents are kept** — IRWIN filters some non-statistical records, so dropping them risks hiding real fires. A fire that has gone out may linger until WFIGS publication recovers.
+- **Identity:** `Get-WildFireSourceKey` prefers `UniqueFireIdentifier`, then `IrwinID`, then `unit|name`. WFIGS wraps `IrwinID` in braces and uppercases it, so `Get-NormalizedWildFireSourceId` strips `{}` and lowercases before matching.
+- **Unit for IRWIN records:** derived from `UniqueFireIdentifier` (`2026-ORMHF-000688` → `ORMHF`) via `Get-ProtectingUnitFromFireId`, which is what the InciWeb slug needs.
+- **Degraded modes:** either feed alone still renders (WFIGS-only = previous behavior; IRWIN-only = current numbers without cost/behavior/description). Only when **both** fail is the prior list preserved untouched.
+
+| Helper | Role |
+|--------|------|
+| `Get-IrwinWildFireQueryUrl` | IRWIN query URL with explicit `outFields` |
+| `Get-IrwinWildFireIncidentsFromApiResponse` | Normalizes IRWIN features into the same incident shape |
+| `Merge-WildFireIncidentSources` | Overlays IRWIN onto WFIGS, adds IRWIN-only fires, re-sorts |
+| `Update-WildFireWithFresherValues` | Field-level overlay; returns `$true` when size/containment moved |
+| `Get-MergedWildFireIncidents` | Normalize both feeds → merge → resolve InciWeb links once |
+| `Set-WildFireInciWebLinks` | InciWeb validation pass (`Loading Fire n/X...`) over the merged list |
+| `Receive-WildFireJobData` | Drains one background job into parsed data, applying 429 cooldowns |
+
+`Get-WildFireIncidentsFromApiResponse -DeferInciWeb $true` skips both the slug guess and the validation pass so links are resolved once **after** merging (otherwise IRWIN-only fires would never get a link).
+
 #### Query and normalization
 
-- **Endpoint:** `WFIGS_Incident_Locations_Current` FeatureServer `0/query` with `geometryType=esriGeometryPoint`, `distance={miles}`, `units=esriSRUnit_StatuteMile`, explicit `outFields` (incident identity, size, containment, behavior, POO/unit/state/county, cause, discovery/modified times, cost fields, initial lat/lon) — not `outFields=*`.
+- **Endpoint:** `WFIGS_Incident_Locations_Current` FeatureServer `0/query` with `geometryType=esriGeometryPoint`, `distance={miles}`, `units=esriSRUnit_StatuteMile`, explicit `outFields` (incident identity, size, containment, behavior, POO/unit/state/county, cause, discovery/modified times, cost fields, initial lat/lon, `UniqueFireIdentifier`, `IrwinID`) — not `outFields=*`.
 - **Filter:** Keep features with `IncidentTypeCategory` empty or `WF`; drop others.
 - **Geometry:** Prefer feature geometry `y`/`x`; else `InitialLatitude` / `InitialLongitude`. Distance via Haversine; keep within radius + 0.5 mi tolerance.
 - **Sort:** Largest acres first, then nearest.
@@ -131,27 +156,28 @@ Wildfire integration is soft-fail end-to-end: weather always displays even when 
 
 #### Launch path (`Invoke-NifcWildFireLaunchFetch`)
 
-1. Status **`Checking Wildfire...`** (clears host unless `-Verbose`).
-2. `Invoke-RestMethod` NIFC query (30s timeout).
-3. On success with features: normalize, then InciWeb validation with progress **`Loading Fire n/X...`** (`ShowLinkProgress`).
-4. On **rate limit (429 / quota):** set shared cooldown; status becomes **`Waiting to load wildfire data...`**; sleep until cooldown ends; **one** retry. If still limited, continue with empty list (soft-fail).
-5. On other errors / exceptions: verbose log; empty list; continue.
+1. `Invoke-WfigsWildFireLaunchQuery`: status **`Checking Wildfire...`** (clears host unless `-Verbose`), `Invoke-RestMethod` WFIGS query (30s timeout), returns the raw response or `$null`.
+2. `Invoke-IrwinWildFireQuery`: single soft-fail attempt against IRWIN with its own cooldown, returns the raw response or `$null`.
+3. If either returned data: `Get-MergedWildFireIncidents` normalizes, merges, then validates InciWeb links with progress **`Loading Fire n/X...`** (`ShowLinkProgress`).
+4. On WFIGS **rate limit (429 / quota):** set that source's cooldown; status becomes **`Waiting to load wildfire data...`**; sleep until cooldown ends; **one** retry. If still limited, continue with IRWIN alone.
+5. On other errors / exceptions, or when both sources fail: verbose log; empty list; continue.
 
 `-Verbose` keeps the host buffer (no `Clear-Host` for status) so NIFC/InciWeb verbose lines remain readable.
 
 #### Auto-refresh path (`Update-WeatherData`)
 
-- Before starting the NIFC background job, if cooldown remaining > 0: **skip** the job and **keep** `$script:wildFireIncidents`.
-- On job completion: parse JSON; if ArcGIS/job `error` is rate-limited → set cooldown, **restore prior list**; if other error or parse failure → **restore prior list**; only replace the list on a successful non-error payload.
+- Starts **two** background jobs (`WildFireData`, `IrwinWildFireData`); each is skipped independently when its own cooldown is active. `$wildFireSkippedCooldown` is only set when **both** are skipped.
+- `Receive-WildFireJobData` per job: non-`Completed` state, empty payload, parse failure, or an `error` payload yields `$null` (rate-limited payloads also set that source's cooldown).
+- If both jobs yield `$null` → **restore prior list**; otherwise merge whatever arrived and replace the list.
 - Never clear to `@()` at the start of wildfire job processing (older builds wiped fires on every refresh failure).
 
-#### Rate-limit cooldown (shared)
+#### Rate-limit cooldown (per source)
 
 | Helper | Role |
 |--------|------|
-| `$script:nifcWildfireCooldownUntil` | Absolute local time when NIFC may be called again |
-| `Get-NifcWildfireCooldownRemainingSeconds` | Seconds left (0 clears expired cooldown) |
-| `Set-NifcWildfireRateLimitCooldown` | Extends cooldown; clamps Retry-After to 15–300s (default 60) |
+| `$script:wildfireCooldownUntil` | Hashtable (`wfigs`, `irwin`) of absolute local times when each source may be called again |
+| `Get-NifcWildfireCooldownRemainingSeconds` | Seconds left for `-Source`, or the longest across sources when omitted (0 clears expired cooldowns) |
+| `Set-NifcWildfireRateLimitCooldown` | Extends one source's cooldown; clamps Retry-After to 15–300s (default 60) |
 | `Test-IsNifcRateLimited` | HTTP 429, ArcGIS `error.code` 429, or message/details matching quota / too many requests / rate limit |
 | `Get-NifcRetryAfterSeconds` | Parses `Retry after N sec` from ArcGIS `details` / `message` |
 | `Get-NifcErrorObjectFromResponse` | ArcGIS `error` object or Start-ApiJob `{ Error = $true; ... }` shape |
@@ -636,7 +662,8 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 - **WBGT (`-wbgt` / `-UseWbgt`):** Estimated outdoor wet-bulb globe temperature option aligned with the forecast web app.
 - **Magic Hours (`-m` / `-magic`):** Golden/Blue hour lines in Current Conditions.
 - **Wild Fire Info:** When NIFC WFIGS reports wildfires within the configured radius (default 50 mi; `-wf`/`-wildfire N`), a **Wild Fire Info** section appears after alerts (size, discovered time, estimated cost as `final (to-date)` when both differ, cause preferring `FireCauseGeneral` unless `Undetermined`, containment, behavior, relative mi/cardinal like NOAA stations, InciWeb + state map links). Terse one-liner for the largest fire: `Fire: NAME …ac ✅|…% …mi DIR (N)`. `-wf 0` disables. Stats wrap mid-section–aware. **Colors:** acres Default (<100) / Yellow (100–999) / Red (1k–99,999) / Magenta (≥100k); full-section name Yellow; Discovered default; Cost Yellow (≥$1M) / Red (≥$1B) / Magenta (≥$1T) (omit null/`$0`); Contained 0% Yellow / 100% Green; Behavior Magenta Extreme / Red Critical / Yellow Active; terse `Fire:` label Red.
-- **NIFC 429 / quota cooldown:** Detect ArcGIS/HTTP rate limits; shared `$script:nifcWildfireCooldownUntil`. Launch status **`Waiting to load wildfire data...`**, wait Retry-After, one retry. Auto-refresh skips NIFC during cooldown and preserves the previous incident list on failure (does not wipe to empty). Explicit NIFC `outFields` (not `*`).
+- **NIFC 429 / quota cooldown:** Detect ArcGIS/HTTP rate limits; per-source `$script:wildfireCooldownUntil` (`wfigs`, `irwin`). Launch status **`Waiting to load wildfire data...`**, wait Retry-After, one retry. Auto-refresh skips a source during its cooldown and preserves the previous incident list when no source returns data (does not wipe to empty). Explicit NIFC `outFields` (not `*`).
+- **Dual wildfire source (WFIGS + IRWIN):** WFIGS publication stalled for ~33 hours on 2026-08-16 (all layers frozen at one `ModifiedOnDateTime_dt`, `…_Last24h` empty), so sizes/containment went stale and new fires never appeared. Every fetch now also queries Esri Living Atlas `USA_Wildfires_v1/0` (IRWIN) and merges: WFIGS keeps cost/behavior/short description, IRWIN supplies current acres/containment/updated time and any incidents WFIGS has not published. Either source alone still renders; the prior list is preserved only when both fail.
 - **InciWeb robustness:** Try name slug and `-fire` variant; confirm via Views AJAX; negative probe cache TTL **60 minutes**; successful probes session-sticky. Probe HTML bodies discarded after validation. `-Verbose` keeps wildfire status lines on-screen (no Clear-Host).
 - **Memory (interactive):** 1-hour stale gate on 7-day observation history re-fetch (`$script:OBSERVATIONS_STALE_SECONDS`); trim retained hourly (≤96 periods + used fields), forecast periods, and alert properties; `Clear-LargeTransientMemory` after heavy observation/NOAA/wildfire work.
 

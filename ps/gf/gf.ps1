@@ -2179,17 +2179,30 @@ function Update-WeatherData {
         $alertsJob = Start-ApiJob -Url $alertsUrl -Headers $headers -JobName "AlertsData"
 
         $wildFireJob = $null
+        $irwinWildFireJob = $null
         $wildFireSkippedCooldown = $false
         if ($script:wildFireEnabled) {
-            $wfCooldownSec = Get-NifcWildfireCooldownRemainingSeconds
+            $wfCooldownSec = Get-NifcWildfireCooldownRemainingSeconds -Source $script:WILDFIRE_SOURCE_WFIGS
             if ($wfCooldownSec -gt 0) {
-                $wildFireSkippedCooldown = $true
-                Write-Verbose "Wildfire: skipping NIFC job (rate-limit cooldown ${wfCooldownSec}s remaining); keeping previous list ($($script:wildFireIncidents.Count))"
+                Write-Verbose "Wildfire: skipping WFIGS job (rate-limit cooldown ${wfCooldownSec}s remaining)"
             } else {
                 $wildFireUrl = Get-NifcWildFireQueryUrl -Lat ([double]$lat) -Lon ([double]$lon) -DistanceMiles $script:WILDFIRE_RADIUS_MILES
-                Write-Verbose "Wildfire: starting NIFC job (radius=$($script:WILDFIRE_RADIUS_MILES) mi)"
+                Write-Verbose "Wildfire: starting WFIGS job (radius=$($script:WILDFIRE_RADIUS_MILES) mi)"
                 Write-Verbose "GET: $wildFireUrl"
                 $wildFireJob = Start-ApiJob -Url $wildFireUrl -Headers @{} -JobName "WildFireData"
+            }
+            $irwinCooldownSec = Get-NifcWildfireCooldownRemainingSeconds -Source $script:WILDFIRE_SOURCE_IRWIN
+            if ($irwinCooldownSec -gt 0) {
+                Write-Verbose "Wildfire: skipping IRWIN job (rate-limit cooldown ${irwinCooldownSec}s remaining)"
+            } else {
+                $irwinUrl = Get-IrwinWildFireQueryUrl -Lat ([double]$lat) -Lon ([double]$lon) -DistanceMiles $script:WILDFIRE_RADIUS_MILES
+                Write-Verbose "Wildfire: starting IRWIN job (radius=$($script:WILDFIRE_RADIUS_MILES) mi)"
+                Write-Verbose "GET: $irwinUrl"
+                $irwinWildFireJob = Start-ApiJob -Url $irwinUrl -Headers @{} -JobName "IrwinWildFireData"
+            }
+            if (-not $wildFireJob -and -not $irwinWildFireJob) {
+                $wildFireSkippedCooldown = $true
+                Write-Verbose "Wildfire: both sources cooling down; keeping previous list ($($script:wildFireIncidents.Count))"
             }
         } else {
             Write-Verbose "Wildfire disabled (-wf 0 or radius 0)"
@@ -2234,6 +2247,7 @@ function Update-WeatherData {
         $jobsToWaitFor = @($forecastJob, $hourlyJob, $alertsJob)
         if ($aqiJob) { $jobsToWaitFor += $aqiJob }
         if ($wildFireJob) { $jobsToWaitFor += $wildFireJob }
+        if ($irwinWildFireJob) { $jobsToWaitFor += $irwinWildFireJob }
         if ($stationsJob) {
             $jobsToWaitFor += $stationsJob
         }
@@ -2470,53 +2484,23 @@ function Update-WeatherData {
             }
         }
 
-        # Process wildfire job - non-blocking; never wipe a good prior list on NIFC failure/429.
-        if ($wildFireJob) {
+        # Process wildfire jobs - non-blocking; never wipe a good prior list on source failure/429.
+        if ($wildFireJob -or $irwinWildFireJob) {
             $previousWildFires = @($script:wildFireIncidents)
-            $wildFireApplied = $false
-            if ($wildFireJob.State -eq 'Completed') {
-                $wfJobErrors = @()
-                $wfJson = $wildFireJob | Receive-Job -ErrorVariable wfJobErrors -ErrorAction SilentlyContinue
-                if ($wfJobErrors -and $wfJobErrors.Count -gt 0) {
-                    $wfErrMsg = ($wfJobErrors | ForEach-Object { $_.Exception.Message } | Select-Object -Unique) -join "; "
-                    Write-Verbose "NIFC wildfire non-blocking failure details: $wfErrMsg"
-                }
-                if (-not [string]::IsNullOrWhiteSpace($wfJson)) {
-                    try {
-                        $wfData = $wfJson | ConvertFrom-Json
-                        $nifcError = Get-NifcErrorObjectFromResponse -ApiData $wfData
-                        if ($nifcError) {
-                            if (Test-IsNifcRateLimited -ErrorObj $nifcError) {
-                                $retrySec = Get-NifcRetryAfterSeconds -ErrorObj $nifcError
-                                Set-NifcWildfireRateLimitCooldown -RetryAfterSec $retrySec
-                                Write-Verbose "Wildfire: refresh NIFC rate-limited; keeping previous list ($($previousWildFires.Count)); will retry after cooldown"
-                            } else {
-                                Write-Verbose "NIFC wildfire API returned error payload"
-                            }
-                        } else {
-                            $featureCount = if ($wfData.features) { @($wfData.features).Count } else { 0 }
-                            Write-Verbose "Wildfire: NIFC job completed with $featureCount raw feature(s)"
-                            $script:wildFireIncidents = @(Get-WildFireIncidentsFromApiResponse -ApiData $wfData -Lat ([double]$lat) -Lon ([double]$lon) -TimeZoneId $TimeZone -ValidateInciWeb $true)
-                            Write-VerboseWildFireSummary -Incidents $script:wildFireIncidents -Context 'Wildfire update'
-                            $wildFireApplied = $true
-                            $wfData = $null
-                            $wfJson = $null
-                            Clear-LargeTransientMemory
-                        }
-                    } catch {
-                        Write-Verbose "Failed to parse NIFC wildfire data: $($_.Exception.Message)"
-                    }
-                }
-                Remove-Job -Job $wildFireJob -Force -ErrorAction SilentlyContinue
-            } else {
-                Write-Verbose "NIFC wildfire API failed - continuing without overwriting prior wildfire list"
-                Remove-Job -Job $wildFireJob -Force -ErrorAction SilentlyContinue
-            }
-            if (-not $wildFireApplied) {
+            $wfData = Receive-WildFireJobData -Job $wildFireJob -Label 'WFIGS' -Source $script:WILDFIRE_SOURCE_WFIGS
+            $irwinData = Receive-WildFireJobData -Job $irwinWildFireJob -Label 'IRWIN' -Source $script:WILDFIRE_SOURCE_IRWIN
+            if ($null -eq $wfData -and $null -eq $irwinData) {
+                Write-Verbose "Wildfire: no source returned data - keeping previous list ($($previousWildFires.Count))"
                 $script:wildFireIncidents = $previousWildFires
+            } else {
+                $script:wildFireIncidents = @(Get-MergedWildFireIncidents -WfigsData $wfData -IrwinData $irwinData -Lat ([double]$lat) -Lon ([double]$lon) -TimeZoneId $TimeZone -ValidateInciWeb $true)
+                Write-VerboseWildFireSummary -Incidents $script:wildFireIncidents -Context 'Wildfire update'
+                $wfData = $null
+                $irwinData = $null
+                Clear-LargeTransientMemory
             }
         } elseif ($wildFireSkippedCooldown) {
-            Write-Verbose "Wildfire: left previous list intact during NIFC cooldown ($($script:wildFireIncidents.Count) incident(s))"
+            Write-Verbose "Wildfire: left previous list intact during source cooldown ($($script:wildFireIncidents.Count) incident(s))"
         }
         
         # Process stations job and fetch observations data if timezone is provided
@@ -6111,8 +6095,10 @@ $script:wildFireEnabled = ($script:WILDFIRE_RADIUS_MILES -gt 0)
 $script:inciwebUrlOkCache = @{}
 # Negative InciWeb slug probes (no page yet) expire so a later publish can be linked.
 $script:INCIWEB_NEGATIVE_CACHE_SECONDS = 3600
-# Shared NIFC cooldown after HTTP/ArcGIS 429 so launch retry / auto-refresh do not keep hammering quota.
-$script:nifcWildfireCooldownUntil = $null
+# Per-source cooldown after HTTP/ArcGIS 429 so launch retry / auto-refresh do not keep hammering quota.
+$script:WILDFIRE_SOURCE_WFIGS = 'wfigs'
+$script:WILDFIRE_SOURCE_IRWIN = 'irwin'
+$script:wildfireCooldownUntil = @{ wfigs = $null; irwin = $null }
 
 function Get-NifcWildFireQueryUrl {
     param(
@@ -6144,30 +6130,71 @@ function Get-NifcWildFireQueryUrl {
         'EstimatedCostToDate',
         'EstimatedFinalCost',
         'InitialLatitude',
-        'InitialLongitude'
+        'InitialLongitude',
+        'UniqueFireIdentifier',
+        'IrwinID'
     ) -join ','
     return "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Incident_Locations_Current/FeatureServer/0/query?f=json&geometryType=esriGeometryPoint&geometry=$lonStr,$latStr&inSR=4326&distance=$distStr&units=esriSRUnit_StatuteMile&outFields=$outFields&returnGeometry=true"
 }
 
+# Esri Living Atlas current incidents, fed straight from IRWIN. Leaner schema than WFIGS
+# (no cost/behavior/short description) but keeps updating when WFIGS publication stalls.
+function Get-IrwinWildFireQueryUrl {
+    param(
+        [double]$Lat,
+        [double]$Lon,
+        [double]$DistanceMiles = 50
+    )
+    $latStr = ($Lat -as [string])
+    $lonStr = ($Lon -as [string])
+    $distStr = ($DistanceMiles -as [string])
+    $outFields = @(
+        'IncidentTypeCategory',
+        'IncidentName',
+        'DailyAcres',
+        'CalculatedAcres',
+        'PercentContained',
+        'POOState',
+        'POOCounty',
+        'FireCause',
+        'FireCauseGeneral',
+        'ModifiedOnDateTime',
+        'FireDiscoveryDateTime',
+        'UniqueFireIdentifier',
+        'IrwinID'
+    ) -join ','
+    return "https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/USA_Wildfires_v1/FeatureServer/0/query?f=json&geometryType=esriGeometryPoint&geometry=$lonStr,$latStr&inSR=4326&distance=$distStr&units=esriSRUnit_StatuteMile&outFields=$outFields&returnGeometry=true"
+}
+
 function Get-NifcWildfireCooldownRemainingSeconds {
-    if ($null -eq $script:nifcWildfireCooldownUntil) { return 0 }
-    $remaining = [int][Math]::Ceiling(($script:nifcWildfireCooldownUntil - (Get-Date)).TotalSeconds)
-    if ($remaining -le 0) {
-        $script:nifcWildfireCooldownUntil = $null
-        return 0
+    param([string]$Source = $null)
+    $sources = if ($Source) { @($Source) } else { @($script:wildfireCooldownUntil.Keys) }
+    $longest = 0
+    foreach ($key in $sources) {
+        $until = $script:wildfireCooldownUntil[$key]
+        if ($null -eq $until) { continue }
+        $remaining = [int][Math]::Ceiling(($until - (Get-Date)).TotalSeconds)
+        if ($remaining -le 0) {
+            $script:wildfireCooldownUntil[$key] = $null
+            continue
+        }
+        if ($remaining -gt $longest) { $longest = $remaining }
     }
-    return $remaining
+    return $longest
 }
 
 function Set-NifcWildfireRateLimitCooldown {
-    param([int]$RetryAfterSec = 60)
+    param(
+        [int]$RetryAfterSec = 60,
+        [string]$Source = 'wfigs'
+    )
     $sec = [Math]::Max(15, [Math]::Min([int]$RetryAfterSec, 300))
     $until = (Get-Date).AddSeconds($sec)
-    if ($null -eq $script:nifcWildfireCooldownUntil -or $until -gt $script:nifcWildfireCooldownUntil) {
-        $script:nifcWildfireCooldownUntil = $until
+    if ($null -eq $script:wildfireCooldownUntil[$Source] -or $until -gt $script:wildfireCooldownUntil[$Source]) {
+        $script:wildfireCooldownUntil[$Source] = $until
     }
-    $left = Get-NifcWildfireCooldownRemainingSeconds
-    Write-Verbose "Wildfire: NIFC rate limited (quota). Keeping any prior fires; cooldown ~${left}s (retry after $($script:nifcWildfireCooldownUntil.ToString('HH:mm:ss')))."
+    $left = Get-NifcWildfireCooldownRemainingSeconds -Source $Source
+    Write-Verbose "Wildfire: $($Source.ToUpperInvariant()) rate limited (quota). Keeping any prior fires; cooldown ~${left}s (retry after $($script:wildfireCooldownUntil[$Source].ToString('HH:mm:ss')))."
 }
 
 function Get-NifcErrorObjectFromResponse {
@@ -6256,16 +6283,16 @@ function Show-WildFireLaunchStatus {
     }
 }
 
-# Launch-time NIFC fetch: soft-fail, 429 cooldown, one wait-and-retry. On rate limit shows "Waiting to load wildfire data...".
-function Invoke-NifcWildFireLaunchFetch {
+# Launch-time WFIGS query: soft-fail, 429 cooldown, one wait-and-retry. On rate limit shows "Waiting to load wildfire data...".
+# Returns the raw ArcGIS response, or $null when unavailable.
+function Invoke-WfigsWildFireLaunchQuery {
     param(
         [double]$Lat,
-        [double]$Lon,
-        [string]$TimeZoneId = $null
+        [double]$Lon
     )
     $maxAttempts = 2
     for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-        $cooldownSec = Get-NifcWildfireCooldownRemainingSeconds
+        $cooldownSec = Get-NifcWildfireCooldownRemainingSeconds -Source $script:WILDFIRE_SOURCE_WFIGS
         if ($cooldownSec -gt 0) {
             Show-WildFireLaunchStatus -Message 'Waiting to load wildfire data...'
             Start-Sleep -Seconds $cooldownSec
@@ -6281,44 +6308,141 @@ function Invoke-NifcWildFireLaunchFetch {
             if ($nifcError) {
                 if (Test-IsNifcRateLimited -ErrorObj $nifcError) {
                     $retrySec = Get-NifcRetryAfterSeconds -ErrorObj $nifcError
-                    Set-NifcWildfireRateLimitCooldown -RetryAfterSec $retrySec
+                    Set-NifcWildfireRateLimitCooldown -RetryAfterSec $retrySec -Source $script:WILDFIRE_SOURCE_WFIGS
                     Show-WildFireLaunchStatus -Message 'Waiting to load wildfire data...'
                     if ($attempt -lt $maxAttempts) {
-                        $waitSec = Get-NifcWildfireCooldownRemainingSeconds
+                        $waitSec = Get-NifcWildfireCooldownRemainingSeconds -Source $script:WILDFIRE_SOURCE_WFIGS
                         if ($waitSec -gt 0) { Start-Sleep -Seconds $waitSec }
                         continue
                     }
-                    Write-Verbose 'Wildfire: NIFC still rate-limited after launch wait; continuing without wildfire data'
-                    return @()
+                    Write-Verbose 'Wildfire: WFIGS still rate-limited after launch wait; continuing without it'
+                    return $null
                 }
-                Write-Verbose "NIFC wildfire API error payload: $($nifcError | ConvertTo-Json -Compress -ErrorAction SilentlyContinue)"
-                return @()
+                Write-Verbose "WFIGS wildfire API error payload: $($nifcError | ConvertTo-Json -Compress -ErrorAction SilentlyContinue)"
+                return $null
             }
             $featureCount = if ($wildFireResponse.features) { @($wildFireResponse.features).Count } else { 0 }
-            Write-Verbose "Wildfire: NIFC returned $featureCount raw feature(s)"
-            $incidents = @(Get-WildFireIncidentsFromApiResponse -ApiData $wildFireResponse -Lat $Lat -Lon $Lon -TimeZoneId $TimeZoneId -ValidateInciWeb $true -ShowLinkProgress $true)
-            Write-VerboseWildFireSummary -Incidents $incidents -Context 'Wildfire launch'
-            $wildFireResponse = $null
-            Clear-LargeTransientMemory
-            return $incidents
+            Write-Verbose "Wildfire: WFIGS returned $featureCount raw feature(s)"
+            return $wildFireResponse
         } catch {
             $httpStatus = Get-HttpStatusFromErrorRecord -ErrorRecord $_
             if (Test-IsNifcRateLimited -HttpStatus $httpStatus -ErrorObj @{ Message = $_.Exception.Message }) {
-                Set-NifcWildfireRateLimitCooldown -RetryAfterSec 60
+                Set-NifcWildfireRateLimitCooldown -RetryAfterSec 60 -Source $script:WILDFIRE_SOURCE_WFIGS
                 Show-WildFireLaunchStatus -Message 'Waiting to load wildfire data...'
                 if ($attempt -lt $maxAttempts) {
-                    $waitSec = Get-NifcWildfireCooldownRemainingSeconds
+                    $waitSec = Get-NifcWildfireCooldownRemainingSeconds -Source $script:WILDFIRE_SOURCE_WFIGS
                     if ($waitSec -gt 0) { Start-Sleep -Seconds $waitSec }
                     continue
                 }
-                Write-Verbose 'Wildfire: NIFC still rate-limited after launch wait; continuing without wildfire data'
-                return @()
+                Write-Verbose 'Wildfire: WFIGS still rate-limited after launch wait; continuing without it'
+                return $null
             }
-            Write-Verbose "NIFC wildfire fetch failed: $($_.Exception.Message)"
-            return @()
+            Write-Verbose "WFIGS wildfire fetch failed: $($_.Exception.Message)"
+            return $null
         }
     }
-    return @()
+    return $null
+}
+
+# IRWIN query: single attempt, soft-fail, own 429 cooldown. Returns the raw response or $null.
+function Invoke-IrwinWildFireQuery {
+    param(
+        [double]$Lat,
+        [double]$Lon
+    )
+    $cooldownSec = Get-NifcWildfireCooldownRemainingSeconds -Source $script:WILDFIRE_SOURCE_IRWIN
+    if ($cooldownSec -gt 0) {
+        Write-Verbose "Wildfire: skipping IRWIN (rate-limit cooldown ${cooldownSec}s remaining)"
+        return $null
+    }
+    $url = Get-IrwinWildFireQueryUrl -Lat $Lat -Lon $Lon -DistanceMiles $script:WILDFIRE_RADIUS_MILES
+    Write-Verbose "GET: $url"
+    try {
+        $response = Invoke-RestMethod -Uri $url -Method Get -TimeoutSec 30 -ErrorAction Stop
+        $irwinError = Get-NifcErrorObjectFromResponse -ApiData $response
+        if ($irwinError) {
+            if (Test-IsNifcRateLimited -ErrorObj $irwinError) {
+                Set-NifcWildfireRateLimitCooldown -RetryAfterSec (Get-NifcRetryAfterSeconds -ErrorObj $irwinError) -Source $script:WILDFIRE_SOURCE_IRWIN
+            } else {
+                Write-Verbose "IRWIN wildfire API error payload: $($irwinError | ConvertTo-Json -Compress -ErrorAction SilentlyContinue)"
+            }
+            return $null
+        }
+        $featureCount = if ($response.features) { @($response.features).Count } else { 0 }
+        Write-Verbose "Wildfire: IRWIN returned $featureCount raw feature(s)"
+        return $response
+    } catch {
+        $httpStatus = Get-HttpStatusFromErrorRecord -ErrorRecord $_
+        if (Test-IsNifcRateLimited -HttpStatus $httpStatus -ErrorObj @{ Message = $_.Exception.Message }) {
+            Set-NifcWildfireRateLimitCooldown -RetryAfterSec 60 -Source $script:WILDFIRE_SOURCE_IRWIN
+        } else {
+            Write-Verbose "IRWIN wildfire fetch failed: $($_.Exception.Message)"
+        }
+        return $null
+    }
+}
+
+# Drain one background wildfire job into parsed ArcGIS data, applying 429 cooldowns. $null when unusable.
+function Receive-WildFireJobData {
+    param(
+        [object]$Job = $null,
+        [string]$Label = 'WFIGS',
+        [string]$Source = 'wfigs'
+    )
+    if (-not $Job) { return $null }
+    try {
+        if ($Job.State -ne 'Completed') {
+            Write-Verbose "$Label wildfire job did not complete (state=$($Job.State)) - not overwriting prior list"
+            return $null
+        }
+        $jobErrors = @()
+        $json = $Job | Receive-Job -ErrorVariable jobErrors -ErrorAction SilentlyContinue
+        if ($jobErrors -and $jobErrors.Count -gt 0) {
+            $errMsg = ($jobErrors | ForEach-Object { $_.Exception.Message } | Select-Object -Unique) -join '; '
+            Write-Verbose "$Label wildfire non-blocking failure details: $errMsg"
+        }
+        if ([string]::IsNullOrWhiteSpace($json)) { return $null }
+        $data = $json | ConvertFrom-Json
+        $errorObj = Get-NifcErrorObjectFromResponse -ApiData $data
+        if ($errorObj) {
+            if (Test-IsNifcRateLimited -ErrorObj $errorObj) {
+                Set-NifcWildfireRateLimitCooldown -RetryAfterSec (Get-NifcRetryAfterSeconds -ErrorObj $errorObj) -Source $Source
+                Write-Verbose "Wildfire: $Label refresh rate-limited; will retry after cooldown"
+            } else {
+                Write-Verbose "$Label wildfire API returned error payload"
+            }
+            return $null
+        }
+        $featureCount = if ($data.features) { @($data.features).Count } else { 0 }
+        Write-Verbose "Wildfire: $Label job completed with $featureCount raw feature(s)"
+        return $data
+    } catch {
+        Write-Verbose "Failed to parse $Label wildfire data: $($_.Exception.Message)"
+        return $null
+    } finally {
+        Remove-Job -Job $Job -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Launch-time wildfire load: WFIGS for rich attributes, IRWIN for current size/containment.
+function Invoke-NifcWildFireLaunchFetch {
+    param(
+        [double]$Lat,
+        [double]$Lon,
+        [string]$TimeZoneId = $null
+    )
+    $wfigsData = Invoke-WfigsWildFireLaunchQuery -Lat $Lat -Lon $Lon
+    $irwinData = Invoke-IrwinWildFireQuery -Lat $Lat -Lon $Lon
+    if ($null -eq $wfigsData -and $null -eq $irwinData) {
+        Write-Verbose 'Wildfire: no source available at launch; continuing without wildfire data'
+        return @()
+    }
+    $incidents = @(Get-MergedWildFireIncidents -WfigsData $wfigsData -IrwinData $irwinData -Lat $Lat -Lon $Lon -TimeZoneId $TimeZoneId -ValidateInciWeb $true -ShowLinkProgress $true)
+    Write-VerboseWildFireSummary -Incidents $incidents -Context 'Wildfire launch'
+    $wfigsData = $null
+    $irwinData = $null
+    Clear-LargeTransientMemory
+    return $incidents
 }
 
 function Get-InciWebStateSlug {
@@ -6671,7 +6795,9 @@ function Get-WildFireIncidentsFromApiResponse {
         [string]$TimeZoneId = $null,
         [bool]$ValidateInciWeb = $true,
         # When validating InciWeb links at launch, show "Loading Fire n/X..." status
-        [bool]$ShowLinkProgress = $false
+        [bool]$ShowLinkProgress = $false,
+        # Leave InciWebUrl unset so a caller can link the merged list in one pass
+        [bool]$DeferInciWeb = $false
     )
     $results = @()
     if (-not $ApiData -or -not $ApiData.features) { return $results }
@@ -6726,7 +6852,7 @@ function Get-WildFireIncidentsFromApiResponse {
             $cause = Get-WildFireCauseDisplay -FireCause "$($a.FireCause)" -FireCauseGeneral "$($a.FireCauseGeneral)"
             # Defer InciWeb validation to a second pass so we can show n/X progress.
             $inciwebUrl = $null
-            if (-not $ValidateInciWeb) {
+            if (-not $ValidateInciWeb -and -not $DeferInciWeb) {
                 $inciwebUrl = Get-InciWebIncidentUrl -ProtectingUnit $unit -IncidentName $name -Validate $false
             }
             $stateMapUrl = Get-InciWebStateMapUrl -PooState $pooState
@@ -6760,6 +6886,8 @@ function Get-WildFireIncidentsFromApiResponse {
                 Discovered      = $discovered
                 EstimatedCost   = $estimatedCost
                 EstimatedFinalCost = $estimatedFinalCost
+                FireId          = Get-NormalizedWildFireSourceId -RawId "$($a.UniqueFireIdentifier)"
+                IrwinId         = Get-NormalizedWildFireSourceId -RawId "$($a.IrwinID)"
                 InciWebUrl      = $inciwebUrl
                 StateMapUrl     = $stateMapUrl
             }
@@ -6768,28 +6896,229 @@ function Get-WildFireIncidentsFromApiResponse {
         }
     }
 
-    $sorted = @($results | Sort-Object -Property @{ Expression = { if ($null -eq $_.Acres) { -1 } else { $_.Acres } }; Descending = $true }, DistanceMi)
-    Write-Verbose "Wildfire: normalized $($sorted.Count) incident(s) from NIFC features (radius=$($script:WILDFIRE_RADIUS_MILES) mi)"
+    $sorted = @(Sort-WildFireIncidentList -Incidents $results)
+    Write-Verbose "Wildfire: normalized $($sorted.Count) incident(s) from WFIGS features (radius=$($script:WILDFIRE_RADIUS_MILES) mi)"
 
-    if ($ValidateInciWeb -and $sorted.Count -gt 0) {
-        $total = $sorted.Count
-        Write-Verbose "Wildfire: validating InciWeb links for $total incident(s)"
-        for ($i = 0; $i -lt $total; $i++) {
-            $n = $i + 1
-            if ($ShowLinkProgress) {
-                if ($VerbosePreference -ne 'Continue') {
-                    Clear-Host
-                    Write-Host "Loading Fire $n/$total..." -ForegroundColor Yellow
-                } else {
-                    Write-Verbose "Loading Fire $n/$total..."
-                }
-            }
-            $sorted[$i].InciWebUrl = Get-InciWebIncidentUrl -ProtectingUnit $sorted[$i].Unit -IncidentName $sorted[$i].Name -Validate $true
-        }
+    if ($ValidateInciWeb -and -not $DeferInciWeb -and $sorted.Count -gt 0) {
+        $sorted = @(Set-WildFireInciWebLinks -Incidents $sorted -ShowLinkProgress $ShowLinkProgress)
     }
 
     Write-VerboseWildFireSummary -Incidents $sorted -Context 'Wildfire parse'
     return $sorted
+}
+
+function Sort-WildFireIncidentList {
+    param([object[]]$Incidents = @())
+    return @(@($Incidents) | Sort-Object -Property @{ Expression = { if ($null -eq $_.Acres) { -1 } else { $_.Acres } }; Descending = $true }, DistanceMi)
+}
+
+function Set-WildFireInciWebLinks {
+    param(
+        [object[]]$Incidents = @(),
+        [bool]$ShowLinkProgress = $false
+    )
+    $list = @($Incidents)
+    $total = $list.Count
+    if ($total -eq 0) { return $list }
+    Write-Verbose "Wildfire: validating InciWeb links for $total incident(s)"
+    for ($i = 0; $i -lt $total; $i++) {
+        $n = $i + 1
+        if ($ShowLinkProgress) {
+            if ($VerbosePreference -ne 'Continue') {
+                Clear-Host
+                Write-Host "Loading Fire $n/$total..." -ForegroundColor Yellow
+            } else {
+                Write-Verbose "Loading Fire $n/$total..."
+            }
+        }
+        $list[$i].InciWebUrl = Get-InciWebIncidentUrl -ProtectingUnit $list[$i].Unit -IncidentName $list[$i].Name -Validate $true
+    }
+    return $list
+}
+
+# WFIGS wraps IrwinID in braces and uppercases it; IRWIN publishes it bare and lowercase.
+function Get-NormalizedWildFireSourceId {
+    param([string]$RawId)
+    if ([string]::IsNullOrWhiteSpace($RawId)) { return $null }
+    $clean = ($RawId -replace '[{}]', '').Trim().ToLowerInvariant()
+    if ([string]::IsNullOrWhiteSpace($clean)) { return $null }
+    return $clean
+}
+
+# IRWIN omits POOProtectingUnit, but UniqueFireIdentifier encodes it: 2026-ORMHF-000688 -> ORMHF.
+function Get-ProtectingUnitFromFireId {
+    param([string]$FireId)
+    if ([string]::IsNullOrWhiteSpace($FireId)) { return '' }
+    if ($FireId.Trim() -match '^\d{4}-([A-Za-z0-9]{2,12})-') { return $Matches[1].ToUpperInvariant() }
+    return ''
+}
+
+function Get-IrwinWildFireIncidentsFromApiResponse {
+    param(
+        [object]$ApiData,
+        [double]$Lat,
+        [double]$Lon,
+        [string]$TimeZoneId = $null
+    )
+    $results = @()
+    if (-not $ApiData -or -not $ApiData.features) { return $results }
+
+    foreach ($feature in @($ApiData.features)) {
+        try {
+            $a = $feature.attributes
+            if (-not $a) { continue }
+            $cat = "$($a.IncidentTypeCategory)".Trim().ToUpperInvariant()
+            if ($cat -and $cat -ne 'WF') { continue }
+            if (-not $feature.geometry -or $null -eq $feature.geometry.y -or $null -eq $feature.geometry.x) { continue }
+
+            $fireLat = [double]$feature.geometry.y
+            $fireLon = [double]$feature.geometry.x
+            $distance = Get-DistanceMiles -Lat1 $Lat -Lon1 $Lon -Lat2 $fireLat -Lon2 $fireLon
+            if ($distance -gt ($script:WILDFIRE_RADIUS_MILES + 0.5)) { continue }
+
+            $name = Get-NormalizedWildFireIncidentName -IncidentName "$($a.IncidentName)"
+            if ([string]::IsNullOrWhiteSpace($name)) { continue }
+
+            $acres = $null
+            try {
+                if ($null -ne $a.DailyAcres) { $acres = [double]$a.DailyAcres }
+                elseif ($null -ne $a.CalculatedAcres) { $acres = [double]$a.CalculatedAcres }
+            } catch {}
+            $contained = $null
+            try { if ($null -ne $a.PercentContained) { $contained = [double]$a.PercentContained } } catch {}
+
+            $bearing = Get-Bearing -Lat1 $Lat -Lon1 $Lon -Lat2 $fireLat -Lon2 $fireLon
+            $pooState = "$($a.POOState)".Trim()
+            $fireIdRaw = "$($a.UniqueFireIdentifier)".Trim()
+
+            $results += [pscustomobject]@{
+                Name            = $name
+                Acres           = $acres
+                Contained       = $contained
+                Behavior        = $null
+                BehaviorDetail  = $null
+                Lat             = $fireLat
+                Lon             = $fireLon
+                DistanceMi      = [Math]::Round($distance, 2)
+                Cardinal        = Get-CardinalDirection -Degrees $bearing
+                Unit            = Get-ProtectingUnitFromFireId -FireId $fireIdRaw
+                State           = $pooState
+                County          = "$($a.POOCounty)".Trim()
+                ShortDesc       = ''
+                Cause           = Get-WildFireCauseDisplay -FireCause "$($a.FireCause)" -FireCauseGeneral "$($a.FireCauseGeneral)"
+                Updated         = Convert-NifcEpochMsToLocalDateTime -EpochMs $a.ModifiedOnDateTime -TimeZoneId $TimeZoneId
+                Discovered      = Convert-NifcEpochMsToLocalDateTime -EpochMs $a.FireDiscoveryDateTime -TimeZoneId $TimeZoneId
+                EstimatedCost   = $null
+                EstimatedFinalCost = $null
+                FireId          = Get-NormalizedWildFireSourceId -RawId $fireIdRaw
+                IrwinId         = Get-NormalizedWildFireSourceId -RawId "$($a.IrwinID)"
+                InciWebUrl      = $null
+                StateMapUrl     = Get-InciWebStateMapUrl -PooState $pooState
+            }
+        } catch {
+            Write-Verbose "Skipping IRWIN wildfire feature: $($_.Exception.Message)"
+        }
+    }
+    Write-Verbose "Wildfire: normalized $($results.Count) incident(s) from IRWIN features (radius=$($script:WILDFIRE_RADIUS_MILES) mi)"
+    return $results
+}
+
+# Cross-source identity: prefer UniqueFireIdentifier, then IrwinID, then unit|name.
+function Get-WildFireSourceKey {
+    param([object]$Fire)
+    if ($Fire.FireId) { return "ufi:$($Fire.FireId)" }
+    if ($Fire.IrwinId) { return "irwin:$($Fire.IrwinId)" }
+    return "name:$("$($Fire.Unit)".Trim().ToLowerInvariant())|$("$($Fire.Name)".Trim().ToLowerInvariant())"
+}
+
+# Overlay fresher IRWIN measurements onto a WFIGS record; returns $true when size/containment moved.
+function Update-WildFireWithFresherValues {
+    param(
+        [object]$Target,
+        [object]$Live
+    )
+    if (-not $Target.Cause -and $Live.Cause) { $Target.Cause = $Live.Cause }
+    if (-not $Target.County -and $Live.County) { $Target.County = $Live.County }
+    if ($null -eq $Target.Discovered -and $null -ne $Live.Discovered) { $Target.Discovered = $Live.Discovered }
+
+    $liveIsNewer = $false
+    if ($null -ne $Live.Updated) {
+        if ($null -eq $Target.Updated) { $liveIsNewer = $true }
+        elseif ($Live.Updated -gt $Target.Updated) { $liveIsNewer = $true }
+    }
+    if (-not $liveIsNewer) { return $false }
+
+    $changed = $false
+    if ($null -ne $Live.Acres -and $Live.Acres -ne $Target.Acres) { $Target.Acres = $Live.Acres; $changed = $true }
+    if ($null -ne $Live.Contained -and $Live.Contained -ne $Target.Contained) { $Target.Contained = $Live.Contained; $changed = $true }
+    if ($Live.Cause) { $Target.Cause = $Live.Cause }
+    $Target.Updated = $Live.Updated
+    return $changed
+}
+
+# WFIGS supplies rich attributes (cost, behavior, location description); IRWIN supplies current
+# size/containment plus incidents WFIGS has not published yet. WFIGS-only incidents are kept
+# because IRWIN filters some non-statistical records.
+function Merge-WildFireIncidentSources {
+    param(
+        [object[]]$WfigsIncidents = @(),
+        [object[]]$IrwinIncidents = @()
+    )
+    $base = @($WfigsIncidents)
+    $live = @($IrwinIncidents)
+    if ($live.Count -eq 0) { return @(Sort-WildFireIncidentList -Incidents $base) }
+    if ($base.Count -eq 0) { return @(Sort-WildFireIncidentList -Incidents $live) }
+
+    $indexByKey = @{}
+    for ($i = 0; $i -lt $base.Count; $i++) {
+        $key = Get-WildFireSourceKey -Fire $base[$i]
+        if (-not $indexByKey.ContainsKey($key)) { $indexByKey[$key] = $i }
+    }
+
+    $merged = [System.Collections.ArrayList]::new()
+    foreach ($fire in $base) { [void]$merged.Add($fire) }
+
+    $refreshed = 0
+    $added = 0
+    foreach ($liveFire in $live) {
+        $key = Get-WildFireSourceKey -Fire $liveFire
+        if (-not $indexByKey.ContainsKey($key)) {
+            [void]$merged.Add($liveFire)
+            $added++
+            continue
+        }
+        if (Update-WildFireWithFresherValues -Target $merged[$indexByKey[$key]] -Live $liveFire) { $refreshed++ }
+    }
+    if ($refreshed -gt 0 -or $added -gt 0) {
+        Write-Verbose "Wildfire: IRWIN overlay refreshed $refreshed incident(s) and added $added not yet in WFIGS"
+    }
+    return @(Sort-WildFireIncidentList -Incidents $merged.ToArray())
+}
+
+# Normalize both feeds, overlay, then resolve InciWeb links once for the merged list.
+function Get-MergedWildFireIncidents {
+    param(
+        [object]$WfigsData = $null,
+        [object]$IrwinData = $null,
+        [double]$Lat,
+        [double]$Lon,
+        [string]$TimeZoneId = $null,
+        [bool]$ValidateInciWeb = $true,
+        [bool]$ShowLinkProgress = $false
+    )
+    $wfigs = @()
+    if ($WfigsData) {
+        $wfigs = @(Get-WildFireIncidentsFromApiResponse -ApiData $WfigsData -Lat $Lat -Lon $Lon -TimeZoneId $TimeZoneId -ValidateInciWeb $false -DeferInciWeb $true)
+    }
+    $irwin = @()
+    if ($IrwinData) {
+        $irwin = @(Get-IrwinWildFireIncidentsFromApiResponse -ApiData $IrwinData -Lat $Lat -Lon $Lon -TimeZoneId $TimeZoneId)
+    }
+    $merged = @(Merge-WildFireIncidentSources -WfigsIncidents $wfigs -IrwinIncidents $irwin)
+    if ($ValidateInciWeb -and $merged.Count -gt 0) {
+        $merged = @(Set-WildFireInciWebLinks -Incidents $merged -ShowLinkProgress $ShowLinkProgress)
+    }
+    return $merged
 }
 
 function Get-ConsoleWindowWidth {
