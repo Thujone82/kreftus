@@ -1290,6 +1290,8 @@ async function fetchAirNowAqi(lat, lon, apiKey) {
 }
 
 const WILDFIRE_RADIUS_MILES = 50;
+/** Drop fully contained fires whose last agency update is at least this old. */
+const WILDFIRE_FULLY_CONTAINED_STALE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const INCIWEB_STATE_SLUGS = {
     AL: 'alabama', AK: 'alaska', AZ: 'arizona', AR: 'arkansas', CA: 'california',
@@ -1875,6 +1877,42 @@ function sortWildFireIncidents(incidents) {
     return incidents;
 }
 
+/**
+ * Hide fully contained fires that have not been updated in 7+ days.
+ * Keeps 100% fires that are still being reported as active (fresh Updated).
+ * Fires without an Updated timestamp are kept (age unknown).
+ */
+function filterStaleFullyContainedWildFires(incidents) {
+    const list = Array.isArray(incidents) ? incidents : [];
+    if (list.length === 0) return list;
+    const cutoffMs = Date.now() - WILDFIRE_FULLY_CONTAINED_STALE_MS;
+    const kept = [];
+    let dropped = 0;
+    for (const fire of list) {
+        const contained = Number(fire?.contained);
+        const updatedMs = wildFireUpdatedMs(fire);
+        if (Number.isFinite(contained) && contained >= 100
+            && Number.isFinite(updatedMs) && updatedMs <= cutoffMs) {
+            dropped++;
+            console.log(
+                'Wildfire: hiding fully contained stale incident',
+                fire.name,
+                `(updated ${new Date(updatedMs).toISOString().slice(0, 10)})`
+            );
+            continue;
+        }
+        kept.push(fire);
+    }
+    if (dropped) {
+        console.log('Wildfire: dropped', dropped, 'fully contained incident(s) with Updated ≥ 7 days old');
+    }
+    return kept;
+}
+
+function finalizeWildFireIncidentList(incidents) {
+    return sortWildFireIncidents(filterStaleFullyContainedWildFires(incidents));
+}
+
 /** Overlay the fresher IRWIN measurements onto a WFIGS record, keeping WFIGS-only attributes. */
 function applyFresherWildFireValues(base, live) {
     const baseMs = wildFireUpdatedMs(base);
@@ -1905,8 +1943,8 @@ function applyFresherWildFireValues(base, live) {
 function mergeWildFireIncidentSources(wfigsIncidents, irwinIncidents) {
     const merged = (Array.isArray(wfigsIncidents) ? wfigsIncidents : []).map((f) => ({ ...f }));
     const live = Array.isArray(irwinIncidents) ? irwinIncidents : [];
-    if (live.length === 0) return sortWildFireIncidents(merged);
-    if (merged.length === 0) return sortWildFireIncidents(live.map((f) => ({ ...f })));
+    if (live.length === 0) return finalizeWildFireIncidentList(merged);
+    if (merged.length === 0) return finalizeWildFireIncidentList(live.map((f) => ({ ...f })));
 
     const indexByKey = new Map();
     merged.forEach((fire, i) => indexByKey.set(wildFireSourceKey(fire), i));
@@ -1927,7 +1965,7 @@ function mergeWildFireIncidentSources(wfigsIncidents, irwinIncidents) {
     if (refreshed || added) {
         console.log('Wildfire: IRWIN overlay refreshed', refreshed, 'incident(s) and added', added, 'not yet in WFIGS');
     }
-    return sortWildFireIncidents(merged);
+    return finalizeWildFireIncidentList(merged);
 }
 
 /**

@@ -35,7 +35,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
   - **Rain Forecast Mode (`-r` or `-rain`):** Shows rain likelihood forecast with visual sparklines for 96 hours
   - **Wind Forecast Mode (`-w` or `-wind`):** Shows wind outlook forecast with direction glyphs for 96 hours
   - **Observations Mode (`-o` or `-observations`):** Shows historical weather observations for the last 7 days with sunrise/sunset/day length for each day, daily aggregates, barometric pressure (inHg) with color coding, and cloud summary ("Clouds:") on the same line as Conditions when the station provides cloud data (label white, data gray; omitted when unavailable). Cloud codes: SKC (clear), FEW (few), SCT (scattered), BKN (broken), OVC (overcast), VV (vertical visibility; sky obscured)
-  - **No-Interactive Mode (`-x`):** Exits immediately after displaying data (perfect for scripting)
+  - **No-Interactive Mode (`-x`):** Exits immediately after displaying data (perfect for scripting). Absolute `Updated:` times include the destination timezone abbreviation (e.g. `10:09 MDT [NWS: 09:45 MDT]`), DST-aware.
 - **Interactive Mode:** When run from non-terminal environments, provides keyboard shortcuts for dynamic view switching:
   - **[H]** - Switch to hourly forecast only
   - **[D]** - Switch to 7-day forecast only
@@ -126,7 +126,8 @@ WFIGS publication can stall for days while incidents keep growing — on 2026-08
 - **WFIGS is the base record** — it owns cost, fire behavior, `POOProtectingUnit`, and `IncidentShortDescription`, which IRWIN does not publish.
 - **IRWIN overlays current measurements** — when its `ModifiedOnDateTime` is newer, it replaces `Acres`, `Contained`, `Updated`, and `Cause`; blank `Cause` / `County` / `Discovered` are filled regardless of age.
 - **IRWIN-only incidents are added** — new fires reach IRWIN before WFIGS publishes them.
-- **WFIGS-only incidents are kept** — IRWIN filters some non-statistical records, so dropping them risks hiding real fires. A fire that has gone out may linger until WFIGS publication recovers.
+- **WFIGS-only incidents are kept** — IRWIN filters some non-statistical records, so dropping them risks hiding real fires.
+- **Stale fully contained filter:** after merge, drop incidents with `PercentContained >= 100` whose `Updated` is **≥ 7 days** old (`WILDFIRE_FULLY_CONTAINED_STALE_MS` / `$script:WILDFIRE_FULLY_CONTAINED_STALE_SECONDS`). Fresh 100% fires stay visible; fires with no `Updated` timestamp are kept. This clears cases like Beachcomb that linger in WFIGS/IRWIN Current after InciWeb marks them inactive.
 - **Identity:** `Get-WildFireSourceKey` prefers `UniqueFireIdentifier`, then `IrwinID`, then `unit|name`. WFIGS wraps `IrwinID` in braces and uppercases it, so `Get-NormalizedWildFireSourceId` strips `{}` and lowercases before matching.
 - **Unit for IRWIN records:** derived from `UniqueFireIdentifier` (`2026-ORMHF-000688` → `ORMHF`) via `Get-ProtectingUnitFromFireId`, which is what the InciWeb slug needs.
 - **Degraded modes:** either feed alone still renders (WFIGS-only = previous behavior; IRWIN-only = current numbers without cost/behavior/description). Only when **both** fail is the prior list preserved untouched.
@@ -135,7 +136,9 @@ WFIGS publication can stall for days while incidents keep growing — on 2026-08
 |--------|------|
 | `Get-IrwinWildFireQueryUrl` | IRWIN query URL with explicit `outFields` |
 | `Get-IrwinWildFireIncidentsFromApiResponse` | Normalizes IRWIN features into the same incident shape |
-| `Merge-WildFireIncidentSources` | Overlays IRWIN onto WFIGS, adds IRWIN-only fires, re-sorts |
+| `Merge-WildFireIncidentSources` | Overlays IRWIN onto WFIGS, adds IRWIN-only fires, applies stale fully-contained filter, re-sorts |
+| `Filter-StaleFullyContainedWildFires` | Drops 100% contained fires with `Updated` ≥ 7 days old |
+| `Finalize-WildFireIncidentList` | Stale filter + sort |
 | `Update-WildFireWithFresherValues` | Field-level overlay; returns `$true` when size/containment moved |
 | `Get-MergedWildFireIncidents` | Normalize both feeds → merge → resolve InciWeb links once |
 | `Set-WildFireInciWebLinks` | InciWeb validation pass (`Loading Fire n/X...`) over the merged list |
@@ -663,7 +666,7 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 - **Magic Hours (`-m` / `-magic`):** Golden/Blue hour lines in Current Conditions.
 - **Wild Fire Info:** When NIFC WFIGS reports wildfires within the configured radius (default 50 mi; `-wf`/`-wildfire N`), a **Wild Fire Info** section appears after alerts (size, discovered time, estimated cost as `final (to-date)` when both differ, cause preferring `FireCauseGeneral` unless `Undetermined`, containment, behavior, relative mi/cardinal like NOAA stations, InciWeb + state map links). Terse one-liner for the largest fire: `Fire: NAME …ac ✅|…% …mi DIR (N)`. `-wf 0` disables. Stats wrap mid-section–aware. **Colors:** acres Default (<100) / Yellow (100–999) / Red (1k–99,999) / Magenta (≥100k); full-section name Yellow; Discovered default; Cost Yellow (≥$1M) / Red (≥$1B) / Magenta (≥$1T) (omit null/`$0`); Contained 0% Yellow / 100% Green; Behavior Magenta Extreme / Red Critical / Yellow Active; terse `Fire:` label Red.
 - **NIFC 429 / quota cooldown:** Detect ArcGIS/HTTP rate limits; per-source `$script:wildfireCooldownUntil` (`wfigs`, `irwin`). Launch status **`Waiting to load wildfire data...`**, wait Retry-After, one retry. Auto-refresh skips a source during its cooldown and preserves the previous incident list when no source returns data (does not wipe to empty). Explicit NIFC `outFields` (not `*`).
-- **Dual wildfire source (WFIGS + IRWIN):** WFIGS publication stalled for ~33 hours on 2026-08-16 (all layers frozen at one `ModifiedOnDateTime_dt`, `…_Last24h` empty), so sizes/containment went stale and new fires never appeared. Every fetch now also queries Esri Living Atlas `USA_Wildfires_v1/0` (IRWIN) and merges: WFIGS keeps cost/behavior/short description, IRWIN supplies current acres/containment/updated time, impact **Losses** (residences / other structures / injuries / fatalities when > 0), and any incidents WFIGS has not published. Either source alone still renders; the prior list is preserved only when both fail.
+- **Dual wildfire source (WFIGS + IRWIN):** WFIGS publication stalled for ~33 hours on 2026-08-16 (all layers frozen at one `ModifiedOnDateTime_dt`, `…_Last24h` empty), so sizes/containment went stale and new fires never appeared. Every fetch now also queries Esri Living Atlas `USA_Wildfires_v1/0` (IRWIN) and merges: WFIGS keeps cost/behavior/short description, IRWIN supplies current acres/containment/updated time, impact **Losses** (residences / other structures / injuries / fatalities when > 0), and any incidents WFIGS has not published. After merge, hide fully contained fires (`>= 100%`) whose `Updated` is **≥ 7 days** old. Either source alone still renders; the prior list is preserved only when both fail.
 - **InciWeb robustness:** Try name slug and `-fire` variant; confirm via Views AJAX; negative probe cache TTL **60 minutes**; successful probes session-sticky. Probe HTML bodies discarded after validation. `-Verbose` keeps wildfire status lines on-screen (no Clear-Host).
 - **Memory (interactive):** 1-hour stale gate on 7-day observation history re-fetch (`$script:OBSERVATIONS_STALE_SECONDS`); trim retained hourly (≤96 periods + used fields), forecast periods, and alert properties; `Clear-LargeTransientMemory` after heavy observation/NOAA/wildfire work.
 

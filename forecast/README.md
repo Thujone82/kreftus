@@ -250,6 +250,7 @@ The app checks for new versions (e.g. via `manifest.json` version and service wo
   - **Contained** (full Wild Fire Info): yellow when Contained is 0%; green when 100%; otherwise default (omitted when null).
   - **Behavior** (full Wild Fire Info): magenta when Extreme; alert/red when Critical; warning/yellow when Active (case-insensitive); otherwise default.
   - **Losses** (full Wild Fire Info, after short description when present): IRWIN impact counts when any value is > 0 — residences, other structures, injuries, fatalities. Alert/red when fatalities are present; warning/yellow when injuries are present (no fatalities); otherwise default. Omitted when all null or 0.
+  - **Visibility:** After merge, hide fires that are fully contained (`PercentContained >= 100`) and whose last `Updated` timestamp is **7+ days** old. Fresh 100% fires remain; missing `Updated` keeps the fire.
   - **InciWeb links:** Incident pages are validated via InciWeb Views AJAX. Successful probes stay cached for the session; misses (no page yet) are re-checked after **60 minutes** so a later publish can appear. Auto-refresh carries forward known InciWeb URLs so links do not blank while probes run in the background.
 - **Hour labels (Hourly)**: Yellow for hours mostly in daytime (sunrise–sunset), default otherwise. **Time** column header includes ordinal calendar day(s) for the visible page (location timezone).
 

@@ -1228,7 +1228,8 @@ function Get-UpdatedFetchDisplayTime {
 function Format-UpdatedAbsoluteTime {
     param(
         [DateTime]$DateTime,
-        [bool]$AlreadyLocationLocal = $false
+        [bool]$AlreadyLocationLocal = $false,
+        [bool]$IncludeTimeZoneAbbreviation = $false
     )
     if ($null -eq $DateTime) { return "N/A" }
     $dt = $DateTime
@@ -1242,7 +1243,41 @@ function Format-UpdatedAbsoluteTime {
             $dt = $DateTime
         }
     }
-    return $dt.ToString('HH:mm')
+    $timeStr = $dt.ToString('HH:mm')
+    if ($IncludeTimeZoneAbbreviation) {
+        $abbr = Get-LocationTimeZoneAbbreviation -AtDateTime $dt -AlreadyLocationLocal $true
+        if ($abbr) { return "$timeStr $abbr" }
+    }
+    return $timeStr
+}
+
+# Short timezone label for the location at a given instant (e.g. MDT, PST).
+# Derived from TimeZoneInfo StandardName/DaylightName ("Mountain Daylight Time" -> MDT).
+function Get-LocationTimeZoneAbbreviation {
+    param(
+        [DateTime]$AtDateTime = (Get-Date),
+        [bool]$AlreadyLocationLocal = $false
+    )
+    if ([string]::IsNullOrWhiteSpace($script:timeZone)) { return $null }
+    try {
+        $tzInfo = Get-ResolvedTimeZoneInfo -TimeZoneId $script:timeZone
+        $dt = $AtDateTime
+        if (-not $AlreadyLocationLocal) {
+            $dt = [System.TimeZoneInfo]::ConvertTime($AtDateTime, $tzInfo)
+        }
+        $unspec = [DateTime]::SpecifyKind($dt, [DateTimeKind]::Unspecified)
+        $isDst = $tzInfo.IsDaylightSavingTime($unspec)
+        $name = if ($isDst) { $tzInfo.DaylightName } else { $tzInfo.StandardName }
+        if ([string]::IsNullOrWhiteSpace($name)) { return $null }
+        $clean = ($name -replace '\(.*?\)', '').Trim()
+        $parts = @($clean -split '\s+' | Where-Object { $_ -match '^[A-Za-z]' })
+        if ($parts.Count -lt 2) { return $null }
+        $abbr = (-join ($parts | ForEach-Object { $_.Substring(0, 1) })).ToUpperInvariant()
+        if ($abbr.Length -lt 2 -or $abbr.Length -gt 5) { return $null }
+        return $abbr
+    } catch {
+        return $null
+    }
 }
 
 function Get-UpdatedConditionsLineText {
@@ -1252,10 +1287,11 @@ function Get-UpdatedConditionsLineText {
     }
     # In non-interactive (-x) mode the line is printed once and never re-ages, so show an
     # absolute timestamp instead of a relative "just now" that would immediately be stale.
+    # Include the destination timezone abbreviation (e.g. MDT) so one-shot output is unambiguous.
     if ($script:NoInteractive -and $script:NoInteractive.IsPresent) {
-        $line = "Updated: $(Format-UpdatedAbsoluteTime -DateTime $displayFetchTime)"
+        $line = "Updated: $(Format-UpdatedAbsoluteTime -DateTime $displayFetchTime -IncludeTimeZoneAbbreviation $true)"
         if ($script:usesObservation -and $null -ne $script:currentTimeLocal) {
-            $line += " [NWS: $(Format-UpdatedAbsoluteTime -DateTime $script:currentTimeLocal -AlreadyLocationLocal $true)]"
+            $line += " [NWS: $(Format-UpdatedAbsoluteTime -DateTime $script:currentTimeLocal -AlreadyLocationLocal $true -IncludeTimeZoneAbbreviation $true)]"
         }
         return $line
     }
@@ -6093,6 +6129,8 @@ function Get-Bearing {
 
 $script:WILDFIRE_RADIUS_MILES = if ($null -ne $script:WILDFIRE_RADIUS_MILES) { [int]$script:WILDFIRE_RADIUS_MILES } else { 50 }
 $script:wildFireEnabled = ($script:WILDFIRE_RADIUS_MILES -gt 0)
+# Drop fully contained fires whose last agency update is at least this old (7 days).
+$script:WILDFIRE_FULLY_CONTAINED_STALE_SECONDS = 7 * 24 * 60 * 60
 $script:inciwebUrlOkCache = @{}
 # Negative InciWeb slug probes (no page yet) expire so a later publish can be linked.
 $script:INCIWEB_NEGATIVE_CACHE_SECONDS = 3600
@@ -6964,6 +7002,46 @@ function Sort-WildFireIncidentList {
     return @(@($Incidents) | Sort-Object -Property @{ Expression = { if ($null -eq $_.Acres) { -1 } else { $_.Acres } }; Descending = $true }, DistanceMi)
 }
 
+# Hide fully contained fires that have not been updated in 7+ days.
+# Keeps 100% fires that are still being reported as active (fresh Updated).
+# Fires without an Updated timestamp are kept (age unknown).
+function Filter-StaleFullyContainedWildFires {
+    param([object[]]$Incidents = @())
+    $list = @($Incidents)
+    if ($list.Count -eq 0) { return $list }
+    $cutoff = (Get-Date).AddSeconds(-[double]$script:WILDFIRE_FULLY_CONTAINED_STALE_SECONDS)
+    $kept = [System.Collections.ArrayList]::new()
+    $dropped = 0
+    foreach ($fire in $list) {
+        $containedOk = $false
+        try {
+            if ($null -ne $fire.Contained -and [double]$fire.Contained -ge 100) { $containedOk = $true }
+        } catch {}
+        $staleUpdated = $false
+        if ($containedOk -and $null -ne $fire.Updated) {
+            try {
+                if ($fire.Updated -le $cutoff) { $staleUpdated = $true }
+            } catch {}
+        }
+        if ($containedOk -and $staleUpdated) {
+            $dropped++
+            $updLabel = try { $fire.Updated.ToString('yyyy-MM-dd') } catch { 'unknown' }
+            Write-Verbose "Wildfire: hiding fully contained stale incident $($fire.Name) (updated $updLabel)"
+            continue
+        }
+        [void]$kept.Add($fire)
+    }
+    if ($dropped -gt 0) {
+        Write-Verbose "Wildfire: dropped $dropped fully contained incident(s) with Updated >= 7 days old"
+    }
+    return @($kept.ToArray())
+}
+
+function Finalize-WildFireIncidentList {
+    param([object[]]$Incidents = @())
+    return @(Sort-WildFireIncidentList -Incidents (Filter-StaleFullyContainedWildFires -Incidents $Incidents))
+}
+
 function Set-WildFireInciWebLinks {
     param(
         [object[]]$Incidents = @(),
@@ -7132,8 +7210,8 @@ function Merge-WildFireIncidentSources {
     )
     $base = @($WfigsIncidents)
     $live = @($IrwinIncidents)
-    if ($live.Count -eq 0) { return @(Sort-WildFireIncidentList -Incidents $base) }
-    if ($base.Count -eq 0) { return @(Sort-WildFireIncidentList -Incidents $live) }
+    if ($live.Count -eq 0) { return @(Finalize-WildFireIncidentList -Incidents $base) }
+    if ($base.Count -eq 0) { return @(Finalize-WildFireIncidentList -Incidents $live) }
 
     $indexByKey = @{}
     for ($i = 0; $i -lt $base.Count; $i++) {
@@ -7158,7 +7236,7 @@ function Merge-WildFireIncidentSources {
     if ($refreshed -gt 0 -or $added -gt 0) {
         Write-Verbose "Wildfire: IRWIN overlay refreshed $refreshed incident(s) and added $added not yet in WFIGS"
     }
-    return @(Sort-WildFireIncidentList -Incidents $merged.ToArray())
+    return @(Finalize-WildFireIncidentList -Incidents $merged.ToArray())
 }
 
 # Normalize both feeds, overlay, then resolve InciWeb links once for the merged list.
