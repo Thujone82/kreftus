@@ -26,8 +26,9 @@
 #    matches like "2393 SW Park -> Austin, TX" don't poison the snapshot.
 #  - On geocoding failure, the script stops and shows tree details plus
 #    research URLs (Google Maps, Google Search, OSM) and prompts for an
-#    alternate address. User can also open any research link in their default
-#    browser, retry the same address, skip, mark removed, or quit.
+#    alternate address or a pasted "lat, lng" pair (e.g. Google Maps share
+#    format). User can also open any research link in their default browser,
+#    retry the same address, skip, mark removed, or quit.
 #  - Use -NoInteractive to mark failures without prompting (for CI / batch).
 #    Listing deltas (name/location/year vs snapshot) also default to City text
 #    without prompts when -NoInteractive is set.
@@ -602,6 +603,14 @@ function ConvertTo-TreeHash {
     return $h
 }
 
+function Format-MovedDistanceLabel {
+    param([double]$Miles)
+    if ($Miles -lt 1.0) {
+        return ("{0:F0} ft" -f ($Miles * 5280.0))
+    }
+    return ("{0:F3} mi" -f $Miles)
+}
+
 function Format-NullableNumber {
     param($Value, [string]$Fmt = 'F6')
     if ($null -eq $Value) { return '(null)' }
@@ -609,7 +618,11 @@ function Format-NullableNumber {
 }
 
 function Show-TreeForUpdate {
-    param($Tree)
+    param(
+        $Tree,
+        $PreviousLat = $null,
+        $PreviousLng = $null
+    )
     Write-Host ""
     Write-Host ("#{0}  {1}" -f $Tree.id, $Tree.name) -ForegroundColor White
     Write-Host ("  year:             {0}" -f $Tree.year)
@@ -617,13 +630,24 @@ function Show-TreeForUpdate {
     $removed = if ($null -eq $Tree.removed) { '(none)' } else { "$($Tree.removed)" }
     Write-Host ("  removed:          {0}" -f $removed)
     if ($null -ne $Tree.lat -and $null -ne $Tree.lng) {
-        $miles = Get-MilesFromPortland -Lat ([double]$Tree.lat) -Lng ([double]$Tree.lng)
-        $coordsLine = "  coords:           {0}, {1}  ({2:F1} mi from Portland)" -f `
-            (Format-NullableNumber $Tree.lat), (Format-NullableNumber $Tree.lng), $miles
-        if ($miles -gt $script:PortlandMaxMiles) {
-            Write-Host $coordsLine -ForegroundColor Red
-        } else {
+        $hasPrev = ($null -ne $PreviousLat -and $null -ne $PreviousLng)
+        if ($hasPrev) {
+            $movedMiles = Get-MilesBetween `
+                -Lat1 ([double]$PreviousLat) -Lng1 ([double]$PreviousLng) `
+                -Lat2 ([double]$Tree.lat) -Lng2 ([double]$Tree.lng)
+            $movedLabel = Format-MovedDistanceLabel -Miles $movedMiles
+            $coordsLine = "  coords:           {0}, {1}  (moved {2} from previous)" -f `
+                (Format-NullableNumber $Tree.lat), (Format-NullableNumber $Tree.lng), $movedLabel
             Write-Host $coordsLine -ForegroundColor DarkGray
+        } else {
+            $miles = Get-MilesFromPortland -Lat ([double]$Tree.lat) -Lng ([double]$Tree.lng)
+            $coordsLine = "  coords:           {0}, {1}  ({2:F1} mi from Portland)" -f `
+                (Format-NullableNumber $Tree.lat), (Format-NullableNumber $Tree.lng), $miles
+            if ($miles -gt $script:PortlandMaxMiles) {
+                Write-Host $coordsLine -ForegroundColor Red
+            } else {
+                Write-Host $coordsLine -ForegroundColor DarkGray
+            }
         }
     } else {
         Write-Host "  coords:           (null, null)" -ForegroundColor DarkGray
@@ -673,6 +697,37 @@ function Read-Coordinate {
     return $Current
 }
 
+function Try-ParseLatLngPair {
+    # Parses Google Maps-style "lat, lng" paste (e.g. "45.53081909495729, -122.65352758465441").
+    # Returns $null when the string is not a valid pair in range (so callers can
+    # treat it as a normal address). Otherwise @{ lat = <double>; lng = <double> }.
+    param(
+        [string]$Text,
+        [double]$LatMin = 20.0,
+        [double]$LatMax = 55.0,
+        [double]$LngMin = -140.0,
+        [double]$LngMax = -100.0
+    )
+    if ([string]::IsNullOrWhiteSpace($Text)) { return $null }
+    $trim = $Text.Trim()
+    if (-not $trim.Contains(',')) { return $null }
+    $parts = $trim.Split(@(','), 2)
+    $latPart = $parts[0].Trim()
+    $lngPart = if ($parts.Length -gt 1) { $parts[1].Trim() } else { '' }
+    if (-not $latPart -or -not $lngPart) { return $null }
+    $dLat = 0.0; $dLng = 0.0
+    $latOk = [double]::TryParse($latPart,
+        [System.Globalization.NumberStyles]::Float,
+        [System.Globalization.CultureInfo]::InvariantCulture,
+        [ref]$dLat) -and $dLat -ge $LatMin -and $dLat -le $LatMax
+    $lngOk = [double]::TryParse($lngPart,
+        [System.Globalization.NumberStyles]::Float,
+        [System.Globalization.CultureInfo]::InvariantCulture,
+        [ref]$dLng) -and $dLng -ge $LngMin -and $dLng -le $LngMax
+    if (-not ($latOk -and $lngOk)) { return $null }
+    return @{ lat = $dLat; lng = $dLng }
+}
+
 function Read-LatMaybePair {
     # Reads the 'lat' field but also accepts a combined "lat, lng" paste
     # (like Google Maps' share format, e.g. "45.574557, -122.666124"). When
@@ -692,21 +747,19 @@ function Read-LatMaybePair {
     if ($trim -eq '-')            { return @{ lat = $null;       lng = $null; gotBoth = $false } }
 
     if ($trim.Contains(',')) {
-        $parts = $trim.Split(@(','), 2)
-        $latPart = $parts[0].Trim()
-        $lngPart = if ($parts.Length -gt 1) { $parts[1].Trim() } else { '' }
-        $dLat = 0.0; $dLng = 0.0
-        $latOk = [double]::TryParse($latPart, [ref]$dLat) -and $dLat -ge $LatMin -and $dLat -le $LatMax
-        $lngOk = [double]::TryParse($lngPart, [ref]$dLng) -and $dLng -ge $LngMin -and $dLng -le $LngMax
-        if ($latOk -and $lngOk) {
-            return @{ lat = $dLat; lng = $dLng; gotBoth = $true }
+        $pair = Try-ParseLatLngPair -Text $trim -LatMin $LatMin -LatMax $LatMax -LngMin $LngMin -LngMax $LngMax
+        if ($null -ne $pair) {
+            return @{ lat = $pair.lat; lng = $pair.lng; gotBoth = $true }
         }
         Write-Host "  Paired 'lat, lng' invalid or out of range; keeping previous lat and asking for lng separately." -ForegroundColor Yellow
         return @{ lat = $CurrentLat; lng = $null; gotBoth = $false }
     }
 
     $d = 0.0
-    if ([double]::TryParse($trim, [ref]$d) -and $d -ge $LatMin -and $d -le $LatMax) {
+    if ([double]::TryParse($trim,
+        [System.Globalization.NumberStyles]::Float,
+        [System.Globalization.CultureInfo]::InvariantCulture,
+        [ref]$d) -and $d -ge $LatMin -and $d -le $LatMax) {
         return @{ lat = $d; lng = $null; gotBoth = $false }
     }
     Write-Host "  Not a valid coordinate; keeping previous value." -ForegroundColor Yellow
@@ -842,11 +895,15 @@ function Invoke-UpdateMode {
         }
 
         $dirty = $false
+        $coordsPrevLat = $null
+        $coordsPrevLng = $null
         # Label required: `break` inside `switch` only leaves the switch, not this
         # loop. Option [s] must exit the loop so the outer prompt can ask for the
         # next tree #.
         :treeEdit while ($true) {
-            Show-TreeForUpdate -Tree $tree
+            Show-TreeForUpdate -Tree $tree -PreviousLat $coordsPrevLat -PreviousLng $coordsPrevLng
+            $coordsPrevLat = $null
+            $coordsPrevLng = $null
             Write-Host ""
             Write-Host "  What to update?" -ForegroundColor Yellow
             Write-Host "    [g] re-geocode (prompts for address, bounded to Portland)"
@@ -892,12 +949,10 @@ function Invoke-UpdateMode {
                         }
                     }
                     if ($null -ne $oldLat -and $null -ne $oldLng -and $null -ne $newLat -and $null -ne $newLng) {
+                        $coordsPrevLat = $oldLat
+                        $coordsPrevLng = $oldLng
                         $movedMiles = Get-MilesBetween -Lat1 ([double]$oldLat) -Lng1 ([double]$oldLng) -Lat2 ([double]$newLat) -Lng2 ([double]$newLng)
-                        $distanceLabel = if ($movedMiles -lt 1.0) {
-                            ("{0:F0} ft" -f ($movedMiles * 5280.0))
-                        } else {
-                            ("{0:F3} mi" -f $movedMiles)
-                        }
+                        $distanceLabel = Format-MovedDistanceLabel -Miles $movedMiles
                         Write-Host ("  moved: {0} (from {1}, {2} to {3}, {4})" -f `
                             $distanceLabel, ([double]$oldLat).ToString('F6'), ([double]$oldLng).ToString('F6'),
                             ([double]$newLat).ToString('F6'), ([double]$newLng).ToString('F6')) -ForegroundColor DarkGray
@@ -988,7 +1043,7 @@ function Prompt-Alternate {
     param($Tree, [string]$LastAddress)
     $urls = Get-ResearchUrls -Tree $Tree
     while ($true) {
-        Write-Host "    Enter alt address | [m]aps [g]oogle [o]sm [r]etry [x]mark removed [s]kip [q]uit > " -NoNewline -ForegroundColor Cyan
+        Write-Host "    Enter alt address or 'lat, lng' | [m]aps [g]oogle [o]sm [r]etry [x]mark removed [s]kip [q]uit > " -NoNewline -ForegroundColor Cyan
         $answer = Read-Host
         if ($null -eq $answer) { return $null }
         $trimmed = $answer.Trim()
@@ -1003,7 +1058,13 @@ function Prompt-Alternate {
                 $y = Prompt-RemovedYear
                 return @{ action = 'mark-removed'; year = $y }
             }
-            default { return $trimmed }
+            default {
+                $pair = Try-ParseLatLngPair -Text $trimmed
+                if ($null -ne $pair) {
+                    return @{ action = 'set-coords'; lat = $pair.lat; lng = $pair.lng }
+                }
+                return $trimmed
+            }
         }
     }
 }
@@ -1272,6 +1333,17 @@ try {
                 $markedRemoved = $true
                 break
             }
+            if ($answer -is [hashtable] -and $answer.action -eq 'set-coords') {
+                $result = @{
+                    ok           = $true
+                    lat          = [double]$answer.lat
+                    lng          = [double]$answer.lng
+                    formatted    = 'manual coords'
+                    manualCoords = $true
+                }
+                $triedManually = $true
+                break
+            }
             $currentAddress = [string]$answer
             $triedManually = $true
             Write-Host ("        geocoding '{0}'..." -f $currentAddress) -NoNewline
@@ -1293,13 +1365,34 @@ try {
             $t.lat = $result.lat
             $t.lng = $result.lng
             $t.geocodeStatus = 'ok'
-            $t.geocodeAddress = $currentAddress
-            $t.geocodeFormatted = $result.formatted
             $t.geocodeError = $null
-            $suffix = if ($triedManually) { ' (manual address)' } else { '' }
-            Write-Host (" OK{0}" -f $suffix) -ForegroundColor Green
-            Write-Host ("        {0:F6}, {1:F6}" -f $result.lat, $result.lng) -ForegroundColor DarkGreen
-            if ($result.formatted) { Write-Host ("        {0}" -f $result.formatted) -ForegroundColor DarkGray }
+            if ($result.ContainsKey('manualCoords') -and $result.manualCoords) {
+                $t.geocodeFormatted = 'manual coords'
+                if (-not $t.geocodeAddress) { $t.geocodeAddress = $currentAddress }
+                Write-Host (" OK (manual coords)") -ForegroundColor Green
+                $prevLat = if ($prev -and $null -ne $prev.lat) { $prev.lat } else { $null }
+                $prevLng = if ($prev -and $null -ne $prev.lng) { $prev.lng } else { $null }
+                if ($null -ne $prevLat -and $null -ne $prevLng) {
+                    $movedMiles = Get-MilesBetween `
+                        -Lat1 ([double]$prevLat) -Lng1 ([double]$prevLng) `
+                        -Lat2 ([double]$t.lat) -Lng2 ([double]$t.lng)
+                    $movedLabel = Format-MovedDistanceLabel -Miles $movedMiles
+                    Write-Host ("        {0:F6}, {1:F6}  (moved {2} from previous)" -f $t.lat, $t.lng, $movedLabel) -ForegroundColor DarkGreen
+                } else {
+                    Write-Host ("        {0:F6}, {1:F6}" -f $t.lat, $t.lng) -ForegroundColor DarkGreen
+                }
+                $milesFromPdx = Get-MilesFromPortland -Lat ([double]$t.lat) -Lng ([double]$t.lng)
+                if ($milesFromPdx -gt $script:PortlandMaxMiles) {
+                    Write-Host ("        WARNING: {0:F1} mi from Portland center; the PWA will still show it." -f $milesFromPdx) -ForegroundColor Yellow
+                }
+            } else {
+                $t.geocodeAddress = $currentAddress
+                $t.geocodeFormatted = $result.formatted
+                $suffix = if ($triedManually) { ' (manual address)' } else { '' }
+                Write-Host (" OK{0}" -f $suffix) -ForegroundColor Green
+                Write-Host ("        {0:F6}, {1:F6}" -f $result.lat, $result.lng) -ForegroundColor DarkGreen
+                if ($result.formatted) { Write-Host ("        {0}" -f $result.formatted) -ForegroundColor DarkGray }
+            }
             $stats.geocoded++
             if ($triedManually) { $stats.manual++ }
         } else {

@@ -267,10 +267,11 @@ stops on that tree and shows:
 - the tree's **ID, year, full name, and raw location**;
 - direct **address-lookup research links** &mdash; Google Maps, Google Search,
   and OpenStreetMap search;
-- a prompt to type an alternate address, open any of the research links in
-  your browser (`m` / `g` / `o`), retry the same address (`r`), **mark the
-  tree as removed** (`x`, then enter the year), skip (`s` or blank), or quit
-  (`q`).
+- a prompt to type an alternate address, paste a **`lat, lng`** pair (Google
+  Maps share format, e.g. `45.53081909495729, -122.65352758465441`), open any
+  of the research links in your browser (`m` / `g` / `o`), retry the same
+  address (`r`), **mark the tree as removed** (`x`, then enter the year), skip
+  (`s` or blank), or quit (`q`).
 
 The `x` option is the manual escape hatch for "removed" annotations that the
 parser missed. The parser already catches every variant the City uses today
@@ -283,7 +284,8 @@ spot; the `removed` year you enter is persisted into `trees.json`.
 
 Any address you enter is stored in `geocodeAddress` alongside the resulting
 coordinates so later runs keep the manual override until the City's listed
-address changes.
+address changes. A pasted `lat, lng` pair is written straight into the
+snapshot (no Nominatim call) with `geocodeFormatted` set to `manual coords`.
 
 ### Progress is saved incrementally
 
