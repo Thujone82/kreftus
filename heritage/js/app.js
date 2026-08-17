@@ -26,7 +26,7 @@
     'use strict';
 
     const LEGACY_KEY_API = 'pdxHeritageGoogleApiKey';
-    const APP_VERSION = '1.2.8';
+    const APP_VERSION = '1.3.0';
 
     const state = {
         mapReady: false,
@@ -94,6 +94,15 @@
 
         const modalAppUpdate = document.getElementById('modalCheckAppUpdate');
         if (modalAppUpdate) modalAppUpdate.addEventListener('click', onCheckAppUpdate);
+
+        const modalExport = document.getElementById('modalExportState');
+        if (modalExport) modalExport.addEventListener('click', onExportState);
+        const modalImport = document.getElementById('modalImportState');
+        const importFile = document.getElementById('importStateFile');
+        if (modalImport && importFile) {
+            modalImport.addEventListener('click', () => importFile.click());
+            importFile.addEventListener('change', onImportStateFile);
+        }
 
         const modalMapZoom = document.getElementById('modalMapZoomToggle');
         if (modalMapZoom) {
@@ -365,6 +374,97 @@
         if (btn) btn.disabled = false;
     }
 
+    async function onExportState() {
+        const btn = document.getElementById('modalExportState');
+        if (btn) btn.disabled = true;
+        try {
+            const result = await HeritageBackup.exportState();
+            if (result.method === 'cancelled') return;
+            if (result.method === 'share') {
+                HeritageUI.toast(
+                    result.count
+                        ? `Shared backup (${result.count} tree${result.count === 1 ? '' : 's'}).`
+                        : 'Shared backup (no found marks or notes yet).',
+                    4000
+                );
+            } else {
+                HeritageUI.toast(
+                    result.count
+                        ? `Saved ${result.filename} (${result.count} tree${result.count === 1 ? '' : 's'}).`
+                        : `Saved ${result.filename} (no found marks or notes yet).`,
+                    4500
+                );
+            }
+        } catch (err) {
+            console.error('Export failed:', err);
+            HeritageUI.toast('Export failed. See console for details.', 4500);
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    async function onImportStateFile(ev) {
+        const input = ev && ev.target;
+        const file = input && input.files && input.files[0];
+        if (input) input.value = '';
+        if (!file) return;
+
+        let preview;
+        try {
+            const text = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result || ''));
+                reader.onerror = () => reject(reader.error || new Error('read failed'));
+                reader.readAsText(file);
+            });
+            preview = HeritageBackup.validateBackup(JSON.parse(text));
+        } catch (err) {
+            console.error('Import preview failed:', err);
+            HeritageUI.toast(err.message || 'Could not read backup file.', 4500);
+            return;
+        }
+
+        const foundN = preview.trees.filter((t) => t.found).length;
+        const notesN = preview.trees.filter((t) => String(t.notes || '').trim()).length;
+        const when = preview.exportedAt
+            ? new Date(preview.exportedAt).toLocaleString()
+            : 'unknown date';
+        const ok = window.confirm(
+            `Replace found marks and notes on this device with the backup?\n\n` +
+            `File: ${file.name}\n` +
+            `Exported: ${when}\n` +
+            `Entries: ${preview.trees.length} ` +
+            `(${foundN} found, ${notesN} with notes)\n\n` +
+            `Trees not listed in the backup will have their found mark and notes cleared.`
+        );
+        if (!ok) return;
+
+        const btn = document.getElementById('modalImportState');
+        if (btn) btn.disabled = true;
+        try {
+            const summary = await HeritageBackup.applyBackup(preview);
+            const trees = await HeritageDB.getAllTrees();
+            HeritageMap.renderTrees(trees);
+            await HeritageUI.refreshFoundButton();
+            await HeritageUI.refreshStats();
+            const foundModal = document.getElementById('foundModal');
+            if (foundModal && !foundModal.classList.contains('hidden')
+                && global.HeritageFound && typeof HeritageFound.render === 'function') {
+                await HeritageFound.render();
+            }
+            HeritageUI.toast(
+                `Imported backup \u2014 ${summary.updated} tree${summary.updated === 1 ? '' : 's'} updated ` +
+                `(${summary.found} found).`,
+                5000
+            );
+        } catch (err) {
+            console.error('Import failed:', err);
+            HeritageUI.toast(err.message || 'Import failed. See console for details.', 4500);
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
     async function openSettings() {
         const verEl = document.getElementById('statVersion');
         if (verEl) verEl.textContent = APP_VERSION;
@@ -380,6 +480,7 @@
 
     global.HeritageApp = {
         _state: state,
+        version: APP_VERSION,
         runBackgroundGeocode
     };
 })(window);

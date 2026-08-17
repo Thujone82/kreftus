@@ -417,6 +417,7 @@ try {
         @{ Description = 'nearby.js version link';     Pattern = '<script\s+src="js/nearby\.js\?v=[^"]+"></script>'},
         @{ Description = 'search.js version link';     Pattern = '<script\s+src="js/search\.js\?v=[^"]+"></script>'},
         @{ Description = 'found.js version link';      Pattern = '<script\s+src="js/found\.js\?v=[^"]+"></script>'},
+        @{ Description = 'backup.js version link';     Pattern = '<script\s+src="js/backup\.js\?v=[^"]+"></script>'},
         @{ Description = 'ui.js version link';         Pattern = '<script\s+src="js/ui\.js\?v=[^"]+"></script>'},
         @{ Description = 'sw-register.js version link';Pattern = '<script\s+src="js/sw-register\.js\?v=[^"]+"></script>'},
         @{ Description = 'app.js version link';        Pattern = '<script\s+src="js/app\.js\?v=[^"]+"></script>'}

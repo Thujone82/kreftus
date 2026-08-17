@@ -164,6 +164,11 @@ because the heavy lifting happened offline inside `heritage.ps1`.
   - **Data** &mdash; total / found / removed counts, plus **Last updated**:
     the `scrapedAt` timestamp from the bundled `trees.json` snapshot last merged
     into IndexedDB (not the time you last tapped **Check for app update**).
+    **Export found &amp; notes** saves (or shares, when the device supports it)
+    a JSON backup of your found marks, find dates, and notes.
+    **Import found &amp; notes** restores from that file and **replaces** local
+    found/notes (trees absent from the backup are cleared). Registry data and
+    map coordinates are unchanged.
   - **App** &mdash; version and service-worker status; **Install PDX Heritage
     Trees** when the browser offers install; **Check for app update** (see
     below). On iOS Safari, a short hint explains Add to Home Screen when install
@@ -426,6 +431,7 @@ heritage/
     nearby.js                # 10-nearest list + shared row renderer + Navigate links
     search.js                # Search modal: tokenized query, #id, field tags/filters
     found.js                 # Found-trees table modal
+    backup.js                # Export / import found marks & notes
     ui.js                    # progress bar, toast, modal helpers, settings stats
     sw-register.js           # service worker + update banner
     app.js                   # boot & glue
