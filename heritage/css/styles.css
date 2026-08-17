@@ -768,6 +768,33 @@ button { font-family: inherit; }
     line-height: 1.35;
 }
 
+.import-choice-content {
+    max-width: 420px;
+}
+.import-choice-results {
+    margin: 0.75rem 0 0.5rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: var(--radius-sm);
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(122, 166, 114, 0.25);
+    font-size: 0.92rem;
+    line-height: 1.45;
+}
+.import-choice-results strong {
+    color: var(--pnw-fern);
+    font-weight: 600;
+}
+.import-overwrite-warning {
+    margin: 0.35rem 0 0.75rem;
+    color: #ff6b6b;
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: 0.01em;
+}
+.import-overwrite-warning.hidden {
+    display: none;
+}
+
 /* ==========================================================================
    Tree info window (rendered inside Google Maps InfoWindow)
    ========================================================================== */

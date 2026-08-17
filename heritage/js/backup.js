@@ -33,6 +33,51 @@
         return { id, found, foundDate, notes };
     }
 
+    function earlierIso(a, b) {
+        if (!a) return b || null;
+        if (!b) return a;
+        return a <= b ? a : b;
+    }
+
+    function mergeNotes(localNotes, backupNotes) {
+        const a = String(localNotes == null ? '' : localNotes).trim();
+        const b = String(backupNotes == null ? '' : backupNotes).trim();
+        if (!a) return backupNotes || '';
+        if (!b) return localNotes || '';
+        if (a === b) return localNotes || '';
+        if (a.includes(b)) return localNotes || '';
+        if (b.includes(a)) return backupNotes || '';
+        return `${a}\n\n${b}`;
+    }
+
+    function mergeUserFields(local, backup) {
+        const localFound = !!local.found;
+        const backupFound = !!(backup && backup.found);
+        const found = localFound || backupFound;
+        let foundDate = null;
+        if (found) {
+            foundDate = earlierIso(
+                localFound ? (local.foundDate || null) : null,
+                backupFound ? (backup.foundDate || null) : null
+            ) || new Date().toISOString();
+        }
+        const notes = backup
+            ? mergeNotes(local.notes, backup.notes)
+            : (local.notes || '');
+        return { found, foundDate, notes };
+    }
+
+    function overwriteUserFields(backup) {
+        if (!backup) {
+            return { found: false, foundDate: null, notes: '' };
+        }
+        return {
+            found: !!backup.found,
+            foundDate: backup.found ? (backup.foundDate || null) : null,
+            notes: backup.notes || ''
+        };
+    }
+
     async function buildBackup() {
         const trees = await HeritageDB.getAllTrees();
         const userTrees = trees
@@ -141,29 +186,71 @@
         return shareOrDownload(backup);
     }
 
-    async function applyBackup(backup) {
+    /**
+     * Compare local DB trees against a validated backup and predict outcomes.
+     * @param {object} backup validated backup
+     * @param {object[]} [localTrees] optional preloaded trees
+     */
+    async function previewImport(backup, localTrees) {
+        const validated = validateBackup(backup);
+        const trees = localTrees || await HeritageDB.getAllTrees();
+        const byId = new Map(validated.trees.map((t) => [t.id, t]));
+
+        let currentFound = 0;
+        let currentWithNotes = 0;
+        let mergeFound = 0;
+        let overwriteFound = 0;
+
+        for (const tree of trees) {
+            const id = padTreeId(tree.id);
+            const u = byId.get(id);
+            if (tree.found) currentFound++;
+            if (String(tree.notes || '').trim()) currentWithNotes++;
+
+            const merged = mergeUserFields(tree, u || null);
+            const overwritten = overwriteUserFields(u || null);
+            if (merged.found) mergeFound++;
+            if (overwritten.found) overwriteFound++;
+        }
+
+        return {
+            backup: validated,
+            currentFound,
+            currentWithNotes,
+            hasLocalData: currentFound > 0 || currentWithNotes > 0,
+            mergeFound,
+            overwriteFound,
+            overwriteLosesFound: overwriteFound < currentFound,
+            backupFound: validated.trees.filter((t) => t.found).length,
+            backupWithNotes: validated.trees.filter((t) => String(t.notes || '').trim()).length,
+            exportedAt: validated.exportedAt
+        };
+    }
+
+    async function applyBackup(backup, mode) {
         const validated = validateBackup(backup);
         const byId = new Map(validated.trees.map((t) => [t.id, t]));
         const trees = await HeritageDB.getAllTrees();
         const now = new Date().toISOString();
         const toWrite = [];
+        const useMerge = mode === 'merge';
 
         for (const tree of trees) {
             const id = padTreeId(tree.id);
             const u = byId.get(id);
-            const nextFound = u ? !!u.found : false;
-            const nextFoundDate = u ? (u.foundDate || null) : null;
-            const nextNotes = u ? (u.notes || '') : '';
+            const next = useMerge
+                ? mergeUserFields(tree, u || null)
+                : overwriteUserFields(u || null);
             const same =
-                !!tree.found === nextFound &&
-                (tree.foundDate || null) === nextFoundDate &&
-                String(tree.notes || '') === nextNotes;
+                !!tree.found === next.found &&
+                (tree.foundDate || null) === (next.foundDate || null) &&
+                String(tree.notes || '') === String(next.notes || '');
             if (same) continue;
             toWrite.push({
                 ...tree,
-                found: nextFound,
-                foundDate: nextFoundDate,
-                notes: nextNotes,
+                found: next.found,
+                foundDate: next.foundDate,
+                notes: next.notes,
                 lastUpdatedAt: now
             });
         }
@@ -172,11 +259,14 @@
             await HeritageDB.putManyTrees(toWrite);
         }
 
+        const after = await HeritageDB.getAllTrees();
+        const found = after.reduce((n, t) => n + (t.found ? 1 : 0), 0);
+
         return {
+            mode: useMerge ? 'merge' : 'overwrite',
             updated: toWrite.length,
             imported: validated.trees.length,
-            found: validated.trees.filter((t) => t.found).length,
-            withNotes: validated.trees.filter((t) => String(t.notes || '').trim()).length,
+            found,
             exportedAt: validated.exportedAt
         };
     }
@@ -190,7 +280,7 @@
         });
     }
 
-    async function importFromFile(file) {
+    async function importFromFile(file, mode) {
         if (!file) throw new Error('No file selected.');
         const text = await readFileAsText(file);
         let data;
@@ -199,7 +289,7 @@
         } catch (e) {
             throw new Error('Backup file is not valid JSON.');
         }
-        return applyBackup(data);
+        return applyBackup(data, mode || 'overwrite');
     }
 
     global.HeritageBackup = {
@@ -207,6 +297,7 @@
         FORMAT_VERSION,
         buildBackup,
         validateBackup,
+        previewImport,
         exportState,
         importFromFile,
         applyBackup

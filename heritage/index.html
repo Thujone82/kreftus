@@ -17,7 +17,7 @@
     <meta name="twitter:description" content="PDX Heritage Trees: a local, offline-friendly field guide to Portland's registered Heritage Trees. Track which trees you have found, take notes, and navigate to nearby trees.">
     <meta name="twitter:image" content="https://kreft.us/heritage/icons/icon-512.png">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="css/styles.css?v=1.3.0">
+    <link rel="stylesheet" href="css/styles.css?v=1.3.1">
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -162,20 +162,21 @@
                 <div class="modal-actions modal-actions-column">
                     <button type="button" id="modalExportState" class="btn btn-secondary"
                             title="Save or share your found marks and notes as a backup file">
-                        Export found &amp; notes
+                        Export Settings
                     </button>
                     <button type="button" id="modalImportState" class="btn btn-secondary"
                             title="Restore found marks and notes from a backup file">
-                        Import found &amp; notes
+                        Import Settings
                     </button>
                     <input id="importStateFile" class="hidden" type="file"
                            accept="application/json,.json" aria-hidden="true" tabindex="-1">
                 </div>
                 <p class="modal-fineprint">
-                    Export saves a JSON backup of which trees you have marked found
-                    and any notes. Import replaces found marks and notes on this
-                    device with that file &mdash; useful to move to another phone
-                    or recover after clearing site data.
+                    Export Settings saves a JSON backup of which trees you have
+                    marked found and any notes. Import Settings can
+                    <strong>merge</strong> with what is already on this device
+                    or <strong>overwrite</strong> it &mdash; useful to move to
+                    another phone or recover after clearing site data.
                 </p>
             </section>
 
@@ -203,6 +204,28 @@
         </div>
     </div>
 
+    <!-- Import Settings: merge vs overwrite -->
+    <div id="importChoiceModal" class="modal hidden" role="dialog" aria-modal="true"
+         aria-labelledby="importChoiceTitle">
+        <div class="modal-overlay" data-close-modal></div>
+        <div class="modal-content import-choice-content">
+            <header class="modal-header">
+                <h2 id="importChoiceTitle">Import Settings</h2>
+                <button class="icon-btn" data-close-modal aria-label="Cancel import">&times;</button>
+            </header>
+            <p class="modal-fineprint" id="importChoiceSummary"></p>
+            <div class="import-choice-results" id="importChoiceResults" aria-live="polite"></div>
+            <p id="importOverwriteWarning" class="import-overwrite-warning hidden" role="alert">
+                Are you sure?
+            </p>
+            <div class="modal-actions modal-actions-column">
+                <button type="button" id="importMergeBtn" class="btn btn-primary">Merge</button>
+                <button type="button" id="importOverwriteBtn" class="btn btn-danger">Overwrite</button>
+                <button type="button" id="importCancelBtn" class="btn btn-secondary" data-close-modal>Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast (transient messages) -->
     <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
@@ -216,17 +239,17 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
             integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
             crossorigin="anonymous"></script>
-    <script src="js/db.js?v=1.3.0"></script>
-    <script src="js/wiki.js?v=1.3.0"></script>
-    <script src="js/sync.js?v=1.3.0"></script>
-    <script src="js/geocode.js?v=1.3.0"></script>
-    <script src="js/map.js?v=1.3.0"></script>
-    <script src="js/nearby.js?v=1.3.0"></script>
-    <script src="js/search.js?v=1.3.0"></script>
-    <script src="js/found.js?v=1.3.0"></script>
-    <script src="js/backup.js?v=1.3.0"></script>
-    <script src="js/ui.js?v=1.3.0"></script>
-    <script src="js/sw-register.js?v=1.3.0"></script>
-    <script src="js/app.js?v=1.3.0"></script>
+    <script src="js/db.js?v=1.3.1"></script>
+    <script src="js/wiki.js?v=1.3.1"></script>
+    <script src="js/sync.js?v=1.3.1"></script>
+    <script src="js/geocode.js?v=1.3.1"></script>
+    <script src="js/map.js?v=1.3.1"></script>
+    <script src="js/nearby.js?v=1.3.1"></script>
+    <script src="js/search.js?v=1.3.1"></script>
+    <script src="js/found.js?v=1.3.1"></script>
+    <script src="js/backup.js?v=1.3.1"></script>
+    <script src="js/ui.js?v=1.3.1"></script>
+    <script src="js/sw-register.js?v=1.3.1"></script>
+    <script src="js/app.js?v=1.3.1"></script>
 </body>
 </html>

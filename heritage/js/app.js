@@ -26,7 +26,7 @@
     'use strict';
 
     const LEGACY_KEY_API = 'pdxHeritageGoogleApiKey';
-    const APP_VERSION = '1.3.0';
+    const APP_VERSION = '1.3.1';
 
     const state = {
         mapReady: false,
@@ -47,6 +47,7 @@
     async function init() {
         HeritageSW.register();
         wireStaticUi();
+        wireImportChoiceModal();
 
         // Drop any leftover Google Maps API key from an older install.
         try { localStorage.removeItem(LEGACY_KEY_API); } catch (e) { /* ignore */ }
@@ -417,32 +418,77 @@
                 reader.onerror = () => reject(reader.error || new Error('read failed'));
                 reader.readAsText(file);
             });
-            preview = HeritageBackup.validateBackup(JSON.parse(text));
+            const parsed = JSON.parse(text);
+            preview = await HeritageBackup.previewImport(parsed);
         } catch (err) {
             console.error('Import preview failed:', err);
             HeritageUI.toast(err.message || 'Could not read backup file.', 4500);
             return;
         }
 
-        const foundN = preview.trees.filter((t) => t.found).length;
-        const notesN = preview.trees.filter((t) => String(t.notes || '').trim()).length;
+        if (!preview.hasLocalData) {
+            const when = preview.exportedAt
+                ? new Date(preview.exportedAt).toLocaleString()
+                : 'unknown date';
+            const ok = window.confirm(
+                `Import Settings from this backup?\n\n` +
+                `File: ${file.name}\n` +
+                `Exported: ${when}\n` +
+                `Will result in ${preview.overwriteFound} Found.\n\n` +
+                `This device has no saved found marks or notes yet.`
+            );
+            if (!ok) return;
+            await runImportBackup(preview.backup, 'overwrite');
+            return;
+        }
+
+        openImportChoiceModal(preview, file.name);
+    }
+
+    let pendingImportBackup = null;
+
+    function openImportChoiceModal(preview, fileName) {
+        pendingImportBackup = preview.backup;
+        const summary = document.getElementById('importChoiceSummary');
+        const results = document.getElementById('importChoiceResults');
+        const warning = document.getElementById('importOverwriteWarning');
         const when = preview.exportedAt
             ? new Date(preview.exportedAt).toLocaleString()
             : 'unknown date';
-        const ok = window.confirm(
-            `Replace found marks and notes on this device with the backup?\n\n` +
-            `File: ${file.name}\n` +
-            `Exported: ${when}\n` +
-            `Entries: ${preview.trees.length} ` +
-            `(${foundN} found, ${notesN} with notes)\n\n` +
-            `Trees not listed in the backup will have their found mark and notes cleared.`
-        );
-        if (!ok) return;
 
+        if (summary) {
+            summary.textContent =
+                `You already have ${preview.currentFound} Found` +
+                (preview.currentWithNotes
+                    ? ` and notes on ${preview.currentWithNotes} tree${preview.currentWithNotes === 1 ? '' : 's'}`
+                    : '') +
+                `. File: ${fileName || 'backup'} (exported ${when}).`;
+        }
+        if (results) {
+            results.innerHTML =
+                `<div><strong>Merge</strong> will result in ${preview.mergeFound} Found.</div>` +
+                `<div><strong>Overwrite</strong> will result in ${preview.overwriteFound} Found.</div>`;
+        }
+        if (warning) {
+            if (preview.overwriteLosesFound) {
+                warning.classList.remove('hidden');
+            } else {
+                warning.classList.add('hidden');
+            }
+        }
+        HeritageUI.openModal('importChoiceModal');
+    }
+
+    function closeImportChoiceModal() {
+        pendingImportBackup = null;
+        HeritageUI.closeModal('importChoiceModal');
+    }
+
+    async function runImportBackup(backup, mode) {
         const btn = document.getElementById('modalImportState');
         if (btn) btn.disabled = true;
         try {
-            const summary = await HeritageBackup.applyBackup(preview);
+            const summary = await HeritageBackup.applyBackup(backup, mode);
             const trees = await HeritageDB.getAllTrees();
             HeritageMap.renderTrees(trees);
             await HeritageUI.refreshFoundButton();
@@ -452,9 +498,10 @@
                 && global.HeritageFound && typeof HeritageFound.render === 'function') {
                 await HeritageFound.render();
             }
+            const modeLabel = summary.mode === 'merge' ? 'Merged' : 'Overwrote';
             HeritageUI.toast(
-                `Imported backup \u2014 ${summary.updated} tree${summary.updated === 1 ? '' : 's'} updated ` +
-                `(${summary.found} found).`,
+                `${modeLabel} settings \u2014 ${summary.found} Found ` +
+                `(${summary.updated} tree${summary.updated === 1 ? '' : 's'} updated).`,
                 5000
             );
         } catch (err) {
@@ -462,6 +509,32 @@
             HeritageUI.toast(err.message || 'Import failed. See console for details.', 4500);
         } finally {
             if (btn) btn.disabled = false;
+        }
+    }
+
+    function wireImportChoiceModal() {
+        const mergeBtn = document.getElementById('importMergeBtn');
+        const overwriteBtn = document.getElementById('importOverwriteBtn');
+        if (mergeBtn) {
+            mergeBtn.addEventListener('click', async () => {
+                const backup = pendingImportBackup;
+                closeImportChoiceModal();
+                if (backup) await runImportBackup(backup, 'merge');
+            });
+        }
+        if (overwriteBtn) {
+            overwriteBtn.addEventListener('click', async () => {
+                const backup = pendingImportBackup;
+                closeImportChoiceModal();
+                if (backup) await runImportBackup(backup, 'overwrite');
+            });
+        }
+        // Closing via overlay / X / Cancel clears pending backup.
+        const choiceModal = document.getElementById('importChoiceModal');
+        if (choiceModal) {
+            choiceModal.querySelectorAll('[data-close-modal]').forEach((el) => {
+                el.addEventListener('click', () => { pendingImportBackup = null; });
+            });
         }
     }
 

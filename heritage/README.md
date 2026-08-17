@@ -164,11 +164,14 @@ because the heavy lifting happened offline inside `heritage.ps1`.
   - **Data** &mdash; total / found / removed counts, plus **Last updated**:
     the `scrapedAt` timestamp from the bundled `trees.json` snapshot last merged
     into IndexedDB (not the time you last tapped **Check for app update**).
-    **Export found &amp; notes** saves (or shares, when the device supports it)
-    a JSON backup of your found marks, find dates, and notes.
-    **Import found &amp; notes** restores from that file and **replaces** local
-    found/notes (trees absent from the backup are cleared). Registry data and
-    map coordinates are unchanged.
+    **Export Settings** saves (or shares, when the device supports it) a JSON
+    backup of your found marks, find dates, and notes.
+    **Import Settings** restores from that file: if this device already has
+    saved data, you choose **Merge** (union of found marks; notes combined) or
+    **Overwrite** (replace with the file). The dialog shows how many Found each
+    option would leave; if Overwrite would reduce your Found count, a red
+    **Are you sure?** warning appears. Registry data and map coordinates are
+    unchanged.
   - **App** &mdash; version and service-worker status; **Install PDX Heritage
     Trees** when the browser offers install; **Check for app update** (see
     below). On iOS Safari, a short hint explains Add to Home Screen when install
