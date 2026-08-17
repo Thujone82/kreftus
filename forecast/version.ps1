@@ -396,6 +396,7 @@ try {
         @{ Description = 'api.js version link'; Pattern = '<script\s+src="js/api\.js\?v=[^"]+"></script>'},
         @{ Description = 'weather.js version link'; Pattern = '<script\s+src="js/weather\.js\?v=[^"]+"></script>'},
         @{ Description = 'display.js version link'; Pattern = '<script\s+src="js/display\.js\?v=[^"]+"></script>'},
+        @{ Description = 'backup.js version link'; Pattern = '<script\s+src="js/backup\.js\?v=[^"]+"></script>'},
         @{ Description = 'app.js version link'; Pattern = '<script\s+src="js/app\.js\?v=[^"]+"></script>'}
     )
 

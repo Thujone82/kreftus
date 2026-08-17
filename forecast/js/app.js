@@ -126,6 +126,15 @@ function initializeElements() {
         feelsLikeWbgtCheckbox: document.getElementById('feelsLikeWbgtCheckbox'),
         configModalClose: document.getElementById('configModalClose'),
         configModalReset: document.getElementById('configModalReset'),
+        configModalExport: document.getElementById('configModalExport'),
+        configModalImport: document.getElementById('configModalImport'),
+        importSettingsFile: document.getElementById('importSettingsFile'),
+        importChoiceModal: document.getElementById('importChoiceModal'),
+        importChoiceSummary: document.getElementById('importChoiceSummary'),
+        importChoiceResults: document.getElementById('importChoiceResults'),
+        importOverwriteWarning: document.getElementById('importOverwriteWarning'),
+        importMergeBtn: document.getElementById('importMergeBtn'),
+        importOverwriteBtn: document.getElementById('importOverwriteBtn'),
         configModalVersion: document.getElementById('configModalVersion'),
         installBtn: document.getElementById('installBtn'),
         configModalIosInstallHint: document.getElementById('configModalIosInstallHint')
@@ -1899,11 +1908,186 @@ function setupConfigModal() {
         });
     }
 
+    setupExportImportSettings();
+
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && elements.configModal && !elements.configModal.classList.contains('hidden')) {
+        if (e.key !== 'Escape') return;
+        if (elements.importChoiceModal && !elements.importChoiceModal.classList.contains('hidden')) {
+            closeImportChoiceModal();
+            return;
+        }
+        if (elements.configModal && !elements.configModal.classList.contains('hidden')) {
             closeConfigModal();
         }
     });
+}
+
+let pendingImportBackup = null;
+
+function setupExportImportSettings() {
+    if (typeof ForecastBackup === 'undefined') {
+        console.warn('ForecastBackup module not loaded');
+        return;
+    }
+
+    if (elements.configModalExport) {
+        elements.configModalExport.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const btn = elements.configModalExport;
+            if (btn) btn.disabled = true;
+            try {
+                const result = await ForecastBackup.exportState();
+                if (result.method === 'cancelled') return;
+                const locLabel = result.count === 1 ? 'location' : 'locations';
+                if (result.method === 'share') {
+                    alert(
+                        result.count
+                            ? `Shared backup (${result.count} ${locLabel}).`
+                            : 'Shared backup (settings only; no saved locations yet).'
+                    );
+                } else {
+                    alert(
+                        result.count
+                            ? `Saved ${result.filename} (${result.count} ${locLabel}).`
+                            : `Saved ${result.filename} (settings only; no saved locations yet).`
+                    );
+                }
+            } catch (err) {
+                console.error('Export Settings failed:', err);
+                alert(err.message || 'Export failed. See console for details.');
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        });
+    }
+
+    if (elements.configModalImport && elements.importSettingsFile) {
+        elements.configModalImport.addEventListener('click', (e) => {
+            e.preventDefault();
+            elements.importSettingsFile.click();
+        });
+        elements.importSettingsFile.addEventListener('change', onImportSettingsFile);
+    }
+
+    if (elements.importMergeBtn) {
+        elements.importMergeBtn.addEventListener('click', async () => {
+            const backup = pendingImportBackup;
+            closeImportChoiceModal();
+            if (backup) await runImportBackup(backup, 'merge');
+        });
+    }
+    if (elements.importOverwriteBtn) {
+        elements.importOverwriteBtn.addEventListener('click', async () => {
+            const backup = pendingImportBackup;
+            closeImportChoiceModal();
+            if (backup) await runImportBackup(backup, 'overwrite');
+        });
+    }
+    if (elements.importChoiceModal) {
+        elements.importChoiceModal.querySelectorAll('[data-close-import-choice]').forEach((el) => {
+            el.addEventListener('click', () => closeImportChoiceModal());
+        });
+    }
+}
+
+async function onImportSettingsFile(ev) {
+    const input = ev && ev.target;
+    const file = input && input.files && input.files[0];
+    if (input) input.value = '';
+    if (!file || typeof ForecastBackup === 'undefined') return;
+
+    let preview;
+    try {
+        const text = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ''));
+            reader.onerror = () => reject(reader.error || new Error('read failed'));
+            reader.readAsText(file);
+        });
+        preview = ForecastBackup.previewImport(JSON.parse(text));
+    } catch (err) {
+        console.error('Import preview failed:', err);
+        alert(err.message || 'Could not read backup file.');
+        return;
+    }
+
+    if (!preview.hasLocalData) {
+        const when = preview.exportedAt
+            ? new Date(preview.exportedAt).toLocaleString()
+            : 'unknown date';
+        const ok = window.confirm(
+            `Import Settings from this backup?\n\n` +
+            `File: ${file.name}\n` +
+            `Exported: ${when}\n` +
+            `Will result in ${preview.overwriteLocations} saved location` +
+            `${preview.overwriteLocations === 1 ? '' : 's'}.\n\n` +
+            `This device has no saved Forecast settings yet.`
+        );
+        if (!ok) return;
+        await runImportBackup(preview.backup, 'overwrite');
+        return;
+    }
+
+    openImportChoiceModal(preview, file.name);
+}
+
+function openImportChoiceModal(preview, fileName) {
+    pendingImportBackup = preview.backup;
+    const when = preview.exportedAt
+        ? new Date(preview.exportedAt).toLocaleString()
+        : 'unknown date';
+
+    if (elements.importChoiceSummary) {
+        elements.importChoiceSummary.textContent =
+            `You already have ${preview.currentLocations} saved location` +
+            `${preview.currentLocations === 1 ? '' : 's'}` +
+            `. File: ${fileName || 'backup'} (exported ${when}).`;
+    }
+    if (elements.importChoiceResults) {
+        elements.importChoiceResults.innerHTML =
+            `<div><strong>Merge</strong> will result in ${preview.mergeLocations} saved location` +
+            `${preview.mergeLocations === 1 ? '' : 's'}.</div>` +
+            `<div><strong>Overwrite</strong> will result in ${preview.overwriteLocations} saved location` +
+            `${preview.overwriteLocations === 1 ? '' : 's'}.</div>`;
+    }
+    if (elements.importOverwriteWarning) {
+        if (preview.overwriteLosesLocations) {
+            elements.importOverwriteWarning.classList.remove('hidden');
+        } else {
+            elements.importOverwriteWarning.classList.add('hidden');
+        }
+    }
+    if (elements.importChoiceModal) {
+        elements.importChoiceModal.classList.remove('hidden');
+    }
+}
+
+function closeImportChoiceModal() {
+    pendingImportBackup = null;
+    if (elements.importChoiceModal) {
+        elements.importChoiceModal.classList.add('hidden');
+    }
+}
+
+async function runImportBackup(backup, mode) {
+    if (typeof ForecastBackup === 'undefined') return;
+    const btn = elements.configModalImport;
+    if (btn) btn.disabled = true;
+    try {
+        const summary = ForecastBackup.applyBackup(backup, mode);
+        const modeLabel = summary.mode === 'merge' ? 'Merged' : 'Overwrote';
+        alert(
+            `${modeLabel} settings — ${summary.locations} saved location` +
+            `${summary.locations === 1 ? '' : 's'}.\n\nThe page will reload to apply them.`
+        );
+        closeImportChoiceModal();
+        closeConfigModal();
+        window.location.reload();
+    } catch (err) {
+        console.error('Import Settings failed:', err);
+        alert(err.message || 'Import failed. See console for details.');
+        if (btn) btn.disabled = false;
+    }
 }
 
 function setupEventListeners() {
@@ -3151,6 +3335,7 @@ function shouldIgnoreLocationHotkey() {
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
     if (el.isContentEditable) return true;
     if (elements.configModal && !elements.configModal.classList.contains('hidden')) return true;
+    if (elements.importChoiceModal && !elements.importChoiceModal.classList.contains('hidden')) return true;
     if (elements.locationButtons && elements.locationButtons.querySelector('.location-btn-edit')) return true;
     return false;
 }

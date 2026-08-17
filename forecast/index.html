@@ -17,7 +17,7 @@
     <meta name="twitter:description" content="Weather forecast app using the National Weather Service API with nearby NIFC wildfire info (default 50 mi) and optional AirNow AQI using your own API key.">
     <meta name="twitter:image" content="https://kreft.us/forecast/icons/dark-icon-512.png">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="css/style.css?v=1.13.27">
+    <link rel="stylesheet" href="css/style.css?v=1.13.28">
     <link rel="icon" type="image/png" href="icons/light-icon-192.png">
 </head>
 <body>
@@ -185,6 +185,24 @@
                     <span>Enable per Location Colors</span>
                 </label>
             </div>
+            <div class="config-option config-data-section">
+                <span class="config-option-label">Data</span>
+                <button type="button" id="configModalExport" class="btn btn-secondary config-data-btn"
+                        title="Save or share favorites, colors, settings, and API keys as a backup file">
+                    Export Settings
+                </button>
+                <button type="button" id="configModalImport" class="btn btn-secondary config-data-btn"
+                        title="Restore favorites, colors, settings, and API keys from a backup file">
+                    Import Settings
+                </button>
+                <input id="importSettingsFile" class="hidden" type="file"
+                       accept="application/json,.json" aria-hidden="true" tabindex="-1">
+                <p class="config-data-fineprint">
+                    Export Settings saves a JSON backup of saved locations (including custom colors and names), preferences, and API keys.
+                    Import Settings can <strong>merge</strong> with what is already on this device or <strong>overwrite</strong> it.
+                    Weather cache is not included.
+                </p>
+            </div>
             <button id="configModalClose" class="btn btn-primary" aria-label="Close settings">Done</button>
             <button id="installBtn" class="btn btn-secondary hidden" title="Install Forecast app" aria-label="Install Forecast app">Install Forecast</button>
             <button id="configModalReset" class="btn btn-secondary config-reset-btn" aria-label="Reset Forecast: clear all saved locations and data">Reset Forecast</button>
@@ -193,11 +211,29 @@
         </div>
     </div>
 
-    <script src="js/utils.js?v=1.13.27"></script>
-    <script src="js/api.js?v=1.13.27"></script>
-    <script src="js/weather.js?v=1.13.27"></script>
-    <script src="js/display.js?v=1.13.27"></script>
-    <script src="js/app.js?v=1.13.27"></script>
+    <!-- Import Settings: merge vs overwrite -->
+    <div id="importChoiceModal" class="config-modal hidden" role="dialog" aria-modal="true"
+         aria-labelledby="importChoiceTitle">
+        <div class="config-modal-overlay" data-close-import-choice></div>
+        <div class="config-modal-content import-choice-content">
+            <h2 id="importChoiceTitle" class="config-modal-title">Import Settings</h2>
+            <p class="config-data-fineprint" id="importChoiceSummary"></p>
+            <div class="import-choice-results" id="importChoiceResults" aria-live="polite"></div>
+            <p id="importOverwriteWarning" class="import-overwrite-warning hidden" role="alert">
+                Are you sure?
+            </p>
+            <button type="button" id="importMergeBtn" class="btn btn-primary config-data-btn">Merge</button>
+            <button type="button" id="importOverwriteBtn" class="btn btn-danger config-data-btn">Overwrite</button>
+            <button type="button" id="importCancelBtn" class="btn btn-secondary config-data-btn" data-close-import-choice>Cancel</button>
+        </div>
+    </div>
+
+    <script src="js/utils.js?v=1.13.28"></script>
+    <script src="js/api.js?v=1.13.28"></script>
+    <script src="js/weather.js?v=1.13.28"></script>
+    <script src="js/display.js?v=1.13.28"></script>
+    <script src="js/backup.js?v=1.13.28"></script>
+    <script src="js/app.js?v=1.13.28"></script>
 </body>
 </html>
 

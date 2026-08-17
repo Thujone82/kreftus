@@ -1,4 +1,4 @@
-const VERSION = '1.13.27';
+const VERSION = '1.13.28';
 const CACHE_NAME = `forecast-v${VERSION}`;
 const STATIC_CACHE = `forecast-static-v${VERSION}`;
 const DATA_CACHE = `forecast-data-v${VERSION}`;
@@ -11,6 +11,7 @@ const STATIC_ASSETS = [
     '/forecast/js/api.js',
     '/forecast/js/weather.js',
     '/forecast/js/display.js',
+    '/forecast/js/backup.js',
     '/forecast/js/utils.js',
     '/forecast/manifest.json',
     '/forecast/icons/light-icon-192.png',

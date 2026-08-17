@@ -817,6 +817,62 @@ body.ui-density-normal .config-modal-content {
     width: 100%;
 }
 
+.config-data-section {
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(128, 128, 128, 0.25);
+}
+
+.config-data-btn {
+    width: 100%;
+    margin-top: 0.5rem;
+}
+
+.config-data-fineprint {
+    font-size: 0.75em;
+    color: var(--color-text-secondary);
+    margin: 0.65rem 0 0;
+    line-height: 1.35;
+}
+
+.btn-danger {
+    background-color: transparent;
+    color: #ff8a8a;
+    border: 1px solid rgba(220, 90, 90, 0.55);
+}
+
+.btn-danger:hover,
+.btn-danger:focus {
+    background-color: rgba(170, 50, 50, 0.28);
+}
+
+#importChoiceModal {
+    z-index: 1100;
+}
+
+.import-choice-results {
+    margin: 0.75rem 0;
+    font-size: 0.9em;
+    line-height: 1.45;
+    color: var(--color-text);
+}
+
+.import-choice-results strong {
+    color: var(--color-title);
+}
+
+.import-overwrite-warning {
+    color: #ff4d4d;
+    font-weight: 700;
+    font-size: 1em;
+    margin: 0.35rem 0 0.75rem;
+    text-align: center;
+}
+
+.import-overwrite-warning.hidden {
+    display: none !important;
+}
+
 .config-reset-btn {
     margin-top: 0.75rem;
     width: 100%;
