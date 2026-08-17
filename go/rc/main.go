@@ -94,11 +94,7 @@ func formatCompactDuration(d time.Duration, showFractionUnderMinute bool) string
 }
 
 func formatDateAwareTimestamp(t time.Time) string {
-	now := time.Now()
-	if t.Year() == now.Year() && t.YearDay() == now.YearDay() {
-		return t.Format("15:04:05")
-	}
-	return t.Format("010206@15:04:05")
+	return t.Format("01/02/06@15:04:05")
 }
 
 func formatSuccessRuntime(d time.Duration) string {

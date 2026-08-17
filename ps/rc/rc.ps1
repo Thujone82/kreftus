@@ -488,11 +488,7 @@ function Format-CompactDuration {
 function Format-DateAwareTimestamp {
     param([datetime]$Timestamp)
 
-    if ($Timestamp.Date -eq (Get-Date).Date) {
-        return $Timestamp.ToString('HH:mm:ss')
-    }
-
-    return $Timestamp.ToString('MMddyy@HH:mm:ss')
+    return $Timestamp.ToString('MM/dd/yy@HH:mm:ss')
 }
 
 function Format-CompactPeriodLabel {
