@@ -1,0 +1,16 @@
+---
+description: Always commit heritage/data/trees.json - it is the managed user database and must ship
+globs: heritage/**
+alwaysApply: false
+---
+
+# Heritage: always commit trees.json (CRITICAL)
+
+[`heritage/data/trees.json`](heritage/data/trees.json) is the tree database shipped to every user of the PDX Heritage Trees app. It is intentionally version-controlled and **must always be included** when it is modified.
+
+When the user asks to commit and/or push Heritage (`heritage/**`) changes:
+
+- **Always** stage and commit `heritage/data/trees.json` if it is modified, even for a doc-only or code-only request.
+- **Never** exclude it as "unrelated", "data churn", "scraper output", or "noise". It ships with the app.
+- Prefer committing it in the same commit as the related Heritage change. If it was left out of a prior commit, commit and push it promptly as a follow-up.
+- This overrides the general "exclude unrelated files" guidance for this specific file: `trees.json` is never unrelated to a Heritage commit.
