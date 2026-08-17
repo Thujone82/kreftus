@@ -1238,6 +1238,14 @@ function displayWildFireInfo(wildFires, sectionAnchorId) {
         if (f.shortDesc) {
             html += `<div class="wildfire-desc">${escapeHtml(f.shortDesc)}</div>`;
         }
+        const lossesStr = typeof formatWildFireLosses === 'function' ? formatWildFireLosses(f) : null;
+        if (lossesStr) {
+            const hasFatalities = Number(f.fatalities) > 0;
+            const lossesClass = hasFatalities
+                ? 'wildfire-behavior-critical'
+                : (Number(f.injuries) > 0 ? 'wildfire-warn' : '');
+            html += `<div class="wildfire-losses${lossesClass ? ` ${lossesClass}` : ''}">Losses: ${escapeHtml(lossesStr)}</div>`;
+        }
         const updatedStr = formatWildFireUpdated(f.updated);
         if (updatedStr) {
             html += `<div class="wildfire-updated">Updated: ${escapeHtml(updatedStr)}</div>`;

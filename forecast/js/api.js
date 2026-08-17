@@ -1515,6 +1515,40 @@ function pickWildFireCause(fireCause, fireCauseGeneral) {
     return cause;
 }
 
+/** Non-negative whole count from IRWIN impact fields; null when absent/invalid. */
+function parseWildFireLossCount(raw) {
+    if (raw == null || raw === '') return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) return null;
+    return Math.round(n);
+}
+
+/**
+ * Compact Losses line from IRWIN impact fields; omit when nothing reportable (>0).
+ * Example: `6 residences · 16 other structures · 9 injuries · 1 fatality`
+ */
+function formatWildFireLosses(fire) {
+    if (!fire) return null;
+    const parts = [];
+    const residences = parseWildFireLossCount(fire.residencesDestroyed);
+    const other = parseWildFireLossCount(fire.otherStructuresDestroyed);
+    const injuries = parseWildFireLossCount(fire.injuries);
+    const fatalities = parseWildFireLossCount(fire.fatalities);
+    if (residences != null && residences > 0) {
+        parts.push(`${residences.toLocaleString('en-US')} residence${residences === 1 ? '' : 's'}`);
+    }
+    if (other != null && other > 0) {
+        parts.push(`${other.toLocaleString('en-US')} other structure${other === 1 ? '' : 's'}`);
+    }
+    if (injuries != null && injuries > 0) {
+        parts.push(`${injuries.toLocaleString('en-US')} ${injuries === 1 ? 'injury' : 'injuries'}`);
+    }
+    if (fatalities != null && fatalities > 0) {
+        parts.push(`${fatalities.toLocaleString('en-US')} ${fatalities === 1 ? 'fatality' : 'fatalities'}`);
+    }
+    return parts.length ? parts.join(' · ') : null;
+}
+
 function buildNifcWildFireQueryUrl(lat, lon, distanceMiles = WILDFIRE_RADIUS_MILES) {
     // Explicit attributes only — avoids shipping the full WFIGS schema into memory.
     const outFields = [
@@ -1562,7 +1596,11 @@ function buildIrwinWildFireQueryUrl(lat, lon, distanceMiles = WILDFIRE_RADIUS_MI
         'ModifiedOnDateTime',
         'FireDiscoveryDateTime',
         'UniqueFireIdentifier',
-        'IrwinID'
+        'IrwinID',
+        'ResidencesDestroyed',
+        'OtherStructuresDestroyed',
+        'Injuries',
+        'Fatalities'
     ].join(',');
     return `https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/USA_Wildfires_v1/FeatureServer/0/query?f=json&geometryType=esriGeometryPoint&geometry=${lon},${lat}&inSR=4326&distance=${distanceMiles}&units=esriSRUnit_StatuteMile&outFields=${outFields}&returnGeometry=true`;
 }
@@ -1709,6 +1747,10 @@ function normalizeNifcWildFireIncidents(apiData, lat, lon, distanceMiles = WILDF
                 discovered,
                 estimatedCost,
                 estimatedFinalCost,
+                residencesDestroyed: null,
+                otherStructuresDestroyed: null,
+                injuries: null,
+                fatalities: null,
                 fireId: normalizeWildFireSourceId(a.UniqueFireIdentifier),
                 irwinId: normalizeWildFireSourceId(a.IrwinID),
                 inciwebUrl: null,
@@ -1807,6 +1849,10 @@ function normalizeIrwinWildFireIncidents(apiData, lat, lon, distanceMiles = WILD
                 discovered: parseNifcEpochMs(a.FireDiscoveryDateTime),
                 estimatedCost: null,
                 estimatedFinalCost: null,
+                residencesDestroyed: parseWildFireLossCount(a.ResidencesDestroyed),
+                otherStructuresDestroyed: parseWildFireLossCount(a.OtherStructuresDestroyed),
+                injuries: parseWildFireLossCount(a.Injuries),
+                fatalities: parseWildFireLossCount(a.Fatalities),
                 fireId: normalizeWildFireSourceId(fireId),
                 irwinId: normalizeWildFireSourceId(a.IrwinID),
                 inciwebUrl: null,
@@ -1838,6 +1884,11 @@ function applyFresherWildFireValues(base, live) {
     if (!base.cause && live.cause) merged.cause = live.cause;
     if (!base.county && live.county) merged.county = live.county;
     if (!base.discovered && live.discovered) merged.discovered = live.discovered;
+    // Impact fields are IRWIN-only — always prefer them when the live record has a value.
+    if (live.residencesDestroyed != null) merged.residencesDestroyed = live.residencesDestroyed;
+    if (live.otherStructuresDestroyed != null) merged.otherStructuresDestroyed = live.otherStructuresDestroyed;
+    if (live.injuries != null) merged.injuries = live.injuries;
+    if (live.fatalities != null) merged.fatalities = live.fatalities;
     if (!liveIsNewer) return merged;
     if (live.acres != null) merged.acres = live.acres;
     if (live.contained != null) merged.contained = live.contained;

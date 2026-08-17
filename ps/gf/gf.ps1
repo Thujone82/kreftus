@@ -41,6 +41,7 @@
     - Wildfire Cost (full Wild Fire Info): EstimatedFinalCost (EstimatedCostToDate) when both set, else whichever is present; compact $346k/$2M/$1B/$3T; Yellow (≥$1M), Red (≥$1B), Magenta (≥$1T) by primary amount; omitted when both null or $0
     - Wildfire containment (full Wild Fire Info): Yellow when Contained is 0%; Green when 100%; otherwise default (omit when null)
     - Wildfire behavior (full Wild Fire Info): Magenta when Extreme; Red when Critical; Yellow when Active (case-insensitive); otherwise default
+    - Wildfire Losses (full Wild Fire Info): IRWIN impact counts when any > 0 (residences · other structures · injuries · fatalities); Red when fatalities present, Yellow when injuries present (no fatalities), otherwise default; omitted when all null/0
     
 .PARAMETER Location
     The location for which to retrieve weather. Can be a 5-digit US zip code or a "City, State" string, or 'here'.
@@ -6161,7 +6162,11 @@ function Get-IrwinWildFireQueryUrl {
         'ModifiedOnDateTime',
         'FireDiscoveryDateTime',
         'UniqueFireIdentifier',
-        'IrwinID'
+        'IrwinID',
+        'ResidencesDestroyed',
+        'OtherStructuresDestroyed',
+        'Injuries',
+        'Fatalities'
     ) -join ','
     return "https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/USA_Wildfires_v1/FeatureServer/0/query?f=json&geometryType=esriGeometryPoint&geometry=$lonStr,$latStr&inSR=4326&distance=$distStr&units=esriSRUnit_StatuteMile&outFields=$outFields&returnGeometry=true"
 }
@@ -6706,6 +6711,49 @@ function Format-WildFireCost {
     return $null
 }
 
+# Non-negative whole count from IRWIN impact fields; $null when absent/invalid.
+function Get-WildFireLossCount {
+    param($RawValue)
+    if ($null -eq $RawValue -or "$RawValue" -eq '') { return $null }
+    try {
+        $n = [double]$RawValue
+        if ($n -lt 0) { return $null }
+        return [int][Math]::Round($n, 0)
+    } catch {
+        return $null
+    }
+}
+
+# Compact Losses line from IRWIN impact fields; omit when nothing reportable (>0).
+# Example: "6 residences · 16 other structures · 9 injuries · 1 fatality"
+function Format-WildFireLosses {
+    param([object]$Fire)
+    if (-not $Fire) { return $null }
+    $parts = @()
+    $residences = Get-WildFireLossCount -RawValue $Fire.ResidencesDestroyed
+    $other = Get-WildFireLossCount -RawValue $Fire.OtherStructuresDestroyed
+    $injuries = Get-WildFireLossCount -RawValue $Fire.Injuries
+    $fatalities = Get-WildFireLossCount -RawValue $Fire.Fatalities
+    if ($null -ne $residences -and $residences -gt 0) {
+        $label = if ($residences -eq 1) { 'residence' } else { 'residences' }
+        $parts += "$($residences.ToString('N0')) $label"
+    }
+    if ($null -ne $other -and $other -gt 0) {
+        $label = if ($other -eq 1) { 'other structure' } else { 'other structures' }
+        $parts += "$($other.ToString('N0')) $label"
+    }
+    if ($null -ne $injuries -and $injuries -gt 0) {
+        $label = if ($injuries -eq 1) { 'injury' } else { 'injuries' }
+        $parts += "$($injuries.ToString('N0')) $label"
+    }
+    if ($null -ne $fatalities -and $fatalities -gt 0) {
+        $label = if ($fatalities -eq 1) { 'fatality' } else { 'fatalities' }
+        $parts += "$($fatalities.ToString('N0')) $label"
+    }
+    if ($parts.Count -eq 0) { return $null }
+    return ($parts -join ' · ')
+}
+
 function Get-WildFireCostPrimaryAmount {
     param(
         $EstimatedCostToDate = $null,
@@ -6886,6 +6934,10 @@ function Get-WildFireIncidentsFromApiResponse {
                 Discovered      = $discovered
                 EstimatedCost   = $estimatedCost
                 EstimatedFinalCost = $estimatedFinalCost
+                ResidencesDestroyed = $null
+                OtherStructuresDestroyed = $null
+                Injuries        = $null
+                Fatalities      = $null
                 FireId          = Get-NormalizedWildFireSourceId -RawId "$($a.UniqueFireIdentifier)"
                 IrwinId         = Get-NormalizedWildFireSourceId -RawId "$($a.IrwinID)"
                 InciWebUrl      = $inciwebUrl
@@ -6991,6 +7043,11 @@ function Get-IrwinWildFireIncidentsFromApiResponse {
             $pooState = "$($a.POOState)".Trim()
             $fireIdRaw = "$($a.UniqueFireIdentifier)".Trim()
 
+            $residencesDestroyed = Get-WildFireLossCount -RawValue $a.ResidencesDestroyed
+            $otherStructuresDestroyed = Get-WildFireLossCount -RawValue $a.OtherStructuresDestroyed
+            $injuries = Get-WildFireLossCount -RawValue $a.Injuries
+            $fatalities = Get-WildFireLossCount -RawValue $a.Fatalities
+
             $results += [pscustomobject]@{
                 Name            = $name
                 Acres           = $acres
@@ -7010,6 +7067,10 @@ function Get-IrwinWildFireIncidentsFromApiResponse {
                 Discovered      = Convert-NifcEpochMsToLocalDateTime -EpochMs $a.FireDiscoveryDateTime -TimeZoneId $TimeZoneId
                 EstimatedCost   = $null
                 EstimatedFinalCost = $null
+                ResidencesDestroyed = $residencesDestroyed
+                OtherStructuresDestroyed = $otherStructuresDestroyed
+                Injuries        = $injuries
+                Fatalities      = $fatalities
                 FireId          = Get-NormalizedWildFireSourceId -RawId $fireIdRaw
                 IrwinId         = Get-NormalizedWildFireSourceId -RawId "$($a.IrwinID)"
                 InciWebUrl      = $null
@@ -7040,6 +7101,11 @@ function Update-WildFireWithFresherValues {
     if (-not $Target.Cause -and $Live.Cause) { $Target.Cause = $Live.Cause }
     if (-not $Target.County -and $Live.County) { $Target.County = $Live.County }
     if ($null -eq $Target.Discovered -and $null -ne $Live.Discovered) { $Target.Discovered = $Live.Discovered }
+    # Impact fields are IRWIN-only — always prefer them when the live record has a value.
+    if ($null -ne $Live.ResidencesDestroyed) { $Target.ResidencesDestroyed = $Live.ResidencesDestroyed }
+    if ($null -ne $Live.OtherStructuresDestroyed) { $Target.OtherStructuresDestroyed = $Live.OtherStructuresDestroyed }
+    if ($null -ne $Live.Injuries) { $Target.Injuries = $Live.Injuries }
+    if ($null -ne $Live.Fatalities) { $Target.Fatalities = $Live.Fatalities }
 
     $liveIsNewer = $false
     if ($null -ne $Live.Updated) {
@@ -7251,6 +7317,15 @@ function Show-WildFireInfo {
         }
         if ($f.ShortDesc) {
             Write-Host $f.ShortDesc -ForegroundColor Gray
+        }
+        $lossesStr = Format-WildFireLosses -Fire $f
+        if ($lossesStr) {
+            $lossesColor = $DefaultColor
+            $fatalityCount = Get-WildFireLossCount -RawValue $f.Fatalities
+            $injuryCount = Get-WildFireLossCount -RawValue $f.Injuries
+            if ($null -ne $fatalityCount -and $fatalityCount -gt 0) { $lossesColor = $AlertColor }
+            elseif ($null -ne $injuryCount -and $injuryCount -gt 0) { $lossesColor = 'Yellow' }
+            Write-Host "Losses: $lossesStr" -ForegroundColor $lossesColor
         }
         if ($f.Updated) {
             try {
