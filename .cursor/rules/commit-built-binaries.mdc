@@ -1,0 +1,15 @@
+---
+description: Always include modified built binaries when committing and pushing any project
+alwaysApply: true
+---
+
+# Commit built binaries with their source changes
+
+Every project in this repo ships its build output. When the user asks to commit and/or push:
+
+- Stage and commit modified built artifacts for the project(s) being committed, e.g. `go/*/bin/**`, `ps/gf/gf.exe`, `python/tp/tp.exe`, `python/tp/tp.pyz`.
+- Never exclude them as "unrelated", "binary rebuilds", or noise. They are meant to ship.
+- Prefer the same commit as the source/docs/tests that produced them. If a prior commit left them out, commit and push them promptly as a follow-up.
+- Changes belonging to a different, unrelated project may still be excluded — the binaries of the project being committed may not.
+
+Rebuild ownership varies (see project-specific rules such as Larry): whether or not you run the build, commit whatever binaries are already modified in the working tree.
