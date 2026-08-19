@@ -364,16 +364,16 @@
                 },
                 {
                     "@type": "SoftwareApplication",
-                    "name": "png2ico",
-                    "description": "Python CLI that converts a 256x256 PNG into a Windows ICO containing the common icon sizes (16, 24, 32, 48, 64, 128, 256).",
-                    "url": "https://kreft.us/png2ico/",
-                    "applicationCategory": "UtilityApplication"
-                },
-                {
-                    "@type": "SoftwareApplication",
                     "name": "Larry",
                     "description": "Terminal Frogger-like game in Go (v1.5) with UTF-8 graphics, start menu, high scores, safe-lane debris from level 6, ♥ life pickups from level 8, ♦ score pickups from level 10, and a persistent Top-10 scoreboard with extended save metadata.",
                     "url": "https://kreft.us/larry/",
+                    "applicationCategory": "Game"
+                },
+                {
+                    "@type": "SoftwareApplication",
+                    "name": "Sudoku",
+                    "description": "Terminal Sudoku game in Go (v1.5) with UTF-8 box drawing, colored digits, Shift/Tab pencil marks, continue saves per difficulty, per-difficulty stats, Best/Fastest playback, and puzzles from the public-domain Sudoku Exchange bank.",
+                    "url": "https://kreft.us/sudoku/",
                     "applicationCategory": "Game"
                 },
                 {
@@ -382,13 +382,6 @@
                     "description": "Python desktop and terminal port of Conway's Game of Life with pygame GUI, Textual TUI (gol-tui.exe), wrapped/infinite modes, 57 patterns, pan and zoom, and colorful cell aging.",
                     "url": "https://kreft.us/golpy/",
                     "applicationCategory": "Simulation"
-                },
-                {
-                    "@type": "SoftwareApplication",
-                    "name": "Sudoku",
-                    "description": "Terminal Sudoku game in Go (v1.5) with UTF-8 box drawing, colored digits, Shift/Tab pencil marks, continue saves per difficulty, per-difficulty stats, Best/Fastest playback, and puzzles from the public-domain Sudoku Exchange bank.",
-                    "url": "https://kreft.us/sudoku/",
-                    "applicationCategory": "Game"
                 },
                 {
                     "@type": "SoftwareApplication",
@@ -423,6 +416,13 @@
                     "name": "Here",
                     "description": "PowerShell script for IP-based geolocation and astronomical data: sunrise, sunset, day length, solar noon, irradiance, moon phase. Optional IP argument.",
                     "url": "https://kreft.us/here/",
+                    "applicationCategory": "UtilityApplication"
+                },
+                {
+                    "@type": "SoftwareApplication",
+                    "name": "png2ico",
+                    "description": "Python CLI that converts a 256x256 PNG into a Windows ICO containing the common icon sizes (16, 24, 32, 48, 64, 128, 256).",
+                    "url": "https://kreft.us/png2ico/",
                     "applicationCategory": "UtilityApplication"
                 },
                 {
@@ -647,21 +647,6 @@
                         </a>
                     </td>
                 </tr>
-                <tr class="project-row" onclick="window.location.href='./png2ico/';">
-                    <td class="project-image-cell">
-                        <a href="./png2ico/" tabindex="-1">
-                            <img src="./images/png2ico.png" alt="png2ico converter tile showing nested Windows icon sizes" loading="lazy">
-                        </a>
-                    </td>
-                    <td class="project-text-cell">
-                        <a href="./png2ico/" tabindex="-1">
-                            <div>
-                                <h2>png2ico v1.0</h2>
-                                <p><b>png2ico</b> is a Python command-line converter that takes a 256×256 PNG and writes a Windows ICO beside it with the same name. It generates the common Windows icon sizes (16, 24, 32, 48, 64, 128, 256) and packs them into one ICO file. Wrong input sizes are rejected. Downloads and README on the project page.</p>
-                            </div>
-                        </a>
-                    </td>
-                </tr>
                 <tr class="project-row" onclick="window.location.href='./larry/';">
                     <td class="project-image-cell">
                         <a href="./larry/" tabindex="-1">
@@ -677,21 +662,6 @@
                         </a>
                     </td>
                 </tr>
-                <tr class="project-row" onclick="window.location.href='./golpy/';">
-                    <td class="project-image-cell">
-                        <a href="./golpy/" tabindex="-1">
-                            <img src="./images/golpy-tui.png" alt="GoLPy terminal UI Game of Life screenshot with setup screen and cell grid" loading="lazy">
-                        </a>
-                    </td>
-                    <td class="project-text-cell">
-                        <a href="./golpy/" tabindex="-1">
-                            <div>
-                                <h2>GoLPy v1.1</h2>
-                                <p><b>GoLPy</b> is a Python desktop port of the Kreft.us web Game of Life with pygame and a Textual terminal UI. Run Conway B3/S23 in wrapped or infinite mode with 57 built-in patterns, play/pause/step, pan and zoom, and colorful cell aging. <b>v1.1</b> adds full-terminal TUI (<code>-tui</code> / <code>gol-tui.exe</code>), controls help (<b>C</b>), infinite follow toggle (<b>F</b>), and dynamic wrapped grid sizing. Downloads and README on the project page.</p>
-                            </div>
-                        </a>
-                    </td>
-                </tr>
                 <tr class="project-row" onclick="window.location.href='./sudoku/';">
                     <td class="project-image-cell">
                         <a href="./sudoku/" tabindex="-1">
@@ -703,6 +673,21 @@
                             <div>
                                 <h2>Sudoku v1.5</h2>
                                 <p><b>Sudoku</b> is a terminal puzzle game written in Go with tcell. Fill the 9×9 grid; clues and correct entries lock so they cannot be changed by accident. Wrong digits stay with a red cell. Easy through Diabolical puzzles from the public-domain Sudoku Exchange bank; solved IDs are never offered again. Continue saves one game per difficulty after every move, with per-difficulty Perfect, Successes, Failed, and Best (or Fastest after a perfect). A new record stores a playback on the Solved screen and from the menu (↓ past Quit). Tab or hold Shift for pencil marks. Space pauses, Esc returns to the menu. Downloads and README on the project page.</p>
+                            </div>
+                        </a>
+                    </td>
+                </tr>
+                <tr class="project-row" onclick="window.location.href='./golpy/';">
+                    <td class="project-image-cell">
+                        <a href="./golpy/" tabindex="-1">
+                            <img src="./images/golpy-tui.png" alt="GoLPy terminal UI Game of Life screenshot with setup screen and cell grid" loading="lazy">
+                        </a>
+                    </td>
+                    <td class="project-text-cell">
+                        <a href="./golpy/" tabindex="-1">
+                            <div>
+                                <h2>GoLPy v1.1</h2>
+                                <p><b>GoLPy</b> is a Python desktop port of the Kreft.us web Game of Life with pygame and a Textual terminal UI. Run Conway B3/S23 in wrapped or infinite mode with 57 built-in patterns, play/pause/step, pan and zoom, and colorful cell aging. <b>v1.1</b> adds full-terminal TUI (<code>-tui</code> / <code>gol-tui.exe</code>), controls help (<b>C</b>), infinite follow toggle (<b>F</b>), and dynamic wrapped grid sizing. Downloads and README on the project page.</p>
                             </div>
                         </a>
                     </td>
@@ -808,6 +793,21 @@
                             <div>
                                 <h2>Here</h2>
                                 <p><b>Here</b> is a PowerShell script that retrieves your machine's approximate geographical location using a public IP geolocation API. It optionally accepts an IP address to query. For that location it displays astronomical data: sunrise, sunset, day length, solar noon, clear-sky irradiance (W/m²), moon phase, and next full/new moon. Accuracy is IP-based, not GPS.</p>
+                            </div>
+                        </a>
+                    </td>
+                </tr>
+                <tr class="project-row" onclick="window.location.href='./png2ico/';">
+                    <td class="project-image-cell">
+                        <a href="./png2ico/" tabindex="-1">
+                            <img src="./images/png2ico.png" alt="png2ico converter tile showing nested Windows icon sizes" loading="lazy">
+                        </a>
+                    </td>
+                    <td class="project-text-cell">
+                        <a href="./png2ico/" tabindex="-1">
+                            <div>
+                                <h2>png2ico v1.0</h2>
+                                <p><b>png2ico</b> is a Python command-line converter that takes a 256×256 PNG and writes a Windows ICO beside it with the same name. It generates the common Windows icon sizes (16, 24, 32, 48, 64, 128, 256) and packs them into one ICO file. Wrong input sizes are rejected. Downloads and README on the project page.</p>
                             </div>
                         </a>
                     </td>
