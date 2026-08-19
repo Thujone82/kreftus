@@ -12,33 +12,39 @@ import (
 
 const (
 	saveFileName  = "sudoku.json"
-	sudokuVersion = "1.4"
+	sudokuVersion = "1.5"
 )
 
 var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 
 type diffStats struct {
-	Successes       int    `json:"successes"`
-	Failed          int    `json:"failures"`
-	Perfect         int    `json:"perfect"`
-	MistakeSum      int    `json:"mistakeSum"`
-	RatedSuccesses  int    `json:"ratedSuccesses"`
-	FastestMs       *int64 `json:"fastestMs"`
-	FastestMistakes *int   `json:"fastestMistakes"`
+	Successes       int            `json:"successes"`
+	Failed          int            `json:"failures"`
+	Perfect         int            `json:"perfect"`
+	MistakeSum      int            `json:"mistakeSum"`
+	RatedSuccesses  int            `json:"ratedSuccesses"`
+	FastestMs       *int64         `json:"fastestMs"`
+	FastestMistakes *int           `json:"fastestMistakes"`
+	FastestReplay   *fastestReplay `json:"fastestReplay,omitempty"`
 }
 
 type continueGame struct {
-	ID         string `json:"id"`
-	Difficulty string `json:"difficulty"`
-	Givens     string `json:"givens"`
-	Solution   string `json:"solution"`
-	Grid       string `json:"grid"`
-	ElapsedMs  int64  `json:"elapsedMs"`
-	Mistakes   int    `json:"mistakes"`
-	Pencil     bool   `json:"pencil,omitempty"`
-	PencilTop  string `json:"pencilTop,omitempty"`
-	PencilBot  string `json:"pencilBot,omitempty"`
-	PencilSlot string `json:"pencilSlot,omitempty"`
+	ID              string `json:"id"`
+	Difficulty      string `json:"difficulty"`
+	Givens          string `json:"givens"`
+	Solution        string `json:"solution"`
+	Grid            string `json:"grid"`
+	ElapsedMs       int64  `json:"elapsedMs"`
+	Mistakes        int    `json:"mistakes"`
+	Pencil          bool   `json:"pencil,omitempty"`
+	PencilTop       string `json:"pencilTop,omitempty"`
+	PencilBot       string `json:"pencilBot,omitempty"`
+	PencilSlot      string `json:"pencilSlot,omitempty"`
+	Events          string `json:"events,omitempty"`
+	StartGrid       string `json:"startGrid,omitempty"`
+	StartPencilTop  string `json:"startPencilTop,omitempty"`
+	StartPencilBot  string `json:"startPencilBot,omitempty"`
+	StartPencilSlot string `json:"startPencilSlot,omitempty"`
 }
 
 type completedEntry struct {
@@ -133,6 +139,9 @@ func loadSave() *saveData {
 		}
 	}
 	dirty := s.normalizeContinues()
+	if s.syncBestRecords() {
+		dirty = true
+	}
 	if dirty {
 		_ = s.write()
 	}
@@ -203,7 +212,15 @@ func (s *saveData) scrubCompletedContinue(d string) bool {
 		return false
 	}
 	if _, done := s.completedSet(c.Difficulty)[c.ID]; !done {
-		s.recordSuccess(c.Difficulty, c.ElapsedMs, c.Mistakes)
+		if s.recordSuccess(c.Difficulty, c.ElapsedMs, c.Mistakes) {
+			fr := &fastestReplay{
+				ID:     c.ID,
+				Givens: c.Givens,
+				Events: c.Events,
+			}
+			replayStartFromContinue(c).applyToReplay(fr)
+			s.statsFor(c.Difficulty).FastestReplay = fr
+		}
 		s.markCompleted(c.Difficulty, c.ID, c.Mistakes, c.ElapsedMs)
 	}
 	s.setContinue(d, nil)
@@ -314,9 +331,20 @@ func (s *saveData) completedMistakes(d, id string) (int, bool) {
 }
 
 func (s *saveData) averageCompletion(d string) string {
+	entries := s.Completed[d]
+	usePerfect := false
+	for _, e := range entries {
+		if e.Mistakes == 0 {
+			usePerfect = true
+			break
+		}
+	}
 	var sum int64
 	n := 0
-	for _, e := range s.Completed[d] {
+	for _, e := range entries {
+		if usePerfect && e.Mistakes != 0 {
+			continue
+		}
 		sum += e.ElapsedMs
 		n++
 	}
@@ -327,7 +355,7 @@ func (s *saveData) averageCompletion(d string) string {
 	return formatDuration(time.Duration(avg) * time.Millisecond)
 }
 
-func (s *saveData) recordSuccess(d string, elapsedMs int64, mistakes int) {
+func (s *saveData) recordSuccess(d string, elapsedMs int64, mistakes int) bool {
 	st := s.statsFor(d)
 	st.Successes++
 	st.RatedSuccesses++
@@ -335,12 +363,67 @@ func (s *saveData) recordSuccess(d string, elapsedMs int64, mistakes int) {
 	if mistakes == 0 {
 		st.Perfect++
 	}
-	if st.FastestMs == nil || elapsedMs < *st.FastestMs || (elapsedMs == *st.FastestMs && (st.FastestMistakes == nil || mistakes < *st.FastestMistakes)) {
+	if betterRecord(elapsedMs, mistakes, st.FastestMs, st.FastestMistakes) {
 		ms := elapsedMs
 		m := mistakes
 		st.FastestMs = &ms
 		st.FastestMistakes = &m
+		return true
 	}
+	return false
+}
+
+// betterRecord is true when (mistakes, elapsed) is a better Best/Fastest than
+// the stored pair: fewest mistakes first, then fastest time.
+func betterRecord(elapsedMs int64, mistakes int, bestMs *int64, bestMistakes *int) bool {
+	if bestMs == nil || bestMistakes == nil {
+		return true
+	}
+	if mistakes != *bestMistakes {
+		return mistakes < *bestMistakes
+	}
+	return elapsedMs < *bestMs
+}
+
+func (s *saveData) syncBestRecords() bool {
+	dirty := false
+	for _, d := range difficultyOrder {
+		if s.recomputeBest(d) {
+			dirty = true
+		}
+	}
+	return dirty
+}
+
+func (s *saveData) recomputeBest(d string) bool {
+	entries := s.Completed[d]
+	if len(entries) == 0 {
+		return false
+	}
+	var bestMs *int64
+	var bestMist *int
+	bestID := ""
+	for _, e := range entries {
+		if betterRecord(e.ElapsedMs, e.Mistakes, bestMs, bestMist) {
+			ms := e.ElapsedMs
+			m := e.Mistakes
+			bestMs = &ms
+			bestMist = &m
+			bestID = e.ID
+		}
+	}
+	if bestMs == nil {
+		return false
+	}
+	st := s.statsFor(d)
+	changed := st.FastestMs == nil || st.FastestMistakes == nil || *st.FastestMs != *bestMs || *st.FastestMistakes != *bestMist
+	st.FastestMs = bestMs
+	st.FastestMistakes = bestMist
+	if st.FastestReplay != nil && st.FastestReplay.ID != bestID {
+		st.FastestReplay = nil
+		changed = true
+	}
+	return changed
 }
 
 func (st *diffStats) errorRate() string {
@@ -352,14 +435,15 @@ func (st *diffStats) errorRate() string {
 
 func (st *diffStats) UnmarshalJSON(b []byte) error {
 	var raw struct {
-		Successes       int    `json:"successes"`
-		Abandonments    int    `json:"abandonments"`
-		Failures        int    `json:"failures"`
-		Perfect         int    `json:"perfect"`
-		MistakeSum      int    `json:"mistakeSum"`
-		RatedSuccesses  int    `json:"ratedSuccesses"`
-		FastestMs       *int64 `json:"fastestMs"`
-		FastestMistakes *int   `json:"fastestMistakes"`
+		Successes       int            `json:"successes"`
+		Abandonments    int            `json:"abandonments"`
+		Failures        int            `json:"failures"`
+		Perfect         int            `json:"perfect"`
+		MistakeSum      int            `json:"mistakeSum"`
+		RatedSuccesses  int            `json:"ratedSuccesses"`
+		FastestMs       *int64         `json:"fastestMs"`
+		FastestMistakes *int           `json:"fastestMistakes"`
+		FastestReplay   *fastestReplay `json:"fastestReplay"`
 	}
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return err
@@ -374,6 +458,7 @@ func (st *diffStats) UnmarshalJSON(b []byte) error {
 	st.RatedSuccesses = raw.RatedSuccesses
 	st.FastestMs = raw.FastestMs
 	st.FastestMistakes = raw.FastestMistakes
+	st.FastestReplay = raw.FastestReplay
 	return nil
 }
 

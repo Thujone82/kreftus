@@ -1,4 +1,4 @@
-﻿package main
+package main
 
 import (
 	"fmt"
@@ -25,8 +25,11 @@ const boxBL = '╚'
 const boxBR = '╝'
 const boxML = '╠'
 const boxMR = '╣'
+const boxTD = '╦'
+const boxBU = '╩'
 const boxH = '═'
 const boxV = '║'
+const replayInnerW = 9
 
 // Nine hues equally spaced around the wheel. White is reserved for a digit
 // whose nine correct placements are all on the board.
@@ -86,7 +89,7 @@ func (g *game) drawMenu() {
 	drawCentered(g.screen, w/2, y, "── "+difficultyLabel[g.difficulty]+" ──", g.titleStyle())
 	y++
 
-	visible := g.visibleMenu()
+	visible := g.menuItems()
 	labels := map[int]string{
 		menuContinue: "Continue",
 		menuNewGame:  "New Game",
@@ -112,29 +115,24 @@ func (g *game) drawMenu() {
 	}
 	y += len(visible) + 1
 
-	drawCentered(g.screen, w/2, y, "── Stats ──", g.titleStyle())
-	y++
-	statRows := [][2]string{}
-	if showDetail {
-		fast := "—"
-		if st.FastestMs != nil {
-			fast = formatDuration(time.Duration(*st.FastestMs) * time.Millisecond)
-			if st.FastestMistakes != nil {
-				fast += fmt.Sprintf("  (%d incorrect)", *st.FastestMistakes)
+	if g.menuIndex == menuReplay {
+		g.drawMenuReplayBox(w/2, y)
+	} else {
+		statRows := [][2]string{}
+		if showDetail {
+			statRows = [][2]string{
+				{"Perfect", fmt.Sprintf("%d", st.Perfect)},
+				{"Successes", fmt.Sprintf("%d", st.Successes)},
+				{"Error Rate", st.errorRate()},
+				{"Failed", fmt.Sprintf("%d", st.Failed)},
+				{st.bestLabel(), st.bestValue()},
+				{"Average Completion", g.save.averageCompletion(g.difficulty)},
 			}
 		}
-		statRows = [][2]string{
-			{"Perfect", fmt.Sprintf("%d", st.Perfect)},
-			{"Successes", fmt.Sprintf("%d", st.Successes)},
-			{"Error Rate", st.errorRate()},
-			{"Failed", fmt.Sprintf("%d", st.Failed)},
-			{"Fastest", fast},
-			{"Average Completion", g.save.averageCompletion(g.difficulty)},
-		}
+		total := len(puzzlesFor(g.difficulty))
+		statRows = append(statRows, [2]string{"Remaining", fmt.Sprintf("%d / %d", remain, total)})
+		g.drawStatsBox(w/2, y, "Stats", formatStatLines(statRows))
 	}
-	total := len(puzzlesFor(g.difficulty))
-	statRows = append(statRows, [2]string{"Remaining", fmt.Sprintf("%d / %d", remain, total)})
-	drawStatBlock(g.screen, w/2, y, formatStatLines(statRows), styleDefault)
 
 	if h > 2 {
 		drawCentered(g.screen, w/2, h-2, "↑↓ select · ←→ difficulty · Enter · Esc quit", styleDim)
@@ -408,11 +406,15 @@ func recolor(s tcell.Screen, x, y int, st tcell.Style) {
 }
 
 func (g *game) cellStyle(i int, done [10]bool) tcell.Style {
+	return cellStyle(&g.board, i, done)
+}
+
+func cellStyle(b *board, i int, done [10]bool) tcell.Style {
 	st := tcell.StyleDefault.Background(tcell.ColorBlack)
-	if g.board.isWrong(i) {
+	if b.isWrong(i) {
 		st = st.Background(tcell.ColorMaroon)
 	}
-	v := g.board.grid[i]
+	v := b.grid[i]
 	if v >= '1' && v <= '9' {
 		d := v - '0'
 		fg := digitColor[d]
@@ -420,7 +422,7 @@ func (g *game) cellStyle(i int, done [10]bool) tcell.Style {
 			fg = digitCompleteColor
 		}
 		st = st.Foreground(fg)
-		if g.board.isLocked(i) {
+		if b.isLocked(i) {
 			st = st.Bold(true)
 		}
 	} else {
@@ -437,8 +439,12 @@ func (g *game) modeGlyph() string {
 }
 
 func (g *game) pencilStyle(i int) tcell.Style {
-	top := g.board.pencil[i][0]
-	bot := g.board.pencil[i][1]
+	return pencilStyle(&g.board, i)
+}
+
+func pencilStyle(b *board, i int) tcell.Style {
+	top := b.pencil[i][0]
+	bot := b.pencil[i][1]
 	fg := tcell.ColorBlack
 	bg := tcell.ColorBlack
 	if top >= '1' && top <= '9' {
@@ -455,6 +461,17 @@ func digitPaint(d byte, done [10]bool) tcell.Color {
 		return digitCompleteColor
 	}
 	return digitColor[d]
+}
+
+func digitHueShift(d byte, shift int) tcell.Color {
+	if d < '1' || d > '9' {
+		return tcell.ColorWhite
+	}
+	i := (int(d-'1') + shift) % 9
+	if i < 0 {
+		i += 9
+	}
+	return digitColor[i+1]
 }
 
 func (g *game) drawPause() {
@@ -592,6 +609,7 @@ func (g *game) drawSolved() {
 
 	elapsed := formatDuration(time.Duration(g.solvedMs) * time.Millisecond)
 	stats, badge := solvedBody(elapsed, g.solvedMistakes)
+	record := newCompletionBanner(g.solvedNewRecord, g.save.statsFor(g.difficulty).bestLabel())
 
 	innerW := 28
 	for _, line := range stats {
@@ -599,12 +617,15 @@ func (g *game) drawSolved() {
 			innerW = n + 4
 		}
 	}
-	if n := runewidth.StringWidth(badge); n+4 > innerW {
-		innerW = n + 4
+	for _, line := range []string{badge, record} {
+		if n := runewidth.StringWidth(line); n+4 > innerW {
+			innerW = n + 4
+		}
 	}
 	boxW := innerW + 2
-	frameH := 10
-	x := (w - boxW) / 2
+	frameH := 11
+	totalW := boxW + replayInnerW + 1
+	x := (w - totalW) / 2
 	y := (h - frameH) / 2
 	if x < 0 {
 		x = 0
@@ -619,14 +640,19 @@ func (g *game) drawSolved() {
 	perfectSt := tcell.StyleDefault.Foreground(g.accent2()).Background(tcell.ColorBlack).Bold(true)
 	hintSt := tcell.StyleDefault.Foreground(g.accent3()).Background(tcell.ColorBlack)
 
-	drawBoxRow(g.screen, x, y, boxW, boxTL, boxH, boxTR, border)
+	g.drawSolvedStatsBox(x, y, boxW, innerW, frameH, stats, badge, record, border, titleFill, titleFg, perfectSt, hintSt)
+	g.drawSolvedReplayPane(x+boxW-1, y, frameH, border)
+}
+
+func (g *game) drawSolvedStatsBox(x, y, boxW, innerW, frameH int, stats []string, badge, record string, border, titleFill, titleFg, perfectSt, hintSt tcell.Style) {
+	drawBoxRow(g.screen, x, y, boxW, boxTL, boxH, boxTD, border)
 	fillRect(g.screen, x+1, y+1, innerW, 1, titleFill)
 	g.screen.SetContent(x, y+1, boxV, nil, border)
 	g.screen.SetContent(x+boxW-1, y+1, boxV, nil, border)
 	drawCentered(g.screen, x+boxW/2, y+1, "Solved!", titleFg)
 	drawBoxRow(g.screen, x, y+2, boxW, boxML, boxH, boxMR, border)
 
-	for dy := 3; dy <= 6; dy++ {
+	for dy := 3; dy <= 7; dy++ {
 		g.screen.SetContent(x, y+dy, boxV, nil, border)
 		g.screen.SetContent(x+boxW-1, y+dy, boxV, nil, border)
 	}
@@ -634,12 +660,63 @@ func (g *game) drawSolved() {
 	if badge != "" {
 		drawCentered(g.screen, x+boxW/2, y+5, badge, perfectSt)
 	}
+	if record != "" {
+		drawCentered(g.screen, x+boxW/2, y+6, record, perfectSt)
+	}
 
-	drawBoxRow(g.screen, x, y+7, boxW, boxML, boxH, boxMR, border)
-	g.screen.SetContent(x, y+8, boxV, nil, border)
-	g.screen.SetContent(x+boxW-1, y+8, boxV, nil, border)
-	drawCentered(g.screen, x+boxW/2, y+8, "Press Enter", hintSt)
-	drawBoxRow(g.screen, x, y+9, boxW, boxBL, boxH, boxBR, border)
+	drawBoxRow(g.screen, x, y+8, boxW, boxML, boxH, boxMR, border)
+	g.screen.SetContent(x, y+9, boxV, nil, border)
+	g.screen.SetContent(x+boxW-1, y+9, boxV, nil, border)
+	drawCentered(g.screen, x+boxW/2, y+9, "Press Enter", hintSt)
+	drawBoxRow(g.screen, x, y+frameH-1, boxW, boxBL, boxH, boxBU, border)
+}
+
+func (g *game) drawSolvedReplayPane(splitX, y, frameH int, border tcell.Style) {
+	innerX := splitX + 1
+	rightX := innerX + replayInnerW
+	for dx := 0; dx < replayInnerW; dx++ {
+		g.screen.SetContent(innerX+dx, y, boxH, nil, border)
+		g.screen.SetContent(innerX+dx, y+frameH-1, boxH, nil, border)
+	}
+	g.screen.SetContent(rightX, y, boxTR, nil, border)
+	for dy := 1; dy < frameH-1; dy++ {
+		g.screen.SetContent(rightX, y+dy, boxV, nil, border)
+	}
+	g.screen.SetContent(rightX, y+frameH-1, boxBR, nil, border)
+	pb, shift, celebrate := g.playbackView()
+	g.drawReplayGrid(innerX, y+1, &pb, shift, celebrate)
+}
+
+func (g *game) drawReplayGrid(x, y int, b *board, hueShift int, celebrate bool) {
+	done := b.completedDigits()
+	for r := 0; r < 9; r++ {
+		for c := 0; c < 9; c++ {
+			i := r*9 + c
+			ch, st := replayCellGlyph(b, i, done, hueShift, celebrate)
+			g.screen.SetContent(x+c, y+r, ch, nil, st)
+		}
+	}
+}
+
+func replayCellGlyph(b *board, i int, done [10]bool, hueShift int, celebrate bool) (rune, tcell.Style) {
+	if celebrate {
+		d := b.solution[i]
+		if d < '1' || d > '9' {
+			d = b.grid[i]
+		}
+		st := tcell.StyleDefault.Foreground(digitHueShift(d, hueShift)).Background(tcell.ColorBlack)
+		if b.isGiven(i) {
+			st = st.Bold(true)
+		}
+		return rune(d), st
+	}
+	if emptyCell(b.grid[i]) {
+		if b.hasPencil(i) {
+			return pencilGlyph, pencilStyle(b, i)
+		}
+		return ' ', styleDefault
+	}
+	return rune(b.grid[i]), cellStyle(b, i, done)
 }
 
 func solvedBody(elapsed string, mistakes int) (stats []string, badge string) {
@@ -650,6 +727,13 @@ func solvedBody(elapsed string, mistakes int) (stats []string, badge string) {
 		{"Time", elapsed},
 		{"Errors", fmt.Sprintf("%d", mistakes)},
 	}), ""
+}
+
+func newCompletionBanner(isNew bool, label string) string {
+	if !isNew {
+		return ""
+	}
+	return "New " + label + " Completion!"
 }
 
 func drawBoxRow(s tcell.Screen, x, y, w int, left, mid, right rune, st tcell.Style) {
@@ -674,6 +758,24 @@ func drawText(s tcell.Screen, x, y int, text string, st tcell.Style) {
 	}
 }
 
+func (st *diffStats) bestLabel() string {
+	if st != nil && st.FastestMistakes != nil && *st.FastestMistakes == 0 {
+		return "Fastest"
+	}
+	return "Best"
+}
+
+func (st *diffStats) bestValue() string {
+	if st == nil || st.FastestMs == nil {
+		return "—"
+	}
+	v := formatDuration(time.Duration(*st.FastestMs) * time.Millisecond)
+	if st.FastestMistakes != nil && *st.FastestMistakes > 0 {
+		v += fmt.Sprintf("  (%d incorrect)", *st.FastestMistakes)
+	}
+	return v
+}
+
 func formatStatLines(rows [][2]string) []string {
 	labelW := 0
 	for _, row := range rows {
@@ -686,6 +788,102 @@ func formatStatLines(rows [][2]string) []string {
 		lines[i] = fmt.Sprintf("%*s:  %s", labelW, row[0], row[1])
 	}
 	return lines
+}
+
+const (
+	statsBoxTL = '┌'
+	statsBoxTR = '┐'
+	statsBoxBL = '└'
+	statsBoxBR = '┘'
+	statsBoxH  = '─'
+	statsBoxV  = '│'
+)
+
+func statsBoxWidth(lines []string, title string) int {
+	maxW := runewidth.StringWidth(title) + 2
+	for _, line := range lines {
+		if n := runewidth.StringWidth(line); n > maxW {
+			maxW = n
+		}
+	}
+	return maxW + 4
+}
+
+func titledBoxTop(boxW int, title string) string {
+	if boxW < 2 {
+		return ""
+	}
+	inner := boxW - 2
+	dashes := make([]rune, inner)
+	for i := range dashes {
+		dashes[i] = statsBoxH
+	}
+	tw := runewidth.StringWidth(title)
+	start := (inner - tw) / 2
+	if start < 0 {
+		start = 0
+	}
+	i := 0
+	for _, r := range title {
+		if start+i >= inner {
+			break
+		}
+		dashes[start+i] = r
+		i++
+	}
+	return string(statsBoxTL) + string(dashes) + string(statsBoxTR)
+}
+
+func (g *game) drawStatsBox(cx, y int, title string, lines []string) {
+	st := g.titleStyle()
+	textSt := styleDefault
+	boxW := statsBoxWidth(lines, title)
+	x := cx - boxW/2
+	if x < 0 {
+		x = 0
+	}
+	top := titledBoxTop(boxW, " "+title+" ")
+	drawText(g.screen, x, y, top, st)
+	for i, line := range lines {
+		row := y + 1 + i
+		g.screen.SetContent(x, row, statsBoxV, nil, st)
+		g.screen.SetContent(x+boxW-1, row, statsBoxV, nil, st)
+		drawText(g.screen, x+2, row, line, textSt)
+	}
+	bot := y + 1 + len(lines)
+	g.screen.SetContent(x, bot, statsBoxBL, nil, st)
+	g.screen.SetContent(x+boxW-1, bot, statsBoxBR, nil, st)
+	for dx := 1; dx < boxW-1; dx++ {
+		g.screen.SetContent(x+dx, bot, statsBoxH, nil, st)
+	}
+}
+
+func (g *game) drawMenuReplayBox(cx, y int) {
+	st := g.titleStyle()
+	boxW := replayInnerW + 2
+	x := cx - boxW/2
+	if x < 0 {
+		x = 0
+	}
+	title := "Replay"
+	top := titledBoxTop(boxW, title)
+	drawText(g.screen, x, y, top, st)
+	tx := x + (boxW-len(title))/2
+	drawText(g.screen, tx, y, title, g.selectStyle())
+	innerX := x + 1
+	for r := 0; r < 9; r++ {
+		row := y + 1 + r
+		g.screen.SetContent(x, row, statsBoxV, nil, st)
+		g.screen.SetContent(x+boxW-1, row, statsBoxV, nil, st)
+	}
+	pb, shift, celebrate := g.playbackView()
+	g.drawReplayGrid(innerX, y+1, &pb, shift, celebrate)
+	bot := y + 10
+	g.screen.SetContent(x, bot, statsBoxBL, nil, st)
+	g.screen.SetContent(x+boxW-1, bot, statsBoxBR, nil, st)
+	for dx := 1; dx < boxW-1; dx++ {
+		g.screen.SetContent(x+dx, bot, statsBoxH, nil, st)
+	}
 }
 
 func drawStatBlock(s tcell.Screen, cx, y int, lines []string, st tcell.Style) {

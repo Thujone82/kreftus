@@ -86,6 +86,35 @@ func TestFinishSuccessWipesContinue(t *testing.T) {
 	if loaded.averageCompletion(diffEasy) != "0:45" {
 		t.Fatalf("average=%s want 0:45", loaded.averageCompletion(diffEasy))
 	}
+	rep := loaded.statsFor(diffEasy).FastestReplay
+	if rep == nil || rep.ID != testPuzzleID || rep.Givens != givens {
+		t.Fatalf("fastestReplay=%v", rep)
+	}
+	if !g.solvedNewRecord {
+		t.Fatal("first success should be a new Best/Fastest")
+	}
+}
+
+func TestFinishSuccessFlagsOnlyNewRecord(t *testing.T) {
+	chdirTemp(t)
+	givens, sol := classicSolved()
+	g := &game{
+		save:       newSaveData(),
+		difficulty: diffEasy,
+		puzzle:     puzzleEntry{ID: "secondhash12a", Givens: givens, Solution: sol},
+		board:      newBoard(givens, sol, sol),
+		view:       viewPlay,
+		elapsed:    10 * time.Second,
+	}
+	g.board.mistakes = 1
+	g.save.recordSuccess(diffEasy, 45000, 0)
+	g.finishSuccess()
+	if g.solvedNewRecord {
+		t.Fatal("imperfect slower than a perfect must not be a new record")
+	}
+	if g.save.statsFor(diffEasy).bestLabel() != "Fastest" {
+		t.Fatalf("label=%q", g.save.statsFor(diffEasy).bestLabel())
+	}
 }
 
 func TestPersistPlaySkipsCompletedBoard(t *testing.T) {
@@ -216,6 +245,11 @@ func TestMarkCompletedStoresMistakes(t *testing.T) {
 	s.markCompleted(diffEasy, "def", 1, 120000)
 	if s.averageCompletion(diffEasy) != "1:30" {
 		t.Fatalf("average=%s want 1:30", s.averageCompletion(diffEasy))
+	}
+	s.markCompleted(diffEasy, "ghi", 0, 30000)
+	s.markCompleted(diffEasy, "jkl", 0, 90000)
+	if s.averageCompletion(diffEasy) != "1:00" {
+		t.Fatalf("perfect average=%s want 1:00 (only 0:30 and 1:30)", s.averageCompletion(diffEasy))
 	}
 }
 
@@ -379,5 +413,239 @@ func TestNewGamePromptsOnlyForSameDifficulty(t *testing.T) {
 	g2.activateMenu()
 	if g2.view != viewConfirmNewGame {
 		t.Fatalf("view=%d want confirm new game", g2.view)
+	}
+}
+
+func TestRecordSuccessStoresBestReplay(t *testing.T) {
+	s := newSaveData()
+	st := s.statsFor(diffEasy)
+	if !s.recordSuccess(diffEasy, 5000, 2) {
+		t.Fatal("first success is best")
+	}
+	st.FastestReplay = &fastestReplay{ID: "first", Givens: "g", Events: "2P5"}
+	if s.recordSuccess(diffEasy, 4000, 3) {
+		t.Fatal("faster with more mistakes must not replace Best")
+	}
+	if st.FastestReplay == nil || st.FastestReplay.ID != "first" {
+		t.Fatal("worse Best must keep the stored replay")
+	}
+	if *st.FastestMs != 5000 || *st.FastestMistakes != 2 {
+		t.Fatalf("best=%d/%d", *st.FastestMs, *st.FastestMistakes)
+	}
+	if !s.recordSuccess(diffEasy, 8000, 1) {
+		t.Fatal("fewer mistakes should replace Best even if slower")
+	}
+	if !s.recordSuccess(diffEasy, 7000, 1) {
+		t.Fatal("same mistakes faster should replace Best")
+	}
+	if s.recordSuccess(diffEasy, 9000, 1) {
+		t.Fatal("same mistakes slower must not replace")
+	}
+	if !s.recordSuccess(diffEasy, 20000, 0) {
+		t.Fatal("first perfect should replace any imperfect Best")
+	}
+	if s.recordSuccess(diffEasy, 1000, 1) {
+		t.Fatal("imperfect must not replace a perfect Fastest")
+	}
+	if s.recordSuccess(diffEasy, 21000, 0) {
+		t.Fatal("slower perfect must not replace Fastest")
+	}
+	if !s.recordSuccess(diffEasy, 15000, 0) {
+		t.Fatal("faster perfect should replace Fastest")
+	}
+	if *st.FastestMs != 15000 || *st.FastestMistakes != 0 {
+		t.Fatalf("fastest perfect=%d/%d", *st.FastestMs, *st.FastestMistakes)
+	}
+}
+
+func TestUnmarshalJSONKeepsFastestReplay(t *testing.T) {
+	chdirTemp(t)
+	givens, _ := classicSolved()
+	s := newSaveData()
+	ms := int64(1234)
+	m := 2
+	s.Stats[diffEasy] = &diffStats{
+		Successes:       1,
+		RatedSuccesses:  1,
+		MistakeSum:      2,
+		FastestMs:       &ms,
+		FastestMistakes: &m,
+		FastestReplay:   &fastestReplay{ID: testPuzzleID, Givens: givens, Events: "2P5,14M3"},
+	}
+	if err := s.write(); err != nil {
+		t.Fatal(err)
+	}
+	loaded := loadSave()
+	rep := loaded.statsFor(diffEasy).FastestReplay
+	if rep == nil || rep.ID != testPuzzleID || rep.Givens != givens || rep.Events != "2P5,14M3" {
+		t.Fatalf("fastestReplay dropped on load: %+v", rep)
+	}
+}
+
+func TestContinuePersistsAndRestoresEvents(t *testing.T) {
+	chdirTemp(t)
+	givens, sol := classicSolved()
+	events := []replayEvent{
+		{Cell: 2, Op: replayOpPlace, Digit: sol[2]},
+		{Cell: 3, Op: replayOpMark, Digit: '1'},
+	}
+	g := &game{
+		save:         newSaveData(),
+		difficulty:   diffEasy,
+		puzzle:       puzzleEntry{ID: testPuzzleID, Givens: givens, Solution: sol},
+		board:        newBoard(givens, sol, givens),
+		view:         viewPlay,
+		replayEvents: events,
+	}
+	g.persistPlayNow()
+	c := g.save.continueFor(diffEasy)
+	if c == nil || c.Events != encodeReplay(events) {
+		t.Fatalf("continue events=%v", c)
+	}
+	loaded := loadSave()
+	c2 := loaded.continueFor(diffEasy)
+	if c2 == nil || c2.Events != encodeReplay(events) {
+		t.Fatal("events missing after disk round trip")
+	}
+	g2 := &game{save: loaded, difficulty: diffEasy}
+	g2.resumeContinue()
+	if encodeReplay(g2.replayEvents) != encodeReplay(events) {
+		t.Fatalf("restored events=%q", encodeReplay(g2.replayEvents))
+	}
+	if g2.replayGivens != givens || g2.replaySolution != sol {
+		t.Fatal("replay givens/solution not restored")
+	}
+	if g2.replayStart.active(givens) {
+		t.Fatal("native 1.5 continue with events should not onboard a start snapshot")
+	}
+}
+
+func TestResumeContinueOnboardsPre15(t *testing.T) {
+	chdirTemp(t)
+	givens, sol := classicSolved()
+	mid := []byte(givens)
+	mid[2] = sol[2]
+	grid := string(mid)
+	g := &game{save: newSaveData(), difficulty: diffEasy}
+	g.save.setContinue(diffEasy, &continueGame{
+		ID: testPuzzleID, Difficulty: diffEasy, Givens: givens, Solution: sol, Grid: grid,
+	})
+	g.resumeContinue()
+	if !g.replayStart.active(givens) || g.replayStart.Grid != grid {
+		t.Fatalf("should snapshot the pre-1.5 board: %+v", g.replayStart)
+	}
+	if len(g.replayEvents) != 0 {
+		t.Fatal("onboard must not invent pre-1.5 events")
+	}
+	c := g.save.continueFor(diffEasy)
+	if c == nil || c.StartGrid != grid {
+		t.Fatal("startGrid should be persisted on continue")
+	}
+	zero := replayBoardAt(g.replayGivens, g.replaySolution, g.replayStart, g.replayEvents, 0)
+	if zero.gridString() != grid {
+		t.Fatal("playback frame 0 should be the onboarded board")
+	}
+
+	g.board.cursor = 3
+	g.applyDigit(sol[3])
+	if encodeReplay(g.replayEvents) == "" {
+		t.Fatal("new moves after onboard should log")
+	}
+	g.persistPlayNow()
+	loaded := loadSave()
+	g2 := &game{save: loaded, difficulty: diffEasy}
+	g2.resumeContinue()
+	if g2.replayStart.Grid != grid {
+		t.Fatal("second continue should keep the snapshot origin")
+	}
+	if encodeReplay(g2.replayEvents) != encodeReplay(g.replayEvents) {
+		t.Fatalf("post-onboard events=%q", encodeReplay(g2.replayEvents))
+	}
+	one := replayBoardAt(g2.replayGivens, g2.replaySolution, g2.replayStart, g2.replayEvents, 1)
+	if one.grid[2] != sol[2] || one.grid[3] != sol[3] {
+		t.Fatal("events should apply on top of the snapshot")
+	}
+}
+
+func TestFinishSuccessStoresOnboardedReplay(t *testing.T) {
+	chdirTemp(t)
+	givens, sol := classicSolved()
+	mid := []byte(givens)
+	mid[2] = sol[2]
+	g := &game{
+		save:         newSaveData(),
+		difficulty:   diffEasy,
+		puzzle:       puzzleEntry{ID: testPuzzleID, Givens: givens, Solution: sol},
+		board:        newBoard(givens, sol, sol),
+		view:         viewPlay,
+		elapsed:      45 * time.Second,
+		replayEvents: []replayEvent{{Cell: 3, Op: replayOpPlace, Digit: sol[3]}},
+		replayStart:  replayStart{Grid: string(mid)},
+		replayGivens: givens,
+	}
+	g.finishSuccess()
+	rep := g.save.statsFor(diffEasy).FastestReplay
+	if rep == nil || rep.StartGrid != string(mid) || rep.Events == "" {
+		t.Fatalf("fastestReplay should keep the onboard snapshot: %+v", rep)
+	}
+}
+
+func TestScrubCompletedContinueKeepsReplay(t *testing.T) {
+	chdirTemp(t)
+	givens, sol := classicSolved()
+	s := newSaveData()
+	s.setContinue(diffEasy, &continueGame{
+		ID:         testPuzzleID,
+		Difficulty: diffEasy,
+		Givens:     givens,
+		Solution:   sol,
+		Grid:       sol,
+		ElapsedMs:  12000,
+		Mistakes:   2,
+		Events:     "2P5",
+	})
+	if err := s.write(); err != nil {
+		t.Fatal(err)
+	}
+	loaded := loadSave()
+	rep := loaded.statsFor(diffEasy).FastestReplay
+	if rep == nil || rep.ID != testPuzzleID || rep.Events != "2P5" {
+		t.Fatalf("scrub should store continue events as fastestReplay: %+v", rep)
+	}
+}
+
+func TestLoadReconcilesBestFromCompleted(t *testing.T) {
+	chdirTemp(t)
+	givens, _ := classicSolved()
+	s := newSaveData()
+	fastWrong := int64(1000)
+	wrong := 5
+	s.Stats[diffEasy] = &diffStats{
+		Successes:       2,
+		Perfect:         1,
+		RatedSuccesses:  2,
+		MistakeSum:      5,
+		FastestMs:       &fastWrong,
+		FastestMistakes: &wrong,
+		FastestReplay:   &fastestReplay{ID: "fast-wrong", Givens: givens, Events: "2P5"},
+	}
+	s.Completed[diffEasy] = []completedEntry{
+		{ID: "fast-wrong", Mistakes: 5, ElapsedMs: 1000},
+		{ID: "slow-perfect", Mistakes: 0, ElapsedMs: 90000},
+	}
+	if err := s.write(); err != nil {
+		t.Fatal(err)
+	}
+	loaded := loadSave()
+	st := loaded.statsFor(diffEasy)
+	if st.FastestMs == nil || *st.FastestMs != 90000 || st.FastestMistakes == nil || *st.FastestMistakes != 0 {
+		t.Fatalf("reconciled best=%v/%v want 90000/0", st.FastestMs, st.FastestMistakes)
+	}
+	if st.FastestReplay != nil {
+		t.Fatalf("stale imperfect replay should drop: %+v", st.FastestReplay)
+	}
+	again := loadSave()
+	if again.statsFor(diffEasy).FastestReplay != nil {
+		t.Fatal("reconcile should stay written")
 	}
 }

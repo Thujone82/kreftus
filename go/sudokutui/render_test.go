@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +15,59 @@ func TestSolvedBodyPerfectReplacesErrors(t *testing.T) {
 	}
 	if len(stats) != 1 || stats[0] != "Time:  22:23" {
 		t.Fatalf("stats=%q", stats)
+	}
+}
+
+func TestBestLabelAndValue(t *testing.T) {
+	if (&diffStats{}).bestLabel() != "Best" {
+		t.Fatal("empty stats should say Best")
+	}
+	ms := int64(45000)
+	wrong := 2
+	st := &diffStats{FastestMs: &ms, FastestMistakes: &wrong}
+	if st.bestLabel() != "Best" {
+		t.Fatalf("label=%q want Best", st.bestLabel())
+	}
+	if st.bestValue() != "0:45  (2 incorrect)" {
+		t.Fatalf("value=%q", st.bestValue())
+	}
+	zero := 0
+	st.FastestMistakes = &zero
+	if st.bestLabel() != "Fastest" {
+		t.Fatalf("label=%q want Fastest after a perfect", st.bestLabel())
+	}
+	if st.bestValue() != "0:45" {
+		t.Fatalf("perfect Fastest should omit incorrect count, got %q", st.bestValue())
+	}
+}
+
+func TestNewCompletionBanner(t *testing.T) {
+	if newCompletionBanner(false, "Best") != "" {
+		t.Fatal("non-record should have no banner")
+	}
+	if got := newCompletionBanner(true, "Best"); got != "New Best Completion!" {
+		t.Fatalf("got %q", got)
+	}
+	if got := newCompletionBanner(true, "Fastest"); got != "New Fastest Completion!" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestTitledBoxTopCentersStats(t *testing.T) {
+	top := titledBoxTop(24, " Stats ")
+	if len([]rune(top)) != 24 {
+		t.Fatalf("width=%d want 24 (%q)", len([]rune(top)), top)
+	}
+	if !strings.Contains(top, " Stats ") {
+		t.Fatalf("title missing: %q", top)
+	}
+	rs := []rune(top)
+	if rs[0] != '┌' || rs[23] != '┐' {
+		t.Fatalf("corners: %q", top)
+	}
+	w := statsBoxWidth([]string{"Remaining:  2495 / 2500"}, "Stats")
+	if w < len("Remaining:  2495 / 2500")+4 {
+		t.Fatalf("box too narrow: %d", w)
 	}
 }
 
@@ -208,5 +262,44 @@ func TestRefreshShiftHoldIgnoresBriefRelease(t *testing.T) {
 	g.lastShiftHeld = time.Now().Add(-time.Second)
 	if !g.refreshShiftHold() || g.shiftHold {
 		t.Fatal("real Shift release after grace should leave pencil UI")
+	}
+}
+
+func TestReplayCellGlyph(t *testing.T) {
+	givens, sol := classicSolved()
+	b := newBoard(givens, sol, givens)
+	done := b.completedDigits()
+	ch, _ := replayCellGlyph(&b, 0, done, 0, false)
+	if ch != rune(givens[0]) {
+		t.Fatalf("given glyph=%q want %q", ch, givens[0])
+	}
+	b.cursor = 3
+	if !b.markPencil('1') {
+		t.Fatal("mark")
+	}
+	ch, _ = replayCellGlyph(&b, 3, done, 0, false)
+	if ch != pencilGlyph {
+		t.Fatalf("pencil glyph=%q", ch)
+	}
+	empty := 2
+	ch, _ = replayCellGlyph(&b, empty, done, 0, false)
+	if ch != ' ' {
+		t.Fatalf("empty glyph=%q", ch)
+	}
+	ch, _ = replayCellGlyph(&b, empty, done, 0, true)
+	if ch != rune(sol[empty]) {
+		t.Fatalf("celebrate should show the solution digit, got %q want %q", ch, sol[empty])
+	}
+}
+
+func TestDigitHueShift(t *testing.T) {
+	if digitHueShift('1', 0) != digitColor[1] {
+		t.Fatal("shift 0 is the native hue")
+	}
+	if digitHueShift('1', 1) != digitColor[2] {
+		t.Fatal("shift 1 should be the next digit hue")
+	}
+	if digitHueShift('9', 1) != digitColor[1] {
+		t.Fatal("hue wheel should wrap")
 	}
 }

@@ -25,6 +25,7 @@ const (
 	menuContinue = iota
 	menuNewGame
 	menuQuit
+	menuReplay
 )
 
 type game struct {
@@ -40,10 +41,17 @@ type game struct {
 	save       *saveData
 	rng        *rand.Rand
 
-	puzzle         puzzleEntry
-	board          board
-	solvedMs       int64
-	solvedMistakes int
+	puzzle          puzzleEntry
+	board           board
+	solvedMs        int64
+	solvedMistakes  int
+	solvedNewRecord bool
+
+	replayEvents   []replayEvent
+	replayStart    replayStart
+	replayGivens   string
+	replaySolution string
+	replayStarted  time.Time
 
 	elapsed      time.Duration
 	clockAnchor  time.Time
@@ -187,7 +195,9 @@ func main() {
 				g.screen.Show()
 			}
 		case <-shiftTick.C:
-			if g.view == viewPlay && !g.pendingSolved && g.refreshShiftHold() {
+			if g.view == viewSolved || (g.view == viewMenu && g.menuIndex == menuReplay) {
+				g.render()
+			} else if g.view == viewPlay && !g.pendingSolved && g.refreshShiftHold() {
 				g.render()
 			}
 		case <-g.redraw:
@@ -243,10 +253,12 @@ func (g *game) handleMenu(e *tcell.EventKey) bool {
 	case tcell.KeyLeft:
 		g.difficulty = nextDifficulty(g.difficulty, -1)
 		g.clampMenu()
+		g.maybeBeginMenuReplay()
 		g.rotateAccent(1)
 	case tcell.KeyRight:
 		g.difficulty = nextDifficulty(g.difficulty, 1)
 		g.clampMenu()
+		g.maybeBeginMenuReplay()
 		g.rotateAccent(1)
 	case tcell.KeyEnter:
 		return g.activateMenu()
@@ -261,22 +273,37 @@ func (g *game) handleMenu(e *tcell.EventKey) bool {
 		case 'a', 'A', 'h', 'H':
 			g.difficulty = nextDifficulty(g.difficulty, -1)
 			g.clampMenu()
+			g.maybeBeginMenuReplay()
 			g.rotateAccent(1)
 		case 'd', 'D', 'l', 'L':
 			g.difficulty = nextDifficulty(g.difficulty, 1)
 			g.clampMenu()
+			g.maybeBeginMenuReplay()
 			g.rotateAccent(1)
 		}
 	}
 	return false
 }
 
-func (g *game) visibleMenu() []int {
+func (g *game) menuItems() []int {
 	items := make([]int, 0, 4)
 	if g.save.continueFor(g.difficulty) != nil {
 		items = append(items, menuContinue)
 	}
 	return append(items, menuNewGame, menuQuit)
+}
+
+func (g *game) visibleMenu() []int {
+	items := g.menuItems()
+	if g.canMenuReplay() {
+		items = append(items, menuReplay)
+	}
+	return items
+}
+
+func (g *game) canMenuReplay() bool {
+	fr := g.save.statsFor(g.difficulty).FastestReplay
+	return fr != nil && len(fr.Givens) == 81
 }
 
 func (g *game) menuMove(dir int) {
@@ -291,6 +318,7 @@ func (g *game) menuMove(dir int) {
 	n := len(items)
 	idx = (idx + dir + n) % n
 	g.menuIndex = items[idx]
+	g.maybeBeginMenuReplay()
 }
 
 func (g *game) clampMenu() {
@@ -300,6 +328,25 @@ func (g *game) clampMenu() {
 		}
 	}
 	g.menuIndex = menuNewGame
+}
+
+func (g *game) maybeBeginMenuReplay() {
+	if g.menuIndex == menuReplay {
+		g.beginMenuReplay()
+	}
+}
+
+func (g *game) beginMenuReplay() {
+	fr := g.save.statsFor(g.difficulty).FastestReplay
+	if fr == nil || len(fr.Givens) != 81 {
+		g.menuIndex = menuQuit
+		return
+	}
+	g.replayGivens = fr.Givens
+	g.replaySolution = solveSudoku(fr.Givens)
+	g.replayEvents = decodeReplay(fr.Events)
+	g.replayStart = replayStartFromFastest(fr)
+	g.replayStarted = time.Now()
 }
 
 func (g *game) activateMenu() bool {
@@ -321,6 +368,8 @@ func (g *game) activateMenu() bool {
 		g.startNewGame()
 	case menuQuit:
 		return true
+	case menuReplay:
+		return false
 	}
 	return false
 }
@@ -396,12 +445,14 @@ func (g *game) handlePlay(e *tcell.EventKey) bool {
 func (g *game) applyDigit(d byte) {
 	if g.pencilActive() {
 		if g.board.markPencil(d) {
+			g.logReplay(replayOpMark, d)
 			g.rotateAccent(g.accentStep())
 			g.persistPlay()
 		}
 		return
 	}
 	if g.board.place(d) {
+		g.logReplay(replayOpPlace, d)
 		if g.board.isLocked(g.board.cursor) {
 			g.rotateAccent(1)
 			g.startFlash(true)
@@ -415,6 +466,14 @@ func (g *game) applyDigit(d byte) {
 			g.persistPlay()
 		}
 	}
+}
+
+func (g *game) logReplay(op, digit byte) {
+	g.replayEvents = append(g.replayEvents, replayEvent{
+		Cell:  g.board.cursor,
+		Op:    op,
+		Digit: digit,
+	})
 }
 
 func (g *game) pencilActive() bool {
@@ -545,9 +604,17 @@ func (g *game) accentStep() int {
 
 func (g *game) clearPlay() bool {
 	if g.pencilActive() {
-		return g.board.clearPencil()
+		if !g.board.clearPencil() {
+			return false
+		}
+		g.logReplay(replayOpClearMarks, 0)
+		return true
 	}
-	return g.board.clear()
+	if !g.board.clear() {
+		return false
+	}
+	g.logReplay(replayOpClear, 0)
+	return true
 }
 
 func (g *game) handlePaused(e *tcell.EventKey) bool {
@@ -693,7 +760,7 @@ func (g *game) persistPlayNow() {
 func (g *game) storeContinue() {
 	ms := g.currentElapsed().Milliseconds()
 	top, bot, slot := g.board.pencilsString()
-	g.save.setContinue(g.difficulty, &continueGame{
+	c := &continueGame{
 		ID:         g.puzzle.ID,
 		Difficulty: g.difficulty,
 		Givens:     g.puzzle.Givens,
@@ -705,7 +772,10 @@ func (g *game) storeContinue() {
 		PencilTop:  top,
 		PencilBot:  bot,
 		PencilSlot: slot,
-	})
+		Events:     encodeReplay(g.replayEvents),
+	}
+	g.replayStart.applyToContinue(c)
+	g.save.setContinue(g.difficulty, c)
 }
 
 func (g *game) scheduleSave() {
@@ -749,6 +819,10 @@ func (g *game) startNewGame() {
 	g.puzzle = p
 	g.board = newBoard(p.Givens, p.Solution, p.Givens)
 	g.pencil = false
+	g.replayEvents = nil
+	g.replayStart = replayStart{}
+	g.replayGivens = p.Givens
+	g.replaySolution = p.Solution
 	g.elapsed = 0
 	g.clockRunning = false
 	g.startClock()
@@ -777,6 +851,17 @@ func (g *game) resumeContinue() {
 	g.board.loadPencils(c.PencilTop, c.PencilBot, c.PencilSlot)
 	g.board.stripImpossiblePencils()
 	g.pencil = c.Pencil
+	g.replayEvents = decodeReplay(c.Events)
+	g.replayGivens = c.Givens
+	g.replaySolution = p.Solution
+	g.replayStart = replayStartFromContinue(c)
+	if !g.replayStart.active(c.Givens) && c.Events == "" {
+		top, bot, _ := g.board.pencilsString()
+		if boardProgressed(g.board.gridString(), c.Givens, top, bot) {
+			g.replayStart = snapshotReplayStart(&g.board)
+			g.persistPlayNow()
+		}
+	}
 	g.elapsed = time.Duration(c.ElapsedMs) * time.Millisecond
 	g.clockRunning = false
 	g.startClock()
@@ -801,7 +886,18 @@ func (g *game) finishSuccess() {
 	ms := g.currentElapsed().Milliseconds()
 	g.solvedMs = ms
 	g.solvedMistakes = g.board.mistakes
-	g.save.recordSuccess(g.difficulty, ms, g.board.mistakes)
+	g.solvedNewRecord = g.save.recordSuccess(g.difficulty, ms, g.board.mistakes)
+	g.replayGivens = g.puzzle.Givens
+	g.replaySolution = g.puzzle.Solution
+	if g.solvedNewRecord {
+		fr := &fastestReplay{
+			ID:     g.puzzle.ID,
+			Givens: g.puzzle.Givens,
+			Events: encodeReplay(g.replayEvents),
+		}
+		g.replayStart.applyToReplay(fr)
+		g.save.statsFor(g.difficulty).FastestReplay = fr
+	}
 	g.save.markCompleted(g.difficulty, g.puzzle.ID, g.board.mistakes, ms)
 	g.save.setContinue(g.difficulty, nil)
 	g.flushSave()
@@ -817,6 +913,30 @@ func (g *game) maybeShowSolved() {
 	g.pendingSolved = false
 	g.view = viewSolved
 	g.puzzle = puzzleEntry{}
+	g.replayStarted = time.Now()
+}
+
+func (g *game) playbackView() (b board, hueShift int, celebrate bool) {
+	sol := g.replaySolution
+	if len(sol) != 81 {
+		sol = solveSudoku(g.replayGivens)
+	}
+	elapsed := time.Since(g.replayStarted).Milliseconds()
+	n := replayAppliedCount(len(g.replayEvents), elapsed)
+	b = replayBoardAt(g.replayGivens, sol, g.replayStart, g.replayEvents, n)
+	hueShift, celebrate = replayCelebrateShift(elapsed)
+	if celebrate {
+		revealReplaySolution(&b)
+	}
+	return b, hueShift, celebrate
+}
+
+func revealReplaySolution(b *board) {
+	b.grid = b.solution
+	for i := 0; i < 81; i++ {
+		b.clearPencilsAt(i)
+	}
+	b.recountCorrect()
 }
 
 func formatDuration(d time.Duration) string {
