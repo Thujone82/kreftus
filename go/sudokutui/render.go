@@ -610,6 +610,7 @@ func (g *game) drawSolved() {
 	elapsed := formatDuration(time.Duration(g.solvedMs) * time.Millisecond)
 	stats, badge := solvedBody(elapsed, g.solvedMistakes)
 	record := newCompletionBanner(g.solvedNewRecord, g.save.statsFor(g.difficulty).bestLabel())
+	title := solvedTitle(g.difficulty)
 
 	innerW := 28
 	for _, line := range stats {
@@ -617,7 +618,7 @@ func (g *game) drawSolved() {
 			innerW = n + 4
 		}
 	}
-	for _, line := range []string{badge, record} {
+	for _, line := range []string{badge, record, title} {
 		if n := runewidth.StringWidth(line); n+4 > innerW {
 			innerW = n + 4
 		}
@@ -636,20 +637,20 @@ func (g *game) drawSolved() {
 
 	border := tcell.StyleDefault.Foreground(g.accent()).Background(tcell.ColorBlack).Bold(true)
 	titleFill := tcell.StyleDefault.Foreground(tcell.ColorBlack).Background(g.accent2()).Bold(true)
-	titleFg := tcell.StyleDefault.Foreground(g.accent()).Background(g.accent2()).Bold(true)
+	titleFg := tcell.StyleDefault.Foreground(g.accent3()).Background(g.accent2()).Bold(true)
 	perfectSt := tcell.StyleDefault.Foreground(g.accent2()).Background(tcell.ColorBlack).Bold(true)
 	hintSt := tcell.StyleDefault.Foreground(g.accent3()).Background(tcell.ColorBlack)
 
-	g.drawSolvedStatsBox(x, y, boxW, innerW, frameH, stats, badge, record, border, titleFill, titleFg, perfectSt, hintSt)
+	g.drawSolvedStatsBox(x, y, boxW, innerW, frameH, title, stats, badge, record, border, titleFill, titleFg, perfectSt, hintSt)
 	g.drawSolvedReplayPane(x+boxW-1, y, frameH, border)
 }
 
-func (g *game) drawSolvedStatsBox(x, y, boxW, innerW, frameH int, stats []string, badge, record string, border, titleFill, titleFg, perfectSt, hintSt tcell.Style) {
+func (g *game) drawSolvedStatsBox(x, y, boxW, innerW, frameH int, title string, stats []string, badge, record string, border, titleFill, titleFg, perfectSt, hintSt tcell.Style) {
 	drawBoxRow(g.screen, x, y, boxW, boxTL, boxH, boxTD, border)
 	fillRect(g.screen, x+1, y+1, innerW, 1, titleFill)
 	g.screen.SetContent(x, y+1, boxV, nil, border)
 	g.screen.SetContent(x+boxW-1, y+1, boxV, nil, border)
-	drawCentered(g.screen, x+boxW/2, y+1, "Solved!", titleFg)
+	drawCentered(g.screen, x+boxW/2, y+1, title, titleFg)
 	drawBoxRow(g.screen, x, y+2, boxW, boxML, boxH, boxMR, border)
 
 	for dy := 3; dy <= 7; dy++ {
@@ -717,6 +718,14 @@ func replayCellGlyph(b *board, i int, done [10]bool, hueShift int, celebrate boo
 		return ' ', styleDefault
 	}
 	return rune(b.grid[i]), cellStyle(b, i, done)
+}
+
+func solvedTitle(difficulty string) string {
+	label := difficultyLabel[difficulty]
+	if label == "" {
+		label = difficulty
+	}
+	return label + " Solved!"
 }
 
 func solvedBody(elapsed string, mistakes int) (stats []string, badge string) {

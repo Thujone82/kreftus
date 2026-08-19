@@ -18,6 +18,18 @@ func TestSolvedBodyPerfectReplacesErrors(t *testing.T) {
 	}
 }
 
+func TestSolvedTitleIncludesDifficulty(t *testing.T) {
+	if got := solvedTitle(diffHard); got != "Hard Solved!" {
+		t.Fatalf("got %q", got)
+	}
+	if got := solvedTitle(diffEasy); got != "Easy Solved!" {
+		t.Fatalf("got %q", got)
+	}
+	if got := solvedTitle(diffDiabolical); got != "Diabolical Solved!" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestBestLabelAndValue(t *testing.T) {
 	if (&diffStats{}).bestLabel() != "Best" {
 		t.Fatal("empty stats should say Best")

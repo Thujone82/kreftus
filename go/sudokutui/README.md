@@ -23,7 +23,7 @@ On Windows, Sudoku switches the console to UTF-8 and prefers **Cascadia Mono** w
 - **Red cell** — incorrect entry against the solution
 - **Play clock** — elapsed time in the top-right; pause freezes it
 - **Pause** — Space hides the board and freezes the clock; the rainbow SUDOKU banner stays on screen, with difficulty, a fill progress bar, and Pencil Marks / Errors when those counts are above zero
-- **Solved** — joined double-line frame (accent, accent+5 title bar, accent−5 hint). Left: Time and **Errors**, or **Perfect Finish!** when there were none; **New Best Completion!** or **New Fastest Completion!** when this run is the new record (Best until a perfect exists, then Fastest). Right: a borderless 9×9 playback of the run compressed into 5 seconds, then the solved digits cycle their hues at 5 fps for 3 seconds before looping
+- **Solved** — joined double-line frame (accent, accent+5 title bar, accent−5 title text and hint). Left: **Hard Solved!** (or Easy / Medium / Diabolical); Time and **Errors**, or **Perfect Finish!** when there were none; **New Best Completion!** or **New Fastest Completion!** when this run is the new record (Best until a perfect exists, then Fastest). Right: a borderless 9×9 playback of the run compressed into 5 seconds, then the solved digits cycle their hues at 5 fps for 3 seconds before looping
 
 ## Controls
 
