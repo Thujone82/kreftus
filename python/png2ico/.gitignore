@@ -1,0 +1,7 @@
+# PyInstaller / zipapp staging
+build/pyinstaller/
+build/zipapp/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
