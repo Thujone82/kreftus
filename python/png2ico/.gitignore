@@ -1,6 +1,7 @@
-# PyInstaller / zipapp staging
+# PyInstaller / zipapp staging (keep png2ico.ico)
 build/pyinstaller/
 build/zipapp/
+build/png2ico-embedded.ico
 
 # Python bytecode
 __pycache__/

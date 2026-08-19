@@ -63,6 +63,8 @@ if (-not (Test-Path "png2ico.py")) {
 Invoke-PipUpgrade -Packages @('pip', 'setuptools', 'wheel') -Label "Checking build tooling for updates..."
 
 $buildRoot = ".\build"
+$iconPath = ".\png2ico.ico"
+$preparedIconPath = Join-Path $buildRoot "png2ico-embedded.ico"
 
 # --- Cleanup (only outputs being rebuilt) ---
 Write-Host "Cleaning previous build outputs..." -ForegroundColor DarkGray
@@ -71,7 +73,7 @@ if ($buildPyz) {
     $cleanupPaths += ".\png2ico.pyz", "$buildRoot\zipapp"
 }
 if ($buildExe) {
-    $cleanupPaths += ".\png2ico.exe", "$buildRoot\pyinstaller"
+    $cleanupPaths += ".\png2ico.exe", $preparedIconPath, "$buildRoot\pyinstaller"
 }
 foreach ($path in $cleanupPaths) {
     if (Test-Path $path) {
@@ -122,10 +124,23 @@ if (-not $buildExe) {
 Invoke-PipUpgrade -Packages @('pyinstaller') -Label "Ensuring PyInstaller is installed and up to date..."
 
 Write-Host "png2ico.py -> png2ico.exe..." -ForegroundColor Cyan
+if (-not (Test-Path $iconPath)) {
+    Write-Error "Icon not found: $iconPath"
+    exit 1
+}
+
+Write-Host "Preparing icon for Windows embedding..." -ForegroundColor DarkGray
+python prepare_icon.py $iconPath $preparedIconPath
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to prepare icon."
+    exit 1
+}
+$iconFile = (Resolve-Path $preparedIconPath).Path
 
 $pyInstallerArgs = @(
     "--onefile",
     "--name", "png2ico",
+    "--icon", $iconFile,
     "--console",
     "--clean",
     "--noconfirm",
@@ -159,6 +174,12 @@ if ($useUpx) {
             Write-Error "UPX compression failed."
             exit 1
         }
+        Write-Host "Re-applying icon after UPX..." -ForegroundColor DarkGray
+        python prepare_icon.py reapply ".\png2ico.exe" $preparedIconPath
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to re-apply icon after UPX."
+            exit 1
+        }
         Write-Host "UPX compression completed." -ForegroundColor Green
     } else {
         Write-Host "-upx specified but UPX not found in PATH. Skipping compression." -ForegroundColor DarkGray
@@ -168,4 +189,4 @@ if ($useUpx) {
 }
 
 Write-Host "png2ico.exe build complete." -ForegroundColor Green
-Write-Host "  Standalone executable (console)" -ForegroundColor DarkGray
+Write-Host "  Standalone executable (icon: png2ico.ico)" -ForegroundColor DarkGray

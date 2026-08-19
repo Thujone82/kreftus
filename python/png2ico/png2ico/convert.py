@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import io
+import struct
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -19,6 +21,7 @@ ICON_SIZES = [
     (128, 128),
     (256, 256),
 ]
+PNG_SIZE = (256, 256)
 
 ProgressFn = Callable[[str], None]
 APP_TITLE = "PNG2ICO Converter"
@@ -36,6 +39,70 @@ def _format_icon_sizes() -> str:
     return ", ".join(_format_size(size) for size in ICON_SIZES)
 
 
+def _png_payload(image: Image.Image) -> bytes:
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _and_mask_bytes(width: int, height: int) -> bytes:
+    row_bytes = ((width + 31) // 32) * 4
+    return bytes(row_bytes * height)
+
+
+def _bmp_dib_payload(image: Image.Image) -> bytes:
+    """32-bit ICO DIB: XOR bitmap plus AND mask (height stored as 2×)."""
+    width, height = image.size
+    rgba = image.convert("RGBA")
+    flipped = rgba.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+    red, green, blue, alpha = flipped.split()
+    bgra = Image.merge("RGBA", (blue, green, red, alpha))
+    xor = bgra.tobytes()
+    and_mask = _and_mask_bytes(width, height)
+    header = struct.pack(
+        "<IiiHHIIiiII",
+        40,
+        width,
+        height * 2,
+        1,
+        32,
+        0,
+        len(xor) + len(and_mask),
+        0,
+        0,
+        0,
+        0,
+    )
+    return header + xor + and_mask
+
+
+def write_windows_ico(frames: list[tuple[tuple[int, int], Image.Image]], path: Path) -> None:
+    """Write a Vista-style ICO: PNG for 256×256, 32-bit BMP/DIB for smaller sizes."""
+    payloads: list[tuple[tuple[int, int], bytes]] = []
+    for size, image in frames:
+        if size == PNG_SIZE:
+            payloads.append((size, _png_payload(image)))
+        else:
+            payloads.append((size, _bmp_dib_payload(image)))
+
+    count = len(payloads)
+    offset = 6 + 16 * count
+    directory = bytearray()
+    blob = bytearray()
+    for (width, height), payload in payloads:
+        directory.append(0 if width >= 256 else width)
+        directory.append(0 if height >= 256 else height)
+        directory.append(0)
+        directory.append(0)
+        directory.extend(struct.pack("<HHI", 1, 32, len(payload)))
+        directory.extend(struct.pack("<I", offset))
+        blob.extend(payload)
+        offset += len(payload)
+
+    header = b"\x00\x00\x01\x00" + struct.pack("<H", count)
+    path.write_bytes(header + bytes(directory) + bytes(blob))
+
+
 def convert_png_to_ico(
     png_path: Path,
     *,
@@ -44,6 +111,8 @@ def convert_png_to_ico(
     """Resize a 256×256 PNG to the common Windows icon sizes and write an ICO.
 
     The ICO is written beside the PNG, using the same stem and a ``.ico`` suffix.
+    256×256 is stored as PNG; smaller sizes use 32-bit BMP/DIB so Explorer and
+    ``.exe`` embedding still have classic bitmap entries.
     """
     log: ProgressFn = progress if progress is not None else (lambda _msg: None)
     png_path = Path(png_path)
@@ -78,8 +147,16 @@ def convert_png_to_ico(
 
     output_path = png_path.with_suffix(".ico")
     log(f"Generating Windows icon sizes: {_format_icon_sizes()}")
+    log("  256x256 as PNG; 16–128 as 32-bit BMP/DIB")
     log(f"Writing ICO: {output_path}")
-    rgba.save(output_path, format="ICO", sizes=ICON_SIZES)
+    frames = [
+        (
+            size,
+            rgba if size == rgba.size else rgba.resize(size, Image.Resampling.LANCZOS),
+        )
+        for size in ICON_SIZES
+    ]
+    write_windows_ico(frames, output_path)
     log(f"  wrote {output_path.resolve()} ({output_path.stat().st_size} bytes)")
     return output_path
 
@@ -89,7 +166,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         prog="png2ico",
         description=(
             "Convert a 256x256 PNG into a Windows ICO containing the common "
-            "icon sizes (16, 24, 32, 48, 64, 128, 256)."
+            "icon sizes (16, 24, 32, 48, 64, 128, 256). 256x256 is stored as "
+            "PNG; smaller sizes use 32-bit BMP/DIB."
         ),
         add_help=False,
     )

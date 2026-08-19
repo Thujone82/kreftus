@@ -44,6 +44,7 @@ class CliTests(unittest.TestCase):
             self.assertIn("size OK (256x256)", output)
             self.assertIn("Generating Windows icon sizes:", output)
             self.assertIn("Writing ICO:", output)
+            self.assertIn("256x256 as PNG", output)
             self.assertIn(f"Success: {ico_path.resolve()}", output)
             self.assertTrue(ico_path.is_file())
             with Image.open(ico_path) as ico:

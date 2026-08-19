@@ -236,7 +236,7 @@
                             </p>
                             <ul>
                                 <li><b>Exact input size:</b> Only a 256×256 PNG is accepted — any other size is an error and no ICO is written.</li>
-                                <li><b>Common Windows sizes:</b> 16×16, 24×24, 32×32, 48×48, 64×64, 128×128, and 256×256 in one ICO.</li>
+                                <li><b>Common Windows sizes:</b> 16×16, 24×24, 32×32, 48×48, 64×64, 128×128, and 256×256 in one ICO. 256×256 is PNG; smaller sizes are 32-bit BMP/DIB so Explorer and <code>.exe</code> icons display correctly.</li>
                                 <li><b>Same-folder output:</b> <code>app.png</code> becomes <code>app.ico</code> next to the source file.</li>
                                 <li><b>Step-by-step feedback:</b> Prints each conversion step and ends with <b>Success</b> or <b>Failed</b>.</li>
                                 <li><b>Help:</b> <code>-h</code>, <code>-help</code>, and <code>--help</code>.</li>
@@ -264,6 +264,8 @@
                                 <a href="../python/png2ico/tests/test_cli.py">test_cli.py</a> /
                                 <a href="../python/png2ico/tests/test_convert.py">test_convert.py</a> /
                                 <a href="../python/png2ico/build.ps1">build.ps1</a> /
+                                <a href="../python/png2ico/prepare_icon.py">prepare_icon.py</a> /
+                                <a href="../python/png2ico/png2ico.ico">png2ico.ico</a> /
                                 <a href="../python/png2ico/requirements.txt">requirements.txt</a>
                             ]</p>
                             <p class="readme-link">↳ <a href="https://github.com/Thujone82/kreftus/tree/main/python/png2ico">GitHub source tree</a></p>

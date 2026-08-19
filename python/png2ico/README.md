@@ -26,6 +26,8 @@ The ICO is written beside the PNG, using the same filename:
 C:\icons\app.png  →  C:\icons\app.ico
 ```
 
+Each size is packed into one ICO using the usual Windows Vista layout: **256×256 as PNG** (smaller, valid in Explorer) and **16–128 as 32-bit BMP/DIB** (needed for `.exe` shell icons). Re-run png2ico on the original PNG to refresh an ICO that was built before this.
+
 ## Command-line options
 
 | Flag | Description |
@@ -72,7 +74,7 @@ From `python/png2ico/`:
 
 | Output | Usage |
 |--------|--------|
-| `png2ico.exe` | Standalone executable (PyInstaller) |
+| `png2ico.exe` | Standalone executable (PyInstaller; icon from `png2ico.ico`) |
 | `png2ico.pyz` | `python png2ico.pyz` — requires Pillow installed |
 
 ## See also
