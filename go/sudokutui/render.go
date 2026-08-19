@@ -126,7 +126,7 @@ func (g *game) drawMenu() {
 				{"Error Rate", st.errorRate()},
 				{"Failed", fmt.Sprintf("%d", st.Failed)},
 				{st.bestLabel(), st.bestValue()},
-				{"Average Completion", g.save.averageCompletion(g.difficulty)},
+				{"Average", g.save.averageCompletion(g.difficulty)},
 			}
 		}
 		total := len(puzzlesFor(g.difficulty))

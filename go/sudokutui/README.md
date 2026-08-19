@@ -12,11 +12,11 @@ On Windows, Sudoku switches the console to UTF-8 and prefers **Cascadia Mono** w
 
 ## Features
 
-- **Start menu** — difficulty header (`── Medium ──`, etc.), then **Continue** (when that difficulty has a save), **New Game**, Quit. A boxed **Stats** panel below (Remaining always; Perfect through Average Completion after the first win). When that difficulty has a Best/Fastest recording, ↓ past Quit highlights the Stats header as **Replay** and plays that run in a tight 9×9 box; ↑ restores Stats; ↓ from Replay wraps to Continue or New Game. ←→ still changes difficulty
+- **Start menu** — difficulty header (`── Medium ──`, etc.), then **Continue** (when that difficulty has a save), **New Game**, Quit. A boxed **Stats** panel below (Remaining always; Perfect through Average after the first win). When that difficulty has a Best/Fastest recording, ↓ past Quit highlights the Stats header as **Replay** and plays that run in a tight 9×9 box; ↑ restores Stats; ↓ from Replay wraps to Continue or New Game. ←→ still changes difficulty
 - **Accent color** — random hue each launch; shifts as you move in the menu or on the board, start a game, or lock a correct digit (wrong digits jump eight steps the other way). In **pencil** mode, movement and marks rotate the other direction
 - **Pencil marks** — Tab toggles ✒️ pen / ✏️ pencil (footer shows `Tab/Shift ✏️` / `Tab ✒️`). **Hold Shift** to mark without toggling the saved mode. New Game always starts in pen mode; Continue restores the saved mode. Empty cells can hold two *different* candidate colors on a `▀` glyph (top = first mark, bottom = second). Further marks overwrite top, then bottom. Pressing a digit already on the cell removes it and that half is filled next. A digit that is already complete (all nine placed) is ignored in pen and pencil. A correct lock-in removes that color from pencil marks in the same row, column, and box; completing a number removes it everywhere. A leftover mark drops to the bottom half so the top is next. 0 clears marks. The grid border turns light yellow in pencil mode
 - **Grid flash** — green ~0.6s on a correct lock-in, red on a mistake
-- **Difficulty stats** — Perfect (zero-error wins), Successes, Error Rate (average incorrect entries per success), Failed, Best (fewest mistakes, then fastest) until a perfect exists then Fastest, Average Completion (all solves, then perfects only once you have one), and remaining puzzles update as you change difficulty
+- **Difficulty stats** — Perfect (zero-error wins), Successes, Error Rate (average incorrect entries per success), Failed, Best (fewest mistakes, then fastest) until a perfect exists then Fastest, Average (all solves, then perfects only once you have one), and remaining puzzles update as you change difficulty
 - **Continue Game** — one in-progress save per difficulty; progress (including the compact move log) is saved after every move
 - **Colored digits** — 1–9 each have a distinct hue around the color wheel; a digit turns **white** when all nine of that number are correctly placed. Under the board, **Active:** lists the numbers that are not finished yet, in those same hues. Accent-colored ▶ ◀ ▼ ▲ mark the selected row and column
 - **Mistake tally** — the HUD shows a `×` for each incorrect entry (no count label)
@@ -65,7 +65,7 @@ When every puzzle at a difficulty is solved, New Game is disabled for that level
 
 `sudoku.json` is created in the current working directory. It stores:
 
-- Per-difficulty Perfect, Successes, Error Rate, Failed, Best (or Fastest after a perfect), and Average Completion
+- Per-difficulty Perfect, Successes, Error Rate, Failed, Best (or Fastest after a perfect), and Average
 - The Best/Fastest run's playback (`id`, givens, and move log) stored with those stats
 - Completed puzzles (`id`, mistake count, and elapsed time) so they are not shown again
 - One in-progress board per difficulty (pencil marks, clock, mistake count, and move log) for **Continue Game**. A continue started before 1.5 (no move log) is kept: playback jumps to that saved board, then records only the rest of the run.

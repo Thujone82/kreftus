@@ -83,6 +83,16 @@ func TestTitledBoxTopCentersStats(t *testing.T) {
 	}
 }
 
+func TestFormatStatLinesAverageLabel(t *testing.T) {
+	lines := formatStatLines([][2]string{
+		{"Error Rate", "1.17"},
+		{"Average", "12:04"},
+	})
+	if len(lines) != 2 || lines[1] != "   Average:  12:04" {
+		t.Fatalf("lines=%q", lines)
+	}
+}
+
 func TestSolvedBodyAlignsTimeAndErrors(t *testing.T) {
 	stats, badge := solvedBody("3:35", 2)
 	if badge != "" {
