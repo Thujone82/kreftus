@@ -50,6 +50,67 @@ func TestSolvedBodyAlignsTimeAndErrors(t *testing.T) {
 	}
 }
 
+func TestFillProgressAndPencilCount(t *testing.T) {
+	givens := "530070000600195000098000060800060003400803001700020006060000280000419005000080079"
+	sol := solveSudoku(givens)
+	b := newBoard(givens, sol, givens)
+	open := 0
+	for i := 0; i < 81; i++ {
+		if givens[i] == '0' {
+			open++
+		}
+	}
+	filled, total := b.fillProgress()
+	if filled != 0 || total != open {
+		t.Fatalf("start progress=%d/%d want 0/%d", filled, total, open)
+	}
+	b.cursor = 2
+	if !b.place(sol[2]) {
+		t.Fatal("place one open cell")
+	}
+	filled, total = b.fillProgress()
+	if filled != 1 || total != open {
+		t.Fatalf("after one fill=%d/%d want 1/%d", filled, total, open)
+	}
+	if b.pencilMarkCount() != 0 {
+		t.Fatal("no pencils yet")
+	}
+	b.cursor = 3
+	if !b.markPencil('1') || !b.markPencil('2') {
+		t.Fatal("two marks")
+	}
+	if b.pencilMarkCount() != 2 {
+		t.Fatalf("marks=%d want 2", b.pencilMarkCount())
+	}
+}
+
+func TestPauseBarFillAndExtraLine(t *testing.T) {
+	pct, n := pauseBarFill(0, 50, 20)
+	if pct != 0 || n != 0 {
+		t.Fatalf("empty: pct=%d n=%d", pct, n)
+	}
+	pct, n = pauseBarFill(50, 50, 20)
+	if pct != 100 || n != 20 {
+		t.Fatalf("full: pct=%d n=%d", pct, n)
+	}
+	pct, n = pauseBarFill(1, 50, 20)
+	if pct != 2 || n != 1 {
+		t.Fatalf("sliver: pct=%d n=%d", pct, n)
+	}
+	if pauseExtraLine(0, 0) != "" {
+		t.Fatal("no extra line when clean")
+	}
+	if pauseExtraLine(8, 0) != "Pencil Marks: 8" {
+		t.Fatalf("pencils only: %q", pauseExtraLine(8, 0))
+	}
+	if pauseExtraLine(0, 1) != "Errors: 1" {
+		t.Fatalf("errors only: %q", pauseExtraLine(0, 1))
+	}
+	if pauseExtraLine(8, 1) != "Pencil Marks: 8  Errors: 1" {
+		t.Fatalf("both: %q", pauseExtraLine(8, 1))
+	}
+}
+
 func TestDigitFromRuneShiftSymbols(t *testing.T) {
 	d, ok := digitFromRune('%')
 	if !ok || d != '5' {

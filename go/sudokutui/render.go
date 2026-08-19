@@ -2,6 +2,7 @@
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -460,10 +461,81 @@ func (g *game) drawPause() {
 	w, h := g.width, g.height
 	g.screen.Fill(' ', styleDefault)
 	g.drawSudokuBanner(1)
+	cx := w / 2
 	cy := h / 2
-	drawCentered(g.screen, w/2, cy-2, "PAUSED", g.titleStyle())
-	drawCentered(g.screen, w/2, cy, formatDuration(g.currentElapsed()), styleDefault)
-	drawCentered(g.screen, w/2, cy+2, "Space to resume  ·  Esc menu", styleDim)
+
+	detailY := 4
+	drawCentered(g.screen, cx, detailY, strings.ToUpper(difficultyLabel[g.difficulty]), g.titleStyle())
+	filled, total := g.board.fillProgress()
+	g.drawPauseBar(cx, detailY+2, filled, total)
+	if extra := pauseExtraLine(g.board.pencilMarkCount(), g.board.mistakes); extra != "" {
+		drawCentered(g.screen, cx, detailY+3, extra, styleDefault)
+	}
+
+	pausedY := cy - 2
+	if pausedY < detailY+6 {
+		pausedY = detailY + 6
+	}
+	drawCentered(g.screen, cx, pausedY, "PAUSED", g.titleStyle())
+	drawCentered(g.screen, cx, pausedY+2, formatDuration(g.currentElapsed()), styleDefault)
+	drawCentered(g.screen, cx, pausedY+4, "Space to resume  ·  Esc menu", styleDim)
+}
+
+const pauseBarWidth = 20
+
+func (g *game) drawPauseBar(cx, y, filled, total int) {
+	pct, n := pauseBarFill(filled, total, pauseBarWidth)
+	label := fmt.Sprintf("  %d%%", pct)
+	width := pauseBarWidth + len(label)
+	x := cx - width/2
+	if x < 0 {
+		x = 0
+	}
+	fillSt := tcell.StyleDefault.Foreground(g.accent()).Background(tcell.ColorBlack)
+	for i := 0; i < pauseBarWidth; i++ {
+		ch := '░'
+		st := styleDim
+		if i < n {
+			ch = '█'
+			st = fillSt
+		}
+		g.screen.SetContent(x+i, y, ch, nil, st)
+	}
+	drawText(g.screen, x+pauseBarWidth, y, label, styleDefault)
+}
+
+func pauseBarFill(filled, total, barW int) (pct, cells int) {
+	if barW < 1 {
+		return 0, 0
+	}
+	if total <= 0 {
+		return 100, barW
+	}
+	if filled <= 0 {
+		return 0, 0
+	}
+	if filled >= total {
+		return 100, barW
+	}
+	pct = filled * 100 / total
+	cells = filled * barW / total
+	if cells < 1 {
+		cells = 1
+	}
+	return pct, cells
+}
+
+func pauseExtraLine(pencils, errors int) string {
+	switch {
+	case pencils > 0 && errors > 0:
+		return fmt.Sprintf("Pencil Marks: %d  Errors: %d", pencils, errors)
+	case pencils > 0:
+		return fmt.Sprintf("Pencil Marks: %d", pencils)
+	case errors > 0:
+		return fmt.Sprintf("Errors: %d", errors)
+	default:
+		return ""
+	}
 }
 
 func (g *game) drawConfirm(title, sub, left, right string, leftDestructive bool) {

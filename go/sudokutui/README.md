@@ -22,7 +22,7 @@ On Windows, Sudoku switches the console to UTF-8 and prefers **Cascadia Mono** w
 - **Mistake tally** — the HUD shows a `×` for each incorrect entry (no count label)
 - **Red cell** — incorrect entry against the solution
 - **Play clock** — elapsed time in the top-right; pause freezes it
-- **Pause** — Space hides the board and freezes the clock; the rainbow SUDOKU banner stays on screen
+- **Pause** — Space hides the board and freezes the clock; the rainbow SUDOKU banner stays on screen, with difficulty, a fill progress bar, and Pencil Marks / Errors when those counts are above zero
 - **Solved** — double-line box (accent frame, accent+5 title bar, accent−5 hint) with Time and **Errors**, or **Perfect Finish!** when there were none
 
 ## Controls

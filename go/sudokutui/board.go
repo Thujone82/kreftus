@@ -87,6 +87,31 @@ func emptyCell(c byte) bool {
 	return c == 0 || c == '0' || c == '.'
 }
 
+func (b *board) fillProgress() (filled, total int) {
+	for i := 0; i < 81; i++ {
+		if emptyCell(b.givens[i]) {
+			total++
+			if !emptyCell(b.grid[i]) {
+				filled++
+			}
+		}
+	}
+	return filled, total
+}
+
+func (b *board) pencilMarkCount() int {
+	n := 0
+	for i := 0; i < 81; i++ {
+		if b.pencil[i][0] != 0 {
+			n++
+		}
+		if b.pencil[i][1] != 0 {
+			n++
+		}
+	}
+	return n
+}
+
 func (b *board) isComplete() bool {
 	for i := 0; i < 81; i++ {
 		if b.grid[i] != b.solution[i] {
