@@ -1,6 +1,6 @@
 ﻿# Sudoku — Terminal Puzzle Game
 
-**Version:** 1.3 · **Author:** Kreft & Cursor · **Date:** 2026-08-14
+**Version:** 1.4 · **Author:** Kreft & Cursor · **Date:** 2026-08-19
 
 ## Description
 
@@ -14,7 +14,7 @@ On Windows, Sudoku switches the console to UTF-8 and prefers **Cascadia Mono** w
 
 - **Start menu** — difficulty header (`── Medium ──`, etc.), then **Continue** (only when that difficulty has a save), **New Game**, Quit. **── Stats ──** below (Remaining always; Perfect through Average Completion after the first win at that difficulty). ←→ still changes difficulty
 - **Accent color** — random hue each launch; shifts as you move in the menu or on the board, start a game, or lock a correct digit (wrong digits jump eight steps the other way). In **pencil** mode, movement and marks rotate the other direction
-- **Pencil marks** — Tab toggles ✒️ pen / ✏️ pencil (footer shows `Tab ✏️` / `Tab ✒️`). New Game always starts in pen mode; Continue restores the saved mode. Empty cells can hold two *different* candidate colors on a `▀` glyph (top = first mark, bottom = second). Further marks overwrite top, then bottom. Pressing a digit already on the cell removes it and that half is filled next. A digit that is already complete (all nine placed) is ignored in pen and pencil. A correct lock-in removes that color from pencil marks in the same row, column, and box; completing a number removes it everywhere. A leftover mark drops to the bottom half so the top is next. 0 clears marks. The grid border turns light yellow in pencil mode
+- **Pencil marks** — Tab toggles ✒️ pen / ✏️ pencil (footer shows `Tab/Shift ✏️` / `Tab ✒️`). **Hold Shift** to mark without toggling the saved mode. New Game always starts in pen mode; Continue restores the saved mode. Empty cells can hold two *different* candidate colors on a `▀` glyph (top = first mark, bottom = second). Further marks overwrite top, then bottom. Pressing a digit already on the cell removes it and that half is filled next. A digit that is already complete (all nine placed) is ignored in pen and pencil. A correct lock-in removes that color from pencil marks in the same row, column, and box; completing a number removes it everywhere. A leftover mark drops to the bottom half so the top is next. 0 clears marks. The grid border turns light yellow in pencil mode
 - **Grid flash** — green ~0.6s on a correct lock-in, red on a mistake
 - **Difficulty stats** — Perfect (zero-error wins), Successes, Error Rate (average incorrect entries per success), Failed, Fastest Completion, Average Completion, and remaining puzzles update as you change difficulty
 - **Continue Game** — one in-progress save per difficulty; progress is saved after every move
@@ -22,7 +22,8 @@ On Windows, Sudoku switches the console to UTF-8 and prefers **Cascadia Mono** w
 - **Mistake tally** — the HUD shows a `×` for each incorrect entry (no count label)
 - **Red cell** — incorrect entry against the solution
 - **Play clock** — elapsed time in the top-right; pause freezes it
-- **Pause** — Space hides the board and freezes the clock
+- **Pause** — Space hides the board and freezes the clock; the rainbow SUDOKU banner stays on screen
+- **Solved** — double-line box (accent frame, accent+5 title bar, accent−5 hint) with Time and **Errors**, or **Perfect Finish!** when there were none
 
 ## Controls
 
@@ -34,6 +35,7 @@ On Windows, Sudoku switches the console to UTF-8 and prefers **Cascadia Mono** w
 | Menu | Esc | Quit |
 | In game | Arrows or WASD | Move cursor (wraps around the board) |
 | In game | Tab | Toggle ✒️ pen / ✏️ pencil |
+| In game | Hold Shift | Momentary pencil (HUD + 1–9 marks; does not change Tab mode). Keypad 1–9 mark; arrows and WASD still move |
 | In game | 1–9 | Enter a digit (pen) or add/toggle a pencil mark; completed numbers are ignored |
 | In game | 0, Backspace, or Delete | Clear the cell (pen) or clear pencil marks |
 | In game | Space | Pause / resume |

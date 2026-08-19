@@ -55,7 +55,9 @@ type game struct {
 	pendingSolved bool
 	redraw        chan struct{}
 
-	pencil bool // Tab: false = pen ✒️, true = pencil ✏️
+	pencil        bool      // Tab: false = pen ✒️, true = pencil ✏️
+	shiftHold     bool      // momentary pencil while Shift is down; not saved
+	lastShiftHeld time.Time // last time Shift was actually down (NumLock fakes a Shift-up)
 
 	events    chan tcell.Event
 	saveFlush chan struct{}
@@ -73,6 +75,8 @@ func main() {
 
 	enableUTF8Console()
 	resizeToPreferred()
+	startShiftWatch()
+	defer stopShiftWatch()
 
 	if err := loadPuzzleBank(); err != nil {
 		fmt.Fprintf(os.Stderr, "sudoku: load puzzles: %v\n", err)
@@ -144,6 +148,8 @@ func main() {
 
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
+	shiftTick := time.NewTicker(50 * time.Millisecond)
+	defer shiftTick.Stop()
 
 	g.render()
 
@@ -179,6 +185,10 @@ func main() {
 			} else if g.view == viewPlay && g.clockRunning {
 				g.drawHUD()
 				g.screen.Show()
+			}
+		case <-shiftTick.C:
+			if g.view == viewPlay && !g.pendingSolved && g.refreshShiftHold() {
+				g.render()
 			}
 		case <-g.redraw:
 			g.maybeShowSolved()
@@ -319,6 +329,19 @@ func (g *game) handlePlay(e *tcell.EventKey) bool {
 	if g.pendingSolved || g.board.isComplete() {
 		return false
 	}
+	g.noteShift(e)
+	if g.shiftHold {
+		if d, ok := numpadShiftDigit(e.Key()); ok && shiftMarksKey(e.Key(), keypadOrigin()) {
+			g.applyDigit(d)
+			return false
+		}
+		if e.Key() == tcell.KeyInsert && keypadOrigin() {
+			if g.clearPlay() {
+				g.persistPlay()
+			}
+			return false
+		}
+	}
 	switch e.Key() {
 	case tcell.KeyEscape:
 		g.returnToMenu()
@@ -340,6 +363,10 @@ func (g *game) handlePlay(e *tcell.EventKey) bool {
 		}
 	case tcell.KeyRune:
 		r := e.Rune()
+		if d, ok := digitFromRune(r); ok {
+			g.applyDigit(d)
+			break
+		}
 		switch r {
 		case ' ':
 			g.stopClock()
@@ -361,31 +388,147 @@ func (g *game) handlePlay(e *tcell.EventKey) bool {
 			if g.clearPlay() {
 				g.persistPlay()
 			}
-		case '1', '2', '3', '4', '5', '6', '7', '8', '9':
-			if g.pencil {
-				if g.board.markPencil(byte(r)) {
-					g.rotateAccent(g.accentStep())
-					g.persistPlay()
-				}
-				break
-			}
-			if g.board.place(byte(r)) {
-				if g.board.isLocked(g.board.cursor) {
-					g.rotateAccent(1)
-					g.startFlash(true)
-				} else {
-					g.rotateAccent(-8)
-					g.startFlash(false)
-				}
-				if g.board.isComplete() {
-					g.finishSuccess()
-				} else {
-					g.persistPlay()
-				}
-			}
 		}
 	}
 	return false
+}
+
+func (g *game) applyDigit(d byte) {
+	if g.pencilActive() {
+		if g.board.markPencil(d) {
+			g.rotateAccent(g.accentStep())
+			g.persistPlay()
+		}
+		return
+	}
+	if g.board.place(d) {
+		if g.board.isLocked(g.board.cursor) {
+			g.rotateAccent(1)
+			g.startFlash(true)
+		} else {
+			g.rotateAccent(-8)
+			g.startFlash(false)
+		}
+		if g.board.isComplete() {
+			g.finishSuccess()
+		} else {
+			g.persistPlay()
+		}
+	}
+}
+
+func (g *game) pencilActive() bool {
+	return g.pencil || g.shiftHold
+}
+
+const shiftReleaseGrace = 150 * time.Millisecond
+
+func (g *game) markShiftHeld() {
+	g.shiftHold = true
+	g.lastShiftHeld = time.Now()
+}
+
+func (g *game) shiftRecentlyHeld() bool {
+	return !g.lastShiftHeld.IsZero() && time.Since(g.lastShiftHeld) < shiftReleaseGrace
+}
+
+func (g *game) noteShift(e *tcell.EventKey) {
+	if shiftHeld() || e.Modifiers()&tcell.ModShift != 0 || (e.Key() == tcell.KeyRune && isShiftedDigit(e.Rune())) {
+		g.markShiftHeld()
+		return
+	}
+	// NumLock+Shift synthesizes a Shift-up around the keypad event, so
+	// neither GetAsyncKeyState nor ModShift is set. Keep pencil for nav keys.
+	if _, isPad := numpadShiftDigit(e.Key()); isPad || e.Key() == tcell.KeyInsert {
+		if g.shiftHold || g.shiftRecentlyHeld() {
+			g.shiftHold = true
+			return
+		}
+	}
+	g.shiftHold = false
+}
+
+func (g *game) refreshShiftHold() bool {
+	if !shiftPollable() {
+		return false
+	}
+	if shiftHeld() {
+		changed := !g.shiftHold
+		g.markShiftHeld()
+		return changed
+	}
+	if g.shiftHold && g.shiftRecentlyHeld() {
+		return false
+	}
+	if g.shiftHold {
+		g.shiftHold = false
+		return true
+	}
+	return false
+}
+
+func digitFromRune(r rune) (byte, bool) {
+	if r >= '1' && r <= '9' {
+		return byte(r), true
+	}
+	if d, ok := shiftedDigit[r]; ok {
+		return d, true
+	}
+	return 0, false
+}
+
+func isShiftedDigit(r rune) bool {
+	_, ok := shiftedDigit[r]
+	return ok
+}
+
+// Windows NumLock+Shift turns the keypad into nav keys (End, arrows, Clear, …).
+// Map those back to 1–9 so Shift+numpad marks. Dedicated arrows still move
+// (they are extended keys); WASD also moves while Shift is down.
+func numpadShiftDigit(k tcell.Key) (byte, bool) {
+	switch k {
+	case tcell.KeyEnd:
+		return '1', true
+	case tcell.KeyDown:
+		return '2', true
+	case tcell.KeyPgDn:
+		return '3', true
+	case tcell.KeyLeft:
+		return '4', true
+	case tcell.KeyClear, tcell.KeyCenter:
+		return '5', true
+	case tcell.KeyRight:
+		return '6', true
+	case tcell.KeyHome:
+		return '7', true
+	case tcell.KeyUp:
+		return '8', true
+	case tcell.KeyPgUp:
+		return '9', true
+	}
+	return 0, false
+}
+
+func isArrowKey(k tcell.Key) bool {
+	return k == tcell.KeyUp || k == tcell.KeyDown || k == tcell.KeyLeft || k == tcell.KeyRight
+}
+
+// shiftMarksKey is true for Shift+numpad digits. Dedicated arrows are extended
+// keys (keypadOrigin false) and still move the cursor.
+func shiftMarksKey(k tcell.Key, fromKeypad bool) bool {
+	if _, ok := numpadShiftDigit(k); !ok {
+		return false
+	}
+	if isArrowKey(k) && !fromKeypad {
+		return false
+	}
+	return true
+}
+
+// US-layout Shift+1..9. Terminals often deliver these instead of '1'-'9' with ModShift.
+var shiftedDigit = map[rune]byte{
+	'!': '1', '@': '2', '#': '3', '$': '4', '%': '5',
+	'^': '6', '&': '7', '*': '8', '(': '9',
 }
 
 func (g *game) movePlay(dx, dy int) {
@@ -394,14 +537,14 @@ func (g *game) movePlay(dx, dy int) {
 }
 
 func (g *game) accentStep() int {
-	if g.pencil {
+	if g.pencilActive() {
 		return -1
 	}
 	return 1
 }
 
 func (g *game) clearPlay() bool {
-	if g.pencil {
+	if g.pencilActive() {
 		return g.board.clearPencil()
 	}
 	return g.board.clear()

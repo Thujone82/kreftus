@@ -18,6 +18,14 @@ const markRowLeft = '▶'
 const markRowRight = '◀'
 const markColDown = '▼'
 const markColUp = '▲'
+const boxTL = '╔'
+const boxTR = '╗'
+const boxBL = '╚'
+const boxBR = '╝'
+const boxML = '╠'
+const boxMR = '╣'
+const boxH = '═'
+const boxV = '║'
 
 // Nine hues equally spaced around the wheel. White is reserved for a digit
 // whose nine correct placements are all on the board.
@@ -167,8 +175,8 @@ func (g *game) drawPlay() {
 	}
 	hintY := h - 1
 	if hintY > activeY {
-		hint := "1-9 Enter · 0 Clear · Tab ✏️ · Space Pause · Esc Menu"
-		if g.pencil {
+		hint := "1-9 Enter · 0 Clear · Tab/Shift ✏️ · Space Pause · Esc Menu"
+		if g.pencilActive() {
 			hint = "1-9 Mark · 0 Clear · Tab ✒️ · Space Pause · Esc Menu"
 		}
 		drawCentered(g.screen, w/2, hintY, hint, styleDim)
@@ -421,7 +429,7 @@ func (g *game) cellStyle(i int, done [10]bool) tcell.Style {
 }
 
 func (g *game) modeGlyph() string {
-	if g.pencil {
+	if g.pencilActive() {
 		return modePencil
 	}
 	return modePen
@@ -508,21 +516,76 @@ func (g *game) drawChoiceButtons(x, y, boxW int, left, right string, leftDestruc
 
 func (g *game) drawSolved() {
 	w, h := g.width, g.height
-	boxW, boxH := 44, 9
+	g.drawSudokuBanner(1)
+
+	elapsed := formatDuration(time.Duration(g.solvedMs) * time.Millisecond)
+	stats, badge := solvedBody(elapsed, g.solvedMistakes)
+
+	innerW := 28
+	for _, line := range stats {
+		if n := runewidth.StringWidth(line); n+4 > innerW {
+			innerW = n + 4
+		}
+	}
+	if n := runewidth.StringWidth(badge); n+4 > innerW {
+		innerW = n + 4
+	}
+	boxW := innerW + 2
+	frameH := 10
 	x := (w - boxW) / 2
-	y := (h - boxH) / 2
+	y := (h - frameH) / 2
 	if x < 0 {
 		x = 0
 	}
-	if y < 0 {
-		y = 0
+	if y < 3 {
+		y = 3
 	}
-	ov := g.overlayStyle()
-	fillRect(g.screen, x, y, boxW, boxH, ov)
-	drawCentered(g.screen, w/2, y+1, "Solved!", g.overlayTitleStyle())
-	drawCentered(g.screen, w/2, y+3, "Time: "+formatDuration(time.Duration(g.solvedMs)*time.Millisecond), ov)
-	drawCentered(g.screen, w/2, y+4, fmt.Sprintf("Incorrect entries: %d", g.solvedMistakes), ov)
-	drawCentered(g.screen, w/2, y+6, "Press Enter", ov)
+
+	border := tcell.StyleDefault.Foreground(g.accent()).Background(tcell.ColorBlack).Bold(true)
+	titleFill := tcell.StyleDefault.Foreground(tcell.ColorBlack).Background(g.accent2()).Bold(true)
+	titleFg := tcell.StyleDefault.Foreground(g.accent()).Background(g.accent2()).Bold(true)
+	perfectSt := tcell.StyleDefault.Foreground(g.accent2()).Background(tcell.ColorBlack).Bold(true)
+	hintSt := tcell.StyleDefault.Foreground(g.accent3()).Background(tcell.ColorBlack)
+
+	drawBoxRow(g.screen, x, y, boxW, boxTL, boxH, boxTR, border)
+	fillRect(g.screen, x+1, y+1, innerW, 1, titleFill)
+	g.screen.SetContent(x, y+1, boxV, nil, border)
+	g.screen.SetContent(x+boxW-1, y+1, boxV, nil, border)
+	drawCentered(g.screen, x+boxW/2, y+1, "Solved!", titleFg)
+	drawBoxRow(g.screen, x, y+2, boxW, boxML, boxH, boxMR, border)
+
+	for dy := 3; dy <= 6; dy++ {
+		g.screen.SetContent(x, y+dy, boxV, nil, border)
+		g.screen.SetContent(x+boxW-1, y+dy, boxV, nil, border)
+	}
+	drawStatBlock(g.screen, x+boxW/2, y+4, stats, styleDefault)
+	if badge != "" {
+		drawCentered(g.screen, x+boxW/2, y+5, badge, perfectSt)
+	}
+
+	drawBoxRow(g.screen, x, y+7, boxW, boxML, boxH, boxMR, border)
+	g.screen.SetContent(x, y+8, boxV, nil, border)
+	g.screen.SetContent(x+boxW-1, y+8, boxV, nil, border)
+	drawCentered(g.screen, x+boxW/2, y+8, "Press Enter", hintSt)
+	drawBoxRow(g.screen, x, y+9, boxW, boxBL, boxH, boxBR, border)
+}
+
+func solvedBody(elapsed string, mistakes int) (stats []string, badge string) {
+	if mistakes == 0 {
+		return formatStatLines([][2]string{{"Time", elapsed}}), "Perfect Finish!"
+	}
+	return formatStatLines([][2]string{
+		{"Time", elapsed},
+		{"Errors", fmt.Sprintf("%d", mistakes)},
+	}), ""
+}
+
+func drawBoxRow(s tcell.Screen, x, y, w int, left, mid, right rune, st tcell.Style) {
+	s.SetContent(x, y, left, nil, st)
+	s.SetContent(x+w-1, y, right, nil, st)
+	for dx := 1; dx < w-1; dx++ {
+		s.SetContent(x+dx, y, mid, nil, st)
+	}
 }
 
 func drawText(s tcell.Screen, x, y int, text string, st tcell.Style) {

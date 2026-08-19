@@ -12,7 +12,7 @@ import (
 
 const (
 	saveFileName  = "sudoku.json"
-	sudokuVersion = "1.3"
+	sudokuVersion = "1.4"
 )
 
 var utf8BOM = []byte{0xEF, 0xBB, 0xBF}

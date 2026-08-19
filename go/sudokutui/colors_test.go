@@ -66,6 +66,14 @@ func TestAccentStepReversesInPencilMode(t *testing.T) {
 	if g.accentStep() != -1 {
 		t.Fatal("pencil mode should step -1")
 	}
+	g.pencil = false
+	g.shiftHold = true
+	if g.accentStep() != -1 {
+		t.Fatal("held Shift should step -1 like pencil")
+	}
+	if !g.pencilActive() {
+		t.Fatal("held Shift should be pencil-active")
+	}
 }
 
 func TestAccentOffsets(t *testing.T) {

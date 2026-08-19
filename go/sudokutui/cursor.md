@@ -3,8 +3,8 @@
 ## Project: sudokutui (Sudoku)
 
 **Author:** Kreft&Cursor  
-**Date:** 2026-08-14  
-**Version:** 1.3
+**Date:** 2026-08-19  
+**Version:** 1.4
 
 ---
 
@@ -19,12 +19,12 @@ Puzzles are a sample of the public-domain [Sudoku Exchange Puzzle Bank](https://
 ### Key Functionality
 
 - **Menu:** Under the SUDOKU banner, **── Medium ──** (or Easy / Hard / Diabolical) then **Continue** (only when that difficulty has a continue blob), **New Game**, Quit. **── Stats ──** and Remaining sit below the items; Perfect, Successes, Error Rate, Failed, Fastest, and Average Completion appear after the first success at that difficulty. ←→ cycles difficulty (footer `←→ difficulty`) and clamps the highlight if Continue disappears. Dimmed New Game when the pool is empty (`New Game  (complete)`). ↑↓←→, play cursor moves, and starting a new game each rotate the accent wheel one step forward. In pencil mode, play moves and marks rotate **−1**.
-- **Pencil marks:** Tab toggles ✒️ pen / ✏️ pencil (HUD). New Game always opens in pen mode; Continue restores saved `pencil`. Empty unlocked cells show up to two *different* candidates on `▀` (FG = top mark color, BG = bottom). First 1–9 fills top, second fills bottom, further presses overwrite top then bottom. Pressing a digit already on the cell **toggles it off** and that half is the next fill slot. A digit that is already complete (all nine placed) is ignored for both pen and pencil. A correct lock-in **removes** that digit from pencil marks in the same row, column, and box (`stripPencilPeers`). When the last of a digit is placed, that color is removed from **all** pencil marks (`stripPencilDigit`), not turned white. Any leftover mark in a cell moves to the **background** (bottom) and the top half becomes the next slot. Continue sanitizes with `stripImpossiblePencils` (completed digits plus peers of every locked cell, including givens). 0 / Backspace / Delete in pencil mode clears marks. Placing a pen digit clears that cell's marks. Saved in continue as `pencil` / `pencilTop` / `pencilBot` / `pencilSlot`.
+- **Pencil marks:** Tab toggles ✒️ pen / ✏️ pencil (HUD). **Hold Shift** for momentary pencil (HUD, yellow grid, and 1–9 marks) without changing the saved Tab mode; US Shift+1..9 (`!@#$%^&*(`) also mark. NumLock+Shift on the keypad arrives as arrows/Home/End/Clear with a synthetic Shift-up — those still map to 1–9 if Shift was down within ~150ms. Dedicated arrow keys still move (extended keys vs keypad); WASD also moves. New Game always opens in pen mode; Continue restores saved `pencil`. Empty unlocked cells show up to two *different* candidates on `▀` (FG = top mark color, BG = bottom). First 1–9 fills top, second fills bottom, further presses overwrite top then bottom. Pressing a digit already on the cell **toggles it off** and that half is the next fill slot. A digit that is already complete (all nine placed) is ignored for both pen and pencil. A correct lock-in **removes** that digit from pencil marks in the same row, column, and box (`stripPencilPeers`). When the last of a digit is placed, that color is removed from **all** pencil marks (`stripPencilDigit`), not turned white. Any leftover mark in a cell moves to the **background** (bottom) and the top half becomes the next slot. Continue sanitizes with `stripImpossiblePencils` (completed digits plus peers of every locked cell, including givens). 0 / Backspace / Delete in pencil mode clears marks. Placing a pen digit clears that cell's marks. Saved in continue as `pencil` / `pencilTop` / `pencilBot` / `pencilSlot`.
 - **Stats panel:** Below the menu, header `── Stats ──` then Remaining. Full Perfect / Successes / Error Rate / Failed / Fastest / Average Completion only after at least one success at that difficulty. Labels are right-aligned so `:` shares a column, then two spaces before the value (`Perfect:  0`). The block is left-aligned as a unit so columns stay lined up. The selected item is ` ▶ Label ◀ ` (spaces included) so the accent bar is wider than the label.
 - **Continue:** One in-progress game per difficulty (`continue[easy|medium|hard|diabolical]`). Restores grid, pencil marks, pen/pencil mode (`pencil`), elapsed ms, mistake count. Clock resumes on load. A v1.2 single `continue` object is migrated into that map on load.
 - **New Game while that difficulty has a continue:** confirm overlay (Cancel / Abandon). Abandon records a Failure for **that** difficulty, wipes only that continue, then picks a random incomplete puzzle. Continues at other difficulties are left alone. Esc in play/pause does **not** abandon.
 - **Esc (play or pause):** persist that difficulty's continue and return to the menu (hint **Esc Menu**). No Abandon/Quit overlay. Quit the app from the menu (Esc / Quit) or Ctrl+C.
-- **Success:** `grid == solution`. Record success + fastest (tie-break: fewer mistakes), append `{id, mistakes, elapsedMs}` to `completed[difficulty]`, **immediately** clear **that difficulty's** continue and write `sudoku.json`, then show overlay (time + incorrect entries). `persistPlay` / Ctrl+C must not rewrite a completed board as Continue. A leftover completed continue blob is scrubbed on load (`scrubCompletedContinue`).
+- **Success:** `grid == solution`. Record success + fastest (tie-break: fewer mistakes), append `{id, mistakes, elapsedMs}` to `completed[difficulty]`, **immediately** clear **that difficulty's** continue and write `sudoku.json`, then show a double-line solved box (rainbow SUDOKU banner, `╔═╗` frame). Title bar is black-on-`accent2`; frame is `accent()`; **Press Enter** is `accent3()`. Stats are colon-aligned (`Time:  22:23` / `Errors:  2`); zero mistakes replaces Errors with **Perfect Finish!** in `accent2()`. `persistPlay` / Ctrl+C must not rewrite a completed board as Continue. A leftover completed continue blob is scrubbed on load (`scrubCompletedContinue`).
 - **Incorrect entry:** compare to unique solution. Maroon cell; mistake +1 per wrong place. Grid border flashes **red** ~600ms. Accent wheel jumps **−8**. Givens and locked-correct cells cannot be changed.
 - **Correct lock-in:** cell locks (bold). Grid border flashes **green** ~600ms. Accent wheel rotates **forward**. Completing the board holds the green flash then shows Solved.
 - **Pause (Space):** freeze clock, hide the board. Same rainbow SUDOKU banner as the menu (S = accent+5, then +1 per letter). PAUSED + elapsed time stay centered. Space resumes; Esc returns to the menu (continue saved).
@@ -60,7 +60,7 @@ Views in `main.go`: `viewMenu`, `viewPlay`, `viewPaused`, `viewConfirmNewGame`, 
 | `puzzles.go` | `go:embed puzzles.json.gz`, remaining count, `pickIncomplete`, `ensureSolved` at play time |
 | `solver.go` | Bitmask MRV backtracker (import bake + tests) |
 | `importpuzzles.go` | `//go:build ignore` — sample Easy 2500 / Medium 2000 / Hard 1000 / Diabolical 250, verify each solves, write `puzzles.json` and `puzzles.json.gz` without solutions |
-| `utf8_*.go` / `title_*.go` / `size_*.go` | Windows UTF-8 font/CP, title, 80×24 resize |
+| `utf8_*.go` / `title_*.go` / `size_*.go` / `shift_*.go` | Windows UTF-8 font/CP, title, 80×24 resize; Shift-held pencil poll (`GetAsyncKeyState`); low-level hook so dedicated arrows stay movement while keypad 2/4/6/8 mark |
 | `sudoku.rc` + `sudoku.ico` | Windows executable icon (`windres` → `sudoku.syso`) |
 | `build.ps1` | win x86/x64 + linux x86/amd64 → `bin/.../Sudoku[.exe]`, optional `-upx` |
 | `cursor.md` | This file |
@@ -99,7 +99,7 @@ Written to the process **cwd** (same convention as Larry’s `larry.scores.json`
 
 ```json
 {
-  "version": "1.3",
+  "version": "1.4",
   "stats": {
     "easy": { "successes": 0, "failures": 0, "perfect": 0, "mistakeSum": 0, "ratedSuccesses": 0, "fastestMs": null, "fastestMistakes": null }
   },
@@ -151,7 +151,7 @@ Nine hues equally spaced around the wheel. **White is reserved** for placed digi
 
 HUD mistakes: one `×` (same glyph as README `9×9`) per incorrect entry, no label, clipped so it does not overwrite the clock.
 
-Givens and locked-correct user entries: bold. Cursor: `accent2()` box border around the selected cell only (existing grid glyphs recolored; cell interior stays black, or maroon if wrong). In pencil mode gold and yellow (wheel 3–4) are skipped so the cursor does not sit on the light-yellow grid (`styleGridPencil`). Accent-colored **▶ ◀** sit on the selected row (outside the frame) and **▼ ▲** on the selected column (padding rows above and below the board). Empty cursor: space glyph, no fill. During a 600ms flash the whole grid border is lime (correct) or red (incorrect); the cell cursor is hidden for that interval; row/column marks stay. Play footer uses `Tab ✏️` / `Tab ✒️` (not the words Pencil/Pen).
+Givens and locked-correct user entries: bold. Cursor: `accent2()` box border around the selected cell only (existing grid glyphs recolored; cell interior stays black, or maroon if wrong). In pencil mode gold and yellow (wheel 3–4) are skipped so the cursor does not sit on the light-yellow grid (`styleGridPencil`). Accent-colored **▶ ◀** sit on the selected row (outside the frame) and **▼ ▲** on the selected column (padding rows above and below the board). Empty cursor: space glyph, no fill. During a 600ms flash the whole grid border is lime (correct) or red (incorrect); the cell cursor is hidden for that interval; row/column marks stay. Play footer uses `Tab/Shift ✏️` / `Tab ✒️` (not the words Pencil/Pen).
 
 ---
 
@@ -161,9 +161,9 @@ Givens and locked-correct user entries: bold. Cursor: `accent2()` box border aro
 
 | Role | Wheel offset | Uses |
 |------|----------------|------|
-| Primary `accent()` | 0 | Selection bar, stats header, pause title, HUD bar, overlay titles, safe confirm highlight, row/column selection arrows |
-| Secondary `accent2()` | +5 | Dialog/solved panel fill, cell cursor border (pencil mode skips gold/yellow, wheel 3–4); menu/pause **S** in SUDOKU (U–U then +1 per letter) |
-| Tertiary `accent3()` | −5 | Destructive confirm highlight (Abandon) |
+| Primary `accent()` | 0 | Selection bar, stats header, pause title, HUD bar, overlay titles, solved box frame, safe confirm highlight, row/column selection arrows |
+| Secondary `accent2()` | +5 | Dialog panel fill, solved title bar / Perfect Finish, cell cursor border (pencil mode skips gold/yellow, wheel 3–4); menu/pause **S** in SUDOKU (U–U then +1 per letter) |
+| Tertiary `accent3()` | −5 | Destructive confirm highlight (Abandon); solved **Press Enter** |
 
 Black text on primary/secondary/tertiary fills. Grid flash stays semantic lime/red (not chrome). Digit hues stay independent of the accent wheel; completed digits go white.
 
@@ -229,7 +229,8 @@ Quick check: `go test .`  ·  `go build -o Sudoku.exe .`
 - `solver_test.go` — Wikipedia puzzle, reject short input, empty grid solves.
 - `puzzles_test.go` — bundled counts (2500/2000/1000/250) unique IDs, no baked solutions, sample solvability, incomplete pool / remainingCount / pickIncomplete omit completed IDs, mistake/correct/complete board behavior, digit-complete (all nine of a number), Active strip omits completed digits, toroidal cursor wrap, selection-mark positions, pencil mark cycle/clear/toggle/save, strip completed pencil color to background, strip peer (row/col/box) marks on correct place, pen and pencil ignore completed digits.
 - `save_test.go` — finishSuccess wipes that difficulty's continue (others stay); persistPlay skips a completed board; load scrubs a leftover solved continue without double-counting; Perfect, Error Rate, and Average Completion from stored completions; Continue restores saved pencil mode; persistPlay debounce; compact atomic write; legacy single continue object maps per difficulty; Esc to menu keeps continue without Failed; New Game prompts only when that difficulty already has a save.
-- `colors_test.go` — 16-step wheel wrap; −8 incorrect jump; pencil mode −1 step; digit hues are not white; pencil cursor skips gold/yellow; SUDOKU banner S is accent+5.
+- `render_test.go` — solved overlay uses **Perfect Finish!** at 0 mistakes and colon-aligns Time / Errors otherwise; Shift+digit symbols map to 1–9; NumLock+Shift keypad nav keys map to 1–9 and stay pencil-active through Windows' fake Shift-up.
+- `colors_test.go` — 16-step wheel wrap; −8 incorrect jump; pencil mode −1 step; held Shift is pencil-active; digit hues are not white; pencil cursor skips gold/yellow; SUDOKU banner S is accent+5.
 
 ---
 
@@ -237,7 +238,7 @@ Quick check: `go test .`  ·  `go build -o Sudoku.exe .`
 
 - Module name `sudokutui` (folder); binary name **Sudoku** (capital S).
 - Do not recycle completed IDs. Abandoned puzzles may be drawn again.
-- Space pauses/resumes in play (clears with 0 / Backspace / Delete). Cursor wraps toroidally. Tab toggles pencil mode.
+- Space pauses/resumes in play (clears with 0 / Backspace / Delete). Cursor wraps toroidally. Tab toggles pencil mode; holding Shift is momentary pencil (not saved).
 - Esc in play/pause returns to the menu and keeps that difficulty's continue. Abandon (Failed) only when starting New Game over an existing continue at the **same** difficulty. Completing a puzzle writes Success and clears that continue before the solved overlay. Any exit path (Quit, Esc on menu, Ctrl+C) Clear-Hosts after `Fini`.
 - Confirm dialogs default to No (Larry give-up / destructive-action convention).
 - Keep `puzzles.json` and `puzzles.json.gz` in git (gz is the embed); do not download the bank at runtime.

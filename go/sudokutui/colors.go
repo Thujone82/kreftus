@@ -93,7 +93,7 @@ func (g *game) cursorStyle() tcell.Style {
 
 func (g *game) cursorColor() tcell.Color {
 	delta := 5 // same offset as accent2()
-	if g.pencil {
+	if g.pencilActive() {
 		for n := 0; n < colorWheelSize; n++ {
 			idx := (g.accentIndex + delta) % colorWheelSize
 			if idx < 0 {
@@ -124,7 +124,7 @@ func (g *game) borderStyle() tcell.Style {
 		}
 		return styleFlashBad
 	}
-	if g.pencil {
+	if g.pencilActive() {
 		return styleGridPencil
 	}
 	return styleGrid
