@@ -1,6 +1,6 @@
 # png2ico
 
-**Version 1.1.0**
+**Version 1.1.1**
 
 Convert a square PNG (**256×256**, **512×512**, **1024×1024**, or **2048×2048**) into a Windows `.ico` that contains the common icon sizes. Larger sources are downscaled with LANCZOS so each icon size stays sharp.
 
@@ -82,6 +82,10 @@ From `python/png2ico/`:
 - Project page: [png2ico/](https://kreft.us/png2ico/)
 
 ## Changelog
+
+### 1.1.1
+
+- Slim the Windows exe: stop collecting every Pillow submodule so NumPy/OpenBLAS are not bundled.
 
 ### 1.1.0
 

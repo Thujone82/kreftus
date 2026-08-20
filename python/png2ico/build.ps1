@@ -137,6 +137,10 @@ if ($LASTEXITCODE -ne 0) {
 }
 $iconFile = (Resolve-Path $preparedIconPath).Path
 
+# Do not --collect-submodules PIL: that pulls ImageMath/ImageQt/ImageTk and
+# then NumPy + OpenBLAS (~20 MB) even though png2ico never uses them.
+# PyInstaller's Pillow hook already collects _imaging. Exclude optional
+# Pillow deps that Image.py probes at import time.
 $pyInstallerArgs = @(
     "--onefile",
     "--name", "png2ico",
@@ -148,8 +152,13 @@ $pyInstallerArgs = @(
     "--distpath", ".",
     "--workpath", "$buildRoot\pyinstaller",
     "--specpath", "$buildRoot\pyinstaller",
-    "--hidden-import", "PIL",
-    "--collect-submodules", "PIL",
+    "--hidden-import", "PIL.Image",
+    "--hidden-import", "PIL.PngImagePlugin",
+    "--exclude-module", "numpy",
+    "--exclude-module", "yaml",
+    "--exclude-module", "tkinter",
+    "--exclude-module", "PIL.ImageQt",
+    "--exclude-module", "PIL.ImageTk",
     "png2ico.py"
 )
 
