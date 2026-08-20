@@ -1,4 +1,4 @@
-﻿package main
+package main
 
 type board struct {
 	givens     [81]byte
@@ -261,20 +261,17 @@ func (b *board) stripPencilDigitAt(i int, digit byte) {
 	if top != digit && bot != digit {
 		return
 	}
-	var remain byte
-	if top != 0 && top != digit {
-		remain = top
+	if top == digit {
+		b.pencil[i][0] = 0
+		b.pencilSlot[i] = 0
 	}
-	if bot != 0 && bot != digit {
-		remain = bot
+	if bot == digit {
+		b.pencil[i][1] = 0
+		b.pencilSlot[i] = 1
 	}
-	if remain == 0 {
+	if b.pencil[i][0] == 0 && b.pencil[i][1] == 0 {
 		b.clearPencilsAt(i)
-		return
 	}
-	b.pencil[i][0] = 0
-	b.pencil[i][1] = remain
-	b.pencilSlot[i] = 0
 }
 
 func (b *board) stripPencilDigit(digit byte) {

@@ -1,4 +1,4 @@
-﻿package main
+package main
 
 import (
 	"math/rand/v2"
@@ -326,13 +326,13 @@ func TestPlaceRejectsCompletedDigit(t *testing.T) {
 	}
 }
 
-func TestStripCompletedPencilToBackground(t *testing.T) {
+func TestStripCompletedPencilKeepsTop(t *testing.T) {
 	givens := "530070000600195000098000060800060003400803001700020006060000280000419005000080079"
 	sol := solveSudoku(givens)
 	b := newBoard(givens, sol, givens)
 	b.cursor = 2
-	if !b.markPencil('5') || !b.markPencil('4') {
-		t.Fatal("setup 5 top / 4 bottom")
+	if !b.markPencil('4') || !b.markPencil('5') {
+		t.Fatal("setup 4 top / 5 bottom")
 	}
 	only := -1
 	for i := 0; i < 81; i++ {
@@ -367,15 +367,15 @@ func TestStripCompletedPencilToBackground(t *testing.T) {
 	if !b.completedDigits()[5] {
 		t.Fatal("5 should be complete")
 	}
-	if b.pencil[2][0] != 0 || b.pencil[2][1] != '4' || b.pencilSlot[2] != 0 {
-		t.Fatalf("remaining mark should be background, next fill top: %+v slot %d", b.pencil[2], b.pencilSlot[2])
+	if b.pencil[2][0] != '4' || b.pencil[2][1] != 0 || b.pencilSlot[2] != 1 {
+		t.Fatalf("remaining mark should stay on top, next fill bottom: %+v slot %d", b.pencil[2], b.pencilSlot[2])
 	}
 	if b.pencil[only][0] != 0 || b.pencil[only][1] != 0 {
 		t.Fatalf("lone completed mark should be removed: %+v", b.pencil[only])
 	}
 	b.cursor = 2
-	if !b.markPencil('3') || b.pencil[2][0] != '3' || b.pencil[2][1] != '4' {
-		t.Fatalf("next fill should be top: %+v", b.pencil[2])
+	if !b.markPencil('3') || b.pencil[2][0] != '4' || b.pencil[2][1] != '3' {
+		t.Fatalf("next fill should be the emptied bottom: %+v", b.pencil[2])
 	}
 }
 
