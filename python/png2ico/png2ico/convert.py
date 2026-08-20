@@ -1,4 +1,4 @@
-"""Convert a 256×256 PNG into a Windows ICO with common icon sizes."""
+"""Convert a square PNG (256–2048) into a Windows ICO with common icon sizes."""
 
 from __future__ import annotations
 
@@ -11,7 +11,14 @@ from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
 
-INPUT_SIZE = (256, 256)
+INPUT_SIZES = [
+    (256, 256),
+    (512, 512),
+    (1024, 1024),
+    (2048, 2048),
+]
+INPUT_SIZE = INPUT_SIZES[0]
+ALLOWED_INPUT_SIZES = frozenset(INPUT_SIZES)
 ICON_SIZES = [
     (16, 16),
     (24, 24),
@@ -37,6 +44,11 @@ def _format_size(size: tuple[int, int]) -> str:
 
 def _format_icon_sizes() -> str:
     return ", ".join(_format_size(size) for size in ICON_SIZES)
+
+
+def _format_allowed_sizes() -> str:
+    labeled = [_format_size(size) for size in INPUT_SIZES]
+    return ", ".join(labeled[:-1]) + f", or {labeled[-1]}"
 
 
 def _png_payload(image: Image.Image) -> bytes:
@@ -108,7 +120,7 @@ def convert_png_to_ico(
     *,
     progress: ProgressFn | None = None,
 ) -> Path:
-    """Resize a 256×256 PNG to the common Windows icon sizes and write an ICO.
+    """Resize a square PNG (256, 512, 1024, or 2048) to the common Windows icon sizes.
 
     The ICO is written beside the PNG, using the same stem and a ``.ico`` suffix.
     256×256 is stored as PNG; smaller sizes use 32-bit BMP/DIB so Explorer and
@@ -131,12 +143,12 @@ def convert_png_to_ico(
             if image.format != "PNG":
                 raise Png2IcoError(f"Input is not a PNG image: {png_path}")
             log(f"  format PNG, size {_format_size(image.size)}")
-            if image.size != INPUT_SIZE:
+            if image.size not in ALLOWED_INPUT_SIZES:
                 raise Png2IcoError(
-                    f"Input must be {_format_size(INPUT_SIZE)}, "
+                    f"Input must be {_format_allowed_sizes()}, "
                     f"got {_format_size(image.size)}"
                 )
-            log(f"  size OK ({_format_size(INPUT_SIZE)})")
+            log(f"  size OK ({_format_size(image.size)})")
             rgba = image.convert("RGBA")
     except Png2IcoError:
         raise
@@ -147,6 +159,7 @@ def convert_png_to_ico(
 
     output_path = png_path.with_suffix(".ico")
     log(f"Generating Windows icon sizes: {_format_icon_sizes()}")
+    log(f"  resizing {_format_size(rgba.size)} with LANCZOS")
     log("  256x256 as PNG; 16–128 as 32-bit BMP/DIB")
     log(f"Writing ICO: {output_path}")
     frames = [
@@ -165,9 +178,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="png2ico",
         description=(
-            "Convert a 256x256 PNG into a Windows ICO containing the common "
-            "icon sizes (16, 24, 32, 48, 64, 128, 256). 256x256 is stored as "
-            "PNG; smaller sizes use 32-bit BMP/DIB."
+            "Convert a square PNG (256x256, 512x512, 1024x1024, or 2048x2048) "
+            "into a Windows ICO containing the common icon sizes "
+            "(16, 24, 32, 48, 64, 128, 256). 256x256 is stored as PNG; "
+            "smaller sizes use 32-bit BMP/DIB."
         ),
         add_help=False,
     )
@@ -181,7 +195,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "png",
         type=Path,
-        help="Path to a 256x256 PNG file",
+        help="Path to a square PNG (256, 512, 1024, or 2048 pixels)",
     )
     return parser.parse_args(argv)
 

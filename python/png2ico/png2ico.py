@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""png2ico — convert a 256×256 PNG into a multi-size Windows ICO."""
+"""png2ico — convert a square PNG (256–2048) into a multi-size Windows ICO."""
 
 from __future__ import annotations
 

@@ -9,7 +9,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from png2ico.convert import ICON_SIZES, INPUT_SIZE, Png2IcoError, convert_png_to_ico
+from png2ico.convert import ICON_SIZES, INPUT_SIZE, INPUT_SIZES, Png2IcoError, convert_png_to_ico
 
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
@@ -78,12 +78,29 @@ class ConvertTests(unittest.TestCase):
             self.assertTrue(kinds)
             self.assertEqual(set(kinds.values()), {"bmp"})
 
+    def test_larger_square_inputs_are_resized(self) -> None:
+        for size in INPUT_SIZES:
+            with self.subTest(size=size):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    png_path = _write_png(Path(temp_dir) / "app.png", size)
+                    ico_path = convert_png_to_ico(png_path)
+                    with Image.open(ico_path) as ico:
+                        self.assertEqual(set(ico.info["sizes"]), set(ICON_SIZES))
+                    kinds = {(width, height): kind for width, height, kind in _ico_entries(ico_path)}
+                    self.assertEqual(kinds[(256, 256)], "png")
+                    self.assertNotIn((512, 512), kinds)
+                    self.assertNotIn((1024, 1024), kinds)
+                    self.assertNotIn((2048, 2048), kinds)
+
     def test_wrong_size_is_an_error(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             png_path = _write_png(Path(temp_dir) / "app.png", (128, 128))
             with self.assertRaises(Png2IcoError) as ctx:
                 convert_png_to_ico(png_path)
             self.assertIn("256x256", str(ctx.exception))
+            self.assertIn("512x512", str(ctx.exception))
+            self.assertIn("1024x1024", str(ctx.exception))
+            self.assertIn("2048x2048", str(ctx.exception))
             self.assertIn("128x128", str(ctx.exception))
             self.assertFalse(png_path.with_suffix(".ico").exists())
 
@@ -124,6 +141,7 @@ class ConvertTests(unittest.TestCase):
             self.assertTrue(any(line.startswith("Checking input:") for line in steps))
             self.assertIn("Reading PNG...", steps)
             self.assertIn("  size OK (256x256)", steps)
+            self.assertTrue(any("resizing 256x256 with LANCZOS" in line for line in steps))
             self.assertTrue(any("Generating Windows icon sizes:" in line for line in steps))
             self.assertTrue(any(line.startswith("Writing ICO:") for line in steps))
             self.assertTrue(any("256x256 as PNG" in line for line in steps))

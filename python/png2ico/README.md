@@ -1,8 +1,8 @@
 # png2ico
 
-**Version 1.0**
+**Version 1.1.0**
 
-Convert a 256×256 PNG into a Windows `.ico` that contains the common icon sizes.
+Convert a square PNG (**256×256**, **512×512**, **1024×1024**, or **2048×2048**) into a Windows `.ico` that contains the common icon sizes. Larger sources are downscaled with LANCZOS so each icon size stays sharp.
 
 **Author:** Kreft&Cursor
 
@@ -38,7 +38,7 @@ Each size is packed into one ICO using the usual Windows Vista layout: **256×25
 
 - Path must point to an existing `.png` file
 - Image must actually be PNG data
-- Size must be exactly **256×256** (any other size is an error)
+- Size must be exactly **256×256**, **512×512**, **1024×1024**, or **2048×2048** (any other size is an error)
 
 ## Icon sizes
 
@@ -82,6 +82,14 @@ From `python/png2ico/`:
 - Project page: [png2ico/](https://kreft.us/png2ico/)
 
 ## Changelog
+
+### 1.1.0
+
+- Accept square PNG inputs of **256×256**, **512×512**, **1024×1024**, or **2048×2048**, then LANCZOS-resize down to the Windows icon sizes.
+
+### 1.0.1
+
+- Standardize ICO encoding to the Windows Vista layout: **256×256 as PNG**, **16–128 as 32-bit BMP/DIB** with a proper AND mask. Fixes invalid all-BMP files from Pillow’s `bitmap_format="bmp"` path so Explorer can open the ICO and `.exe` embedding still has classic bitmap sizes.
 
 ### 1.0.0
 

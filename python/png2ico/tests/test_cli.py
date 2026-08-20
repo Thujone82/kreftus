@@ -63,6 +63,8 @@ class CliTests(unittest.TestCase):
             self.assertIn("Checking input:", stdout.getvalue())
             self.assertIn("Reading PNG...", stdout.getvalue())
             self.assertIn("256x256", stderr.getvalue())
+            self.assertIn("512x512", stderr.getvalue())
+            self.assertIn("64x64", stderr.getvalue())
             self.assertIn("Failed.", stderr.getvalue())
             self.assertFalse(png_path.with_suffix(".ico").exists())
 
@@ -88,6 +90,9 @@ class CliTests(unittest.TestCase):
                 self.assertIn(APP_TITLE, output)
                 self.assertIn("usage:", output)
                 self.assertIn("256x256", output)
+                self.assertIn("512x512", output)
+                self.assertIn("1024x1024", output)
+                self.assertIn("2048x2048", output)
 
 
 if __name__ == "__main__":

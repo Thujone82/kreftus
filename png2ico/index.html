@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="png2ico v1.0 — convert a 256×256 PNG into a Windows ICO with the common icon sizes (16, 24, 32, 48, 64, 128, 256).">
-    <title>png2ico v1.0 — PNG to ICO</title>
+    <meta name="description" content="png2ico v1.1.0 — convert a 256×256, 512×512, 1024×1024, or 2048×2048 PNG into a Windows ICO with the common icon sizes (16, 24, 32, 48, 64, 128, 256).">
+    <title>png2ico v1.1.0 — PNG to ICO</title>
     <link rel="canonical" href="https://kreft.us/png2ico/">
-    <meta property="og:title" content="png2ico v1.0 — PNG to ICO">
-    <meta property="og:description" content="png2ico v1.0 — convert a 256×256 PNG into a Windows ICO with the common icon sizes (16, 24, 32, 48, 64, 128, 256).">
+    <meta property="og:title" content="png2ico v1.1.0 — PNG to ICO">
+    <meta property="og:description" content="png2ico v1.1.0 — convert a 256×256, 512×512, 1024×1024, or 2048×2048 PNG into a Windows ICO with the common icon sizes (16, 24, 32, 48, 64, 128, 256).">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://kreft.us/png2ico/">
     <meta property="og:image" content="https://kreft.us/images/png2ico.png">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="png2ico v1.0 — PNG to ICO">
-    <meta name="twitter:description" content="png2ico v1.0 — convert a 256×256 PNG into a Windows ICO with the common icon sizes (16, 24, 32, 48, 64, 128, 256).">
+    <meta name="twitter:title" content="png2ico v1.1.0 — PNG to ICO">
+    <meta name="twitter:description" content="png2ico v1.1.0 — convert a 256×256, 512×512, 1024×1024, or 2048×2048 PNG into a Windows ICO with the common icon sizes (16, 24, 32, 48, 64, 128, 256).">
     <meta name="twitter:image" content="https://kreft.us/images/png2ico.png">
     <style>
         body {
@@ -215,7 +215,7 @@
         <a href="https://github.com/Thujone82/kreftus" target="_blank" rel="noopener noreferrer" class="github-link" title="View on GitHub">
             <img src="../images/github-mark-white.png" alt="GitHub">
         </a>
-        <h1>png2ico v1.0 — PNG to ICO</h1>
+        <h1>png2ico v1.1.0 — PNG to ICO</h1>
     </header>
 
     <div class="container">
@@ -227,15 +227,15 @@
                     </td>
                     <td class="project-text-cell">
                         <div>
-                            <h2>png2ico v1.0</h2>
+                            <h2>png2ico v1.1.0</h2>
                             <p>
-                                <b>png2ico</b> is a Python command-line converter that takes a <b>256×256 PNG</b> and writes a Windows <code>.ico</code> beside it with the same name. It resizes the image to the common Windows icon sizes and packs them into one ICO file. Built with <b>Pillow</b>.
+                                <b>png2ico</b> is a Python command-line converter that takes a square PNG (<b>256×256</b>, <b>512×512</b>, <b>1024×1024</b>, or <b>2048×2048</b>) and writes a Windows <code>.ico</code> beside it with the same name. Larger sources are downscaled with LANCZOS to the common Windows icon sizes and packed into one ICO file. Built with <b>Pillow</b>.
                             </p>
                             <p>
                                 <b>Features:</b>
                             </p>
                             <ul>
-                                <li><b>Exact input size:</b> Only a 256×256 PNG is accepted — any other size is an error and no ICO is written.</li>
+                                <li><b>Exact input size:</b> Only 256×256, 512×512, 1024×1024, or 2048×2048 PNG is accepted — any other size is an error and no ICO is written.</li>
                                 <li><b>Common Windows sizes:</b> 16×16, 24×24, 32×32, 48×48, 64×64, 128×128, and 256×256 in one ICO. 256×256 is PNG; smaller sizes are 32-bit BMP/DIB so Explorer and <code>.exe</code> icons display correctly.</li>
                                 <li><b>Same-folder output:</b> <code>app.png</code> becomes <code>app.ico</code> next to the source file.</li>
                                 <li><b>Step-by-step feedback:</b> Prints each conversion step and ends with <b>Success</b> or <b>Failed</b>.</li>
