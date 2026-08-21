@@ -12,7 +12,8 @@ and visual sparkline graphs.
 REQUIREMENTS
 ------------
 - Windows PowerShell 5.1 or later (or PowerShell Core 6.0+)
-- Internet connection to access https://www.portlandoregon.gov/bes/bigpipe/data.cfm
+- Internet connection to access Portland Big Pipe tracker endpoints
+  (chart.cfm, data.cfm, gauge.cfm under https://www.portlandoregon.gov/bes/bigpipe/)
 - Console that supports Unicode block characters and colors
 
 USAGE
@@ -112,14 +113,19 @@ Labels are always displayed in white. The header is displayed in green.
 
 DATA SOURCE
 -----------
-The script fetches data from:
-https://www.portlandoregon.gov/bes/bigpipe/data.cfm
+The script fetches the 72-hour series from, in order:
+1. https://www.portlandoregon.gov/bes/bigpipe/chart.cfm (embedded JSON)
+2. https://www.portlandoregon.gov/bes/bigpipe/data.cfm (HTML table)
+3. https://www.portlandoregon.gov/bes/bigpipe/gauge.cfm (last published reading, if the 72-hour series is empty)
 
-Data is updated every 15 minutes and may have up to a 45-minute lag time.
+Data is updated every 15 minutes and may have up to a 45-minute lag time. If the
+city feed has no 72-hour samples, the script reports the gauge reading and its
+timestamp instead of failing.
 
 TECHNICAL DETAILS
 -----------------
-- Data Parsing: Uses regex to extract data from HTML table structure
+- Data Parsing: Prefers chart.cfm JSON (DATE_TIME_UNIX / INTERPOLATED_PERCENT_FULL);
+  falls back to the data.cfm HTML table, then gauge.cfm
 - Time Range: Processes up to 72 hours of historical data
 - Timezone Handling: All time calculations use Pacific timezone, automatically
   converting from system timezone if needed
@@ -138,7 +144,7 @@ ERROR HANDLING
 --------------
 The script will exit with an error if:
 - The website is unreachable
-- No data points can be parsed from the page
+- The city feed has no samples on the chart, data table, or gauge
 - Network connectivity issues occur
 
 ERROR CODES
@@ -157,9 +163,12 @@ NOTES
 
 VERSION
 -------
-v2.3 - Enhanced Statistics Display with Command-Line Arguments
+v2.4 - Chart JSON parsing with table/gauge fallback
 
 Current version includes:
+- Chart.cfm JSON parsing for the 72-hour series (resilient to data.cfm table markup changes)
+- HTML table fallback, then gauge.cfm last-reading fallback when the city 72-hour feed is empty
+- Stale-data timestamp when the latest sample is more than 90 minutes old
 - HTML table parsing
 - Color-coded statistics and sparklines
 - Aligned output formatting
