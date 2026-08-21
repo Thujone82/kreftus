@@ -578,6 +578,7 @@ try {
     
     # Determine if we should show full output or specific lines
     $showFullOutput = -not ($level -or $banner -or $sma -or $capacity -or $lastfull -or $hl12 -or $hl24 -or $hl72 -or $s12 -or $s24 -or $s72)
+    $showHistory = $dataSource -ne "gauge"
     
     # Display output
     if ($banner -or $showFullOutput) {
@@ -613,7 +614,7 @@ try {
         }
         
         # 100% Duration (only shown when current level is 100%)
-        if (($capacity -or $showFullOutput) -and $currentLevel -eq 100 -and $null -ne $duration100Percent) {
+        if ($showHistory -and ($capacity -or $showFullOutput) -and $currentLevel -eq 100 -and $null -ne $duration100Percent) {
             $durationFormatted = Format-Duration -Duration $duration100Percent
             $durationColor = [System.ConsoleColor]::Magenta
             $labelDuration = "100% Duration:"
@@ -624,7 +625,7 @@ try {
         }
         
         # Last Full (only shown when current level is not 100% but there was a 100% reading)
-        if (($lastfull -or $showFullOutput) -and $currentLevel -lt 100 -and $null -ne $timeSinceLastFull) {
+        if ($showHistory -and ($lastfull -or $showFullOutput) -and $currentLevel -lt 100 -and $null -ne $timeSinceLastFull) {
             $lastFullFormatted = Format-Duration -Duration $timeSinceLastFull
             $lastFullColor = [System.ConsoleColor]::Magenta
             $labelLastFull = "Last Full:"
@@ -636,7 +637,7 @@ try {
     }
     
     # 12/24/72H SMA
-    if ($sma -or $showFullOutput) {
+    if ($showHistory -and ($sma -or $showFullOutput)) {
         $sma12HFormatted = "$([math]::Round($sma12H, 1))%"
         $sma24HFormatted = "$([math]::Round($sma24H, 1))%"
         $sma72HFormatted = "$([math]::Round($sma72H, 1))%"
@@ -655,7 +656,7 @@ try {
     }
     
     # 12H High/Low
-    if ($hl12 -or $showFullOutput) {
+    if ($showHistory -and ($hl12 -or $showFullOutput)) {
         $high12HFormatted = "$([math]::Round($high12H, 1))%"
         $low12HFormatted = "$([math]::Round($low12H, 1))%"
         $high12HColor = Get-PercentageColor -Percentage $high12H
@@ -670,7 +671,7 @@ try {
     }
     
     # 24H High/Low
-    if ($hl24 -or $showFullOutput) {
+    if ($showHistory -and ($hl24 -or $showFullOutput)) {
         $high24HFormatted = "$([math]::Round($high24H, 1))%"
         $low24HFormatted = "$([math]::Round($low24H, 1))%"
         $high24HColor = Get-PercentageColor -Percentage $high24H
@@ -685,7 +686,7 @@ try {
     }
     
     # 72H High/Low
-    if ($hl72 -or $showFullOutput) {
+    if ($showHistory -and ($hl72 -or $showFullOutput)) {
         $high72HFormatted = "$([math]::Round($high72H, 1))%"
         $low72HFormatted = "$([math]::Round($low72H, 1))%"
         $high72HColor = Get-PercentageColor -Percentage $high72H
@@ -699,18 +700,18 @@ try {
         Write-Host -ForegroundColor $low72HColor $low72HFormatted
     }
     
-    if ($showFullOutput) {
+    if ($showHistory -and $showFullOutput) {
     Write-Host ""
     }
     
     # Sparklines
-    if ($s12 -or $showFullOutput) {
+    if ($showHistory -and ($s12 -or $showFullOutput)) {
         Write-ColoredSparkline -Label "12H:" -Sparkline $sparkline12HData.Sparkline -BinnedValues $sparkline12HData.BinnedValues
     }
-    if ($s24 -or $showFullOutput) {
+    if ($showHistory -and ($s24 -or $showFullOutput)) {
         Write-ColoredSparkline -Label "24H:" -Sparkline $sparkline24HData.Sparkline -BinnedValues $sparkline24HData.BinnedValues
     }
-    if ($s72 -or $showFullOutput) {
+    if ($showHistory -and ($s72 -or $showFullOutput)) {
         Write-ColoredSparkline -Label "72H:" -Sparkline $sparkline72HData.Sparkline -BinnedValues $sparkline72HData.BinnedValues
     }
 }

@@ -3,7 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Portland Big Pipe Report — PowerShell CLI for Portland CSO Big Pipe fill level, 12/24/72H stats and sparklines, with chart JSON parsing and gauge fallback when history is empty.">
     <title>Portland Big Pipe Report</title>
+    <link rel="canonical" href="https://kreft.us/pdxpipe/">
+    <meta property="og:title" content="Portland Big Pipe Report">
+    <meta property="og:description" content="PowerShell CLI for Portland Big Pipe fill level, 12/24/72H stats and sparklines, with chart JSON parsing and gauge fallback when history is empty.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://kreft.us/pdxpipe/">
+    <meta property="og:image" content="https://kreft.us/images/pipe.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Portland Big Pipe Report">
+    <meta name="twitter:description" content="PowerShell CLI for Portland Big Pipe fill level, 12/24/72H stats and sparklines, with chart JSON parsing and gauge fallback when history is empty.">
+    <meta name="twitter:image" content="https://kreft.us/images/pipe.png">
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -202,11 +213,11 @@
 <body>
 
     <header>
-        <a href="../../" class="home-link" title="Back to Home">
-            <img src="../../images/home.png" alt="Home">
+        <a href="../" class="home-link" title="Back to Home">
+            <img src="../images/home.png" alt="Home">
         </a>
         <a href="https://github.com/Thujone82/kreftus" target="_blank" rel="noopener noreferrer" class="github-link" title="View on GitHub">
-            <img src="../../images/github-mark-white.png" alt="GitHub">
+            <img src="../images/github-mark-white.png" alt="GitHub">
         </a>
         <h1>Portland Big Pipe Report</h1>
     </header>
@@ -216,22 +227,24 @@
             <tbody>
                 <tr class="project-row">
                     <td class="project-image-cell">
-                        <img src="../../images/pipe.png" alt="Portland Big Pipe Report Screenshot">
+                        <img src="../images/pipe.png" alt="Portland Big Pipe Report Screenshot">
                     </td>
                     <td class="project-text-cell">
                         <div>
                             <h2>Portland Big Pipe Report</h2>
                             <p>
-                                <b>Portland Big Pipe Report</b> is a PowerShell script that fetches and displays real-time statistics about the Portland Big Pipe system, which is a combined sewer overflow (CSO) control system. The script retrieves 15-minute interval data from the City of Portland's website and presents it in an easy-to-read format with color-coded statistics and visual sparkline graphs. The script supports command-line arguments for selective output, making it ideal for scripting and integration with other tools.
+                                <b>Portland Big Pipe Report</b> is a PowerShell script that fetches and displays real-time statistics about the Portland Big Pipe system, which is a combined sewer overflow (CSO) control system. The script retrieves 15-minute interval data from the City of Portland's Big Pipe tracker and presents it in an easy-to-read format with color-coded statistics and visual sparkline graphs. It reads the 72-hour series from chart JSON first, then the HTML data table, and falls back to the live gauge when that history is empty. The script supports command-line arguments for selective output, making it ideal for scripting and integration with other tools.
                             </p>
                             <p>
                                 Key features include:
                                 <ul>
-                                    <li>Real-time data from Portland Big Pipe website</li>
+                                    <li>Real-time data from the Portland Big Pipe tracker (chart JSON, HTML table, then gauge fallback)</li>
                                     <li>Color-coded statistics based on fill level (≤5% white, >5-20% green, >20-50% cyan, >50-80% yellow, >80-95% red, >95% magenta)</li>
                                     <li>Visual sparkline graphs for 12H, 24H, and 72H views</li>
                                     <li>Aligned output formatting for easy reading</li>
-                                    <li>Automatic data parsing from HTML tables</li>
+                                    <li>Parses the 72-hour series from chart.cfm JSON, with HTML table and gauge fallbacks</li>
+                                    <li>Empty-history mode: when the city 72-hour feed is empty, shows Current Level, an As of timestamp, and a yellow notice — SMA, High/Low, and sparklines stay hidden until history returns</li>
+                                    <li>Stale-data timestamp when the latest sample is more than 90 minutes old</li>
                                     <li>Enhanced statistics: Current level, 12H/24H/72H SMA, and 12H/24H/72H High/Low</li>
                                     <li>100% Duration tracking: Displays how long the pipe has been at full capacity (only shown when at 100%), calculated using Pacific timezone from first 100% reading to current time</li>
                                     <li>Last Full tracking: Displays time since the pipe was last at 100% capacity (only shown when not at 100% but was previously), calculated using Pacific timezone</li>
@@ -241,7 +254,7 @@
                                 </ul>
                             </p>
                             <p>
-                                The script displays comprehensive statistics including current level, 12H/24H/72H simple moving averages (SMA), and 12H/24H/72H high/low values. When the pipe reaches 100% capacity, it displays the duration it has been at full capacity. When the pipe is below 100% but was previously at full capacity, it displays the time since it was last full. Both calculations use Pacific timezone to account for data lag. Sparklines use time-based binning with automatic interpolation of missing samples, ensuring continuous visualizations even when data points are missing. Each percentage value is individually color-coded, and sparkline glyphs change color based on their fill level, providing an intuitive visual representation of the Big Pipe system status. Use command-line arguments to display specific output lines for scripting and automation.
+                                The script displays comprehensive statistics including current level, 12H/24H/72H simple moving averages (SMA), and 12H/24H/72H high/low values. When the pipe reaches 100% capacity, it displays the duration it has been at full capacity. When the pipe is below 100% but was previously at full capacity, it displays the time since it was last full. Both calculations use Pacific timezone to account for data lag. Sparklines use time-based binning with automatic interpolation of missing samples, ensuring continuous visualizations even when data points are missing. If the city's 72-hour chart and table are empty, the report falls back to the last gauge reading and omits history-dependent lines until that series returns. Each percentage value is individually color-coded, and sparkline glyphs change color based on their fill level, providing an intuitive visual representation of the Big Pipe system status. Use command-line arguments to display specific output lines for scripting and automation.
                             </p>
                             <p>
                                 <b>Official Website:</b> <a href="https://www.portland.gov/bes/big-pipe-tracker" target="_blank" rel="noopener noreferrer">Portland Big Pipe Tracker</a>
@@ -252,8 +265,8 @@
                             </div>
 
                             <h3>Downloads</h3>
-                            <p><b>PowerShell Edition:</b> [ <a href="pipe.ps1">ps1</a> ]</p>
-                            <p class="readme-link">↳ <a href="README.txt">README</a></p>
+                            <p><b>PowerShell Edition:</b> [ <a href="../ps/pipe/pipe.ps1">ps1</a> ]</p>
+                            <p class="readme-link">↳ <a href="../ps/pipe/README.txt">README</a></p>
                         </div>
                     </td>
                 </tr>
