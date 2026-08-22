@@ -12,8 +12,7 @@ and visual sparkline graphs.
 REQUIREMENTS
 ------------
 - Windows PowerShell 5.1 or later (or PowerShell Core 6.0+)
-- Internet connection to access Portland Big Pipe tracker endpoints
-  (chart.cfm, data.cfm, gauge.cfm under https://www.portlandoregon.gov/bes/bigpipe/)
+- Internet connection to access https://www.portlandoregon.gov/bes/bigpipe/data.cfm
 - Console that supports Unicode block characters and colors
 
 USAGE
@@ -28,8 +27,7 @@ Or from any directory:
 
 The script will:
 1. Clear the screen (unless specific output is requested)
-2. Fetch the latest data from the Portland Big Pipe tracker (chart JSON, then the
-   HTML table, then the gauge if the 72-hour series is empty)
+2. Fetch the latest data from the Portland Big Pipe website
 3. Parse all available data points (up to 72 hours)
 4. Calculate statistics
 5. Display the formatted report
@@ -64,8 +62,6 @@ Multiple arguments can be combined to display multiple lines:
 When command-line arguments are used:
 - The screen is NOT cleared (useful for scripts and pipelines)
 - Only the requested output lines are displayed
-- History-only flags (-sma, -hl12, -hl24, -hl72, -s12, -s24, -s72, -capacity,
-  -lastfull) produce no output when the 72-hour series is empty
 - The script exits after displaying the requested output
 
 When no arguments are provided, the full report is displayed (default behavior).
@@ -78,31 +74,23 @@ The script displays:
 
 2. Statistics (all values aligned at column 16):
    - Current Level: Most recent percentage value (single color-coded value)
-   - As of: Timestamp of the latest sample (yellow). Shown when the sample is
-     more than 90 minutes old, or when the report is using the gauge fallback
-   - Empty-history notice (yellow): "72-hour history is currently empty on the
-     city feed." Shown on the full report when only the gauge reading is available.
-     SMA, High/Low, Last Full, 100% Duration, and sparklines are omitted until
-     the 72-hour series returns
    - 100% Duration: Amount of time the pipe has been at 100% capacity (only shown
-     when 72-hour history is available, current level is 100%, displayed in magenta).
-     Calculated from first 100% reading timestamp to current Pacific time, accounting
-     for data lag and missing samples
+     when current level is 100%, displayed in magenta). Calculated from first 100%
+     reading timestamp to current Pacific time, accounting for data lag and missing samples
    - Last Full: Amount of time since the pipe was last at 100% capacity (only shown
-     when 72-hour history is available, current level is less than 100% but there was
-     a previous 100% reading, displayed in magenta). Calculated from last 100% reading
-     timestamp to current Pacific time
+     when current level is less than 100% but there was a previous 100% reading,
+     displayed in magenta). Calculated from last 100% reading timestamp to current
+     Pacific time
    - 12/24/72H SMA: Three simple moving averages displayed as "$x/$y/$z"
-     (each value color-coded separately; omitted when 72-hour history is empty)
+     (each value color-coded separately)
    - 12H High/Low: Maximum and minimum of the last 12 hours as "$x/$y"
-     (each value color-coded separately; omitted when 72-hour history is empty)
+     (each value color-coded separately)
    - 24H High/Low: Maximum and minimum of the last 24 hours as "$x/$y"
-     (each value color-coded separately; omitted when 72-hour history is empty)
+     (each value color-coded separately)
    - 72H High/Low: Maximum and minimum of the last 72 hours as "$x/$y"
-     (each value color-coded separately; omitted when 72-hour history is empty)
+     (each value color-coded separately)
 
-3. Sparklines: Three visual graphs showing historical trends (omitted when
-   72-hour history is empty):
+3. Sparklines: Three visual graphs showing historical trends:
    - 12H: Last 12 hours (30-minute bins, 24 glyphs)
    - 24H: Last 24 hours (1-hour bins, 24 glyphs)
    - 72H: Last 72 hours (3-hour bins, 24 glyphs)
@@ -120,27 +108,18 @@ on the fill level:
     > 80-95% : Red     (very high)
     > 95%    : Magenta (critical)
 
-Labels are always displayed in white. The header is displayed in green. The
-As of timestamp and empty-history notice are displayed in yellow.
+Labels are always displayed in white. The header is displayed in green.
 
 DATA SOURCE
 -----------
-The script fetches the 72-hour series from, in order:
-1. https://www.portlandoregon.gov/bes/bigpipe/chart.cfm (embedded JSON)
-2. https://www.portlandoregon.gov/bes/bigpipe/data.cfm (HTML table)
-3. https://www.portlandoregon.gov/bes/bigpipe/gauge.cfm (last published reading, if the 72-hour series is empty)
+The script fetches data from:
+https://www.portlandoregon.gov/bes/bigpipe/data.cfm
 
-Data is updated every 15 minutes and may have up to a 45-minute lag time. If the
-city feed has no 72-hour samples, the script reports the gauge reading, its
-timestamp, and a yellow notice instead of failing. SMA, High/Low, duration, and
-sparkline lines stay hidden until the 72-hour series returns.
+Data is updated every 15 minutes and may have up to a 45-minute lag time.
 
 TECHNICAL DETAILS
 -----------------
-- Data Parsing: Prefers chart.cfm JSON (DATE_TIME_UNIX / INTERPOLATED_PERCENT_FULL);
-  falls back to the data.cfm HTML table, then gauge.cfm
-- Empty History: When only the gauge reading is available, the full report shows
-  Current Level, As of, and a yellow notice; history-dependent lines are omitted
+- Data Parsing: Uses regex to extract data from HTML table structure
 - Time Range: Processes up to 72 hours of historical data
 - Timezone Handling: All time calculations use Pacific timezone, automatically
   converting from system timezone if needed
@@ -159,7 +138,7 @@ ERROR HANDLING
 --------------
 The script will exit with an error if:
 - The website is unreachable
-- The city feed has no samples on the chart, data table, or gauge
+- No data points can be parsed from the page
 - Network connectivity issues occur
 
 ERROR CODES
@@ -170,8 +149,6 @@ NOTES
 -----
 - The script requires an active internet connection
 - Data availability depends on the City of Portland's website
-- When the city's 72-hour chart and table are empty, the report shows the last
-  gauge reading only (no SMA, High/Low, or sparkline lines)
 - Sparklines are displayed using Unicode characters that may not render correctly
   in all terminals or fonts
 - The script clears the screen before displaying results (only when no command-line
@@ -180,14 +157,9 @@ NOTES
 
 VERSION
 -------
-v2.4 - Chart JSON parsing with table/gauge fallback
+v2.3 - Enhanced Statistics Display with Command-Line Arguments
 
 Current version includes:
-- Chart.cfm JSON parsing for the 72-hour series (resilient to data.cfm table markup changes)
-- HTML table fallback, then gauge.cfm last-reading fallback when the city 72-hour feed is empty
-- Empty-history display: Current Level, As of timestamp, and a yellow notice;
-  SMA, High/Low, duration, Last Full, and sparklines stay hidden until history returns
-- Stale-data timestamp when the latest sample is more than 90 minutes old
 - HTML table parsing
 - Color-coded statistics and sparklines
 - Aligned output formatting
@@ -224,5 +196,3 @@ Current version includes:
 AUTHOR
 ------
 Script for monitoring Portland Big Pipe system data.
-
-Project page: https://kreft.us/pdxpipe/

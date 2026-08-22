@@ -24,141 +24,49 @@ if (-not ($level -or $banner -or $sma -or $capacity -or $lastfull -or $hl12 -or 
 Clear-Host
 }
 
-# City of Portland Big Pipe endpoints (same backend; chart JSON is the stable series)
-$chartUrl = "https://www.portlandoregon.gov/bes/bigpipe/chart.cfm"
-$dataUrl = "https://www.portlandoregon.gov/bes/bigpipe/data.cfm"
-$gaugeUrl = "https://www.portlandoregon.gov/bes/bigpipe/gauge.cfm"
+# URL for the raw data table
+$url = "https://www.portlandoregon.gov/bes/bigpipe/data.cfm"
 
-# --- Helper Function to Get Pacific Timezone ---
-function Get-PacificTimeZone {
-    try {
-        return [System.TimeZoneInfo]::FindSystemTimeZoneById("Pacific Standard Time")
-    }
-    catch {
-        return [System.TimeZoneInfo]::FindSystemTimeZoneById("America/Los_Angeles")
-    }
-}
-
-# --- Helper Function to Convert Unix Milliseconds to Pacific DateTime ---
-function ConvertFrom-UnixMillisecondsToPacific {
-    param ([Int64]$UnixMilliseconds)
-
-    $utc = [DateTimeOffset]::FromUnixTimeMilliseconds($UnixMilliseconds).UtcDateTime
-    return [TimeZoneInfo]::ConvertTimeFromUtc($utc, (Get-PacificTimeZone))
-}
-
-# --- Helper Function to Sort and Return Data Points ---
-function ConvertTo-SortedPipeData {
-    param ([array]$DataPoints)
-
-    if ($null -eq $DataPoints -or $DataPoints.Count -eq 0) {
-        return @()
-    }
-    return @($DataPoints | Sort-Object -Property DateTime)
-}
-
-# --- Parse 72-hour series from chart.cfm (ZingChart sensorData JSON) ---
-function Get-PipeDataFromChart {
+# --- Helper Function to Parse HTML and Extract All Data Points ---
+function Get-PipeData {
     param ([string]$HtmlContent)
-
+    
     $dataPoints = @()
-    $jsonMatch = [regex]::Match($HtmlContent, 'sensorData\s*=\s*(\{.*?\});', [System.Text.RegularExpressions.RegexOptions]::Singleline)
-    if (-not $jsonMatch.Success) {
-        return @()
-    }
-
-    try {
-        $sensorData = $jsonMatch.Groups[1].Value | ConvertFrom-Json
-    }
-    catch {
-        return @()
-    }
-
-    if ($null -eq $sensorData.DATA) {
-        return @()
-    }
-
-    foreach ($row in @($sensorData.DATA)) {
-        if ($null -eq $row) {
-            continue
-        }
-
+    
+    # Pattern to match HTML table structure: <time>date time</time> followed by <td>percentage</td>
+    # This handles the actual HTML structure: <td><time>12/8/25 2:30 PM</time></td><td>37%</td>
+    $pattern = "<time[^>]*>(\d{1,2}/\d{1,2}/\d{2,4})\s+(\d{1,2}:\d{2}\s+(?:AM|PM))</time></td>\s*<td>(\d{1,3}%)</td>"
+    
+    $regexMatches = [regex]::Matches($HtmlContent, $pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    
+    foreach ($match in $regexMatches) {
+        $dateStr = $match.Groups[1].Value
+        $timeStr = $match.Groups[2].Value
+        $percentStr = $match.Groups[3].Value -replace '%', ''
+        
         try {
-            $unixMs = [int64][double]$row[0]
-            $percentage = [double]$row[1]
+            # Parse date and time
+            $dateTimeStr = "$dateStr $timeStr"
+            $dateTime = [DateTime]::Parse($dateTimeStr)
+            
+            # Parse percentage
+            $percentage = [double]$percentStr
+            
             $dataPoints += [PSCustomObject]@{
-                DateTime = ConvertFrom-UnixMillisecondsToPacific -UnixMilliseconds $unixMs
+                DateTime = $dateTime
                 Percentage = $percentage
             }
         }
         catch {
+            # Skip malformed entries
             continue
         }
     }
-
-    return ConvertTo-SortedPipeData -DataPoints $dataPoints
-}
-
-# --- Parse 72-hour series from data.cfm HTML table ---
-function Get-PipeDataFromTable {
-    param ([string]$HtmlContent)
-
-    $dataPoints = @()
-
-    # <td><time>12/8/25 2:30 PM</time></td><td>37%</td>
-    # also plain cells if <time> is dropped: <td>12/8/25 2:30 PM</td><td>37%</td>
-    $pattern = "<td[^>]*>\s*(?:<time[^>]*>)?(\d{1,2}/\d{1,2}/\d{2,4})\s+(\d{1,2}:\d{2}\s+(?:AM|PM))(?:</time>)?\s*</td>\s*<td[^>]*>\s*(\d{1,3})%?\s*</td>"
-    $regexMatches = [regex]::Matches($HtmlContent, $pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-
-    foreach ($match in $regexMatches) {
-        $dateTimeStr = "$($match.Groups[1].Value) $($match.Groups[2].Value)"
-        $percentStr = $match.Groups[3].Value
-
-        try {
-            $dataPoints += [PSCustomObject]@{
-                DateTime = [DateTime]::Parse($dateTimeStr)
-                Percentage = [double]$percentStr
-            }
-        }
-        catch {
-            continue
-        }
-    }
-
-    return ConvertTo-SortedPipeData -DataPoints $dataPoints
-}
-
-# --- Parse last published reading from gauge.cfm ---
-function Get-PipeDataFromGauge {
-    param ([string]$HtmlContent)
-
-    $percentMatch = [regex]::Match($HtmlContent, 'percent__number">\s*(\d{1,3}(?:\.\d+)?)\s*<', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-    if (-not $percentMatch.Success) {
-        return @()
-    }
-
-    $timeMatch = [regex]::Match($HtmlContent, 'class="timestamp">\s*(.*?)\s*</p>', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Singleline)
-    $dateTime = $null
-    if ($timeMatch.Success) {
-        $timeStr = ($timeMatch.Groups[1].Value -replace '<br\s*/?>', ' ' -replace '\s+', ' ').Trim()
-        try {
-            $dateTime = [DateTime]::Parse($timeStr)
-        }
-        catch {
-            $dateTime = $null
-        }
-    }
-
-    if ($null -eq $dateTime) {
-        $dateTime = Get-PacificTime
-    }
-
-    return @(
-        [PSCustomObject]@{
-            DateTime = $dateTime
-            Percentage = [double]$percentMatch.Groups[1].Value
-        }
-    )
+    
+    # Sort chronologically (oldest to newest)
+    $dataPoints = $dataPoints | Sort-Object -Property DateTime
+    
+    return $dataPoints
 }
 
 # --- Helper Function to Get Color Based on Percentage ---
@@ -307,12 +215,25 @@ function Get-Sparkline {
 # --- Helper Function to Get Current Time in Pacific Timezone ---
 function Get-PacificTime {
     try {
-        return [TimeZoneInfo]::ConvertTimeFromUtc([DateTime]::UtcNow, (Get-PacificTimeZone))
+        $pacificTimeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById("Pacific Standard Time")
+        $utcNow = [System.DateTime]::UtcNow
+        $pacificTime = [System.TimeZoneInfo]::ConvertTimeFromUtc($utcNow, $pacificTimeZone)
+        return $pacificTime
     }
     catch {
-        return Get-Date
+        # Fallback: try alternative timezone IDs for different systems
+        try {
+            $pacificTimeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById("America/Los_Angeles")
+            $utcNow = [System.DateTime]::UtcNow
+            $pacificTime = [System.TimeZoneInfo]::ConvertTimeFromUtc($utcNow, $pacificTimeZone)
+            return $pacificTime
+        }
+        catch {
+            # Last resort: assume system time is Pacific (not ideal but better than failing)
+            return Get-Date
+        }
     }
-}
+    }
     
 # --- Helper Function to Format Duration ---
 function Format-Duration {
@@ -396,54 +317,14 @@ function Write-ColoredSparkline {
 }
 
 try {
-    $allData = @()
-    $dataSource = $null
-    $fetchErrors = @()
-
-    try {
-        $chartResponse = Invoke-WebRequest -Uri $chartUrl -UseBasicParsing
-        $allData = @(Get-PipeDataFromChart -HtmlContent $chartResponse.Content)
-        if ($allData.Count -gt 0) {
-            $dataSource = "chart"
-        }
-    }
-    catch {
-        $fetchErrors += $_.Exception.Message
-    }
-
+    # Fetch the webpage content
+    $response = Invoke-WebRequest -Uri $url -UseBasicParsing
+    
+    # Parse all data points from HTML
+    $allData = Get-PipeData -HtmlContent $response.Content
+    
     if ($allData.Count -eq 0) {
-        try {
-            $tableResponse = Invoke-WebRequest -Uri $dataUrl -UseBasicParsing
-            $allData = @(Get-PipeDataFromTable -HtmlContent $tableResponse.Content)
-            if ($allData.Count -gt 0) {
-                $dataSource = "table"
-            }
-        }
-        catch {
-            $fetchErrors += $_.Exception.Message
-        }
-    }
-
-    if ($allData.Count -eq 0) {
-        try {
-            $gaugeResponse = Invoke-WebRequest -Uri $gaugeUrl -UseBasicParsing
-            $allData = @(Get-PipeDataFromGauge -HtmlContent $gaugeResponse.Content)
-            if ($allData.Count -gt 0) {
-                $dataSource = "gauge"
-            }
-        }
-        catch {
-            $fetchErrors += $_.Exception.Message
-        }
-    }
-
-    if ($allData.Count -eq 0) {
-        if ($fetchErrors.Count -gt 0) {
-            Write-Error "Failed to reach the Big Pipe data source. Error: $($fetchErrors[0])"
-        }
-        else {
-            Write-Error "The City of Portland Big Pipe feed currently has no samples (72-hour chart and data table are empty)."
-        }
+        Write-Error "Could not parse any data points from the page."
         exit 1
     }
     
@@ -578,7 +459,6 @@ try {
     
     # Determine if we should show full output or specific lines
     $showFullOutput = -not ($level -or $banner -or $sma -or $capacity -or $lastfull -or $hl12 -or $hl24 -or $hl72 -or $s12 -or $s24 -or $s72)
-    $showHistory = $dataSource -ne "gauge"
     
     # Display output
     if ($banner -or $showFullOutput) {
@@ -600,21 +480,9 @@ try {
         Write-Host -NoNewline -ForegroundColor White $labelCurrent
         Write-Host -NoNewline $paddingCurrent
         Write-Host -ForegroundColor $currentLevelColor $currentLevelFormatted
-
-        $dataAge = (Get-PacificTime) - $currentTime
-        if ($dataSource -eq "gauge" -or $dataAge.TotalMinutes -gt 90) {
-            $labelAsOf = "As of:"
-            $paddingAsOf = " " * ($targetColumn - $labelAsOf.Length)
-            Write-Host -NoNewline -ForegroundColor White $labelAsOf
-            Write-Host -NoNewline $paddingAsOf
-            Write-Host -ForegroundColor Yellow ($currentTime.ToString("M/d/yy h:mm tt"))
-        }
-        if ($dataSource -eq "gauge" -and $showFullOutput) {
-            Write-Host -ForegroundColor Yellow "72-hour history is currently empty on the city feed."
-        }
         
         # 100% Duration (only shown when current level is 100%)
-        if ($showHistory -and ($capacity -or $showFullOutput) -and $currentLevel -eq 100 -and $null -ne $duration100Percent) {
+        if (($capacity -or $showFullOutput) -and $currentLevel -eq 100 -and $null -ne $duration100Percent) {
             $durationFormatted = Format-Duration -Duration $duration100Percent
             $durationColor = [System.ConsoleColor]::Magenta
             $labelDuration = "100% Duration:"
@@ -625,7 +493,7 @@ try {
         }
         
         # Last Full (only shown when current level is not 100% but there was a 100% reading)
-        if ($showHistory -and ($lastfull -or $showFullOutput) -and $currentLevel -lt 100 -and $null -ne $timeSinceLastFull) {
+        if (($lastfull -or $showFullOutput) -and $currentLevel -lt 100 -and $null -ne $timeSinceLastFull) {
             $lastFullFormatted = Format-Duration -Duration $timeSinceLastFull
             $lastFullColor = [System.ConsoleColor]::Magenta
             $labelLastFull = "Last Full:"
@@ -637,7 +505,7 @@ try {
     }
     
     # 12/24/72H SMA
-    if ($showHistory -and ($sma -or $showFullOutput)) {
+    if ($sma -or $showFullOutput) {
         $sma12HFormatted = "$([math]::Round($sma12H, 1))%"
         $sma24HFormatted = "$([math]::Round($sma24H, 1))%"
         $sma72HFormatted = "$([math]::Round($sma72H, 1))%"
@@ -656,7 +524,7 @@ try {
     }
     
     # 12H High/Low
-    if ($showHistory -and ($hl12 -or $showFullOutput)) {
+    if ($hl12 -or $showFullOutput) {
         $high12HFormatted = "$([math]::Round($high12H, 1))%"
         $low12HFormatted = "$([math]::Round($low12H, 1))%"
         $high12HColor = Get-PercentageColor -Percentage $high12H
@@ -671,7 +539,7 @@ try {
     }
     
     # 24H High/Low
-    if ($showHistory -and ($hl24 -or $showFullOutput)) {
+    if ($hl24 -or $showFullOutput) {
         $high24HFormatted = "$([math]::Round($high24H, 1))%"
         $low24HFormatted = "$([math]::Round($low24H, 1))%"
         $high24HColor = Get-PercentageColor -Percentage $high24H
@@ -686,7 +554,7 @@ try {
     }
     
     # 72H High/Low
-    if ($showHistory -and ($hl72 -or $showFullOutput)) {
+    if ($hl72 -or $showFullOutput) {
         $high72HFormatted = "$([math]::Round($high72H, 1))%"
         $low72HFormatted = "$([math]::Round($low72H, 1))%"
         $high72HColor = Get-PercentageColor -Percentage $high72H
@@ -700,18 +568,18 @@ try {
         Write-Host -ForegroundColor $low72HColor $low72HFormatted
     }
     
-    if ($showHistory -and $showFullOutput) {
+    if ($showFullOutput) {
     Write-Host ""
     }
     
     # Sparklines
-    if ($showHistory -and ($s12 -or $showFullOutput)) {
+    if ($s12 -or $showFullOutput) {
         Write-ColoredSparkline -Label "12H:" -Sparkline $sparkline12HData.Sparkline -BinnedValues $sparkline12HData.BinnedValues
     }
-    if ($showHistory -and ($s24 -or $showFullOutput)) {
+    if ($s24 -or $showFullOutput) {
         Write-ColoredSparkline -Label "24H:" -Sparkline $sparkline24HData.Sparkline -BinnedValues $sparkline24HData.BinnedValues
     }
-    if ($showHistory -and ($s72 -or $showFullOutput)) {
+    if ($s72 -or $showFullOutput) {
         Write-ColoredSparkline -Label "72H:" -Sparkline $sparkline72HData.Sparkline -BinnedValues $sparkline72HData.BinnedValues
     }
 }
