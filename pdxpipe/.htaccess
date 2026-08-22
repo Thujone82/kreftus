@@ -1,0 +1,5 @@
+DirectoryIndex page.html index.html
+AddCharset UTF-8 .html
+
+RewriteEngine On
+RewriteRule ^index\.html$ page.html [L]
