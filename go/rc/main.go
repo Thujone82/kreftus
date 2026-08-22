@@ -93,7 +93,13 @@ func formatCompactDuration(d time.Duration, showFractionUnderMinute bool) string
 	return fmt.Sprintf("%ds", int(math.Round(d.Seconds())))
 }
 
-func formatDateAwareTimestamp(t time.Time) string {
+func formatDateAwareTimestamp(t time.Time, alwaysIncludeDate bool) string {
+	if !alwaysIncludeDate {
+		now := time.Now()
+		if t.Year() == now.Year() && t.YearDay() == now.YearDay() {
+			return t.Format("15:04:05")
+		}
+	}
 	return t.Format("01/02/06@15:04:05")
 }
 
@@ -212,7 +218,7 @@ func printExpectSummary(expect *expectState, executionCount, skip int, silent bo
 
 	lastSuccessDisplay := "N/A"
 	if expect.hasLastSuccess {
-		lastSuccessDisplay = formatDateAwareTimestamp(expect.lastSuccessfulComplete)
+		lastSuccessDisplay = formatDateAwareTimestamp(expect.lastSuccessfulComplete, true)
 	}
 	totalSuccessDisplay := formatSuccessRuntime(expect.totalSuccessfulRuntime)
 	lastSuccessRuntimeDisplay := "N/A"
@@ -798,7 +804,7 @@ func main() {
 				if !silent {
 					runtimeDisplay := formatCompactDuration(commandDuration, true)
 					waitingDisplay := formatCompactDuration(sleepDuration, false)
-					nextRunDisplay := formatDateAwareTimestamp(nextTargetTime)
+					nextRunDisplay := formatDateAwareTimestamp(nextTargetTime, false)
 					color.White("Runtime: %s Waiting: %s Next Run: %s", runtimeDisplay, waitingDisplay, nextRunDisplay)
 					printExpectSummary(expect, executionCount, skip, silent)
 					color.White("Press Ctrl+C to stop.")

@@ -78,7 +78,7 @@ Clears before startup output (once) and before each command. Expect/fail config 
   Total Runtime: HH:mm:ss.cs (last success runtime or N/A)
   ```
 
-- Timestamps: always `MM/DD/YY@HH:mm:ss` (e.g. `08/15/26@07:44:22`).
+- Timestamps: Last Success always `MM/DD/YY@HH:mm:ss`; Next Run uses time only when it is today, otherwise `MM/DD/YY@HH:mm:ss`.
 
 ### Replace mode (`-replace` / `-r`)
 - `applyReplace()` at startup: `strings.ReplaceAll(commandStr, "^*", replaceValue)`
@@ -128,7 +128,7 @@ Used for period, `-expect`, `-failtime`, and `-successtime`.
 | `expectState` | Threshold, display, success/fail accounting fields |
 | `parsePeriod` | Parse `s`/`m`/`h` → `time.Duration` + display |
 | `formatCompactDuration` | Precision status line durations |
-| `formatDateAwareTimestamp` | `MM/DD/YY@HH:mm:ss` for Next Run / Last Success |
+| `formatDateAwareTimestamp` | Last Success always dated; Next Run omits date when today |
 | `formatSuccessRuntime` | `HH:mm:ss.cs` for summary lines |
 | `formatExpectConfigDetails` | `Expect: … \| Success: … \| SuccessTime: … \| Fail: … \| FailTime: …` |
 | `printExpectSummary` | Success summary when expect set and `executionCount > skip` |

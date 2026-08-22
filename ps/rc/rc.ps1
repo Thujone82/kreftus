@@ -486,7 +486,14 @@ function Format-CompactDuration {
 }
 
 function Format-DateAwareTimestamp {
-    param([datetime]$Timestamp)
+    param(
+        [datetime]$Timestamp,
+        [switch]$AlwaysIncludeDate
+    )
+
+    if (-not $AlwaysIncludeDate -and $Timestamp.Date -eq (Get-Date).Date) {
+        return $Timestamp.ToString('HH:mm:ss')
+    }
 
     return $Timestamp.ToString('MM/dd/yy@HH:mm:ss')
 }
@@ -602,7 +609,7 @@ function Write-ExpectSummaryIfNeeded {
     if (-not $ExpectThreshold) { return }
     if ($ExecutionCount -le $Skip) { return }
 
-    $lastSuccessDisplay = if ($LastSuccessfulCompletionTime) { Format-DateAwareTimestamp $LastSuccessfulCompletionTime } else { 'N/A' }
+    $lastSuccessDisplay = if ($LastSuccessfulCompletionTime) { Format-DateAwareTimestamp $LastSuccessfulCompletionTime -AlwaysIncludeDate } else { 'N/A' }
     $totalSuccessDisplay = Format-SuccessRuntime $TotalSuccessfulRuntime
     $lastSuccessRuntimeDisplay = if ($LastSuccessfulRuntime) {
         Format-SuccessRuntime $LastSuccessfulRuntime

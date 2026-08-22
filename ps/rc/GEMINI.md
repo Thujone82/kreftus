@@ -75,7 +75,7 @@ Suppresses banners, timestamps, wait lines, expect summary, and limit messages. 
   Total Runtime: HH:mm:ss.cs (last success runtime or N/A)
   ```
 
-- Timestamps: always `MM/DD/YY@HH:mm:ss` (e.g. `08/15/26@07:44:22`).
+- Timestamps: Last Success always `MM/DD/YY@HH:mm:ss`; Next Run uses time only when it is today, otherwise `MM/DD/YY@HH:mm:ss`.
 
 ### Replace mode (`-Replace` / `-r`)
 - Script constant: `$ReplaceMarker = '^*'`
@@ -128,7 +128,7 @@ Used for `-Period`, `-Expect`, `-FailTime`, and `-SuccessTime`.
 |----------|---------|
 | `Convert-Period` | Parse period strings with `s`/`m`/`h` suffixes |
 | `Format-CompactDuration` | `HH:mm:ss`, `mm:ss`, or fractional seconds for precision status |
-| `Format-DateAwareTimestamp` | `MM/DD/YY@HH:mm:ss` for Next Run / Last Success |
+| `Format-DateAwareTimestamp` | Last Success always dated; Next Run omits date when today |
 | `Format-ExpectConfigDetails` | Build `Expect: … \| Success: … \| SuccessTime: … \| Fail: … \| FailTime: …` for banners and execute line |
 | `Write-ExpectSummaryIfNeeded` | Print success summary when `-Expect` set and `$executionCount > $Skip` |
 
