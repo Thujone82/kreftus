@@ -1,6 +1,6 @@
 {
   "sourceUrl": "https://www.portland.gov/trees/heritage/heritage-trees-year",
-  "scrapedAt": "2026-08-17T17:30:58Z",
+  "scrapedAt": "2026-08-23T13:05:41Z",
   "count": 408,
   "trees": [
     {
@@ -485,11 +485,11 @@
       "name": "Juglands Nigra - Black Walnut",
       "location": "1600 SW Salmon St (Portland Public Schools)",
       "removed": null,
-      "lat": 45.5179535,
-      "lng": -122.6829775,
+      "lat": 45.5194189,
+      "lng": -122.6887853,
       "geocodeStatus": "ok",
       "geocodeAddress": "1600 SW Salmon St, Portland, OR, USA",
-      "geocodeFormatted": "Southwest Salmon Street, Downtown, Portland, Multnomah County, Oregon, 97204, United States",
+      "geocodeFormatted": "1600, Southwest Salmon Street, Goose Hollow, Portland, Multnomah County, Oregon, 97205, United States",
       "geocodeError": null,
       "manualKeep": "name"
     },

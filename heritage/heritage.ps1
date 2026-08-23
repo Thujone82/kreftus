@@ -611,6 +611,45 @@ function Format-MovedDistanceLabel {
     return ("{0:F3} mi" -f $Miles)
 }
 
+function Get-CoordBaseline {
+    param($Tree, $Prev)
+    if ($null -ne $Tree.lat -and $null -ne $Tree.lng) {
+        return @{ lat = $Tree.lat; lng = $Tree.lng }
+    }
+    if ($Prev -and $null -ne $Prev.lat -and $null -ne $Prev.lng) {
+        return @{ lat = $Prev.lat; lng = $Prev.lng }
+    }
+    return @{ lat = $null; lng = $null }
+}
+
+function Write-CoordPlacementFeedback {
+    param(
+        $OldLat,
+        $OldLng,
+        [double]$NewLat,
+        [double]$NewLng,
+        [string]$Indent = '',
+        [string]$LinePrefix = '',
+        [switch]$WarnOutOfMetro
+    )
+    $hasOld = ($null -ne $OldLat -and $null -ne $OldLng)
+    if ($hasOld) {
+        $movedMiles = Get-MilesBetween `
+            -Lat1 ([double]$OldLat) -Lng1 ([double]$OldLng) `
+            -Lat2 $NewLat -Lng2 $NewLng
+        $movedLabel = Format-MovedDistanceLabel -Miles $movedMiles
+        Write-Host ("${Indent}${LinePrefix}{0:F6}, {1:F6}  (moved {2} from previous)" -f $NewLat, $NewLng, $movedLabel) -ForegroundColor DarkGreen
+    } else {
+        Write-Host ("${Indent}${LinePrefix}{0:F6}, {1:F6}" -f $NewLat, $NewLng) -ForegroundColor DarkGreen
+    }
+    if ($WarnOutOfMetro) {
+        $milesFromPdx = Get-MilesFromPortland -Lat $NewLat -Lng $NewLng
+        if ($milesFromPdx -gt $script:PortlandMaxMiles) {
+            Write-Host ("${Indent}WARNING: {0:F1} mi from Portland center; the PWA will still show it." -f $milesFromPdx) -ForegroundColor Yellow
+        }
+    }
+}
+
 function Format-NullableNumber {
     param($Value, [string]$Fmt = 'F6')
     if ($null -eq $Value) { return '(null)' }
@@ -768,6 +807,8 @@ function Read-LatMaybePair {
 
 function Update-Tree-Regeocode {
     param($Tree, [string]$UserAgent, [int]$DelayMs)
+    $oldLat = $Tree.lat
+    $oldLng = $Tree.lng
     $startAddress = if ($Tree.geocodeAddress) { $Tree.geocodeAddress } else { Build-Address $Tree.location }
     Write-Host ("  Current geocode address: {0}" -f $startAddress) -ForegroundColor DarkGray
     Write-Host "  Enter address to geocode (blank = use current, '!' = unbounded search): " -NoNewline -ForegroundColor Cyan
@@ -805,7 +846,9 @@ function Update-Tree-Regeocode {
         $Tree.geocodeFormatted = $result.formatted
         $Tree.geocodeError     = $null
         Write-Host " OK" -ForegroundColor Green
-        Write-Host ("  -> {0:F6}, {1:F6}  ({2:F1} mi from Portland)" -f $result.lat, $result.lng, $result.miles) -ForegroundColor DarkGreen
+        Write-CoordPlacementFeedback -OldLat $oldLat -OldLng $oldLng `
+            -NewLat ([double]$result.lat) -NewLng ([double]$result.lng) `
+            -Indent '  ' -LinePrefix '-> ' -WarnOutOfMetro
         if ($result.formatted) { Write-Host ("  -> {0}" -f $result.formatted) -ForegroundColor DarkGray }
     } else {
         Write-Host (" {0}" -f $result.status) -ForegroundColor Red
@@ -921,7 +964,13 @@ function Invoke-UpdateMode {
             if ($null -eq $cmd) { break }
             switch ($cmd.Trim().ToLowerInvariant()) {
                 'g' {
+                    $oldLat = $tree.lat
+                    $oldLng = $tree.lng
                     Update-Tree-Regeocode -Tree $tree -UserAgent $UserAgent -DelayMs $DelayMs
+                    if ($null -ne $oldLat -and $null -ne $oldLng -and $null -ne $tree.lat -and $null -ne $tree.lng) {
+                        $coordsPrevLat = $oldLat
+                        $coordsPrevLng = $oldLng
+                    }
                     $dirty = $true
                 }
                 'c' {
@@ -943,19 +992,13 @@ function Invoke-UpdateMode {
                         $tree.geocodeStatus = 'ok'
                         $tree.geocodeError  = $null
                         if (-not $tree.geocodeFormatted) { $tree.geocodeFormatted = 'manual coords' }
-                        $miles = Get-MilesFromPortland -Lat ([double]$newLat) -Lng ([double]$newLng)
-                        if ($miles -gt $script:PortlandMaxMiles) {
-                            Write-Host ("  WARNING: {0:F1} mi from Portland center; the PWA will still show it." -f $miles) -ForegroundColor Yellow
+                        Write-CoordPlacementFeedback -OldLat $oldLat -OldLng $oldLng `
+                            -NewLat ([double]$newLat) -NewLng ([double]$newLng) `
+                            -Indent '  ' -WarnOutOfMetro
+                        if ($null -ne $oldLat -and $null -ne $oldLng) {
+                            $coordsPrevLat = $oldLat
+                            $coordsPrevLng = $oldLng
                         }
-                    }
-                    if ($null -ne $oldLat -and $null -ne $oldLng -and $null -ne $newLat -and $null -ne $newLng) {
-                        $coordsPrevLat = $oldLat
-                        $coordsPrevLng = $oldLng
-                        $movedMiles = Get-MilesBetween -Lat1 ([double]$oldLat) -Lng1 ([double]$oldLng) -Lat2 ([double]$newLat) -Lng2 ([double]$newLng)
-                        $distanceLabel = Format-MovedDistanceLabel -Miles $movedMiles
-                        Write-Host ("  moved: {0} (from {1}, {2} to {3}, {4})" -f `
-                            $distanceLabel, ([double]$oldLat).ToString('F6'), ([double]$oldLng).ToString('F6'),
-                            ([double]$newLat).ToString('F6'), ([double]$newLng).ToString('F6')) -ForegroundColor DarkGray
                     }
                     $dirty = $true
                 }
@@ -1362,6 +1405,7 @@ try {
         }
 
         if ($result.ok) {
+            $baseline = Get-CoordBaseline -Tree $t -Prev $prev
             $t.lat = $result.lat
             $t.lng = $result.lng
             $t.geocodeStatus = 'ok'
@@ -1370,27 +1414,17 @@ try {
                 $t.geocodeFormatted = 'manual coords'
                 if (-not $t.geocodeAddress) { $t.geocodeAddress = $currentAddress }
                 Write-Host (" OK (manual coords)") -ForegroundColor Green
-                $prevLat = if ($prev -and $null -ne $prev.lat) { $prev.lat } else { $null }
-                $prevLng = if ($prev -and $null -ne $prev.lng) { $prev.lng } else { $null }
-                if ($null -ne $prevLat -and $null -ne $prevLng) {
-                    $movedMiles = Get-MilesBetween `
-                        -Lat1 ([double]$prevLat) -Lng1 ([double]$prevLng) `
-                        -Lat2 ([double]$t.lat) -Lng2 ([double]$t.lng)
-                    $movedLabel = Format-MovedDistanceLabel -Miles $movedMiles
-                    Write-Host ("        {0:F6}, {1:F6}  (moved {2} from previous)" -f $t.lat, $t.lng, $movedLabel) -ForegroundColor DarkGreen
-                } else {
-                    Write-Host ("        {0:F6}, {1:F6}" -f $t.lat, $t.lng) -ForegroundColor DarkGreen
-                }
-                $milesFromPdx = Get-MilesFromPortland -Lat ([double]$t.lat) -Lng ([double]$t.lng)
-                if ($milesFromPdx -gt $script:PortlandMaxMiles) {
-                    Write-Host ("        WARNING: {0:F1} mi from Portland center; the PWA will still show it." -f $milesFromPdx) -ForegroundColor Yellow
-                }
+                Write-CoordPlacementFeedback -OldLat $baseline.lat -OldLng $baseline.lng `
+                    -NewLat ([double]$t.lat) -NewLng ([double]$t.lng) `
+                    -Indent '        ' -WarnOutOfMetro
             } else {
                 $t.geocodeAddress = $currentAddress
                 $t.geocodeFormatted = $result.formatted
                 $suffix = if ($triedManually) { ' (manual address)' } else { '' }
                 Write-Host (" OK{0}" -f $suffix) -ForegroundColor Green
-                Write-Host ("        {0:F6}, {1:F6}" -f $result.lat, $result.lng) -ForegroundColor DarkGreen
+                Write-CoordPlacementFeedback -OldLat $baseline.lat -OldLng $baseline.lng `
+                    -NewLat ([double]$result.lat) -NewLng ([double]$result.lng) `
+                    -Indent '        ' -WarnOutOfMetro
                 if ($result.formatted) { Write-Host ("        {0}" -f $result.formatted) -ForegroundColor DarkGray }
             }
             $stats.geocoded++

@@ -331,8 +331,10 @@ pwsh -File heritage/heritage.ps1 -Update 366
 
 Update mode skips the HTML fetch entirely. It loads the existing
 `data/trees.json`, asks for a tree number (or uses the one passed positionally
-after `-Update`), and shows every stored field including
-distance-from-Portland. After you finish editing that tree the script returns
+after `-Update`), and shows every stored field. Coordinates display
+distance-from-Portland by default; after you move a pin with `[g]` or `[c]` the
+next screen shows how far it moved from the previous coordinates instead. After
+you finish editing that tree the script returns
 to the "Enter tree #" prompt so you can keep working &mdash; press Enter or
 `q` to quit. If the tree number supplied positionally isn't in the snapshot,
 the script warns and falls through to the normal prompt.
