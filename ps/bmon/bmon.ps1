@@ -515,17 +515,24 @@ function Get-SpinnerColors {
 
 function Get-FetchSpinnerGlyph {
     param([string]$Char)
-    # Full block leaves no cell background visible during inverted fetch coloring.
-    if ($Char -eq [char]0x2588) { return [char]0x2589 }
-    return $Char
+    # Full block fills the cell, hiding cyan fetch background. Use left 7/8 (U+2589).
+    if ([string]::IsNullOrEmpty($Char)) { return $Char }
+    $chars = $Char.ToCharArray()
+    for ($i = 0; $i -lt $chars.Length; $i++) {
+        if ([int]$chars[$i] -eq 0x2588) {
+            $chars[$i] = [char]0x2589
+        }
+    }
+    return -join $chars
 }
 
 function Write-SpinnerChar {
     param(
         [string]$Char,
-        [hashtable]$Colors
+        [hashtable]$Colors,
+        [switch]$Fetching
     )
-    if ($Colors.Background -eq 'Cyan') {
+    if ($Fetching -or $Colors.Background) {
         $Char = Get-FetchSpinnerGlyph -Char $Char
     }
     if ($Colors.Background) {
@@ -928,7 +935,7 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent -or $kl.IsPresent) {
             $restOfLine = "$sparklineString $($currentBtcPrice.ToString("C2"))$changeString"
             
             $spinnerColors = Get-SpinnerColors -VolatilityEnabled $volatilitySpinnerEnabled -SparklineEnabled $sparklineEnabled -Fetching $true -History $priceHistory
-            Write-SpinnerChar -Char $spinnerChar -Colors $spinnerColors
+            Write-SpinnerChar -Char $spinnerChar -Colors $spinnerColors -Fetching
             Write-Host -NoNewline -ForegroundColor $priceColor $restOfLine
             $fullLine = "$spinnerChar$restOfLine"
             $paddingSize = [System.Console]::WindowWidth - $fullLine.Length

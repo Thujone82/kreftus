@@ -661,10 +661,9 @@ func syncSpinnerStyle(m tuiModel) tuiModel {
 }
 
 func fetchSpinnerGlyph(glyph string) string {
-	if glyph == "█" {
-		return "▉"
-	}
-	return glyph
+	// Spinner.View() may include ANSI or trailing spaces; swap any full block so
+	// inverted cyan background remains visible as a sliver on the right.
+	return strings.ReplaceAll(glyph, "█", "▉")
 }
 
 func (m tuiModel) renderSpinnerChar() string {
@@ -673,7 +672,11 @@ func (m tuiModel) renderSpinnerChar() string {
 		style := lipgloss.NewStyle().Foreground(lipgloss.Color(retryColor))
 		return m.applyVolatilityBackground(style).Render(digit)
 	}
-	glyph := ansi.Strip(m.spinner.View())
+	raw := m.spinner.View()
+	if m.fetchingNow {
+		raw = fetchSpinnerGlyph(raw)
+	}
+	glyph := strings.TrimSpace(ansi.Strip(raw))
 	if glyph == "" || glyph == "(error)" {
 		glyph = " "
 	}
