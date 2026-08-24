@@ -1,0 +1,15 @@
+---
+description: User owns BMON builds; do not rebuild unless testing requires it
+alwaysApply: true
+---
+
+# BMON builds: user-owned
+
+The user manages BMON builds (e.g. `go/bmon/build.ps1` for Go binaries). Do **not** run `build.ps1`, `go build`, or other BMON binary rebuilds unless a compile is needed to verify a change during testing.
+
+When the user asks to commit and/or push BMON (`go/bmon`, `ps/bmon`) changes:
+
+- Stage and commit already-modified binaries if present (`go/bmon/bin/**`, and `ps/bmon/bmon.exe` when modified), same as other tools — do not exclude them as unrelated. Web download links depend on these shipped artifacts.
+- Do **not** rebuild first to “refresh” binaries for the commit; use whatever the user already built.
+- Prefer including modified binaries in the same commit as the related source/docs when they are already present in the working tree.
+- If binaries were left out of a prior BMON commit, commit and push them promptly with the related change.
