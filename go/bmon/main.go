@@ -1347,10 +1347,11 @@ func (m tuiModel) View() string {
 	retryActive, _, _ := getRetryIndicator()
 	styledLeft := left
 	if retryActive && m.volatilitySpinnerEnabled && m.sparklineEnabled {
-		styledLeft = lipgloss.NewStyle().
+		styledSpark := lipgloss.NewStyle().
 			Background(lipgloss.Color(volatilitySpinnerColorCode(getSparklineRange(m.history)))).
 			Foreground(lipgloss.Color("0")).
-			Render(left)
+			Render(getSparkline(m.history))
+		styledLeft = " " + styledSpark
 	}
 
 	rest := fmt.Sprintf("%s $%s%s", styledLeft, formatUSD(currentBtcPrice), changeString)

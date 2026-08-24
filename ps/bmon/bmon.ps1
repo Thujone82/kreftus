@@ -268,7 +268,12 @@ function Write-RetryIndicator {
         }
         Write-Host -NoNewline -ForegroundColor $fg $digit
         if ($ctx.VolatilityBg) {
-            Write-Host -NoNewline -ForegroundColor Black -BackgroundColor $ctx.VolatilityBg $ctx.SparklineString
+            $spark = $ctx.SparklineString
+            if ($spark.StartsWith(' ')) {
+                Write-Host -NoNewline ' '
+                $spark = $spark.Substring(1)
+            }
+            Write-Host -NoNewline -ForegroundColor Black -BackgroundColor $ctx.VolatilityBg $spark
         }
         else {
             Write-Host -NoNewline $ctx.SparklineString
