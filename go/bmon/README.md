@@ -27,7 +27,7 @@ The application can run in several modes: interactive monitoring with keyboard c
 - **Configuration Menu:** Use the `-config` flag to open the configuration menu. If settings already exist, the current config file path and a masked API key are displayed. You can enter a new API key (validated and saved to `bmon.ini`) or press Enter to keep the current setting and exit.
 - **Cross-Platform:** Native executables for Windows and Linux
 - **Color-coded Output:** Clear, colorized feedback for all operations
-- **Compact Retry Indicator:** During temporary network/API hiccups in go/golong/k modes, the session-change slot shows the retry digit (yellow `1`–`4`, red `5`) on the normal background, and the volatility tier color temporarily moves to the sparkline background. The spinner stays in place. On the next successful fetch the indicator disappears and the normal line resumes.
+- **Compact Retry Indicator:** During temporary network/API hiccups in go/golong/k modes, the retry digit (yellow `1`–`4`, red `5`) replaces the spinner on the normal background, and the volatility tier color temporarily moves to the sparkline background. The session-change field stays unchanged. On the next successful fetch the spinner returns and the normal line resumes.
 
 ## Color Coding
 

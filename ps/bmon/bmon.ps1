@@ -255,7 +255,7 @@ function Write-RetryIndicator {
         [int]$Attempt,
         [switch]$Final
     )
-    # Retry digit in change slot (normal bg). Volatility color migrates to sparkline background.
+    # Retry digit replaces spinner (normal bg). Volatility color migrates to sparkline background.
     $fg = if ($Final) { 'Red' } else { 'Yellow' }
     $digit = [string]$Attempt
     $ctx = $script:RetryDisplay
@@ -266,11 +266,7 @@ function Write-RetryIndicator {
             Write-Host -NoNewline "`r"
             return
         }
-        $retryField = " [$digit]"
-        if ($ctx.ChangeString -and $retryField.Length -lt $ctx.ChangeString.Length) {
-            $retryField = $retryField + (' ' * ($ctx.ChangeString.Length - $retryField.Length))
-        }
-        Write-SpinnerChar -Char $ctx.SpinnerChar -Colors $ctx.SpinnerColors
+        Write-Host -NoNewline -ForegroundColor $fg $digit
         if ($ctx.VolatilityBg) {
             Write-Host -NoNewline -ForegroundColor Black -BackgroundColor $ctx.VolatilityBg $ctx.SparklineString
         }
@@ -278,9 +274,8 @@ function Write-RetryIndicator {
             Write-Host -NoNewline $ctx.SparklineString
         }
         $priceColor = if ($ctx.PriceColor) { $ctx.PriceColor } else { 'White' }
-        Write-Host -NoNewline -ForegroundColor $priceColor " $($ctx.PriceText)"
-        Write-Host -NoNewline -ForegroundColor $fg $retryField
-        $fullLen = $ctx.SpinnerChar.Length + $ctx.SparklineString.Length + 1 + $ctx.PriceText.Length + $retryField.Length
+        Write-Host -NoNewline -ForegroundColor $priceColor " $($ctx.PriceText)$($ctx.ChangeString)"
+        $fullLen = $digit.Length + $ctx.SparklineString.Length + 1 + $ctx.PriceText.Length + $ctx.ChangeString.Length
         $pad = [System.Console]::WindowWidth - $fullLen
         if ($pad -gt 0) {
             Write-Host -NoNewline (' ' * $pad)

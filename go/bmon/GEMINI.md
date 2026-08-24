@@ -20,12 +20,12 @@ This project is the Go port of `bmon.ps1`, a lightweight command-line Bitcoin pr
 - **Volatility Coloring:** Volatility-colored spinner encodes sparkline volatility (`max − min` of up to 14 history points). Flag `-volatility` / `-vl`, auto-on with `-k`, runtime toggle `v` / `V`. Logic in `getSparklineRange`, `volatilitySpinnerColorCode`, `spinnerStyle`.
 - **Dynamic Controls:** Same keyboard map as the PowerShell edition (R, E, M, K, I, S, H, V, arrow aliases).
 - **Visual & Audible Alerts:** Lipgloss color styling, flash on price moves, optional beeps.
-- **Compact Retry Indicator:** Shared retry state; digit in change slot (yellow/red fg, normal bg); volatility tier migrates to sparkline background.
+- **Compact Retry Indicator:** Shared retry state; digit replaces spinner (yellow/red fg, normal bg); volatility tier migrates to sparkline background; change field unchanged.
 - **Configuration:** `bmon.ini` primary, `vbtc.ini` fallback; `-config` menu.
 
 ### Volatility Coloring (Spinner)
 
-Gated by `tuiModel.volatilitySpinnerEnabled && sparklineEnabled`. Precedence: retry line (volatility bg on sparkline + digit in change slot) → inverted fetch spinner (cyan bg, volatility fg) → volatility foreground → white.
+Gated by `tuiModel.volatilitySpinnerEnabled && sparklineEnabled`. Precedence: retry (volatility bg on sparkline + digit replaces spinner) → inverted fetch spinner (cyan bg, volatility fg) → volatility foreground → white.
 
 | Sparkline volatility (USD) | ANSI color code | Appearance |
 | -------------------------- | --------------- | ---------- |

@@ -654,22 +654,23 @@ func syncSpinnerStyle(m tuiModel) tuiModel {
 }
 
 func (m tuiModel) renderSpinnerChar() string {
-	active, digit, _ := getRetryIndicator()
-	// During retry backoff, keep the normal spinner (digit lives in the change slot).
-	fetching := m.fetchingNow && !(active && digit != "")
+	active, digit, retryColor := getRetryIndicator()
+	if active && digit != "" {
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(retryColor)).Render(digit)
+	}
 	raw := m.spinner.View()
 	// K mode only: full block hides cyan fetch background — swap to left 7/8.
-	if fetching && m.mode == modeK {
+	if m.fetchingNow && m.mode == modeK {
 		raw = strings.ReplaceAll(raw, "█", "▉")
 	}
 	glyph := strings.TrimSpace(ansi.Strip(raw))
 	if glyph == "" || glyph == "(error)" {
 		glyph = " "
 	}
-	if fetching && m.mode == modeK {
+	if m.fetchingNow && m.mode == modeK {
 		glyph = strings.ReplaceAll(glyph, "█", "▉")
 	}
-	if fetching {
+	if m.fetchingNow {
 		return m.fetchSpinnerStyle().Render(glyph)
 	}
 	style := lipgloss.NewStyle()
@@ -1343,41 +1344,16 @@ func (m tuiModel) View() string {
 
 	spinnerChar := m.renderSpinnerChar()
 
-	retryActive, retryDigit, retryColor := getRetryIndicator()
-	if retryActive && retryDigit != "" {
-		retryField := fmt.Sprintf(" [%s]", retryDigit)
-		if len(changeString) > len(retryField) {
-			retryField += strings.Repeat(" ", len(changeString)-len(retryField))
-		}
-		sparkStyle := lipgloss.NewStyle()
-		if m.volatilitySpinnerEnabled && m.sparklineEnabled {
-			sparkStyle = sparkStyle.
-				Background(lipgloss.Color(volatilitySpinnerColorCode(getSparklineRange(m.history)))).
-				Foreground(lipgloss.Color("0"))
-		}
-		styledSpark := sparkStyle.Render(left)
-		priceText := fmt.Sprintf(" $%s", formatUSD(currentBtcPrice))
-		var styledPrice string
-		switch priceColor {
-		case "Green":
-			styledPrice = lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Render(priceText)
-		case "Red":
-			styledPrice = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render(priceText)
-		default:
-			styledPrice = priceText
-		}
-		digitStyled := lipgloss.NewStyle().Foreground(lipgloss.Color(retryColor)).Render(retryField)
-		line := spinnerChar + styledSpark + styledPrice + digitStyled
-		if m.width > 0 {
-			pad := m.width - lipgloss.Width(line)
-			if pad > 0 {
-				line += strings.Repeat(" ", pad)
-			}
-		}
-		return line + "\n"
+	retryActive, _, _ := getRetryIndicator()
+	styledLeft := left
+	if retryActive && m.volatilitySpinnerEnabled && m.sparklineEnabled {
+		styledLeft = lipgloss.NewStyle().
+			Background(lipgloss.Color(volatilitySpinnerColorCode(getSparklineRange(m.history)))).
+			Foreground(lipgloss.Color("0")).
+			Render(left)
 	}
 
-	rest := fmt.Sprintf("%s $%s%s", left, formatUSD(currentBtcPrice), changeString)
+	rest := fmt.Sprintf("%s $%s%s", styledLeft, formatUSD(currentBtcPrice), changeString)
 
 	// colorize/invert
 	var styledRest string
