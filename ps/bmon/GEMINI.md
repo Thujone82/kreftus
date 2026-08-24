@@ -30,11 +30,11 @@ The tool operates in several modes:
 - **Visual & Audible Alerts:** Color-coded price changes (green/red), optional beeps, and inverted flash on significant moves.
 - **Sparkline History:** Unicode mini-chart of the last 14 price samples; toggled with `h` or enabled at launch with `-h`.
 - **Currency Conversion:** Direct arguments `-bu`, `-ub`, `-us`, `-su`.
-- **Compact Retry Indicator:** During API failures in go/golong/k modes, the spinner is replaced briefly by a colored retry digit (yellow 1–4, red 5).
+- **Compact Retry Indicator:** During API failures in go/golong/k modes, retry digit (yellow 1–4, red 5) appears in the change slot on the normal background; volatility tier color migrates to the sparkline background.
 
 ### Volatility Coloring (Spinner)
 
-Applies only when `$volatilitySpinnerEnabled` is true **and** the sparkline is visible **and** at least 2 history points exist. During an API fetch the spinner inverts: cyan background with the volatility tier as foreground (white foreground when volatility coloring is off). Retry digits keep yellow (or red on final failure) foreground; volatility tier is the background when enabled, default background when off.
+Applies only when `$volatilitySpinnerEnabled` is true **and** the sparkline is visible **and** at least 2 history points exist. During an API fetch the spinner inverts: cyan background with the volatility tier as foreground (white foreground when volatility coloring is off). On retry, the volatility tier moves to the sparkline background and the change slot shows the retry digit on the normal background.
 
 | Sparkline volatility (USD) | Spinner color |
 | -------------------------- | ------------- |
@@ -44,7 +44,7 @@ Applies only when `$volatilitySpinnerEnabled` is true **and** the sparkline is v
 | 100 – 249.99               | Red           |
 | ≥ 250                      | Magenta       |
 
-Key helpers in `bmon.ps1`: `Get-SparklineRange`, `Get-VolatilitySpinnerColor`, `Get-SpinnerColors`, `Write-SpinnerChar`.
+Key helpers in `bmon.ps1`: `Get-SparklineRange`, `Get-VolatilitySpinnerColor`, `Get-SpinnerColors`, `Write-SpinnerChar`, `Set-RetryDisplayContext`, `Write-RetryIndicator`.
 
 ### How to Run
 

@@ -221,19 +221,33 @@ function Set-IniConfiguration {
 
 # Tracks whether the previous operation printed a one-line warning/retry message
 $script:WarningLineShown = $false
-$script:RetryVolatilityEnabled = $false
-$script:RetrySparklineEnabled = $false
-$script:RetryPriceHistory = $null
+$script:RetryDisplay = $null
 
-function Set-RetryVolatilityContext {
+function Set-RetryDisplayContext {
     param(
+        [string]$SpinnerChar,
+        [hashtable]$SpinnerColors,
+        [string]$SparklineString,
+        [string]$PriceText,
+        [string]$ChangeString,
+        [string]$PriceColor,
         [bool]$VolatilityEnabled,
         [bool]$SparklineEnabled,
         [System.Collections.Generic.List[double]]$History
     )
-    $script:RetryVolatilityEnabled = $VolatilityEnabled
-    $script:RetrySparklineEnabled = $SparklineEnabled
-    $script:RetryPriceHistory = $History
+    $volBg = $null
+    if ($VolatilityEnabled -and $SparklineEnabled -and $null -ne $History) {
+        $volBg = Get-VolatilitySpinnerColor (Get-SparklineRange -History $History)
+    }
+    $script:RetryDisplay = @{
+        SpinnerChar     = $SpinnerChar
+        SpinnerColors   = $SpinnerColors
+        SparklineString = $SparklineString
+        PriceText       = $PriceText
+        ChangeString    = $ChangeString
+        PriceColor      = $PriceColor
+        VolatilityBg    = $volBg
+    }
 }
 
 function Write-RetryIndicator {
@@ -241,22 +255,35 @@ function Write-RetryIndicator {
         [int]$Attempt,
         [switch]$Final
     )
-    # Yellow for retries 1-4, red for final failure; volatility background when -volatility is enabled.
+    # Retry digit in change slot (normal bg). Volatility color migrates to sparkline background.
     $fg = if ($Final) { 'Red' } else { 'Yellow' }
     $digit = [string]$Attempt
-    $bg = $null
-    if ($script:RetryVolatilityEnabled -and $script:RetrySparklineEnabled -and $null -ne $script:RetryPriceHistory) {
-        $bg = Get-VolatilitySpinnerColor (Get-SparklineRange -History $script:RetryPriceHistory)
-    }
+    $ctx = $script:RetryDisplay
     try {
-        # Move to column 0, write the colored digit only, then return to column 0.
-        # Do NOT pad the rest of the line; leave existing content intact.
         Write-Host -NoNewline "`r"
-        if ($bg) {
-            Write-Host -NoNewline -ForegroundColor $fg -BackgroundColor $bg $digit
+        if ($null -eq $ctx) {
+            Write-Host -NoNewline -ForegroundColor $fg $digit
+            Write-Host -NoNewline "`r"
+            return
+        }
+        $retryField = " [$digit]"
+        if ($ctx.ChangeString -and $retryField.Length -lt $ctx.ChangeString.Length) {
+            $retryField = $retryField + (' ' * ($ctx.ChangeString.Length - $retryField.Length))
+        }
+        Write-SpinnerChar -Char $ctx.SpinnerChar -Colors $ctx.SpinnerColors
+        if ($ctx.VolatilityBg) {
+            Write-Host -NoNewline -ForegroundColor Black -BackgroundColor $ctx.VolatilityBg $ctx.SparklineString
         }
         else {
-            Write-Host -NoNewline -ForegroundColor $fg $digit
+            Write-Host -NoNewline $ctx.SparklineString
+        }
+        $priceColor = if ($ctx.PriceColor) { $ctx.PriceColor } else { 'White' }
+        Write-Host -NoNewline -ForegroundColor $priceColor " $($ctx.PriceText)"
+        Write-Host -NoNewline -ForegroundColor $fg $retryField
+        $fullLen = $ctx.SpinnerChar.Length + $ctx.SparklineString.Length + 1 + $ctx.PriceText.Length + $retryField.Length
+        $pad = [System.Console]::WindowWidth - $fullLen
+        if ($pad -gt 0) {
+            Write-Host -NoNewline (' ' * $pad)
         }
         Write-Host -NoNewline "`r"
     } catch {
@@ -944,7 +971,8 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent -or $kl.IsPresent) {
             }
             Write-Host -NoNewline "`r"
 
-            Set-RetryVolatilityContext -VolatilityEnabled $volatilitySpinnerEnabled -SparklineEnabled $sparklineEnabled -History $priceHistory
+            $idleSpinnerColors = Get-SpinnerColors -VolatilityEnabled $volatilitySpinnerEnabled -SparklineEnabled $sparklineEnabled -Fetching $false -History $priceHistory
+            Set-RetryDisplayContext -SpinnerChar $spinnerChar -SpinnerColors $idleSpinnerColors -SparklineString $sparklineString -PriceText ($currentBtcPrice.ToString("C2")) -ChangeString $changeString -PriceColor $priceColor -VolatilityEnabled $volatilitySpinnerEnabled -SparklineEnabled $sparklineEnabled -History $priceHistory
             $newPrice = Get-BtcPrice -ApiKey $apiKey
             if ($null -ne $newPrice) {
                 if ($soundEnabled) {

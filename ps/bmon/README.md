@@ -30,7 +30,7 @@ The script has two primary modes of operation: real-time monitoring and on-deman
 - **Command-line Toggles:** Start with sound (`-s`), sparkline history (`-h`), or volatility-colored spinner (`-volatility` / `-vl`) enabled from the command line.
 - **Configuration Menu:** Use the `-config` switch to open the configuration menu. If settings already exist, the current config file path and a masked API key are displayed. You can enter a new LiveCoinWatch API key (validated and saved to `bmon.ini`) or press Enter to keep the current setting and exit.
 - **vBTC Integration:** Can seamlessly use the API key configured in `vbtc.ini` if `bmon.ini` is not present, requiring no extra setup for existing vBTC users.
-- **Compact Retry Indicator:** In go/golong/k modes, temporary API/network failures no longer print long warnings. Instead, the spinner position shows a single digit for each retry: yellow `1`, `2`, `3`, `4`, and a red `5` on the final attempt. When volatility coloring is enabled (`-volatility`), the volatility tier appears as the digit background; with volatility off the background stays default. Foreground stays yellow for attempts 1–4 and red for the final `5`. On a successful fetch, the spinner returns to normal immediately, keeping the display clean.
+- **Compact Retry Indicator:** In go/golong/k modes, temporary API/network failures no longer print long warnings. During a retry the session-change slot shows the retry digit (yellow `1`–`4`, red `5`) on the normal background, and the volatility tier color temporarily moves to the sparkline background so volatility stays visible. The spinner stays in place. On a successful fetch the display returns to normal immediately.
 
 ## Color Coding
 
