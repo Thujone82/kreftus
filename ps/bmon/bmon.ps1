@@ -515,7 +515,7 @@ function Get-SpinnerColors {
 
 function Get-FetchSpinnerGlyph {
     param([string]$Char)
-    # Full block fills the cell, hiding cyan fetch background. Use left 7/8 (U+2589).
+    # K-mode full block (U+2588) hides cyan fetch background; use left 7/8 (U+2589).
     if ([string]::IsNullOrEmpty($Char)) { return $Char }
     $chars = $Char.ToCharArray()
     for ($i = 0; $i -lt $chars.Length; $i++) {
@@ -532,7 +532,7 @@ function Write-SpinnerChar {
         [hashtable]$Colors,
         [switch]$Fetching
     )
-    if ($Fetching -or $Colors.Background) {
+    if ($Fetching) {
         $Char = Get-FetchSpinnerGlyph -Char $Char
     }
     if ($Colors.Background) {

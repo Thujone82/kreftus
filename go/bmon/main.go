@@ -660,12 +660,6 @@ func syncSpinnerStyle(m tuiModel) tuiModel {
 	return m
 }
 
-func fetchSpinnerGlyph(glyph string) string {
-	// Spinner.View() may include ANSI or trailing spaces; swap any full block so
-	// inverted cyan background remains visible as a sliver on the right.
-	return strings.ReplaceAll(glyph, "█", "▉")
-}
-
 func (m tuiModel) renderSpinnerChar() string {
 	active, digit, retryColor := getRetryIndicator()
 	if active && digit != "" {
@@ -673,15 +667,16 @@ func (m tuiModel) renderSpinnerChar() string {
 		return m.applyVolatilityBackground(style).Render(digit)
 	}
 	raw := m.spinner.View()
-	if m.fetchingNow {
-		raw = fetchSpinnerGlyph(raw)
+	// K mode only: full block hides cyan fetch background — swap to left 7/8.
+	if m.fetchingNow && m.mode == modeK {
+		raw = strings.ReplaceAll(raw, "█", "▉")
 	}
 	glyph := strings.TrimSpace(ansi.Strip(raw))
 	if glyph == "" || glyph == "(error)" {
 		glyph = " "
 	}
-	if m.fetchingNow {
-		glyph = fetchSpinnerGlyph(glyph)
+	if m.fetchingNow && m.mode == modeK {
+		glyph = strings.ReplaceAll(glyph, "█", "▉")
 	}
 	return spinnerStyle(m).Render(glyph)
 }
@@ -1025,6 +1020,10 @@ func fetchPriceCmd() tea.Cmd {
 	}
 }
 
+func fetchStartMsgCmd() tea.Cmd {
+	return func() tea.Msg { return fetchStartMsg{} }
+}
+
 func fetchPriceCmdAfter(d time.Duration) tea.Cmd {
 	return tea.Tick(d, func(time.Time) tea.Msg { return fetchStartMsg{} })
 }
@@ -1099,7 +1098,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.sessionStartTime = time.Now()
 				m.monitorStartPrice = currentBtcPrice
 				m.previousPrice = currentBtcPrice
-				cmds = append(cmds, fetchPriceCmd())
+				cmds = append(cmds, fetchStartMsgCmd())
 			case modeInteractive:
 				// pause/return to landing
 				m.mode = modeLanding
@@ -1123,7 +1122,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.sessionStartTime = time.Now()
 				m.monitorStartPrice = currentBtcPrice
 				m.previousPrice = currentBtcPrice
-				cmds = append(cmds, fetchPriceCmd())
+				cmds = append(cmds, fetchStartMsgCmd())
 			}
 		case "r":
 			if m.mode == modeGo || m.mode == modeGoLong || m.mode == modeK || m.mode == modeInteractive {
