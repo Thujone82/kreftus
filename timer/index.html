@@ -230,6 +230,21 @@
             transform: translate(-50%, 20px);
         }
 
+        /* PWA Standalone Mode adjustments (already full screen and tone-based alerts) */
+        @media all and (display-mode: standalone) {
+            #btn-fullscreen,
+            #btn-notify,
+            #btn-install {
+                display: none !important;
+            }
+        }
+
+        body.is-pwa #btn-fullscreen,
+        body.is-pwa #btn-notify,
+        body.is-pwa #btn-install {
+            display: none !important;
+        }
+
         /* Buttons & Controls */
         .btn {
             display: inline-flex;
@@ -426,24 +441,28 @@
             min-width: 1.75rem;
         }
 
-        /* Completion Flash / Pulse */
+        /* Completion Inversion Flash (2 Hz) */
         #completion-effect {
             position: fixed;
             inset: 0;
-            background: radial-gradient(circle at center, rgba(255, 255, 255, 0.4) 0%, transparent 70%);
+            background-color: #ffffff;
+            mix-blend-mode: difference;
             opacity: 0;
             pointer-events: none;
-            z-index: 5;
-            transition: opacity 0.3s ease;
+            z-index: 50;
         }
 
         #completion-effect.active {
-            animation: pulseFlash 1.2s infinite alternate;
+            animation: invertFlash 0.5s ease-in-out 6; /* 6 flashes at 2Hz (0.5s per cycle = 3.0s total) */
         }
 
-        @keyframes pulseFlash {
-            0% { opacity: 0.1; }
-            100% { opacity: 0.6; }
+        @keyframes invertFlash {
+            0%, 100% {
+                opacity: 0;
+            }
+            50% {
+                opacity: 1;
+            }
         }
 
         /* Subtle ripple for clicks */
@@ -790,9 +809,20 @@
             }
         }
 
+        // --- PWA Standalone Detection ---
+        function isStandalonePWA() {
+            return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+                   (window.navigator.standalone === true) ||
+                   (document.referrer && document.referrer.includes('android-app://'));
+        }
+
         // --- Desktop Notifications ---
         function updateNotificationUI() {
             if (btnNotify) {
+                if (isStandalonePWA()) {
+                    btnNotify.style.display = 'none';
+                    return;
+                }
                 const isGranted = ('Notification' in window && Notification.permission === 'granted');
                 const active = notificationsEnabled && isGranted;
                 iconNotifyOn.style.display = active ? 'block' : 'none';
@@ -803,6 +833,7 @@
         }
 
         async function toggleNotifications() {
+            if (isStandalonePWA()) return;
             getAudioContext();
             if (soundEnabled) {
                 playTick();
@@ -834,6 +865,7 @@
         }
 
         function sendCompletionNotification() {
+            if (isStandalonePWA()) return;
             if (notificationsEnabled && 'Notification' in window && Notification.permission === 'granted' && document.hidden) {
                 try {
                     new Notification("⏱️ Time's Up!", {
@@ -1044,8 +1076,10 @@
             setStatus('Time Up — Click to restart');
             updateDisplays(0, 1);
 
+            completionEffect.classList.remove('active');
+            void completionEffect.offsetWidth;
             completionEffect.classList.add('active');
-            playChime();
+            playAlertTone();
             sendCompletionNotification();
             showUI();
         }
@@ -1098,6 +1132,7 @@
 
         // --- Fullscreen Toggle ---
         function toggleFullscreen() {
+            if (isStandalonePWA()) return;
             if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen().catch(() => {});
             } else {
@@ -1464,6 +1499,24 @@
 
         // --- Initialization & Preferences Restoration ---
         (function init() {
+            // Standalone PWA detection (already full screen and tone-based)
+            if (isStandalonePWA()) {
+                document.body.classList.add('is-pwa');
+                if (btnFullscreen) btnFullscreen.style.display = 'none';
+                if (btnNotify) btnNotify.style.display = 'none';
+                if (btnInstall) btnInstall.style.display = 'none';
+                notificationsEnabled = false;
+            } else {
+                // Restore Notification preference for standard browser tabs
+                const savedNotify = localStorage.getItem('timer_notifications');
+                if (savedNotify !== null) {
+                    notificationsEnabled = (savedNotify === '1' && 'Notification' in window && Notification.permission === 'granted');
+                } else {
+                    notificationsEnabled = ('Notification' in window && Notification.permission === 'granted');
+                }
+                updateNotificationUI();
+            }
+
             // Restore Sound preference
             const savedSound = localStorage.getItem('timer_sound');
             if (savedSound !== null) {
@@ -1471,15 +1524,6 @@
                 iconSoundOn.style.display = soundEnabled ? 'block' : 'none';
                 iconSoundOff.style.display = soundEnabled ? 'none' : 'block';
             }
-
-            // Restore Notification preference
-            const savedNotify = localStorage.getItem('timer_notifications');
-            if (savedNotify !== null) {
-                notificationsEnabled = (savedNotify === '1' && 'Notification' in window && Notification.permission === 'granted');
-            } else {
-                notificationsEnabled = ('Notification' in window && Notification.permission === 'granted');
-            }
-            updateNotificationUI();
 
             // Restore Theme preference
             const savedTheme = localStorage.getItem('timer_theme');
