@@ -7,11 +7,12 @@ A minimalist, high-precision Progressive Web App (PWA) countdown timer featuring
 ## ✨ Features
 
 - **📱 Installable Progressive Web App (PWA)**: Installable directly to your desktop, home screen, or dock on Chrome, Edge, Safari, iOS, and Android with custom app icon (`timer.png`).
-- **💾 Persistent Settings Memory**: Automatically remembers your last used duration (presets or custom time), active theme, sound toggle, and notification preferences so it reopens exactly how you left it.
+- **💾 Persistent Settings Memory**: Automatically remembers your last used duration (presets or custom time), active theme, and sound toggle preferences so it reopens exactly how you left it.
 - **🌀 Dual-Layer Conic Sweep**: Beautiful 12 o'clock clockwise radial mask that inverts the background and typography colors as time progresses.
 - **⚡ High-Precision Timing Engine**: Driven by `performance.now()` timestamps rather than drifting intervals, ensuring millisecond accuracy even across throttled background tabs.
 - **🔄 Tab Visibility & Offline Sync**: Uses `visibilitychange` for instant sync upon tab return, and a Service Worker (`sw.js`) for 100% offline functionality.
-- **🎵 Built-in Web Audio Chimes**: Synthesizes a harmonious 4-note chord (C5, E5, G5, C6) with linear attack and exponential decay upon timer expiration—no external audio files required.
+- **🎵 Built-in Web Audio Alert Tones**: Synthesizes a crisp, ascending melodic chime across multiple harmonic oscillators upon timer expiration—no external audio files or permission dialogs required.
+- **⚡ 2 Hz Screen Inversion Flash**: High-visibility 2 Hz screen inversion flash effect upon countdown completion to immediately grab visual attention.
 - **📱 Screen Wake Lock API**: Automatically keeps phone, tablet, and laptop displays awake while the timer is actively counting down.
 - **🎨 6 Color Themes**: Seamlessly cycle between *Monochrome*, *Midnight Neon*, *Amber CRT*, *Crimson Stealth*, *Emerald Forest*, and *Nord Frost*.
 - **📊 Dynamic Tab Title & Live Favicon**: Displays the remaining time in the browser tab title (e.g. `(01:45) Timer`) and generates real-time SVG pie-chart favicons indicating progress.
@@ -33,7 +34,6 @@ A minimalist, high-precision Progressive Web App (PWA) countdown timer featuring
 | <kbd>C</kbd> | Open Custom Time dialog |
 | <kbd>T</kbd> | Cycle Color Themes |
 | <kbd>M</kbd> | Toggle Sound Mute / Unmute |
-| <kbd>N</kbd> | Toggle Desktop Notifications |
 | <kbd>F</kbd> | Toggle Fullscreen mode |
 | <kbd>?</kbd> / <kbd>H</kbd> | Open Keyboard Shortcuts help overlay |
 | <kbd>Esc</kbd> | Close dialogs / Exit fullscreen |
@@ -107,11 +107,11 @@ kreftus/timer/
 
 ## 🌐 Browser Compatibility
 
-- **Google Chrome / Chromium**: Full PWA installability, Service Worker, Audio, Wake Lock, Masks, Notifications.
-- **Microsoft Edge**: Full PWA & desktop installation support.
-- **Apple Safari (macOS & iOS)**: Full PWA "Add to Home Screen" support, WebKit Masks, Wake Lock.
-- **Mozilla Firefox**: Full offline Service Worker, CSS Conic Masks, Notifications.
-- **Android Browsers**: Full PWA home screen installation.
+- **Google Chrome / Chromium**: Full PWA installability, Service Worker, Web Audio, Wake Lock, CSS Masks.
+- **Microsoft Edge**: Full PWA & desktop installation support, Web Audio, Wake Lock.
+- **Apple Safari (macOS & iOS)**: Full PWA "Add to Home Screen" support, Web Audio chimes, WebKit Masks, Wake Lock.
+- **Mozilla Firefox**: Full offline Service Worker, Web Audio, CSS Conic Masks.
+- **Android Browsers**: Full PWA home screen installation, Web Audio, Wake Lock.
 
 ---
 

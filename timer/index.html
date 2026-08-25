@@ -230,17 +230,15 @@
             transform: translate(-50%, 20px);
         }
 
-        /* PWA Standalone Mode adjustments (already full screen and tone-based alerts) */
+        /* PWA Standalone Mode adjustments (already full screen) */
         @media all and (display-mode: standalone) {
             #btn-fullscreen,
-            #btn-notify,
             #btn-install {
                 display: none !important;
             }
         }
 
         body.is-pwa #btn-fullscreen,
-        body.is-pwa #btn-notify,
         body.is-pwa #btn-install {
             display: none !important;
         }
@@ -501,7 +499,7 @@
     <!-- Visual Completion Pulse Layer -->
     <div id="completion-effect"></div>
 
-    <!-- Top UI Bar (Presets, Theme, Sound, Notifications, Install, Fullscreen, Help) -->
+    <!-- Top UI Bar (Presets, Theme, Sound, Install, Fullscreen, Help) -->
     <header class="ui-bar" id="top-bar">
         <div class="presets-wrapper" id="presets-container">
             <button class="btn preset-btn" data-time="30">30s</button>
@@ -528,15 +526,6 @@
             </svg>
             <svg id="icon-sound-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
                 <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
-            </svg>
-        </button>
-
-        <button class="btn btn-icon" id="btn-notify" title="Toggle Desktop Notifications (N)">
-            <svg id="icon-notify-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-            </svg>
-            <svg id="icon-notify-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
-                <path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/>
             </svg>
         </button>
 
@@ -624,9 +613,6 @@
                 <div><span class="kbd-key">M</span></div>
                 <div>Toggle Sound Mute / Unmute</div>
 
-                <div><span class="kbd-key">N</span></div>
-                <div>Toggle Desktop Notifications</div>
-
                 <div><span class="kbd-key">F</span></div>
                 <div>Toggle Fullscreen</div>
 
@@ -649,7 +635,6 @@
         let animationFrameId = null;
         let completionTimeoutId = null;
         let soundEnabled = true;
-        let notificationsEnabled = false;
         let wakeLock = null;
         let autoHideTimeout = null;
         let deferredInstallPrompt = null;
@@ -681,14 +666,11 @@
         const btnSub30 = document.getElementById('btn-sub30');
         const btnTheme = document.getElementById('btn-theme');
         const btnSound = document.getElementById('btn-sound');
-        const btnNotify = document.getElementById('btn-notify');
         const btnInstall = document.getElementById('btn-install');
         const btnFullscreen = document.getElementById('btn-fullscreen');
         const btnHelp = document.getElementById('btn-help');
         const iconSoundOn = document.getElementById('icon-sound-on');
         const iconSoundOff = document.getElementById('icon-sound-off');
-        const iconNotifyOn = document.getElementById('icon-notify-on');
-        const iconNotifyOff = document.getElementById('icon-notify-off');
         const presetButtons = document.querySelectorAll('.preset-btn');
         const favicon = document.getElementById('favicon');
         const metaThemeColor = document.getElementById('meta-theme-color');
@@ -814,68 +796,6 @@
             return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
                    (window.navigator.standalone === true) ||
                    (document.referrer && document.referrer.includes('android-app://'));
-        }
-
-        // --- Desktop Notifications ---
-        function updateNotificationUI() {
-            if (btnNotify) {
-                if (isStandalonePWA()) {
-                    btnNotify.style.display = 'none';
-                    return;
-                }
-                const isGranted = ('Notification' in window && Notification.permission === 'granted');
-                const active = notificationsEnabled && isGranted;
-                iconNotifyOn.style.display = active ? 'block' : 'none';
-                iconNotifyOff.style.display = active ? 'none' : 'block';
-                btnNotify.classList.toggle('active', active);
-                btnNotify.title = active ? 'Desktop Notifications Enabled (N)' : 'Desktop Notifications Disabled (N)';
-            }
-        }
-
-        async function toggleNotifications() {
-            if (isStandalonePWA()) return;
-            getAudioContext();
-            if (soundEnabled) {
-                playTick();
-            }
-
-            if (!('Notification' in window)) {
-                alert('Desktop notifications are not supported in this browser.');
-                return;
-            }
-
-            if (Notification.permission === 'denied') {
-                alert('Notifications are blocked by your browser settings. Please allow notifications in site/file permissions.');
-                return;
-            }
-
-            if (Notification.permission === 'default') {
-                try {
-                    const perm = await Notification.requestPermission();
-                    notificationsEnabled = (perm === 'granted');
-                } catch (e) {
-                    console.debug('Notification permission error:', e);
-                }
-            } else if (Notification.permission === 'granted') {
-                notificationsEnabled = !notificationsEnabled;
-            }
-
-            localStorage.setItem('timer_notifications', notificationsEnabled ? '1' : '0');
-            updateNotificationUI();
-        }
-
-        function sendCompletionNotification() {
-            if (isStandalonePWA()) return;
-            if (notificationsEnabled && 'Notification' in window && Notification.permission === 'granted' && document.hidden) {
-                try {
-                    new Notification("⏱️ Time's Up!", {
-                        body: `Your ${formatTime(Math.round(totalDurationMs / 1000))} countdown has completed.`,
-                        icon: 'timer.png'
-                    });
-                } catch (e) {
-                    console.debug('Notification send error:', e);
-                }
-            }
         }
 
         // --- Dynamic Favicon ---
@@ -1080,7 +1000,6 @@
             void completionEffect.offsetWidth;
             completionEffect.classList.add('active');
             playAlertTone();
-            sendCompletionNotification();
             showUI();
         }
 
@@ -1248,11 +1167,6 @@
         btnSound.addEventListener('click', (e) => {
             e.stopPropagation();
             toggleSound();
-        });
-
-        btnNotify.addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleNotifications();
         });
 
         btnFullscreen.addEventListener('click', (e) => {
@@ -1423,10 +1337,6 @@
                     e.preventDefault();
                     toggleSound();
                     break;
-                case 'n':
-                    e.preventDefault();
-                    toggleNotifications();
-                    break;
                 case 't':
                     e.preventDefault();
                     cycleTheme();
@@ -1499,22 +1409,11 @@
 
         // --- Initialization & Preferences Restoration ---
         (function init() {
-            // Standalone PWA detection (already full screen and tone-based)
+            // Standalone PWA detection (already full screen)
             if (isStandalonePWA()) {
                 document.body.classList.add('is-pwa');
                 if (btnFullscreen) btnFullscreen.style.display = 'none';
-                if (btnNotify) btnNotify.style.display = 'none';
                 if (btnInstall) btnInstall.style.display = 'none';
-                notificationsEnabled = false;
-            } else {
-                // Restore Notification preference for standard browser tabs
-                const savedNotify = localStorage.getItem('timer_notifications');
-                if (savedNotify !== null) {
-                    notificationsEnabled = (savedNotify === '1' && 'Notification' in window && Notification.permission === 'granted');
-                } else {
-                    notificationsEnabled = ('Notification' in window && Notification.permission === 'granted');
-                }
-                updateNotificationUI();
             }
 
             // Restore Sound preference
