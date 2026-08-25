@@ -205,11 +205,11 @@
         }
 
         #top-bar {
-            top: max(1.25rem, env(safe-area-inset-top, 1.25rem));
+            top: calc(max(1.75rem, env(safe-area-inset-top, 0px)) + 1.25rem);
         }
 
         #top-bar.autohide {
-            transform: translate(-50%, -20px);
+            transform: translate(-50%, -60px);
         }
 
         #bottom-bar {
@@ -689,54 +689,71 @@
             return audioCtx;
         }
 
-        function playChime() {
+        function playAlertTone() {
             if (!soundEnabled) return;
             const ctx = getAudioContext();
             if (!ctx) return;
+            if (ctx.state === 'suspended') {
+                ctx.resume();
+            }
 
-            // Harmonious chord notes (C5, E5, G5, C6)
-            const notes = [523.25, 659.25, 783.99, 1046.50];
-            const now = ctx.currentTime;
+            // 3-burst melodic chime pattern (Ascending arpeggios: G5-C6, E5-G5-C6, C5-E5-G5-C6-E6)
+            const bursts = [
+                { delay: 0.00, notes: [783.99, 1046.50] },
+                { delay: 0.42, notes: [659.25, 783.99, 1046.50] },
+                { delay: 0.88, notes: [523.25, 659.25, 783.99, 1046.50, 1318.51] }
+            ];
 
-            notes.forEach((freq, i) => {
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
+            const start = ctx.currentTime + 0.02;
 
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(freq, now + i * 0.12);
+            bursts.forEach(burst => {
+                burst.notes.forEach((freq, i) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
 
-                gain.gain.setValueAtTime(0, now + i * 0.12);
-                gain.gain.linearRampToValueAtTime(0.25, now + i * 0.12 + 0.04);
-                gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.12 + 1.6);
+                    // Alternating sine and triangle waves for rich resonance on mobile & desktop speakers
+                    osc.type = (i % 2 === 0) ? 'sine' : 'triangle';
+                    osc.frequency.setValueAtTime(freq, start + burst.delay + i * 0.035);
 
-                osc.connect(gain);
-                gain.connect(ctx.destination);
+                    const noteTime = start + burst.delay + i * 0.035;
+                    gain.gain.setValueAtTime(0.0001, noteTime);
+                    gain.gain.linearRampToValueAtTime(0.32, noteTime + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, noteTime + 0.85);
 
-                osc.start(now + i * 0.12);
-                osc.stop(now + i * 0.12 + 1.8);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+
+                    osc.start(noteTime);
+                    osc.stop(noteTime + 0.9);
+                });
             });
         }
+
+        const playChime = playAlertTone;
 
         function playTick() {
             if (!soundEnabled) return;
             const ctx = getAudioContext();
             if (!ctx) return;
+            if (ctx.state === 'suspended') {
+                ctx.resume();
+            }
 
             const now = ctx.currentTime;
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
 
             osc.type = 'triangle';
-            osc.frequency.setValueAtTime(880, now);
+            osc.frequency.setValueAtTime(1046.50, now);
 
-            gain.gain.setValueAtTime(0.08, now);
-            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+            gain.gain.setValueAtTime(0.12, now);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
 
             osc.connect(gain);
             gain.connect(ctx.destination);
 
             osc.start(now);
-            osc.stop(now + 0.09);
+            osc.stop(now + 0.11);
         }
 
         // --- Screen Wake Lock ---
@@ -773,6 +790,11 @@
         }
 
         async function toggleNotifications() {
+            getAudioContext();
+            if (soundEnabled) {
+                playTick();
+            }
+
             if (!('Notification' in window)) {
                 alert('Desktop notifications are not supported in this browser.');
                 return;
@@ -1261,10 +1283,12 @@
         window.addEventListener('mousemove', showUI);
         window.addEventListener('touchstart', showUI, { passive: true });
 
-        // Mobile Safari Web Audio unlock on initial touch
-        window.addEventListener('touchstart', () => {
-            getAudioContext();
-        }, { passive: true, once: true });
+        // Mobile Safari Web Audio unlock on initial user interaction
+        ['touchstart', 'touchend', 'click', 'keydown'].forEach(evt => {
+            window.addEventListener(evt, () => {
+                getAudioContext();
+            }, { passive: true, once: true });
+        });
 
         // Tab Visibility Synchronization
         document.addEventListener('visibilitychange', () => {
