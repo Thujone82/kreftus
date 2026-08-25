@@ -1,0 +1,1454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Countdown Timer</title>
+    <!-- PWA Meta Tags & Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ffffff" id="meta-theme-color">
+    <meta name="description" content="High-precision radial countdown timer with inverted sweep and ambient chimes.">
+    <link rel="canonical" href="https://kreft.us/timer/">
+
+    <!-- Open Graph / Social Media Meta Tags -->
+    <meta property="og:title" content="Countdown Timer">
+    <meta property="og:description" content="High-precision radial countdown timer with inverted sweep, ambient chimes, and multi-theme support.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://kreft.us/timer/">
+    <meta property="og:image" content="https://kreft.us/timer/timer.png">
+
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Countdown Timer">
+    <meta name="twitter:description" content="High-precision radial countdown timer with inverted sweep, ambient chimes, and multi-theme support.">
+    <meta name="twitter:image" content="https://kreft.us/timer/timer.png">
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Timer">
+    <link rel="apple-touch-icon" href="timer.png">
+    <link rel="icon" type="image/png" sizes="256x256" href="timer.png">
+    <link rel="shortcut icon" href="timer.ico">
+    <link id="favicon" rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='none' stroke='black' stroke-width='10'/><path d='M50 20 V50 H75' fill='none' stroke='black' stroke-width='8' stroke-linecap='round'/></svg>">
+    
+    <style>
+        :root {
+            --bg-base: #ffffff;
+            --fg-base: #000000;
+            --bg-overlay: #000000;
+            --fg-overlay: #ffffff;
+            --accent: #2563eb;
+            --panel-bg: rgba(255, 255, 255, 0.85);
+            --panel-fg: #000000;
+            --panel-border: rgba(0, 0, 0, 0.15);
+            --btn-hover: rgba(0, 0, 0, 0.08);
+            --btn-active: rgba(0, 0, 0, 0.15);
+        }
+
+        [data-theme="midnight"] {
+            --bg-base: #0a0e17;
+            --fg-base: #00f2fe;
+            --bg-overlay: #00f2fe;
+            --fg-overlay: #0a0e17;
+            --accent: #4facfe;
+            --panel-bg: rgba(10, 14, 23, 0.85);
+            --panel-fg: #00f2fe;
+            --panel-border: rgba(0, 242, 254, 0.3);
+            --btn-hover: rgba(0, 242, 254, 0.15);
+            --btn-active: rgba(0, 242, 254, 0.3);
+        }
+
+        [data-theme="amber"] {
+            --bg-base: #121212;
+            --fg-base: #ffb000;
+            --bg-overlay: #ffb000;
+            --fg-overlay: #121212;
+            --accent: #ffc837;
+            --panel-bg: rgba(18, 18, 18, 0.9);
+            --panel-fg: #ffb000;
+            --panel-border: rgba(255, 176, 0, 0.3);
+            --btn-hover: rgba(255, 176, 0, 0.15);
+            --btn-active: rgba(255, 176, 0, 0.3);
+        }
+
+        [data-theme="crimson"] {
+            --bg-base: #0f0f0f;
+            --fg-base: #ff3366;
+            --bg-overlay: #ff3366;
+            --fg-overlay: #0f0f0f;
+            --accent: #ff6b8b;
+            --panel-bg: rgba(15, 15, 15, 0.9);
+            --panel-fg: #ff3366;
+            --panel-border: rgba(255, 51, 102, 0.3);
+            --btn-hover: rgba(255, 51, 102, 0.15);
+            --btn-active: rgba(255, 51, 102, 0.3);
+        }
+
+        [data-theme="emerald"] {
+            --bg-base: #061a14;
+            --fg-base: #10b981;
+            --bg-overlay: #10b981;
+            --fg-overlay: #061a14;
+            --accent: #34d399;
+            --panel-bg: rgba(6, 26, 20, 0.9);
+            --panel-fg: #10b981;
+            --panel-border: rgba(16, 185, 129, 0.3);
+            --btn-hover: rgba(16, 185, 129, 0.15);
+            --btn-active: rgba(16, 185, 129, 0.3);
+        }
+
+        [data-theme="nord"] {
+            --bg-base: #2e3440;
+            --fg-base: #88c0d0;
+            --bg-overlay: #88c0d0;
+            --fg-overlay: #2e3440;
+            --accent: #81a1c1;
+            --panel-bg: rgba(46, 52, 64, 0.9);
+            --panel-fg: #88c0d0;
+            --panel-border: rgba(136, 192, 208, 0.3);
+            --btn-hover: rgba(136, 192, 208, 0.15);
+            --btn-active: rgba(136, 192, 208, 0.3);
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: var(--bg-base);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            transition: background-color 0.3s ease;
+        }
+
+        /* Fullscreen layer containing the base numbers */
+        #base-layer {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-base);
+            color: var(--fg-base);
+            z-index: 1;
+            cursor: pointer;
+        }
+
+        /* Fullscreen layer containing the inverted numbers with conic sweep mask */
+        #overlay-layer {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-overlay);
+            color: var(--fg-overlay);
+            z-index: 2;
+            pointer-events: none;
+            /* Controlled via JS conic-gradient */
+            mask-image: conic-gradient(from 0deg at 50% 50%, #000 0deg 0deg, transparent 0deg 360deg);
+            -webkit-mask-image: conic-gradient(from 0deg at 50% 50%, #000 0deg 0deg, transparent 0deg 360deg);
+        }
+
+        .timer-display {
+            font-size: clamp(4rem, 16vw, 18rem);
+            font-weight: 800;
+            letter-spacing: -0.04em;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+            font-feature-settings: "tnum";
+            text-align: center;
+            transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .timer-status {
+            font-size: clamp(0.9rem, 2.2vw, 1.6rem);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.25em;
+            margin-top: 1.5rem;
+            opacity: 0.75;
+        }
+
+        /* Floating UI containers */
+        .ui-bar {
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            background: var(--panel-bg);
+            color: var(--panel-fg);
+            border: 1px solid var(--panel-border);
+            border-radius: 9999px;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            max-width: 95vw;
+        }
+
+        .ui-bar.autohide {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #top-bar {
+            top: max(1.25rem, env(safe-area-inset-top, 1.25rem));
+        }
+
+        #top-bar.autohide {
+            transform: translate(-50%, -20px);
+        }
+
+        #bottom-bar {
+            bottom: max(1.5rem, env(safe-area-inset-bottom, 1.5rem));
+        }
+
+        #bottom-bar.autohide {
+            transform: translate(-50%, 20px);
+        }
+
+        /* Buttons & Controls */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.5rem 0.85rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: inherit;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 9999px;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            background: var(--btn-hover);
+        }
+
+        .btn:active {
+            background: var(--btn-active);
+            transform: scale(0.96);
+        }
+
+        .btn.active {
+            background: var(--fg-base);
+            color: var(--bg-base);
+        }
+
+        .btn-icon {
+            padding: 0.5rem;
+            width: 2.25rem;
+            height: 2.25rem;
+            border-radius: 50%;
+        }
+
+        .btn-primary {
+            padding: 0.6rem 1.5rem;
+            font-size: 1rem;
+            background: var(--fg-base);
+            color: var(--bg-base);
+            font-weight: 700;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+            background: var(--fg-base);
+        }
+
+        .divider {
+            width: 1px;
+            height: 1.25rem;
+            background: var(--panel-border);
+            margin: 0 0.25rem;
+        }
+
+        /* Presets list */
+        .presets-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+        .presets-wrapper::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* Modals & Dialogs */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+
+        .modal-backdrop.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-content {
+            background: var(--bg-base);
+            color: var(--fg-base);
+            border: 1px solid var(--panel-border);
+            border-radius: 1.5rem;
+            padding: 1.75rem;
+            width: 90%;
+            max-width: 440px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+            transform: scale(0.92);
+            transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .modal-backdrop.open .modal-content {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.25rem;
+        }
+
+        .modal-title {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .time-inputs {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            margin: 1.5rem 0;
+        }
+
+        .time-input-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .time-input-group input {
+            width: 5.5rem;
+            height: 4.5rem;
+            text-align: center;
+            font-size: 2.25rem;
+            font-weight: 800;
+            background: var(--btn-hover);
+            color: var(--fg-base);
+            border: 2px solid var(--panel-border);
+            border-radius: 0.75rem;
+            outline: none;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .time-input-group input:focus {
+            border-color: var(--accent);
+        }
+
+        .time-input-group label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            opacity: 0.7;
+        }
+
+        .time-colon {
+            font-size: 2.5rem;
+            font-weight: 700;
+            padding-bottom: 1.25rem;
+        }
+
+        .shortcuts-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 0.75rem 1.25rem;
+            align-items: center;
+            margin: 1.25rem 0;
+            font-size: 0.9rem;
+        }
+
+        .kbd-key {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            font-family: monospace;
+            font-weight: 700;
+            font-size: 0.8rem;
+            background: var(--btn-hover);
+            border: 1px solid var(--panel-border);
+            border-radius: 0.35rem;
+            box-shadow: 0 2px 0 var(--panel-border);
+            text-align: center;
+            min-width: 1.75rem;
+        }
+
+        /* Completion Flash / Pulse */
+        #completion-effect {
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle at center, rgba(255, 255, 255, 0.4) 0%, transparent 70%);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 5;
+            transition: opacity 0.3s ease;
+        }
+
+        #completion-effect.active {
+            animation: pulseFlash 1.2s infinite alternate;
+        }
+
+        @keyframes pulseFlash {
+            0% { opacity: 0.1; }
+            100% { opacity: 0.6; }
+        }
+
+        /* Subtle ripple for clicks */
+        .click-pulse {
+            transform: scale(0.97);
+        }
+
+        /* Responsive styling */
+        @media (max-width: 640px) {
+            .presets-wrapper button:nth-child(n+5) {
+                display: none;
+            }
+            .btn-primary {
+                padding: 0.5rem 1rem;
+            }
+            .ui-bar {
+                gap: 0.25rem;
+                padding: 0.4rem 0.6rem;
+            }
+        }
+    </style>
+</head>
+<body data-theme="monochrome">
+    <!-- Background Base Layer -->
+    <div id="base-layer">
+        <div id="display-base" class="timer-display">2:00</div>
+        <div id="status-base" class="timer-status">Click anywhere to start</div>
+    </div>
+
+    <!-- Radial Conic-Sweep Inverted Overlay Layer -->
+    <div id="overlay-layer">
+        <div id="display-overlay" class="timer-display">2:00</div>
+        <div id="status-overlay" class="timer-status">Click anywhere to start</div>
+    </div>
+
+    <!-- Visual Completion Pulse Layer -->
+    <div id="completion-effect"></div>
+
+    <!-- Top UI Bar (Presets, Theme, Sound, Notifications, Install, Fullscreen, Help) -->
+    <header class="ui-bar" id="top-bar">
+        <div class="presets-wrapper" id="presets-container">
+            <button class="btn preset-btn" data-time="30">30s</button>
+            <button class="btn preset-btn" data-time="60">1m</button>
+            <button class="btn preset-btn active" data-time="120">2m</button>
+            <button class="btn preset-btn" data-time="180">3m</button>
+            <button class="btn preset-btn" data-time="300">5m</button>
+            <button class="btn preset-btn" data-time="600">10m</button>
+            <button class="btn preset-btn" data-time="1500">25m</button>
+        </div>
+        <button class="btn" id="btn-custom" title="Custom Duration (C)">Custom</button>
+        
+        <div class="divider"></div>
+
+        <button class="btn btn-icon" id="btn-theme" title="Cycle Theme (T)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+        </button>
+
+        <button class="btn btn-icon" id="btn-sound" title="Toggle Sound (M)">
+            <svg id="icon-sound-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+            </svg>
+            <svg id="icon-sound-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
+            </svg>
+        </button>
+
+        <button class="btn btn-icon" id="btn-notify" title="Toggle Desktop Notifications (N)">
+            <svg id="icon-notify-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <svg id="icon-notify-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/>
+            </svg>
+        </button>
+
+        <button class="btn btn-icon" id="btn-install" title="Install App (PWA)" style="display: none;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+        </button>
+
+        <button class="btn btn-icon" id="btn-fullscreen" title="Toggle Fullscreen (F)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+            </svg>
+        </button>
+
+        <button class="btn btn-icon" id="btn-help" title="Shortcuts (?)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+        </button>
+    </header>
+
+    <!-- Bottom UI Bar (Play/Pause, Reset, Adjust Time) -->
+    <footer class="ui-bar" id="bottom-bar">
+        <button class="btn" id="btn-sub30" title="Subtract 30 seconds (-)">-30s</button>
+        <button class="btn btn-primary" id="btn-toggle">Start</button>
+        <button class="btn" id="btn-reset" title="Reset (R)">Reset</button>
+        <button class="btn" id="btn-add30" title="Add 30 seconds (+)">+30s</button>
+    </footer>
+
+    <!-- Custom Time Dialog Modal -->
+    <div class="modal-backdrop" id="modal-custom">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Set Custom Time</h3>
+                <button class="btn btn-icon" id="modal-custom-close">✕</button>
+            </div>
+            <div class="time-inputs">
+                <div class="time-input-group">
+                    <input type="number" id="input-mins" min="0" max="999" value="2">
+                    <label for="input-mins">Minutes</label>
+                </div>
+                <div class="time-colon">:</div>
+                <div class="time-input-group">
+                    <input type="number" id="input-secs" min="0" max="59" value="00">
+                    <label for="input-secs">Seconds</label>
+                </div>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                <button class="btn" id="btn-custom-cancel">Cancel</button>
+                <button class="btn btn-primary" id="btn-custom-apply">Apply Time</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shortcuts Dialog Modal -->
+    <div class="modal-backdrop" id="modal-shortcuts">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Keyboard Shortcuts</h3>
+                <button class="btn btn-icon" id="modal-shortcuts-close">✕</button>
+            </div>
+            <div class="shortcuts-grid">
+                <div><span class="kbd-key">Space</span> / <span class="kbd-key">K</span></div>
+                <div>Play / Pause countdown</div>
+
+                <div><span class="kbd-key">R</span></div>
+                <div>Reset to initial duration</div>
+
+                <div><span class="kbd-key">+</span> / <span class="kbd-key">↑</span></div>
+                <div>Add 30 seconds</div>
+
+                <div><span class="kbd-key">-</span> / <span class="kbd-key">↓</span></div>
+                <div>Subtract 30 seconds</div>
+
+                <div><span class="kbd-key">1</span> - <span class="kbd-key">7</span></div>
+                <div>Switch presets (30s, 1m, 2m, 3m, 5m, 10m, 25m)</div>
+
+                <div><span class="kbd-key">C</span></div>
+                <div>Open Custom Time dialog</div>
+
+                <div><span class="kbd-key">T</span></div>
+                <div>Cycle Color Themes</div>
+
+                <div><span class="kbd-key">M</span></div>
+                <div>Toggle Sound Mute / Unmute</div>
+
+                <div><span class="kbd-key">N</span></div>
+                <div>Toggle Desktop Notifications</div>
+
+                <div><span class="kbd-key">F</span></div>
+                <div>Toggle Fullscreen</div>
+
+                <div><span class="kbd-key">?</span> / <span class="kbd-key">H</span></div>
+                <div>Open this help dialog</div>
+
+                <div><span class="kbd-key">Esc</span></div>
+                <div>Close dialogs / Exit fullscreen</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Application State ---
+        let totalDurationMs = 120000; // default 2 minutes (120s)
+        let remainingMs = 120000;
+        let isRunning = false;
+        let startTimestamp = null;
+        let pausedRemainingMs = 120000;
+        let animationFrameId = null;
+        let completionTimeoutId = null;
+        let soundEnabled = true;
+        let notificationsEnabled = false;
+        let wakeLock = null;
+        let autoHideTimeout = null;
+        let deferredInstallPrompt = null;
+
+        const themes = ['monochrome', 'midnight', 'amber', 'crimson', 'emerald', 'nord'];
+        const themeColors = {
+            monochrome: '#ffffff',
+            midnight: '#0a0e17',
+            amber: '#121212',
+            crimson: '#0f0f0f',
+            emerald: '#061a14',
+            nord: '#2e3440'
+        };
+        let currentThemeIndex = 0;
+
+        // --- DOM Elements ---
+        const displayBase = document.getElementById('display-base');
+        const displayOverlay = document.getElementById('display-overlay');
+        const statusBase = document.getElementById('status-base');
+        const statusOverlay = document.getElementById('status-overlay');
+        const overlayLayer = document.getElementById('overlay-layer');
+        const baseLayer = document.getElementById('base-layer');
+        const completionEffect = document.getElementById('completion-effect');
+        const topBar = document.getElementById('top-bar');
+        const bottomBar = document.getElementById('bottom-bar');
+        const btnToggle = document.getElementById('btn-toggle');
+        const btnReset = document.getElementById('btn-reset');
+        const btnAdd30 = document.getElementById('btn-add30');
+        const btnSub30 = document.getElementById('btn-sub30');
+        const btnTheme = document.getElementById('btn-theme');
+        const btnSound = document.getElementById('btn-sound');
+        const btnNotify = document.getElementById('btn-notify');
+        const btnInstall = document.getElementById('btn-install');
+        const btnFullscreen = document.getElementById('btn-fullscreen');
+        const btnHelp = document.getElementById('btn-help');
+        const iconSoundOn = document.getElementById('icon-sound-on');
+        const iconSoundOff = document.getElementById('icon-sound-off');
+        const iconNotifyOn = document.getElementById('icon-notify-on');
+        const iconNotifyOff = document.getElementById('icon-notify-off');
+        const presetButtons = document.querySelectorAll('.preset-btn');
+        const favicon = document.getElementById('favicon');
+        const metaThemeColor = document.getElementById('meta-theme-color');
+
+        // Modal Elements
+        const btnCustom = document.getElementById('btn-custom');
+        const modalCustom = document.getElementById('modal-custom');
+        const modalCustomClose = document.getElementById('modal-custom-close');
+        const btnCustomCancel = document.getElementById('btn-custom-cancel');
+        const btnCustomApply = document.getElementById('btn-custom-apply');
+        const inputMins = document.getElementById('input-mins');
+        const inputSecs = document.getElementById('input-secs');
+
+        const modalShortcuts = document.getElementById('modal-shortcuts');
+        const modalShortcutsClose = document.getElementById('modal-shortcuts-close');
+
+        // --- Web Audio Synthesizer ---
+        let audioCtx = null;
+
+        function getAudioContext() {
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioContextClass) {
+                    audioCtx = new AudioContextClass();
+                }
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            return audioCtx;
+        }
+
+        function playChime() {
+            if (!soundEnabled) return;
+            const ctx = getAudioContext();
+            if (!ctx) return;
+
+            // Harmonious chord notes (C5, E5, G5, C6)
+            const notes = [523.25, 659.25, 783.99, 1046.50];
+            const now = ctx.currentTime;
+
+            notes.forEach((freq, i) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, now + i * 0.12);
+
+                gain.gain.setValueAtTime(0, now + i * 0.12);
+                gain.gain.linearRampToValueAtTime(0.25, now + i * 0.12 + 0.04);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.12 + 1.6);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                osc.start(now + i * 0.12);
+                osc.stop(now + i * 0.12 + 1.8);
+            });
+        }
+
+        function playTick() {
+            if (!soundEnabled) return;
+            const ctx = getAudioContext();
+            if (!ctx) return;
+
+            const now = ctx.currentTime;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(880, now);
+
+            gain.gain.setValueAtTime(0.08, now);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc.start(now);
+            osc.stop(now + 0.09);
+        }
+
+        // --- Screen Wake Lock ---
+        async function requestWakeLock() {
+            if ('wakeLock' in navigator && !wakeLock) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => {
+                        wakeLock = null;
+                    });
+                } catch (e) {
+                    console.debug('Wake Lock error:', e);
+                }
+            }
+        }
+
+        function releaseWakeLock() {
+            if (wakeLock) {
+                wakeLock.release().catch(() => {});
+                wakeLock = null;
+            }
+        }
+
+        // --- Desktop Notifications ---
+        function updateNotificationUI() {
+            if (btnNotify) {
+                const isGranted = ('Notification' in window && Notification.permission === 'granted');
+                const active = notificationsEnabled && isGranted;
+                iconNotifyOn.style.display = active ? 'block' : 'none';
+                iconNotifyOff.style.display = active ? 'none' : 'block';
+                btnNotify.classList.toggle('active', active);
+                btnNotify.title = active ? 'Desktop Notifications Enabled (N)' : 'Desktop Notifications Disabled (N)';
+            }
+        }
+
+        async function toggleNotifications() {
+            if (!('Notification' in window)) {
+                alert('Desktop notifications are not supported in this browser.');
+                return;
+            }
+
+            if (Notification.permission === 'denied') {
+                alert('Notifications are blocked by your browser settings. Please allow notifications in site/file permissions.');
+                return;
+            }
+
+            if (Notification.permission === 'default') {
+                try {
+                    const perm = await Notification.requestPermission();
+                    notificationsEnabled = (perm === 'granted');
+                } catch (e) {
+                    console.debug('Notification permission error:', e);
+                }
+            } else if (Notification.permission === 'granted') {
+                notificationsEnabled = !notificationsEnabled;
+            }
+
+            localStorage.setItem('timer_notifications', notificationsEnabled ? '1' : '0');
+            updateNotificationUI();
+        }
+
+        function sendCompletionNotification() {
+            if (notificationsEnabled && 'Notification' in window && Notification.permission === 'granted' && document.hidden) {
+                try {
+                    new Notification("⏱️ Time's Up!", {
+                        body: `Your ${formatTime(Math.round(totalDurationMs / 1000))} countdown has completed.`,
+                        icon: 'timer.png'
+                    });
+                } catch (e) {
+                    console.debug('Notification send error:', e);
+                }
+            }
+        }
+
+        // --- Dynamic Favicon ---
+        function updateFavicon(progress) {
+            const angle = progress * 360;
+            const isFinished = progress >= 1;
+            const strokeColor = isFinished ? '#10b981' : '#000000';
+            const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
+                <circle cx='50' cy='50' r='45' fill='white' stroke='${strokeColor}' stroke-width='8'/>
+                <path d='M50 50 L50 10 A40 40 0 ${angle > 180 ? 1 : 0} 1 ${50 + 40 * Math.sin(angle * Math.PI / 180)} ${50 - 40 * Math.cos(angle * Math.PI / 180)} Z' fill='${strokeColor}' opacity='0.75'/>
+            </svg>`;
+            favicon.href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+        }
+
+        // --- Timing & Display Helpers ---
+        function formatTime(seconds) {
+            const totalSecs = Math.max(0, Math.ceil(seconds));
+            const hours = Math.floor(totalSecs / 3600);
+            const mins = Math.floor((totalSecs % 3600) / 60);
+            const secs = totalSecs % 60;
+
+            if (hours > 0) {
+                return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function updateDisplays(seconds, progress) {
+            const formatted = formatTime(seconds);
+            displayBase.textContent = formatted;
+            displayOverlay.textContent = formatted;
+
+            if (isRunning) {
+                document.title = `(${formatted}) Timer`;
+            } else if (remainingMs <= 0) {
+                document.title = `(0:00 - Done) Timer`;
+            } else {
+                document.title = `${formatted} - Timer`;
+            }
+
+            // Update Conic Mask (starting at 12 o'clock / 0deg)
+            const angle = Math.min(progress * 360, 360);
+            const mask = `conic-gradient(from 0deg at 50% 50%, #000 0deg ${angle}deg, transparent ${angle}deg 360deg)`;
+            overlayLayer.style.maskImage = mask;
+            overlayLayer.style.webkitMaskImage = mask;
+
+            updateFavicon(progress);
+        }
+
+        function setStatus(text) {
+            statusBase.textContent = text;
+            statusOverlay.textContent = text;
+        }
+
+        // --- Background Tab Timeout Fallback ---
+        function clearBackgroundTimeout() {
+            if (completionTimeoutId) {
+                clearTimeout(completionTimeoutId);
+                completionTimeoutId = null;
+            }
+        }
+
+        function scheduleBackgroundCompletion() {
+            clearBackgroundTimeout();
+            if (!isRunning || remainingMs <= 0) return;
+            completionTimeoutId = setTimeout(() => {
+                if (isRunning) {
+                    onTimerComplete();
+                }
+            }, remainingMs);
+        }
+
+        // --- Animation Loop ---
+        function renderLoop(timestamp) {
+            if (!isRunning) return;
+
+            if (!startTimestamp) {
+                startTimestamp = timestamp;
+            }
+
+            const elapsedSinceResume = timestamp - startTimestamp;
+            remainingMs = Math.max(0, pausedRemainingMs - elapsedSinceResume);
+            const elapsedTotal = totalDurationMs - remainingMs;
+            const progress = totalDurationMs > 0 ? Math.min(elapsedTotal / totalDurationMs, 1) : 1;
+
+            updateDisplays(remainingMs / 1000, progress);
+
+            if (remainingMs > 0) {
+                animationFrameId = requestAnimationFrame(renderLoop);
+            } else {
+                onTimerComplete();
+            }
+        }
+
+        // --- Core Timer Controls ---
+        function startTimer() {
+            if (isRunning) return;
+            getAudioContext();
+            requestWakeLock();
+
+            if (remainingMs <= 0) {
+                remainingMs = totalDurationMs;
+                pausedRemainingMs = totalDurationMs;
+            }
+
+            isRunning = true;
+            startTimestamp = null;
+            pausedRemainingMs = remainingMs;
+
+            scheduleBackgroundCompletion();
+
+            btnToggle.textContent = 'Pause';
+            setStatus('Click to pause');
+            completionEffect.classList.remove('active');
+
+            resetAutoHideTimer();
+            animationFrameId = requestAnimationFrame(renderLoop);
+        }
+
+        function pauseTimer() {
+            if (!isRunning) return;
+            isRunning = false;
+            clearBackgroundTimeout();
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            pausedRemainingMs = remainingMs;
+            releaseWakeLock();
+
+            btnToggle.textContent = 'Resume';
+            setStatus('Paused — Click to resume');
+            showUI();
+        }
+
+        function toggleTimer() {
+            if (remainingMs <= 0) {
+                resetTimer();
+                startTimer();
+            } else if (isRunning) {
+                pauseTimer();
+            } else {
+                startTimer();
+            }
+        }
+
+        function resetTimer(newDurationSecs = null) {
+            pauseTimer();
+            clearBackgroundTimeout();
+            completionEffect.classList.remove('active');
+
+            if (newDurationSecs !== null) {
+                totalDurationMs = newDurationSecs * 1000;
+                localStorage.setItem('timer_duration_secs', newDurationSecs.toString());
+            }
+            remainingMs = totalDurationMs;
+            pausedRemainingMs = totalDurationMs;
+
+            btnToggle.textContent = 'Start';
+            setStatus('Click anywhere to start');
+            updateDisplays(remainingMs / 1000, 0);
+            showUI();
+        }
+
+        function adjustTime(deltaSeconds) {
+            const currentSecs = remainingMs / 1000;
+            const newSecs = Math.max(5, currentSecs + deltaSeconds);
+            const deltaMs = (newSecs - currentSecs) * 1000;
+
+            remainingMs += deltaMs;
+            totalDurationMs = Math.max(totalDurationMs, remainingMs);
+            localStorage.setItem('timer_duration_secs', Math.round(totalDurationMs / 1000).toString());
+            pausedRemainingMs = remainingMs;
+            if (startTimestamp && isRunning) {
+                startTimestamp = performance.now();
+            }
+            if (isRunning) {
+                scheduleBackgroundCompletion();
+            }
+
+            const elapsedTotal = totalDurationMs - remainingMs;
+            const progress = Math.min(elapsedTotal / totalDurationMs, 1);
+            updateDisplays(remainingMs / 1000, progress);
+        }
+
+        function onTimerComplete() {
+            clearBackgroundTimeout();
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            isRunning = false;
+            remainingMs = 0;
+            pausedRemainingMs = 0;
+            releaseWakeLock();
+
+            btnToggle.textContent = 'Restart';
+            setStatus('Time Up — Click to restart');
+            updateDisplays(0, 1);
+
+            completionEffect.classList.add('active');
+            playChime();
+            sendCompletionNotification();
+            showUI();
+        }
+
+        // --- Auto-Hide UI Bar Logic ---
+        function showUI() {
+            topBar.classList.remove('autohide');
+            bottomBar.classList.remove('autohide');
+            if (isRunning) {
+                resetAutoHideTimer();
+            }
+        }
+
+        function resetAutoHideTimer() {
+            clearTimeout(autoHideTimeout);
+            if (!isRunning) return;
+            autoHideTimeout = setTimeout(() => {
+                if (isRunning) {
+                    topBar.classList.add('autohide');
+                    bottomBar.classList.add('autohide');
+                }
+            }, 2600);
+        }
+
+        // --- Theme Engine ---
+        function setTheme(themeName) {
+            document.body.setAttribute('data-theme', themeName);
+            localStorage.setItem('timer_theme', themeName);
+            if (metaThemeColor && themeColors[themeName]) {
+                metaThemeColor.setAttribute('content', themeColors[themeName]);
+            }
+        }
+
+        function cycleTheme() {
+            currentThemeIndex = (currentThemeIndex + 1) % themes.length;
+            setTheme(themes[currentThemeIndex]);
+        }
+
+        // --- Sound Toggle ---
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            iconSoundOn.style.display = soundEnabled ? 'block' : 'none';
+            iconSoundOff.style.display = soundEnabled ? 'none' : 'block';
+            localStorage.setItem('timer_sound', soundEnabled ? '1' : '0');
+            if (soundEnabled) {
+                getAudioContext();
+                playTick();
+            }
+        }
+
+        // --- Fullscreen Toggle ---
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            } else {
+                document.exitFullscreen().catch(() => {});
+            }
+        }
+
+        // --- Duration String Parser ---
+        function parseDurationString(str) {
+            if (!str) return null;
+            str = str.trim().toLowerCase();
+
+            // Clock notation HH:MM:SS or MM:SS
+            if (/^\d+:\d+(?::\d+)?$/.test(str)) {
+                const parts = str.split(':').map(Number);
+                if (parts.length === 3) {
+                    return parts[0] * 3600 + parts[1] * 60 + parts[2];
+                } else if (parts.length === 2) {
+                    return parts[0] * 60 + parts[1];
+                }
+            }
+
+            // Pure numeric seconds
+            if (/^\d+$/.test(str)) {
+                return parseInt(str, 10);
+            }
+
+            // Suffix notation: e.g. 1h30m15s, 1h, 5m, 30s, 2m30s
+            const regex = /^(?:(\d+)\s*h)?\s*(?:(\d+)\s*m)?\s*(?:(\d+)\s*s)?$/i;
+            const match = str.match(regex);
+            if (match && (match[1] || match[2] || match[3])) {
+                const hours = parseInt(match[1] || 0, 10);
+                const mins = parseInt(match[2] || 0, 10);
+                const secs = parseInt(match[3] || 0, 10);
+                return hours * 3600 + mins * 60 + secs;
+            }
+
+            return null;
+        }
+
+        // --- URL Parameters & Hash Parser ---
+        function parseUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            const hash = window.location.hash.replace('#', '').trim();
+            const timeParam = params.get('t') || params.get('time') || hash;
+
+            if (timeParam) {
+                const parsedSeconds = parseDurationString(timeParam);
+                if (parsedSeconds !== null && parsedSeconds > 0) {
+                    totalDurationMs = parsedSeconds * 1000;
+                    remainingMs = totalDurationMs;
+                    pausedRemainingMs = totalDurationMs;
+
+                    presetButtons.forEach(btn => {
+                        btn.classList.toggle('active', parseInt(btn.dataset.time, 10) === parsedSeconds);
+                    });
+                }
+            }
+
+            const themeParam = params.get('theme');
+            if (themeParam && themes.includes(themeParam.toLowerCase())) {
+                setTheme(themeParam.toLowerCase());
+                currentThemeIndex = themes.indexOf(themeParam.toLowerCase());
+            }
+
+            if (params.get('autostart') === '1' || params.get('autostart') === 'true') {
+                setTimeout(startTimer, 300);
+            }
+        }
+
+        // --- Event Listeners ---
+
+        // Screen Tap / Click to Toggle
+        baseLayer.addEventListener('click', (e) => {
+            if (e.target.closest('.ui-bar') || e.target.closest('.modal-backdrop')) return;
+            baseLayer.classList.add('click-pulse');
+            setTimeout(() => baseLayer.classList.remove('click-pulse'), 150);
+            toggleTimer();
+        });
+
+        // Double Click to Reset
+        baseLayer.addEventListener('dblclick', (e) => {
+            if (e.target.closest('.ui-bar') || e.target.closest('.modal-backdrop')) return;
+            resetTimer();
+        });
+
+        // Buttons
+        btnToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleTimer();
+        });
+
+        btnReset.addEventListener('click', (e) => {
+            e.stopPropagation();
+            resetTimer();
+        });
+
+        btnAdd30.addEventListener('click', (e) => {
+            e.stopPropagation();
+            adjustTime(30);
+        });
+
+        btnSub30.addEventListener('click', (e) => {
+            e.stopPropagation();
+            adjustTime(-30);
+        });
+
+        btnTheme.addEventListener('click', (e) => {
+            e.stopPropagation();
+            cycleTheme();
+        });
+
+        btnSound.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleSound();
+        });
+
+        btnNotify.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleNotifications();
+        });
+
+        btnFullscreen.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleFullscreen();
+        });
+
+        // Presets
+        presetButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                presetButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const seconds = parseInt(btn.dataset.time, 10);
+                resetTimer(seconds);
+            });
+        });
+
+        // Custom Time Modal
+        btnCustom.addEventListener('click', (e) => {
+            e.stopPropagation();
+            pauseTimer();
+            const savedMins = localStorage.getItem('timer_custom_mins');
+            const savedSecs = localStorage.getItem('timer_custom_secs');
+            if (savedMins !== null && savedSecs !== null) {
+                inputMins.value = savedMins;
+                inputSecs.value = savedSecs;
+            } else {
+                const totalSecs = Math.round(totalDurationMs / 1000);
+                inputMins.value = Math.floor(totalSecs / 60);
+                inputSecs.value = totalSecs % 60;
+            }
+            modalCustom.classList.add('open');
+        });
+
+        function closeCustomModal() {
+            modalCustom.classList.remove('open');
+        }
+
+        modalCustomClose.addEventListener('click', closeCustomModal);
+        btnCustomCancel.addEventListener('click', closeCustomModal);
+
+        btnCustomApply.addEventListener('click', () => {
+            const mins = Math.max(0, parseInt(inputMins.value, 10) || 0);
+            const secs = Math.max(0, Math.min(59, parseInt(inputSecs.value, 10) || 0));
+            const totalSecs = mins * 60 + secs;
+
+            if (totalSecs > 0) {
+                localStorage.setItem('timer_custom_mins', mins.toString());
+                localStorage.setItem('timer_custom_secs', secs.toString());
+                presetButtons.forEach(b => b.classList.remove('active'));
+                resetTimer(totalSecs);
+                closeCustomModal();
+            }
+        });
+
+        // Shortcuts Modal
+        btnHelp.addEventListener('click', (e) => {
+            e.stopPropagation();
+            modalShortcuts.classList.add('open');
+        });
+
+        modalShortcutsClose.addEventListener('click', () => {
+            modalShortcuts.classList.remove('open');
+        });
+
+        [modalCustom, modalShortcuts].forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.classList.remove('open');
+                }
+            });
+        });
+
+        // Mouse / Touch Activity for Auto-Hiding UI
+        window.addEventListener('mousemove', showUI);
+        window.addEventListener('touchstart', showUI, { passive: true });
+
+        // Mobile Safari Web Audio unlock on initial touch
+        window.addEventListener('touchstart', () => {
+            getAudioContext();
+        }, { passive: true, once: true });
+
+        // Tab Visibility Synchronization
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                // Tab switched to background - background timeout is actively running
+            } else {
+                // Tab returned to active foreground - catch up immediately
+                if (isRunning) {
+                    if (startTimestamp) {
+                        renderLoop(performance.now());
+                    }
+                    scheduleBackgroundCompletion();
+                    requestWakeLock();
+                }
+            }
+        });
+
+        // Global Keyboard Shortcuts
+        window.addEventListener('keydown', (e) => {
+            // Ignore keyboard shortcuts if modal input is focused
+            if (document.activeElement && document.activeElement.tagName === 'INPUT') {
+                if (e.key === 'Enter') {
+                    btnCustomApply.click();
+                } else if (e.key === 'Escape') {
+                    closeCustomModal();
+                }
+                return;
+            }
+
+            showUI();
+
+            switch (e.key.toLowerCase()) {
+                case ' ':
+                case 'k':
+                    e.preventDefault();
+                    toggleTimer();
+                    break;
+                case 'r':
+                    e.preventDefault();
+                    resetTimer();
+                    break;
+                case '+':
+                case '=':
+                case 'arrowup':
+                    e.preventDefault();
+                    adjustTime(30);
+                    break;
+                case '-':
+                case '_':
+                case 'arrowdown':
+                    e.preventDefault();
+                    adjustTime(-30);
+                    break;
+                case 'f':
+                    e.preventDefault();
+                    toggleFullscreen();
+                    break;
+                case 'm':
+                    e.preventDefault();
+                    toggleSound();
+                    break;
+                case 'n':
+                    e.preventDefault();
+                    toggleNotifications();
+                    break;
+                case 't':
+                    e.preventDefault();
+                    cycleTheme();
+                    break;
+                case 'c':
+                    e.preventDefault();
+                    btnCustom.click();
+                    break;
+                case '?':
+                case 'h':
+                    e.preventDefault();
+                    modalShortcuts.classList.toggle('open');
+                    break;
+                case 'escape':
+                    modalCustom.classList.remove('open');
+                    modalShortcuts.classList.remove('open');
+                    break;
+                case '1':
+                case '2':
+                case '3':
+                case '4':
+                case '5':
+                case '6':
+                case '7':
+                    const index = parseInt(e.key, 10) - 1;
+                    if (presetButtons[index]) {
+                        presetButtons[index].click();
+                    }
+                    break;
+            }
+        });
+
+        // --- PWA Installation & Service Worker ---
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredInstallPrompt = e;
+            if (btnInstall) {
+                btnInstall.style.display = 'inline-flex';
+            }
+        });
+
+        if (btnInstall) {
+            btnInstall.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                if (deferredInstallPrompt) {
+                    deferredInstallPrompt.prompt();
+                    const { outcome } = await deferredInstallPrompt.userChoice;
+                    if (outcome === 'accepted') {
+                        btnInstall.style.display = 'none';
+                    }
+                    deferredInstallPrompt = null;
+                }
+            });
+        }
+
+        window.addEventListener('appinstalled', () => {
+            if (btnInstall) {
+                btnInstall.style.display = 'none';
+            }
+            deferredInstallPrompt = null;
+        });
+
+        if ('serviceWorker' in navigator && (window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').catch(err => {
+                    console.debug('Service Worker registration failed:', err);
+                });
+            });
+        }
+
+        // --- Initialization & Preferences Restoration ---
+        (function init() {
+            // Restore Sound preference
+            const savedSound = localStorage.getItem('timer_sound');
+            if (savedSound !== null) {
+                soundEnabled = savedSound === '1';
+                iconSoundOn.style.display = soundEnabled ? 'block' : 'none';
+                iconSoundOff.style.display = soundEnabled ? 'none' : 'block';
+            }
+
+            // Restore Notification preference
+            const savedNotify = localStorage.getItem('timer_notifications');
+            if (savedNotify !== null) {
+                notificationsEnabled = (savedNotify === '1' && 'Notification' in window && Notification.permission === 'granted');
+            } else {
+                notificationsEnabled = ('Notification' in window && Notification.permission === 'granted');
+            }
+            updateNotificationUI();
+
+            // Restore Theme preference
+            const savedTheme = localStorage.getItem('timer_theme');
+            if (savedTheme && themes.includes(savedTheme)) {
+                setTheme(savedTheme);
+                currentThemeIndex = themes.indexOf(savedTheme);
+            } else {
+                setTheme('monochrome');
+            }
+
+            // Restore Saved Duration preference
+            const savedDuration = localStorage.getItem('timer_duration_secs');
+            if (savedDuration) {
+                const secs = parseInt(savedDuration, 10);
+                if (secs > 0) {
+                    totalDurationMs = secs * 1000;
+                    remainingMs = totalDurationMs;
+                    pausedRemainingMs = totalDurationMs;
+
+                    presetButtons.forEach(btn => {
+                        btn.classList.toggle('active', parseInt(btn.dataset.time, 10) === secs);
+                    });
+                }
+            }
+
+            // Parse URL Query Params (takes precedence over saved storage if specified)
+            parseUrlParams();
+
+            // Set initial state
+            updateDisplays(remainingMs / 1000, 0);
+        })();
+    </script>
+</body>
+</html>
