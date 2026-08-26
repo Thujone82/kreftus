@@ -137,13 +137,14 @@ sparkline lines stay hidden until the 72-hour series returns.
 
 TECHNICAL DETAILS
 -----------------
-- Data Parsing: Prefers chart.cfm JSON (DATE_TIME_UNIX / INTERPOLATED_PERCENT_FULL);
-  falls back to the data.cfm HTML table, then gauge.cfm
+- Data Parsing: Prefers chart.cfm JSON (DATE_TIME_UNIX / INTERPOLATED_PERCENT_FULL),
+  the same 15-minute series rendered as the data.cfm HTML table; falls back to that
+  table if JSON is empty, then gauge.cfm
 - Empty History: When only the gauge reading is available, the full report shows
   Current Level, As of, and a yellow notice; history-dependent lines are omitted
 - Time Range: Processes up to 72 hours of historical data
-- Timezone Handling: All time calculations use Pacific timezone, automatically
-  converting from system timezone if needed
+- Timezone Handling: Chart DATE_TIME_UNIX is Pacific wall-clock time encoded as
+  Unix milliseconds (not UTC). Duration and "As of" calculations use Pacific time.
 - Sparklines: Uses Unicode block characters (U+2581 through U+2588) to create
   visual bar charts
 - Time-Based Binning: Data is grouped into fixed time intervals for sparkline display:

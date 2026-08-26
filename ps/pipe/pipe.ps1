@@ -39,12 +39,13 @@ function Get-PacificTimeZone {
     }
 }
 
-# --- Helper Function to Convert Unix Milliseconds to Pacific DateTime ---
+# Chart DATE_TIME_UNIX is Pacific wall-clock time encoded as Unix milliseconds
+# (not UTC). Converting UTC->Pacific would shift the series by the PDT/PST offset.
 function ConvertFrom-UnixMillisecondsToPacific {
     param ([Int64]$UnixMilliseconds)
 
-    $utc = [DateTimeOffset]::FromUnixTimeMilliseconds($UnixMilliseconds).UtcDateTime
-    return [TimeZoneInfo]::ConvertTimeFromUtc($utc, (Get-PacificTimeZone))
+    $wallClock = [DateTimeOffset]::FromUnixTimeMilliseconds($UnixMilliseconds).UtcDateTime
+    return [DateTime]::SpecifyKind($wallClock, [DateTimeKind]::Unspecified)
 }
 
 # --- Helper Function to Sort and Return Data Points ---
