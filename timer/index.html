@@ -416,6 +416,105 @@
             padding-bottom: 1.25rem;
         }
 
+        .custom-section-title {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            opacity: 0.75;
+            margin-bottom: 0.5rem;
+        }
+
+        .theme-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin-bottom: 0.85rem;
+        }
+
+        .theme-color-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .theme-color-group label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            opacity: 0.8;
+        }
+
+        .color-picker-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            background: var(--btn-hover);
+            border: 1.5px solid var(--panel-border);
+            border-radius: 0.75rem;
+            padding: 0.35rem 0.6rem;
+            cursor: pointer;
+            transition: border-color 0.2s ease;
+        }
+
+        .color-picker-wrapper:focus-within {
+            border-color: var(--accent);
+        }
+
+        .color-picker-wrapper input[type="color"] {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            width: 2rem;
+            height: 2rem;
+            border: none;
+            border-radius: 0.4rem;
+            cursor: pointer;
+            background: none;
+            padding: 0;
+            flex-shrink: 0;
+        }
+
+        .color-picker-wrapper input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+
+        .color-picker-wrapper input[type="color"]::-webkit-color-swatch {
+            border: 1px solid rgba(0, 0, 0, 0.2);
+            border-radius: 0.4rem;
+        }
+
+        .color-hex {
+            font-family: monospace;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .theme-preview-wrapper {
+            display: flex;
+            height: 2.75rem;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--panel-border);
+            margin-bottom: 1.25rem;
+            font-size: 0.825rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .preview-base, .preview-overlay {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.15s ease, color 0.15s ease;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+        }
+
         .shortcuts-grid {
             display: grid;
             grid-template-columns: auto 1fr;
@@ -556,13 +655,15 @@
         <button class="btn" id="btn-add30" title="Add 30 seconds (+)">+30s</button>
     </footer>
 
-    <!-- Custom Time Dialog Modal -->
+    <!-- Custom Time & Theme Dialog Modal -->
     <div class="modal-backdrop" id="modal-custom">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 class="modal-title">Set Custom Time</h3>
+                <h3 class="modal-title">Custom Time & Theme</h3>
                 <button class="btn btn-icon" id="modal-custom-close">✕</button>
             </div>
+            
+            <div class="custom-section-title">Countdown Duration</div>
             <div class="time-inputs">
                 <div class="time-input-group">
                     <input type="number" id="input-mins" min="0" max="999" value="2">
@@ -574,9 +675,38 @@
                     <label for="input-secs">Seconds</label>
                 </div>
             </div>
-            <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+
+            <div class="custom-section-title">Custom Theme Colors</div>
+            <div class="theme-inputs">
+                <div class="theme-color-group">
+                    <label for="input-theme-bg">Base Background</label>
+                    <div class="color-picker-wrapper">
+                        <input type="color" id="input-theme-bg" value="#0a0e17">
+                        <span class="color-hex" id="hex-theme-bg">#0A0E17</span>
+                    </div>
+                </div>
+                <div class="theme-color-group">
+                    <label for="input-theme-fg">Sweep / Accent</label>
+                    <div class="color-picker-wrapper">
+                        <input type="color" id="input-theme-fg" value="#00f2fe">
+                        <span class="color-hex" id="hex-theme-fg">#00F2FE</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Theme Preview Swatch -->
+            <div class="theme-preview-wrapper" id="theme-preview" title="Live Preview">
+                <div class="preview-base" id="preview-base">
+                    <span>Base 02:00</span>
+                </div>
+                <div class="preview-overlay" id="preview-overlay">
+                    <span>Sweep 02:00</span>
+                </div>
+            </div>
+
+            <div class="modal-actions">
                 <button class="btn" id="btn-custom-cancel">Cancel</button>
-                <button class="btn btn-primary" id="btn-custom-apply">Apply Time</button>
+                <button class="btn btn-primary" id="btn-custom-apply">Apply Settings</button>
             </div>
         </div>
     </div>
@@ -639,7 +769,7 @@
         let autoHideTimeout = null;
         let deferredInstallPrompt = null;
 
-        const themes = ['monochrome', 'midnight', 'amber', 'crimson', 'emerald', 'nord'];
+        let themes = ['monochrome', 'midnight', 'amber', 'crimson', 'emerald', 'nord'];
         const themeColors = {
             monochrome: '#ffffff',
             midnight: '#0a0e17',
@@ -683,6 +813,12 @@
         const btnCustomApply = document.getElementById('btn-custom-apply');
         const inputMins = document.getElementById('input-mins');
         const inputSecs = document.getElementById('input-secs');
+        const inputThemeBg = document.getElementById('input-theme-bg');
+        const inputThemeFg = document.getElementById('input-theme-fg');
+        const hexThemeBg = document.getElementById('hex-theme-bg');
+        const hexThemeFg = document.getElementById('hex-theme-fg');
+        const previewBase = document.getElementById('preview-base');
+        const previewOverlay = document.getElementById('preview-overlay');
 
         const modalShortcuts = document.getElementById('modal-shortcuts');
         const modalShortcutsClose = document.getElementById('modal-shortcuts-close');
@@ -1024,11 +1160,69 @@
         }
 
         // --- Theme Engine ---
+        function hexToRgb(hex) {
+            hex = hex.replace(/^#/, '');
+            if (hex.length === 3) {
+                hex = hex.split('').map(c => c + c).join('');
+            }
+            const num = parseInt(hex, 16);
+            if (isNaN(num)) return { r: 10, g: 14, b: 23 };
+            return {
+                r: (num >> 16) & 255,
+                g: (num >> 8) & 255,
+                b: num & 255
+            };
+        }
+
+        function applyCustomThemeVariables(bgHex, fgHex) {
+            const bgRgb = hexToRgb(bgHex);
+            const fgRgb = hexToRgb(fgHex);
+
+            document.documentElement.style.setProperty('--bg-base', bgHex);
+            document.documentElement.style.setProperty('--fg-base', fgHex);
+            document.documentElement.style.setProperty('--bg-overlay', fgHex);
+            document.documentElement.style.setProperty('--fg-overlay', bgHex);
+            document.documentElement.style.setProperty('--accent', fgHex);
+            document.documentElement.style.setProperty('--panel-bg', `rgba(${bgRgb.r}, ${bgRgb.g}, ${bgRgb.b}, 0.88)`);
+            document.documentElement.style.setProperty('--panel-fg', fgHex);
+            document.documentElement.style.setProperty('--panel-border', `rgba(${fgRgb.r}, ${fgRgb.g}, ${fgRgb.b}, 0.3)`);
+            document.documentElement.style.setProperty('--btn-hover', `rgba(${fgRgb.r}, ${fgRgb.g}, ${fgRgb.b}, 0.15)`);
+            document.documentElement.style.setProperty('--btn-active', `rgba(${fgRgb.r}, ${fgRgb.g}, ${fgRgb.b}, 0.3)`);
+        }
+
+        function clearCustomThemeVariables() {
+            const vars = ['--bg-base', '--fg-base', '--bg-overlay', '--fg-overlay', '--accent', '--panel-bg', '--panel-fg', '--panel-border', '--btn-hover', '--btn-active'];
+            vars.forEach(v => document.documentElement.style.removeProperty(v));
+        }
+
+        function registerCustomTheme(bgHex, fgHex) {
+            localStorage.setItem('timer_custom_bg', bgHex);
+            localStorage.setItem('timer_custom_fg', fgHex);
+            if (!themes.includes('custom')) {
+                themes.push('custom');
+            }
+        }
+
         function setTheme(themeName) {
-            document.body.setAttribute('data-theme', themeName);
-            localStorage.setItem('timer_theme', themeName);
-            if (metaThemeColor && themeColors[themeName]) {
-                metaThemeColor.setAttribute('content', themeColors[themeName]);
+            if (themeName === 'custom') {
+                const bg = localStorage.getItem('timer_custom_bg') || '#0a0e17';
+                const fg = localStorage.getItem('timer_custom_fg') || '#00f2fe';
+                applyCustomThemeVariables(bg, fg);
+                document.body.setAttribute('data-theme', 'custom');
+                localStorage.setItem('timer_theme', 'custom');
+                if (metaThemeColor) {
+                    metaThemeColor.setAttribute('content', bg);
+                }
+            } else {
+                clearCustomThemeVariables();
+                document.body.setAttribute('data-theme', themeName);
+                localStorage.setItem('timer_theme', themeName);
+                if (metaThemeColor && themeColors[themeName]) {
+                    metaThemeColor.setAttribute('content', themeColors[themeName]);
+                }
+            }
+            if (themes.includes(themeName)) {
+                currentThemeIndex = themes.indexOf(themeName);
             }
         }
 
@@ -1111,10 +1305,21 @@
                 }
             }
 
-            const themeParam = params.get('theme');
-            if (themeParam && themes.includes(themeParam.toLowerCase())) {
-                setTheme(themeParam.toLowerCase());
-                currentThemeIndex = themes.indexOf(themeParam.toLowerCase());
+            // Check for custom color query params ?bg=...&fg=...
+            if (params.has('bg') && params.has('fg')) {
+                let bg = params.get('bg').trim();
+                let fg = params.get('fg').trim();
+                if (!bg.startsWith('#')) bg = '#' + bg;
+                if (!fg.startsWith('#')) fg = '#' + fg;
+                if (/^#[0-9a-f]{6}$/i.test(bg) && /^#[0-9a-f]{6}$/i.test(fg)) {
+                    registerCustomTheme(bg, fg);
+                    setTheme('custom');
+                }
+            } else {
+                const themeParam = params.get('theme');
+                if (themeParam && (themes.includes(themeParam.toLowerCase()) || themeParam.toLowerCase() === 'custom')) {
+                    setTheme(themeParam.toLowerCase());
+                }
             }
 
             if (params.get('autostart') === '1' || params.get('autostart') === 'true') {
@@ -1179,7 +1384,26 @@
             });
         });
 
-        // Custom Time Modal
+        // Custom Time & Theme Modal
+        function updateThemePreview() {
+            if (!inputThemeBg || !inputThemeFg) return;
+            const bg = inputThemeBg.value;
+            const fg = inputThemeFg.value;
+            if (hexThemeBg) hexThemeBg.textContent = bg.toUpperCase();
+            if (hexThemeFg) hexThemeFg.textContent = fg.toUpperCase();
+            if (previewBase) {
+                previewBase.style.backgroundColor = bg;
+                previewBase.style.color = fg;
+            }
+            if (previewOverlay) {
+                previewOverlay.style.backgroundColor = fg;
+                previewOverlay.style.color = bg;
+            }
+        }
+
+        if (inputThemeBg) inputThemeBg.addEventListener('input', updateThemePreview);
+        if (inputThemeFg) inputThemeFg.addEventListener('input', updateThemePreview);
+
         btnCustom.addEventListener('click', (e) => {
             e.stopPropagation();
             pauseTimer();
@@ -1193,6 +1417,22 @@
                 inputMins.value = Math.floor(totalSecs / 60);
                 inputSecs.value = totalSecs % 60;
             }
+
+            // Populate theme colors from current custom or active theme
+            let currentBg = localStorage.getItem('timer_custom_bg');
+            let currentFg = localStorage.getItem('timer_custom_fg');
+            if (!currentBg || !currentFg) {
+                const style = getComputedStyle(document.body);
+                currentBg = style.getPropertyValue('--bg-base').trim() || '#0a0e17';
+                currentFg = style.getPropertyValue('--fg-base').trim() || '#00f2fe';
+            }
+            if (!/^#[0-9a-f]{6}$/i.test(currentBg)) currentBg = '#0a0e17';
+            if (!/^#[0-9a-f]{6}$/i.test(currentFg)) currentFg = '#00f2fe';
+
+            inputThemeBg.value = currentBg;
+            inputThemeFg.value = currentFg;
+            updateThemePreview();
+
             modalCustom.classList.add('open');
         });
 
@@ -1213,8 +1453,14 @@
                 localStorage.setItem('timer_custom_secs', secs.toString());
                 presetButtons.forEach(b => b.classList.remove('active'));
                 resetTimer(totalSecs);
-                closeCustomModal();
             }
+
+            const bg = inputThemeBg.value;
+            const fg = inputThemeFg.value;
+            registerCustomTheme(bg, fg);
+            setTheme('custom');
+
+            closeCustomModal();
         });
 
         // Shortcuts Modal
@@ -1418,11 +1664,17 @@
                 iconSoundOff.style.display = soundEnabled ? 'none' : 'block';
             }
 
+            // Restore Custom Theme definition if stored
+            const savedCustomBg = localStorage.getItem('timer_custom_bg');
+            const savedCustomFg = localStorage.getItem('timer_custom_fg');
+            if (savedCustomBg && savedCustomFg) {
+                registerCustomTheme(savedCustomBg, savedCustomFg);
+            }
+
             // Restore Theme preference
             const savedTheme = localStorage.getItem('timer_theme');
-            if (savedTheme && themes.includes(savedTheme)) {
+            if (savedTheme && (themes.includes(savedTheme) || savedTheme === 'custom')) {
                 setTheme(savedTheme);
-                currentThemeIndex = themes.indexOf(savedTheme);
             } else {
                 setTheme('monochrome');
             }

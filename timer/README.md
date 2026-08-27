@@ -52,7 +52,8 @@ You can deep-link or bookmark specific durations and settings using URL paramete
 | `?t=Xh` / `?t=XhYm` | `index.html?t=1h` or `index.html?t=1h30m` | Set timer in hours or hours & minutes |
 | `?t=MM:SS` / `HH:MM:SS` | `index.html?t=1:45` or `index.html?t=1:30:00` | Set timer via clock notation |
 | `#...` | `index.html#3m` or `index.html#30s` | Set duration using URL hash |
-| `?theme=` | `index.html?theme=amber` | Load specific theme (`monochrome`, `midnight`, `amber`, `crimson`, `emerald`, `nord`) |
+| `?theme=` | `index.html?theme=amber` | Load specific theme (`monochrome`, `midnight`, `amber`, `crimson`, `emerald`, `nord`, `custom`) |
+| `?bg=` & `?fg=` | `index.html?bg=1a0933&fg=fcee0a` | Set custom two-color theme (Base Background & Sweep Accent) |
 | `?autostart=1` | `index.html?t=2m&autostart=1` | Automatically begin countdown on load |
 
 ---
@@ -67,6 +68,7 @@ You can deep-link or bookmark specific durations and settings using URL paramete
 | **Crimson** | Pitch Black (`#0f0f0f`) | Neon Crimson (`#ff3366`) | Stealth / High Energy |
 | **Emerald** | Forest Dark (`#061a14`) | Mint Emerald (`#10b981`) | Clean Bio / Productivity |
 | **Nord** | Polar Night (`#2e3440`) | Frost Blue (`#88c0d0`) | Arctic Scandinavian |
+| **Custom** *(User-defined)* | Custom Base Color | Custom Inverted Sweep | Configurable via Custom menu (<kbd>C</kbd>) or URL params |
 
 ---
 
