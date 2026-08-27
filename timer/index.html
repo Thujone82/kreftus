@@ -33,6 +33,7 @@
     
     <style>
         :root {
+            --font-timer: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             --bg-base: #ffffff;
             --fg-base: #000000;
             --bg-overlay: #000000;
@@ -129,7 +130,7 @@
             -webkit-overscroll-behavior: none;
             touch-action: none;
             background-color: var(--bg-base);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: var(--font-timer, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif);
             transition: background-color 0.3s ease;
         }
 
@@ -167,6 +168,7 @@
         }
 
         .timer-display {
+            font-family: var(--font-timer, inherit);
             font-size: clamp(6rem, 24vw, 27rem);
             font-weight: 800;
             letter-spacing: -0.04em;
@@ -509,6 +511,46 @@
             transition: background-color 0.15s ease, color 0.15s ease;
         }
 
+        .font-select-wrapper {
+            position: relative;
+            margin-bottom: 1.15rem;
+        }
+
+        .font-select {
+            width: 100%;
+            padding: 0.65rem 2.25rem 0.65rem 0.85rem;
+            background: var(--btn-hover);
+            color: var(--fg-base);
+            border: 1.5px solid var(--panel-border);
+            border-radius: 0.75rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            outline: none;
+            cursor: pointer;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            transition: border-color 0.2s ease;
+        }
+
+        .font-select:focus {
+            border-color: var(--accent);
+        }
+
+        .font-select option {
+            background: var(--bg-base);
+            color: var(--fg-base);
+        }
+
+        .select-chevron {
+            position: absolute;
+            right: 0.85rem;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            opacity: 0.6;
+        }
+
         .modal-actions {
             display: flex;
             justify-content: flex-end;
@@ -694,6 +736,20 @@
                 </div>
             </div>
 
+            <div class="custom-section-title">Typography Style</div>
+            <div class="font-select-wrapper">
+                <select id="select-font" class="font-select">
+                    <option value="system">System Sans (Default)</option>
+                    <option value="mono">Monospace (Terminal / Digital)</option>
+                    <option value="rounded">Rounded (Modern / Soft)</option>
+                    <option value="serif">Classic Serif (Editorial)</option>
+                    <option value="condensed">Impact Condensed (Bold)</option>
+                </select>
+                <svg class="select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </div>
+
             <!-- Live Theme Preview Swatch -->
             <div class="theme-preview-wrapper" id="theme-preview" title="Live Preview">
                 <div class="preview-base" id="preview-base">
@@ -817,6 +873,7 @@
         const inputThemeFg = document.getElementById('input-theme-fg');
         const hexThemeBg = document.getElementById('hex-theme-bg');
         const hexThemeFg = document.getElementById('hex-theme-fg');
+        const selectFont = document.getElementById('select-font');
         const previewBase = document.getElementById('preview-base');
         const previewOverlay = document.getElementById('preview-overlay');
 
@@ -1231,6 +1288,28 @@
             setTheme(themes[currentThemeIndex]);
         }
 
+        // --- Typography Engine ---
+        const fontOptions = {
+            system: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+            mono: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace',
+            rounded: 'ui-rounded, "SF Pro Rounded", "Nunito", "Quicksand", system-ui, sans-serif',
+            serif: 'Georgia, Cambria, "Times New Roman", Times, serif',
+            condensed: 'Impact, "Arial Narrow", "Haettenschweiler", sans-serif-condensed, sans-serif'
+        };
+
+        function setFont(fontKey) {
+            if (!fontOptions[fontKey]) fontKey = 'system';
+            document.documentElement.style.setProperty('--font-timer', fontOptions[fontKey]);
+            localStorage.setItem('timer_font', fontKey);
+            if (selectFont) {
+                selectFont.value = fontKey;
+            }
+            if (previewBase && previewOverlay) {
+                previewBase.style.fontFamily = fontOptions[fontKey];
+                previewOverlay.style.fontFamily = fontOptions[fontKey];
+            }
+        }
+
         // --- Sound Toggle ---
         function toggleSound() {
             soundEnabled = !soundEnabled;
@@ -1322,6 +1401,11 @@
                 }
             }
 
+            const fontParam = params.get('font');
+            if (fontParam && fontOptions[fontParam.toLowerCase()]) {
+                setFont(fontParam.toLowerCase());
+            }
+
             if (params.get('autostart') === '1' || params.get('autostart') === 'true') {
                 setTimeout(startTimer, 300);
             }
@@ -1389,20 +1473,25 @@
             if (!inputThemeBg || !inputThemeFg) return;
             const bg = inputThemeBg.value;
             const fg = inputThemeFg.value;
+            const fontKey = selectFont ? selectFont.value : (localStorage.getItem('timer_font') || 'system');
+            const fontFamily = fontOptions[fontKey] || fontOptions.system;
             if (hexThemeBg) hexThemeBg.textContent = bg.toUpperCase();
             if (hexThemeFg) hexThemeFg.textContent = fg.toUpperCase();
             if (previewBase) {
                 previewBase.style.backgroundColor = bg;
                 previewBase.style.color = fg;
+                previewBase.style.fontFamily = fontFamily;
             }
             if (previewOverlay) {
                 previewOverlay.style.backgroundColor = fg;
                 previewOverlay.style.color = bg;
+                previewOverlay.style.fontFamily = fontFamily;
             }
         }
 
         if (inputThemeBg) inputThemeBg.addEventListener('input', updateThemePreview);
         if (inputThemeFg) inputThemeFg.addEventListener('input', updateThemePreview);
+        if (selectFont) selectFont.addEventListener('change', updateThemePreview);
 
         btnCustom.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1431,6 +1520,13 @@
 
             inputThemeBg.value = currentBg;
             inputThemeFg.value = currentFg;
+
+            // Populate font select
+            const currentFont = localStorage.getItem('timer_font') || 'system';
+            if (selectFont) {
+                selectFont.value = currentFont;
+            }
+
             updateThemePreview();
 
             modalCustom.classList.add('open');
@@ -1459,6 +1555,10 @@
             const fg = inputThemeFg.value;
             registerCustomTheme(bg, fg);
             setTheme('custom');
+
+            if (selectFont) {
+                setFont(selectFont.value);
+            }
 
             closeCustomModal();
         });
@@ -1677,6 +1777,14 @@
                 setTheme(savedTheme);
             } else {
                 setTheme('monochrome');
+            }
+
+            // Restore Font preference
+            const savedFont = localStorage.getItem('timer_font');
+            if (savedFont && fontOptions[savedFont]) {
+                setFont(savedFont);
+            } else {
+                setFont('system');
             }
 
             // Restore Saved Duration preference
