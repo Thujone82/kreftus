@@ -2,7 +2,7 @@
   "name": "Countdown Timer",
   "short_name": "Timer",
   "description": "High-precision radial countdown timer with inverted sweep, ambient audio chimes, and multi-theme support.",
-  "start_url": "./index.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",

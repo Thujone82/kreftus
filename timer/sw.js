@@ -1,7 +1,6 @@
-const CACHE_NAME = 'radial-timer-v1';
+const CACHE_NAME = 'radial-timer-v2';
 const ASSETS_TO_CACHE = [
   './',
-  './index.html',
   './manifest.json',
   './timer.png',
   './timer.ico'
@@ -37,33 +36,28 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Fetch fresh copy in the background to update cache for next visit
-        fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, networkResponse);
-            });
-          }
-        }).catch(() => {});
-        return cachedResponse;
-      }
-
-      return fetch(event.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-          return networkResponse;
+      const networkFetch = fetch(event.request).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
         }
-        const responseToCache = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
         return networkResponse;
       }).catch(() => {
         // Fallback for navigation requests when offline
         if (event.request.mode === 'navigate') {
-          return caches.match('./index.html');
+          return caches.match('./');
         }
       });
+
+      // Cache-first: return cached copy immediately while networkFetch revalidates in background
+      if (cachedResponse) {
+        networkFetch.catch(() => {});
+        return cachedResponse;
+      }
+
+      return networkFetch;
     })
   );
 });

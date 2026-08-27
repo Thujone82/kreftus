@@ -1132,12 +1132,6 @@
             toggleTimer();
         });
 
-        // Double Click to Reset
-        baseLayer.addEventListener('dblclick', (e) => {
-            if (e.target.closest('.ui-bar') || e.target.closest('.modal-backdrop')) return;
-            resetTimer();
-        });
-
         // Buttons
         btnToggle.addEventListener('click', (e) => {
             e.stopPropagation();
