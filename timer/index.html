@@ -25,6 +25,7 @@
 
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Timer">
     <link rel="apple-touch-icon" href="timer.png">
     <link rel="icon" type="image/png" sizes="256x256" href="timer.png">
@@ -118,13 +119,31 @@
             -webkit-touch-callout: none;
         }
 
-        html, body {
+        html {
             margin: 0;
             padding: 0;
-            width: 100vw;
-            height: 100vh;
+            width: 100%;
+            height: 100%;
+            height: 100dvh;
+            height: -webkit-fill-available;
+            overflow: hidden;
+            background-color: var(--bg-base);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            min-height: 100vh;
+            min-height: 100dvh;
+            min-height: -webkit-fill-available;
             overflow: hidden;
             position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             inset: 0;
             overscroll-behavior: none;
             -webkit-overscroll-behavior: none;
@@ -136,8 +155,16 @@
 
         /* Fullscreen layer containing the base numbers */
         #base-layer {
-            position: absolute;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             inset: 0;
+            width: 100%;
+            height: 100%;
+            min-height: 100dvh;
+            min-height: -webkit-fill-available;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -151,8 +178,16 @@
 
         /* Fullscreen layer containing the inverted numbers with conic sweep mask */
         #overlay-layer {
-            position: absolute;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             inset: 0;
+            width: 100%;
+            height: 100%;
+            min-height: 100dvh;
+            min-height: -webkit-fill-available;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -165,6 +200,10 @@
             /* Controlled via JS conic-gradient */
             mask-image: conic-gradient(from 0deg at 50% 50%, #000 0deg 0deg, transparent 0deg 360deg);
             -webkit-mask-image: conic-gradient(from 0deg at 50% 50%, #000 0deg 0deg, transparent 0deg 360deg);
+            mask-size: 100% 100%;
+            -webkit-mask-size: 100% 100%;
+            mask-repeat: no-repeat;
+            -webkit-mask-repeat: no-repeat;
         }
 
         .timer-display {
@@ -619,7 +658,15 @@
         /* Completion Inversion Flash (2 Hz) */
         #completion-effect {
             position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             inset: 0;
+            width: 100%;
+            height: 100%;
+            min-height: 100dvh;
+            min-height: -webkit-fill-available;
             background-color: #ffffff;
             mix-blend-mode: difference;
             opacity: 0;
@@ -1565,21 +1612,41 @@
             const fontFamily = fontOptions[fontKey] || fontOptions.system;
             if (hexThemeBg) hexThemeBg.textContent = bg.toUpperCase();
             if (hexThemeFg) hexThemeFg.textContent = fg.toUpperCase();
+
+            const previewMins = parseInt(inputMins.value, 10) || 0;
+            const previewSecs = parseInt(inputSecs.value, 10) || 0;
+            const formattedPreview = formatTime(previewMins * 60 + previewSecs);
+
             if (previewBase) {
                 previewBase.style.backgroundColor = bg;
                 previewBase.style.color = fg;
                 previewBase.style.fontFamily = fontFamily;
+                const span = previewBase.querySelector('span');
+                if (span) span.textContent = `Base ${formattedPreview}`;
             }
             if (previewOverlay) {
                 previewOverlay.style.backgroundColor = fg;
                 previewOverlay.style.color = bg;
                 previewOverlay.style.fontFamily = fontFamily;
+                const span = previewOverlay.querySelector('span');
+                if (span) span.textContent = `Sweep ${formattedPreview}`;
             }
         }
 
         if (inputThemeBg) inputThemeBg.addEventListener('input', updateThemePreview);
         if (inputThemeFg) inputThemeFg.addEventListener('input', updateThemePreview);
         if (selectFont) selectFont.addEventListener('change', updateThemePreview);
+        if (inputMins) inputMins.addEventListener('input', updateThemePreview);
+        if (inputSecs) {
+            inputSecs.addEventListener('input', updateThemePreview);
+            inputSecs.addEventListener('blur', () => {
+                let val = parseInt(inputSecs.value, 10);
+                if (isNaN(val) || val < 0) val = 0;
+                if (val > 59) val = 59;
+                inputSecs.value = val.toString().padStart(2, '0');
+                updateThemePreview();
+            });
+        }
 
         btnCustom.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1589,11 +1656,11 @@
             const savedSecs = localStorage.getItem('timer_custom_secs');
             if (savedMins !== null && savedSecs !== null) {
                 inputMins.value = savedMins;
-                inputSecs.value = savedSecs;
+                inputSecs.value = savedSecs.toString().padStart(2, '0');
             } else {
                 const totalSecs = Math.round(totalDurationMs / 1000);
                 inputMins.value = Math.floor(totalSecs / 60);
-                inputSecs.value = totalSecs % 60;
+                inputSecs.value = (totalSecs % 60).toString().padStart(2, '0');
             }
 
             // Populate theme colors from current custom or active theme
@@ -1630,12 +1697,13 @@
                 const savedSecs = localStorage.getItem('timer_custom_secs');
                 if (savedMins !== null && savedSecs !== null) {
                     inputMins.value = savedMins;
-                    inputSecs.value = savedSecs;
+                    inputSecs.value = savedSecs.toString().padStart(2, '0');
                 } else {
                     const totalSecs = Math.round(totalDurationMs / 1000);
                     inputMins.value = Math.floor(totalSecs / 60);
-                    inputSecs.value = totalSecs % 60;
+                    inputSecs.value = (totalSecs % 60).toString().padStart(2, '0');
                 }
+                updateThemePreview();
             });
         }
 
@@ -1654,7 +1722,7 @@
 
                 if (totalSecs > 0) {
                     localStorage.setItem('timer_custom_mins', mins.toString());
-                    localStorage.setItem('timer_custom_secs', secs.toString());
+                    localStorage.setItem('timer_custom_secs', secs.toString().padStart(2, '0'));
                     presetButtons.forEach(b => b.classList.remove('active'));
                     resetTimer(totalSecs);
                 }
