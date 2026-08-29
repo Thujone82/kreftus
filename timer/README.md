@@ -16,8 +16,8 @@ A minimalist, high-precision Progressive Web App (PWA) countdown timer featuring
 - **📱 Screen Wake Lock API**: Automatically keeps phone, tablet, and laptop displays awake while the timer is actively counting down.
 - **🎨 6 Color Themes**: Seamlessly cycle between *Monochrome*, *Midnight Neon*, *Amber CRT*, *Crimson Stealth*, *Emerald Forest*, and *Nord Frost*.
 - **📊 Dynamic Tab Title & Live Favicon**: Displays the remaining time in the browser tab title (e.g. `(01:45) Timer`) and generates real-time SVG pie-chart favicons indicating progress.
-- **⏱️ Quick Presets & Custom Duration**: Jump between 30s, 1m, 2m, 3m, 5m, 10m, and 25m (Pomodoro), or enter custom minutes and seconds via modal.
-- **🛡️ Running Timer Protection & State Recovery**: Opening the custom menu during a countdown never pauses or loses running timers (custom time inputs lock automatically while color and font customizations remain live). If the browser crashes or the page is refreshed during an active countdown, the timer automatically detects its previous running state and restores the countdown seamlessly or triggers completion.
+- **⏱️ Quick Presets & Settings Menu**: Jump between 30s, 1m, 2m, 3m, 5m, 10m, and 25m (Pomodoro), or open the Settings gear menu (<kbd>C</kbd>) for custom durations, dual-color themes, and typography choices.
+- **🛡️ Running Timer Protection & State Recovery**: Opening the Settings gear menu during a countdown never pauses or loses running timers (custom time inputs lock automatically while color and font customizations remain live). If the browser crashes or the page is refreshed during an active countdown, the timer automatically detects its previous running state and restores the countdown seamlessly or triggers completion.
 - **🔗 URL Parameter & Hash Support**: Launch with custom configurations directly via URL query parameters or hash fragments.
 - **⌨️ Keyboard & Touch Optimized**: Full hotkey support, auto-hiding controls during countdowns, zero-latency stage tap to toggle, and dedicated reset controls.
 
@@ -32,7 +32,7 @@ A minimalist, high-precision Progressive Web App (PWA) countdown timer featuring
 | <kbd>+</kbd> / <kbd>↑</kbd> | Add 30 seconds |
 | <kbd>-</kbd> / <kbd>↓</kbd> | Subtract 30 seconds |
 | <kbd>1</kbd> – <kbd>7</kbd> | Switch presets (`30s`, `1m`, `2m`, `3m`, `5m`, `10m`, `25m`) |
-| <kbd>C</kbd> | Open Custom Time dialog |
+| <kbd>C</kbd> | Open Settings / Custom Time dialog |
 | <kbd>T</kbd> | Cycle Color Themes |
 | <kbd>M</kbd> | Toggle Sound Mute / Unmute |
 | <kbd>F</kbd> | Toggle Fullscreen mode |
@@ -70,7 +70,7 @@ You can deep-link or bookmark specific durations and settings using URL paramete
 | **Crimson** | Pitch Black (`#0f0f0f`) | Neon Crimson (`#ff3366`) | Stealth / High Energy |
 | **Emerald** | Forest Dark (`#061a14`) | Mint Emerald (`#10b981`) | Clean Bio / Productivity |
 | **Nord** | Polar Night (`#2e3440`) | Frost Blue (`#88c0d0`) | Arctic Scandinavian |
-| **Custom** *(User-defined)* | Custom Base Color | Custom Inverted Sweep | Configurable via Custom menu (<kbd>C</kbd>) or URL params |
+| **Custom** *(User-defined)* | Custom Base Color | Custom Inverted Sweep | Configurable via Settings menu (<kbd>C</kbd>) or URL params |
 
 ---
 
