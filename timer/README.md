@@ -17,6 +17,7 @@ A minimalist, high-precision Progressive Web App (PWA) countdown timer featuring
 - **🎨 6 Color Themes**: Seamlessly cycle between *Monochrome*, *Midnight Neon*, *Amber CRT*, *Crimson Stealth*, *Emerald Forest*, and *Nord Frost*.
 - **📊 Dynamic Tab Title & Live Favicon**: Displays the remaining time in the browser tab title (e.g. `(01:45) Timer`) and generates real-time SVG pie-chart favicons indicating progress.
 - **⏱️ Quick Presets & Custom Duration**: Jump between 30s, 1m, 2m, 3m, 5m, 10m, and 25m (Pomodoro), or enter custom minutes and seconds via modal.
+- **🛡️ Running Timer Protection & State Recovery**: Opening the custom menu during a countdown never pauses or loses running timers (custom time inputs lock automatically while color and font customizations remain live). If the browser crashes or the page is refreshed during an active countdown, the timer automatically detects its previous running state and restores the countdown seamlessly or triggers completion.
 - **🔗 URL Parameter & Hash Support**: Launch with custom configurations directly via URL query parameters or hash fragments.
 - **⌨️ Keyboard & Touch Optimized**: Full hotkey support, auto-hiding controls during countdowns, zero-latency stage tap to toggle, and dedicated reset controls.
 

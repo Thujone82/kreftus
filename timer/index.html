@@ -412,10 +412,46 @@
             opacity: 0.7;
         }
 
-        .time-colon {
-            font-size: 2.5rem;
+        .time-input-group input:disabled {
+            opacity: 0.38;
+            cursor: not-allowed;
+            background: transparent;
+            border-style: dashed;
+        }
+
+        .time-lock-notice {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            color: var(--fg-base);
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.6rem;
+            font-size: 0.78rem;
+            font-weight: 600;
+            margin-top: -0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .btn-reset-custom {
+            font-size: 0.75rem;
             font-weight: 700;
-            padding-bottom: 1.25rem;
+            padding: 0.3rem 0.65rem;
+            border-radius: 0.5rem;
+            background: var(--btn-hover);
+            color: var(--fg-base);
+            border: 1px solid var(--panel-border);
+            cursor: pointer;
+            white-space: nowrap;
+            flex-shrink: 0;
+            transition: background 0.15s ease, border-color 0.15s ease;
+        }
+
+        .btn-reset-custom:hover {
+            background: var(--btn-active);
+            border-color: var(--accent);
         }
 
         .custom-section-title {
@@ -718,6 +754,11 @@
                 </div>
             </div>
 
+            <div id="time-lock-notice" class="time-lock-notice" style="display: none;">
+                <span>Timer is running (duration locked)</span>
+                <button type="button" class="btn-reset-custom" id="btn-modal-reset">Reset Timer</button>
+            </div>
+
             <div class="custom-section-title">Custom Theme Colors</div>
             <div class="theme-inputs">
                 <div class="theme-color-group">
@@ -869,6 +910,8 @@
         const btnCustomApply = document.getElementById('btn-custom-apply');
         const inputMins = document.getElementById('input-mins');
         const inputSecs = document.getElementById('input-secs');
+        const timeLockNotice = document.getElementById('time-lock-notice');
+        const btnModalReset = document.getElementById('btn-modal-reset');
         const inputThemeBg = document.getElementById('input-theme-bg');
         const inputThemeFg = document.getElementById('input-theme-fg');
         const hexThemeBg = document.getElementById('hex-theme-bg');
@@ -1083,6 +1126,36 @@
             }
         }
 
+        // --- Running State Persistence & Modal Lock ---
+        function persistRunningState() {
+            if (isRunning && remainingMs > 0) {
+                const targetEndTime = Date.now() + remainingMs;
+                localStorage.setItem('timer_is_running', '1');
+                localStorage.setItem('timer_active_end_time', targetEndTime.toString());
+                localStorage.setItem('timer_active_total_duration', totalDurationMs.toString());
+            }
+        }
+
+        function clearRunningState() {
+            localStorage.removeItem('timer_is_running');
+            localStorage.removeItem('timer_active_end_time');
+            localStorage.removeItem('timer_active_total_duration');
+        }
+
+        function syncModalTimeLock() {
+            if (inputMins && inputSecs && timeLockNotice) {
+                if (isRunning) {
+                    inputMins.disabled = true;
+                    inputSecs.disabled = true;
+                    timeLockNotice.style.display = 'flex';
+                } else {
+                    inputMins.disabled = false;
+                    inputSecs.disabled = false;
+                    timeLockNotice.style.display = 'none';
+                }
+            }
+        }
+
         // --- Core Timer Controls ---
         function startTimer() {
             if (isRunning) return;
@@ -1098,6 +1171,9 @@
             startTimestamp = null;
             pausedRemainingMs = remainingMs;
 
+            persistRunningState();
+            syncModalTimeLock();
+
             scheduleBackgroundCompletion();
 
             btnToggle.textContent = 'Pause';
@@ -1111,6 +1187,8 @@
         function pauseTimer() {
             if (!isRunning) return;
             isRunning = false;
+            clearRunningState();
+            syncModalTimeLock();
             clearBackgroundTimeout();
             if (animationFrameId) {
                 cancelAnimationFrame(animationFrameId);
@@ -1137,6 +1215,8 @@
 
         function resetTimer(newDurationSecs = null) {
             pauseTimer();
+            clearRunningState();
+            syncModalTimeLock();
             clearBackgroundTimeout();
             completionEffect.classList.remove('active');
 
@@ -1166,6 +1246,7 @@
                 startTimestamp = performance.now();
             }
             if (isRunning) {
+                persistRunningState();
                 scheduleBackgroundCompletion();
             }
 
@@ -1183,6 +1264,8 @@
             isRunning = false;
             remainingMs = 0;
             pausedRemainingMs = 0;
+            clearRunningState();
+            syncModalTimeLock();
             releaseWakeLock();
 
             btnToggle.textContent = 'Restart';
@@ -1495,7 +1578,8 @@
 
         btnCustom.addEventListener('click', (e) => {
             e.stopPropagation();
-            pauseTimer();
+            syncModalTimeLock();
+
             const savedMins = localStorage.getItem('timer_custom_mins');
             const savedSecs = localStorage.getItem('timer_custom_secs');
             if (savedMins !== null && savedSecs !== null) {
@@ -1532,6 +1616,24 @@
             modalCustom.classList.add('open');
         });
 
+        if (btnModalReset) {
+            btnModalReset.addEventListener('click', (e) => {
+                e.stopPropagation();
+                resetTimer();
+                syncModalTimeLock();
+                const savedMins = localStorage.getItem('timer_custom_mins');
+                const savedSecs = localStorage.getItem('timer_custom_secs');
+                if (savedMins !== null && savedSecs !== null) {
+                    inputMins.value = savedMins;
+                    inputSecs.value = savedSecs;
+                } else {
+                    const totalSecs = Math.round(totalDurationMs / 1000);
+                    inputMins.value = Math.floor(totalSecs / 60);
+                    inputSecs.value = totalSecs % 60;
+                }
+            });
+        }
+
         function closeCustomModal() {
             modalCustom.classList.remove('open');
         }
@@ -1540,15 +1642,17 @@
         btnCustomCancel.addEventListener('click', closeCustomModal);
 
         btnCustomApply.addEventListener('click', () => {
-            const mins = Math.max(0, parseInt(inputMins.value, 10) || 0);
-            const secs = Math.max(0, Math.min(59, parseInt(inputSecs.value, 10) || 0));
-            const totalSecs = mins * 60 + secs;
+            if (!isRunning) {
+                const mins = Math.max(0, parseInt(inputMins.value, 10) || 0);
+                const secs = Math.max(0, Math.min(59, parseInt(inputSecs.value, 10) || 0));
+                const totalSecs = mins * 60 + secs;
 
-            if (totalSecs > 0) {
-                localStorage.setItem('timer_custom_mins', mins.toString());
-                localStorage.setItem('timer_custom_secs', secs.toString());
-                presetButtons.forEach(b => b.classList.remove('active'));
-                resetTimer(totalSecs);
+                if (totalSecs > 0) {
+                    localStorage.setItem('timer_custom_mins', mins.toString());
+                    localStorage.setItem('timer_custom_secs', secs.toString());
+                    presetButtons.forEach(b => b.classList.remove('active'));
+                    resetTimer(totalSecs);
+                }
             }
 
             const bg = inputThemeBg.value;
@@ -1805,8 +1909,39 @@
             // Parse URL Query Params (takes precedence over saved storage if specified)
             parseUrlParams();
 
-            // Set initial state
-            updateDisplays(remainingMs / 1000, 0);
+            // Check for Running Timer Crash / Restart Recovery
+            const hasExplicitUrlTime = window.location.search.includes('t=') || window.location.search.includes('time=') || !!window.location.hash;
+            const wasRunning = localStorage.getItem('timer_is_running') === '1';
+            const savedEndTime = parseInt(localStorage.getItem('timer_active_end_time'), 10);
+            const savedActiveTotal = parseInt(localStorage.getItem('timer_active_total_duration'), 10);
+
+            let recoveredTimer = false;
+            if (!hasExplicitUrlTime && wasRunning && savedEndTime && savedActiveTotal) {
+                const now = Date.now();
+                totalDurationMs = savedActiveTotal;
+                if (now >= savedEndTime) {
+                    // Timer finished while closed / crashed
+                    clearRunningState();
+                    remainingMs = 0;
+                    pausedRemainingMs = 0;
+                    onTimerComplete();
+                    recoveredTimer = true;
+                } else {
+                    // Timer was running and still has time left
+                    remainingMs = savedEndTime - now;
+                    pausedRemainingMs = remainingMs;
+                    const elapsedTotal = totalDurationMs - remainingMs;
+                    const progress = Math.min(elapsedTotal / totalDurationMs, 1);
+                    updateDisplays(remainingMs / 1000, progress);
+                    startTimer();
+                    recoveredTimer = true;
+                }
+            }
+
+            if (!recoveredTimer) {
+                // Set initial state
+                updateDisplays(remainingMs / 1000, 0);
+            }
         })();
     </script>
 </body>
