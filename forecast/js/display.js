@@ -1094,7 +1094,9 @@ function getUtcOffsetString(timeZoneId) {
 
 // Compact Current Conditions row for the largest nearby wildfire (terse; full details in Wild Fire Info)
 function displayWildFireCompactRow(wildFires) {
-    const list = Array.isArray(wildFires) ? wildFires : [];
+    const list = typeof getDisplayWildFires === 'function'
+        ? getDisplayWildFires(wildFires)
+        : (Array.isArray(wildFires) ? wildFires : []);
     if (list.length === 0) return '';
     const f = list[0];
     const acresStr = typeof formatWildFireAcres === 'function' ? formatWildFireAcres(f.acres) : null;
@@ -1170,7 +1172,9 @@ function titleCaseStateSlug(slug) {
 
 // Full Wild Fire Info section (only when fires within 50 mi)
 function displayWildFireInfo(wildFires, sectionAnchorId) {
-    const list = Array.isArray(wildFires) ? wildFires : [];
+    const list = typeof getDisplayWildFires === 'function'
+        ? getDisplayWildFires(wildFires)
+        : (Array.isArray(wildFires) ? wildFires : []);
     if (list.length === 0) return '';
 
     let html = '<div class="wildfire-info">';

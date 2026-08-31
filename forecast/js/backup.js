@@ -23,6 +23,7 @@
         'forecastAirNowApiKeyValid',
         'forecastEnableWildfire',
         'forecastWildfireRadiusMiles',
+        'forecastFilterSmallWildfires',
         'forecastUseMetric',
         'forecastUse24h',
         'forecastUiDensity',

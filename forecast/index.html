@@ -17,7 +17,7 @@
     <meta name="twitter:description" content="Weather forecast app using the National Weather Service API with nearby NIFC wildfire info (default 50 mi) and optional AirNow AQI using your own API key.">
     <meta name="twitter:image" content="https://kreft.us/forecast/icons/dark-icon-512.png">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="css/style.css?v=1.13.28">
+    <link rel="stylesheet" href="css/style.css?v=1.13.29">
     <link rel="icon" type="image/png" href="icons/light-icon-192.png">
 </head>
 <body>
@@ -164,9 +164,15 @@
                     <input type="checkbox" id="enableWildfireToggle" checked aria-label="Enable nearby wildfire info from NIFC">
                     <span>Enable Wildfire</span>
                 </label>
-                <div id="wildfireRadiusContainer" class="config-option">
-                    <label for="wildfireRadiusInput">Wildfire radius (mi):</label>
-                    <input type="number" id="wildfireRadiusInput" class="config-number-input" min="1" max="500" step="1" value="50" aria-label="Wildfire search radius in miles">
+                <div id="wildfireOptionsContainer" class="config-wildfire-options">
+                    <label class="config-checkbox-label config-nested-checkbox">
+                        <input type="checkbox" id="filterSmallWildfiresCheckbox" aria-label="Hide wildfires one acre or smaller">
+                        <span>Filter Small Fires</span>
+                    </label>
+                    <div id="wildfireRadiusContainer" class="config-option config-nested-option">
+                        <label for="wildfireRadiusInput">Wildfire radius (mi):</label>
+                        <input type="number" id="wildfireRadiusInput" class="config-number-input" min="1" max="500" step="1" value="50" aria-label="Wildfire search radius in miles">
+                    </div>
                 </div>
                 <label class="config-checkbox-label">
                     <input type="checkbox" id="enableRadarCheckbox" aria-label="Show NWS radar loop in Full mode and cache for offline">
@@ -228,12 +234,12 @@
         </div>
     </div>
 
-    <script src="js/utils.js?v=1.13.28"></script>
-    <script src="js/api.js?v=1.13.28"></script>
-    <script src="js/weather.js?v=1.13.28"></script>
-    <script src="js/display.js?v=1.13.28"></script>
-    <script src="js/backup.js?v=1.13.28"></script>
-    <script src="js/app.js?v=1.13.28"></script>
+    <script src="js/utils.js?v=1.13.29"></script>
+    <script src="js/api.js?v=1.13.29"></script>
+    <script src="js/weather.js?v=1.13.29"></script>
+    <script src="js/display.js?v=1.13.29"></script>
+    <script src="js/backup.js?v=1.13.29"></script>
+    <script src="js/app.js?v=1.13.29"></script>
 </body>
 </html>
 

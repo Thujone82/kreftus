@@ -1292,6 +1292,8 @@ async function fetchAirNowAqi(lat, lon, apiKey) {
 const WILDFIRE_RADIUS_MILES = 50;
 /** Drop fully contained fires whose last agency update is at least this old. */
 const WILDFIRE_FULLY_CONTAINED_STALE_MS = 7 * 24 * 60 * 60 * 1000;
+/** Fires at or below this size (acres) are hidden when Filter Small Fires is enabled. */
+const WILDFIRE_SMALL_ACRE_THRESHOLD = 1;
 
 const INCIWEB_STATE_SLUGS = {
     AL: 'alabama', AK: 'alaska', AZ: 'arizona', AR: 'arkansas', CA: 'california',
@@ -1875,6 +1877,33 @@ function sortWildFireIncidents(incidents) {
         return a.distanceMi - b.distanceMi;
     });
     return incidents;
+}
+
+function isSmallWildFire(fire) {
+    const acres = Number(fire?.acres);
+    return Number.isFinite(acres) && acres <= WILDFIRE_SMALL_ACRE_THRESHOLD;
+}
+
+function filterSmallWildFires(incidents, enabled) {
+    const list = Array.isArray(incidents) ? incidents : [];
+    if (!enabled) return list;
+    return list.filter((f) => !isSmallWildFire(f));
+}
+
+function shouldFilterSmallWildFires() {
+    if (typeof appState !== 'undefined' && appState.filterSmallWildfires != null) {
+        return !!appState.filterSmallWildfires;
+    }
+    try {
+        return localStorage.getItem('forecastFilterSmallWildfires') === 'true';
+    } catch (_) {
+        return false;
+    }
+}
+
+/** Wildfires after display filters (e.g. hide ≤1 ac when Filter Small Fires is on). */
+function getDisplayWildFires(incidents) {
+    return filterSmallWildFires(incidents, shouldFilterSmallWildFires());
 }
 
 /**

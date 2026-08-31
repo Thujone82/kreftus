@@ -24,6 +24,7 @@ const appState = {
     airNowApiKeyValid: false,
     enableWildfire: true,
     wildfireRadiusMiles: 50,
+    filterSmallWildfires: false,
     updateAllEnabled: false, // when auto-update on: refresh all favorites' caches in background
     updateAllInFlight: false, // prevents overlapping Update All sweeps
     lastFetchTime: null,
@@ -93,6 +94,8 @@ function initializeElements() {
         aqiApiKeyDebug: document.getElementById('aqiApiKeyDebug'),
         aqiApiKeyHelpBlock: document.getElementById('aqiApiKeyHelpBlock'),
         enableWildfireToggle: document.getElementById('enableWildfireToggle'),
+        wildfireOptionsContainer: document.getElementById('wildfireOptionsContainer'),
+        filterSmallWildfiresCheckbox: document.getElementById('filterSmallWildfiresCheckbox'),
         wildfireRadiusContainer: document.getElementById('wildfireRadiusContainer'),
         wildfireRadiusInput: document.getElementById('wildfireRadiusInput'),
         updateAllToggle: document.getElementById('updateAllToggle'),
@@ -206,6 +209,7 @@ function performFullReset() {
         localStorage.removeItem('forecastAirNowApiKeyValid');
         localStorage.removeItem('forecastEnableWildfire');
         localStorage.removeItem('forecastWildfireRadiusMiles');
+        localStorage.removeItem('forecastFilterSmallWildfires');
         localStorage.removeItem('forecastUseMetric');
         localStorage.removeItem('forecastUse24h');
         localStorage.removeItem('forecastUiDensity');
@@ -232,6 +236,7 @@ function performFullReset() {
             appState.airNowApiKeyValid = false;
             appState.enableWildfire = true;
             appState.wildfireRadiusMiles = 50;
+            appState.filterSmallWildfires = false;
             appState.uiDensity = 'compact';
             appState.feelsLikeMode = 'classic';
         }
@@ -1211,9 +1216,12 @@ function syncWildfireSettingsVisibility() {
     if (elements.enableWildfireToggle) {
         elements.enableWildfireToggle.checked = !!appState.enableWildfire;
     }
-    if (elements.wildfireRadiusContainer) {
-        if (appState.enableWildfire) elements.wildfireRadiusContainer.classList.remove('hidden');
-        else elements.wildfireRadiusContainer.classList.add('hidden');
+    if (elements.wildfireOptionsContainer) {
+        if (appState.enableWildfire) elements.wildfireOptionsContainer.classList.remove('hidden');
+        else elements.wildfireOptionsContainer.classList.add('hidden');
+    }
+    if (elements.filterSmallWildfiresCheckbox) {
+        elements.filterSmallWildfiresCheckbox.checked = !!appState.filterSmallWildfires;
     }
     if (elements.wildfireRadiusInput) {
         elements.wildfireRadiusInput.value = String(clampWildfireRadiusMiles(appState.wildfireRadiusMiles));
@@ -1227,13 +1235,19 @@ function loadWildfireSettings() {
     appState.wildfireRadiusMiles = storedRadius == null
         ? 50
         : clampWildfireRadiusMiles(storedRadius);
-    console.log('Wildfire settings: enabled=', appState.enableWildfire, 'radius=', appState.wildfireRadiusMiles, 'mi');
+    appState.filterSmallWildfires = localStorage.getItem('forecastFilterSmallWildfires') === 'true';
+    console.log(
+        'Wildfire settings: enabled=', appState.enableWildfire,
+        'radius=', appState.wildfireRadiusMiles, 'mi',
+        'filterSmall=', appState.filterSmallWildfires
+    );
     syncWildfireSettingsVisibility();
 }
 
 function persistWildfireSettings() {
     localStorage.setItem('forecastEnableWildfire', appState.enableWildfire ? 'true' : 'false');
     localStorage.setItem('forecastWildfireRadiusMiles', String(clampWildfireRadiusMiles(appState.wildfireRadiusMiles)));
+    localStorage.setItem('forecastFilterSmallWildfires', appState.filterSmallWildfires ? 'true' : 'false');
 }
 
 function getActiveWildfireCacheKey(weatherData = appState.weatherData) {
@@ -1824,6 +1838,14 @@ function setupConfigModal() {
             appState.enableWildfire = !!e.target.checked;
             console.log('Wildfire: enable toggled →', appState.enableWildfire);
             applyWildfireSettingsChange({ refetch: appState.enableWildfire });
+        });
+    }
+    if (elements.filterSmallWildfiresCheckbox) {
+        elements.filterSmallWildfiresCheckbox.addEventListener('change', (e) => {
+            appState.filterSmallWildfires = !!e.target.checked;
+            console.log('Wildfire: filter small fires →', appState.filterSmallWildfires);
+            persistWildfireSettings();
+            if (appState.weatherData) renderCurrentMode();
         });
     }
     if (elements.wildfireRadiusInput) {

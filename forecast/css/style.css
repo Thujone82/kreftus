@@ -664,6 +664,25 @@ body.ui-density-normal .config-modal-content {
     cursor: pointer;
 }
 
+.config-wildfire-options {
+    margin: 0.35rem 0 0.5rem 0.75rem;
+    padding-left: 0.35rem;
+    border-left: 2px solid rgba(128, 128, 128, 0.25);
+}
+
+.config-nested-checkbox {
+    margin-bottom: 0.5rem;
+}
+
+.config-nested-option {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.config-nested-option label {
+    font-size: 0.9em;
+}
+
 .api-key-inline-row {
     display: flex;
     align-items: center;
