@@ -90,6 +90,35 @@ function Set-IniConfiguration {
     catch { Write-Error "Failed to save configuration to $FilePath. Error: $($_.Exception.Message)" }
 }
 
+# --- Helper Function to Get HTTP Status Code from an Error ---
+function Get-HttpStatusCode {
+    param($ErrorRecord)
+    if ($null -eq $ErrorRecord) { return $null }
+    $errorCode = $null
+    $exception = $ErrorRecord.Exception
+    if ($exception -is [System.Net.WebException] -and $exception.Response) {
+        $errorCode = [int]$exception.Response.StatusCode
+    }
+    elseif ($exception.Response) {
+        try { $errorCode = [int]$exception.Response.StatusCode } catch { $errorCode = $null }
+    }
+    if (-not $errorCode -and $exception.PSObject.Properties['StatusCode']) {
+        try { $errorCode = [int]$exception.StatusCode } catch { $errorCode = $null }
+    }
+    if (-not $errorCode -and $ErrorRecord.Exception.Message -match '\((\d{3})\)') {
+        $errorCode = [int]$Matches[1]
+    }
+    return $errorCode
+}
+
+function Exit-IfRateLimited {
+    param([int]$ErrorCode = 0)
+    if ($ErrorCode -eq 429) {
+        Write-Host "Rate limit exceeded (429). Try again in a few minutes." -ForegroundColor Yellow
+        exit 1
+    }
+}
+
 # --- Helper Function to Invoke REST Method with Exponential Backoff Retry ---
 function Invoke-RestMethodWithRetry {
     param (
@@ -113,25 +142,22 @@ function Invoke-RestMethodWithRetry {
         }
         catch {
             $lastException = $_.Exception
-            $errorCode = $null
+            $errorCode = Get-HttpStatusCode $_
+            if ($errorCode -eq 429) {
+                Write-Verbose "Rate limited (429). Not retrying."
+                return [PSCustomObject]@{ IsNetworkError = $true; ErrorCode = 429 }
+            }
             $isNetworkError = $false
             
-            # Check if this is a network error (retryable)
-            if ($_.Exception -is [System.Net.WebException]) {
-                if ($_.Exception.Response) {
-                    $errorCode = [int]$_.Exception.Response.StatusCode
-                    # Retry on 5xx server errors and timeouts
-                    if ($errorCode -ge 500 -or $errorCode -eq 408 -or $errorCode -eq 504) {
-                        $isNetworkError = $true
-                    }
-                }
-                else {
-                    # No response means connection failure (timeout, network issue)
+            if ($errorCode) {
+                if ($errorCode -ge 500 -or $errorCode -eq 408 -or $errorCode -eq 504) {
                     $isNetworkError = $true
                 }
             }
+            elseif ($_.Exception -is [System.Net.WebException] -and -not $_.Exception.Response) {
+                $isNetworkError = $true
+            }
             elseif ($_.Exception -is [System.Net.Http.HttpRequestException]) {
-                # HTTP request exceptions are typically network-related
                 $isNetworkError = $true
             }
             
@@ -379,6 +405,9 @@ function Get-BitcoinApiData {
     }
     Write-Verbose "Current Bitcoin data API call successful."
     $historicalStats = Get-HistoricalData -ApiKey $ApiKey -Currency $Currency -CoinCode $CoinCode
+    if ($null -ne $historicalStats -and $historicalStats.PSObject.Properties.Name -contains 'IsNetworkError' -and $historicalStats.IsNetworkError) {
+        Exit-IfRateLimited -ErrorCode $historicalStats.ErrorCode
+    }
     return [PSCustomObject]@{
         IsNetworkError  = $false
         CurrentResponse = $currentResponse
@@ -521,6 +550,7 @@ try {
     }
 
     if ($fetchResult.IsNetworkError) {
+        Exit-IfRateLimited -ErrorCode $fetchResult.ErrorCode
         $errorMessage = "An error occurred: Response status code does not indicate success: $($fetchResult.ErrorCode)"
         if ($fetchResult.ErrorCode -eq 504) {
             $errorMessage += " (Gateway Time-out)"
@@ -871,5 +901,8 @@ try {
         } else { Write-Verbose "Logging is disabled (no effective log path)." }
     } else { Write-Error "Failed to retrieve complete Bitcoin data from API."; Write-Host "Response:"; Write-Host ($currentResponse | ConvertTo-Json -Depth 5) }
 }
-catch { Write-Error "An error occurred: $($_.Exception.Message)"; if ($_.Exception.Response) { try { $es = $_.Exception.Response.GetResponseStream; $sr = New-Object System.IO.StreamReader($es); $eb = $sr.ReadToEnd(); $sr.Close(); $es.Close(); Write-Error "API Error: $eb" } catch { Write-Warning "Could not read API error." } } }
+catch {
+    Exit-IfRateLimited -ErrorCode (Get-HttpStatusCode $_)
+    Write-Error "An error occurred: $($_.Exception.Message)"; if ($_.Exception.Response) { try { $es = $_.Exception.Response.GetResponseStream; $sr = New-Object System.IO.StreamReader($es); $eb = $sr.ReadToEnd(); $sr.Close(); $es.Close(); Write-Error "API Error: $eb" } catch { Write-Warning "Could not read API error." } }
+}
 # --- End of Script ---
