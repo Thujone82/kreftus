@@ -31,6 +31,7 @@ else {
 $iniFilePath = Join-Path -Path $scriptPath -ChildPath "vbtc.ini"
 $ledgerFilePath = Join-Path -Path $scriptPath -ChildPath "ledger.csv"
 $startingCapital = 1000.00
+$coinGeckoDemoApiKey = "CG-B2yxjDu3Y5WKdoDQUJp4x7Lc"
 $script:LastGoodApiData = $null
 
 # Check for help parameters (before any other processing)
@@ -136,6 +137,27 @@ function Get-PortfolioBalancesFromConfig {
     return @{ USD = $usd; BTC = $btc; Invested = $invested }
 }
 
+function Get-BtcSatoshis {
+    param([double]$Amount)
+    return [long][math]::Round($Amount * 100000000)
+}
+
+function ConvertFrom-BtcSatoshis {
+    param([long]$Satoshis)
+    if ($Satoshis -lt 0) { $Satoshis = 0 }
+    return $Satoshis / 100000000.0
+}
+
+function Normalize-BtcAmount {
+    param([double]$Amount)
+    return ConvertFrom-BtcSatoshis -Satoshis (Get-BtcSatoshis -Amount $Amount)
+}
+
+function Normalize-UsdAmount {
+    param([double]$Amount)
+    return [math]::Round($Amount, 2)
+}
+
 function Test-PortfolioSnapshotMatch {
     param (
         [double]$CurrentUSD,
@@ -164,6 +186,98 @@ function Format-ProfitLoss {
     }
 }
 
+function Get-HistoricalStatsFromHistoryPoints {
+    param([array]$HistoryPoints)
+
+    if ($null -eq $HistoryPoints -or $HistoryPoints.Count -eq 0) { return $null }
+
+    $lowPoint24h = $HistoryPoints | Sort-Object -Property rate | Select-Object -First 1
+    $highPoint24h = $HistoryPoints | Sort-Object -Property rate -Descending | Select-Object -First 1
+
+    $targetTimestamp24hAgoMs = [int64]((([datetime]::UtcNow).AddHours(-24)) - (Get-Date "1970-01-01")).TotalMilliseconds
+    $closestDataPoint = $HistoryPoints | Sort-Object { [Math]::Abs($_.date - $targetTimestamp24hAgoMs) } | Select-Object -First 1
+
+    $volatility24h = 0
+    if ($lowPoint24h.rate -gt 0) {
+        $volatility24h = (($highPoint24h.rate - $lowPoint24h.rate) / $lowPoint24h.rate) * 100
+    }
+
+    $midpointTimestampMs = [int64]((([datetime]::UtcNow).AddHours(-12)) - (Get-Date "1970-01-01")).TotalMilliseconds
+    $recentHistory = $HistoryPoints | Where-Object { $_.date -ge $midpointTimestampMs }
+    $oldHistory = $HistoryPoints | Where-Object { $_.date -lt $midpointTimestampMs }
+
+    $volatility12h = 0
+    if ($recentHistory -and $recentHistory.Count -gt 0) {
+        $recentStats = $recentHistory | Measure-Object -Property rate -Minimum -Maximum
+        if ($recentStats.Minimum -gt 0) { $volatility12h = (($recentStats.Maximum - $recentStats.Minimum) / $recentStats.Minimum) * 100 }
+    }
+    $volatility12h_old = 0
+    if ($oldHistory -and $oldHistory.Count -gt 0) {
+        $oldStats = $oldHistory | Measure-Object -Property rate -Minimum -Maximum
+        if ($oldStats.Minimum -gt 0) { $volatility12h_old = (($oldStats.Maximum - $oldStats.Minimum) / $oldStats.Minimum) * 100 }
+    }
+
+    $sma1h = 0
+    $smaPoints = 12
+    $sortedHistory = $HistoryPoints | Sort-Object -Property date
+    if ($sortedHistory.Count -gt 0) {
+        $smaHistory = $sortedHistory | Select-Object -Last $smaPoints
+        if ($smaHistory.Count -gt 0) {
+            $sma1h = ($smaHistory | Measure-Object -Property rate -Average).Average
+        }
+    }
+
+    $endTimestampMs = [int64](([datetime]::UtcNow) - (Get-Date "1970-01-01")).TotalMilliseconds
+    $totalChange = 0
+    if ($sortedHistory.Count -gt 1) {
+        for ($i = 1; $i -lt $sortedHistory.Count; $i++) {
+            $totalChange += [Math]::Abs($sortedHistory[$i].rate - $sortedHistory[$i - 1].rate)
+        }
+    }
+
+    $cutoffMs = $endTimestampMs - (60 * 60 * 1000)
+    $totalChange1h = 0
+    if ($sortedHistory.Count -gt 1) {
+        for ($i = 1; $i -lt $sortedHistory.Count; $i++) {
+            if ($sortedHistory[$i].date -ge $cutoffMs) {
+                $totalChange1h += [Math]::Abs($sortedHistory[$i].rate - $sortedHistory[$i - 1].rate)
+            }
+        }
+    }
+
+    return [PSCustomObject]@{
+        High              = $highPoint24h.rate
+        Low               = $lowPoint24h.rate
+        Ago               = $closestDataPoint.rate
+        HighTime          = ([datetime]'1970-01-01').AddMilliseconds($highPoint24h.date)
+        LowTime           = ([datetime]'1970-01-01').AddMilliseconds($lowPoint24h.date)
+        Volatility        = $volatility24h
+        Volatility12h     = $volatility12h
+        Volatility12h_old = $volatility12h_old
+        Sma1h             = $sma1h
+        TotalChange       = $totalChange
+        TotalChange1h     = $totalChange1h
+    }
+}
+
+function Get-CoinGeckoHistoricalData {
+    try {
+        Write-Verbose "Fetching 24h history from CoinGecko fallback..."
+        $cgHeaders = @{ "x-cg-demo-api-key" = $coinGeckoDemoApiKey }
+        $response = Invoke-RestMethod -Uri "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=1" -Method Get -Headers $cgHeaders -ErrorAction Stop
+        if (-not $response.prices -or $response.prices.Count -eq 0) { return $null }
+        $points = @()
+        foreach ($p in $response.prices) {
+            $points += [PSCustomObject]@{ date = [int64]$p[0]; rate = [double]$p[1] }
+        }
+        return Get-HistoricalStatsFromHistoryPoints -HistoryPoints $points
+    }
+    catch {
+        Write-Warning "CoinGecko historical fallback failed: $($_.Exception.Message)"
+        return $null
+    }
+}
+
 function Get-HistoricalData {
     param ([hashtable]$Config)
     Write-Verbose "Getting historical API data..."
@@ -174,99 +288,34 @@ function Get-HistoricalData {
     }
     $headers = @{ "Content-Type" = "application/json"; "x-api-key" = $apiKey }
     $endTimestampMs = [int64](([datetime]::UtcNow) - (Get-Date "1970-01-01")).TotalMilliseconds
-    $startTimestampMs = $endTimestampMs - (24 * 60 * 60 * 1000) # Full 24 hours
+    $startTimestampMs = $endTimestampMs - (24 * 60 * 60 * 1000)
 
+    $lcwFailed = $false
     try {
         $historicalBody = @{ currency = "USD"; code = "BTC"; start = $startTimestampMs; end = $endTimestampMs; meta = $false } | ConvertTo-Json
         Write-Verbose "Fetching historical price for 24h ago..."
         $historicalResponse = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single/history" -Method Post -Headers $headers -Body $historicalBody -ErrorAction Stop
         if ($null -ne $historicalResponse.history -and $historicalResponse.history.Count -gt 0) {
-            # Overall 24h stats
-            $lowPoint24h = $historicalResponse.history | Sort-Object -Property rate | Select-Object -First 1
-            $highPoint24h = $historicalResponse.history | Sort-Object -Property rate -Descending | Select-Object -First 1
-
-            $targetTimestamp24hAgoMs = [int64]((([datetime]::UtcNow).AddHours(-24)) - (Get-Date "1970-01-01")).TotalMilliseconds
-            $closestDataPoint = $historicalResponse.history | Sort-Object { [Math]::Abs($_.date - $targetTimestamp24hAgoMs) } | Select-Object -First 1
-
-            $volatility24h = 0
-            if ($lowPoint24h.rate -gt 0) {
-                $volatility24h = (($highPoint24h.rate - $lowPoint24h.rate) / $lowPoint24h.rate) * 100
-            }
-
-            # 12-hour volatility stats
-            $midpointTimestampMs = [int64]((([datetime]::UtcNow).AddHours(-12)) - (Get-Date "1970-01-01")).TotalMilliseconds
-            $recentHistory = $historicalResponse.history | Where-Object { $_.date -ge $midpointTimestampMs }
-            $oldHistory = $historicalResponse.history | Where-Object { $_.date -lt $midpointTimestampMs }
-
-            $volatility12h = 0
-            if ($recentHistory -and $recentHistory.Count -gt 0) {
-                $recentStats = $recentHistory | Measure-Object -Property rate -Minimum -Maximum
-                if ($recentStats.Minimum -gt 0) { $volatility12h = (($recentStats.Maximum - $recentStats.Minimum) / $recentStats.Minimum) * 100 }
-            }
-            $volatility12h_old = 0
-            if ($oldHistory -and $oldHistory.Count -gt 0) {
-                $oldStats = $oldHistory | Measure-Object -Property rate -Minimum -Maximum
-                if ($oldStats.Minimum -gt 0) { $volatility12h_old = (($oldStats.Maximum - $oldStats.Minimum) / $oldStats.Minimum) * 100 }
-            }
-
-            # 1H SMA Calculation
-            $sma1h = 0
-            $smaPoints = 12 # ~1 hour of data (12 * 5 mins)
-            $sortedHistory = $historicalResponse.history | Sort-Object -Property date
-            if ($sortedHistory.Count -gt 0) {
-                $smaHistory = $sortedHistory | Select-Object -Last $smaPoints
-                if ($smaHistory.Count -gt 0) {
-                    $sma1h = ($smaHistory | Measure-Object -Property rate -Average).Average
-                }
-            }
-
-            # TotalChange: sum of absolute deltas between consecutive historical points (for velocity)
-            $totalChange = 0
-            if ($sortedHistory.Count -gt 1) {
-                for ($i = 1; $i -lt $sortedHistory.Count; $i++) {
-                    $totalChange += [Math]::Abs($sortedHistory[$i].rate - $sortedHistory[$i - 1].rate)
-                }
-            }
-            Write-Verbose "TotalChange (sum of absolute deltas over 24h history): $totalChange from $($sortedHistory.Count) points"
-
-            # TotalChange1h: sum of absolute deltas in the last hour only (for velocity multiplier)
-            $cutoffMs = $endTimestampMs - (60 * 60 * 1000)
-            $totalChange1h = 0
-            if ($sortedHistory.Count -gt 1) {
-                for ($i = 1; $i -lt $sortedHistory.Count; $i++) {
-                    if ($sortedHistory[$i].date -ge $cutoffMs) {
-                        $totalChange1h += [Math]::Abs($sortedHistory[$i].rate - $sortedHistory[$i - 1].rate)
-                    }
-                }
-            }
-
-            return [PSCustomObject]@{
-                High              = $highPoint24h.rate
-                Low               = $lowPoint24h.rate
-                Ago      = $closestDataPoint.rate
-                HighTime          = ([datetime]'1970-01-01').AddMilliseconds($highPoint24h.date)
-                LowTime           = ([datetime]'1970-01-01').AddMilliseconds($lowPoint24h.date)
-                Volatility        = $volatility24h
-                Volatility12h     = $volatility12h
-                Volatility12h_old = $volatility12h_old
-                Sma1h             = $sma1h
-                TotalChange       = $totalChange
-                TotalChange1h     = $totalChange1h
-            }
+            return Get-HistoricalStatsFromHistoryPoints -HistoryPoints $historicalResponse.history
         }
-        else {
-            Write-Warning "No historical data returned."
-        }
+        Write-Warning "No historical data returned from LiveCoinWatch."
+        $lcwFailed = $true
     }
     catch {
-        if ($_.Exception -is [System.Net.WebException]) {
-            $errorCode = $null
-            if ($_.Exception.Response) {
-                $errorCode = [int]$_.Exception.Response.StatusCode
+        if ($_.Exception -is [System.Net.WebException] -and $_.Exception.Response) {
+            $errorCode = [int]$_.Exception.Response.StatusCode
+            if ($errorCode -eq 401 -or $errorCode -eq 403) {
+                return [PSCustomObject]@{ IsNetworkError = $true; ErrorCode = $errorCode }
             }
-            return [PSCustomObject]@{ IsNetworkError = $true; ErrorCode = $errorCode }
         }
-        Write-Warning "Failed to fetch historical price: $($_.Exception.Message)"
+        Write-Warning "Failed to fetch historical price from LiveCoinWatch: $($_.Exception.Message)"
+        $lcwFailed = $true
+    }
+
+    if ($lcwFailed) {
+        Write-Verbose "LiveCoinWatch historical unavailable; trying CoinGecko fallback..."
+        $cgStats = Get-CoinGeckoHistoricalData
+        if ($cgStats) { return $cgStats }
     }
     return $null
 }
@@ -312,6 +361,12 @@ function Update-ApiData {
         return $OldApiData
     }
     if ($newData -and $newData.PSObject.Properties['IsNetworkError']) {
+        if ($OldApiData) {
+            $OldApiData | Add-Member -MemberType NoteProperty -Name "IsNetworkError" -Value $true -Force
+            $errorCode = if ($newData.PSObject.Properties['ErrorCode']) { $newData.ErrorCode } else { 0 }
+            $OldApiData | Add-Member -MemberType NoteProperty -Name "ErrorCode" -Value $errorCode -Force
+            return $OldApiData
+        }
         return $newData # Propagate the network error object up
     }
     if (-not $newData) {
@@ -403,68 +458,86 @@ function Update-ApiData {
     return $newData
 }
 
-function Get-ApiData {
+function Get-CoinGeckoApiData {
+    try {
+        Write-Verbose "Fetching current price from CoinGecko fallback..."
+        $uri = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true"
+        $cgHeaders = @{ "x-cg-demo-api-key" = $coinGeckoDemoApiKey }
+        $response = Invoke-RestMethod -Uri $uri -Method Get -Headers $cgHeaders -ErrorAction Stop
+        if (-not $response.bitcoin -or -not $response.bitcoin.usd) { return $null }
+        return [PSCustomObject]@{
+            rate        = [double]$response.bitcoin.usd
+            volume      = [double]$response.bitcoin.usd_24h_vol
+            delta       = [PSCustomObject]@{ day = [double]$response.bitcoin.usd_24h_change }
+            fetchTime   = (Get-Date).ToUniversalTime()
+            PriceSource = "coingecko"
+        }
+    }
+    catch {
+        Write-Warning "CoinGecko fallback failed: $($_.Exception.Message)"
+        return $null
+    }
+}
+
+function Get-LiveCoinWatchApiData {
     param ([hashtable]$Config)
-    Write-Verbose "Getting API data..."
+
     $apiKey = $Config.Settings.ApiKey
     if ([string]::IsNullOrEmpty($apiKey)) {
         Write-Warning "API Key is not configured."
         return $null
     }
-    Write-Verbose "API Key found."
     $headers = @{ "Content-Type" = "application/json"; "x-api-key" = $apiKey }
     $body = @{ currency = "USD"; code = "BTC"; meta = $false } | ConvertTo-Json
     try {
-        Write-Verbose "Fetching main API data..."
+        Write-Verbose "Fetching main API data from LiveCoinWatch..."
         $currentResponse = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single" -Method Post -Headers $headers -Body $body -ErrorAction Stop
-        $currentResponse | Add-Member -MemberType NoteProperty -Name "fetchTime" -Value (Get-Date).ToUniversalTime()
-        Write-Verbose "Main API call successful."
+        $currentResponse | Add-Member -MemberType NoteProperty -Name "fetchTime" -Value (Get-Date).ToUniversalTime() -Force
+        $currentResponse | Add-Member -MemberType NoteProperty -Name "PriceSource" -Value "livecoinwatch" -Force
         return $currentResponse
     }
     catch {
         $errorCode = $null
-        if ($_.Exception -is [System.Net.WebException]) {
-            if ($_.Exception.Response) {
-                $errorCode = [int]$_.Exception.Response.StatusCode
-            }
-            # 403 on launch: exit gracefully with user message (handled in Update-ApiData)
-            if ($errorCode -eq 403) {
-                return [PSCustomObject]@{ IsForbidden = $true; ErrorCode = 403 }
-            }
+        if ($_.Exception -is [System.Net.WebException] -and $_.Exception.Response) {
+            $errorCode = [int]$_.Exception.Response.StatusCode
+        } elseif ($_.Exception.Response) {
+            try { $errorCode = [int]$_.Exception.Response.StatusCode } catch { $errorCode = $null }
+        }
+        if (-not $errorCode -and $_.Exception.PSObject.Properties['StatusCode']) {
+            try { $errorCode = [int]$_.Exception.StatusCode } catch { $errorCode = $null }
+        }
+        if (-not $errorCode -and $_.Exception.Message -match '\((\d{3})\)') {
+            $errorCode = [int]$Matches[1]
+        }
+        if ($errorCode -eq 403) {
+            return [PSCustomObject]@{ IsForbidden = $true; ErrorCode = 403 }
+        }
+        if ($errorCode) {
             return [PSCustomObject]@{ IsNetworkError = $true; ErrorCode = $errorCode }
         }
-        # PowerShell 7 / HttpClient: Response may be HttpResponseMessage (no GetResponseStream)
-        if ($_.Exception.Response) {
-            try {
-                $errorCode = [int]$_.Exception.Response.StatusCode
-            } catch {
-                $errorCode = $null
-            }
-            if ($errorCode -eq 403) {
-                return [PSCustomObject]@{ IsForbidden = $true; ErrorCode = 403 }
-            }
-        }
-        # For other errors (e.g. bad API key), log and optionally read body
-        Write-Error "API call failed: $($_.Exception.Message)"
-        if ($_.Exception.Response) {
-            $response = $_.Exception.Response
-            try {
-                if (Get-Member -InputObject $response -Name 'GetResponseStream' -MemberType Method -ErrorAction SilentlyContinue) {
-                    $errorStream = $response.GetResponseStream()
-                    $reader = New-Object System.IO.StreamReader($errorStream)
-                    $errorText = $reader.ReadToEnd()
-                    $reader.Close()
-                    Write-Error "API Response: $errorText"
-                } elseif (Get-Member -InputObject $response -Name 'Content' -MemberType Property -ErrorAction SilentlyContinue) {
-                    $errorText = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
-                    if ($errorText) { Write-Error "API Response: $errorText" }
-                }
-            } catch {
-                # Ignore errors reading response body
-            }
-        }
+        Write-Warning "LiveCoinWatch API call failed: $($_.Exception.Message)"
         return $null
     }
+}
+
+function Get-ApiData {
+    param ([hashtable]$Config)
+    Write-Verbose "Getting API data..."
+
+    $lcwResult = Get-LiveCoinWatchApiData -Config $Config
+    if ($lcwResult -and $lcwResult.PSObject.Properties['IsForbidden'] -and $lcwResult.IsForbidden) {
+        return $lcwResult
+    }
+    if ($lcwResult -and $lcwResult.PSObject.Properties['rate'] -and $lcwResult.rate -and -not ($lcwResult.PSObject.Properties['IsNetworkError'] -and $lcwResult.IsNetworkError)) {
+        return $lcwResult
+    }
+
+    Write-Verbose "LiveCoinWatch unavailable; trying CoinGecko fallback..."
+    $cgResult = Get-CoinGeckoApiData
+    if ($cgResult) { return $cgResult }
+
+    if ($lcwResult) { return $lcwResult }
+    return $null
 }
 
 function Get-BestApiData {
@@ -472,6 +545,28 @@ function Get-BestApiData {
     if ($Preferred -and $Preferred.PSObject.Properties['rate'] -and $Preferred.rate) { return $Preferred }
     if ($script:LastGoodApiData) { return $script:LastGoodApiData }
     return $Preferred
+}
+
+function Test-ApiDataTradable {
+    param($ApiData)
+    if (-not $ApiData) { return $false }
+    if ($ApiData.PSObject.Properties['IsNetworkError'] -and $ApiData.IsNetworkError) { return $false }
+    if (-not $ApiData.PSObject.Properties['rate']) { return $false }
+    $rate = 0.0
+    $null = [double]::TryParse("$($ApiData.rate)", [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$rate)
+    return ($rate -gt 0)
+}
+
+function Show-TradeUnavailableMessage {
+    param($ApiData)
+    if ($ApiData -and $ApiData.PSObject.Properties['IsNetworkError'] -and $ApiData.IsNetworkError) {
+        $errorCode = 0
+        if ($ApiData.PSObject.Properties['ErrorCode'] -and $ApiData.ErrorCode) {
+            $errorCode = [int]$ApiData.ErrorCode
+        }
+        return (Get-ApiProviderErrorMessage -ErrorCode $errorCode)
+    }
+    return "Price data is not available. Try again in a few minutes."
 }
 
 function Test-ApiKey {
@@ -551,18 +646,27 @@ function Show-LoadingScreen {
     Write-Host "Loading Data..." -ForegroundColor "Yellow"
 }
 
+function Get-ApiProviderErrorMessage {
+    param([int]$ErrorCode = 0)
+    if ($ErrorCode -eq 429) {
+        return "Rate limit exceeded (429). Try again in a few minutes."
+    }
+    $message = "API Provider Problem"
+    if ($ErrorCode) { $message += " ($ErrorCode)" }
+    return "$message - Try again later"
+}
+
 function Show-MainScreen {
     param ($ApiData, [hashtable]$Portfolio, [double]$SessionStartValue, [decimal]$InitialSessionBtcPrice)
     if (-not $VerbosePreference) { Clear-Host }
     
     $isNetworkError = $ApiData -and $ApiData.PSObject.Properties['IsNetworkError'] -and $ApiData.IsNetworkError
     if ($isNetworkError) {
-        $errorMessage = "API Provider Problem"
+        $errorCode = 0
         if ($ApiData.PSObject.Properties['ErrorCode'] -and $ApiData.ErrorCode) {
-            $errorMessage += " ($($ApiData.ErrorCode))"
+            $errorCode = [int]$ApiData.ErrorCode
         }
-        $errorMessage += " - Try again later"
-        Write-Host $errorMessage -ForegroundColor Red
+        Write-Host (Get-ApiProviderErrorMessage -ErrorCode $errorCode) -ForegroundColor Red
     }
     
     # --- 1. Data Calculation ---
@@ -869,12 +973,17 @@ function Show-ConfigScreen {
 function Add-LedgerEntry {
     param ([string]$Type, [double]$UsdAmount, [double]$BtcAmount, [double]$BtcPrice, [double]$UserBtcAfter)
     
+    $usdAmount = Normalize-UsdAmount -Amount $UsdAmount
+    $btcAmount = Normalize-BtcAmount -Amount $BtcAmount
+    $userBtcAfter = Normalize-BtcAmount -Amount $UserBtcAfter
+    $btcPrice = Normalize-UsdAmount -Amount $BtcPrice
+
     try {
         if (-not (Test-Path $ledgerFilePath)) {
             Set-Content -Path $ledgerFilePath -Value '"TX","USD","BTC","BTC(USD)","User BTC","Time"' -ErrorAction Stop
         }
         $timestamp = (Get-Date).ToUniversalTime().ToString("MMddyy@HHmmss")
-        $logEntry = """$Type"",""$UsdAmount"",""$BtcAmount"",""$BtcPrice"",""$UserBtcAfter"",""$timestamp"""
+        $logEntry = """$Type"",""$($usdAmount.ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture))"",""$($btcAmount.ToString("F8", [System.Globalization.CultureInfo]::InvariantCulture))"",""$($btcPrice.ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture))"",""$($userBtcAfter.ToString("F8", [System.Globalization.CultureInfo]::InvariantCulture))"",""$timestamp"""
         Add-Content -Path $ledgerFilePath -Value $logEntry -ErrorAction Stop
     }
     catch {
@@ -1055,6 +1164,64 @@ function Get-AllLedgerData {
 
     # 4. Sort all entries by DateTime chronologically
     return $allEntries | Sort-Object { [datetime]::ParseExact($_.Time, "MMddyy@HHmmss", $null) }
+}
+
+function Get-LastLedgerEntryByType {
+    param([string]$TxType)
+
+    $all = Get-AllLedgerData
+    if (-not $all -or $all.Count -eq 0) { return $null }
+    for ($i = $all.Count - 1; $i -ge 0; $i--) {
+        if ($all[$i].TX -eq $TxType) { return $all[$i] }
+    }
+    return $null
+}
+
+function Test-BtcWithinSatoshiTolerance {
+    param(
+        [double]$A,
+        [double]$B,
+        [int]$MaxSatoshiDiff = 1
+    )
+    $sa = [long][math]::Round($A * 100000000)
+    $sb = [long][math]::Round($B * 100000000)
+    return ([math]::Abs($sa - $sb) -le $MaxSatoshiDiff)
+}
+
+function Get-TradeOfferChange {
+    param(
+        [string]$Type,
+        [double]$UsdAmount,
+        [double]$BtcAmount
+    )
+
+    if ($Type -eq "Sell") {
+        $lastBuy = Get-LastLedgerEntryByType -TxType "Buy"
+        if (-not $lastBuy) { return $null }
+        $lastBtc = 0.0
+        $null = [double]::TryParse($lastBuy.BTC, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$lastBtc)
+        if (-not (Test-BtcWithinSatoshiTolerance -A $BtcAmount -B $lastBtc)) { return $null }
+        $lastUsd = 0.0
+        $null = [double]::TryParse($lastBuy.USD, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$lastUsd)
+        $prevRate = 0.0
+        $null = [double]::TryParse($lastBuy.'BTC(USD)', [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$prevRate)
+        return @{ Delta = $UsdAmount - $lastUsd; IsUsd = $true; PrevRate = $prevRate }
+    }
+
+    if ($Type -eq "Buy") {
+        $lastSell = Get-LastLedgerEntryByType -TxType "Sell"
+        if (-not $lastSell) { return $null }
+        $lastUsd = 0.0
+        $null = [double]::TryParse($lastSell.USD, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$lastUsd)
+        if ([math]::Abs($UsdAmount - $lastUsd) -ge 0.01) { return $null }
+        $lastBtc = 0.0
+        $null = [double]::TryParse($lastSell.BTC, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$lastBtc)
+        $prevRate = 0.0
+        $null = [double]::TryParse($lastSell.'BTC(USD)', [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$prevRate)
+        return @{ Delta = $BtcAmount - $lastBtc; IsUsd = $false; PrevRate = $prevRate }
+    }
+
+    return $null
 }
 
 function Get-LedgerSummary {
@@ -1292,6 +1459,14 @@ function Invoke-LedgerMerge {
 function Invoke-Trade {
     param ([ref]$Config, [string]$Type, [string]$AmountString = $null, [PSCustomObject]$CurrentApiData)
 
+    if (-not (Test-ApiDataTradable -ApiData $CurrentApiData)) {
+        Clear-Host
+        Write-Host "*** $Type Bitcoin ***" -ForegroundColor Yellow
+        Write-Host "`n$(Show-TradeUnavailableMessage -ApiData $CurrentApiData)" -ForegroundColor Red
+        Read-Host "Press Enter to return to the main menu."
+        return (Get-BestApiData -Preferred $CurrentApiData)
+    }
+
     # For the most accurate UI prompt, we should read the latest config from disk here too.
     # This prevents showing the user a stale "Max" amount if another client has made a trade.
     $promptConfig = Get-IniConfiguration -FilePath $iniFilePath
@@ -1396,17 +1571,11 @@ function Invoke-Trade {
     :OuterTradeLoop while ($true) {
         # Update the local tradeApiData object, skipping the historical call for speed.
         $tradeApiData = Update-ApiData -Config $Config.Value -OldApiData $tradeApiData -SkipHistorical
-        if ($tradeApiData -and $tradeApiData.PSObject.Properties['IsNetworkError'] -and $tradeApiData.IsNetworkError) {
-            $errorMessage = "`nAPI Provider Problem"
-            if ($tradeApiData.PSObject.Properties['ErrorCode'] -and $tradeApiData.ErrorCode) {
-                $errorMessage += " ($($tradeApiData.ErrorCode))"
-            }
-            $errorMessage += " - Try again later"
-            Write-Host $errorMessage -ForegroundColor Red
+        if (-not (Test-ApiDataTradable -ApiData $tradeApiData)) {
+            Write-Host (Show-TradeUnavailableMessage -ApiData $tradeApiData) -ForegroundColor Red
             Read-Host "Press Enter to return to the main menu."
             return (Get-BestApiData -Preferred $CurrentApiData)
         }
-        if (-not $tradeApiData) { Read-Host "Error fetching price. Press Enter to continue."; return (Get-BestApiData -Preferred $CurrentApiData) } # return old/best on failure
 
         # Snapshot portfolio from disk when the offer is presented (refreshed on each price retry).
         $offerPortfolioConfig = Get-IniConfiguration -FilePath $iniFilePath
@@ -1471,8 +1640,24 @@ function Invoke-Trade {
                 $confirmPrompt = if ($Type -eq "Buy") { "Purchase $($btcAmount.ToString("F8")) BTC for $($usdAmount.ToString("C2"))? " } else { "Sell $($btcAmount.ToString("F8")) BTC for $($usdAmount.ToString("C2"))? " }
 
                 Write-Host "`n$timeLeftMessage" -ForegroundColor $timeLeftColor
+                $change = Get-TradeOfferChange -Type $Type -UsdAmount $usdAmount -BtcAmount $btcAmount
                 Write-Host -NoNewline "Market Rate: "
-                Write-Host ("{0:C2}" -f $tradeApiData.rate) -ForegroundColor $priceColor
+                Write-Host -NoNewline ("{0:C2}" -f $tradeApiData.rate) -ForegroundColor $priceColor
+                if ($change) {
+                    $rateDelta = $tradeApiData.rate - $change.PrevRate
+                    Write-Host (" [{0:C2}]" -f $rateDelta)
+                } else {
+                    Write-Host ""
+                }
+                if ($change) {
+                    Write-Host -NoNewline "Change: "
+                    $changeColor = if ($change.Delta -gt 0) { "Green" } elseif ($change.Delta -lt 0) { "Red" } else { "White" }
+                    if ($change.IsUsd) {
+                        Write-Host ("{0:C2}" -f $change.Delta) -ForegroundColor $changeColor
+                    } else {
+                        Write-Host ("{0:F8} BTC" -f $change.Delta) -ForegroundColor $changeColor
+                    }
+                }
                 Write-Host -NoNewline $confirmPrompt
                 if ($isExpiredOnScreen) {
                     Write-Host "[" -NoNewline; Write-Host "r" -ForegroundColor Cyan -NoNewline; Write-Host "]"
@@ -1567,6 +1752,12 @@ function Invoke-Trade {
                 continue OuterTradeLoop # The offer is stale, loop to get a new price.
             }
 
+            if (-not (Test-ApiDataTradable -ApiData $tradeApiData)) {
+                Write-Warning "`nTrade cancelled. Price data is no longer available."
+                Read-Host "Press Enter to continue."
+                return (Get-BestApiData -Preferred $tradeApiData)
+            }
+
             # --- RACE CONDITION FIX: Read-before-write ---
             # Reload config from disk to get the absolute latest portfolio state before committing the trade.
             $tradeConfig = Get-IniConfiguration -FilePath $iniFilePath
@@ -1607,18 +1798,20 @@ function Invoke-Trade {
             # --- Perform trade with fresh data ---
             $newUserBtc = 0.0; $newInvested = 0.0
             if ($Type -eq "Buy") {
-                $tradeConfig.Portfolio.PlayerUSD = ($currentPlayerUSD - $usdAmount).ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
-                $newUserBtc = $currentPlayerBTC + $btcAmount
-                $newInvested = $currentPlayerInvested + $usdAmount
+                $tradeConfig.Portfolio.PlayerUSD = (Normalize-UsdAmount -Amount ($currentPlayerUSD - $usdAmount)).ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
+                $newUserBtc = ConvertFrom-BtcSatoshis -Satoshis ((Get-BtcSatoshis -Amount $currentPlayerBTC) + (Get-BtcSatoshis -Amount $btcAmount))
+                $newInvested = Normalize-UsdAmount -Amount ($currentPlayerInvested + $usdAmount)
             } else { # Sell
-                $newUserBtc = $currentPlayerBTC - $btcAmount
-                if ($newUserBtc -le 0.000000005) { $newUserBtc = 0; $newInvested = 0 }
+                $newUserBtc = ConvertFrom-BtcSatoshis -Satoshis ((Get-BtcSatoshis -Amount $currentPlayerBTC) - (Get-BtcSatoshis -Amount $btcAmount))
+                if ($newUserBtc -le 0) { $newUserBtc = 0; $newInvested = 0 }
                 else {
-                    if ($currentPlayerBTC -gt 0) { $newInvested = $currentPlayerInvested * ($newUserBtc / $currentPlayerBTC) }
+                    if ($currentPlayerBTC -gt 0) { $newInvested = Normalize-UsdAmount -Amount ($currentPlayerInvested * ($newUserBtc / $currentPlayerBTC)) }
                     else { $newInvested = 0 }
                 }
-                $tradeConfig.Portfolio.PlayerUSD = ($currentPlayerUSD + $usdAmount).ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
+                $tradeConfig.Portfolio.PlayerUSD = (Normalize-UsdAmount -Amount ($currentPlayerUSD + $usdAmount)).ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
             }
+            $btcAmount = Normalize-BtcAmount -Amount $btcAmount
+            $usdAmount = Normalize-UsdAmount -Amount $usdAmount
             $tradeConfig.Portfolio.PlayerBTC = $newUserBtc.ToString("F8", [System.Globalization.CultureInfo]::InvariantCulture)
             $tradeConfig.Portfolio.PlayerInvested = $newInvested.ToString("F2", [System.Globalization.CultureInfo]::InvariantCulture)
 
@@ -2050,6 +2243,11 @@ while ($true) {
         $command = $matchedCommands[0]
         switch ($command) {
             "buy" {
+                if (-not (Test-ApiDataTradable -ApiData $apiData)) {
+                    Write-Host (Show-TradeUnavailableMessage -ApiData $apiData) -ForegroundColor Red
+                    Read-Host "Press Enter to continue."
+                    continue
+                }
                 $returned = Invoke-Trade -Config ([ref]$config) -Type "Buy" -AmountString $amount -CurrentApiData $apiData
                 $apiData = Get-BestApiData -Preferred $returned
                 # After returning from trade, always reload config to ensure the main screen is perfectly in sync.
@@ -2059,6 +2257,11 @@ while ($true) {
                 if ($isStale) { $apiData = Update-ApiData -Config $config -OldApiData $apiData }
             }
             "sell" {
+                if (-not (Test-ApiDataTradable -ApiData $apiData)) {
+                    Write-Host (Show-TradeUnavailableMessage -ApiData $apiData) -ForegroundColor Red
+                    Read-Host "Press Enter to continue."
+                    continue
+                }
                 $returned = Invoke-Trade -Config ([ref]$config) -Type "Sell" -AmountString $amount -CurrentApiData $apiData
                 $apiData = Get-BestApiData -Preferred $returned
                 # After returning from trade, always reload config to ensure the main screen is perfectly in sync.

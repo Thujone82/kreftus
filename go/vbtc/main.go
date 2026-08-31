@@ -29,10 +29,11 @@ import (
 )
 
 const (
-	startingCapital     = 1000.00
-	iniFilePath         = "vbtc.ini"
-	ledgerFilePath      = "ledger.csv"
-	tradeRetryDebounce  = 2 * time.Second
+	startingCapital       = 1000.00
+	iniFilePath           = "vbtc.ini"
+	ledgerFilePath        = "ledger.csv"
+	tradeRetryDebounce    = 2 * time.Second
+	coinGeckoDemoAPIKey   = "CG-B2yxjDu3Y5WKdoDQUJp4x7Lc"
 )
 
 var (
@@ -227,6 +228,12 @@ func mainLoop(reader *bufio.Reader) {
 			command := matchedCommands[0]
 			switch command {
 			case "buy":
+				if !isApiDataTradable(apiData) {
+					color.Red(tradeUnavailableMessage(apiData))
+					fmt.Println("\nPress Enter to continue.")
+					reader.ReadString('\n')
+					continue
+				}
 				// The invokeTrade function now returns the latest data it fetched.
 				returnedApiData := invokeTrade(reader, "Buy", amount)
 				if returnedApiData != nil {
@@ -246,6 +253,12 @@ func mainLoop(reader *bufio.Reader) {
 					apiData = updateApiData(false)
 				}
 			case "sell":
+				if !isApiDataTradable(apiData) {
+					color.Red(tradeUnavailableMessage(apiData))
+					fmt.Println("\nPress Enter to continue.")
+					reader.ReadString('\n')
+					continue
+				}
 				returnedApiData := invokeTrade(reader, "Sell", amount)
 				if returnedApiData != nil {
 					apiData = returnedApiData
@@ -314,17 +327,37 @@ func showLoadingScreen() {
 	color.Yellow("Loading Data...")
 }
 
+func apiProviderErrorMessage(statusCode int) string {
+	if statusCode == 429 {
+		return "Rate limit exceeded (429). Try again in a few minutes."
+	}
+	msg := "API Provider Problem"
+	if statusCode > 0 {
+		msg = fmt.Sprintf("%s (%d)", msg, statusCode)
+	}
+	return msg + " - Try again later"
+}
+
+func isApiDataTradable(data *ApiDataResponse) bool {
+	if data == nil || data.Rate <= 0 {
+		return false
+	}
+	return data.ApiError != "NetworkError"
+}
+
+func tradeUnavailableMessage(data *ApiDataResponse) string {
+	if data != nil && data.ApiError == "NetworkError" {
+		return apiProviderErrorMessage(data.ApiErrorCode)
+	}
+	return "Price data is not available. Try again in a few minutes."
+}
+
 func showMainScreen() {
 	clearScreen()
 
 	isNetworkError := apiData != nil && apiData.ApiError == "NetworkError"
 	if isNetworkError {
-		errorMessage := "API Provider Problem"
-		if apiData.ApiErrorCode > 0 {
-			errorMessage = fmt.Sprintf("%s (%d)", errorMessage, apiData.ApiErrorCode)
-		}
-		errorMessage += " - Try again later"
-		color.Red(errorMessage)
+		color.Red(apiProviderErrorMessage(apiData.ApiErrorCode))
 	}
 
 	// Market Data
@@ -1466,7 +1499,7 @@ func writeAlignedLineWithBrackets(label, mainPart, bracketContent string, c *col
 
 // --- API and Data Functions ---
 
-func fetchCurrentPriceData(apiKey string) (*ApiDataResponse, error) {
+func fetchLiveCoinWatchCurrentPrice(apiKey string) (*ApiDataResponse, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("API key is empty")
 	}
@@ -1494,13 +1527,11 @@ func fetchCurrentPriceData(apiKey string) (*ApiDataResponse, error) {
 		return nil, &ProviderDownError{StatusCode: resp.StatusCode, Message: "API provider returned server error"}
 	}
 
-	// Check for user-fixable API key errors
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 		return nil, &ApiKeyError{StatusCode: resp.StatusCode}
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		// Treat any other non-OK status as a provider problem, so the code is displayed.
 		return nil, &ProviderDownError{StatusCode: resp.StatusCode, Message: fmt.Sprintf("API provider returned non-OK status %d", resp.StatusCode)}
 	}
 
@@ -1517,7 +1548,79 @@ func fetchCurrentPriceData(apiKey string) (*ApiDataResponse, error) {
 	return &data, nil
 }
 
-func getHistoricalData(apiKey string, start, end int64) (*HistoryResponse, error) {
+func fetchCoinGeckoCurrentPrice() (*ApiDataResponse, error) {
+	req, err := http.NewRequest("GET", "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CoinGecko request: %w", err)
+	}
+	req.Header.Set("x-cg-demo-api-key", coinGeckoDemoAPIKey)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute CoinGecko request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, &ProviderDownError{StatusCode: resp.StatusCode, Message: fmt.Sprintf("CoinGecko returned non-OK status %d", resp.StatusCode)}
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CoinGecko response body: %w", err)
+	}
+
+	var parsed struct {
+		Bitcoin struct {
+			USD          float64 `json:"usd"`
+			USD24hVol    float64 `json:"usd_24h_vol"`
+			USD24hChange float64 `json:"usd_24h_change"`
+		} `json:"bitcoin"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal CoinGecko response: %w", err)
+	}
+	if parsed.Bitcoin.USD <= 0 {
+		return nil, fmt.Errorf("CoinGecko returned invalid BTC price")
+	}
+
+	return &ApiDataResponse{
+		Rate:      parsed.Bitcoin.USD,
+		Volume:    parsed.Bitcoin.USD24hVol,
+		Delta:     struct{ Day float64 `json:"day"` }{Day: parsed.Bitcoin.USD24hChange},
+		FetchTime: time.Now().UTC(),
+	}, nil
+}
+
+func fetchCurrentPriceData(apiKey string) (*ApiDataResponse, error) {
+	data, err := fetchLiveCoinWatchCurrentPrice(apiKey)
+	if err == nil && data != nil && data.Rate > 0 {
+		return data, nil
+	}
+
+	var apiKeyErr *ApiKeyError
+	if errors.As(err, &apiKeyErr) {
+		return nil, err
+	}
+
+	if verbose {
+		fmt.Fprintln(os.Stderr, "LiveCoinWatch unavailable; trying CoinGecko fallback...")
+	}
+	cgData, cgErr := fetchCoinGeckoCurrentPrice()
+	if cgErr == nil && cgData != nil && cgData.Rate > 0 {
+		return cgData, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if cgErr != nil {
+		return nil, cgErr
+	}
+	return nil, fmt.Errorf("no price data available")
+}
+
+func fetchLiveCoinWatchHistoricalData(apiKey string, start, end int64) (*HistoryResponse, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("API key is empty")
 	}
@@ -1566,6 +1669,85 @@ func getHistoricalData(apiKey string, start, end int64) (*HistoryResponse, error
 		return nil, fmt.Errorf("failed to unmarshal response for historical price: %w", err)
 	}
 	return &history, nil
+}
+
+func fetchCoinGeckoHistoricalData() (*HistoryResponse, error) {
+	req, err := http.NewRequest("GET", "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=1", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CoinGecko history request: %w", err)
+	}
+	req.Header.Set("x-cg-demo-api-key", coinGeckoDemoAPIKey)
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute CoinGecko history request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, &ProviderDownError{StatusCode: resp.StatusCode, Message: fmt.Sprintf("CoinGecko history returned non-OK status %d", resp.StatusCode)}
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CoinGecko history response body: %w", err)
+	}
+
+	var parsed struct {
+		Prices [][]float64 `json:"prices"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal CoinGecko history response: %w", err)
+	}
+	if len(parsed.Prices) == 0 {
+		return nil, fmt.Errorf("CoinGecko history returned no price points")
+	}
+
+	history := &HistoryResponse{}
+	for _, p := range parsed.Prices {
+		if len(p) < 2 {
+			continue
+		}
+		history.History = append(history.History, struct {
+			Date int64   `json:"date"`
+			Rate float64 `json:"rate"`
+		}{
+			Date: int64(p[0]),
+			Rate: p[1],
+		})
+	}
+	if len(history.History) == 0 {
+		return nil, fmt.Errorf("CoinGecko history contained no valid price points")
+	}
+	return history, nil
+}
+
+func getHistoricalData(apiKey string, start, end int64) (*HistoryResponse, error) {
+	history, err := fetchLiveCoinWatchHistoricalData(apiKey, start, end)
+	if err == nil && history != nil && len(history.History) > 0 {
+		return history, nil
+	}
+
+	var apiKeyErr *ApiKeyError
+	if errors.As(err, &apiKeyErr) {
+		return nil, err
+	}
+
+	if verbose {
+		fmt.Fprintln(os.Stderr, "LiveCoinWatch historical unavailable; trying CoinGecko fallback...")
+	}
+	cgHistory, cgErr := fetchCoinGeckoHistoricalData()
+	if cgErr == nil && cgHistory != nil && len(cgHistory.History) > 0 {
+		return cgHistory, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if cgErr != nil {
+		return nil, cgErr
+	}
+	return nil, fmt.Errorf("no historical data available")
 }
 
 // isApiDataStale returns true if apiData is nil or older than 15 minutes (so we should refresh before showing main screen).
@@ -1942,6 +2124,106 @@ func readAllLedgerEntries() ([]LedgerEntry, error) {
 	})
 
 	return allEntries, nil
+}
+
+func btcToSatoshis(btc float64) int64 {
+	return int64(math.Round(btc * 1e8))
+}
+
+func satoshisToBtc(sats int64) float64 {
+	if sats < 0 {
+		sats = 0
+	}
+	return float64(sats) / 1e8
+}
+
+func normalizeBtcAmount(btc float64) float64 {
+	return satoshisToBtc(btcToSatoshis(btc))
+}
+
+func normalizeUsdAmount(usd float64) float64 {
+	return math.Round(usd*100) / 100
+}
+
+func findLastLedgerEntry(txType string) (*LedgerEntry, error) {
+	allEntries, err := readAllLedgerEntries()
+	if err != nil {
+		return nil, err
+	}
+	for i := len(allEntries) - 1; i >= 0; i-- {
+		if allEntries[i].TX == txType {
+			return &allEntries[i], nil
+		}
+	}
+	return nil, nil
+}
+
+func btcWithinSatoshiTolerance(a, b float64, maxSatoshiDiff int64) bool {
+	sa := int64(math.Round(a * 1e8))
+	sb := int64(math.Round(b * 1e8))
+	diff := sa - sb
+	if diff < 0 {
+		diff = -diff
+	}
+	return diff <= maxSatoshiDiff
+}
+
+func computeTradeOfferChange(txType string, usdAmount, btcAmount float64) (show bool, delta float64, isUSD bool, prevRate float64) {
+	if txType == "Sell" {
+		lastBuy, err := findLastLedgerEntry("Buy")
+		if err != nil || lastBuy == nil {
+			return false, 0, false, 0
+		}
+		if !btcWithinSatoshiTolerance(btcAmount, lastBuy.BTC, 1) {
+			return false, 0, false, 0
+		}
+		return true, usdAmount - lastBuy.USD, true, lastBuy.BTCPrice
+	}
+	if txType == "Buy" {
+		lastSell, err := findLastLedgerEntry("Sell")
+		if err != nil || lastSell == nil {
+			return false, 0, false, 0
+		}
+		if math.Abs(usdAmount-lastSell.USD) >= 0.01 {
+			return false, 0, false, 0
+		}
+		return true, btcAmount - lastSell.BTC, false, lastSell.BTCPrice
+	}
+	return false, 0, false, 0
+}
+
+func formatSignedUSDDelta(delta float64) string {
+	if delta < 0 {
+		return fmt.Sprintf("-$%s", formatFloat(-delta, 2))
+	}
+	return fmt.Sprintf("$%s", formatFloat(delta, 2))
+}
+
+func printMarketRateLine(rate float64, priceColor *color.Color, showChange bool, prevRate float64) {
+	color.New(color.FgWhite).Print("Market Rate: ")
+	priceColor.Printf("$%s", formatFloat(rate, 2))
+	if showChange {
+		rateDelta := rate - prevRate
+		color.New(color.FgWhite).Printf(" [%s]", formatSignedUSDDelta(rateDelta))
+	}
+	fmt.Println()
+}
+
+func printTradeOfferChangeLine(delta float64, isUSD bool) {
+	color.New(color.FgWhite).Print("Change: ")
+	var valueColor *color.Color
+	if delta > 0 {
+		valueColor = color.New(color.FgGreen)
+	} else if delta < 0 {
+		valueColor = color.New(color.FgRed)
+	} else {
+		valueColor = color.New(color.FgWhite)
+	}
+	if isUSD {
+		valueColor.Printf("$%s\n", formatFloat(delta, 2))
+	} else {
+		valueColor.Printf("%.8f BTC\n", delta)
+	}
 }
 
 // sortArchiveFilesByDateAndTime sorts archive paths by date then time (legacy: MMddyy; new: MMddyy@HHmmss).
@@ -2420,6 +2702,11 @@ func invokeLedgerMerge(reader *bufio.Reader) {
 }
 
 func addLedgerEntry(txType string, usdAmount, btcAmount, btcPrice, userBtcAfter float64) error {
+	usdAmount = normalizeUsdAmount(usdAmount)
+	btcAmount = normalizeBtcAmount(btcAmount)
+	btcPrice = normalizeUsdAmount(btcPrice)
+	userBtcAfter = normalizeBtcAmount(userBtcAfter)
+
 	file, err := os.OpenFile(ledgerFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		// Return the error to be handled by the caller, which is aware of the terminal state (raw/cooked)
@@ -2471,6 +2758,15 @@ func waitForEnter(inputChan chan byte, fd int, oldState *term.State) {
 }
 
 func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResponse {
+	if !isApiDataTradable(apiData) {
+		clearScreen()
+		color.Yellow("*** %s Bitcoin ***", txType)
+		color.Red("\n%s", tradeUnavailableMessage(apiData))
+		fmt.Println("\nPress Enter to return to the main menu.")
+		reader.ReadString('\n')
+		return apiData
+	}
+
 	// For the most accurate UI prompt, we should read the latest config from disk here too.
 	// This prevents showing the user a stale "Max" amount if another client has made a trade.
 	promptCfg, err := ini.Load(iniFilePath)
@@ -2606,21 +2902,11 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 
 	for {
 		apiData = updateApiData(true)
-		if apiData != nil && apiData.ApiError == "NetworkError" {
-			errorMessage := "\nAPI Provider Problem"
-			if apiData.ApiErrorCode > 0 {
-				errorMessage = fmt.Sprintf("%s (%d)", errorMessage, apiData.ApiErrorCode)
-			}
-			errorMessage += " - Try again later"
-			color.Red("\n%s", errorMessage)
+		if !isApiDataTradable(apiData) {
+			color.Red("\n%s", tradeUnavailableMessage(apiData))
 			fmt.Println("\nPress Enter to return to the main menu.")
 			waitForEnter(inputChan, fd, oldState)
 			return apiData // Return to main menu
-		}
-		if apiData == nil || apiData.Rate == 0 {
-			color.Red("\nError fetching price. Press Enter to continue.")
-			waitForEnter(inputChan, fd, oldState)
-			return apiData
 		}
 
 		// Snapshot portfolio from disk when the offer is presented (refreshed on each price retry).
@@ -2793,6 +3079,14 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 						break EventLoop // The offer is stale, break inner loop to get a new price.
 					}
 
+					if !isApiDataTradable(apiData) {
+						color.Red("\nTrade cancelled. Price data is no longer available.")
+						fmt.Println("\nPress Enter to continue.")
+						ticker.Stop()
+						waitForEnter(inputChan, fd, oldState)
+						return apiData
+					}
+
 					// Reload config from disk to get the absolute latest portfolio state before committing the trade.
 					tradeCfg, err := ini.Load(iniFilePath)
 					if err != nil {
@@ -2843,19 +3137,21 @@ func invokeTrade(reader *bufio.Reader, txType, amountString string) *ApiDataResp
 
 					var newUserBtc, newInvested float64
 					if txType == "Buy" {
-						tradeCfg.Section("Portfolio").Key("PlayerUSD").SetValue(fmt.Sprintf("%.2f", currentPlayerUSD-usdAmount))
-						newUserBtc = currentPlayerBTC + btcAmount
-						newInvested = currentPlayerInvested + usdAmount
+						tradeCfg.Section("Portfolio").Key("PlayerUSD").SetValue(fmt.Sprintf("%.2f", normalizeUsdAmount(currentPlayerUSD-usdAmount)))
+						newUserBtc = satoshisToBtc(btcToSatoshis(currentPlayerBTC) + btcToSatoshis(btcAmount))
+						newInvested = normalizeUsdAmount(currentPlayerInvested + usdAmount)
 					} else { // Sell
-						newUserBtc = currentPlayerBTC - btcAmount
-						if newUserBtc < 1e-9 { // Tolerance for float comparison
+						newUserBtc = satoshisToBtc(btcToSatoshis(currentPlayerBTC) - btcToSatoshis(btcAmount))
+						if newUserBtc <= 0 {
 							newUserBtc = 0
 							newInvested = 0
 						} else if currentPlayerBTC > 0 {
-							newInvested = currentPlayerInvested * (newUserBtc / currentPlayerBTC)
+							newInvested = normalizeUsdAmount(currentPlayerInvested * (newUserBtc / currentPlayerBTC))
 						}
-						tradeCfg.Section("Portfolio").Key("PlayerUSD").SetValue(fmt.Sprintf("%.2f", currentPlayerUSD+usdAmount))
+						tradeCfg.Section("Portfolio").Key("PlayerUSD").SetValue(fmt.Sprintf("%.2f", normalizeUsdAmount(currentPlayerUSD+usdAmount)))
 					}
+					usdAmount = normalizeUsdAmount(usdAmount)
+					btcAmount = normalizeBtcAmount(btcAmount)
 					tradeCfg.Section("Portfolio").Key("PlayerBTC").SetValue(fmt.Sprintf("%.8f", newUserBtc))
 					tradeCfg.Section("Portfolio").Key("PlayerInvested").SetValue(fmt.Sprintf("%.2f", newInvested))
 					err = tradeCfg.SaveTo(iniFilePath)
@@ -2953,7 +3249,11 @@ func redrawTradeScreen(txType string, offerExpired bool, apiData *ApiDataRespons
 
 	fmt.Println()
 	timeLeftColor.Println(timeLeftMessage)
-	priceColor.Printf("Market Rate: $%s\n", formatFloat(apiData.Rate, 2))
+	showChange, changeDelta, changeIsUSD, prevRate := computeTradeOfferChange(txType, usdAmount, btcAmount)
+	printMarketRateLine(apiData.Rate, priceColor, showChange, prevRate)
+	if showChange {
+		printTradeOfferChangeLine(changeDelta, changeIsUSD)
+	}
 
 	var confirmPrompt string
 	if txType == "Buy" {

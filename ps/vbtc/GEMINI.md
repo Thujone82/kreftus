@@ -16,7 +16,7 @@ The application provides a comprehensive main screen displaying live market stat
 
 ### Key Functionality
 
-- **Real-time Data Simulation:** Fetches live Bitcoin market data, including a 1-Hour Simple Moving Average (SMA), 24-hour volatility metrics, and a velocity telemetry (displayed in brackets after Volatility). Historical data is cached for 15 minutes to optimize API usage.
+- **Real-time Data Simulation:** Fetches live Bitcoin market data, including a 1-Hour Simple Moving Average (SMA), 24-hour volatility metrics, and a velocity telemetry (displayed in brackets after Volatility). Historical data is cached for 15 minutes to optimize API usage. **CoinGecko fallback:** when LiveCoinWatch current-price or history requests fail (5xx, 429, timeout, empty response), vBTC automatically retries via the CoinGecko Demo API (`/simple/price` and `/coins/bitcoin/market_chart`) using the bundled demo key (`x-cg-demo-api-key` header, constant `$coinGeckoDemoApiKey` / `coinGeckoDemoAPIKey`); not used on LCW 401/403 (auth errors)
 - **Portfolio Management:** Initializes users with a starting capital of $1000 and tracks their cash (USD), Bitcoin (BTC) holdings, and total portfolio value.
 - **Transaction Ledger:** All buy and sell activities are recorded in `ledger.csv`, providing a complete history of trades with comprehensive statistics including portfolio summary, average prices, and transaction counts across all historical data.
 - **Configuration & Maintenance:** A `config` menu allows users to update their API key, reset their portfolio, archive the main ledger, and merge multiple archives into a master file.
@@ -97,6 +97,8 @@ The application provides comprehensive trading statistics across all historical 
 - **Yellow**: Section headers
 - **Updated**: Cyan timestamp on the main screen showing when market data was last fetched
 - **Market Rate (trade confirmation)**: Green if current price is above 1H SMA, red if below, white if SMA is unavailable
+- **Ledger amounts**: USD values are stored to cent precision (`0.01`); BTC values are stored to satoshi precision (`0.00000001`) using integer satoshi rounding so sub-satoshi float dust is never written
+- **Change (trade confirmation)**: Optional line after Market Rate when the offer mirrors the last opposite ledger entry—**Sell** when offer BTC matches last Buy (delta in USD); **Buy** when offer USD matches last Sell (delta in BTC). Green/red/white on the value; label stays white. **Market Rate** appends an uncolored bracketed USD delta vs the prior opposite entry's `BTC(USD)` when the same conditions apply. Ledger lookup uses `Get-AllLedgerData` (current + archives); match tolerances: 1 satoshi (`0.00000001`) BTC (integer satoshi comparison), `0.01` USD
 
 ### Velocity telemetry (technical)
 
@@ -118,7 +120,8 @@ The main screen shows **Volatility** with an optional bracketed integer (e.g. `V
   - **White:** when multiplier data is missing (no `1HourDeltaTotal` or `hourlyAvg`)
 
 #### Data flow
-- **Get-HistoricalData**: Fetches 24h history from LiveCoinWatch `coins/single/history`. After sorting history by date, computes `TotalChange` and `TotalChange1h` (sum of deltas in last hour). Returns both along with High, Low, Volatility, etc.
+- **Get-HistoricalData**: Fetches 24h history from LiveCoinWatch `coins/single/history`. On failure, falls back to CoinGecko `GET /api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=1` and maps `prices[]` to `{date, rate}` points. After sorting history by date, computes `TotalChange` and `TotalChange1h` (sum of deltas in last hour). Returns both along with High, Low, Volatility, etc.
+- **Get-ApiData / Get-LiveCoinWatchApiData / Get-CoinGeckoApiData**: Primary path is LiveCoinWatch `POST /coins/single`. On provider failure, `Get-CoinGeckoApiData` calls CoinGecko `GET /api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true` and maps to `{rate, volume, delta.day}`.
 - **Update-ApiData**: When historical stats are applied, adds `rate24hTotalChange` and `rate24hTotalChange1h` to the apiData object. `Copy-HistoricalData` copies both when reusing or skipping historical fetch. Fallback (no history): both set to 0.
 - **Show-MainScreen**: When displaying the Volatility line, if `rate24hTotalChange` is present and `(rate24hHigh - rate24hLow) > 0`, velocity is computed (raw * multiplier) and appended as `[N]`. Otherwise only `X.XX%` is shown.
 

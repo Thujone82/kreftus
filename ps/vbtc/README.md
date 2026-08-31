@@ -15,7 +15,7 @@ The main screen displays:
 
 ## Features
 
-- **Real-time Market Data:** Live Bitcoin prices from LiveCoinWatch, including 24h high, low, volatility (with velocity metric in brackets), and a 1-Hour Simple Moving Average (SMA), with a 15-minute cache for historical data to optimize API calls
+- **Real-time Market Data:** Live Bitcoin prices from LiveCoinWatch, including 24h high, low, volatility (with velocity metric in brackets), and a 1-Hour Simple Moving Average (SMA), with a 15-minute cache for historical data to optimize API calls. If LiveCoinWatch is unavailable (errors, rate limits, or downtime), vBTC automatically falls back to the [CoinGecko](https://www.coingecko.com/) Demo API (bundled key, 100 calls/min) for the same data — no extra configuration required
 - **Portfolio:** Tracks your cash (USD) and Bitcoin holdings
 - **Transaction Ledger:** Records all buy and sell transactions in `ledger.csv`, with comprehensive statistics including portfolio summary, average prices, and transaction counts across all historical data
 - **Configuration Options:** Update your API key, reset your portfolio, archive the main ledger, and merge old archives into a single master file
@@ -33,12 +33,13 @@ The application uses colors to provide quick visual feedback:
 - **Yellow / Cyan / Blue / DarkYellow:** UI elements like titles and command prompts
 - **Updated:** Cyan timestamp showing when market data was last fetched
 - **Market Rate (trade confirmation):** Green if current price is above 1H SMA, red if below, white if SMA is unavailable
+- **Change (trade confirmation):** When selling the same BTC amount as your last purchase, shows USD gain/loss vs that buy (green positive, red negative). When buying with the same USD as your last sale, shows BTC gain/loss vs that sale (green positive, red negative). In both cases, **Market Rate** also shows the rate change vs that prior transaction in brackets (e.g. `[-$441.49]`, uncolored)
 
 ## Requirements
 
 - PowerShell
 - An internet connection
-- A free API key from [LiveCoinWatch](https://www.livecoinwatch.com/tools/api)
+- A free API key from [LiveCoinWatch](https://www.livecoinwatch.com/tools/api) (CoinGecko Demo API is used automatically as fallback when LiveCoinWatch is down; key is bundled in vBTC)
 
 ## How to Run
 
@@ -91,7 +92,9 @@ If the application exits with **403 Encountered: Ensure API Key Configured and E
 - **Percentage Trading:** `50p` for 50%; math expressions supported (e.g. `100/3p` for 33.3%)
 - **Satoshi Trading:** When selling, use the `s` suffix (e.g. `100000s`)
 - **1H SMA:** Average price over the last hour. Green if current price is above average, red if below. The buy/sell confirmation **Market Rate** uses the same comparison for its color
+- **Change line:** On the trade offer, if you sell the same BTC you last bought, a **Change** line shows how much more or less USD you receive vs that purchase. If you buy back with the same USD you last sold for, it shows how much more or less BTC you receive vs that sale
 - **Velocity:** Shown in brackets after Volatility (e.g. `Volatility: 3.99% [15]`). **Velocity color:** Magenta when velocity ≥ 50; Green when last-hour activity is above the 24h average; Red otherwise; White when multiplier data is missing
+- **Price fallback:** LiveCoinWatch is the primary data source. If it errors or is down, vBTC transparently uses CoinGecko for current price and 24h history so trading and the dashboard keep working
 
 ## Ledger Summary Features
 
