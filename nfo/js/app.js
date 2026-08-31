@@ -20,7 +20,7 @@ const app = {
     config: { // Initialize config as an object
         activeProvider: 'google',
         googleApiKey: null, // For Gemini
-        googleModel: 'gemini-2.5-flash', // Google model (default to gemini-2.5-flash)
+        googleModel: 'gemini-3.5-flash', // Google model (default to gemini-3.5-flash)
         googleRpmLimit: 10,  // Default RPM limit for Gemini
         openRouterApiKey: null, // For OpenRouter
         openRouterModel: '', // OpenRouter model (empty until user selects)
@@ -165,7 +165,7 @@ const app = {
         app.config = { // Ensure all expected keys are present
             activeProvider: storedSettings.activeProvider || 'google',
             googleApiKey: storedSettings.googleApiKey || null,
-            googleModel: storedSettings.googleModel || 'gemini-2.5-flash',
+            googleModel: storedSettings.googleModel || 'gemini-3.5-flash',
             googleRpmLimit: storedSettings.googleRpmLimit || 10,
             openRouterApiKey: storedSettings.openRouterApiKey || null,
             openRouterModel: storedSettings.openRouterModel || '',
@@ -191,7 +191,7 @@ const app = {
             return {
                 apiKey: app.config.googleApiKey,
                 rpmLimit: app.config.googleRpmLimit,
-                model: app.config.googleModel || 'gemini-2.5-flash'
+                model: app.config.googleModel || 'gemini-3.5-flash'
             };
         }
     },
@@ -333,7 +333,7 @@ const app = {
     handleSaveAppSettings: () => {
         const activeProvider = ui.activeProviderSelect ? ui.activeProviderSelect.value : 'google';
         const newGeminiApiKey = ui.apiKeyInput ? ui.apiKeyInput.value.trim() : '';
-        const newGoogleModel = ui.googleModelSelect ? ui.googleModelSelect.value : 'gemini-2.5-flash';
+        const newGoogleModel = ui.googleModelSelect ? ui.googleModelSelect.value : 'gemini-3.5-flash';
         const newGoogleRpmLimit = ui.rpmLimitInput ? parseInt(ui.rpmLimitInput.value, 10) || 10 : 10;
         const newOpenRouterApiKey = ui.openRouterApiKeyInput ? ui.openRouterApiKeyInput.value.trim() : '';
         const newOpenRouterModel = ui.openRouterModelSelect ? ui.openRouterModelSelect.value : '';

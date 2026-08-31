@@ -11,8 +11,8 @@ const api = {
         }
     },
 
-    fetchAiDataGoogle: async (apiKey, locationName, topicQuery, model = "gemini-2.5-flash") => {
-        const modelName = model || "gemini-2.5-flash"; 
+    fetchAiDataGoogle: async (apiKey, locationName, topicQuery, model = "gemini-3.5-flash") => {
+        const modelName = model || "gemini-3.5-flash"; 
         const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
         
         const promptText = `${locationName}: ${topicQuery}`;
@@ -242,7 +242,7 @@ const api = {
         if (!apiKey) return false;
         // Use a lightweight call, like listing models, to validate the key.
         // Using a specific model known to exist to ensure the endpoint is valid for a key check.
-        const modelName = "gemini-2.5-flash";
+        const modelName = "gemini-3.5-flash";
         const VALIDATE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}?key=${apiKey}`;
         try {
             const response = await fetch(VALIDATE_URL);

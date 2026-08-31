@@ -189,7 +189,7 @@ const ui = {
         
         // Load Google provider settings
         if(ui.apiKeyInput) ui.apiKeyInput.value = settings.googleApiKey || '';
-        if(ui.googleModelSelect) ui.googleModelSelect.value = settings.googleModel || 'gemini-2.5-flash';
+        if(ui.googleModelSelect) ui.googleModelSelect.value = settings.googleModel || 'gemini-3.5-flash';
         if(ui.rpmLimitInput) ui.rpmLimitInput.value = settings.googleRpmLimit || 10;
         
         // Load OpenRouter provider settings
