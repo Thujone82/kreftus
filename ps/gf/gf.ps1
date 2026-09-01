@@ -42,6 +42,7 @@
     - Wildfire containment (full Wild Fire Info): Yellow when Contained is 0%; Green when 100%; otherwise default (omit when null)
     - Wildfire behavior (full Wild Fire Info): Magenta when Extreme; Red when Critical; Yellow when Active (case-insensitive); otherwise default
     - Wildfire Losses (full Wild Fire Info): IRWIN impact counts when any > 0 (residences · other structures · injuries · fatalities); Red when fatalities present, Yellow when injuries present (no fatalities), otherwise default; omitted when all null/0
+    - Wildfire small-fire filter (-nosmallfire / -nsf): hide incidents at or below 1 acre from terse Fire: line, Wild Fire Info section, and (N) counts; unknown/null acres are kept
     
 .PARAMETER Location
     The location for which to retrieve weather. Can be a 5-digit US zip code or a "City, State" string, or 'here'.
@@ -93,6 +94,7 @@ function Resolve-GfCommandLine {
         UseWbgt        = $false
         Magic          = $false
         WildfireMiles  = $null
+        NoSmallFire    = $false
         Verbose        = $false
         IgnoredSwitches = [System.Collections.Generic.List[string]]::new()
     }
@@ -127,6 +129,8 @@ function Resolve-GfCommandLine {
         'usewbgt'       = { $parsed.UseWbgt = $true }
         'm'             = { $parsed.Magic = $true }
         'magic'         = { $parsed.Magic = $true }
+        'nosmallfire'   = { $parsed.NoSmallFire = $true }
+        'nsf'           = { $parsed.NoSmallFire = $true }
         'verbose'       = { $parsed.Verbose = $true }
         'vb'            = { $parsed.Verbose = $true }
     }
@@ -218,8 +222,9 @@ if ($null -ne $gfCli.WildfireMiles) {
     $script:WILDFIRE_RADIUS_MILES = 50
 }
 $script:wildFireEnabled = ($script:WILDFIRE_RADIUS_MILES -gt 0)
+$script:wildFireFilterSmall = [bool]$gfCli.NoSmallFire
 $script:wildFireIncidents = @()
-Write-Verbose "Wildfire config: enabled=$($script:wildFireEnabled) radius=$($script:WILDFIRE_RADIUS_MILES) mi"
+Write-Verbose "Wildfire config: enabled=$($script:wildFireEnabled) radius=$($script:WILDFIRE_RADIUS_MILES) mi filterSmall=$($script:wildFireFilterSmall)"
 
 # --- Helper Functions ---
 
@@ -302,6 +307,7 @@ if ($Help -or (($Terse.IsPresent -or $TerseAlert.IsPresent -or $Alerts.IsPresent
     Write-Host "                • Request a key: https://docs.airnowapi.org/account/request/" -ForegroundColor Gray
     Write-Host "                • Optional AQI in weather requires AirNowAPI; see README.md" -ForegroundColor Gray
     Write-Host "  -wf, -Wildfire N  Wildfire search radius in miles (default 50). Use 0 to disable wildfire API/UI" -ForegroundColor Cyan
+    Write-Host "  -nosmallfire, -nsf  Hide wildfires at or below 1 acre from display and fire counts" -ForegroundColor Cyan
     Write-Host "                • Acres color: Default (<100), Yellow (100-999), Red (1,000-99,999), Magenta (≥100,000)" -ForegroundColor Gray
     Write-Host "                • Full section after Size: Discovered (MM/dd HH:mm, default color); Cost (final (to-date) when both — `$346k/`$2M/`$1B/`$3T; Yellow ≥`$1M, Red ≥`$1B, Magenta ≥`$1T); omit when null" -ForegroundColor Gray
     Write-Host "                • Full section: fire name Yellow; Contained 0% Yellow / 100% Green; Behavior Magenta if Extreme, Red if Critical, Yellow if Active" -ForegroundColor Gray
@@ -364,6 +370,7 @@ if ($Help -or (($Terse.IsPresent -or $TerseAlert.IsPresent -or $Alerts.IsPresent
     Write-Host "  .\gf.ps1 97219 -w For Wind Outlook" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 97219 -o For Observations" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 97219 -m For Magic Hours" -ForegroundColor Cyan
+    Write-Host "  .\gf.ps1 `"Reno, NV`" -nsf" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 -Help" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 -aqi                    # Configure AirNow API key (persisted User env)" -ForegroundColor Cyan
     return
@@ -4813,7 +4820,7 @@ function Show-CurrentConditions {
         }
     }
 
-    if ($IsTerseMode -and $script:wildFireEnabled -and $script:wildFireIncidents -and @($script:wildFireIncidents).Count -gt 0) {
+    if ($IsTerseMode -and $script:wildFireEnabled -and @(Get-DisplayWildFireIncidents -Incidents $script:wildFireIncidents).Count -gt 0) {
         Show-WildFireTerseLine -Incidents $script:wildFireIncidents -DefaultColor $DefaultColor -AlertColor $AlertColor
     }
 
@@ -6131,6 +6138,8 @@ $script:WILDFIRE_RADIUS_MILES = if ($null -ne $script:WILDFIRE_RADIUS_MILES) { [
 $script:wildFireEnabled = ($script:WILDFIRE_RADIUS_MILES -gt 0)
 # Drop fully contained fires whose last agency update is at least this old (7 days).
 $script:WILDFIRE_FULLY_CONTAINED_STALE_SECONDS = 7 * 24 * 60 * 60
+# Fires at or below this size (acres) are hidden when -nosmallfire / -nsf is set.
+$script:WILDFIRE_SMALL_ACRE_THRESHOLD = 1
 $script:inciwebUrlOkCache = @{}
 # Negative InciWeb slug probes (no page yet) expire so a later publish can be linked.
 $script:INCIWEB_NEGATIVE_CACHE_SECONDS = 3600
@@ -7037,6 +7046,27 @@ function Filter-StaleFullyContainedWildFires {
     return @($kept.ToArray())
 }
 
+function Test-SmallWildFire {
+    param([object]$Fire)
+    if ($null -eq $Fire -or $null -eq $Fire.Acres) { return $false }
+    try {
+        return [double]$Fire.Acres -le [double]$script:WILDFIRE_SMALL_ACRE_THRESHOLD
+    } catch {
+        return $false
+    }
+}
+
+function Get-DisplayWildFireIncidents {
+    param([object[]]$Incidents = @())
+    $list = @($Incidents)
+    if (-not $script:wildFireFilterSmall) { return $list }
+    $filtered = @($list | Where-Object { -not (Test-SmallWildFire -Fire $_) })
+    if ($filtered.Count -lt $list.Count) {
+        Write-Verbose "Wildfire: filtered $($list.Count - $filtered.Count) small fire(s) (≤$($script:WILDFIRE_SMALL_ACRE_THRESHOLD) ac) via -nosmallfire"
+    }
+    return $filtered
+}
+
 function Finalize-WildFireIncidentList {
     param([object[]]$Incidents = @())
     return @(Sort-WildFireIncidentList -Incidents (Filter-StaleFullyContainedWildFires -Incidents $Incidents))
@@ -7319,7 +7349,7 @@ function Show-WildFireInfo {
         [string]$AlertColor = "Red",
         [string]$InfoColor = "Blue"
     )
-    $list = @($Incidents)
+    $list = @(Get-DisplayWildFireIncidents -Incidents $Incidents)
     if ($list.Count -eq 0) { return }
 
     Write-Host ""
@@ -7440,7 +7470,7 @@ function Show-WildFireTerseLine {
         [string]$DefaultColor = "White",
         [string]$AlertColor = "Red"
     )
-    $list = @($Incidents)
+    $list = @(Get-DisplayWildFireIncidents -Incidents $Incidents)
     if ($list.Count -eq 0) { return }
     $f = $list[0]
     $acresStr = Format-WildFireAcres -Acres $f.Acres
@@ -8283,7 +8313,7 @@ function Show-FullWeatherReport {
         Show-WeatherAlerts -AlertsData $AlertsData -AlertColor $AlertColor -DefaultColor $DefaultColor -InfoColor $InfoColor -ShowDetails $ShowAlertDetails -TimeZone $TimeZone
     }
 
-    if (-not $IsTerseMode -and $script:wildFireEnabled -and $script:wildFireIncidents -and @($script:wildFireIncidents).Count -gt 0) {
+    if (-not $IsTerseMode -and $script:wildFireEnabled -and @(Get-DisplayWildFireIncidents -Incidents $script:wildFireIncidents).Count -gt 0) {
         Show-WildFireInfo -Incidents $script:wildFireIncidents -TitleColor $TitleColor -DefaultColor $DefaultColor -AlertColor $AlertColor -InfoColor $InfoColor
     }
 
