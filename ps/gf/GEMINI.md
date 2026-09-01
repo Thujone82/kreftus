@@ -155,7 +155,7 @@ WFIGS publication can stall for days while incidents keep growing — on 2026-08
 - **Name:** Strip leading local fire numbers (`0433 BREWER` → `BREWER`) for InciWeb slug matching (`Get-NormalizedWildFireIncidentName`).
 - **Fields shown:** Size (`IncidentSize` / IRWIN `DailyAcres`), Discovered (`FireDiscoveryDateTime` → `MM/dd HH:mm` local), Cost (`EstimatedFinalCost` / `EstimatedCostToDate` compact `$346k`/`$2M`/`$1B`/`$3T`; when both set and formats differ: `$final ($toDate)`; omit when both null or `$0`), Cause (prefer `FireCauseGeneral` unless `FireCause` is `Undetermined`), Contained (`PercentContained`), Behavior (`FireBehaviorGeneral*`), **Losses** (IRWIN-only when any count > 0: residences · other structures · injuries · fatalities), distance/cardinal, InciWeb + state map.
 - **Display wrap:** Full-section stats use wrap-aware separators (`Write-WildFireStatsSegments`) so a segment never splits mid-token across the console width.
-- **CLI:** `$script:WILDFIRE_RADIUS_MILES` from `-wf`/`-wildfire N` (default 50); `$script:wildFireEnabled` is false when radius is 0. **`$script:wildFireFilterSmall`** from `-nosmallfire`/`-nsf` (default false): display filter via `Get-DisplayWildFireIncidents` hides ≤1 ac before terse/full wildfire output (raw fetch list unchanged).
+- **CLI:** `$script:WILDFIRE_RADIUS_MILES` from `-wf`/`-wildfire N` (default 50); `$script:wildFireEnabled` is false when radius is 0. **`$script:wildFireFilterSmall`** from `-nosmallfire`/`-nsf` (default false): `Filter-SmallWildFires` in `Finalize-WildFireIncidentList` removes ≤1 ac and no-acres incidents **before** `Set-WildFireInciWebLinks`; display uses the same filter via `Get-DisplayWildFireIncidents`.
 
 #### Launch path (`Invoke-NifcWildFireLaunchFetch`)
 
@@ -666,7 +666,7 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 - **Cultural Relevance:** Moon phases have cultural and practical significance worldwide
 
 ### Recent Enhancements (v2.5)
-- **Small-fire filter (`-nosmallfire` / `-nsf`):** Hide wildfires at or below 1 acre from terse `Fire:` line, Wild Fire Info section, and `(N)` counts; unknown/null acres kept. Display-only (`Get-DisplayWildFireIncidents`); matches Forecast web **Filter Small Fires**.
+- **Small-fire filter (`-nosmallfire` / `-nsf`):** Hide wildfires ≤1 acre and fires with no reported acres (Size —) from terse/full output and `(N)` counts; filter runs in `Finalize-WildFireIncidentList` before InciWeb probes. Matches Forecast web **Filter Small Fires** (web edition keeps unknown acres unless changed separately).
 
 ### Recent Enhancements (v2.4)
 - **WBGT (`-wbgt` / `-UseWbgt`):** Estimated outdoor wet-bulb globe temperature option aligned with the forecast web app.

@@ -42,7 +42,7 @@
     - Wildfire containment (full Wild Fire Info): Yellow when Contained is 0%; Green when 100%; otherwise default (omit when null)
     - Wildfire behavior (full Wild Fire Info): Magenta when Extreme; Red when Critical; Yellow when Active (case-insensitive); otherwise default
     - Wildfire Losses (full Wild Fire Info): IRWIN impact counts when any > 0 (residences · other structures · injuries · fatalities); Red when fatalities present, Yellow when injuries present (no fatalities), otherwise default; omitted when all null/0
-    - Wildfire small-fire filter (-nosmallfire / -nsf): hide incidents at or below 1 acre from terse Fire: line, Wild Fire Info section, and (N) counts; unknown/null acres are kept
+    - Wildfire small-fire filter (-nosmallfire / -nsf): hide incidents at or below 1 acre from terse Fire: line, Wild Fire Info section, and (N) counts; also hide fires with no reported acres (Size —). Skips InciWeb webpage probes for filtered fires. Applied in Finalize-WildFireIncidentList before link validation.
     
 .PARAMETER Location
     The location for which to retrieve weather. Can be a 5-digit US zip code or a "City, State" string, or 'here'.
@@ -307,7 +307,7 @@ if ($Help -or (($Terse.IsPresent -or $TerseAlert.IsPresent -or $Alerts.IsPresent
     Write-Host "                • Request a key: https://docs.airnowapi.org/account/request/" -ForegroundColor Gray
     Write-Host "                • Optional AQI in weather requires AirNowAPI; see README.md" -ForegroundColor Gray
     Write-Host "  -wf, -Wildfire N  Wildfire search radius in miles (default 50). Use 0 to disable wildfire API/UI" -ForegroundColor Cyan
-    Write-Host "  -nosmallfire, -nsf  Hide wildfires at or below 1 acre from display and fire counts" -ForegroundColor Cyan
+    Write-Host "  -nosmallfire, -nsf  Hide wildfires ≤1 acre or with no reported acres; skips InciWeb probes" -ForegroundColor Cyan
     Write-Host "                • Acres color: Default (<100), Yellow (100-999), Red (1,000-99,999), Magenta (≥100,000)" -ForegroundColor Gray
     Write-Host "                • Full section after Size: Discovered (MM/dd HH:mm, default color); Cost (final (to-date) when both — `$346k/`$2M/`$1B/`$3T; Yellow ≥`$1M, Red ≥`$1B, Magenta ≥`$1T); omit when null" -ForegroundColor Gray
     Write-Host "                • Full section: fire name Yellow; Contained 0% Yellow / 100% Green; Behavior Magenta if Extreme, Red if Critical, Yellow if Active" -ForegroundColor Gray
@@ -7048,28 +7048,39 @@ function Filter-StaleFullyContainedWildFires {
 
 function Test-SmallWildFire {
     param([object]$Fire)
-    if ($null -eq $Fire -or $null -eq $Fire.Acres) { return $false }
+    if ($null -eq $Fire) { return $false }
+    # No reported size yet — typical for new spot fires; treat as small when -nosmallfire is set.
+    if ($null -eq $Fire.Acres) { return $true }
     try {
         return [double]$Fire.Acres -le [double]$script:WILDFIRE_SMALL_ACRE_THRESHOLD
     } catch {
-        return $false
+        return $true
     }
 }
 
-function Get-DisplayWildFireIncidents {
+function Filter-SmallWildFires {
     param([object[]]$Incidents = @())
+    if (-not $script:wildFireFilterSmall) { return @($Incidents) }
     $list = @($Incidents)
-    if (-not $script:wildFireFilterSmall) { return $list }
+    if ($list.Count -eq 0) { return $list }
     $filtered = @($list | Where-Object { -not (Test-SmallWildFire -Fire $_) })
-    if ($filtered.Count -lt $list.Count) {
-        Write-Verbose "Wildfire: filtered $($list.Count - $filtered.Count) small fire(s) (≤$($script:WILDFIRE_SMALL_ACRE_THRESHOLD) ac) via -nosmallfire"
+    $dropped = $list.Count - $filtered.Count
+    if ($dropped -gt 0) {
+        Write-Verbose "Wildfire: filtered $dropped small or unknown-size fire(s) (≤$($script:WILDFIRE_SMALL_ACRE_THRESHOLD) ac or no acres reported) via -nosmallfire"
     }
     return $filtered
 }
 
+function Get-DisplayWildFireIncidents {
+    param([object[]]$Incidents = @())
+    return @(Filter-SmallWildFires -Incidents $Incidents)
+}
+
 function Finalize-WildFireIncidentList {
     param([object[]]$Incidents = @())
-    return @(Sort-WildFireIncidentList -Incidents (Filter-StaleFullyContainedWildFires -Incidents $Incidents))
+    $list = @(Filter-StaleFullyContainedWildFires -Incidents $Incidents)
+    $list = @(Filter-SmallWildFires -Incidents $list)
+    return @(Sort-WildFireIncidentList -Incidents $list)
 }
 
 function Set-WildFireInciWebLinks {
@@ -7082,6 +7093,10 @@ function Set-WildFireInciWebLinks {
     if ($total -eq 0) { return $list }
     Write-Verbose "Wildfire: validating InciWeb links for $total incident(s)"
     for ($i = 0; $i -lt $total; $i++) {
+        if ($script:wildFireFilterSmall -and (Test-SmallWildFire -Fire $list[$i])) {
+            $list[$i].InciWebUrl = $null
+            continue
+        }
         $n = $i + 1
         if ($ShowLinkProgress) {
             if ($VerbosePreference -ne 'Continue') {

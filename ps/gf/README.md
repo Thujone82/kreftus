@@ -26,7 +26,7 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
   - Moon phase information with emoji and next full moon date.
   - **All times displayed in location's timezone:** Hourly forecasts, sunrise, sunset, and update times are shown in the destination location's local timezone, not your system's timezone.
   - Weather alerts and warnings.
-  - **Wild Fire Info** (NIFC WFIGS + IRWIN): when wildfires are within the search radius (default **50 mi**), lists size, discovered time, estimated cost to date, containment, behavior, distance/direction (same mi + cardinal notation as NOAA tide stations), and InciWeb / state map links. Stats segments (`Size` · `Discovered` · …) start on a new line when they would otherwise wrap mid-section. Terse / Current Conditions one-liner for the largest nearby fire: `Fire:` label, acres, ✅ when 100% contained (else `%`), rounded miles + cardinal, `(N)` when multiple; behavior only in the full section. Use **`-wf` / `-wildfire N`** to set radius in miles; **`-wf 0`** disables wildfire API and UI for that run. Use **`-nosmallfire` / `-nsf`** to hide fires at or below **1 acre** from display and counts (matches Forecast web **Filter Small Fires**). See **Smart Color-Coding** below for wildfire color rules.
+  - **Wild Fire Info** (NIFC WFIGS + IRWIN): when wildfires are within the search radius (default **50 mi**), lists size, discovered time, estimated cost to date, containment, behavior, distance/direction (same mi + cardinal notation as NOAA tide stations), and InciWeb / state map links. Stats segments (`Size` · `Discovered` · …) start on a new line when they would otherwise wrap mid-section. Terse / Current Conditions one-liner for the largest nearby fire: `Fire:` label, acres, ✅ when 100% contained (else `%`), rounded miles + cardinal, `(N)` when multiple; behavior only in the full section. Use **`-wf` / `-wildfire N`** to set radius in miles; **`-wf 0`** disables wildfire API and UI for that run. Use **`-nosmallfire` / `-nsf`** to hide fires **≤ 1 acre** or with **no reported acres** (InciWeb probes skipped for those). See **Smart Color-Coding** below for wildfire color rules.
   - AQI line (AirNow) after Wind when configured: requires your own **AirNow API key** in the persisted Windows **User** environment variable **`AirNowAPI`** (not stored in the script). Use **`.\gf.ps1 -aqi`** to set or validate the key (see [Parameters](#parameters)). When the variable is unset, AQI is omitted.
   - Rain likelihood forecast with visual sparklines.
   - Wind outlook forecast with direction glyphs.
@@ -185,7 +185,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 | `-NoBar` | `-b` | Start with the interactive control bar hidden. |
 | `-UseWbgt` | `-wbgt` | Use estimated outdoor WBGT instead of heat index (warm band from 75°F). |
 | `-Wildfire` | `-wf` | Wildfire search radius in miles (default 50); `0` disables wildfire API/UI for the run. |
-| `-NoSmallFire` | `-nosmallfire`, `-nsf` | Hide wildfires at or below 1 acre from display and fire counts (unknown/null acres kept). |
+| `-NoSmallFire` | `-nosmallfire`, `-nsf` | Hide wildfires ≤1 acre or with no reported acres; skips InciWeb probes for those fires. |
 | `-Noaa` | — | Override NOAA tide station ID (ignores 100-mile limit). |
 
 ### Parameter details
@@ -292,9 +292,8 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
   - Example: `-wf 75` for a 75-mile radius; `-wf 0` to turn wildfire off.
 
 - `-NoSmallFire`, `-nosmallfire`, or `-nsf` [switch]
-  - Hides wildfires with a known size **≤ 1 acre** from the terse `Fire:` line, **Wild Fire Info** section, and `(N)` multi-fire counts.
-  - Fires with unknown or null acreage are still shown.
-  - Display-only filter; the underlying fetch list is unchanged (same behavior as Forecast web **Filter Small Fires**).
+  - Hides wildfires with a known size **≤ 1 acre**, and fires with **no reported acres** (Size —), from the terse `Fire:` line, **Wild Fire Info** section, and `(N)` multi-fire counts.
+  - Filter runs in `Finalize-WildFireIncidentList` before InciWeb link validation, so small/unknown-size fires are not probed on the web when `-nsf` is set.
   - Example: `.\gf.ps1 "Reno, NV" -nsf -wf 70`
 
 - `-Noaa` [string]
@@ -701,7 +700,7 @@ These messages provide clear feedback about the script's progress and help users
 
 ## Changelog
 
-- **v2.5** — **`-nosmallfire` / `-nsf`:** hide wildfires at or below 1 acre from display and fire counts (terse `Fire:` line and Wild Fire Info); unknown/null acres kept. Matches Forecast web **Filter Small Fires**.
+- **v2.5** — **`-nosmallfire` / `-nsf`:** hide wildfires ≤1 acre and fires with no reported acres from display/counts; InciWeb probes skipped for filtered fires.
 - **v2.4** — Wild Fire Info from NIFC WFIGS (50 mi default): full section after alerts with size/containment/behavior and InciWeb links; terse one-liner for the largest fire (`[1/X]` when multiple). Override radius with `-wf`/`-wildfire N` miles; `-wf 0` disables.
 - **v2.3** — TerseAlert mode (`-ta` / `-tersealert`): alternate terse and full alerts every 20s when alerts are active; with `-x`, print terse then alerts. Alerts-only mode (`-a` / `-alerts`) with green empty state. Interactive hotkeys **A** (alerts) and **Shift+T** (TerseAlert), not shown on the control bar.
 - **v2.2** — Soft-warn on unrecognized CLI options (e.g. accidental `-c`) and continue; suppress NWS test/monitoring-only alerts; current-conditions header shows ⚠️/🌡 when alerts are active (matches forecast web); fix alert section when API returns a single GeoJSON feature.
