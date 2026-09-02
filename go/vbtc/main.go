@@ -2168,6 +2168,16 @@ func btcWithinSatoshiTolerance(a, b float64, maxSatoshiDiff int64) bool {
 	return diff <= maxSatoshiDiff
 }
 
+func usdWithinCentTolerance(a, b float64, maxCentDiff int64) bool {
+	ca := int64(math.Round(a * 100))
+	cb := int64(math.Round(b * 100))
+	diff := ca - cb
+	if diff < 0 {
+		diff = -diff
+	}
+	return diff <= maxCentDiff
+}
+
 func computeTradeOfferChange(txType string, usdAmount, btcAmount float64) (show bool, delta float64, isUSD bool, prevRate float64) {
 	if txType == "Sell" {
 		lastBuy, err := findLastLedgerEntry("Buy")
@@ -2184,7 +2194,7 @@ func computeTradeOfferChange(txType string, usdAmount, btcAmount float64) (show 
 		if err != nil || lastSell == nil {
 			return false, 0, false, 0
 		}
-		if math.Abs(usdAmount-lastSell.USD) >= 0.01 {
+		if !usdWithinCentTolerance(usdAmount, lastSell.USD, 1) {
 			return false, 0, false, 0
 		}
 		return true, btcAmount - lastSell.BTC, false, lastSell.BTCPrice

@@ -1188,6 +1188,17 @@ function Test-BtcWithinSatoshiTolerance {
     return ([math]::Abs($sa - $sb) -le $MaxSatoshiDiff)
 }
 
+function Test-UsdWithinCentTolerance {
+    param(
+        [double]$A,
+        [double]$B,
+        [int]$MaxCentDiff = 1
+    )
+    $ca = [long][math]::Round($A * 100)
+    $cb = [long][math]::Round($B * 100)
+    return ([math]::Abs($ca - $cb) -le $MaxCentDiff)
+}
+
 function Get-TradeOfferChange {
     param(
         [string]$Type,
@@ -1213,7 +1224,7 @@ function Get-TradeOfferChange {
         if (-not $lastSell) { return $null }
         $lastUsd = 0.0
         $null = [double]::TryParse($lastSell.USD, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$lastUsd)
-        if ([math]::Abs($UsdAmount - $lastUsd) -ge 0.01) { return $null }
+        if (-not (Test-UsdWithinCentTolerance -A $UsdAmount -B $lastUsd)) { return $null }
         $lastBtc = 0.0
         $null = [double]::TryParse($lastSell.BTC, [System.Globalization.NumberStyles]::Any, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$lastBtc)
         $prevRate = 0.0
