@@ -83,6 +83,7 @@ param (
 # --- Script Setup and Configuration ---
 # Set output encoding to UTF-8 to properly display special characters.
 [System.Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$script:CoinGeckoDemoApiKey = "CG-B2yxjDu3Y5WKdoDQUJp4x7Lc"
 
 # Show help if requested
 if ($Help.IsPresent) {
@@ -259,13 +260,17 @@ function Write-RetryIndicator {
     $fg = if ($Final) { 'Red' } else { 'Yellow' }
     $digit = [string]$Attempt
     $ctx = $script:RetryDisplay
-    try {
-        Write-Host -NoNewline "`r"
-        if ($null -eq $ctx) {
-            Write-Host -NoNewline -ForegroundColor $fg $digit
-            Write-Host -NoNewline "`r"
-            return
+    if ($null -eq $ctx) {
+        $ctx = @{
+            SparklineString = " Bitcoin (USD):"
+            PriceText       = ""
+            ChangeString    = ""
+            PriceColor      = "White"
+            VolatilityBg    = $null
         }
+    }
+    try {
+        Write-ClearLine
         Write-Host -NoNewline -ForegroundColor $fg $digit
         if ($ctx.VolatilityBg) {
             $spark = $ctx.SparklineString
@@ -287,7 +292,8 @@ function Write-RetryIndicator {
         }
         Write-Host -NoNewline "`r"
     } catch {
-        Write-Host -NoNewline "`r$digit"
+        Write-ClearLine
+        Write-Host -NoNewline "`r$digit $($ctx.SparklineString) $($ctx.PriceText)$($ctx.ChangeString)"
     }
 }
 
@@ -393,6 +399,38 @@ function Invoke-Onboarding {
     return $newApiKey
 }
 
+function Get-LcwHttpStatusCode {
+    param([System.Management.Automation.ErrorRecord]$ErrorRecord)
+    if ($null -eq $ErrorRecord -or -not $ErrorRecord.Exception) { return $null }
+    $exception = $ErrorRecord.Exception
+    if ($exception.Response) {
+        try { return [int]$exception.Response.StatusCode } catch { }
+    }
+    if ($ErrorRecord.Exception.Message -match '\((\d{3})\)') {
+        return [int]$Matches[1]
+    }
+    return $null
+}
+
+function Test-LcwAuthError {
+    param([int]$ErrorCode)
+    return ($ErrorCode -eq 401 -or $ErrorCode -eq 403)
+}
+
+function Get-CoinGeckoBtcPrice {
+    try {
+        $uri = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
+        $headers = @{ "x-cg-demo-api-key" = $script:CoinGeckoDemoApiKey }
+        $response = Invoke-RestMethod -Uri $uri -Method Get -Headers $headers -TimeoutSec 10 -ErrorAction Stop
+        if ($response.bitcoin -and $response.bitcoin.usd) {
+            $price = $response.bitcoin.usd -as [double]
+            if ($price -gt 0) { return $price }
+        }
+    }
+    catch { }
+    return $null
+}
+
 function Get-BtcPrice {
     param ([string]$ApiKey, [switch]$IsInitialFetch)
 
@@ -409,24 +447,19 @@ function Get-BtcPrice {
 
     $retried = $false
     for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        $lcwFailed = $false
+        $skipCoinGecko = $false
+        $price = $null
+
         try {
             $response = Invoke-RestMethod -Uri "https://api.livecoinwatch.com/coins/single" -Method Post -Headers $headers -Body $body -TimeoutSec 10 -ErrorAction Stop
-            
-            # Clear any prior retry indicator on success
-            if ($retried -or $script:WarningLineShown) { $script:WarningLineShown = $false }
-
             $price = $response.rate -as [double]
-            
             if ($null -eq $price -or $price -le 0) {
-                # Treat invalid price as transient; show a retry digit '1'
-                Write-RetryIndicator -Attempt 1
-                $script:WarningLineShown = $true
-                return $null
+                $lcwFailed = $true
             }
-            return $price
         }
         catch {
-            # Check for 403 API credits exhausted (do not retry)
+            # Check for 403 API credits exhausted (do not retry or fallback)
             if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 403) {
                 $respBody = Get-WebExceptionResponseBody -ErrorRecord $_
                 if ($respBody -and ($respBody -match 'No more daily credits remaining\. Renewal is at midnight UTC\.')) {
@@ -435,30 +468,41 @@ function Get-BtcPrice {
                     exit 1
                 }
             }
-            $retried = $true
-            if ($attempt -ge $maxAttempts) {
-                # Final failure indicator: red '5'
-                Write-RetryIndicator -Attempt $maxAttempts -Final
-                $script:WarningLineShown = $true
-                return $null
+            $statusCode = Get-LcwHttpStatusCode -ErrorRecord $_
+            if ($statusCode -and (Test-LcwAuthError -ErrorCode $statusCode)) {
+                $skipCoinGecko = $true
             }
-            
-            # Show timeout message for initial fetch on first retry
-            if ($IsInitialFetch -and $attempt -eq 1) {
-                Write-ClearLine
-                Write-Host -NoNewline "  Timeout, retrying...`r" -ForegroundColor Yellow
-            }
-            
-            # Exponential backoff with jitter
-            $jitterMs = Get-Random -Minimum 0 -Maximum 1000
-            $backoffSeconds = [math]::Pow(2, $attempt - 1) * $baseDelaySeconds
-            $sleepDurationMs = [int]($backoffSeconds * 1000) + $jitterMs
-            
-            # Show attempt number in yellow at spinner position
-            Write-RetryIndicator -Attempt $attempt
-            $script:WarningLineShown = $true
-            Start-Sleep -Milliseconds $sleepDurationMs
+            $lcwFailed = $true
         }
+
+        if (-not $lcwFailed -and $null -ne $price -and $price -gt 0) {
+            if ($retried -or $script:WarningLineShown) { $script:WarningLineShown = $false }
+            return $price
+        }
+
+        if (-not $skipCoinGecko) {
+            $fallbackPrice = Get-CoinGeckoBtcPrice
+            if ($null -ne $fallbackPrice -and $fallbackPrice -gt 0) {
+                if ($retried -or $script:WarningLineShown) { $script:WarningLineShown = $false }
+                return $fallbackPrice
+            }
+        }
+
+        $retried = $true
+        if ($attempt -ge $maxAttempts) {
+            Write-RetryIndicator -Attempt $maxAttempts -Final
+            $script:WarningLineShown = $true
+            return $null
+        }
+
+        # Exponential backoff with jitter
+        $jitterMs = Get-Random -Minimum 0 -Maximum 1000
+        $backoffSeconds = [math]::Pow(2, $attempt - 1) * $baseDelaySeconds
+        $sleepDurationMs = [int]($backoffSeconds * 1000) + $jitterMs
+
+        Write-RetryIndicator -Attempt $attempt
+        $script:WarningLineShown = $true
+        Start-Sleep -Milliseconds $sleepDurationMs
     }
     return $null
 }
@@ -716,6 +760,7 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent -or $kl.IsPresent) {
 } else {
     Write-Host "Fetching initial price..." -ForegroundColor Cyan
 }
+Set-RetryDisplayContext -SpinnerChar ' ' -SpinnerColors @{} -SparklineString " Bitcoin (USD):" -PriceText "" -ChangeString "" -PriceColor "White" -VolatilityEnabled $false -SparklineEnabled $false -History $null
 $currentBtcPrice = Get-BtcPrice -ApiKey $apiKey -IsInitialFetch
 if ($null -eq $currentBtcPrice) {
     Write-Host "Failed to fetch initial price. Check API key or network." -ForegroundColor Red

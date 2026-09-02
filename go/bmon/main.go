@@ -28,8 +28,9 @@ import (
 )
 
 const (
-	version = "1.6"
-	date    = "2025-08-07@1430"
+	version             = "1.6"
+	date                = "2025-08-07@1430"
+	coinGeckoDemoAPIKey = "CG-B2yxjDu3Y5WKdoDQUJp4x7Lc"
 )
 
 // Configuration structure
@@ -42,6 +43,12 @@ type Config struct {
 // API response structure
 type APIResponse struct {
 	Rate float64 `json:"rate"`
+}
+
+type coinGeckoPriceResponse struct {
+	Bitcoin struct {
+		USD float64 `json:"usd"`
+	} `json:"bitcoin"`
 }
 
 // Global variables
@@ -384,7 +391,7 @@ func timeUntilMidnightUTC() string {
 }
 
 func fetchInitialPrice() error {
-	price, err := getBtcPriceWithContext(true)
+	price, err := getBtcPriceWithContext()
 	if err != nil {
 		return err
 	}
@@ -393,11 +400,48 @@ func fetchInitialPrice() error {
 	return nil
 }
 
-func getBtcPrice() (float64, error) {
-	return getBtcPriceWithContext(false)
+func isLcwAuthError(statusCode int) bool {
+	return statusCode == 401 || statusCode == 403
 }
 
-func getBtcPriceWithContext(isInitialFetch bool) (float64, error) {
+func getBtcPriceFromCoinGecko() (float64, error) {
+	req, err := http.NewRequest("GET", "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd", nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("x-cg-demo-api-key", coinGeckoDemoAPIKey)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return 0, fmt.Errorf("coingecko returned status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+
+	var cgResp coinGeckoPriceResponse
+	if err := json.Unmarshal(body, &cgResp); err != nil {
+		return 0, err
+	}
+	if cgResp.Bitcoin.USD <= 0 {
+		return 0, fmt.Errorf("invalid coingecko price")
+	}
+	return cgResp.Bitcoin.USD, nil
+}
+
+func getBtcPrice() (float64, error) {
+	return getBtcPriceWithContext()
+}
+
+func getBtcPriceWithContext() (float64, error) {
 	if apiKey == "" {
 		return 0, fmt.Errorf("API key is null or empty")
 	}
@@ -410,15 +454,16 @@ func getBtcPriceWithContext(isInitialFetch bool) (float64, error) {
 	}
 
 	jsonData, _ := json.Marshal(payload)
-
 	client := &http.Client{Timeout: 10 * time.Second}
 
-	// Retry logic
 	maxAttempts := 5
 	baseDelay := 2 * time.Second
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		// Create a fresh request each attempt (request bodies are one-shot)
+		lcwFailed := false
+		skipCoinGecko := false
+		var lcwPrice float64
+
 		req, err := http.NewRequest("POST", url, strings.NewReader(string(jsonData)))
 		if err != nil {
 			return 0, err
@@ -428,79 +473,61 @@ func getBtcPriceWithContext(isInitialFetch bool) (float64, error) {
 
 		resp, err := client.Do(req)
 		if err != nil {
-			if attempt >= maxAttempts {
-				// Final failure: show red '5' indicator for TUI
-				setRetryIndicator("5", "1", true)
-				return 0, fmt.Errorf("API call failed after %d attempts: %v", maxAttempts, err)
+			lcwFailed = true
+		} else {
+			body, readErr := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if readErr != nil {
+				return 0, readErr
 			}
 
-			// Show timeout message for initial fetch on first retry
-			if isInitialFetch && attempt == 1 {
-				fmt.Print("\r")
-				color.Yellow("  Timeout, retrying...")
+			if resp.StatusCode == 403 && strings.Contains(string(body), "No more daily credits remaining. Renewal is at midnight UTC.") {
+				clearRetryIndicator()
+				resetWait := timeUntilMidnightUTC()
+				color.Red("API Credits reset in: %s", resetWait)
+				os.Exit(1)
 			}
 
-			// Exponential backoff with jitter
-			backoff := time.Duration(math.Pow(2, float64(attempt-1))) * baseDelay
-			jitter := time.Duration(time.Now().UnixNano()%1000) * time.Millisecond
-			sleepTime := backoff + jitter
+			if isLcwAuthError(resp.StatusCode) {
+				skipCoinGecko = true
+			}
 
-			// Show yellow digit for current attempt (1-4)
-			setRetryIndicator(strconv.Itoa(attempt), "11", true)
-
-			time.Sleep(sleepTime)
-
-			continue
+			if resp.StatusCode == 200 {
+				var apiResp APIResponse
+				if err := json.Unmarshal(body, &apiResp); err != nil {
+					return 0, err
+				}
+				if apiResp.Rate > 0 {
+					lcwPrice = apiResp.Rate
+				} else {
+					lcwFailed = true
+				}
+			} else {
+				lcwFailed = true
+			}
 		}
 
-		defer resp.Body.Close()
-
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return 0, err
-		}
-
-		if resp.StatusCode == 403 && strings.Contains(string(body), "No more daily credits remaining. Renewal is at midnight UTC.") {
+		if !lcwFailed && lcwPrice > 0 {
 			clearRetryIndicator()
-			resetWait := timeUntilMidnightUTC()
-			color.Red("API Credits reset in: %s", resetWait)
-			os.Exit(1)
+			return lcwPrice, nil
 		}
 
-		if resp.StatusCode != 200 {
-			if attempt >= maxAttempts {
-				setRetryIndicator("5", "1", true)
-				return 0, fmt.Errorf("API returned status %d", resp.StatusCode)
+		if !skipCoinGecko {
+			if price, err := getBtcPriceFromCoinGecko(); err == nil && price > 0 {
+				clearRetryIndicator()
+				return price, nil
 			}
-			backoff := time.Duration(math.Pow(2, float64(attempt-1))) * baseDelay
-			jitter := time.Duration(time.Now().UnixNano()%1000) * time.Millisecond
-			time.Sleep(backoff + jitter)
-			setRetryIndicator(strconv.Itoa(attempt), "11", true)
-			continue
 		}
 
-		var apiResp APIResponse
-		if err := json.Unmarshal(body, &apiResp); err != nil {
-			return 0, err
+		if attempt >= maxAttempts {
+			setRetryIndicator("5", "1", true)
+			return 0, fmt.Errorf("API call failed after %d attempts", maxAttempts)
 		}
 
-		if apiResp.Rate <= 0 {
-			if attempt >= maxAttempts {
-				setRetryIndicator("5", "1", true)
-				return 0, fmt.Errorf("invalid price returned")
-			}
-			// treat as transient; set yellow digit and retry with backoff
-			setRetryIndicator(strconv.Itoa(attempt), "11", true)
-			backoff := time.Duration(math.Pow(2, float64(attempt-1))) * baseDelay
-			jitter := time.Duration(time.Now().UnixNano()%1000) * time.Millisecond
-			time.Sleep(backoff + jitter)
-
-			continue
-		}
-
-		// Success: clear indicator so spinner resumes
-		clearRetryIndicator()
-		return apiResp.Rate, nil
+		backoff := time.Duration(math.Pow(2, float64(attempt-1))) * baseDelay
+		jitter := time.Duration(time.Now().UnixNano()%1000) * time.Millisecond
+		setRetryIndicator(strconv.Itoa(attempt), "11", true)
+		time.Sleep(backoff + jitter)
 	}
 
 	return 0, fmt.Errorf("failed to get price after all attempts")
@@ -699,7 +726,7 @@ func playSound(frequency int, duration int) {
 }
 
 func handleConversion(args Args) {
-	price, err := getBtcPriceWithContext(true)
+	price, err := getBtcPriceWithContext()
 	if err != nil {
 		color.Red("Could not retrieve Bitcoin price. Cannot perform conversion.")
 		os.Exit(1)
