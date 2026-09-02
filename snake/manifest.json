@@ -8,19 +8,31 @@
   "display": "fullscreen",
   "background_color": "#1a1a2e",
   "theme_color": "#0f0f1a",
-  "orientation": "landscape-primary",
+  "orientation": "any",
   "icons": [
+    {
+      "src": "./icons/32x32.png",
+      "sizes": "32x32",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "./icons/192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "./icons/512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/snake_vs_icon_rounded_512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

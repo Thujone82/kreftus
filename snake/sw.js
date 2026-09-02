@@ -1,16 +1,15 @@
 // sw.js - Service Worker for Snake VS PWA
 
-const CACHE_NAME = 'snake-vs-cache-v1';
+const CACHE_NAME = 'snake-vs-cache-v1.5';
 const urlsToCache = [
   './', // Alias for index.html when served from subfolder
   './index.html',
   './manifest.json',
-  // Corrected icon paths to match manifest.json (PNG files)
+  './icons/32x32.png',
   './icons/192x192.png',
-  './icons/512x512.png'
-  // Add other critical assets here if needed,
-  // e.g., '/js/game.js', '/css/style.css'
-  // Ensure all paths are relative to the service worker's location (usually the root).
+  './icons/512x512.png',
+  './icons/snake_vs_icon_rounded_512x512.png',
+  './icons/favicon.ico'
 ];
 
 // Install event: open cache and add core files
