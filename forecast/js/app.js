@@ -262,6 +262,7 @@ function runDeferredInit() {
     if (!migrationSuccess) {
         console.warn('Favorites migration failed - favorites have been cleared');
     }
+    migrateFavoriteSearchQueries();
     loadAppVersionOnce();
     setupForecastTextVisibility();
     if ('serviceWorker' in navigator) {
@@ -790,7 +791,8 @@ async function init() {
     
     // Render location buttons if favorites exist
     if (favorites.length > 0) {
-        renderLocationButtons();
+        const activeUid = getActiveFavoriteIdentifier();
+        renderLocationButtons(activeUid || undefined);
     }
     runDeferredInit();
 }
@@ -998,9 +1000,17 @@ function saveAccentColors(primary, secondary) {
 
 function getCurrentFavorite() {
     const key = appState.currentLocationKey;
-    if (!key) return null;
-    const uid = String(key).startsWith('uid_') ? key.replace(/^uid_/, '') : key;
-    return getFavoriteByUID(uid) || getFavoriteByKey(key) || null;
+    if (key) {
+        const uid = String(key).startsWith('uid_') ? key.replace(/^uid_/, '') : key;
+        const fav = getFavoriteByUID(uid) || getFavoriteByKey(key);
+        if (fav) return fav;
+    }
+    // Pin deliberately owns the view — do not infer a favorite for theme/selection.
+    if (appState.isCurrentLocationActive && appState.hereSelectionExplicit) return null;
+    if (appState.location) {
+        return findFavoriteMatchingWeatherLocation(appState.location);
+    }
+    return null;
 }
 
 function isPerLocationColorsEnabled() {
@@ -2191,7 +2201,9 @@ function setupEventListeners() {
             // When enabling auto-update, if current location's data is already stale, refresh now
             if (appState.autoUpdateEnabled && appState.location && isDataStale()) {
                 const location = getLocationForRefresh() || 'here';
-                loadWeatherData(location, false, true);
+                loadWeatherData(location, false, true, {
+                    preserveFavoriteUID: getActiveFavoriteIdentifier() || undefined
+                });
             }
         });
     }
@@ -2521,7 +2533,10 @@ function handleFavoriteToggle() {
         }
         
         const locationText = formatLocationDisplayName(appState.location.city, appState.location.state);
-        const searchQuery = elements.locationInput.value.trim() || locationText;
+        const searchQuery = canonicalFavoriteSearchQuery(
+            appState.location,
+            elements.locationInput.value.trim() || locationText
+        );
         const saved = saveFavorite(locationText, appState.location, searchQuery);
         if (saved) {
             // Update the stored locationKey to match the newly saved favorite (use UID if we have it)
@@ -2673,22 +2688,23 @@ async function handleLocationButtonClick(uid) {
     // Use UID-based cache key for favorites (more stable than location keys)
     // Fallback to location key for backward compatibility
     const cacheKey = favorite.uid ? `uid_${favorite.uid}` : favorite.key;
-    console.log('handleLocationButtonClick: Loading favorite', favorite.name || favorite.searchQuery, 'UID:', favorite.uid, 'cacheKey:', cacheKey, 'searchQuery:', favorite.searchQuery);
+    const fetchQuery = favoriteFetchQuery(favorite);
+    console.log('handleLocationButtonClick: Loading favorite', favorite.name || fetchQuery, 'UID:', favorite.uid, 'cacheKey:', cacheKey, 'searchQuery:', fetchQuery);
     
     // Load cached data immediately (this will update UI state including favorite button and location buttons)
     // Pass searchQuery so loadCachedWeatherData can refresh if stale
-    const cacheLoaded = loadCachedWeatherData(cacheKey, favorite.searchQuery);
+    const cacheLoaded = loadCachedWeatherData(cacheKey, fetchQuery);
     
     if (cacheLoaded) {
-        console.log('handleLocationButtonClick: Successfully loaded cached data for favorite:', favorite.name || favorite.searchQuery);
+        console.log('handleLocationButtonClick: Successfully loaded cached data for favorite:', favorite.name || fetchQuery);
         // Persist this as last viewed so PWA reopens to this location/mode
-        const displayName = favorite.name || (appState.location && formatLocationDisplayName(appState.location.city, appState.location.state)) || favorite.searchQuery;
-        saveLastViewedLocation(displayName, appState.location, favorite.searchQuery);
+        const displayName = favorite.name || (appState.location && formatLocationDisplayName(appState.location.city, appState.location.state)) || fetchQuery;
+        saveLastViewedLocation(displayName, appState.location, fetchQuery);
         try {
             localStorage.setItem('forecastCurrentMode', appState.currentMode);
         } catch (e) { /* ignore */ }
         // Update URL
-        updateURL(favorite.searchQuery, appState.currentMode);
+        updateURL(fetchQuery, appState.currentMode);
         
         // Keep bar highlight + per-location colors even when this favorite is also "here"
         // (background stale refresh / geocode drift must not clear selection).
@@ -2698,7 +2714,7 @@ async function handleLocationButtonClick(uid) {
         console.log('handleLocationButtonClick: No cache found for favorite:', favorite.name || favorite.searchQuery, 'key:', cacheKey, 'will fetch fresh data');
         // No cache, load fresh data
         const favoriteUID = favorite.uid || favorite.key;
-        await loadWeatherData(favorite.searchQuery || 'here', false, false, {
+        await loadWeatherData(fetchQuery || 'here', false, false, {
             preserveFavoriteUID: favoriteUID
         });
         reassertActiveFavoriteSelection(favoriteUID);
@@ -3087,6 +3103,51 @@ function generateLocationKey(location) {
     const state = (location.state || '').trim().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     if (!city || !state) return null;
     return `${city},${state}`;
+}
+
+/** Favorites store a fixed place (city/state + coords), never the live "here" keyword. */
+function canonicalFavoriteSearchQuery(locationObject, candidateQuery) {
+    const raw = (candidateQuery || '').trim();
+    if (raw && raw.toLowerCase() !== 'here') return raw;
+    if (locationObject?.city != null && locationObject?.state != null) {
+        return formatLocationDisplayName(locationObject.city, locationObject.state);
+    }
+    return raw;
+}
+
+function favoriteFetchQuery(favorite) {
+    if (!favorite) return '';
+    const q = (favorite.searchQuery || '').trim();
+    if (q && q.toLowerCase() !== 'here') return q;
+    if (favorite.location?.city != null && favorite.location?.state != null) {
+        return formatLocationDisplayName(favorite.location.city, favorite.location.state);
+    }
+    return q || (favorite.name || '').trim();
+}
+
+/** Rewrite legacy favorites that stored searchQuery "here" to the resolved city/state. */
+function migrateFavoriteSearchQueries() {
+    try {
+        const favorites = getFavorites();
+        if (!favorites.length) return true;
+        let changed = false;
+        for (const fav of favorites) {
+            if (!fav?.location) continue;
+            const fixed = canonicalFavoriteSearchQuery(fav.location, fav.searchQuery);
+            if (fixed && fixed !== fav.searchQuery) {
+                fav.searchQuery = fixed;
+                changed = true;
+            }
+        }
+        if (changed) {
+            localStorage.setItem('forecastFavorites', JSON.stringify(favorites));
+            console.log('Migrated favorite searchQuery values away from "here"');
+        }
+        return true;
+    } catch (e) {
+        console.warn('Favorite searchQuery migration failed:', e);
+        return false;
+    }
 }
 
 // Migrate old favorites to use UID system
@@ -3705,13 +3766,13 @@ function saveFavorite(location, locationObject, searchQuery, customName) {
             }
         }
         
-        // Add new favorite with UID
+        // Add new favorite with UID (searchQuery is always the resolved place, never "here")
         const newFavorite = {
             uid: uid, // Primary identifier
             key: locationKey, // Used for cache lookups
             name: location,
             location: locationObject,
-            searchQuery: searchQuery || location
+            searchQuery: canonicalFavoriteSearchQuery(locationObject, searchQuery || location)
         };
         
         // Add customName if provided
@@ -5221,7 +5282,9 @@ function loadCachedWeatherData(locationKey = null, searchQuery = null) {
                             ? `${restoredWeatherData.location.city}, ${restoredWeatherData.location.state}`
                             : (cache.location || 'here'));
                     setTimeout(() => {
-                        loadWeatherData(locationToRefresh, false, true).catch(error => {
+                        loadWeatherData(locationToRefresh, false, true, {
+                            preserveFavoriteUID: getActiveFavoriteIdentifier() || undefined
+                        }).catch(error => {
                             console.error('Background observations refresh failed:', error);
                             appState.observationsNeedRefresh = false;
                         });
@@ -5359,9 +5422,10 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         (appState.isCurrentLocationActive && appState.hereSelectionExplicit && !options.preserveFavoriteUID)
     );
     if (explicitHere) appState.hereSelectionExplicit = true;
-    const preserveFavoriteUID = explicitHere
+    const latchedFavoriteUID = explicitHere
         ? null
-        : (options.preserveFavoriteUID || getActiveFavoriteIdentifier());
+        : (options.preserveFavoriteUID || getActiveFavoriteIdentifier() || null);
+    const preserveFavoriteUID = latchedFavoriteUID;
     try {
         // Hard guard: when Auto-Update Data is off, block all background-triggered fetches.
         // Manual/user-initiated actions call loadWeatherData with background=false.
@@ -5402,9 +5466,7 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
                     renderLocationButtons(false);
                     applyThemeForCurrentLocation();
                 } else {
-                    if (preserveFavoriteUID) {
-                        reassertActiveFavoriteSelection(preserveFavoriteUID);
-                    } else {
+                    if (!reassertLatchedFavoriteIfNeeded(latchedFavoriteUID, location, appState.location)) {
                         const fav = getFavorites().find(f => favoriteMatchesWeatherLocation(f, appState.location));
                         if (fav?.uid) reassertActiveFavoriteSelection(fav.uid);
                         else {
@@ -5516,24 +5578,24 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
                         updateFavoriteButtonState(null);
                         renderLocationButtons(false);
                         applyThemeForCurrentLocation();
-                    } else if (preserveFavoriteUID) {
-                        reassertActiveFavoriteSelection(preserveFavoriteUID);
-                    } else if (location.toLowerCase() === 'here' && appState.location) {
-                        const favForHere = findFavoriteMatchingWeatherLocation(appState.location);
-                        if (favForHere?.uid) {
-                            reassertActiveFavoriteSelection(favForHere.uid);
+                    } else if (!reassertLatchedFavoriteIfNeeded(latchedFavoriteUID, location, appState.location)) {
+                        if (location.toLowerCase() === 'here' && appState.location) {
+                            const favForHere = findFavoriteMatchingWeatherLocation(appState.location);
+                            if (favForHere?.uid) {
+                                reassertActiveFavoriteSelection(favForHere.uid);
+                            } else {
+                                updateFavoriteButtonState();
+                                renderLocationButtons();
+                                applyThemeForCurrentLocation();
+                                activateHereSelection();
+                            }
                         } else {
+                            appState.isCurrentLocationActive = false;
+                            updateCurrentLocationButtonState(false);
                             updateFavoriteButtonState();
                             renderLocationButtons();
                             applyThemeForCurrentLocation();
-                            activateHereSelection();
                         }
-                    } else {
-                        appState.isCurrentLocationActive = false;
-                        updateCurrentLocationButtonState(false);
-                        updateFavoriteButtonState();
-                        renderLocationButtons();
-                        applyThemeForCurrentLocation();
                     }
                     setLoading(false, background);
                     renderCurrentMode();
@@ -5543,7 +5605,7 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
                         const timestampBeforeRefresh = appState.lastFetchTime;
                         setTimeout(() => {
                             loadWeatherData(location, false, true, {
-                                preserveFavoriteUID: preserveFavoriteUID || getActiveFavoriteIdentifier() || undefined
+                                preserveFavoriteUID: latchedFavoriteUID || getActiveFavoriteIdentifier() || undefined
                             }).then(() => {
                                 console.log('Background refresh completed, timestamp updated to:', appState.lastFetchTime.toISOString());
                             }).catch(error => {
@@ -5570,24 +5632,24 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
                             updateFavoriteButtonState(null);
                             renderLocationButtons(false);
                             applyThemeForCurrentLocation();
-                        } else if (preserveFavoriteUID) {
-                            reassertActiveFavoriteSelection(preserveFavoriteUID);
-                        } else if (location.toLowerCase() === 'here' && appState.location) {
-                            const favForHere = findFavoriteMatchingWeatherLocation(appState.location);
-                            if (favForHere?.uid) {
-                                reassertActiveFavoriteSelection(favForHere.uid);
+                        } else if (!reassertLatchedFavoriteIfNeeded(latchedFavoriteUID, location, appState.location)) {
+                            if (location.toLowerCase() === 'here' && appState.location) {
+                                const favForHere = findFavoriteMatchingWeatherLocation(appState.location);
+                                if (favForHere?.uid) {
+                                    reassertActiveFavoriteSelection(favForHere.uid);
+                                } else {
+                                    updateFavoriteButtonState();
+                                    renderLocationButtons();
+                                    applyThemeForCurrentLocation();
+                                    activateHereSelection();
+                                }
                             } else {
+                                appState.isCurrentLocationActive = false;
+                                updateCurrentLocationButtonState(false);
                                 updateFavoriteButtonState();
                                 renderLocationButtons();
                                 applyThemeForCurrentLocation();
-                                activateHereSelection();
                             }
-                        } else {
-                            appState.isCurrentLocationActive = false;
-                            updateCurrentLocationButtonState(false);
-                            updateFavoriteButtonState();
-                            renderLocationButtons();
-                            applyThemeForCurrentLocation();
                         }
                         setLoading(false, background);
                         renderCurrentMode();
@@ -5751,7 +5813,7 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             // Rematch missed (geo UID / naming drift) but caller asked to keep this favorite —
             // common for PDX saved as "here" when coords round differently than the pin geocode.
             const preservedFav = getFavoriteByUID(preserveFavoriteUID) || getFavoriteByKey(preserveFavoriteUID);
-            if (preservedFav && favoriteMatchesWeatherLocation(preservedFav, weatherData.location)) {
+            if (preservedFav && shouldReassertLatchedFavorite(preservedFav, location, weatherData.location)) {
                 matchingFavoriteAfterFetch = preservedFav;
                 appState.currentLocationKey = preservedFav.uid ? `uid_${preservedFav.uid}` : preservedFav.key;
                 console.log('Rematch miss; preserving requested favorite for displayed location:', appState.currentLocationKey);
@@ -5867,16 +5929,13 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         // Final reassert: background refresh / "here" geocode drift must not drop favorite bar highlight or per-location colors.
         if (explicitHere) {
             // Pin was chosen deliberately: leave the favorites bar unselected.
-        } else if (preserveFavoriteUID) {
-            const preservedFav = getFavoriteByUID(preserveFavoriteUID) || getFavoriteByKey(preserveFavoriteUID);
-            if (preservedFav && favoriteMatchesWeatherLocation(preservedFav, weatherData.location)) {
-                reassertActiveFavoriteSelection(preservedFav.uid || preservedFav.key);
+        } else if (!reassertLatchedFavoriteIfNeeded(latchedFavoriteUID, location, weatherData.location)) {
+            if (matchingFavoriteAfterFetch?.uid) {
+                reassertActiveFavoriteSelection(matchingFavoriteAfterFetch.uid);
+            } else {
+                const locMatch = findFavoriteMatchingWeatherLocation(weatherData.location);
+                if (locMatch?.uid) reassertActiveFavoriteSelection(locMatch.uid);
             }
-        } else if (matchingFavoriteAfterFetch?.uid) {
-            reassertActiveFavoriteSelection(matchingFavoriteAfterFetch.uid);
-        } else {
-            const locMatch = findFavoriteMatchingWeatherLocation(weatherData.location);
-            if (locMatch?.uid) reassertActiveFavoriteSelection(locMatch.uid);
         }
         
         // New weather fetch → treat radar loop as stale so the GIF refetches
@@ -6073,7 +6132,9 @@ async function handleRefresh() {
         console.log('Fetching fresh data for location:', locationToRefresh);
         
         // Now fetch fresh data for the current location (this will update the display and save to the correct cache key)
-        await loadWeatherData(locationToRefresh, false, false); // Don't use background mode for manual refresh - show loading
+        await loadWeatherData(locationToRefresh, false, false, {
+            preserveFavoriteUID: activeFavoriteUID || undefined
+        }); // Don't use background mode for manual refresh - show loading
         // Mirror location-button click: re-select the favorite after fetch rematch
         if (activeFavoriteUID) {
             reassertActiveFavoriteSelection(activeFavoriteUID);
@@ -6587,12 +6648,8 @@ function getLocationForRefresh() {
         const uid = String(appState.currentLocationKey).startsWith('uid_') ? appState.currentLocationKey.replace(/^uid_/, '') : appState.currentLocationKey;
         const fav = getFavoriteByUID(uid) || getFavoriteByKey(appState.currentLocationKey);
         if (fav) {
-            const q = (fav.searchQuery || '').trim();
+            const q = favoriteFetchQuery(fav);
             if (q) return q;
-            if (fav.location && fav.location.city != null && fav.location.state != null) {
-                return formatLocationDisplayName(fav.location.city, fav.location.state);
-            }
-            if (fav.name) return fav.name;
         }
     }
     if (appState.location && appState.location.city != null && appState.location.state != null) {
@@ -6626,9 +6683,9 @@ function doesLocationQueryMatchFavorite(locationQuery, favorite) {
     if (!locationQuery || !favorite) return false;
     const locationLower = String(locationQuery).toLowerCase().trim();
     if (!locationLower) return false;
-    // Favorites created from the pin often store searchQuery "here"
+    // "here" is only for the pin at runtime — match by whether this favorite is the current place.
     if (locationLower === 'here') {
-        return (favorite.searchQuery || '').toLowerCase().trim() === 'here';
+        return favoriteMatchesWeatherLocation(favorite, appState.location);
     }
     const candidates = [
         (favorite.searchQuery || '').toLowerCase().trim(),
@@ -6652,6 +6709,26 @@ function favoriteMatchesWeatherLocation(favorite, locationObj) {
     const geoUid = generateLocationUID(locationObj);
     if (geoUid && favorite.uid === geoUid) return true;
     return false;
+}
+
+/**
+ * Keep a latched favorite selected after refresh/rematch when the fetch was for that favorite
+ * or for "here" while the resolved place is still the same site (geo drift tolerant).
+ */
+function shouldReassertLatchedFavorite(favorite, locationQuery, weatherLocation) {
+    if (!favorite) return false;
+    if (doesLocationQueryMatchFavorite(locationQuery, favorite)) return true;
+    if (weatherLocation && favoriteMatchesWeatherLocation(favorite, weatherLocation)) return true;
+    const q = String(locationQuery || '').toLowerCase().trim();
+    if (q === 'here' && (favorite.searchQuery || '').toLowerCase().trim() === 'here') return true;
+    return false;
+}
+
+function reassertLatchedFavoriteIfNeeded(latchedFavoriteUID, locationQuery, weatherLocation) {
+    if (!latchedFavoriteUID) return false;
+    const favorite = getFavoriteByUID(latchedFavoriteUID) || getFavoriteByKey(latchedFavoriteUID);
+    if (!favorite || !shouldReassertLatchedFavorite(favorite, locationQuery, weatherLocation)) return false;
+    return reassertActiveFavoriteSelection(favorite.uid || favorite.key || latchedFavoriteUID);
 }
 
 /** Keep favorite key on rematch miss only when this fetch was for that favorite (refresh), not a new search. */
@@ -6733,9 +6810,9 @@ function checkAutoRefresh() {
                 const uid = fav.uid || fav.key || null;
                 const phaseColor = getFavoriteUpdateColor(fav, 'phase1');
                 if (uid) scheduleBackgroundUpdateVisual(uid, phaseColor);
-                const locationQuery = (fav.searchQuery || (fav.location && fav.location.city != null && fav.location.state != null
+                const locationQuery = favoriteFetchQuery(fav) || (fav.location && fav.location.city != null && fav.location.state != null
                     ? formatLocationDisplayName(fav.location.city, fav.location.state)
-                    : (fav.name || ''))).trim();
+                    : (fav.name || '')).trim();
                 if (!locationQuery) continue;
 
                 try {

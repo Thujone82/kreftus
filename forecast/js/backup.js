@@ -62,12 +62,17 @@
 
     function normalizeFavorite(raw) {
         if (!raw || typeof raw !== 'object') return null;
+        const location = raw.location && typeof raw.location === 'object' ? cloneJson(raw.location) : null;
+        let searchQuery = raw.searchQuery != null ? String(raw.searchQuery) : (raw.name != null ? String(raw.name) : '');
+        if (location?.city != null && location?.state != null && searchQuery.toLowerCase().trim() === 'here') {
+            searchQuery = `${String(location.city).trim()}, ${String(location.state).trim()}`;
+        }
         const fav = {
             uid: raw.uid ? String(raw.uid) : undefined,
             key: raw.key ? String(raw.key) : undefined,
             name: raw.name != null ? String(raw.name) : '',
-            searchQuery: raw.searchQuery != null ? String(raw.searchQuery) : (raw.name != null ? String(raw.name) : ''),
-            location: raw.location && typeof raw.location === 'object' ? cloneJson(raw.location) : null
+            searchQuery,
+            location
         };
         if (raw.customName != null && String(raw.customName).trim()) {
             fav.customName = String(raw.customName).trim();
