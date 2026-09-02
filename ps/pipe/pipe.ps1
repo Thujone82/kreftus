@@ -39,13 +39,24 @@ function Get-PacificTimeZone {
     }
 }
 
-# Chart DATE_TIME_UNIX is Pacific wall-clock time encoded as Unix milliseconds
-# (not UTC). Converting UTC->Pacific would shift the series by the PDT/PST offset.
+# Chart DATE_TIME_UNIX clock fields are Pacific wall time (same as data.cfm / gauge),
+# not UTC instants. Treating them as UTC and converting to local shifts the series
+# by the PDT/PST offset (e.g. 7:15 AM Pacific displays as 12:15 AM).
 function ConvertFrom-UnixMillisecondsToPacific {
     param ([Int64]$UnixMilliseconds)
 
     $wallClock = [DateTimeOffset]::FromUnixTimeMilliseconds($UnixMilliseconds).UtcDateTime
     return [DateTime]::SpecifyKind($wallClock, [DateTimeKind]::Unspecified)
+}
+
+# Interpret a Pacific wall-clock DateTime in the Pacific zone, then convert to local.
+function ConvertTo-LocalTimeFromPacificWallClock {
+    param ([DateTime]$PacificWallClock)
+
+    $wall = [DateTime]::SpecifyKind($PacificWallClock, [DateTimeKind]::Unspecified)
+    $pacificTz = Get-PacificTimeZone
+    $pacific = [DateTimeOffset]::new($wall, $pacificTz.GetUtcOffset($wall))
+    return [TimeZoneInfo]::ConvertTime($pacific, [TimeZoneInfo]::Local).DateTime
 }
 
 # --- Helper Function to Sort and Return Data Points ---
@@ -602,13 +613,14 @@ try {
         Write-Host -NoNewline $paddingCurrent
         Write-Host -ForegroundColor $currentLevelColor $currentLevelFormatted
 
-        $dataAge = (Get-PacificTime) - $currentTime
-        if ($dataSource -eq "gauge" -or $dataAge.TotalMinutes -gt 90) {
+        $dataAge = (Get-PacificTime) - [DateTime]::SpecifyKind($currentTime, [DateTimeKind]::Unspecified)
+        if ($dataAge.TotalHours -gt 2) {
+            $asOfLocal = ConvertTo-LocalTimeFromPacificWallClock -PacificWallClock $currentTime
             $labelAsOf = "As of:"
             $paddingAsOf = " " * ($targetColumn - $labelAsOf.Length)
             Write-Host -NoNewline -ForegroundColor White $labelAsOf
             Write-Host -NoNewline $paddingAsOf
-            Write-Host -ForegroundColor Yellow ($currentTime.ToString("M/d/yy h:mm tt"))
+            Write-Host -ForegroundColor Yellow ($asOfLocal.ToString("M/d/yy h:mm tt"))
         }
         if ($dataSource -eq "gauge" -and $showFullOutput) {
             Write-Host -ForegroundColor Yellow "72-hour history is currently empty on the city feed."

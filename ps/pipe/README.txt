@@ -78,8 +78,8 @@ The script displays:
 
 2. Statistics (all values aligned at column 16):
    - Current Level: Most recent percentage value (single color-coded value)
-   - As of: Timestamp of the latest sample (yellow). Shown when the sample is
-     more than 90 minutes old, or when the report is using the gauge fallback
+   - As of: Latest sample time in the local timezone (yellow). Shown only when
+     that sample is more than 2 hours old; hidden when the feed is current
    - Empty-history notice (yellow): "72-hour history is currently empty on the
      city feed." Shown on the full report when only the gauge reading is available.
      SMA, High/Low, Last Full, 100% Duration, and sparklines are omitted until
@@ -143,8 +143,9 @@ TECHNICAL DETAILS
 - Empty History: When only the gauge reading is available, the full report shows
   Current Level, As of, and a yellow notice; history-dependent lines are omitted
 - Time Range: Processes up to 72 hours of historical data
-- Timezone Handling: Chart DATE_TIME_UNIX is Pacific wall-clock time encoded as
-  Unix milliseconds (not UTC). Duration and "As of" calculations use Pacific time.
+- Timezone Handling: Chart DATE_TIME_UNIX clock fields are Pacific wall time, not
+  UTC instants. "As of" is converted to the local timezone. Duration math uses
+  Pacific time.
 - Sparklines: Uses Unicode block characters (U+2581 through U+2588) to create
   visual bar charts
 - Time-Based Binning: Data is grouped into fixed time intervals for sparkline display:
@@ -188,7 +189,7 @@ Current version includes:
 - HTML table fallback, then gauge.cfm last-reading fallback when the city 72-hour feed is empty
 - Empty-history display: Current Level, As of timestamp, and a yellow notice;
   SMA, High/Low, duration, Last Full, and sparklines stay hidden until history returns
-- Stale-data timestamp when the latest sample is more than 90 minutes old
+- Stale-data timestamp when the latest sample is more than 2 hours old
 - HTML table parsing
 - Color-coded statistics and sparklines
 - Aligned output formatting
