@@ -205,6 +205,34 @@ namespace NAMESPACE_PLACEHOLDER {
         private static char[] _chars = new char[0];
         private static uint[] _charColors = new uint[0];
         private static readonly StringBuilder _sb = new StringBuilder(32768);
+        private static readonly string TitleHeader = BuildGradientText(
+            "RECAM\u00c1N'S SEQUENCE",
+            "\x1b[1;38;2;96;165;250m \u25c8 ",
+            96, 165, 250,   // blue-400 (#60a5fa)
+            168, 85, 247    // purple-500 (#a855f7)
+        );
+
+        private static string BuildGradientText(string text, string prefix, int r1, int g1, int b1, int r2, int g2, int b2) {
+            var sb = new StringBuilder(512);
+            if (!string.IsNullOrEmpty(prefix)) {
+                sb.Append(prefix);
+            }
+            int n = Math.Max(1, text.Length - 1);
+            for (int i = 0; i < text.Length; i++) {
+                char ch = text[i];
+                if (ch == ' ') {
+                    sb.Append(' ');
+                    continue;
+                }
+                float t = (float)i / n;
+                int r = (int)Math.Round(r1 + (r2 - r1) * t);
+                int g = (int)Math.Round(g1 + (g2 - g1) * t);
+                int b = (int)Math.Round(b1 + (b2 - b1) * t);
+                sb.Append("\x1b[1;38;2;").Append(r).Append(';').Append(g).Append(';').Append(b).Append('m').Append(ch);
+            }
+            sb.Append("\x1b[0m");
+            return sb.ToString();
+        }
 
         public static string Render(
             int cols, int rows,
@@ -391,7 +419,7 @@ namespace NAMESPACE_PLACEHOLDER {
 
             // Row 1: Title, Target, Step, and Val
             _sb.Append("\x1b[1;1H");
-            _sb.Append("\x1b[1;38;2;96;165;250m \u25c8 RECAM\u00c1N\x1b[0;38;2;168;85;247m'S SEQUENCE\x1b[0m");
+            _sb.Append(TitleHeader);
             if (cols >= 80) {
                 _sb.Append(string.Format("\x1b[38;2;107;114;128m  Target: {0:N0}\x1b[0m", Core.TARGET_VALUE));
             } else {
@@ -490,7 +518,7 @@ namespace NAMESPACE_PLACEHOLDER {
                 _sb.Append("\x1b[1;38;2;96;165;250m[N]\x1b[0;38;2;209;213;219m Step ");
                 _sb.Append("\x1b[1;38;2;96;165;250m[R]\x1b[0;38;2;209;213;219m Reset ");
                 _sb.Append("\x1b[1;38;2;96;165;250m[C]\x1b[0;38;2;209;213;219m Cam ");
-                _sb.Append("\x1b[1;38;2;96;165;250m[A]\x1b[0;38;2;209;213;219m Audio ");
+                _sb.Append("\x1b[1;38;2;96;165;250m[M]\x1b[0;38;2;209;213;219m Mute ");
                 _sb.Append("\x1b[1;38;2;96;165;250m[+/-]\x1b[0;38;2;209;213;219m Zoom ");
                 _sb.Append("\x1b[1;38;2;96;165;250m[\u2191/\u2193]\x1b[0;38;2;209;213;219m Speed ");
                 _sb.Append("\x1b[1;38;2;96;165;250m[\u2190/\u2192]\x1b[0;38;2;209;213;219m Pan ");
@@ -501,7 +529,7 @@ namespace NAMESPACE_PLACEHOLDER {
                 _sb.Append("\x1b[1;38;2;96;165;250m[N]\x1b[0;38;2;209;213;219mStep ");
                 _sb.Append("\x1b[1;38;2;96;165;250m[R]\x1b[0;38;2;209;213;219mReset ");
                 _sb.Append("\x1b[1;38;2;96;165;250m[C]\x1b[0;38;2;209;213;219mCam ");
-                _sb.Append("\x1b[1;38;2;96;165;250m[A]\x1b[0;38;2;209;213;219mSound ");
+                _sb.Append("\x1b[1;38;2;96;165;250m[M]\x1b[0;38;2;209;213;219mMute ");
                 _sb.Append("\x1b[1;38;2;96;165;250m[+/-]\x1b[0;38;2;209;213;219mZoom ");
                 _sb.Append("\x1b[1;38;2;96;165;250m[?]\x1b[0;38;2;209;213;219mHelp ");
                 _sb.Append("\x1b[1;38;2;239;68;68m[Q]\x1b[0;38;2;209;213;219mQuit\x1b[0m\x1b[K");
@@ -537,7 +565,7 @@ namespace NAMESPACE_PLACEHOLDER {
                 "\u2502   \x1b[1;38;2;96;165;250mB\x1b[0m / \x1b[1;38;2;96;165;250m,\x1b[0m / \x1b[1;38;2;96;165;250m\u2190\x1b[0m       Single step backward (when paused)            \x1b[0;38;2;107;114;128m\u2502",
                 "\u2502   \x1b[1;38;2;96;165;250mR\x1b[0m                 Reset sequence to step 0                      \x1b[0;38;2;107;114;128m\u2502",
                 "\u2502   \x1b[1;38;2;96;165;250mC\x1b[0m                 Toggle Cinematic Camera (auto-follow arc)     \x1b[0;38;2;107;114;128m\u2502",
-                "\u2502   \x1b[1;38;2;96;165;250mA\x1b[0m / \x1b[1;38;2;96;165;250mM\x1b[0m             Toggle Audio tone synthesis (stereo pitch)    \x1b[0;38;2;107;114;128m\u2502",
+                "\u2502   \x1b[1;38;2;96;165;250mM\x1b[0m                 Toggle Audio tone synthesis (stereo pitch)    \x1b[0;38;2;107;114;128m\u2502",
                 "\u2502   \x1b[1;38;2;96;165;250m+\x1b[0m / \x1b[1;38;2;96;165;250m-\x1b[0m (\x1b[1;38;2;96;165;250mZ\x1b[0m / \x1b[1;38;2;96;165;250mX\x1b[0m)     Zoom in / Zoom out                            \x1b[0;38;2;107;114;128m\u2502",
                 "\u2502   \x1b[1;38;2;96;165;250m\u2191\x1b[0m / \x1b[1;38;2;96;165;250m\u2193\x1b[0m (\x1b[1;38;2;96;165;250m[\x1b[0m / \x1b[1;38;2;96;165;250m]\x1b[0m)     Increase / Decrease animation speed           \x1b[0;38;2;107;114;128m\u2502",
                 "\u2502   \x1b[1;38;2;96;165;250mA\x1b[0m / \x1b[1;38;2;96;165;250mD\x1b[0m / \x1b[1;38;2;96;165;250mW\x1b[0m / \x1b[1;38;2;96;165;250mS\x1b[0m     Pan number line horizontally / vertically     \x1b[0;38;2;107;114;128m\u2502",
@@ -704,13 +732,8 @@ try {
                         # Toggle Cinematic Mode
                         $isCinematic = -not $isCinematic
                     }
-                    'A' {
-                        # Toggle Audio
-                        $audioEnabled = -not $audioEnabled
-                        $AudioSystem::SetActive($audioEnabled)
-                    }
                     'M' {
-                        # Toggle Audio
+                        # Toggle Audio / Mute
                         $audioEnabled = -not $audioEnabled
                         $AudioSystem::SetActive($audioEnabled)
                     }
@@ -777,11 +800,11 @@ try {
                         $isCinematic = $false
                     }
                     'W' {
-                        $offsetY -= 2.0
+                        $offsetY += 2.0
                         $isCinematic = $false
                     }
                     'S' {
-                        $offsetY += 2.0
+                        $offsetY -= 2.0
                         $isCinematic = $false
                     }
                     'Oem2' { # '?' or '/'
