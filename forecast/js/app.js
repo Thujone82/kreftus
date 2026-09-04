@@ -1,5 +1,34 @@
 // Main application logic and state management
 
+// #region agent log
+function __dbgFavLatch(hypothesisId, location, message, data = {}) {
+    try {
+        const payload = {
+            sessionId: 'b13753',
+            runId: 'pre-fix',
+            hypothesisId,
+            location,
+            message,
+            data: {
+                ...data,
+                currentLocationKey: appState?.currentLocationKey ?? null,
+                isCurrentLocationActive: !!appState?.isCurrentLocationActive,
+                hereSelectionExplicit: !!appState?.hereSelectionExplicit,
+                activeFavId: (typeof getActiveFavoriteIdentifier === 'function') ? getActiveFavoriteIdentifier() : null,
+                city: appState?.location?.city || null,
+                state: appState?.location?.state || null
+            },
+            timestamp: Date.now()
+        };
+        fetch('http://127.0.0.1:7297/ingest/f1a54d7e-b649-48e8-9a73-d78968a51695', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'b13753' },
+            body: JSON.stringify(payload)
+        }).catch(() => {});
+    } catch (_) { /* ignore */ }
+}
+// #endregion
+
 // Application state
 const appState = {
     currentMode: 'full',
@@ -2777,6 +2806,12 @@ function updateCurrentLocationButtonState(isActive) {
  * @returns {boolean} whether "here" ended up selected
  */
 function activateHereSelection({ explicit = false } = {}) {
+    // #region agent log
+    __dbgFavLatch('E', 'app.js:activateHereSelection', 'activateHereSelection called', {
+        explicit,
+        stack: (new Error()).stack?.split('\n').slice(1, 6).map(s => s.trim()) || []
+    });
+    // #endregion
     if (!explicit) {
         const activeFavUID = getActiveFavoriteIdentifier();
         if (activeFavUID) {
@@ -4754,6 +4789,12 @@ function renderLocationButtons(activeUID = null) {
     if (!elements.locationButtons) return;
     
     const favorites = getFavorites();
+    // #region agent log
+    __dbgFavLatch('C', 'app.js:renderLocationButtons', 'renderLocationButtons entry', {
+        activeUIDArg: activeUID === false ? 'FALSE' : (activeUID == null ? 'NULL' : String(activeUID)),
+        forceNoSelection: activeUID === false
+    });
+    // #endregion
     
     if (favorites.length === 0) {
         elements.locationButtons.innerHTML = '';
@@ -5426,6 +5467,17 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         ? null
         : (options.preserveFavoriteUID || getActiveFavoriteIdentifier() || null);
     const preserveFavoriteUID = latchedFavoriteUID;
+    // #region agent log
+    __dbgFavLatch(explicitHere ? 'B' : 'A', 'app.js:loadWeatherData:entry', 'loadWeatherData entry', {
+        location,
+        background,
+        explicitHere,
+        optionsExplicitHere: !!options.explicitHere,
+        optionsPreserve: options.preserveFavoriteUID || null,
+        latchedFavoriteUID,
+        preserveFavoriteUID
+    });
+    // #endregion
     try {
         // Hard guard: when Auto-Update Data is off, block all background-triggered fetches.
         // Manual/user-initiated actions call loadWeatherData with background=false.
@@ -5799,6 +5851,7 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         // On rematch miss: preserve the selected favorite only when this fetch was for that
         // favorite (Refresh/auto-update). A new search for a different place must clear it
         // so the star can favorite the searched location.
+        const keyBeforeRematch = appState.currentLocationKey;
         if (explicitHere) {
             appState.currentLocationKey = null;
         } else if (matchingFavoriteAfterFetch && matchingFavoriteAfterFetch.uid) {
@@ -5827,6 +5880,19 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         } else {
             appState.currentLocationKey = generatedKey;
         }
+        // #region agent log
+        __dbgFavLatch('A', 'app.js:loadWeatherData:rematch', 'post-fetch key rematch', {
+            location,
+            background,
+            explicitHere,
+            preserveFavoriteUID,
+            keyBeforeRematch,
+            keyAfter: appState.currentLocationKey,
+            matchingFavUid: matchingFavoriteAfterFetch?.uid || null,
+            generatedKey,
+            keyDroppedFavorite: !!(keyBeforeRematch && String(keyBeforeRematch).startsWith('uid_') && !(appState.currentLocationKey && String(appState.currentLocationKey).startsWith('uid_')))
+        });
+        // #endregion
         
         // Use the actual NWS API fetch time (from weatherData.fetchTime) as the cache timestamp
         // This ensures the "Updated:" field reflects when the NWS data was actually fetched
@@ -6038,9 +6104,19 @@ async function refreshCurrentObservationOnly() {
 
 function reassertActiveFavoriteSelection(favoriteUID = null) {
     const uid = favoriteUID || getActiveFavoriteIdentifier();
-    if (!uid) return false;
+    if (!uid) {
+        // #region agent log
+        __dbgFavLatch('A', 'app.js:reassertActiveFavoriteSelection', 'reassert failed: no uid', { favoriteUID });
+        // #endregion
+        return false;
+    }
     const favorite = getFavoriteByUID(uid) || getFavoriteByKey(uid);
-    if (!favorite) return false;
+    if (!favorite) {
+        // #region agent log
+        __dbgFavLatch('A', 'app.js:reassertActiveFavoriteSelection', 'reassert failed: favorite not found', { uid });
+        // #endregion
+        return false;
+    }
 
     const preferredUID = favorite.uid || favorite.key || uid;
     updateFavoriteButtonState(preferredUID);
@@ -6053,6 +6129,9 @@ function reassertActiveFavoriteSelection(favoriteUID = null) {
     appState.hereSelectionExplicit = false;
     updateCurrentLocationButtonState(false);
     applyThemeForCurrentLocation();
+    // #region agent log
+    __dbgFavLatch('A', 'app.js:reassertActiveFavoriteSelection', 'reassert ok', { preferredUID, name: favorite.customName || favorite.name || null });
+    // #endregion
     return true;
 }
 
@@ -6765,8 +6844,17 @@ function checkAutoRefresh() {
     if (!appState.updateAllEnabled) {
         if (isDataStale() && appState.location) {
             const location = getLocationForRefresh() || 'here';
+            const preserveUID = getActiveFavoriteIdentifier() || undefined;
+            // #region agent log
+            __dbgFavLatch('D', 'app.js:checkAutoRefresh', 'auto-refresh starting', {
+                location,
+                preserveUID: preserveUID || null,
+                updateAllEnabled: false,
+                isStale: true
+            });
+            // #endregion
             loadWeatherData(location, false, true, {
-                preserveFavoriteUID: getActiveFavoriteIdentifier() || undefined
+                preserveFavoriteUID: preserveUID
             }); // Use background mode to keep content visible
         }
         return;
