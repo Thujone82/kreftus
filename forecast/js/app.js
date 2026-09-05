@@ -5,7 +5,7 @@ function __dbgFavLatch(hypothesisId, location, message, data = {}) {
     try {
         const payload = {
             sessionId: 'b13753',
-            runId: 'pre-fix',
+            runId: 'post-fix',
             hypothesisId,
             location,
             message,
@@ -5863,15 +5863,13 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
             appState.currentLocationKey = matchingFavoriteAfterFetch.key;
             console.log('Found matching favorite after fetch, using location key:', matchingFavoriteAfterFetch.key, 'instead of generated key:', generatedKey);
         } else if (preserveFavoriteUID) {
-            // Rematch missed (geo UID / naming drift) but caller asked to keep this favorite —
-            // common for PDX saved as "here" when coords round differently than the pin geocode.
+            // Rematch missed (geo UID / naming drift) but caller asked to keep this favorite.
+            // Background auto-refresh must never drop a latched favorite — user did not change selection.
             const preservedFav = getFavoriteByUID(preserveFavoriteUID) || getFavoriteByKey(preserveFavoriteUID);
-            if (preservedFav && shouldReassertLatchedFavorite(preservedFav, location, weatherData.location)) {
+            if (preservedFav && (background || shouldReassertLatchedFavorite(preservedFav, location, weatherData.location) || shouldPreserveFavoriteKeyOnRematchMiss(location))) {
                 matchingFavoriteAfterFetch = preservedFav;
                 appState.currentLocationKey = preservedFav.uid ? `uid_${preservedFav.uid}` : preservedFav.key;
-                console.log('Rematch miss; preserving requested favorite for displayed location:', appState.currentLocationKey);
-            } else if (shouldPreserveFavoriteKeyOnRematchMiss(location)) {
-                console.log('Rematch failed after fetch; preserving selected favorite key:', appState.currentLocationKey, '(would have used:', generatedKey + ')');
+                console.log('Rematch miss; preserving requested favorite for displayed location:', appState.currentLocationKey, background ? '(background latch)' : '');
             } else {
                 appState.currentLocationKey = generatedKey;
             }
@@ -5995,6 +5993,16 @@ async function loadWeatherData(location, silentOnLocationFailure = false, backgr
         // Final reassert: background refresh / "here" geocode drift must not drop favorite bar highlight or per-location colors.
         if (explicitHere) {
             // Pin was chosen deliberately: leave the favorites bar unselected.
+        } else if (latchedFavoriteUID && background) {
+            // Auto-refresh never changes the user's selected favorite.
+            const preservedFav = getFavoriteByUID(latchedFavoriteUID) || getFavoriteByKey(latchedFavoriteUID);
+            if (preservedFav) {
+                reassertActiveFavoriteSelection(preservedFav.uid || preservedFav.key);
+            } else if (!reassertLatchedFavoriteIfNeeded(latchedFavoriteUID, location, weatherData.location)) {
+                if (matchingFavoriteAfterFetch?.uid) {
+                    reassertActiveFavoriteSelection(matchingFavoriteAfterFetch.uid);
+                }
+            }
         } else if (!reassertLatchedFavoriteIfNeeded(latchedFavoriteUID, location, weatherData.location)) {
             if (matchingFavoriteAfterFetch?.uid) {
                 reassertActiveFavoriteSelection(matchingFavoriteAfterFetch.uid);
@@ -6757,6 +6765,26 @@ function findFavoriteMatchingWeatherLocation(locationObj) {
     return getFavorites().find((fav) => favoriteMatchesWeatherLocation(fav, locationObj)) || null;
 }
 
+/** Normalize US state to 2-letter code when possible (Oregon → OR). */
+function normalizeUsStateCode(state) {
+    const raw = String(state || '').trim();
+    if (!raw) return '';
+    if (raw.length === 2) return raw.toUpperCase();
+    const map = {
+        alabama: 'AL', alaska: 'AK', arizona: 'AZ', arkansas: 'AR', california: 'CA', colorado: 'CO',
+        connecticut: 'CT', delaware: 'DE', florida: 'FL', georgia: 'GA', hawaii: 'HI', idaho: 'ID',
+        illinois: 'IL', indiana: 'IN', iowa: 'IA', kansas: 'KS', kentucky: 'KY', louisiana: 'LA',
+        maine: 'ME', maryland: 'MD', massachusetts: 'MA', michigan: 'MI', minnesota: 'MN',
+        mississippi: 'MS', missouri: 'MO', montana: 'MT', nebraska: 'NE', nevada: 'NV',
+        'new hampshire': 'NH', 'new jersey': 'NJ', 'new mexico': 'NM', 'new york': 'NY',
+        'north carolina': 'NC', 'north dakota': 'ND', ohio: 'OH', oklahoma: 'OK', oregon: 'OR',
+        pennsylvania: 'PA', 'rhode island': 'RI', 'south carolina': 'SC', 'south dakota': 'SD',
+        tennessee: 'TN', texas: 'TX', utah: 'UT', vermont: 'VT', virginia: 'VA', washington: 'WA',
+        'west virginia': 'WV', wisconsin: 'WI', wyoming: 'WY', 'district of columbia': 'DC'
+    };
+    return map[raw.toLowerCase()] || raw.toUpperCase();
+}
+
 /** True when locationQuery refers to this favorite (searchQuery, name, City/ST, or here→here). */
 function doesLocationQueryMatchFavorite(locationQuery, favorite) {
     if (!locationQuery || !favorite) return false;
@@ -6772,18 +6800,31 @@ function doesLocationQueryMatchFavorite(locationQuery, favorite) {
         (favorite.customName || '').toLowerCase().trim(),
         favorite.location
             ? formatLocationDisplayName(favorite.location.city, favorite.location.state).toLowerCase().trim()
+            : '',
+        favorite.location
+            ? formatLocationDisplayName(favorite.location.city, normalizeUsStateCode(favorite.location.state)).toLowerCase().trim()
             : ''
     ].filter(Boolean);
-    return candidates.some(c => c === locationLower);
+    if (candidates.some(c => c === locationLower)) return true;
+    // "Portland, OR" vs "Portland, Oregon"
+    const parts = locationLower.split(',').map((s) => s.trim()).filter(Boolean);
+    if (parts.length >= 2 && favorite.location) {
+        const qCity = parts[0];
+        const qState = normalizeUsStateCode(parts[1]);
+        const favCity = (favorite.location.city || '').trim().toLowerCase();
+        const favState = normalizeUsStateCode(favorite.location.state);
+        if (qCity && favCity && qCity === favCity && qState && favState && qState === favState) return true;
+    }
+    return false;
 }
 
 /** True when a favorite refers to the same place as a weather location object. */
 function favoriteMatchesWeatherLocation(favorite, locationObj) {
     if (!favorite || !locationObj) return false;
     const favCity = (favorite.location?.city || '').trim().toLowerCase();
-    const favState = (favorite.location?.state || '').trim().toUpperCase();
+    const favState = normalizeUsStateCode(favorite.location?.state);
     const city = (locationObj.city || '').trim().toLowerCase();
-    const state = (locationObj.state || '').trim().toUpperCase();
+    const state = normalizeUsStateCode(locationObj.state);
     if (favCity && favState && city && state && favCity === city && favState === state) return true;
     const geoUid = generateLocationUID(locationObj);
     if (geoUid && favorite.uid === geoUid) return true;
