@@ -1,9 +1,9 @@
 // Leaflet-based map integration for PDX Heritage Trees.
 //
-// Basemap: CARTO Voyager raster tiles (OpenStreetMap data, CARTO-styled).
-// CARTO explicitly permits free use for personal projects and hobby apps, and
-// no API key is required. Nominatim is still used for any rare in-browser
-// geocoding fallback.
+// Basemap: CARTO Voyager vector tiles via MapLibre GL (Leaflet host map +
+// @maplibre/maplibre-gl-leaflet). OSM data, CARTO-styled. Free-tier API key
+// is baked into the style URL (see CARTO basemap docs). Nominatim is still
+// used for any rare in-browser geocoding fallback.
 //
 // Marker colors:
 //   Found    -> forest green
@@ -55,18 +55,20 @@
         return `https://www.google.com/maps/dir/?api=1&destination=${la},${ln}&travelmode=walking`;
     }
 
-    // CARTO Voyager: muted, natural palette that matches the PNW/woodsy theme
-    // and keeps colored markers legible. Allowed for hobby/personal apps per
-    // CARTO's basemap usage terms.
-    const TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-    const TILE_SUBDOMAINS = 'abcd';
+    // CARTO Voyager GL: muted, natural palette that matches the PNW/woodsy
+    // theme and keeps colored markers legible. Vector style URL + free-tier
+    // key (https://docs.carto.com/faqs/carto-basemaps).
+    const CARTO_API_KEY = 'cb1_2ylx_1_b4a3685cca4ec0254101bb76';
+    const VECTOR_STYLE_URL =
+        'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json?key=' +
+        encodeURIComponent(CARTO_API_KEY);
     const TILE_MAX_ZOOM = 20;
     const TILE_ATTRIBUTION =
         '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors ' +
         '&copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>';
 
     let map = null;
-    let tileLayer = null;
+    let basemapLayer = null;
     let markers = new Map();    // id -> L.CircleMarker
     let userLatLng = null;      // {lat, lng} or null
     let userMarker = null;
@@ -106,12 +108,16 @@
         if (!global.L) {
             throw new Error('Leaflet is not loaded.');
         }
+        if (typeof L.maplibreGL !== 'function') {
+            throw new Error('maplibre-gl-leaflet is not loaded.');
+        }
         const container = document.getElementById(containerId);
         if (!container) throw new Error(`Map container #${containerId} not found.`);
 
         map = L.map(container, {
             center: [PORTLAND.lat, PORTLAND.lng],
             zoom: 12,
+            maxZoom: TILE_MAX_ZOOM,
             zoomControl: true,
             attributionControl: true,
             worldCopyJump: false,
@@ -129,11 +135,11 @@
         // and the bottom action bar keep their real estate.
         map.zoomControl.setPosition('bottomleft');
 
-        tileLayer = L.tileLayer(TILE_URL, {
-            subdomains: TILE_SUBDOMAINS,
-            maxZoom: TILE_MAX_ZOOM,
+        // Vector basemap under Leaflet markers/popups (CARTO Voyager GL).
+        basemapLayer = L.maplibreGL({
+            style: VECTOR_STYLE_URL,
             attribution: TILE_ATTRIBUTION,
-            crossOrigin: true
+            interactive: false
         }).addTo(map);
 
         map.on('popupclose', () => { openTreeId = null; });

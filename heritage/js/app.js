@@ -1,6 +1,6 @@
 // Main application wiring.
 //
-// Boot sequence (no API key required - basemap via Leaflet + CARTO Voyager):
+// Boot sequence (CARTO Voyager vector basemap via Leaflet + MapLibre GL):
 //   1. Open IndexedDB.
 //   2. If DB empty: fetch heritage/data/trees.json and initial-load it.
 //      (Tree coordinates ship pre-geocoded from heritage/heritage.ps1, so this
@@ -26,7 +26,7 @@
     'use strict';
 
     const LEGACY_KEY_API = 'pdxHeritageGoogleApiKey';
-    const APP_VERSION = '1.3.2';
+    const APP_VERSION = '1.3.3';
 
     const state = {
         mapReady: false,

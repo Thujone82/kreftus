@@ -8,22 +8,24 @@ the find, and take notes &mdash; all stored privately in your browser. **Search*
 **Nearby**, and **Found** help you work in the field; **Export / Import Settings**
 moves your marks between devices.
 
-**No API keys required.** The basemap uses [Leaflet](https://leafletjs.com/)
-with the [CARTO Voyager](https://carto.com/basemaps/) tile style (OpenStreetMap
+**Basemap API key is baked into the app.** The map uses [Leaflet](https://leafletjs.com/)
+for markers and controls, with a [MapLibre GL](https://maplibre.org/) vector
+basemap in the [CARTO Voyager](https://carto.com/basemaps/) style (OpenStreetMap
 data under a CARTO-designed palette that suits the Pacific Northwest look).
 Geocoding is handled offline by the included PowerShell scraper, which calls
 OpenStreetMap's free [Nominatim](https://nominatim.openstreetmap.org/) service
 and bundles the resolved coordinates alongside the tree list in
 `data/trees.json`. The app reads that JSON on first run, so the map populates
-instantly without any live geocoding in the browser. Everything then runs
-entirely offline from your browser's IndexedDB.
+instantly without any live geocoding in the browser. Tree marks and notes then
+run entirely offline from your browser's IndexedDB (vector tiles need a prior
+visit or online connection for new areas).
 
 ## Features
 
 - **Full registry** &mdash; every tree with Tree #, year added, species / common
   name, location, and "Removed from list in YYYY" where applicable.
-- **Interactive map** &mdash; Leaflet + CARTO Voyager basemap (OSM data) with
-  colored markers:
+- **Interactive map** &mdash; Leaflet markers over a CARTO Voyager **vector**
+  basemap (MapLibre GL; OSM data) with colored markers:
   - Green: trees you have marked as **found**
   - Amber: trees not yet found
   - Gray: trees removed from the registry
@@ -59,8 +61,9 @@ entirely offline from your browser's IndexedDB.
 ## Requirements
 
 - A modern browser (Chrome, Edge, Firefox, Safari) with IndexedDB and
-  service worker support.
-- No API keys. No Google Cloud account. No billing setup.
+  service worker support. WebGL is required for the vector basemap.
+- No Google Cloud account. No billing setup. The CARTO basemap free-tier
+  API key is already baked into the app.
 - PowerShell 7+ (`pwsh`) if you want to refresh the tree list with
   `heritage.ps1`. The script uses OpenStreetMap's Nominatim service and needs
   no API key either.
@@ -127,17 +130,20 @@ because the heavy lifting happened offline inside `heritage.ps1`.
 
 ### Map layer
 
-- **Library:** Leaflet 1.9.4, loaded from `unpkg.com` and cached by the
-  service worker after first use.
-- **Tiles:** CARTO Voyager raster tiles
-  (`https://{a,b,c,d}.basemaps.cartocdn.com/rastertiles/voyager/...`). CARTO
-  explicitly permits free use of their basemaps for personal projects and
-  hobby apps. Attribution for OpenStreetMap contributors and CARTO is shown in
-  the map's bottom-right and again in **Settings &rarr; Map**.
-- **Offline:** tiles are cached cache-first in `heritage-tiles-v1`, so areas
-  you've previously panned to stay available without a connection.
-- **Swapping tile layers:** change `TILE_URL` / `TILE_ATTRIBUTION` at the top
-  of `js/map.js` &mdash; everything else is provider-agnostic.
+- **Libraries:** Leaflet 1.9.4 (markers / UI) and MapLibre GL 4.7.1 (vector
+  basemap), bridged by `@maplibre/maplibre-gl-leaflet`, all loaded from
+  `unpkg.com` and cached by the service worker after first use.
+- **Basemap:** CARTO Voyager **vector** style
+  (`https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json`) with the
+  free-tier API key appended as `?key=...` (see
+  [CARTO basemap docs](https://docs.carto.com/faqs/carto-basemaps)). Attribution
+  for OpenStreetMap contributors and CARTO is shown in the map's bottom-right
+  and again in **Settings &rarr; Map**.
+- **Offline:** style JSON, MVT tiles, sprites, and glyphs are cached
+  cache-first in `heritage-tiles-v2`, so areas you've previously panned stay
+  available without a connection.
+- **Swapping styles:** change `VECTOR_STYLE_URL` / `TILE_ATTRIBUTION` at the
+  top of `js/map.js` &mdash; markers and camera logic stay provider-agnostic.
 
 ## Usage
 
@@ -465,9 +471,14 @@ documentation in the browser.
 ## Troubleshooting
 
 - **Blank map, nothing loads** &mdash; open DevTools &rarr; Network and filter
-  on `cartocdn.com`. If those requests fail, a privacy extension
-  (uBlock, Brave Shields, etc.) or corporate filter may be blocking the tile
-  host. Whitelisting `basemaps.cartocdn.com` and `unpkg.com` fixes it.
+  on `basemaps.cartocdn.com` / `cartocdn.com`. If those requests fail, a privacy
+  extension (uBlock, Brave Shields, etc.) or corporate filter may be blocking
+  the tile host. Whitelisting `*.basemaps.cartocdn.com` and `unpkg.com` fixes
+  it. Also confirm WebGL is enabled (vector basemap requires it).
+- **"API key required" watermarks on the map** &mdash; that only happens on
+  the old **raster** CARTO endpoint without a key. This app uses the **vector**
+  Voyager style with a baked-in key; a hard refresh / **Check for app update**
+  should clear a stale service-worker shell still serving the raster layer.
 - **Tiles load but markers don't** &mdash; open DevTools &rarr; Application
   &rarr; IndexedDB and confirm `pdxHeritage` / `trees` has rows. If it's
   empty, delete it and reload; the app will repopulate from `data/trees.json`.

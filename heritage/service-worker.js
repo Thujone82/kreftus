@@ -7,21 +7,22 @@
 //   - JS / CSS / JSON / SVG / HTML assets: stale-while-revalidate.
 //   - Tree snapshot (data/trees.json): network-first (we *want* updates to the
 //     list whenever we can get them; cache is a fallback for offline use).
-//   - Leaflet CDN (unpkg.com/leaflet@...): stale-while-revalidate, so the
-//     map library stays available offline after the first visit.
-//   - CARTO basemap tiles (basemaps.cartocdn.com): cache-first with a fetch
-//     fallback. Tiles are immutable for a given z/x/y so cache-first is ideal,
-//     and it lets the map render offline wherever the user has already panned.
+//   - Leaflet + MapLibre CDN (unpkg.com/leaflet@..., maplibre-gl@...,
+//     @maplibre/maplibre-gl-leaflet@...): stale-while-revalidate, so the map
+//     libraries stay available offline after the first visit.
+//   - CARTO vector basemap assets (style JSON, MVT tiles, sprites, glyphs on
+//     *.basemaps.cartocdn.com): cache-first with a fetch fallback so areas
+//     the user has already panned stay available offline.
 //   - Everything else (images, icons, manifest): cache-first.
 //
 // IndexedDB is NEVER touched by the service worker, so installing an app update
 // cannot wipe a user's Found marks or notes.
 
-const VERSION = '1.3.2';
+const VERSION = '1.3.3';
 const STATIC_CACHE = `heritage-static-v${VERSION}`;
 const DATA_CACHE   = `heritage-data-v${VERSION}`;
-const TILE_CACHE   = `heritage-tiles-v1`;    // tile URLs are versionless, so keep across app bumps
-const VENDOR_CACHE = `heritage-vendor-v1`;   // leaflet CDN - not worth re-downloading on every app bump
+const TILE_CACHE   = `heritage-tiles-v2`;    // vector MVT / style / sprites / glyphs
+const VENDOR_CACHE = `heritage-vendor-v2`;   // leaflet + maplibre CDN assets
 
 const STATIC_ASSETS = [
     '/heritage/',
@@ -75,14 +76,14 @@ self.addEventListener('fetch', (event) => {
     if (request.method !== 'GET') return;
     const url = new URL(request.url);
 
-    // Cross-origin: CARTO tile host, Leaflet CDN, anything else (Wikipedia,
-    // Nominatim, Google walking-directions deep links) passes through.
+    // Cross-origin: CARTO basemap hosts, map vendor CDN, anything else
+    // (Wikipedia, Nominatim, Google walking-directions deep links) passes through.
     if (url.origin !== self.location.origin) {
-        if (/^https:\/\/[a-d]\.basemaps\.cartocdn\.com\//i.test(url.href)) {
+        if (/\.basemaps\.cartocdn\.com$/i.test(url.hostname)) {
             event.respondWith(cacheFirst(request, TILE_CACHE));
             return;
         }
-        if (/^https:\/\/unpkg\.com\/leaflet@/i.test(url.href)) {
+        if (/^https:\/\/unpkg\.com\/(?:leaflet@|maplibre-gl@|@maplibre\/maplibre-gl-leaflet@)/i.test(url.href)) {
             event.respondWith(staleWhileRevalidate(request, VENDOR_CACHE));
             return;
         }

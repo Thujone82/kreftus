@@ -82,6 +82,12 @@ button { font-family: inherit; }
     bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
 }
 
+/* MapLibre GL canvas lives under Leaflet markers/popups; keep pointer events
+   on the Leaflet pane so circleMarkers and long-press still work. */
+.leaflet-maplibre-gl {
+    z-index: 0 !important;
+}
+
 /* ==========================================================================
    Header (top bar)
    ========================================================================== */
