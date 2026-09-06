@@ -1,6 +1,6 @@
 {
   "sourceUrl": "https://www.portland.gov/trees/heritage/heritage-trees-year",
-  "scrapedAt": "2026-09-06T04:00:26Z",
+  "scrapedAt": "2026-09-06T04:01:02Z",
   "count": 408,
   "trees": [
     {
@@ -5105,8 +5105,8 @@
       "name": "Abies Pinsapo - Spanish Fir",
       "location": "9008 N Charleston Ave (private)",
       "removed": null,
-      "lat": 45.5926213,
-      "lng": -122.7496238,
+      "lat": 45.592794393416156,
+      "lng": -122.74969179259111,
       "geocodeStatus": "ok",
       "geocodeAddress": "9008 N Charleston Ave, Portland, OR, USA",
       "geocodeFormatted": "9008, North Charleston Avenue, Saint Johns, Portland, Multnomah County, Oregon, 97203, United States",
