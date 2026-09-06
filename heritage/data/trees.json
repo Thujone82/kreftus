@@ -1,6 +1,6 @@
 {
   "sourceUrl": "https://www.portland.gov/trees/heritage/heritage-trees-year",
-  "scrapedAt": "2026-08-23T13:11:26Z",
+  "scrapedAt": "2026-09-06T04:00:26Z",
   "count": 408,
   "trees": [
     {
@@ -989,8 +989,8 @@
       "name": "Quercus Garryana - Oregon White Oak",
       "location": "9107 N Richmond Ave (private, rear yard)",
       "removed": null,
-      "lat": 45.5930513,
-      "lng": -122.7488512,
+      "lat": 45.59311315845158,
+      "lng": -122.74899911810459,
       "geocodeStatus": "ok",
       "geocodeAddress": "9107 N Richmond Ave, Portland, OR, USA",
       "geocodeFormatted": "9107, North Richmond Avenue, Saint Johns, Portland, Multnomah County, Oregon, 97203, United States",
