@@ -19,6 +19,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const appTitle = document.getElementById('app-title');
             const generateGifButton = document.getElementById('generateGifButton');
 
+            // Dedicated offscreen buffer for O(1) incremental trace rendering & HiDPI support
+            const traceCanvas = document.createElement('canvas');
+            const traceCtx = traceCanvas.getContext('2d');
+            let canvasLogicalSize = 800; // Logical CSS dimensions
+            let dpr = window.devicePixelRatio || 1;
 
             let nodes = []; 
             let collapsedStates = {}; // To store collapsed states
@@ -106,16 +111,35 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             function resizeCanvas() {
+                dpr = window.devicePixelRatio || 1;
                 const setupPanel = document.getElementById('setup-panel');
                 const panelWidth = setupPanel.offsetWidth + 20;
                 let availableWidth = window.innerWidth - 40;
                 if (window.innerWidth > 768) availableWidth = window.innerWidth - panelWidth - 40 - 20;
-                const availableHeight = window.innerHeight - 60;
+                let availableHeight = window.innerHeight - 60;
+                if (window.innerWidth <= 768) {
+                    availableHeight = Math.floor(window.innerHeight * 0.45);
+                }
                 const simAreaElement = document.getElementById('simulation-area');
                 const simAreaWidth = simAreaElement ? simAreaElement.clientWidth : availableWidth;
                 availableWidth = Math.min(availableWidth, simAreaWidth);
-                let canvasSize = Math.min(availableWidth, availableHeight, 800);
-                canvas.width = canvas.height = Math.max(canvasSize, 300);
+                canvasLogicalSize = Math.max(Math.min(availableWidth, availableHeight, 800), 280);
+
+                // Internal physical pixel buffer for razor-sharp HiDPI rendering
+                canvas.width = Math.round(canvasLogicalSize * dpr);
+                canvas.height = Math.round(canvasLogicalSize * dpr);
+
+                // CSS display size in logical pixels
+                canvas.style.width = `${canvasLogicalSize}px`;
+                canvas.style.height = `${canvasLogicalSize}px`;
+
+                // Sync offscreen trace canvas buffer dimensions
+                traceCanvas.width = canvas.width;
+                traceCanvas.height = canvas.height;
+
+                // Sync the offscreen buffer with current traces
+                rebuildTraceBuffer();
+
                 if (!isRunning) drawStaticSpirograph(); else drawSpirographFrame(); 
             }
 
@@ -133,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Sum of all node lengths gives the maximum possible radius
                 const maxRadius = nodes.reduce((sum, node) => sum + parseFloat(node.length), 0);
                 const maxDiameter = maxRadius * 2;
-                const canvasSize = canvas.width;
+                const canvasSize = canvasLogicalSize;
                 let newZoom = 1.0; // Default zoom
                 if (maxDiameter > 0) {
                     // Fit diameter within 95% of canvas size for a small margin
@@ -146,11 +170,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 zoomValSpan.textContent = currentZoom.toFixed(2);
                 updateSliderFill(zoomSlider);
                 console.log(`Auto-zoom calculated. Max radius: ${maxRadius.toFixed(0)}px, New zoom: ${currentZoom.toFixed(2)}x`);
+                rebuildTraceBuffer();
                 if (!isRunning) drawStaticSpirograph();
             }
             
             function resetPanAndRedraw() {
                 canvasOffsetX = 0; canvasOffsetY = 0;
+                rebuildTraceBuffer();
                 if (!isRunning) drawStaticSpirograph();
             }
             
@@ -279,18 +305,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 return positions;
             }
 
+            function rebuildTraceBuffer() {
+                if (!traceCtx) return;
+                traceCtx.setTransform(1, 0, 0, 1, 0, 0);
+                traceCtx.clearRect(0, 0, traceCanvas.width, traceCanvas.height);
+                traceCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+                const canvasCenterX = canvasLogicalSize / 2 + canvasOffsetX; 
+                const canvasCenterY = canvasLogicalSize / 2 + canvasOffsetY; 
+
+                allTraceSegments.forEach(segment => { 
+                    if (segment.points.length > 1) {
+                        traceCtx.strokeStyle = hexToRgba(segment.color, segment.nodeAlpha / 100);
+                        traceCtx.lineWidth = Math.max(1, segment.nodeWidth * currentZoom);
+                        traceCtx.lineCap = 'round';
+                        traceCtx.lineJoin = 'round';
+                        traceCtx.beginPath(); 
+                        traceCtx.moveTo(canvasCenterX + segment.points[0].x * currentZoom, canvasCenterY + segment.points[0].y * currentZoom);
+                        for (let k = 1; k < segment.points.length; k++) {
+                            traceCtx.lineTo(canvasCenterX + segment.points[k].x * currentZoom, canvasCenterY + segment.points[k].y * currentZoom);
+                        }
+                        traceCtx.stroke();
+                    }
+                });
+            }
+
             function drawStaticSpirograph() {
                 if (!ctx) return;
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
                 ctx.fillStyle = document.documentElement.style.getPropertyValue('--sim-background-color');
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-                const canvasCenterX = canvas.width / 2 + canvasOffsetX; 
-                const canvasCenterY = canvas.height / 2 + canvasOffsetY; 
+                const canvasCenterX = canvasLogicalSize / 2 + canvasOffsetX; 
+                const canvasCenterY = canvasLogicalSize / 2 + canvasOffsetY; 
 
                 ctx.save();
                 ctx.translate(canvasCenterX, canvasCenterY);
                 ctx.rotate(totalRotationAngle);
                 ctx.translate(-canvasCenterX, -canvasCenterY);
+
+                // Blit pre-rendered trace canvas in O(1)
+                ctx.drawImage(traceCanvas, 0, 0, canvasLogicalSize, canvasLogicalSize);
 
                 const nodePositions = calculateStaticNodePositions();
                 nodePositions.forEach(pos => {
@@ -298,30 +354,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.moveTo(canvasCenterX + pos.startX * currentZoom, canvasCenterY + pos.startY * currentZoom);
                     ctx.lineTo(canvasCenterX + pos.endX * currentZoom, canvasCenterY + pos.endY * currentZoom);
                     ctx.strokeStyle = hexToRgba(pos.nodeVisibleColor, 0.5);
-                    ctx.lineWidth = Math.max(1, pos.nodeWidth * currentZoom); ctx.stroke();
+                    ctx.lineWidth = Math.max(1, pos.nodeWidth * currentZoom); 
+                    ctx.stroke();
                     ctx.beginPath();
                     ctx.arc(canvasCenterX + pos.endX * currentZoom, canvasCenterY + pos.endY * currentZoom, Math.max(2, 5 * currentZoom), 0, 2 * Math.PI);
-                    ctx.fillStyle = hexToRgba(pos.nodeVisibleColor, pos.nodeAlpha / 100); ctx.fill();
+                    ctx.fillStyle = hexToRgba(pos.nodeVisibleColor, pos.nodeAlpha / 100); 
+                    ctx.fill();
                 });
-                drawAllTraces();
                 ctx.restore();
             }
             
             function drawAllTraces() {
-                const canvasCenterX = canvas.width / 2 + canvasOffsetX; 
-                const canvasCenterY = canvas.height / 2 + canvasOffsetY; 
-                allTraceSegments.forEach(segment => { 
-                    if (segment.points.length > 1) {
-                        ctx.strokeStyle = hexToRgba(segment.color, segment.nodeAlpha / 100);
-                        ctx.lineWidth = Math.max(1, segment.nodeWidth * currentZoom);
-                        ctx.beginPath(); 
-                        ctx.moveTo(canvasCenterX + segment.points[0].x * currentZoom, canvasCenterY + segment.points[0].y * currentZoom);
-                        for (let k = 1; k < segment.points.length; k++) {
-                            ctx.lineTo(canvasCenterX + segment.points[k].x * currentZoom, canvasCenterY + segment.points[k].y * currentZoom);
-                        }
-                        ctx.stroke();
-                    }
-                });
+                rebuildTraceBuffer();
             }
 
             function drawSpirographFrame() {
@@ -332,6 +376,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 let haltSimulationAfterThisFrame = false;
                 const dt_step = DT / currentPhysicsSubSteps;
+                const canvasCenterX = canvasLogicalSize / 2 + canvasOffsetX; 
+                const canvasCenterY = canvasLogicalSize / 2 + canvasOffsetY; 
 
                 for (let step = 0; step < currentPhysicsSubSteps; step++) {
                     let currentLogicalX_step = 0, currentLogicalY_step = 0;
@@ -379,7 +425,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         if (node.isDrawing) {
                             const activeSegment = currentSegmentMap.get(node.id);
-                            if (activeSegment) activeSegment.points.push({ x: armEndX_step, y: armEndY_step });
+                            if (activeSegment) {
+                                const prevPoint = activeSegment.points[activeSegment.points.length - 1];
+                                activeSegment.points.push({ x: armEndX_step, y: armEndY_step });
+
+                                // Draw incremental sub-step line directly to offscreen buffer in O(1)
+                                if (prevPoint) {
+                                    traceCtx.strokeStyle = hexToRgba(node.color, node.alpha / 100);
+                                    traceCtx.lineWidth = Math.max(1, node.width * currentZoom);
+                                    traceCtx.lineCap = 'round';
+                                    traceCtx.lineJoin = 'round';
+                                    traceCtx.beginPath();
+                                    traceCtx.moveTo(canvasCenterX + prevPoint.x * currentZoom, canvasCenterY + prevPoint.y * currentZoom);
+                                    traceCtx.lineTo(canvasCenterX + armEndX_step * currentZoom, canvasCenterY + armEndY_step * currentZoom);
+                                    traceCtx.stroke();
+                                }
+                            }
                         }
                         currentLogicalX_step = armEndX_step; currentLogicalY_step = armEndY_step;
                     }
@@ -387,16 +448,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         break; // Exit sub-step loop after the final precise step
                     }
                 }
+
+                // Clear visible canvas
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
                 ctx.fillStyle = document.documentElement.style.getPropertyValue('--sim-background-color');
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-                const canvasCenterX = canvas.width / 2 + canvasOffsetX; 
-                const canvasCenterY = canvas.height / 2 + canvasOffsetY; 
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
                 ctx.save();
                 ctx.translate(canvasCenterX, canvasCenterY);
                 ctx.rotate(totalRotationAngle);
                 ctx.translate(-canvasCenterX, -canvasCenterY);
+
+                // Blit offscreen trace buffer in O(1)
+                ctx.drawImage(traceCanvas, 0, 0, canvasLogicalSize, canvasLogicalSize);
 
                 let currentLogicalX_draw = 0, currentLogicalY_draw = 0;
 
@@ -410,16 +475,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.moveTo(canvasCenterX + currentLogicalX_draw * currentZoom, canvasCenterY + currentLogicalY_draw * currentZoom);
                     ctx.lineTo(canvasCenterX + armEndX_draw * currentZoom, canvasCenterY + armEndY_draw * currentZoom);
                     ctx.strokeStyle = hexToRgba(displayColor, 0.5);
-                    ctx.lineWidth = Math.max(1, node.width * currentZoom); ctx.stroke();
+                    ctx.lineWidth = Math.max(1, node.width * currentZoom); 
+                    ctx.stroke();
 
                     ctx.beginPath();
                     ctx.arc(canvasCenterX + armEndX_draw * currentZoom, canvasCenterY + armEndY_draw * currentZoom, Math.max(2, 5 * currentZoom), 0, 2 * Math.PI);
-                    ctx.fillStyle = hexToRgba(displayColor, node.alpha / 100); ctx.fill();
+                    ctx.fillStyle = hexToRgba(displayColor, node.alpha / 100); 
+                    ctx.fill();
 
                     currentLogicalX_draw = armEndX_draw; currentLogicalY_draw = armEndY_draw;
                 }
-                drawAllTraces(); 
                 ctx.restore();
+
 
                 if (haltSimulationAfterThisFrame) {
                     const node1 = nodes[0];
@@ -690,13 +757,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 allTraceSegments = [];
                 currentSegmentMap.clear();
                 downloadButton.classList.add('hidden');
+                generateGifButton.classList.add('hidden');
                 console.log("All drawing traces cleared.");
+                if (traceCtx) {
+                    traceCtx.setTransform(1, 0, 0, 1, 0, 0);
+                    traceCtx.clearRect(0, 0, traceCanvas.width, traceCanvas.height);
+                    traceCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                }
                 if (!isRunning) drawStaticSpirograph(); 
                 else { 
+                    ctx.setTransform(1, 0, 0, 1, 0, 0);
                     ctx.fillStyle = document.documentElement.style.getPropertyValue('--sim-background-color');
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
                 }
             }
+
             
             function updateAddRemoveButtons() { addNodeButton.disabled = nodes.length >= MAX_NODES; }
 
@@ -887,6 +963,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 canvasOffsetY += dy;
                 lastPanX = pos.x;
                 lastPanY = pos.y;
+                rebuildTraceBuffer();
                 if (!isRunning) drawStaticSpirograph();
             }
 
@@ -918,6 +995,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 initialPinchDistance = newPinchDistance; // Update for continuous zoom
                 console.log(`Canvas pinch zoomed. New zoom: ${currentZoom.toFixed(2)}`);
+                rebuildTraceBuffer();
                 if (!isRunning) drawStaticSpirograph();
             }
 
@@ -931,6 +1009,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 zoomValSpan.textContent = currentZoom.toFixed(2);
                 updateSliderFill(zoomSlider);
                 console.log(`Canvas mouse wheel zoomed. New zoom: ${currentZoom.toFixed(2)}`);
+                rebuildTraceBuffer();
                 if (!isRunning) drawStaticSpirograph();
             }
 
@@ -993,7 +1072,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateDynamicTheme();
 
                 allTraceSegments = JSON.parse(JSON.stringify(memorySlot.traces));
-                
+                rebuildTraceBuffer();
                 drawStaticSpirograph(); 
                 console.log("State recalled from memory.");
             });
@@ -1001,25 +1080,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
             downloadButton.addEventListener('click', () => {
                 if (!allTraceSegments.some(seg => seg.points.length > 0)) { alert("No spirograph trace."); return; }
-                const tempCanvas = document.createElement('canvas'); tempCanvas.width = canvas.width; tempCanvas.height = canvas.height;
+                const tempCanvas = document.createElement('canvas'); 
+                tempCanvas.width = canvas.width; 
+                tempCanvas.height = canvas.height;
                 const tempCtx = tempCanvas.getContext('2d');
                 tempCtx.fillStyle = document.documentElement.style.getPropertyValue('--sim-background-color');
                 tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-                const cX = tempCanvas.width/2 + canvasOffsetX; 
-                const cY = tempCanvas.height/2 + canvasOffsetY; 
                 
-                allTraceSegments.forEach(segment => { 
-                    if (segment.points.length > 1) { 
-                        tempCtx.strokeStyle = hexToRgba(segment.color, segment.nodeAlpha / 100);
-                        tempCtx.lineWidth = Math.max(1, segment.nodeWidth * currentZoom);
-                        tempCtx.beginPath();
-                        tempCtx.moveTo(cX + segment.points[0].x * currentZoom, cY + segment.points[0].y * currentZoom);
-                        for (let k = 1; k < segment.points.length; k++) tempCtx.lineTo(cX + segment.points[k].x * currentZoom, cY + segment.points[k].y * currentZoom);
+                // Draw high-resolution offscreen trace directly onto the export canvas
+                tempCtx.drawImage(traceCanvas, 0, 0);
 
-                    tempCtx.stroke(); }});
-                const link = document.createElement('a'); link.href = tempCanvas.toDataURL('image/png');
-                link.download = 'spirograph_v2.6.png'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                const link = document.createElement('a'); 
+                link.href = tempCanvas.toDataURL('image/png');
+                link.download = 'spirograph_v2.6.png'; 
+                document.body.appendChild(link); 
+                link.click(); 
+                document.body.removeChild(link);
             });
+
 
             generateGifButton.addEventListener('click', generateGif);
 
@@ -1089,7 +1167,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillStyle = document.documentElement.style.getPropertyValue('--sim-background-color');
                 ctx.fillRect(0, 0, resolution, resolution);
 
-                const scale = resolution / canvas.width;
+                const scale = resolution / canvasLogicalSize;
                 const canvasCenterX = (resolution / 2) + canvasOffsetX * scale;
                 const canvasCenterY = (resolution / 2) + canvasOffsetY * scale;
 
@@ -1328,7 +1406,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     navigator.serviceWorker.register('sw.js')
                     .then((registration) => {
-                        console.log('Service Worker registered for SpiroGen v2.5. Scope:', registration.scope);
+                        console.log('Service Worker registered for SpiroGen v2.6. Scope:', registration.scope);
                         
                         // Listen for the updatefound event.
                         registration.onupdatefound = () => {
