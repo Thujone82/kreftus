@@ -1092,7 +1092,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const link = document.createElement('a'); 
                 link.href = tempCanvas.toDataURL('image/png');
-                link.download = 'spirograph_v2.6.png'; 
+                link.download = 'spirograph_v2.7.png'; 
                 document.body.appendChild(link); 
                 link.click(); 
                 document.body.removeChild(link);
@@ -1406,7 +1406,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     navigator.serviceWorker.register('sw.js')
                     .then((registration) => {
-                        console.log('Service Worker registered for SpiroGen v2.6. Scope:', registration.scope);
+                        console.log('Service Worker registered for SpiroGen v2.7. Scope:', registration.scope);
                         
                         // Listen for the updatefound event.
                         registration.onupdatefound = () => {

@@ -1,4 +1,4 @@
-# SpiroGen — Multi-Node Spirograph Generator v2.6
+# SpiroGen — Multi-Node Spirograph Generator v2.7
 
 SpiroGen is an interactive, mathematical pattern generator and Progressive Web App (PWA) built with vanilla HTML5, Canvas 2D, and CSS3. It simulates complex epicycloid, hypotrochoid, and multi-arm harmonic curves produced by connected rotating joints ("nodes").
 
@@ -45,7 +45,7 @@ Live application: [https://kreft.us/spiro/](https://kreft.us/spiro/)
   * Offline-capable Service Worker (`sw.js`) with cache-first asset delivery and automated background updates.
 
 * **Easter Egg**:
-  * Press and hold the "SpiroGen v2.6" header (or hold M+) to trigger a physics-driven spin-up and decelerating flywheel coast animation.
+  * Press and hold the "SpiroGen v2.7" header (or hold M+) to trigger a physics-driven spin-up and decelerating flywheel coast animation.
 
 ---
 
@@ -107,6 +107,6 @@ spiro/
 2. **Cache Updating**:
    When modifying core application files (`index.html`, `style.css`, or `app.js`), update the `CACHE_NAME` version string in [`sw.js`](file:///c:/kreftus/spiro/sw.js#L1):
    ```javascript
-   const CACHE_NAME = 'spirograph-generator-v2.6-MMDDYY@HHMM';
+   const CACHE_NAME = 'spirograph-generator-v2.7-MMDDYY@HHMM';
    ```
    The application's `controllerchange` listener automatically reloads connected clients when a newly activated Service Worker claims the page.

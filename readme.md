@@ -18,7 +18,7 @@ This repository represents a unique approach to software development that levera
 - **[nfo2Go v.3](nfo/)** - Personal AI information hub with customizable location-based briefings. Supports both Google Gemini and OpenRouter APIs with dynamic model selection, weather support, and offline data retention
 
 ### Creative Tools
-- **[SpiroGen v2.6](spiro/)** - Digital spirograph art generator with multi-node support (up to 4 nodes), pan/zoom, persistent traces, and export capabilities for GIF or PNG images
+- **[SpiroGen v2.7](spiro/)** - Digital spirograph art generator with multi-node support (up to 4 nodes), pan/zoom, persistent traces, and export capabilities for GIF or PNG images
 
 ### Weather & Finance Tools
 - **[Forecast](forecast/)** - Web version of the Terminal app 'GetForecast'. Comprehensive weather utility using National Weather Service API with current conditions, hourly and daily forecasts, weather alerts, favorites saving, custom location names, locations drawer, auto-update, and PWA support with offline capabilities
