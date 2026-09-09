@@ -9253,6 +9253,12 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                 $autoRefreshCooldownActive = ($null -ne $script:autoRefreshRetryAfter -and (Get-Date) -lt $script:autoRefreshRetryAfter)
                 if ($timeSinceLastFetch.TotalSeconds -gt $dataStaleThreshold -and -not $autoRefreshCooldownActive) {
                     Write-Verbose "Auto-refresh triggered - data is stale ($([math]::Round($timeSinceLastFetch.TotalSeconds, 1)) seconds old)"
+                    # A prior failed attempt left "Refresh failed" / "retry in 60s" under the pane.
+                    # Redraw first so the next try starts clean at "Refreshing weather data..." only.
+                    if ($null -ne $script:autoRefreshRetryAfter) {
+                        Clear-HostWithDelay
+                        Show-GfInteractiveCurrentView
+                    }
                     $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers -TimeZone $timeZone -UseRetryLogic $false
                     if ($refreshSuccess) {
                         $script:autoRefreshRetryAfter = $null
