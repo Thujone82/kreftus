@@ -296,6 +296,8 @@ $script:gfActiveFavorite = $null
 $script:gfLoadedFavoriteIndex = -1
 $script:gfPendingFavoriteLoadIndex = -1
 $script:gfPendingFavoriteLoadAt = $null
+$script:gfFavoriteInputLocked = $false
+$script:gfDeferredKeyInfo = $null
 $script:gfLocationsDrawerOpen = $false
 $script:gfPerLocationColors = $true
 $script:use24hTime = $true
@@ -2486,15 +2488,44 @@ function Get-GfAdvancedFavoriteSlotIndexFromKey {
     return $(if ($shifted) { $digit + 9 } else { $digit - 1 })
 }
 
+function Clear-GfConsoleInputBuffer {
+    try {
+        if ([System.Console]::IsInputRedirected) { return }
+        while ([System.Console]::KeyAvailable) {
+            $null = [System.Console]::ReadKey($true)
+        }
+    } catch {}
+}
+
 function Clear-GfAdvancedFavoritePendingLoad {
     $script:gfPendingFavoriteLoadIndex = -1
     $script:gfPendingFavoriteLoadAt = $null
+}
+
+function Lock-GfFavoriteSwitchInput {
+    # After a favorite is accepted, ignore/flush keys until the new location finishes loading (process restart).
+    $script:gfFavoriteInputLocked = $true
+    Clear-GfAdvancedFavoritePendingLoad
+    $script:gfDeferredKeyInfo = $null
+    Clear-GfConsoleInputBuffer
+}
+
+function Cancel-GfAdvancedFavoritePreviewIfPending {
+    if ($null -eq $script:gfPendingFavoriteLoadAt) { return $false }
+    Clear-GfAdvancedFavoritePendingLoad
+    $favs = @($script:gfFavorites)
+    if ($script:gfLoadedFavoriteIndex -ge 0 -and $script:gfLoadedFavoriteIndex -lt $favs.Count) {
+        $script:gfActiveFavoriteIndex = $script:gfLoadedFavoriteIndex
+        $script:gfActiveFavorite = $favs[$script:gfLoadedFavoriteIndex]
+    }
+    return $true
 }
 
 function Move-GfAdvancedFavoritePreview {
     param([int]$Delta)
     $favs = @($script:gfFavorites)
     if (-not $script:gfAdvancedMode -or $favs.Count -eq 0) { return $false }
+    if ($script:gfFavoriteInputLocked -or $script:gfRestartRequested) { return $false }
     $n = $favs.Count
     $cur = $script:gfActiveFavoriteIndex
     if ($cur -lt 0 -or $cur -ge $n) { $cur = 0 }
@@ -2511,8 +2542,35 @@ function Move-GfAdvancedFavoritePreview {
     return $true
 }
 
+function Invoke-GfAdvancedFavoriteTabNudge {
+    param([System.ConsoleKeyInfo]$FirstKey)
+    $delta = if (($FirstKey.Modifiers -band [System.ConsoleModifiers]::Shift) -ne 0) { -1 } else { 1 }
+    $moved = [bool](Move-GfAdvancedFavoritePreview -Delta $delta)
+    # Drain queued Tab/Shift+Tab (key-repeat / fast taps) into one visual update and one settle timer
+    try {
+        while (-not [System.Console]::IsInputRedirected -and [System.Console]::KeyAvailable) {
+            $next = [System.Console]::ReadKey($true)
+            if ($next.Key -eq [System.ConsoleKey]::Tab) {
+                $d = if (($next.Modifiers -band [System.ConsoleModifiers]::Shift) -ne 0) { -1 } else { 1 }
+                if (Move-GfAdvancedFavoritePreview -Delta $d) { $moved = $true }
+                continue
+            }
+            $script:gfDeferredKeyInfo = $next
+            break
+        }
+    } catch {}
+    return $moved
+}
+
 function Complete-GfAdvancedFavoritePendingLoadIfDue {
     if ($null -eq $script:gfPendingFavoriteLoadAt) { return $false }
+    if ($script:gfFavoriteInputLocked -or $script:gfRestartRequested) { return $false }
+    # Idle settle: any queued console input means the user is still interacting
+    try {
+        if (-not [System.Console]::IsInputRedirected -and [System.Console]::KeyAvailable) {
+            return $false
+        }
+    } catch {}
     if ((Get-Date) -lt $script:gfPendingFavoriteLoadAt) { return $false }
     $idx = $script:gfPendingFavoriteLoadIndex
     Clear-GfAdvancedFavoritePendingLoad
@@ -2525,6 +2583,7 @@ function Request-GfAdvancedFavoriteRestart {
     param([int]$FavoriteIndex)
     $favs = @($script:gfFavorites)
     if ($FavoriteIndex -lt 0 -or $FavoriteIndex -ge $favs.Count) { return $false }
+    if ($script:gfFavoriteInputLocked -or $script:gfRestartRequested) { return $false }
     Clear-GfAdvancedFavoritePendingLoad
     Set-GfAdvancedLastActiveFavorite -Index $FavoriteIndex -Favorite $favs[$FavoriteIndex]
     $script:gfLoadedFavoriteIndex = $FavoriteIndex
@@ -2532,6 +2591,7 @@ function Request-GfAdvancedFavoriteRestart {
     if ([string]::IsNullOrWhiteSpace($query)) { return $false }
     $script:gfRestartLocation = $query
     $script:gfRestartRequested = $true
+    Lock-GfFavoriteSwitchInput
     return $true
 }
 
@@ -2539,6 +2599,8 @@ function Invoke-GfAdvancedRestartIfRequested {
     if (-not $script:gfRestartRequested) { return }
     $loc = $script:gfRestartLocation
     $script:gfRestartRequested = $false
+    Lock-GfFavoriteSwitchInput
+    Clear-GfConsoleInputBuffer
     $extras = @($script:gfRestartExtraArgs)
     $allArgs = @($loc) + $extras
 
@@ -2547,6 +2609,7 @@ function Invoke-GfAdvancedRestartIfRequested {
     elseif ($MyInvocation.MyCommand.Path) { $entry = $MyInvocation.MyCommand.Path }
 
     Write-Host "Loading favorite: $loc ..." -ForegroundColor Yellow
+    Clear-GfConsoleInputBuffer
     if ($entry -and ($entry -like '*.exe')) {
         & $entry @allArgs
         exit $LASTEXITCODE
@@ -2561,6 +2624,7 @@ function Invoke-GfAdvancedRestartIfRequested {
         exit $LASTEXITCODE
     }
     Write-Host "Unable to restart GF for favorite switch; run again with: $loc" -ForegroundColor Yellow
+    $script:gfFavoriteInputLocked = $false
 }
 
 function Initialize-GfAdvancedMode {
@@ -4532,6 +4596,10 @@ if ($script:advRestoreWind) { $Wind = [switch]$true }
 if ($script:advRestoreObservations) { $Observations = [switch]$true }
 $script:NoInteractive = $NoInteractive
 Write-Verbose "Wildfire config: enabled=$($script:wildFireEnabled) radius=$($script:WILDFIRE_RADIUS_MILES) mi filterSmall=$($script:wildFireFilterSmall)"
+
+# Favorite switch restarts can leave console key-repeat in the buffer; drop it before load/UI
+Clear-GfConsoleInputBuffer
+$script:gfFavoriteInputLocked = $false
 
 if ($Config.IsPresent -or $script:gfOpenConfigAfterInit) {
     if (-not $script:gfAdvancedMode) {
@@ -10644,6 +10712,11 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
         Write-Host "Interactive mode not supported: Console key detection failed. Exiting..." -ForegroundColor Yellow
         return
     }
+
+    # Drop any keys typed during initial load so they cannot fire as the first interactive action
+    Clear-GfConsoleInputBuffer
+    $script:gfFavoriteInputLocked = $false
+    $script:gfDeferredKeyInfo = $null
     
     # If starting in hourly mode, show hourly forecast first
     if ($isHourlyMode) {
@@ -10999,17 +11072,30 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                 }
             }
             
-            # Advanced Tab preview: commit favorite load after 600ms settle (no further Tab/Shift+Tab)
+            # Advanced Tab preview: commit favorite load after 600ms idle settle
             if (Complete-GfAdvancedFavoritePendingLoadIfDue) {
                 Write-Host "`nSwitching to favorite..." -ForegroundColor Yellow
                 break
             }
 
+            # While a favorite switch is in flight, keep flushing input and ignore commands
+            if ($script:gfFavoriteInputLocked -or $script:gfRestartRequested) {
+                Clear-GfConsoleInputBuffer
+                Start-Sleep -Milliseconds 50
+                continue
+            }
+
             # Check for key input (non-blocking) - using same approach as bmon.ps1
             try {
-                # Check if console supports key input
-                if (-not [System.Console]::IsInputRedirected -and [System.Console]::KeyAvailable) {
+                $keyInfo = $null
+                if ($null -ne $script:gfDeferredKeyInfo) {
+                    $keyInfo = $script:gfDeferredKeyInfo
+                    $script:gfDeferredKeyInfo = $null
+                } elseif (-not [System.Console]::IsInputRedirected -and [System.Console]::KeyAvailable) {
                     $keyInfo = [System.Console]::ReadKey($true)
+                }
+
+                if ($null -ne $keyInfo) {
 
                 # Ctrl+C arrives as input while TreatControlCAsInput is on (KeyChar 3 / Ctrl+C)
                 $isCtrlC = ([int][char]$keyInfo.KeyChar -eq 3) -or (
@@ -11021,18 +11107,21 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     break
                 }
 
-                # Tab / Shift+Tab: Advanced favorites (wrap + 600ms settle)
+                # Tab / Shift+Tab: visual nudge + re-arm 600ms settle (drain queued Tabs in one pass)
                 if ($keyInfo.Key -eq [System.ConsoleKey]::Tab) {
                     $hasAdvFavs = $script:gfAdvancedMode -and @($script:gfFavorites).Count -gt 0
                     if ($hasAdvFavs) {
-                        $delta = if (($keyInfo.Modifiers -band [System.ConsoleModifiers]::Shift) -ne 0) { -1 } else { 1 }
-                        if (Move-GfAdvancedFavoritePreview -Delta $delta) {
+                        if (Invoke-GfAdvancedFavoriteTabNudge -FirstKey $keyInfo) {
                             Clear-HostWithDelay
                             Show-GfInteractiveCurrentView
                         }
                     }
                 }
-                elseif ($script:gfAdvancedMode -and ($keyInfo.Key -eq [System.ConsoleKey]::L) -and ($keyInfo.KeyChar -ceq 'l' -or $keyInfo.KeyChar -ceq 'L') -and (($keyInfo.Modifiers -band [System.ConsoleModifiers]::Control) -eq 0)) {
+                else {
+                # Non-Tab input cancels an unfinished Tab preview (revert highlight to loaded favorite)
+                $cancelledPreview = Cancel-GfAdvancedFavoritePreviewIfPending
+
+                if ($script:gfAdvancedMode -and ($keyInfo.Key -eq [System.ConsoleKey]::L) -and ($keyInfo.KeyChar -ceq 'l' -or $keyInfo.KeyChar -ceq 'L') -and (($keyInfo.Modifiers -band [System.ConsoleModifiers]::Control) -eq 0)) {
                     # L - toggle Advanced location bar (ignore Ctrl+L)
                     $script:gfLocationsDrawerOpen = -not $script:gfLocationsDrawerOpen
                     Set-GfAdvancedLocationsDrawerOpen -Open $script:gfLocationsDrawerOpen
@@ -11392,10 +11481,14 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                 }
                 default {
                     # Ignore unhandled keys (like spacebar, etc.)
-                    # Do nothing - just continue the loop
+                    if ($cancelledPreview) {
+                        Clear-HostWithDelay
+                        Show-GfInteractiveCurrentView
+                    }
                 }
             }
             } # end else (non-T keys)
+            } # end else (non-Tab keys)
             } else {
                 # No key available - sleep briefly to prevent CPU spinning
                 Start-Sleep -Milliseconds 100
