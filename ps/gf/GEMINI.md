@@ -27,7 +27,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
 - **Multiple Display Modes:**
   - **Full Mode (default):** Shows all available weather information
   - **Terse Mode (`-t`):** Shows only current conditions and today's forecast (plus alerts)
-  - **TerseAlert Mode (`-ta` / `-tersealert`):** Like terse; when alerts are active, alternates every 20s with a full alerts list (Tab toggles immediately and resets the timer). With `-x`, prints terse then alerts in sequence.
+  - **TerseAlert Mode (`-ta` / `-tersealert`):** Like terse; when alerts are active, alternates every 20s with a full alerts list (**A** toggles immediately and resets the timer). With `-x`, prints terse then alerts in sequence.
   - **Alerts Mode (`-a` / `-alerts`):** Shows only active weather alerts (green empty message if none)
   - **Hourly Mode (`-h`):** Shows only the 12-hour hourly forecast
   - **7-Day Mode (`-7`):** Shows only the 7-day forecast summary
@@ -41,8 +41,9 @@ The script is designed for ease of use, accepting flexible location inputs like 
   - **[D]** - Switch to 7-day forecast only
   - **[T]** - Switch to terse mode
   - **[Shift+T]** - Switch to tersealert mode (not on control bar)
-  - **[A]** - Switch to alerts-only view (not on control bar)
-  - **[Tab]** - In tersealert mode, toggle terse/alerts and reset the 20s timer (not on control bar)
+  - **[A]** - Alerts-only view; in tersealert mode, toggle terse/alerts (not on control bar)
+  - **[Tab]** - Advanced: next favorite (wraps; loads after 600ms settle; not on control bar)
+  - **[Shift+Tab]** - Advanced: previous favorite (wraps; same 600ms settle; not on control bar)
   - **[R]** - Switch to rain forecast mode (sparklines)
   - **[W]** - Switch to wind forecast mode (direction glyphs)
   - **[O]** - Switch to history mode (historical weather data)
@@ -51,7 +52,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
   - **[1]-[0] / [Shift+1]-[Shift+0]** - Advanced mode: load favorite slots 1-10 / 11-20
   - **[Enter]** or **[Esc]** - Exit the script
   - **Ctrl+C** will also exit the script
-- **Advanced Mode (Forecast import):** `-enableadvanced`/`-eadv <file>` imports a Forecast backup into `%LOCALAPPDATA%\gf\gf.json` (favorites + defaults), then shows a colored import report before continuing. `-disableadvanced`/`-dadv` confirms and removes it. `-load`/`-l N` starts on favorite slot N. Defaults cover Magic Hours, Irradiance (`-i` toggles), wildfire radius/filter, AQI (AirNow key → User env `AirNowAPI`), 24h clock, location-bar visibility, current mode, and per-location colors. CLI overrides win for the run. Location bar renders `▀ CustomName` with truecolor (active favorite fully highlighted; inactive show colored glyph only). Section titles use favorite secondary for `***` and primary for title text when colors are enabled. Ignored import fields: UpdateAll, ShowRadar, AutoUpdate.- **Interactive & Scriptable:** Can be run with command-line arguments or interactively, where it will prompt the user for a location.
+- **Advanced Mode (Forecast import):** `-enableadvanced`/`-eadv [file]` enables Advanced mode into `%LOCALAPPDATA%\gf\gf.json`. With a Forecast backup file, imports favorites + defaults and shows a colored import report. With no file, creates an empty profile (if needed) and opens the config modal so settings/locations can be built manually. `-disableadvanced`/`-dadv` confirms and removes it. `-load`/`-l N` starts on favorite slot N. `-config` opens a settings/favorites config modal (Advanced only) and exits. Defaults cover Magic Hours, Irradiance (`-i` toggles), wildfire radius/filter, AQI (AirNow key → User env `AirNowAPI`), 24h clock, location-bar visibility, current mode, and per-location colors. CLI overrides win for the run. Location bar renders `▀ CustomName` with truecolor (active favorite fully highlighted; inactive show colored glyph only). **Tab** / **Shift+Tab** preview-wrap favorites and load after a 600ms settle (not on the control bar). In TerseAlert, **A** toggles panes (Tab is reserved for favorites when Advanced is active). Section titles use favorite secondary for `***` and primary for title text when colors are enabled. Ignored import fields: UpdateAll, ShowRadar, AutoUpdate.- **Interactive & Scriptable:** Can be run with command-line arguments or interactively, where it will prompt the user for a location.
 - **Smart Exit:** Pauses for user input before closing if run outside of a standard terminal (e.g., by double-clicking).
 
 ### Technical Implementation
@@ -344,8 +345,9 @@ The script features an advanced **Interactive Mode** that activates when run fro
 - **[D]** - **Daily View:** Switch to 7-day forecast summary display  
 - **[T]** - **Terse View:** Switch to streamlined view (current conditions + today's forecast)
 - **[Shift+T]** - **TerseAlert View:** Alternate terse with full alerts every 20s when alerts are active (hotkey only; not on the control bar)
-- **[Tab]** - **TerseAlert Toggle:** While in TerseAlert, flip between terse and alerts and reset the 20s timer (hotkey only; not on the control bar)
-- **[A]** - **Alerts View:** Active weather alerts only (hotkey only; not on the control bar)
+- **[Tab]** - **Advanced favorites:** Move to the next favorite (wraps); highlight updates immediately and the load waits **600ms** after the last Tab (hotkey only; not on the control bar)
+- **[Shift+Tab]** - **Advanced previous favorite:** Move to the previous favorite (wraps; same 600ms settle before load; hotkey only; not on the control bar)
+- **[A]** - **Alerts / TerseAlert toggle:** Outside TerseAlert, switch to alerts-only view. In TerseAlert, flip between terse and alerts and reset the 20s timer (hotkey only; not on the control bar)
 - **[R]** - **Rain View:** Switch to rain forecast mode with sparklines
 - **[W]** - **Wind View:** Switch to wind forecast mode with direction glyphs
 - **[O]** - **Observations View:** Switch to observations mode with historical weather data
@@ -681,9 +683,9 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 
 ### Recent Enhancements (v2.3)
 
-- **TerseAlert Mode (`-ta` / `-tersealert`):** Terse-like view; when alerts are active, interactive mode alternates every 20s with a full alerts list (**Tab** toggles immediately and resets the timer). With `-x`, prints terse then full alerts in sequence.
+- **TerseAlert Mode (`-ta` / `-tersealert`):** Terse-like view; when alerts are active, interactive mode alternates every 20s with a full alerts list (**A** toggles immediately and resets the timer). With `-x`, prints terse then full alerts in sequence.
 - **Alerts Mode (`-a` / `-alerts`):** Alerts-only display with location in the header; green empty message when none are active.
-- **Interactive Hotkeys:** **A** switches to alerts-only; **Shift+T** switches to TerseAlert (case-sensitive `KeyChar` so Shift+T is not swallowed by classic **T**); **Tab** in TerseAlert toggles panes and resets the 20s timer. Hotkeys only — not shown on the control bar.
+- **Interactive Hotkeys:** **A** switches to alerts-only (or toggles TerseAlert panes while in TerseAlert); **Shift+T** switches to TerseAlert (case-sensitive `KeyChar` so Shift+T is not swallowed by classic **T**); Advanced **Tab**/**Shift+Tab** wrap favorites with a 600ms settle before load. Hotkeys only — not shown on the control bar.
 
 ### Recent Enhancements (v2.2)
 

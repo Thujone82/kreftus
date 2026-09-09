@@ -100,6 +100,7 @@ function Resolve-GfCommandLine {
         EnableAdvancedFile = $null
         DisableAdvanced  = $false
         LoadFavorite     = $null
+        Config           = $false
         Verbose          = $false
         RestartExtraArgs = [System.Collections.Generic.List[string]]::new()
         IgnoredSwitches  = [System.Collections.Generic.List[string]]::new()
@@ -141,6 +142,7 @@ function Resolve-GfCommandLine {
         'nsf'           = { $parsed.NoSmallFire = $true; $parsed.RestartExtraArgs.Add('-nsf') }
         'disableadvanced' = { $parsed.DisableAdvanced = $true }
         'dadv'            = { $parsed.DisableAdvanced = $true }
+        'config'          = { $parsed.Config = $true }
         'verbose'       = { $parsed.Verbose = $true; $parsed.RestartExtraArgs.Add('-Verbose') }
         'vb'            = { $parsed.Verbose = $true; $parsed.RestartExtraArgs.Add('-Verbose') }
     }
@@ -195,7 +197,7 @@ function Resolve-GfCommandLine {
                     $parsed.EnableAdvancedFile = $ArgumentList[$i]
                 }
                 else {
-                    $parsed.IgnoredSwitches.Add($arg)
+                    # Bare -eadv: create/open Advanced profile via config modal (no Forecast file)
                     if ($i -lt $ArgumentList.Count) { $i-- }
                 }
             }
@@ -261,6 +263,7 @@ $EnableAdvanced = [switch]($gfCli.EnableAdvanced)
 $DisableAdvanced = [switch]($gfCli.DisableAdvanced)
 $EnableAdvancedFile = $gfCli.EnableAdvancedFile
 $LoadFavorite = $gfCli.LoadFavorite
+$Config = [switch]($gfCli.Config)
 $script:gfRestartExtraArgs = @($gfCli.RestartExtraArgs)
 $script:cliWildfireMilesSpecified = ($null -ne $gfCli.WildfireMiles)
 $script:cliNoSmallFireSpecified = [bool]$gfCli.NoSmallFire
@@ -290,6 +293,9 @@ $script:gfAdvancedProfile = $null
 $script:gfFavorites = @()
 $script:gfActiveFavoriteIndex = -1
 $script:gfActiveFavorite = $null
+$script:gfLoadedFavoriteIndex = -1
+$script:gfPendingFavoriteLoadIndex = -1
+$script:gfPendingFavoriteLoadAt = $null
 $script:gfLocationsDrawerOpen = $false
 $script:gfPerLocationColors = $true
 $script:use24hTime = $true
@@ -297,6 +303,7 @@ $script:showIrradiance = $true
 $script:gfRestartRequested = $false
 $script:gfRestartLocation = $null
 $script:showMagicHours = $false
+$script:gfOpenConfigAfterInit = $false
 
 # Force TLS 1.2.
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -360,6 +367,7 @@ $modeWithoutLocationNeedsHelp = (
     -not $DisableAdvanced.IsPresent -and
     -not $LoadFavorite -and
     -not $AqiSetup.IsPresent -and
+    -not $Config.IsPresent -and
     -not $gfAdvancedCanSupplyLocation
 )
 if ($Help -or $modeWithoutLocationNeedsHelp) {
@@ -371,7 +379,7 @@ if ($Help -or $modeWithoutLocationNeedsHelp) {
     Write-Host "Options:" -ForegroundColor Blue
     Write-Host "  -t, -Terse    Show only current conditions and today's forecast" -ForegroundColor Cyan
     Write-Host "  -ta, -TerseAlert  Terse mode; when alerts are active, alternate with full alerts every 20s" -ForegroundColor Cyan
-    Write-Host "                • Tab toggles terse/alerts and resets the 20s timer (interactive)" -ForegroundColor Gray
+    Write-Host "                • A toggles terse/alerts and resets the 20s timer (interactive)" -ForegroundColor Gray
     Write-Host "                • With -x: print terse then full alerts in sequence (alerts only if present)" -ForegroundColor Gray
     Write-Host "  -a, -Alerts   Show only active weather alerts (green empty message if none)" -ForegroundColor Cyan
     Write-Host "  -h, -Hourly   Show only the hourly forecast (up to $($script:MAX_HOURLY_FORECAST_HOURS) hours)" -ForegroundColor Cyan
@@ -401,9 +409,10 @@ if ($Help -or $modeWithoutLocationNeedsHelp) {
     Write-Host "  -wbgt (-UseWbgt) Use estimated WBGT instead of heat index (warm band from 75°F; matches forecast web heuristic)" -ForegroundColor Cyan
     Write-Host "  -m, -Magic    Show Golden/Blue Hour lines in Current Conditions (in Advanced mode: toggles imported Magic default)" -ForegroundColor Cyan
     Write-Host "  -i, -Irradiance  Show solar irradiance (Advanced mode: toggles imported Irradiance default; normally always on)" -ForegroundColor Cyan
-    Write-Host "  -enableadvanced, -eadv <file>  Import Forecast backup JSON into %LOCALAPPDATA%\gf\gf.json and enable Advanced mode" -ForegroundColor Cyan
+    Write-Host "  -enableadvanced, -eadv [file]  Enable Advanced mode: import Forecast backup JSON, or omit file to create an empty profile and open config" -ForegroundColor Cyan
     Write-Host "  -disableadvanced, -dadv  Remove Advanced profile (confirm), restore normal mode, exit" -ForegroundColor Cyan
     Write-Host "  -load, -l N   Advanced: start on favorite slot N (1-based location-bar order) instead of last active" -ForegroundColor Cyan
+    Write-Host "  -config       Advanced: open GetForecast config modal (settings + favorites), then exit" -ForegroundColor Cyan
     Write-Host ""
          Write-Host "Interactive Mode:" -ForegroundColor Blue
      Write-Host "  When run interactively (not from terminal), the script enters interactive mode." -ForegroundColor Cyan
@@ -412,8 +421,9 @@ if ($Help -or $modeWithoutLocationNeedsHelp) {
      Write-Host "    [D] - Switch to $($script:MAX_DAILY_FORECAST_DAYS)-day forecast only" -ForegroundColor Cyan
      Write-Host "    [T] - Switch to terse mode (current + today)" -ForegroundColor Cyan
      Write-Host "    [Shift+T] - Switch to tersealert mode (alternate with full alerts every 20s)" -ForegroundColor Cyan
-     Write-Host "    [A] - Switch to alerts-only view" -ForegroundColor Cyan
-     Write-Host "    [Tab] - In tersealert mode, toggle terse/alerts and reset the 20s timer" -ForegroundColor Cyan
+     Write-Host "    [A] - Alerts-only view; in tersealert mode, toggle terse/alerts and reset the 20s timer" -ForegroundColor Cyan
+     Write-Host "    [Tab] - Advanced: next favorite (wraps; loads after 600ms settle)" -ForegroundColor Cyan
+     Write-Host "    [Shift+Tab] - Advanced: previous favorite (wraps; loads after 600ms settle)" -ForegroundColor Cyan
      Write-Host "    [R] - Switch to rain forecast mode (sparklines)" -ForegroundColor Cyan
      Write-Host "    [W] - Switch to wind forecast mode (direction glyphs)" -ForegroundColor Cyan
      Write-Host "    [O] - Switch to history (observations) view" -ForegroundColor Cyan
@@ -425,7 +435,7 @@ if ($Help -or $modeWithoutLocationNeedsHelp) {
     Write-Host "    [F] - Return to full display" -ForegroundColor Cyan
     Write-Host "    [Enter] or [Esc] - Exit the script" -ForegroundColor Cyan
      Write-Host "  In hourly mode, use [↑] and [↓] arrows to scroll through all 48 hours" -ForegroundColor Cyan
-     Write-Host '  Note: [A], [Shift+T], and [Tab] are hotkeys only (not shown on the control bar)' -ForegroundColor Gray
+     Write-Host '  Note: [A], [Shift+T], [Tab], and [Shift+Tab] are hotkeys only (not shown on the control bar)' -ForegroundColor Gray
      Write-Host '  Note: All times (hourly, sunrise, sunset) are displayed in the location''s timezone' -ForegroundColor Gray
     Write-Host ""
     Write-Host "This script retrieves weather info from National Weather Service API (geocoding via OpenStreetMap) and outputs:" -ForegroundColor Blue
@@ -461,7 +471,9 @@ if ($Help -or $modeWithoutLocationNeedsHelp) {
     Write-Host "  .\gf.ps1 97219 -m For Magic Hours" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 `"Reno, NV`" -nsf" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 -eadv forecast-settings.json" -ForegroundColor Cyan
+    Write-Host "  .\gf.ps1 -eadv                    # empty Advanced profile + config modal" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 -l 2" -ForegroundColor Cyan
+    Write-Host "  .\gf.ps1 -config" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 -dadv" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 -Help" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 -aqi                    # Configure AirNow API key (persisted User env)" -ForegroundColor Cyan
@@ -1263,6 +1275,15 @@ function Get-GfFavoriteLocationQuery {
     if ($Favorite.key -and -not [string]::IsNullOrWhiteSpace([string]$Favorite.key)) {
         return ([string]$Favorite.key).Replace(',', ', ').Trim()
     }
+    if ($Favorite.location) {
+        try {
+            if ($null -ne $Favorite.location.lat -and $null -ne $Favorite.location.lon) {
+                $latV = [double]$Favorite.location.lat
+                $lonV = [double]$Favorite.location.lon
+                return ("{0},{1}" -f $latV, $lonV)
+            }
+        } catch {}
+    }
     return $null
 }
 
@@ -1677,7 +1698,8 @@ function Show-GfFavoriteChip {
 
 function Show-GfAdvancedLocationBar {
     if (-not $script:gfAdvancedMode) { return }
-    if (-not $script:gfLocationsDrawerOpen) { return }
+    $pendingPreview = $null -ne $script:gfPendingFavoriteLoadAt
+    if (-not $script:gfLocationsDrawerOpen -and -not $pendingPreview) { return }
     $favs = @($script:gfFavorites)
     if ($favs.Count -eq 0) { return }
 
@@ -1790,6 +1812,644 @@ function Show-GfAdvancedImportReport {
     $null = Read-Host "Press Enter to continue"
 }
 
+function Clear-GfConfigScreen {
+    if ($VerbosePreference -eq 'Continue') { return }
+    try { Clear-Host } catch {}
+}
+
+function Format-GfConfigHex {
+    param([string]$Hex)
+    $parsed = ConvertFrom-GfHexColor -Hex $Hex
+    if (-not $parsed) { return $null }
+    return $parsed.Hex
+}
+
+function Show-GfConfigColorSample {
+    param(
+        [string]$PrimaryHex = $null,
+        [string]$SecondaryHex = $null,
+        [switch]$NoNewline
+    )
+    $primary = if ($PrimaryHex) { $PrimaryHex } else { '#00ff00' }
+    $secondary = if ($SecondaryHex) { $SecondaryHex } else { '#003300' }
+    Write-GfTrueColorText -Text "▀" -ForegroundHex $primary -BackgroundHex $secondary -NoNewline:$NoNewline
+}
+
+function Show-GfConfigLocationLine {
+    param(
+        [object]$Favorite,
+        [int]$Index,
+        [bool]$UseColors
+    )
+    $label = Get-GfFavoriteDisplayLabel -Favorite $Favorite
+    $latLon = ''
+    if ($Favorite.location -and $null -ne $Favorite.location.lat -and $null -ne $Favorite.location.lon) {
+        try {
+            $latLon = ("  {0}, {1}" -f [double]$Favorite.location.lat, [double]$Favorite.location.lon)
+        } catch {
+            $latLon = ''
+        }
+    }
+    Write-Host ("  {0,2}. " -f ($Index + 1)) -ForegroundColor White -NoNewline
+    if ($UseColors) {
+        $primary = if ($Favorite.primaryColor) { [string]$Favorite.primaryColor } else { $null }
+        $secondary = if ($Favorite.secondaryColor) { [string]$Favorite.secondaryColor } else { $null }
+        if ($primary -or $secondary) {
+            Write-GfTrueColorText -Text "▀" -ForegroundHex $(if ($primary) { $primary } else { '#00ff00' }) -BackgroundHex $(if ($secondary) { $secondary } else { '#003300' }) -NoNewline
+        } else {
+            Write-Host "▀" -ForegroundColor Green -NoNewline
+        }
+        Write-Host " $label$latLon" -ForegroundColor White
+    } else {
+        Write-Host "$label$latLon" -ForegroundColor White
+    }
+}
+
+function Get-GfReverseGeocodeCityState {
+    param(
+        [double]$Lat,
+        [double]$Lon
+    )
+    try {
+        $url = "https://nominatim.openstreetmap.org/reverse?lat=$Lat&lon=$Lon&format=json&addressdetails=1&zoom=10"
+        $headers = @{ "User-Agent" = "GetForecast/1.0 (Weather Script)" }
+        $data = Invoke-RestMethod -Uri $url -Headers $headers -ErrorAction Stop
+        $city = $null
+        $state = $null
+        if ($data.address) {
+            if ($data.address.city) { $city = [string]$data.address.city }
+            elseif ($data.address.town) { $city = [string]$data.address.town }
+            elseif ($data.address.village) { $city = [string]$data.address.village }
+            elseif ($data.address.municipality) { $city = [string]$data.address.municipality }
+            if ($data.address.state_code -and ([string]$data.address.state_code).Length -eq 2) {
+                $state = ([string]$data.address.state_code).ToUpperInvariant()
+            } elseif ($data.address.state) {
+                $state = [string]$data.address.state
+            }
+        }
+        return [pscustomobject]@{ City = $city; State = $state }
+    } catch {
+        Write-Verbose "Reverse geocode failed: $($_.Exception.Message)"
+        return [pscustomobject]@{ City = $null; State = $null }
+    }
+}
+
+function New-GfConfigFavoriteKey {
+    param(
+        [string]$DisplayName,
+        [double]$Lat,
+        [double]$Lon
+    )
+    $slug = (($DisplayName -replace '[^a-zA-Z0-9]+', '')).ToLowerInvariant()
+    if ([string]::IsNullOrWhiteSpace($slug)) { $slug = 'loc' }
+    if ($slug.Length -gt 16) { $slug = $slug.Substring(0, 16) }
+    return ("{0}|{1:N4},{2:N4}" -f $slug, $Lat, $Lon)
+}
+
+function Save-GfConfigProfileFavorites {
+    param(
+        [object]$Profile,
+        [object[]]$Favorites
+    )
+    $Profile.favorites = @($Favorites)
+    # Keep last-active index aligned with the same favorite key/uid when possible
+    if ($Profile.lastActiveFavorite) {
+        $wantKey = [string]$Profile.lastActiveFavorite.key
+        $wantUid = [string]$Profile.lastActiveFavorite.uid
+        $found = -1
+        for ($i = 0; $i -lt $Favorites.Count; $i++) {
+            $f = $Favorites[$i]
+            if ($wantUid -and $f.uid -and ([string]$f.uid -ieq $wantUid)) { $found = $i; break }
+            if ($wantKey -and $f.key -and ([string]$f.key -ieq $wantKey)) { $found = $i; break }
+        }
+        if ($found -ge 0) {
+            $f = $Favorites[$found]
+            $Profile.lastActiveFavorite = [ordered]@{
+                index         = $found
+                key           = [string]$f.key
+                uid           = [string]$f.uid
+                locationQuery = Get-GfFavoriteLocationQuery -Favorite $f
+            }
+        } elseif ($Favorites.Count -gt 0) {
+            $f = $Favorites[0]
+            $Profile.lastActiveFavorite = [ordered]@{
+                index         = 0
+                key           = [string]$f.key
+                uid           = [string]$f.uid
+                locationQuery = Get-GfFavoriteLocationQuery -Favorite $f
+            }
+        } else {
+            $Profile.lastActiveFavorite = $null
+        }
+    } elseif ($Favorites.Count -gt 0) {
+        $f = $Favorites[0]
+        $Profile.lastActiveFavorite = [ordered]@{
+            index         = 0
+            key           = [string]$f.key
+            uid           = [string]$f.uid
+            locationQuery = Get-GfFavoriteLocationQuery -Favorite $f
+        }
+    }
+    Save-GfAdvancedProfile -Profile $Profile | Out-Null
+    $script:gfAdvancedProfile = $Profile
+    $script:gfFavorites = @($Favorites)
+    $script:gfPerLocationColors = [bool]$Profile.settings.perLocationColors
+}
+
+function Read-GfConfigHexPrompt {
+    param(
+        [string]$Prompt,
+        [string]$Current = $null
+    )
+    $hint = if ($Current) { " [$Current]" } else { '' }
+    $raw = Read-Host "$Prompt$hint (blank keeps current; '-' clears)"
+    if ([string]::IsNullOrWhiteSpace($raw)) { return $Current }
+    if ($raw.Trim() -eq '-') { return $null }
+    $formatted = Format-GfConfigHex -Hex $raw
+    if (-not $formatted) {
+        Write-Host "Invalid hex color. Use #RGB or #RRGGBB." -ForegroundColor Yellow
+        return $Current
+    }
+    return $formatted
+}
+
+function Read-GfConfigCoordinatePrompt {
+    param(
+        [string]$Prompt,
+        [string]$Current = $null,
+        [double]$Min,
+        [double]$Max
+    )
+    $hint = if ($null -ne $Current -and $Current -ne '') { " [$Current]" } else { '' }
+    $raw = Read-Host "$Prompt$hint"
+    if ([string]::IsNullOrWhiteSpace($raw)) {
+        if ($null -eq $Current -or $Current -eq '') { return $null }
+        $keep = 0.0
+        if ([double]::TryParse([string]$Current, [ref]$keep)) { return $keep }
+        return $null
+    }
+    $val = 0.0
+    if (-not [double]::TryParse($raw.Trim(), [ref]$val) -or $val -lt $Min -or $val -gt $Max) {
+        Write-Host "Enter a number between $Min and $Max." -ForegroundColor Yellow
+        return $null
+    }
+    return $val
+}
+
+function Invoke-GfConfigEditLocation {
+    param(
+        [object]$Profile,
+        [System.Collections.Generic.List[object]]$Favorites,
+        [int]$Index
+    )
+    if ($Index -lt 0 -or $Index -ge $Favorites.Count) {
+        Write-Host "Location index out of range." -ForegroundColor Yellow
+        return
+    }
+
+    while ($true) {
+        $fav = $Favorites[$Index]
+        $useColors = [bool]$Profile.settings.perLocationColors
+        $label = Get-GfFavoriteDisplayLabel -Favorite $fav
+        $latStr = if ($fav.location -and $null -ne $fav.location.lat) { [string]$fav.location.lat } else { '' }
+        $lonStr = if ($fav.location -and $null -ne $fav.location.lon) { [string]$fav.location.lon } else { '' }
+        $primary = if ($fav.primaryColor) { [string]$fav.primaryColor } else { $null }
+        $secondary = if ($fav.secondaryColor) { [string]$fav.secondaryColor } else { $null }
+
+        if ($VerbosePreference -ne 'Continue') { Clear-GfConfigScreen }
+        Write-Host "=== Edit Location ===" -ForegroundColor Green
+        Write-Host "Slot: $($Index + 1)" -ForegroundColor Cyan
+        Write-Host "Name: $label" -ForegroundColor White
+        if ($useColors) {
+            Write-Host "Colors: " -ForegroundColor White -NoNewline
+            Show-GfConfigColorSample -PrimaryHex $primary -SecondaryHex $secondary -NoNewline
+            Write-Host ("  primary={0}  secondary={1}" -f $(if ($primary) { $primary } else { '(none)' }), $(if ($secondary) { $secondary } else { '(none)' })) -ForegroundColor Cyan
+        }
+        Write-Host "Lat: $(if ($latStr) { $latStr } else { '(none)' })   Lon: $(if ($lonStr) { $lonStr } else { '(none)' })" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "Option: " -ForegroundColor Green -NoNewline
+        Write-Host "1" -ForegroundColor Cyan -NoNewline; Write-Host "=Name  " -ForegroundColor White -NoNewline
+        if ($useColors) {
+            Write-Host "2" -ForegroundColor Cyan -NoNewline; Write-Host "=Primary  " -ForegroundColor White -NoNewline
+            Write-Host "3" -ForegroundColor Cyan -NoNewline; Write-Host "=Secondary  " -ForegroundColor White -NoNewline
+        }
+        Write-Host "4" -ForegroundColor Cyan -NoNewline; Write-Host "=Lat  " -ForegroundColor White -NoNewline
+        Write-Host "5" -ForegroundColor Cyan -NoNewline; Write-Host "=Lon  " -ForegroundColor White -NoNewline
+        Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "elete  " -ForegroundColor White -NoNewline
+        Write-Host "B" -ForegroundColor Cyan -NoNewline; Write-Host "ack" -ForegroundColor White
+        $choice = Read-Host "Choice"
+        if ($choice -match '^[Bb]$') { return }
+        if ($choice -match '^[Dd]$') {
+            $confirm = Read-Host "Delete location '$label'? (y/N)"
+            if ($confirm -match '^(y|yes)$') {
+                $Favorites.RemoveAt($Index)
+                Save-GfConfigProfileFavorites -Profile $Profile -Favorites @($Favorites.ToArray())
+                Write-Host "Deleted." -ForegroundColor Yellow
+                Start-Sleep -Milliseconds 600
+                return
+            }
+            continue
+        }
+        if ($choice -eq '1') {
+            $newName = Read-Host "Display name [$label]"
+            if (-not [string]::IsNullOrWhiteSpace($newName)) {
+                $fav['customName'] = $newName.Trim()
+                # Keep geocode name if it looks like City, ST; otherwise leave name as-is
+                Save-GfConfigProfileFavorites -Profile $Profile -Favorites @($Favorites.ToArray())
+            }
+            continue
+        }
+        if ($useColors -and $choice -eq '2') {
+            $newPrimary = Read-GfConfigHexPrompt -Prompt "Primary color" -Current $primary
+            $fav['primaryColor'] = $newPrimary
+            Save-GfConfigProfileFavorites -Profile $Profile -Favorites @($Favorites.ToArray())
+            Write-Host "Sample: " -NoNewline -ForegroundColor White
+            Show-GfConfigColorSample -PrimaryHex $fav.primaryColor -SecondaryHex $fav.secondaryColor
+            continue
+        }
+        if ($useColors -and $choice -eq '3') {
+            $newSecondary = Read-GfConfigHexPrompt -Prompt "Secondary color" -Current $secondary
+            $fav['secondaryColor'] = $newSecondary
+            Save-GfConfigProfileFavorites -Profile $Profile -Favorites @($Favorites.ToArray())
+            Write-Host "Sample: " -NoNewline -ForegroundColor White
+            Show-GfConfigColorSample -PrimaryHex $fav.primaryColor -SecondaryHex $fav.secondaryColor
+            continue
+        }
+        if ($choice -eq '4') {
+            $newLat = Read-GfConfigCoordinatePrompt -Prompt "Latitude" -Current $latStr -Min -90 -Max 90
+            if ($null -eq $newLat) { continue }
+            if (-not $fav.location) { $fav['location'] = [ordered]@{} }
+            elseif ($fav.location -isnot [hashtable] -and $fav.location -isnot [System.Collections.Specialized.OrderedDictionary]) {
+                $fav['location'] = ConvertTo-GfHashtable -InputObject $fav.location
+            }
+            $fav.location['lat'] = $newLat
+            $rev = Get-GfReverseGeocodeCityState -Lat $newLat -Lon $(if ($lonStr) { [double]$lonStr } else { 0 })
+            if ($lonStr -and $rev.City) { $fav.location['city'] = $rev.City }
+            if ($lonStr -and $rev.State) { $fav.location['state'] = $rev.State }
+            if ($lonStr -and $rev.City -and $rev.State -and (-not $fav.name -or [string]$fav.name -match '^-?\d')) {
+                $fav['name'] = "$($rev.City), $($rev.State)"
+            }
+            Save-GfConfigProfileFavorites -Profile $Profile -Favorites @($Favorites.ToArray())
+            continue
+        }
+        if ($choice -eq '5') {
+            $newLon = Read-GfConfigCoordinatePrompt -Prompt "Longitude" -Current $lonStr -Min -180 -Max 180
+            if ($null -eq $newLon) { continue }
+            if (-not $fav.location) { $fav['location'] = [ordered]@{} }
+            elseif ($fav.location -isnot [hashtable] -and $fav.location -isnot [System.Collections.Specialized.OrderedDictionary]) {
+                $fav['location'] = ConvertTo-GfHashtable -InputObject $fav.location
+            }
+            $fav.location['lon'] = $newLon
+            if ($latStr) {
+                $rev = Get-GfReverseGeocodeCityState -Lat ([double]$latStr) -Lon $newLon
+                if ($rev.City) { $fav.location['city'] = $rev.City }
+                if ($rev.State) { $fav.location['state'] = $rev.State }
+                if ($rev.City -and $rev.State -and (-not $fav.name -or [string]$fav.name -match '^-?\d')) {
+                    $fav['name'] = "$($rev.City), $($rev.State)"
+                }
+            }
+            Save-GfConfigProfileFavorites -Profile $Profile -Favorites @($Favorites.ToArray())
+            continue
+        }
+        Write-Host "Unknown choice." -ForegroundColor Gray
+    }
+}
+
+function Invoke-GfConfigCreateLocation {
+    param(
+        [object]$Profile,
+        [System.Collections.Generic.List[object]]$Favorites
+    )
+    $useColors = [bool]$Profile.settings.perLocationColors
+    if ($VerbosePreference -ne 'Continue') { Clear-GfConfigScreen }
+    Write-Host "=== Create Location ===" -ForegroundColor Green
+    $displayName = Read-Host "Display name"
+    if ([string]::IsNullOrWhiteSpace($displayName)) {
+        Write-Host "Name is required." -ForegroundColor Yellow
+        Start-Sleep -Milliseconds 800
+        return
+    }
+    $displayName = $displayName.Trim()
+
+    $primary = $null
+    $secondary = $null
+    if ($useColors) {
+        $primary = Read-GfConfigHexPrompt -Prompt "Primary color" -Current '#00ff00'
+        $secondary = Read-GfConfigHexPrompt -Prompt "Secondary color" -Current '#003300'
+        Write-Host "Sample: " -NoNewline -ForegroundColor White
+        Show-GfConfigColorSample -PrimaryHex $primary -SecondaryHex $secondary
+    }
+
+    $lat = Read-GfConfigCoordinatePrompt -Prompt "Latitude" -Min -90 -Max 90
+    if ($null -eq $lat) {
+        Write-Host "Latitude is required." -ForegroundColor Yellow
+        Start-Sleep -Milliseconds 800
+        return
+    }
+    $lon = Read-GfConfigCoordinatePrompt -Prompt "Longitude" -Min -180 -Max 180
+    if ($null -eq $lon) {
+        Write-Host "Longitude is required." -ForegroundColor Yellow
+        Start-Sleep -Milliseconds 800
+        return
+    }
+
+    Write-Host "Looking up city/state..." -ForegroundColor Yellow
+    $rev = Get-GfReverseGeocodeCityState -Lat $lat -Lon $lon
+    $geoName = if ($rev.City -and $rev.State) { "$($rev.City), $($rev.State)" } else { ("{0},{1}" -f $lat, $lon) }
+
+    $fav = [ordered]@{
+        key            = New-GfConfigFavoriteKey -DisplayName $displayName -Lat $lat -Lon $lon
+        name           = $geoName
+        location       = [ordered]@{
+            lat   = $lat
+            lon   = $lon
+            city  = $rev.City
+            state = $rev.State
+        }
+        customName     = $displayName
+        primaryColor   = $primary
+        secondaryColor = $secondary
+        uid            = [guid]::NewGuid().ToString()
+    }
+    $Favorites.Add($fav)
+    Save-GfConfigProfileFavorites -Profile $Profile -Favorites @($Favorites.ToArray())
+    Write-Host "Created slot $($Favorites.Count): $displayName ($geoName)" -ForegroundColor Green
+    Start-Sleep -Milliseconds 800
+}
+
+function Invoke-GfConfigChangeSetting {
+    param(
+        [object]$Profile,
+        [int]$SettingNumber
+    )
+    $s = $Profile.settings
+    switch ($SettingNumber) {
+        1 {
+            $s.showMagicHours = -not [bool]$s.showMagicHours
+            Write-Host "Magic Hours: $(if ($s.showMagicHours) { 'on' } else { 'off' })" -ForegroundColor Cyan
+        }
+        2 {
+            $s.showIrradiance = -not [bool]$s.showIrradiance
+            Write-Host "Irradiance: $(if ($s.showIrradiance) { 'on' } else { 'off' })" -ForegroundColor Cyan
+        }
+        3 {
+            $s.enableWildfire = -not [bool]$s.enableWildfire
+            Write-Host "Wildfire: $(if ($s.enableWildfire) { 'on' } else { 'off' })" -ForegroundColor Cyan
+        }
+        4 {
+            $cur = [int]$s.wildfireRadiusMiles
+            $raw = Read-Host "Wildfire radius miles [$cur]"
+            if (-not [string]::IsNullOrWhiteSpace($raw)) {
+                $miles = 0
+                if ([int]::TryParse($raw.Trim(), [ref]$miles) -and $miles -ge 0) {
+                    $s.wildfireRadiusMiles = $miles
+                    if ($miles -eq 0) { $s.enableWildfire = $false }
+                    else { $s.enableWildfire = $true }
+                } else {
+                    Write-Host "Enter an integer >= 0." -ForegroundColor Yellow
+                    return
+                }
+            }
+        }
+        5 {
+            $s.filterSmallWildfires = -not [bool]$s.filterSmallWildfires
+            Write-Host "Filter small fires: $(if ($s.filterSmallWildfires) { 'on' } else { 'off' })" -ForegroundColor Cyan
+        }
+        6 {
+            $s.enableAqi = -not [bool]$s.enableAqi
+            Write-Host "AQI: $(if ($s.enableAqi) { 'on' } else { 'off' })" -ForegroundColor Cyan
+            if ($s.enableAqi) {
+                $keyNow = Get-AirNowApiKeyFromEnvironment
+                if (-not $keyNow) {
+                    Write-Host "No AirNowAPI key set. Use setting 12 to add one." -ForegroundColor Yellow
+                }
+            }
+        }
+        7 {
+            $s.use24h = -not [bool]$s.use24h
+            Write-Host "24-hour times: $(if ($s.use24h) { 'on' } else { 'off' })" -ForegroundColor Cyan
+        }
+        8 {
+            $s.locationsDrawerOpen = -not [bool]$s.locationsDrawerOpen
+            Write-Host "Locations drawer: $(if ($s.locationsDrawerOpen) { 'open' } else { 'closed' })" -ForegroundColor Cyan
+        }
+        9 {
+            $cur = if ($null -eq $s.controlBarOpen) { $true } else { [bool]$s.controlBarOpen }
+            $s.controlBarOpen = -not $cur
+            Write-Host "Control bar: $(if ($s.controlBarOpen) { 'open' } else { 'closed' })" -ForegroundColor Cyan
+        }
+        10 {
+            Write-Host "Modes: full, terse, tersealert, hourly, daily, rain, wind, history" -ForegroundColor DarkGray
+            $raw = Read-Host "Current mode [$($s.currentMode)]"
+            if (-not [string]::IsNullOrWhiteSpace($raw)) {
+                $mode = $raw.Trim().ToLowerInvariant()
+                if ($mode -match '^(full|terse|tersealert|ta|hourly|daily|rain|wind|history|observations)$') {
+                    if ($mode -eq 'observations') { $mode = 'history' }
+                    if ($mode -eq 'ta') { $mode = 'tersealert' }
+                    $s.currentMode = $mode
+                } else {
+                    Write-Host "Unknown mode." -ForegroundColor Yellow
+                    return
+                }
+            }
+        }
+        11 {
+            $s.perLocationColors = -not [bool]$s.perLocationColors
+            $script:gfPerLocationColors = [bool]$s.perLocationColors
+            Write-Host "Per-location colors: $(if ($s.perLocationColors) { 'on' } else { 'off' })" -ForegroundColor Cyan
+        }
+        12 {
+            Invoke-GfConfigAirNowKey
+            return
+        }
+        default {
+            Write-Host "Unknown setting number." -ForegroundColor Yellow
+            return
+        }
+    }
+    Save-GfAdvancedProfile -Profile $Profile | Out-Null
+    $script:gfAdvancedProfile = $Profile
+    $script:gfPerLocationColors = [bool]$Profile.settings.perLocationColors
+}
+
+function Invoke-GfConfigAirNowKey {
+    $requestKeyUrl = "https://docs.airnowapi.org/account/request/"
+    $valCoords = Get-AqiValidationCoordinates
+
+    while ($true) {
+        Clear-GfConfigScreen
+        Write-Host "=== AirNow API Key ===" -ForegroundColor Green
+        Write-Host "Stored in User environment variable AirNowAPI (not in gf.json)." -ForegroundColor DarkGray
+        Write-Host "Request a key: $requestKeyUrl" -ForegroundColor Cyan
+        Write-Host ""
+        $keyNow = Get-AirNowApiKeyFromEnvironment
+        Write-Host "Current key: $(Mask-AirNowKeyDisplay -Key $keyNow)" -ForegroundColor White
+        if ($keyNow) {
+            $test = Test-AirNowApiKey -ApiKey $keyNow -Lat $valCoords.Lat -Lon $valCoords.Lon
+            if ($test.Ok) {
+                Write-Host "Status: Valid (HTTP $($test.StatusCode))" -ForegroundColor Green
+            } else {
+                $sc = if ($null -ne $test.StatusCode) { $test.StatusCode } else { "?" }
+                Write-Host "Status: Invalid (HTTP $sc) - $($test.Detail)" -ForegroundColor Red
+            }
+        } else {
+            Write-Host "Status: No key configured" -ForegroundColor Yellow
+        }
+        Write-Host ""
+        Write-Host "Option: " -ForegroundColor Green -NoNewline
+        Write-Host "U" -ForegroundColor Cyan -NoNewline; Write-Host "pdate  " -ForegroundColor White -NoNewline
+        Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host "elete  " -ForegroundColor White -NoNewline
+        Write-Host "B" -ForegroundColor Cyan -NoNewline; Write-Host "ack" -ForegroundColor White
+        $choice = Read-Host "Choice"
+        if ($choice -match '^[Bb]$') { return }
+        if ($choice -match '^[Uu]$') {
+            $plain = Read-Host "New AirNow API Key"
+            if ([string]::IsNullOrWhiteSpace($plain)) {
+                Write-Host "No key entered." -ForegroundColor Yellow
+                Start-Sleep -Milliseconds 700
+                continue
+            }
+            [Environment]::SetEnvironmentVariable('AirNowAPI', $plain.Trim(), 'User')
+            $env:AirNowAPI = $plain.Trim()
+            Write-Host "Key saved to User environment variable AirNowAPI." -ForegroundColor Green
+            $test = Test-AirNowApiKey -ApiKey $plain.Trim() -Lat $valCoords.Lat -Lon $valCoords.Lon
+            if ($test.Ok) {
+                Write-Host "Validation: OK (HTTP $($test.StatusCode))" -ForegroundColor Green
+            } else {
+                $sc = if ($null -ne $test.StatusCode) { $test.StatusCode } else { "?" }
+                Write-Host "Validation: FAILED (HTTP $sc) - $($test.Detail)" -ForegroundColor Red
+            }
+            Start-Sleep -Milliseconds 900
+            continue
+        }
+        if ($choice -match '^[Dd]$') {
+            $confirm = Read-Host "Delete AirNowAPI from User environment? (y/N)"
+            if ($confirm -match '^(y|yes)$') {
+                [Environment]::SetEnvironmentVariable('AirNowAPI', $null, 'User')
+                Remove-Item Env:\AirNowAPI -ErrorAction SilentlyContinue
+                Write-Host "AirNowAPI removed." -ForegroundColor Yellow
+                Start-Sleep -Milliseconds 700
+            }
+            continue
+        }
+        Write-Host "Unknown choice." -ForegroundColor Gray
+        Start-Sleep -Milliseconds 600
+    }
+}
+
+function Show-GfAdvancedConfigModal {
+    $profile = Get-GfAdvancedProfile
+    if (-not $profile -or -not $profile.advancedEnabled) {
+        Write-Host "Config is only available in Advanced mode (no profile at $(Get-GfAdvancedProfilePath))." -ForegroundColor Yellow
+        Write-Host "Run: .\gf.ps1 -eadv   (or import: .\gf.ps1 -eadv <forecast-backup.json>)" -ForegroundColor Cyan
+        return
+    }
+
+    $script:gfAdvancedMode = $true
+    $script:gfAdvancedProfile = $profile
+    $script:gfPerLocationColors = [bool]$profile.settings.perLocationColors
+
+    while ($true) {
+        $profile = Get-GfAdvancedProfile
+        if (-not $profile) {
+            Write-Host "Advanced profile missing." -ForegroundColor Red
+            return
+        }
+        $script:gfAdvancedProfile = $profile
+        $script:gfPerLocationColors = [bool]$profile.settings.perLocationColors
+        $settings = $profile.settings
+        $favList = [System.Collections.Generic.List[object]]::new()
+        foreach ($f in @($profile.favorites)) {
+            $favList.Add($(if ($f -is [hashtable] -or $f -is [System.Collections.Specialized.OrderedDictionary]) { $f } else { ConvertTo-GfHashtable -InputObject $f }))
+        }
+
+        if ($VerbosePreference -ne 'Continue') { Clear-GfConfigScreen }
+        Write-Host "=== GetForecast Config ===" -ForegroundColor Green
+        Write-Host "Profile: $(Get-GfAdvancedProfilePath)" -ForegroundColor DarkGray
+        Write-Host ""
+        Write-Host "Settings (enter number to change):" -ForegroundColor Green
+        Write-Host ("  1. Magic Hours:          {0}" -f $(if ($settings.showMagicHours) { 'on' } else { 'off' })) -ForegroundColor Cyan
+        Write-Host ("  2. Irradiance:           {0}" -f $(if ($settings.showIrradiance) { 'on' } else { 'off' })) -ForegroundColor Cyan
+        Write-Host ("  3. Wildfire:             {0}" -f $(if ($settings.enableWildfire) { 'on' } else { 'off' })) -ForegroundColor Cyan
+        Write-Host ("  4. Wildfire radius:      {0} mi" -f [int]$settings.wildfireRadiusMiles) -ForegroundColor Cyan
+        Write-Host ("  5. Filter small fires:   {0}" -f $(if ($settings.filterSmallWildfires) { 'on' } else { 'off' })) -ForegroundColor Cyan
+        Write-Host ("  6. AQI:                  {0}" -f $(if ($settings.enableAqi) { 'on' } else { 'off' })) -ForegroundColor Cyan
+        $airNowMasked = Mask-AirNowKeyDisplay -Key (Get-AirNowApiKeyFromEnvironment)
+        Write-Host ("  7. 24-hour times:        {0}" -f $(if ($settings.use24h) { 'on' } else { 'off' })) -ForegroundColor Cyan
+        Write-Host ("  8. Locations drawer:     {0}" -f $(if ($settings.locationsDrawerOpen) { 'open' } else { 'closed' })) -ForegroundColor Cyan
+        Write-Host ("  9. Control bar:          {0}" -f $(if ($null -eq $settings.controlBarOpen -or $settings.controlBarOpen) { 'open' } else { 'closed' })) -ForegroundColor Cyan
+        Write-Host (" 10. Current mode:         {0}" -f $settings.currentMode) -ForegroundColor Cyan
+        Write-Host (" 11. Per-location colors:  {0}" -f $(if ($settings.perLocationColors) { 'on' } else { 'off' })) -ForegroundColor Cyan
+        Write-Host (" 12. AirNow API key:       {0}" -f $airNowMasked) -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "Locations ($($favList.Count)):" -ForegroundColor Green
+        if ($favList.Count -eq 0) {
+            Write-Host "  (none)" -ForegroundColor Yellow
+        } else {
+            $useColors = [bool]$settings.perLocationColors
+            for ($i = 0; $i -lt $favList.Count; $i++) {
+                Show-GfConfigLocationLine -Favorite $favList[$i] -Index $i -UseColors $useColors
+            }
+        }
+        Write-Host ""
+        Write-Host "Option: " -ForegroundColor Green -NoNewline
+        Write-Host "1" -ForegroundColor Cyan -NoNewline; Write-Host "-12 settings  " -ForegroundColor White -NoNewline
+        Write-Host "L" -ForegroundColor Cyan -NoNewline; Write-Host " <n> edit  " -ForegroundColor White -NoNewline
+        Write-Host "U" -ForegroundColor Cyan -NoNewline; Write-Host " <n> up  " -ForegroundColor White -NoNewline
+        Write-Host "D" -ForegroundColor Cyan -NoNewline; Write-Host " <n> down  " -ForegroundColor White -NoNewline
+        Write-Host "N" -ForegroundColor Cyan -NoNewline; Write-Host "ew  " -ForegroundColor White -NoNewline
+        Write-Host "Q" -ForegroundColor Cyan -NoNewline; Write-Host "uit" -ForegroundColor White
+        $choice = (Read-Host "Choice").Trim()
+        if ($choice -match '^[Qq]$') {
+            Write-Host "Config saved." -ForegroundColor Green
+            return
+        }
+        if ($choice -match '^[Nn]$') {
+            Invoke-GfConfigCreateLocation -Profile $profile -Favorites $favList
+            continue
+        }
+        if ($choice -match '^[Ll]\s*(\d+)$') {
+            $idx = [int]$Matches[1] - 1
+            Invoke-GfConfigEditLocation -Profile $profile -Favorites $favList -Index $idx
+            continue
+        }
+        if ($choice -match '^[Uu]\s*(\d+)$') {
+            $idx = [int]$Matches[1] - 1
+            if ($idx -le 0 -or $idx -ge $favList.Count) {
+                Write-Host "Cannot move that location up." -ForegroundColor Yellow
+                Start-Sleep -Milliseconds 700
+                continue
+            }
+            $tmp = $favList[$idx - 1]
+            $favList[$idx - 1] = $favList[$idx]
+            $favList[$idx] = $tmp
+            Save-GfConfigProfileFavorites -Profile $profile -Favorites @($favList.ToArray())
+            continue
+        }
+        if ($choice -match '^[Dd]\s*(\d+)$') {
+            $idx = [int]$Matches[1] - 1
+            if ($idx -lt 0 -or $idx -ge ($favList.Count - 1)) {
+                Write-Host "Cannot move that location down." -ForegroundColor Yellow
+                Start-Sleep -Milliseconds 700
+                continue
+            }
+            $tmp = $favList[$idx + 1]
+            $favList[$idx + 1] = $favList[$idx]
+            $favList[$idx] = $tmp
+            Save-GfConfigProfileFavorites -Profile $profile -Favorites @($favList.ToArray())
+            continue
+        }
+        $settingNum = 0
+        if ([int]::TryParse($choice, [ref]$settingNum) -and $settingNum -ge 1 -and $settingNum -le 12) {
+            Invoke-GfConfigChangeSetting -Profile $profile -SettingNumber $settingNum
+            Start-Sleep -Milliseconds 400
+            continue
+        }
+        Write-Host "Unknown choice. Examples: 3  |  12  |  L 2  |  U 3  |  D 1  |  N  |  Q" -ForegroundColor Gray
+        Start-Sleep -Milliseconds 900
+    }
+}
+
 function Get-GfAdvancedFavoriteSlotIndexFromKey {
     param(
         [System.ConsoleKeyInfo]$KeyInfo
@@ -1826,11 +2486,48 @@ function Get-GfAdvancedFavoriteSlotIndexFromKey {
     return $(if ($shifted) { $digit + 9 } else { $digit - 1 })
 }
 
+function Clear-GfAdvancedFavoritePendingLoad {
+    $script:gfPendingFavoriteLoadIndex = -1
+    $script:gfPendingFavoriteLoadAt = $null
+}
+
+function Move-GfAdvancedFavoritePreview {
+    param([int]$Delta)
+    $favs = @($script:gfFavorites)
+    if (-not $script:gfAdvancedMode -or $favs.Count -eq 0) { return $false }
+    $n = $favs.Count
+    $cur = $script:gfActiveFavoriteIndex
+    if ($cur -lt 0 -or $cur -ge $n) { $cur = 0 }
+    # Wrap: next from last -> first; previous from first -> last
+    $next = (($cur + $Delta) % $n + $n) % $n
+    $script:gfActiveFavoriteIndex = $next
+    $script:gfActiveFavorite = $favs[$next]
+    if ($script:gfLoadedFavoriteIndex -ge 0 -and $next -eq $script:gfLoadedFavoriteIndex) {
+        Clear-GfAdvancedFavoritePendingLoad
+    } else {
+        $script:gfPendingFavoriteLoadIndex = $next
+        $script:gfPendingFavoriteLoadAt = (Get-Date).AddMilliseconds(600)
+    }
+    return $true
+}
+
+function Complete-GfAdvancedFavoritePendingLoadIfDue {
+    if ($null -eq $script:gfPendingFavoriteLoadAt) { return $false }
+    if ((Get-Date) -lt $script:gfPendingFavoriteLoadAt) { return $false }
+    $idx = $script:gfPendingFavoriteLoadIndex
+    Clear-GfAdvancedFavoritePendingLoad
+    if ($idx -lt 0) { return $false }
+    if ($script:gfLoadedFavoriteIndex -ge 0 -and $idx -eq $script:gfLoadedFavoriteIndex) { return $false }
+    return (Request-GfAdvancedFavoriteRestart -FavoriteIndex $idx)
+}
+
 function Request-GfAdvancedFavoriteRestart {
     param([int]$FavoriteIndex)
     $favs = @($script:gfFavorites)
     if ($FavoriteIndex -lt 0 -or $FavoriteIndex -ge $favs.Count) { return $false }
+    Clear-GfAdvancedFavoritePendingLoad
     Set-GfAdvancedLastActiveFavorite -Index $FavoriteIndex -Favorite $favs[$FavoriteIndex]
+    $script:gfLoadedFavoriteIndex = $FavoriteIndex
     $query = Get-GfFavoriteLocationQuery -Favorite $favs[$FavoriteIndex]
     if ([string]::IsNullOrWhiteSpace($query)) { return $false }
     $script:gfRestartLocation = $query
@@ -1872,6 +2569,7 @@ function Initialize-GfAdvancedMode {
     )
 
     $script:advRestoreTerse = $false
+    $script:advRestoreTerseAlert = $false
     $script:advRestoreHourly = $false
     $script:advRestoreDaily = $false
     $script:advRestoreRain = $false
@@ -1896,26 +2594,39 @@ function Initialize-GfAdvancedMode {
 
     if ($EnableAdvanced.IsPresent) {
         if ([string]::IsNullOrWhiteSpace($EnableAdvancedFile)) {
-            Write-Host "Usage: .\gf.ps1 -enableadvanced <forecast-backup.json>" -ForegroundColor Yellow
-            exit 1
-        }
-        try {
-            $imported = Import-GfAdvancedProfileFromForecastBackup -FilePath $EnableAdvancedFile
-            $profile = $imported.Profile
-            $airNowUpdated = $false
-            if ($profile.airNowApiKey) {
-                [Environment]::SetEnvironmentVariable('AirNowAPI', [string]$profile.airNowApiKey, 'User')
-                $env:AirNowAPI = [string]$profile.airNowApiKey
-                $airNowUpdated = $true
-                if ($profile.Contains('airNowApiKey')) { $profile.Remove('airNowApiKey') }
-                Save-GfAdvancedProfile -Profile $profile | Out-Null
+            # No Forecast backup: seed a default gf.json (if needed) and open config to build it manually
+            $existing = Get-GfAdvancedProfile
+            if (-not $existing -or -not $existing.advancedEnabled) {
+                $profile = New-GfAdvancedProfileDefaults
+                $profile.importedAt = (Get-Date).ToUniversalTime().ToString('o')
+                $profile['sourcePath'] = $null
+                $savedPath = Save-GfAdvancedProfile -Profile $profile
+                Write-Host "Advanced mode enabled (empty profile)." -ForegroundColor Green
+                Write-Host "Profile: $savedPath" -ForegroundColor Cyan
+                Write-Host "Configure settings and locations below (no Forecast export required)." -ForegroundColor Cyan
+            } else {
+                Write-Host "Advanced mode already enabled. Opening config..." -ForegroundColor Cyan
             }
-            # Temporarily expose per-location colors for the import chip preview
-            $script:gfPerLocationColors = [bool]$profile.settings.perLocationColors
-            Show-GfAdvancedImportReport -Profile $profile -Path $imported.Path -Source $imported.Source -AirNowUpdated $airNowUpdated
-        } catch {
-            Write-Host "Failed to enable Advanced mode: $($_.Exception.Message)" -ForegroundColor Red
-            exit 1
+            $script:gfOpenConfigAfterInit = $true
+        } else {
+            try {
+                $imported = Import-GfAdvancedProfileFromForecastBackup -FilePath $EnableAdvancedFile
+                $profile = $imported.Profile
+                $airNowUpdated = $false
+                if ($profile.airNowApiKey) {
+                    [Environment]::SetEnvironmentVariable('AirNowAPI', [string]$profile.airNowApiKey, 'User')
+                    $env:AirNowAPI = [string]$profile.airNowApiKey
+                    $airNowUpdated = $true
+                    if ($profile.Contains('airNowApiKey')) { $profile.Remove('airNowApiKey') }
+                    Save-GfAdvancedProfile -Profile $profile | Out-Null
+                }
+                # Temporarily expose per-location colors for the import chip preview
+                $script:gfPerLocationColors = [bool]$profile.settings.perLocationColors
+                Show-GfAdvancedImportReport -Profile $profile -Path $imported.Path -Source $imported.Source -AirNowUpdated $airNowUpdated
+            } catch {
+                Write-Host "Failed to enable Advanced mode: $($_.Exception.Message)" -ForegroundColor Red
+                exit 1
+            }
         }
     }
 
@@ -1971,6 +2682,7 @@ function Initialize-GfAdvancedMode {
     }
 
     $script:advRestoreTerse = $false
+    $script:advRestoreTerseAlert = $false
     $script:advRestoreHourly = $false
     $script:advRestoreDaily = $false
     $script:advRestoreRain = $false
@@ -1979,6 +2691,7 @@ function Initialize-GfAdvancedMode {
     if (-not $script:cliModeSpecified) {
         switch -Regex ([string]$profile.settings.currentMode) {
             '^(terse)$' { $script:advRestoreTerse = $true }
+            '^(tersealert|ta)$' { $script:advRestoreTerseAlert = $true }
             '^(hourly)$' { $script:advRestoreHourly = $true }
             '^(daily)$' { $script:advRestoreDaily = $true }
             '^(rain)$' { $script:advRestoreRain = $true }
@@ -2003,6 +2716,8 @@ function Initialize-GfAdvancedMode {
     if ($favIndex -ge 0 -and $favIndex -lt $script:gfFavorites.Count) {
         $script:gfActiveFavoriteIndex = $favIndex
         $script:gfActiveFavorite = $script:gfFavorites[$favIndex]
+        $script:gfLoadedFavoriteIndex = $favIndex
+        Clear-GfAdvancedFavoritePendingLoad
         Set-GfAdvancedLastActiveFavorite -Index $favIndex -Favorite $script:gfActiveFavorite
         if (-not $LocationRef.Value) {
             $LocationRef.Value = Get-GfFavoriteLocationQuery -Favorite $script:gfActiveFavorite
@@ -3809,6 +4524,7 @@ $headers = @{
 # Advanced mode: import/disable/load profile defaults (helpers are defined above)
 Initialize-GfAdvancedMode -LocationRef ([ref]$Location)
 if ($script:advRestoreTerse) { $Terse = [switch]$true }
+if ($script:advRestoreTerseAlert) { $TerseAlert = [switch]$true }
 if ($script:advRestoreHourly) { $Hourly = [switch]$true }
 if ($script:advRestoreDaily) { $Daily = [switch]$true }
 if ($script:advRestoreRain) { $Rain = [switch]$true }
@@ -3816,6 +4532,16 @@ if ($script:advRestoreWind) { $Wind = [switch]$true }
 if ($script:advRestoreObservations) { $Observations = [switch]$true }
 $script:NoInteractive = $NoInteractive
 Write-Verbose "Wildfire config: enabled=$($script:wildFireEnabled) radius=$($script:WILDFIRE_RADIUS_MILES) mi filterSmall=$($script:wildFireFilterSmall)"
+
+if ($Config.IsPresent -or $script:gfOpenConfigAfterInit) {
+    if (-not $script:gfAdvancedMode) {
+        Write-Host "Config is only available in Advanced mode (no profile at $(Get-GfAdvancedProfilePath))." -ForegroundColor Yellow
+        Write-Host "Run: .\gf.ps1 -eadv   (or import a Forecast backup: .\gf.ps1 -eadv <file>)" -ForegroundColor Cyan
+        exit 1
+    }
+    Show-GfAdvancedConfigModal
+    exit 0
+}
 
 if ($AqiSetup.IsPresent) {
     Show-AirNowAqiSetup
@@ -3866,6 +4592,21 @@ while ($true) { # Loop for location input and geocoding
             $city = $locationData.City
             $state = $locationData.State
             Write-Verbose "Detected location: $city, $state (Lat: $lat, Lon: $lon)"
+        } elseif ($Location -match '^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$') {
+            # Direct coordinates (Advanced favorites / -config created locations)
+            $lat = [double]$Matches[1]
+            $lon = [double]$Matches[2]
+            if ($lat -lt -90 -or $lat -gt 90 -or $lon -lt -180 -or $lon -gt 180) {
+                throw "Coordinates out of range: $Location"
+            }
+            Write-Verbose "Using direct coordinates: $lat, $lon"
+            if ($VerbosePreference -ne 'Continue') { Clear-Host }
+            Write-Host "Resolving ($lat, $lon)..." -ForegroundColor Yellow
+            $rev = Get-GfReverseGeocodeCityState -Lat $lat -Lon $lon
+            $city = $rev.City
+            $state = $rev.State
+            if (-not $city) { $city = ("{0:N4}" -f $lat) }
+            if (-not $state) { $state = ("{0:N4}" -f $lon) }
         } else {
             # --- GEOCODING ---
             # Use OpenStreetMap Nominatim API for all geocoding (free, no API key required)
@@ -10258,6 +10999,12 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                 }
             }
             
+            # Advanced Tab preview: commit favorite load after 600ms settle (no further Tab/Shift+Tab)
+            if (Complete-GfAdvancedFavoritePendingLoadIfDue) {
+                Write-Host "`nSwitching to favorite..." -ForegroundColor Yellow
+                break
+            }
+
             # Check for key input (non-blocking) - using same approach as bmon.ps1
             try {
                 # Check if console supports key input
@@ -10274,13 +11021,12 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     break
                 }
 
-                # Tab in TerseAlert: manually flip terse <-> alerts and reset the 20s auto-flip timer
+                # Tab / Shift+Tab: Advanced favorites (wrap + 600ms settle)
                 if ($keyInfo.Key -eq [System.ConsoleKey]::Tab) {
-                    if ($isTerseAlertMode) {
-                        $taAlerts = @(Get-DisplayableNwsAlerts -AlertsData $script:alertsData)
-                        if ($taAlerts.Count -gt 0) {
-                            $script:terseAlertShowingAlerts = -not $script:terseAlertShowingAlerts
-                            $script:nextTerseAlertFlip = (Get-Date).AddSeconds(20)
+                    $hasAdvFavs = $script:gfAdvancedMode -and @($script:gfFavorites).Count -gt 0
+                    if ($hasAdvFavs) {
+                        $delta = if (($keyInfo.Modifiers -band [System.ConsoleModifiers]::Shift) -ne 0) { -1 } else { 1 }
+                        if (Move-GfAdvancedFavoritePreview -Delta $delta) {
                             Clear-HostWithDelay
                             Show-GfInteractiveCurrentView
                         }
@@ -10332,18 +11078,28 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                 
                 # Handle keyboard input for interactive mode
                 switch ($keyInfo.KeyChar) {
-                'a' { # A key - Switch to alerts-only mode
-                    Clear-HostWithDelay
-                    $isHourlyMode = $false
-                    $isRainMode = $false
-                    $isWindMode = $false
-                    $isTerseMode = $false
-                    $isTerseAlertMode = $false
-                    $isAlertsMode = $true
-                    $script:terseAlertShowingAlerts = $false
-                    $isDailyMode = $false
-                    $isObservationsMode = $false
-                    Show-GfInteractiveAlertsPane -ShowEmptyMessage $true
+                'a' { # A key - In TerseAlert: toggle panes; otherwise alerts-only mode
+                    if ($isTerseAlertMode) {
+                        $taAlerts = @(Get-DisplayableNwsAlerts -AlertsData $script:alertsData)
+                        if ($taAlerts.Count -gt 0) {
+                            $script:terseAlertShowingAlerts = -not $script:terseAlertShowingAlerts
+                            $script:nextTerseAlertFlip = (Get-Date).AddSeconds(20)
+                            Clear-HostWithDelay
+                            Show-GfInteractiveCurrentView
+                        }
+                    } else {
+                        Clear-HostWithDelay
+                        $isHourlyMode = $false
+                        $isRainMode = $false
+                        $isWindMode = $false
+                        $isTerseMode = $false
+                        $isTerseAlertMode = $false
+                        $isAlertsMode = $true
+                        $script:terseAlertShowingAlerts = $false
+                        $isDailyMode = $false
+                        $isObservationsMode = $false
+                        Show-GfInteractiveAlertsPane -ShowEmptyMessage $true
+                    }
                 }
                 'h' { # H key - Switch to hourly forecast only
                     Clear-HostWithDelay

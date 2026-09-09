@@ -11,7 +11,7 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
 - **Flexible Location Input:** Accepts 5-digit zip codes, city/state names (e.g., "Portland, OR"), or "here" for automatic location detection.
 - **Automatic Location Detection:** Use "here" to automatically detect your location based on your IP address with provider fallback (`ip-api.com` -> `ipwho.is` -> `ipapi.co`).
 - **Interactive Prompt:** If no location is provided, the script displays a welcome screen and prompts for input.
-- **Advanced Mode:** Import a Forecast backup JSON (`-eadv` / `-enableadvanced`) into `%LOCALAPPDATA%\gf\gf.json` for favorites, colorized location-bar hotkeys (`L`, `1`–`0`, `Shift+1`–`0`), last-location restore, and persisted defaults (Magic, Irradiance, wildfire, AQI, 24h, mode). Disable with `-dadv`.
+- **Advanced Mode:** Enable with `-eadv` (optional Forecast backup JSON, or bare `-eadv` to create an empty profile and open config). Stores `%LOCALAPPDATA%\gf\gf.json` for favorites, colorized location-bar hotkeys (`L`, `Tab`/`Shift+Tab`, `1`–`0`, `Shift+1`–`0`), last-location restore, and persisted defaults (Magic, Irradiance, wildfire, AQI, 24h, mode). Edit anytime with `-config`. Disable with `-dadv`.
 - **Comprehensive Weather Data:** Displays a wide range of information, including:
   - Current temperature and conditions.
   - Wind chill and heat index calculations (NWS formulas), or estimated outdoor WBGT with `-wbgt` (aligned with the forecast web app).
@@ -107,8 +107,9 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
   - **D** — 7-day forecast only
   - **T** — Terse mode (current conditions + today's forecast)
   - **Shift+T** — TerseAlert mode (alternate with full alerts every 20s when alerts are active; not on the control bar)
-  - **A** — Alerts-only view (not on the control bar)
-  - **Tab** — In TerseAlert mode, toggle between terse and alerts and reset the 20s timer (not on the control bar)
+  - **A** — Alerts-only view; in TerseAlert mode, toggle between terse and alerts and reset the 20s timer (not on the control bar)
+  - **Tab** — Advanced: next favorite (wraps; highlight updates immediately, load after 600ms settle; not on the control bar)
+  - **Shift+Tab** — Advanced: previous favorite (wraps; same 600ms settle before load; not on the control bar)
   - **R** — Rain forecast mode (sparklines)
   - **W** — Wind forecast mode (direction glyphs)
   - **O** — History mode (`histOry` on the control bar; historical weather data)
@@ -185,9 +186,10 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 | `-NoAutoUpdate` | `-u` | Start with auto-update disabled (5-minute default). |
 | `-Magic` | `-m` | Golden/Blue hour lines before `Updated:`. In Advanced mode, toggles the imported Magic default. |
 | `-Irradiance` | `-i` | Advanced mode: toggles the imported Irradiance default (normally always shown). |
-| `-EnableAdvanced` | `-eadv` | Import a Forecast backup JSON into `%LOCALAPPDATA%\gf\gf.json` and enable Advanced mode. |
+| `-EnableAdvanced` | `-eadv` | Enable Advanced mode: import a Forecast backup JSON, or omit the file to create an empty `gf.json` and open the config modal. |
 | `-DisableAdvanced` | `-dadv` | Confirm, delete Advanced profile, print confirmation, exit. |
 | `-Load` | `-l` | Advanced: start on favorite slot N (1-based location-bar order) instead of last active. |
+| `-Config` | — | Advanced only: open the GetForecast config modal (settings + favorites), then exit. |
 | `-NoInteractive` | `-x` | Display once and exit (scripting). |
 | `-NoBar` | `-b` | Start with the interactive control bar hidden. |
 | `-UseWbgt` | `-wbgt` | Use estimated outdoor WBGT instead of heat index (warm band from 75°F). |
@@ -201,8 +203,10 @@ Import a Forecast web-app backup to unlock favorites, colors, and persisted defa
 
 ```powershell
 .\gf.ps1 -eadv "$env:USERPROFILE\Downloads\forecast-settings.json"
+.\gf.ps1 -eadv        # create empty Advanced profile and open config (no Forecast export needed)
 .\gf.ps1              # restores last active favorite when no location arg
 .\gf.ps1 -l 2         # load favorite slot 2
+.\gf.ps1 -config      # Advanced: edit settings + favorites, then exit
 .\gf.ps1 -dadv        # disable Advanced mode (confirm + delete gf.json)
 ```
 
@@ -215,13 +219,15 @@ Import a Forecast web-app backup to unlock favorites, colors, and persisted defa
 **Favorites kept:** `key`, `name`, `location`, `customName`, `primaryColor`, `secondaryColor`.
 
 **Runtime behavior:**
-- After `-eadv`, an import report lists colored favorite chips, settings, and waits for Enter before continuing.
+- Bare `-eadv` (no file) creates a default Advanced profile if missing, then opens the same config modal as `-config` so you can set options and add locations without a Forecast export. With a file, an import report lists colored favorite chips, settings, and waits for Enter before continuing.
 - CLI flags still override Advanced defaults for that run. Mode-only launches (`gf -ta`, `gf -w`, `gf -r`, etc.) use the last active favorite instead of showing usage.
 - If Magic default is on, `-m` disables Magic for the run; if Irradiance default is off, `-i` enables it.
 - Location bar above the control bar: active favorite is fully highlighted (inverted primary/secondary); inactive favorites show a colored `▀` glyph with a default-colored label. Toggle with **L** (persisted; `Loc` appears on the control bar only in Advanced mode with at least one favorite).
 - Control bar open/closed is persisted in Advanced mode (toggle with **B**; `-b` still forces hidden for that run).
-- Hotkeys `1`–`0` load slots 1–10; `Shift+1`–`Shift+0` load 11–20.
+- **Tab** / **Shift+Tab** move to the next / previous favorite (wraps). The location-bar highlight updates immediately; the favorite loads only after **600ms** with no further Tab presses (so you can skim without loading each stop). Hotkeys only — not on the control bar. While pending, the location bar is shown even if **L** has it closed.
+- Hotkeys `1`–`0` load slots 1–10; `Shift+1`–`Shift+0` load 11–20 (immediate load).
 - Section titles (`Current Conditions`, `Today`, `Tonight`, Hourly, etc.) use favorite colors when per-location colors are enabled.
+- **`-config`** (Advanced only) opens a GetForecast config modal, then exits: toggle/edit profile settings (current mode includes `tersealert`; setting **12** updates/deletes the User env `AirNowAPI` key); reorder favorites (`U`/`D` + slot); edit a location (`L` + slot) for name, primary/secondary hex (with `▀` color sample), lat/lon, or delete (confirm); create a location (`N`) with name, colors when per-location colors are on, and coordinates. Location list rows show `▀` + name using that favorite’s colors when per-location colors are enabled.
 ### Parameter details
 
 - `Location` [string] (Positional: 0)
@@ -245,6 +251,11 @@ Import a Forecast web-app backup to unlock favorites, colors, and persisted defa
   - Validates the key with a test request to AirNow at fixed coordinates (Portland, OR area: 45.5202471, -122.674194). AirNow limits each key to **500 requests per hour**.
   - Request an AirNow key: https://docs.airnowapi.org/account/request/
 
+- `-Config` [switch]
+  - **Advanced mode only.** Opens the GetForecast config modal for `%LOCALAPPDATA%\gf\gf.json`, then exits (no weather fetch).
+  - Toggle/edit imported settings (including AirNow API key via setting **12**); reorder favorites; edit name/colors/coordinates or delete a location (with confirm); create a new location.
+  - Without an Advanced profile, prints guidance to run `-eadv` first and exits with an error.
+
 - `-Terse` or `-t` [switch]
   - Shows only current conditions and today's forecast (plus alerts if they exist).
   - Combines sunrise and sunset into a single `Sunrise-Sunset: start-end` line and omits the Dew Point line for a tighter layout, while still showing irradiance when available.
@@ -252,7 +263,7 @@ Import a Forecast web-app backup to unlock favorites, colors, and persisted defa
 
 - `-TerseAlert` or `-ta` [switch]
   - Alternative terse mode: behaves like `-t` when there are no active alerts.
-  - When alerts are active, interactive mode alternates every 20 seconds between the terse view and a full alerts list (`*** {location} Active Weather Alerts ***`). Press **Tab** to toggle immediately and reset the 20s timer.
+  - When alerts are active, interactive mode alternates every 20 seconds between the terse view and a full alerts list (`*** {location} Active Weather Alerts ***`). Press **A** to toggle immediately and reset the 20s timer.
   - With `-x`, prints terse output then the full alerts block in sequence (alerts only when present).
 
 - `-Alerts` or `-a` [switch]
@@ -599,8 +610,8 @@ Interactive mode shows a control bar with hotkey hints (hide with **B** or start
    - **D** — Enhanced 7-day forecast
    - **T** — Terse mode (current + today)
    - **Shift+T** — TerseAlert mode (alternate with full alerts; not on the control bar)
-   - **A** — Alerts-only view (not on the control bar)
-   - **Tab** — In TerseAlert mode, toggle terse/alerts and reset the 20s timer (not on the control bar)
+   - **A** — Alerts-only view; in TerseAlert mode, toggle terse/alerts and reset the 20s timer (not on the control bar)
+   - **Tab** / **Shift+Tab** — Advanced: next/previous favorite (600ms settle; not on the control bar)
    - **R** — Rain forecast (sparklines)
    - **W** — Wind forecast (glyphs)
    - **O** — History (`histOry`)
@@ -736,7 +747,7 @@ These messages provide clear feedback about the script's progress and help users
 
 - **v2.5** — **`-nosmallfire` / `-nsf`:** hide wildfires ≤1 acre and fires with no reported acres from display/counts; InciWeb probes skipped for filtered fires.
 - **v2.4** — Wild Fire Info from NIFC WFIGS (50 mi default): full section after alerts with size/containment/behavior and InciWeb links; terse one-liner for the largest fire (`[1/X]` when multiple). Override radius with `-wf`/`-wildfire N` miles; `-wf 0` disables.
-- **v2.3** — TerseAlert mode (`-ta` / `-tersealert`): alternate terse and full alerts every 20s when alerts are active; with `-x`, print terse then alerts. Alerts-only mode (`-a` / `-alerts`) with green empty state. Interactive hotkeys **A** (alerts) and **Shift+T** (TerseAlert), not shown on the control bar.
+- **v2.3** — TerseAlert mode (`-ta` / `-tersealert`): alternate terse and full alerts every 20s when alerts are active; with `-x`, print terse then alerts. Alerts-only mode (`-a` / `-alerts`) with green empty state. Interactive hotkeys **A** (alerts-only, or TerseAlert pane toggle) and **Shift+T** (TerseAlert), not shown on the control bar.
 - **v2.2** — Soft-warn on unrecognized CLI options (e.g. accidental `-c`) and continue; suppress NWS test/monitoring-only alerts; current-conditions header shows ⚠️/🌡 when alerts are active (matches forecast web); fix alert section when API returns a single GeoJSON feature.
 - **v2.1** — Moon phase, rain/wind sparklines, observations mode, auto-refresh, solar irradiance, and related enhancements (see GEMINI.md).
 
