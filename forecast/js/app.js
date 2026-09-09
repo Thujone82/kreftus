@@ -998,6 +998,58 @@ function saveAccentColors(primary, secondary) {
     applyThemeColorToTitleBar(primary);
 }
 
+/** Persist per-favorite accent colors (uid/key/city+state match). Returns true when saved. */
+function persistFavoriteAccentColors(favorite, primary, secondary) {
+    if (!favorite) return false;
+    const favorites = getFavorites();
+    let idx = favorites.findIndex((f) =>
+        (favorite.uid && f.uid === favorite.uid) ||
+        (favorite.key && f.key === favorite.key)
+    );
+    if (idx === -1 && favorite.location) {
+        const cityNorm = (favorite.location.city || '').trim().toLowerCase();
+        const stateNorm = normalizeUsStateCode(favorite.location.state);
+        if (cityNorm && stateNorm) {
+            idx = favorites.findIndex((f) =>
+                f.location &&
+                (f.location.city || '').trim().toLowerCase() === cityNorm &&
+                normalizeUsStateCode(f.location.state) === stateNorm
+            );
+        }
+    }
+    if (idx === -1) {
+        console.warn('persistFavoriteAccentColors: favorite not found in storage', favorite.uid || favorite.key || favorite.name);
+        return false;
+    }
+    favorites[idx] = {
+        ...favorites[idx],
+        primaryColor: primary,
+        secondaryColor: secondary
+    };
+    localStorage.setItem('forecastFavorites', JSON.stringify(favorites));
+    return true;
+}
+
+function applyFavoriteAccentColorsFromPicker() {
+    const primary = (elements.primaryAccentColor && elements.primaryAccentColor.value) || ACCENT_DEFAULTS.primary;
+    const secondary = (elements.secondaryAccentColor && elements.secondaryAccentColor.value) || ACCENT_DEFAULTS.secondary;
+    if (isPerLocationColorsEnabled()) {
+        const fav = getCurrentFavorite();
+        if (fav) {
+            fav.primaryColor = primary;
+            fav.secondaryColor = secondary;
+            if (!persistFavoriteAccentColors(fav, primary, secondary)) {
+                // Still show the chosen colors for this session even if persist failed.
+                applyThemeColorsToDOM(primary, secondary);
+                return;
+            }
+            applyThemeColorsToDOM(primary, secondary);
+            return;
+        }
+    }
+    saveAccentColors(primary, secondary);
+}
+
 function getCurrentFavorite() {
     const key = appState.currentLocationKey;
     if (key) {
@@ -1701,52 +1753,12 @@ function setupConfigModal() {
     });
 
     if (elements.primaryAccentColor) {
-        elements.primaryAccentColor.addEventListener('input', (e) => {
-            const primary = e.target.value;
-            const secondary = (elements.secondaryAccentColor && elements.secondaryAccentColor.value) || ACCENT_DEFAULTS.secondary;
-            if (isPerLocationColorsEnabled()) {
-                const fav = getCurrentFavorite();
-                if (fav) {
-                    fav.primaryColor = primary;
-                    fav.secondaryColor = secondary;
-                    const favorites = getFavorites();
-                    const idx = favorites.findIndex(f => f.uid === fav.uid || f.key === fav.key);
-                    if (idx !== -1) {
-                        favorites[idx] = { ...favorites[idx], primaryColor: primary, secondaryColor: secondary };
-                        localStorage.setItem('forecastFavorites', JSON.stringify(favorites));
-                    }
-                    applyThemeColorsToDOM(primary, secondary);
-                } else {
-                    saveAccentColors(primary, secondary);
-                }
-            } else {
-                saveAccentColors(primary, secondary);
-            }
-        });
+        elements.primaryAccentColor.addEventListener('input', applyFavoriteAccentColorsFromPicker);
+        elements.primaryAccentColor.addEventListener('change', applyFavoriteAccentColorsFromPicker);
     }
     if (elements.secondaryAccentColor) {
-        elements.secondaryAccentColor.addEventListener('input', (e) => {
-            const secondary = e.target.value;
-            const primary = (elements.primaryAccentColor && elements.primaryAccentColor.value) || ACCENT_DEFAULTS.primary;
-            if (isPerLocationColorsEnabled()) {
-                const fav = getCurrentFavorite();
-                if (fav) {
-                    fav.primaryColor = primary;
-                    fav.secondaryColor = secondary;
-                    const favorites = getFavorites();
-                    const idx = favorites.findIndex(f => f.uid === fav.uid || f.key === fav.key);
-                    if (idx !== -1) {
-                        favorites[idx] = { ...favorites[idx], primaryColor: primary, secondaryColor: secondary };
-                        localStorage.setItem('forecastFavorites', JSON.stringify(favorites));
-                    }
-                    applyThemeColorsToDOM(primary, secondary);
-                } else {
-                    saveAccentColors(primary, secondary);
-                }
-            } else {
-                saveAccentColors(primary, secondary);
-            }
-        });
+        elements.secondaryAccentColor.addEventListener('input', applyFavoriteAccentColorsFromPicker);
+        elements.secondaryAccentColor.addEventListener('change', applyFavoriteAccentColorsFromPicker);
     }
     if (elements.configModalResetColors) {
         elements.configModalResetColors.addEventListener('click', (e) => {
@@ -1757,7 +1769,9 @@ function setupConfigModal() {
                 const fav = getCurrentFavorite();
                 if (fav && (fav.primaryColor || fav.secondaryColor)) {
                     const favorites = getFavorites();
-                    const idx = favorites.findIndex(f => f.uid === fav.uid || f.key === fav.key);
+                    const idx = favorites.findIndex(f =>
+                        (fav.uid && f.uid === fav.uid) || (fav.key && f.key === fav.key)
+                    );
                     if (idx !== -1) {
                         const updated = { ...favorites[idx] };
                         delete updated.primaryColor;
@@ -1882,19 +1896,22 @@ function setupConfigModal() {
         elements.perLocationColorsCheckbox.addEventListener('change', (e) => {
             const enabled = !!e.target.checked;
             savePerLocationColors(enabled);
-            if (!enabled) {
-                const favorites = getFavorites();
-                let changed = false;
-                favorites.forEach(fav => {
-                    if (fav.primaryColor || fav.secondaryColor) {
-                        delete fav.primaryColor;
-                        delete fav.secondaryColor;
-                        changed = true;
-                    }
-                });
-                if (changed) localStorage.setItem('forecastFavorites', JSON.stringify(favorites));
+            if (enabled) {
+                // Seed the current favorite with the colors currently shown (global fallback)
+                // so enabling the feature does not leave "visible but unexported" accents.
+                const fav = getCurrentFavorite();
+                if (fav && !fav.primaryColor && !fav.secondaryColor) {
+                    const primary = (elements.primaryAccentColor && elements.primaryAccentColor.value)
+                        || localStorage.getItem('forecastAccentPrimary')
+                        || ACCENT_DEFAULTS.primary;
+                    const secondary = (elements.secondaryAccentColor && elements.secondaryAccentColor.value)
+                        || localStorage.getItem('forecastAccentSecondary')
+                        || ACCENT_DEFAULTS.secondary;
+                    persistFavoriteAccentColors(fav, primary, secondary);
+                }
+            } else {
+                // Keep per-favorite colors in storage for export / re-enable; only stop applying them.
                 applyThemeForCurrentLocation();
-                // Sync color choosers to global so they don't keep showing the previous per-location values
                 const primary = localStorage.getItem('forecastAccentPrimary') || ACCENT_DEFAULTS.primary;
                 const secondary = localStorage.getItem('forecastAccentSecondary') || ACCENT_DEFAULTS.secondary;
                 if (elements.primaryAccentColor) elements.primaryAccentColor.value = primary;
@@ -3247,6 +3264,9 @@ function migrateFavorites() {
                 if (favorite.customName !== undefined) {
                     fixedFavorite.customName = favorite.customName;
                 }
+                // Preserve per-location accent colors
+                if (favorite.primaryColor) fixedFavorite.primaryColor = favorite.primaryColor;
+                if (favorite.secondaryColor) fixedFavorite.secondaryColor = favorite.secondaryColor;
                 
                 // If old favorite had a UID, preserve it (for consistency)
                 if (favorite.uid) {

@@ -77,8 +77,24 @@
         if (raw.customName != null && String(raw.customName).trim()) {
             fav.customName = String(raw.customName).trim();
         }
-        if (raw.primaryColor) fav.primaryColor = String(raw.primaryColor);
-        if (raw.secondaryColor) fav.secondaryColor = String(raw.secondaryColor);
+        if (raw.primaryColor != null && String(raw.primaryColor).trim() !== '') {
+            fav.primaryColor = String(raw.primaryColor).trim();
+        }
+        if (raw.secondaryColor != null && String(raw.secondaryColor).trim() !== '') {
+            fav.secondaryColor = String(raw.secondaryColor).trim();
+        }
+        // Keep favorite location lean for portability (drop ephemeral weather fields)
+        if (fav.location && typeof fav.location === 'object') {
+            fav.location = {
+                lat: fav.location.lat,
+                lon: fav.location.lon,
+                city: fav.location.city,
+                state: fav.location.state,
+                timeZone: fav.location.timeZone,
+                radarStation: fav.location.radarStation,
+                elevationFeet: fav.location.elevationFeet
+            };
+        }
         if (!fav.uid && !fav.key && !normalizeCityState(fav.location) && !fav.searchQuery) {
             return null;
         }
