@@ -48,10 +48,12 @@ class BluetoothPermissionTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         ble_radio._last_radio_restart_at = None
         ble_radio._last_permission_denied_at = None
+        ble_radio._last_stack_reset_at = None
 
     def tearDown(self) -> None:
         ble_radio._last_radio_restart_at = None
         ble_radio._last_permission_denied_at = None
+        ble_radio._last_stack_reset_at = None
         set_bluetooth_permission_callback(None)
 
     async def test_enable_requires_permission(self) -> None:

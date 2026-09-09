@@ -152,6 +152,11 @@ def _invalidate_ble_device_cache(address: str) -> None:
     _device_cache.pop(_cache_mac(address), None)
 
 
+def invalidate_ble_device_cache(address: str) -> None:
+    """Drop the cached BLEDevice for one MAC (forces re-scan on next connect)."""
+    _invalidate_ble_device_cache(address)
+
+
 def clear_ble_device_cache() -> None:
     """Drop all cached BLEDevice records (e.g. after radio restart)."""
     _device_cache.clear()

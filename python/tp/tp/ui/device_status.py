@@ -31,6 +31,8 @@ def _format_fetch_section(status: FetchStatus) -> list[str]:
     else:
         lines.append("  [red]Status: Failed[/]")
         lines.append(f"  [red]{status.error or 'Unknown error'}[/]")
+        if status.fail_streak > 1:
+            lines.append(f"  [yellow]Fail streak: {status.fail_streak}[/]")
     return lines
 
 

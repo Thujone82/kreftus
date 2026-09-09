@@ -18,8 +18,8 @@ class MainMenuScreen(Screen):
         ("1", "monitoring", "Monitoring"),
         ("2", "devices", "Devices"),
         ("3", "options", "Options"),
-        ("4", "quit", "Exit"),
-        ("5", "export_log", "Export"),
+        ("4", "export_log", "Export"),
+        ("5", "quit", "Exit"),
     ]
 
     def __init__(self) -> None:
@@ -64,15 +64,15 @@ class MainMenuScreen(Screen):
             f"  [white]1[/]  Monitoring  [dim]({device_count} device(s))[/]",
             "  [white]2[/]  Manage Devices",
             "  [white]3[/]  Options",
-            "  [white]4[/]  Exit",
         ]
         if self._export_available():
-            lines.append("  [white]5[/]  Export log to web")
-            lines.append("")
+            lines.append("  [white]4[/]  Export log to web")
+        lines.append("  [white]5[/]  Exit")
+        lines.append("")
+        if self._export_available():
             lines.append("[dim]Press 1-5 · Q to quit[/]")
         else:
-            lines.append("")
-            lines.append("[dim]Press 1-4 · Q to quit[/]")
+            lines.append("[dim]Press 1-3, 5 · Q to quit[/]")
         body.update("\n".join(lines))
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:

@@ -82,8 +82,8 @@ Place `tp.ini` and `tp_log.csv` in the same folder as the launcher. The build sc
 | 1 | Monitoring — live dashboard with sparklines (press **T** to cycle windows) |
 | 2 | Manage Devices — discover, add, rename, remove sensors |
 | 3 | Options — logging, poll mode, time detail, log file path, web export |
-| 4 / q | Exit |
-| 5 | Export log to web — writes `tp_export.html` and opens it in your browser |
+| 4 | Export log to web — writes `tp_export.html` and opens it in your browser (shown when log data is available) |
+| 5 / q | Exit |
 
 ## Monitoring
 
@@ -201,7 +201,7 @@ Export the CSV log to a self-contained **`tp_export.html`** beside the launcher:
 
 | How | Action |
 |-----|--------|
-| Main menu **5** | Export log to web |
+| Main menu **4** | Export log to web |
 | Options **E** | Same export |
 
 The report opens in your default browser. Pick a **device** and **timeframe** (4H, 24H, 72H, 7D, All) to filter an interactive dual-axis chart (temperature and humidity). Data is embedded in the file — no server required after export. Consecutive bogus 32 °F / 10% readings are excluded (same as the live app).
@@ -238,7 +238,7 @@ Temperature and humidity sparklines and cur/min/max values use indoor comfort ba
 - Consecutive **32.0 °F / 10%** readings (a known sensor error pattern) are discarded and not logged when two or more arrive in a row
 - Sparkline height reflects trend within the window; glyph color reflects the band at each bin average
 - Distant sensors may miss scheduled polls; minute retries and manual **G** fetch help recover them
-- If Bluetooth is off at the OS level, TemPy prompts **Y/N** before enabling it (e.g. after sleep). Stale bleak errors after you already turned Bluetooth back on do not re-prompt; a whole-fleet poll failure still auto-restarts the adapter without asking
+- If Bluetooth is off at the OS level, TemPy prompts **Y/N** before enabling it (e.g. after sleep). Stale bleak errors after you already turned Bluetooth back on do not re-prompt. When a previously working sensor fails twice in a row (or the whole fleet fails), TemPy power-cycles the Bluetooth radio and retries. If that unit is still stuck, TemPy prompts to run `reset_bluetooth.ps1` (UAC / admin) — the same PnP adapter reset you would run manually.
 - Last-updated time is on the device status screen (**I**), not on the dashboard label row
 - Technical reference for AI assistants: [cursor.md](cursor.md)
 
@@ -248,9 +248,9 @@ TemPy’s BLE protocol work builds on [pasky/tp357](https://github.com/pasky/tp3
 
 ## Changelog
 
-- **v1.9** — Options **W** time-detail toggle: **Less** (4H/24H/72H, default) or **More** (adds 8H/12H/36H/90M) for monitoring **T**, device status, and `-x` snapshot.
+- **v1.9** — Options **W** time-detail toggle: **Less** (4H/24H/72H, default) or **More** (adds 8H/12H/36H/90M) for monitoring **T**, device status, and `-x` snapshot. Auto BLE recovery for stuck sensors (cache invalidate → radio restart → optional `reset_bluetooth.ps1`).
 - **v1.8** — **History fetch** renamed (**H** → History Fetch); manual fetch up to **1 year** in 7-day BLE chunks; BLE queue notice when poll holds the radio; improved fetch progress UI.
-- **v1.7.0** — **Log export to web** (main menu **5**, Options **E**): self-contained `tp_export.html` with device/timeframe controls and ECharts dual-axis chart.
+- **v1.7.0** — **Log export to web** (main menu **4**, Options **E**): self-contained `tp_export.html` with device/timeframe controls and ECharts dual-axis chart.
 - **v1.6.0** — Incremental minute-history polling (default); Options **P** poll-mode toggle; 72H BLE fetch/bootstrap; dashboard **T** sparkline window rotation; default log `tp_log.csv`; log rename on filename change with overwrite prompt; 72h log preload.
 - **v1.5.0** — Faster live reads; colored fetch-step arrows; automatic history bootstrap on startup when logging is off; Bluetooth auto-recovery when the radio is off; quicker reconnects between polls.
 - **v1.4.0** — 24H BLE history fetch (**H**, optional on add); TP357S/TP359 stream protocol; partial-span merge; `--history-day` CLI.

@@ -7,6 +7,7 @@ import sys
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 from tp.debug_log import write as debug_write
 from tp.debug_log import write_exception as debug_write_exception
@@ -15,10 +16,13 @@ BT_RADIO_OFF_SETTLE = 2.0
 BT_RADIO_ON_SETTLE = 4.0
 BT_RADIO_RESTART_COOLDOWN = 90.0
 BT_PERMISSION_DENIED_COOLDOWN = 300.0
+BT_STACK_RESET_COOLDOWN = 900.0
+BT_STACK_RESET_SETTLE = 8.0
 
 _radio_restart_lock: asyncio.Lock | None = None
 _last_radio_restart_at: float | None = None
 _last_permission_denied_at: float | None = None
+_last_stack_reset_at: float | None = None
 _permission_callback: BluetoothPermissionCallback | None = None
 
 
@@ -37,6 +41,16 @@ BT_DISABLED_REQUEST = BluetoothPermissionRequest(
     title="Bluetooth is turned off",
     body="Enable Bluetooth so TemPy can discover and poll your sensors?",
     action="enable",
+)
+
+BT_STACK_RESET_REQUEST = BluetoothPermissionRequest(
+    title="Bluetooth stack appears stuck",
+    body=(
+        "A sensor keeps failing after a Bluetooth radio restart. "
+        "Reset Windows Bluetooth adapters now (same as reset_bluetooth.ps1)? "
+        "This needs administrator approval (UAC)."
+    ),
+    action="stack_reset",
 )
 
 
@@ -368,5 +382,93 @@ async def maybe_restart_bluetooth_radio(exc: Exception) -> bool:
 
 
 async def maybe_restart_bluetooth_radio_after_total_failure() -> bool:
-    """Power-cycle Bluetooth after fleet-wide failure (no permission prompt)."""
+    """Power-cycle Bluetooth after fleet-wide or stuck-device failure (no permission prompt)."""
     return await _restart_bluetooth_with_cooldown("total fetch failure")
+
+
+def reset_bluetooth_script_path() -> Path:
+    """Path to the elevated Windows Bluetooth PnP reset script."""
+    return Path(__file__).resolve().parent.parent / "reset_bluetooth.ps1"
+
+
+async def reset_windows_bluetooth_stack() -> bool:
+    """Run reset_bluetooth.ps1 elevated (UAC). Returns True when the process started."""
+    if sys.platform != "win32":
+        debug_write("ble: stack reset unsupported on this platform")
+        return False
+
+    script = reset_bluetooth_script_path()
+    if not script.is_file():
+        debug_write(f"ble: stack reset script missing ({script})")
+        return False
+
+    script_text = str(script)
+    # Nested Start-Process -Verb RunAs pops UAC; -Wait blocks until the reset finishes.
+    argument_list = (
+        f"-NoProfile -ExecutionPolicy Bypass -File \\\"{script_text}\\\""
+    )
+    command = (
+        "Start-Process -FilePath powershell.exe -Verb RunAs -Wait "
+        f"-ArgumentList '{argument_list}'"
+    )
+    debug_write(f"ble: launching elevated stack reset ({script.name})")
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            command,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        await proc.wait()
+    except Exception as exc:  # noqa: BLE001
+        debug_write_exception("ble: stack reset launch failed", exc)
+        return False
+
+    if proc.returncode not in (0, None):
+        debug_write(f"ble: stack reset launcher exited {proc.returncode}")
+        # UAC cancel often yields non-zero; treat as failure.
+        return False
+
+    await asyncio.sleep(BT_STACK_RESET_SETTLE)
+    debug_write("ble: stack reset finished; settled")
+    return True
+
+
+async def maybe_reset_bluetooth_stack_after_radio_failure() -> bool:
+    """Ask permission, then run the Windows PnP Bluetooth reset (cooldown protected)."""
+    global _last_stack_reset_at, _last_radio_restart_at
+
+    if sys.platform != "win32":
+        return False
+
+    now = time.monotonic()
+    if (
+        _last_stack_reset_at is not None
+        and now - _last_stack_reset_at < BT_STACK_RESET_COOLDOWN
+    ):
+        debug_write("ble: stack reset skipped (cooldown)")
+        return False
+
+    if not await _request_bluetooth_permission(BT_STACK_RESET_REQUEST):
+        return False
+
+    lock = _get_radio_restart_lock()
+    async with lock:
+        now = time.monotonic()
+        if (
+            _last_stack_reset_at is not None
+            and now - _last_stack_reset_at < BT_STACK_RESET_COOLDOWN
+        ):
+            debug_write("ble: stack reset skipped (cooldown)")
+            return False
+        ok = await reset_windows_bluetooth_stack()
+        if ok:
+            settled = time.monotonic()
+            _last_stack_reset_at = settled
+            # Avoid an immediate WinRT power-cycle right after the heavy PnP reset.
+            _last_radio_restart_at = settled
+        return ok

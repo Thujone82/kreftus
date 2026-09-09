@@ -103,6 +103,7 @@ class FetchStatus:
     error: str | None = None
     temp_f: float | None = None
     humidity_pct: int | None = None
+    fail_streak: int = 0
 
 
 @dataclass
@@ -138,6 +139,14 @@ class DeviceHistory:
     def log_load_status(self, mac: str) -> LogLoadStatus:
         return self._log_load_status.get(mac, LogLoadStatus())
 
+    def macs_with_fail_streak(self, min_streak: int) -> list[str]:
+        """Return MACs whose consecutive fetch failures are at least min_streak."""
+        return [
+            mac
+            for mac, status in self._fetch_status.items()
+            if (not status.ok) and status.fail_streak >= min_streak
+        ]
+
     def record_log_load(
         self,
         mac: str,
@@ -163,12 +172,15 @@ class DeviceHistory:
                 ok=True,
                 temp_f=result.reading.temp_f,
                 humidity_pct=result.reading.humidity_pct,
+                fail_streak=0,
             )
             return
+        previous = self._fetch_status.get(mac, FetchStatus())
         self._fetch_status[mac] = FetchStatus(
             at=datetime.now(),
             ok=False,
             error=result.error or "Unknown fetch error",
+            fail_streak=previous.fail_streak + 1,
         )
 
     def prune_old(self, mac: str, *, keep_hours: int = MEMORY_KEEP_HOURS) -> None:

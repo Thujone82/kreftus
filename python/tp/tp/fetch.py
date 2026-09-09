@@ -13,6 +13,7 @@ from tp.ble import (
     clear_ble_device_cache,
     format_ble_error,
     inter_device_delay_seconds,
+    invalidate_ble_device_cache,
     prefetch_ble_device,
     read_now,
     read_recent_history,
@@ -20,6 +21,7 @@ from tp.ble import (
 )
 from tp.ble_radio import (
     ensure_bluetooth_enabled_for_polling,
+    maybe_reset_bluetooth_stack_after_radio_failure,
     maybe_restart_bluetooth_radio_after_total_failure,
 )
 from tp.config import AppConfig
@@ -33,6 +35,10 @@ NowReadPhaseCallback = Callable[[str, str, str], Awaitable[None] | None]
 ResultCallback = Callable[[PollResult], Awaitable[None] | None]
 
 START_MARKER = "__start__"
+
+# Consecutive failed fetches before escalating recovery for a previously working fleet.
+DEVICE_FAIL_STREAK_RADIO = 2
+DEVICE_FAIL_STREAK_STACK = 3
 
 
 def _whole_fleet_cycle_failed(
@@ -51,6 +57,34 @@ def _whole_fleet_cycle_failed(
     if only_macs is None:
         return total == fleet_size
     return total == fleet_size and len(only_macs) == fleet_size
+
+
+def _stuck_device_macs(
+    history: DeviceHistory,
+    *,
+    min_streak: int,
+    only_macs: frozenset[str] | None = None,
+) -> frozenset[str]:
+    """MACs with a consecutive fail streak at/above the recovery threshold."""
+    stuck = set(history.macs_with_fail_streak(min_streak))
+    if only_macs is not None:
+        stuck &= set(only_macs)
+    return frozenset(stuck)
+
+
+def _merge_poll_batches(
+    previous: list[PollResult],
+    updated: list[PollResult],
+) -> list[PollResult]:
+    """Replace prior per-MAC results with a recovery retry batch."""
+    by_mac = {result.mac: result for result in previous}
+    for result in updated:
+        by_mac[result.mac] = result
+    order = [result.mac for result in previous]
+    for result in updated:
+        if result.mac not in order:
+            order.append(result.mac)
+    return [by_mac[mac] for mac in order if mac in by_mac]
 
 
 def _poll_result_from_readings(
@@ -213,6 +247,31 @@ async def _fetch_one_device(
         )
 
 
+async def _retry_fetch_subset(
+    config: AppConfig,
+    history: DeviceHistory,
+    *,
+    only_macs: frozenset[str],
+    progress: ProgressCallback | None,
+    on_now_phase: NowReadPhaseCallback | None,
+    on_result: ResultCallback | None,
+    label: str,
+) -> tuple[list[PollResult], list[str]]:
+    names = [config.devices.get(mac, mac) for mac in only_macs]
+    debug_write(
+        f"fetch: {label} retry for {len(only_macs)} device(s): {', '.join(names)}",
+        config=config,
+    )
+    return await _run_fetch_cycle_once(
+        config,
+        history,
+        only_macs=only_macs,
+        progress=progress,
+        on_now_phase=on_now_phase,
+        on_result=on_result,
+    )
+
+
 async def run_fetch_cycle(
     config: AppConfig,
     history: DeviceHistory,
@@ -224,7 +283,15 @@ async def run_fetch_cycle(
     had_prior_success: bool = False,
     allow_radio_recovery: bool = True,
 ) -> tuple[list[PollResult], list[str]]:
-    """Collect readings from managed devices (all or a subset)."""
+    """Collect readings from managed devices (all or a subset).
+
+    Recovery ladder after a previously successful fleet:
+      1. Invalidate per-device BLE cache on each failure (in the cycle).
+      2. Whole-fleet failure, or any device with fail_streak >= 2 → WinRT radio restart,
+         then retry the failing devices.
+      3. If those devices still have fail_streak >= 3 → optional elevated PnP stack reset
+         (reset_bluetooth.ps1 via UAC), then retry again.
+    """
     batch, errors = await _run_fetch_cycle_once(
         config,
         history,
@@ -234,33 +301,104 @@ async def run_fetch_cycle(
         on_result=on_result,
     )
 
+    if not allow_radio_recovery or not had_prior_success:
+        return batch, errors
+
     ok = sum(1 for result in batch if result.reading is not None)
     total = len(batch)
-    if (
-        allow_radio_recovery
-        and had_prior_success
-        and _whole_fleet_cycle_failed(config, only_macs=only_macs, total=total, ok=ok)
-    ):
-        debug_write(
-            f"fetch: entire fleet failed ({ok}/{total}); attempting Bluetooth radio restart",
-            config=config,
-        )
-        if await maybe_restart_bluetooth_radio_after_total_failure():
-            clear_ble_device_cache()
-            batch, errors = await _run_fetch_cycle_once(
-                config,
-                history,
-                only_macs=only_macs,
-                progress=progress,
-                on_now_phase=on_now_phase,
-                on_result=on_result,
-            )
-            retry_ok = sum(1 for result in batch if result.reading is not None)
-            debug_write(
-                f"fetch: post-restart cycle ({retry_ok}/{len(batch)} ok)",
-                config=config,
-            )
+    fleet_failed = _whole_fleet_cycle_failed(
+        config,
+        only_macs=only_macs,
+        total=total,
+        ok=ok,
+    )
+    stuck = _stuck_device_macs(
+        history,
+        min_streak=DEVICE_FAIL_STREAK_RADIO,
+        only_macs=only_macs,
+    )
+    if not fleet_failed and not stuck:
+        return batch, errors
 
+    if fleet_failed:
+        reason = f"entire fleet failed ({ok}/{total})"
+        retry_macs = frozenset(config.devices) if only_macs is None else only_macs
+    else:
+        labels = [config.devices.get(mac, mac) for mac in sorted(stuck)]
+        reason = (
+            f"{len(stuck)} stuck device(s) "
+            f"(fail streak >= {DEVICE_FAIL_STREAK_RADIO}): {', '.join(labels)}"
+        )
+        retry_macs = stuck
+
+    debug_write(
+        f"fetch: {reason}; attempting Bluetooth radio restart",
+        config=config,
+    )
+    if not await maybe_restart_bluetooth_radio_after_total_failure():
+        return batch, errors
+
+    clear_ble_device_cache()
+    retry_batch, _retry_errors = await _retry_fetch_subset(
+        config,
+        history,
+        only_macs=retry_macs,
+        progress=progress,
+        on_now_phase=on_now_phase,
+        on_result=on_result,
+        label="post-radio-restart",
+    )
+    batch = _merge_poll_batches(batch, retry_batch)
+    errors = [
+        f"{config.devices.get(result.mac, result.mac)}: {result.error}"
+        for result in batch
+        if result.error
+    ]
+    retry_ok = sum(1 for result in retry_batch if result.reading is not None)
+    debug_write(
+        f"fetch: post-restart cycle ({retry_ok}/{len(retry_batch)} ok)",
+        config=config,
+    )
+
+    still_stuck = _stuck_device_macs(
+        history,
+        min_streak=DEVICE_FAIL_STREAK_STACK,
+        only_macs=retry_macs,
+    )
+    if not still_stuck:
+        return batch, errors
+
+    labels = [config.devices.get(mac, mac) for mac in sorted(still_stuck)]
+    debug_write(
+        f"fetch: {len(still_stuck)} device(s) still stuck after radio restart "
+        f"(fail streak >= {DEVICE_FAIL_STREAK_STACK}): {', '.join(labels)}; "
+        "requesting Windows Bluetooth stack reset",
+        config=config,
+    )
+    if not await maybe_reset_bluetooth_stack_after_radio_failure():
+        return batch, errors
+
+    clear_ble_device_cache()
+    stack_batch, _stack_errors = await _retry_fetch_subset(
+        config,
+        history,
+        only_macs=still_stuck,
+        progress=progress,
+        on_now_phase=on_now_phase,
+        on_result=on_result,
+        label="post-stack-reset",
+    )
+    batch = _merge_poll_batches(batch, stack_batch)
+    errors = [
+        f"{config.devices.get(result.mac, result.mac)}: {result.error}"
+        for result in batch
+        if result.error
+    ]
+    stack_ok = sum(1 for result in stack_batch if result.reading is not None)
+    debug_write(
+        f"fetch: post-stack-reset cycle ({stack_ok}/{len(stack_batch)} ok)",
+        config=config,
+    )
     return batch, errors
 
 
@@ -327,6 +465,15 @@ async def _run_fetch_cycle_once(
             ),
         )
         history.record_fetch_result(result)
+        if result.reading is None:
+            # Drop stale resolve cache so the next attempt re-scans this unit.
+            invalidate_ble_device_cache(mac)
+            streak = history.fetch_status(mac).fail_streak
+            debug_write(
+                f"fetch: invalidated BLE cache for {name} ({mac}) after failure "
+                f"(streak={streak})",
+                config=config,
+            )
         if result.readings:
             history.import_readings(result.mac, result.readings)
         elif result.reading is not None:
@@ -358,6 +505,9 @@ async def _run_fetch_cycle_once(
         errors.append(log_error)
         debug_write(f"fetch: log append error: {log_error}", config=config)
 
-    ok = sum(1 for r in batch if r.reading is not None)
-    debug_write(f"fetch: cycle done ({ok}/{total} ok, {len(errors)} error(s))", config=config)
+    ok = sum(1 for result in batch if result.reading is not None)
+    debug_write(
+        f"fetch: cycle done ({ok}/{total} ok, {len(errors)} error(s))",
+        config=config,
+    )
     return batch, errors
