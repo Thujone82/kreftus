@@ -1217,7 +1217,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.klLongRun {
 					m.mode = modeGoLong
 					m.sessionStartTime = time.Now()
-					m.monitorStartPrice = currentBtcPrice
+					// Keep the session value basis across the K -> golong handoff
 					m.spinner.Spinner = bspinner.Spinner{Frames: []string{"▚", "▚", "▚", "▚", "▚", "▚", "▞", "▞", "▞", "▞", "▞", "▞"}, FPS: 500 * time.Millisecond}
 					cmds = append(cmds, m.spinner.Tick)
 				} else {

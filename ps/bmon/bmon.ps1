@@ -817,7 +817,7 @@ if ($go.IsPresent -or $golong.IsPresent -or $k.IsPresent -or $kl.IsPresent) {
                 if ($currentMode -eq 'k' -and $klLongRun) {
                     $currentMode = 'golong'
                     $monitorStartTime = Get-Date
-                    $monitorStartPrice = $currentBtcPrice
+                    # Keep the session value basis across the K -> golong handoff
                     $spinnerIndex = 0
                     continue
                 }
