@@ -162,20 +162,37 @@ class TPApp(App):
         self,
         request: BluetoothPermissionRequest,
     ) -> bool:
+        """Show the Y/N modal on the app message loop.
+
+        The monitoring poll worker is a bare ``asyncio.Task`` without Textual's
+        ``active_app`` ContextVar. Pushing a modal directly from that task makes
+        ``compose()`` raise ``NoActiveAppError``; ``call_later`` runs the push
+        under the app message pump where the context is set.
+        """
         loop = asyncio.get_running_loop()
         future: asyncio.Future[bool] = loop.create_future()
-        parent = self.screen
 
-        def on_dismiss(value: bool | None) -> None:
-            if not future.done():
-                future.set_result(bool(value))
-            if isinstance(parent, DeviceHistoryFetchModal) and parent.is_mounted:
-                parent._refresh_body()
+        def show() -> None:
+            if future.done():
+                return
+            try:
+                parent = self.screen
 
-        self.push_screen(
-            BluetoothPermissionModal(request.title, request.body),
-            on_dismiss,
-        )
+                def on_dismiss(value: bool | None) -> None:
+                    if not future.done():
+                        future.set_result(bool(value))
+                    if isinstance(parent, DeviceHistoryFetchModal) and parent.is_mounted:
+                        parent._refresh_body()
+
+                self.push_screen(
+                    BluetoothPermissionModal(request.title, request.body),
+                    on_dismiss,
+                )
+            except Exception as exc:  # noqa: BLE001
+                if not future.done():
+                    future.set_exception(exc)
+
+        self.call_later(show)
         return await future
 
     def pop_or_main_menu(self) -> None:
