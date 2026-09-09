@@ -11,6 +11,7 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
 - **Flexible Location Input:** Accepts 5-digit zip codes, city/state names (e.g., "Portland, OR"), or "here" for automatic location detection.
 - **Automatic Location Detection:** Use "here" to automatically detect your location based on your IP address with provider fallback (`ip-api.com` -> `ipwho.is` -> `ipapi.co`).
 - **Interactive Prompt:** If no location is provided, the script displays a welcome screen and prompts for input.
+- **Advanced Mode:** Import a Forecast backup JSON (`-eadv` / `-enableadvanced`) into `%LOCALAPPDATA%\gf\gf.json` for favorites, colorized location-bar hotkeys (`L`, `1`–`0`, `Shift+1`–`0`), last-location restore, and persisted defaults (Magic, Irradiance, wildfire, AQI, 24h, mode). Disable with `-dadv`.
 - **Comprehensive Weather Data:** Displays a wide range of information, including:
   - Current temperature and conditions.
   - Wind chill and heat index calculations (NWS formulas), or estimated outdoor WBGT with `-wbgt` (aligned with the forecast web app).
@@ -110,10 +111,12 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
   - **Tab** — In TerseAlert mode, toggle between terse and alerts and reset the 20s timer (not on the control bar)
   - **R** — Rain forecast mode (sparklines)
   - **W** — Wind forecast mode (direction glyphs)
-  - **O** — Observations mode (historical weather data)
+  - **O** — History mode (`histOry` on the control bar; historical weather data)
   - **G** — Refresh weather data (auto-refreshes every 5 minutes). Within 5 minutes of the last full fetch, **G** updates only the latest station observation; otherwise it refetches forecast and hourly data too.
   - **U** — Toggle automatic updates on/off
   - **B** — Toggle control bar on/off
+  - **L** — Advanced: toggle location bar (favorites) on/off
+  - **1**–**0** / **Shift+1**–**Shift+0** — Advanced: load favorite slots 1–10 / 11–20
   - **F** — Return to full display
   - **Enter** or **Esc** — Exit the script (**Ctrl+C** also exits)
 
@@ -180,7 +183,11 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 | `-Wind` | `-w` | Wind outlook glyphs (96 hours). |
 | `-Observations` | `-o` | Historical observations (7 days). |
 | `-NoAutoUpdate` | `-u` | Start with auto-update disabled (5-minute default). |
-| `-Magic` | `-m` | Golden/Blue hour lines before `Updated:`. |
+| `-Magic` | `-m` | Golden/Blue hour lines before `Updated:`. In Advanced mode, toggles the imported Magic default. |
+| `-Irradiance` | `-i` | Advanced mode: toggles the imported Irradiance default (normally always shown). |
+| `-EnableAdvanced` | `-eadv` | Import a Forecast backup JSON into `%LOCALAPPDATA%\gf\gf.json` and enable Advanced mode. |
+| `-DisableAdvanced` | `-dadv` | Confirm, delete Advanced profile, print confirmation, exit. |
+| `-Load` | `-l` | Advanced: start on favorite slot N (1-based location-bar order) instead of last active. |
 | `-NoInteractive` | `-x` | Display once and exit (scripting). |
 | `-NoBar` | `-b` | Start with the interactive control bar hidden. |
 | `-UseWbgt` | `-wbgt` | Use estimated outdoor WBGT instead of heat index (warm band from 75°F). |
@@ -188,6 +195,33 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 | `-NoSmallFire` | `-nosmallfire`, `-nsf` | Hide wildfires ≤1 acre or with no reported acres; skips InciWeb probes for those fires. |
 | `-Noaa` | — | Override NOAA tide station ID (ignores 100-mile limit). |
 
+### Advanced mode (Forecast import)
+
+Import a Forecast web-app backup to unlock favorites, colors, and persisted defaults:
+
+```powershell
+.\gf.ps1 -eadv "$env:USERPROFILE\Downloads\forecast-settings.json"
+.\gf.ps1              # restores last active favorite when no location arg
+.\gf.ps1 -l 2         # load favorite slot 2
+.\gf.ps1 -dadv        # disable Advanced mode (confirm + delete gf.json)
+```
+
+**Profile path:** `%LOCALAPPDATA%\gf\gf.json`
+
+**Imported settings (used):** Magic Hours, Irradiance, Wildfire enable/radius/filter-small, AQI enable + AirNow key (written to User env `AirNowAPI`), 24h times, locations drawer open/closed, current mode, per-location colors, last viewed location (seeds last-active favorite).
+
+**Ignored from Forecast backup:** `forecastUpdateAll`, `forecastShowRadar`, `forecastAutoUpdate`.
+
+**Favorites kept:** `key`, `name`, `location`, `customName`, `primaryColor`, `secondaryColor`.
+
+**Runtime behavior:**
+- After `-eadv`, an import report lists colored favorite chips, settings, and waits for Enter before continuing.
+- CLI flags still override Advanced defaults for that run. Mode-only launches (`gf -ta`, `gf -w`, `gf -r`, etc.) use the last active favorite instead of showing usage.
+- If Magic default is on, `-m` disables Magic for the run; if Irradiance default is off, `-i` enables it.
+- Location bar above the control bar: active favorite is fully highlighted (inverted primary/secondary); inactive favorites show a colored `▀` glyph with a default-colored label. Toggle with **L** (persisted; `Loc` appears on the control bar only in Advanced mode with at least one favorite).
+- Control bar open/closed is persisted in Advanced mode (toggle with **B**; `-b` still forces hidden for that run).
+- Hotkeys `1`–`0` load slots 1–10; `Shift+1`–`Shift+0` load 11–20.
+- Section titles (`Current Conditions`, `Today`, `Tonight`, Hourly, etc.) use favorite colors when per-location colors are enabled.
 ### Parameter details
 
 - `Location` [string] (Positional: 0)
@@ -569,7 +603,7 @@ Interactive mode shows a control bar with hotkey hints (hide with **B** or start
    - **Tab** — In TerseAlert mode, toggle terse/alerts and reset the 20s timer (not on the control bar)
    - **R** — Rain forecast (sparklines)
    - **W** — Wind forecast (glyphs)
-   - **O** — Observations (historical data)
+   - **O** — History (`histOry`)
    - **G** — Refresh weather data
    - **U** — Toggle automatic updates
    - **B** — Toggle control bar on/off

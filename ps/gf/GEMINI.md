@@ -45,11 +45,13 @@ The script is designed for ease of use, accepting flexible location inputs like 
   - **[Tab]** - In tersealert mode, toggle terse/alerts and reset the 20s timer (not on control bar)
   - **[R]** - Switch to rain forecast mode (sparklines)
   - **[W]** - Switch to wind forecast mode (direction glyphs)
-  - **[O]** - Switch to observations mode (historical weather data)
+  - **[O]** - Switch to history mode (historical weather data)
   - **[F]** - Return to full display
+  - **[L]** - Advanced mode: toggle location bar (shown when favorites are imported)
+  - **[1]-[0] / [Shift+1]-[Shift+0]** - Advanced mode: load favorite slots 1-10 / 11-20
   - **[Enter]** or **[Esc]** - Exit the script
   - **Ctrl+C** will also exit the script
-- **Interactive & Scriptable:** Can be run with command-line arguments or interactively, where it will prompt the user for a location.
+- **Advanced Mode (Forecast import):** `-enableadvanced`/`-eadv <file>` imports a Forecast backup into `%LOCALAPPDATA%\gf\gf.json` (favorites + defaults), then shows a colored import report before continuing. `-disableadvanced`/`-dadv` confirms and removes it. `-load`/`-l N` starts on favorite slot N. Defaults cover Magic Hours, Irradiance (`-i` toggles), wildfire radius/filter, AQI (AirNow key → User env `AirNowAPI`), 24h clock, location-bar visibility, current mode, and per-location colors. CLI overrides win for the run. Location bar renders `▀ CustomName` with truecolor (active favorite fully highlighted; inactive show colored glyph only). Section titles use favorite secondary for `***` and primary for title text when colors are enabled. Ignored import fields: UpdateAll, ShowRadar, AutoUpdate.- **Interactive & Scriptable:** Can be run with command-line arguments or interactively, where it will prompt the user for a location.
 - **Smart Exit:** Pauses for user input before closing if run outside of a standard terminal (e.g., by double-clicking).
 
 ### Technical Implementation
