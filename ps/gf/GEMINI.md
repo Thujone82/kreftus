@@ -149,7 +149,7 @@ sessions: {
 
 #### File locking
 
-All `gf.json` mutations use **exclusive file lock** RMW via `Invoke-GfAdvancedProfileLocked` (`gf.json.lock`, ~2s wait/retry).
+All `gf.json` mutations use **exclusive file lock** RMW via `Invoke-GfAdvancedProfileLocked` (`gf.json.lock`, ~4s wait/retry). Reads use `FileShare.ReadWrite` with retries; saves write a temp file then copy-overwrite with sharing-violation retries. Contended I/O soft-fails (verbose) so overnight multi-session followers keep running instead of exiting the interactive loop.
 
 - Never hold the lock across network I/O.
 - Pattern: decide leadership under lock → unlock → fetch → lock → write cache **only if still leader** for that key (`Save-GfWeatherCacheEntry` re-checks election).

@@ -1449,13 +1449,101 @@ function ConvertFrom-ForecastBackupToGfProfile {
     return $profile
 }
 
+function Test-GfProfileIoContention {
+    param($ErrorRecordOrException)
+    $ex = $null
+    $msg = ''
+    try {
+        if ($ErrorRecordOrException -is [System.Management.Automation.ErrorRecord]) {
+            $ex = $ErrorRecordOrException.Exception
+            $msg = [string]$ErrorRecordOrException.Exception.Message
+        } elseif ($ErrorRecordOrException -is [System.Exception]) {
+            $ex = $ErrorRecordOrException
+            $msg = [string]$ErrorRecordOrException.Message
+        } else {
+            $msg = [string]$ErrorRecordOrException
+        }
+        while ($ex -and $ex.InnerException) { $ex = $ex.InnerException }
+    } catch {
+        $msg = [string]$ErrorRecordOrException
+    }
+    if ($ex -is [System.IO.IOException] -or $ex -is [System.UnauthorizedAccessException]) { return $true }
+    if ($msg -match 'being used by another process|cannot access the file|Sharing violation|The process cannot access') {
+        return $true
+    }
+    return $false
+}
+
+function Read-GfAdvancedProfileText {
+    # Share ReadWrite so a concurrent leader Save does not fault unlocked readers.
+    param(
+        [string]$Path,
+        [int]$Retries = 10,
+        [int]$DelayMs = 40
+    )
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) { return $null }
+    $lastErr = $null
+    for ($i = 0; $i -lt $Retries; $i++) {
+        $fs = $null
+        try {
+            $fs = [System.IO.File]::Open(
+                $Path,
+                [System.IO.FileMode]::Open,
+                [System.IO.FileAccess]::Read,
+                [System.IO.FileShare]::ReadWrite
+            )
+            $reader = New-Object System.IO.StreamReader($fs, [System.Text.UTF8Encoding]::new($false), $true)
+            try {
+                return $reader.ReadToEnd()
+            } finally {
+                try { $reader.Dispose() } catch {}
+            }
+        } catch {
+            $lastErr = $_
+            if (-not (Test-GfProfileIoContention $_)) { throw }
+            Start-Sleep -Milliseconds ($DelayMs * ($i + 1))
+        } finally {
+            if ($null -ne $fs) {
+                try { $fs.Dispose() } catch {}
+            }
+        }
+    }
+    if ($lastErr) { throw $lastErr }
+    return $null
+}
+
 function Save-GfAdvancedProfile {
     param([object]$Profile)
     $path = Get-GfAdvancedProfilePath
+    $dir = Split-Path -Parent $path
+    if (-not (Test-Path -LiteralPath $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
     # Depth must cover nested weatherCache forecast/hourly/alerts payloads
     $json = ($Profile | ConvertTo-Json -Depth 30)
-    Set-Content -Path $path -Value $json -Encoding UTF8
-    return $path
+    $temp = Join-Path $dir ("gf.{0}.tmp" -f [guid]::NewGuid().ToString('N'))
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    $lastErr = $null
+    try {
+        [System.IO.File]::WriteAllText($temp, $json, $utf8NoBom)
+        for ($i = 0; $i -lt 12; $i++) {
+            try {
+                # Copy-overwrite avoids exclusive Set-Content lock races with concurrent readers
+                [System.IO.File]::Copy($temp, $path, $true)
+                return $path
+            } catch {
+                $lastErr = $_
+                if (-not (Test-GfProfileIoContention $_)) { throw }
+                Start-Sleep -Milliseconds (40 * ($i + 1))
+            }
+        }
+        if ($lastErr) { throw $lastErr }
+        return $path
+    } finally {
+        if (Test-Path -LiteralPath $temp) {
+            Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 function Initialize-GfAdvancedProfileShape {
@@ -1485,9 +1573,9 @@ function Initialize-GfAdvancedProfileShape {
 
 function Get-GfAdvancedProfile {
     $path = Get-GfAdvancedProfilePath
-    if (-not (Test-Path $path)) { return $null }
+    if (-not (Test-Path -LiteralPath $path)) { return $null }
     try {
-        $raw = Get-Content -Path $path -Raw -ErrorAction Stop
+        $raw = Read-GfAdvancedProfileText -Path $path
         if ([string]::IsNullOrWhiteSpace($raw)) { return $null }
         $obj = $raw | ConvertFrom-Json -ErrorAction Stop
         $profile = ConvertTo-GfHashtable -InputObject $obj
@@ -1506,7 +1594,7 @@ function Get-GfAdvancedProfileLockPath {
 function Invoke-GfAdvancedProfileLocked {
     param(
         [scriptblock]$Action,
-        [int]$TimeoutMs = 2000,
+        [int]$TimeoutMs = 4000,
         [switch]$CreateIfMissing
     )
     if (-not $Action) { return $null }
@@ -1539,9 +1627,21 @@ function Invoke-GfAdvancedProfileLocked {
             $profile = Initialize-GfAdvancedProfileShape -Profile $profile
         }
         $result = & $Action $profile
-        Save-GfAdvancedProfile -Profile $profile | Out-Null
-        $script:gfAdvancedProfile = $profile
+        try {
+            Save-GfAdvancedProfile -Profile $profile | Out-Null
+            $script:gfAdvancedProfile = $profile
+        } catch {
+            # Contended write after retries: keep session alive; next heartbeat retries.
+            Write-Verbose "gf.json save deferred (contention): $($_.Exception.Message)"
+            return $null
+        }
         return $result
+    } catch {
+        if (Test-GfProfileIoContention $_) {
+            Write-Verbose "gf.json locked action deferred (contention): $($_.Exception.Message)"
+            return $null
+        }
+        throw
     } finally {
         try { $fs.Close() } catch {}
         try { $fs.Dispose() } catch {}
@@ -13124,6 +13224,12 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
             }
         }
         catch {
+            # Transient gf.json sharing violations (multi-session overnight) must not kill the run.
+            if (Test-GfProfileIoContention $_) {
+                Write-Verbose "Interactive loop: transient gf.json I/O — $($_.Exception.Message)"
+                Start-Sleep -Milliseconds 250
+                continue
+            }
             Write-Host "Interactive mode error: $($_.Exception.Message)" -ForegroundColor Red
             Write-Host "Interactive mode not supported in this environment. Exiting..." -ForegroundColor Yellow
             return
