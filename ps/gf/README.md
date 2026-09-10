@@ -11,7 +11,9 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
 - **Flexible Location Input:** Accepts 5-digit zip codes, city/state names (e.g., "Portland, OR"), or "here" for automatic location detection.
 - **Automatic Location Detection:** Use "here" to automatically detect your location based on your IP address with provider fallback (`ip-api.com` -> `ipwho.is` -> `ipapi.co`).
 - **Interactive Prompt:** If no location is provided, the script displays a welcome screen and prompts for input.
-- **Advanced Mode:** Enable with `-eadv` (optional Forecast backup JSON, or bare `-eadv` to create an empty profile and open config). Stores `%LOCALAPPDATA%\gf\gf.json` for favorites, colorized location-bar hotkeys (`L`, `Tab`/`Shift+Tab`, `1`–`0`, `Shift+1`–`0`), last-location restore, and persisted defaults (Magic, Irradiance, wildfire, AQI, 24h, mode). Edit anytime with `-config`. Disable with `-dadv`.
+- **Advanced Mode:** Enable with `-eadv` (optional Forecast backup JSON, or bare `-eadv` to create an empty profile and open config). Stores `%LOCALAPPDATA%\gf\gf.json` for favorites, colorized location-bar hotkeys (`L`, `Tab`/`Shift+Tab`, `1`–`0`, `Shift+1`–`0`), last-location restore, persisted defaults (Magic, Irradiance, wildfire, AQI, 24h, mode), and a shared **weatherCache** plus **sessions** map for multi-window API coordination. Edit anytime with `-config`. Disable with `-dadv`.
+- **Shared weather cache (Advanced):** Per-location snapshots in `gf.json` (forecast/hourly/alerts, current conditions, AQI/wildfire when present). Freshness matches auto-refresh (**300s**). Favorite switches hydrate from cache in-process (restart only as hard fallback).
+- **Multi-session API leadership (Advanced):** Each GF window signs in with a session UID and heartbeat (~15s; stale after ~45s or dead PID). For a given cache key, only the **longest-running session currently viewing that location** calls NWS/AirNow/wildfire; others read `weatherCache`. Tabbing the leader away rewrites `activeCacheKey` so the next-oldest remaining viewer becomes leader on the next heartbeat/re-elect (leadership is never sticky).
 - **Comprehensive Weather Data:** Displays a wide range of information, including:
   - Current temperature and conditions.
   - Wind chill and heat index calculations (NWS formulas), or estimated outdoor WBGT with `-wbgt` (aligned with the forecast web app).
@@ -108,8 +110,8 @@ The script first uses OpenStreetMap Nominatim to geocode the location, then fetc
   - **T** — Terse mode (current conditions + today's forecast)
   - **Shift+T** — TerseAlert mode (alternate with full alerts every 20s when alerts are active; not on the control bar)
   - **A** — Alerts-only view; in TerseAlert mode, toggle between terse and alerts and reset the 20s timer (not on the control bar)
-  - **Tab** — Advanced: next favorite (wraps; highlight updates immediately, load after 600ms settle; not on the control bar)
-  - **Shift+Tab** — Advanced: previous favorite (wraps; same 600ms settle before load; not on the control bar)
+  - **Tab** — Advanced: next favorite (wraps; highlight updates immediately, load after 800ms settle; not on the control bar)
+  - **Shift+Tab** — Advanced: previous favorite (wraps; same 800ms settle before load; not on the control bar)
   - **R** — Rain forecast mode (sparklines)
   - **W** — Wind forecast mode (direction glyphs)
   - **O** — History mode (`histOry` on the control bar; historical weather data)
@@ -224,7 +226,8 @@ Import a Forecast web-app backup to unlock favorites, colors, and persisted defa
 - If Magic default is on, `-m` disables Magic for the run; if Irradiance default is off, `-i` enables it.
 - Location bar above the control bar: active favorite is fully highlighted (inverted primary/secondary); inactive favorites show a colored `▀` glyph with a default-colored label. Toggle with **L** (persisted; `Loc` appears on the control bar only in Advanced mode with at least one favorite).
 - Control bar open/closed is persisted in Advanced mode (toggle with **B**; `-b` still forces hidden for that run).
-- **Tab** / **Shift+Tab** move to the next / previous favorite (wraps). The location-bar highlight updates immediately; the favorite loads only after **600ms** with no further input (queued Tab bursts are drained into one update). After a load is accepted, queued keys are flushed and input is ignored until the new location finishes loading. Hotkeys only — not on the control bar. While pending, the location bar is shown even if **L** has it closed.
+- **Tab** / **Shift+Tab** move to the next / previous favorite (wraps). The location-bar highlight updates immediately; the favorite loads **in-process** after **800ms** with no further input (hydrates from `weatherCache` when fresh; leader refreshes if stale). Queued Tab bursts are drained into one update. After a load is accepted, queued keys are flushed and input is ignored until the new location finishes loading. Hotkeys only — not on the control bar. While pending, the location bar is shown even if **L** has it closed (including wrap-back to the starting favorite). If the bar was off when Tabbing started, it is hidden again as soon as settle fires.
+- **Shared cache / multi-window:** `gf.json` holds `weatherCache` (per favorite uid or `lat,lon`) and `sessions`. Multiple GF windows on the same location share one API owner — the longest-running viewer of that key. Followers hydrate from cache; **G** and auto-refresh only hit APIs on the leader. Leaving a location (Tab, other favorite, exit) drops you from that key’s candidate set so the next-oldest viewer takes over within one heartbeat (~15s). Dirty exits are pruned by heartbeat timeout (~45s) or dead PID. Deleting favorites prunes orphaned favorite cache keys. The **Updated:** line (and `[NWS: …]` observation age) tracks the shared cache fetch/observation stamps so every client shows the same age as it re-ages in place.
 - Hotkeys `1`–`0` load slots 1–10; `Shift+1`–`Shift+0` load 11–20 (immediate load).
 - Section titles (`Current Conditions`, `Today`, `Tonight`, Hourly, etc.) use favorite colors when per-location colors are enabled.
 - **`-config`** (Advanced only) opens a GetForecast config modal, then exits: toggle/edit profile settings (current mode includes `tersealert`; setting **12** updates/deletes the User env `AirNowAPI` key); reorder favorites (`U`/`D` + slot); edit a location (`L` + slot) for name, primary/secondary hex (with `▀` color sample), lat/lon, or delete (confirm); create a location (`N`) with name, colors when per-location colors are on, and coordinates. Location list rows show `▀` + name using that favorite’s colors when per-location colors are enabled.
@@ -508,7 +511,7 @@ Light refresh does **not** reset the forecast fetch timestamp. Full refresh upda
 
 ### Updated line
 
-The **Updated:** row shows **when you last fetched**, plus station age when observation data is in use:
+The **Updated:** row shows **when weather was last fully fetched**, plus station age when observation data is in use:
 
 ```
 Updated: just now [NWS: 24 minutes ago]
@@ -516,11 +519,10 @@ Updated: just now [NWS: 24 minutes ago]
 
 | Part | Meaning |
 |------|---------|
-| First value | Time since last **full** weather fetch. Stale styling (> 5 min) applies here. |
-| `[NWS: …]` | Shown only when `$script:usesObservation` is true. Time since the station’s observation `timestamp`. |
+| First value | Time since last **full** weather fetch (`fetchedAt` / `$script:dataFetchTime`). In Advanced multi-window mode this is the **shared cache** stamp so every client shows the same age. |
+| `[NWS: …]` | Shown only when observation merge is active. Time since the station’s observation timestamp (UTC-safe). Never shown newer than the Updated fetch age. |
 
 Without station data: `Updated: 2 minutes ago` (no NWS suffix).
-
 ### NWS observation delay
 
 The `[NWS: …]` age is **how old the ground reading is**, not how long since you pressed **G**. gf already calls `observations/latest`, which is the newest report NWS has for the selected station. Refreshing again only helps if the station has transmitted a newer observation since your last fetch.
@@ -611,7 +613,7 @@ Interactive mode shows a control bar with hotkey hints (hide with **B** or start
    - **T** — Terse mode (current + today)
    - **Shift+T** — TerseAlert mode (alternate with full alerts; not on the control bar)
    - **A** — Alerts-only view; in TerseAlert mode, toggle terse/alerts and reset the 20s timer (not on the control bar)
-   - **Tab** / **Shift+Tab** — Advanced: next/previous favorite (600ms settle; not on the control bar)
+   - **Tab** / **Shift+Tab** — Advanced: next/previous favorite (800ms settle; not on the control bar)
    - **R** — Rain forecast (sparklines)
    - **W** — Wind forecast (glyphs)
    - **O** — History (`histOry`)

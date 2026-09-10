@@ -3,8 +3,8 @@
 ## Project: gf (Get Forecast) - NWS Edition
 
 **Author:** Kreft&Cursor
-**Date:** 2026-08-17
-**Version:** 2.4
+**Date:** 2026-09-09
+**Version:** 2.5
 
 ---
 
@@ -42,8 +42,8 @@ The script is designed for ease of use, accepting flexible location inputs like 
   - **[T]** - Switch to terse mode
   - **[Shift+T]** - Switch to tersealert mode (not on control bar)
   - **[A]** - Alerts-only view; in tersealert mode, toggle terse/alerts (not on control bar)
-  - **[Tab]** - Advanced: next favorite (wraps; loads after 600ms settle; not on control bar)
-  - **[Shift+Tab]** - Advanced: previous favorite (wraps; same 600ms settle; not on control bar)
+  - **[Tab]** - Advanced: next favorite (wraps; loads after 800ms settle; not on control bar)
+  - **[Shift+Tab]** - Advanced: previous favorite (wraps; same 800ms settle; not on control bar)
   - **[R]** - Switch to rain forecast mode (sparklines)
   - **[W]** - Switch to wind forecast mode (direction glyphs)
   - **[O]** - Switch to history mode (historical weather data)
@@ -52,7 +52,8 @@ The script is designed for ease of use, accepting flexible location inputs like 
   - **[1]-[0] / [Shift+1]-[Shift+0]** - Advanced mode: load favorite slots 1-10 / 11-20
   - **[Enter]** or **[Esc]** - Exit the script
   - **Ctrl+C** will also exit the script
-- **Advanced Mode (Forecast import):** `-enableadvanced`/`-eadv [file]` enables Advanced mode into `%LOCALAPPDATA%\gf\gf.json`. With a Forecast backup file, imports favorites + defaults and shows a colored import report. With no file, creates an empty profile (if needed) and opens the config modal so settings/locations can be built manually. `-disableadvanced`/`-dadv` confirms and removes it. `-load`/`-l N` starts on favorite slot N. `-config` opens a settings/favorites config modal (Advanced only) and exits. Defaults cover Magic Hours, Irradiance (`-i` toggles), wildfire radius/filter, AQI (AirNow key → User env `AirNowAPI`), 24h clock, location-bar visibility, current mode, and per-location colors. CLI overrides win for the run. Location bar renders `▀ CustomName` with truecolor (active favorite fully highlighted; inactive show colored glyph only). **Tab** / **Shift+Tab** preview-wrap favorites and load after a 600ms settle (not on the control bar). In TerseAlert, **A** toggles panes (Tab is reserved for favorites when Advanced is active). Section titles use favorite secondary for `***` and primary for title text when colors are enabled. Ignored import fields: UpdateAll, ShowRadar, AutoUpdate.- **Interactive & Scriptable:** Can be run with command-line arguments or interactively, where it will prompt the user for a location.
+- **Advanced Mode (Forecast import):** `-enableadvanced`/`-eadv [file]` enables Advanced mode into `%LOCALAPPDATA%\gf\gf.json` (`schemaVersion` 2). With a Forecast backup file, imports favorites + defaults and shows a colored import report. With no file, creates an empty profile (if needed) and opens the config modal so settings/locations can be built manually. `-disableadvanced`/`-dadv` confirms and removes it. `-load`/`-l N` starts on favorite slot N. `-config` opens a settings/favorites config modal (Advanced only) and exits. Defaults cover Magic Hours, Irradiance (`-i` toggles), wildfire radius/filter, AQI (AirNow key → User env `AirNowAPI`), 24h clock, location-bar visibility, current mode, and per-location colors. CLI overrides win for the run. Location bar renders `▀ CustomName` with truecolor (active favorite fully highlighted; inactive show colored glyph only). **Tab** / **Shift+Tab** preview-wrap favorites and load **in-process** after an **800ms** settle (not on the control bar), hydrating from shared `weatherCache` when possible. If the location bar was **off** when Tabbing started, it is force-shown for the preview and **hidden again as soon as settle fires** (including wrap-back to the starting favorite). **Multi-session:** each window registers in `sessions` with heartbeat (~15s); per-location API leadership is the longest-running session whose `activeCacheKey` matches that location (not sticky — Tab-away promotes the next-oldest remaining viewer). Followers re-read cache; only the leader fetches NWS/AirNow/wildfire for that key. See **Weather Cache & Multi-Session Coordination** below. In TerseAlert, **A** toggles panes (Tab is reserved for favorites when Advanced is active). Section titles use favorite secondary for `***` and primary for title text when colors are enabled. Ignored import fields: UpdateAll, ShowRadar, AutoUpdate.
+- **Interactive & Scriptable:** Can be run with command-line arguments or interactively, where it will prompt the user for a location.
 - **Smart Exit:** Pauses for user input before closing if run outside of a standard terminal (e.g., by double-clicking).
 
 ### Technical Implementation
@@ -79,6 +80,164 @@ The script follows a multi-step process:
 - **Short-circuit behavior:** First successful provider ends lookup immediately; no additional providers are called.
 - **Verbose diagnostics per attempt:** request URL, timeout, duration, API status/message, HTTP status (if available), exception type/message, plus detailed exception dump when `-Verbose` is enabled.
 - **Aggregate failure handling:** If all providers fail, script prints concise provider-specific failure lines (`Failed provider: ... [reason]`) and throws a single final error for the caller path (`Location not found, try again` in existing control flow).
+
+### Weather Cache & Multi-Session Coordination (Advanced, schemaVersion 2)
+
+Advanced mode stores shared weather state and live-session coordination in `%LOCALAPPDATA%\gf\gf.json` so Tab switches are fast and multiple GF windows on the **same location** do not each hammer NWS/AirNow/wildfire independently.
+
+#### Goals
+
+1. Fast favorite switches via per-location `weatherCache` (in-process hydrate; process restart only as hard fallback).
+2. Reduce API calls when several sessions share a location: one **leader** fetches; others hydrate from disk.
+3. When the leader leaves a location (Tab, other favorite, exit), the **next-oldest session still viewing that location** takes API duty.
+4. Graceful sign-off; dirty exits do not leave ghost leaders forever.
+
+#### Storage layout (`gf.json`)
+
+```text
+schemaVersion: 2
+weatherCache: {
+  "<cacheKey>": {
+    fetchedAt: ISO-8601 UTC,          # forecast/full-fetch stamp → Updated: age
+    writtenAt: ISO-8601 UTC,          # last cache write (incl. light obs updates)
+    fetchedBySessionId: guid,
+    locationQuery, lat, lon, city, state, timeZone, radarStation, elevationFeet,
+    observationStationId, locationKey,
+    forecastData, hourlyData, alertsData,   # optimized payloads (not raw 7-day obs)
+    current: {
+      temp, conditions, tempTrend, wind, windDir, windGust, humidity, dewPoint,
+      precipProb, usesObservation,
+      currentTimeLocal,   # location wall-clock stored as UTC instant
+      observationUtc      # unambiguous observation instant
+    },
+    todayForecast, todayPeriodName, tomorrowForecast, tomorrowPeriodName,
+    aqiData?, wildFireIncidents?,
+    sunriseTime?, sunsetTime?         # location-local times stored as UTC instants
+  }
+}
+sessions: {
+  "<sessionId>": {
+    sessionId: guid,
+    startedAt: ISO-8601 UTC,          # immutable; longest-running sort key
+    lastHeartbeat: ISO-8601 UTC,
+    pid: number,
+    activeCacheKey: string|null,      # favorite uid/key or "lat,lon"
+    mode: string                      # full|rain|wind|… informational
+  }
+}
+```
+
+**Cache key:** favorite `uid` if present, else `key`; ad-hoc locations use normalized `"lat,lon"` (`N4` format).
+
+**Not stored:** sticky `leaderSessionId`, raw 7-day observation FeatureCollections, NOAA stations dump.
+
+#### Constants (script)
+
+| Symbol | Default | Role |
+|--------|---------|------|
+| `$script:gfWeatherCacheFreshSeconds` | **300** | Same as `$dataStaleThreshold` / auto-refresh |
+| `$script:gfSessionHeartbeatSeconds` | **15** | Heartbeat + follower cache poll cadence |
+| `$script:gfSessionStaleSeconds` | **45** | Prune if heartbeat older than this |
+| `$script:gfFavoriteSettleMilliseconds` | **800** | Tab/Shift+Tab idle settle before load |
+
+#### File locking
+
+All `gf.json` mutations use **exclusive file lock** RMW via `Invoke-GfAdvancedProfileLocked` (`gf.json.lock`, ~2s wait/retry).
+
+- Never hold the lock across network I/O.
+- Pattern: decide leadership under lock → unlock → fetch → lock → write cache **only if still leader** for that key (`Save-GfWeatherCacheEntry` re-checks election).
+
+#### Session lifecycle
+
+| Event | Action |
+|-------|--------|
+| Launch (Advanced, after geocode) | `Register-GfSession` — new GUID, `startedAt`, PID, `activeCacheKey` |
+| Every ~15s | `Update-GfSessionHeartbeat` — refresh heartbeat / key / mode; re-elect |
+| Location switch / Tab settle | `Set-GfSessionActiveCacheKey` to **new** key (leaves old key’s candidate set) |
+| Graceful exit | `Unregister-GfSession` (interactive `finally`, `-x` via `Exit-GfWithSessionCleanup`) |
+| Dirty exit | Pruned when heartbeat > 45s **or** recorded PID is dead |
+
+Prune runs on sign-in, heartbeat, and before every election / fetch decision (`Prune-GfStaleSessionsInProfile`).
+
+#### Per-location leadership (ephemeral, never sticky)
+
+`Get-GfSessionLeaderIdFromProfile -CacheKey K`:
+
+1. Prune stale sessions.
+2. Candidates = sessions with `activeCacheKey -eq K` (only sessions **currently viewing** K).
+3. Leader = earliest `startedAt`, then lowest `sessionId`.
+4. Only that session may call NWS / AirNow / wildfire for K.
+
+**Do not** persist a sticky leader id — Tab-away cannot leave an appointed ghost.
+
+#### Leadership handoff (Tab away)
+
+Example: S1 (oldest), S2, S3 on PDX; S1 Tabs to ANC.
+
+1. S1 settle writes `activeCacheKey = ANC` under lock — S1 is no longer a PDX candidate.
+2. S1 must not commit `weatherCache[PDX]` if mid-fetch (re-check before write).
+3. S1 elects for ANC (may fetch if leader there).
+4. S2/S3 still on PDX; on next heartbeat (≤15s) re-elect → S2 (next oldest) owns PDX APIs.
+5. If no session remains on PDX, no leader and no fetch until someone returns (cache may remain for fast re-entry).
+
+#### Cache read / fetch rules
+
+| Situation | Behavior |
+|-----------|----------|
+| Hit + fresh | Hydrate; no API (any role) |
+| Hit + stale + **leader** | Hydrate, then refresh, rewrite cache |
+| Hit + stale + **follower** | Hydrate; do not fetch; poll until `writtenAt`/`fetchedAt` moves or handoff/prune makes them leader |
+| Miss + leader | Fetch then cache |
+| Miss + follower | Short poll; if they become leader, fetch |
+
+**Boot:** after geocode, register session; if cache fresh (or follower with any usable entry), skip initial NWS/AirNow/wildfire path (`$script:gfBootFromCache`). Leader + stale hydrates then falls through to refresh APIs.
+
+**G / auto-refresh:** **leader only** for that key. Followers’ **G** / stale auto-refresh = re-read cache (redraw only when `writtenAt` is newer); otherwise cooldown ≈ heartbeat to avoid redraw spam.
+
+#### In-process favorite switch
+
+`Switch-GfAdvancedFavoriteInProcess`:
+
+1. Persist `lastActiveFavorite`.
+2. Under lock: set this session’s `activeCacheKey` to the **new** key.
+3. Unlock; hydrate; if leader and miss/stale → fetch; re-check leadership before cache commit.
+4. Input lock/flush during local fetch; keep mode in-process.
+5. Restart (`gfRestartRequested`) only when lat/lon missing or fetch/cache wait fails hard.
+
+Digit slots `1`–`0` / `Shift+1`–`0` use the same switch path (immediate, no settle).
+
+#### Tab settle & location bar
+
+- Preview updates highlight immediately; load waits **800ms** after the last Tab/Shift+Tab (`$script:gfFavoriteSettleMilliseconds`).
+- Queued Tab bursts drain into one nudge + one timer.
+- Wrap-back to the already-loaded favorite **keeps** the settle timer (selection feedback) and does **not** clear pending early.
+- If the location bar was **closed** when the preview gesture started (`$script:gfTabPreviewHideBarAfterSettle`), the bar is force-shown while pending, then **hidden immediately when settle fires** (redraw before any switch). If the bar was already open, it stays open.
+- Non-Tab input cancels pending preview and reverts highlight to the loaded favorite.
+
+#### `Updated:` line vs cache
+
+- Shared-cache sessions: `Updated:` age comes from cache `fetchedAt` → `$script:dataFetchTime` (local G must not override via `lastManualRefreshTime`).
+- `[NWS: …]` age uses observation UTC (`currentObservationTime` / `observationUtc`), with location wall-clock converted via the **location** timezone — never treat destination wall time as system-local.
+- Display clamp: NWS age is never shown fresher than the `Updated:` fetch age (observation cannot post-date the fetch that retrieved it).
+- Followers pick up leader writes when `writtenAt` advances (light obs saves bump `writtenAt` even if `fetchedAt` is unchanged).
+- In-place minute re-age (`Update-UpdatedConditionsLineInPlace`) uses the same shared stamps so all clients stay aligned.
+
+#### Cache maintenance
+
+- `Prune-GfWeatherCacheToFavoritesInProfile` drops orphaned **favorite-uid** keys when favorites are deleted; coord-keyed entries may remain while a session still views them / for TTL reuse.
+- `Save-GfConfigProfileFavorites` invokes that prune on favorite list saves.
+
+#### Key functions
+
+| Function | Role |
+|----------|------|
+| `Invoke-GfAdvancedProfileLocked` | Exclusive lock RMW on `gf.json` |
+| `Register-GfSession` / `Update-GfSessionHeartbeat` / `Unregister-GfSession` | Session lifecycle |
+| `Get-GfSessionLeaderIdFromProfile` / `Test-GfSessionIsLeader` | Election |
+| `Get-GfWeatherCacheEntry` / `Restore-GfWeatherCacheSnapshot` / `Save-GfActiveWeatherCacheIfLeader` | Cache I/O |
+| `Switch-GfAdvancedFavoriteInProcess` | In-process favorite switch |
+| `Move-GfAdvancedFavoritePreview` / `Complete-GfAdvancedFavoritePendingLoadIfDue` | Tab settle |
+| `Convert-DateTimeToUtcInstant` / `Get-NwsObservationInstantUtc` | Updated/NWS age math |
 
 ### API Endpoints Used
 
@@ -345,8 +504,8 @@ The script features an advanced **Interactive Mode** that activates when run fro
 - **[D]** - **Daily View:** Switch to 7-day forecast summary display  
 - **[T]** - **Terse View:** Switch to streamlined view (current conditions + today's forecast)
 - **[Shift+T]** - **TerseAlert View:** Alternate terse with full alerts every 20s when alerts are active (hotkey only; not on the control bar)
-- **[Tab]** - **Advanced favorites:** Move to the next favorite (wraps); highlight updates immediately and the load waits **600ms** after the last Tab (hotkey only; not on the control bar)
-- **[Shift+Tab]** - **Advanced previous favorite:** Move to the previous favorite (wraps; same 600ms settle before load; hotkey only; not on the control bar)
+- **[Tab]** - **Advanced favorites:** Move to the next favorite (wraps); highlight updates immediately and the load waits **800ms** after the last Tab, then switches **in-process** via shared `weatherCache` when possible (hotkey only; not on the control bar)
+- **[Shift+Tab]** - **Advanced previous favorite:** Move to the previous favorite (wraps; same 800ms settle before in-process load; hotkey only; not on the control bar)
 - **[A]** - **Alerts / TerseAlert toggle:** Outside TerseAlert, switch to alerts-only view. In TerseAlert, flip between terse and alerts and reset the 20s timer (hotkey only; not on the control bar)
 - **[R]** - **Rain View:** Switch to rain forecast mode with sparklines
 - **[W]** - **Wind View:** Switch to wind forecast mode with direction glyphs
@@ -685,7 +844,7 @@ $nextFullMoonDate = $Date.AddDays($daysUntilNextFullMoon).ToString("MM/dd/yyyy")
 
 - **TerseAlert Mode (`-ta` / `-tersealert`):** Terse-like view; when alerts are active, interactive mode alternates every 20s with a full alerts list (**A** toggles immediately and resets the timer). With `-x`, prints terse then full alerts in sequence.
 - **Alerts Mode (`-a` / `-alerts`):** Alerts-only display with location in the header; green empty message when none are active.
-- **Interactive Hotkeys:** **A** switches to alerts-only (or toggles TerseAlert panes while in TerseAlert); **Shift+T** switches to TerseAlert (case-sensitive `KeyChar` so Shift+T is not swallowed by classic **T**); Advanced **Tab**/**Shift+Tab** wrap favorites with a 600ms settle before load. Hotkeys only — not shown on the control bar.
+- **Interactive Hotkeys:** **A** switches to alerts-only (or toggles TerseAlert panes while in TerseAlert); **Shift+T** switches to TerseAlert (case-sensitive `KeyChar` so Shift+T is not swallowed by classic **T**); Advanced **Tab**/**Shift+Tab** wrap favorites with an 800ms settle before load (closed location bar force-shown during preview, hidden again on settle). Hotkeys only — not shown on the control bar.
 
 ### Recent Enhancements (v2.2)
 
@@ -804,15 +963,15 @@ Light refresh updates current conditions from the station but does **not** reset
 
 #### Updated line
 
-`Write-UpdatedConditionsLine` formats:
+`Write-UpdatedConditionsLine` / `Get-UpdatedConditionsLineText` formats:
 
 ```
 Updated: just now [NWS: 24 minutes ago]
 ```
 
-- **First segment:** `Get-TimeAgoLabel` from `$script:dataFetchTime` (last full fetch). Stale styling (> 5 min) applies here.
-- **`[NWS: …]`:** Only when `$script:usesObservation` is true; age from observation `timestamp`.
-
+- **First segment:** age from `$script:dataFetchTime` (last full fetch / cache `fetchedAt`). In Advanced multi-session mode this tracks the **shared** cache stamp for every client.
+- **`[NWS: …]`:** Only when `$script:usesObservation` is true; age from observation UTC (`$script:currentObservationTime`), not system-local misinterpretation of location wall-clock. Clamped so it is never shown newer than the Updated fetch age.
+- Interactive mode re-ages in place once per minute; `-x` prints absolute location-local times with timezone abbreviation.
 #### Temperature trend
 
 `Get-TemperatureTrend` time-aligns hourly periods to the observation timestamp (or now for grid-only mode), then:
@@ -835,11 +994,11 @@ The auto-refresh functionality provides seamless data updates in interactive mod
 - **Error Handling:** Graceful fallback to existing data if refresh fails
 
 #### Implementation Details:
-- **Automatic Refresh:** Triggered in interactive loop before `ReadKey()` when data is stale
-- **Manual Refresh:** 'G' key handler calls refresh function and re-renders current view
-- **Data Consistency:** All weather variables updated atomically to prevent partial updates
+- **Automatic Refresh:** Triggered in interactive loop when data is stale **and** this session is the location leader (Advanced); followers re-read `weatherCache` instead of calling APIs
+- **Manual Refresh:** 'G' key — leader fetches (light obs or full); follower re-reads shared cache and redraws
+- **Data Consistency:** All weather variables updated atomically to prevent partial updates; leader writes `weatherCache` after successful refresh
 - **User Feedback:** Visual indicators show refresh status and completion
-- **Performance:** Reuses existing API job infrastructure for consistent behavior
+- **Performance:** Reuses existing API job infrastructure for consistent behavior; multi-window sessions share one API owner per location
 
 #### Benefits:
 - **Always Current:** Weather data never becomes outdated during long interactive sessions

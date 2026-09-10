@@ -296,6 +296,9 @@ $script:gfActiveFavorite = $null
 $script:gfLoadedFavoriteIndex = -1
 $script:gfPendingFavoriteLoadIndex = -1
 $script:gfPendingFavoriteLoadAt = $null
+$script:gfFavoriteSettleMilliseconds = 800
+# When Tab preview starts with the location bar closed, force-show it until settle, then hide again.
+$script:gfTabPreviewHideBarAfterSettle = $false
 $script:gfFavoriteInputLocked = $false
 $script:gfDeferredKeyInfo = $null
 $script:gfLocationsDrawerOpen = $false
@@ -424,8 +427,8 @@ if ($Help -or $modeWithoutLocationNeedsHelp) {
      Write-Host "    [T] - Switch to terse mode (current + today)" -ForegroundColor Cyan
      Write-Host "    [Shift+T] - Switch to tersealert mode (alternate with full alerts every 20s)" -ForegroundColor Cyan
      Write-Host "    [A] - Alerts-only view; in tersealert mode, toggle terse/alerts and reset the 20s timer" -ForegroundColor Cyan
-     Write-Host "    [Tab] - Advanced: next favorite (wraps; loads after 600ms settle)" -ForegroundColor Cyan
-     Write-Host "    [Shift+Tab] - Advanced: previous favorite (wraps; loads after 600ms settle)" -ForegroundColor Cyan
+     Write-Host "    [Tab] - Advanced: next favorite (wraps; loads after 800ms settle)" -ForegroundColor Cyan
+     Write-Host "    [Shift+Tab] - Advanced: previous favorite (wraps; loads after 800ms settle)" -ForegroundColor Cyan
      Write-Host "    [R] - Switch to rain forecast mode (sparklines)" -ForegroundColor Cyan
      Write-Host "    [W] - Switch to wind forecast mode (direction glyphs)" -ForegroundColor Cyan
      Write-Host "    [O] - Switch to history (observations) view" -ForegroundColor Cyan
@@ -1217,7 +1220,7 @@ function Get-GfAdvancedProfilePath {
 
 function New-GfAdvancedProfileDefaults {
     return [ordered]@{
-        schemaVersion     = 1
+        schemaVersion     = 2
         advancedEnabled   = $true
         importedAt        = $null
         settings          = [ordered]@{
@@ -1235,6 +1238,8 @@ function New-GfAdvancedProfileDefaults {
         }
         favorites         = @()
         lastActiveFavorite = $null
+        weatherCache      = [ordered]@{}
+        sessions          = [ordered]@{}
     }
 }
 
@@ -1386,9 +1391,35 @@ function ConvertFrom-ForecastBackupToGfProfile {
 function Save-GfAdvancedProfile {
     param([object]$Profile)
     $path = Get-GfAdvancedProfilePath
-    $json = ($Profile | ConvertTo-Json -Depth 12)
+    # Depth must cover nested weatherCache forecast/hourly/alerts payloads
+    $json = ($Profile | ConvertTo-Json -Depth 30)
     Set-Content -Path $path -Value $json -Encoding UTF8
     return $path
+}
+
+function Initialize-GfAdvancedProfileShape {
+    param([object]$Profile)
+    if (-not $Profile) { return $null }
+    if ($null -eq $Profile['advancedEnabled']) { $Profile['advancedEnabled'] = $true }
+    if (-not $Profile['settings']) { $Profile['settings'] = (New-GfAdvancedProfileDefaults).settings }
+    if ($null -eq $Profile['favorites']) { $Profile['favorites'] = @() }
+    elseif ($Profile.favorites -isnot [System.Array]) { $Profile['favorites'] = @($Profile.favorites) }
+    if ($null -eq $Profile['schemaVersion'] -or [int]$Profile.schemaVersion -lt 2) {
+        $Profile['schemaVersion'] = 2
+    }
+    if (-not $Profile['weatherCache'] -or (
+            -not ($Profile.weatherCache -is [hashtable]) -and
+            -not ($Profile.weatherCache -is [System.Collections.Specialized.OrderedDictionary])
+        )) {
+        $Profile['weatherCache'] = [ordered]@{}
+    }
+    if (-not $Profile['sessions'] -or (
+            -not ($Profile.sessions -is [hashtable]) -and
+            -not ($Profile.sessions -is [System.Collections.Specialized.OrderedDictionary])
+        )) {
+        $Profile['sessions'] = [ordered]@{}
+    }
+    return $Profile
 }
 
 function Get-GfAdvancedProfile {
@@ -1400,14 +1431,59 @@ function Get-GfAdvancedProfile {
         $obj = $raw | ConvertFrom-Json -ErrorAction Stop
         $profile = ConvertTo-GfHashtable -InputObject $obj
         if (-not $profile) { return $null }
-        if ($null -eq $profile['advancedEnabled']) { $profile['advancedEnabled'] = $true }
-        if (-not $profile['settings']) { $profile['settings'] = (New-GfAdvancedProfileDefaults).settings }
-        if ($null -eq $profile['favorites']) { $profile['favorites'] = @() }
-        elseif ($profile.favorites -isnot [System.Array]) { $profile['favorites'] = @($profile.favorites) }
-        return $profile
+        return (Initialize-GfAdvancedProfileShape -Profile $profile)
     } catch {
         Write-Verbose "Failed to load gf.json: $($_.Exception.Message)"
         return $null
+    }
+}
+
+function Get-GfAdvancedProfileLockPath {
+    return (Join-Path (Get-GfDataDirectory) "gf.json.lock")
+}
+
+function Invoke-GfAdvancedProfileLocked {
+    param(
+        [scriptblock]$Action,
+        [int]$TimeoutMs = 2000,
+        [switch]$CreateIfMissing
+    )
+    if (-not $Action) { return $null }
+    $lockPath = Get-GfAdvancedProfileLockPath
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $fs = $null
+    while ($sw.ElapsedMilliseconds -lt $TimeoutMs) {
+        try {
+            $fs = [System.IO.File]::Open(
+                $lockPath,
+                [System.IO.FileMode]::OpenOrCreate,
+                [System.IO.FileAccess]::ReadWrite,
+                [System.IO.FileShare]::None
+            )
+            break
+        } catch {
+            Start-Sleep -Milliseconds 40
+        }
+    }
+    if ($null -eq $fs) {
+        Write-Verbose "Timed out acquiring gf.json lock"
+        return $null
+    }
+    try {
+        $profile = Get-GfAdvancedProfile
+        if (-not $profile) {
+            if (-not $CreateIfMissing) { return $null }
+            $profile = New-GfAdvancedProfileDefaults
+        } else {
+            $profile = Initialize-GfAdvancedProfileShape -Profile $profile
+        }
+        $result = & $Action $profile
+        Save-GfAdvancedProfile -Profile $profile | Out-Null
+        $script:gfAdvancedProfile = $profile
+        return $result
+    } finally {
+        try { $fs.Close() } catch {}
+        try { $fs.Dispose() } catch {}
     }
 }
 
@@ -1465,26 +1541,588 @@ function Set-GfAdvancedLastActiveFavorite {
         [int]$Index,
         [object]$Favorite = $null
     )
-    $profile = Get-GfAdvancedProfile
-    if (-not $profile -or -not $profile.advancedEnabled) { return }
-    $favs = @($profile.favorites)
-    if ($Index -lt 0 -or $Index -ge $favs.Count) { return }
-    $fav = if ($Favorite) { $Favorite } else { $favs[$Index] }
-    $profile.lastActiveFavorite = [ordered]@{
-        index         = $Index
-        key           = [string]$fav.key
-        uid           = [string]$fav.uid
-        locationQuery = Get-GfFavoriteLocationQuery -Favorite $fav
+    $null = Invoke-GfAdvancedProfileLocked -Action {
+        param($profile)
+        if (-not $profile.advancedEnabled) { return }
+        $favs = @($profile.favorites)
+        if ($Index -lt 0 -or $Index -ge $favs.Count) { return }
+        $fav = if ($Favorite) { $Favorite } else { $favs[$Index] }
+        $profile.lastActiveFavorite = [ordered]@{
+            index         = $Index
+            key           = [string]$fav.key
+            uid           = [string]$fav.uid
+            locationQuery = Get-GfFavoriteLocationQuery -Favorite $fav
+        }
+        $script:gfActiveFavoriteIndex = $Index
+        $script:gfActiveFavorite = $fav
     }
-    Save-GfAdvancedProfile -Profile $profile | Out-Null
-    $script:gfAdvancedProfile = $profile
-    $script:gfActiveFavoriteIndex = $Index
-    $script:gfActiveFavorite = $fav
+}
+
+# --- Multi-session + weather cache ---
+$script:gfSessionHeartbeatSeconds = 15
+$script:gfSessionStaleSeconds = 45
+$script:gfWeatherCacheFreshSeconds = 300
+$script:gfSessionId = $null
+$script:gfSessionStartedAt = $null
+$script:gfActiveCacheKey = $null
+$script:gfNextSessionHeartbeat = $null
+$script:gfIsLocationLeader = $false
+$script:gfCacheWrittenAt = $null
+
+function Get-GfWeatherCacheEntryTimestampUtc {
+    param([object]$Entry)
+    if (-not $Entry) { return $null }
+    $raw = $null
+    if ($Entry.writtenAt) { $raw = $Entry.writtenAt }
+    elseif ($Entry.fetchedAt) { $raw = $Entry.fetchedAt }
+    if (-not $raw) { return $null }
+    try {
+        $dt = [datetime]::Parse([string]$raw, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
+        if ($dt.Kind -eq [DateTimeKind]::Local) { return $dt.ToUniversalTime() }
+        if ($dt.Kind -eq [DateTimeKind]::Unspecified) { return [DateTime]::SpecifyKind($dt, [DateTimeKind]::Utc) }
+        return $dt.ToUniversalTime()
+    } catch {
+        return $null
+    }
+}
+
+function Test-GfWeatherCacheEntryNewerThanLocal {
+    param([object]$Entry)
+    if (-not $Entry) { return $false }
+    $entryUtc = Get-GfWeatherCacheEntryTimestampUtc -Entry $Entry
+    if ($null -eq $entryUtc) { return $false }
+    if ($null -eq $script:gfCacheWrittenAt) { return $true }
+    try {
+        $localUtc = [datetime]$script:gfCacheWrittenAt
+        if ($localUtc.Kind -eq [DateTimeKind]::Local) { $localUtc = $localUtc.ToUniversalTime() }
+        elseif ($localUtc.Kind -eq [DateTimeKind]::Unspecified) { $localUtc = [DateTime]::SpecifyKind($localUtc, [DateTimeKind]::Utc) }
+        return ($entryUtc -gt $localUtc)
+    } catch {
+        return $true
+    }
+}
+function Get-GfWeatherCacheKeyFromFavorite {
+    param([object]$Favorite)
+    if ($null -eq $Favorite) { return $null }
+    if ($Favorite.uid -and -not [string]::IsNullOrWhiteSpace([string]$Favorite.uid)) {
+        return ([string]$Favorite.uid).Trim()
+    }
+    if ($Favorite.key -and -not [string]::IsNullOrWhiteSpace([string]$Favorite.key)) {
+        return ([string]$Favorite.key).Trim()
+    }
+    if ($Favorite.location -and $null -ne $Favorite.location.lat -and $null -ne $Favorite.location.lon) {
+        try {
+            return ("{0:N4},{1:N4}" -f [double]$Favorite.location.lat, [double]$Favorite.location.lon)
+        } catch {}
+    }
+    return $null
+}
+
+function Get-GfWeatherCacheKeyFromCoords {
+    param([double]$Lat, [double]$Lon)
+    return ("{0:N4},{1:N4}" -f $Lat, $Lon)
+}
+
+function Test-GfProcessAlive {
+    param([int]$ProcessId)
+    if ($ProcessId -le 0) { return $false }
+    try {
+        $p = Get-Process -Id $ProcessId -ErrorAction Stop
+        return ($null -ne $p)
+    } catch {
+        return $false
+    }
+}
+
+function Prune-GfStaleSessionsInProfile {
+    param([object]$Profile)
+    if (-not $Profile -or -not $Profile.sessions) { return 0 }
+    $now = (Get-Date).ToUniversalTime()
+    $removed = 0
+    $keys = @($Profile.sessions.Keys)
+    foreach ($sid in $keys) {
+        $sess = $Profile.sessions[$sid]
+        if (-not $sess) {
+            $Profile.sessions.Remove($sid)
+            $removed++
+            continue
+        }
+        $deadPid = $false
+        if ($null -ne $sess.pid) {
+            try { $deadPid = -not (Test-GfProcessAlive -ProcessId ([int]$sess.pid)) } catch { $deadPid = $true }
+        }
+        $staleHb = $true
+        if ($sess.lastHeartbeat) {
+            try {
+                $hb = [datetime]::Parse([string]$sess.lastHeartbeat, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                if ($hb.Kind -eq [DateTimeKind]::Local) { $hb = $hb.ToUniversalTime() }
+                $staleHb = (($now - $hb).TotalSeconds -gt $script:gfSessionStaleSeconds)
+            } catch {
+                $staleHb = $true
+            }
+        }
+        if ($deadPid -or $staleHb) {
+            $Profile.sessions.Remove($sid)
+            $removed++
+        }
+    }
+    return $removed
+}
+
+function Prune-GfWeatherCacheToFavoritesInProfile {
+    param([object]$Profile)
+    if (-not $Profile -or -not $Profile.weatherCache) { return }
+    $keep = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($fav in @($Profile.favorites)) {
+        $k = Get-GfWeatherCacheKeyFromFavorite -Favorite $fav
+        if ($k) { [void]$keep.Add($k) }
+    }
+    # Keep coord-keyed entries that any live session is viewing
+    foreach ($sid in @($Profile.sessions.Keys)) {
+        $ck = $Profile.sessions[$sid].activeCacheKey
+        if ($ck) { [void]$keep.Add([string]$ck) }
+    }
+    foreach ($ck in @($Profile.weatherCache.Keys)) {
+        if (-not $keep.Contains([string]$ck)) {
+            # Only drop favorite-uid keys that are gone; retain bare lat,lon caches while sessions use them
+            $isCoord = [string]$ck -match '^-?\d'
+            if (-not $isCoord) {
+                $Profile.weatherCache.Remove($ck)
+            } elseif (-not $keep.Contains([string]$ck)) {
+                # coord key with no viewer: keep for TTL reuse (do not delete)
+            }
+        }
+    }
+}
+
+function Get-GfSessionLeaderIdFromProfile {
+    param(
+        [object]$Profile,
+        [string]$CacheKey
+    )
+    if (-not $Profile -or [string]::IsNullOrWhiteSpace($CacheKey)) { return $null }
+    Prune-GfStaleSessionsInProfile -Profile $Profile | Out-Null
+    $candidates = [System.Collections.Generic.List[object]]::new()
+    foreach ($sid in @($Profile.sessions.Keys)) {
+        $sess = $Profile.sessions[$sid]
+        if (-not $sess) { continue }
+        if ([string]$sess.activeCacheKey -ne [string]$CacheKey) { continue }
+        $candidates.Add($sess)
+    }
+    if ($candidates.Count -eq 0) { return $null }
+    $sorted = $candidates | Sort-Object `
+        @{ Expression = {
+                try { [datetime]::Parse([string]$_.startedAt, $null, [System.Globalization.DateTimeStyles]::RoundtripKind) }
+                catch { [datetime]::MaxValue }
+            }; Ascending = $true }, `
+        @{ Expression = { [string]$_.sessionId }; Ascending = $true }
+    return [string](@($sorted)[0].sessionId)
+}
+
+function Test-GfSessionIsLeader {
+    param([string]$CacheKey = $null)
+    $key = if ($CacheKey) { $CacheKey } else { $script:gfActiveCacheKey }
+    if ([string]::IsNullOrWhiteSpace($key) -or [string]::IsNullOrWhiteSpace($script:gfSessionId)) {
+        $script:gfIsLocationLeader = $true
+        return $true
+    }
+    $leaderId = $null
+    $null = Invoke-GfAdvancedProfileLocked -Action {
+        param($profile)
+        $script:__gfLeaderElect = Get-GfSessionLeaderIdFromProfile -Profile $profile -CacheKey $key
+    }
+    $leaderId = $script:__gfLeaderElect
+    $script:__gfLeaderElect = $null
+    if ($null -eq $leaderId) {
+        # Fallback without lock write if lock failed
+        $profile = Get-GfAdvancedProfile
+        if ($profile) {
+            $leaderId = Get-GfSessionLeaderIdFromProfile -Profile $profile -CacheKey $key
+        }
+    }
+    $script:gfIsLocationLeader = ($null -ne $leaderId -and $leaderId -eq $script:gfSessionId)
+    if (-not $script:gfIsLocationLeader -and $null -eq $leaderId -and $script:gfActiveCacheKey -eq $key) {
+        $script:gfIsLocationLeader = $true
+    }
+    return [bool]$script:gfIsLocationLeader
+}
+
+function Register-GfSession {
+    param(
+        [string]$ActiveCacheKey = $null,
+        [string]$Mode = 'full'
+    )
+    if (-not $script:gfSessionId) {
+        $script:gfSessionId = [guid]::NewGuid().ToString()
+        $script:gfSessionStartedAt = (Get-Date).ToUniversalTime().ToString('o')
+    }
+    $script:gfActiveCacheKey = $ActiveCacheKey
+    $sid = $script:gfSessionId
+    $started = $script:gfSessionStartedAt
+    $null = Invoke-GfAdvancedProfileLocked -CreateIfMissing -Action {
+        param($profile)
+        Prune-GfStaleSessionsInProfile -Profile $profile | Out-Null
+        $profile.sessions[$sid] = [ordered]@{
+            sessionId      = $sid
+            startedAt      = $started
+            lastHeartbeat  = (Get-Date).ToUniversalTime().ToString('o')
+            pid            = $PID
+            activeCacheKey = $ActiveCacheKey
+            mode           = $Mode
+        }
+    }
+    $script:gfNextSessionHeartbeat = (Get-Date).AddSeconds($script:gfSessionHeartbeatSeconds)
+    if ($ActiveCacheKey) { [void](Test-GfSessionIsLeader -CacheKey $ActiveCacheKey) }
+}
+
+function Test-GfProfileHasSessionId {
+    param([object]$Profile, [string]$SessionId)
+    if (-not $Profile -or -not $Profile.sessions -or [string]::IsNullOrWhiteSpace($SessionId)) { return $false }
+    foreach ($k in @($Profile.sessions.Keys)) {
+        if ([string]$k -eq [string]$SessionId) { return $true }
+    }
+    return $false
+}
+
+function Update-GfSessionHeartbeat {
+    param(
+        [string]$ActiveCacheKey = $null,
+        [string]$Mode = $null
+    )
+    if (-not $script:gfSessionId) { return }
+    if ($null -ne $ActiveCacheKey) { $script:gfActiveCacheKey = $ActiveCacheKey }
+    $sid = $script:gfSessionId
+    $key = $script:gfActiveCacheKey
+    $modeVal = if ($Mode) { $Mode } else { 'full' }
+    $null = Invoke-GfAdvancedProfileLocked -Action {
+        param($profile)
+        Prune-GfStaleSessionsInProfile -Profile $profile | Out-Null
+        if (-not (Test-GfProfileHasSessionId -Profile $profile -SessionId $sid)) {
+            $profile.sessions[$sid] = [ordered]@{
+                sessionId      = $sid
+                startedAt      = $script:gfSessionStartedAt
+                lastHeartbeat  = (Get-Date).ToUniversalTime().ToString('o')
+                pid            = $PID
+                activeCacheKey = $key
+                mode           = $modeVal
+            }
+        } else {
+            $sess = $profile.sessions[$sid]
+            $sess['lastHeartbeat'] = (Get-Date).ToUniversalTime().ToString('o')
+            $sess['pid'] = $PID
+            $sess['activeCacheKey'] = $key
+            $sess['mode'] = $modeVal
+            $profile.sessions[$sid] = $sess
+        }
+    }
+    $script:gfNextSessionHeartbeat = (Get-Date).AddSeconds($script:gfSessionHeartbeatSeconds)
+    if ($key) { [void](Test-GfSessionIsLeader -CacheKey $key) }
+}
+
+function Unregister-GfSession {
+    if (-not $script:gfSessionId) { return }
+    $sid = $script:gfSessionId
+    $null = Invoke-GfAdvancedProfileLocked -Action {
+        param($profile)
+        foreach ($k in @($profile.sessions.Keys)) {
+            if ($k -eq $sid) { $profile.sessions.Remove($k); break }
+        }
+        Prune-GfStaleSessionsInProfile -Profile $profile | Out-Null
+    }
+    $script:gfSessionId = $null
+    $script:gfActiveCacheKey = $null
+    $script:gfIsLocationLeader = $false
+}
+
+function Exit-GfWithSessionCleanup {
+    param([int]$Code = 0)
+    Unregister-GfSession
+    exit $Code
+}
+
+function Set-GfSessionActiveCacheKey {
+    param(
+        [string]$CacheKey,
+        [string]$Mode = $null
+    )
+    $script:gfActiveCacheKey = $CacheKey
+    Update-GfSessionHeartbeat -ActiveCacheKey $CacheKey -Mode $Mode
+}
+
+function Test-GfWeatherCacheFresh {
+    param([object]$Entry)
+    if (-not $Entry -or -not $Entry.fetchedAt) { return $false }
+    try {
+        $fetched = [datetime]::Parse([string]$Entry.fetchedAt, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
+        if ($fetched.Kind -eq [DateTimeKind]::Local) { $fetched = $fetched.ToUniversalTime() }
+        $age = ((Get-Date).ToUniversalTime() - $fetched).TotalSeconds
+        return ($age -ge 0 -and $age -le $script:gfWeatherCacheFreshSeconds)
+    } catch {
+        return $false
+    }
+}
+
+function Get-GfWeatherCacheEntry {
+    param([string]$CacheKey)
+    if ([string]::IsNullOrWhiteSpace($CacheKey)) { return $null }
+    $profile = Get-GfAdvancedProfile
+    if (-not $profile -or -not $profile.weatherCache) { return $null }
+    foreach ($k in @($profile.weatherCache.Keys)) {
+        if ([string]$k -eq [string]$CacheKey) { return $profile.weatherCache[$k] }
+    }
+    return $null
+}
+
+function Convert-GfLocationLocalDateTimeToUtcString {
+    param([object]$LocationLocalDateTime)
+    if ($null -eq $LocationLocalDateTime) { return $null }
+    try {
+        $dt = [datetime]$LocationLocalDateTime
+        if (-not [string]::IsNullOrWhiteSpace($script:timeZone)) {
+            $tzInfo = Get-ResolvedTimeZoneInfo -TimeZoneId $script:timeZone
+            $unspec = [DateTime]::SpecifyKind($dt, [DateTimeKind]::Unspecified)
+            return [System.TimeZoneInfo]::ConvertTimeToUtc($unspec, $tzInfo).ToString('o')
+        }
+        return $dt.ToUniversalTime().ToString('o')
+    } catch {
+        return $null
+    }
+}
+
+function Convert-GfUtcStringToLocationLocalDateTime {
+    param(
+        [string]$UtcString,
+        [string]$TimeZoneId = $null
+    )
+    if ([string]::IsNullOrWhiteSpace($UtcString)) { return $null }
+    try {
+        $utc = [datetime]::Parse([string]$UtcString, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
+        if ($utc.Kind -eq [DateTimeKind]::Local) { $utc = $utc.ToUniversalTime() }
+        elseif ($utc.Kind -eq [DateTimeKind]::Unspecified) { $utc = [DateTime]::SpecifyKind($utc, [DateTimeKind]::Utc) }
+        else { $utc = $utc.ToUniversalTime() }
+        $tzId = if ($TimeZoneId) { $TimeZoneId } else { $script:timeZone }
+        if (-not [string]::IsNullOrWhiteSpace($tzId)) {
+            $tzInfo = Get-ResolvedTimeZoneInfo -TimeZoneId $tzId
+            return [System.TimeZoneInfo]::ConvertTimeFromUtc($utc, $tzInfo)
+        }
+        return $utc.ToLocalTime()
+    } catch {
+        return $null
+    }
+}
+
+function ConvertTo-GfWeatherCacheSnapshot {
+    param(
+        [string]$CacheKey,
+        [string]$LocationQuery = $null,
+        [double]$Lat,
+        [double]$Lon,
+        [string]$City = $null,
+        [string]$State = $null
+    )
+    $fetchedAt = if ($script:dataFetchTime) {
+        ([datetime]$script:dataFetchTime).ToUniversalTime().ToString('o')
+    } else {
+        (Get-Date).ToUniversalTime().ToString('o')
+    }
+    return [ordered]@{
+        fetchedAt            = $fetchedAt
+        writtenAt            = (Get-Date).ToUniversalTime().ToString('o')
+        fetchedBySessionId   = $script:gfSessionId
+        locationQuery        = $LocationQuery
+        lat                  = $Lat
+        lon                  = $Lon
+        city                 = $City
+        state                = $State
+        timeZone             = $script:timeZone
+        radarStation         = $script:radarStation
+        elevationFeet        = $script:elevationFeet
+        observationStationId = $script:observationStationId
+        locationKey          = $script:locationKey
+        forecastData         = $script:forecastData
+        hourlyData           = $script:hourlyData
+        alertsData           = $script:alertsData
+        current              = [ordered]@{
+            temp            = $script:currentTemp
+            conditions      = $script:currentConditions
+            tempTrend       = $script:currentTempTrend
+            wind            = $script:currentWind
+            windDir         = $script:currentWindDir
+            windGust        = $script:windGust
+            humidity        = $script:currentHumidity
+            dewPoint        = $script:currentDewPoint
+            precipProb      = $script:currentPrecipProb
+            usesObservation = $script:usesObservation
+            # Location wall-clock → UTC for storage (never treat as system-local)
+            currentTimeLocal = Convert-GfLocationLocalDateTimeToUtcString -LocationLocalDateTime $script:currentTimeLocal
+            observationUtc   = if ($script:currentObservationTime) {
+                try { ([datetime]$script:currentObservationTime).ToUniversalTime().ToString('o') } catch { $null }
+            } elseif ($script:currentTimeLocal) {
+                Convert-GfLocationLocalDateTimeToUtcString -LocationLocalDateTime $script:currentTimeLocal
+            } else { $null }
+        }
+        todayForecast        = $script:todayForecast
+        todayPeriodName      = $script:todayPeriodName
+        tomorrowForecast     = $script:tomorrowForecast
+        tomorrowPeriodName   = $script:tomorrowPeriodName
+        aqiData              = $script:aqiData
+        wildFireIncidents    = $script:wildFireIncidents
+        sunriseTime          = Convert-GfLocationLocalDateTimeToUtcString -LocationLocalDateTime $script:sunriseTime
+        sunsetTime           = Convert-GfLocationLocalDateTimeToUtcString -LocationLocalDateTime $script:sunsetTime
+    }
+}
+
+function Save-GfWeatherCacheEntry {
+    param(
+        [string]$CacheKey,
+        [object]$Snapshot
+    )
+    if ([string]::IsNullOrWhiteSpace($CacheKey) -or -not $Snapshot) { return $false }
+    # Only commit if still leader for this key
+    $profileCheck = Get-GfAdvancedProfile
+    if ($profileCheck -and $script:gfSessionId) {
+        $leaderId = Get-GfSessionLeaderIdFromProfile -Profile $profileCheck -CacheKey $CacheKey
+        if ($null -ne $leaderId -and $leaderId -ne $script:gfSessionId) {
+            Write-Verbose "Skip weatherCache write for $CacheKey; no longer leader"
+            return $false
+        }
+    }
+    $result = Invoke-GfAdvancedProfileLocked -Action {
+        param($profile)
+        $leaderId = Get-GfSessionLeaderIdFromProfile -Profile $profile -CacheKey $CacheKey
+        if ($null -ne $leaderId -and $script:gfSessionId -and $leaderId -ne $script:gfSessionId) {
+            return $false
+        }
+        $profile.weatherCache[$CacheKey] = $Snapshot
+        Prune-GfWeatherCacheToFavoritesInProfile -Profile $profile
+        return $true
+    }
+    if ([bool]$result) {
+        $writtenUtc = Get-GfWeatherCacheEntryTimestampUtc -Entry $Snapshot
+        $script:gfCacheWrittenAt = if ($writtenUtc) { $writtenUtc } else { (Get-Date).ToUniversalTime() }
+        # Keep Updated: aligned with shared cache fetch time after a successful write
+        $script:lastManualRefreshTime = $null
+    }
+    return [bool]$result
+}
+
+function Restore-GfWeatherCacheSnapshot {
+    param([object]$Entry)
+    if (-not $Entry) { return $false }
+    try {
+        if ($Entry.fetchedAt) {
+            $fetched = [datetime]::Parse([string]$Entry.fetchedAt, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
+            $script:dataFetchTime = $fetched.ToLocalTime()
+        } else {
+            $script:dataFetchTime = Get-Date
+        }
+        # Shared Updated: line must track cache fetch time, not a local G press
+        $script:lastManualRefreshTime = $null
+        $writtenUtc = Get-GfWeatherCacheEntryTimestampUtc -Entry $Entry
+        $script:gfCacheWrittenAt = if ($writtenUtc) { $writtenUtc } else { (Get-Date).ToUniversalTime() }
+
+        $script:forecastData = $Entry.forecastData
+        $script:hourlyData = $Entry.hourlyData
+        $script:alertsData = $Entry.alertsData
+        $script:timeZone = $Entry.timeZone
+        $script:radarStation = $Entry.radarStation
+        $script:elevationFeet = $Entry.elevationFeet
+        $script:observationStationId = $Entry.observationStationId
+        $script:locationKey = $Entry.locationKey
+        $script:aqiData = $Entry.aqiData
+        $script:wildFireIncidents = @($Entry.wildFireIncidents)
+        $script:todayForecast = $Entry.todayForecast
+        $script:todayPeriodName = $Entry.todayPeriodName
+        $script:tomorrowForecast = $Entry.tomorrowForecast
+        $script:tomorrowPeriodName = $Entry.tomorrowPeriodName
+        if ($Entry.sunriseTime) {
+            $sr = Convert-GfUtcStringToLocationLocalDateTime -UtcString ([string]$Entry.sunriseTime) -TimeZoneId $Entry.timeZone
+            if ($sr) { $script:sunriseTime = $sr }
+        }
+        if ($Entry.sunsetTime) {
+            $ss = Convert-GfUtcStringToLocationLocalDateTime -UtcString ([string]$Entry.sunsetTime) -TimeZoneId $Entry.timeZone
+            if ($ss) { $script:sunsetTime = $ss }
+        }
+        # Rebuild icon/period from hourly, then overlay cached current (may include observation merge)
+        if ($script:hourlyData -and (Get-Command Set-CurrentConditionsFromHourly -ErrorAction SilentlyContinue)) {
+            try { Set-CurrentConditionsFromHourly -HourlyData $script:hourlyData } catch {}
+        }
+        $c = $Entry.current
+        if ($c) {
+            $script:currentTemp = $c.temp
+            $script:currentConditions = $c.conditions
+            $script:currentTempTrend = $c.tempTrend
+            $script:currentWind = $c.wind
+            $script:currentWindDir = $c.windDir
+            $script:windGust = $c.windGust
+            $script:currentHumidity = $c.humidity
+            $script:currentDewPoint = $c.dewPoint
+            $script:currentPrecipProb = $c.precipProb
+            $script:usesObservation = [bool]$c.usesObservation
+            $obsUtcRaw = $null
+            if ($c.observationUtc) { $obsUtcRaw = [string]$c.observationUtc }
+            elseif ($c.currentTimeLocal) { $obsUtcRaw = [string]$c.currentTimeLocal }
+            if ($obsUtcRaw) {
+                try {
+                    $obsOffset = [DateTimeOffset]::Parse($obsUtcRaw)
+                    $obsUtc = $obsOffset.UtcDateTime
+                    $fetchUtc = $null
+                    if ($Entry.fetchedAt) {
+                        try { $fetchUtc = [DateTimeOffset]::Parse([string]$Entry.fetchedAt).UtcDateTime } catch {}
+                    }
+                    # Reject corrupt stamps that are newer than the cache fetch (timezone bug leftovers)
+                    if ($null -ne $fetchUtc -and $obsUtc -gt $fetchUtc.AddMinutes(1)) {
+                        Write-Verbose "Ignoring observationUtc newer than fetchedAt (likely corrupt cache TZ stamp)"
+                        $obsUtc = $fetchUtc
+                    }
+                    $script:currentObservationTime = [DateTime]::SpecifyKind($obsUtc, [DateTimeKind]::Utc)
+                    $loc = Convert-GfUtcStringToLocationLocalDateTime -UtcString ($obsUtc.ToString('o')) -TimeZoneId $Entry.timeZone
+                    if ($loc) { $script:currentTimeLocal = $loc }
+                } catch {}
+            }
+        }
+        # AQI flat fields
+        $script:aqiShow = $false
+        if ($script:aqiData -and $script:aqiData.ShowAqi) {
+            $script:aqiShow = $true
+            $script:aqiCategoryName = $script:aqiData.CategoryName
+            $script:aqiCategoryNumber = $script:aqiData.CategoryNumber
+            $script:o3Aqi = $script:aqiData.O3AQI
+            $script:o3CategoryNumber = $script:aqiData.O3CategoryNumber
+            $script:pm25Aqi = $script:aqiData.PM25AQI
+            $script:pm25CategoryNumber = $script:aqiData.PM25CategoryNumber
+        }
+        return $true
+    } catch {
+        Write-Verbose "Restore-GfWeatherCacheSnapshot failed: $($_.Exception.Message)"
+        return $false
+    }
+}
+
+function Save-GfActiveWeatherCacheIfLeader {
+    param(
+        [string]$CacheKey,
+        [string]$LocationQuery = $null,
+        [double]$Lat,
+        [double]$Lon,
+        [string]$City = $null,
+        [string]$State = $null
+    )
+    if ([string]::IsNullOrWhiteSpace($CacheKey)) { return }
+    if ($script:gfSessionId -and -not (Test-GfSessionIsLeader -CacheKey $CacheKey)) { return }
+    $snap = ConvertTo-GfWeatherCacheSnapshot -CacheKey $CacheKey -LocationQuery $LocationQuery -Lat $Lat -Lon $Lon -City $City -State $State
+    [void](Save-GfWeatherCacheEntry -CacheKey $CacheKey -Snapshot $snap)
 }
 
 function Set-GfAdvancedLocationsDrawerOpen {
     param([bool]$Open)
-    $updated = Update-GfAdvancedProfileFields -Fields @{ settings = @{ locationsDrawerOpen = $Open } }
+    $updated = $null
+    $null = Invoke-GfAdvancedProfileLocked -Action {
+        param($profile)
+        if (-not $profile.settings) { $profile.settings = [ordered]@{} }
+        $profile.settings.locationsDrawerOpen = $Open
+        $updated = $profile
+    }
     if ($updated) {
         $script:gfAdvancedProfile = $updated
         $script:gfLocationsDrawerOpen = $Open
@@ -1493,7 +2131,13 @@ function Set-GfAdvancedLocationsDrawerOpen {
 
 function Set-GfAdvancedControlBarOpen {
     param([bool]$Open)
-    $updated = Update-GfAdvancedProfileFields -Fields @{ settings = @{ controlBarOpen = $Open } }
+    $updated = $null
+    $null = Invoke-GfAdvancedProfileLocked -Action {
+        param($profile)
+        if (-not $profile.settings) { $profile.settings = [ordered]@{} }
+        $profile.settings.controlBarOpen = $Open
+        $updated = $profile
+    }
     if ($updated) {
         $script:gfAdvancedProfile = $updated
         $script:showControlBar = $Open
@@ -1952,6 +2596,9 @@ function Save-GfConfigProfileFavorites {
             locationQuery = Get-GfFavoriteLocationQuery -Favorite $f
         }
     }
+    if (-not $Profile.weatherCache) { $Profile.weatherCache = [ordered]@{} }
+    if (-not $Profile.sessions) { $Profile.sessions = [ordered]@{} }
+    Prune-GfWeatherCacheToFavoritesInProfile -Profile $Profile
     Save-GfAdvancedProfile -Profile $Profile | Out-Null
     $script:gfAdvancedProfile = $Profile
     $script:gfFavorites = @($Favorites)
@@ -2513,6 +3160,7 @@ function Lock-GfFavoriteSwitchInput {
 function Cancel-GfAdvancedFavoritePreviewIfPending {
     if ($null -eq $script:gfPendingFavoriteLoadAt) { return $false }
     Clear-GfAdvancedFavoritePendingLoad
+    $script:gfTabPreviewHideBarAfterSettle = $false
     $favs = @($script:gfFavorites)
     if ($script:gfLoadedFavoriteIndex -ge 0 -and $script:gfLoadedFavoriteIndex -lt $favs.Count) {
         $script:gfActiveFavoriteIndex = $script:gfLoadedFavoriteIndex
@@ -2533,12 +3181,14 @@ function Move-GfAdvancedFavoritePreview {
     $next = (($cur + $Delta) % $n + $n) % $n
     $script:gfActiveFavoriteIndex = $next
     $script:gfActiveFavorite = $favs[$next]
-    if ($script:gfLoadedFavoriteIndex -ge 0 -and $next -eq $script:gfLoadedFavoriteIndex) {
-        Clear-GfAdvancedFavoritePendingLoad
-    } else {
-        $script:gfPendingFavoriteLoadIndex = $next
-        $script:gfPendingFavoriteLoadAt = (Get-Date).AddMilliseconds(600)
+    # First Tab of a preview gesture: remember if the bar was off so we hide it again after settle
+    if ($null -eq $script:gfPendingFavoriteLoadAt) {
+        $script:gfTabPreviewHideBarAfterSettle = -not [bool]$script:gfLocationsDrawerOpen
     }
+    # Always keep settle pending — including wrap-back to the already-loaded favorite —
+    # so a closed location bar stays visible until the timer exhausts (selection feedback).
+    $script:gfPendingFavoriteLoadIndex = $next
+    $script:gfPendingFavoriteLoadAt = (Get-Date).AddMilliseconds($script:gfFavoriteSettleMilliseconds)
     return $true
 }
 
@@ -2563,35 +3213,198 @@ function Invoke-GfAdvancedFavoriteTabNudge {
 }
 
 function Complete-GfAdvancedFavoritePendingLoadIfDue {
-    if ($null -eq $script:gfPendingFavoriteLoadAt) { return $false }
-    if ($script:gfFavoriteInputLocked -or $script:gfRestartRequested) { return $false }
+    if ($null -eq $script:gfPendingFavoriteLoadAt) { return $null }
+    if ($script:gfFavoriteInputLocked -or $script:gfRestartRequested) { return $null }
     # Idle settle: any queued console input means the user is still interacting
     try {
         if (-not [System.Console]::IsInputRedirected -and [System.Console]::KeyAvailable) {
-            return $false
+            return $null
         }
     } catch {}
-    if ((Get-Date) -lt $script:gfPendingFavoriteLoadAt) { return $false }
+    if ((Get-Date) -lt $script:gfPendingFavoriteLoadAt) { return $null }
     $idx = $script:gfPendingFavoriteLoadIndex
     Clear-GfAdvancedFavoritePendingLoad
-    if ($idx -lt 0) { return $false }
-    if ($script:gfLoadedFavoriteIndex -ge 0 -and $idx -eq $script:gfLoadedFavoriteIndex) { return $false }
-    return (Request-GfAdvancedFavoriteRestart -FavoriteIndex $idx)
+    if ($idx -lt 0) { return $null }
+    # Return index even when it matches the loaded favorite so the caller can redraw
+    # (e.g. hide a temporarily shown location bar after wrap-back settle).
+    return $idx
+}
+
+function Get-GfInteractiveModeName {
+    param(
+        [bool]$IsHourlyMode = $false,
+        [bool]$IsRainMode = $false,
+        [bool]$IsWindMode = $false,
+        [bool]$IsTerseMode = $false,
+        [bool]$IsTerseAlertMode = $false,
+        [bool]$IsAlertsMode = $false,
+        [bool]$IsDailyMode = $false,
+        [bool]$IsObservationsMode = $false
+    )
+    if ($IsTerseAlertMode) { return 'tersealert' }
+    if ($IsTerseMode) { return 'terse' }
+    if ($IsHourlyMode) { return 'hourly' }
+    if ($IsDailyMode) { return 'daily' }
+    if ($IsRainMode) { return 'rain' }
+    if ($IsWindMode) { return 'wind' }
+    if ($IsObservationsMode) { return 'history' }
+    if ($IsAlertsMode) { return 'alerts' }
+    return 'full'
+}
+
+function Switch-GfAdvancedFavoriteInProcess {
+    param(
+        [int]$FavoriteIndex,
+        [hashtable]$Headers = $null,
+        [string]$Mode = 'full'
+    )
+    $favs = @($script:gfFavorites)
+    if ($FavoriteIndex -lt 0 -or $FavoriteIndex -ge $favs.Count) {
+        return [pscustomobject]@{ Success = $false }
+    }
+    if ($script:gfFavoriteInputLocked) {
+        return [pscustomobject]@{ Success = $false }
+    }
+
+    Lock-GfFavoriteSwitchInput
+    try {
+        $fav = $favs[$FavoriteIndex]
+        Set-GfAdvancedLastActiveFavorite -Index $FavoriteIndex -Favorite $fav
+        $script:gfLoadedFavoriteIndex = $FavoriteIndex
+        $script:gfActiveFavoriteIndex = $FavoriteIndex
+        $script:gfActiveFavorite = $fav
+
+        $cacheKey = Get-GfWeatherCacheKeyFromFavorite -Favorite $fav
+        $latV = $null
+        $lonV = $null
+        $cityV = $null
+        $stateV = $null
+        if ($fav.location) {
+            try {
+                if ($null -ne $fav.location.lat) { $latV = [double]$fav.location.lat }
+                if ($null -ne $fav.location.lon) { $lonV = [double]$fav.location.lon }
+                $cityV = [string]$fav.location.city
+                $stateV = [string]$fav.location.state
+            } catch {}
+        }
+        if ($null -eq $latV -or $null -eq $lonV) {
+            # Fall back to process restart geocode path
+            $query = Get-GfFavoriteLocationQuery -Favorite $fav
+            if ([string]::IsNullOrWhiteSpace($query)) {
+                return [pscustomobject]@{ Success = $false }
+            }
+            $script:gfRestartLocation = $query
+            $script:gfRestartRequested = $true
+            return [pscustomobject]@{ Success = $true; Restart = $true; Lat = $null; Lon = $null }
+        }
+        if (-not $cacheKey) {
+            $cacheKey = Get-GfWeatherCacheKeyFromCoords -Lat $latV -Lon $lonV
+        }
+
+        Set-GfSessionActiveCacheKey -CacheKey $cacheKey -Mode $Mode
+        $isLeader = Test-GfSessionIsLeader -CacheKey $cacheKey
+        $entry = Get-GfWeatherCacheEntry -CacheKey $cacheKey
+        $fromCache = $false
+        $refreshed = $false
+
+        if ($entry) {
+            if (Restore-GfWeatherCacheSnapshot -Entry $entry) {
+                $fromCache = $true
+                if (-not $cityV -and $entry.city) { $cityV = [string]$entry.city }
+                if (-not $stateV -and $entry.state) { $stateV = [string]$entry.state }
+                if ($entry.timeZone) { $script:timeZone = $entry.timeZone }
+            }
+        }
+
+        $needFetch = $false
+        if (-not $fromCache) {
+            $needFetch = $isLeader
+        } elseif (-not (Test-GfWeatherCacheFresh -Entry $entry)) {
+            $needFetch = $isLeader
+        }
+
+        if ($needFetch) {
+            $hdrs = if ($Headers) { $Headers } else { $script:headersForObservations }
+            if (-not $hdrs) {
+                $hdrs = @{
+                    "Accept"     = "application/geo+json"
+                    "User-Agent" = $script:USER_AGENT
+                }
+            }
+            Write-Host "Loading $($cityV), $($stateV)..." -ForegroundColor Yellow
+            $ok = Update-WeatherData -Lat ([string]$latV) -Lon ([string]$lonV) -Headers $hdrs -TimeZone $script:timeZone -UseRetryLogic $false
+            if ($ok) {
+                $refreshed = $true
+                Save-GfActiveWeatherCacheIfLeader -CacheKey $cacheKey -LocationQuery (Get-GfFavoriteLocationQuery -Favorite $fav) -Lat $latV -Lon $lonV -City $cityV -State $stateV
+            } elseif (-not $fromCache) {
+                # Hard fallback: restart
+                $script:gfRestartLocation = Get-GfFavoriteLocationQuery -Favorite $fav
+                $script:gfRestartRequested = $true
+                return [pscustomobject]@{ Success = $true; Restart = $true }
+            }
+        } elseif (-not $isLeader -and -not $fromCache) {
+            # Follower waiting for leader cache — brief poll
+            Write-Host "Waiting for shared weather cache..." -ForegroundColor Yellow
+            for ($i = 0; $i -lt 20; $i++) {
+                Start-Sleep -Milliseconds 250
+                Update-GfSessionHeartbeat -ActiveCacheKey $cacheKey -Mode $Mode
+                $isLeader = Test-GfSessionIsLeader -CacheKey $cacheKey
+                $entry = Get-GfWeatherCacheEntry -CacheKey $cacheKey
+                if ($entry -and (Restore-GfWeatherCacheSnapshot -Entry $entry)) {
+                    $fromCache = $true
+                    if (-not $cityV -and $entry.city) { $cityV = [string]$entry.city }
+                    if (-not $stateV -and $entry.state) { $stateV = [string]$entry.state }
+                    break
+                }
+                if ($isLeader) {
+                    if ($Headers) { $hdrs = $Headers } else {
+                        $hdrs = @{ "Accept" = "application/geo+json"; "User-Agent" = $script:USER_AGENT }
+                    }
+                    $ok = Update-WeatherData -Lat ([string]$latV) -Lon ([string]$lonV) -Headers $hdrs -TimeZone $script:timeZone -UseRetryLogic $false
+                    if ($ok) {
+                        $refreshed = $true
+                        Save-GfActiveWeatherCacheIfLeader -CacheKey $cacheKey -LocationQuery (Get-GfFavoriteLocationQuery -Favorite $fav) -Lat $latV -Lon $lonV -City $cityV -State $stateV
+                    }
+                    break
+                }
+            }
+            if (-not $fromCache -and -not $refreshed) {
+                $script:gfRestartLocation = Get-GfFavoriteLocationQuery -Favorite $fav
+                $script:gfRestartRequested = $true
+                return [pscustomobject]@{ Success = $true; Restart = $true }
+            }
+        }
+
+        if (-not $cityV) { $cityV = 'Unknown' }
+        if (-not $stateV) { $stateV = '' }
+
+        return [pscustomobject]@{
+            Success   = $true
+            Restart   = $false
+            Lat       = $latV
+            Lon       = $lonV
+            City      = $cityV
+            State     = $stateV
+            TimeZone  = $script:timeZone
+            FromCache = $fromCache
+            Refreshed = $refreshed
+            CacheKey  = $cacheKey
+        }
+    } finally {
+        if (-not $script:gfRestartRequested) {
+            $script:gfFavoriteInputLocked = $false
+            Clear-GfConsoleInputBuffer
+        }
+    }
 }
 
 function Request-GfAdvancedFavoriteRestart {
+    # Legacy name: prefer in-process switch; restart only when Switch sets gfRestartRequested
     param([int]$FavoriteIndex)
-    $favs = @($script:gfFavorites)
-    if ($FavoriteIndex -lt 0 -or $FavoriteIndex -ge $favs.Count) { return $false }
-    if ($script:gfFavoriteInputLocked -or $script:gfRestartRequested) { return $false }
-    Clear-GfAdvancedFavoritePendingLoad
-    Set-GfAdvancedLastActiveFavorite -Index $FavoriteIndex -Favorite $favs[$FavoriteIndex]
-    $script:gfLoadedFavoriteIndex = $FavoriteIndex
-    $query = Get-GfFavoriteLocationQuery -Favorite $favs[$FavoriteIndex]
-    if ([string]::IsNullOrWhiteSpace($query)) { return $false }
-    $script:gfRestartLocation = $query
-    $script:gfRestartRequested = $true
-    Lock-GfFavoriteSwitchInput
+    $result = Switch-GfAdvancedFavoriteInProcess -FavoriteIndex $FavoriteIndex -Headers $script:headersForObservations
+    if (-not $result -or -not $result.Success) { return $false }
+    if ($result.Restart) { return $true }
+    $script:gfLastInProcessSwitch = $result
     return $true
 }
 
@@ -2891,22 +3704,48 @@ function Convert-NwsTemperatureQuantityToFahrenheit {
     return [math]::Round(($val * 9 / 5) + 32, 1)
 }
 
-function Get-CurrentConditionsUpdatedDateTime {
-    if ($script:usesObservation -and $null -ne $script:currentTimeLocal) {
-        return $script:currentTimeLocal
+function Convert-DateTimeToUtcInstant {
+    param(
+        [DateTime]$DateTime,
+        [bool]$AlreadyLocationLocal = $false
+    )
+    if ($null -eq $DateTime) { return $null }
+    if ($AlreadyLocationLocal -and -not [string]::IsNullOrWhiteSpace($script:timeZone)) {
+        try {
+            $tzInfo = Get-ResolvedTimeZoneInfo -TimeZoneId $script:timeZone
+            $unspec = [DateTime]::SpecifyKind($DateTime, [DateTimeKind]::Unspecified)
+            return [System.TimeZoneInfo]::ConvertTimeToUtc($unspec, $tzInfo)
+        } catch {}
     }
-    return $script:dataFetchTime
+    try {
+        if ($DateTime.Kind -eq [DateTimeKind]::Utc) { return $DateTime }
+        if ($DateTime.Kind -eq [DateTimeKind]::Local) { return $DateTime.ToUniversalTime() }
+        # Unspecified without location context: treat as system-local wall clock
+        return [DateTime]::SpecifyKind($DateTime, [DateTimeKind]::Local).ToUniversalTime()
+    } catch {
+        return $null
+    }
 }
 
-function Get-TimeAgoLabel {
-    param([DateTime]$DateTime)
-    if ($null -eq $DateTime) { return "N/A" }
-    $diff = (Get-Date) - $DateTime
-    $seconds = [math]::Floor($diff.TotalSeconds)
+function Get-AgeSecondsFromUtcInstant {
+    param([DateTime]$InstantUtc)
+    if ($null -eq $InstantUtc) { return $null }
+    $utc = if ($InstantUtc.Kind -eq [DateTimeKind]::Utc) {
+        $InstantUtc
+    } else {
+        $InstantUtc.ToUniversalTime()
+    }
+    $seconds = [math]::Floor(((Get-Date).ToUniversalTime() - $utc).TotalSeconds)
     if ($seconds -lt 0) { $seconds = 0 }
-    $minutes = [math]::Floor($seconds / 60)
+    return [int]$seconds
+}
+
+function Format-TimeAgoFromSeconds {
+    param([int]$Seconds)
+    if ($Seconds -lt 0) { $Seconds = 0 }
+    $minutes = [math]::Floor($Seconds / 60)
     $hours = [math]::Floor($minutes / 60)
-    if ($seconds -lt 60) { return "just now" }
+    if ($Seconds -lt 60) { return "just now" }
     if ($minutes -lt 60) {
         $label = if ($minutes -eq 1) { "minute" } else { "minutes" }
         return "$minutes $label ago"
@@ -2915,17 +3754,90 @@ function Get-TimeAgoLabel {
         $label = if ($hours -eq 1) { "hour" } else { "hours" }
         return "$hours $label ago"
     }
-    return $DateTime.ToString('g')
+    return (Get-Date).ToUniversalTime().AddSeconds(-$Seconds).ToLocalTime().ToString('g')
+}
+
+function Get-TimeAgoLabel {
+    param(
+        [DateTime]$DateTime,
+        [bool]$AlreadyLocationLocal = $false
+    )
+    if ($null -eq $DateTime) { return "N/A" }
+    $instantUtc = Convert-DateTimeToUtcInstant -DateTime $DateTime -AlreadyLocationLocal:$AlreadyLocationLocal
+    if ($null -eq $instantUtc) { return "N/A" }
+    $seconds = Get-AgeSecondsFromUtcInstant -InstantUtc $instantUtc
+    return (Format-TimeAgoFromSeconds -Seconds $seconds)
+}
+
+function Get-NwsObservationInstantUtc {
+    # Prefer a true UTC observation stamp; fall back to location wall-clock via location TZ.
+    if ($null -ne $script:currentObservationTime) {
+        $fromObs = Convert-DateTimeToUtcInstant -DateTime $script:currentObservationTime -AlreadyLocationLocal:$false
+        if ($null -ne $fromObs) { return $fromObs }
+    }
+    if ($null -ne $script:currentTimeLocal) {
+        return (Convert-DateTimeToUtcInstant -DateTime $script:currentTimeLocal -AlreadyLocationLocal:$true)
+    }
+    return $null
 }
 
 function Get-UpdatedFetchDisplayTime {
     $displayTime = $script:dataFetchTime
+    # When sharing weatherCache across sessions, Updated: must match the cache
+    # fetchedAt for every client — do not let a local G stamp override it.
+    if ($script:gfSessionId -and $script:gfActiveCacheKey) {
+        return $displayTime
+    }
     if ($null -ne $script:lastManualRefreshTime) {
         if ($null -eq $displayTime -or $script:lastManualRefreshTime -gt $displayTime) {
             $displayTime = $script:lastManualRefreshTime
         }
     }
     return $displayTime
+}
+
+function Get-UpdatedConditionsLineText {
+    $displayFetchTime = Get-UpdatedFetchDisplayTime
+    if ($null -eq $displayFetchTime) {
+        return "Updated: N/A"
+    }
+    $fetchUtc = Convert-DateTimeToUtcInstant -DateTime $displayFetchTime -AlreadyLocationLocal:$false
+    $fetchSeconds = Get-AgeSecondsFromUtcInstant -InstantUtc $fetchUtc
+
+    # In non-interactive (-x) mode the line is printed once and never re-ages, so show an
+    # absolute timestamp instead of a relative "just now" that would immediately be stale.
+    # Include the destination timezone abbreviation (e.g. MDT) so one-shot output is unambiguous.
+    if ($script:NoInteractive -and $script:NoInteractive.IsPresent) {
+        $line = "Updated: $(Format-UpdatedAbsoluteTime -DateTime $displayFetchTime -IncludeTimeZoneAbbreviation $true)"
+        if ($script:usesObservation -and $null -ne $script:currentTimeLocal) {
+            $line += " [NWS: $(Format-UpdatedAbsoluteTime -DateTime $script:currentTimeLocal -AlreadyLocationLocal $true -IncludeTimeZoneAbbreviation $true)]"
+        }
+        return $line
+    }
+
+    $line = "Updated: $(Format-TimeAgoFromSeconds -Seconds $fetchSeconds)"
+    if ($script:usesObservation) {
+        $nwsUtc = Get-NwsObservationInstantUtc
+        if ($null -ne $nwsUtc) {
+            $nwsSeconds = Get-AgeSecondsFromUtcInstant -InstantUtc $nwsUtc
+            # Observation was retrieved at/before fetch — it cannot be "newer" than Updated
+            if ($null -ne $fetchSeconds -and $nwsSeconds -lt $fetchSeconds) {
+                $nwsSeconds = $fetchSeconds
+            }
+            if ($null -ne $fetchUtc -and $nwsUtc -gt $fetchUtc) {
+                $nwsSeconds = $fetchSeconds
+            }
+            $line += " [NWS: $(Format-TimeAgoFromSeconds -Seconds $nwsSeconds)]"
+        }
+    }
+    return $line
+}
+
+function Get-CurrentConditionsUpdatedDateTime {
+    if ($script:usesObservation -and $null -ne $script:currentTimeLocal) {
+        return $script:currentTimeLocal
+    }
+    return $script:dataFetchTime
 }
 
 function Format-UpdatedAbsoluteTime {
@@ -2981,28 +3893,6 @@ function Get-LocationTimeZoneAbbreviation {
     } catch {
         return $null
     }
-}
-
-function Get-UpdatedConditionsLineText {
-    $displayFetchTime = Get-UpdatedFetchDisplayTime
-    if ($null -eq $displayFetchTime) {
-        return "Updated: N/A"
-    }
-    # In non-interactive (-x) mode the line is printed once and never re-ages, so show an
-    # absolute timestamp instead of a relative "just now" that would immediately be stale.
-    # Include the destination timezone abbreviation (e.g. MDT) so one-shot output is unambiguous.
-    if ($script:NoInteractive -and $script:NoInteractive.IsPresent) {
-        $line = "Updated: $(Format-UpdatedAbsoluteTime -DateTime $displayFetchTime -IncludeTimeZoneAbbreviation $true)"
-        if ($script:usesObservation -and $null -ne $script:currentTimeLocal) {
-            $line += " [NWS: $(Format-UpdatedAbsoluteTime -DateTime $script:currentTimeLocal -AlreadyLocationLocal $true -IncludeTimeZoneAbbreviation $true)]"
-        }
-        return $line
-    }
-    $line = "Updated: $(Get-TimeAgoLabel -DateTime $displayFetchTime)"
-    if ($script:usesObservation -and $null -ne $script:currentTimeLocal) {
-        $line += " [NWS: $(Get-TimeAgoLabel -DateTime $script:currentTimeLocal)]"
-    }
-    return $line
 }
 
 function Write-UpdatedConditionsLine {
@@ -3082,11 +3972,13 @@ function Convert-LatestObservation {
     if ([string]::IsNullOrWhiteSpace($props.timestamp)) { return $null }
 
     try {
-        $obsTime = [DateTime]::Parse($props.timestamp, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
+        # Prefer DateTimeOffset so offsets/Zulu are unambiguous (never system-local Kind tricks)
+        $obsOffset = [DateTimeOffset]::Parse([string]$props.timestamp)
+        $obsTime = $obsOffset.UtcDateTime
     } catch {
         return $null
     }
-    $ageMinutes = ((Get-Date).ToUniversalTime() - $obsTime.ToUniversalTime()).TotalMinutes
+    $ageMinutes = ((Get-Date).ToUniversalTime() - $obsTime).TotalMinutes
     if ($ageMinutes -gt $script:latestObservationMaxAgeMinutes) { return $null }
 
     $tempF = [math]::Round(($props.temperature.value * 9 / 5) + 32)
@@ -3264,17 +4156,17 @@ function Merge-LatestObservationIntoCurrentConditions {
     if ($parsed.IconUrl) { $script:currentIcon = $parsed.IconUrl }
 
     $script:usesObservation = $true
-    $script:currentObservationTime = $parsed.ObservationTime
+    # Always store UTC Kind for age math
+    $script:currentObservationTime = [DateTime]::SpecifyKind($parsed.ObservationTime.ToUniversalTime(), [DateTimeKind]::Utc)
     if ($TimeZone) {
         try {
             $tzInfo = Get-ResolvedTimeZoneInfo -TimeZoneId $TimeZone
-            $utcObs = $parsed.ObservationTime.ToUniversalTime()
-            $script:currentTimeLocal = [System.TimeZoneInfo]::ConvertTimeFromUtc($utcObs, $tzInfo)
+            $script:currentTimeLocal = [System.TimeZoneInfo]::ConvertTimeFromUtc($script:currentObservationTime, $tzInfo)
         } catch {
-            $script:currentTimeLocal = $parsed.ObservationTime
+            $script:currentTimeLocal = $parsed.ObservationTime.ToLocalTime()
         }
     } else {
-        $script:currentTimeLocal = $parsed.ObservationTime
+        $script:currentTimeLocal = $parsed.ObservationTime.ToLocalTime()
     }
 
     $hourlyPeriods = if ($HourlyData) { $HourlyData.properties.periods } else { @() }
@@ -4858,12 +5750,56 @@ if ($script:gfAdvancedMode) {
     $matchedIdx = Find-GfFavoriteIndex -Favorites $script:gfFavorites -City $city -State $state -Lat ([double]$lat) -Lon ([double]$lon)
     if ($matchedIdx -ge 0) {
         Set-GfAdvancedLastActiveFavorite -Index $matchedIdx -Favorite $script:gfFavorites[$matchedIdx]
+        $script:gfLoadedFavoriteIndex = $matchedIdx
     } elseif ($script:gfActiveFavoriteIndex -ge 0 -and $script:gfActiveFavoriteIndex -lt $script:gfFavorites.Count) {
         # Keep startup selection when coordinates differ slightly from favorite lat/lon
         $script:gfActiveFavorite = $script:gfFavorites[$script:gfActiveFavoriteIndex]
+        $script:gfLoadedFavoriteIndex = $script:gfActiveFavoriteIndex
     }
 }
 
+# Advanced: sign in session + decide whether shared weatherCache can skip initial NWS/AirNow/wildfire APIs
+$script:gfBootFromCache = $false
+if ($script:gfAdvancedMode) {
+    $bootCacheKey = $null
+    if ($script:gfActiveFavorite) {
+        $bootCacheKey = Get-GfWeatherCacheKeyFromFavorite -Favorite $script:gfActiveFavorite
+    }
+    if (-not $bootCacheKey) {
+        $bootCacheKey = Get-GfWeatherCacheKeyFromCoords -Lat ([double]$lat) -Lon ([double]$lon)
+    }
+    $bootMode = 'full'
+    if ($script:gfAdvancedProfile -and $script:gfAdvancedProfile.settings -and $script:gfAdvancedProfile.settings.currentMode) {
+        $bootMode = [string]$script:gfAdvancedProfile.settings.currentMode
+    }
+    Register-GfSession -ActiveCacheKey $bootCacheKey -Mode $bootMode
+    $isBootLeader = Test-GfSessionIsLeader -CacheKey $bootCacheKey
+    $bootEntry = Get-GfWeatherCacheEntry -CacheKey $bootCacheKey
+    if (-not $bootEntry -and -not $isBootLeader) {
+        Write-Host "Waiting for shared weather cache..." -ForegroundColor Yellow
+        for ($bootPoll = 0; $bootPoll -lt 20; $bootPoll++) {
+            Start-Sleep -Milliseconds 250
+            Update-GfSessionHeartbeat -ActiveCacheKey $bootCacheKey -Mode $bootMode
+            $isBootLeader = Test-GfSessionIsLeader -CacheKey $bootCacheKey
+            $bootEntry = Get-GfWeatherCacheEntry -CacheKey $bootCacheKey
+            if ($bootEntry -or $isBootLeader) { break }
+        }
+    }
+    if ($bootEntry -and (Restore-GfWeatherCacheSnapshot -Entry $bootEntry)) {
+        if ($bootEntry.city) { $city = [string]$bootEntry.city }
+        if ($bootEntry.state) { $state = [string]$bootEntry.state }
+        $freshBoot = Test-GfWeatherCacheFresh -Entry $bootEntry
+        if ($freshBoot -or -not $isBootLeader) {
+            $script:gfBootFromCache = $true
+            Write-Verbose "Bootstrapping from weatherCache key=$bootCacheKey fresh=$freshBoot leader=$isBootLeader"
+        } else {
+            # Leader + stale: hydrate then fall through to refresh APIs
+            Write-Verbose "Hydrated stale weatherCache; leader will refresh key=$bootCacheKey"
+        }
+    }
+}
+
+if (-not $script:gfBootFromCache) {
 # --- START NOAA STATIONS FETCH IN PARALLEL (doesn't depend on NWS data) ---
 Write-Verbose "Starting NOAA stations.json fetch in parallel"
 $noaaStationsJob = Start-Job -ScriptBlock {
@@ -4891,7 +5827,28 @@ $noaaStationsJob = Start-Job -ScriptBlock {
         }
     }
 } -ArgumentList $lat, $lon
+} else {
+    $noaaStationsJob = $null
+    $script:noaaStationsData = $null
+    $pointsData = $null
+    $timeZone = $script:timeZone
+    $radarStation = $script:radarStation
+    $elevationFeet = $script:elevationFeet
+    $forecastData = $script:forecastData
+    $hourlyData = $script:hourlyData
+    $alertsData = $script:alertsData
+    $aqiData = $script:aqiData
+    $latestObservationFeature = $null
+    $script:observationsData = $null
+    $script:observationsDataLoading = $false
+    $script:observationsPreloadAttempted = $false
+    $script:pointsDataForObservations = $null
+    $script:headersForObservations = $headers
+    $script:timeZoneForObservations = $timeZone
+    if (-not $script:dataFetchTime) { $script:dataFetchTime = Get-Date }
+}
 
+if (-not $script:gfBootFromCache) {
 # --- FETCH NWS POINTS DATA ---
 Write-Verbose "Starting API call for NWS points data."
 $pointsUrl = "https://api.weather.gov/points/$lat,$lon"
@@ -4943,6 +5900,8 @@ $gridY = $pointsData.properties.gridY
 # Extract additional location information
 $timeZone = $pointsData.properties.timeZone
 $radarStation = $pointsData.properties.radarStation
+$script:timeZone = $timeZone
+$script:radarStation = $radarStation
 
 Write-Verbose "Grid info: Office=$office (CWA), GridX=$gridX, GridY=$gridY"
 Write-Verbose "Location info: TimeZone=$timeZone, RadarStation=$radarStation"
@@ -5030,6 +5989,7 @@ $script:forecastData = $forecastData
 # Extract elevation from forecast data
 $elevationMeters = $forecastData.properties.elevation.value
 $elevationFeet = [math]::Round($elevationMeters * 3.28084, 0)
+$script:elevationFeet = $elevationFeet
 Write-Verbose "Elevation: $elevationMeters meters ($elevationFeet feet)"
 
 if ($hourlyJob.State -ne 'Completed') { 
@@ -5158,8 +6118,14 @@ if ($Observations.IsPresent) {
     }
 }
 
+}
+
 # --- TIMER TRACKING FOR AUTO-REFRESH ---
-$script:dataFetchTime = Get-Date
+# On cache boot, Keep restored dataFetchTime; otherwise stamp now after NWS load.
+if (-not $script:gfBootFromCache) {
+    $script:dataFetchTime = Get-Date
+}
+if (-not $script:dataFetchTime) { $script:dataFetchTime = Get-Date }
 $script:lastManualRefreshTime = $null
 $script:updatedLineCursorTop = $null
 $script:updatedLineInfoColor = "Blue"
@@ -5168,6 +6134,7 @@ $script:autoRefreshRetryAfter = $null
 $dataStaleThreshold = 300  # 5 minutes in seconds
 $script:autoRefreshFailureCooldownSeconds = 60
 
+if (-not $script:gfBootFromCache) {
 # --- FETCH ALERTS ---
 $alertsData = $null
 try {
@@ -5185,6 +6152,8 @@ if ($alertsData) {
     $alertsData = Optimize-NwsAlertsData -AlertsData $alertsData
 }
 $script:alertsData = $alertsData
+
+} # end if (-not $script:gfBootFromCache) initial NWS/AirNow path
 
 function Format-TextWrap {
     [CmdletBinding()]
@@ -5834,9 +6803,13 @@ function Get-MoonPhase {
 }
 
 # Build current conditions from hourly forecast, then merge latest station observation when fresh
-Set-CurrentConditionsFromHourly -HourlyData $hourlyData
-if ($latestObservationFeature) {
-    Merge-LatestObservationIntoCurrentConditions -Feature $latestObservationFeature -TimeZone $timeZone -HourlyData $hourlyData | Out-Null
+if (-not $script:gfBootFromCache) {
+    Set-CurrentConditionsFromHourly -HourlyData $hourlyData
+    if ($latestObservationFeature) {
+        Merge-LatestObservationIntoCurrentConditions -Feature $latestObservationFeature -TimeZone $timeZone -HourlyData $hourlyData | Out-Null
+    }
+} elseif ($script:hourlyData -and -not $script:currentTemp) {
+    Set-CurrentConditionsFromHourly -HourlyData $script:hourlyData
 }
 
 $currentPeriod = $script:currentPeriod
@@ -5883,15 +6856,21 @@ $script:pm25Aqi = $pm25Aqi
 $script:pm25CategoryNumber = $pm25CategoryNumber
 
 # Extract today's detailed forecast (first period in forecast data)
+$forecastData = if ($forecastData) { $forecastData } else { $script:forecastData }
+$hourlyData = if ($hourlyData) { $hourlyData } else { $script:hourlyData }
+$alertsData = if ($null -ne $alertsData) { $alertsData } else { $script:alertsData }
 $todayPeriod = $forecastData.properties.periods[0]
-$todayForecast = $todayPeriod.detailedForecast
-$todayPeriodName = $todayPeriod.name
+$todayForecast = if ($script:todayForecast) { $script:todayForecast } else { $todayPeriod.detailedForecast }
+$todayPeriodName = if ($script:todayPeriodName) { $script:todayPeriodName } else { $todayPeriod.name }
 
 # Extract tomorrow's detailed forecast (second period in forecast data)
 $tomorrowPeriod = $forecastData.properties.periods[1]
-$tomorrowForecast = $tomorrowPeriod.detailedForecast
-$tomorrowPeriodName = $tomorrowPeriod.name
-
+$tomorrowForecast = if ($script:tomorrowForecast) { $script:tomorrowForecast } else { $tomorrowPeriod.detailedForecast }
+$tomorrowPeriodName = if ($script:tomorrowPeriodName) { $script:tomorrowPeriodName } else { $tomorrowPeriod.name }
+$script:todayForecast = $todayForecast
+$script:todayPeriodName = $todayPeriodName
+$script:tomorrowForecast = $tomorrowForecast
+$script:tomorrowPeriodName = $tomorrowPeriodName
 
 
 # Function: Extract numeric wind speed from wind speed string
@@ -6011,6 +6990,7 @@ function Sync-LocalCurrentConditionsFromScript {
     Set-Variable -Scope 1 -Name windGust -Value $script:windGust
     Set-Variable -Scope 1 -Name currentIcon -Value $script:currentIcon
     Set-Variable -Scope 1 -Name currentPeriod -Value $script:currentPeriod
+    Set-Variable -Scope 1 -Name currentTimeLocal -Value $script:currentTimeLocal
 
     $isDaytime = Get-IsHourDaytimeForIcon -PeriodTime (Get-CurrentConditionsIconReferenceTime) -Sunrise $script:sunriseTime -Sunset $script:sunsetTime -PolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay
     Set-Variable -Scope 1 -Name isCurrentlyDaytime -Value $isDaytime
@@ -10439,12 +11419,19 @@ if ($VerbosePreference -ne 'Continue') {
 
 # --- FETCH WILDFIRES (NIFC WFIGS, soft-fail; after helpers are defined) ---
 if (-not $script:wildFireIncidents) { $script:wildFireIncidents = @() }
-if (-not $script:wildFireEnabled) {
+if ($script:gfBootFromCache) {
+    Write-Verbose "Wildfire: using weatherCache snapshot ($($script:wildFireIncidents.Count) incidents)"
+} elseif (-not $script:wildFireEnabled) {
     $script:wildFireIncidents = @()
     Write-Verbose "Wildfire disabled (-wf 0 or radius 0); skipping NIFC fetch"
 } else {
     Write-Verbose "Wildfire: enabled with radius $($script:WILDFIRE_RADIUS_MILES) mi at lat=$lat lon=$lon"
     $script:wildFireIncidents = @(Invoke-NifcWildFireLaunchFetch -Lat ([double]$lat) -Lon ([double]$lon) -TimeZoneId $timeZone)
+}
+
+# After full initial fetch path (including wildfire), persist shared cache for co-located sessions
+if (-not $script:gfBootFromCache -and $script:gfAdvancedMode -and $script:gfActiveCacheKey) {
+    Save-GfActiveWeatherCacheIfLeader -CacheKey $script:gfActiveCacheKey -LocationQuery $Location -Lat ([double]$lat) -Lon ([double]$lon) -City $city -State $state
 }
 
 # Determine which sections to display based on command-line options
@@ -10541,7 +11528,7 @@ if ($Alerts.IsPresent) {
     # Alerts-only mode
     Show-WeatherAlerts -AlertsData $alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $true -TimeZone $timeZone -City $city -ShowCityInTitle $true -ShowEmptyMessage $true
     if ($NoInteractive.IsPresent) {
-        exit 0
+        Exit-GfWithSessionCleanup -Code 0
     }
 } elseif ($Rain.IsPresent) {
     # Rain mode: Show only rain likelihood forecast with sparklines
@@ -10554,7 +11541,7 @@ if ($Alerts.IsPresent) {
     Show-SevenDayForecast -ForecastData $forecastData -TitleColor $titleColor -DefaultColor $defaultColor -AlertColor $alertColor -SunriseTime $sunriseTime -SunsetTime $sunsetTime -IsEnhancedMode $true -City $city -ShowCityInTitle $true -Latitude $lat -Longitude $lon -TimeZone $timeZone
     # Exit only if -x flag is present, otherwise continue to interactive mode
     if ($NoInteractive.IsPresent) {
-        exit 0
+        Exit-GfWithSessionCleanup -Code 0
     }
 } elseif ($Observations.IsPresent) {
     # Observations mode: Show historical observations
@@ -10565,7 +11552,7 @@ if ($Alerts.IsPresent) {
     }
     # Exit only if -x flag is present, otherwise continue to interactive mode
     if ($NoInteractive.IsPresent) {
-        exit 0
+        Exit-GfWithSessionCleanup -Code 0
     }
 } else {
     $isTerseLike = $Terse.IsPresent -or $TerseAlert.IsPresent
@@ -11008,6 +11995,26 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                 $timeSinceLastFetch = (Get-Date) - $script:dataFetchTime
                 $autoRefreshCooldownActive = ($null -ne $script:autoRefreshRetryAfter -and (Get-Date) -lt $script:autoRefreshRetryAfter)
                 if ($timeSinceLastFetch.TotalSeconds -gt $dataStaleThreshold -and -not $autoRefreshCooldownActive) {
+                    $mayFetch = $true
+                    if ($script:gfSessionId -and $script:gfActiveCacheKey) {
+                        $mayFetch = Test-GfSessionIsLeader -CacheKey $script:gfActiveCacheKey
+                    }
+                    if (-not $mayFetch) {
+                        # Follower: pull shared cache instead of hitting APIs
+                        $entry = Get-GfWeatherCacheEntry -CacheKey $script:gfActiveCacheKey
+                        if ($entry -and (Test-GfWeatherCacheEntryNewerThanLocal -Entry $entry) -and (Restore-GfWeatherCacheSnapshot -Entry $entry)) {
+                            Sync-LocalCurrentConditionsFromScript -DefaultColor $defaultColor -AlertColor $alertColor
+                            $todayForecast = $script:todayForecast
+                            $todayPeriodName = $script:todayPeriodName
+                            $tomorrowForecast = $script:tomorrowForecast
+                            $tomorrowPeriodName = $script:tomorrowPeriodName
+                            Clear-HostWithDelay
+                            Show-GfInteractiveCurrentView
+                        } else {
+                            # Cache not newer yet — avoid redraw spam while still stale locally
+                            $script:autoRefreshRetryAfter = (Get-Date).AddSeconds($script:gfSessionHeartbeatSeconds)
+                        }
+                    } else {
                     Write-Verbose "Auto-refresh triggered - data is stale ($([math]::Round($timeSinceLastFetch.TotalSeconds, 1)) seconds old)"
                     # A prior failed attempt left "Refresh failed" / "retry in 60s" under the pane.
                     # Redraw first so the next try starts clean at "Refreshing weather data..." only.
@@ -11018,6 +12025,9 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers -TimeZone $timeZone -UseRetryLogic $false
                     if ($refreshSuccess) {
                         $script:autoRefreshRetryAfter = $null
+                        if ($script:gfActiveCacheKey) {
+                            Save-GfActiveWeatherCacheIfLeader -CacheKey $script:gfActiveCacheKey -LocationQuery $Location -Lat ([double]$lat) -Lon ([double]$lon) -City $city -State $state
+                        }
                         # Recalculate moon phase and sunrise/sunset for current time
                         $moonPhaseInfo = Get-MoonPhase -Date (Get-Date)
                         # Use location's current date (not user's local date) for sunrise/sunset
@@ -11043,6 +12053,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         # Keep showing prior data; cooldown stops a tight retry loop while NWS is down (e.g. HTTP 500)
                         $script:autoRefreshRetryAfter = (Get-Date).AddSeconds($script:autoRefreshFailureCooldownSeconds)
                         Write-Host "Auto-refresh will retry in $($script:autoRefreshFailureCooldownSeconds)s." -ForegroundColor Yellow
+                    }
                     }
                 }
             }
@@ -11072,10 +12083,78 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                 }
             }
             
-            # Advanced Tab preview: commit favorite load after 600ms idle settle
-            if (Complete-GfAdvancedFavoritePendingLoadIfDue) {
+            # Advanced Tab preview: commit favorite load after settle idle
+            $pendingFavIdx = Complete-GfAdvancedFavoritePendingLoadIfDue
+            if ($null -ne $pendingFavIdx) {
+                $sameLoaded = ($script:gfLoadedFavoriteIndex -ge 0 -and [int]$pendingFavIdx -eq $script:gfLoadedFavoriteIndex)
+                $hideBarAfter = [bool]$script:gfTabPreviewHideBarAfterSettle
+                $script:gfTabPreviewHideBarAfterSettle = $false
+
+                # If the location bar was off when Tabbing started, drop the temporary
+                # preview bar as soon as settle fires (before any switch/load work).
+                if ($hideBarAfter -or $sameLoaded) {
+                    Clear-HostWithDelay
+                    Show-GfInteractiveCurrentView
+                    if ($sameLoaded) { continue }
+                }
+
                 Write-Host "`nSwitching to favorite..." -ForegroundColor Yellow
-                break
+                $modeName = Get-GfInteractiveModeName -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsTerseAlertMode $isTerseAlertMode -IsAlertsMode $isAlertsMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode
+                $sw = Switch-GfAdvancedFavoriteInProcess -FavoriteIndex ([int]$pendingFavIdx) -Headers $headers -Mode $modeName
+                if ($sw -and $sw.Success -and $sw.Restart) {
+                    break
+                }
+                if ($sw -and $sw.Success) {
+                    $lat = $sw.Lat
+                    $lon = $sw.Lon
+                    $city = $sw.City
+                    $state = $sw.State
+                    if ($sw.TimeZone) { $timeZone = $sw.TimeZone; $script:timeZone = $sw.TimeZone }
+                    Sync-LocalCurrentConditionsFromScript -DefaultColor $defaultColor -AlertColor $alertColor
+                    $todayForecast = $script:todayForecast
+                    $todayPeriodName = $script:todayPeriodName
+                    $tomorrowForecast = $script:tomorrowForecast
+                    $tomorrowPeriodName = $script:tomorrowPeriodName
+                    $moonPhaseInfo = Get-MoonPhase -Date (Get-Date)
+                    Clear-HostWithDelay
+                    Show-GfInteractiveCurrentView
+                }
+                continue
+            }
+
+            # Session heartbeat + follower cache poll / leadership re-elect
+            if ($null -eq $script:gfNextSessionHeartbeat -or (Get-Date) -ge $script:gfNextSessionHeartbeat) {
+                $modeName = Get-GfInteractiveModeName -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsTerseAlertMode $isTerseAlertMode -IsAlertsMode $isAlertsMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode
+                if ($script:gfSessionId) {
+                    Update-GfSessionHeartbeat -ActiveCacheKey $script:gfActiveCacheKey -Mode $modeName
+                    $wasLeader = $script:gfIsLocationLeader
+                    $isLeaderNow = Test-GfSessionIsLeader -CacheKey $script:gfActiveCacheKey
+                    if ($script:gfActiveCacheKey) {
+                        $entry = Get-GfWeatherCacheEntry -CacheKey $script:gfActiveCacheKey
+                        if ($entry -and (Test-GfWeatherCacheEntryNewerThanLocal -Entry $entry) -and (Restore-GfWeatherCacheSnapshot -Entry $entry)) {
+                            Sync-LocalCurrentConditionsFromScript -DefaultColor $defaultColor -AlertColor $alertColor
+                            $todayForecast = $script:todayForecast
+                            $todayPeriodName = $script:todayPeriodName
+                            $tomorrowForecast = $script:tomorrowForecast
+                            $tomorrowPeriodName = $script:tomorrowPeriodName
+                            Clear-HostWithDelay
+                            Show-GfInteractiveCurrentView
+                        }
+                        # Newly elected leader with stale cache should refresh
+                        if ($isLeaderNow -and -not $wasLeader -and $script:gfActiveCacheKey) {
+                            $entry = Get-GfWeatherCacheEntry -CacheKey $script:gfActiveCacheKey
+                            if (-not $entry -or -not (Test-GfWeatherCacheFresh -Entry $entry)) {
+                                $ok = Update-WeatherData -Lat ([string]$lat) -Lon ([string]$lon) -Headers $headers -TimeZone $timeZone -UseRetryLogic $false
+                                if ($ok) {
+                                    Save-GfActiveWeatherCacheIfLeader -CacheKey $script:gfActiveCacheKey -LocationQuery $Location -Lat ([double]$lat) -Lon ([double]$lon) -City $city -State $state
+                                    Sync-LocalCurrentConditionsFromScript -DefaultColor $defaultColor -AlertColor $alertColor
+                                    Clear-HostWithDelay
+                                    Show-GfInteractiveCurrentView
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             # While a favorite switch is in flight, keep flushing input and ignore commands
@@ -11107,7 +12186,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     break
                 }
 
-                # Tab / Shift+Tab: visual nudge + re-arm 600ms settle (drain queued Tabs in one pass)
+                # Tab / Shift+Tab: visual nudge + re-arm settle (drain queued Tabs in one pass)
                 if ($keyInfo.Key -eq [System.ConsoleKey]::Tab) {
                     $hasAdvFavs = $script:gfAdvancedMode -and @($script:gfFavorites).Count -gt 0
                     if ($hasAdvFavs) {
@@ -11133,9 +12212,25 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                 elseif ($script:gfAdvancedMode -and (Get-GfAdvancedFavoriteSlotIndexFromKey -KeyInfo $keyInfo) -ge 0) {
                     $slotIdx = Get-GfAdvancedFavoriteSlotIndexFromKey -KeyInfo $keyInfo
                     if ($slotIdx -lt @($script:gfFavorites).Count) {
-                        if (Request-GfAdvancedFavoriteRestart -FavoriteIndex $slotIdx) {
-                            Write-Host "`nSwitching to favorite slot $($slotIdx + 1)..." -ForegroundColor Yellow
+                        Write-Host "`nSwitching to favorite slot $($slotIdx + 1)..." -ForegroundColor Yellow
+                        $modeName = Get-GfInteractiveModeName -IsHourlyMode $isHourlyMode -IsRainMode $isRainMode -IsWindMode $isWindMode -IsTerseMode $isTerseMode -IsTerseAlertMode $isTerseAlertMode -IsAlertsMode $isAlertsMode -IsDailyMode $isDailyMode -IsObservationsMode $isObservationsMode
+                        $sw = Switch-GfAdvancedFavoriteInProcess -FavoriteIndex $slotIdx -Headers $headers -Mode $modeName
+                        if ($sw -and $sw.Success -and $sw.Restart) {
                             break
+                        }
+                        if ($sw -and $sw.Success) {
+                            $lat = $sw.Lat
+                            $lon = $sw.Lon
+                            $city = $sw.City
+                            $state = $sw.State
+                            if ($sw.TimeZone) { $timeZone = $sw.TimeZone; $script:timeZone = $sw.TimeZone }
+                            Sync-LocalCurrentConditionsFromScript -DefaultColor $defaultColor -AlertColor $alertColor
+                            $todayForecast = $script:todayForecast
+                            $todayPeriodName = $script:todayPeriodName
+                            $tomorrowForecast = $script:tomorrowForecast
+                            $tomorrowPeriodName = $script:tomorrowPeriodName
+                            Clear-HostWithDelay
+                            Show-GfInteractiveCurrentView
                         }
                     }
                 }
@@ -11404,8 +12499,21 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                 }
                 { $keyInfo.Key -eq 'G' } { # G key - Refresh weather data (case-insensitive physical key)
                     Write-Host "`nRefreshing..." -ForegroundColor Yellow
-                    $timeSinceLastFetch = (Get-Date) - $script:dataFetchTime
+                    $mayFetch = $true
+                    if ($script:gfSessionId -and $script:gfActiveCacheKey) {
+                        $mayFetch = Test-GfSessionIsLeader -CacheKey $script:gfActiveCacheKey
+                    }
                     $refreshSuccess = $false
+                    if (-not $mayFetch) {
+                        Write-Verbose "G key: follower — re-read shared weatherCache"
+                        $entry = Get-GfWeatherCacheEntry -CacheKey $script:gfActiveCacheKey
+                        if ($entry -and (Restore-GfWeatherCacheSnapshot -Entry $entry)) {
+                            $refreshSuccess = $true
+                        } else {
+                            Write-Host "Waiting for leader cache..." -ForegroundColor Yellow
+                        }
+                    } else {
+                    $timeSinceLastFetch = (Get-Date) - $script:dataFetchTime
                     if ($timeSinceLastFetch.TotalSeconds -le $dataStaleThreshold) {
                         Write-Verbose "G key: forecast fresh — light refresh (latest observation only)"
                         $refreshSuccess = Update-CurrentObservationOnly -Lat $lat -Lon $lon -Headers $headers -TimeZone $timeZone -LocationKey $script:locationKey
@@ -11417,8 +12525,17 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                         Write-Verbose "G key: forecast stale — full refresh"
                         $refreshSuccess = Update-WeatherData -Lat $lat -Lon $lon -Headers $headers -TimeZone $timeZone -UseRetryLogic $true
                     }
+                    if ($refreshSuccess -and $script:gfActiveCacheKey) {
+                        Save-GfActiveWeatherCacheIfLeader -CacheKey $script:gfActiveCacheKey -LocationQuery $Location -Lat ([double]$lat) -Lon ([double]$lon) -City $city -State $state
+                    }
+                    }
                     if ($refreshSuccess) {
-                        $script:lastManualRefreshTime = Get-Date
+                        # Shared-cache sessions: Updated: comes from dataFetchTime / NWS stamp in cache
+                        if (-not ($script:gfSessionId -and $script:gfActiveCacheKey)) {
+                            $script:lastManualRefreshTime = Get-Date
+                        } else {
+                            $script:lastManualRefreshTime = $null
+                        }
                         $script:autoRefreshRetryAfter = $null
                         # Recalculate moon phase and sunrise/sunset for current time (using location's date)
                         $moonPhaseInfo = Get-MoonPhase -Date (Get-Date)
@@ -11523,7 +12640,9 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
         }
         $script:observationsPreloadJob = $null
         $script:noaaStationsJob = $null
+        Unregister-GfSession
     }
 }
 
+Unregister-GfSession
 Invoke-GfAdvancedRestartIfRequested
