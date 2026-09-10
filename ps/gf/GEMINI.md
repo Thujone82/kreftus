@@ -112,17 +112,24 @@ weatherCache: {
     },
     todayForecast, todayPeriodName, tomorrowForecast, tomorrowPeriodName,
     aqiData?, wildFireIncidents?,
+    wildFireQueried?,                 # true after a wildfire-capable leader queried feeds
     sunriseTime?, sunsetTime?         # location-local times stored as UTC instants
   }
 }
 sessions: {
   "<sessionId>": {
     sessionId: guid,
-    startedAt: ISO-8601 UTC,          # immutable; longest-running sort key
+    startedAt: ISO-8601 UTC,          # immutable; secondary sort after capability
     lastHeartbeat: ISO-8601 UTC,
     pid: number,
     activeCacheKey: string|null,      # favorite uid/key or "lat,lon"
-    mode: string                      # full|rain|wind|… informational
+    mode: string,                     # full|rain|wind|… informational
+    capabilities: {                   # elect preferred API owner
+      wildfire: bool,
+      wildfireRadius: number,
+      aqi: bool,
+      score: number                   # 1 + 4*wildfire + 2*aqi
+    }
   }
 }
 ```
@@ -165,8 +172,12 @@ Prune runs on sign-in, heartbeat, and before every election / fetch decision (`P
 
 1. Prune stale sessions.
 2. Candidates = sessions with `activeCacheKey -eq K` (only sessions **currently viewing** K).
-3. Leader = earliest `startedAt`, then lowest `sessionId`.
+3. Leader = highest **capability score**, then earliest `startedAt`, then lowest `sessionId`.
+   - Score: base 1 + 4 if wildfire enabled (`-wf` > 0) + 2 if `AirNowAPI` is set.
+   - A `-wf 0` session yields immediately when a wildfire-capable peer registers/heartbeats.
 4. Only that session may call NWS / AirNow / wildfire for K.
+5. Capable leaders that inherit `wildFireQueried != true` fetch wildfires and rewrite cache (even if forecast is still fresh).
+6. Leaders with wildfire **disabled** must not overwrite `wildFireIncidents` / `wildFireQueried` (preserve a prior capable leader’s data).
 
 **Do not** persist a sticky leader id — Tab-away cannot leave an appointed ghost.
 

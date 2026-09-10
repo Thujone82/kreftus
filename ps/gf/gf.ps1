@@ -1568,6 +1568,12 @@ $script:gfActiveCacheKey = $null
 $script:gfNextSessionHeartbeat = $null
 $script:gfIsLocationLeader = $false
 $script:gfCacheWrittenAt = $null
+# Authoritative UTC instant for Updated: age (shared cache). Only advanced on full
+# Update-WeatherData / initial NWS fetch — never on light obs refresh or follower paint.
+$script:gfCacheFetchedAtUtc = $null
+# Last lat/lon used to pick $script:noaaStation (invalidate on location change)
+$script:noaaStationQueryLat = $null
+$script:noaaStationQueryLon = $null
 
 function Convert-GfCacheTimestampToUtcDateTime {
     # ConvertFrom-Json turns ISO-8601 "...Z" stamps into DateTime Kind=Utc. Casting those
@@ -1728,6 +1734,72 @@ function Prune-GfWeatherCacheToFavoritesInProfile {
     }
 }
 
+function Get-GfSessionCapabilityInfo {
+    # Higher score = preferred API leader (more complete shared cache).
+    $wildfire = [bool]$script:wildFireEnabled
+    $aqi = -not [string]::IsNullOrWhiteSpace([string]$env:AirNowAPI)
+    $score = 1
+    if ($wildfire) { $score += 4 }
+    if ($aqi) { $score += 2 }
+    return [ordered]@{
+        wildfire       = $wildfire
+        wildfireRadius = [int]$script:WILDFIRE_RADIUS_MILES
+        aqi            = $aqi
+        score          = $score
+    }
+}
+
+function Get-GfSessionCapabilityScoreFromSession {
+    param([object]$Session)
+    if (-not $Session) { return 0 }
+    try {
+        if ($null -ne $Session.capabilities -and $null -ne $Session.capabilities.score) {
+            return [int]$Session.capabilities.score
+        }
+    } catch {}
+    $score = 1
+    try {
+        if ($Session.capabilities -and [bool]$Session.capabilities.wildfire) { $score += 4 }
+        if ($Session.capabilities -and [bool]$Session.capabilities.aqi) { $score += 2 }
+    } catch {}
+    return $score
+}
+
+function Clear-GfNoaaStationCache {
+    $script:noaaStation = $null
+    $script:noaaStationQueryLat = $null
+    $script:noaaStationQueryLon = $null
+}
+
+function Test-GfNoaaStationMatchesLocation {
+    param(
+        [object]$Station,
+        [double]$Lat,
+        [double]$Lon
+    )
+    if (-not $Station) { return $false }
+    $qLat = $script:noaaStationQueryLat
+    $qLon = $script:noaaStationQueryLon
+    if ($null -eq $qLat -or $null -eq $qLon) { return $false }
+    return ([math]::Abs([double]$qLat - $Lat) -lt 0.0001 -and [math]::Abs([double]$qLon - $Lon) -lt 0.0001)
+}
+
+function Set-GfNoaaStationForLocation {
+    param(
+        [object]$Station,
+        [double]$Lat,
+        [double]$Lon
+    )
+    $script:noaaStation = $Station
+    if ($Station) {
+        $script:noaaStationQueryLat = $Lat
+        $script:noaaStationQueryLon = $Lon
+    } else {
+        $script:noaaStationQueryLat = $null
+        $script:noaaStationQueryLon = $null
+    }
+}
+
 function Get-GfSessionLeaderIdFromProfile {
     param(
         [object]$Profile,
@@ -1743,7 +1815,9 @@ function Get-GfSessionLeaderIdFromProfile {
         $candidates.Add($sess)
     }
     if ($candidates.Count -eq 0) { return $null }
+    # Prefer highest capability (wildfire/AQI), then earliest startedAt, then sessionId
     $sorted = $candidates | Sort-Object `
+        @{ Expression = { Get-GfSessionCapabilityScoreFromSession -Session $_ }; Descending = $true }, `
         @{ Expression = {
                 $started = Convert-GfCacheTimestampToUtcDateTime -Value $_.startedAt
                 if ($null -ne $started) { $started } else { [datetime]::MaxValue }
@@ -1774,8 +1848,21 @@ function Test-GfSessionIsLeader {
         }
     }
     $script:gfIsLocationLeader = ($null -ne $leaderId -and $leaderId -eq $script:gfSessionId)
+    # Only self-elect when nobody else is registered for this key (avoid multi-leader
+    # fetchedAt resets that make followers stick on Updated: just now).
     if (-not $script:gfIsLocationLeader -and $null -eq $leaderId -and $script:gfActiveCacheKey -eq $key) {
-        $script:gfIsLocationLeader = $true
+        $profile = Get-GfAdvancedProfile
+        $otherCount = 0
+        if ($profile -and $profile.sessions) {
+            foreach ($sid in @($profile.sessions.Keys)) {
+                if ([string]$sid -eq [string]$script:gfSessionId) { continue }
+                $sess = $profile.sessions[$sid]
+                if ($sess -and [string]$sess.activeCacheKey -eq [string]$key) { $otherCount++ }
+            }
+        }
+        if ($otherCount -eq 0) {
+            $script:gfIsLocationLeader = $true
+        }
     }
     return [bool]$script:gfIsLocationLeader
 }
@@ -1792,6 +1879,7 @@ function Register-GfSession {
     $script:gfActiveCacheKey = $ActiveCacheKey
     $sid = $script:gfSessionId
     $started = $script:gfSessionStartedAt
+    $caps = Get-GfSessionCapabilityInfo
     $null = Invoke-GfAdvancedProfileLocked -CreateIfMissing -Action {
         param($profile)
         Prune-GfStaleSessionsInProfile -Profile $profile | Out-Null
@@ -1802,6 +1890,7 @@ function Register-GfSession {
             pid            = $PID
             activeCacheKey = $ActiveCacheKey
             mode           = $Mode
+            capabilities   = $caps
         }
     }
     $script:gfNextSessionHeartbeat = (Get-Date).AddSeconds($script:gfSessionHeartbeatSeconds)
@@ -1827,6 +1916,7 @@ function Update-GfSessionHeartbeat {
     $sid = $script:gfSessionId
     $key = $script:gfActiveCacheKey
     $modeVal = if ($Mode) { $Mode } else { 'full' }
+    $caps = Get-GfSessionCapabilityInfo
     $null = Invoke-GfAdvancedProfileLocked -Action {
         param($profile)
         Prune-GfStaleSessionsInProfile -Profile $profile | Out-Null
@@ -1838,6 +1928,7 @@ function Update-GfSessionHeartbeat {
                 pid            = $PID
                 activeCacheKey = $key
                 mode           = $modeVal
+                capabilities   = $caps
             }
         } else {
             $sess = $profile.sessions[$sid]
@@ -1845,6 +1936,7 @@ function Update-GfSessionHeartbeat {
             $sess['pid'] = $PID
             $sess['activeCacheKey'] = $key
             $sess['mode'] = $modeVal
+            $sess['capabilities'] = $caps
             $profile.sessions[$sid] = $sess
         }
     }
@@ -1952,10 +2044,18 @@ function ConvertTo-GfWeatherCacheSnapshot {
         [string]$City = $null,
         [string]$State = $null
     )
-    $fetchedAt = if ($script:dataFetchTime) {
-        ([datetime]$script:dataFetchTime).ToUniversalTime().ToString('o')
-    } else {
-        (Get-Date).ToUniversalTime().ToString('o')
+    # Prefer stable shared fetch stamp; do not bump fetchedAt on light obs cache writes
+    $fetchedAt = $null
+    if ($null -ne $script:gfCacheFetchedAtUtc) {
+        try {
+            $fetchedAt = ([datetime]$script:gfCacheFetchedAtUtc).ToUniversalTime().ToString('o')
+        } catch { $fetchedAt = $null }
+    }
+    if (-not $fetchedAt -and $script:dataFetchTime) {
+        $fetchedAt = ([datetime]$script:dataFetchTime).ToUniversalTime().ToString('o')
+    }
+    if (-not $fetchedAt) {
+        $fetchedAt = (Get-Date).ToUniversalTime().ToString('o')
     }
     $wildFireForCache = @()
     if ($null -ne $script:wildFireIncidents) {
@@ -2003,6 +2103,7 @@ function ConvertTo-GfWeatherCacheSnapshot {
         tomorrowPeriodName   = $script:tomorrowPeriodName
         aqiData              = $script:aqiData
         wildFireIncidents    = $wildFireForCache
+        wildFireQueried      = [bool]$script:wildFireEnabled
         sunriseTime          = Convert-GfLocationLocalDateTimeToUtcString -LocationLocalDateTime $script:sunriseTime
         sunsetTime           = Convert-GfLocationLocalDateTimeToUtcString -LocationLocalDateTime $script:sunsetTime
     }
@@ -2029,6 +2130,27 @@ function Save-GfWeatherCacheEntry {
         if ($null -ne $leaderId -and $script:gfSessionId -and $leaderId -ne $script:gfSessionId) {
             return $false
         }
+        # -wf 0 leaders must not wipe wildfire data captured by a capable peer
+        if (-not $script:wildFireEnabled) {
+            $existing = $null
+            foreach ($k in @($profile.weatherCache.Keys)) {
+                if ([string]$k -eq [string]$CacheKey) { $existing = $profile.weatherCache[$k]; break }
+            }
+            if ($existing) {
+                if ($null -ne $existing.wildFireIncidents) {
+                    $Snapshot['wildFireIncidents'] = @($existing.wildFireIncidents | Where-Object { $null -ne $_ })
+                }
+                if ($null -ne $existing.wildFireQueried) {
+                    $Snapshot['wildFireQueried'] = $existing.wildFireQueried
+                } else {
+                    $Snapshot['wildFireQueried'] = $false
+                }
+            } else {
+                $Snapshot['wildFireQueried'] = $false
+            }
+        } else {
+            $Snapshot['wildFireQueried'] = $true
+        }
         $profile.weatherCache[$CacheKey] = $Snapshot
         Prune-GfWeatherCacheToFavoritesInProfile -Profile $profile
         return $true
@@ -2049,11 +2171,14 @@ function Restore-GfWeatherCacheSnapshot {
         if ($Entry.fetchedAt) {
             $fetchedUtc = Convert-GfCacheTimestampToUtcDateTime -Value $Entry.fetchedAt
             if ($null -ne $fetchedUtc) {
+                $script:gfCacheFetchedAtUtc = $fetchedUtc
                 $script:dataFetchTime = $fetchedUtc.ToLocalTime()
             } else {
+                $script:gfCacheFetchedAtUtc = [DateTime]::SpecifyKind((Get-Date).ToUniversalTime(), [DateTimeKind]::Utc)
                 $script:dataFetchTime = Get-Date
             }
         } else {
+            $script:gfCacheFetchedAtUtc = [DateTime]::SpecifyKind((Get-Date).ToUniversalTime(), [DateTimeKind]::Utc)
             $script:dataFetchTime = Get-Date
         }
         # Shared Updated: line must track cache fetch time, not a local G press
@@ -3344,6 +3469,7 @@ function Switch-GfAdvancedFavoriteInProcess {
         }
 
         Set-GfSessionActiveCacheKey -CacheKey $cacheKey -Mode $Mode
+        Clear-GfNoaaStationCache
         $isLeader = Test-GfSessionIsLeader -CacheKey $cacheKey
         $entry = Get-GfWeatherCacheEntry -CacheKey $cacheKey
         $fromCache = $false
@@ -3355,6 +3481,13 @@ function Switch-GfAdvancedFavoriteInProcess {
                 if (-not $cityV -and $entry.city) { $cityV = [string]$entry.city }
                 if (-not $stateV -and $entry.state) { $stateV = [string]$entry.state }
                 if ($entry.timeZone) { $script:timeZone = $entry.timeZone }
+                # Prefer coordinates from the favorite; fall back to cached lat/lon
+                if (($null -eq $latV -or $null -eq $lonV) -and $null -ne $entry.lat -and $null -ne $entry.lon) {
+                    try {
+                        $latV = [double]$entry.lat
+                        $lonV = [double]$entry.lon
+                    } catch {}
+                }
             }
         }
 
@@ -3420,6 +3553,28 @@ function Switch-GfAdvancedFavoriteInProcess {
         if (-not $cityV) { $cityV = 'Unknown' }
         if (-not $stateV) { $stateV = '' }
 
+        # Resolve NOAA for the destination coords (never keep previous favorite's station)
+        try {
+            if ($Noaa -and $Noaa.Trim() -ne "") {
+                Set-GfNoaaStationForLocation -Station (Get-NoaaTideStationById -StationId $Noaa.Trim() -Lat $latV -Lon $lonV) -Lat $latV -Lon $lonV
+            } else {
+                $preFetched = $null
+                if ($script:noaaStationsData -and $script:noaaStationsData.Success) {
+                    $preFetched = $script:noaaStationsData.Stations
+                }
+                $station = Get-NoaaTideStation -Lat $latV -Lon $lonV -PreFetchedStations $preFetched
+                Set-GfNoaaStationForLocation -Station $station -Lat $latV -Lon $lonV
+                if ($script:noaaStation -and $script:timeZone) {
+                    try {
+                        $script:noaaStation.tideData = Get-NoaaTidePredictions -StationId $script:noaaStation.stationId -TimeZone $script:timeZone
+                    } catch {}
+                }
+            }
+        } catch {
+            Write-Verbose "NOAA station refresh after favorite switch failed: $($_.Exception.Message)"
+            Clear-GfNoaaStationCache
+        }
+
         return [pscustomobject]@{
             Success   = $true
             Restart   = $false
@@ -3428,6 +3583,8 @@ function Switch-GfAdvancedFavoriteInProcess {
             City      = $cityV
             State     = $stateV
             TimeZone  = $script:timeZone
+            ElevationFeet = $script:elevationFeet
+            RadarStation  = $script:radarStation
             FromCache = $fromCache
             Refreshed = $refreshed
             CacheKey  = $cacheKey
@@ -3823,13 +3980,31 @@ function Get-NwsObservationInstantUtc {
     return $null
 }
 
+function Sync-GfSharedCacheFetchedAtUtcFromDisk {
+    # Followers: re-read fetchedAt so Updated: tracks the leader's last full API call,
+    # even if a local dataFetchTime was stamped with Get-Date.
+    if (-not ($script:gfSessionId -and $script:gfActiveCacheKey)) { return }
+    try {
+        $entry = Get-GfWeatherCacheEntry -CacheKey $script:gfActiveCacheKey
+        if (-not $entry -or -not $entry.fetchedAt) { return }
+        $utc = Convert-GfCacheTimestampToUtcDateTime -Value $entry.fetchedAt
+        if ($null -eq $utc) { return }
+        $script:gfCacheFetchedAtUtc = $utc
+        $script:dataFetchTime = $utc.ToLocalTime()
+        $script:lastManualRefreshTime = $null
+    } catch {}
+}
+
 function Get-UpdatedFetchDisplayTime {
-    $displayTime = $script:dataFetchTime
-    # When sharing weatherCache across sessions, Updated: must match the cache
-    # fetchedAt for every client — do not let a local G stamp override it.
+    # Shared-cache sessions: Updated: age comes from gfCacheFetchedAtUtc (cache fetchedAt),
+    # never from a local Get-Date / G stamp on a follower.
     if ($script:gfSessionId -and $script:gfActiveCacheKey) {
-        return $displayTime
+        if ($null -ne $script:gfCacheFetchedAtUtc) {
+            return [datetime]$script:gfCacheFetchedAtUtc
+        }
+        return $script:dataFetchTime
     }
+    $displayTime = $script:dataFetchTime
     if ($null -ne $script:lastManualRefreshTime) {
         if ($null -eq $displayTime -or $script:lastManualRefreshTime -gt $displayTime) {
             $displayTime = $script:lastManualRefreshTime
@@ -3843,7 +4018,11 @@ function Get-UpdatedConditionsLineText {
     if ($null -eq $displayFetchTime) {
         return "Updated: N/A"
     }
-    $fetchUtc = Convert-DateTimeToUtcInstant -DateTime $displayFetchTime -AlreadyLocationLocal:$false
+    $fetchUtc = if ($displayFetchTime -is [datetime] -and $displayFetchTime.Kind -eq [DateTimeKind]::Utc) {
+        $displayFetchTime
+    } else {
+        Convert-DateTimeToUtcInstant -DateTime $displayFetchTime -AlreadyLocationLocal:$false
+    }
     $fetchSeconds = Get-AgeSecondsFromUtcInstant -InstantUtc $fetchUtc
 
     # In non-interactive (-x) mode the line is printed once and never re-ages, so show an
@@ -3982,6 +4161,11 @@ function Update-UpdatedConditionsLineInPlace {
     if (-not (Test-UpdatedConditionsLineAtCursor -CursorTop $script:updatedLineCursorTop)) {
         Clear-UpdatedConditionsLineCursor
         return $false
+    }
+
+    # Shared-cache: refresh fetchedAt from disk so follower Updated: ages with the leader
+    if ($script:gfSessionId -and $script:gfActiveCacheKey) {
+        Sync-GfSharedCacheFetchedAtUtcFromDisk
     }
 
     $line = Get-UpdatedConditionsLineText
@@ -5385,8 +5569,10 @@ function Update-WeatherData {
             $script:tomorrowPeriodName = $tomorrowPeriod.name
         }
         
-        # Update fetch time
+        # Full NWS/AirNow refresh — advance shared Updated: stamp
         $script:dataFetchTime = Get-Date
+        $script:gfCacheFetchedAtUtc = [DateTime]::SpecifyKind((Get-Date).ToUniversalTime(), [DateTimeKind]::Utc)
+        $script:lastManualRefreshTime = $null
         if ($hourlyData -and -not $script:usesObservation) {
             $script:currentTimeLocal = $script:dataFetchTime
         }
@@ -5430,10 +5616,10 @@ function Update-WeatherData {
                     # Process and store NOAA station
                     if ($Noaa -and $Noaa.Trim() -ne "") {
                         # Use override station ID
-                        $script:noaaStation = Get-NoaaTideStationById -StationId $Noaa.Trim() -Lat $lat -Lon $lon
+                        Set-GfNoaaStationForLocation -Station (Get-NoaaTideStationById -StationId $Noaa.Trim() -Lat ([double]$lat) -Lon ([double]$lon)) -Lat ([double]$lat) -Lon ([double]$lon)
                     } else {
-                        # Normal station selection
-                        $script:noaaStation = Get-NoaaTideStation -Lat $lat -Lon $lon -PreFetchedStations $script:noaaStationsData.Stations
+                        # Normal station selection for this refresh's coordinates
+                        Set-GfNoaaStationForLocation -Station (Get-NoaaTideStation -Lat ([double]$lat) -Lon ([double]$lon) -PreFetchedStations $script:noaaStationsData.Stations) -Lat ([double]$lat) -Lon ([double]$lon)
                     }
                     if ($script:noaaStation) {
                         # Fetch tide predictions for the station
@@ -6163,11 +6349,15 @@ if ($Observations.IsPresent) {
 }
 
 # --- TIMER TRACKING FOR AUTO-REFRESH ---
-# On cache boot, Keep restored dataFetchTime; otherwise stamp now after NWS load.
+# On cache boot, keep restored dataFetchTime / gfCacheFetchedAtUtc; otherwise stamp now after NWS load.
 if (-not $script:gfBootFromCache) {
     $script:dataFetchTime = Get-Date
+    $script:gfCacheFetchedAtUtc = [DateTime]::SpecifyKind((Get-Date).ToUniversalTime(), [DateTimeKind]::Utc)
 }
 if (-not $script:dataFetchTime) { $script:dataFetchTime = Get-Date }
+if ($null -eq $script:gfCacheFetchedAtUtc -and $script:dataFetchTime) {
+    $script:gfCacheFetchedAtUtc = [DateTime]::SpecifyKind(([datetime]$script:dataFetchTime).ToUniversalTime(), [DateTimeKind]::Utc)
+}
 $script:lastManualRefreshTime = $null
 $script:updatedLineCursorTop = $null
 $script:updatedLineInfoColor = "Blue"
@@ -10540,24 +10730,24 @@ function Show-LocationInfo {
         }
     }
     
-    Write-Host "Time Zone: $timeZone$utcOffsetStr" -ForegroundColor $DefaultColor
-    Write-Host "Coordinates: $lat, $lon" -ForegroundColor $DefaultColor
-    Write-Host "Elevation: ${elevationFeet}ft" -ForegroundColor $DefaultColor
+    Write-Host "Time Zone: $TimeZone$utcOffsetStr" -ForegroundColor $DefaultColor
+    Write-Host "Coordinates: $Lat, $Lon" -ForegroundColor $DefaultColor
+    Write-Host "Elevation: ${ElevationFeet}ft" -ForegroundColor $DefaultColor
     
     # Display NWS Resources with clickable links
     Write-Host "NWS Resources: " -ForegroundColor $DefaultColor -NoNewline
     # Forecast link
-    $forecastUrl = "https://forecast.weather.gov/MapClick.php?lat=$lat&lon=$lon"
+    $forecastUrl = "https://forecast.weather.gov/MapClick.php?lat=$Lat&lon=$Lon"
     Write-Host "$([char]27)]8;;$forecastUrl$([char]27)\Forecast$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
     Write-Host " | " -ForegroundColor $DefaultColor -NoNewline
     
     # Graph link
-    $graphUrl = "https://forecast.weather.gov/MapClick.php?lat=$lat&lon=$lon&unit=0&lg=english&FcstType=graphical"
+    $graphUrl = "https://forecast.weather.gov/MapClick.php?lat=$Lat&lon=$Lon&unit=0&lg=english&FcstType=graphical"
     Write-Host "$([char]27)]8;;$graphUrl$([char]27)\Graph$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
     Write-Host " | " -ForegroundColor $DefaultColor -NoNewline
     
     # Radar link
-    $radarUrl = "https://radar.weather.gov/ridge/standard/${radarStation}_loop.gif"
+    $radarUrl = "https://radar.weather.gov/ridge/standard/${RadarStation}_loop.gif"
     Write-Host "$([char]27)]8;;$radarUrl$([char]27)\Radar$([char]27)]8;;$([char]27)\" -ForegroundColor Blue
     
     # Display NOAA Station and Resources
@@ -10567,16 +10757,22 @@ function Show-LocationInfo {
         # Check if -Noaa parameter is set to override station selection
         if ($Noaa -and $Noaa.Trim() -ne "") {
             Write-Verbose "Using NOAA station override: $Noaa"
-            $noaaStation = Get-NoaaTideStationById -StationId $Noaa.Trim() -Lat $lat -Lon $lon
+            $noaaStation = Get-NoaaTideStationById -StationId $Noaa.Trim() -Lat $Lat -Lon $Lon
             if (-not $noaaStation) {
                 Write-Verbose "Warning: Could not find NOAA station with ID '$Noaa'. Station may not exist or API call failed."
+            } else {
+                Set-GfNoaaStationForLocation -Station $noaaStation -Lat $Lat -Lon $Lon
             }
         } else {
-            # Normal station selection - check if we have a refreshed NOAA station from Update-WeatherData
-            if ($script:noaaStation) {
+            # Prefer a station resolved for THESE coordinates; never reuse another favorite's pick
+            if ($script:noaaStation -and (Test-GfNoaaStationMatchesLocation -Station $script:noaaStation -Lat $Lat -Lon $Lon)) {
                 $noaaStation = $script:noaaStation
-                Write-Verbose "Using refreshed NOAA station data"
+                Write-Verbose "Using NOAA station cached for current coordinates"
             } else {
+                if ($script:noaaStation) {
+                    Write-Verbose "Discarding NOAA station from a different location"
+                    Clear-GfNoaaStationCache
+                }
                 # Check if we have pre-fetched NOAA stations data
                 $preFetchedStations = $null
                 if ($script:noaaStationsData -and $script:noaaStationsData.Success) {
@@ -10599,7 +10795,8 @@ function Show-LocationInfo {
                     }
                 }
                 
-                $noaaStation = Get-NoaaTideStation -Lat $lat -Lon $lon -PreFetchedStations $preFetchedStations
+                $noaaStation = Get-NoaaTideStation -Lat $Lat -Lon $Lon -PreFetchedStations $preFetchedStations
+                Set-GfNoaaStationForLocation -Station $noaaStation -Lat $Lat -Lon $Lon
             }
         }
         if ($noaaStation) {
@@ -10610,10 +10807,15 @@ function Show-LocationInfo {
             $stationHomeUrl = "https://tidesandcurrents.noaa.gov/stationhome.html?id=$($noaaStation.stationId)"
             Write-Host "$([char]27)]8;;$stationHomeUrl$([char]27)\$($noaaStation.stationId)$([char]27)]8;;$([char]27)\" -ForegroundColor Blue -NoNewline
             
-            # Calculate bearing and cardinal direction from location to station
-            $bearing = Get-Bearing -Lat1 $lat -Lon1 $lon -Lat2 $noaaStation.lat -Lon2 $noaaStation.lon
+            # Bearing/distance from the Location Info coordinates (not a stale station.distance)
+            $bearing = Get-Bearing -Lat1 $Lat -Lon1 $Lon -Lat2 $noaaStation.lat -Lon2 $noaaStation.lon
             $cardinalDir = Get-CardinalDirection -Degrees $bearing
-            $distanceStr = "$([Math]::Round($noaaStation.distance, 2))mi"
+            $distMi = if ($null -ne $noaaStation.distance -and (Test-GfNoaaStationMatchesLocation -Station $noaaStation -Lat $Lat -Lon $Lon)) {
+                [double]$noaaStation.distance
+            } else {
+                Get-DistanceMiles -Lat1 $Lat -Lon1 $Lon -Lat2 $noaaStation.lat -Lon2 $noaaStation.lon
+            }
+            $distanceStr = "$([Math]::Round($distMi, 2))mi"
             
             Write-Host ") " -ForegroundColor Gray -NoNewline
             Write-Host "$distanceStr $cardinalDir" -ForegroundColor $DefaultColor
@@ -11463,8 +11665,22 @@ if ($VerbosePreference -ne 'Continue') {
 
 # --- FETCH WILDFIRES (NIFC WFIGS, soft-fail; after helpers are defined) ---
 if (-not $script:wildFireIncidents) { $script:wildFireIncidents = @() }
+$bootWildFireGapFilled = $false
 if ($script:gfBootFromCache) {
-    Write-Verbose "Wildfire: using weatherCache snapshot ($($script:wildFireIncidents.Count) incidents)"
+    $cacheWfQueried = $false
+    if ($script:gfAdvancedMode -and $script:gfActiveCacheKey) {
+        $bootWfEntry = Get-GfWeatherCacheEntry -CacheKey $script:gfActiveCacheKey
+        if ($bootWfEntry -and $null -ne $bootWfEntry.wildFireQueried) {
+            try { $cacheWfQueried = [bool]$bootWfEntry.wildFireQueried } catch { $cacheWfQueried = $false }
+        }
+    }
+    if ($script:wildFireEnabled -and -not $cacheWfQueried -and $script:gfIsLocationLeader) {
+        Write-Verbose "Wildfire: capable leader filling gap after cache boot (prior leader had wildfire disabled)"
+        $script:wildFireIncidents = @(Invoke-NifcWildFireLaunchFetch -Lat ([double]$lat) -Lon ([double]$lon) -TimeZoneId $timeZone)
+        $bootWildFireGapFilled = $true
+    } else {
+        Write-Verbose "Wildfire: using weatherCache snapshot ($($script:wildFireIncidents.Count) incidents)"
+    }
 } elseif (-not $script:wildFireEnabled) {
     $script:wildFireIncidents = @()
     Write-Verbose "Wildfire disabled (-wf 0 or radius 0); skipping NIFC fetch"
@@ -11474,7 +11690,7 @@ if ($script:gfBootFromCache) {
 }
 
 # After full initial fetch path (including wildfire), persist shared cache for co-located sessions
-if (-not $script:gfBootFromCache -and $script:gfAdvancedMode -and $script:gfActiveCacheKey) {
+if ((-not $script:gfBootFromCache -or $bootWildFireGapFilled) -and $script:gfAdvancedMode -and $script:gfActiveCacheKey) {
     Save-GfActiveWeatherCacheIfLeader -CacheKey $script:gfActiveCacheKey -LocationQuery $Location -Lat ([double]$lat) -Lon ([double]$lon) -City $city -State $state
 }
 
@@ -12154,12 +12370,26 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                     $city = $sw.City
                     $state = $sw.State
                     if ($sw.TimeZone) { $timeZone = $sw.TimeZone; $script:timeZone = $sw.TimeZone }
+                    if ($null -ne $sw.ElevationFeet) { $elevationFeet = $sw.ElevationFeet; $script:elevationFeet = $sw.ElevationFeet }
+                    if ($sw.RadarStation) { $radarStation = $sw.RadarStation; $script:radarStation = $sw.RadarStation }
                     Sync-LocalCurrentConditionsFromScript -DefaultColor $defaultColor -AlertColor $alertColor
                     $todayForecast = $script:todayForecast
                     $todayPeriodName = $script:todayPeriodName
                     $tomorrowForecast = $script:tomorrowForecast
                     $tomorrowPeriodName = $script:tomorrowPeriodName
                     $moonPhaseInfo = Get-MoonPhase -Date (Get-Date)
+                    # Recalc sun times for the new coordinates
+                    try {
+                        $tzInfoSwitch = if ($timeZone) { Get-ResolvedTimeZoneInfo -TimeZoneId $timeZone } else { $null }
+                        $locationTodaySwitch = if ($tzInfoSwitch) { [System.TimeZoneInfo]::ConvertTime((Get-Date), $tzInfoSwitch).Date } else { (Get-Date).Date }
+                        $sunTimesSwitch = Get-SunriseSunset -Latitude ([double]$lat) -Longitude ([double]$lon) -Date $locationTodaySwitch -TimeZoneId $timeZone
+                        $sunriseTime = $sunTimesSwitch.Sunrise
+                        $sunsetTime = $sunTimesSwitch.Sunset
+                        $script:sunriseTime = $sunriseTime
+                        $script:sunsetTime = $sunsetTime
+                        $script:isPolarNight = $sunTimesSwitch.IsPolarNight
+                        $script:isPolarDay = $sunTimesSwitch.IsPolarDay
+                    } catch {}
                     Clear-HostWithDelay
                     Show-GfInteractiveCurrentView
                 }
@@ -12184,14 +12414,37 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                             Clear-HostWithDelay
                             Show-GfInteractiveCurrentView
                         }
-                        # Newly elected leader with stale cache should refresh
-                        if ($isLeaderNow -and -not $wasLeader -and $script:gfActiveCacheKey) {
+                        # Newly elected / more-capable leader: refresh stale weather and/or fill wildfire gap
+                        if ($isLeaderNow -and $script:gfActiveCacheKey) {
                             $entry = Get-GfWeatherCacheEntry -CacheKey $script:gfActiveCacheKey
-                            if (-not $entry -or -not (Test-GfWeatherCacheFresh -Entry $entry)) {
-                                $ok = Update-WeatherData -Lat ([string]$lat) -Lon ([string]$lon) -Headers $headers -TimeZone $timeZone -UseRetryLogic $false
-                                if ($ok) {
+                            $cacheFresh = ($entry -and (Test-GfWeatherCacheFresh -Entry $entry))
+                            $wildFireGap = $false
+                            if ($script:wildFireEnabled) {
+                                $queried = $false
+                                if ($entry -and $null -ne $entry.wildFireQueried) {
+                                    try { $queried = [bool]$entry.wildFireQueried } catch { $queried = $false }
+                                }
+                                $wildFireGap = -not $queried
+                            }
+                            $tookOver = ($isLeaderNow -and -not $wasLeader)
+                            if (($tookOver -or $wildFireGap) -and (-not $cacheFresh -or $wildFireGap)) {
+                                if (-not $cacheFresh) {
+                                    $ok = Update-WeatherData -Lat ([string]$lat) -Lon ([string]$lon) -Headers $headers -TimeZone $timeZone -UseRetryLogic $false
+                                    if ($ok) {
+                                        Save-GfActiveWeatherCacheIfLeader -CacheKey $script:gfActiveCacheKey -LocationQuery $Location -Lat ([double]$lat) -Lon ([double]$lon) -City $city -State $state
+                                        Sync-LocalCurrentConditionsFromScript -DefaultColor $defaultColor -AlertColor $alertColor
+                                        Clear-HostWithDelay
+                                        Show-GfInteractiveCurrentView
+                                    }
+                                } elseif ($wildFireGap) {
+                                    Write-Verbose "Capable leader filling wildfire gap for cache key $($script:gfActiveCacheKey)"
+                                    try {
+                                        $script:wildFireIncidents = @(Invoke-NifcWildFireLaunchFetch -Lat ([double]$lat) -Lon ([double]$lon) -TimeZoneId $timeZone)
+                                    } catch {
+                                        Write-Verbose "Wildfire gap fill failed: $($_.Exception.Message)"
+                                        $script:wildFireIncidents = @()
+                                    }
                                     Save-GfActiveWeatherCacheIfLeader -CacheKey $script:gfActiveCacheKey -LocationQuery $Location -Lat ([double]$lat) -Lon ([double]$lon) -City $city -State $state
-                                    Sync-LocalCurrentConditionsFromScript -DefaultColor $defaultColor -AlertColor $alertColor
                                     Clear-HostWithDelay
                                     Show-GfInteractiveCurrentView
                                 }
