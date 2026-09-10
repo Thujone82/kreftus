@@ -134,7 +134,7 @@ sessions: {
 }
 ```
 
-**Cache key:** favorite `uid` if present, else `key`; ad-hoc locations use normalized `"lat,lon"` (`N4` format).
+**Cache key:** favorite `uid` if present, else `key`; ad-hoc / non-favorite CLI locations use normalized `"lat,lon"` (`N4` format). Ad-hoc entries are temporary: removed when the last session viewing that key unregisters (or on stale-session prune), with a 1h orphan safety net.
 
 **Not stored:** sticky `leaderSessionId`, raw 7-day observation FeatureCollections, NOAA stations dump.
 
@@ -201,7 +201,7 @@ Example: S1 (oldest), S2, S3 on PDX; S1 Tabs to ANC.
 | Miss + leader | Fetch then cache |
 | Miss + follower | Short poll; if they become leader, fetch |
 
-**Boot:** Advanced favorites with stored coords skip geocoding; then register session; if cache fresh (or follower with any usable entry), skip initial NWS/AirNow/wildfire path (`$script:gfBootFromCache`). Leader + stale hydrates then falls through to refresh APIs.
+**Boot:** Explicit CLI locations (e.g. `gf bend`) are geocoded and use ad-hoc `lat,lon` cache keys — they must not hydrate `lastActiveFavorite` weather. Saved favorites with stored coords skip geocoding; then register session; if cache fresh (or follower with any usable entry), skip initial NWS/AirNow/wildfire path (`$script:gfBootFromCache`). Leader + stale hydrates then falls through to refresh APIs.
 
 **G / auto-refresh:** **leader only** for that key. Followers’ **G** / stale auto-refresh = re-read cache (redraw only when `writtenAt` is newer); otherwise cooldown ≈ heartbeat to avoid redraw spam.
 
@@ -236,7 +236,7 @@ Digit slots `1`–`0` / `Shift+1`–`0` use the same switch path (immediate, no 
 
 #### Cache maintenance
 
-- `Prune-GfWeatherCacheToFavoritesInProfile` drops orphaned **favorite-uid** keys when favorites are deleted; coord-keyed entries may remain while a session still views them / for TTL reuse.
+- `Prune-GfWeatherCacheToFavoritesInProfile` drops orphaned **favorite-uid** keys when favorites are deleted, and drops **ad-hoc lat,lon** keys when no live session is viewing them (also invoked on session unregister).
 - `Save-GfConfigProfileFavorites` invokes that prune on favorite list saves.
 
 #### Key functions

@@ -1723,6 +1723,9 @@ function Set-GfAdvancedLastActiveFavorite {
 $script:gfSessionHeartbeatSeconds = 15
 $script:gfSessionStaleSeconds = 45
 $script:gfWeatherCacheFreshSeconds = 300
+# Ad-hoc (lat,lon) weatherCache entries with no live viewer are dropped on prune;
+# also drop if somehow orphaned longer than this (safety net).
+$script:gfWeatherCacheOrphanSeconds = 3600
 $script:gfSessionId = $null
 $script:gfSessionStartedAt = $null
 $script:gfActiveCacheKey = $null
@@ -1877,20 +1880,39 @@ function Prune-GfWeatherCacheToFavoritesInProfile {
         $k = Get-GfWeatherCacheKeyFromFavorite -Favorite $fav
         if ($k) { [void]$keep.Add($k) }
     }
-    # Keep coord-keyed entries that any live session is viewing
+    # Keep entries that any live session is viewing (favorites or ad-hoc lat,lon)
     foreach ($sid in @($Profile.sessions.Keys)) {
         $ck = $Profile.sessions[$sid].activeCacheKey
         if ($ck) { [void]$keep.Add([string]$ck) }
     }
+    $now = (Get-Date).ToUniversalTime()
     foreach ($ck in @($Profile.weatherCache.Keys)) {
-        if (-not $keep.Contains([string]$ck)) {
-            # Only drop favorite-uid keys that are gone; retain bare lat,lon caches while sessions use them
-            $isCoord = [string]$ck -match '^-?\d'
-            if (-not $isCoord) {
-                $Profile.weatherCache.Remove($ck)
-            } elseif (-not $keep.Contains([string]$ck)) {
-                # coord key with no viewer: keep for TTL reuse (do not delete)
+        $keyStr = [string]$ck
+        if ($keep.Contains($keyStr)) { continue }
+        $isCoord = $keyStr -match '^-?\d+(\.\d+)?\s*,\s*-?\d+'
+        if (-not $isCoord) {
+            # Orphan favorite-uid/key after favorites were deleted
+            $Profile.weatherCache.Remove($ck)
+            continue
+        }
+        # Ad-hoc coord cache: drop when no session is viewing it (last client signed off).
+        # Age-out safety net if an orphan lingered (e.g. crash before unregister).
+        $entry = $Profile.weatherCache[$ck]
+        $orphanTooOld = $true
+        if ($entry) {
+            $stamp = $null
+            if ($entry.writtenAt) { $stamp = Convert-GfCacheTimestampToUtcDateTime -Value $entry.writtenAt }
+            if ($null -eq $stamp -and $entry.fetchedAt) { $stamp = Convert-GfCacheTimestampToUtcDateTime -Value $entry.fetchedAt }
+            if ($null -ne $stamp) {
+                $orphanTooOld = (($now - $stamp).TotalSeconds -gt $script:gfWeatherCacheOrphanSeconds)
             }
+        }
+        # No live viewer → remove immediately (temp ad-hoc). OrphanTooOld covers stale leftovers.
+        $Profile.weatherCache.Remove($ck)
+        if (-not $orphanTooOld) {
+            Write-Verbose "Pruned ad-hoc weatherCache key=$keyStr (no live session)"
+        } else {
+            Write-Verbose "Pruned ad-hoc weatherCache key=$keyStr (orphan/aged out)"
         }
     }
 }
@@ -2053,6 +2075,7 @@ function Register-GfSession {
             mode           = $Mode
             capabilities   = $caps
         }
+        Prune-GfWeatherCacheToFavoritesInProfile -Profile $profile
     }
     $script:gfNextSessionHeartbeat = (Get-Date).AddSeconds($script:gfSessionHeartbeatSeconds)
     if ($ActiveCacheKey) { [void](Test-GfSessionIsLeader -CacheKey $ActiveCacheKey) }
@@ -2100,6 +2123,7 @@ function Update-GfSessionHeartbeat {
             $sess['capabilities'] = $caps
             $profile.sessions[$sid] = $sess
         }
+        Prune-GfWeatherCacheToFavoritesInProfile -Profile $profile
     }
     $script:gfNextSessionHeartbeat = (Get-Date).AddSeconds($script:gfSessionHeartbeatSeconds)
     if ($key) { [void](Test-GfSessionIsLeader -CacheKey $key) }
@@ -2114,6 +2138,8 @@ function Unregister-GfSession {
             if ($k -eq $sid) { $profile.sessions.Remove($k); break }
         }
         Prune-GfStaleSessionsInProfile -Profile $profile | Out-Null
+        # Drop ad-hoc lat,lon weatherCache when this was the last viewer
+        Prune-GfWeatherCacheToFavoritesInProfile -Profile $profile
     }
     $script:gfSessionId = $null
     $script:gfActiveCacheKey = $null
@@ -2636,6 +2662,51 @@ function Find-GfFavoriteIndex {
         }
     }
     return -1
+}
+
+function Clear-GfActiveFavoriteSelection {
+    $script:gfActiveFavoriteIndex = -1
+    $script:gfActiveFavorite = $null
+    $script:gfLoadedFavoriteIndex = -1
+    $script:gfSkipGeocodeFromFavorite = $false
+    $script:gfFavoriteBootLat = $null
+    $script:gfFavoriteBootLon = $null
+    $script:gfFavoriteBootCity = $null
+    $script:gfFavoriteBootState = $null
+    Clear-GfAdvancedFavoritePendingLoad
+}
+
+function Test-GfSuppliedLocationMatchesFavorite {
+    # Pre-geocode check: CLI text vs favorite name/city/coords (Bend must not match Portland).
+    param(
+        [object]$Favorite,
+        [string]$Supplied
+    )
+    if (-not $Favorite -or [string]::IsNullOrWhiteSpace($Supplied)) { return $false }
+    $s = $Supplied.Trim()
+    $q = Get-GfFavoriteLocationQuery -Favorite $Favorite
+    $coordArg = Get-GfFavoriteProcessLaunchArg -Favorite $Favorite
+    if ($q -and ($s -ieq $q)) { return $true }
+    if ($coordArg -and ($s -ieq $coordArg)) { return $true }
+    if ($Favorite.name -and ($s -ieq ([string]$Favorite.name).Trim())) { return $true }
+    if ($Favorite.location -and $Favorite.location.city) {
+        $city = ([string]$Favorite.location.city).Trim()
+        if ($s -ieq $city) { return $true }
+        if ($Favorite.location.state) {
+            $st = ([string]$Favorite.location.state).Trim()
+            if ($s -ieq "$city, $st") { return $true }
+        }
+    }
+    if ($s -match '^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$' -and $Favorite.location) {
+        try {
+            $latS = [double]$Matches[1]
+            $lonS = [double]$Matches[2]
+            $flat = [double]$Favorite.location.lat
+            $flon = [double]$Favorite.location.lon
+            if ([math]::Abs($flat - $latS) -lt 0.05 -and [math]::Abs($flon - $lonS) -lt 0.05) { return $true }
+        } catch {}
+    }
+    return $false
 }
 
 function Show-GfFavoriteChip {
@@ -3961,6 +4032,7 @@ function Initialize-GfAdvancedMode {
     }
 
     $favIndex = -1
+    $explicitLocation = -not [string]::IsNullOrWhiteSpace([string]$LocationRef.Value)
     if ($null -ne $LoadFavorite) {
         $slot = [int]$LoadFavorite
         $favIndex = $slot - 1
@@ -3968,34 +4040,40 @@ function Initialize-GfAdvancedMode {
             Write-Host "Advanced -load/$LoadFavorite is out of range (1..$($script:gfFavorites.Count))." -ForegroundColor Yellow
             $favIndex = -1
         }
-    } elseif ($profile.lastActiveFavorite -and $null -ne $profile.lastActiveFavorite.index) {
+    } elseif (-not $explicitLocation -and $profile.lastActiveFavorite -and $null -ne $profile.lastActiveFavorite.index) {
+        # No CLI location → resume last active favorite. Explicit `gf bend` must not.
         $favIndex = [int]$profile.lastActiveFavorite.index
     }
 
     if ($favIndex -ge 0 -and $favIndex -lt $script:gfFavorites.Count) {
-        $script:gfActiveFavoriteIndex = $favIndex
-        $script:gfActiveFavorite = $script:gfFavorites[$favIndex]
-        $script:gfLoadedFavoriteIndex = $favIndex
-        Clear-GfAdvancedFavoritePendingLoad
-        Set-GfAdvancedLastActiveFavorite -Index $favIndex -Favorite $script:gfActiveFavorite
-        [void](Set-GfFavoriteBootCoordsFromFavorite -Favorite $script:gfActiveFavorite)
-        if (-not $LocationRef.Value) {
-            # Prefer lat,lon so the geocode loop can skip Nominatim without relying only on the flag
-            $LocationRef.Value = Get-GfFavoriteProcessLaunchArg -Favorite $script:gfActiveFavorite
-        } elseif ($script:gfSkipGeocodeFromFavorite) {
-            # CLI/restart already supplied a location string; still skip geocode when it matches this favorite
-            $q = Get-GfFavoriteLocationQuery -Favorite $script:gfActiveFavorite
-            $coordArg = Get-GfFavoriteProcessLaunchArg -Favorite $script:gfActiveFavorite
-            $supplied = [string]$LocationRef.Value
-            if ($supplied -ne $q -and $supplied -ne $coordArg) {
-                # Explicit unrelated location on the command line — geocode it normally
-                $script:gfSkipGeocodeFromFavorite = $false
+        $fav = $script:gfFavorites[$favIndex]
+        if ($explicitLocation -and -not (Test-GfSuppliedLocationMatchesFavorite -Favorite $fav -Supplied ([string]$LocationRef.Value))) {
+            # e.g. gf bend while lastActive/-l pointed at Portland — honor CLI location as ad-hoc
+            Clear-GfActiveFavoriteSelection
+            Write-GfAdvancedBootStatus "Loading GetForecast Advanced Mode... ($([string]$LocationRef.Value))"
+        } else {
+            $script:gfActiveFavoriteIndex = $favIndex
+            $script:gfActiveFavorite = $fav
+            $script:gfLoadedFavoriteIndex = $favIndex
+            Clear-GfAdvancedFavoritePendingLoad
+            Set-GfAdvancedLastActiveFavorite -Index $favIndex -Favorite $script:gfActiveFavorite
+            [void](Set-GfFavoriteBootCoordsFromFavorite -Favorite $script:gfActiveFavorite)
+            if (-not $LocationRef.Value) {
+                # Prefer lat,lon so the geocode loop can skip Nominatim without relying only on the flag
+                $LocationRef.Value = Get-GfFavoriteProcessLaunchArg -Favorite $script:gfActiveFavorite
+            } elseif ($script:gfSkipGeocodeFromFavorite) {
+                if (-not (Test-GfSuppliedLocationMatchesFavorite -Favorite $script:gfActiveFavorite -Supplied ([string]$LocationRef.Value))) {
+                    $script:gfSkipGeocodeFromFavorite = $false
+                }
+            }
+            $favLabel = Get-GfFavoriteLocationQuery -Favorite $script:gfActiveFavorite
+            if ($favLabel) {
+                Write-GfAdvancedBootStatus "Loading GetForecast Advanced Mode... ($favLabel)"
             }
         }
-        $favLabel = Get-GfFavoriteLocationQuery -Favorite $script:gfActiveFavorite
-        if ($favLabel) {
-            Write-GfAdvancedBootStatus "Loading GetForecast Advanced Mode... ($favLabel)"
-        }
+    } elseif ($explicitLocation) {
+        Clear-GfActiveFavoriteSelection
+        Write-GfAdvancedBootStatus "Loading GetForecast Advanced Mode... ($([string]$LocationRef.Value))"
     }
 
     Write-Verbose "Advanced mode active: favorites=$($script:gfFavorites.Count) magic=$($script:showMagicHours) irradiance=$($script:showIrradiance) wf=$($script:WILDFIRE_RADIUS_MILES) drawer=$($script:gfLocationsDrawerOpen) 24h=$($script:use24hTime)"
@@ -6268,18 +6346,20 @@ if ($script:gfAdvancedMode) {
     if ($matchedIdx -ge 0) {
         Set-GfAdvancedLastActiveFavorite -Index $matchedIdx -Favorite $script:gfFavorites[$matchedIdx]
         $script:gfLoadedFavoriteIndex = $matchedIdx
-    } elseif ($script:gfActiveFavoriteIndex -ge 0 -and $script:gfActiveFavoriteIndex -lt $script:gfFavorites.Count) {
-        # Keep startup selection when coordinates differ slightly from favorite lat/lon
-        $script:gfActiveFavorite = $script:gfFavorites[$script:gfActiveFavoriteIndex]
-        $script:gfLoadedFavoriteIndex = $script:gfActiveFavoriteIndex
+        $script:gfActiveFavoriteIndex = $matchedIdx
+        $script:gfActiveFavorite = $script:gfFavorites[$matchedIdx]
+    } else {
+        # Ad-hoc / non-favorite location (e.g. gf bend) — do not keep lastActive favorite's weather binding
+        Clear-GfActiveFavoriteSelection
     }
 }
 
 # Advanced: sign in session + decide whether shared weatherCache can skip initial NWS/AirNow/wildfire APIs
 $script:gfBootFromCache = $false
 if ($script:gfAdvancedMode) {
+    # Favorite cache key only when geocode matched a saved favorite; otherwise ad-hoc lat,lon
     $bootCacheKey = $null
-    if ($script:gfActiveFavorite) {
+    if ($script:gfActiveFavorite -and $script:gfLoadedFavoriteIndex -ge 0) {
         $bootCacheKey = Get-GfWeatherCacheKeyFromFavorite -Favorite $script:gfActiveFavorite
     }
     if (-not $bootCacheKey) {
