@@ -1569,21 +1569,54 @@ $script:gfNextSessionHeartbeat = $null
 $script:gfIsLocationLeader = $false
 $script:gfCacheWrittenAt = $null
 
+function Convert-GfCacheTimestampToUtcDateTime {
+    # ConvertFrom-Json turns ISO-8601 "...Z" stamps into DateTime Kind=Utc. Casting those
+    # to [string] drops the offset, so DateTimeOffset.Parse treats the wall clock as local
+    # and shifts NWS/fetch ages by the system timezone (followers show "just now").
+    # Prefer the live DateTime/DateTimeOffset object; only parse strings.
+    param([object]$Value)
+    if ($null -eq $Value) { return $null }
+    try {
+        if ($Value -is [DateTimeOffset]) {
+            return [DateTime]::SpecifyKind($Value.UtcDateTime, [DateTimeKind]::Utc)
+        }
+        if ($Value -is [datetime]) {
+            $dt = [datetime]$Value
+            if ($dt.Kind -eq [DateTimeKind]::Utc) {
+                return [DateTime]::SpecifyKind($dt, [DateTimeKind]::Utc)
+            }
+            if ($dt.Kind -eq [DateTimeKind]::Local) {
+                return [DateTime]::SpecifyKind($dt.ToUniversalTime(), [DateTimeKind]::Utc)
+            }
+            # Unspecified cache stamps are UTC wall clocks (written with ToString('o'))
+            return [DateTime]::SpecifyKind($dt, [DateTimeKind]::Utc)
+        }
+        $text = [string]$Value
+        if ([string]::IsNullOrWhiteSpace($text)) { return $null }
+        # Lost-offset strings (from [string]$utcDateTime) must stay UTC, not system-local
+        $styles = [System.Globalization.DateTimeStyles]::RoundtripKind
+        if ($text -notmatch '(?i)(Z|[+-]\d{2}:?\d{2})$') {
+            $styles = $styles -bor [System.Globalization.DateTimeStyles]::AssumeUniversal
+        }
+        $offset = [DateTimeOffset]::Parse(
+            $text,
+            [System.Globalization.CultureInfo]::InvariantCulture,
+            $styles
+        )
+        return [DateTime]::SpecifyKind($offset.UtcDateTime, [DateTimeKind]::Utc)
+    } catch {
+        return $null
+    }
+}
+
 function Get-GfWeatherCacheEntryTimestampUtc {
     param([object]$Entry)
     if (-not $Entry) { return $null }
     $raw = $null
     if ($Entry.writtenAt) { $raw = $Entry.writtenAt }
     elseif ($Entry.fetchedAt) { $raw = $Entry.fetchedAt }
-    if (-not $raw) { return $null }
-    try {
-        $dt = [datetime]::Parse([string]$raw, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
-        if ($dt.Kind -eq [DateTimeKind]::Local) { return $dt.ToUniversalTime() }
-        if ($dt.Kind -eq [DateTimeKind]::Unspecified) { return [DateTime]::SpecifyKind($dt, [DateTimeKind]::Utc) }
-        return $dt.ToUniversalTime()
-    } catch {
-        return $null
-    }
+    if ($null -eq $raw) { return $null }
+    return (Convert-GfCacheTimestampToUtcDateTime -Value $raw)
 }
 
 function Test-GfWeatherCacheEntryNewerThanLocal {
@@ -1654,8 +1687,8 @@ function Prune-GfStaleSessionsInProfile {
         $staleHb = $true
         if ($sess.lastHeartbeat) {
             try {
-                $hb = [datetime]::Parse([string]$sess.lastHeartbeat, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
-                if ($hb.Kind -eq [DateTimeKind]::Local) { $hb = $hb.ToUniversalTime() }
+                $hb = Convert-GfCacheTimestampToUtcDateTime -Value $sess.lastHeartbeat
+                if ($null -eq $hb) { throw "unparseable heartbeat" }
                 $staleHb = (($now - $hb).TotalSeconds -gt $script:gfSessionStaleSeconds)
             } catch {
                 $staleHb = $true
@@ -1712,8 +1745,8 @@ function Get-GfSessionLeaderIdFromProfile {
     if ($candidates.Count -eq 0) { return $null }
     $sorted = $candidates | Sort-Object `
         @{ Expression = {
-                try { [datetime]::Parse([string]$_.startedAt, $null, [System.Globalization.DateTimeStyles]::RoundtripKind) }
-                catch { [datetime]::MaxValue }
+                $started = Convert-GfCacheTimestampToUtcDateTime -Value $_.startedAt
+                if ($null -ne $started) { $started } else { [datetime]::MaxValue }
             }; Ascending = $true }, `
         @{ Expression = { [string]$_.sessionId }; Ascending = $true }
     return [string](@($sorted)[0].sessionId)
@@ -1853,8 +1886,8 @@ function Test-GfWeatherCacheFresh {
     param([object]$Entry)
     if (-not $Entry -or -not $Entry.fetchedAt) { return $false }
     try {
-        $fetched = [datetime]::Parse([string]$Entry.fetchedAt, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
-        if ($fetched.Kind -eq [DateTimeKind]::Local) { $fetched = $fetched.ToUniversalTime() }
+        $fetched = Convert-GfCacheTimestampToUtcDateTime -Value $Entry.fetchedAt
+        if ($null -eq $fetched) { return $false }
         $age = ((Get-Date).ToUniversalTime() - $fetched).TotalSeconds
         return ($age -ge 0 -and $age -le $script:gfWeatherCacheFreshSeconds)
     } catch {
@@ -1891,15 +1924,14 @@ function Convert-GfLocationLocalDateTimeToUtcString {
 
 function Convert-GfUtcStringToLocationLocalDateTime {
     param(
-        [string]$UtcString,
+        [object]$UtcString,
         [string]$TimeZoneId = $null
     )
-    if ([string]::IsNullOrWhiteSpace($UtcString)) { return $null }
+    if ($null -eq $UtcString) { return $null }
+    if ($UtcString -is [string] -and [string]::IsNullOrWhiteSpace([string]$UtcString)) { return $null }
     try {
-        $utc = [datetime]::Parse([string]$UtcString, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
-        if ($utc.Kind -eq [DateTimeKind]::Local) { $utc = $utc.ToUniversalTime() }
-        elseif ($utc.Kind -eq [DateTimeKind]::Unspecified) { $utc = [DateTime]::SpecifyKind($utc, [DateTimeKind]::Utc) }
-        else { $utc = $utc.ToUniversalTime() }
+        $utc = Convert-GfCacheTimestampToUtcDateTime -Value $UtcString
+        if ($null -eq $utc) { return $null }
         $tzId = if ($TimeZoneId) { $TimeZoneId } else { $script:timeZone }
         if (-not [string]::IsNullOrWhiteSpace($tzId)) {
             $tzInfo = Get-ResolvedTimeZoneInfo -TimeZoneId $tzId
@@ -1924,6 +1956,10 @@ function ConvertTo-GfWeatherCacheSnapshot {
         ([datetime]$script:dataFetchTime).ToUniversalTime().ToString('o')
     } else {
         (Get-Date).ToUniversalTime().ToString('o')
+    }
+    $wildFireForCache = @()
+    if ($null -ne $script:wildFireIncidents) {
+        $wildFireForCache = @($script:wildFireIncidents | Where-Object { $null -ne $_ })
     }
     return [ordered]@{
         fetchedAt            = $fetchedAt
@@ -1966,7 +2002,7 @@ function ConvertTo-GfWeatherCacheSnapshot {
         tomorrowForecast     = $script:tomorrowForecast
         tomorrowPeriodName   = $script:tomorrowPeriodName
         aqiData              = $script:aqiData
-        wildFireIncidents    = $script:wildFireIncidents
+        wildFireIncidents    = $wildFireForCache
         sunriseTime          = Convert-GfLocationLocalDateTimeToUtcString -LocationLocalDateTime $script:sunriseTime
         sunsetTime           = Convert-GfLocationLocalDateTimeToUtcString -LocationLocalDateTime $script:sunsetTime
     }
@@ -2011,8 +2047,12 @@ function Restore-GfWeatherCacheSnapshot {
     if (-not $Entry) { return $false }
     try {
         if ($Entry.fetchedAt) {
-            $fetched = [datetime]::Parse([string]$Entry.fetchedAt, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
-            $script:dataFetchTime = $fetched.ToLocalTime()
+            $fetchedUtc = Convert-GfCacheTimestampToUtcDateTime -Value $Entry.fetchedAt
+            if ($null -ne $fetchedUtc) {
+                $script:dataFetchTime = $fetchedUtc.ToLocalTime()
+            } else {
+                $script:dataFetchTime = Get-Date
+            }
         } else {
             $script:dataFetchTime = Get-Date
         }
@@ -2030,17 +2070,22 @@ function Restore-GfWeatherCacheSnapshot {
         $script:observationStationId = $Entry.observationStationId
         $script:locationKey = $Entry.locationKey
         $script:aqiData = $Entry.aqiData
-        $script:wildFireIncidents = @($Entry.wildFireIncidents)
+        # @($null) is a 1-element array — empty/missing cache must become @(), not a ghost fire
+        if ($null -eq $Entry.wildFireIncidents) {
+            $script:wildFireIncidents = @()
+        } else {
+            $script:wildFireIncidents = @($Entry.wildFireIncidents | Where-Object { $null -ne $_ })
+        }
         $script:todayForecast = $Entry.todayForecast
         $script:todayPeriodName = $Entry.todayPeriodName
         $script:tomorrowForecast = $Entry.tomorrowForecast
         $script:tomorrowPeriodName = $Entry.tomorrowPeriodName
         if ($Entry.sunriseTime) {
-            $sr = Convert-GfUtcStringToLocationLocalDateTime -UtcString ([string]$Entry.sunriseTime) -TimeZoneId $Entry.timeZone
+            $sr = Convert-GfUtcStringToLocationLocalDateTime -UtcString $Entry.sunriseTime -TimeZoneId $Entry.timeZone
             if ($sr) { $script:sunriseTime = $sr }
         }
         if ($Entry.sunsetTime) {
-            $ss = Convert-GfUtcStringToLocationLocalDateTime -UtcString ([string]$Entry.sunsetTime) -TimeZoneId $Entry.timeZone
+            $ss = Convert-GfUtcStringToLocationLocalDateTime -UtcString $Entry.sunsetTime -TimeZoneId $Entry.timeZone
             if ($ss) { $script:sunsetTime = $ss }
         }
         # Rebuild icon/period from hourly, then overlay cached current (may include observation merge)
@@ -2059,24 +2104,21 @@ function Restore-GfWeatherCacheSnapshot {
             $script:currentDewPoint = $c.dewPoint
             $script:currentPrecipProb = $c.precipProb
             $script:usesObservation = [bool]$c.usesObservation
-            $obsUtcRaw = $null
-            if ($c.observationUtc) { $obsUtcRaw = [string]$c.observationUtc }
-            elseif ($c.currentTimeLocal) { $obsUtcRaw = [string]$c.currentTimeLocal }
-            if ($obsUtcRaw) {
+            $obsSource = $null
+            if ($c.observationUtc) { $obsSource = $c.observationUtc }
+            elseif ($c.currentTimeLocal) { $obsSource = $c.currentTimeLocal }
+            if ($null -ne $obsSource) {
                 try {
-                    $obsOffset = [DateTimeOffset]::Parse($obsUtcRaw)
-                    $obsUtc = $obsOffset.UtcDateTime
-                    $fetchUtc = $null
-                    if ($Entry.fetchedAt) {
-                        try { $fetchUtc = [DateTimeOffset]::Parse([string]$Entry.fetchedAt).UtcDateTime } catch {}
-                    }
+                    $obsUtc = Convert-GfCacheTimestampToUtcDateTime -Value $obsSource
+                    if ($null -eq $obsUtc) { throw "unparseable observation stamp" }
+                    $fetchUtc = Convert-GfCacheTimestampToUtcDateTime -Value $Entry.fetchedAt
                     # Reject corrupt stamps that are newer than the cache fetch (timezone bug leftovers)
                     if ($null -ne $fetchUtc -and $obsUtc -gt $fetchUtc.AddMinutes(1)) {
                         Write-Verbose "Ignoring observationUtc newer than fetchedAt (likely corrupt cache TZ stamp)"
                         $obsUtc = $fetchUtc
                     }
                     $script:currentObservationTime = [DateTime]::SpecifyKind($obsUtc, [DateTimeKind]::Utc)
-                    $loc = Convert-GfUtcStringToLocationLocalDateTime -UtcString ($obsUtc.ToString('o')) -TimeZoneId $Entry.timeZone
+                    $loc = Convert-GfUtcStringToLocationLocalDateTime -UtcString $obsUtc -TimeZoneId $Entry.timeZone
                     if ($loc) { $script:currentTimeLocal = $loc }
                 } catch {}
             }
@@ -9800,7 +9842,9 @@ function Filter-SmallWildFires {
 
 function Get-DisplayWildFireIncidents {
     param([object[]]$Incidents = @())
-    return @(Filter-SmallWildFires -Incidents $Incidents)
+    # Drop null slots (e.g. @($null) from restoring a null weatherCache list)
+    $list = @($Incidents | Where-Object { $null -ne $_ })
+    return @(Filter-SmallWildFires -Incidents $list)
 }
 
 function Finalize-WildFireIncidentList {
