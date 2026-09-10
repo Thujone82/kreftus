@@ -307,6 +307,12 @@ $script:use24hTime = $true
 $script:showIrradiance = $true
 $script:gfRestartRequested = $false
 $script:gfRestartLocation = $null
+$script:gfSkipGeocodeFromFavorite = $false
+$script:gfFavoriteBootLat = $null
+$script:gfFavoriteBootLon = $null
+$script:gfFavoriteBootCity = $null
+$script:gfFavoriteBootState = $null
+$script:gfAdvancedBootStatusActive = $false
 $script:showMagicHours = $false
 $script:gfOpenConfigAfterInit = $false
 
@@ -483,6 +489,13 @@ if ($Help -or $modeWithoutLocationNeedsHelp) {
     Write-Host "  .\gf.ps1 -Help" -ForegroundColor Cyan
     Write-Host "  .\gf.ps1 -aqi                    # Configure AirNow API key (persisted User env)" -ForegroundColor Cyan
     return
+}
+
+# Advanced: show status ASAP so the long helper-registration / profile parse is not a blank screen
+if ($gfAdvancedCanSupplyLocation -and -not $DisableAdvanced.IsPresent -and $VerbosePreference -ne 'Continue') {
+    try { Clear-Host } catch {}
+    Write-Host "Loading GetForecast Advanced Mode..." -ForegroundColor Yellow
+    $script:gfAdvancedBootStatusActive = $true
 }
 
 $script:useWbgtFeelsLike = $UseWbgt.IsPresent
@@ -717,7 +730,10 @@ function Get-CurrentLocation {
 # System.Console — otherwise a shorter pane leaves ghost lines from the previous one
 # (e.g. alert headlines under compact terse alerts).
 function Clear-HostWithDelay {
-    Clear-UpdatedConditionsLineCursor
+    # Keep the minute aging tick across clears; Show-* re-anchors Y after paint.
+    # Clearing the tick here used to leave full mode with no aging until another path
+    # rewrote Updated: (e.g. rain→full after zoom-to-fit).
+    Invalidate-UpdatedConditionsLineCursor
     $esc = [char]27
     try {
         Clear-Host
@@ -1292,6 +1308,51 @@ function Get-GfFavoriteLocationQuery {
         } catch {}
     }
     return $null
+}
+
+function Get-GfFavoriteProcessLaunchArg {
+    # Prefer lat,lon so a process restart can skip Nominatim geocoding.
+    param([object]$Favorite)
+    if ($null -eq $Favorite) { return $null }
+    if ($Favorite.location -and $null -ne $Favorite.location.lat -and $null -ne $Favorite.location.lon) {
+        try {
+            return ("{0},{1}" -f [double]$Favorite.location.lat, [double]$Favorite.location.lon)
+        } catch {}
+    }
+    return (Get-GfFavoriteLocationQuery -Favorite $Favorite)
+}
+
+function Set-GfFavoriteBootCoordsFromFavorite {
+    param([object]$Favorite)
+    $script:gfSkipGeocodeFromFavorite = $false
+    $script:gfFavoriteBootLat = $null
+    $script:gfFavoriteBootLon = $null
+    $script:gfFavoriteBootCity = $null
+    $script:gfFavoriteBootState = $null
+    if (-not $Favorite -or -not $Favorite.location) { return $false }
+    if ($null -eq $Favorite.location.lat -or $null -eq $Favorite.location.lon) { return $false }
+    try {
+        $script:gfFavoriteBootLat = [double]$Favorite.location.lat
+        $script:gfFavoriteBootLon = [double]$Favorite.location.lon
+        if ($Favorite.location.city -and -not [string]::IsNullOrWhiteSpace([string]$Favorite.location.city)) {
+            $script:gfFavoriteBootCity = ([string]$Favorite.location.city).Trim()
+        }
+        if ($Favorite.location.state -and -not [string]::IsNullOrWhiteSpace([string]$Favorite.location.state)) {
+            $script:gfFavoriteBootState = ([string]$Favorite.location.state).Trim()
+        }
+        if ((-not $script:gfFavoriteBootCity -or -not $script:gfFavoriteBootState) -and $Favorite.name) {
+            $n = ([string]$Favorite.name).Trim()
+            if ($n -match '^(.+),\s*(.+)$') {
+                if (-not $script:gfFavoriteBootCity) { $script:gfFavoriteBootCity = $Matches[1].Trim() }
+                if (-not $script:gfFavoriteBootState) { $script:gfFavoriteBootState = $Matches[2].Trim() }
+            }
+        }
+        $script:gfSkipGeocodeFromFavorite = $true
+        return $true
+    } catch {
+        $script:gfSkipGeocodeFromFavorite = $false
+        return $false
+    }
 }
 
 function ConvertFrom-ForecastBackupToGfProfile {
@@ -3460,7 +3521,7 @@ function Switch-GfAdvancedFavoriteInProcess {
             if ([string]::IsNullOrWhiteSpace($query)) {
                 return [pscustomobject]@{ Success = $false }
             }
-            $script:gfRestartLocation = $query
+            $script:gfRestartLocation = Get-GfFavoriteProcessLaunchArg -Favorite $fav
             $script:gfRestartRequested = $true
             return [pscustomobject]@{ Success = $true; Restart = $true; Lat = $null; Lon = $null }
         }
@@ -3513,7 +3574,7 @@ function Switch-GfAdvancedFavoriteInProcess {
                 Save-GfActiveWeatherCacheIfLeader -CacheKey $cacheKey -LocationQuery (Get-GfFavoriteLocationQuery -Favorite $fav) -Lat $latV -Lon $lonV -City $cityV -State $stateV
             } elseif (-not $fromCache) {
                 # Hard fallback: restart
-                $script:gfRestartLocation = Get-GfFavoriteLocationQuery -Favorite $fav
+                $script:gfRestartLocation = Get-GfFavoriteProcessLaunchArg -Favorite $fav
                 $script:gfRestartRequested = $true
                 return [pscustomobject]@{ Success = $true; Restart = $true }
             }
@@ -3544,7 +3605,7 @@ function Switch-GfAdvancedFavoriteInProcess {
                 }
             }
             if (-not $fromCache -and -not $refreshed) {
-                $script:gfRestartLocation = Get-GfFavoriteLocationQuery -Favorite $fav
+                $script:gfRestartLocation = Get-GfFavoriteProcessLaunchArg -Favorite $fav
                 $script:gfRestartRequested = $true
                 return [pscustomobject]@{ Success = $true; Restart = $true }
             }
@@ -3639,6 +3700,20 @@ function Invoke-GfAdvancedRestartIfRequested {
     $script:gfFavoriteInputLocked = $false
 }
 
+function Write-GfAdvancedBootStatus {
+    param([string]$Message = "Loading GetForecast Advanced Mode...")
+    if ([string]::IsNullOrWhiteSpace($Message)) {
+        $Message = "Loading GetForecast Advanced Mode..."
+    }
+    $script:gfAdvancedBootStatusActive = $true
+    if ($VerbosePreference -eq 'Continue') {
+        Write-Verbose $Message
+        return
+    }
+    try { Clear-Host } catch {}
+    Write-Host $Message -ForegroundColor Yellow
+}
+
 function Initialize-GfAdvancedMode {
     param(
         [ref]$LocationRef
@@ -3706,9 +3781,16 @@ function Initialize-GfAdvancedMode {
         }
     }
 
+    # Show status before the expensive gf.json parse (can take seconds with weatherCache)
+    $profilePath = Get-GfAdvancedProfilePath
+    if ((Test-Path -LiteralPath $profilePath) -and -not $DisableAdvanced.IsPresent) {
+        Write-GfAdvancedBootStatus "Loading GetForecast Advanced Mode..."
+    }
+
     $profile = Get-GfAdvancedProfile
     if (-not $profile -or -not $profile.advancedEnabled) {
         $script:gfAdvancedMode = $false
+        $script:gfAdvancedBootStatusActive = $false
         $script:showMagicHours = $Magic.IsPresent
         $script:showIrradiance = $true
         if ($Irradiance.IsPresent) { $script:showIrradiance = $true }
@@ -3717,6 +3799,7 @@ function Initialize-GfAdvancedMode {
     }
 
     $script:gfAdvancedMode = $true
+    Write-GfAdvancedBootStatus "Loading GetForecast Advanced Mode..."
     $script:gfAdvancedProfile = $profile
     $script:gfFavorites = @($profile.favorites)
     $script:gfPerLocationColors = [bool]$profile.settings.perLocationColors
@@ -3795,8 +3878,23 @@ function Initialize-GfAdvancedMode {
         $script:gfLoadedFavoriteIndex = $favIndex
         Clear-GfAdvancedFavoritePendingLoad
         Set-GfAdvancedLastActiveFavorite -Index $favIndex -Favorite $script:gfActiveFavorite
+        [void](Set-GfFavoriteBootCoordsFromFavorite -Favorite $script:gfActiveFavorite)
         if (-not $LocationRef.Value) {
-            $LocationRef.Value = Get-GfFavoriteLocationQuery -Favorite $script:gfActiveFavorite
+            # Prefer lat,lon so the geocode loop can skip Nominatim without relying only on the flag
+            $LocationRef.Value = Get-GfFavoriteProcessLaunchArg -Favorite $script:gfActiveFavorite
+        } elseif ($script:gfSkipGeocodeFromFavorite) {
+            # CLI/restart already supplied a location string; still skip geocode when it matches this favorite
+            $q = Get-GfFavoriteLocationQuery -Favorite $script:gfActiveFavorite
+            $coordArg = Get-GfFavoriteProcessLaunchArg -Favorite $script:gfActiveFavorite
+            $supplied = [string]$LocationRef.Value
+            if ($supplied -ne $q -and $supplied -ne $coordArg) {
+                # Explicit unrelated location on the command line — geocode it normally
+                $script:gfSkipGeocodeFromFavorite = $false
+            }
+        }
+        $favLabel = Get-GfFavoriteLocationQuery -Favorite $script:gfActiveFavorite
+        if ($favLabel) {
+            Write-GfAdvancedBootStatus "Loading GetForecast Advanced Mode... ($favLabel)"
         }
     }
 
@@ -4127,13 +4225,35 @@ function Write-UpdatedConditionsLine {
         $script:nextUpdatedLineTick = (Get-Date).AddMinutes(1)
     } catch {
         $script:updatedLineCursorTop = $null
-        $script:nextUpdatedLineTick = $null
+        # Keep the aging tick even if we could not snapshot Y — Find will recover
+        $script:nextUpdatedLineTick = (Get-Date).AddMinutes(1)
     }
 }
 
 function Clear-UpdatedConditionsLineCursor {
     $script:updatedLineCursorTop = $null
     $script:nextUpdatedLineTick = $null
+}
+
+function Invalidate-UpdatedConditionsLineCursor {
+    # Later sections (e.g. Hourly) may scroll the buffer so the saved Y is stale.
+    # Drop the row hint but keep the minute tick so we can rescan and re-age.
+    $script:updatedLineCursorTop = $null
+}
+
+function Test-ConsoleRowInVisibleWindow {
+    param([int]$CursorTop)
+    try {
+        $winH = [int]$Host.UI.RawUI.WindowSize.Height
+        if ($winH -lt 5) { $winH = 25 }
+        $winTop = 0
+        try { $winTop = [int]$Host.UI.RawUI.WindowPosition.Y } catch { $winTop = 0 }
+        $winBottom = $winTop + $winH - 1
+        return ($CursorTop -ge $winTop -and $CursorTop -le $winBottom)
+    } catch {
+        # If we cannot resolve the viewport, allow in-place (better than never aging)
+        return $true
+    }
 }
 
 function Test-UpdatedConditionsLineAtCursor {
@@ -4151,22 +4271,72 @@ function Test-UpdatedConditionsLineAtCursor {
     }
 }
 
+function Find-UpdatedConditionsLineCursorTop {
+    param([switch]$VisibleOnly)
+    try {
+        $bufH = [int]$Host.UI.RawUI.BufferSize.Height
+        $winH = [int]$Host.UI.RawUI.WindowSize.Height
+        if ($winH -lt 5) { $winH = 25 }
+        $winTop = 0
+        try { $winTop = [int]$Host.UI.RawUI.WindowPosition.Y } catch { $winTop = 0 }
+
+        $candidates = [System.Collections.Generic.List[int]]::new()
+        # Prefer visible window (where the user is looking)
+        $visStart = [Math]::Max(0, $winTop)
+        $visEnd = [Math]::Min($bufH - 1, $winTop + $winH - 1)
+        for ($y = $visStart; $y -le $visEnd; $y++) { [void]$candidates.Add($y) }
+
+        if (-not $VisibleOnly) {
+            # Then near the top of the buffer (Current Conditions lives early in the report)
+            $topEnd = [Math]::Min(80, $bufH - 1)
+            for ($y = 0; $y -le $topEnd; $y++) {
+                if (-not $candidates.Contains($y)) { [void]$candidates.Add($y) }
+            }
+        }
+
+        foreach ($y in $candidates) {
+            if (Test-UpdatedConditionsLineAtCursor -CursorTop $y) { return $y }
+        }
+    } catch {}
+    return $null
+}
+
+function Anchor-UpdatedConditionsLineCursor {
+    param([string]$InfoColor = $null)
+    # After a tall report finishes (and may have scrolled), re-locate "Updated:" if it
+    # is still in the buffer. If it scrolled away entirely, leave Y null — the minute
+    # tick will fall back to a redraw.
+    $found = Find-UpdatedConditionsLineCursorTop
+    if ($null -ne $found) {
+        $script:updatedLineCursorTop = $found
+    }
+    if (-not [string]::IsNullOrWhiteSpace($InfoColor)) {
+        $script:updatedLineInfoColor = $InfoColor
+    }
+    if ($null -eq $script:nextUpdatedLineTick) {
+        $script:nextUpdatedLineTick = (Get-Date).AddMinutes(1)
+    }
+}
+
 function Update-UpdatedConditionsLineInPlace {
     param([string]$InfoColor = "Blue")
-    if ($null -eq $script:updatedLineCursorTop) { return $false }
 
-    # After a tall full report scrolls the buffer, the saved Y no longer points at the
-    # Updated line (it can land under Hourly). Refuse to paint unless that row still
-    # looks like an Updated line.
-    if (-not (Test-UpdatedConditionsLineAtCursor -CursorTop $script:updatedLineCursorTop)) {
-        Clear-UpdatedConditionsLineCursor
-        return $false
+    # Only rewrite when Updated: is in the visible viewport. Writing off-screen
+    # (scrolled-away Current Conditions on tall full reports) looks like a no-op
+    # and previously blocked the redraw fallback — zoom-out made it "work" because
+    # the line became visible.
+    $top = $script:updatedLineCursorTop
+    $usable = ($null -ne $top -and
+        (Test-UpdatedConditionsLineAtCursor -CursorTop $top) -and
+        (Test-ConsoleRowInVisibleWindow -CursorTop $top))
+    if (-not $usable) {
+        $top = Find-UpdatedConditionsLineCursorTop -VisibleOnly
+        if ($null -eq $top) { return $false }
+        $script:updatedLineCursorTop = $top
     }
 
-    # Shared-cache: refresh fetchedAt from disk so follower Updated: ages with the leader
-    if ($script:gfSessionId -and $script:gfActiveCacheKey) {
-        Sync-GfSharedCacheFetchedAtUtcFromDisk
-    }
+    # Do not re-read gf.json here (lock contention with leader heartbeats). Stamp is
+    # updated on Restore / leader fetch; aging is just elapsed time from gfCacheFetchedAtUtc.
 
     $line = Get-UpdatedConditionsLineText
     if ([string]::IsNullOrWhiteSpace($line)) { return $false }
@@ -4177,12 +4347,12 @@ function Update-UpdatedConditionsLineInPlace {
         if ($consoleWidth -lt 20) { $consoleWidth = 80 }
         $padded = if ($line.Length -lt $consoleWidth) { $line.PadRight($consoleWidth) } else { $line }
 
-        $Host.UI.RawUI.CursorPosition = New-Object System.Management.Automation.Host.Coordinates(0, $script:updatedLineCursorTop)
+        $Host.UI.RawUI.CursorPosition = New-Object System.Management.Automation.Host.Coordinates(0, [int]$top)
         Write-Host $padded -ForegroundColor $InfoColor -NoNewline
         $Host.UI.RawUI.CursorPosition = $savedPos
         return $true
     } catch {
-        Clear-UpdatedConditionsLineCursor
+        Invalidate-UpdatedConditionsLineCursor
         return $false
     }
 }
@@ -5767,8 +5937,27 @@ while ($true) { # Loop for location input and geocoding
 
         Write-Verbose "Input provided: $Location"
 
+        # Saved Advanced favorite already has lat/lon (+ usually city/state) — skip Nominatim.
+        if ($script:gfSkipGeocodeFromFavorite -and $null -ne $script:gfFavoriteBootLat -and $null -ne $script:gfFavoriteBootLon) {
+            $lat = [double]$script:gfFavoriteBootLat
+            $lon = [double]$script:gfFavoriteBootLon
+            $city = $script:gfFavoriteBootCity
+            $state = $script:gfFavoriteBootState
+            if (-not $city) { $city = ("{0:N4}" -f $lat) }
+            if (-not $state) { $state = ("{0:N4}" -f $lon) }
+            Write-Verbose "Using saved favorite coordinates (skip geocode): $city, $state ($lat, $lon)"
+            if ($script:gfAdvancedMode) {
+                $locLabel = if ($state) { "$city, $state" } else { "$city" }
+                Write-GfAdvancedBootStatus "Loading GetForecast Advanced Mode... ($locLabel)"
+            }
+            $script:gfSkipGeocodeFromFavorite = $false
+            $script:gfFavoriteBootLat = $null
+            $script:gfFavoriteBootLon = $null
+            $script:gfFavoriteBootCity = $null
+            $script:gfFavoriteBootState = $null
+        }
         # Check if user wants automatic location detection
-        if ($Location -ieq "here") {
+        elseif ($Location -ieq "here") {
             Write-Verbose "Detecting location automatically..."
             if ($VerbosePreference -ne 'Continue') {
                 Clear-Host
@@ -6000,11 +6189,14 @@ if ($script:gfAdvancedMode) {
     if ($script:gfAdvancedProfile -and $script:gfAdvancedProfile.settings -and $script:gfAdvancedProfile.settings.currentMode) {
         $bootMode = [string]$script:gfAdvancedProfile.settings.currentMode
     }
+    $bootLocLabel = if ($city -and $state) { "$city, $state" } elseif ($city) { "$city" } else { "location" }
+    Write-GfAdvancedBootStatus "Loading GetForecast Advanced Mode... ($bootLocLabel)"
     Register-GfSession -ActiveCacheKey $bootCacheKey -Mode $bootMode
     $isBootLeader = Test-GfSessionIsLeader -CacheKey $bootCacheKey
+    Write-GfAdvancedBootStatus "Loading shared weather cache... ($bootLocLabel)"
     $bootEntry = Get-GfWeatherCacheEntry -CacheKey $bootCacheKey
     if (-not $bootEntry -and -not $isBootLeader) {
-        Write-Host "Waiting for shared weather cache..." -ForegroundColor Yellow
+        Write-GfAdvancedBootStatus "Waiting for shared weather cache... ($bootLocLabel)"
         for ($bootPoll = 0; $bootPoll -lt 20; $bootPoll++) {
             Start-Sleep -Milliseconds 250
             Update-GfSessionHeartbeat -ActiveCacheKey $bootCacheKey -Mode $bootMode
@@ -6020,10 +6212,14 @@ if ($script:gfAdvancedMode) {
         if ($freshBoot -or -not $isBootLeader) {
             $script:gfBootFromCache = $true
             Write-Verbose "Bootstrapping from weatherCache key=$bootCacheKey fresh=$freshBoot leader=$isBootLeader"
+            Write-GfAdvancedBootStatus "Restoring cached forecast... ($city, $state)"
         } else {
             # Leader + stale: hydrate then fall through to refresh APIs
             Write-Verbose "Hydrated stale weatherCache; leader will refresh key=$bootCacheKey"
+            Write-GfAdvancedBootStatus "Refreshing forecast... ($city, $state)"
         }
+    } else {
+        Write-GfAdvancedBootStatus "Loading forecast... ($bootLocLabel)"
     }
 }
 
@@ -7906,8 +8102,8 @@ function Show-HourlyForecast {
         [double]$Longitude = 0
     )
     
-    # Further output (and console scroll) invalidates in-place Updated aging for this frame
-    Clear-UpdatedConditionsLineCursor
+    # Further output may scroll the buffer; keep the aging tick and rescan Y later
+    Invalidate-UpdatedConditionsLineCursor
 
     Write-Host ""
     if ($ShowCityInTitle -and $City) {
@@ -11318,6 +11514,9 @@ function Show-FullWeatherReport {
     if ($ShowLocationInfo) {
         Show-LocationInfo -TimeZone $TimeZone -Lat $Lat -Lon $Lon -ElevationFeet $ElevationFeet -RadarStation $RadarStation -TitleColor $TitleColor -DefaultColor $DefaultColor
     }
+
+    # Re-locate Updated: after hourly/alerts/location may have scrolled the buffer
+    Anchor-UpdatedConditionsLineCursor -InfoColor $InfoColor
 }
 
 # Function to map rain percentage to sparkline character and color
@@ -11908,6 +12107,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
         Show-WeatherAlerts -AlertsData $script:alertsData -AlertColor $alertColor -DefaultColor $defaultColor -InfoColor $infoColor -ShowDetails $false -TimeZone $timeZone
         Show-GfInteractiveControlsBar
         Clear-ConsoleFromCursorToEnd
+        Anchor-UpdatedConditionsLineCursor -InfoColor $infoColor
     }
 
     function Show-GfInteractiveCurrentView {
@@ -11939,6 +12139,7 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
         } else {
             Show-FullWeatherReport -City $city -State $state -WeatherIcon $weatherIcon -CurrentConditions $currentConditions -CurrentTemp $currentTemp -TempColor $tempColor -CurrentTempTrend $currentTempTrend -CurrentWind $currentWind -WindColor $windColor -CurrentWindDir $currentWindDir -WindGust $windGust -CurrentHumidity $currentHumidity -CurrentDewPoint $currentDewPoint -CurrentPrecipProb $currentPrecipProb -CurrentTimeLocal $(Get-CurrentConditionsUpdatedDateTime) -TodayForecast $todayForecast -TodayPeriodName $todayPeriodName -TomorrowForecast $tomorrowForecast -TomorrowPeriodName $tomorrowPeriodName -HourlyData $script:hourlyData -ForecastData $script:forecastData -AlertsData $script:alertsData -TimeZone $timeZone -Lat $lat -Lon $lon -ElevationFeet $elevationFeet -RadarStation $radarStation -DefaultColor $defaultColor -AlertColor $alertColor -TitleColor $titleColor -InfoColor $infoColor -ShowCurrentConditions $true -ShowTodayForecast $true -ShowTomorrowForecast $true -ShowHourlyForecast $true -ShowSevenDayForecast $true -ShowAlerts $true -ShowAlertDetails $true -ShowLocationInfo $true -MoonPhase $moonPhaseInfo.Name -MoonEmoji $moonPhaseInfo.Emoji -IsFullMoon $moonPhaseInfo.IsFullMoon -NextFullMoonDate $moonPhaseInfo.NextFullMoon -IsNewMoon $moonPhaseInfo.IsNewMoon -ShowNextFullMoon $moonPhaseInfo.ShowNextFullMoon -ShowNextNewMoon $moonPhaseInfo.ShowNextNewMoon -NextNewMoonDate $moonPhaseInfo.NextNewMoon -SunriseTime $script:sunriseTime -SunsetTime $script:sunsetTime -IsPolarNight $script:isPolarNight -IsPolarDay $script:isPolarDay -CurrentTimeDateTime $(Get-CurrentConditionsUpdatedDateTime)
             Show-GfInteractiveControlsBar
+            Anchor-UpdatedConditionsLineCursor -InfoColor $infoColor
         }
     }
     
@@ -12318,11 +12519,20 @@ if ($isInteractiveEnvironment -and -not $NoInteractive.IsPresent) {
                 }
             }
             
-            # Re-age the Updated line once per minute (fetch + NWS suffix) without a full redraw
-            if ($null -ne $script:updatedLineCursorTop -and $null -ne $script:nextUpdatedLineTick -and (Get-Date) -ge $script:nextUpdatedLineTick) {
+            # Re-age Updated: once per minute via full redraw. In-place RawUI cursor
+            # writes are unreliable in Windows Terminal whenever the report is taller than
+            # the window (even if Updated: itself is visible) — they can no-op yet return
+            # success, which previously blocked aging until a data refresh or a rain→full
+            # cycle after zoom-to-fit.
+            if ($null -ne $script:nextUpdatedLineTick -and (Get-Date) -ge $script:nextUpdatedLineTick) {
                 $script:nextUpdatedLineTick = (Get-Date).AddMinutes(1)
-                $infoColor = if ($script:updatedLineInfoColor) { $script:updatedLineInfoColor } else { "Blue" }
-                $null = Update-UpdatedConditionsLineInPlace -InfoColor $infoColor
+                $showsUpdated = (-not $isHourlyMode -and -not $isRainMode -and -not $isWindMode -and
+                    -not $isDailyMode -and -not $isObservationsMode -and -not $isAlertsMode -and
+                    -not ($isTerseAlertMode -and $script:terseAlertShowingAlerts))
+                if ($showsUpdated) {
+                    Clear-HostWithDelay
+                    Show-GfInteractiveCurrentView
+                }
             }
 
             # -ta: alternate terse vs full alerts every 20s when alerts are active

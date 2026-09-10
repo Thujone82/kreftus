@@ -60,7 +60,7 @@ The script is designed for ease of use, accepting flexible location inputs like 
 
 The script follows a multi-step process:
 
-1. **Geocoding:** Uses free services (zippopotam.us for zip codes, Nominatim for city/state) to convert location input to coordinates. **`here`** uses the IP geolocation fallback chain.
+1. **Geocoding:** Uses free services (zippopotam.us for zip codes, Nominatim for city/state) to convert location input to coordinates. **`here`** uses the IP geolocation fallback chain. **Advanced saved favorites** with stored `location.lat`/`lon` skip Nominatim (and reverse geocode) on boot/restart; city/state come from the favorite when present.
 2. **NWS Points Lookup:** Calls the NWS `/points/{lat},{lon}` endpoint to get grid metadata for the location.
 3. **Forecast Data:** Fetches both regular forecast and hourly forecast data from the NWS gridpoints endpoints (parallel jobs on refresh).
 4. **Alerts / optional AQI / Wildfire:** Retrieves active alerts; optional AirNow AQI when `AirNowAPI` is set; NIFC wildfire query when enabled (soft-fail; see Wildfire technical notes).
@@ -201,7 +201,7 @@ Example: S1 (oldest), S2, S3 on PDX; S1 Tabs to ANC.
 | Miss + leader | Fetch then cache |
 | Miss + follower | Short poll; if they become leader, fetch |
 
-**Boot:** after geocode, register session; if cache fresh (or follower with any usable entry), skip initial NWS/AirNow/wildfire path (`$script:gfBootFromCache`). Leader + stale hydrates then falls through to refresh APIs.
+**Boot:** Advanced favorites with stored coords skip geocoding; then register session; if cache fresh (or follower with any usable entry), skip initial NWS/AirNow/wildfire path (`$script:gfBootFromCache`). Leader + stale hydrates then falls through to refresh APIs.
 
 **G / auto-refresh:** **leader only** for that key. Followers’ **G** / stale auto-refresh = re-read cache (redraw only when `writtenAt` is newer); otherwise cooldown ≈ heartbeat to avoid redraw spam.
 
@@ -231,7 +231,8 @@ Digit slots `1`–`0` / `Shift+1`–`0` use the same switch path (immediate, no 
 - `[NWS: …]` age uses observation UTC (`currentObservationTime` / `observationUtc`), with location wall-clock converted via the **location** timezone — never treat destination wall time as system-local.
 - Display clamp: NWS age is never shown fresher than the `Updated:` fetch age (observation cannot post-date the fetch that retrieved it).
 - Followers pick up leader writes when `writtenAt` advances (light obs saves bump `writtenAt` even if `fetchedAt` is unchanged).
-- In-place minute re-age (`Update-UpdatedConditionsLineInPlace`) uses the same shared stamps so all clients stay aligned.
+- Minute re-age redraws full/terse views that show `Updated:` (shared `fetchedAt` stamps). In-place RawUI line rewrites are not used for aging — they are unreliable in Windows Terminal when the report is taller than the window (even if `Updated:` is on-screen).
+- Advanced boot shows progressive status (`Loading GetForecast Advanced Mode...`, cache restore, etc.) so the console is not blank during profile/cache I/O.
 
 #### Cache maintenance
 
