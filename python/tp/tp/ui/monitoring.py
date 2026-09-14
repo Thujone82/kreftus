@@ -779,6 +779,34 @@ class MonitoringScreen(Screen):
             self._set_phase(PHASE_WAITING, wait_seconds=0)
             self.refresh_display()
 
+    def _fetch_status_label(self) -> str:
+        if self._phase == PHASE_COMMIT:
+            return "Saving"
+        if self._phase == PHASE_HISTORY:
+            return "History"
+        if self._is_retry_cycle:
+            return "Retry"
+        return "Fetch"
+
+    def _fetch_label_field_width(self) -> int:
+        return max(len("Fetch"), len("Saving"), len("History"), len("Retry"))
+
+    def _fetch_name_field_width(self) -> int:
+        """Widest managed device name — keeps the header bar from shifting."""
+        names = list(self.app.config.devices.values())
+        if not names:
+            return 0
+        return max(len(name) for name in names)
+
+    def _padded_fetch_device(self) -> str:
+        width = self._fetch_name_field_width()
+        name = self._status_device_label()
+        if width <= 0:
+            return name
+        if len(name) > width:
+            return name[: max(0, width - 1)] + "…"
+        return name.ljust(width)
+
     def _header_status_text(self) -> str:
         parts: list[str] = []
         if getattr(self.app, "debug_enabled", False) or debug_log_enabled():
@@ -791,17 +819,9 @@ class MonitoringScreen(Screen):
         if self._fetch_in_progress():
             spinner = SPINNER_FRAMES[self._spinner_index]
             bar = format_progress_bar(self._fetch_index, self._fetch_total, width=12)
-            if self._phase == PHASE_COMMIT:
-                label = "Saving"
-            elif self._phase == PHASE_HISTORY:
-                label = "History"
-            elif self._is_retry_cycle:
-                label = "Retry"
-            else:
-                label = "Fetch"
-            device = self._status_device_label()
-            device_part = f"{device} " if device else ""
-            parts.append(f"[bold]{spinner}[/] {label} {device_part}{bar}")
+            label = self._fetch_status_label().ljust(self._fetch_label_field_width())
+            device = self._padded_fetch_device()
+            parts.append(f"[bold]{spinner}[/] {label} {device} {bar}")
         elif self.app.config.devices:
             if self._poll_scheduling_enabled():
                 boundary, _, _, stale_count = self._next_event_info()
