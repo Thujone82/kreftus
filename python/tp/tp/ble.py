@@ -388,13 +388,14 @@ async def _resolve_device(
     raise RuntimeError(f"Device with address {target} was not found")
 
 
-async def prefetch_ble_device(address: str) -> None:
+async def prefetch_ble_device(address: str, *, timeout: float | None = None) -> None:
     """Warm the resolution cache during idle gaps between device reads."""
     if get_cached_ble_device(address) is not None:
         debug_write(f"ble: prefetch skip (cached) {_cache_mac(address)}")
         return
+    scan_timeout = DEVICE_SCAN_TIMEOUT if timeout is None else max(0.5, float(timeout))
     try:
-        device = await _resolve_device(address, timeout=DEVICE_SCAN_TIMEOUT)
+        device = await _resolve_device(address, timeout=scan_timeout)
         _remember_ble_device(address, device)
         debug_write(f"ble: prefetch cached {device.address}")
     except Exception as exc:  # noqa: BLE001
@@ -1541,5 +1542,9 @@ async def read_now(
 
 
 def inter_device_delay_seconds() -> float:
-    """Pause between device reads so the adapter can settle."""
-    return 2.0
+    """Pause between device reads so the adapter can settle.
+
+    Kept short: a longer wait was dominated by awaiting a full next-device
+    prefetch scan (up to 5s), which made gaps feel stuck.
+    """
+    return 0.75

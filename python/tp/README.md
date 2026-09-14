@@ -89,7 +89,7 @@ Place `tp.ini` and `tp_log.csv` in the same folder as the launcher. The build sc
 
 Each tracked device shows 5 rows:
 
-1. Device name — **green** if fresh (within 10 minutes), **yellow** if stale. While that device is being fetched, `▶` / `◀` show the BLE step: **cyan** connecting, **green** fast live read (datetime sync), **yellow** passive fallback (legacy sensors)
+1. Device name — **green** if fresh (within 10 minutes), **yellow** if stale. While that device is being fetched, `▶` / `◀` show the BLE step: **cyan** connecting, **green** once linked (history receive or live sync read), **yellow** passive fallback (legacy sensors)
 2. Temperature cur / min / max (°F) — cur is the latest reading; min/max are the true lows and highs within the active sparkline window
 3. 24-character temperature sparkline (default 24H window; **T** / **Shift+T** cycle windows forward / reverse from Options time detail — Less: 24H → 72H → 4H; More: 24H → 36H → 72H → 90M → 4H → 8H → 12H)
 4. Humidity cur / min / max (%) — each value color-banded to match sparkline glyphs

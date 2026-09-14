@@ -223,13 +223,13 @@ class MonitoringScreen(Screen):
         """Human-readable label for the poll/bootstrap work holding BLE."""
         if not self._fetch_in_progress():
             return None
-        device = self._status_device_label()
+        device = self._status_device_label() or "…"
         if self._phase == PHASE_COMMIT:
             return "poll fetch saving results"
         if self._phase == PHASE_HISTORY:
             return (
                 f"startup history bootstrap on {device} "
-                f"({self._fetch_index + 1}/{self._fetch_total})"
+                f"({self._fetch_index}/{self._fetch_total})"
             )
         step_labels = {
             NOW_READ_CONNECTING: "connecting",
@@ -239,9 +239,9 @@ class MonitoringScreen(Screen):
         }
         step = step_labels.get(
             self._active_fetch_step or "",
-            self._active_fetch_step or "reading",
+            self._active_fetch_step or ("settling" if not self._active_mac else "reading"),
         )
-        position = f"{min(self._fetch_index + 1, self._fetch_total)}/{self._fetch_total}"
+        position = f"{self._fetch_index}/{self._fetch_total}"
         return f"poll fetch on {device} ({position}, {step})"
 
     def _device_activity_in_progress(self) -> bool:
@@ -722,6 +722,13 @@ class MonitoringScreen(Screen):
             self._active_name = None
             self._active_fetch_step = None
             self._set_phase(PHASE_COMMIT, index=index, total=total)
+        elif not name and not mac:
+            # Device finished — show completed count during settle/prefetch.
+            self._active_macs = set()
+            self._active_mac = None
+            self._active_name = None
+            self._active_fetch_step = None
+            self._set_phase(PHASE_FETCHING, index=index, total=total)
         else:
             self._active_macs = {mac} if mac else set()
             self._active_fetch_step = NOW_READ_CONNECTING
@@ -793,7 +800,8 @@ class MonitoringScreen(Screen):
             else:
                 label = "Fetch"
             device = self._status_device_label()
-            parts.append(f"[bold]{spinner}[/] {label} {device} {bar}")
+            device_part = f"{device} " if device else ""
+            parts.append(f"[bold]{spinner}[/] {label} {device_part}{bar}")
         elif self.app.config.devices:
             if self._poll_scheduling_enabled():
                 boundary, _, _, stale_count = self._next_event_info()
@@ -811,7 +819,7 @@ class MonitoringScreen(Screen):
             return self._active_name
         if self._active_mac:
             return self.app.config.devices.get(self._active_mac, self._active_mac)
-        return "…"
+        return ""
 
     def _refresh_header(self) -> None:
         status_text = self._header_status_text()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from datetime import datetime
 from typing import Awaitable, Callable
 
@@ -145,9 +146,12 @@ async def _fetch_one_device_incremental(
     async def phase_cb(update: DayHistoryProgress) -> None:
         if on_now_phase is None:
             return
-        phase = NOW_READ_CONNECTING
-        if update.phase == "receiving":
+        # Keep cyan only while establishing the link; once connected/receiving/parsing
+        # use green so post-read work does not look like a stuck reconnect.
+        if update.phase in {"receiving", "parsing", "merging", "done"}:
             phase = "history"
+        else:
+            phase = NOW_READ_CONNECTING
         maybe = on_now_phase(mac, name, phase)
         if asyncio.iscoroutine(maybe):
             await maybe
@@ -487,13 +491,34 @@ async def _run_fetch_cycle_once(
                 await maybe
         if index < total:
             next_mac, next_name = devices[index]
+            # Advance header progress to completed count and clear the device
+            # label before settle/prefetch so the bar does not look stalled.
+            if progress:
+                maybe = progress(index, total, "", "")
+                if asyncio.iscoroutine(maybe):
+                    await maybe
             debug_write(
                 f"fetch: prefetching {next_name} ({next_mac}) during inter-device delay",
                 config=config,
             )
-            prefetch_task = asyncio.create_task(prefetch_ble_device(next_mac))
-            await asyncio.sleep(inter_device_delay_seconds())
-            await prefetch_task
+            delay = inter_device_delay_seconds()
+            # Best-effort warm of the next device, but never block longer than the
+            # settle window — awaiting a full 5s scan made inter-device gaps feel hung.
+            prefetch_task = asyncio.create_task(
+                prefetch_ble_device(next_mac, timeout=delay)
+            )
+            await asyncio.sleep(delay)
+            if prefetch_task.done():
+                await prefetch_task
+            else:
+                prefetch_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await prefetch_task
+                debug_write(
+                    f"fetch: prefetch for {next_name} still running after {delay:.2f}s; "
+                    "continuing (resolve on connect)",
+                    config=config,
+                )
 
     if progress:
         maybe = progress(total, total, "Saving results", "")

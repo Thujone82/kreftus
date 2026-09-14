@@ -36,6 +36,10 @@ class DeviceLabelRowTests(unittest.TestCase):
         row = format_device_label_row("Office", fetching=True, fetch_step="sync")
         self.assertIn("[bold green]▶[/]", row)
 
+    def test_fetch_arrows_green_while_receiving_history(self) -> None:
+        row = format_device_label_row("Office", fetching=True, fetch_step="history")
+        self.assertIn("[bold green]▶[/]", row)
+
     def test_fetch_arrows_yellow_for_passive(self) -> None:
         row = format_device_label_row("Office", fetching=True, fetch_step="passive")
         self.assertIn("[bold yellow]▶[/]", row)

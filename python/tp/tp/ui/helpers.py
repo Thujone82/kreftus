@@ -137,7 +137,8 @@ def format_stats_row(
 
 
 def _fetch_arrow_color(fetch_step: str | None) -> str:
-    if fetch_step == NOW_READ_SYNC:
+    """Arrow color by BLE step: cyan while connecting, green once linked/receiving."""
+    if fetch_step in {NOW_READ_SYNC, "history", "parsing", "merging", "done"}:
         return "green"
     if fetch_step == NOW_READ_PASSIVE:
         return "yellow"
@@ -151,7 +152,7 @@ def format_device_label_row(
     fetching: bool = False,
     fetch_step: str | None = None,
 ) -> str:
-    """Device name colored by freshness; fetch arrows show BLE step (connect/sync/passive)."""
+    """Device name colored by freshness; fetch arrows show BLE step (connect → linked)."""
     if fetching:
         arrow_color = _fetch_arrow_color(fetch_step or NOW_READ_CONNECTING)
         prefix = f"[bold {arrow_color}]▶[/] "
