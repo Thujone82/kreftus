@@ -1542,9 +1542,5 @@ async def read_now(
 
 
 def inter_device_delay_seconds() -> float:
-    """Pause between device reads so the adapter can settle.
-
-    Kept short: a longer wait was dominated by awaiting a full next-device
-    prefetch scan (up to 5s), which made gaps feel stuck.
-    """
-    return 0.75
+    """Pause between device reads so the adapter can settle."""
+    return 1.0

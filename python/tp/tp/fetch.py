@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 from datetime import datetime
 from typing import Awaitable, Callable
 
@@ -15,7 +14,6 @@ from tp.ble import (
     format_ble_error,
     inter_device_delay_seconds,
     invalidate_ble_device_cache,
-    prefetch_ble_device,
     read_now,
     read_recent_history,
     recent_history_timeout,
@@ -492,33 +490,20 @@ async def _run_fetch_cycle_once(
         if index < total:
             next_mac, next_name = devices[index]
             # Advance header progress to completed count and clear the device
-            # label before settle/prefetch so the bar does not look stalled.
+            # label before settle so the bar does not look stalled.
             if progress:
                 maybe = progress(index, total, "", "")
                 if asyncio.iscoroutine(maybe):
                     await maybe
+            # Settle only — do not start/cancel a BleakScanner prefetch here.
+            # Cancelling an in-flight WinRT scan then connecting the next device
+            # has wedged the BLE stack and frozen the UI.
+            delay = inter_device_delay_seconds()
             debug_write(
-                f"fetch: prefetching {next_name} ({next_mac}) during inter-device delay",
+                f"fetch: settling {delay:.2f}s before {next_name} ({next_mac})",
                 config=config,
             )
-            delay = inter_device_delay_seconds()
-            # Best-effort warm of the next device, but never block longer than the
-            # settle window — awaiting a full 5s scan made inter-device gaps feel hung.
-            prefetch_task = asyncio.create_task(
-                prefetch_ble_device(next_mac, timeout=delay)
-            )
             await asyncio.sleep(delay)
-            if prefetch_task.done():
-                await prefetch_task
-            else:
-                prefetch_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await prefetch_task
-                debug_write(
-                    f"fetch: prefetch for {next_name} still running after {delay:.2f}s; "
-                    "continuing (resolve on connect)",
-                    config=config,
-                )
 
     if progress:
         maybe = progress(total, total, "Saving results", "")
