@@ -154,3 +154,40 @@ class StuckDeviceRecoveryTests(unittest.IsolatedAsyncioTestCase):
         garage = next(result for result in batch if result.mac == "AA")
         self.assertIsNotNone(garage.reading)
         self.assertEqual(errors, [])
+
+    async def test_partial_retry_skips_radio_restart(self) -> None:
+        """Minute Retry of one stuck device must not power-cycle Bluetooth."""
+        config = _config_with_devices(("AA", "Garage"), ("BB", "Office"))
+        history = DeviceHistory()
+        for _ in range(2):
+            history.record_fetch_result(
+                PollResult(mac="AA", device_name="Garage", reading=None, error="timeout")
+            )
+        fail = PollResult(mac="AA", device_name="Garage", reading=None, error="timeout")
+
+        with (
+            patch(
+                "tp.fetch._run_fetch_cycle_once",
+                new=AsyncMock(return_value=([fail], ["Garage: timeout"])),
+            ) as cycle_mock,
+            patch(
+                "tp.fetch.maybe_restart_bluetooth_radio_after_total_failure",
+                new=AsyncMock(return_value=True),
+            ) as radio_mock,
+            patch(
+                "tp.fetch.maybe_reset_bluetooth_stack_after_radio_failure",
+                new=AsyncMock(return_value=False),
+            ) as stack_mock,
+        ):
+            batch, errors = await run_fetch_cycle(
+                config,
+                history,
+                only_macs=frozenset({"AA"}),
+                had_prior_success=True,
+            )
+
+        radio_mock.assert_not_awaited()
+        stack_mock.assert_not_awaited()
+        self.assertEqual(cycle_mock.await_count, 1)
+        self.assertEqual(batch[0].error, "timeout")
+        self.assertEqual(errors, ["Garage: timeout"])

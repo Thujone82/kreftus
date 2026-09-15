@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
+import sys
 import unittest
 from unittest.mock import AsyncMock, patch
 
 from tp.ble_radio import (
     BT_DISABLED_REQUEST,
+    BT_STACK_RESET_REQUEST,
     BluetoothPermissionRequest,
     ensure_bluetooth_enabled_for_polling,
     is_bluetooth_powered_off_error,
+    maybe_reset_bluetooth_stack_after_radio_failure,
     maybe_restart_bluetooth_radio,
     maybe_restart_bluetooth_radio_after_total_failure,
     set_bluetooth_permission_callback,
+    windows_stack_reset_needs_user_consent,
+    windows_uac_elevation_prompts,
 )
 import tp.ble_radio as ble_radio
 
@@ -42,6 +47,49 @@ class BluetoothPoweredOffDetectionTests(unittest.TestCase):
 
     def test_ignores_unrelated_errors(self) -> None:
         self.assertFalse(is_bluetooth_powered_off_error(RuntimeError("Device was not found")))
+
+
+class UacConsentDetectionTests(unittest.TestCase):
+    def test_never_notify_skips_consent(self) -> None:
+        with (
+            patch("tp.ble_radio.windows_process_is_elevated", return_value=False),
+            patch("tp.ble_radio.windows_uac_elevation_prompts", return_value=False),
+        ):
+            self.assertFalse(windows_stack_reset_needs_user_consent())
+
+    def test_prompting_uac_requires_consent(self) -> None:
+        with (
+            patch("tp.ble_radio.windows_process_is_elevated", return_value=False),
+            patch("tp.ble_radio.windows_uac_elevation_prompts", return_value=True),
+        ):
+            self.assertTrue(windows_stack_reset_needs_user_consent())
+
+    def test_already_elevated_skips_consent(self) -> None:
+        with patch("tp.ble_radio.windows_process_is_elevated", return_value=True):
+            self.assertFalse(windows_stack_reset_needs_user_consent())
+
+    def test_consent_prompt_behavior_zero_means_silent(self) -> None:
+        """ConsentPromptBehaviorAdmin=0 is the Never notify policy value."""
+        if sys.platform != "win32":
+            self.skipTest("Windows only")
+
+        class _Key:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_exc):
+                return False
+
+        def query(_key, name):
+            values = {"EnableLUA": 1, "ConsentPromptBehaviorAdmin": 0}
+            return values[name], 1
+
+        with (
+            patch("sys.platform", "win32"),
+            patch("winreg.OpenKey", return_value=_Key()),
+            patch("winreg.QueryValueEx", side_effect=query),
+        ):
+            self.assertFalse(windows_uac_elevation_prompts())
 
 
 class BluetoothPermissionTests(unittest.IsolatedAsyncioTestCase):
@@ -130,6 +178,46 @@ class BluetoothPermissionTests(unittest.IsolatedAsyncioTestCase):
         ) as restart_mock:
             self.assertTrue(await maybe_restart_bluetooth_radio_after_total_failure())
             restart_mock.assert_awaited_once()
+
+    async def test_stack_reset_skips_prompt_when_uac_silent(self) -> None:
+        approved: list[BluetoothPermissionRequest] = []
+
+        def _approve(request: BluetoothPermissionRequest) -> bool:
+            approved.append(request)
+            return False
+
+        set_bluetooth_permission_callback(_approve)
+        with (
+            patch("sys.platform", "win32"),
+            patch("tp.ble_radio.windows_stack_reset_needs_user_consent", return_value=False),
+            patch(
+                "tp.ble_radio.reset_windows_bluetooth_stack",
+                new=AsyncMock(return_value=True),
+            ) as reset_mock,
+        ):
+            self.assertTrue(await maybe_reset_bluetooth_stack_after_radio_failure())
+            reset_mock.assert_awaited_once()
+        self.assertEqual(approved, [])
+
+    async def test_stack_reset_prompts_when_uac_would_show(self) -> None:
+        approved: list[BluetoothPermissionRequest] = []
+
+        def _approve(request: BluetoothPermissionRequest) -> bool:
+            approved.append(request)
+            return True
+
+        set_bluetooth_permission_callback(_approve)
+        with (
+            patch("sys.platform", "win32"),
+            patch("tp.ble_radio.windows_stack_reset_needs_user_consent", return_value=True),
+            patch(
+                "tp.ble_radio.reset_windows_bluetooth_stack",
+                new=AsyncMock(return_value=True),
+            ) as reset_mock,
+        ):
+            self.assertTrue(await maybe_reset_bluetooth_stack_after_radio_failure())
+            reset_mock.assert_awaited_once()
+        self.assertEqual(approved, [BT_STACK_RESET_REQUEST])
 
 
 if __name__ == "__main__":

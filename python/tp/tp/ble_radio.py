@@ -15,6 +15,8 @@ from tp.debug_log import write_exception as debug_write_exception
 BT_RADIO_OFF_SETTLE = 2.0
 BT_RADIO_ON_SETTLE = 4.0
 BT_RADIO_RESTART_COOLDOWN = 90.0
+# WinRT set_state_async / get_radios_async can hang indefinitely; bound each op.
+BT_RADIO_OP_TIMEOUT = 15.0
 BT_PERMISSION_DENIED_COOLDOWN = 300.0
 BT_STACK_RESET_COOLDOWN = 900.0
 BT_STACK_RESET_SETTLE = 8.0
@@ -52,6 +54,64 @@ BT_STACK_RESET_REQUEST = BluetoothPermissionRequest(
     ),
     action="stack_reset",
 )
+
+
+def windows_process_is_elevated() -> bool:
+    """True when this process already has an elevated admin token."""
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def windows_uac_elevation_prompts() -> bool:
+    """True when elevating would show a UAC consent/credential dialog.
+
+    Matches the common "Never notify" posture (ConsentPromptBehaviorAdmin=0)
+    and fully disabled UAC (EnableLUA=0), where RunAs elevates silently.
+    """
+    if sys.platform != "win32":
+        return True
+    try:
+        import winreg
+
+        with winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE,
+            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System",
+        ) as key:
+            try:
+                enable_lua, _ = winreg.QueryValueEx(key, "EnableLUA")
+                if int(enable_lua) == 0:
+                    return False
+            except OSError:
+                pass
+            try:
+                consent, _ = winreg.QueryValueEx(key, "ConsentPromptBehaviorAdmin")
+                # 0 = Elevate without prompting (slider: Never notify).
+                if int(consent) == 0:
+                    return False
+            except OSError:
+                pass
+    except OSError:
+        return True
+    return True
+
+
+def windows_stack_reset_needs_user_consent() -> bool:
+    """Whether TemPy should ask before launching the elevated Bluetooth reset.
+
+    Skip the in-app prompt when elevation will not interrupt (already elevated,
+    UAC off, or admin elevation without prompting).
+    """
+    if sys.platform != "win32":
+        return True
+    if windows_process_is_elevated():
+        return False
+    return windows_uac_elevation_prompts()
 
 
 def set_bluetooth_permission_callback(
@@ -102,7 +162,10 @@ async def is_bluetooth_radio_disabled() -> bool:
         try:
             from winrt.windows.devices.radios import Radio, RadioKind, RadioState
 
-            radios = await Radio.get_radios_async()
+            radios = await asyncio.wait_for(
+                Radio.get_radios_async(),
+                timeout=BT_RADIO_OP_TIMEOUT,
+            )
             bt_radio = next(
                 (radio for radio in radios if radio.kind == RadioKind.BLUETOOTH),
                 None,
@@ -110,6 +173,11 @@ async def is_bluetooth_radio_disabled() -> bool:
             if bt_radio is None:
                 return False
             return bt_radio.state != RadioState.ON
+        except asyncio.TimeoutError:
+            debug_write(
+                f"ble: radio state check timed out after {BT_RADIO_OP_TIMEOUT:.0f}s"
+            )
+            return False
         except Exception as exc:  # noqa: BLE001
             debug_write_exception("ble: radio state check failed", exc)
             return False
@@ -170,35 +238,57 @@ async def _request_bluetooth_permission(
 async def _winrt_set_bluetooth_enabled(enabled: bool) -> bool:
     from winrt.windows.devices.radios import Radio, RadioAccessStatus, RadioKind, RadioState
 
-    radios = await Radio.get_radios_async()
-    bt_radio = next((radio for radio in radios if radio.kind == RadioKind.BLUETOOTH), None)
-    if bt_radio is None:
-        debug_write("ble: Bluetooth radio not found")
+    try:
+        radios = await asyncio.wait_for(
+            Radio.get_radios_async(),
+            timeout=BT_RADIO_OP_TIMEOUT,
+        )
+        bt_radio = next(
+            (radio for radio in radios if radio.kind == RadioKind.BLUETOOTH),
+            None,
+        )
+        if bt_radio is None:
+            debug_write("ble: Bluetooth radio not found")
+            return False
+
+        target = RadioState.ON if enabled else RadioState.OFF
+        if bt_radio.state == target:
+            return enabled
+
+        result = await asyncio.wait_for(
+            bt_radio.set_state_async(target),
+            timeout=BT_RADIO_OP_TIMEOUT,
+        )
+        if result != RadioAccessStatus.ALLOWED:
+            debug_write(f"ble: set Bluetooth {target.name} denied ({result.name})")
+            return False
+
+        if enabled:
+            await asyncio.sleep(BT_RADIO_ON_SETTLE)
+        else:
+            await asyncio.sleep(BT_RADIO_OFF_SETTLE)
+
+        radios = await asyncio.wait_for(
+            Radio.get_radios_async(),
+            timeout=BT_RADIO_OP_TIMEOUT,
+        )
+        bt_radio = next(
+            (radio for radio in radios if radio.kind == RadioKind.BLUETOOTH),
+            None,
+        )
+        ready = bt_radio is not None and bt_radio.state == target
+        debug_write(
+            f"ble: set Bluetooth {target.name} "
+            f"{'ok' if ready else 'failed'} "
+            f"(state={bt_radio.state.name if bt_radio else 'missing'})"
+        )
+        return ready
+    except asyncio.TimeoutError:
+        debug_write(
+            f"ble: set Bluetooth {'ON' if enabled else 'OFF'} timed out "
+            f"after {BT_RADIO_OP_TIMEOUT:.0f}s"
+        )
         return False
-
-    target = RadioState.ON if enabled else RadioState.OFF
-    if bt_radio.state == target:
-        return enabled
-
-    result = await bt_radio.set_state_async(target)
-    if result != RadioAccessStatus.ALLOWED:
-        debug_write(f"ble: set Bluetooth {target.name} denied ({result.name})")
-        return False
-
-    if enabled:
-        await asyncio.sleep(BT_RADIO_ON_SETTLE)
-    else:
-        await asyncio.sleep(BT_RADIO_OFF_SETTLE)
-
-    radios = await Radio.get_radios_async()
-    bt_radio = next((radio for radio in radios if radio.kind == RadioKind.BLUETOOTH), None)
-    ready = bt_radio is not None and bt_radio.state == target
-    debug_write(
-        f"ble: set Bluetooth {target.name} "
-        f"{'ok' if ready else 'failed'} "
-        f"(state={bt_radio.state.name if bt_radio else 'missing'})"
-    )
-    return ready
 
 
 async def _linux_set_bluetooth_enabled(enabled: bool) -> bool:
@@ -249,7 +339,18 @@ async def enable_bluetooth_radio() -> bool:
 async def _winrt_restart_bluetooth_radio() -> bool:
     from winrt.windows.devices.radios import Radio, RadioKind, RadioState
 
-    radios = await Radio.get_radios_async()
+    try:
+        radios = await asyncio.wait_for(
+            Radio.get_radios_async(),
+            timeout=BT_RADIO_OP_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        debug_write(
+            f"ble: radio restart skipped (get_radios timed out after "
+            f"{BT_RADIO_OP_TIMEOUT:.0f}s)"
+        )
+        return False
+
     bt_radio = next((radio for radio in radios if radio.kind == RadioKind.BLUETOOTH), None)
     if bt_radio is None:
         debug_write("ble: radio restart skipped (no Bluetooth radio found)")
@@ -392,7 +493,7 @@ def reset_bluetooth_script_path() -> Path:
 
 
 async def reset_windows_bluetooth_stack() -> bool:
-    """Run reset_bluetooth.ps1 elevated (UAC). Returns True when the process started."""
+    """Run reset_bluetooth.ps1 elevated. Returns True when the reset finished."""
     if sys.platform != "win32":
         debug_write("ble: stack reset unsupported on this platform")
         return False
@@ -403,30 +504,50 @@ async def reset_windows_bluetooth_stack() -> bool:
         return False
 
     script_text = str(script)
-    # Nested Start-Process -Verb RunAs pops UAC; -Wait blocks until the reset finishes.
-    argument_list = (
-        f"-NoProfile -ExecutionPolicy Bypass -File \\\"{script_text}\\\""
-    )
-    command = (
-        "Start-Process -FilePath powershell.exe -Verb RunAs -Wait "
-        f"-ArgumentList '{argument_list}'"
-    )
-    debug_write(f"ble: launching elevated stack reset ({script.name})")
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "powershell.exe",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            command,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
+    if windows_process_is_elevated():
+        # Already admin — run the script directly (no RunAs / UAC).
+        debug_write(f"ble: launching stack reset in-process elevated ({script.name})")
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "powershell.exe",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                script_text,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await proc.wait()
+        except Exception as exc:  # noqa: BLE001
+            debug_write_exception("ble: stack reset launch failed", exc)
+            return False
+    else:
+        # Nested Start-Process -Verb RunAs elevates; -Wait blocks until finished.
+        # With ConsentPromptBehaviorAdmin=0 this elevates silently (no UAC UI).
+        argument_list = (
+            f"-NoProfile -ExecutionPolicy Bypass -File \\\"{script_text}\\\""
         )
-        await proc.wait()
-    except Exception as exc:  # noqa: BLE001
-        debug_write_exception("ble: stack reset launch failed", exc)
-        return False
+        command = (
+            "Start-Process -FilePath powershell.exe -Verb RunAs -Wait "
+            f"-ArgumentList '{argument_list}'"
+        )
+        debug_write(f"ble: launching elevated stack reset ({script.name})")
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "powershell.exe",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                command,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await proc.wait()
+        except Exception as exc:  # noqa: BLE001
+            debug_write_exception("ble: stack reset launch failed", exc)
+            return False
 
     if proc.returncode not in (0, None):
         debug_write(f"ble: stack reset launcher exited {proc.returncode}")
@@ -439,7 +560,12 @@ async def reset_windows_bluetooth_stack() -> bool:
 
 
 async def maybe_reset_bluetooth_stack_after_radio_failure() -> bool:
-    """Ask permission, then run the Windows PnP Bluetooth reset (cooldown protected)."""
+    """Run the Windows PnP Bluetooth reset after stuck-device radio recovery fails.
+
+    Asks in-app permission only when elevation would show a UAC prompt. When UAC
+    is set to Never notify (or the process is already elevated), proceeds without
+    interrupting monitoring.
+    """
     global _last_stack_reset_at, _last_radio_restart_at
 
     if sys.platform != "win32":
@@ -453,8 +579,14 @@ async def maybe_reset_bluetooth_stack_after_radio_failure() -> bool:
         debug_write("ble: stack reset skipped (cooldown)")
         return False
 
-    if not await _request_bluetooth_permission(BT_STACK_RESET_REQUEST):
-        return False
+    if windows_stack_reset_needs_user_consent():
+        if not await _request_bluetooth_permission(BT_STACK_RESET_REQUEST):
+            return False
+    else:
+        debug_write(
+            "ble: stack reset auto-approved "
+            "(already elevated or UAC will not prompt)"
+        )
 
     lock = _get_radio_restart_lock()
     async with lock:

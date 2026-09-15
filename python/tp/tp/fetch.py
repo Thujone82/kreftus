@@ -287,12 +287,15 @@ async def run_fetch_cycle(
 ) -> tuple[list[PollResult], list[str]]:
     """Collect readings from managed devices (all or a subset).
 
-    Recovery ladder after a previously successful fleet:
+    Recovery ladder after a previously successful fleet (full-fleet polls only):
       1. Invalidate per-device BLE cache on each failure (in the cycle).
       2. Whole-fleet failure, or any device with fail_streak >= 2 → WinRT radio restart,
          then retry the failing devices.
       3. If those devices still have fail_streak >= 3 → optional elevated PnP stack reset
          (reset_bluetooth.ps1 via UAC), then retry again.
+
+    Minute retries / proper subsets skip radio and stack recovery — power-cycling
+    Bluetooth mid-Retry wedges WinRT and freezes the TUI.
     """
     batch, errors = await _run_fetch_cycle_once(
         config,
@@ -304,6 +307,16 @@ async def run_fetch_cycle(
     )
 
     if not allow_radio_recovery or not had_prior_success:
+        return batch, errors
+
+    # Partial cycles (startup stale, 1-minute chunk retries) keep fail_streak
+    # and cache invalidation, but must not restart the radio until a full poll.
+    if only_macs is not None and len(only_macs) < len(config.devices):
+        debug_write(
+            f"fetch: skipping radio recovery on partial cycle "
+            f"({len(only_macs)}/{len(config.devices)} device(s))",
+            config=config,
+        )
         return batch, errors
 
     ok = sum(1 for result in batch if result.reading is not None)
